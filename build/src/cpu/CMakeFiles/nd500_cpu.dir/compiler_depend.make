@@ -93,6 +93,7 @@ src/cpu/CMakeFiles/nd500_cpu.dir/cpu_instr.c.o: ../src/cpu/cpu_instr.c \
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/cpu/cpu_protos.h \
   ../src/machine/machine_types.h \
+  ../src/machine/machine_protos.h \
   include/nd500_instructions_gen.h
 
 
