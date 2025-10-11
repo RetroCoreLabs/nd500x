@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../lib/libnd500_cpu.a CMakeFiles/nd500_cpu.dir/cpu.c.o CMakeFiles/nd500_cpu.dir/cpu_instr.c.o
+/usr/bin/ranlib ../../lib/libnd500_cpu.a

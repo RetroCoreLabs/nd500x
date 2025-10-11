@@ -1,0 +1,9 @@
+[submodule "external/libdap"]
+	path = external/libdap
+	url = https://github.com/HackerCorpLabs/libdap
+	branch = main
+[submodule "external/libsymbols"]
+	path = external/libsymbols
+	url = https://github.com/HackerCorpLabs/libsymbols
+	branch = main
+
