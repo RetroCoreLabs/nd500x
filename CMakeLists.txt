@@ -105,3 +105,5 @@ if(PLATFORM_WASM OR BUILD_WASM)
 endif()
 
 
+enable_testing()
+add_subdirectory(test)

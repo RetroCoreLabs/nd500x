@@ -33,17 +33,15 @@ static void cmd_mem(Nd500Machine* m, const char* a1, const char* a2, uint32_t pc
 }
 
 static void cmd_dis(Nd500Machine* m, const char* a1, const char* a2, uint32_t pc_default) {
-	char buf[512];
 	uint32_t addr = parse_u32(a1, pc_default);
 	uint32_t len  = parse_u32(a2, 100);
-	nd500_dbg_disasm(m, addr, len, buf, sizeof(buf));
-	printf("%s\n", buf);
+	nd500_dbg_disasm_print(m, addr, len);
 }
 
 int nd500_debugger_repl(Nd500Machine* m) {
 	char line[256];
-    printf("nd500x debug mode. Commands: m [addr [len]], d [addr [len]], step [n], regs, load <path>, run, stop, dap <port>, q\n");
-	while (fprintf(stdout, "> "), fflush(stdout), fgets(line, sizeof(line), stdin)) {
+    printf("nd500x debug mode. Commands: m [addr [len]], d [addr [len]], step [n], regs, load <path>, run, stop, symb, dap <port>, help, q\n");
+    while (fprintf(stdout, "[%08X] ", m && m->cpu ? m->cpu->PC : 0), fflush(stdout), fgets(line, sizeof(line), stdin)) {
 		char* tok = strtok(line, " \t\r\n");
 		if (!tok) continue;
 		if (strcmp(tok, "q") == 0 || strcmp(tok, "quit") == 0 || strcmp(tok, "exit") == 0) break;
@@ -57,7 +55,7 @@ int nd500_debugger_repl(Nd500Machine* m) {
 			char* a2 = strtok(NULL, " \t\r\n");
             uint32_t pc = m->cpu ? m->cpu->PC : 0;
             cmd_dis(m, a1, a2, pc);
-		} else if (strcmp(tok, "step") == 0) {
+        } else if (strcmp(tok, "step") == 0 || strcmp(tok, "s") == 0) {
 			char* a1 = strtok(NULL, " \t\r\n");
 			uint32_t n = parse_u32(a1, 1);
 			for (uint32_t i = 0; i < n; ++i) nd500_dbg_step(m, 1);
@@ -83,6 +81,8 @@ int nd500_debugger_repl(Nd500Machine* m) {
                 if (ndlib_symbols_load(path) == 0) {
                     printf("symbols loaded\n");
                 }
+                /* Print metadata similar to nd500-dump */
+                (void)ndlib_aout_dump_metadata(path);
 			} else {
 				printf("load failed\n");
 			}
@@ -92,6 +92,8 @@ int nd500_debugger_repl(Nd500Machine* m) {
 		} else if (strcmp(tok, "stop") == 0) {
 			nd500_dbg_stop(m);
 			printf("stopped\n");
+        } else if (strcmp(tok, "symb") == 0 || strcmp(tok, "symbols") == 0) {
+			ndlib_symbols_list_all();
         } else if (strcmp(tok, "dap") == 0) {
 #ifdef WITH_DEBUGGER
             char* p = strtok(NULL, " \t\r\n");
@@ -101,6 +103,19 @@ int nd500_debugger_repl(Nd500Machine* m) {
 #else
             printf("DAP not available (libdap missing)\n");
 #endif
+        } else if (strcmp(tok, "help") == 0 || strcmp(tok, "?") == 0) {
+            printf("Commands:\n");
+            printf("  help                  Show this help\n");
+            printf("  m [addr [len]]        Hex dump memory (default addr=PC, len=100)\n");
+            printf("  d [addr [len]]        Disassemble bytes (default addr=PC, len=100)\n");
+            printf("  step [n]              Execute n instructions (default 1)\n");
+            printf("  regs                  Show CPU registers\n");
+            printf("  load <path>           Load ND-500 a.out into memory\n");
+            printf("  run                   Start execution (background)\n");
+            printf("  stop                  Stop execution\n");
+            printf("  symb                  List all symbols\n");
+            printf("  dap <port>            Start DAP server on port (WITH_DEBUGGER)\n");
+            printf("  q                     Quit\n");
         } else {
 			printf("unknown command\n");
 		}

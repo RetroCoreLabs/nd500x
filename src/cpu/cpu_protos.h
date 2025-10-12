@@ -45,6 +45,14 @@ int nd500_instr_load_default(void);
 const char* nd500_instr_mnemonic(uint16_t opcode);
 int nd500_instr_opcode_length(uint16_t opcode);
 int nd500_instr_operand_count(uint16_t opcode);
+int nd500_instr_has_rn(uint16_t opcode);
+char nd500_instr_default_dtype(uint16_t opcode);
+int nd500_instr_dest_reg(uint16_t opcode);
+uint8_t nd500_instr_prefixes_mask(uint16_t opcode);
+uint8_t nd500_instr_variant(uint16_t opcode);
+const char* nd500_instr_dtype_prefix(uint16_t opcode);
+int nd500_instr_is_branch(uint16_t opcode);
+int nd500_instr_operand_is_direct(uint16_t opcode, uint8_t operand_idx);
 
 /* Decoded instruction model */
 typedef enum Nd500AddrMode {
@@ -84,8 +92,12 @@ typedef struct Nd500FetchedInstruction {
     uint8_t operand_count;
     Nd500OperandDecoded operands[4];
     uint32_t total_len;
+    uint8_t bytes[32];  /* All bytes consumed by this instruction */
 } Nd500FetchedInstruction;
 
 int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out);
+
+/* Execute one decoded instruction */
+void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 
 

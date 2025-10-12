@@ -24,13 +24,14 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 
 void nd500_cpu_step(Nd500Cpu* cpu) {
 	if (!cpu || !cpu->machine) return;
-    /* Fetch opcode (up to 2 bytes) and advance PC by opcode length */
-    uint8_t b0 = nd500_bus_read8(cpu->machine, cpu->PC);
-    uint8_t b1 = nd500_bus_read8(cpu->machine, cpu->PC + 1);
-    uint16_t opcode = (uint16_t)b0 | ((uint16_t)b1 << 8);
-    int oplen = nd500_instr_opcode_length(opcode);
-    if (oplen < 1) oplen = 1;
-    cpu->PC += (uint32_t)oplen;
+    /* Decode, execute, then advance PC by decoded length */
+    Nd500FetchedInstruction fi;
+    uint32_t old_pc = cpu->PC;
+    if (nd500_decode_at(cpu->machine, old_pc, &fi) != 0) return;
+    nd500_execute_decoded(cpu, &fi);
+    if (cpu->PC == old_pc) {
+        cpu->PC += fi.total_len ? fi.total_len : fi.opcode_len;
+    }
 }
 
 void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {

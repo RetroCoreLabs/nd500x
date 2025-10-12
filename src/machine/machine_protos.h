@@ -16,6 +16,7 @@ void     nd500_bus_write32(Nd500Machine* m, uint32_t addr, uint32_t val);
 
 /* Unified debugger API (initial placeholders) */
 size_t nd500_dbg_mem_dump(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t* out, size_t out_cap);
+void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len);
 size_t nd500_dbg_disasm  (Nd500Machine* m, uint32_t addr, uint32_t len, char* out, size_t out_cap);
 void   nd500_dbg_step    (Nd500Machine* m, uint32_t count);
 void   nd500_dbg_run     (Nd500Machine* m);
