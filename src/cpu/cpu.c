@@ -8,6 +8,9 @@
 /* Global jump buffer for trap handling */
 jmp_buf cpu_jmp_buf;
 
+/* Global trap state */
+Nd500TrapState g_trap_state = {0};
+
 void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
 	if (!cpu) return;
 	memset(cpu, 0, sizeof(*cpu));
@@ -27,10 +30,21 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	cpu->OTE1 = cpu->OTE2 = cpu->CTE1 = cpu->CTE2 = 0;
 	cpu->MTE1 = cpu->MTE2 = cpu->TEMM1 = cpu->TEMM2 = 0;
 	cpu->ST1 = cpu->ST2 = 0;  /* Initialize status registers */
+	
+	/* Clear any pending traps */
+	nd500_trap_clear();
 }
 
 void nd500_cpu_step(Nd500Cpu* cpu) {
 	if (!cpu || !cpu->machine) return;
+	
+	/* Check for pending traps before executing instruction */
+	if (nd500_trap_occurred()) {
+		const Nd500TrapState* trap = nd500_trap_get_state();
+		printf("[CPU] Trap detected before instruction execution: %s\n", trap->trap_description);
+		cpu->machine->run_flag = 0; /* Stop execution */
+		return;
+	}
 	
 	/* Check breakpoints before executing instruction */
 	if (cpu->machine->bp_mgr && bp_should_break_at(cpu->machine->bp_mgr, cpu->PC)) {
@@ -43,6 +57,7 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
 		uint8_t opcode_byte = nd500_bus_read8(cpu->machine, cpu->PC);
 		if (opcode_byte == 0x00) {
 			printf("\n[TRAP] Invalid instruction 0x00 at PC=0x%08X (uninitialized memory)\n", cpu->PC);
+			nd500_trap_set_state(TRAP_IIC, cpu->PC, 0, "Invalid instruction 0x00 (uninitialized memory)");
 			cpu->machine->run_flag = 0; /* Stop execution */
 			return;
 		}
@@ -105,21 +120,13 @@ void raise_trap(uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
 	printf("\n[TRAP] Trap 0x%016llx at PC=0x%08X Data=0x%08X\n", 
 	       (unsigned long long)trapBit, trapPC, dataAddr);
 	
+	/* Set trap state for the runner to check */
+	nd500_trap_set_state(trapBit, trapPC, dataAddr, "Trap occurred during instruction execution");
+	
 	/* Check if this trap interrupts instruction execution */
 	if (trapBit & TRAP_INTERRUPT_MASK) {
-		/* Check if we're in a setjmp context */
-		/* For now, just stop execution gracefully instead of longjmp */
 		printf("[TRAP] Interrupting instruction execution\n");
-		
-		/* Instead of longjmp, we'll set a flag to stop execution */
-		/* This prevents segfaults when called from debugger step */
 		printf("[TRAP] Stopping execution due to non-ignorable trap\n");
-		
-		/* TODO: In full implementation, this would:
-		 * 1. Set status bits in CPU structure
-		 * 2. Check if trap is enabled
-		 * 3. longjmp back to cpu_run() if in proper context
-		 * 4. Or set a flag to stop execution gracefully */
 		return;
 	}
 	
@@ -267,6 +274,35 @@ void trap_branch(uint32_t pc) {
 void trap_call(uint32_t pc) {
 	printf("[TRAP] Call trap at PC=0x%08X\n", pc);
 	raise_trap(TRAP_CT, pc, 0);
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* TRAP STATE MANAGEMENT */
+/* ═══════════════════════════════════════════════════════ */
+
+void nd500_trap_clear(void) {
+    memset(&g_trap_state, 0, sizeof(g_trap_state));
+}
+
+int nd500_trap_occurred(void) {
+    return g_trap_state.trap_occurred;
+}
+
+const Nd500TrapState* nd500_trap_get_state(void) {
+    return &g_trap_state;
+}
+
+void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, const char* description) {
+    g_trap_state.trap_occurred = 1;
+    g_trap_state.trap_condition = condition;
+    g_trap_state.trap_pc = pc;
+    g_trap_state.trap_data_addr = data_addr;
+    if (description) {
+        strncpy(g_trap_state.trap_description, description, sizeof(g_trap_state.trap_description) - 1);
+        g_trap_state.trap_description[sizeof(g_trap_state.trap_description) - 1] = '\0';
+    } else {
+        g_trap_state.trap_description[0] = '\0';
+    }
 }
 
 /**

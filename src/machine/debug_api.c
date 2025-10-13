@@ -572,4 +572,21 @@ void nd500_dbg_toggle_trap_invalid(void) {
     printf("Invalid instruction trap: %s\n", !current ? "ON" : "OFF");
 }
 
+/* Trap state management functions */
+void nd500_dbg_clear_traps(void) {
+    nd500_trap_clear();
+}
+
+int nd500_dbg_trap_occurred(void) {
+    return nd500_trap_occurred();
+}
+
+const char* nd500_dbg_get_trap_description(void) {
+    const Nd500TrapState* trap = nd500_trap_get_state();
+    if (trap && trap->trap_occurred) {
+        return trap->trap_description;
+    }
+    return NULL;
+}
+
 
