@@ -239,11 +239,6 @@ static char* command_generator(const char* text, int state) {
     char* line = rl_line_buffer;
     int point = rl_point;
     
-    /* Debug output */
-    if (state == 0) {
-        fprintf(stderr, "DEBUG: text='%s', line='%s', point=%d\n", 
-                text ? text : "NULL", line ? line : "NULL", point);
-    }
     
     /* Find the start of the current word */
     int word_start = point;
