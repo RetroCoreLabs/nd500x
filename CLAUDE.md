@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ND500X is a Norsk Data ND-500 CPU emulator written in C (C11). It emulates the ND-500 architecture with byte-addressed memory, CPU state, and provides both native and WebAssembly (WASM) build targets.
 
+**Key Features:**
+- Professional tab completion with context-aware command and subcommand completion
+- Command history with arrow key navigation and persistent storage
+- Advanced debugging features (conditional breakpoints, instruction tracing, performance profiling, call stack tracking)
+- Interactive CLI debugger with memory inspection, disassembly, and step-through execution
+
 ## Build Commands
 
 ### Native Build
@@ -45,6 +51,28 @@ make wasm-clean     # Clean WASM build
 - **Instruction code generation**: The build system auto-generates instruction tables from `build/src/cpu/instructions.json` via the `gen_instructions` tool (native builds only)
   - Generates: `build/include/nd500_instructions_gen.h` and `build/nd500_instructions_gen.c`
   - This step runs automatically during CMake build via custom commands
+
+## Tab Completion Implementation
+
+The debugger features professional tab completion using GNU Readline:
+
+**Key Implementation Details:**
+- Uses `rl_attempted_completion_function` for context-aware completion
+- `command_completion()` dispatches between command and subcommand generators
+- `subcommand_generator()` provides completions based on line context
+- `rl_variable_bind("show-all-if-ambiguous", "on")` shows all matches with single TAB
+- `rl_basic_word_break_characters` configured for proper word boundary detection
+- Avoids `strtok()` buffer modification by using `strncmp()` for context detection
+
+**Commands with Tab Completion:**
+- Main commands: `help`, `step`, `continue`, `symb`, `bp`, `wp`, `q`, etc.
+- Subcommands: `show` (ea, demangle, trace, profile, trap, traps, trap-status)
+- Register names: `set` (PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2)
+
+**Dependencies:**
+- `libreadline-dev` (optional) - provides tab completion and command history
+- Build system detects readline via `pkg_check_modules(READLINE QUIET readline)`
+- Graceful fallback if readline not available
 
 ## Architecture & Code Organization
 
