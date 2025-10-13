@@ -50,4 +50,9 @@ void   nd500_dbg_call_stack_pop(void);
 void   nd500_dbg_show_backtrace(void);
 void   nd500_dbg_call_stack_reset(void);
 
+/* Invalid instruction trap functions */
+int    nd500_dbg_set_trap_invalid(int onoff);
+int    nd500_dbg_get_trap_invalid(void);
+void   nd500_dbg_toggle_trap_invalid(void);
+
 

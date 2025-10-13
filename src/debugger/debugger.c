@@ -153,6 +153,22 @@ int nd500_debugger_repl(Nd500Machine* m) {
                 } else { printf("usage: show profile [on|off]\n"); continue; }
                 nd500_dbg_set_profiling(newv);
                 printf("show profile: %s\n", newv ? "on" : "off");
+            } else if (strcmp(sub, "trap") == 0) {
+                char* val = strtok(NULL, " \t\r\n");
+                int newv;
+                if (!val) {
+                    int cur = nd500_dbg_get_trap_invalid();
+                    newv = !cur;
+                } else if (strcasecmp(val, "on") == 0) {
+                    newv = 1;
+                } else if (strcasecmp(val, "off") == 0) {
+                    newv = 0;
+                } else {
+                    printf("usage: show trap [on|off]\n");
+                    continue;
+                }
+                nd500_dbg_set_trap_invalid(newv);
+                printf("show trap: %s\n", newv ? "on" : "off");
             } else {
                 printf("unknown show option\n");
             }
@@ -315,6 +331,7 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  show demangle [on|off]      Toggle C-symbol demangling (strip leading _)\n");
             printf("  show trace [on|off]         Toggle instruction execution tracing\n");
             printf("  show profile [on|off]      Toggle instruction execution profiling\n");
+            printf("  show trap [on|off]          Toggle invalid instruction 0x00 trap\n");
             printf("  profile [show|reset]       Show profiling statistics or reset data\n");
             printf("  backtrace (bt)             Show call stack backtrace\n");
             printf("  step [n] (s [n])            Execute n instructions (default 1)\n");

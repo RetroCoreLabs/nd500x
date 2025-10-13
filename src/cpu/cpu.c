@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 #include "cpu_protos.h"
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
@@ -30,6 +31,16 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
 	if (cpu->machine->bp_mgr && bp_should_break_at(cpu->machine->bp_mgr, cpu->PC)) {
 		cpu->machine->run_flag = 0; /* Stop execution */
 		return; /* Don't execute this instruction yet */
+	}
+	
+	/* Trap on invalid instruction 0x00 (uninitialized memory) */
+	if (nd500_dbg_get_trap_invalid()) {
+		uint8_t opcode_byte = nd500_bus_read8(cpu->machine, cpu->PC);
+		if (opcode_byte == 0x00) {
+			printf("\n[TRAP] Invalid instruction 0x00 at PC=0x%08X (uninitialized memory)\n", cpu->PC);
+			cpu->machine->run_flag = 0; /* Stop execution */
+			return;
+		}
 	}
 	
     /* Decode, execute, then advance PC by decoded length */
