@@ -55,4 +55,9 @@ int    nd500_dbg_set_trap_invalid(int onoff);
 int    nd500_dbg_get_trap_invalid(void);
 void   nd500_dbg_toggle_trap_invalid(void);
 
+/* Trap state management */
+void   nd500_dbg_clear_traps(void);
+int    nd500_dbg_trap_occurred(void);
+const char* nd500_dbg_get_trap_description(void);
+
 

@@ -185,6 +185,13 @@ int nd500_debugger_repl(Nd500Machine* m) {
                 } else {
                     printf("usage: show traps [on|off]\n");
                 }
+            } else if (strcmp(sub, "trap-status") == 0) {
+                if (nd500_dbg_trap_occurred()) {
+                    const char* desc = nd500_dbg_get_trap_description();
+                    printf("Trap occurred: %s\n", desc ? desc : "Unknown trap");
+                } else {
+                    printf("No traps pending\n");
+                }
             } else {
                 printf("unknown show option\n");
             }
@@ -327,8 +334,14 @@ int nd500_debugger_repl(Nd500Machine* m) {
         } else if (strcmp(tok, "continue") == 0 || strcmp(tok, "c") == 0 || strcmp(tok, "cont") == 0) {
 			/* Continue execution after hitting a breakpoint */
 			if (!m->cpu) { printf("no cpu linked\n"); continue; }
+			/* Clear any pending traps before continuing */
+			nd500_dbg_clear_traps();
 			nd500_dbg_run(m);
 			printf("continuing...\n");
+        } else if (strcmp(tok, "clear-traps") == 0) {
+			/* Clear any pending traps */
+			nd500_dbg_clear_traps();
+			printf("Traps cleared\n");
         } else if (strcmp(tok, "dap") == 0) {
 #ifdef WITH_DEBUGGER
             char* p = strtok(NULL, " \t\r\n");
@@ -349,6 +362,7 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  show profile [on|off]      Toggle instruction execution profiling\n");
             printf("  show trap [on|off]          Toggle invalid instruction 0x00 trap\n");
             printf("  show traps [on|off]         Show trap system status\n");
+            printf("  show trap-status            Show current trap status\n");
             printf("  profile [show|reset]       Show profiling statistics or reset data\n");
             printf("  backtrace (bt)             Show call stack backtrace\n");
             printf("  step [n] (s [n])            Execute n instructions (default 1)\n");
@@ -357,6 +371,7 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  run                         Start execution (background)\n");
             printf("  stop                        Stop execution\n");
             printf("  continue (c/cont)           Continue execution after breakpoint\n");
+            printf("  clear-traps                 Clear any pending traps\n");
             printf("  symb (symbols)              List all symbols\n");
             printf("\n");
             printf("Breakpoints:\n");

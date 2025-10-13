@@ -76,6 +76,17 @@ typedef struct Nd500Cpu {
 /* Global jump buffer for trap handling */
 extern jmp_buf cpu_jmp_buf;
 
+/* Trap system state */
+typedef struct {
+    int trap_occurred;           /* Flag indicating if a trap occurred */
+    uint64_t trap_condition;     /* The trap condition that occurred */
+    uint32_t trap_pc;            /* PC where trap occurred */
+    uint32_t trap_data_addr;     /* Related data address */
+    char trap_description[256];  /* Human-readable trap description */
+} Nd500TrapState;
+
+extern Nd500TrapState g_trap_state;
+
 typedef struct Nd500Regs {
 	uint32_t PC;
 	uint32_t FLAGS;
@@ -98,6 +109,12 @@ int nd500_cpu_run(Nd500Cpu* cpu, int steps);
 void raise_trap(uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr);
 void check_pending_traps(Nd500Cpu* cpu);
 void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP);
+
+/* Trap state management */
+void nd500_trap_clear(void);
+int nd500_trap_occurred(void);
+const Nd500TrapState* nd500_trap_get_state(void);
+void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, const char* description);
 
 /* Trap helper functions */
 void trap_illegal_instruction(uint32_t pc, uint32_t opcode);
