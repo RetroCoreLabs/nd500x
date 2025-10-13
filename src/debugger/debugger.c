@@ -14,6 +14,7 @@
 #include "../ndlib/ndlib.h"
 #include "../cpu/cpu_protos.h"
 
+
 static uint32_t parse_u32(const char* s, uint32_t defv) {
 	if (!s || !*s) return defv;
 	char* end = NULL;
@@ -229,6 +230,102 @@ static char* command_generator(const char* text, int state) {
     static const char* profile_matches[] = {
         "show", "reset"
     };
+    static const char* set_matches[] = {
+        "PC", "I1", "I2", "I3", "I4", "A1", "A2", "A3", "A4", "E1", "E2", "E3", "E4",
+        "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2"
+    };
+    
+    /* Check if we're completing a subcommand */
+    char* line = rl_line_buffer;
+    int point = rl_point;
+    
+    /* Find the start of the current word */
+    int word_start = point;
+    while (word_start > 0 && !isspace(line[word_start - 1])) {
+        word_start--;
+    }
+    
+    /* Check if we're after 'show ' */
+    if (strncmp(line, "show ", 5) == 0 && word_start >= 5) {
+        if (state == 0) {
+            list_index = 0;
+            len = strlen(text);
+        }
+        
+        while (list_index < sizeof(show_matches) / sizeof(show_matches[0])) {
+            const char* match = show_matches[list_index++];
+            if (strncmp(match, text, len) == 0) {
+                return strdup(match);
+            }
+        }
+        return NULL;
+    }
+    
+    /* Check if we're after 'bp ' */
+    if ((strncmp(line, "bp ", 3) == 0 || strncmp(line, "break ", 6) == 0 || strncmp(line, "breakpoint ", 11) == 0) && 
+        word_start >= (strncmp(line, "bp ", 3) == 0 ? 3 : (strncmp(line, "break ", 6) == 0 ? 6 : 11))) {
+        if (state == 0) {
+            list_index = 0;
+            len = strlen(text);
+        }
+        
+        while (list_index < sizeof(bp_matches) / sizeof(bp_matches[0])) {
+            const char* match = bp_matches[list_index++];
+            if (strncmp(match, text, len) == 0) {
+                return strdup(match);
+            }
+        }
+        return NULL;
+    }
+    
+    /* Check if we're after 'wp ' */
+    if ((strncmp(line, "wp ", 3) == 0 || strncmp(line, "watch ", 6) == 0 || strncmp(line, "watchpoint ", 11) == 0) && 
+        word_start >= (strncmp(line, "wp ", 3) == 0 ? 3 : (strncmp(line, "watch ", 6) == 0 ? 6 : 11))) {
+        if (state == 0) {
+            list_index = 0;
+            len = strlen(text);
+        }
+        
+        while (list_index < sizeof(wp_matches) / sizeof(wp_matches[0])) {
+            const char* match = wp_matches[list_index++];
+            if (strncmp(match, text, len) == 0) {
+                return strdup(match);
+            }
+        }
+        return NULL;
+    }
+    
+    /* Check if we're after 'profile ' */
+    if (strncmp(line, "profile ", 8) == 0 && word_start >= 8) {
+        if (state == 0) {
+            list_index = 0;
+            len = strlen(text);
+        }
+        
+        while (list_index < sizeof(profile_matches) / sizeof(profile_matches[0])) {
+            const char* match = profile_matches[list_index++];
+            if (strncmp(match, text, len) == 0) {
+                return strdup(match);
+            }
+        }
+        return NULL;
+    }
+    
+    /* Check if we're after 'set ' */
+    if (strncmp(line, "set ", 4) == 0 && word_start >= 4) {
+        if (state == 0) {
+            list_index = 0;
+            len = strlen(text);
+        }
+        
+        while (list_index < sizeof(set_matches) / sizeof(set_matches[0])) {
+            const char* match = set_matches[list_index++];
+            if (strncmp(match, text, len) == 0) {
+                return strdup(match);
+            }
+        }
+        return NULL;
+    }
     
     if (!state) {
         list_index = 0;
