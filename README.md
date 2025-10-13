@@ -14,7 +14,10 @@ ND500X is an emulator for the Norsk Data ND-500 architecture, featuring:
 - **Byte-addressed memory** with bus interface
 - **14 addressing modes** including short forms, extended modes, and special modifiers
 - **Interactive CLI debugger** with memory inspection, disassembly, and step-through execution
+- **Professional tab completion** with context-aware command and subcommand completion
+- **Command history** with arrow key navigation and persistent storage
 - **Breakpoints and Watchpoints** for advanced debugging (PC-based, memory read/write/change)
+- **Advanced debugging features** including conditional breakpoints, instruction tracing, performance profiling, and call stack tracking
 - **WebAssembly support** for browser-based emulation
 - **Instruction code generation** from JSON specification (1078 instruction variants)
 - **Debug Adapter Protocol** (DAP) support for IDE integration (optional)
@@ -146,7 +149,14 @@ The WASM build automatically:
 
 ### Debugger Commands
 
-The interactive debugger REPL supports the following commands:
+The interactive debugger REPL supports the following commands with **professional tab completion**:
+
+#### Tab Completion Features
+- **Context-aware completion**: Knows when you're completing commands vs subcommands
+- **Single TAB shows all matches**: `show t` + TAB → immediately shows `trace`, `trap`, `trap-status`, `traps`
+- **Command history**: Arrow keys for navigation, persistent storage in `~/.nd500x_history`
+- **History commands**: `!!` (last command), `!nnn` (by number), `!string` (search), `history` (list)
+- **All commands supported**: Main commands, aliases, and subcommands all have tab completion
 
 #### Basic Commands
 | Command | Description | Example |
@@ -172,6 +182,7 @@ The interactive debugger REPL supports the following commands:
 | `bp del <id>` | Delete breakpoint by ID | `bp del 0` |
 | `bp enable <id>` | Enable breakpoint by ID | `bp enable 0` |
 | `bp disable <id>` | Disable breakpoint by ID | `bp disable 1` |
+| `bp cond <addr> <condition>` | Set conditional breakpoint | `bp cond 0x1000 "PC == 0x2000"` |
 
 #### Watchpoint Commands
 | Command | Description | Example |
@@ -181,10 +192,32 @@ The interactive debugger REPL supports the following commands:
 | `wp del <id>` | Delete watchpoint by ID | `wp del 0` |
 | `wp enable <id>` | Enable watchpoint by ID | `wp enable 0` |
 | `wp disable <id>` | Disable watchpoint by ID | `wp disable 1` |
+| `wp reg <register>` | Set register watchpoint | `wp reg PC` |
 
-**Example Session:**
+#### Advanced Debugging Commands
+| Command | Description | Example |
+|---------|-------------|---------|
+| `show trace [on\|off]` | Toggle instruction tracing | `show trace on` |
+| `show profile [on\|off]` | Toggle performance profiling | `show profile on` |
+| `profile show` | Display profiling statistics | `profile show` |
+| `profile reset` | Reset profiling data | `profile reset` |
+| `backtrace` / `bt` | Show call stack | `backtrace` |
+| `set <register> <value>` | Set register value | `set PC 0x1000` |
+| `show ea [on\|off]` | Toggle effective address breakdown | `show ea on` |
+| `show demangle [on\|off]` | Toggle C symbol demangling | `show demangle on` |
+| `show trap [on\|off]` | Toggle invalid instruction 0x00 trap | `show trap on` |
+| `show traps` | Display trap system status | `show traps` |
+| `clear-traps` | Clear pending traps | `clear-traps` |
+| `history` | List command history | `history` |
+
+**Example Session with Tab Completion:**
 ```
-nd500x debug mode. Commands: m [addr [len]], d [addr [len]], step [n], regs, load <path>, run, stop, symb, dap <port>, help, q
+nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, show, bp, wp, continue, help, q
+Tab completion and command history enabled - press TAB to complete, UP/DOWN for history
+History commands: !! (last), !nnn (number), !string (search), history (list)
+[00000000] sh<TAB>         # Completes to "show"
+[00000000] show <TAB>      # Shows: ea demangle trace profile trap traps trap-status
+[00000000] show t<TAB>     # Shows: trace trap trap-status traps
 [00000000] load math.o
 File Type:      OBJECT FILE (needs linking)
 Relocations:    text=24 data=0 bytes (not yet resolved)
@@ -303,6 +336,7 @@ The emulator supports loading ND-500 a.out format files with full symbol table p
 | **external/libsymbols** | Optional | Symbol table support | Clone into `external/libsymbols/` |
 
 If libcjson is not found, the native build proceeds without JSON support.
+If libreadline is not found, the debugger will work without tab completion and command history.
 
 ### WebAssembly Build
 
