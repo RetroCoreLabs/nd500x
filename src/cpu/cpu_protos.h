@@ -82,6 +82,7 @@ typedef struct Nd500OperandDecoded {
     Nd500AddrMode mode;
     uint8_t data_len;
     uint8_t data[8];
+    uint32_t effective_address;  /* Computed effective address for memory operands */
 } Nd500OperandDecoded;
 
 typedef struct Nd500FetchedInstruction {
