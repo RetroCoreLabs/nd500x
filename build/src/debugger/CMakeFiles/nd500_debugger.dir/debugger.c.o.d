@@ -58,6 +58,8 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: \
  /home/ronny/repos/nd500x/src/debugger/../machine/machine_types.h \
  /home/ronny/repos/nd500x/src/debugger/../machine/machine_protos.h \
  /home/ronny/repos/nd500x/src/debugger/../machine/../cpu/cpu_protos.h \
+ /usr/include/setjmp.h /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+ /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
  /home/ronny/repos/nd500x/src/debugger/../machine/breakpoints.h \
  /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h \
  /home/ronny/repos/nd500x/src/debugger/../ndlib/ndlib.h

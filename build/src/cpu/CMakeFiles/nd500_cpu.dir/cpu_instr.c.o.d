@@ -53,7 +53,9 @@ src/cpu/CMakeFiles/nd500_cpu.dir/cpu_instr.c.o: \
  /usr/include/strings.h /usr/lib/gcc/x86_64-linux-gnu/11/include/stdint.h \
  /usr/include/stdint.h /usr/include/x86_64-linux-gnu/bits/wchar.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
- /home/ronny/repos/nd500x/src/cpu/cpu_protos.h \
+ /home/ronny/repos/nd500x/src/cpu/cpu_protos.h /usr/include/setjmp.h \
+ /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+ /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
  /home/ronny/repos/nd500x/src/cpu/../machine/machine_types.h \
  /home/ronny/repos/nd500x/src/cpu/../machine/machine_protos.h \
  /home/ronny/repos/nd500x/src/cpu/../../build/include/nd500_instructions_gen.h

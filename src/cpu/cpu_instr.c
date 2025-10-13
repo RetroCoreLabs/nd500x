@@ -502,6 +502,14 @@ static void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32
 
 void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (!cpu || !cpu->machine || !fi || !fi->mnemonic) return;
+    
+    /* Check for unknown/illegal instructions */
+    if (strcmp(fi->mnemonic, "???") == 0 || strcmp(fi->mnemonic, "UNKNOWN") == 0) {
+        /* Raise illegal instruction trap (non-ignorable) */
+        trap_illegal_instruction(cpu->PC, fi->opcode);
+        return; /* Never reaches here for non-ignorable traps */
+    }
+    
     /* Minimal: implement move and comp as examples */
     if (strcmp(fi->mnemonic, "move") == 0 && fi->operand_count == 2) {
         const Nd500OperandDecoded* src = &fi->operands[0];
@@ -519,6 +527,10 @@ void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (v == 0) cpu->FLAGS |= 1; /* Z */
         return;
     }
+    
+    /* For any other unimplemented instruction, raise illegal instruction trap */
+    printf("[CPU] Unimplemented instruction: %s\n", fi->mnemonic);
+    trap_illegal_instruction(cpu->PC, fi->opcode);
 }
 
 

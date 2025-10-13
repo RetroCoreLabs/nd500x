@@ -99,6 +99,9 @@ src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o: ../src/ndlib/ndlib_aout.c \
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/machine/machine_types.h \
   ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   ../src/ndlib/ndlib.h
 
 src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o: ../src/ndlib/ndlib_color.c \
@@ -242,6 +245,10 @@ src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o: ../src/ndlib/ndlib_symbo
 
 ../src/ndlib/ndlib.h:
 
+/usr/include/x86_64-linux-gnu/bits/setjmp.h:
+
+/usr/include/setjmp.h:
+
 ../src/cpu/cpu_protos.h:
 
 ../src/machine/machine_types.h:
@@ -331,6 +338,8 @@ src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o: ../src/ndlib/ndlib_symbo
 ../src/ndlib/ndlib.c:
 
 /usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/clockid_t.h:
 

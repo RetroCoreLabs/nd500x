@@ -56,4 +56,5 @@ src/machine/CMakeFiles/nd500_machine.dir/machine.c.o: \
  /usr/include/x86_64-linux-gnu/bits/pthread_stack_min.h \
  /home/ronny/repos/nd500x/src/machine/machine_protos.h \
  /home/ronny/repos/nd500x/src/machine/machine_types.h \
- /home/ronny/repos/nd500x/src/machine/../cpu/cpu_protos.h
+ /home/ronny/repos/nd500x/src/machine/../cpu/cpu_protos.h \
+ /usr/include/setjmp.h
