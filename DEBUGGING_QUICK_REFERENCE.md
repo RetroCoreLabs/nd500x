@@ -2,13 +2,31 @@
 
 ## 🚀 New Advanced Features
 
-### Tab Completion
+### Tab Completion & Command History
 ```bash
 # Press TAB to complete commands and subcommands
 show <TAB>                   # Complete show subcommands
 bp <TAB>                     # Complete breakpoint subcommands
 wp <TAB>                     # Complete watchpoint subcommands
-profile <TAB>                 # Complete profile subcommands
+profile <TAB>                # Complete profile subcommands
+set <TAB>                    # Complete register names
+
+# Command History Navigation
+UP/DOWN arrows              # Browse command history
+!!                          # Repeat last command
+!nnn                        # Execute command number nnn
+!string                     # Search for command starting with string
+history                     # List all command history
+```
+
+### Register Manipulation
+```bash
+set <register> <value>      # Set register value
+# Available registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2
+# Examples:
+set PC 0x1000              # Set program counter
+set I1 0x42                 # Set integer register 1
+set FLAGS 0x01              # Set flags register
 ```
 
 ### Enhanced Disassembly
