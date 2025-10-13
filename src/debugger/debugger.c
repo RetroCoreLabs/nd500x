@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include "debugger.h"
 #include "../machine/machine_protos.h"
+#include "../machine/breakpoints.h"
 #include "../ndlib/ndlib.h"
 #include "../cpu/cpu_protos.h"
 
@@ -40,7 +41,7 @@ static void cmd_dis(Nd500Machine* m, const char* a1, const char* a2, uint32_t pc
 
 int nd500_debugger_repl(Nd500Machine* m) {
 	char line[256];
-    printf("nd500x debug mode. Commands: m [addr [len]], d [addr [len]], step [n], regs, load <path>, run, stop, symb, dap <port>, help, q\n");
+    printf("nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, bp, wp, continue, help, q\n");
     while (fprintf(stdout, "[%08X] ", m && m->cpu ? m->cpu->PC : 0), fflush(stdout), fgets(line, sizeof(line), stdin)) {
 		char* tok = strtok(line, " \t\r\n");
 		if (!tok) continue;
@@ -94,6 +95,73 @@ int nd500_debugger_repl(Nd500Machine* m) {
 			printf("stopped\n");
         } else if (strcmp(tok, "symb") == 0 || strcmp(tok, "symbols") == 0) {
 			ndlib_symbols_list_all();
+        } else if (strcmp(tok, "bp") == 0 || strcmp(tok, "break") == 0 || strcmp(tok, "breakpoint") == 0) {
+			/* Breakpoint commands: bp [addr], bp list, bp del <id>, bp enable <id>, bp disable <id> */
+			char* a1 = strtok(NULL, " \t\r\n");
+			char* a2 = strtok(NULL, " \t\r\n");
+			
+			if (!m->bp_mgr) { printf("no breakpoint manager\n"); continue; }
+			
+			if (!a1 || strcasecmp(a1, "list") == 0 || strcasecmp(a1, "ls") == 0) {
+				bp_list(m->bp_mgr);
+			} else if (strcasecmp(a1, "del") == 0 || strcasecmp(a1, "delete") == 0) {
+				if (!a2) { printf("usage: bp del <id>\n"); continue; }
+				int id = (int)parse_u32(a2, -1);
+				bp_delete(m->bp_mgr, id);
+			} else if (strcasecmp(a1, "enable") == 0 || strcasecmp(a1, "en") == 0) {
+				if (!a2) { printf("usage: bp enable <id>\n"); continue; }
+				int id = (int)parse_u32(a2, -1);
+				bp_enable(m->bp_mgr, id);
+			} else if (strcasecmp(a1, "disable") == 0 || strcasecmp(a1, "dis") == 0) {
+				if (!a2) { printf("usage: bp disable <id>\n"); continue; }
+				int id = (int)parse_u32(a2, -1);
+				bp_disable(m->bp_mgr, id);
+			} else {
+				/* Set breakpoint at address */
+				uint32_t addr = parse_u32(a1, m->cpu ? m->cpu->PC : 0);
+				bp_add(m->bp_mgr, addr, false);
+			}
+        } else if (strcmp(tok, "wp") == 0 || strcmp(tok, "watch") == 0 || strcmp(tok, "watchpoint") == 0) {
+			/* Watchpoint commands: wp <addr> [len] [type], wp list, wp del <id> */
+			char* a1 = strtok(NULL, " \t\r\n");
+			char* a2 = strtok(NULL, " \t\r\n");
+			char* a3 = strtok(NULL, " \t\r\n");
+			
+			if (!m->bp_mgr) { printf("no breakpoint manager\n"); continue; }
+			
+			if (!a1 || strcasecmp(a1, "list") == 0 || strcasecmp(a1, "ls") == 0) {
+				wp_list(m->bp_mgr);
+			} else if (strcasecmp(a1, "del") == 0 || strcasecmp(a1, "delete") == 0) {
+				if (!a2) { printf("usage: wp del <id>\n"); continue; }
+				int id = (int)parse_u32(a2, -1);
+				wp_delete(m->bp_mgr, id);
+			} else if (strcasecmp(a1, "enable") == 0 || strcasecmp(a1, "en") == 0) {
+				if (!a2) { printf("usage: wp enable <id>\n"); continue; }
+				int id = (int)parse_u32(a2, -1);
+				wp_enable(m->bp_mgr, id);
+			} else if (strcasecmp(a1, "disable") == 0 || strcasecmp(a1, "dis") == 0) {
+				if (!a2) { printf("usage: wp disable <id>\n"); continue; }
+				int id = (int)parse_u32(a2, -1);
+				wp_disable(m->bp_mgr, id);
+			} else {
+				/* Set watchpoint: wp <addr> [len] [read|write|change] */
+				uint32_t addr = parse_u32(a1, 0);
+				uint32_t len = a2 ? parse_u32(a2, 4) : 4;
+				WatchpointType type = WP_TYPE_WRITE; /* default */
+				
+				if (a3) {
+					if (strcasecmp(a3, "read") == 0 || strcasecmp(a3, "r") == 0) type = WP_TYPE_READ;
+					else if (strcasecmp(a3, "write") == 0 || strcasecmp(a3, "w") == 0) type = WP_TYPE_WRITE;
+					else if (strcasecmp(a3, "change") == 0 || strcasecmp(a3, "c") == 0) type = WP_TYPE_CHANGE;
+				}
+				
+				wp_add(m->bp_mgr, addr, len, type);
+			}
+        } else if (strcmp(tok, "continue") == 0 || strcmp(tok, "c") == 0 || strcmp(tok, "cont") == 0) {
+			/* Continue execution after hitting a breakpoint */
+			if (!m->cpu) { printf("no cpu linked\n"); continue; }
+			nd500_dbg_run(m);
+			printf("continuing...\n");
         } else if (strcmp(tok, "dap") == 0) {
 #ifdef WITH_DEBUGGER
             char* p = strtok(NULL, " \t\r\n");
@@ -105,17 +173,33 @@ int nd500_debugger_repl(Nd500Machine* m) {
 #endif
         } else if (strcmp(tok, "help") == 0 || strcmp(tok, "?") == 0) {
             printf("Commands:\n");
-            printf("  help                  Show this help\n");
-            printf("  m [addr [len]]        Hex dump memory (default addr=PC, len=100)\n");
-            printf("  d [addr [len]]        Disassemble bytes (default addr=PC, len=100)\n");
-            printf("  step [n]              Execute n instructions (default 1)\n");
-            printf("  regs                  Show CPU registers\n");
-            printf("  load <path>           Load ND-500 a.out into memory\n");
-            printf("  run                   Start execution (background)\n");
-            printf("  stop                  Stop execution\n");
-            printf("  symb                  List all symbols\n");
-            printf("  dap <port>            Start DAP server on port (WITH_DEBUGGER)\n");
-            printf("  q                     Quit\n");
+            printf("  help                        Show this help\n");
+            printf("  m [addr [len]]              Hex dump memory (default addr=PC, len=100)\n");
+            printf("  d [addr [len]]              Disassemble bytes (default addr=PC, len=100)\n");
+            printf("  step [n]                    Execute n instructions (default 1)\n");
+            printf("  regs                        Show CPU registers\n");
+            printf("  load <path>                 Load ND-500 a.out into memory\n");
+            printf("  run                         Start execution (background)\n");
+            printf("  stop                        Stop execution\n");
+            printf("  continue (c)                Continue execution after breakpoint\n");
+            printf("  symb                        List all symbols\n");
+            printf("\n");
+            printf("Breakpoints:\n");
+            printf("  bp [addr]                   Set breakpoint at address (default: PC)\n");
+            printf("  bp list                     List all breakpoints\n");
+            printf("  bp del <id>                 Delete breakpoint\n");
+            printf("  bp enable <id>              Enable breakpoint\n");
+            printf("  bp disable <id>             Disable breakpoint\n");
+            printf("\n");
+            printf("Watchpoints:\n");
+            printf("  wp <addr> [len] [type]      Set watchpoint (type: read, write, change)\n");
+            printf("  wp list                     List all watchpoints\n");
+            printf("  wp del <id>                 Delete watchpoint\n");
+            printf("  wp enable <id>              Enable watchpoint\n");
+            printf("  wp disable <id>             Disable watchpoint\n");
+            printf("\n");
+            printf("  dap <port>                  Start DAP server on port (WITH_DEBUGGER)\n");
+            printf("  q                           Quit\n");
         } else {
 			printf("unknown command\n");
 		}

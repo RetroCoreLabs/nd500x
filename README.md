@@ -14,8 +14,9 @@ ND500X is an emulator for the Norsk Data ND-500 architecture, featuring:
 - **Byte-addressed memory** with bus interface
 - **14 addressing modes** including short forms, extended modes, and special modifiers
 - **Interactive CLI debugger** with memory inspection, disassembly, and step-through execution
+- **Breakpoints and Watchpoints** for advanced debugging (PC-based, memory read/write/change)
 - **WebAssembly support** for browser-based emulation
-- **Instruction code generation** from JSON specification (424KB+ instruction set)
+- **Instruction code generation** from JSON specification (1078 instruction variants)
 - **Debug Adapter Protocol** (DAP) support for IDE integration (optional)
 
 ## Table of Contents
@@ -117,10 +118,37 @@ The WASM build automatically:
 ./build/bin/nd500x --debug
 ```
 
+### Command-Line Options
+
+| Option | Description |
+|--------|-------------|
+| `--debug` | Start interactive debugger REPL |
+| `-i <path>` | Load ND-500 a.out file at startup |
+| `-ansi` | Force-enable ANSI color output (even when piped) |
+| `-noansi` | Force-disable ANSI color output |
+| `--disasm <len>` | Disassemble <len> bytes and exit |
+| `--addr <addr>` | Start address for disassembly |
+| `--hexdump <len>` | Hex dump <len> bytes and exit |
+
+**Color Output:**
+- By default, color output is automatically detected based on TTY and terminal type
+- When output is redirected to a file or pipe, colors are automatically disabled
+- Use `-ansi` to force colors on, or `-noansi` to force them off
+
+**Color Scheme:**
+- **Gray** - Memory addresses
+- **Yellow** - Hex byte codes
+- **Green** - Instructions (mov, add, sub, etc.)
+- **Red** - Branch/jump instructions (go, if>=go, etc.)
+- **White** - Operands and registers
+- **Cyan** - Labels and symbols
+- **Blue** - Comments
+
 ### Debugger Commands
 
 The interactive debugger REPL supports the following commands:
 
+#### Basic Commands
 | Command | Description | Example |
 |---------|-------------|---------|
 | `m [addr] [len]` | Display memory as hex dump | `m 0x1000 256` |
@@ -131,9 +159,28 @@ The interactive debugger REPL supports the following commands:
 | `symb` | List all loaded symbols from file | `symb` |
 | `run` | Start background execution | `run` |
 | `stop` | Stop background execution | `stop` |
+| `continue` / `c` | Continue execution after breakpoint | `continue` |
 | `help` | Show available commands | `help` |
 | `dap <port>` | Start DAP server (if libdap available) | `dap 47285` |
 | `q` / `quit` / `exit` | Exit the debugger | `q` |
+
+#### Breakpoint Commands
+| Command | Description | Example |
+|---------|-------------|---------|
+| `bp [addr]` | Set breakpoint at address (default: PC) | `bp 0x1000` |
+| `bp list` | List all breakpoints | `bp list` |
+| `bp del <id>` | Delete breakpoint by ID | `bp del 0` |
+| `bp enable <id>` | Enable breakpoint by ID | `bp enable 0` |
+| `bp disable <id>` | Disable breakpoint by ID | `bp disable 1` |
+
+#### Watchpoint Commands
+| Command | Description | Example |
+|---------|-------------|---------|
+| `wp <addr> [len] [type]` | Set watchpoint (type: read, write, change) | `wp 0x5000 4 write` |
+| `wp list` | List all watchpoints | `wp list` |
+| `wp del <id>` | Delete watchpoint by ID | `wp del 0` |
+| `wp enable <id>` | Enable watchpoint by ID | `wp enable 0` |
+| `wp disable <id>` | Disable watchpoint by ID | `wp disable 1` |
 
 **Example Session:**
 ```
