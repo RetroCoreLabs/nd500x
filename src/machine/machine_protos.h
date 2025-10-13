@@ -26,4 +26,28 @@ int    nd500_dbg_load_aout_file(Nd500Machine* m, const char* path, uint32_t* out
 int    nd500_dbg_load_aout_buffer(Nd500Machine* m, const uint8_t* data, size_t size, uint32_t* out_entry_pc);
 void   nd500_dbg_regs(struct Nd500Cpu* cpu, Nd500Regs* out_regs);
 
+/* Disassembly configuration */
+int    nd500_dbg_set_show_ea(int onoff);
+int    nd500_dbg_get_show_ea(void);
+int    nd500_dbg_set_demangle(int onoff);
+int    nd500_dbg_get_demangle(void);
+
+/* Trace configuration */
+int    nd500_dbg_set_trace_mode(int onoff);
+int    nd500_dbg_get_trace_mode(void);
+void   nd500_dbg_trace_instruction(uint32_t pc, const char* mnemonic, uint32_t* registers);
+
+/* Profiling configuration */
+int    nd500_dbg_set_profiling(int onoff);
+int    nd500_dbg_get_profiling(void);
+void   nd500_dbg_profile_instruction(const char* mnemonic);
+void   nd500_dbg_show_profile(void);
+void   nd500_dbg_reset_profile(void);
+
+/* Call stack tracking */
+void   nd500_dbg_call_stack_push(uint32_t pc, uint32_t return_addr);
+void   nd500_dbg_call_stack_pop(void);
+void   nd500_dbg_show_backtrace(void);
+void   nd500_dbg_call_stack_reset(void);
+
 

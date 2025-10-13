@@ -14,6 +14,9 @@
 # EXTERNAL cache entries
 ########################
 
+//Build symbol library test code
+BUILD_SYMBOLS_TEST:BOOL=OFF
+
 //Build WebAssembly frontend with Emscripten
 BUILD_WASM:BOOL=OFF
 
@@ -219,6 +222,15 @@ nd500x_IS_TOP_LEVEL:STATIC=ON
 //Value Computed by CMake
 nd500x_SOURCE_DIR:STATIC=/home/ronny/repos/nd500x
 
+//Value Computed by CMake
+symbols_BINARY_DIR:STATIC=/home/ronny/repos/nd500x/build/external/libsymbols
+
+//Value Computed by CMake
+symbols_IS_TOP_LEVEL:STATIC=OFF
+
+//Value Computed by CMake
+symbols_SOURCE_DIR:STATIC=/home/ronny/repos/nd500x/external/libsymbols
+
 
 ########################
 # INTERNAL cache entries
@@ -333,7 +345,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=7
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=9
 //ADVANCED property for variable: CMAKE_OBJCOPY
 CMAKE_OBJCOPY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_OBJDUMP

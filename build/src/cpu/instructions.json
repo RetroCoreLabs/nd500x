@@ -3013,12 +3013,12 @@
       "class": "FLOAT_MATH",
       "prefixes": "InstructionPrefixes.F | InstructionPrefixes.D | InstructionPrefixes.R_N",
       "prefixMask": "0x70",
-      "operandCount": 3,
+      "operandCount": 2,
       "variantNumber": 0,
       "totalVariants": 2,
-      "operandTemplates": ["0x0001FFE0", "0x00002002", "0x0009FFE0"],
-      "allowedModes": ["AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.CONSTANT", "AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE"],
-      "metadata": ["new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"]
+      "operandTemplates": ["0x0001FFE0", "0x00002002"],
+      "allowedModes": ["AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.CONSTANT"],
+      "metadata": ["new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"]
     },
     {
       "opcode": "0xFCE4",
@@ -3027,12 +3027,12 @@
       "class": "FLOAT_MATH",
       "prefixes": "InstructionPrefixes.F | InstructionPrefixes.D | InstructionPrefixes.R_N",
       "prefixMask": "0x70",
-      "operandCount": 3,
+      "operandCount": 2,
       "variantNumber": 1,
       "totalVariants": 2,
-      "operandTemplates": ["0x0001FFE0", "0x00002002", "0x0009FFE0"],
-      "allowedModes": ["AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.CONSTANT", "AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE"],
-      "metadata": ["new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"]
+      "operandTemplates": ["0x0001FFE0", "0x00002002"],
+      "allowedModes": ["AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.CONSTANT"],
+      "metadata": ["new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"]
     },
     {
       "opcode": "0xFCD4",
@@ -4245,12 +4245,12 @@
       "class": "CALL",
       "prefixes": "InstructionPrefixes.NONE",
       "prefixMask": "0x00",
-      "operandCount": 3,
+      "operandCount": 2,
       "variantNumber": 0,
       "totalVariants": 1,
-      "operandTemplates": ["0x0001FFE8", "0x00002002", "0x00089FE8"],
-      "allowedModes": ["AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.CONSTANT", "AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE"],
-      "metadata": ["new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"]
+      "operandTemplates": ["0x0001FFE8", "0x00002002"],
+      "allowedModes": ["AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.CONSTANT"],
+      "metadata": ["new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"]
     },
     {
       "opcode": "0x00C3",
@@ -4259,12 +4259,12 @@
       "class": "CALL",
       "prefixes": "InstructionPrefixes.NONE",
       "prefixMask": "0x00",
-      "operandCount": 3,
+      "operandCount": 2,
       "variantNumber": 0,
       "totalVariants": 1,
-      "operandTemplates": ["0x00020008", "0x00002002", "0x00089FE8"],
-      "allowedModes": ["AddressingModes.NONE", "AddressingModes.CONSTANT", "AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE"],
-      "metadata": ["new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"]
+      "operandTemplates": ["0x00020008", "0x00002002"],
+      "allowedModes": ["AddressingModes.NONE", "AddressingModes.CONSTANT"],
+      "metadata": ["new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"]
     },
     {
       "opcode": "0x00DC",

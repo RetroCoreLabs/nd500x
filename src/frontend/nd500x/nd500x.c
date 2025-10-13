@@ -5,6 +5,7 @@
 #include "../../cpu/cpu_protos.h"
 #include "../../debugger/debugger.h"
 #include "../../ndlib/ndlib.h"
+#include "../../ndlib/ndlib_color.h"
 
 int main(int argc, char** argv) {
 	int debug = 0;
@@ -12,6 +13,8 @@ int main(int argc, char** argv) {
     uint32_t dis_len = 0;
     uint32_t dis_addr = 0;
     uint32_t hex_len = 0;
+    int ansi_flag = 0; /* 0=auto, 1=force-enable, -1=force-disable */
+    
 	for (int i = 1; i < argc; ++i) {
 		if (strcmp(argv[i], "--debug") == 0) {
 			debug = 1;
@@ -23,8 +26,15 @@ int main(int argc, char** argv) {
             dis_addr = (uint32_t)strtoul(argv[++i], NULL, 0);
         } else if (strcmp(argv[i], "--hexdump") == 0 && i + 1 < argc) {
             hex_len = (uint32_t)strtoul(argv[++i], NULL, 0);
+        } else if (strcmp(argv[i], "-ansi") == 0) {
+            ansi_flag = 1;
+        } else if (strcmp(argv[i], "-noansi") == 0) {
+            ansi_flag = -1;
 		}
 	}
+    
+    /* Initialize color system based on flags */
+    ndlib_color_init(ansi_flag);
 
 	Nd500Machine machine;
 	nd500_machine_init(&machine, 8 * 1024 * 1024);

@@ -59,4 +59,5 @@ src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o: \
  /usr/include/x86_64-linux-gnu/bits/wchar.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
  /home/ronny/repos/nd500x/src/ndlib/../machine/machine_types.h \
- /home/ronny/repos/nd500x/src/ndlib/../machine/../cpu/cpu_protos.h
+ /home/ronny/repos/nd500x/src/ndlib/../machine/../cpu/cpu_protos.h \
+ /home/ronny/repos/nd500x/src/ndlib/ndlib.h

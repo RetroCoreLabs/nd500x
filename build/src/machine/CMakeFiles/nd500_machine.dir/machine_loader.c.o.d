@@ -56,4 +56,11 @@ src/machine/CMakeFiles/nd500_machine.dir/machine_loader.c.o: \
  /usr/include/x86_64-linux-gnu/bits/wchar.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
  /home/ronny/repos/nd500x/src/machine/machine_types.h \
- /home/ronny/repos/nd500x/src/machine/../cpu/cpu_protos.h
+ /home/ronny/repos/nd500x/src/machine/../cpu/cpu_protos.h \
+ /home/ronny/repos/nd500x/src/machine/../../external/libsymbols/include/symbols.h \
+ /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h \
+ /home/ronny/repos/nd500x/src/machine/../../external/libsymbols/include/stabs.h \
+ /home/ronny/repos/nd500x/src/machine/../../external/libsymbols/include/aout.h \
+ /home/ronny/repos/nd500x/src/machine/../../external/libsymbols/include/mapfile.h \
+ /home/ronny/repos/nd500x/src/machine/../../external/libsymbols/include/aout.h \
+ /home/ronny/repos/nd500x/src/machine/../../external/libsymbols/include/mapfile.h

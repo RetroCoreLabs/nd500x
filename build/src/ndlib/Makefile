@@ -65,6 +65,16 @@ CMAKE_BINARY_DIR = /home/ronny/repos/nd500x/build
 #=============================================================================
 # Targets provided globally by CMake.
 
+# Special rule for the target test
+test:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running tests..."
+	/usr/bin/ctest --force-new-ctest-process $(ARGS)
+.PHONY : test
+
+# Special rule for the target test
+test/fast: test
+.PHONY : test/fast
+
 # Special rule for the target edit_cache
 edit_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "No interactive CMake dialog available..."
@@ -84,6 +94,51 @@ rebuild_cache:
 # Special rule for the target rebuild_cache
 rebuild_cache/fast: rebuild_cache
 .PHONY : rebuild_cache/fast
+
+# Special rule for the target list_install_components
+list_install_components:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Available install components are: \"Unspecified\""
+.PHONY : list_install_components
+
+# Special rule for the target list_install_components
+list_install_components/fast: list_install_components
+.PHONY : list_install_components/fast
+
+# Special rule for the target install
+install: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Install the project..."
+	/usr/bin/cmake -P cmake_install.cmake
+.PHONY : install
+
+# Special rule for the target install
+install/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Install the project..."
+	/usr/bin/cmake -P cmake_install.cmake
+.PHONY : install/fast
+
+# Special rule for the target install/local
+install/local: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
+	/usr/bin/cmake -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
+.PHONY : install/local
+
+# Special rule for the target install/local
+install/local/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
+	/usr/bin/cmake -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
+.PHONY : install/local/fast
+
+# Special rule for the target install/strip
+install/strip: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
+	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
+.PHONY : install/strip
+
+# Special rule for the target install/strip
+install/strip/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
+	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
+.PHONY : install/strip/fast
 
 # The main all target
 all: cmake_check_build_system
@@ -178,6 +233,30 @@ ndlib_aout.c.s:
 	cd /home/ronny/repos/nd500x/build && $(MAKE) $(MAKESILENT) -f src/ndlib/CMakeFiles/nd500_ndlib.dir/build.make src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.s
 .PHONY : ndlib_aout.c.s
 
+ndlib_color.o: ndlib_color.c.o
+.PHONY : ndlib_color.o
+
+# target to build an object file
+ndlib_color.c.o:
+	cd /home/ronny/repos/nd500x/build && $(MAKE) $(MAKESILENT) -f src/ndlib/CMakeFiles/nd500_ndlib.dir/build.make src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o
+.PHONY : ndlib_color.c.o
+
+ndlib_color.i: ndlib_color.c.i
+.PHONY : ndlib_color.i
+
+# target to preprocess a source file
+ndlib_color.c.i:
+	cd /home/ronny/repos/nd500x/build && $(MAKE) $(MAKESILENT) -f src/ndlib/CMakeFiles/nd500_ndlib.dir/build.make src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.i
+.PHONY : ndlib_color.c.i
+
+ndlib_color.s: ndlib_color.c.s
+.PHONY : ndlib_color.s
+
+# target to generate assembly for a file
+ndlib_color.c.s:
+	cd /home/ronny/repos/nd500x/build && $(MAKE) $(MAKESILENT) -f src/ndlib/CMakeFiles/nd500_ndlib.dir/build.make src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.s
+.PHONY : ndlib_color.c.s
+
 ndlib_symbols.o: ndlib_symbols.c.o
 .PHONY : ndlib_symbols.o
 
@@ -209,7 +288,12 @@ help:
 	@echo "... clean"
 	@echo "... depend"
 	@echo "... edit_cache"
+	@echo "... install"
+	@echo "... install/local"
+	@echo "... install/strip"
+	@echo "... list_install_components"
 	@echo "... rebuild_cache"
+	@echo "... test"
 	@echo "... nd500_ndlib"
 	@echo "... ndlib.o"
 	@echo "... ndlib.i"
@@ -217,6 +301,9 @@ help:
 	@echo "... ndlib_aout.o"
 	@echo "... ndlib_aout.i"
 	@echo "... ndlib_aout.s"
+	@echo "... ndlib_color.o"
+	@echo "... ndlib_color.i"
+	@echo "... ndlib_color.s"
 	@echo "... ndlib_symbols.o"
 	@echo "... ndlib_symbols.i"
 	@echo "... ndlib_symbols.s"

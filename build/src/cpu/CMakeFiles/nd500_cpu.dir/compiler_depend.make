@@ -27,7 +27,9 @@ src/cpu/CMakeFiles/nd500_cpu.dir/cpu.c.o: ../src/cpu/cpu.c \
   /usr/include/x86_64-linux-gnu/bits/stdint-intn.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/machine/machine_types.h \
-  ../src/machine/machine_protos.h
+  ../src/machine/machine_protos.h \
+  ../src/machine/breakpoints.h \
+  /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h
 
 src/cpu/CMakeFiles/nd500_cpu.dir/cpu_instr.c.o: ../src/cpu/cpu_instr.c \
   /usr/include/stdc-predef.h \
@@ -107,6 +109,10 @@ include/nd500_instructions_gen.h:
 
 /usr/include/x86_64-linux-gnu/bits/thread-shared-types.h:
 
+/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h:
+
+../src/machine/breakpoints.h:
+
 /usr/include/x86_64-linux-gnu/gnu/stubs.h:
 
 /usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
@@ -145,17 +151,17 @@ include/nd500_instructions_gen.h:
 
 /usr/include/x86_64-linux-gnu/bits/floatn-common.h:
 
-/usr/include/stdio.h:
+/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
+/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/locale_t.h:
 
 /usr/include/x86_64-linux-gnu/bits/wordsize.h:
 
 /usr/include/stdlib.h:
-
-../src/cpu/cpu_instr.c:
 
 /usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
 
@@ -184,6 +190,12 @@ include/nd500_instructions_gen.h:
 /usr/include/x86_64-linux-gnu/bits/time64.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h:
+
+../src/cpu/cpu_instr.c:
+
+/usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
+
+/usr/include/stdio.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/11/include/stdint.h:
 
@@ -224,9 +236,3 @@ include/nd500_instructions_gen.h:
 /usr/include/x86_64-linux-gnu/bits/byteswap.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
-
-/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h:

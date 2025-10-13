@@ -17,6 +17,72 @@ size_t nd500_dbg_mem_dump(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t*
 	return max;
 }
 
+static int g_show_ea = -1;       /* -1: uninitialized, 0: off, 1: on */
+static int g_demangle = -1;      /* demangle C-style symbols (strip leading _) */
+static int g_trace_mode = -1;   /* instruction trace mode */
+static int g_profiling = -1;    /* instruction profiling mode */
+
+/* Profiling data structures */
+#define MAX_PROFILE_ENTRIES 256
+typedef struct {
+    char mnemonic[16];
+    uint32_t count;
+    uint32_t total_cycles;  /* Placeholder for cycle counting */
+} ProfileEntry;
+
+static ProfileEntry g_profile_entries[MAX_PROFILE_ENTRIES];
+static int g_profile_count = 0;
+static uint32_t g_total_instructions = 0;
+
+/* Call stack tracking */
+#define MAX_CALL_STACK 64
+typedef struct {
+    uint32_t pc;           /* Address where call was made */
+    uint32_t return_addr;  /* Return address */
+    const char* symbol;    /* Function symbol name */
+} CallStackEntry;
+
+static CallStackEntry g_call_stack[MAX_CALL_STACK];
+static int g_call_stack_depth = 0;
+
+int nd500_dbg_set_show_ea(int onoff) {
+    g_show_ea = onoff ? 1 : 0;
+    return g_show_ea;
+}
+
+int nd500_dbg_get_show_ea(void) {
+    if (g_show_ea < 0) {
+        const char* env = getenv("ND500X_SHOW_EA");
+        g_show_ea = (env && *env == '1') ? 1 : 0;
+    }
+    return g_show_ea;
+}
+
+static const char* maybe_demangle(const char* sym) {
+    if (!sym) return NULL;
+    if (g_demangle < 0) {
+        const char* env = getenv("ND500X_DEMANGLE");
+        g_demangle = (env && *env == '1') ? 1 : 0;
+    }
+    if (!g_demangle) return sym;
+    /* Simple C demangle: strip single leading underscore */
+    if (sym[0] == '_' && sym[1] != '\0') return sym + 1;
+    return sym;
+}
+
+int nd500_dbg_set_demangle(int onoff) {
+    g_demangle = onoff ? 1 : 0;
+    return g_demangle;
+}
+
+int nd500_dbg_get_demangle(void) {
+    if (g_demangle < 0) {
+        const char* env = getenv("ND500X_DEMANGLE");
+        g_demangle = (env && *env == '1') ? 1 : 0;
+    }
+    return g_demangle;
+}
+
 void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
     /* Print each instruction immediately - no buffer needed */
 	if (!m) return;
@@ -107,6 +173,7 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
         
         /* Check if there's a symbol at this address - show it on its own line first */
         const char* sym_at_addr = ndlib_symbols_name_for_addr(fi.address);
+        sym_at_addr = maybe_demangle(sym_at_addr);
         if (sym_at_addr && *sym_at_addr) {
             printf("%s%08X:%s                                   %s%s:%s\n", 
                    color_address(), fi.address, color_reset(),
@@ -184,6 +251,37 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
             size_t ol = format_operand(obuf, sizeof(obuf), &fi.operands[oi]);
             if (ol > 0) {
                 printf("%s%s", (oi > 0) ? "," : "", obuf);
+                /* EA breakdown when enabled and EA present */
+                if (nd500_dbg_get_show_ea() && fi.operands[oi].effective_address != 0) {
+                    /* Decode base for human-readable breakdown */
+                    const char* base = NULL; char basebuf[8]; basebuf[0] = '\0';
+                    switch (fi.operands[oi].mode) {
+                        case ND500_ADDR_LOCAL:
+                        case ND500_ADDR_LOCAL_PI:
+                        case ND500_ADDR_LOCAL_IND:
+                        case ND500_ADDR_LOCAL_IND_PI:
+                        case ND500_ADDR_LOCAL_SHORT:
+                            base = "B"; break;
+                        case ND500_ADDR_RECORD:
+                        case ND500_ADDR_RECORD_SHORT:
+                            base = "R"; break;
+                        case ND500_ADDR_PREINDEXED:
+                            snprintf(basebuf, sizeof(basebuf), "I%d", (int)fi.operands[oi].reg+1); base = basebuf; break;
+                        case ND500_ADDR_ABSOLUTE:
+                        case ND500_ADDR_ABSOLUTE_PI:
+                            base = "$"; break;
+                        default:
+                            base = NULL; break;
+                    }
+                    int32_t disp = 0;
+                    if (fi.operands[oi].data_len == 1) disp = (int8_t)fi.operands[oi].data[0];
+                    else if (fi.operands[oi].data_len == 2) disp = (int16_t)((uint16_t)fi.operands[oi].data[0] | ((uint16_t)fi.operands[oi].data[1] << 8));
+                    else if (fi.operands[oi].data_len >= 4) disp = (int32_t)((uint32_t)fi.operands[oi].data[0] | ((uint32_t)fi.operands[oi].data[1] << 8) | ((uint32_t)fi.operands[oi].data[2] << 16) | ((uint32_t)fi.operands[oi].data[3] << 24));
+                    printf(" %s[", color_comment());
+                    if (base) printf("%s", base);
+                    if (disp != 0) printf("%+d", disp);
+                    printf("]→0x%08X%s", fi.operands[oi].effective_address, color_reset());
+                }
             }
         }
         printf("%s", color_reset());
@@ -193,11 +291,14 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
         const char* reloc_symbol = ndlib_symbols_reloc_for_range(fi.address, fi.address + fi.total_len, &is_undefined);
         
         if (reloc_symbol && *reloc_symbol) {
+            reloc_symbol = maybe_demangle(reloc_symbol);
             /* Show relocation comment */
             if (is_undefined) {
-                printf(" %s; %s (UNRESOLVED)%s", color_comment(), reloc_symbol, color_reset());
+                /* Unresolved in red note */
+                printf(" %s; %s %s(UNRESOLVED)%s", color_comment(), reloc_symbol, color_branch(), color_reset());
             } else {
-                printf(" %s; -> %s%s", color_comment(), reloc_symbol, color_reset());
+                /* Resolved relocation in meta color */
+                printf(" %s; -> %s%s", color_meta(), reloc_symbol, color_reset());
             }
         } else if (nd500_instr_is_branch(fi.opcode) && fi.operand_count > 0) {
             /* Show target symbols for branch/call instructions using effective addresses */
@@ -241,8 +342,10 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
             /* Look up symbol for target address */
             if (found_target) {
                 const char* target_sym = ndlib_symbols_name_for_addr(target);
+                target_sym = maybe_demangle(target_sym);
                 if (target_sym && *target_sym) {
-                    printf(" %s; <%s>%s", color_comment(), target_sym, color_reset());
+                    /* Show an explicit jump/call arrow to the symbol */
+                    printf(" %s-> <%s>%s", color_meta(), target_sym, color_reset());
                 }
             }
         }
@@ -300,6 +403,147 @@ int nd500_dbg_load_aout_buffer(Nd500Machine* m, const uint8_t* data, size_t size
 	memcpy(m->memory, data, size);
 	if (out_entry_pc) *out_entry_pc = 0;
 	return 0;
+}
+
+/* Trace mode functions */
+int nd500_dbg_set_trace_mode(int onoff) {
+    g_trace_mode = onoff ? 1 : 0;
+    return g_trace_mode;
+}
+
+int nd500_dbg_get_trace_mode(void) {
+    if (g_trace_mode < 0) {
+        const char* env = getenv("ND500X_TRACE");
+        g_trace_mode = (env && strcmp(env, "1") == 0) ? 1 : 0;
+    }
+    return g_trace_mode;
+}
+
+void nd500_dbg_trace_instruction(uint32_t pc, const char* mnemonic, uint32_t* registers) {
+    if (!nd500_dbg_get_trace_mode()) return;
+    
+    printf("%s[TRACE]%s PC=0x%08X %s", 
+           color_meta(), color_reset(), pc, mnemonic ? mnemonic : "unknown");
+    
+    if (registers) {
+        printf(" I1=0x%08X I2=0x%08X I3=0x%08X I4=0x%08X", 
+               registers[1], registers[2], registers[3], registers[4]);
+    }
+    printf("\n");
+}
+
+/* Profiling functions */
+int nd500_dbg_set_profiling(int onoff) {
+    g_profiling = onoff ? 1 : 0;
+    return g_profiling;
+}
+
+int nd500_dbg_get_profiling(void) {
+    if (g_profiling < 0) {
+        const char* env = getenv("ND500X_PROFILE");
+        g_profiling = (env && strcmp(env, "1") == 0) ? 1 : 0;
+    }
+    return g_profiling;
+}
+
+void nd500_dbg_profile_instruction(const char* mnemonic) {
+    if (!nd500_dbg_get_profiling() || !mnemonic) return;
+    
+    g_total_instructions++;
+    
+    /* Find existing entry or create new one */
+    for (int i = 0; i < g_profile_count; i++) {
+        if (strcmp(g_profile_entries[i].mnemonic, mnemonic) == 0) {
+            g_profile_entries[i].count++;
+            return;
+        }
+    }
+    
+    /* Add new entry if we have space */
+    if (g_profile_count < MAX_PROFILE_ENTRIES) {
+        strncpy(g_profile_entries[g_profile_count].mnemonic, mnemonic, sizeof(g_profile_entries[g_profile_count].mnemonic) - 1);
+        g_profile_entries[g_profile_count].mnemonic[sizeof(g_profile_entries[g_profile_count].mnemonic) - 1] = '\0';
+        g_profile_entries[g_profile_count].count = 1;
+        g_profile_entries[g_profile_count].total_cycles = 1; /* Placeholder */
+        g_profile_count++;
+    }
+}
+
+void nd500_dbg_show_profile(void) {
+    if (g_total_instructions == 0) {
+        printf("No profiling data available\n");
+        return;
+    }
+    
+    printf("\n=== INSTRUCTION PROFILE ===\n");
+    printf("Total instructions executed: %u\n", g_total_instructions);
+    printf("\nInstruction frequency:\n");
+    printf("%-12s %8s %8s\n", "Mnemonic", "Count", "Percent");
+    printf("%-12s %8s %8s\n", "---------", "-----", "-------");
+    
+    for (int i = 0; i < g_profile_count; i++) {
+        float percent = (float)g_profile_entries[i].count * 100.0f / g_total_instructions;
+        printf("%-12s %8u %7.1f%%\n", 
+               g_profile_entries[i].mnemonic, 
+               g_profile_entries[i].count, 
+               percent);
+    }
+    printf("\n");
+}
+
+void nd500_dbg_reset_profile(void) {
+    g_profile_count = 0;
+    g_total_instructions = 0;
+    memset(g_profile_entries, 0, sizeof(g_profile_entries));
+    printf("Profiling data reset\n");
+}
+
+/* Call stack functions */
+void nd500_dbg_call_stack_push(uint32_t pc, uint32_t return_addr) {
+    if (g_call_stack_depth >= MAX_CALL_STACK) {
+        printf("Warning: Call stack overflow (max %d levels)\n", MAX_CALL_STACK);
+        return;
+    }
+    
+    g_call_stack[g_call_stack_depth].pc = pc;
+    g_call_stack[g_call_stack_depth].return_addr = return_addr;
+    g_call_stack[g_call_stack_depth].symbol = ndlib_symbols_name_for_addr(pc);
+    g_call_stack_depth++;
+}
+
+void nd500_dbg_call_stack_pop(void) {
+    if (g_call_stack_depth > 0) {
+        g_call_stack_depth--;
+    }
+}
+
+void nd500_dbg_show_backtrace(void) {
+    if (g_call_stack_depth == 0) {
+        printf("Call stack is empty\n");
+        return;
+    }
+    
+    printf("\n=== CALL STACK ===\n");
+    printf("Depth  PC        Return   Symbol\n");
+    printf("-----  --------  -------- ------\n");
+    
+    for (int i = g_call_stack_depth - 1; i >= 0; i--) {
+        const char* symbol = g_call_stack[i].symbol;
+        if (!symbol || !*symbol) symbol = "unknown";
+        
+        printf("%5d  0x%08X 0x%08X %s\n", 
+               g_call_stack_depth - i,
+               g_call_stack[i].pc,
+               g_call_stack[i].return_addr,
+               symbol);
+    }
+    printf("\n");
+}
+
+void nd500_dbg_call_stack_reset(void) {
+    g_call_stack_depth = 0;
+    memset(g_call_stack, 0, sizeof(g_call_stack));
+    printf("Call stack reset\n");
 }
 
 

@@ -8,6 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/ronny/repos/nd500x/src/machine/breakpoints.c" "src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.o" "gcc" "src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.o.d"
   "/home/ronny/repos/nd500x/src/machine/debug_api.c" "src/machine/CMakeFiles/nd500_machine.dir/debug_api.c.o" "gcc" "src/machine/CMakeFiles/nd500_machine.dir/debug_api.c.o.d"
   "/home/ronny/repos/nd500x/src/machine/io.c" "src/machine/CMakeFiles/nd500_machine.dir/io.c.o" "gcc" "src/machine/CMakeFiles/nd500_machine.dir/io.c.o.d"
   "/home/ronny/repos/nd500x/src/machine/machine.c" "src/machine/CMakeFiles/nd500_machine.dir/machine.c.o" "gcc" "src/machine/CMakeFiles/nd500_machine.dir/machine.c.o.d"

@@ -5,6 +5,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/nd500_ndlib.dir/ndlib.c.o.d"
   "CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o"
   "CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o.d"
+  "CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o"
+  "CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o.d"
   "CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o"
   "CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o.d"
 )

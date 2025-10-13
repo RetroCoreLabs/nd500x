@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include "../machine/machine_protos.h"
+#include "ndlib.h"
 
 /* Minimal ND-500 a.out header and symbol structures based on ragge/pcc-nd500 */
 struct nd500_exec {
@@ -140,6 +141,47 @@ const char* ndlib_aout_get_loaded_path(void) {
 }
 
 int ndlib_aout_dump_metadata(const char* path) {
+    if (!path) return -1;
+    FILE* f = fopen(path, "rb");
+    if (!f) return -1;
+    struct nd500_exec hdr;
+    if (fread(&hdr, 1, sizeof(hdr), f) != sizeof(hdr)) { fclose(f); return -1; }
+    if (bad_magic(hdr.a_magic)) { fclose(f); return -1; }
+    
+    /* Detect file type by relocations and entry point */
+    int has_relocations = (hdr.a_trsize > 0 || hdr.a_drsize > 0);
+    int is_placeholder_entry = (hdr.a_entry == 4);
+    int is_object = has_relocations || is_placeholder_entry;
+    const char* file_type;
+    
+    if (is_object) {
+        file_type = "OBJECT FILE (needs linking)";
+    } else {
+        file_type = "EXECUTABLE";
+    }
+    
+    /* Print fancy header like nd500-dis */
+    printf("; %s\n", "═══════════════════════════════════════════════════════════════");
+    printf("; ND-500 Disassembly\n");
+    printf("; %s\n", "═══════════════════════════════════════════════════════════════");
+    printf("; File: %s\n;\n", path);
+    printf("; File Type:    %s\n", file_type);
+    if (is_object && (hdr.a_trsize > 0 || hdr.a_drsize > 0)) {
+        printf("; Relocations:  text=%u data=%u bytes (not yet resolved)\n", 
+               hdr.a_trsize, hdr.a_drsize);
+    }
+    printf(";\n");
+    
+    /* List unresolved externals if any */
+    ndlib_symbols_list_unresolved();
+    
+    printf(";\n; Text size:    %u bytes (0x%X)\n", hdr.a_text, hdr.a_text);
+    printf("; %s\n;\n", "═══════════════════════════════════════════════════════════════");
+    fclose(f);
+    return 0;
+}
+
+int ndlib_aout_dump_metadata_old(const char* path) {
     if (!path) return -1;
     FILE* f = fopen(path, "rb");
     if (!f) return -1;

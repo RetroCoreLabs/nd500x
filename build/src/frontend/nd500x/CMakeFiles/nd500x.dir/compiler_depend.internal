@@ -68,4 +68,6 @@ src/frontend/nd500x/CMakeFiles/nd500x.dir/nd500x.c.o
  /home/ronny/repos/nd500x/src/machine/machine_types.h
  /home/ronny/repos/nd500x/src/cpu/cpu_protos.h
  /home/ronny/repos/nd500x/src/debugger/debugger.h
+ /home/ronny/repos/nd500x/src/ndlib/ndlib.h
+ /home/ronny/repos/nd500x/src/ndlib/ndlib_color.h
 
