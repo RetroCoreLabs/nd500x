@@ -1,6 +1,7 @@
 #include <string.h>
 #include "cpu_protos.h"
 #include "../machine/machine_protos.h"
+#include "../machine/breakpoints.h"
 
 void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
 	if (!cpu) return;
@@ -24,6 +25,13 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 
 void nd500_cpu_step(Nd500Cpu* cpu) {
 	if (!cpu || !cpu->machine) return;
+	
+	/* Check breakpoints before executing instruction */
+	if (cpu->machine->bp_mgr && bp_should_break_at(cpu->machine->bp_mgr, cpu->PC)) {
+		cpu->machine->run_flag = 0; /* Stop execution */
+		return; /* Don't execute this instruction yet */
+	}
+	
     /* Decode, execute, then advance PC by decoded length */
     Nd500FetchedInstruction fi;
     uint32_t old_pc = cpu->PC;

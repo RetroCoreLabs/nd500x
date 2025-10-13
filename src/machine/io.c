@@ -1,12 +1,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include "machine_protos.h"
+#include "breakpoints.h"
 
 void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
 	if (!m) return;
 	m->memory_size = mem_size;
 	m->memory = (uint8_t*)calloc(1, mem_size);
 	m->run_flag = 0;
+	
+	/* Initialize breakpoint manager */
+	m->bp_mgr = (BreakpointManager*)calloc(1, sizeof(BreakpointManager));
+	if (m->bp_mgr) {
+		bp_mgr_init(m->bp_mgr);
+	}
 }
 
 void nd500_machine_free(Nd500Machine* m) {
@@ -15,6 +22,12 @@ void nd500_machine_free(Nd500Machine* m) {
 	m->memory = NULL;
 	m->memory_size = 0;
 	m->run_flag = 0;
+	
+	/* Free breakpoint manager */
+	if (m->bp_mgr) {
+		free(m->bp_mgr);
+		m->bp_mgr = NULL;
+	}
 }
 
 static inline int in_range(Nd500Machine* m, uint32_t addr, uint32_t size) {
@@ -23,11 +36,23 @@ static inline int in_range(Nd500Machine* m, uint32_t addr, uint32_t size) {
 
 uint8_t nd500_bus_read8(Nd500Machine* m, uint32_t addr) {
 	if (!in_range(m, addr, 1)) return 0;
+	
+	/* Check watchpoints on read */
+	if (m->bp_mgr && wp_should_break_on_read(m->bp_mgr, addr)) {
+		m->run_flag = 0; /* Stop execution */
+	}
+	
 	return m->memory[addr];
 }
 
 void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	if (!in_range(m, addr, 1)) return;
+	
+	/* Check watchpoints on write */
+	if (m->bp_mgr && wp_should_break_on_write(m->bp_mgr, addr, val)) {
+		m->run_flag = 0; /* Stop execution */
+	}
+	
 	m->memory[addr] = val;
 }
 
