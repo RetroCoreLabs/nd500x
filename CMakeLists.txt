@@ -47,6 +47,22 @@ else()
     endif()
 endif()
 
+# Readline integration for tab completion and command history
+if(NOT PLATFORM_WASM)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(READLINE QUIET readline)
+        if(READLINE_FOUND)
+            add_compile_definitions(HAVE_READLINE)
+            message(STATUS "Readline found - enabling tab completion and command history")
+        else()
+            message(STATUS "Readline not found - tab completion and history disabled")
+        endif()
+    else()
+        message(STATUS "PkgConfig not found - readline detection disabled")
+    endif()
+endif()
+
 # Optionally include externals if present
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap")
     add_definitions(-DHAVE_LIBDAP)
