@@ -57,6 +57,8 @@ src/frontend/nd500x/CMakeFiles/nd500x.dir/nd500x.c.o: \
  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
  /home/ronny/repos/nd500x/src/frontend/nd500x/../../machine/machine_types.h \
  /home/ronny/repos/nd500x/src/frontend/nd500x/../../machine/../cpu/cpu_protos.h \
+ /usr/include/setjmp.h /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+ /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
  /home/ronny/repos/nd500x/src/frontend/nd500x/../../debugger/debugger.h \
  /home/ronny/repos/nd500x/src/frontend/nd500x/../../ndlib/ndlib.h \
  /home/ronny/repos/nd500x/src/frontend/nd500x/../../ndlib/ndlib_color.h

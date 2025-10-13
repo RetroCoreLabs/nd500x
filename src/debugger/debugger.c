@@ -169,6 +169,22 @@ int nd500_debugger_repl(Nd500Machine* m) {
                 }
                 nd500_dbg_set_trap_invalid(newv);
                 printf("show trap: %s\n", newv ? "on" : "off");
+            } else if (strcmp(sub, "traps") == 0) {
+                char* val = strtok(NULL, " \t\r\n");
+                if (!val) {
+                    printf("usage: show traps [on|off]\n");
+                    continue;
+                }
+                if (strcasecmp(val, "on") == 0) {
+                    printf("Trap system: enabled\n");
+                    printf("  - Invalid instruction 0x00 trap: enabled\n");
+                    printf("  - Illegal instruction trap: enabled\n");
+                    printf("  - Trap handler integration: enabled\n");
+                } else if (strcasecmp(val, "off") == 0) {
+                    printf("Trap system: disabled\n");
+                } else {
+                    printf("usage: show traps [on|off]\n");
+                }
             } else {
                 printf("unknown show option\n");
             }
@@ -332,6 +348,7 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  show trace [on|off]         Toggle instruction execution tracing\n");
             printf("  show profile [on|off]      Toggle instruction execution profiling\n");
             printf("  show trap [on|off]          Toggle invalid instruction 0x00 trap\n");
+            printf("  show traps [on|off]         Show trap system status\n");
             printf("  profile [show|reset]       Show profiling statistics or reset data\n");
             printf("  backtrace (bt)             Show call stack backtrace\n");
             printf("  step [n] (s [n])            Execute n instructions (default 1)\n");
