@@ -66,6 +66,9 @@ src/frontend/nd500x/CMakeFiles/nd500x.dir/nd500x.c.o: ../src/frontend/nd500x/nd5
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/machine/machine_types.h \
   ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   ../src/debugger/debugger.h \
   ../src/ndlib/ndlib.h \
   ../src/ndlib/ndlib_color.h
@@ -74,6 +77,10 @@ src/frontend/nd500x/CMakeFiles/nd500x.dir/nd500x.c.o: ../src/frontend/nd500x/nd5
 ../src/ndlib/ndlib_color.h:
 
 ../src/ndlib/ndlib.h:
+
+/usr/include/x86_64-linux-gnu/bits/setjmp.h:
+
+/usr/include/setjmp.h:
 
 ../src/cpu/cpu_protos.h:
 
@@ -130,6 +137,8 @@ src/frontend/nd500x/CMakeFiles/nd500x.dir/nd500x.c.o: ../src/frontend/nd500x/nd5
 /usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/clockid_t.h:
 

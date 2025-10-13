@@ -66,10 +66,17 @@ test/CMakeFiles/disasm_tests.dir/disasm_tests.c.o: ../test/disasm_tests.c \
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/machine/machine_types.h \
   ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   ../src/ndlib/ndlib.h
 
 
 ../src/ndlib/ndlib.h:
+
+/usr/include/x86_64-linux-gnu/bits/setjmp.h:
+
+/usr/include/setjmp.h:
 
 ../src/cpu/cpu_protos.h:
 
@@ -118,6 +125,8 @@ test/CMakeFiles/disasm_tests.dir/disasm_tests.c.o: ../test/disasm_tests.c \
 /usr/include/x86_64-linux-gnu/bits/timesize.h:
 
 /usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/clockid_t.h:
 

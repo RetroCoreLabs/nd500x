@@ -109,6 +109,9 @@ src/cpu/CMakeFiles/nd500_cpu.dir/cpu_instr.c.o: ../src/cpu/cpu_instr.c \
   /usr/include/x86_64-linux-gnu/bits/wchar.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   ../src/machine/machine_types.h \
   ../src/machine/machine_protos.h \
   include/nd500_instructions_gen.h
