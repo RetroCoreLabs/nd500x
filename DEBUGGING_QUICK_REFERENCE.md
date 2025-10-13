@@ -2,6 +2,15 @@
 
 ## 🚀 New Advanced Features
 
+### Tab Completion
+```bash
+# Press TAB to complete commands and subcommands
+show <TAB>                   # Complete show subcommands
+bp <TAB>                     # Complete breakpoint subcommands
+wp <TAB>                     # Complete watchpoint subcommands
+profile <TAB>                 # Complete profile subcommands
+```
+
 ### Enhanced Disassembly
 ```bash
 show ea [on|off]            # Toggle effective address breakdown
@@ -34,6 +43,14 @@ wp list                     # List all watchpoints
 wp del <id>                 # Delete watchpoint
 wp enable <id>              # Enable watchpoint
 wp disable <id>             # Disable watchpoint
+```
+
+### Trap System
+```bash
+show trap [on|off]          # Toggle invalid instruction 0x00 trap
+show traps [on|off]         # Show trap system status
+show trap-status            # Show current trap status
+clear-traps                 # Clear any pending traps
 ```
 
 ## 🎯 Conditional Breakpoint Examples
