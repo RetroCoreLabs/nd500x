@@ -63,6 +63,36 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
   /usr/include/alloca.h \
   /usr/include/x86_64-linux-gnu/bits/stdlib-float.h \
   /usr/include/ctype.h \
+  /usr/include/termios.h \
+  /usr/include/x86_64-linux-gnu/bits/termios.h \
+  /usr/include/x86_64-linux-gnu/bits/termios-struct.h \
+  /usr/include/x86_64-linux-gnu/bits/termios-c_cc.h \
+  /usr/include/x86_64-linux-gnu/bits/termios-c_iflag.h \
+  /usr/include/x86_64-linux-gnu/bits/termios-c_oflag.h \
+  /usr/include/x86_64-linux-gnu/bits/termios-baud.h \
+  /usr/include/x86_64-linux-gnu/bits/termios-c_cflag.h \
+  /usr/include/x86_64-linux-gnu/bits/termios-c_lflag.h \
+  /usr/include/x86_64-linux-gnu/bits/termios-tcflow.h \
+  /usr/include/x86_64-linux-gnu/bits/termios-misc.h \
+  /usr/include/x86_64-linux-gnu/sys/ttydefaults.h \
+  /usr/include/unistd.h \
+  /usr/include/x86_64-linux-gnu/bits/posix_opt.h \
+  /usr/include/x86_64-linux-gnu/bits/environments.h \
+  /usr/include/x86_64-linux-gnu/bits/confname.h \
+  /usr/include/x86_64-linux-gnu/bits/getopt_posix.h \
+  /usr/include/x86_64-linux-gnu/bits/getopt_core.h \
+  /usr/include/x86_64-linux-gnu/bits/unistd_ext.h \
+  /usr/include/readline/readline.h \
+  /usr/include/readline/rlstdc.h \
+  /usr/include/readline/rltypedefs.h \
+  /usr/include/readline/keymaps.h \
+  /usr/include/readline/chardefs.h \
+  /usr/include/readline/tilde.h \
+  /usr/include/readline/history.h \
+  /usr/include/time.h \
+  /usr/include/x86_64-linux-gnu/bits/time.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h \
   ../src/debugger/debugger.h \
   /usr/lib/gcc/x86_64-linux-gnu/11/include/stdint.h \
   /usr/include/stdint.h \
@@ -87,19 +117,57 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
 
 /usr/include/x86_64-linux-gnu/bits/setjmp.h:
 
-/usr/include/setjmp.h:
-
 ../src/cpu/cpu_protos.h:
 
 ../src/machine/machine_types.h:
 
 /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
 
-/usr/include/x86_64-linux-gnu/bits/wchar.h:
-
 /usr/include/stdint.h:
 
+/usr/include/time.h:
+
+/usr/include/readline/chardefs.h:
+
+/usr/include/readline/rltypedefs.h:
+
+/usr/include/readline/tilde.h:
+
+/usr/include/readline/readline.h:
+
+/usr/include/x86_64-linux-gnu/bits/confname.h:
+
+/usr/include/x86_64-linux-gnu/bits/posix_opt.h:
+
+/usr/include/unistd.h:
+
+/usr/include/x86_64-linux-gnu/sys/ttydefaults.h:
+
+/usr/include/setjmp.h:
+
+/usr/include/x86_64-linux-gnu/bits/termios-c_cflag.h:
+
+/usr/include/x86_64-linux-gnu/bits/wchar.h:
+
+/usr/include/x86_64-linux-gnu/bits/termios-baud.h:
+
+/usr/include/x86_64-linux-gnu/bits/termios-c_oflag.h:
+
+/usr/include/x86_64-linux-gnu/bits/termios-c_cc.h:
+
+/usr/include/x86_64-linux-gnu/bits/unistd_ext.h:
+
+/usr/include/x86_64-linux-gnu/bits/termios-c_lflag.h:
+
+/usr/include/x86_64-linux-gnu/bits/termios-struct.h:
+
+/usr/include/x86_64-linux-gnu/bits/time.h:
+
+/usr/include/termios.h:
+
 /usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h:
+
+/usr/include/readline/history.h:
 
 /usr/include/x86_64-linux-gnu/gnu/stubs-64.h:
 
@@ -113,17 +181,27 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
 
 /usr/include/x86_64-linux-gnu/gnu/stubs.h:
 
+/usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
+
 /usr/include/x86_64-linux-gnu/bits/types/FILE.h:
 
 /usr/include/features.h:
+
+/usr/include/x86_64-linux-gnu/bits/termios-tcflow.h:
 
 /usr/include/x86_64-linux-gnu/bits/typesizes.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:
 
+/usr/include/readline/rlstdc.h:
+
 /usr/include/x86_64-linux-gnu/bits/endianness.h:
 
+/usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h:
+
 /usr/lib/gcc/x86_64-linux-gnu/11/include/stdarg.h:
+
+/usr/include/x86_64-linux-gnu/bits/getopt_core.h:
 
 /usr/include/x86_64-linux-gnu/bits/timesize.h:
 
@@ -131,11 +209,15 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
 
 /usr/include/alloca.h:
 
+/usr/include/x86_64-linux-gnu/bits/termios-c_iflag.h:
+
 ../src/debugger/debugger.c:
 
 /usr/include/x86_64-linux-gnu/bits/floatn-common.h:
 
 /usr/include/strings.h:
+
+/usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
 
@@ -160,6 +242,8 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
 /usr/include/x86_64-linux-gnu/bits/time64.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/termios-misc.h:
 
 /usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
 
@@ -195,6 +279,8 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
 
 /usr/include/x86_64-linux-gnu/bits/endian.h:
 
+/usr/include/x86_64-linux-gnu/bits/environments.h:
+
 /usr/include/x86_64-linux-gnu/sys/select.h:
 
 /usr/include/x86_64-linux-gnu/bits/select.h:
@@ -209,9 +295,13 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
 
+/usr/include/readline/keymaps.h:
+
 /usr/include/x86_64-linux-gnu/bits/pthreadtypes.h:
 
 /usr/include/x86_64-linux-gnu/bits/thread-shared-types.h:
+
+/usr/include/x86_64-linux-gnu/bits/termios.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h:
 

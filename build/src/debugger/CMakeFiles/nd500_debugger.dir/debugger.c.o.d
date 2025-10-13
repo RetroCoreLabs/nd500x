@@ -68,6 +68,13 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: \
  /usr/include/x86_64-linux-gnu/bits/getopt_posix.h \
  /usr/include/x86_64-linux-gnu/bits/getopt_core.h \
  /usr/include/x86_64-linux-gnu/bits/unistd_ext.h \
+ /usr/include/readline/readline.h /usr/include/readline/rlstdc.h \
+ /usr/include/readline/rltypedefs.h /usr/include/readline/keymaps.h \
+ /usr/include/readline/chardefs.h /usr/include/readline/tilde.h \
+ /usr/include/readline/history.h /usr/include/time.h \
+ /usr/include/x86_64-linux-gnu/bits/time.h \
+ /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h \
+ /usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h \
  /home/ronny/repos/nd500x/src/debugger/debugger.h \
  /usr/lib/gcc/x86_64-linux-gnu/11/include/stdint.h /usr/include/stdint.h \
  /usr/include/x86_64-linux-gnu/bits/wchar.h \

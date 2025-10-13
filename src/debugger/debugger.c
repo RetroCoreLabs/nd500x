@@ -4,6 +4,10 @@
 #include <ctype.h>
 #include <termios.h>
 #include <unistd.h>
+#ifdef HAVE_READLINE
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
 #include "debugger.h"
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
@@ -24,9 +28,9 @@ static uint32_t parse_u32(const char* s, uint32_t defv) {
 
 /* Tab completion support */
 static const char* debugger_commands[] = {
-    "help", "m", "d", "dis", "disasm", "step", "s", "regs", "load", "run", "stop",
+    "help", "m", "d", "dis", "disasm", "step", "s", "regs", "set", "load", "run", "stop",
     "continue", "c", "cont", "symb", "symbols", "show", "bp", "break", "breakpoint",
-    "wp", "watch", "watchpoint", "profile", "backtrace", "bt", "clear-traps",
+    "wp", "watch", "watchpoint", "profile", "backtrace", "bt", "clear-traps", "history",
     "q", "quit", "exit", "dap"
 };
 
@@ -44,6 +48,11 @@ static const char* wp_subcommands[] = {
 
 static const char* profile_subcommands[] = {
     "show", "reset"
+};
+
+static const char* set_subcommands[] = {
+    "PC", "I1", "I2", "I3", "I4", "A1", "A2", "A3", "A4", "E1", "E2", "E3", "E4",
+    "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2"
 };
 
 static int tab_complete_command(const char* partial, char* completion, size_t max_len) {
@@ -199,53 +208,194 @@ static int handle_tab_completion(char* line, size_t* pos) {
     return 0;
 }
 
+/* Readline completion function */
+static char* command_generator(const char* text, int state) {
+    static int list_index, len;
+    static const char* matches[] = {
+        "help", "m", "d", "dis", "disasm", "step", "s", "regs", "load", "run", "stop",
+        "continue", "c", "cont", "symb", "symbols", "show", "bp", "break", "breakpoint",
+        "wp", "watch", "watchpoint", "profile", "backtrace", "bt", "clear-traps",
+        "q", "quit", "exit", "dap"
+    };
+    static const char* show_matches[] = {
+        "ea", "demangle", "trace", "profile", "trap", "traps", "trap-status"
+    };
+    static const char* bp_matches[] = {
+        "cond", "list", "del", "enable", "disable"
+    };
+    static const char* wp_matches[] = {
+        "reg", "list", "del", "enable", "disable"
+    };
+    static const char* profile_matches[] = {
+        "show", "reset"
+    };
+    
+    if (!state) {
+        list_index = 0;
+        len = strlen(text);
+    }
+    
+    /* Determine which list to use based on context */
+    const char** match_list = matches;
+    int match_count = sizeof(matches) / sizeof(matches[0]);
+    
+#ifdef HAVE_READLINE
+    if (strncmp(rl_line_buffer, "show ", 5) == 0) {
+        match_list = show_matches;
+        match_count = sizeof(show_matches) / sizeof(show_matches[0]);
+    } else if (strncmp(rl_line_buffer, "bp ", 3) == 0) {
+        match_list = bp_matches;
+        match_count = sizeof(bp_matches) / sizeof(bp_matches[0]);
+    } else if (strncmp(rl_line_buffer, "wp ", 3) == 0) {
+        match_list = wp_matches;
+        match_count = sizeof(wp_matches) / sizeof(wp_matches[0]);
+    } else if (strncmp(rl_line_buffer, "profile ", 8) == 0) {
+        match_list = profile_matches;
+        match_count = sizeof(profile_matches) / sizeof(profile_matches[0]);
+    } else if (strncmp(rl_line_buffer, "set ", 4) == 0) {
+        match_list = set_subcommands;
+        match_count = sizeof(set_subcommands) / sizeof(set_subcommands[0]);
+    }
+#endif
+    
+    while (list_index < match_count) {
+        if (strncmp(match_list[list_index], text, len) == 0) {
+            return strdup(match_list[list_index++]);
+        }
+        list_index++;
+    }
+    
+    return NULL;
+}
+
+static char** command_completion(const char* text, int start, int end) {
+    char** matches = NULL;
+    
+    if (start == 0) {
+        matches = rl_completion_matches(text, command_generator);
+    }
+    
+    return matches;
+}
+
+/* History management functions */
+static void load_history(void) {
+#ifdef HAVE_READLINE
+    char* home = getenv("HOME");
+    if (home) {
+        char history_file[512];
+        snprintf(history_file, sizeof(history_file), "%s/.nd500x_history", home);
+        
+        /* Load history from file */
+        if (read_history(history_file) != 0) {
+            /* File doesn't exist or error - that's okay */
+        }
+    }
+#endif
+}
+
+static void save_history(void) {
+#ifdef HAVE_READLINE
+    char* home = getenv("HOME");
+    if (home) {
+        char history_file[512];
+        snprintf(history_file, sizeof(history_file), "%s/.nd500x_history", home);
+        
+        /* Save history to file */
+        write_history(history_file);
+    }
+#endif
+}
+
+static int execute_history_command(const char* line, char* output, size_t max_len) {
+#ifdef HAVE_READLINE
+    /* Check if line starts with ! */
+    if (line[0] == '!') {
+        const char* num_str = line + 1;
+        
+        /* Handle !! (last command) */
+        if (num_str[0] == '!' && num_str[1] == '\0') {
+            HIST_ENTRY* last = history_get(history_length);
+            if (last) {
+                strncpy(output, last->line, max_len - 1);
+                output[max_len - 1] = '\0';
+                return 1;
+            }
+            return 0;
+        }
+        
+        /* Handle !nnn (specific history number) */
+        char* end;
+        long num = strtol(num_str, &end, 10);
+        if (end != num_str && *end == '\0' && num > 0) {
+            HIST_ENTRY* entry = history_get(num);
+            if (entry) {
+                strncpy(output, entry->line, max_len - 1);
+                output[max_len - 1] = '\0';
+                return 1;
+            }
+        }
+        
+        /* Handle !string (search for command starting with string) */
+        HIST_ENTRY* entry = NULL;
+        for (int i = history_length; i > 0; i--) {
+            HIST_ENTRY* hist_entry = history_get(i);
+            if (hist_entry && strstr(hist_entry->line, num_str) == hist_entry->line) {
+                entry = hist_entry;
+                break;
+            }
+        }
+        if (entry) {
+            strncpy(output, entry->line, max_len - 1);
+            output[max_len - 1] = '\0';
+            return 1;
+        }
+        
+        return 0;
+    }
+#endif
+    return 0;
+}
+
 static int read_line_with_tab_completion(char* line, size_t max_len) {
-    size_t pos = 0;
-    int c;
+#ifdef HAVE_READLINE
+    char* input = readline("");
+    if (input == NULL) {
+        return 0;
+    }
     
-    /* Set terminal to raw mode for character-by-character input */
-    struct termios old_termios, new_termios;
-    tcgetattr(STDIN_FILENO, &old_termios);
-    new_termios = old_termios;
-    new_termios.c_lflag &= ~(ICANON | ECHO);
-    new_termios.c_cc[VMIN] = 1;
-    new_termios.c_cc[VTIME] = 0;
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_termios);
+    /* Check for history commands */
+    char history_output[256];
+    if (execute_history_command(input, history_output, sizeof(history_output))) {
+        printf("! %s\n", history_output);
+        strncpy(line, history_output, max_len - 1);
+        line[max_len - 1] = '\0';
+        free(input);
+        return 1;
+    }
     
-    while ((c = getchar()) != EOF && c != '\n') {
-        if (c == '\t') {
-            /* Handle tab completion */
-            if (handle_tab_completion(line, &pos)) {
-                /* Redraw the line */
-                printf("\r\033[K"); /* Clear line */
-                printf("\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m %s", 0, line);
-                fflush(stdout);
-            }
-        } else if (c == '\b' || c == 127) {
-            /* Handle backspace */
-            if (pos > 0) {
-                pos--;
-                line[pos] = '\0';
-                printf("\b \b");
-                fflush(stdout);
-            }
-        } else if (c >= 32 && c <= 126) {
-            /* Handle printable characters */
-            if (pos < max_len - 1) {
-                line[pos] = c;
-                pos++;
-                line[pos] = '\0';
-                putchar(c);
-                fflush(stdout);
-            }
+    /* Add to history if not empty and not a duplicate of last command */
+    if (strlen(input) > 0) {
+        HIST_ENTRY* last = history_get(history_length);
+        if (!last || strcmp(input, last->line) != 0) {
+            add_history(input);
         }
     }
     
-    /* Restore terminal mode */
-    tcsetattr(STDIN_FILENO, TCSANOW, &old_termios);
+    strncpy(line, input, max_len - 1);
+    line[max_len - 1] = '\0';
+    free(input);
+    return 1;
+#else
+    /* Fallback to simple fgets */
+    if (fgets(line, max_len, stdin) == NULL) {
+        return 0;
+    }
     
-    printf("\n");
-    return (c == EOF) ? 0 : 1;
+    /* Remove newline */
+    line[strcspn(line, "\r\n")] = '\0';
+    return 1;
+#endif
 }
 
 static void cmd_mem(Nd500Machine* m, const char* a1, const char* a2, uint32_t pc_default) {
@@ -303,7 +453,21 @@ static void cmd_dis(Nd500Machine* m, const char* a1, const char* a2, uint32_t pc
 int nd500_debugger_repl(Nd500Machine* m) {
 	char line[256];
     printf("nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, show, bp, wp, continue, help, q\n");
+    
+#ifdef HAVE_READLINE
+    printf("Tab completion and command history enabled - press TAB to complete, UP/DOWN for history\n");
+    printf("History commands: !! (last), !nnn (number), !string (search), history (list)\n");
+    /* Initialize readline completion */
+    rl_attempted_completion_function = command_completion;
+    rl_completion_append_character = '\0';
+    rl_basic_word_break_characters = " \t\n\"\\'`@$><=;|&{(";
+    
+    /* Load history from file */
+    load_history();
+#else
     printf("Tab completion enabled - press TAB to complete commands\n");
+#endif
+    
     while (
         /* Colorized prompt: cyan PC inside dim brackets */
         fprintf(stdout, "\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ",
@@ -312,7 +476,13 @@ int nd500_debugger_repl(Nd500Machine* m) {
         read_line_with_tab_completion(line, sizeof(line))) {
 		char* tok = strtok(line, " \t\r\n");
 		if (!tok) continue;
-		if (strcmp(tok, "q") == 0 || strcmp(tok, "quit") == 0 || strcmp(tok, "exit") == 0) break;
+		if (strcmp(tok, "q") == 0 || strcmp(tok, "quit") == 0 || strcmp(tok, "exit") == 0) {
+#ifdef HAVE_READLINE
+			/* Save history before exiting */
+			save_history();
+#endif
+			break;
+		}
         else if (strcmp(tok, "m") == 0) {
 			char* a1 = strtok(NULL, " \t\r\n");
 			char* a2 = strtok(NULL, " \t\r\n");
@@ -571,6 +741,114 @@ int nd500_debugger_repl(Nd500Machine* m) {
 			/* Clear any pending traps */
 			nd500_dbg_clear_traps();
 			printf("Traps cleared\n");
+        } else if (strcmp(tok, "history") == 0) {
+#ifdef HAVE_READLINE
+            /* Show command history */
+            printf("Command History:\n");
+            for (int i = 1; i <= history_length; i++) {
+                HIST_ENTRY* entry = history_get(i);
+                if (entry) {
+                    printf("%4d  %s\n", i, entry->line);
+                }
+            }
+            if (history_length == 0) {
+                printf("No commands in history\n");
+            }
+#else
+            printf("History not available (readline not found)\n");
+#endif
+        } else if (strcmp(tok, "set") == 0) {
+            /* Set register value */
+            if (!m->cpu) { 
+                printf("no cpu linked\n"); 
+                continue; 
+            }
+            
+            char* reg_name = strtok(NULL, " \t\r\n");
+            char* value_str = strtok(NULL, " \t\r\n");
+            
+            if (!reg_name || !value_str) {
+                printf("usage: set <register> <value>\n");
+                printf("registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, P, FLAGS, TOS, LL, HL, THA\n");
+                continue;
+            }
+            
+            uint32_t value = parse_u32(value_str, 0);
+            
+            /* Set register based on name */
+            if (strcmp(reg_name, "PC") == 0) {
+                m->cpu->PC = value;
+                printf("PC = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "I1") == 0) {
+                m->cpu->I[0] = value;
+                printf("I1 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "I2") == 0) {
+                m->cpu->I[1] = value;
+                printf("I2 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "I3") == 0) {
+                m->cpu->I[2] = value;
+                printf("I3 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "I4") == 0) {
+                m->cpu->I[3] = value;
+                printf("I4 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "A1") == 0) {
+                m->cpu->A[0] = value;
+                printf("A1 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "A2") == 0) {
+                m->cpu->A[1] = value;
+                printf("A2 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "A3") == 0) {
+                m->cpu->A[2] = value;
+                printf("A3 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "A4") == 0) {
+                m->cpu->A[3] = value;
+                printf("A4 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "E1") == 0) {
+                m->cpu->E[0] = value;
+                printf("E1 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "E2") == 0) {
+                m->cpu->E[1] = value;
+                printf("E2 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "E3") == 0) {
+                m->cpu->E[2] = value;
+                printf("E3 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "E4") == 0) {
+                m->cpu->E[3] = value;
+                printf("E4 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "L") == 0) {
+                m->cpu->L = value;
+                printf("L = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "B") == 0) {
+                m->cpu->B = value;
+                printf("B = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "R") == 0) {
+                m->cpu->R = value;
+                printf("R = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "FLAGS") == 0) {
+                m->cpu->FLAGS = value;
+                printf("FLAGS = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "TOS") == 0) {
+                m->cpu->TOS = value;
+                printf("TOS = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "LL") == 0) {
+                m->cpu->LL = value;
+                printf("LL = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "HL") == 0) {
+                m->cpu->HL = value;
+                printf("HL = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "THA") == 0) {
+                m->cpu->THA = value;
+                printf("THA = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "ST1") == 0) {
+                m->cpu->ST1 = value;
+                printf("ST1 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "ST2") == 0) {
+                m->cpu->ST2 = value;
+                printf("ST2 = 0x%08X\n", value);
+            } else {
+                printf("unknown register: %s\n", reg_name);
+                printf("registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2\n");
+            }
         } else if (strcmp(tok, "dap") == 0) {
 #ifdef WITH_DEBUGGER
             char* p = strtok(NULL, " \t\r\n");
@@ -593,10 +871,12 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  backtrace (bt)             Show call stack backtrace\n");
             printf("  step [n] (s [n])            Execute n instructions (default 1)\n");
             printf("  regs                        Show CPU registers\n");
+            printf("  set <register> <value>      Set register value\n");
             printf("  load <path>                 Load ND-500 a.out into memory\n");
             printf("  run                         Start execution (background)\n");
             printf("  stop                        Stop execution\n");
             printf("  continue (c/cont)           Continue execution after breakpoint\n");
+            printf("  history                     Show command history\n");
             printf("  symb (symbols)              List all symbols\n");
             printf("\n");
             printf("Breakpoints:\n");
