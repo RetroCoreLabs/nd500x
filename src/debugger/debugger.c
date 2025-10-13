@@ -317,16 +317,16 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  show profile [on|off]      Toggle instruction execution profiling\n");
             printf("  profile [show|reset]       Show profiling statistics or reset data\n");
             printf("  backtrace (bt)             Show call stack backtrace\n");
-            printf("  step [n]                    Execute n instructions (default 1)\n");
+            printf("  step [n] (s [n])            Execute n instructions (default 1)\n");
             printf("  regs                        Show CPU registers\n");
             printf("  load <path>                 Load ND-500 a.out into memory\n");
             printf("  run                         Start execution (background)\n");
             printf("  stop                        Stop execution\n");
-            printf("  continue (c)                Continue execution after breakpoint\n");
-            printf("  symb                        List all symbols\n");
+            printf("  continue (c/cont)           Continue execution after breakpoint\n");
+            printf("  symb (symbols)              List all symbols\n");
             printf("\n");
             printf("Breakpoints:\n");
-            printf("  bp [addr]                   Set breakpoint at address (default: PC)\n");
+            printf("  bp [addr] (break/breakpoint) Set breakpoint at address (default: PC)\n");
             printf("  bp cond <addr> <condition>   Set conditional breakpoint\n");
             printf("  bp list                     List all breakpoints\n");
             printf("  bp del <id>                 Delete breakpoint\n");
@@ -340,9 +340,10 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  wp del <id>                 Delete watchpoint\n");
             printf("  wp enable <id>              Enable watchpoint\n");
             printf("  wp disable <id>             Disable watchpoint\n");
+            printf("  (watch/watchpoint)          Alternative names for wp\n");
             printf("\n");
             printf("  dap <port>                  Start DAP server on port (WITH_DEBUGGER)\n");
-            printf("  q                           Quit\n");
+            printf("  q (quit/exit)               Quit\n");
         } else {
 			printf("unknown command\n");
 		}
