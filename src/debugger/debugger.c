@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <termios.h>
+#include <unistd.h>
 #include "debugger.h"
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
@@ -18,6 +20,232 @@ static uint32_t parse_u32(const char* s, uint32_t defv) {
 		v = strtoul(s, &end, 10);
 	}
 	return (uint32_t)v;
+}
+
+/* Tab completion support */
+static const char* debugger_commands[] = {
+    "help", "m", "d", "dis", "disasm", "step", "s", "regs", "load", "run", "stop",
+    "continue", "c", "cont", "symb", "symbols", "show", "bp", "break", "breakpoint",
+    "wp", "watch", "watchpoint", "profile", "backtrace", "bt", "clear-traps",
+    "q", "quit", "exit", "dap"
+};
+
+static const char* show_subcommands[] = {
+    "ea", "demangle", "trace", "profile", "trap", "traps", "trap-status"
+};
+
+static const char* bp_subcommands[] = {
+    "cond", "list", "del", "enable", "disable"
+};
+
+static const char* wp_subcommands[] = {
+    "reg", "list", "del", "enable", "disable"
+};
+
+static const char* profile_subcommands[] = {
+    "show", "reset"
+};
+
+static int tab_complete_command(const char* partial, char* completion, size_t max_len) {
+    int matches = 0;
+    const char* match = NULL;
+    
+    for (size_t i = 0; i < sizeof(debugger_commands) / sizeof(debugger_commands[0]); i++) {
+        if (strncmp(partial, debugger_commands[i], strlen(partial)) == 0) {
+            matches++;
+            match = debugger_commands[i];
+        }
+    }
+    
+    if (matches == 1 && match) {
+        strncpy(completion, match, max_len - 1);
+        completion[max_len - 1] = '\0';
+        return 1;
+    }
+    
+    return 0;
+}
+
+static int tab_complete_show_subcommand(const char* partial, char* completion, size_t max_len) {
+    int matches = 0;
+    const char* match = NULL;
+    
+    for (size_t i = 0; i < sizeof(show_subcommands) / sizeof(show_subcommands[0]); i++) {
+        if (strncmp(partial, show_subcommands[i], strlen(partial)) == 0) {
+            matches++;
+            match = show_subcommands[i];
+        }
+    }
+    
+    if (matches == 1 && match) {
+        strncpy(completion, match, max_len - 1);
+        completion[max_len - 1] = '\0';
+        return 1;
+    }
+    
+    return 0;
+}
+
+static int tab_complete_bp_subcommand(const char* partial, char* completion, size_t max_len) {
+    int matches = 0;
+    const char* match = NULL;
+    
+    for (size_t i = 0; i < sizeof(bp_subcommands) / sizeof(bp_subcommands[0]); i++) {
+        if (strncmp(partial, bp_subcommands[i], strlen(partial)) == 0) {
+            matches++;
+            match = bp_subcommands[i];
+        }
+    }
+    
+    if (matches == 1 && match) {
+        strncpy(completion, match, max_len - 1);
+        completion[max_len - 1] = '\0';
+        return 1;
+    }
+    
+    return 0;
+}
+
+static int tab_complete_wp_subcommand(const char* partial, char* completion, size_t max_len) {
+    int matches = 0;
+    const char* match = NULL;
+    
+    for (size_t i = 0; i < sizeof(wp_subcommands) / sizeof(wp_subcommands[0]); i++) {
+        if (strncmp(partial, wp_subcommands[i], strlen(partial)) == 0) {
+            matches++;
+            match = wp_subcommands[i];
+        }
+    }
+    
+    if (matches == 1 && match) {
+        strncpy(completion, match, max_len - 1);
+        completion[max_len - 1] = '\0';
+        return 1;
+    }
+    
+    return 0;
+}
+
+static int tab_complete_profile_subcommand(const char* partial, char* completion, size_t max_len) {
+    int matches = 0;
+    const char* match = NULL;
+    
+    for (size_t i = 0; i < sizeof(profile_subcommands) / sizeof(profile_subcommands[0]); i++) {
+        if (strncmp(partial, profile_subcommands[i], strlen(partial)) == 0) {
+            matches++;
+            match = profile_subcommands[i];
+        }
+    }
+    
+    if (matches == 1 && match) {
+        strncpy(completion, match, max_len - 1);
+        completion[max_len - 1] = '\0';
+        return 1;
+    }
+    
+    return 0;
+}
+
+static int handle_tab_completion(char* line, size_t* pos) {
+    char completion[256];
+    int completed = 0;
+    
+    /* Find the current word being typed */
+    char* word_start = line;
+    char* word_end = line + *pos;
+    
+    /* Find start of current word */
+    while (word_start < word_end && !isspace(*(word_start))) {
+        word_start++;
+    }
+    if (word_start < word_end) word_start++;
+    
+    /* Extract current word */
+    size_t word_len = word_end - word_start;
+    char current_word[256];
+    strncpy(current_word, word_start, word_len);
+    current_word[word_len] = '\0';
+    
+    /* Try to complete based on context */
+    if (strncmp(line, "show ", 5) == 0) {
+        completed = tab_complete_show_subcommand(current_word, completion, sizeof(completion));
+    } else if (strncmp(line, "bp ", 3) == 0) {
+        completed = tab_complete_bp_subcommand(current_word, completion, sizeof(completion));
+    } else if (strncmp(line, "wp ", 3) == 0) {
+        completed = tab_complete_wp_subcommand(current_word, completion, sizeof(completion));
+    } else if (strncmp(line, "profile ", 8) == 0) {
+        completed = tab_complete_profile_subcommand(current_word, completion, sizeof(completion));
+    } else {
+        completed = tab_complete_command(current_word, completion, sizeof(completion));
+    }
+    
+    if (completed) {
+        /* Replace current word with completion */
+        size_t completion_len = strlen(completion);
+        size_t remaining_len = strlen(word_end);
+        
+        /* Move remaining text to make room */
+        memmove(word_start + completion_len, word_end, remaining_len + 1);
+        
+        /* Insert completion */
+        memcpy(word_start, completion, completion_len);
+        
+        /* Update position */
+        *pos = (word_start + completion_len) - line;
+        
+        return 1;
+    }
+    
+    return 0;
+}
+
+static int read_line_with_tab_completion(char* line, size_t max_len) {
+    size_t pos = 0;
+    int c;
+    
+    /* Set terminal to raw mode for character-by-character input */
+    struct termios old_termios, new_termios;
+    tcgetattr(STDIN_FILENO, &old_termios);
+    new_termios = old_termios;
+    new_termios.c_lflag &= ~(ICANON | ECHO);
+    new_termios.c_cc[VMIN] = 1;
+    new_termios.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_termios);
+    
+    while ((c = getchar()) != EOF && c != '\n') {
+        if (c == '\t') {
+            /* Handle tab completion */
+            if (handle_tab_completion(line, &pos)) {
+                /* Redraw the line */
+                printf("\r\033[K"); /* Clear line */
+                printf("\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m %s", 0, line);
+                fflush(stdout);
+            }
+        } else if (c == '\b' || c == 127) {
+            /* Handle backspace */
+            if (pos > 0) {
+                pos--;
+                line[pos] = '\0';
+                printf("\b \b");
+                fflush(stdout);
+            }
+        } else if (c >= 32 && c <= 126) {
+            /* Handle printable characters */
+            if (pos < max_len - 1) {
+                line[pos] = c;
+                pos++;
+                line[pos] = '\0';
+                putchar(c);
+                fflush(stdout);
+            }
+        }
+    }
+    
+    /* Restore terminal mode */
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_termios);
+    
+    printf("\n");
+    return (c == EOF) ? 0 : 1;
 }
 
 static void cmd_mem(Nd500Machine* m, const char* a1, const char* a2, uint32_t pc_default) {
@@ -75,12 +303,13 @@ static void cmd_dis(Nd500Machine* m, const char* a1, const char* a2, uint32_t pc
 int nd500_debugger_repl(Nd500Machine* m) {
 	char line[256];
     printf("nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, show, bp, wp, continue, help, q\n");
+    printf("Tab completion enabled - press TAB to complete commands\n");
     while (
         /* Colorized prompt: cyan PC inside dim brackets */
         fprintf(stdout, "\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ",
                 m && m->cpu ? m->cpu->PC : 0),
         fflush(stdout),
-        fgets(line, sizeof(line), stdin)) {
+        read_line_with_tab_completion(line, sizeof(line))) {
 		char* tok = strtok(line, " \t\r\n");
 		if (!tok) continue;
 		if (strcmp(tok, "q") == 0 || strcmp(tok, "quit") == 0 || strcmp(tok, "exit") == 0) break;
@@ -360,9 +589,6 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  show demangle [on|off]      Toggle C-symbol demangling (strip leading _)\n");
             printf("  show trace [on|off]         Toggle instruction execution tracing\n");
             printf("  show profile [on|off]      Toggle instruction execution profiling\n");
-            printf("  show trap [on|off]          Toggle invalid instruction 0x00 trap\n");
-            printf("  show traps [on|off]         Show trap system status\n");
-            printf("  show trap-status            Show current trap status\n");
             printf("  profile [show|reset]       Show profiling statistics or reset data\n");
             printf("  backtrace (bt)             Show call stack backtrace\n");
             printf("  step [n] (s [n])            Execute n instructions (default 1)\n");
@@ -371,7 +597,6 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  run                         Start execution (background)\n");
             printf("  stop                        Stop execution\n");
             printf("  continue (c/cont)           Continue execution after breakpoint\n");
-            printf("  clear-traps                 Clear any pending traps\n");
             printf("  symb (symbols)              List all symbols\n");
             printf("\n");
             printf("Breakpoints:\n");
@@ -390,6 +615,12 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  wp enable <id>              Enable watchpoint\n");
             printf("  wp disable <id>             Disable watchpoint\n");
             printf("  (watch/watchpoint)          Alternative names for wp\n");
+            printf("\n");
+            printf("Trap System:\n");
+            printf("  show trap [on|off]          Toggle invalid instruction 0x00 trap\n");
+            printf("  show traps [on|off]         Show trap system status\n");
+            printf("  show trap-status            Show current trap status\n");
+            printf("  clear-traps                 Clear any pending traps\n");
             printf("\n");
             printf("  dap <port>                  Start DAP server on port (WITH_DEBUGGER)\n");
             printf("  q (quit/exit)               Quit\n");

@@ -51,6 +51,23 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: \
  /usr/include/x86_64-linux-gnu/bits/struct_mutex.h \
  /usr/include/x86_64-linux-gnu/bits/struct_rwlock.h /usr/include/alloca.h \
  /usr/include/x86_64-linux-gnu/bits/stdlib-float.h /usr/include/ctype.h \
+ /usr/include/termios.h /usr/include/x86_64-linux-gnu/bits/termios.h \
+ /usr/include/x86_64-linux-gnu/bits/termios-struct.h \
+ /usr/include/x86_64-linux-gnu/bits/termios-c_cc.h \
+ /usr/include/x86_64-linux-gnu/bits/termios-c_iflag.h \
+ /usr/include/x86_64-linux-gnu/bits/termios-c_oflag.h \
+ /usr/include/x86_64-linux-gnu/bits/termios-baud.h \
+ /usr/include/x86_64-linux-gnu/bits/termios-c_cflag.h \
+ /usr/include/x86_64-linux-gnu/bits/termios-c_lflag.h \
+ /usr/include/x86_64-linux-gnu/bits/termios-tcflow.h \
+ /usr/include/x86_64-linux-gnu/bits/termios-misc.h \
+ /usr/include/x86_64-linux-gnu/sys/ttydefaults.h /usr/include/unistd.h \
+ /usr/include/x86_64-linux-gnu/bits/posix_opt.h \
+ /usr/include/x86_64-linux-gnu/bits/environments.h \
+ /usr/include/x86_64-linux-gnu/bits/confname.h \
+ /usr/include/x86_64-linux-gnu/bits/getopt_posix.h \
+ /usr/include/x86_64-linux-gnu/bits/getopt_core.h \
+ /usr/include/x86_64-linux-gnu/bits/unistd_ext.h \
  /home/ronny/repos/nd500x/src/debugger/debugger.h \
  /usr/lib/gcc/x86_64-linux-gnu/11/include/stdint.h /usr/include/stdint.h \
  /usr/include/x86_64-linux-gnu/bits/wchar.h \
