@@ -71,6 +71,9 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
   ../src/machine/machine_types.h \
   ../src/machine/machine_protos.h \
   ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   ../src/machine/breakpoints.h \
   /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h \
   ../src/ndlib/ndlib.h
@@ -81,6 +84,10 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
 /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h:
 
 ../src/machine/breakpoints.h:
+
+/usr/include/x86_64-linux-gnu/bits/setjmp.h:
+
+/usr/include/setjmp.h:
 
 ../src/cpu/cpu_protos.h:
 
@@ -143,6 +150,8 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
 /usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/clockid_t.h:
 

@@ -67,6 +67,9 @@ src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.o: ../src/machine/breakpo
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h \
   ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   ../src/machine/machine_types.h
 
 src/machine/CMakeFiles/nd500_machine.dir/debug_api.c.o: ../src/machine/debug_api.c \
@@ -134,6 +137,9 @@ src/machine/CMakeFiles/nd500_machine.dir/debug_api.c.o: ../src/machine/debug_api
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/machine/machine_types.h \
   ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   ../src/ndlib/ndlib.h \
   ../src/ndlib/ndlib_color.h
 
@@ -193,6 +199,9 @@ src/machine/CMakeFiles/nd500_machine.dir/io.c.o: ../src/machine/io.c \
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/machine/machine_types.h \
   ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   ../src/machine/breakpoints.h \
   /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h
 
@@ -258,7 +267,8 @@ src/machine/CMakeFiles/nd500_machine.dir/machine.c.o: ../src/machine/machine.c \
   /usr/include/x86_64-linux-gnu/bits/pthread_stack_min.h \
   ../src/machine/machine_protos.h \
   ../src/machine/machine_types.h \
-  ../src/cpu/cpu_protos.h
+  ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h
 
 src/machine/CMakeFiles/nd500_machine.dir/machine_loader.c.o: ../src/machine/machine_loader.c \
   /usr/include/stdc-predef.h \
@@ -325,6 +335,9 @@ src/machine/CMakeFiles/nd500_machine.dir/machine_loader.c.o: ../src/machine/mach
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/machine/machine_types.h \
   ../src/cpu/cpu_protos.h \
+  /usr/include/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
   ../external/libsymbols/include/symbols.h \
   /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h \
   ../external/libsymbols/include/stabs.h \
@@ -335,8 +348,6 @@ src/machine/CMakeFiles/nd500_machine.dir/machine_loader.c.o: ../src/machine/mach
 
 
 ../src/machine/machine_loader.c:
-
-/usr/include/x86_64-linux-gnu/bits/setjmp.h:
 
 /usr/include/x86_64-linux-gnu/bits/cpu-set.h:
 
@@ -361,6 +372,10 @@ src/machine/CMakeFiles/nd500_machine.dir/machine_loader.c.o: ../src/machine/mach
 ../src/machine/debug_api.c:
 
 ../src/machine/machine_types.h:
+
+/usr/include/x86_64-linux-gnu/bits/setjmp.h:
+
+/usr/include/setjmp.h:
 
 /usr/include/sched.h:
 

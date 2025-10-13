@@ -507,7 +507,8 @@ void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (strcmp(fi->mnemonic, "???") == 0 || strcmp(fi->mnemonic, "UNKNOWN") == 0) {
         /* Raise illegal instruction trap (non-ignorable) */
         trap_illegal_instruction(cpu->PC, fi->opcode);
-        return; /* Never reaches here for non-ignorable traps */
+        /* Stop execution - trap was raised */
+        return;
     }
     
     /* Minimal: implement move and comp as examples */
@@ -531,6 +532,7 @@ void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* For any other unimplemented instruction, raise illegal instruction trap */
     printf("[CPU] Unimplemented instruction: %s\n", fi->mnemonic);
     trap_illegal_instruction(cpu->PC, fi->opcode);
+    /* Stop execution - trap was raised */
 }
 
 
