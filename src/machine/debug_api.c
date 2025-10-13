@@ -21,6 +21,7 @@ static int g_show_ea = -1;       /* -1: uninitialized, 0: off, 1: on */
 static int g_demangle = -1;      /* demangle C-style symbols (strip leading _) */
 static int g_trace_mode = -1;   /* instruction trace mode */
 static int g_profiling = -1;    /* instruction profiling mode */
+static int g_trap_invalid = -1; /* trap on invalid instruction 0x00 */
 
 /* Profiling data structures */
 #define MAX_PROFILE_ENTRIES 256
@@ -544,6 +545,31 @@ void nd500_dbg_call_stack_reset(void) {
     g_call_stack_depth = 0;
     memset(g_call_stack, 0, sizeof(g_call_stack));
     printf("Call stack reset\n");
+}
+
+/* Invalid instruction trap functions */
+int nd500_dbg_set_trap_invalid(int onoff) {
+    g_trap_invalid = onoff;
+    return 0;
+}
+
+int nd500_dbg_get_trap_invalid(void) {
+    if (g_trap_invalid == -1) {
+        /* Check environment variable */
+        const char* env = getenv("ND500X_TRAP_INVALID");
+        if (env && (strcmp(env, "1") == 0 || strcasecmp(env, "on") == 0 || strcasecmp(env, "true") == 0)) {
+            g_trap_invalid = 1;
+        } else {
+            g_trap_invalid = 1; /* Default to enabled */
+        }
+    }
+    return g_trap_invalid;
+}
+
+void nd500_dbg_toggle_trap_invalid(void) {
+    int current = nd500_dbg_get_trap_invalid();
+    nd500_dbg_set_trap_invalid(!current);
+    printf("Invalid instruction trap: %s\n", !current ? "ON" : "OFF");
 }
 
 
