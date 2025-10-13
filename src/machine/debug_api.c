@@ -4,6 +4,7 @@
 #include "machine_protos.h"
 #include "../cpu/cpu_protos.h"
 #include "../ndlib/ndlib.h"
+#include "../ndlib/ndlib_color.h"
 
 #include "../cpu/cpu_protos.h"
 
@@ -43,8 +44,16 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
         
         /* Special handling for inline operands (AC=0xFF for branch disp, AC=0xFE for call nargs) */
         if (op->address_code == 0xFE || op->address_code == 0xFF) {
-            int n = snprintf(p, (size_t)(e-p), "$%u", (unsigned)val);
-            p += (n>0 && n < (e-p)? n : (e-p));
+            /* Branch displacements (0xFF) should be signed, call args (0xFE) are unsigned */
+            if (op->address_code == 0xFF && op->data_len <= 2) {
+                /* Signed displacement for branches */
+                int n = snprintf(p, (size_t)(e-p), "$%d", sval);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            } else {
+                /* Unsigned for everything else */
+                int n = snprintf(p, (size_t)(e-p), "$%u", (unsigned)val);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
             if (p < e) *p = '\0';
             return (size_t)(p - dst);
         }
@@ -95,19 +104,32 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
     for (uint32_t a = addr; a < end_addr;) {
         Nd500FetchedInstruction fi;
         if (nd500_decode_at(m, a, &fi) != 0) break;
+        
+        /* Check if there's a symbol at this address - show it on its own line first */
+        const char* sym_at_addr = ndlib_symbols_name_for_addr(fi.address);
+        if (sym_at_addr && *sym_at_addr) {
+            printf("%s%08X:%s                                   %s%s:%s\n", 
+                   color_address(), fi.address, color_reset(),
+                   color_label(), sym_at_addr, color_reset());
+        }
+        
         /* If opcode is 0 or unknown, show ??? */
         if (fi.opcode == 0 || !fi.mnemonic || strcmp(fi.mnemonic, "???") == 0) {
             /* Show hex bytes for unknown opcodes too */
-            printf("%08X: ", a);
+            printf("%s%08X:%s ", color_address(), a, color_reset());
             uint32_t unk_len = fi.total_len > 0 ? fi.total_len : 1;
+            printf("%s", color_bytes());
             for (uint32_t b = 0; b < unk_len && b < 8; b++) {
                 printf("%02X ", fi.bytes[b]);
             }
-            printf("%-*s ??? ; opcode 0x%04X\n", (int)(24 - unk_len * 3), "", fi.opcode);
+            printf("%s%-*s %s???%s %s; opcode 0x%04X%s\n", 
+                   color_reset(), (int)(24 - unk_len * 3), "", 
+                   color_instr(), color_reset(),
+                   color_comment(), fi.opcode, color_reset());
             a += unk_len;
             continue;
         }
-        const char* sy = ndlib_symbols_name_for_addr(fi.address);
+        const char* sy = NULL;  /* Don't show symbol inline anymore, already shown above */
         int n = 0;
         /* Build prefix: for R_N show "wN ", for non-R_N with dtype show "w " */
         char regprefix[16] = {0};
@@ -129,24 +151,34 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
         char full_mn[32];
         snprintf(full_mn, sizeof(full_mn), "%s%s", regprefix, disp_mn);
         
-        /* Print address and hex bytes */
-        printf("%08X: ", fi.address);
+        /* Determine instruction color based on opcode type */
+        const char* instr_color = color_instr();
+        if (nd500_instr_is_branch(fi.opcode)) {
+            instr_color = color_branch();
+        }
+        
+        /* Print address in gray */
+        printf("%s%08X:%s ", color_address(), fi.address, color_reset());
+        
+        /* Print hex bytes in yellow */
+        printf("%s", color_bytes());
         for (uint32_t b = 0; b < fi.total_len && b < 16; b++) {
             printf("%02X ", fi.bytes[b]);
         }
-        printf("%-*s", (int)(24 - fi.total_len * 3), "");
+        printf("%s%-*s", color_reset(), (int)(24 - fi.total_len * 3), "");
         
-        /* Print symbol and mnemonic */
+        /* Print symbol in cyan and mnemonic with appropriate color */
         if (sy && *sy) {
-            printf("<%s> ", sy);
+            printf("%s<%s>%s ", color_label(), sy, color_reset());
         }
         if (fi.operand_count > 0) {
-            printf("%-12s ", full_mn);
+            printf("%s%-12s%s ", instr_color, full_mn, color_reset());
         } else {
-            printf("%s", full_mn);
+            printf("%s%s%s", instr_color, full_mn, color_reset());
         }
         
-        /* Append operands */
+        /* Append operands in white */
+        printf("%s", color_oper());
         for (uint8_t oi = 0; oi < fi.operand_count; ++oi) {
             char obuf[64];
             size_t ol = format_operand(obuf, sizeof(obuf), &fi.operands[oi]);
@@ -154,19 +186,47 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
                 printf("%s%s", (oi > 0) ? "," : "", obuf);
             }
         }
-        /* For branch instructions, show target address with symbol */
-        if (strstr(disp_mn, "jmp") || strstr(disp_mn, "call") || strstr(disp_mn, "if") || 
-            strstr(disp_mn, "goto") || strstr(disp_mn, "ret") == NULL) {
-            if (fi.operand_count > 0 && (fi.operands[0].mode == ND500_ADDR_ABSOLUTE || fi.operands[0].mode == ND500_ADDR_CONSTANT)) {
-                uint32_t target = 0;
-                if (fi.operands[0].data_len == 4) {
+        printf("%s", color_reset());
+        
+        /* === Check for relocations/unresolved externals in this instruction === */
+        uint8_t is_undefined = 0;
+        const char* reloc_symbol = ndlib_symbols_reloc_for_range(fi.address, fi.address + fi.total_len, &is_undefined);
+        
+        if (reloc_symbol && *reloc_symbol) {
+            /* Show relocation comment */
+            if (is_undefined) {
+                printf(" %s; %s (UNRESOLVED)%s", color_comment(), reloc_symbol, color_reset());
+            } else {
+                printf(" %s; -> %s%s", color_comment(), reloc_symbol, color_reset());
+            }
+        } else if (nd500_instr_is_branch(fi.opcode) && fi.operand_count > 0 && fi.operands[0].address_code == 0xFF) {
+            /* Fallback: For branches without relocations, still show target symbols */
+            uint32_t target = 0;
+            int is_pc_relative = (fi.operand_count == 1);
+            
+            if (is_pc_relative) {
+                int32_t displacement = 0;
+                if (fi.operands[0].data_len == 1) {
+                    displacement = (int8_t)fi.operands[0].data[0];
+                } else if (fi.operands[0].data_len == 2) {
+                    uint16_t raw = (uint16_t)fi.operands[0].data[0] | ((uint16_t)fi.operands[0].data[1] << 8);
+                    displacement = (int16_t)raw;
+                } else if (fi.operands[0].data_len == 4) {
+                    uint32_t raw = (uint32_t)fi.operands[0].data[0] | ((uint32_t)fi.operands[0].data[1] << 8) |
+                                   ((uint32_t)fi.operands[0].data[2] << 16) | ((uint32_t)fi.operands[0].data[3] << 24);
+                    displacement = (int32_t)raw;
+                }
+                target = (uint32_t)((int32_t)fi.address + (int32_t)fi.total_len + displacement);
+            } else {
+                if (fi.operands[0].data_len >= 4) {
                     target = (uint32_t)fi.operands[0].data[0] | ((uint32_t)fi.operands[0].data[1] << 8) |
                              ((uint32_t)fi.operands[0].data[2] << 16) | ((uint32_t)fi.operands[0].data[3] << 24);
                 }
-                const char* target_sym = ndlib_symbols_name_for_addr(target);
-                if (target_sym && *target_sym) {
-                    printf(" ; <%s>", target_sym);
-                }
+            }
+            
+            const char* target_sym = ndlib_symbols_name_for_addr(target);
+            if (target_sym && *target_sym) {
+                printf(" %s; <%s>%s", color_comment(), target_sym, color_reset());
             }
         }
         printf("\n");
