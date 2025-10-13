@@ -419,7 +419,6 @@ static char* subcommand_generator(const char* text, int state) {
         }
         list_index++;
     }
-    
     return NULL;
 }
 
@@ -436,12 +435,12 @@ static char** command_completion(const char* text, int start, int end) {
     } else {
         /* Completing subsequent words (subcommands or parameters) */
         /* Check if the first word is a command that has subcommands */
-        char* first_word = strtok(buffer, " ");
-        if (first_word && (strcmp(first_word, "show") == 0 || 
-                          strcmp(first_word, "bp") == 0 || strcmp(first_word, "break") == 0 || strcmp(first_word, "breakpoint") == 0 ||
-                          strcmp(first_word, "wp") == 0 || strcmp(first_word, "watch") == 0 || strcmp(first_word, "watchpoint") == 0 ||
-                          strcmp(first_word, "profile") == 0 ||
-                          strcmp(first_word, "set") == 0)) {
+        /* Use strncmp instead of strtok to avoid modifying buffer */
+        if (strncmp(buffer, "show ", 5) == 0 || 
+            strncmp(buffer, "bp ", 3) == 0 || strncmp(buffer, "break ", 6) == 0 || strncmp(buffer, "breakpoint ", 11) == 0 ||
+            strncmp(buffer, "wp ", 3) == 0 || strncmp(buffer, "watch ", 6) == 0 || strncmp(buffer, "watchpoint ", 11) == 0 ||
+            strncmp(buffer, "profile ", 8) == 0 ||
+            strncmp(buffer, "set ", 4) == 0) {
             matches = rl_completion_matches(text, subcommand_generator);
         }
     }
@@ -638,7 +637,7 @@ int nd500_debugger_repl(Nd500Machine* m) {
     /* Initialize readline completion */
     rl_attempted_completion_function = command_completion;
     rl_completion_append_character = '\0';
-    rl_basic_word_break_characters = "\t\n\"\\'`@$><=;|&{(";
+    rl_basic_word_break_characters = " \t\n\"\\'`@$><=;|&{(";
     
     /* Disable filename completion completely */
     rl_attempted_completion_over = 1;
