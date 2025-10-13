@@ -249,12 +249,12 @@ static char* command_generator(const char* text, int state) {
     if (strncmp(line, "show ", 5) == 0 && word_start >= 5) {
         if (state == 0) {
             list_index = 0;
-            len = strlen(text);
+            len = text ? strlen(text) : 0;
         }
         
         while (list_index < sizeof(show_matches) / sizeof(show_matches[0])) {
             const char* match = show_matches[list_index++];
-            if (strncmp(match, text, len) == 0) {
+            if (len == 0 || strncmp(match, text, len) == 0) {
                 return strdup(match);
             }
         }
@@ -266,12 +266,12 @@ static char* command_generator(const char* text, int state) {
         word_start >= (strncmp(line, "bp ", 3) == 0 ? 3 : (strncmp(line, "break ", 6) == 0 ? 6 : 11))) {
         if (state == 0) {
             list_index = 0;
-            len = strlen(text);
+            len = text ? strlen(text) : 0;
         }
         
         while (list_index < sizeof(bp_matches) / sizeof(bp_matches[0])) {
             const char* match = bp_matches[list_index++];
-            if (strncmp(match, text, len) == 0) {
+            if (len == 0 || strncmp(match, text, len) == 0) {
                 return strdup(match);
             }
         }
@@ -283,12 +283,12 @@ static char* command_generator(const char* text, int state) {
         word_start >= (strncmp(line, "wp ", 3) == 0 ? 3 : (strncmp(line, "watch ", 6) == 0 ? 6 : 11))) {
         if (state == 0) {
             list_index = 0;
-            len = strlen(text);
+            len = text ? strlen(text) : 0;
         }
         
         while (list_index < sizeof(wp_matches) / sizeof(wp_matches[0])) {
             const char* match = wp_matches[list_index++];
-            if (strncmp(match, text, len) == 0) {
+            if (len == 0 || strncmp(match, text, len) == 0) {
                 return strdup(match);
             }
         }
@@ -299,12 +299,12 @@ static char* command_generator(const char* text, int state) {
     if (strncmp(line, "profile ", 8) == 0 && word_start >= 8) {
         if (state == 0) {
             list_index = 0;
-            len = strlen(text);
+            len = text ? strlen(text) : 0;
         }
         
         while (list_index < sizeof(profile_matches) / sizeof(profile_matches[0])) {
             const char* match = profile_matches[list_index++];
-            if (strncmp(match, text, len) == 0) {
+            if (len == 0 || strncmp(match, text, len) == 0) {
                 return strdup(match);
             }
         }
@@ -315,12 +315,12 @@ static char* command_generator(const char* text, int state) {
     if (strncmp(line, "set ", 4) == 0 && word_start >= 4) {
         if (state == 0) {
             list_index = 0;
-            len = strlen(text);
+            len = text ? strlen(text) : 0;
         }
         
         while (list_index < sizeof(set_matches) / sizeof(set_matches[0])) {
             const char* match = set_matches[list_index++];
-            if (strncmp(match, text, len) == 0) {
+            if (len == 0 || strncmp(match, text, len) == 0) {
                 return strdup(match);
             }
         }
@@ -368,9 +368,11 @@ static char* command_generator(const char* text, int state) {
 static char** command_completion(const char* text, int start, int end) {
     char** matches = NULL;
     
-    if (start == 0) {
-        matches = rl_completion_matches(text, command_generator);
-    }
+    /* Always suppress filename completion */
+    rl_attempted_completion_over = 1;
+    
+    /* Try our completion function */
+    matches = rl_completion_matches(text, command_generator);
     
     return matches;
 }
@@ -564,7 +566,11 @@ int nd500_debugger_repl(Nd500Machine* m) {
     /* Initialize readline completion */
     rl_attempted_completion_function = command_completion;
     rl_completion_append_character = '\0';
-    rl_basic_word_break_characters = " \t\n\"\\'`@$><=;|&{(";
+    rl_basic_word_break_characters = "\t\n\"\\'`@$><=;|&{(";
+    
+    /* Disable filename completion completely */
+    rl_attempted_completion_over = 1;
+    rl_completion_query_items = 0;  /* Don't ask "Display all X possibilities?" */
     
     /* Load history from file */
     load_history();
