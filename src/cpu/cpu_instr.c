@@ -133,6 +133,11 @@ int nd500_instr_operand_is_direct(uint16_t opcode, uint8_t operand_idx) {
     return (tmpl & 0x20000) ? 1 : 0;
 }
 
+/* Forward declarations */
+static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecoded* op);
+static uint32_t get_operand_value32(const Nd500OperandDecoded* op);
+static uint32_t get_short_embedded(const Nd500OperandDecoded* op);
+
 static Nd500AddrMode classify_mode(uint8_t addr_code) {
 	uint8_t top = (addr_code & 0xC0) >> 6;
 	if (top == 0x00) return ND500_ADDR_CONSTANT_SHORT;
@@ -204,46 +209,69 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     uint32_t cursor = pc + out->opcode_len;
     
     /* Special handling for instructions with direct operands (no address code) */
-    /* Check if operand 0 is direct using operandTemplates */
-    if (out->operand_count >= 1 && nd500_instr_operand_is_direct(opcode, 0)) {
-        /* Operand 0 is direct - read inline bytes without address code */
-        Nd500OperandDecoded *op = &out->operands[0];
-        uint8_t var = nd500_instr_variant(opcode);
+    /* Decode ALL direct operands first (those with O_DIR bit set) */
+    for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+        if (!nd500_instr_operand_is_direct(opcode, i)) continue;
+        
+        /* This operand is direct - read inline bytes without address code */
+        Nd500OperandDecoded *op = &out->operands[i];
         op->has_alt_prefix = 0;
         op->has_desc_prefix = 0;
-        op->address_code = 0xFF; /* Special marker for direct operand */
+        op->address_code = 0xFE + i; /* Special marker 0xFE/0xFF for direct operands */
         op->mode = ND500_ADDR_CONSTANT;
         op->reg = 0;
         
-        /* Determine size from template bits: O_BS=0x01, O_HS=0x04, O_WS=0x08, O_DS=0x10 */
-        /* Priority: DS > WS > HS > BS (larger sizes take precedence) */
-        uint32_t tmpl = lookup(opcode)->op_templates[0];
+        /* Determine size from template bits or variant */
+        uint32_t tmpl = lookup(opcode)->op_templates[i];
         uint8_t disp_len;
-        if (tmpl & 0x10) disp_len = 8;      /* O_DS - double */
-        else if (tmpl & 0x08) disp_len = 4; /* O_WS - word */
-        else if (tmpl & 0x04) disp_len = 2; /* O_HS - halfword */
-        else if (tmpl & 0x01) disp_len = 1; /* O_BS - byte */
-        else disp_len = 4;                  /* Default word */
+        
+        /* For single-operand direct (PC-relative branches), use variant for size */
+        /* For multi-operand with direct (call), use template bits for size */
+        int is_single_operand_direct = (out->operand_count == 1);
+        
+        if (is_single_operand_direct) {
+            /* PC-relative branches: variant determines size: 0=byte, 1=halfword, 2=word */
+            uint8_t variant = nd500_instr_variant(opcode);
+            if (variant == 0) disp_len = 1;      /* Short branch (byte) */
+            else if (variant == 1) disp_len = 2; /* Medium branch (halfword) */
+            else disp_len = 4;                    /* Long branch (word) */
+        } else {
+            /* Multi-operand (call): use template bits O_BS=0x01, O_HS=0x04, O_WS=0x08, O_DS=0x10 */
+            /* Priority: DS > WS > HS > BS (larger sizes take precedence) */
+            if (tmpl & 0x10) disp_len = 8;      /* O_DS - double */
+            else if (tmpl & 0x08) disp_len = 4; /* O_WS - word */
+            else if (tmpl & 0x04) disp_len = 2; /* O_HS - halfword */
+            else if (tmpl & 0x02) disp_len = 1; /* O_BS - byte */
+            else disp_len = 4;                  /* Default word */
+        }
         
         op->data_len = disp_len;
-        for (uint8_t i = 0; i < disp_len; i++) {
-            op->data[i] = nd500_bus_read8(m, cursor + i);
-            if (oplen + i < 32) out->bytes[oplen + i] = op->data[i];
+        for (uint8_t j = 0; j < disp_len; j++) {
+            op->data[j] = nd500_bus_read8(m, cursor + j);
+            if (oplen + j < 32) out->bytes[oplen + j] = op->data[j];
         }
         cursor += disp_len;
-        
-        /* If only 1 operand, we're done */
-        if (out->operand_count == 1) {
-            out->total_len = (uint32_t)(cursor - pc);
-            return 0;
-        }
-        /* Otherwise continue to decode remaining operands with standard addressing */
     }
     
-    /* Decode operand address codes and data parts */
+    /* If all operands were direct, we're done */
+    int all_direct = 1;
+    for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+        if (!nd500_instr_operand_is_direct(opcode, i)) {
+            all_direct = 0;
+            break;
+        }
+    }
+    if (all_direct) {
+        out->total_len = (uint32_t)(cursor - pc);
+        return 0;
+    }
+    
+    /* Decode remaining operands with standard addressing (those without O_DIR) */
     uint32_t byte_idx = (uint32_t)(cursor - pc); /* Start from current cursor position */
-    uint8_t start_operand = nd500_instr_operand_is_direct(opcode, 0) ? 1 : 0; /* Skip first if it was direct */
-    for (uint8_t i = start_operand; i < out->operand_count && i < 4; ++i) {
+    for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+        /* Skip operands that were already decoded as direct */
+        if (nd500_instr_operand_is_direct(opcode, i)) continue;
+        
         Nd500OperandDecoded *op = &out->operands[i];
         /* Handle optional ALT/DESC prefixes */
         uint8_t ac = nd500_bus_read8(m, cursor);
@@ -269,8 +297,20 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
             op->reg = ac & 0x03;
         }
         cursor += 1;
-        /* Read a data part based on addressing */
-        if (op->mode == ND500_ADDR_LOCAL || op->mode == ND500_ADDR_RECORD || op->mode == ND500_ADDR_ABSOLUTE || op->mode == ND500_ADDR_PREINDEXED || op->mode == ND500_ADDR_CONSTANT || op->mode == ND500_ADDR_LOCAL_IND || op->mode == ND500_ADDR_LOCAL_PI || op->mode == ND500_ADDR_ABSOLUTE_PI || op->mode == ND500_ADDR_LOCAL_IND_PI) {
+        /* Read a data part based on addressing mode */
+        /* SHORT forms (CONSTANT_SHORT, LOCAL_SHORT, RECORD_SHORT) encode value in AC, no data bytes */
+        if (op->mode == ND500_ADDR_CONSTANT_SHORT || 
+            op->mode == ND500_ADDR_LOCAL_SHORT || 
+            op->mode == ND500_ADDR_RECORD_SHORT ||
+            op->mode == ND500_ADDR_REGISTER) {
+            /* No data part - value encoded in address code */
+            op->data_len = 0;
+        } else if (op->mode == ND500_ADDR_LOCAL || op->mode == ND500_ADDR_RECORD || 
+                   op->mode == ND500_ADDR_ABSOLUTE || op->mode == ND500_ADDR_PREINDEXED || 
+                   op->mode == ND500_ADDR_CONSTANT || op->mode == ND500_ADDR_LOCAL_IND || 
+                   op->mode == ND500_ADDR_LOCAL_PI || op->mode == ND500_ADDR_ABSOLUTE_PI || 
+                   op->mode == ND500_ADDR_LOCAL_IND_PI) {
+            /* Read data part */
             op->data_len = read_data_part(m, cursor, ac, op->data, sizeof(op->data));
             for (uint8_t j = 0; j < op->data_len && byte_idx < 32; j++) {
                 out->bytes[byte_idx++] = op->data[j];
@@ -281,6 +321,21 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         }
         /* Do not override operand decoding for R_N; destination register is encoded in opcode, not operands */
     }
+    
+    /* === Compute effective addresses for all operands === */
+    /* This computes final memory addresses where operand data resides */
+    /* Must be done AFTER all operands are decoded and requires CPU register state */
+    if (m->cpu) {
+        for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+            out->operands[i].effective_address = compute_effective_address(m->cpu, &out->operands[i]);
+        }
+    } else {
+        /* No CPU linked yet - zero the addresses */
+        for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+            out->operands[i].effective_address = 0;
+        }
+    }
+    
     out->total_len = (uint32_t)(cursor - pc);
 	return 0;
 }
@@ -298,28 +353,100 @@ static uint32_t get_short_embedded(const Nd500OperandDecoded* op) {
     return (uint32_t)(op->address_code & 0x3F);
 }
 
+/* Enhanced compute_effective_address matching C# implementation */
 static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
+    uint32_t address = 0;
+    int32_t displacement = 0;
+    
+    /* Extract displacement value (signed) */
+    if (op->data_len == 1) {
+        displacement = (int8_t)op->data[0];
+    } else if (op->data_len == 2) {
+        uint16_t raw = (uint16_t)op->data[0] | ((uint16_t)op->data[1] << 8);
+        displacement = (int16_t)raw;
+    } else if (op->data_len >= 4) {
+        uint32_t raw = get_operand_value32(op);
+        displacement = (int32_t)raw;
+    }
+    
+    /* STEP 1: Calculate base address based on addressing mode */
     switch (op->mode) {
         case ND500_ADDR_ABSOLUTE:
         case ND500_ADDR_ABSOLUTE_PI:
-            return get_operand_value32(op);
+            /* Absolute addressing - use displacement as absolute address */
+            address = get_operand_value32(op);
+            break;
+            
         case ND500_ADDR_LOCAL:
         case ND500_ADDR_LOCAL_PI:
         case ND500_ADDR_LOCAL_IND:
         case ND500_ADDR_LOCAL_IND_PI:
-            return cpu->B + get_operand_value32(op);
-        case ND500_ADDR_RECORD:
-            return cpu->R + get_operand_value32(op);
+            /* Local addressing - B register + displacement */
+            address = (uint32_t)((int32_t)cpu->B + displacement);
+            break;
+            
         case ND500_ADDR_LOCAL_SHORT:
-            return cpu->B + (get_short_embedded(op) * 4u);
+            /* Local short - B + embedded value * 4 */
+            address = cpu->B + (get_short_embedded(op) * 4u);
+            break;
+            
+        case ND500_ADDR_RECORD:
+            /* Record addressing - R register + displacement */
+            address = (uint32_t)((int32_t)cpu->R + displacement);
+            break;
+            
         case ND500_ADDR_RECORD_SHORT:
-            return cpu->R + (get_short_embedded(op) * 4u);
+            /* Record short - R + embedded value * 4 */
+            address = cpu->R + (get_short_embedded(op) * 4u);
+            break;
+            
         case ND500_ADDR_PREINDEXED:
-            if (op->reg < 4) return cpu->I[op->reg] + get_operand_value32(op);
-            return get_operand_value32(op);
+            /* Pre-indexed - I[n] + displacement */
+            if (op->reg < 4) {
+                address = (uint32_t)((int32_t)cpu->I[op->reg] + displacement);
+            } else {
+                address = (uint32_t)displacement;
+            }
+            break;
+            
+        case ND500_ADDR_CONSTANT:
+        case ND500_ADDR_CONSTANT_SHORT:
+        case ND500_ADDR_REGISTER:
+            /* Non-memory operands - return 0 */
+            return 0;
+            
         default:
             return 0;
     }
+    
+    /* STEP 2: Handle indirection (@b.xxx, @b.xxx+) */
+    /* Read pointer from computed address */
+    switch (op->mode) {
+        case ND500_ADDR_LOCAL_IND:
+        case ND500_ADDR_LOCAL_IND_PI:
+            /* Indirect - read 32-bit pointer from address */
+            address = nd500_bus_read32(cpu->machine, address);
+            break;
+        default:
+            break;
+    }
+    
+    /* STEP 3: Handle post-indexing (b.xxx+, @b.xxx+) */
+    /* Add index register AFTER base+displacement (and after indirection) */
+    switch (op->mode) {
+        case ND500_ADDR_LOCAL_PI:
+        case ND500_ADDR_LOCAL_IND_PI:
+        case ND500_ADDR_ABSOLUTE_PI:
+            /* Post-indexed - add I[reg] value */
+            if (op->reg < 4) {
+                address = (uint32_t)((int32_t)address + (int32_t)cpu->I[op->reg]);
+            }
+            break;
+        default:
+            break;
+    }
+    
+    return address;
 }
 
 static uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
@@ -341,8 +468,8 @@ static uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
         case ND500_ADDR_LOCAL_SHORT:
         case ND500_ADDR_RECORD_SHORT:
         case ND500_ADDR_PREINDEXED: {
-            uint32_t ea = compute_effective_address(cpu, op);
-            return nd500_bus_read32(cpu->machine, ea);
+            /* Use pre-computed effective address from decode */
+            return nd500_bus_read32(cpu->machine, op->effective_address);
         }
         default:
             return 0;
@@ -364,8 +491,8 @@ static void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32
         case ND500_ADDR_LOCAL_SHORT:
         case ND500_ADDR_RECORD_SHORT:
         case ND500_ADDR_PREINDEXED: {
-            uint32_t ea = compute_effective_address(cpu, op);
-            nd500_bus_write32(cpu->machine, ea, value);
+            /* Use pre-computed effective address from decode */
+            nd500_bus_write32(cpu->machine, op->effective_address, value);
             break;
         }
         default:
