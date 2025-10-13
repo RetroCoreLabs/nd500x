@@ -71,10 +71,16 @@ src/debugger/CMakeFiles/nd500_debugger.dir/debugger.c.o: ../src/debugger/debugge
   ../src/machine/machine_types.h \
   ../src/machine/machine_protos.h \
   ../src/cpu/cpu_protos.h \
+  ../src/machine/breakpoints.h \
+  /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h \
   ../src/ndlib/ndlib.h
 
 
 ../src/ndlib/ndlib.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h:
+
+../src/machine/breakpoints.h:
 
 ../src/cpu/cpu_protos.h:
 

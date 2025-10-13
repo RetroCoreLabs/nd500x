@@ -111,11 +111,26 @@ src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.s"
 	cd /home/ronny/repos/nd500x/build/src/ndlib && /usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/ronny/repos/nd500x/src/ndlib/ndlib_symbols.c -o CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.s
 
+src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o: src/ndlib/CMakeFiles/nd500_ndlib.dir/flags.make
+src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o: ../src/ndlib/ndlib_color.c
+src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o: src/ndlib/CMakeFiles/nd500_ndlib.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/ronny/repos/nd500x/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building C object src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o"
+	cd /home/ronny/repos/nd500x/build/src/ndlib && /usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o -MF CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o.d -o CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o -c /home/ronny/repos/nd500x/src/ndlib/ndlib_color.c
+
+src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/nd500_ndlib.dir/ndlib_color.c.i"
+	cd /home/ronny/repos/nd500x/build/src/ndlib && /usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/ronny/repos/nd500x/src/ndlib/ndlib_color.c > CMakeFiles/nd500_ndlib.dir/ndlib_color.c.i
+
+src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/nd500_ndlib.dir/ndlib_color.c.s"
+	cd /home/ronny/repos/nd500x/build/src/ndlib && /usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/ronny/repos/nd500x/src/ndlib/ndlib_color.c -o CMakeFiles/nd500_ndlib.dir/ndlib_color.c.s
+
 # Object files for target nd500_ndlib
 nd500_ndlib_OBJECTS = \
 "CMakeFiles/nd500_ndlib.dir/ndlib.c.o" \
 "CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o" \
-"CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o"
+"CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o" \
+"CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o"
 
 # External object files for target nd500_ndlib
 nd500_ndlib_EXTERNAL_OBJECTS =
@@ -123,9 +138,10 @@ nd500_ndlib_EXTERNAL_OBJECTS =
 lib/libnd500_ndlib.a: src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib.c.o
 lib/libnd500_ndlib.a: src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o
 lib/libnd500_ndlib.a: src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o
+lib/libnd500_ndlib.a: src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o
 lib/libnd500_ndlib.a: src/ndlib/CMakeFiles/nd500_ndlib.dir/build.make
 lib/libnd500_ndlib.a: src/ndlib/CMakeFiles/nd500_ndlib.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/ronny/repos/nd500x/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking C static library ../../lib/libnd500_ndlib.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/ronny/repos/nd500x/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Linking C static library ../../lib/libnd500_ndlib.a"
 	cd /home/ronny/repos/nd500x/build/src/ndlib && $(CMAKE_COMMAND) -P CMakeFiles/nd500_ndlib.dir/cmake_clean_target.cmake
 	cd /home/ronny/repos/nd500x/build/src/ndlib && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/nd500_ndlib.dir/link.txt --verbose=$(VERBOSE)
 

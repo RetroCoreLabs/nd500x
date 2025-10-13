@@ -36,6 +36,18 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
     Nd500FetchedInstruction fi;
     uint32_t old_pc = cpu->PC;
     if (nd500_decode_at(cpu->machine, old_pc, &fi) != 0) return;
+    
+    /* Trace instruction execution if enabled */
+    if (nd500_dbg_get_trace_mode()) {
+        uint32_t regs[8] = {cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3], cpu->L, cpu->B, cpu->R};
+        nd500_dbg_trace_instruction(old_pc, fi.mnemonic, regs);
+    }
+    
+    /* Profile instruction execution if enabled */
+    if (nd500_dbg_get_profiling()) {
+        nd500_dbg_profile_instruction(fi.mnemonic);
+    }
+    
     nd500_execute_decoded(cpu, &fi);
     if (cpu->PC == old_pc) {
         cpu->PC += fi.total_len ? fi.total_len : fi.opcode_len;

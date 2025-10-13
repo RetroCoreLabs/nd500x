@@ -125,12 +125,27 @@ src/machine/CMakeFiles/nd500_machine.dir/machine_loader.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/nd500_machine.dir/machine_loader.c.s"
 	cd /home/ronny/repos/nd500x/build/src/machine && /usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/ronny/repos/nd500x/src/machine/machine_loader.c -o CMakeFiles/nd500_machine.dir/machine_loader.c.s
 
+src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.o: src/machine/CMakeFiles/nd500_machine.dir/flags.make
+src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.o: ../src/machine/breakpoints.c
+src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.o: src/machine/CMakeFiles/nd500_machine.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/ronny/repos/nd500x/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building C object src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.o"
+	cd /home/ronny/repos/nd500x/build/src/machine && /usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.o -MF CMakeFiles/nd500_machine.dir/breakpoints.c.o.d -o CMakeFiles/nd500_machine.dir/breakpoints.c.o -c /home/ronny/repos/nd500x/src/machine/breakpoints.c
+
+src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/nd500_machine.dir/breakpoints.c.i"
+	cd /home/ronny/repos/nd500x/build/src/machine && /usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/ronny/repos/nd500x/src/machine/breakpoints.c > CMakeFiles/nd500_machine.dir/breakpoints.c.i
+
+src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/nd500_machine.dir/breakpoints.c.s"
+	cd /home/ronny/repos/nd500x/build/src/machine && /usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/ronny/repos/nd500x/src/machine/breakpoints.c -o CMakeFiles/nd500_machine.dir/breakpoints.c.s
+
 # Object files for target nd500_machine
 nd500_machine_OBJECTS = \
 "CMakeFiles/nd500_machine.dir/machine.c.o" \
 "CMakeFiles/nd500_machine.dir/io.c.o" \
 "CMakeFiles/nd500_machine.dir/debug_api.c.o" \
-"CMakeFiles/nd500_machine.dir/machine_loader.c.o"
+"CMakeFiles/nd500_machine.dir/machine_loader.c.o" \
+"CMakeFiles/nd500_machine.dir/breakpoints.c.o"
 
 # External object files for target nd500_machine
 nd500_machine_EXTERNAL_OBJECTS =
@@ -139,9 +154,10 @@ lib/libnd500_machine.a: src/machine/CMakeFiles/nd500_machine.dir/machine.c.o
 lib/libnd500_machine.a: src/machine/CMakeFiles/nd500_machine.dir/io.c.o
 lib/libnd500_machine.a: src/machine/CMakeFiles/nd500_machine.dir/debug_api.c.o
 lib/libnd500_machine.a: src/machine/CMakeFiles/nd500_machine.dir/machine_loader.c.o
+lib/libnd500_machine.a: src/machine/CMakeFiles/nd500_machine.dir/breakpoints.c.o
 lib/libnd500_machine.a: src/machine/CMakeFiles/nd500_machine.dir/build.make
 lib/libnd500_machine.a: src/machine/CMakeFiles/nd500_machine.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/ronny/repos/nd500x/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Linking C static library ../../lib/libnd500_machine.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/ronny/repos/nd500x/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Linking C static library ../../lib/libnd500_machine.a"
 	cd /home/ronny/repos/nd500x/build/src/machine && $(CMAKE_COMMAND) -P CMakeFiles/nd500_machine.dir/cmake_clean_target.cmake
 	cd /home/ronny/repos/nd500x/build/src/machine && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/nd500_machine.dir/link.txt --verbose=$(VERBOSE)
 

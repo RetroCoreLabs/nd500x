@@ -66,8 +66,14 @@ src/frontend/nd500x/CMakeFiles/nd500x.dir/nd500x.c.o: ../src/frontend/nd500x/nd5
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
   ../src/machine/machine_types.h \
   ../src/cpu/cpu_protos.h \
-  ../src/debugger/debugger.h
+  ../src/debugger/debugger.h \
+  ../src/ndlib/ndlib.h \
+  ../src/ndlib/ndlib_color.h
 
+
+../src/ndlib/ndlib_color.h:
+
+../src/ndlib/ndlib.h:
 
 ../src/cpu/cpu_protos.h:
 

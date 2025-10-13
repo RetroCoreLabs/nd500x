@@ -1,2 +1,2 @@
-/usr/bin/ar qc ../../lib/libnd500_ndlib.a CMakeFiles/nd500_ndlib.dir/ndlib.c.o CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o
+/usr/bin/ar qc ../../lib/libnd500_ndlib.a CMakeFiles/nd500_ndlib.dir/ndlib.c.o CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o
 /usr/bin/ranlib ../../lib/libnd500_ndlib.a

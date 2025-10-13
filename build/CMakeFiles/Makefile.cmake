@@ -10,11 +10,13 @@ set(CMAKE_MAKEFILE_DEPENDS
   "../CMakeLists.txt"
   "CMakeFiles/3.22.1/CMakeCCompiler.cmake"
   "CMakeFiles/3.22.1/CMakeSystem.cmake"
+  "../external/libsymbols/CMakeLists.txt"
   "../src/cpu/CMakeLists.txt"
   "../src/debugger/CMakeLists.txt"
   "../src/frontend/nd500x/CMakeLists.txt"
   "../src/machine/CMakeLists.txt"
   "../src/ndlib/CMakeLists.txt"
+  "../test/CMakeLists.txt"
   "../tools/gen_instructions/CMakeLists.txt"
   "/usr/share/cmake-3.22/Modules/CMakeCInformation.cmake"
   "/usr/share/cmake-3.22/Modules/CMakeCommonLanguageInclude.cmake"
@@ -44,22 +46,26 @@ set(CMAKE_MAKEFILE_OUTPUTS
 # Byproducts of CMake generate step:
 set(CMAKE_MAKEFILE_PRODUCTS
   "CMakeFiles/CMakeDirectoryInformation.cmake"
+  "external/libsymbols/CMakeFiles/CMakeDirectoryInformation.cmake"
   "src/ndlib/CMakeFiles/CMakeDirectoryInformation.cmake"
   "src/machine/CMakeFiles/CMakeDirectoryInformation.cmake"
   "src/cpu/CMakeFiles/CMakeDirectoryInformation.cmake"
   "src/debugger/CMakeFiles/CMakeDirectoryInformation.cmake"
   "src/frontend/nd500x/CMakeFiles/CMakeDirectoryInformation.cmake"
   "tools/gen_instructions/CMakeFiles/CMakeDirectoryInformation.cmake"
+  "test/CMakeFiles/CMakeDirectoryInformation.cmake"
   )
 
 # Dependency information for all targets:
 set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/nd500_instr_codegen.dir/DependInfo.cmake"
   "CMakeFiles/nd500_instr.dir/DependInfo.cmake"
+  "external/libsymbols/CMakeFiles/symbols_objects.dir/DependInfo.cmake"
   "src/ndlib/CMakeFiles/nd500_ndlib.dir/DependInfo.cmake"
   "src/machine/CMakeFiles/nd500_machine.dir/DependInfo.cmake"
   "src/cpu/CMakeFiles/nd500_cpu.dir/DependInfo.cmake"
   "src/debugger/CMakeFiles/nd500_debugger.dir/DependInfo.cmake"
   "src/frontend/nd500x/CMakeFiles/nd500x.dir/DependInfo.cmake"
   "tools/gen_instructions/CMakeFiles/gen_instructions.dir/DependInfo.cmake"
+  "test/CMakeFiles/disasm_tests.dir/DependInfo.cmake"
   )

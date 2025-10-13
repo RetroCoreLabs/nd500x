@@ -10,6 +10,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/ronny/repos/nd500x/src/ndlib/ndlib.c" "src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib.c.o" "gcc" "src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib.c.o.d"
   "/home/ronny/repos/nd500x/src/ndlib/ndlib_aout.c" "src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o" "gcc" "src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_aout.c.o.d"
+  "/home/ronny/repos/nd500x/src/ndlib/ndlib_color.c" "src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o" "gcc" "src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_color.c.o.d"
   "/home/ronny/repos/nd500x/src/ndlib/ndlib_symbols.c" "src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o" "gcc" "src/ndlib/CMakeFiles/nd500_ndlib.dir/ndlib_symbols.c.o.d"
   )
 

@@ -57,4 +57,5 @@ src/machine/CMakeFiles/nd500_machine.dir/debug_api.c.o: \
  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
  /home/ronny/repos/nd500x/src/machine/machine_types.h \
  /home/ronny/repos/nd500x/src/machine/../cpu/cpu_protos.h \
- /home/ronny/repos/nd500x/src/machine/../ndlib/ndlib.h
+ /home/ronny/repos/nd500x/src/machine/../ndlib/ndlib.h \
+ /home/ronny/repos/nd500x/src/machine/../ndlib/ndlib_color.h

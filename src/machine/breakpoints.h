@@ -12,11 +12,19 @@ typedef enum {
     BP_TYPE_CONDITIONAL = 2   /* Break when condition is true */
 } BreakpointType;
 
+/* Expression evaluation result */
+typedef struct {
+    bool valid;
+    uint32_t value;
+    char error_msg[64];
+} ExprResult;
+
 /* Watchpoint types */
 typedef enum {
     WP_TYPE_READ  = 1,  /* Break on memory read */
     WP_TYPE_WRITE = 2,  /* Break on memory write */
-    WP_TYPE_CHANGE = 3  /* Break on memory value change */
+    WP_TYPE_CHANGE = 3, /* Break on memory value change */
+    WP_TYPE_REGISTER = 4 /* Break on register value change */
 } WatchpointType;
 
 /* Breakpoint structure */
@@ -31,12 +39,13 @@ typedef struct {
 
 /* Watchpoint structure */
 typedef struct {
-    uint32_t address;         /* Memory address to watch */
+    uint32_t address;         /* Memory address to watch (or register index for REGISTER type) */
     uint32_t length;          /* Number of bytes to watch */
     WatchpointType type;
     bool enabled;
-    uint32_t last_value;      /* For CHANGE type */
+    uint32_t last_value;      /* For CHANGE and REGISTER types */
     uint32_t hit_count;
+    char register_name[8];     /* Register name for REGISTER type */
 } Watchpoint;
 
 /* Breakpoint manager */
@@ -53,18 +62,24 @@ void bp_mgr_init(BreakpointManager* mgr);
 
 /* Breakpoint management */
 int bp_add(BreakpointManager* mgr, uint32_t address, bool one_shot);
+int bp_add_conditional(BreakpointManager* mgr, uint32_t address, const char* condition, bool one_shot);
 int bp_delete(BreakpointManager* mgr, int id);
 int bp_enable(BreakpointManager* mgr, int id);
 int bp_disable(BreakpointManager* mgr, int id);
 void bp_list(BreakpointManager* mgr);
 bool bp_should_break_at(BreakpointManager* mgr, uint32_t pc);
 
+/* Expression evaluation */
+ExprResult bp_evaluate_condition(const char* condition, uint32_t pc, uint32_t* registers, uint32_t* memory);
+
 /* Watchpoint management */
 int wp_add(BreakpointManager* mgr, uint32_t address, uint32_t length, WatchpointType type);
+int wp_add_register(BreakpointManager* mgr, const char* reg_name, uint32_t reg_index);
 int wp_delete(BreakpointManager* mgr, int id);
 int wp_enable(BreakpointManager* mgr, int id);
 int wp_disable(BreakpointManager* mgr, int id);
 void wp_list(BreakpointManager* mgr);
 bool wp_should_break_on_read(BreakpointManager* mgr, uint32_t addr);
 bool wp_should_break_on_write(BreakpointManager* mgr, uint32_t addr, uint32_t value);
+bool wp_should_break_on_register_change(BreakpointManager* mgr, uint32_t reg_index, uint32_t value);
 

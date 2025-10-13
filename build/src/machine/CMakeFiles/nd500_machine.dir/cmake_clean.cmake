@@ -1,6 +1,8 @@
 file(REMOVE_RECURSE
   "../../lib/libnd500_machine.a"
   "../../lib/libnd500_machine.pdb"
+  "CMakeFiles/nd500_machine.dir/breakpoints.c.o"
+  "CMakeFiles/nd500_machine.dir/breakpoints.c.o.d"
   "CMakeFiles/nd500_machine.dir/debug_api.c.o"
   "CMakeFiles/nd500_machine.dir/debug_api.c.o.d"
   "CMakeFiles/nd500_machine.dir/io.c.o"

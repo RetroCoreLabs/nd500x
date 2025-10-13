@@ -21,4 +21,6 @@ src/cpu/CMakeFiles/nd500_cpu.dir/cpu.c.o: \
  /usr/include/x86_64-linux-gnu/bits/stdint-intn.h \
  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
  /home/ronny/repos/nd500x/src/cpu/../machine/machine_types.h \
- /home/ronny/repos/nd500x/src/cpu/../machine/machine_protos.h
+ /home/ronny/repos/nd500x/src/cpu/../machine/machine_protos.h \
+ /home/ronny/repos/nd500x/src/cpu/../machine/breakpoints.h \
+ /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h
