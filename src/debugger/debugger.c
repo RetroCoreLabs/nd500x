@@ -28,7 +28,7 @@ static uint32_t parse_u32(const char* s, uint32_t defv) {
 
 /* Tab completion support */
 static const char* debugger_commands[] = {
-    "help", "m", "d", "dis", "disasm", "step", "s", "regs", "set", "load", "run", "stop",
+    "help", "?", "m", "d", "dis", "disasm", "step", "s", "regs", "set", "load", "run", "stop",
     "continue", "c", "cont", "symb", "symbols", "show", "bp", "break", "breakpoint",
     "wp", "watch", "watchpoint", "profile", "backtrace", "bt", "clear-traps", "history",
     "q", "quit", "exit", "dap"
