@@ -357,9 +357,13 @@ static int execute_history_command(const char* line, char* output, size_t max_le
     return 0;
 }
 
-static int read_line_with_tab_completion(char* line, size_t max_len) {
+static int read_line_with_tab_completion(char* line, size_t max_len, uint32_t pc) {
 #ifdef HAVE_READLINE
-    char* input = readline("");
+    /* Create dynamic prompt with current PC */
+    char prompt[64];
+    snprintf(prompt, sizeof(prompt), "\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
+    
+    char* input = readline(prompt);
     if (input == NULL) {
         return 0;
     }
@@ -387,7 +391,10 @@ static int read_line_with_tab_completion(char* line, size_t max_len) {
     free(input);
     return 1;
 #else
-    /* Fallback to simple fgets */
+    /* Fallback to simple fgets with manual prompt */
+    printf("\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
+    fflush(stdout);
+    
     if (fgets(line, max_len, stdin) == NULL) {
         return 0;
     }
@@ -468,12 +475,7 @@ int nd500_debugger_repl(Nd500Machine* m) {
     printf("Tab completion enabled - press TAB to complete commands\n");
 #endif
     
-    while (
-        /* Colorized prompt: cyan PC inside dim brackets */
-        fprintf(stdout, "\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ",
-                m && m->cpu ? m->cpu->PC : 0),
-        fflush(stdout),
-        read_line_with_tab_completion(line, sizeof(line))) {
+    while (read_line_with_tab_completion(line, sizeof(line), m && m->cpu ? m->cpu->PC : 0)) {
 		char* tok = strtok(line, " \t\r\n");
 		if (!tok) continue;
 		if (strcmp(tok, "q") == 0 || strcmp(tok, "quit") == 0 || strcmp(tok, "exit") == 0) {
