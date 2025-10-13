@@ -639,6 +639,9 @@ int nd500_debugger_repl(Nd500Machine* m) {
     rl_completion_append_character = '\0';
     rl_basic_word_break_characters = " \t\n\"\\'`@$><=;|&{(";
     
+    /* Show all matches with single TAB press */
+    rl_variable_bind("show-all-if-ambiguous", "on");
+    
     /* Disable filename completion completely */
     rl_attempted_completion_over = 1;
     rl_completion_query_items = 0;  /* Don't ask "Display all X possibilities?" */
