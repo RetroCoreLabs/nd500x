@@ -209,7 +209,7 @@ static int handle_tab_completion(char* line, size_t* pos) {
     return 0;
 }
 
-/* Readline completion function */
+/* Command generator for main commands */
 static char* command_generator(const char* text, int state) {
     static int list_index, len;
     static const char* matches[] = {
@@ -239,6 +239,12 @@ static char* command_generator(const char* text, int state) {
     char* line = rl_line_buffer;
     int point = rl_point;
     
+    /* Debug output */
+    if (state == 0) {
+        fprintf(stderr, "DEBUG: text='%s', line='%s', point=%d\n", 
+                text ? text : "NULL", line ? line : "NULL", point);
+    }
+    
     /* Find the start of the current word */
     int word_start = point;
     while (word_start > 0 && !isspace(line[word_start - 1])) {
@@ -246,7 +252,7 @@ static char* command_generator(const char* text, int state) {
     }
     
     /* Check if we're after 'show ' */
-    if (strncmp(line, "show ", 5) == 0 && word_start >= 5) {
+    if (strncmp(line, "show ", 5) == 0 && point >= 5) {
         if (state == 0) {
             list_index = 0;
             len = text ? strlen(text) : 0;
@@ -263,7 +269,7 @@ static char* command_generator(const char* text, int state) {
     
     /* Check if we're after 'bp ' */
     if ((strncmp(line, "bp ", 3) == 0 || strncmp(line, "break ", 6) == 0 || strncmp(line, "breakpoint ", 11) == 0) && 
-        word_start >= (strncmp(line, "bp ", 3) == 0 ? 3 : (strncmp(line, "break ", 6) == 0 ? 6 : 11))) {
+        point >= (strncmp(line, "bp ", 3) == 0 ? 3 : (strncmp(line, "break ", 6) == 0 ? 6 : 11))) {
         if (state == 0) {
             list_index = 0;
             len = text ? strlen(text) : 0;
@@ -280,7 +286,7 @@ static char* command_generator(const char* text, int state) {
     
     /* Check if we're after 'wp ' */
     if ((strncmp(line, "wp ", 3) == 0 || strncmp(line, "watch ", 6) == 0 || strncmp(line, "watchpoint ", 11) == 0) && 
-        word_start >= (strncmp(line, "wp ", 3) == 0 ? 3 : (strncmp(line, "watch ", 6) == 0 ? 6 : 11))) {
+        point >= (strncmp(line, "wp ", 3) == 0 ? 3 : (strncmp(line, "watch ", 6) == 0 ? 6 : 11))) {
         if (state == 0) {
             list_index = 0;
             len = text ? strlen(text) : 0;
@@ -296,7 +302,7 @@ static char* command_generator(const char* text, int state) {
     }
     
     /* Check if we're after 'profile ' */
-    if (strncmp(line, "profile ", 8) == 0 && word_start >= 8) {
+    if (strncmp(line, "profile ", 8) == 0 && point >= 8) {
         if (state == 0) {
             list_index = 0;
             len = text ? strlen(text) : 0;
@@ -312,7 +318,7 @@ static char* command_generator(const char* text, int state) {
     }
     
     /* Check if we're after 'set ' */
-    if (strncmp(line, "set ", 4) == 0 && word_start >= 4) {
+    if (strncmp(line, "set ", 4) == 0 && point >= 4) {
         if (state == 0) {
             list_index = 0;
             len = text ? strlen(text) : 0;
@@ -365,14 +371,85 @@ static char* command_generator(const char* text, int state) {
     return NULL;
 }
 
+/* Subcommand generator */
+static char* subcommand_generator(const char* text, int state) {
+    static int list_index, len;
+    static const char* show_matches[] = {
+        "ea", "demangle", "trace", "profile", "trap", "traps", "trap-status"
+    };
+    static const char* bp_matches[] = {
+        "cond", "list", "del", "enable", "disable"
+    };
+    static const char* wp_matches[] = {
+        "reg", "list", "del", "enable", "disable"
+    };
+    static const char* profile_matches[] = {
+        "show", "reset"
+    };
+    static const char* set_matches[] = {
+        "PC", "I1", "I2", "I3", "I4", "A1", "A2", "A3", "A4", "E1", "E2", "E3", "E4",
+        "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2"
+    };
+    
+    char* line = rl_line_buffer;
+    const char** match_list = NULL;
+    int match_count = 0;
+    
+    if (!state) {
+        list_index = 0;
+        len = strlen(text);
+    }
+    
+    /* Determine which subcommand list to use based on the line content */
+    if (strncmp(line, "show ", 5) == 0) {
+        match_list = show_matches;
+        match_count = sizeof(show_matches) / sizeof(show_matches[0]);
+    } else if (strncmp(line, "bp ", 3) == 0 || strncmp(line, "break ", 6) == 0 || strncmp(line, "breakpoint ", 11) == 0) {
+        match_list = bp_matches;
+        match_count = sizeof(bp_matches) / sizeof(bp_matches[0]);
+    } else if (strncmp(line, "wp ", 3) == 0 || strncmp(line, "watch ", 6) == 0 || strncmp(line, "watchpoint ", 11) == 0) {
+        match_list = wp_matches;
+        match_count = sizeof(wp_matches) / sizeof(wp_matches[0]);
+    } else if (strncmp(line, "profile ", 8) == 0) {
+        match_list = profile_matches;
+        match_count = sizeof(profile_matches) / sizeof(profile_matches[0]);
+    } else if (strncmp(line, "set ", 4) == 0) {
+        match_list = set_matches;
+        match_count = sizeof(set_matches) / sizeof(set_matches[0]);
+    }
+    
+    while (list_index < match_count) {
+        if (strncmp(match_list[list_index], text, len) == 0) {
+            return strdup(match_list[list_index++]);
+        }
+        list_index++;
+    }
+    
+    return NULL;
+}
+
 static char** command_completion(const char* text, int start, int end) {
     char** matches = NULL;
+    char* buffer = rl_line_buffer;
     
     /* Always suppress filename completion */
     rl_attempted_completion_over = 1;
     
-    /* Try our completion function */
-    matches = rl_completion_matches(text, command_generator);
+    if (start == 0) {
+        /* Completing the first word (command) */
+        matches = rl_completion_matches(text, command_generator);
+    } else {
+        /* Completing subsequent words (subcommands or parameters) */
+        /* Check if the first word is a command that has subcommands */
+        char* first_word = strtok(buffer, " ");
+        if (first_word && (strcmp(first_word, "show") == 0 || 
+                          strcmp(first_word, "bp") == 0 || strcmp(first_word, "break") == 0 || strcmp(first_word, "breakpoint") == 0 ||
+                          strcmp(first_word, "wp") == 0 || strcmp(first_word, "watch") == 0 || strcmp(first_word, "watchpoint") == 0 ||
+                          strcmp(first_word, "profile") == 0 ||
+                          strcmp(first_word, "set") == 0)) {
+            matches = rl_completion_matches(text, subcommand_generator);
+        }
+    }
     
     return matches;
 }
