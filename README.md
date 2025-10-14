@@ -112,6 +112,51 @@ The WASM build automatically:
 - Fetches cJSON via CMake FetchContent
 - Exports JavaScript-callable functions for debugging
 - Configures Emscripten with proper memory and export settings
+- Copies web interface files to build output
+
+### WebAssembly Debugger
+
+The WASM build includes a complete web-based debugger interface:
+
+**Build and Run:**
+```bash
+make wasm-serve    # Build WASM and start web server
+```
+
+This will:
+1. Build the WebAssembly version with debugger support
+2. Start a local web server on http://localhost:8000
+3. Open your browser to use the debugger
+
+**Web Debugger Features:**
+- **File Upload**: Load .o/.out files via file picker or drag-and-drop
+- **Modern Three-Panel Layout**: Disassembly (left), registers/TRAP/memory (right)
+- **JSON-Based Disassembly**: Structured output with address, bytes, mnemonic, operands
+- **Interactive Registers**: Click any register to edit value (hex or decimal input)
+- **PC-Synchronized Disassembly**: Changing PC automatically updates disassembly view
+- **TRAP Information Panel**: Real-time trap display with clear traps button
+- **Clickable Memory Addresses**: Click addresses to navigate memory view
+- **Enhanced Breakpoints**: Click gutter to toggle, visual dots without content shifting
+- **Color-Coded Disassembly**: ANSI-inspired colors (blue mnemonics, magenta branches)
+- **Step/Run Controls**: Single-step execution or continuous running
+- **Memory Viewer**: Hex dump with ASCII representation
+- **Real-time Updates**: Live register, trap, and disassembly updates during execution
+
+**Browser Compatibility:**
+- Modern browsers with WebAssembly support (Chrome 57+, Firefox 52+, Safari 11+)
+- No external dependencies - pure vanilla JavaScript
+- Responsive design works on desktop and mobile
+
+**Usage:**
+1. Run `make wasm-serve`
+2. Open http://localhost:8000 in your browser
+3. Load a .o or .out file using the "Load File" button or drag-and-drop
+4. Use Step/Run controls to execute code
+5. **Click registers** to edit values (PC changes update disassembly)
+6. **Click breakpoint gutter** (left of address) to toggle breakpoints
+7. **Click memory addresses** to navigate to new memory locations
+8. View traps in real-time and clear them with the clear button
+9. Enjoy color-coded disassembly with proper spacing and alignment
 
 ## Usage
 
@@ -351,7 +396,7 @@ If libreadline is not found, the debugger will work without tab completion and c
 |----------|--------|-------|
 | **Linux** | ✅ Full support | Tested on Ubuntu 20.04+ |
 | **Windows** | ⚠️ Experimental | Native build via MSVC or MinGW |
-| **WebAssembly** | ✅ Full support | Emscripten-based, debugger disabled |
+| **WebAssembly** | ✅ Full support | Emscripten-based, web debugger interface |
 | **macOS** | ⚠️ Untested | Should work (Unix-like) |
 
 ## Project Structure
@@ -363,13 +408,17 @@ nd500x/
 │   │   ├── ndlib.c         # Core logging
 │   │   ├── ndlib_aout.c    # a.out binary loader
 │   │   └── ndlib_symbols.c # Symbol table support
+│   ├── disasm/             # Disassembly module (NEW)
+│   │   ├── nd500_disasm.c  # JSON-based disassembly formatter
+│   │   └── nd500_disasm.h  # Disassembly API
 │   ├── machine/            # Machine state and debug API
 │   │   ├── machine.c       # Memory, bus, run loop
 │   │   ├── machine_loader.c
 │   │   ├── debug_api.c     # Unified debug interface
+│   │   ├── breakpoints.c   # Breakpoint management
 │   │   └── io.c
 │   ├── cpu/                # CPU core
-│   │   ├── cpu.c           # Register state, reset, step
+│   │   ├── cpu.c           # Register state, reset, step, traps
 │   │   └── cpu_instr.c     # Instruction decoder, addressing modes
 │   ├── debugger/           # Interactive debugger
 │   │   ├── debugger.c      # REPL implementation
@@ -377,6 +426,12 @@ nd500x/
 │   └── frontend/
 │       ├── nd500x/         # Native entry point
 │       └── nd500wasm/      # WebAssembly entry point
+│           ├── main.c      # WASM C interface (21 exported functions)
+│           ├── tests/      # Unit tests for WASM
+│           └── web/        # Web debugger interface (NEW)
+│               ├── index.html    # Main UI
+│               ├── style.css     # Styling
+│               └── debugger.js   # Frontend logic
 ├── tools/
 │   └── gen_instructions/   # Build-time code generator
 │       └── gen_instructions.c
