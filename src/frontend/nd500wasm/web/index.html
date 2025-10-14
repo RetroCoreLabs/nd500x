@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>ND500X Web Debugger</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="header">
+        <h1>ND500X Emulator - Web Debugger</h1>
+        <div id="controls">
+            <input type="file" id="fileInput" accept=".o,.out">
+            <button id="loadBtn">Load File</button>
+            <button id="stepBtn">Step</button>
+            <button id="runBtn">Run</button>
+            <button id="stopBtn">Stop</button>
+            <button id="resetBtn">Reset</button>
+        </div>
+    </div>
+    <div id="main-container">
+        <div id="left-pane">
+            <!-- Disassembly view -->
+            <div id="disasm-panel">
+                <h2>Disassembly</h2>
+                <div id="disasm-content"></div>
+            </div>
+        </div>
+        <div id="right-pane">
+            <!-- Registers -->
+            <div id="regs-panel">
+                <h2>Registers</h2>
+                <div id="regs-content"></div>
+            </div>
+            <!-- TRAP Information -->
+            <div id="trap-panel">
+                <h2>TRAP Information</h2>
+                <div class="trap-controls">
+                    <button id="clearTrapsBtn">Clear Traps</button>
+                </div>
+                <div id="trap-content"></div>
+            </div>
+            <!-- Memory -->
+            <div id="memory-panel">
+                <h2>Memory</h2>
+                <div class="memory-controls">
+                    <input id="memAddr" placeholder="Address (hex)">
+                    <input id="memLen" placeholder="Length">
+                    <button id="memViewBtn">View</button>
+                    <label>
+                        <input type="checkbox" id="memAsciiToggle" checked>
+                        Show ASCII
+                    </label>
+                </div>
+                <div id="memory-content"></div>
+            </div>
+            <!-- Breakpoints -->
+            <div id="bp-panel">
+                <h2>Breakpoints</h2>
+                <div class="bp-controls">
+                    <input id="bpAddr" placeholder="Address (hex)">
+                    <button id="bpAddBtn">Add</button>
+                </div>
+                <div id="bp-list"></div>
+            </div>
+        </div>
+    </div>
+    <div id="status-bar">Ready</div>
+    <div id="drop-zone" class="hidden">Drop .o or .out file here</div>
+    
+    <script src="nd500wasm.js"></script>
+    <script src="debugger.js"></script>
+</body>
+</html>

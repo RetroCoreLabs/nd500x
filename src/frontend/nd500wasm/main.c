@@ -1,10 +1,16 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "../../machine/machine_protos.h"
 #include "../../cpu/cpu_protos.h"
+#include "../../machine/breakpoints.h"
+#include "../../ndlib/ndlib.h"
+#include "../../disasm/nd500_disasm.h"
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #endif
+#include "../../cpu/cpu_protos.h"
 #ifndef HAVE_SYSTEM_CJSON
 #include <cjson/cJSON.h>
 #endif
@@ -12,10 +18,28 @@
 static Nd500Machine g_machine;
 static Nd500Cpu g_cpu;
 
+/* Anchor the generated instruction table in WASM to prevent dead-stripping */
+extern const unsigned int g_nd500_instrs_count;
+extern const struct Nd500InstrDef { unsigned short opcode; const char* mnemonic; unsigned char operands; unsigned char prefixes_mask; unsigned char variant; unsigned int op_templates[4]; } g_nd500_instrs[];
+static unsigned int anchor_instr_table(void) {
+    /* Read a couple of fields so the linker keeps the table */
+    unsigned int n = g_nd500_instrs_count;
+    unsigned int acc = n;
+    if (n > 0) {
+        acc ^= (unsigned int)g_nd500_instrs[0].opcode;
+    }
+    return acc;
+}
+/* Diagnostics: expose instruction table info to JS */
+unsigned int nd500_dbg_instr_count_js(void) { return g_nd500_instrs_count; }
+const char* nd500_dbg_mnemonic_js(unsigned int opcode) { return nd500_instr_mnemonic((uint16_t)opcode); }
+
 void nd500wasm_init(void) {
 	nd500_machine_init(&g_machine, 8 * 1024 * 1024);
 	nd500_cpu_init(&g_cpu, &g_machine);
 	nd500_cpu_reset(&g_cpu);
+    /* Force reference to instruction table so it is linked in */
+    (void)anchor_instr_table();
 }
 
 static char* dup_json_string(cJSON* obj) {
@@ -33,27 +57,30 @@ const char* nd500_dbg_mem_json(uint32_t addr, uint32_t len) {
 	cJSON_AddNumberToObject(root, "addr", addr);
 	cJSON_AddNumberToObject(root, "len", (double)got);
 	cJSON* arr = cJSON_CreateArray();
+	cJSON* ascii_arr = cJSON_CreateArray();
 	for (size_t i = 0; i < got; ++i) {
 		char tmp[3];
 		snprintf(tmp, sizeof(tmp), "%02X", buf[i]);
 		cJSON_AddItemToArray(arr, cJSON_CreateString(tmp));
+		
+		// Add ASCII representation
+		char ascii_char = (buf[i] >= 32 && buf[i] <= 126) ? buf[i] : '.';
+		cJSON_AddItemToArray(ascii_arr, cJSON_CreateString((char[]){ascii_char, 0}));
 	}
 	cJSON_AddItemToObject(root, "bytes", arr);
+	cJSON_AddItemToObject(root, "ascii", ascii_arr);
 	free(buf);
 	return dup_json_string(root);
 }
 
 const char* nd500_dbg_disasm_json(uint32_t addr, uint32_t len) {
-	cJSON* root = cJSON_CreateObject();
-	char txt[1024];
-	size_t n = nd500_dbg_disasm(&g_machine, addr, len, txt, sizeof(txt));
-	cJSON_AddNumberToObject(root, "addr", addr);
-	cJSON_AddNumberToObject(root, "len", (double)len);
-	cJSON_AddNumberToObject(root, "out_len", (double)n);
-	cJSON_AddStringToObject(root, "text", txt);
+    char json[16384];
+    size_t n = nd500_disasm_format_range_json(&g_machine, addr, len, json, sizeof(json));
+    if (n >= sizeof(json)) n = sizeof(json) - 1;
+    json[n] = '\0';
     /* Optionally include symbol name */
     /* In WASM we did not load symbols; skip for now */
-	return dup_json_string(root);
+    return strdup(json);
 }
 
 const char* nd500_dbg_regs_json(void) {
@@ -93,6 +120,138 @@ const char* nd500_dbg_regs_json(void) {
 void nd500_dbg_step_js(uint32_t n) { nd500_dbg_step(&g_machine, n ? n : 1); }
 void nd500_dbg_run_js(void) { nd500_dbg_run(&g_machine); }
 void nd500_dbg_stop_js(void) { nd500_dbg_stop(&g_machine); }
-int nd500_dbg_load_aout_js(const uint8_t* data, uint32_t size) { return nd500_dbg_load_aout_buffer(&g_machine, data, size, NULL); }
+int nd500_dbg_load_aout_js(const uint8_t* data, uint32_t size) {
+    uint32_t entry = 0;
+    int rc = nd500_dbg_load_aout_buffer(&g_machine, data, size, &entry);
+    if (rc == 0) {
+        /* Set PC to entry (or 0 if not provided) */
+        g_cpu.PC = entry;
+    }
+    return rc;
+}
+
+/* Load via path on MEMFS (browser) or node FS (ENVIRONMENT=node) */
+int nd500_dbg_load_aout_path_js(const char* path) {
+    if (!path) return -1;
+    unsigned int entry = 0;
+    int rc = ndlib_loadaout_file_ex(&g_machine, path, &entry, NULL);
+    if (rc == 0) {
+        /* Objects: entry often 0 or 4; we keep PC at 0 for objects per user policy */
+        if (entry != 0 && entry != 4) g_cpu.PC = entry; else g_cpu.PC = 0;
+    }
+    return rc;
+}
+
+/* Breakpoint API functions */
+int nd500_dbg_bp_add_js(uint32_t addr) {
+	if (!g_machine.bp_mgr) return -1;
+	return bp_add(g_machine.bp_mgr, addr, false);  // false = not one-shot
+}
+
+int nd500_dbg_bp_del_js(int id) {
+	if (!g_machine.bp_mgr) return -1;
+	return bp_delete(g_machine.bp_mgr, id);
+}
+
+int nd500_dbg_bp_enable_js(int id) {
+	if (!g_machine.bp_mgr) return -1;
+	return bp_enable(g_machine.bp_mgr, id);
+}
+
+int nd500_dbg_bp_disable_js(int id) {
+	if (!g_machine.bp_mgr) return -1;
+	return bp_disable(g_machine.bp_mgr, id);
+}
+
+const char* nd500_dbg_bp_list_json(void) {
+	cJSON* root = cJSON_CreateArray();
+	
+	if (!g_machine.bp_mgr) {
+		return dup_json_string(root);
+	}
+	
+	// Get breakpoint list from manager
+	Breakpoint* bps = g_machine.bp_mgr->breakpoints;
+	for (int i = 0; i < g_machine.bp_mgr->bp_count; i++) {
+		cJSON* bp_obj = cJSON_CreateObject();
+		cJSON_AddNumberToObject(bp_obj, "id", i);
+		cJSON_AddNumberToObject(bp_obj, "addr", bps[i].address);
+		cJSON_AddBoolToObject(bp_obj, "enabled", bps[i].enabled);
+		cJSON_AddItemToArray(root, bp_obj);
+	}
+	
+	return dup_json_string(root);
+}
+
+const char* nd500_dbg_status_json(void) {
+	cJSON* root = cJSON_CreateObject();
+	cJSON_AddBoolToObject(root, "running", g_machine.run_flag);
+	if (g_machine.cpu) {
+		cJSON_AddNumberToObject(root, "pc", g_machine.cpu->PC);
+	}
+	cJSON_AddBoolToObject(root, "breakpoint_hit", 0); // TODO: implement breakpoint hit detection
+	cJSON_AddStringToObject(root, "last_error", ""); // TODO: implement error tracking
+	return dup_json_string(root);
+}
+
+const char* nd500_dbg_traps_json(void) {
+	cJSON* root = cJSON_CreateObject();
+	cJSON* traps = cJSON_CreateArray();
+	
+	if (nd500_dbg_trap_occurred()) {
+		const char* desc = nd500_dbg_get_trap_description();
+		cJSON* trap = cJSON_CreateObject();
+		cJSON_AddStringToObject(trap, "description", desc ? desc : "Unknown trap");
+		cJSON_AddBoolToObject(trap, "occurred", 1);
+		cJSON_AddItemToArray(traps, trap);
+	}
+	
+	cJSON_AddItemToObject(root, "traps", traps);
+	return dup_json_string(root);
+}
+
+void nd500_dbg_clear_traps_js(void) {
+	nd500_dbg_clear_traps();
+}
+
+void nd500_dbg_set_reg_js(const char* reg_name, uint32_t value) {
+	if (!g_machine.cpu) return;
+	
+	// Map register names to CPU fields
+	if (strcmp(reg_name, "PC") == 0) {
+		g_machine.cpu->PC = value;
+	} else if (strcmp(reg_name, "FLAGS") == 0) {
+		g_machine.cpu->FLAGS = value;
+	} else if (strncmp(reg_name, "I", 1) == 0 && strlen(reg_name) == 2) {
+		int idx = reg_name[1] - '1';
+		if (idx >= 0 && idx < 4) {
+			g_machine.cpu->I[idx] = value;
+		}
+	} else if (strncmp(reg_name, "A", 1) == 0 && strlen(reg_name) == 2) {
+		int idx = reg_name[1] - '1';
+		if (idx >= 0 && idx < 4) {
+			g_machine.cpu->A[idx] = value;
+		}
+	} else if (strncmp(reg_name, "E", 1) == 0 && strlen(reg_name) == 2) {
+		int idx = reg_name[1] - '1';
+		if (idx >= 0 && idx < 4) {
+			g_machine.cpu->E[idx] = value;
+		}
+	} else if (strcmp(reg_name, "L") == 0) {
+		g_machine.cpu->L = value;
+	} else if (strcmp(reg_name, "B") == 0) {
+		g_machine.cpu->B = value;
+	} else if (strcmp(reg_name, "R") == 0) {
+		g_machine.cpu->R = value;
+	} else if (strcmp(reg_name, "TOS") == 0) {
+		g_machine.cpu->TOS = value;
+	} else if (strcmp(reg_name, "LL") == 0) {
+		g_machine.cpu->LL = value;
+	} else if (strcmp(reg_name, "HL") == 0) {
+		g_machine.cpu->HL = value;
+	} else if (strcmp(reg_name, "THA") == 0) {
+		g_machine.cpu->THA = value;
+	}
+}
 
 
