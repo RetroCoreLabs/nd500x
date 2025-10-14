@@ -236,8 +236,13 @@ static char* command_generator(const char* text, int state) {
     };
     
     /* Check if we're completing a subcommand */
+#ifdef HAVE_READLINE
     char* line = rl_line_buffer;
     int point = rl_point;
+#else
+    char* line = "";
+    int point = 0;
+#endif
     
     
     /* Find the start of the current word */
@@ -386,7 +391,11 @@ static char* subcommand_generator(const char* text, int state) {
         "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2"
     };
     
+#ifdef HAVE_READLINE
     char* line = rl_line_buffer;
+#else
+    char* line = "";
+#endif
     const char** match_list = NULL;
     int match_count = 0;
     
@@ -424,11 +433,16 @@ static char* subcommand_generator(const char* text, int state) {
 
 static char** command_completion(const char* text, int start, int end) {
     char** matches = NULL;
+#ifdef HAVE_READLINE
     char* buffer = rl_line_buffer;
     
     /* Always suppress filename completion */
     rl_attempted_completion_over = 1;
+#else
+    char* buffer = "";
+#endif
     
+#ifdef HAVE_READLINE
     if (start == 0) {
         /* Completing the first word (command) */
         matches = rl_completion_matches(text, command_generator);
@@ -444,6 +458,10 @@ static char** command_completion(const char* text, int start, int end) {
             matches = rl_completion_matches(text, subcommand_generator);
         }
     }
+#else
+    /* No completion available without readline */
+    matches = NULL;
+#endif
     
     return matches;
 }

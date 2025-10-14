@@ -1,19 +1,25 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include "machine_protos.h"
+#include "../disasm/nd500_disasm.h"
 #include "../cpu/cpu_protos.h"
 #include "../ndlib/ndlib.h"
 #include "../ndlib/ndlib_color.h"
 
 #include "../cpu/cpu_protos.h"
 
+static const char* reg_names[] = {"r1", "r2", "r3", "r4"};
+
 size_t nd500_dbg_mem_dump(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t* out, size_t out_cap) {
 	if (!m || !out || out_cap == 0) return 0;
 	if (addr >= m->memory_size) return 0;
 	uint32_t max = (uint32_t)((addr + len) > m->memory_size ? (m->memory_size - addr) : len);
 	if (max > out_cap) max = (uint32_t)out_cap;
-	memcpy(out, m->memory + addr, max);
+	for (uint32_t i = 0; i < max; ++i) {
+		out[i] = nd500_bus_read8(m, addr + i);
+	}
 	return max;
 }
 
@@ -84,89 +90,142 @@ int nd500_dbg_get_demangle(void) {
     return g_demangle;
 }
 
+static size_t format_operand_impl(char* dst, size_t cap, const Nd500OperandDecoded* op) {
+    if (!dst || cap == 0) return (size_t)0;
+    uint32_t val = 0;
+    int32_t sval = 0;
+    if (op->data_len == 1) { val = op->data[0]; sval = (int8_t)op->data[0]; }
+    else if (op->data_len == 2) { 
+        val = (uint32_t)op->data[0] | ((uint32_t)op->data[1] << 8);
+        sval = (int16_t)val;
+    }
+    else if (op->data_len >= 4) {
+        val = (uint32_t)op->data[0] | ((uint32_t)op->data[1] << 8) | ((uint32_t)op->data[2] << 16) | ((uint32_t)op->data[3] << 24);
+        sval = (int32_t)val;
+    }
+    uint8_t low6 = op->address_code & 0x3F;
+    char* p = dst; char* e = dst + cap;
+    if (op->has_alt_prefix && p < e) { int n = snprintf(p, (size_t)(e-p), "ALT "); if (n>0) p+= (n < (e-p) ? n : (int)(e-p)); }
+    if (op->has_desc_prefix && p < e) { int n = snprintf(p, (size_t)(e-p), "DESC%d ", (int)op->reg+1); if (n>0) p+= (n < (e-p) ? n : (int)(e-p)); }
+    
+    /* Special handling for inline operands (AC=0xFF for branch disp, AC=0xFE for call nargs) */
+    if (op->address_code == 0xFE || op->address_code == 0xFF) {
+        /* Branch displacements (0xFF) should be signed, call args (0xFE) are unsigned */
+        if (op->address_code == 0xFF && op->data_len <= 2) {
+            /* Signed displacement for branches */
+            int n = snprintf(p, (size_t)(e-p), "$%d", sval);
+            p += (n>0 && n < (e-p)? n : (e-p));
+        } else {
+            /* Unsigned for call args */
+            int n = snprintf(p, (size_t)(e-p), "$%u", val);
+            p += (n>0 && n < (e-p)? n : (e-p));
+        }
+        if (p < e) *p = '\0';
+        return (size_t)(p - dst);
+    }
+    
+    /* Standard addressing modes */
+    switch (low6) {
+        case 0x00: /* Short immediate */
+            if (op->data_len == 1) {
+                int n = snprintf(p, (size_t)(e-p), "$%d", sval);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            } else {
+                int n = snprintf(p, (size_t)(e-p), "$%u", val);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        case 0x01: /* Extended immediate */
+            if (op->data_len <= 2) {
+                int n = snprintf(p, (size_t)(e-p), "$%d", sval);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            } else {
+                int n = snprintf(p, (size_t)(e-p), "$%u", val);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        case 0x02: /* Indirect */
+            if (op->reg < 4) {
+                int n = snprintf(p, (size_t)(e-p), "(%s)", reg_names[op->reg]);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        case 0x03: /* Pre-indexed */
+            if (op->reg < 4) {
+                int n = snprintf(p, (size_t)(e-p), "%d(%s)", sval, reg_names[op->reg]);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        case 0x04: /* Post-indexed */
+            if (op->reg < 4) {
+                int n = snprintf(p, (size_t)(e-p), "(%s)+", reg_names[op->reg]);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        case 0x05: /* Absolute */
+            {
+                int n = snprintf(p, (size_t)(e-p), "$%u", val);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        case 0x06: /* Constant */
+            {
+                int n = snprintf(p, (size_t)(e-p), "#%u", val);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        case 0x07: /* Register */
+            if (op->reg < 4) {
+                int n = snprintf(p, (size_t)(e-p), "%s", reg_names[op->reg]);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        case 0x08: /* Descriptor */
+            if (op->reg < 4) {
+                int n = snprintf(p, (size_t)(e-p), "desc%d", (int)op->reg+1);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        case 0x09: /* Alternative */
+            if (op->reg < 4) {
+                int n = snprintf(p, (size_t)(e-p), "alt%d", (int)op->reg+1);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+        default:
+            if (op->reg < 4) {
+                int n = snprintf(p, (size_t)(e-p), "%d(%s)", sval, reg_names[op->reg]);
+                p += (n>0 && n < (e-p)? n : (e-p));
+            }
+            break;
+    }
+    if (p < e) *p = '\0';
+    return (size_t)(p - dst);
+}
+
+static const char* map_mnemonic_symbol(const char* mnem) {
+    if (!mnem) return "???";
+    /* Don't map "move" - it's used for non-R_N variants; ":=" already correct */
+    if (strcmp(mnem, "add") == 0) return "+";
+    if (strcmp(mnem, "sub") == 0) return "-";
+    if (strcmp(mnem, "mul") == 0) return "*";
+    if (strcmp(mnem, "div") == 0) return "/";
+    if (strcmp(mnem, "and") == 0) return "&";
+    if (strcmp(mnem, "or") == 0) return "|";
+    if (strcmp(mnem, "xor") == 0) return "^";
+    if (strcmp(mnem, "comp") == 0) return "comp";
+    if (strcmp(mnem, "neg") == 0) return "neg";
+    if (strcmp(mnem, "not") == 0) return "not";
+    return mnem;
+}
+
 void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
     /* Print each instruction immediately - no buffer needed */
 	if (!m) return;
     uint32_t end_addr = addr + len;
     /* Clamp to actual text loaded if available */
     if (m->memory_size > 0 && end_addr > m->memory_size) end_addr = m->memory_size;
-    size_t (*format_operand)(char*, size_t, const Nd500OperandDecoded*) = NULL;
-    size_t format_impl(char* dst, size_t cap, const Nd500OperandDecoded* op) {
-        if (!dst || cap == 0) return (size_t)0;
-        uint32_t val = 0;
-        int32_t sval = 0;
-        if (op->data_len == 1) { val = op->data[0]; sval = (int8_t)op->data[0]; }
-        else if (op->data_len == 2) { 
-            val = (uint32_t)op->data[0] | ((uint32_t)op->data[1] << 8);
-            sval = (int16_t)val;
-        }
-        else if (op->data_len >= 4) {
-            val = (uint32_t)op->data[0] | ((uint32_t)op->data[1] << 8) | ((uint32_t)op->data[2] << 16) | ((uint32_t)op->data[3] << 24);
-            sval = (int32_t)val;
-        }
-        uint8_t low6 = op->address_code & 0x3F;
-        char* p = dst; char* e = dst + cap;
-        if (op->has_alt_prefix && p < e) { int n = snprintf(p, (size_t)(e-p), "ALT "); if (n>0) p+= (n < (e-p) ? n : (int)(e-p)); }
-        if (op->has_desc_prefix && p < e) { int n = snprintf(p, (size_t)(e-p), "DESC%d ", (int)op->reg+1); if (n>0) p+= (n < (e-p) ? n : (int)(e-p)); }
-        
-        /* Special handling for inline operands (AC=0xFF for branch disp, AC=0xFE for call nargs) */
-        if (op->address_code == 0xFE || op->address_code == 0xFF) {
-            /* Branch displacements (0xFF) should be signed, call args (0xFE) are unsigned */
-            if (op->address_code == 0xFF && op->data_len <= 2) {
-                /* Signed displacement for branches */
-                int n = snprintf(p, (size_t)(e-p), "$%d", sval);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            } else {
-                /* Unsigned for everything else */
-                int n = snprintf(p, (size_t)(e-p), "$%u", (unsigned)val);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            if (p < e) *p = '\0';
-            return (size_t)(p - dst);
-        }
-        
-        switch (op->mode) {
-            case ND500_ADDR_CONSTANT_SHORT: { int n = snprintf(p, (size_t)(e-p), "$%u", (unsigned)low6); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_LOCAL_SHORT: { int n = snprintf(p, (size_t)(e-p), "b.%u", (unsigned)(low6*4u)); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_RECORD_SHORT: { int n = snprintf(p, (size_t)(e-p), "r.%u", (unsigned)(low6*4u)); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_REGISTER: { int n = snprintf(p, (size_t)(e-p), "r%d", (int)op->reg+1); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_ABSOLUTE: { int n = snprintf(p, (size_t)(e-p), "$0x%08X", val); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_LOCAL: { int n = snprintf(p, (size_t)(e-p), "b.%d", sval); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_RECORD: { int n = snprintf(p, (size_t)(e-p), "r.%d", sval); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_PREINDEXED: { int n = snprintf(p, (size_t)(e-p), "r%d.(%d)", (int)op->reg+1, sval); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_LOCAL_IND: { int n = snprintf(p, (size_t)(e-p), "@b.%u", (unsigned)val); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_LOCAL_PI: { int n = snprintf(p, (size_t)(e-p), "b.%u+", (unsigned)val); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_LOCAL_IND_PI: { int n = snprintf(p, (size_t)(e-p), "@b.%u+", (unsigned)val); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_ABSOLUTE_PI: { int n = snprintf(p, (size_t)(e-p), "$0x%08X+", val); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_CONSTANT: {
-                if (op->data_len == 8) { int n = snprintf(p, (size_t)(e-p), "$<double>"); p += (n>0 && n < (e-p)? n : (e-p)); }
-                else { int n = snprintf(p, (size_t)(e-p), "$%u", (unsigned)val); p += (n>0 && n < (e-p)? n : (e-p)); }
-                break; }
-            case ND500_ADDR_DESCRIPTOR: { int n = snprintf(p, (size_t)(e-p), "DESC(r%d)", (int)op->reg+1); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-            case ND500_ADDR_ALTERNATIVE:
-            case ND500_ADDR_UNKNOWN:
-            default: { int n = snprintf(p, (size_t)(e-p), "<ac=0x%02X>", op->address_code); p += (n>0 && n < (e-p)? n : (e-p)); break; }
-        }
-        if (p < e) *p = '\0';
-        return (size_t)(p - dst);
-    }
-    format_operand = &format_impl;
-
-    const char* map_mnemonic_symbol(const char* mnem) {
-        if (!mnem) return "???";
-        /* Don't map "move" - it's used for non-R_N variants; ":=" already correct */
-        if (strcmp(mnem, "add") == 0) return "+";
-        if (strcmp(mnem, "sub") == 0) return "-";
-        if (strcmp(mnem, "mul") == 0) return "*";
-        if (strcmp(mnem, "div") == 0) return "/";
-        if (strcmp(mnem, "and") == 0) return "&";
-        if (strcmp(mnem, "or") == 0) return "|";
-        if (strcmp(mnem, "xor") == 0) return "^";
-        if (strcmp(mnem, "comp") == 0) return "comp";
-        if (strcmp(mnem, "neg") == 0) return "neg";
-        if (strcmp(mnem, "not") == 0) return "not";
-        return mnem;
-    }
+    size_t (*format_operand)(char*, size_t, const Nd500OperandDecoded*) = &format_operand_impl;
 
     for (uint32_t a = addr; a < end_addr;) {
         Nd500FetchedInstruction fi;
@@ -355,11 +414,25 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
     }
 }
 
+static size_t buf_append(char* out, size_t cap, size_t pos, const char* fmt, ...) {
+    if (!out || cap == 0) return pos;
+    if (pos >= cap) return pos;
+    va_list ap;
+    va_start(ap, fmt);
+    int wrote = vsnprintf(out + pos, cap - pos, fmt, ap);
+    va_end(ap);
+    if (wrote < 0) return pos; /* encoding error: ignore */
+    size_t inc = (size_t)wrote;
+    if (pos + inc >= cap) {
+        /* ensure NUL termination */
+        out[cap - 1] = '\0';
+        return cap - 1;
+    }
+    return pos + inc;
+}
+
 size_t nd500_dbg_disasm(Nd500Machine* m, uint32_t addr, uint32_t len, char* out, size_t out_cap) {
-    /* Legacy buffer-based API - just call print version and return dummy */
-    nd500_dbg_disasm_print(m, addr, len);
-    if (out && out_cap > 0) out[0] = '\0';
-    return 0;
+    return nd500_disasm_format_range(m, addr, len, out, out_cap);
 }
 
 void nd500_dbg_step(Nd500Machine* m, uint32_t count) {
@@ -397,13 +470,61 @@ int nd500_dbg_load_aout_file(Nd500Machine* m, const char* path, uint32_t* out_en
 	return 0;
 }
 
-int nd500_dbg_load_aout_buffer(Nd500Machine* m, const uint8_t* data, size_t size, uint32_t* out_entry_pc) {
-	/* TODO: integrate libsymbols; placeholder copy to base */
-	if (!m || !data || size == 0) return -1;
-	if (size > m->memory_size) size = m->memory_size;
-	memcpy(m->memory, data, size);
-	if (out_entry_pc) *out_entry_pc = 0;
-	return 0;
+int nd500_dbg_load_aout_buffer(Nd500Machine* m, const uint8_t* buf, size_t size, uint32_t* out_entry_pc) {
+    if (!m || !buf || size < sizeof(unsigned int) * 8) return -1;
+    /* Parse nd500 a.out header (32-bit fields, little-endian in our toolchain outputs) */
+    unsigned int a_magic   = (unsigned int)(buf[0]  | (buf[1]  << 8) | (buf[2]  << 16) | (buf[3]  << 24));
+    unsigned int a_text    = (unsigned int)(buf[4]  | (buf[5]  << 8) | (buf[6]  << 16) | (buf[7]  << 24));
+    unsigned int a_data    = (unsigned int)(buf[8]  | (buf[9]  << 8) | (buf[10] << 16) | (buf[11] << 24));
+    unsigned int a_bss     = (unsigned int)(buf[12] | (buf[13] << 8) | (buf[14] << 16) | (buf[15] << 24));
+    unsigned int a_syms    = (unsigned int)(buf[16] | (buf[17] << 8) | (buf[18] << 16) | (buf[19] << 24));
+    unsigned int a_entry   = (unsigned int)(buf[20] | (buf[21] << 8) | (buf[22] << 16) | (buf[23] << 24));
+    unsigned int a_trsize  = (unsigned int)(buf[24] | (buf[25] << 8) | (buf[26] << 16) | (buf[27] << 24));
+    unsigned int a_drsize  = (unsigned int)(buf[28] | (buf[29] << 8) | (buf[30] << 16) | (buf[31] << 24));
+
+    /* Validate magic using same set as ndlib */
+    if (!(a_magic == 0407 || a_magic == 0410 || a_magic == 0413 || a_magic == 0411 ||
+          a_magic == 0x0107 || a_magic == 0x0108 || a_magic == 0x0109 || a_magic == 0x010B)) {
+        /* Not an a.out; fallback: blunt copy at 0 */
+        size_t to_copy = size;
+        if (to_copy > m->memory_size) to_copy = m->memory_size;
+        for (size_t i = 0; i < to_copy; ++i) nd500_bus_write8(m, (uint32_t)i, buf[i]);
+        if (out_entry_pc) *out_entry_pc = 0;
+        if (m->cpu) m->cpu->PC = 0;
+        return 0;
+    }
+
+    /* Determine object vs executable (match ndlib logic) */
+    int has_reloc = (a_trsize > 0 || a_drsize > 0);
+    int is_placeholder_entry = (a_entry == 4);
+    int is_object = has_reloc || is_placeholder_entry;
+
+    /* Layout immediately after 32-byte header: text, then data, then reloc, then symbols/strings */
+    const unsigned int hdr_size = 32;
+    if (size < hdr_size) return -1;
+
+    /* Load text */
+    if (a_text && size >= hdr_size + a_text) {
+        for (unsigned int i = 0; i < a_text; ++i) {
+            nd500_bus_write8(m, i, buf[hdr_size + i]);
+        }
+    }
+    /* Load data */
+    if (a_data && size >= hdr_size + a_text + a_data) {
+        unsigned int data_off = hdr_size + a_text;
+        for (unsigned int i = 0; i < a_data; ++i) {
+            nd500_bus_write8(m, a_text + i, buf[data_off + i]);
+        }
+    }
+    /* Zero BSS */
+    for (unsigned int i = 0; i < a_bss; ++i) {
+        nd500_bus_write8(m, a_text + a_data + i, 0);
+    }
+
+    unsigned int entry = is_object ? 0u : a_entry;
+    if (out_entry_pc) *out_entry_pc = entry;
+    if (m->cpu) m->cpu->PC = entry;
+    return 0;
 }
 
 /* Trace mode functions */
