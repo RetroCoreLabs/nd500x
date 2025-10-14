@@ -74,6 +74,44 @@ The debugger features professional tab completion using GNU Readline:
 - Build system detects readline via `pkg_check_modules(READLINE QUIET readline)`
 - Graceful fallback if readline not available
 
+## WebAssembly Debugger Architecture
+
+The WebAssembly debugger provides a complete web-based debugging interface:
+
+**Backend (src/frontend/nd500wasm/main.c):**
+- Exports C functions to JavaScript via Emscripten
+- JSON API for all debugger operations (registers, memory, disassembly, breakpoints)
+- File upload support for .o/.out files via WASM memory allocation
+- Breakpoint management with JSON responses
+
+**Frontend (src/frontend/nd500wasm/web/):**
+- `index.html`: Split-pane layout with disassembly, registers, memory, breakpoints
+- `style.css`: Professional styling with responsive design
+- `debugger.js`: ND500Debugger class managing all UI interactions
+
+**Key WASM Exports:**
+```c
+// Core operations
+nd500_dbg_step_js(), nd500_dbg_run_js(), nd500_dbg_stop_js()
+nd500_dbg_load_aout_js()  // File loading
+
+// JSON APIs
+nd500_dbg_regs_json()     // CPU registers
+nd500_dbg_mem_json()      // Memory hex dump with ASCII
+nd500_dbg_disasm_json()   // Disassembly text
+nd500_dbg_status_json()   // Execution status
+
+// Breakpoint management
+nd500_dbg_bp_add_js(), nd500_dbg_bp_del_js()
+nd500_dbg_bp_enable_js(), nd500_dbg_bp_disable_js()
+nd500_dbg_bp_list_json()  // Breakpoint list
+```
+
+**Build Integration:**
+- CMake copies web files to build_wasm/bin/ during WASM build
+- Makefile `wasm-serve` target builds and starts local web server
+- No external dependencies - pure vanilla JavaScript
+
 ## Architecture & Code Organization
 
 ### Core Components

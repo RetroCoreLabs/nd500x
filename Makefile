@@ -1,6 +1,6 @@
 # Simple CMake wrapper Makefile
 
-.PHONY: all clean run wasm wasm-clean
+.PHONY: all clean run wasm wasm-clean wasm-serve
 
 BUILD_DIR?=build
 WASM_DIR?=build_wasm
@@ -21,5 +21,10 @@ wasm:
 
 wasm-clean:
 	@rm -rf $(WASM_DIR)
+
+wasm-serve: wasm
+	@echo "Starting web server on http://localhost:8000"
+	@echo "Open http://localhost:8000 in your browser to use the ND500X Web Debugger"
+	@cd $(WASM_DIR)/bin && python3 -m http.server 8000
 
 
