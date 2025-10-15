@@ -52,6 +52,14 @@ static int bad_magic(unsigned int m) {
 
 static const char* loaded_aout_path = NULL;
 
+/* Segment layout tracking for absolute address calculation */
+static uint32_t g_text_base = 0;
+static uint32_t g_text_size = 0;
+static uint32_t g_data_base = 0;
+static uint32_t g_data_size = 0;
+static uint32_t g_bss_base = 0;
+static uint32_t g_bss_size = 0;
+
 int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_entry, unsigned int* out_text_size) {
 	if (!m || !path) return -1;
 	FILE* f = fopen(path, "rb");
@@ -133,10 +141,18 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
 	if (out_entry) *out_entry = entry_point;
 	if (out_text_size) *out_text_size = hdr.a_text;
 	fclose(f);
-	
+
 	/* Remember path for symbol listing */
 	if (loaded_aout_path) free((void*)loaded_aout_path);
 	loaded_aout_path = strdup(path);
+
+	/* Track segment layout for absolute address calculation */
+	g_text_base = 0;
+	g_text_size = hdr.a_text;
+	g_data_base = hdr.a_text;
+	g_data_size = hdr.a_data;
+	g_bss_base = hdr.a_text + hdr.a_data;
+	g_bss_size = hdr.a_bss;
 	
 	return 0;
 }
@@ -332,6 +348,18 @@ void ndlib_aout_dump_symbols(const char* path) {
     free(symbols);
     free(strings);
     fclose(f);
+}
+
+/* Segment info accessors for CLI commands */
+void ndlib_aout_get_segment_info(uint32_t* text_base, uint32_t* text_size,
+                                   uint32_t* data_base, uint32_t* data_size,
+                                   uint32_t* bss_base, uint32_t* bss_size) {
+    if (text_base) *text_base = g_text_base;
+    if (text_size) *text_size = g_text_size;
+    if (data_base) *data_base = g_data_base;
+    if (data_size) *data_size = g_data_size;
+    if (bss_base) *bss_base = g_bss_base;
+    if (bss_size) *bss_size = g_bss_size;
 }
 
 
