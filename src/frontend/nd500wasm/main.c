@@ -172,6 +172,8 @@ const char* nd500_dbg_regs_json(void) {
 	cJSON_AddNumberToObject(root, "LL", r.LL);
 	cJSON_AddNumberToObject(root, "HL", r.HL);
 	cJSON_AddNumberToObject(root, "THA", r.THA);
+	cJSON_AddNumberToObject(root, "ST1", r.ST1);
+	cJSON_AddNumberToObject(root, "ST2", r.ST2);
 	cJSON_AddNumberToObject(root, "OTE1", r.OTE1);
 	cJSON_AddNumberToObject(root, "OTE2", r.OTE2);
 	cJSON_AddNumberToObject(root, "CTE1", r.CTE1);
@@ -325,6 +327,26 @@ void nd500_dbg_set_reg_js(const char* reg_name, uint32_t value) {
 		g_machine.cpu->HL = value;
 	} else if (strcmp(reg_name, "THA") == 0) {
 		g_machine.cpu->THA = value;
+	} else if (strcmp(reg_name, "ST1") == 0) {
+		g_machine.cpu->ST1 = value;
+	} else if (strcmp(reg_name, "ST2") == 0) {
+		g_machine.cpu->ST2 = value;
+	} else if (strcmp(reg_name, "OTE1") == 0) {
+		g_machine.cpu->OTE1 = value;
+	} else if (strcmp(reg_name, "OTE2") == 0) {
+		g_machine.cpu->OTE2 = value;
+	} else if (strcmp(reg_name, "CTE1") == 0) {
+		g_machine.cpu->CTE1 = value;
+	} else if (strcmp(reg_name, "CTE2") == 0) {
+		g_machine.cpu->CTE2 = value;
+	} else if (strcmp(reg_name, "MTE1") == 0) {
+		g_machine.cpu->MTE1 = value;
+	} else if (strcmp(reg_name, "MTE2") == 0) {
+		g_machine.cpu->MTE2 = value;
+	} else if (strcmp(reg_name, "TEMM1") == 0) {
+		g_machine.cpu->TEMM1 = value;
+	} else if (strcmp(reg_name, "TEMM2") == 0) {
+		g_machine.cpu->TEMM2 = value;
 	} else if (strcmp(reg_name, "PSTP") == 0) {
 		g_machine.cpu->PSTP = value;
 	} else if (strcmp(reg_name, "DITBASE") == 0) {
