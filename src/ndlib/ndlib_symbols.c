@@ -273,4 +273,107 @@ const char* ndlib_symbols_reloc_for_range(uint32_t start_addr, uint32_t end_addr
     return NULL;
 }
 
+/* Lookup symbol by name - returns 0 on success, -1 if not found */
+int ndlib_symbols_lookup(const char* name, uint32_t* out_addr, uint8_t* out_type) {
+    if (!name) return -1;
+
+    for (int i = 0; i < g_symbol_count; i++) {
+        if (strcmp(g_symbols[i].name, name) == 0) {
+            if (out_addr) *out_addr = g_symbols[i].addr;
+            if (out_type) *out_type = g_symbols[i].type;
+            return 0;
+        }
+    }
+    return -1;  /* Symbol not found */
+}
+
+/* Get absolute address for symbol (segment base + offset) */
+int ndlib_symbols_absolute_addr(const char* name, uint32_t* out_addr) {
+    uint32_t offset;
+    uint8_t type;
+
+    if (ndlib_symbols_lookup(name, &offset, &type) != 0) {
+        return -1;  /* Symbol not found */
+    }
+
+    /* Get segment bases from loader */
+    uint32_t text_base, text_size, data_base, data_size, bss_base, bss_size;
+    ndlib_aout_get_segment_info(&text_base, &text_size, &data_base, &data_size, &bss_base, &bss_size);
+
+    /* Calculate absolute address based on segment type */
+    uint8_t seg_type = type & 0x0E;
+    uint32_t absolute;
+
+    switch (seg_type) {
+        case 0x04:  /* TEXT */
+            absolute = text_base + offset;
+            break;
+        case 0x06:  /* DATA */
+            absolute = data_base + offset;
+            break;
+        case 0x08:  /* BSS */
+            absolute = bss_base + offset;
+            break;
+        default:
+            return -1;  /* Invalid segment type */
+    }
+
+    if (out_addr) *out_addr = absolute;
+    return 0;
+}
+
+/* List symbols filtered by segment type */
+void ndlib_symbols_list_by_type(uint8_t seg_type) {
+    int count = 0;
+
+    /* Count matching symbols */
+    for (int i = 0; i < g_symbol_count; i++) {
+        uint8_t type = g_symbols[i].type & 0x0E;
+        if (seg_type == 0xFF || type == seg_type) {  /* 0xFF = all */
+            count++;
+        }
+    }
+
+    if (count == 0) {
+        printf("No symbols found\n");
+        return;
+    }
+
+    /* Print header */
+    const char* seg_name = "ALL";
+    if (seg_type == 0x04) seg_name = "TEXT";
+    else if (seg_type == 0x06) seg_name = "DATA";
+    else if (seg_type == 0x08) seg_name = "BSS";
+
+    printf("=== %s SYMBOLS (%d) ===\n", seg_name, count);
+    printf("%-4s %-30s %-12s %-10s\n", "Idx", "Name", "Type", "Address");
+    printf("%-4s %-30s %-12s %-10s\n", "---", "----", "----", "-------");
+
+    /* Print symbols */
+    int idx = 0;
+    for (int i = 0; i < g_symbol_count; i++) {
+        uint8_t type = g_symbols[i].type & 0x0E;
+        if (seg_type == 0xFF || type == seg_type) {
+            /* Format type with EXT flag */
+            char type_buf[32];
+            const char* base_str = "???";
+            switch (type) {
+                case 0x00: base_str = "UNDF"; break;
+                case 0x02: base_str = "ABS"; break;
+                case 0x04: base_str = "TEXT"; break;
+                case 0x06: base_str = "DATA"; break;
+                case 0x08: base_str = "BSS"; break;
+            }
+            if (g_symbols[i].type & 0x01) {
+                snprintf(type_buf, sizeof(type_buf), "%s|EXT", base_str);
+            } else {
+                snprintf(type_buf, sizeof(type_buf), "%s", base_str);
+            }
+
+            printf("%-4d %-30s %-12s 0x%08X\n", idx++, g_symbols[i].name, type_buf, g_symbols[i].addr);
+        }
+    }
+    printf("\n");
+}
+
 

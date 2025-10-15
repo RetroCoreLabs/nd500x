@@ -32,6 +32,7 @@ static const char* debugger_commands[] = {
     "help", "?", "m", "d", "dis", "disasm", "step", "s", "regs", "set", "load", "run", "stop",
     "continue", "c", "cont", "symb", "symbols", "show", "bp", "break", "breakpoint",
     "wp", "watch", "watchpoint", "profile", "backtrace", "bt", "clear-traps", "history",
+    "segments", "seg", "goto", "msym", "dsym",
     "q", "quit", "exit", "dap"
 };
 
@@ -216,6 +217,7 @@ static char* command_generator(const char* text, int state) {
         "help", "m", "d", "dis", "disasm", "step", "s", "regs", "load", "run", "stop",
         "continue", "c", "cont", "symb", "symbols", "show", "bp", "break", "breakpoint",
         "wp", "watch", "watchpoint", "profile", "backtrace", "bt", "clear-traps",
+        "segments", "seg", "goto", "msym", "dsym",
         "q", "quit", "exit", "dap"
     };
     static const char* show_matches[] = {
@@ -950,7 +952,122 @@ int nd500_debugger_repl(Nd500Machine* m) {
 			nd500_dbg_stop(m);
 			printf("stopped\n");
         } else if (strcmp(tok, "symb") == 0 || strcmp(tok, "symbols") == 0) {
-			ndlib_symbols_list_all();
+            char* filter = strtok(NULL, " \t\r\n");
+            if (!filter) {
+                ndlib_symbols_list_all();
+            } else {
+                /* Filter symbols by type */
+                uint8_t seg_type = 0xFF;  /* all by default */
+                if (strcasecmp(filter, "text") == 0) {
+                    seg_type = 0x04;
+                } else if (strcasecmp(filter, "data") == 0) {
+                    seg_type = 0x06;
+                } else if (strcasecmp(filter, "bss") == 0) {
+                    seg_type = 0x08;
+                } else if (strcasecmp(filter, "all") == 0) {
+                    seg_type = 0xFF;
+                } else {
+                    printf("usage: symb [all|text|data|bss]\n");
+                    continue;
+                }
+                ndlib_symbols_list_by_type(seg_type);
+            }
+        } else if (strcmp(tok, "segments") == 0 || strcmp(tok, "seg") == 0) {
+            /* Show segment layout */
+            uint32_t text_base, text_size, data_base, data_size, bss_base, bss_size;
+            ndlib_aout_get_segment_info(&text_base, &text_size, &data_base, &data_size, &bss_base, &bss_size);
+
+            printf("=== SEGMENT LAYOUT ===\n");
+            printf("TEXT: 0x%08X - 0x%08X (%u bytes)\n", text_base, text_base + text_size, text_size);
+            printf("DATA: 0x%08X - 0x%08X (%u bytes)\n", data_base, data_base + data_size, data_size);
+            printf("BSS:  0x%08X - 0x%08X (%u bytes)\n", bss_base, bss_base + bss_size, bss_size);
+            printf("Total: %u bytes\n", text_size + data_size + bss_size);
+        } else if (strcmp(tok, "goto") == 0) {
+            /* Navigate PC to symbol address */
+            char* symbol_name = strtok(NULL, " \t\r\n");
+            if (!symbol_name) {
+                printf("usage: goto <symbol>\n");
+                continue;
+            }
+
+            if (!m->cpu) { printf("no cpu linked\n"); continue; }
+
+            uint32_t addr;
+            if (ndlib_symbols_absolute_addr(symbol_name, &addr) == 0) {
+                m->cpu->PC = addr;
+                printf("PC = 0x%08X (%s)\n", addr, symbol_name);
+            } else {
+                printf("symbol not found: %s\n", symbol_name);
+            }
+        } else if (strcmp(tok, "msym") == 0) {
+            /* Memory dump at symbol address */
+            char* symbol_name = strtok(NULL, " \t\r\n");
+            char* len_str = strtok(NULL, " \t\r\n");
+
+            if (!symbol_name) {
+                printf("usage: msym <symbol> [length]\n");
+                continue;
+            }
+
+            uint32_t addr;
+            uint8_t type;
+            if (ndlib_symbols_lookup(symbol_name, &addr, &type) != 0) {
+                printf("symbol not found: %s\n", symbol_name);
+                continue;
+            }
+
+            /* Get absolute address */
+            uint32_t absolute_addr;
+            if (ndlib_symbols_absolute_addr(symbol_name, &absolute_addr) != 0) {
+                printf("cannot calculate absolute address for: %s\n", symbol_name);
+                continue;
+            }
+
+            uint32_t len = len_str ? parse_u32(len_str, 100) : 100;
+            printf("Memory dump at %s (0x%08X):\n", symbol_name, absolute_addr);
+            /* Format address as string for cmd_mem */
+            char addr_str[32];
+            snprintf(addr_str, sizeof(addr_str), "0x%X", absolute_addr);
+            char len_buf[32];
+            snprintf(len_buf, sizeof(len_buf), "%u", len);
+            cmd_mem(m, addr_str, len_buf, absolute_addr);
+        } else if (strcmp(tok, "dsym") == 0) {
+            /* Disassemble at symbol address */
+            char* symbol_name = strtok(NULL, " \t\r\n");
+            char* len_str = strtok(NULL, " \t\r\n");
+
+            if (!symbol_name) {
+                printf("usage: dsym <symbol> [length]\n");
+                continue;
+            }
+
+            uint32_t addr;
+            uint8_t type;
+            if (ndlib_symbols_lookup(symbol_name, &addr, &type) != 0) {
+                printf("symbol not found: %s\n", symbol_name);
+                continue;
+            }
+
+            /* Check if it's a TEXT symbol */
+            if ((type & 0x0E) != 0x04) {
+                printf("warning: %s is not a TEXT symbol\n", symbol_name);
+            }
+
+            /* Get absolute address */
+            uint32_t absolute_addr;
+            if (ndlib_symbols_absolute_addr(symbol_name, &absolute_addr) != 0) {
+                printf("cannot calculate absolute address for: %s\n", symbol_name);
+                continue;
+            }
+
+            uint32_t len = len_str ? parse_u32(len_str, 100) : 100;
+            printf("Disassembly at %s (0x%08X):\n", symbol_name, absolute_addr);
+            /* Format address as string for cmd_dis */
+            char addr_str[32];
+            snprintf(addr_str, sizeof(addr_str), "0x%X", absolute_addr);
+            char len_buf[32];
+            snprintf(len_buf, sizeof(len_buf), "%u", len);
+            cmd_dis(m, addr_str, len_buf, absolute_addr);
         } else if (strcmp(tok, "profile") == 0) {
             char* subcmd = strtok(NULL, " \t\r\n");
             if (!subcmd || strcmp(subcmd, "show") == 0) {
@@ -1198,7 +1315,11 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  stop                        Stop execution\n");
             printf("  continue (c/cont)           Continue execution after breakpoint\n");
             printf("  history                     Show command history\n");
-            printf("  symb (symbols)              List all symbols\n");
+            printf("  symb (symbols) [type]       List symbols (type: all|text|data|bss)\n");
+            printf("  segments (seg)              Show TEXT/DATA/BSS segment layout\n");
+            printf("  goto <symbol>               Set PC to symbol address\n");
+            printf("  msym <symbol> [len]         Memory dump at symbol address\n");
+            printf("  dsym <symbol> [len]         Disassemble at symbol address\n");
             printf("\n");
             printf("Breakpoints:\n");
             printf("  bp [addr] (break/breakpoint) Set breakpoint at address (default: PC)\n");
