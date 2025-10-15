@@ -389,6 +389,32 @@
         </div>
     </div>
 
+    <!-- Bit Editor Modal -->
+    <div id="bitEditorModal" class="hidden">
+        <div class="modal-content bit-editor-modal">
+            <h3>Edit Register: <span id="bitEditorRegName"></span></h3>
+            <div class="bit-editor-current-value">
+                <label>Current Value:</label>
+                <span id="bitEditorCurrentValue">0x00000000</span>
+            </div>
+
+            <!-- Bit grid container -->
+            <div id="bitEditorGrid" class="bit-grid">
+                <!-- Dynamically populated with bit toggles -->
+            </div>
+
+            <div class="bit-editor-preview">
+                <label>New Value:</label>
+                <input type="text" id="bitEditorPreview" readonly>
+            </div>
+
+            <div class="actions">
+                <button id="bitEditorCancelBtn">Cancel</button>
+                <button id="bitEditorApplyBtn" class="primary">Apply</button>
+            </div>
+        </div>
+    </div>
+
     <script src="nd500wasm.js"></script>
     <script src="debugger.js"></script>
 </body>
