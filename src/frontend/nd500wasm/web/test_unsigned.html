@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Unsigned 32-bit Hex Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test.pass {
+            border-left: 4px solid #28a745;
+        }
+        .test.fail {
+            border-left: 4px solid #dc3545;
+        }
+        .result {
+            font-weight: bold;
+        }
+        .pass .result { color: #28a745; }
+        .fail .result { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <h1>Unsigned 32-bit Hex Conversion Test</h1>
+    <div id="results"></div>
+
+    <script>
+        function runTests() {
+            const tests = [
+                {
+                    name: "Bit 31 set (MSB)",
+                    value: 0x80000000,
+                    expected: "0x80000000"
+                },
+                {
+                    name: "All bits set",
+                    value: 0xFFFFFFFF,
+                    expected: "0xFFFFFFFF"
+                },
+                {
+                    name: "Bit 31 and bit 0 set",
+                    value: 0x80000001,
+                    expected: "0x80000001"
+                },
+                {
+                    name: "Zero value",
+                    value: 0x00000000,
+                    expected: "0x00000000"
+                },
+                {
+                    name: "Low value (no sign issues)",
+                    value: 0x12345678,
+                    expected: "0x12345678"
+                },
+                {
+                    name: "Simulated bitwise OR with bit 31",
+                    value: (1 << 31) | (1 << 0),
+                    expected: "0x80000001"
+                }
+            ];
+
+            const resultsDiv = document.getElementById('results');
+            let allPassed = true;
+
+            tests.forEach((test, index) => {
+                // Test WITHOUT unsigned conversion (the bug)
+                const wrongResult = '0x' + test.value.toString(16).padStart(8, '0').toUpperCase();
+
+                // Test WITH unsigned conversion (the fix)
+                const correctResult = '0x' + (test.value >>> 0).toString(16).padStart(8, '0').toUpperCase();
+
+                const passed = correctResult === test.expected;
+                allPassed = allPassed && passed;
+
+                const div = document.createElement('div');
+                div.className = 'test ' + (passed ? 'pass' : 'fail');
+                div.innerHTML = `
+                    <strong>Test ${index + 1}: ${test.name}</strong><br>
+                    Input value: ${test.value} (0b${(test.value >>> 0).toString(2).padStart(32, '0')})<br>
+                    WITHOUT unsigned conversion: ${wrongResult}<br>
+                    WITH unsigned conversion (>>> 0): ${correctResult}<br>
+                    Expected: ${test.expected}<br>
+                    <span class="result">${passed ? '✅ PASS' : '❌ FAIL'}</span>
+                `;
+                resultsDiv.appendChild(div);
+            });
+
+            // Summary
+            const summary = document.createElement('div');
+            summary.className = 'test ' + (allPassed ? 'pass' : 'fail');
+            summary.innerHTML = `<strong>Summary: ${allPassed ? '✅ ALL TESTS PASSED' : '❌ SOME TESTS FAILED'}</strong>`;
+            resultsDiv.appendChild(summary);
+
+            // Now test the actual conversion functions used in debugger.js
+            const actualTests = document.createElement('div');
+            actualTests.innerHTML = '<h2>Actual Conversion Test (from debugger.js)</h2>';
+            resultsDiv.appendChild(actualTests);
+
+            // Simulate what happens in openBitEditor line 1671
+            const testValue = 0x80000000;
+            const bits = 32;
+
+            // Old way (WRONG)
+            const oldWay = '0x' + testValue.toString(16).padStart(bits / 4, '0').toUpperCase();
+
+            // New way (CORRECT)
+            const newWay = '0x' + (testValue >>> 0).toString(16).padStart(bits / 4, '0').toUpperCase();
+
+            const actualDiv = document.createElement('div');
+            actualDiv.className = 'test ' + (newWay === '0x80000000' ? 'pass' : 'fail');
+            actualDiv.innerHTML = `
+                <strong>Line 1671 simulation (currentValueSpan.textContent)</strong><br>
+                Test value: 0x80000000 (bit 31 set)<br>
+                OLD: testValue.toString(16) = "${oldWay}"<br>
+                NEW: (testValue >>> 0).toString(16) = "${newWay}"<br>
+                <span class="result">${newWay === '0x80000000' ? '✅ CORRECT' : '❌ WRONG'}</span>
+            `;
+            resultsDiv.appendChild(actualDiv);
+
+            // Test updateBitPreview method simulation
+            const previewDiv = document.createElement('div');
+            let previewValue = 0;
+            previewValue |= (1 << 31);  // Set bit 31
+
+            // Old way (WRONG)
+            const oldPreview = '0x' + previewValue.toString(16).padStart(8, '0').toUpperCase();
+
+            // New way (CORRECT)
+            previewValue = previewValue >>> 0;
+            const newPreview = '0x' + previewValue.toString(16).padStart(8, '0').toUpperCase();
+
+            previewDiv.className = 'test ' + (newPreview === '0x80000000' ? 'pass' : 'fail');
+            previewDiv.innerHTML = `
+                <strong>Line 1770 simulation (updateBitPreview)</strong><br>
+                After setting bit 31: value |= (1 << 31)<br>
+                OLD: value.toString(16) = "${oldPreview}"<br>
+                NEW: (value >>> 0).toString(16) = "${newPreview}"<br>
+                <span class="result">${newPreview === '0x80000000' ? '✅ CORRECT' : '❌ WRONG'}</span>
+            `;
+            resultsDiv.appendChild(previewDiv);
+        }
+
+        runTests();
+    </script>
+</body>
+</html>

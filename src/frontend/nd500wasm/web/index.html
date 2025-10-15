@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>ND500X Web Debugger</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20251015d">
 </head>
 <body>
     <div id="header">
@@ -389,6 +389,25 @@
         </div>
     </div>
 
+    <!-- Simple Register Editor Modal -->
+    <div id="regEditorModal" class="hidden">
+        <div class="modal-content reg-editor-modal">
+            <h3>Edit Register: <span id="regEditorRegName"></span></h3>
+            <div class="reg-editor-current-value">
+                <label>Current Value:</label>
+                <span id="regEditorCurrentValue">0x00000000</span>
+            </div>
+            <div class="reg-editor-input">
+                <label>New Value (hex or decimal):</label>
+                <input type="text" id="regEditorInput" placeholder="0x00000000">
+            </div>
+            <div class="actions">
+                <button id="regEditorCancelBtn">Cancel</button>
+                <button id="regEditorApplyBtn" class="primary">Apply</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Bit Editor Modal -->
     <div id="bitEditorModal" class="hidden">
         <div class="modal-content bit-editor-modal">
@@ -408,14 +427,22 @@
                 <input type="text" id="bitEditorPreview" readonly>
             </div>
 
-            <div class="actions">
-                <button id="bitEditorCancelBtn">Cancel</button>
-                <button id="bitEditorApplyBtn" class="primary">Apply</button>
+            <div class="bit-editor-bottom-row">
+                <div class="bit-editor-description">
+                    <div id="bitEditorHoverInfo" class="bit-hover-info">
+                        Hover over a bit to see its description
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button id="bitEditorCancelBtn">Cancel</button>
+                    <button id="bitEditorApplyBtn" class="primary">Apply</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="nd500wasm.js"></script>
-    <script src="debugger.js"></script>
+    <script src="nd500wasm.js?v=20251015d"></script>
+    <script src="debugger.js?v=20251015d"></script>
 </body>
 </html>

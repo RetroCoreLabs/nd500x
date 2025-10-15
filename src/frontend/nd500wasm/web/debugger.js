@@ -2085,6 +2085,51 @@ class ND500Debugger {
         return BIT_DEFINITIONS[regName] || null;
     }
 
+    getRegisterDescription(regName) {
+        const REGISTER_DESCRIPTIONS = {
+            // CPU Registers
+            'PC': 'Program Counter',
+            'I1': 'Integer Register 1',
+            'I2': 'Integer Register 2',
+            'I3': 'Integer Register 3',
+            'I4': 'Integer Register 4',
+            'A1': 'Float Accumulator 1',
+            'A2': 'Float Accumulator 2',
+            'A3': 'Float Accumulator 3',
+            'A4': 'Float Accumulator 4',
+            'E1': 'Float Extension 1',
+            'E2': 'Float Extension 2',
+            'E3': 'Float Extension 3',
+            'E4': 'Float Extension 4',
+            'L': 'Link Register',
+            'B': 'Base Register',
+            'R': 'Record Register',
+            'TOS': 'Top of Stack',
+            'LL': 'Lower Limit',
+            'HL': 'Higher Limit',
+            'THA': 'Trap Handler Address',
+            'ST1': 'Status Register Upper',
+            'ST2': 'Status Register Lower',
+            'FLAGS': 'CPU Flags',
+            // MMU Registers
+            'PSTP': 'Physical Segment Table Pointer',
+            'DITBASE': 'Domain Information Table Base',
+            'CED': 'Current Executing Domain',
+            'CAD': 'Current Alternative Domain',
+            'PS': 'Process Segment',
+            // Control Registers
+            'OTE1': 'Trap Enable Upper',
+            'OTE2': 'Trap Enable Lower',
+            'CTE1': 'Calculated Trap Enable Upper',
+            'CTE2': 'Calculated Trap Enable Lower',
+            'MTE1': 'Monitor Trap Enable Upper',
+            'MTE2': 'Monitor Trap Enable Lower',
+            'TEMM1': 'Trap Emulation Mask Upper',
+            'TEMM2': 'Trap Emulation Mask Lower'
+        };
+        return REGISTER_DESCRIPTIONS[regName] || null;
+    }
+
     editRegister(element) {
         const regName = element.dataset.reg;
         const currentValue = parseInt(element.dataset.value);
@@ -2093,9 +2138,55 @@ class ND500Debugger {
         if (this.getBitDefinition(regName)) {
             this.openBitEditor(regName, currentValue);
         } else {
-            // Existing simple numeric editor
-            const newValue = prompt(`Enter new value for ${regName} (hex or decimal):`, `0x${currentValue.toString(16).padStart(8,'0')}`);
-            if (newValue === null) return; // User cancelled
+            // Use modal for simple numeric editor
+            this.openRegisterEditor(regName, currentValue);
+        }
+    }
+
+    openRegisterEditor(regName, currentValue) {
+        const modal = document.getElementById('regEditorModal');
+        const regNameSpan = document.getElementById('regEditorRegName');
+        const currentValueSpan = document.getElementById('regEditorCurrentValue');
+        const input = document.getElementById('regEditorInput');
+        const cancelBtn = document.getElementById('regEditorCancelBtn');
+        const applyBtn = document.getElementById('regEditorApplyBtn');
+
+        // Set header with description
+        const description = this.getRegisterDescription(regName);
+        regNameSpan.textContent = description ? `${regName} (${description})` : regName;
+        currentValueSpan.textContent = '0x' + currentValue.toString(16).padStart(8, '0').toUpperCase();
+        input.value = '0x' + currentValue.toString(16).padStart(8, '0').toUpperCase();
+
+        // Show modal
+        modal.classList.remove('hidden');
+        input.focus();
+        input.select();
+
+        // Handle Enter key in input
+        const enterHandler = (e) => {
+            if (e.key === 'Enter') {
+                applyBtn.click();
+            } else if (e.key === 'Escape') {
+                cancelBtn.click();
+            }
+        };
+        input.addEventListener('keydown', enterHandler);
+
+        // Cancel handler
+        const cancelHandler = () => {
+            modal.classList.add('hidden');
+            input.removeEventListener('keydown', enterHandler);
+            cancelBtn.removeEventListener('click', cancelHandler);
+            applyBtn.removeEventListener('click', applyHandler);
+        };
+
+        // Apply handler
+        const applyHandler = () => {
+            const newValue = input.value.trim();
+            if (!newValue) {
+                alert('Please enter a value');
+                return;
+            }
 
             let value;
             if (newValue.startsWith('0x') || newValue.startsWith('0X')) {
@@ -2120,11 +2211,17 @@ class ND500Debugger {
 
                 // Update all registers to reflect the change
                 this.updateRegisters();
+
+                // Close modal
+                cancelHandler();
             } catch (error) {
                 console.error('Error setting register:', error);
-                this.updateStatus('Error setting register');
+                alert('Error setting register: ' + error.message);
             }
-        }
+        };
+
+        cancelBtn.addEventListener('click', cancelHandler);
+        applyBtn.addEventListener('click', applyHandler);
     }
 
     escapeHtml(text) {
