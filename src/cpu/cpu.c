@@ -3,6 +3,7 @@
 #include <setjmp.h>
 #include "cpu_protos.h"
 #include "nd500_mmu.h"
+#include "nd500_domain.h"
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
 
@@ -20,6 +21,9 @@ void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
 
 	/* Initialize MMU structures (PST, PCB tables) */
 	nd500_mmu_init(cpu);
+
+	/* Initialize domain system (CED=0, CAD=0) */
+	nd500_domain_init(cpu);
 }
 
 void nd500_cpu_reset(Nd500Cpu* cpu) {
