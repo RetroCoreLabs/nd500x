@@ -74,8 +74,13 @@
         <div class="modal-content">
             <h3>Load Program</h3>
             <div class="mmu-status-banner" id="loadModalMmuStatus">
-                <span class="mmu-status-label">MMU Status:</span>
-                <span class="mmu-status-value" id="loadModalMmuValue">Unknown</span>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="flex: 1;">
+                        <span class="mmu-status-label">MMU Status:</span>
+                        <span class="mmu-status-value" id="loadModalMmuValue">Unknown</span>
+                    </div>
+                    <button id="loadModalMmuToggle" class="mmu-toggle-btn-small">Enable MMU</button>
+                </div>
                 <span class="mmu-status-hint" id="loadModalMmuHint"></span>
             </div>
             <div class="row">
