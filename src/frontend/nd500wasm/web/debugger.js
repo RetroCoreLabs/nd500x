@@ -100,6 +100,17 @@ class ND500Debugger {
         const modeSelect = document.getElementById('modeSelect');
         const startPc = document.getElementById('startPc');
 
+        const domainSelect = document.getElementById('domainSelect');
+
+        // Update domain when mode changes
+        modeSelect.onchange = () => {
+            if (modeSelect.value === 'kernel') {
+                domainSelect.value = '0';
+            } else {
+                domainSelect.value = '1';
+            }
+        };
+
         const updateVisibility = () => {
             const type = Array.from(typeRadios).find(r => r.checked)?.value || 'aout';
             if (type === 'aout') {
@@ -150,10 +161,12 @@ class ND500Debugger {
                         return;
                     }
                     const mode = modeSelect.value;
+                    const domain = parseInt(domainSelect.value, 10);
                     const psegAddrInput = document.getElementById('psegAddr').value.trim();
                     const dsegAddrInput = document.getElementById('dsegAddr').value.trim();
 
                     // Use custom addresses if provided, otherwise use mode defaults
+                    // NOTE: These are VIRTUAL addresses - MMU will translate to physical
                     let psegBase = (mode === 'kernel') ? (0x08000000 >>> 0) : (0xD0000000 >>> 0);
                     let dsegBase = (mode === 'kernel') ? (0x00000000 >>> 0) : (0xF0000000 >>> 0);
 
@@ -164,7 +177,7 @@ class ND500Debugger {
                         dsegBase = this.parseHexOrDec(dsegAddrInput) >>> 0;
                     }
 
-                    await this.loadSplitViaMemfs(pseg, psegBase, dseg, dsegBase, startPc.value);
+                    await this.loadSplitViaMemfs(pseg, psegBase, dseg, dsegBase, startPc.value, domain);
                 }
                 modal.classList.add('hidden');
                 errorDiv.classList.add('hidden');
@@ -1074,13 +1087,14 @@ class ND500Debugger {
         return parseInt(t, 10);
     }
 
-    async loadSplitViaMemfs(psegFile, psegBase, dsegFile, dsegBase, startPcValue) {
+    async loadSplitViaMemfs(psegFile, psegBase, dsegFile, dsegBase, startPcValue, domain = 0) {
         console.log('=== loadSplitViaMemfs START ===');
         console.log('PSEG file:', psegFile ? psegFile.name : 'none', 'size:', psegFile ? psegFile.size : 0);
         console.log('PSEG base:', '0x' + psegBase.toString(16));
         console.log('DSEG file:', dsegFile ? dsegFile.name : 'none', 'size:', dsegFile ? dsegFile.size : 0);
         console.log('DSEG base:', '0x' + dsegBase.toString(16));
         console.log('Start PC:', startPcValue || '(default)');
+        console.log('Domain:', domain);
 
         // Clear memory and symbols before loading
         console.log('Clearing memory...');
@@ -1132,10 +1146,16 @@ class ND500Debugger {
             this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [pc]);
         }
 
+        // Set the CED (Current Executing Domain) register
+        console.log('Setting CED register to domain:', domain);
+        this.module.ccall('nd500_dbg_set_reg_js', 'number', ['string', 'number'], ['CED', domain]);
+        console.log('Setting CAD register to domain:', domain);
+        this.module.ccall('nd500_dbg_set_reg_js', 'number', ['string', 'number'], ['CAD', domain]);
+
         const segNames = [];
         if (psegFile) segNames.push(`PSEG@0x${psegBase.toString(16).toUpperCase()}`);
         if (dsegFile) segNames.push(`DSEG@0x${dsegBase.toString(16).toUpperCase()}`);
-        this.updateStatus(`Loaded: ${segNames.join(', ')}`);
+        this.updateStatus(`Loaded: ${segNames.join(', ')} to domain ${domain}`);
 
         console.log('Refreshing UI...');
         // Refresh UI to show new code and reset registers

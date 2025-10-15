@@ -1172,67 +1172,57 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return -1;
 	}
 
-	output(ctx, "Setting up demo MMU configuration...");
+	output(ctx, "Setting up MMU for kernel/user virtual memory support...");
+	output(ctx, "");
+	output(ctx, "Physical Memory Layout:");
+	output(ctx, "  0x00000000-0x003FFFFF: Code (4MB)");
+	output(ctx, "  0x00400000-0x007FFFFF: Data (4MB)");
+	output(ctx, "  0x00800000-0x00FFFFFF: Available (8MB)");
 	output(ctx, "");
 
-	/* Setup PST entries for demonstration */
+	/* ═══════════════════════════════════════════════════════
+	 * PST CONFIGURATION
+	 * Map virtual segments to low physical memory
+	 * ═══════════════════════════════════════════════════════ */
 	output(ctx, "=== PST Configuration ===");
 
-	/* PST Entry 100: Direct mapping to physical frame 0x1000 */
-	nd500_mmu_set_pst_entry(m->cpu, 100, PS_AZI, 0x1000);
-	output(ctx, "PST[100] = PS_AZI (Direct), PFN=0x1000 → 0x00800000");
+	/* Kernel Code: Segment 0x08 → Physical 0x00000000 (PSN 8) */
+	nd500_mmu_set_pst_entry(m->cpu, 8, PS_AZI, 0x0000);
+	output(ctx, "PST[8]  = PS_AZI (Kernel code segment 0x08 → 0x00000000)");
 
-	/* PST Entry 101: Single-level paging, page table at 0x2000 */
-	nd500_mmu_set_pst_entry(m->cpu, 101, PS_ASI, 0x2000);
-	output(ctx, "PST[101] = PS_ASI (Single-level), Page table at 0x01000000");
+	/* Kernel Data: Segment 0x00 → Physical 0x00400000 (PSN 0) */
+	nd500_mmu_set_pst_entry(m->cpu, 0, PS_AZI, 0x0200);
+	output(ctx, "PST[0]  = PS_AZI (Kernel data segment 0x00 → 0x00400000)");
 
-	/* PST Entry 102: Two-level paging, L1 table at 0x3000 */
-	nd500_mmu_set_pst_entry(m->cpu, 102, PS_ADI, 0x3000);
-	output(ctx, "PST[102] = PS_ADI (Two-level), L1 table at 0x01800000");
+	/* User Code: Segment 0x1A → Physical 0x00000000 (PSN 26) */
+	nd500_mmu_set_pst_entry(m->cpu, 26, PS_AZI, 0x0000);
+	output(ctx, "PST[26] = PS_AZI (User code segment 0x1A → 0x00000000)");
 
-	/* PST Entry 200: Direct mapping for domain 1 code */
-	nd500_mmu_set_pst_entry(m->cpu, 200, PS_AZI, 0x4000);
-	output(ctx, "PST[200] = PS_AZI (Direct), PFN=0x4000 → 0x02000000");
-
-	/* PST Entry 201: Single-level paging for domain 1 data */
-	nd500_mmu_set_pst_entry(m->cpu, 201, PS_ASI, 0x5000);
-	output(ctx, "PST[201] = PS_ASI (Single-level), Page table at 0x02800000");
+	/* User Data: Segment 0x1E → Physical 0x00400000 (PSN 30) */
+	nd500_mmu_set_pst_entry(m->cpu, 30, PS_AZI, 0x0200);
+	output(ctx, "PST[30] = PS_AZI (User data segment 0x1E → 0x00400000)");
 
 	output(ctx, "");
-	output(ctx, "=== PCB Configuration (Domain 0) ===");
+	output(ctx, "=== PCB Configuration (Domain 0 - Kernel) ===");
 
-	/* Setup PCB for domain 0 */
-	/* Segment 0: Program segment, direct mapped to PST 100 */
-	nd500_mmu_set_program_capability(m->cpu, 0, 0, 100 | PC_DIR);
-	output(ctx, "PCB[0].prog[0] = PSN 100, DIR=1 (direct mapped)");
+	/* Domain 0 (Kernel) - Segment 0x08 for code */
+	nd500_mmu_set_program_capability(m->cpu, 0, 0x08, 8 | PC_DIR);
+	output(ctx, "PCB[0].prog[0x08] = PSN 8 (kernel code at virtual 0x08000000)");
 
-	/* Segment 0: Data segment, writable, maps to PST 100 */
-	nd500_mmu_set_data_capability(m->cpu, 0, 0, 100);
-	output(ctx, "PCB[0].data[0] = PSN 100, writable");
-
-	/* Segment 5: Data segment, write-protected, user accessible, maps to PST 101 */
-	nd500_mmu_set_data_capability(m->cpu, 0, 5, 101 | DC_WRP | DC_PAC);
-	output(ctx, "PCB[0].data[5] = PSN 101, read-only, user accessible");
-
-	/* Segment 7: Data segment, writable, kernel only, maps to PST 102 */
-	nd500_mmu_set_data_capability(m->cpu, 0, 7, 102);
-	output(ctx, "PCB[0].data[7] = PSN 102, writable, kernel only");
+	/* Domain 0 (Kernel) - Segment 0x00 for data */
+	nd500_mmu_set_data_capability(m->cpu, 0, 0x00, 0);
+	output(ctx, "PCB[0].data[0x00] = PSN 0 (kernel data at virtual 0x00000000)");
 
 	output(ctx, "");
-	output(ctx, "=== PCB Configuration (Domain 1) ===");
+	output(ctx, "=== PCB Configuration (Domain 1 - User) ===");
 
-	/* Setup PCB for domain 1 - User domain with different configuration */
-	/* Segment 0: Program segment, direct mapped to PST 200 */
-	nd500_mmu_set_program_capability(m->cpu, 1, 0, 200 | PC_DIR);
-	output(ctx, "PCB[1].prog[0] = PSN 200, DIR=1 (direct mapped)");
+	/* Domain 1 (User) - Segment 0x1A for code */
+	nd500_mmu_set_program_capability(m->cpu, 1, 0x1A, 26 | PC_DIR);
+	output(ctx, "PCB[1].prog[0x1A] = PSN 26 (user code at virtual 0xD0000000)");
 
-	/* Segment 0: Data segment, writable, maps to PST 200 */
-	nd500_mmu_set_data_capability(m->cpu, 1, 0, 200);
-	output(ctx, "PCB[1].data[0] = PSN 200, writable");
-
-	/* Segment 3: Data segment, user accessible, writable, maps to PST 201 */
-	nd500_mmu_set_data_capability(m->cpu, 1, 3, 201 | DC_PAC);
-	output(ctx, "PCB[1].data[3] = PSN 201, writable, user accessible");
+	/* Domain 1 (User) - Segment 0x1E for data */
+	nd500_mmu_set_data_capability(m->cpu, 1, 0x1E, 30 | DC_PAC);
+	output(ctx, "PCB[1].data[0x1E] = PSN 30 (user data at virtual 0xF0000000)");
 
 	output(ctx, "");
 	output(ctx, "=== MMU Registers ===");
@@ -1243,23 +1233,26 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	m->cpu->PS = 0;
 	output(ctx, "PSTP    = 0x00100000");
 	output(ctx, "DITBASE = 0x00200000");
-	output(ctx, "CAD     = 0 (Alternative Domain)");
-	output(ctx, "CED     = 0 (Executing Domain)");
+	output(ctx, "CAD     = 0 (Alternative Domain - kernel)");
+	output(ctx, "CED     = 0 (Executing Domain - kernel)");
 	output(ctx, "PS      = 0 (Process Segment)");
 
+	/* Enable MMU */
 	output(ctx, "");
-	output(ctx, "Demo configuration complete!");
+	nd500_machine_enable_mmu(m);
+	output(ctx, "MMU ENABLED - Virtual memory now active!");
+
 	output(ctx, "");
-	output(ctx, "Try these commands:");
-	output(ctx, "  showmmu           - View MMU status");
-	output(ctx, "  listpst           - List all PST entries");
-	output(ctx, "  listpcb           - List all domains");
-	output(ctx, "  showpst 100       - View domain 0 PST entries");
-	output(ctx, "  showpst 200       - View domain 1 PST entries");
-	output(ctx, "  showpcb 0         - View domain 0 capabilities");
-	output(ctx, "  showpcb 1         - View domain 1 capabilities");
-	output(ctx, "  mmu on            - Enable MMU");
-	output(ctx, "  phyladr 0x00000000 - Translate segment 0 address");
+	output(ctx, "Virtual Memory Layout:");
+	output(ctx, "  Kernel: 0x08000000-0x0FFFFFFF (code) → phys 0x00000000");
+	output(ctx, "          0x00000000-0x07FFFFFF (data) → phys 0x00400000");
+	output(ctx, "  User:   0xD0000000-0xD7FFFFFF (code) → phys 0x00000000");
+	output(ctx, "          0xF0000000-0xF7FFFFFF (data) → phys 0x00400000");
+	output(ctx, "");
+	output(ctx, "Configuration complete! You can now:");
+	output(ctx, "  - Load PSEG/DSEG files (they will use virtual addresses)");
+	output(ctx, "  - Use 'showmmu' to view MMU status");
+	output(ctx, "  - Use 'phyladr <vaddr>' to test address translation");
 
 	return 0;
 }

@@ -101,6 +101,12 @@
                         </select>
                     </label>
                 </div>
+                <div class="row">
+                    <label>Domain (0-255):
+                        <input type="number" id="domainSelect" min="0" max="255" value="0">
+                        <span class="hint">Domain 0=kernel, 1-255=user processes</span>
+                    </label>
+                </div>
             </div>
             <div class="row">
                 <label>Start PC (hex, optional): <input type="text" id="startPc" placeholder="e.g. 0x08000000"></label>
