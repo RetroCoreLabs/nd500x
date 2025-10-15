@@ -10,6 +10,7 @@ typedef struct Nd500Machine {
 	volatile int run_flag;
 	struct Nd500Cpu* cpu; /* linked CPU for debug APIs */
 	struct BreakpointManager* bp_mgr; /* Breakpoint/watchpoint manager */
+	int mmu_enabled; /* MMU address translation enabled */
 } Nd500Machine;
 
 

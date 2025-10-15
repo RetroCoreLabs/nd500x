@@ -6,6 +6,7 @@
 #endif
 #include "machine_protos.h"
 #include "../cpu/cpu_protos.h"
+#include "../cpu/nd500_mmu.h"
 
 /* Background run loop for native builds */
 #ifdef __unix__
@@ -35,4 +36,38 @@ void nd500_dbg_stop(Nd500Machine* m) {
 }
 #endif
 
+/* ═══════════════════════════════════════════════════════
+ * MMU CONTROL FUNCTIONS
+ * ═══════════════════════════════════════════════════════ */
+
+/**
+ * Enable MMU address translation
+ * When enabled, all memory accesses go through nd500_mmu_translate()
+ */
+void nd500_machine_enable_mmu(Nd500Machine* m) {
+	if (!m) return;
+	m->mmu_enabled = 1;
+	if (m->cpu) {
+		nd500_mmu_enable(m->cpu);
+	}
+}
+
+/**
+ * Disable MMU address translation
+ * When disabled, memory accesses use direct physical addressing
+ */
+void nd500_machine_disable_mmu(Nd500Machine* m) {
+	if (!m) return;
+	m->mmu_enabled = 0;
+	if (m->cpu) {
+		nd500_mmu_disable(m->cpu);
+	}
+}
+
+/**
+ * Check if MMU is enabled
+ */
+int nd500_machine_mmu_is_enabled(Nd500Machine* m) {
+	return m ? m->mmu_enabled : 0;
+}
 
