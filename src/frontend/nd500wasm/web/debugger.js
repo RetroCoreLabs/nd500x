@@ -6,6 +6,7 @@ class ND500Debugger {
         this.isRunning = false;
         this.runInterval = null;
         this.VERSION = '20251015d'; // Update this with each change
+        this.memoryMapDomainFilter = 'all'; // Default to showing all domains
     }
 
     async init() {
@@ -148,15 +149,23 @@ class ND500Debugger {
                     if (modeRow) modeRow.style.display = '';
                     if (domainRow) domainRow.style.display = '';
 
-                    // Update hint and placeholders based on mode
-                    if (mode === 'kernel') {
-                        mmuStatusHint.textContent = 'Virtual addresses: Code 0x08000000-0x0FFFFFFF, Data 0x00000000-0x07FFFFFF';
+                    // Get selected domain
+                    const domain = parseInt(domainSelect.value, 10);
+
+                    // Update hint and placeholders based on domain
+                    if (domain === 0) {
+                        mmuStatusHint.textContent = 'Domain 0 (kernel): Code 0x08000000-0x0FFFFFFF, Data 0x00000000-0x07FFFFFF';
                         if (psegAddrInput) psegAddrInput.placeholder = 'Default: 0x08000000 (kernel code)';
                         if (dsegAddrInput) dsegAddrInput.placeholder = 'Default: 0x00000000 (kernel data)';
                     } else {
-                        mmuStatusHint.textContent = 'Virtual addresses: Code 0xD0000000-0xD7FFFFFF, Data 0xF0000000-0xF7FFFFFF';
-                        if (psegAddrInput) psegAddrInput.placeholder = 'Default: 0xD0000000 (user code)';
-                        if (dsegAddrInput) dsegAddrInput.placeholder = 'Default: 0xF0000000 (user data)';
+                        // Domain 1+: Segment base = domain << 27
+                        const codeBase = (26 + domain) << 27;  // Segment 26 + domain
+                        const dataBase = (30 + domain) << 27;  // Segment 30 + domain
+                        const codeEnd = codeBase + 0x07FFFFFF;
+                        const dataEnd = dataBase + 0x07FFFFFF;
+                        mmuStatusHint.textContent = `Domain ${domain}: Code 0x${codeBase.toString(16).toUpperCase()}-0x${codeEnd.toString(16).toUpperCase()}, Data 0x${dataBase.toString(16).toUpperCase()}-0x${dataEnd.toString(16).toUpperCase()}`;
+                        if (psegAddrInput) psegAddrInput.placeholder = `Default: 0x${codeBase.toString(16).toUpperCase()} (domain ${domain} code)`;
+                        if (dsegAddrInput) dsegAddrInput.placeholder = `Default: 0x${dataBase.toString(16).toUpperCase()} (domain ${domain} data)`;
                     }
                 } else {
                     // MMU Disabled: Hide Mode and Domain, use physical addresses
@@ -188,6 +197,11 @@ class ND500Debugger {
             updateMmuStatus();
         };
 
+        // Update addresses when domain changes
+        domainSelect.onchange = () => {
+            updateMmuStatus();
+        };
+
         // Initial MMU status update
         updateMmuStatus();
 
@@ -198,11 +212,11 @@ class ND500Debugger {
 
                 if (mmuEnabled) {
                     // Disable MMU
-                    this.module.ccall('nd500_dbg_execute_command_js', 'number', ['string'], ['mmu off']);
+                    this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmu off']);
                     this.updateStatus('MMU disabled');
                 } else {
                     // Enable MMU - run mmusetup
-                    this.module.ccall('nd500_dbg_execute_command_js', 'number', ['string'], ['mmusetup']);
+                    this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmusetup']);
                     this.updateStatus('MMU enabled with default configuration');
                 }
 
@@ -412,6 +426,7 @@ class ND500Debugger {
         const translateBtn = document.getElementById('mmuTranslateBtn');
         const pstRefreshBtn = document.getElementById('pstRefreshBtn');
         const pcbRefreshBtn = document.getElementById('pcbRefreshBtn');
+        const memoryMapRefreshBtn = document.getElementById('memoryMapRefreshBtn');
 
         // Setup tab switching
         const tabs = document.querySelectorAll('.mmu-tab');
@@ -432,7 +447,8 @@ class ND500Debugger {
                 const contentMap = {
                     'mmu': 'mmuTabContent',
                     'pst': 'pstTabContent',
-                    'pcb': 'pcbTabContent'
+                    'pcb': 'pcbTabContent',
+                    'memmap': 'memmapTabContent'
                 };
 
                 const content = document.getElementById(contentMap[targetTab]);
@@ -444,6 +460,8 @@ class ND500Debugger {
                         this.updatePstTable();
                     } else if (targetTab === 'pcb') {
                         this.updatePcbDomainList();
+                    } else if (targetTab === 'memmap') {
+                        this.updateMemoryMap();
                     }
                 }
             };
@@ -534,6 +552,21 @@ class ND500Debugger {
             this.updateMmuModal();
             this.updateStatus('PCB table refreshed');
         };
+
+        // Memory Map refresh button
+        memoryMapRefreshBtn.onclick = () => {
+            this.updateMemoryMap();
+            this.updateStatus('Memory map refreshed');
+        };
+
+        // Setup Memory Map domain filter
+        const memoryMapDomainFilter = document.getElementById('memoryMapDomainFilter');
+        if (memoryMapDomainFilter) {
+            memoryMapDomainFilter.onchange = () => {
+                this.memoryMapDomainFilter = memoryMapDomainFilter.value;
+                this.updateMemoryMap();
+            };
+        }
 
         // Setup PST filter handlers
         const pstSearchInput = document.getElementById('pstSearchInput');
@@ -1032,6 +1065,230 @@ class ND500Debugger {
             header.classList.add('expanded');
             arrow.textContent = '▼';
         }
+    }
+
+    updateMemoryMap() {
+        if (!this.module) return;
+
+        try {
+            // Get memory map JSON from WASM (filtered by domain if selected)
+            let jsonStr;
+            if (this.memoryMapDomainFilter === 'all') {
+                jsonStr = this.module.ccall('nd500_dbg_memory_map_json_js', 'string', [], []);
+            } else {
+                const domain = parseInt(this.memoryMapDomainFilter, 10);
+                jsonStr = this.module.ccall('nd500_dbg_memory_map_for_domain_json_js', 'string', ['number'], [domain]);
+            }
+
+            console.log('Memory map JSON (filter=' + this.memoryMapDomainFilter + '):', jsonStr);
+            const data = JSON.parse(jsonStr);
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            console.log('Memory map data:', data);
+
+            // Calculate memory usage
+            const totalMem = data.total_memory;
+            const usedMem = data.blocks.reduce((sum, block) => sum + block.size, 0);
+            const usedPercent = totalMem > 0 ? (usedMem / totalMem * 100).toFixed(1) : 0;
+            const freeMem = totalMem - usedMem;
+
+            // Update stats
+            const statEl = document.getElementById('memoryUsedStat');
+            if (this.memoryMapDomainFilter === 'all') {
+                statEl.textContent = `${this.formatSize(usedMem)} used / ${this.formatSize(totalMem)} total (${usedPercent}% used, ${this.formatSize(freeMem)} free)`;
+            } else {
+                statEl.textContent = `Domain ${this.memoryMapDomainFilter}: ${this.formatSize(usedMem)} used / ${this.formatSize(totalMem)} total (${usedPercent}% used, ${this.formatSize(freeMem)} free)`;
+            }
+
+            // Update usage bar
+            const usedBar = document.getElementById('memoryUsedBar');
+            usedBar.style.width = `${usedPercent}%`;
+
+            // Render memory blocks
+            this.renderMemoryBlocks(data.blocks, totalMem);
+
+        } catch (error) {
+            console.error('Error updating memory map:', error);
+            document.getElementById('memoryUsedStat').textContent = 'Error loading memory map';
+            document.getElementById('memoryMapBlocks').innerHTML = '<div class="memory-map-error">Error loading memory map</div>';
+        }
+    }
+
+    renderMemoryBlocks(blocks, totalMem) {
+        const container = document.getElementById('memoryMapBlocks');
+        const infoPanel = document.getElementById('memoryMapInfo');
+
+        if (blocks.length === 0) {
+            container.innerHTML = '<div class="memory-map-empty">No memory mapped. Use \'mmusetup\' to create a demo configuration.</div>';
+            return;
+        }
+
+        // Sort blocks by physical address (should already be sorted from backend)
+        blocks.sort((a, b) => a.phys_start - b.phys_start);
+
+        // Build blocks with gap detection
+        let html = '';
+        let lastEnd = 0;
+
+        blocks.forEach((block, idx) => {
+            // Add free space gap if there's a gap
+            if (block.phys_start > lastEnd) {
+                const gapSize = block.phys_start - lastEnd;
+                const gapPercent = (gapSize / totalMem * 100);
+                if (gapPercent > 0.1) { // Only show gaps > 0.1%
+                    html += `<div class="memory-block free" style="width: ${gapPercent}%"
+                        title="Free memory: ${this.formatAddr(lastEnd)} - ${this.formatAddr(block.phys_start)}">
+                    </div>`;
+                }
+            }
+
+            // Add mapped block
+            const percent = (block.size / totalMem * 100);
+            const color = this.getBlockColor(block.domain, block.segment);
+            const title = this.getBlockTitle(block);
+
+            html += `<div class="memory-block mapped"
+                style="width: ${percent}%; background-color: ${color};"
+                data-block-index="${idx}"
+                title="${title}">
+            </div>`;
+
+            lastEnd = block.phys_end;
+        });
+
+        // Add trailing free space if any
+        if (lastEnd < totalMem) {
+            const gapSize = totalMem - lastEnd;
+            const gapPercent = (gapSize / totalMem * 100);
+            if (gapPercent > 0.1) {
+                html += `<div class="memory-block free" style="width: ${gapPercent}%"
+                    title="Free memory: ${this.formatAddr(lastEnd)} - ${this.formatAddr(totalMem)}">
+                </div>`;
+            }
+        }
+
+        container.innerHTML = html;
+
+        // Add hover handlers
+        const blockEls = container.querySelectorAll('.memory-block.mapped');
+        blockEls.forEach(blockEl => {
+            const idx = parseInt(blockEl.dataset.blockIndex);
+            const block = blocks[idx];
+
+            blockEl.onmouseenter = () => {
+                infoPanel.innerHTML = this.formatBlockInfo(block);
+                blockEl.style.opacity = '0.8';
+            };
+
+            blockEl.onmouseleave = () => {
+                infoPanel.innerHTML = 'Hover over a block to see details';
+                blockEl.style.opacity = '1';
+            };
+        });
+    }
+
+    getBlockColor(domain, segment) {
+        // Domain-based color palette (from MMU-MEM-UI.md)
+        const domainColors = [
+            '#2196F3',  // Domain 0 (kernel): Blue
+            '#4CAF50',  // Domain 1: Green
+            '#FF9800',  // Domain 2: Orange
+            '#9C27B0',  // Domain 3: Purple
+            '#F44336',  // Domain 4: Red
+            '#00BCD4',  // Domain 5: Cyan
+            '#FFEB3B',  // Domain 6: Yellow
+            '#795548'   // Domain 7+: Brown
+        ];
+
+        if (domain < 0) return '#ECEFF1'; // Free memory: Gray
+
+        const baseColor = domainColors[Math.min(domain, domainColors.length - 1)];
+
+        // Adjust intensity based on segment (darker for higher segments)
+        const intensity = 1.0 - (segment / 32) * 0.3;
+
+        // Parse RGB and adjust
+        const rgb = this.hexToRgb(baseColor);
+        const adjusted = {
+            r: Math.round(rgb.r * intensity),
+            g: Math.round(rgb.g * intensity),
+            b: Math.round(rgb.b * intensity)
+        };
+
+        return `rgb(${adjusted.r}, ${adjusted.g}, ${adjusted.b})`;
+    }
+
+    hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : { r: 0, g: 0, b: 0 };
+    }
+
+    getBlockTitle(block) {
+        if (block.domain < 0) {
+            return 'Free memory';
+        }
+
+        return `Domain ${block.domain}, Segment ${block.segment}, PSN ${block.psn}`;
+    }
+
+    formatBlockInfo(block) {
+        const lines = [];
+
+        lines.push(`<div class="memory-info-row"><strong>Physical Address:</strong> ${this.formatAddr(block.phys_start)} - ${this.formatAddr(block.phys_end)}</div>`);
+        lines.push(`<div class="memory-info-row"><strong>Size:</strong> ${this.formatSize(block.size)}</div>`);
+
+        if (block.domain >= 0) {
+            lines.push(`<div class="memory-info-row"><strong>Owner Domain:</strong> ${block.domain}</div>`);
+            lines.push(`<div class="memory-info-row"><strong>Segment:</strong> ${block.segment}</div>`);
+            lines.push(`<div class="memory-info-row"><strong>PSN:</strong> ${block.psn}</div>`);
+            lines.push(`<div class="memory-info-row"><strong>Mode:</strong> ${block.mode}</div>`);
+
+            // Check if virtual address is accessible from the filtered domain
+            if (this.memoryMapDomainFilter !== 'all') {
+                const isAccessible = block.accessible_from_filter;
+                if (isAccessible) {
+                    lines.push(`<div class="memory-info-row"><strong>Virtual Address:</strong> ${this.formatAddr(block.virtual_start)}</div>`);
+                    lines.push(`<div class="memory-info-row" style="color: #4CAF50;"><strong>Access:</strong> ✓ Accessible from Domain ${this.memoryMapDomainFilter}</div>`);
+                } else {
+                    lines.push(`<div class="memory-info-row" style="color: #999;"><strong>Virtual Address:</strong> Not accessible from Domain ${this.memoryMapDomainFilter}</div>`);
+                    lines.push(`<div class="memory-info-row" style="color: #f44336;"><strong>Access:</strong> ✗ Not mapped in Domain ${this.memoryMapDomainFilter}</div>`);
+                }
+            } else {
+                // Show virtual address when viewing all domains
+                lines.push(`<div class="memory-info-row"><strong>Virtual Address:</strong> ${this.formatAddr(block.virtual_start)}</div>`);
+            }
+
+            const flags = [];
+            if (block.writable) flags.push('Writable');
+            if (block.public) flags.push('Public');
+            if (flags.length === 0) flags.push('Read-only, Private');
+
+            lines.push(`<div class="memory-info-row"><strong>Flags:</strong> ${flags.join(', ')}</div>`);
+        } else {
+            lines.push(`<div class="memory-info-row"><strong>Status:</strong> Free (unmapped)</div>`);
+        }
+
+        return lines.join('');
+    }
+
+    formatSize(bytes) {
+        if (bytes >= 1024 * 1024) {
+            return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+        } else if (bytes >= 1024) {
+            return `${(bytes / 1024).toFixed(2)} KB`;
+        }
+        return `${bytes} bytes`;
+    }
+
+    formatAddr(addr) {
+        return '0x' + addr.toString(16).padStart(8, '0').toUpperCase();
     }
 
     decodeProgCapability(cap) {

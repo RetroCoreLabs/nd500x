@@ -1233,7 +1233,7 @@ body {
     padding: 30px;
     max-width: 1000px;
     width: 95%;
-    max-height: 90vh;
+    height: 88vh;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
     animation: modalSlideIn 0.2s ease-out;
     display: flex;
@@ -2712,4 +2712,113 @@ body {
 
 .mmu-toggle-btn-small:active {
     opacity: 0.7;
+}
+
+/* Memory Map Tab */
+.memory-summary {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+}
+
+.memory-stats {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.memory-usage-bar {
+    width: 100%;
+    height: 20px;
+    background: #eceff1;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #dee2e6;
+}
+
+.memory-used {
+    height: 100%;
+    background: linear-gradient(90deg, #3498db, #2980b9);
+    transition: width 0.3s ease;
+}
+
+.memory-map-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 200px;
+    max-height: 350px;
+    margin-bottom: 15px;
+}
+
+.memory-blocks {
+    display: flex;
+    height: 60px;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f8f9fa;
+}
+
+.memory-block {
+    height: 100%;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.2s;
+    position: relative;
+    border-right: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.memory-block:last-child {
+    border-right: none;
+}
+
+.memory-block.mapped {
+    opacity: 1;
+}
+
+.memory-block.mapped:hover {
+    opacity: 0.8;
+}
+
+.memory-block.free {
+    background: #eceff1;
+    border-right: 1px solid #dee2e6;
+}
+
+.memory-info-panel {
+    padding: 15px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    min-height: 120px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #495057;
+    margin-bottom: 15px;
+}
+
+.memory-info-row {
+    padding: 4px 0;
+    line-height: 1.6;
+}
+
+.memory-info-row strong {
+    color: #2c3e50;
+    margin-right: 8px;
+}
+
+.memory-map-empty,
+.memory-map-error {
+    padding: 40px 20px;
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    font-size: 14px;
+}
+
+.memory-map-error {
+    color: #dc3545;
 }

@@ -158,6 +158,7 @@
                 <button class="mmu-tab active" data-tab="mmu">MMU Status</button>
                 <button class="mmu-tab" data-tab="pst">PST Inspector</button>
                 <button class="mmu-tab" data-tab="pcb">PCB Viewer</button>
+                <button class="mmu-tab" data-tab="memmap">Memory Map</button>
             </div>
 
             <!-- Tab Content: MMU Status -->
@@ -289,6 +290,52 @@
 
                 <div class="tab-actions">
                     <button id="pcbRefreshBtn" class="mmu-action-btn">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- Tab Content: Memory Map -->
+            <div id="memmapTabContent" class="mmu-tab-content">
+                <!-- Domain filter -->
+                <div class="memory-map-filters">
+                    <div class="filter-group">
+                        <label>View Domain:</label>
+                        <select id="memoryMapDomainFilter">
+                            <option value="all">All Domains</option>
+                            <option value="0">Domain 0 (Kernel)</option>
+                            <option value="1">Domain 1</option>
+                            <option value="2">Domain 2</option>
+                            <option value="3">Domain 3</option>
+                            <option value="4">Domain 4</option>
+                            <option value="5">Domain 5</option>
+                            <option value="6">Domain 6</option>
+                            <option value="7">Domain 7</option>
+                        </select>
+                        <span class="hint">Shows virtual addresses accessible from selected domain</span>
+                    </div>
+                </div>
+
+                <!-- Summary bar -->
+                <div class="memory-summary">
+                    <div class="memory-stats">
+                        <span id="memoryUsedStat">Loading...</span>
+                    </div>
+                    <div class="memory-usage-bar">
+                        <div class="memory-used" id="memoryUsedBar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Memory blocks visualization -->
+                <div class="memory-map-container">
+                    <div id="memoryMapBlocks" class="memory-blocks"></div>
+                </div>
+
+                <!-- Hover info panel -->
+                <div id="memoryMapInfo" class="memory-info-panel">
+                    Hover over a block to see details
+                </div>
+
+                <div class="tab-actions">
+                    <button id="memoryMapRefreshBtn" class="mmu-action-btn">🔄 Refresh</button>
                 </div>
             </div>
 

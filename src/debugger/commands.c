@@ -1172,57 +1172,109 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return -1;
 	}
 
-	output(ctx, "Setting up MMU for kernel/user virtual memory support...");
+	output(ctx, "Setting up MMU with 3 domains: Kernel (0) + User1 (1) + User2 (2)");
+	output(ctx, "Each domain gets 256KB code + 256KB data (128 pages each)");
 	output(ctx, "");
 	output(ctx, "Physical Memory Layout:");
-	output(ctx, "  0x00000000-0x003FFFFF: Code (4MB)");
-	output(ctx, "  0x00400000-0x007FFFFF: Data (4MB)");
-	output(ctx, "  0x00800000-0x00FFFFFF: Available (8MB)");
+	output(ctx, "  0x00000000-0x0003FFFF: Domain 0 (Kernel) Code (256KB = 128 pages)");
+	output(ctx, "  0x00040000-0x0007FFFF: Domain 0 (Kernel) Data (256KB = 128 pages)");
+	output(ctx, "  0x00080000-0x000BFFFF: Domain 1 (User1) Code (256KB = 128 pages)");
+	output(ctx, "  0x000C0000-0x000FFFFF: Domain 1 (User1) Data (256KB = 128 pages)");
+	output(ctx, "  0x00100000-0x0013FFFF: Domain 2 (User2) Code (256KB = 128 pages)");
+	output(ctx, "  0x00140000-0x0017FFFF: Domain 2 (User2) Data (256KB = 128 pages)");
+	output(ctx, "  0x00180000-0x00FFFFFF: Available (~14.5 MB)");
 	output(ctx, "");
 
 	/* ═══════════════════════════════════════════════════════
-	 * PST CONFIGURATION
-	 * Map virtual segments to low physical memory
+	 * PST CONFIGURATION - Create 128 contiguous pages per region
+	 * Each domain needs 256 PST entries (128 for code + 128 for data)
+	 * Total: 768 PST entries
 	 * ═══════════════════════════════════════════════════════ */
 	output(ctx, "=== PST Configuration ===");
+	output(ctx, "Creating 768 PST entries (256 per domain)...");
 
-	/* Kernel Code: Segment 0x08 → Physical 0x00000000 (PSN 8) */
-	nd500_mmu_set_pst_entry(m->cpu, 8, PS_AZI, 0x0000);
-	output(ctx, "PST[8]  = PS_AZI (Kernel code segment 0x08 → 0x00000000)");
+	/* Domain 0 (Kernel) Code: PSN 0-127 → Physical 0x00000000-0x0003FFFF */
+	for (uint32_t i = 0; i < 128; i++) {
+		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);  /* PFN = PSN for direct mapping */
+	}
+	output(ctx, "PST[0-127]     = Domain 0 kernel code (phys 0x00000000-0x0003FFFF)");
 
-	/* Kernel Data: Segment 0x00 → Physical 0x00400000 (PSN 0) */
-	nd500_mmu_set_pst_entry(m->cpu, 0, PS_AZI, 0x0200);
-	output(ctx, "PST[0]  = PS_AZI (Kernel data segment 0x00 → 0x00400000)");
+	/* Domain 0 (Kernel) Data: PSN 128-255 → Physical 0x00040000-0x0007FFFF */
+	for (uint32_t i = 128; i < 256; i++) {
+		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
+	}
+	output(ctx, "PST[128-255]   = Domain 0 kernel data (phys 0x00040000-0x0007FFFF)");
 
-	/* User Code: Segment 0x1A → Physical 0x00000000 (PSN 26) */
-	nd500_mmu_set_pst_entry(m->cpu, 26, PS_AZI, 0x0000);
-	output(ctx, "PST[26] = PS_AZI (User code segment 0x1A → 0x00000000)");
+	/* Domain 1 (User1) Code: PSN 256-383 → Physical 0x00080000-0x000BFFFF */
+	for (uint32_t i = 256; i < 384; i++) {
+		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
+	}
+	output(ctx, "PST[256-383]   = Domain 1 user1 code (phys 0x00080000-0x000BFFFF)");
 
-	/* User Data: Segment 0x1E → Physical 0x00400000 (PSN 30) */
-	nd500_mmu_set_pst_entry(m->cpu, 30, PS_AZI, 0x0200);
-	output(ctx, "PST[30] = PS_AZI (User data segment 0x1E → 0x00400000)");
+	/* Domain 1 (User1) Data: PSN 384-511 → Physical 0x000C0000-0x000FFFFF */
+	for (uint32_t i = 384; i < 512; i++) {
+		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
+	}
+	output(ctx, "PST[384-511]   = Domain 1 user1 data (phys 0x000C0000-0x000FFFFF)");
+
+	/* Domain 2 (User2) Code: PSN 512-639 → Physical 0x00100000-0x0013FFFF */
+	for (uint32_t i = 512; i < 640; i++) {
+		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
+	}
+	output(ctx, "PST[512-639]   = Domain 2 user2 code (phys 0x00100000-0x0013FFFF)");
+
+	/* Domain 2 (User2) Data: PSN 640-767 → Physical 0x00140000-0x0017FFFF */
+	for (uint32_t i = 640; i < 768; i++) {
+		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
+	}
+	output(ctx, "PST[640-767]   = Domain 2 user2 data (phys 0x00140000-0x0017FFFF)");
 
 	output(ctx, "");
-	output(ctx, "=== PCB Configuration (Domain 0 - Kernel) ===");
+	output(ctx, "=== PCB Configuration ===");
+	output(ctx, "Mapping 128 consecutive segment entries per domain...");
+	output(ctx, "");
 
-	/* Domain 0 (Kernel) - Segment 0x08 for code */
-	nd500_mmu_set_program_capability(m->cpu, 0, 0x08, 8 | PC_DIR);
-	output(ctx, "PCB[0].prog[0x08] = PSN 8 (kernel code at virtual 0x08000000)");
+	/* Domain 0 (Kernel): Virtual segment 0 onwards */
+	output(ctx, "Domain 0 (Kernel):");
+	/* Code segments 0-127: Each segment i maps to PSN i (phys 0x00000000+) */
+	for (uint32_t seg = 0; seg < 128; seg++) {
+		nd500_mmu_set_program_capability(m->cpu, 0, seg, seg | PC_DIR);
+	}
+	output(ctx, "  Prog segments [0-127]   → PSN [0-127]   (virtual 0x00000000-0x3F800000)");
 
-	/* Domain 0 (Kernel) - Segment 0x00 for data */
-	nd500_mmu_set_data_capability(m->cpu, 0, 0x00, 0);
-	output(ctx, "PCB[0].data[0x00] = PSN 0 (kernel data at virtual 0x00000000)");
+	/* Data segments 0-127: Each segment i maps to PSN 128+i (phys 0x00040000+) */
+	for (uint32_t seg = 0; seg < 128; seg++) {
+		nd500_mmu_set_data_capability(m->cpu, 0, seg, (128 + seg));
+	}
+	output(ctx, "  Data segments [0-127]   → PSN [128-255] (virtual 0x00000000-0x3F800000)");
 
 	output(ctx, "");
-	output(ctx, "=== PCB Configuration (Domain 1 - User) ===");
+	output(ctx, "Domain 1 (User1):");
+	/* Code segments 0-127: Each segment i maps to PSN 256+i (phys 0x00080000+) */
+	for (uint32_t seg = 0; seg < 128; seg++) {
+		nd500_mmu_set_program_capability(m->cpu, 1, seg, (256 + seg) | PC_DIR);
+	}
+	output(ctx, "  Prog segments [0-127]   → PSN [256-383] (virtual 0x00000000-0x3F800000)");
 
-	/* Domain 1 (User) - Segment 0x1A for code */
-	nd500_mmu_set_program_capability(m->cpu, 1, 0x1A, 26 | PC_DIR);
-	output(ctx, "PCB[1].prog[0x1A] = PSN 26 (user code at virtual 0xD0000000)");
+	/* Data segments 0-127: Each segment i maps to PSN 384+i (phys 0x000C0000+) */
+	for (uint32_t seg = 0; seg < 128; seg++) {
+		nd500_mmu_set_data_capability(m->cpu, 1, seg, (384 + seg) | DC_PAC);
+	}
+	output(ctx, "  Data segments [0-127]   → PSN [384-511] (virtual 0x00000000-0x3F800000)");
 
-	/* Domain 1 (User) - Segment 0x1E for data */
-	nd500_mmu_set_data_capability(m->cpu, 1, 0x1E, 30 | DC_PAC);
-	output(ctx, "PCB[1].data[0x1E] = PSN 30 (user data at virtual 0xF0000000)");
+	output(ctx, "");
+	output(ctx, "Domain 2 (User2):");
+	/* Code segments 0-127: Each segment i maps to PSN 512+i (phys 0x00100000+) */
+	for (uint32_t seg = 0; seg < 128; seg++) {
+		nd500_mmu_set_program_capability(m->cpu, 2, seg, (512 + seg) | PC_DIR);
+	}
+	output(ctx, "  Prog segments [0-127]   → PSN [512-639] (virtual 0x00100000-0x0013FFFF)");
+
+	/* Data segments 0-127: Each segment i maps to PSN 640+i (phys 0x00140000+) */
+	for (uint32_t seg = 0; seg < 128; seg++) {
+		nd500_mmu_set_data_capability(m->cpu, 2, seg, (640 + seg) | DC_PAC);
+	}
+	output(ctx, "  Data segments [0-127]   → PSN [640-767] (virtual 0x00140000-0x0017FFFF)");
 
 	output(ctx, "");
 	output(ctx, "=== MMU Registers ===");
@@ -1243,16 +1295,18 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "MMU ENABLED - Virtual memory now active!");
 
 	output(ctx, "");
-	output(ctx, "Virtual Memory Layout:");
-	output(ctx, "  Kernel: 0x08000000-0x0FFFFFFF (code) → phys 0x00000000");
-	output(ctx, "          0x00000000-0x07FFFFFF (data) → phys 0x00400000");
-	output(ctx, "  User:   0xD0000000-0xD7FFFFFF (code) → phys 0x00000000");
-	output(ctx, "          0xF0000000-0xF7FFFFFF (data) → phys 0x00400000");
+	output(ctx, "Virtual Memory Layout (each domain has 256KB code + 256KB data):");
+	output(ctx, "  Domain 0 (Kernel): Virtual 0x00000000-0x3F800000 → Phys 0x00000000-0x0007FFFF");
+	output(ctx, "  Domain 1 (User1):  Virtual 0x00000000-0x3F800000 → Phys 0x00080000-0x000FFFFF");
+	output(ctx, "  Domain 2 (User2):  Virtual 0x00000000-0x3F800000 → Phys 0x00100000-0x0017FFFF");
 	output(ctx, "");
 	output(ctx, "Configuration complete! You can now:");
-	output(ctx, "  - Load PSEG/DSEG files (they will use virtual addresses)");
+	output(ctx, "  - Load PSEG/DSEG files to any virtual address 0x00000000-0x3F800000");
+	output(ctx, "  - Switch domains using 'set CAD <domain>' or 'set CED <domain>'");
 	output(ctx, "  - Use 'showmmu' to view MMU status");
 	output(ctx, "  - Use 'phyladr <vaddr>' to test address translation");
+	output(ctx, "  - Use 'listpst' to see all 768 configured PST entries");
+	output(ctx, "  - Use 'listpcb' to see domain configurations");
 
 	return 0;
 }

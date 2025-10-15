@@ -390,6 +390,20 @@ const char* nd500_dbg_symbols_json(void) {
 	return dup_json_string(root);
 }
 
+/* Get memory map as JSON */
+const char* nd500_dbg_memory_map_json_js(void) {
+	return nd500_dbg_memory_map_json(&g_machine);
+}
+
+/* Get memory map filtered by domain as JSON */
+const char* nd500_dbg_memory_map_for_domain_json_js(int domain) {
+	return nd500_dbg_memory_map_for_domain_json(&g_machine, domain);
+}
+
+/* Check if MMU is enabled */
+int nd500_dbg_mmu_is_enabled_js(void) {
+	return nd500_machine_mmu_is_enabled(&g_machine);
+}
 
 /* ═══════════════════════════════════════════════════════ */
 /* SHARED COMMAND LIBRARY WASM INTERFACE */
