@@ -5,9 +5,14 @@ class ND500Debugger {
         this.breakpoints = [];
         this.isRunning = false;
         this.runInterval = null;
+        this.VERSION = '20251015d'; // Update this with each change
     }
 
     async init() {
+        console.log('='.repeat(60));
+        console.log('ND500X Web Debugger');
+        console.log('Version:', this.VERSION);
+        console.log('='.repeat(60));
         console.log('ND500Debugger.init() called');
         // Wait for WASM module to load
         this.module = await Module;
@@ -75,6 +80,14 @@ class ND500Debugger {
         document.getElementById('memLen').onkeypress = (e) => {
             if (e.key === 'Enter') this.viewMemory();
         };
+
+        // Register editing - event delegation on parent
+        document.getElementById('regs-content').addEventListener('click', (e) => {
+            const regItem = e.target.closest('.reg-item');
+            if (regItem) {
+                this.editRegister(regItem);
+            }
+        });
     }
 
     openLoadModal() {
@@ -1150,6 +1163,18 @@ class ND500Debugger {
                 if (rc !== 0) throw new Error('Demo kernel load failed rc=' + rc);
                 this.updateStatus('Demo kernel loaded - NDIX-C Simulated Kernel v1.0 for ND-500');
                 this.updateUI();
+
+                // Automatically run mmusetup to initialize MMU with demo configuration
+                try {
+                    console.log('Running automatic mmusetup...');
+                    const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmusetup']);
+                    console.log('mmusetup completed:', output);
+                    this.updateStatus('Demo kernel loaded with MMU configuration');
+                    this.updateMmuPanel();
+                } catch (mmuError) {
+                    console.warn('Could not run automatic mmusetup:', mmuError);
+                }
+
                 // Set default memory view
                 document.getElementById('memAddr').value = '0';
                 document.getElementById('memLen').value = '256';
@@ -1313,21 +1338,36 @@ class ND500Debugger {
             const regs = JSON.parse(json);
             this.currentPC = regs.PC;
 
-            // Build CPU registers section
+            // Build CPU registers section (general purpose registers only)
             let html = `
                 <div class="reg-section-title">CPU Registers</div>
-                <div class="reg-item" data-reg="PC" data-value="${regs.PC}">PC: 0x${regs.PC.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="FLAGS" data-value="${regs.FLAGS}">FLAGS: 0x${regs.FLAGS.toString(16).padStart(8,'0')}</div>
-                ${regs.I.map((v,i) => `<div class="reg-item" data-reg="I${i+1}" data-value="${v}">I${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
-                ${regs.A.map((v,i) => `<div class="reg-item" data-reg="A${i+1}" data-value="${v}">A${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
-                ${regs.E.map((v,i) => `<div class="reg-item" data-reg="E${i+1}" data-value="${v}">E${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
-                <div class="reg-item" data-reg="L" data-value="${regs.L}">L: 0x${regs.L.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="B" data-value="${regs.B}">B: 0x${regs.B.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="R" data-value="${regs.R}">R: 0x${regs.R.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="TOS" data-value="${regs.TOS}">TOS: 0x${regs.TOS.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="LL" data-value="${regs.LL}">LL: 0x${regs.LL.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="HL" data-value="${regs.HL}">HL: 0x${regs.HL.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="THA" data-value="${regs.THA}">THA: 0x${regs.THA.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="PC" data-value="${regs.PC}" title="Program Counter">PC: 0x${regs.PC.toString(16).padStart(8,'0')}</div>
+                ${regs.I.map((v,i) => `<div class="reg-item" data-reg="I${i+1}" data-value="${v}" title="Index Register ${i+1}">I${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
+                ${regs.A.map((v,i) => `<div class="reg-item" data-reg="A${i+1}" data-value="${v}" title="Address Register ${i+1}">A${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
+                ${regs.E.map((v,i) => `<div class="reg-item" data-reg="E${i+1}" data-value="${v}" title="Extension Register ${i+1}">E${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
+                <div class="reg-item" data-reg="L" data-value="${regs.L}" title="Level Register">L: 0x${regs.L.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="B" data-value="${regs.B}" title="Base Register">B: 0x${regs.B.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="R" data-value="${regs.R}" title="Return Address">R: 0x${regs.R.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="TOS" data-value="${regs.TOS}" title="Top of Stack">TOS: 0x${regs.TOS.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="LL" data-value="${regs.LL}" title="Lower Limit">LL: 0x${regs.LL.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="HL" data-value="${regs.HL}" title="Higher Limit">HL: 0x${regs.HL.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="THA" data-value="${regs.THA}" title="Trap Handler Address">THA: 0x${regs.THA.toString(16).padStart(8,'0')}</div>
+            `;
+
+            // Add Flag registers section
+            html += `
+                <div class="reg-section-title">Flag Registers</div>
+                <div class="reg-item" data-reg="FLAGS" data-value="${regs.FLAGS}" title="CPU Status Flags">FLAGS: 0x${regs.FLAGS.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="ST1" data-value="${regs.ST1}" title="Status Register 1 (Trap Bits 11-31)">ST1: 0x${regs.ST1.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="ST2" data-value="${regs.ST2}" title="Status Register 2 (Trap Bits 0-10)">ST2: 0x${regs.ST2.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="OTE1" data-value="${regs.OTE1}" title="Own Trap Enable 1 (Bits 11-31)">OTE1: 0x${regs.OTE1.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="OTE2" data-value="${regs.OTE2}" title="Own Trap Enable 2 (Bits 0-10)">OTE2: 0x${regs.OTE2.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="CTE1" data-value="${regs.CTE1}" title="Child Trap Enable 1 (Bits 11-31)">CTE1: 0x${regs.CTE1.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="CTE2" data-value="${regs.CTE2}" title="Child Trap Enable 2 (Bits 0-10)">CTE2: 0x${regs.CTE2.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="MTE1" data-value="${regs.MTE1}" title="Mother Trap Enable 1 (Bits 11-31)">MTE1: 0x${regs.MTE1.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="MTE2" data-value="${regs.MTE2}" title="Mother Trap Enable 2 (Bits 0-10)">MTE2: 0x${regs.MTE2.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="TEMM1" data-value="${regs.TEMM1}" title="Trap Enable Mod Mask 1 (Bits 11-31)">TEMM1: 0x${regs.TEMM1.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item" data-reg="TEMM2" data-value="${regs.TEMM2}" title="Trap Enable Mod Mask 2 (Bits 0-10)">TEMM2: 0x${regs.TEMM2.toString(16).padStart(8,'0')}</div>
             `;
 
             // Add MMU registers section if available
@@ -1343,13 +1383,6 @@ class ND500Debugger {
             }
 
             document.getElementById('regs-content').innerHTML = html;
-
-            // Add click handlers for register editing
-            document.querySelectorAll('.reg-item').forEach(item => {
-                item.addEventListener('click', (e) => {
-                    this.editRegister(e.target);
-                });
-            });
         } catch (error) {
             console.error('Error updating registers:', error);
         }
@@ -1603,7 +1636,7 @@ class ND500Debugger {
 
     clearTraps() {
         if (!this.module) return;
-        
+
         try {
             this.module.ccall('nd500_dbg_clear_traps_js', null, [], []);
             this.updateTraps();
@@ -1614,47 +1647,483 @@ class ND500Debugger {
         }
     }
 
-    editRegister(element) {
-        const regName = element.dataset.reg;
-        const currentValue = parseInt(element.dataset.value);
-        
-        const newValue = prompt(`Enter new value for ${regName} (hex or decimal):`, `0x${currentValue.toString(16).padStart(8,'0')}`);
-        if (newValue === null) return; // User cancelled
-        
-        let value;
-        if (newValue.startsWith('0x') || newValue.startsWith('0X')) {
-            value = parseInt(newValue, 16);
-        } else {
-            value = parseInt(newValue, 10);
-        }
-        
-        if (isNaN(value)) {
-            alert('Invalid value. Please enter a valid hex (0x...) or decimal number.');
-            return;
-        }
-        
-        try {
-            this.module.ccall('nd500_dbg_set_reg_js', null, ['string', 'number'], [regName, value]);
-            this.updateStatus(`${regName} set to 0x${value.toString(16).padStart(8,'0')}`);
-            
-            // If PC was changed, update disassembly
-            if (regName === 'PC') {
-                this.updateDisassembly();
-            }
-            
-            // Update all registers to reflect the change
-            this.updateRegisters();
-        } catch (error) {
-            console.error('Error setting register:', error);
-            this.updateStatus('Error setting register');
-        }
-    }
-
     setMemoryAddress(address) {
         const addrInput = document.getElementById('memAddr');
         if (addrInput) {
             addrInput.value = address.toString(16).padStart(8, '0');
             this.viewMemory();
+        }
+    }
+
+    openBitEditor(regName, currentValue) {
+        const modal = document.getElementById('bitEditorModal');
+        const grid = document.getElementById('bitEditorGrid');
+        const regNameSpan = document.getElementById('bitEditorRegName');
+        const currentValueSpan = document.getElementById('bitEditorCurrentValue');
+        const preview = document.getElementById('bitEditorPreview');
+        const cancelBtn = document.getElementById('bitEditorCancelBtn');
+        const applyBtn = document.getElementById('bitEditorApplyBtn');
+
+        // Register descriptions
+        const REGISTER_DESCRIPTIONS = {
+            'ST1': 'Status Register Upper',
+            'ST2': 'Status Register Lower',
+            'TOS': 'Top of Stack',
+            'LL': 'Lower Limit',
+            'HL': 'Higher Limit',
+            'THA': 'Trap Handler Address',
+            'OTE1': 'Trap Enable Upper',
+            'OTE2': 'Trap Enable Lower',
+            'CTE1': 'Calculated Trap Enable Upper',
+            'CTE2': 'Calculated Trap Enable Lower',
+            'MTE1': 'Monitor Trap Enable Upper',
+            'MTE2': 'Monitor Trap Enable Lower',
+            'TEMM1': 'Trap Emulation Mask Upper',
+            'TEMM2': 'Trap Emulation Mask Lower',
+            'FLAGS': 'CPU Flags'
+        };
+
+        // Get bit definitions for this register
+        const definition = this.getBitDefinition(regName);
+        if (!definition) {
+            alert(`No bit definition found for register ${regName}`);
+            return;
+        }
+
+        // Set header with description
+        const description = REGISTER_DESCRIPTIONS[regName];
+        regNameSpan.textContent = description ? `${regName} (${description})` : regName;
+        currentValueSpan.textContent = '0x' + (currentValue >>> 0).toString(16).padStart(definition.bits / 4, '0').toUpperCase();
+
+        // Build bit grid (MSB first - left to right)
+        let html = '';
+        for (let bit = definition.bits - 1; bit >= 0; bit--) {
+            const isSet = (currentValue & (1 << bit)) !== 0;
+            const label = definition.labels[bit] || '-';
+            const description = definition.descriptions ? (definition.descriptions[bit] || '') : '';
+            const titleText = description || label || `Bit ${bit}`;
+
+            html += `
+                <div class="bit-item ${isSet ? 'active' : ''}" data-bit="${bit}" data-description="${this.escapeHtml(description)}" title="${this.escapeHtml(titleText)}">
+                    <div class="bit-label">${this.escapeHtml(label)}</div>
+                    <div class="bit-toggle">${isSet ? '1' : '0'}</div>
+                    <div class="bit-number">${bit}</div>
+                </div>
+            `;
+        }
+
+        grid.innerHTML = html;
+
+        // Get description panel
+        const descPanel = document.getElementById('bitEditorHoverInfo');
+
+        // Add click and hover handlers for bit toggles
+        document.querySelectorAll('.bit-item').forEach(item => {
+            // Click to toggle
+            item.onclick = () => {
+                item.classList.toggle('active');
+                const toggle = item.querySelector('.bit-toggle');
+                toggle.textContent = item.classList.contains('active') ? '1' : '0';
+                this.updateBitPreview();
+            };
+
+            // Hover to show description
+            item.addEventListener('mouseenter', () => {
+                const desc = item.dataset.description;
+                if (desc && desc.trim()) {
+                    descPanel.textContent = desc;
+                    descPanel.style.opacity = '1';
+                } else {
+                    const bitNum = item.dataset.bit;
+                    const label = item.querySelector('.bit-label').textContent;
+                    descPanel.textContent = `Bit ${bitNum}${label !== '-' ? ' (' + label + ')' : ''} - No description available`;
+                    descPanel.style.opacity = '1';
+                }
+            });
+
+            // Clear description on mouse leave
+            item.addEventListener('mouseleave', () => {
+                descPanel.textContent = 'Hover over a bit to see its description';
+                descPanel.style.opacity = '0.6';
+            });
+        });
+
+        // Initial preview update
+        this.updateBitPreview();
+
+        // Cancel button
+        cancelBtn.onclick = () => {
+            modal.classList.add('hidden');
+        };
+
+        // Apply button
+        applyBtn.onclick = () => {
+            const newValue = this.updateBitPreview();
+
+            try {
+                this.module.ccall('nd500_dbg_set_reg_js', null, ['string', 'number'], [regName, newValue]);
+                // Ensure unsigned conversion for status message
+                this.updateStatus(`${regName} set to 0x${(newValue >>> 0).toString(16).padStart(8,'0').toUpperCase()}`);
+
+                // If PC was changed, update disassembly
+                if (regName === 'PC') {
+                    this.updateDisassembly();
+                }
+
+                // Update all registers to reflect the change
+                this.updateRegisters();
+
+                modal.classList.add('hidden');
+            } catch (error) {
+                console.error('Error setting register:', error);
+                this.updateStatus('Error setting register');
+                alert('Error setting register: ' + error.message);
+            }
+        };
+
+        modal.classList.remove('hidden');
+    }
+
+    updateBitPreview() {
+        let value = 0;
+        document.querySelectorAll('.bit-item.active').forEach(item => {
+            const bit = parseInt(item.dataset.bit);
+            value |= (1 << bit);
+        });
+
+        // Convert to unsigned 32-bit to avoid negative hex values
+        value = value >>> 0;
+
+        const preview = document.getElementById('bitEditorPreview');
+        preview.value = '0x' + value.toString(16).padStart(8, '0').toUpperCase();
+
+        return value;
+    }
+
+    getBitDefinition(regName) {
+        const BIT_DEFINITIONS = {
+            'FLAGS': {
+                bits: 32,
+                labels: {
+                    0: 'C',   // Carry flag
+                    1: 'V',   // Overflow flag
+                    2: 'Z',   // Zero flag
+                    3: 'N',   // Negative flag
+                    4: 'X',   // Extend flag
+                    5: 'I',   // Interrupt enable
+                    6: 'S',   // Supervisor mode
+                    7: 'T'    // Trace mode
+                },
+                descriptions: {
+                    0: 'Carry: Set when arithmetic operation produces a carry out of the most significant bit',
+                    1: 'Overflow: Set when signed arithmetic operation overflows',
+                    2: 'Zero: Set when the result of an operation is zero',
+                    3: 'Negative: Set when the result of an operation is negative (MSB=1)',
+                    4: 'Extend: Extended carry flag for multi-precision arithmetic',
+                    5: 'Interrupt Enable: When set, interrupts are enabled',
+                    6: 'Supervisor: When set, CPU is in supervisor (privileged) mode',
+                    7: 'Trace: When set, CPU executes in single-step trace mode'
+                }
+            },
+            'ST1': {
+                bits: 32,
+                labels: {
+                    11: 'PE', 12: 'PF', 13: 'PI', 14: 'PD', 15: 'PS',
+                    16: 'PO', 17: 'PU', 18: 'PZ', 19: 'PM', 20: 'PK',
+                    21: 'PX', 22: 'PN', 23: 'PC', 24: 'PL', 25: 'PW',
+                    26: 'PG', 27: 'PV', 28: 'PT', 29: 'PR', 30: 'PA', 31: 'PY'
+                },
+                descriptions: {
+                    11: 'PE: Protected Execute - Trap on execute violation',
+                    12: 'PF: Divide by Zero - Trap when dividing by zero',
+                    13: 'PI: Illegal Instruction - Trap on invalid opcode',
+                    14: 'PD: Illegal Data - Trap on illegal operand',
+                    15: 'PS: Instruction Sequence Error - Trap on sequence violation',
+                    16: 'PO: Illegal I/O Operation - Trap on invalid I/O access',
+                    17: 'PU: Unassigned/Undefined Trap',
+                    18: 'PZ: Unassigned/Undefined Trap',
+                    19: 'PM: Stack Overflow - Trap when stack grows too large',
+                    20: 'PK: Stack Underflow - Trap when stack pops below limit',
+                    21: 'PX: Floating Point Exception - Trap on FP error',
+                    22: 'PN: Floating Point Underflow - Trap on FP underflow',
+                    23: 'PC: Floating Point Overflow - Trap on FP overflow',
+                    24: 'PL: Power Fail - Trap on power failure',
+                    25: 'PW: Watchdog Timer - Trap on watchdog timeout',
+                    26: 'PG: Single Instruction Step - Trap after each instruction',
+                    27: 'PV: Breakpoint - Trap on breakpoint hit',
+                    28: 'PT: Trace - Trap for instruction tracing',
+                    29: 'PR: Branch Taken - Trap when branch is taken',
+                    30: 'PA: Call Executed - Trap when subroutine is called',
+                    31: 'PY: Return Executed - Trap when returning from subroutine'
+                }
+            },
+            'ST2': {
+                bits: 32,
+                labels: {
+                    0: 'XSE', 1: 'IIC', 2: 'IOS', 3: 'ISE', 4: 'PV',
+                    5: 'THM', 6: 'PGF', 7: 'NXM', 8: 'MXM', 9: 'ILL'
+                },
+                descriptions: {
+                    0: 'XSE: External Sequence Error - Trap on external bus error',
+                    1: 'IIC: Illegal Instruction Combination - Trap on invalid instruction sequence',
+                    2: 'IOS: I/O Status Error - Trap on I/O operation failure',
+                    3: 'ISE: Internal Sequence Error - Trap on internal state violation',
+                    4: 'PV: Parity/Protect Violation - Trap on memory protection fault',
+                    5: 'THM: Too High Memory - Trap on memory access out of bounds',
+                    6: 'PGF: Page Fault - Trap when accessing non-resident page',
+                    7: 'NXM: Non-Existent Memory - Trap on access to unmapped address',
+                    8: 'MXM: Memory Access Violation - Trap on illegal memory operation',
+                    9: 'ILL: Illegal Operation - Trap on undefined operation'
+                }
+            },
+            'OTE1': {
+                bits: 32,
+                labels: {
+                    11: 'PE', 12: 'PF', 13: 'PI', 14: 'PD', 15: 'PS',
+                    16: 'PO', 17: 'PU', 18: 'PZ', 19: 'PM', 20: 'PK',
+                    21: 'PX', 22: 'PN', 23: 'PC', 24: 'PL', 25: 'PW',
+                    26: 'PG', 27: 'PV', 28: 'PT', 29: 'PR', 30: 'PA', 31: 'PY'
+                },
+                descriptions: {
+                    11: 'PE: Enable trap on Protected Execute violation',
+                    12: 'PF: Enable trap on Divide by Zero',
+                    13: 'PI: Enable trap on Illegal Instruction',
+                    14: 'PD: Enable trap on Illegal Data',
+                    15: 'PS: Enable trap on Instruction Sequence Error',
+                    16: 'PO: Enable trap on Illegal I/O Operation',
+                    17: 'PU: Enable Unassigned Trap',
+                    18: 'PZ: Enable Unassigned Trap',
+                    19: 'PM: Enable trap on Stack Overflow',
+                    20: 'PK: Enable trap on Stack Underflow',
+                    21: 'PX: Enable trap on Floating Point Exception',
+                    22: 'PN: Enable trap on Floating Point Underflow',
+                    23: 'PC: Enable trap on Floating Point Overflow',
+                    24: 'PL: Enable trap on Power Fail',
+                    25: 'PW: Enable trap on Watchdog Timer',
+                    26: 'PG: Enable trap on Single Instruction Step',
+                    27: 'PV: Enable trap on Breakpoint',
+                    28: 'PT: Enable trap for Trace',
+                    29: 'PR: Enable trap on Branch Taken',
+                    30: 'PA: Enable trap on Call Executed',
+                    31: 'PY: Enable trap on Return Executed'
+                }
+            },
+            'OTE2': {
+                bits: 32,
+                labels: {
+                    0: 'XSE', 1: 'IIC', 2: 'IOS', 3: 'ISE', 4: 'PV',
+                    5: 'THM', 6: 'PGF', 7: 'NXM', 8: 'MXM', 9: 'ILL'
+                },
+                descriptions: {
+                    0: 'XSE: Enable trap on External Sequence Error',
+                    1: 'IIC: Enable trap on Illegal Instruction Combination',
+                    2: 'IOS: Enable trap on I/O Status Error',
+                    3: 'ISE: Enable trap on Internal Sequence Error',
+                    4: 'PV: Enable trap on Parity/Protect Violation',
+                    5: 'THM: Enable trap on Too High Memory',
+                    6: 'PGF: Enable trap on Page Fault',
+                    7: 'NXM: Enable trap on Non-Existent Memory',
+                    8: 'MXM: Enable trap on Memory Access Violation',
+                    9: 'ILL: Enable trap on Illegal Operation'
+                }
+            },
+            'CTE1': {
+                bits: 32,
+                labels: {
+                    11: 'PE', 12: 'PF', 13: 'PI', 14: 'PD', 15: 'PS',
+                    16: 'PO', 17: 'PU', 18: 'PZ', 19: 'PM', 20: 'PK',
+                    21: 'PX', 22: 'PN', 23: 'PC', 24: 'PL', 25: 'PW',
+                    26: 'PG', 27: 'PV', 28: 'PT', 29: 'PR', 30: 'PA', 31: 'PY'
+                },
+                descriptions: {
+                    11: 'PE: Child process - enable trap on Protected Execute',
+                    12: 'PF: Child process - enable trap on Divide by Zero',
+                    13: 'PI: Child process - enable trap on Illegal Instruction',
+                    14: 'PD: Child process - enable trap on Illegal Data',
+                    15: 'PS: Child process - enable trap on Instruction Sequence Error',
+                    16: 'PO: Child process - enable trap on Illegal I/O',
+                    17: 'PU: Child process - enable Unassigned Trap',
+                    18: 'PZ: Child process - enable Unassigned Trap',
+                    19: 'PM: Child process - enable trap on Stack Overflow',
+                    20: 'PK: Child process - enable trap on Stack Underflow',
+                    21: 'PX: Child process - enable trap on FP Exception',
+                    22: 'PN: Child process - enable trap on FP Underflow',
+                    23: 'PC: Child process - enable trap on FP Overflow',
+                    24: 'PL: Child process - enable trap on Power Fail',
+                    25: 'PW: Child process - enable trap on Watchdog',
+                    26: 'PG: Child process - enable trap on Single Step',
+                    27: 'PV: Child process - enable trap on Breakpoint',
+                    28: 'PT: Child process - enable trap for Trace',
+                    29: 'PR: Child process - enable trap on Branch',
+                    30: 'PA: Child process - enable trap on Call',
+                    31: 'PY: Child process - enable trap on Return'
+                }
+            },
+            'CTE2': {
+                bits: 32,
+                labels: {
+                    0: 'XSE', 1: 'IIC', 2: 'IOS', 3: 'ISE', 4: 'PV',
+                    5: 'THM', 6: 'PGF', 7: 'NXM', 8: 'MXM', 9: 'ILL'
+                },
+                descriptions: {
+                    0: 'XSE: Child - enable trap on External Sequence Error',
+                    1: 'IIC: Child - enable trap on Illegal Instruction Combination',
+                    2: 'IOS: Child - enable trap on I/O Status Error',
+                    3: 'ISE: Child - enable trap on Internal Sequence Error',
+                    4: 'PV: Child - enable trap on Parity/Protect Violation',
+                    5: 'THM: Child - enable trap on Too High Memory',
+                    6: 'PGF: Child - enable trap on Page Fault',
+                    7: 'NXM: Child - enable trap on Non-Existent Memory',
+                    8: 'MXM: Child - enable trap on Memory Access Violation',
+                    9: 'ILL: Child - enable trap on Illegal Operation'
+                }
+            },
+            'MTE1': {
+                bits: 32,
+                labels: {
+                    11: 'PE', 12: 'PF', 13: 'PI', 14: 'PD', 15: 'PS',
+                    16: 'PO', 17: 'PU', 18: 'PZ', 19: 'PM', 20: 'PK',
+                    21: 'PX', 22: 'PN', 23: 'PC', 24: 'PL', 25: 'PW',
+                    26: 'PG', 27: 'PV', 28: 'PT', 29: 'PR', 30: 'PA', 31: 'PY'
+                },
+                descriptions: {
+                    11: 'PE: Mother process - enable trap on Protected Execute',
+                    12: 'PF: Mother process - enable trap on Divide by Zero',
+                    13: 'PI: Mother process - enable trap on Illegal Instruction',
+                    14: 'PD: Mother process - enable trap on Illegal Data',
+                    15: 'PS: Mother process - enable trap on Instruction Sequence Error',
+                    16: 'PO: Mother process - enable trap on Illegal I/O',
+                    17: 'PU: Mother process - enable Unassigned Trap',
+                    18: 'PZ: Mother process - enable Unassigned Trap',
+                    19: 'PM: Mother process - enable trap on Stack Overflow',
+                    20: 'PK: Mother process - enable trap on Stack Underflow',
+                    21: 'PX: Mother process - enable trap on FP Exception',
+                    22: 'PN: Mother process - enable trap on FP Underflow',
+                    23: 'PC: Mother process - enable trap on FP Overflow',
+                    24: 'PL: Mother process - enable trap on Power Fail',
+                    25: 'PW: Mother process - enable trap on Watchdog',
+                    26: 'PG: Mother process - enable trap on Single Step',
+                    27: 'PV: Mother process - enable trap on Breakpoint',
+                    28: 'PT: Mother process - enable trap for Trace',
+                    29: 'PR: Mother process - enable trap on Branch',
+                    30: 'PA: Mother process - enable trap on Call',
+                    31: 'PY: Mother process - enable trap on Return'
+                }
+            },
+            'MTE2': {
+                bits: 32,
+                labels: {
+                    0: 'XSE', 1: 'IIC', 2: 'IOS', 3: 'ISE', 4: 'PV',
+                    5: 'THM', 6: 'PGF', 7: 'NXM', 8: 'MXM', 9: 'ILL'
+                },
+                descriptions: {
+                    0: 'XSE: Mother - enable trap on External Sequence Error',
+                    1: 'IIC: Mother - enable trap on Illegal Instruction Combination',
+                    2: 'IOS: Mother - enable trap on I/O Status Error',
+                    3: 'ISE: Mother - enable trap on Internal Sequence Error',
+                    4: 'PV: Mother - enable trap on Parity/Protect Violation',
+                    5: 'THM: Mother - enable trap on Too High Memory',
+                    6: 'PGF: Mother - enable trap on Page Fault',
+                    7: 'NXM: Mother - enable trap on Non-Existent Memory',
+                    8: 'MXM: Mother - enable trap on Memory Access Violation',
+                    9: 'ILL: Mother - enable trap on Illegal Operation'
+                }
+            },
+            'TEMM1': {
+                bits: 32,
+                labels: {
+                    11: 'PE', 12: 'PF', 13: 'PI', 14: 'PD', 15: 'PS',
+                    16: 'PO', 17: 'PU', 18: 'PZ', 19: 'PM', 20: 'PK',
+                    21: 'PX', 22: 'PN', 23: 'PC', 24: 'PL', 25: 'PW',
+                    26: 'PG', 27: 'PV', 28: 'PT', 29: 'PR', 30: 'PA', 31: 'PY'
+                },
+                descriptions: {
+                    11: 'PE: Trap Enable Mask - allow modifying PE bit',
+                    12: 'PF: Trap Enable Mask - allow modifying PF bit',
+                    13: 'PI: Trap Enable Mask - allow modifying PI bit',
+                    14: 'PD: Trap Enable Mask - allow modifying PD bit',
+                    15: 'PS: Trap Enable Mask - allow modifying PS bit',
+                    16: 'PO: Trap Enable Mask - allow modifying PO bit',
+                    17: 'PU: Trap Enable Mask - allow modifying PU bit',
+                    18: 'PZ: Trap Enable Mask - allow modifying PZ bit',
+                    19: 'PM: Trap Enable Mask - allow modifying PM bit',
+                    20: 'PK: Trap Enable Mask - allow modifying PK bit',
+                    21: 'PX: Trap Enable Mask - allow modifying PX bit',
+                    22: 'PN: Trap Enable Mask - allow modifying PN bit',
+                    23: 'PC: Trap Enable Mask - allow modifying PC bit',
+                    24: 'PL: Trap Enable Mask - allow modifying PL bit',
+                    25: 'PW: Trap Enable Mask - allow modifying PW bit',
+                    26: 'PG: Trap Enable Mask - allow modifying PG bit',
+                    27: 'PV: Trap Enable Mask - allow modifying PV bit',
+                    28: 'PT: Trap Enable Mask - allow modifying PT bit',
+                    29: 'PR: Trap Enable Mask - allow modifying PR bit',
+                    30: 'PA: Trap Enable Mask - allow modifying PA bit',
+                    31: 'PY: Trap Enable Mask - allow modifying PY bit'
+                }
+            },
+            'TEMM2': {
+                bits: 32,
+                labels: {
+                    0: 'XSE', 1: 'IIC', 2: 'IOS', 3: 'ISE', 4: 'PV',
+                    5: 'THM', 6: 'PGF', 7: 'NXM', 8: 'MXM', 9: 'ILL'
+                },
+                descriptions: {
+                    0: 'XSE: Trap Enable Mask - allow modifying XSE bit',
+                    1: 'IIC: Trap Enable Mask - allow modifying IIC bit',
+                    2: 'IOS: Trap Enable Mask - allow modifying IOS bit',
+                    3: 'ISE: Trap Enable Mask - allow modifying ISE bit',
+                    4: 'PV: Trap Enable Mask - allow modifying PV bit',
+                    5: 'THM: Trap Enable Mask - allow modifying THM bit',
+                    6: 'PGF: Trap Enable Mask - allow modifying PGF bit',
+                    7: 'NXM: Trap Enable Mask - allow modifying NXM bit',
+                    8: 'MXM: Trap Enable Mask - allow modifying MXM bit',
+                    9: 'ILL: Trap Enable Mask - allow modifying ILL bit'
+                }
+            }
+        };
+
+        return BIT_DEFINITIONS[regName] || null;
+    }
+
+    editRegister(element) {
+        const regName = element.dataset.reg;
+        const currentValue = parseInt(element.dataset.value);
+
+        // Check if this register needs bit editor
+        if (this.getBitDefinition(regName)) {
+            this.openBitEditor(regName, currentValue);
+        } else {
+            // Existing simple numeric editor
+            const newValue = prompt(`Enter new value for ${regName} (hex or decimal):`, `0x${currentValue.toString(16).padStart(8,'0')}`);
+            if (newValue === null) return; // User cancelled
+
+            let value;
+            if (newValue.startsWith('0x') || newValue.startsWith('0X')) {
+                value = parseInt(newValue, 16);
+            } else {
+                value = parseInt(newValue, 10);
+            }
+
+            if (isNaN(value)) {
+                alert('Invalid value. Please enter a valid hex (0x...) or decimal number.');
+                return;
+            }
+
+            try {
+                this.module.ccall('nd500_dbg_set_reg_js', null, ['string', 'number'], [regName, value]);
+                this.updateStatus(`${regName} set to 0x${value.toString(16).padStart(8,'0')}`);
+
+                // If PC was changed, update disassembly
+                if (regName === 'PC') {
+                    this.updateDisassembly();
+                }
+
+                // Update all registers to reflect the change
+                this.updateRegisters();
+            } catch (error) {
+                console.error('Error setting register:', error);
+                this.updateStatus('Error setting register');
+            }
         }
     }
 
