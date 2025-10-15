@@ -9,6 +9,7 @@
 #include "../ndlib/ndlib.h"
 #include "../cpu/cpu_protos.h"
 #include "../cpu/nd500_mmu.h"
+#include "../cpu/nd500_domain.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
