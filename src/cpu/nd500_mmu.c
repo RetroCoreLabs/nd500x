@@ -102,10 +102,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
     /* Get current domain (CAD = Current Alternative Domain) */
     uint8_t domain = (uint8_t)cpu->CAD;
-    if (domain >= MAXDOM) {
-        trap_protect_violation(cpu->PC, virtual_addr);
-        return 0;  /* Invalid domain */
-    }
+    /* Note: domain is uint8_t (0-255), MAXDOM is 256, so domain < MAXDOM is always true */
 
     /* Get capability from PCB */
     uint16_t capability;
@@ -119,7 +116,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
     /* Check if capability is valid (non-zero) */
     if (capability == 0) {
-        trap_protect_violation(cpu->PC, virtual_addr);
+        trap_protect_violation(cpu, cpu->PC, virtual_addr);
         return 0;  /* No access rights to this segment */
     }
 
@@ -131,7 +128,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
     int psn = capability & PC_PSN;  /* Lower 13 bits */
 
     if (psn >= MAX_PST) {
-        trap_protect_violation(cpu->PC, virtual_addr);
+        trap_protect_violation(cpu, cpu->PC, virtual_addr);
         return 0;  /* Invalid PSN */
     }
 
@@ -139,7 +136,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
     if (!is_instruction && is_write) {
         /* Check DC_WRP flag: 0=writable, 1=read-only */
         if (capability & DC_WRP) {
-            trap_protect_violation(cpu->PC, virtual_addr);
+            trap_protect_violation(cpu, cpu->PC, virtual_addr);
             return 0;  /* Write to read-only segment */
         }
     }
@@ -173,13 +170,13 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
             /* Check if page is present */
             if (pte.physical_pfn == 0) {
-                trap_page_fault(cpu->PC, virtual_addr);
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return 0;  /* Page not mapped */
             }
 
             /* Check write permission */
             if (is_write && pte.protection != 0) {
-                trap_protect_violation(cpu->PC, virtual_addr);
+                trap_protect_violation(cpu, cpu->PC, virtual_addr);
                 return 0;  /* Write to read-only page */
             }
 
@@ -201,7 +198,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
 
             if (l1_pte.physical_pfn == 0) {
-                trap_page_fault(cpu->PC, virtual_addr);
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return 0;  /* L1 page table not present */
             }
 
@@ -213,13 +210,13 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
 
             if (l2_pte.physical_pfn == 0) {
-                trap_page_fault(cpu->PC, virtual_addr);
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return 0;  /* L2 page not mapped */
             }
 
             /* Check write permission */
             if (is_write && (l1_pte.protection != 0 || l2_pte.protection != 0)) {
-                trap_protect_violation(cpu->PC, virtual_addr);
+                trap_protect_violation(cpu, cpu->PC, virtual_addr);
                 return 0;  /* Write to read-only page */
             }
 
@@ -229,7 +226,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
         default:
             /* Invalid index mode */
-            trap_illegal_operand(cpu->PC);
+            trap_illegal_operand(cpu, cpu->PC);
             return 0;
     }
 
@@ -279,42 +276,42 @@ void nd500_mmu_set_pst_entry(Nd500Cpu* cpu, int psn, uint8_t index_mode, uint32_
 // ═══════════════════════════════════════════════════════
 
 ProcessControlBlock* nd500_mmu_get_pcb(Nd500Cpu* cpu, uint8_t domain) {
-    if (!g_pcb_table || domain >= MAXDOM) {
+    if (!g_pcb_table) {
         return NULL;
     }
-
+    /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
     return &g_pcb_table[domain];
 }
 
 uint16_t nd500_mmu_get_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
-    if (!g_pcb_table || domain >= MAXDOM || segment < 0 || segment >= MAXSEG) {
+    if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
         return 0;
     }
-
+    /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
     return g_pcb_table[domain].program_capabilities[segment];
 }
 
 uint16_t nd500_mmu_get_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
-    if (!g_pcb_table || domain >= MAXDOM || segment < 0 || segment >= MAXSEG) {
+    if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
         return 0;
     }
-
+    /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
     return g_pcb_table[domain].data_capabilities[segment];
 }
 
 void nd500_mmu_set_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment, uint16_t capability) {
-    if (!g_pcb_table || domain >= MAXDOM || segment < 0 || segment >= MAXSEG) {
+    if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
         return;
     }
-
+    /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
     g_pcb_table[domain].program_capabilities[segment] = capability;
 }
 
 void nd500_mmu_set_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment, uint16_t capability) {
-    if (!g_pcb_table || domain >= MAXDOM || segment < 0 || segment >= MAXSEG) {
+    if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
         return;
     }
-
+    /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
     g_pcb_table[domain].data_capabilities[segment] = capability;
 }
 
