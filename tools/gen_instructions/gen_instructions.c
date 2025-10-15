@@ -439,6 +439,15 @@ static void generate_dispatch_source(const char* out_path, const char* json_path
     fprintf(f, "/* Dispatch table: 65536 entries indexed by opcode (sparse, mostly NULL) */\n");
     fprintf(f, "InstrExecFunc g_instr_exec_table[65536] = {\n");
 
+    /* Track which opcodes have been written to avoid duplicates */
+    uint8_t* written_opcodes = (uint8_t*)calloc(65536, sizeof(uint8_t));
+    if (!written_opcodes) {
+        fprintf(stderr, "[GEN] Error: Failed to allocate opcode tracking array\n");
+        fclose(f);
+        return;
+    }
+
+    int skipped_duplicates = 0;
     for (int i = 0; i < count; i++) {
         uint8_t mask = instrs[i].prefixMask;
         int has_reg_variants = (mask & 0x40) ? 1 : 0;
@@ -446,12 +455,25 @@ static void generate_dispatch_source(const char* out_path, const char* json_path
 
         for (int r = 0; r < reg_count; r++) {
             uint16_t actual_opcode = instrs[i].opcode + r;
+
+            /* Skip if this opcode has already been written */
+            if (written_opcodes[actual_opcode]) {
+                skipped_duplicates++;
+                continue;
+            }
+
             fprintf(f, "    [0x%04X] = nd500_instr_%s,  /* %s */\n",
                     actual_opcode, instrs[i].functionName, instrs[i].mnemonic);
+            written_opcodes[actual_opcode] = 1;
         }
     }
 
+    free(written_opcodes);
     fprintf(f, "};\n");
+
+    if (skipped_duplicates > 0) {
+        fprintf(stderr, "[GEN] Note: Skipped %d duplicate opcode entries\n", skipped_duplicates);
+    }
 
     fclose(f);
     fprintf(stderr, "[GEN] Generated dispatch source: %s (%d instructions)\n", out_path, total_count);
