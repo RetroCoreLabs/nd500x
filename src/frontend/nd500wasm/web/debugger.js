@@ -152,20 +152,32 @@ class ND500Debugger {
                     // Get selected domain
                     const domain = parseInt(domainSelect.value, 10);
 
+                    // mmusetup only configures domains 0, 1, 2
+                    const configuredDomains = [0, 1, 2];
+                    const isDomainConfigured = configuredDomains.includes(domain);
+
                     // Update hint and placeholders based on domain
                     if (domain === 0) {
                         mmuStatusHint.textContent = 'Domain 0 (kernel): Code 0x08000000-0x0FFFFFFF, Data 0x00000000-0x07FFFFFF';
+                        mmuStatusHint.style.color = '';  // Reset to default color
                         if (psegAddrInput) psegAddrInput.placeholder = 'Default: 0x08000000 (kernel code)';
                         if (dsegAddrInput) dsegAddrInput.placeholder = 'Default: 0x00000000 (kernel data)';
-                    } else {
-                        // Domain 1+: Segment base = domain << 27
+                    } else if (isDomainConfigured) {
+                        // Domain 1-2: Segment base = domain << 27
                         const codeBase = (26 + domain) << 27;  // Segment 26 + domain
                         const dataBase = (30 + domain) << 27;  // Segment 30 + domain
                         const codeEnd = codeBase + 0x07FFFFFF;
                         const dataEnd = dataBase + 0x07FFFFFF;
                         mmuStatusHint.textContent = `Domain ${domain}: Code 0x${codeBase.toString(16).toUpperCase()}-0x${codeEnd.toString(16).toUpperCase()}, Data 0x${dataBase.toString(16).toUpperCase()}-0x${dataEnd.toString(16).toUpperCase()}`;
+                        mmuStatusHint.style.color = '';  // Reset to default color
                         if (psegAddrInput) psegAddrInput.placeholder = `Default: 0x${codeBase.toString(16).toUpperCase()} (domain ${domain} code)`;
                         if (dsegAddrInput) dsegAddrInput.placeholder = `Default: 0x${dataBase.toString(16).toUpperCase()} (domain ${domain} data)`;
+                    } else {
+                        // Domain 3+: Not configured by mmusetup
+                        mmuStatusHint.textContent = `Domain ${domain}: No virtual address space configured (run 'mmusetup' only configures domains 0-2)`;
+                        mmuStatusHint.style.color = '#f44336';
+                        if (psegAddrInput) psegAddrInput.placeholder = 'Domain not configured - no valid addresses';
+                        if (dsegAddrInput) dsegAddrInput.placeholder = 'Domain not configured - no valid addresses';
                     }
                 } else {
                     // MMU Disabled: Hide Mode and Domain, use physical addresses
