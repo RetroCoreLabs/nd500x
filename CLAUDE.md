@@ -48,9 +48,9 @@ make wasm-clean     # Clean WASM build
 
 - **In-source builds are forbidden**: CMake will error if you try to build in the source directory
 - **Build output locations**: Binaries go to `build/bin/`, libraries to `build/lib/`
-- **Instruction code generation**: The build system auto-generates instruction tables from `build/src/cpu/instructions.json` via the `gen_instructions` tool (native builds only)
-  - Generates: `build/include/nd500_instructions_gen.h` and `build/nd500_instructions_gen.c`
-  - This step runs automatically during CMake build via custom commands
+- **Instruction dispatch table**: Pre-generated `src/cpu/nd500_instructions_gen.{c,h}` files are committed to the repository
+  - Contains O(1) opcode-indexed dispatch table with 1,078 instruction mappings
+  - Previously auto-generated during build, now maintained as source files
 
 ## Tab Completion Implementation
 
@@ -131,9 +131,10 @@ nd500_dbg_bp_list_json()  // Breakpoint list
 **src/cpu/** - CPU core
 - `cpu.c`: CPU state management (registers: PC, FLAGS, I[4], A[4], E[4], L, B, R, TOS, etc.)
 - `cpu_instr.c`: Instruction decoding and operand parsing
-  - Uses generated instruction tables from `build/include/nd500_instructions_gen.h`
+  - Uses instruction dispatch table from `nd500_instructions_gen.h`
   - Implements ND-500 addressing mode classification (14 modes including CONSTANT_SHORT, LOCAL, RECORD, ABSOLUTE, REGISTER, PREINDEXED, etc.)
   - `nd500_decode_at()`: Full instruction decoder with operand parsing
+- `nd500_instructions_gen.{c,h}`: Pre-generated dispatch table (committed to repository)
 - `cpu_protos.h`: CPU function prototypes
 
 **src/debugger/** - Interactive CLI debugger
@@ -144,15 +145,10 @@ nd500_dbg_bp_list_json()  // Breakpoint list
 - `nd500x/`: Native executable entry point
 - `nd500wasm/`: WebAssembly entry with JSON debug exports
 
-**tools/gen_instructions/** - Build-time code generator
-- `gen_instructions.c`: Parses `instructions.json` to generate C code for instruction lookup tables
-- Extracts: opcode, mnemonic, operandCount from JSON
-
 ### Key Data Flow
 
-1. **Instruction Execution Loop**: Machine → CPU → Fetch (bus_read8) → Decode (cpu_instr.c) → Execute (step)
+1. **Instruction Execution Loop**: Machine → CPU → Fetch (bus_read8) → Decode (cpu_instr.c) → Execute (dispatch table lookup) → Instruction handler
 2. **Debug API**: Debugger → Unified API (debug_api.c) → Machine/CPU
-3. **Code Generation**: instructions.json → gen_instructions → .h/.c files → compiled into nd500_cpu
 
 ### ND-500 Addressing Modes
 
@@ -223,3 +219,4 @@ When running `./build/bin/nd500x --debug`, the REPL supports:
 - No Python/JS/TypeScript - pure C project
 - Generated files marked with `AUTO-GENERATED FILE - DO NOT EDIT` header
 - Instruction JSON is ~424KB and contains ND-500 architecture instruction set definitions
+- Never mention claude code in any document

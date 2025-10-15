@@ -362,13 +362,12 @@ The emulator supports loading ND-500 a.out format files with full symbol table p
 4. **Fast Execution**: Function pointer dispatch enables million-per-second instruction execution
 5. **Safe Fallback**: NULL dispatch entries trigger illegal instruction trap instead of crashes
 
-**Instruction Generation Pipeline:**
+**Instruction Dispatch Table:**
 1. `instructions.json` (424KB+) defines the ND-500 instruction set
-2. `gen_instructions` tool parses JSON at build time
-3. Generates dispatch table (`nd500_instructions_gen.c/h`) and 241 stub files
-4. Stubs organized in `build/src/cpu/instructions/<CLASS>/<FunctionName>.c`
-5. Each stub includes documentation, operand helpers, and implementation notes
-6. CPU uses O(1) dispatch table for instant instruction lookup
+2. Pre-generated dispatch table (`src/cpu/nd500_instructions_gen.{c,h}`) committed to repository
+3. 241 instruction stubs organized in `src/cpu/instructions/<CLASS>/<FunctionName>.c`
+4. Each stub includes documentation, operand helpers, and implementation notes
+5. CPU uses O(1) opcode-indexed lookup for instant instruction execution
 
 **ND-500 Addressing Modes (14 modes):**
 - Short forms: CONSTANT_SHORT, LOCAL_SHORT, RECORD_SHORT
@@ -446,18 +445,14 @@ nd500x/
 │               ├── index.html    # Main UI
 │               ├── style.css     # Styling
 │               └── debugger.js   # Frontend logic
-├── tools/
-│   └── gen_instructions/   # Build-time code generator
-│       └── gen_instructions.c  # Parses JSON, generates dispatch table & stubs
 ├── build/                  # Build output (created by CMake)
 │   ├── bin/                # Executables
 │   ├── lib/                # Libraries (libnd500_cpu.a contains all instructions)
-│   ├── include/            # Generated headers
-│   │   └── nd500_instructions_gen.h  # Dispatch table declarations
-│   ├── nd500_instructions_gen.c      # Dispatch table implementation (1,078 entries)
 │   └── src/cpu/
 │       ├── instructions.json         # Instruction set definition (424KB+)
-│       └── instructions/             # Auto-generated instruction stubs (241 files)
+│       ├── nd500_instructions_gen.c  # Pre-generated dispatch table (1,078 entries)
+│       ├── nd500_instructions_gen.h  # Dispatch table declarations
+│       └── instructions/             # Instruction stubs (241 files)
 │           ├── ARITHMETIC/           # 55 arithmetic instruction implementations
 │           ├── MOVE/                 # 48 move/data transfer instructions
 │           ├── SYSTEM/               # 26 system instructions
