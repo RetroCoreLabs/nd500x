@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "cpu_protos.h"
 #include "../machine/machine_protos.h"
-#include "nd500_instructions_gen.h"
+#include "nd500_instructions.h"
 
 typedef struct InstrMeta {
 	uint16_t opcode;

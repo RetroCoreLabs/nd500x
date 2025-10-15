@@ -48,7 +48,7 @@ make wasm-clean     # Clean WASM build
 
 - **In-source builds are forbidden**: CMake will error if you try to build in the source directory
 - **Build output locations**: Binaries go to `build/bin/`, libraries to `build/lib/`
-- **Instruction dispatch table**: Pre-generated `src/cpu/nd500_instructions_gen.{c,h}` files are committed to the repository
+- **Instruction dispatch table**: Pre-generated `src/cpu/nd500_instructions.{c,h}` files are committed to the repository
   - Contains O(1) opcode-indexed dispatch table with 1,078 instruction mappings
   - Previously auto-generated during build, now maintained as source files
 
@@ -131,10 +131,10 @@ nd500_dbg_bp_list_json()  // Breakpoint list
 **src/cpu/** - CPU core
 - `cpu.c`: CPU state management (registers: PC, FLAGS, I[4], A[4], E[4], L, B, R, TOS, etc.)
 - `cpu_instr.c`: Instruction decoding and operand parsing
-  - Uses instruction dispatch table from `nd500_instructions_gen.h`
+  - Uses instruction dispatch table from `nd500_instructions.h`
   - Implements ND-500 addressing mode classification (14 modes including CONSTANT_SHORT, LOCAL, RECORD, ABSOLUTE, REGISTER, PREINDEXED, etc.)
   - `nd500_decode_at()`: Full instruction decoder with operand parsing
-- `nd500_instructions_gen.{c,h}`: Pre-generated dispatch table (committed to repository)
+- `nd500_instructions.{c,h}`: Pre-generated dispatch table (committed to repository)
 - `cpu_protos.h`: CPU function prototypes
 
 **src/debugger/** - Interactive CLI debugger

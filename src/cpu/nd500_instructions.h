@@ -1,0 +1,21 @@
+/*
+ * ND-500 Instruction Dispatch Table Declarations
+ * Pre-generated and committed as source file
+ */
+
+#pragma once
+#include <stdint.h>
+
+typedef struct { uint16_t opcode; const char* mnemonic; uint8_t operands; uint8_t prefixes_mask; uint8_t variant; uint32_t op_templates[4]; } Nd500Instr;
+extern const Nd500Instr g_nd500_instrs[];
+extern const unsigned g_nd500_instrs_count;
+
+/* Forward declaration for CPU types */
+typedef struct Nd500Cpu Nd500Cpu;
+typedef struct Nd500FetchedInstruction Nd500FetchedInstruction;
+
+/* Instruction execution function pointer type */
+typedef void (*InstrExecFunc)(Nd500Cpu*, const Nd500FetchedInstruction*);
+
+/* Dispatch table: 65536 entries indexed by opcode (sparse, mostly NULL) */
+extern InstrExecFunc g_instr_exec_table[65536];

@@ -15,9 +15,7 @@ nd500x
 nd500wasm.js
 nd500wasm.wasm
 
-# Generated files
-nd500_instructions_gen.h
-nd500_instructions_gen.c
+# Generated files (now committed to src/cpu/ as source files)
 
 # IDE and editor files
 .vscode/
