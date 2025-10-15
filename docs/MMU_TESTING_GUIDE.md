@@ -34,6 +34,8 @@ This guide explains how to test the ND-500 MMU (Memory Management Unit) implemen
    ```
    > mmusetup
    > showmmu
+   > listpst
+   > listpcb
    > showpst 100
    > phyladr 0x00000000
    ```
@@ -111,14 +113,51 @@ MMU Registers:
   CAD     = 0x00000000  (Current Alternative Domain)
   PS      = 0x00000000  (Process Segment)
 
-PST: 8192 entries max
-PCB: 256 domains max
+PST: 3 configured entries (of 8192 max)
+PCB: 1 domains with 3 segments (of 256 domains max)
 Page size: 2048 bytes
+
+Use 'listpst' to see all configured PST entries
+Use 'listpcb' to see all configured domains and segments
 ```
 
 ---
 
-### 4. `showpst` - View PST Entry
+### 4. `listpst` - List Configured PST Entries
+
+Display all configured (non-zero) PST entries:
+
+```
+> listpst
+```
+
+**Output:**
+```
+=== Configured PST Entries ===
+PSN   Mode  PFN     Physical Address
+----  ----  ------  ----------------
+ 100  AZI   0x1000  0x00800000
+ 101  ASI   0x2000  0x01000000
+ 102  ADI   0x3000  0x01800000
+
+Total: 3 configured entries (of 8192 max)
+```
+
+**When empty:**
+```
+=== Configured PST Entries ===
+PSN   Mode  PFN     Physical Address
+----  ----  ------  ----------------
+(no configured entries)
+
+Use 'mmusetup' to create a demo configuration
+```
+
+**Use Case**: Quickly see which PST entries are actually in use without scanning through all 8192 entries.
+
+---
+
+### 5. `showpst` - View PST Entry
 
 Display Physical Segment Table entry details:
 
@@ -141,9 +180,51 @@ Physical PFN:  0x1000 (Physical address: 0x00800000)
 
 ---
 
-### 5. `showpcb` - View PCB Capabilities
+### 6. `listpcb` - List Configured PCB Domains
 
-Display Process Control Block (domain capabilities):
+Display all domains with configured segments:
+
+```
+> listpcb
+```
+
+**Output:**
+```
+=== Configured PCB Domains ===
+
+Domain 0:
+  Seg  Prog   Data   Description
+  ---  ----   ----   -----------
+    0  0064   0064   P:PSN=100 D:PSN=100
+    5  0000   C065   D:PSN=101,WRP,PAC
+    7  0000   0066   D:PSN=102
+
+Total: 1 domains with 3 configured segments
+(Maximum: 256 domains × 32 segments)
+```
+
+**When empty:**
+```
+=== Configured PCB Domains ===
+(no configured domains)
+
+Use 'mmusetup' to create a demo configuration
+```
+
+**Description Format:**
+- `P:PSN=X` - Program capability points to PSN X
+- `D:PSN=X` - Data capability points to PSN X
+- `,DIR` - Direct mapped (program)
+- `,WRP` - Write protected (data)
+- `,PAC` - Public access/user accessible (data)
+
+**Use Case**: Quickly see which domains are configured and what segments they use, without checking all 256 domains × 32 segments = 8192 possible entries.
+
+---
+
+### 7. `showpcb` - View PCB Capabilities
+
+Display Process Control Block (domain capabilities) in detail:
 
 ```
 > showpcb 0           # View all segments in domain 0
@@ -170,7 +251,7 @@ Data Capabilities:
 
 ---
 
-### 6. `phyladr` - Translate Virtual Address
+### 8. `phyladr` - Translate Virtual Address
 
 Translate virtual address to physical address through MMU:
 
