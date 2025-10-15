@@ -1,6 +1,6 @@
 [submodule "external/libdap"]
 	path = external/libdap
-	url = https://github.com/HackerCorpLabs/libdap
+	url = https://github.com/HackerCorpLabs/libdap.git
 	branch = main
 [submodule "external/libsymbols"]
 	path = external/libsymbols
