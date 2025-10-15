@@ -364,7 +364,7 @@ The emulator supports loading ND-500 a.out format files with full symbol table p
 
 **Instruction Dispatch Table:**
 1. `instructions.json` (424KB+) defines the ND-500 instruction set
-2. Pre-generated dispatch table (`src/cpu/nd500_instructions_gen.{c,h}`) committed to repository
+2. Pre-generated dispatch table (`src/cpu/nd500_instructions.{c,h}`) committed to repository
 3. 241 instruction stubs organized in `src/cpu/instructions/<CLASS>/<FunctionName>.c`
 4. Each stub includes documentation, operand helpers, and implementation notes
 5. CPU uses O(1) opcode-indexed lookup for instant instruction execution
@@ -433,8 +433,8 @@ nd500x/
 │   │   ├── cpu.c           # Register state, reset, step, traps
 │   │   ├── cpu_instr.c     # Instruction decoder, O(1) dispatch, addressing modes
 │   │   ├── cpu_protos.h    # CPU API and operand access helpers
-│   │   ├── nd500_instructions_gen.c  # Pre-generated dispatch table (1,078 entries)
-│   │   ├── nd500_instructions_gen.h  # Dispatch table declarations
+│   │   ├── nd500_instructions.c  # Pre-generated dispatch table (1,078 entries)
+│   │   ├── nd500_instructions.h  # Dispatch table declarations
 │   │   └── instructions/   # Instruction implementations (241 files in 13 categories)
 │   │       ├── ARITHMETIC/ # 37 arithmetic operations (add, sub, mul, div, etc.)
 │   │       ├── MOVE/       # 56 data transfer instructions
