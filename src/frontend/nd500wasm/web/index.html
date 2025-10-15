@@ -12,6 +12,7 @@
             <button id="loadBtn" class="btn-load">📁 Load</button>
             <button id="symbolsBtn" class="btn-symbols">🔍 Symbols</button>
             <button id="consoleBtn" class="btn-console">💻 Console</button>
+            <button id="mmuBtn" class="btn-mmu">🧠 MMU</button>
             <button id="stepBtn" class="btn-step">⏭️ Step</button>
             <button id="runBtn" class="btn-run">▶️ Run</button>
             <button id="stopBtn" class="btn-stop">⏹️ Stop</button>
@@ -39,6 +40,11 @@
                     <button id="clearTrapsBtn">Clear Traps</button>
                 </div>
                 <div id="trap-content"></div>
+            </div>
+            <!-- MMU Status -->
+            <div id="mmu-panel">
+                <h2>MMU Status</h2>
+                <div id="mmu-content"></div>
             </div>
             <!-- Memory -->
             <div id="memory-panel">
@@ -122,6 +128,244 @@
             <div id="symbols-list"></div>
             <div class="actions">
                 <button id="symbolsCancelBtn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MMU Modal with Tabs -->
+    <div id="mmuModal" class="hidden">
+        <div class="modal-content mmu-modal">
+            <h3>MMU Management</h3>
+
+            <!-- Tab Navigation -->
+            <div class="mmu-tabs">
+                <button class="mmu-tab active" data-tab="mmu">MMU Status</button>
+                <button class="mmu-tab" data-tab="pst">PST Inspector</button>
+                <button class="mmu-tab" data-tab="pcb">PCB Viewer</button>
+            </div>
+
+            <!-- Tab Content: MMU Status -->
+            <div id="mmuTabContent" class="mmu-tab-content active">
+                <!-- MMU Status Section -->
+                <div class="mmu-section">
+                    <h4>Status</h4>
+                    <div class="mmu-status-row">
+                        <span class="mmu-label">MMU State:</span>
+                        <span id="mmuState" class="mmu-value">disabled</span>
+                        <button id="mmuToggleBtn" class="mmu-toggle-btn">Enable</button>
+                    </div>
+                    <div class="mmu-status-row">
+                        <span class="mmu-label">PST Entries:</span>
+                        <span id="mmuPstCount" class="mmu-value">0 configured (of 8192 max)</span>
+                    </div>
+                    <div class="mmu-status-row">
+                        <span class="mmu-label">PCB Domains:</span>
+                        <span id="mmuPcbCount" class="mmu-value">0 domains (of 256 max)</span>
+                    </div>
+                </div>
+
+                <!-- MMU Registers Section -->
+                <div class="mmu-section">
+                    <h4>Registers</h4>
+                    <div class="mmu-regs-grid">
+                        <div class="mmu-reg-item" data-reg="PSTP">
+                            <span class="mmu-reg-name">PSTP</span>
+                            <span id="regPSTP" class="mmu-reg-value">0x00000000</span>
+                            <span class="mmu-reg-desc">Physical Segment Table Pointer</span>
+                        </div>
+                        <div class="mmu-reg-item" data-reg="DITBASE">
+                            <span class="mmu-reg-name">DITBASE</span>
+                            <span id="regDITBASE" class="mmu-reg-value">0x00000000</span>
+                            <span class="mmu-reg-desc">Domain Information Table Base</span>
+                        </div>
+                        <div class="mmu-reg-item" data-reg="CED">
+                            <span class="mmu-reg-name">CED</span>
+                            <span id="regCED" class="mmu-reg-value">0x00000000</span>
+                            <span class="mmu-reg-desc">Current Executing Domain</span>
+                        </div>
+                        <div class="mmu-reg-item" data-reg="CAD">
+                            <span class="mmu-reg-name">CAD</span>
+                            <span id="regCAD" class="mmu-reg-value">0x00000000</span>
+                            <span class="mmu-reg-desc">Current Alternative Domain</span>
+                        </div>
+                        <div class="mmu-reg-item" data-reg="PS">
+                            <span class="mmu-reg-name">PS</span>
+                            <span id="regPS" class="mmu-reg-value">0x00000000</span>
+                            <span class="mmu-reg-desc">Process Segment</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions Section -->
+                <div class="mmu-section">
+                    <h4>Quick Actions</h4>
+                    <div class="mmu-actions">
+                        <button id="mmuSetupBtn" class="mmu-action-btn primary">🔧 Run mmusetup</button>
+                        <button id="mmuTranslateBtn" class="mmu-action-btn">🔍 Translate Address</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: PST Inspector -->
+            <div id="pstTabContent" class="mmu-tab-content">
+                <!-- Filters -->
+                <div class="pst-filters">
+                    <div class="pst-filter-group">
+                        <label>Filter by Mode:</label>
+                        <div class="pst-mode-filter">
+                            <label><input type="radio" name="pstMode" value="all" checked> All</label>
+                            <label><input type="radio" name="pstMode" value="AZI"> AZI (Direct)</label>
+                            <label><input type="radio" name="pstMode" value="ASI"> ASI (Single-level)</label>
+                            <label><input type="radio" name="pstMode" value="ADI"> ADI (Two-level)</label>
+                        </div>
+                    </div>
+                    <div class="pst-filter-group">
+                        <label>Search PSN:</label>
+                        <input type="text" id="pstSearchInput" placeholder="Enter PSN number...">
+                    </div>
+                    <div class="pst-stats">
+                        <span id="pstTableStats">0 entries shown</span>
+                    </div>
+                </div>
+
+                <!-- PST Table -->
+                <div id="pst-table-container">
+                    <table class="pst-table">
+                        <thead>
+                            <tr>
+                                <th>PSN</th>
+                                <th>Mode</th>
+                                <th>PFN</th>
+                                <th>Physical Address</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pst-table-body">
+                            <!-- Dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="tab-actions">
+                    <button id="pstRefreshBtn" class="mmu-action-btn">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- Tab Content: PCB Viewer -->
+            <div id="pcbTabContent" class="mmu-tab-content">
+                <!-- Filters -->
+                <div class="pcb-filters">
+                    <div class="pcb-filter-group">
+                        <label>Search Domain:</label>
+                        <input type="text" id="pcbSearchInput" placeholder="Enter domain number...">
+                    </div>
+                    <div class="pcb-stats">
+                        <span id="pcbTableStats">0 domains shown</span>
+                    </div>
+                </div>
+
+                <!-- PCB Domain List -->
+                <div id="pcb-domain-container">
+                    <div id="pcb-domain-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <div class="tab-actions">
+                    <button id="pcbRefreshBtn" class="mmu-action-btn">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="mmuCancelBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PST Entry Edit Modal -->
+    <div id="pstEditModal" class="hidden">
+        <div class="modal-content pst-edit-modal">
+            <h3>Edit PST Entry <span id="pstEditPsn"></span></h3>
+
+            <div class="pst-edit-form">
+                <div class="form-row">
+                    <label>PSN (Physical Segment Number):</label>
+                    <input type="text" id="pstEditPsnInput" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Paging Mode:</label>
+                    <select id="pstEditMode">
+                        <option value="0">PS_AZI (Direct mapping)</option>
+                        <option value="1">PS_ASI (Single-level paging)</option>
+                        <option value="2">PS_ADI (Two-level paging)</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Physical PFN (Page Frame Number):</label>
+                    <input type="text" id="pstEditPfn" placeholder="0x1000">
+                </div>
+                <div class="form-row">
+                    <label>Physical Address (calculated):</label>
+                    <input type="text" id="pstEditPhysAddr" readonly>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="pstEditCancelBtn">Cancel</button>
+                <button id="pstEditSaveBtn" class="primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PCB Capability Edit Modal -->
+    <div id="pcbEditModal" class="hidden">
+        <div class="modal-content pcb-edit-modal">
+            <h3>Edit Capability - Domain <span id="pcbEditDomain"></span> Segment <span id="pcbEditSegment"></span></h3>
+
+            <div class="pcb-edit-form">
+                <div class="form-row">
+                    <label>Domain:</label>
+                    <input type="text" id="pcbEditDomainInput" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Segment:</label>
+                    <input type="text" id="pcbEditSegmentInput" readonly>
+                </div>
+
+                <h4>Program Capability</h4>
+                <div class="form-row">
+                    <label>PSN (Physical Segment Number):</label>
+                    <input type="text" id="pcbEditProgPsn" placeholder="0-8191 or leave empty">
+                </div>
+                <div class="form-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="pcbEditProgDir">
+                        DIR (Direct mapped)
+                    </label>
+                </div>
+
+                <h4>Data Capability</h4>
+                <div class="form-row">
+                    <label>PSN (Physical Segment Number):</label>
+                    <input type="text" id="pcbEditDataPsn" placeholder="0-8191 or leave empty">
+                </div>
+                <div class="form-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="pcbEditDataWrp">
+                        WRP (Write Protected)
+                    </label>
+                </div>
+                <div class="form-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="pcbEditDataPac">
+                        PAC (Public Access / User accessible)
+                    </label>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="pcbEditCancelBtn">Cancel</button>
+                <button id="pcbEditSaveBtn" class="primary">Save</button>
             </div>
         </div>
     </div>
