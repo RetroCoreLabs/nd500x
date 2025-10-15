@@ -73,6 +73,11 @@
     <div id="loadModal" class="hidden">
         <div class="modal-content">
             <h3>Load Program</h3>
+            <div class="mmu-status-banner" id="loadModalMmuStatus">
+                <span class="mmu-status-label">MMU Status:</span>
+                <span class="mmu-status-value" id="loadModalMmuValue">Unknown</span>
+                <span class="mmu-status-hint" id="loadModalMmuHint"></span>
+            </div>
             <div class="row">
                 <label><input type="radio" name="loadType" value="aout" checked> a.out</label>
                 <label><input type="radio" name="loadType" value="split"> PSEG/DSEG</label>
