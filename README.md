@@ -432,44 +432,49 @@ nd500x/
 │   ├── cpu/                # CPU core
 │   │   ├── cpu.c           # Register state, reset, step, traps
 │   │   ├── cpu_instr.c     # Instruction decoder, O(1) dispatch, addressing modes
-│   │   └── cpu_protos.h    # CPU API and operand access helpers
+│   │   ├── cpu_protos.h    # CPU API and operand access helpers
+│   │   ├── nd500_instructions_gen.c  # Pre-generated dispatch table (1,078 entries)
+│   │   ├── nd500_instructions_gen.h  # Dispatch table declarations
+│   │   └── instructions/   # Instruction implementations (241 files in 13 categories)
+│   │       ├── ARITHMETIC/ # 37 arithmetic operations (add, sub, mul, div, etc.)
+│   │       ├── MOVE/       # 56 data transfer instructions
+│   │       ├── SYSTEM/     # 35 system control instructions
+│   │       ├── CALL/       # Call/return instructions
+│   │       ├── STRING/     # String manipulation operations
+│   │       ├── BRANCH/     # Conditional/unconditional branches
+│   │       ├── FLOAT_MATH/ # Floating-point math operations
+│   │       ├── COMPARE/    # Comparison instructions
+│   │       ├── BITFIELD/   # Bit manipulation operations
+│   │       ├── LOGICAL/    # Logical operations (and, or, xor, etc.)
+│   │       ├── SHIFT/      # Shift and rotate instructions
+│   │       ├── CONTROL/    # Control flow operations
+│   │       └── IO/         # I/O instructions
 │   ├── debugger/           # Interactive debugger
 │   │   ├── debugger.c      # REPL implementation
 │   │   └── dap_adapter.c   # Debug Adapter Protocol
 │   └── frontend/
 │       ├── nd500x/         # Native entry point
+│       │   └── nd500x.c    # Main entry point for native builds
 │       └── nd500wasm/      # WebAssembly entry point
 │           ├── main.c      # WASM C interface (21 exported functions)
 │           ├── tests/      # Unit tests for WASM
-│           └── web/        # Web debugger interface (NEW)
+│           └── web/        # Web debugger interface
 │               ├── index.html    # Main UI
 │               ├── style.css     # Styling
-│               └── debugger.js   # Frontend logic
-├── build/                  # Build output (created by CMake)
-│   ├── bin/                # Executables
-│   ├── lib/                # Libraries (libnd500_cpu.a contains all instructions)
-│   └── src/cpu/
-│       ├── instructions.json         # Instruction set definition (424KB+)
-│       ├── nd500_instructions_gen.c  # Pre-generated dispatch table (1,078 entries)
-│       ├── nd500_instructions_gen.h  # Dispatch table declarations
-│       └── instructions/             # Instruction stubs (241 files)
-│           ├── ARITHMETIC/           # 55 arithmetic instruction implementations
-│           ├── MOVE/                 # 48 move/data transfer instructions
-│           ├── SYSTEM/               # 26 system instructions
-│           ├── CALL/                 # 17 call/return instructions
-│           ├── STRING/               # 15 string manipulation instructions
-│           ├── BRANCH/               # 15 branch/jump instructions
-│           ├── FLOAT_MATH/           # 25 floating-point math instructions
-│           ├── COMPARE/              # 4 comparison instructions
-│           ├── BITFIELD/             # 6 bit manipulation instructions
-│           ├── LOGICAL/              # 6 logical operation instructions
-│           ├── SHIFT/                # 5 shift/rotate instructions
-│           ├── CONTROL/              # 7 control flow instructions
-│           └── IO/                   # 1 I/O instruction
+│               ├── debugger.js   # Frontend logic
+│               └── demo/
+│                   └── kernel    # Demo ND-500 kernel binary
+├── external/               # External dependencies (git submodules)
+│   ├── libdap/             # Debug Adapter Protocol library (optional)
+│   └── libsymbols/         # Symbol table support library (optional)
+├── test/                   # Test suite
+├── build/                  # Build output (created by CMake, not in git)
+│   ├── bin/                # Executables (nd500x, nd500wasm.js/wasm)
+│   └── lib/                # Compiled libraries
 ├── CMakeLists.txt          # Main CMake configuration
-├── Makefile                # Convenience wrapper
-├── README.md
-└── CLAUDE.md               # AI assistant guidance
+├── Makefile                # Convenience wrapper for build commands
+├── README.md               # This file
+└── CLAUDE.md               # AI assistant guidance for development
 ```
 
 ## CMake Options
