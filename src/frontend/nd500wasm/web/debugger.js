@@ -12,45 +12,56 @@ class ND500Debugger {
         // Wait for WASM module to load
         this.module = await Module;
         console.log('Module loaded:', this.module);
+
+        // Get and display build info
+        try {
+            const buildInfo = this.module.ccall('nd500_dbg_build_info_js', 'string', [], []);
+            console.log('WASM Build Info:', buildInfo);
+            this.updateStatus('ND500X Web Debugger Ready - ' + buildInfo);
+        } catch (e) {
+            console.warn('Could not get build info:', e);
+            this.updateStatus('ND500X Web Debugger Ready');
+        }
+
         this.setupEventHandlers();
         console.log('Event handlers set up');
         this.setupDragDrop();
         console.log('Drag and drop set up');
         this.updateUI();
         console.log('UI updated');
-        this.updateStatus('ND500X Web Debugger Ready');
         console.log('Debugger ready');
+        // Auto-load demo kernel
+        await this.loadDemoKernel();
     }
 
     setupEventHandlers() {
-        // File picker
-        document.getElementById('fileInput').onchange = (e) => {
-            console.log('File input changed:', e.target.files);
-            if (e.target.files.length > 0) {
-                this.loadFile(e.target.files[0]);
-            }
-        };
+        // Load button opens modal
         document.getElementById('loadBtn').onclick = () => {
             console.log('Load button clicked');
-            document.getElementById('fileInput').click();
+            this.openLoadModal();
         };
-        
+
+        // Symbols button opens symbols modal
+        document.getElementById('symbolsBtn').onclick = () => {
+            console.log('Symbols button clicked');
+            this.openSymbolsModal();
+        };
+
         // Controls
         document.getElementById('stepBtn').onclick = () => this.step();
         document.getElementById('runBtn').onclick = () => this.run();
         document.getElementById('stopBtn').onclick = () => this.stop();
         document.getElementById('resetBtn').onclick = () => this.reset();
-        
+
         // Memory
         document.getElementById('memViewBtn').onclick = () => this.viewMemory();
-        document.getElementById('memAsciiToggle').onchange = () => this.viewMemory();
-        
+
         // Breakpoints
         document.getElementById('bpAddBtn').onclick = () => this.addBreakpoint();
         document.getElementById('bpAddr').onkeypress = (e) => {
             if (e.key === 'Enter') this.addBreakpoint();
         };
-        
+
         // Memory address input
         document.getElementById('memAddr').onkeypress = (e) => {
             if (e.key === 'Enter') this.viewMemory();
@@ -58,6 +69,361 @@ class ND500Debugger {
         document.getElementById('memLen').onkeypress = (e) => {
             if (e.key === 'Enter') this.viewMemory();
         };
+    }
+
+    openLoadModal() {
+        const modal = document.getElementById('loadModal');
+        const typeRadios = document.getElementsByName('loadType');
+        const aoutFields = document.getElementById('aoutFields');
+        const splitFields = document.getElementById('splitFields');
+        const cancelBtn = document.getElementById('loadCancelBtn');
+        const confirmBtn = document.getElementById('loadConfirmBtn');
+        const modeSelect = document.getElementById('modeSelect');
+        const startPc = document.getElementById('startPc');
+
+        const updateVisibility = () => {
+            const type = Array.from(typeRadios).find(r => r.checked)?.value || 'aout';
+            if (type === 'aout') {
+                aoutFields.classList.remove('hidden');
+                splitFields.classList.add('hidden');
+            } else {
+                aoutFields.classList.add('hidden');
+                splitFields.classList.remove('hidden');
+            }
+        };
+        Array.from(typeRadios).forEach(r => r.onchange = updateVisibility);
+        updateVisibility();
+
+        // Create error display element if it doesn't exist
+        let errorDiv = modal.querySelector('.modal-error');
+        if (!errorDiv) {
+            errorDiv = document.createElement('div');
+            errorDiv.className = 'modal-error hidden';
+            modal.querySelector('.modal-content').insertBefore(errorDiv, modal.querySelector('.actions'));
+        }
+
+        cancelBtn.onclick = () => {
+            modal.classList.add('hidden');
+            errorDiv.classList.add('hidden');
+            errorDiv.textContent = '';
+        };
+
+        confirmBtn.onclick = async () => {
+            const type = Array.from(typeRadios).find(r => r.checked)?.value || 'aout';
+            errorDiv.classList.add('hidden');
+            errorDiv.textContent = '';
+
+            try {
+                if (type === 'aout') {
+                    const file = document.getElementById('aoutFile').files[0];
+                    if (!file) {
+                        errorDiv.textContent = 'Please select an a.out file';
+                        errorDiv.classList.remove('hidden');
+                        return;
+                    }
+                    await this.loadAoutViaMemfs(file, startPc.value);
+                } else {
+                    const pseg = document.getElementById('psegFile').files[0] || null;
+                    const dseg = document.getElementById('dsegFile').files[0] || null;
+                    if (!pseg && !dseg) {
+                        errorDiv.textContent = 'Please select at least PSEG or DSEG file';
+                        errorDiv.classList.remove('hidden');
+                        return;
+                    }
+                    const mode = modeSelect.value;
+                    const psegAddrInput = document.getElementById('psegAddr').value.trim();
+                    const dsegAddrInput = document.getElementById('dsegAddr').value.trim();
+
+                    // Use custom addresses if provided, otherwise use mode defaults
+                    let psegBase = (mode === 'kernel') ? (0x08000000 >>> 0) : (0xD0000000 >>> 0);
+                    let dsegBase = (mode === 'kernel') ? (0x00000000 >>> 0) : (0xF0000000 >>> 0);
+
+                    if (psegAddrInput) {
+                        psegBase = this.parseHexOrDec(psegAddrInput) >>> 0;
+                    }
+                    if (dsegAddrInput) {
+                        dsegBase = this.parseHexOrDec(dsegAddrInput) >>> 0;
+                    }
+
+                    await this.loadSplitViaMemfs(pseg, psegBase, dseg, dsegBase, startPc.value);
+                }
+                modal.classList.add('hidden');
+                errorDiv.classList.add('hidden');
+                errorDiv.textContent = '';
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.classList.remove('hidden');
+                this.updateStatus('Load failed - see modal for details');
+            }
+        };
+
+        modal.classList.remove('hidden');
+    }
+
+    openSymbolsModal() {
+        if (!this.module) return;
+
+        const modal = document.getElementById('symbolsModal');
+        const cancelBtn = document.getElementById('symbolsCancelBtn');
+        const symbolsList = document.getElementById('symbols-list');
+        const searchInput = document.getElementById('symbolsSearchInput');
+        const typeRadios = document.querySelectorAll('input[name="symbolType"]');
+
+        try {
+            // Get symbols from WASM
+            const json = this.module.ccall('nd500_dbg_symbols_json', 'string', [], []);
+            const symbols = JSON.parse(json);
+
+            // Function to render symbols table (filtered or full)
+            const renderSymbols = (filteredSymbols) => {
+                if (filteredSymbols.length === 0) {
+                    symbolsList.innerHTML = '<div class="symbol-empty">No symbols found</div>';
+                } else {
+                    // Create table of symbols
+                    let html = '<table class="symbols-table">';
+                    html += '<thead><tr><th>Name</th><th>Address</th><th>Type</th></tr></thead>';
+                    html += '<tbody>';
+
+                    filteredSymbols.forEach(sym => {
+                        const addr = typeof sym.addr === 'number' ? sym.addr : parseInt(sym.addr, 10);
+                        const addrHex = '0x' + addr.toString(16).padStart(8, '0').toUpperCase();
+                        html += `<tr class="symbol-row" data-addr="${addr}">
+                            <td class="symbol-name">${this.escapeHtml(sym.name)}</td>
+                            <td class="symbol-addr">${addrHex}</td>
+                            <td class="symbol-type">${this.escapeHtml(sym.type)}</td>
+                        </tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    symbolsList.innerHTML = html;
+
+                    // Add click handlers to navigate to symbol addresses
+                    document.querySelectorAll('.symbol-row').forEach(row => {
+                        row.addEventListener('click', (e) => {
+                            const addr = parseInt(e.currentTarget.dataset.addr);
+                            // Set PC to the symbol address
+                            this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [addr]);
+                            this.updateStatus(`Navigated to ${e.currentTarget.querySelector('.symbol-name').textContent} at 0x${addr.toString(16).padStart(8,'0')}`);
+                            // Close modal
+                            modal.classList.add('hidden');
+                            // Clear search input and reset filter
+                            searchInput.value = '';
+                            document.querySelector('input[name="symbolType"][value="all"]').checked = true;
+                            // Update UI to reflect new PC
+                            this.updateUI();
+                        });
+                    });
+                }
+            };
+
+            // Combined filter function
+            const filterSymbols = () => {
+                const searchQuery = searchInput.value.toLowerCase().trim();
+                const selectedType = Array.from(typeRadios).find(r => r.checked)?.value || 'all';
+
+                let filtered = symbols;
+
+                // Filter by type
+                if (selectedType !== 'all') {
+                    filtered = filtered.filter(sym => sym.type === selectedType);
+                }
+
+                // Filter by search text
+                if (searchQuery) {
+                    filtered = filtered.filter(sym =>
+                        sym.name.toLowerCase().includes(searchQuery) ||
+                        sym.type.toLowerCase().includes(searchQuery) ||
+                        sym.addr.toString(16).toLowerCase().includes(searchQuery)
+                    );
+                }
+
+                renderSymbols(filtered);
+            };
+
+            // Clear previous state and set up event handlers
+            searchInput.value = '';
+            document.querySelector('input[name="symbolType"][value="all"]').checked = true;
+
+            // Attach event handlers
+            searchInput.oninput = filterSymbols;
+            typeRadios.forEach(radio => radio.onchange = filterSymbols);
+
+            // Initial render with all symbols
+            filterSymbols();
+
+            // Focus search input for convenience
+            setTimeout(() => searchInput.focus(), 100);
+
+        } catch (error) {
+            console.error('Error loading symbols:', error);
+            symbolsList.innerHTML = '<div class="symbol-empty">Error loading symbols</div>';
+        }
+
+        // Cancel button closes modal
+        cancelBtn.onclick = () => {
+            modal.classList.add('hidden');
+            searchInput.value = '';
+            document.querySelector('input[name="symbolType"][value="all"]').checked = true;
+        };
+
+        modal.classList.remove('hidden');
+    }
+
+    async loadAoutViaMemfs(file, startPcValue) {
+        console.log('=== loadAoutViaMemfs START ===');
+        console.log('File:', file.name, 'Size:', file.size);
+
+        // Clear memory and symbols before loading
+        console.log('Clearing memory...');
+        this.module.ccall('nd500_dbg_reset_memory_js', null, [], []);
+        console.log('Clearing symbols...');
+        this.module.ccall('nd500_dbg_clear_symbols_js', null, [], []);
+
+        this.updateStatus('Loading a.out: ' + file.name + '...');
+        const buffer = await file.arrayBuffer();
+        const uint8 = new Uint8Array(buffer);
+        const fname = '/upload_' + Date.now() + '.out';
+        console.log('MEMFS path:', fname);
+
+        if (this.module.FS && this.module.FS.writeFile) {
+            console.log('Writing to MEMFS...');
+            try { this.module.FS.unlink(fname); } catch (_) {}
+            this.module.FS.writeFile(fname, uint8);
+            console.log('File written to MEMFS, size:', uint8.length);
+
+            console.log('Calling nd500_dbg_load_aout_path_js...');
+            const rc = this.module.ccall('nd500_dbg_load_aout_path_js', 'number', ['string'], [fname]);
+            console.log('Load result:', rc);
+            if (rc !== 0) throw new Error('a.out load rc=' + rc);
+
+            if (startPcValue && startPcValue.trim()) {
+                const pc = this.parseHexOrDec(startPcValue.trim());
+                console.log('Setting custom PC to:', '0x' + pc.toString(16));
+                this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [pc >>> 0]);
+            }
+
+            this.updateStatus('a.out loaded: ' + file.name);
+            console.log('Refreshing UI...');
+            // Refresh UI to show new code and reset registers
+            this.updateUI();
+            // Set default memory view to start of loaded program
+            document.getElementById('memAddr').value = '0';
+            document.getElementById('memLen').value = '256';
+            this.viewMemory();
+            console.log('=== loadAoutViaMemfs COMPLETE ===');
+        } else {
+            throw new Error('MEMFS unavailable');
+        }
+    }
+
+    parseHexOrDec(s) {
+        const t = s.toLowerCase();
+        if (t.startsWith('0x')) return parseInt(t, 16);
+        return parseInt(t, 10);
+    }
+
+    async loadSplitViaMemfs(psegFile, psegBase, dsegFile, dsegBase, startPcValue) {
+        console.log('=== loadSplitViaMemfs START ===');
+        console.log('PSEG file:', psegFile ? psegFile.name : 'none', 'size:', psegFile ? psegFile.size : 0);
+        console.log('PSEG base:', '0x' + psegBase.toString(16));
+        console.log('DSEG file:', dsegFile ? dsegFile.name : 'none', 'size:', dsegFile ? dsegFile.size : 0);
+        console.log('DSEG base:', '0x' + dsegBase.toString(16));
+        console.log('Start PC:', startPcValue || '(default)');
+
+        // Clear memory and symbols before loading
+        console.log('Clearing memory...');
+        this.module.ccall('nd500_dbg_reset_memory_js', null, [], []);
+        console.log('Clearing symbols...');
+        this.module.ccall('nd500_dbg_clear_symbols_js', null, [], []);
+
+        const writeIf = async (file, path) => {
+            if (!file) return null;
+            console.log('Writing', file.name, 'to MEMFS path:', path);
+            const buf = new Uint8Array(await file.arrayBuffer());
+            try { this.module.FS.unlink(path); } catch (_) {}
+            this.module.FS.writeFile(path, buf);
+            console.log('Wrote', buf.length, 'bytes to', path);
+            return path;
+        };
+
+        const psegPath = psegFile ? ('/upload_' + Date.now() + '.pseg') : null;
+        const dsegPath = dsegFile ? ('/upload_' + (Date.now()+1) + '.dseg') : null;
+
+        await writeIf(psegFile, psegPath);
+        await writeIf(dsegFile, dsegPath);
+
+        const setPc = !!(startPcValue && startPcValue.trim());
+        const pc = setPc ? (this.parseHexOrDec(startPcValue.trim()) >>> 0) : (psegBase >>> 0);
+
+        console.log('Calling nd500_dbg_load_segments_path_js with:');
+        console.log('  psegPath:', psegPath, 'psegBase:', '0x' + (psegBase>>>0).toString(16));
+        console.log('  dsegPath:', dsegPath, 'dsegBase:', '0x' + (dsegBase>>>0).toString(16));
+        console.log('  setPc:', setPc, 'pc:', '0x' + pc.toString(16));
+
+        const rc = this.module.ccall('nd500_dbg_load_segments_path_js', 'number',
+            ['string','number','string','number','number','number'],
+            [psegPath, psegBase>>>0, dsegPath, dsegBase>>>0, setPc?1:0, pc]);
+
+        console.log('Load segments result:', rc);
+
+        if (rc !== 0) {
+            // Get detailed error message
+            const attemptedAddr = psegFile ? psegBase : dsegBase;
+            const errorMsg = this.module.ccall('nd500_dbg_load_strerror_js', 'string',
+                ['number', 'number'], [rc, attemptedAddr >>> 0]);
+            console.error('Load failed:', errorMsg);
+            throw new Error(psegFile ? `PSEG load failed:\n${errorMsg}` : `DSEG load failed:\n${errorMsg}`);
+        }
+
+        if (!setPc) {
+            console.log('Setting PC to:', '0x' + pc.toString(16));
+            this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [pc]);
+        }
+
+        const segNames = [];
+        if (psegFile) segNames.push(`PSEG@0x${psegBase.toString(16).toUpperCase()}`);
+        if (dsegFile) segNames.push(`DSEG@0x${dsegBase.toString(16).toUpperCase()}`);
+        this.updateStatus(`Loaded: ${segNames.join(', ')}`);
+
+        console.log('Refreshing UI...');
+        // Refresh UI to show new code and reset registers
+        this.updateUI();
+        // Set memory view to PSEG start if loaded, otherwise DSEG start
+        const viewAddr = psegFile ? psegBase : dsegBase;
+        document.getElementById('memAddr').value = viewAddr.toString(16).padStart(8, '0');
+        document.getElementById('memLen').value = '256';
+        this.viewMemory();
+        console.log('=== loadSplitViaMemfs COMPLETE ===');
+    }
+
+    async loadDemoKernel() {
+        try {
+            this.updateStatus('Loading demo kernel...');
+            const response = await fetch('kernel');
+            if (!response.ok) throw new Error('Demo kernel not found');
+            const buffer = await response.arrayBuffer();
+            const uint8 = new Uint8Array(buffer);
+            const fname = '/demo_kernel.out';
+            if (this.module.FS && this.module.FS.writeFile) {
+                try { this.module.FS.unlink(fname); } catch (_) {}
+                this.module.FS.writeFile(fname, uint8);
+                const rc = this.module.ccall('nd500_dbg_load_aout_path_js', 'number', ['string'], [fname]);
+                if (rc !== 0) throw new Error('Demo kernel load failed rc=' + rc);
+                this.updateStatus('Demo kernel loaded - NDIX-C Simulated Kernel v1.0 for ND-500');
+                this.updateUI();
+                // Set default memory view
+                document.getElementById('memAddr').value = '0';
+                document.getElementById('memLen').value = '256';
+                this.viewMemory();
+                return true;
+            } else {
+                throw new Error('MEMFS unavailable');
+            }
+        } catch (error) {
+            console.warn('Could not load demo kernel:', error);
+            this.updateStatus('ND500X Web Debugger Ready (demo kernel unavailable)');
+            return false;
+        }
     }
 
     setupDragDrop() {
@@ -92,6 +458,8 @@ class ND500Debugger {
         }
 
         try {
+            // Clear memory before loading
+            this.module.ccall('nd500_dbg_reset_memory_js', null, [], []);
             this.updateStatus('Loading file: ' + file.name + '...');
             // Use MEMFS path loading for correctness across environments
             const buffer = await file.arrayBuffer();
@@ -234,40 +602,65 @@ class ND500Debugger {
 
     updateDisassembly() {
         if (!this.module) return;
-        
+
         try {
             const addr = Math.max(0, this.currentPC - 32);
-            const json = this.module.ccall('nd500_dbg_disasm_json', 'string', 
+            const json = this.module.ccall('nd500_dbg_disasm_json', 'string',
                 ['number', 'number'], [addr, 128]);
             const data = JSON.parse(json);
             console.log('Disassembly JSON:', data);
-            
+
             // Parse JSON instructions and render with PC highlighting in three lanes
             const lines = (data.instructions || []).map(inst => {
                 const lineAddr = parseInt(inst.address, 16) || 0;
                 const bytesStr = inst.bytes || '';
                 const mnemonic = inst.mnemonic || '';
                 const operands = inst.operands || '';
+                const symbol = inst.symbol || '';
+                const targetSymbol = inst.target_symbol || '';
+                const relocSymbol = inst.reloc_symbol || '';
+                const isUnresolved = inst.is_unresolved || false;
                 const textStr = operands ? `${mnemonic} ${operands}` : mnemonic;
-                
+
                 const isCurrent = lineAddr === this.currentPC;
                 const hasBP = this.breakpoints.some(bp => bp.addr === lineAddr);
-                
+
                 let classes = 'disasm-line';
                 if (isCurrent) classes += ' current-pc';
                 if (hasBP) classes += ' breakpoint';
-                
+
+                // Show symbol label on its own line if present
+                let symbolLineHtml = '';
+                if (symbol) {
+                    symbolLineHtml = `<div class="disasm-line disasm-symbol"><span class="dis-symbol-label">${this.escapeHtml(symbol)}:</span></div>`;
+                }
+
                 const gutterHtml = `<span class="dis-gutter" title="Toggle breakpoint" onclick="nd500Debugger.toggleBreakpoint(${lineAddr}); event.stopPropagation();"></span>`;
                 const addrHtml = `<span class="dis-addr">${inst.address}</span>`;
                 const bytesHtml = `<span class="dis-bytes">${this.escapeHtml(bytesStr)}</span>`;
 
                 // Use separate mnemonic and operands from JSON
-                const isBranch = (/^(go|if|call)\b/i).test(mnemonic) || /->/.test(textStr);
+                const isBranch = (/^(go|if|call)\b/i).test(mnemonic) || targetSymbol || relocSymbol;
                 const headHtml = `<span class="dis-mnemonic${isBranch ? ' branch' : ''}">${this.escapeHtml(mnemonic)}</span>`;
                 const opsHtml = operands ? `<span class="dis-operands">${this.escapeHtml(operands)}</span>` : '';
-                const textHtml = `<span class="dis-text">${headHtml}${operands ? ' ' : ''}${opsHtml}</span>`;
-                
-                return `<div class="${classes}" data-addr="${lineAddr}">${gutterHtml}${addrHtml}${bytesHtml}${textHtml}</div>`;
+
+                // Add symbol comment for call/branch targets
+                let commentHtml = '';
+                if (relocSymbol) {
+                    if (isUnresolved) {
+                        commentHtml = `<span class="dis-comment"> ; ${this.escapeHtml(relocSymbol)} <span class="unresolved">(UNRESOLVED)</span></span>`;
+                    } else {
+                        commentHtml = `<span class="dis-comment"> ; -&gt; &lt;${this.escapeHtml(relocSymbol)}&gt;</span>`;
+                    }
+                } else if (targetSymbol) {
+                    commentHtml = `<span class="dis-comment"> ; -&gt; &lt;${this.escapeHtml(targetSymbol)}&gt;</span>`;
+                }
+
+                const textHtml = `<span class="dis-text">${headHtml}${operands ? ' ' : ''}${opsHtml}${commentHtml}</span>`;
+
+                const instructionHtml = `<div class="${classes}" data-addr="${lineAddr}">${gutterHtml}${addrHtml}${bytesHtml}${textHtml}</div>`;
+
+                return symbolLineHtml + instructionHtml;
             }).join('');
             console.log('Rendered disasm lines:', (data.instructions || []).length);
             document.getElementById('disasm-content').innerHTML = lines;
@@ -279,50 +672,44 @@ class ND500Debugger {
 
     viewMemory() {
         if (!this.module) return;
-        
+
         try {
             const addr = parseInt(document.getElementById('memAddr').value, 16) || 0;
             const len = parseInt(document.getElementById('memLen').value) || 256;
-            const showAscii = document.getElementById('memAsciiToggle').checked;
-            
+
             const json = this.module.ccall('nd500_dbg_mem_json', 'string',
                 ['number', 'number'], [addr, len]);
             const data = JSON.parse(json);
-            
-            // Format as hex dump with optional ASCII
+
+            // Format as hex dump with ASCII - always show both columns
             let html = '';
             for (let i = 0; i < data.bytes.length; i += 16) {
                 const lineAddr = data.addr + i;
                 const hexBytes = data.bytes.slice(i, i+16);
+
+                // Build hex string with proper spacing
                 const hex = hexBytes.join(' ');
+
+                // Build ASCII string
                 let ascii = '';
-                
-                if (showAscii && data.ascii) {
+                if (data.ascii) {
                     const asciiBytes = data.ascii.slice(i, i+16);
                     ascii = asciiBytes.join('');
-                } else if (showAscii) {
+                } else {
                     // Fallback if ASCII not available in JSON
                     ascii = hexBytes.map(b => {
                         const n = parseInt(b, 16);
                         return (n >= 32 && n <= 126) ? String.fromCharCode(n) : '.';
                     }).join('');
                 }
-                
+
                 html += `<div class="mem-line">
-                    <span class="mem-addr clickable-addr" data-addr="${lineAddr}">${lineAddr.toString(16).padStart(8,'0')}:</span>
-                    <span class="mem-hex">${hex.padEnd(48)}</span>
-                    ${showAscii ? `<span class="mem-ascii">${ascii}</span>` : ''}
+                    <span class="mem-addr" data-addr="${lineAddr}">${lineAddr.toString(16).padStart(8,'0')}</span>
+                    <span class="mem-hex">${hex}</span>
+                    <span class="mem-ascii">${this.escapeHtml(ascii)}</span>
                 </div>`;
             }
             document.getElementById('memory-content').innerHTML = html;
-            
-            // Add click handlers for memory addresses
-            document.querySelectorAll('.clickable-addr').forEach(addr => {
-                addr.addEventListener('click', (e) => {
-                    const newAddr = parseInt(e.target.dataset.addr);
-                    this.setMemoryAddress(newAddr);
-                });
-            });
         } catch (error) {
             console.error('Error viewing memory:', error);
             document.getElementById('memory-content').innerHTML = '<div class="mem-line">Error loading memory</div>';

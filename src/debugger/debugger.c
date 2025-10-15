@@ -809,19 +809,140 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("OTE1=%08X OTE2=%08X CTE1=%08X CTE2=%08X\n", r.OTE1, r.OTE2, r.CTE1, r.CTE2);
             printf("MTE1=%08X MTE2=%08X TEMM1=%08X TEMM2=%08X\n", r.MTE1, r.MTE2, r.TEMM1, r.TEMM2);
         } else if (strcmp(tok, "load") == 0) {
-			char* path = strtok(NULL, " \t\r\n");
-			if (!path) { printf("usage: load <path>\n"); continue; }
-			uint32_t entry = 0;
-            if (ndlib_loadaout_file(m, path, &entry) == 0) {
-				printf("loaded, entry=0x%08X\n", entry);
-                if (ndlib_symbols_load(path) == 0) {
-                    printf("symbols loaded\n");
+            char* type_or_path = strtok(NULL, " \t\r\n");
+            if (!type_or_path) {
+                printf("usage: load aout <path>\n");
+                printf("       load pseg <path> [mode] [addr]  (mode: kernel|user, auto if omitted)\n");
+                printf("       load dseg <path> [mode] [addr]  (mode: kernel|user, auto if omitted)\n");
+                continue;
+            }
+            if (strcasecmp(type_or_path, "aout") == 0) {
+                char* path = strtok(NULL, " \t\r\n");
+                if (!path) { printf("usage: load aout <path>\n"); continue; }
+                uint32_t entry = 0;
+                if (ndlib_loadaout_file(m, path, &entry) == 0) {
+                    printf("loaded, entry=0x%08X\n", entry);
+                    if (ndlib_symbols_load(path) == 0) {
+                        printf("symbols loaded\n");
+                    }
+                    (void)ndlib_aout_dump_metadata(path);
+                } else {
+                    printf("load failed\n");
                 }
-                /* Print metadata similar to nd500-dump */
-                (void)ndlib_aout_dump_metadata(path);
-			} else {
-				printf("load failed\n");
-			}
+            } else if (strcasecmp(type_or_path, "pseg") == 0) {
+                char* path = strtok(NULL, " \t\r\n");
+                char* mode_or_addr = strtok(NULL, " \t\r\n");
+                char* addr_s = strtok(NULL, " \t\r\n");
+
+                if (!path) {
+                    printf("usage: load pseg <path> [mode] [addr]\n");
+                    printf("       mode: kernel|user (auto if omitted)\n");
+                    continue;
+                }
+
+                /* Parse mode parameter (kernel/user/auto) */
+                int kernel_mode = 1; /* default */
+                int mode_specified = 0;
+
+                if (mode_or_addr) {
+                    if (strcasecmp(mode_or_addr, "kernel") == 0) {
+                        kernel_mode = 1;
+                        mode_specified = 1;
+                    } else if (strcasecmp(mode_or_addr, "user") == 0) {
+                        kernel_mode = 0;
+                        mode_specified = 1;
+                    } else if (strcasecmp(mode_or_addr, "auto") == 0) {
+                        /* Auto-detect from filename: user mode if contains "user", else kernel */
+                        kernel_mode = (strstr(path, "user") == NULL) ? 1 : 0;
+                        mode_specified = 1;
+                    } else {
+                        /* Not a mode keyword, treat as address */
+                        addr_s = mode_or_addr;
+                    }
+                }
+
+                /* Auto-detect if no mode specified */
+                if (!mode_specified) {
+                    /* Default: kernel mode unless filename contains "user" */
+                    kernel_mode = (strstr(path, "user") == NULL) ? 1 : 0;
+                }
+
+                uint32_t pseg_base = kernel_mode ? 0x08000000u : 0xD0000000u;
+                if (addr_s) {
+                    pseg_base = parse_u32(addr_s, pseg_base);
+                }
+
+                const char* mode_name = kernel_mode ? "kernel" : "user";
+                int rc = nd500_load_pseg_file(m, path, pseg_base);
+                if (rc == 0) {
+                    printf("PSEG loaded at 0x%08X (%s mode)\n", pseg_base, mode_name);
+                } else {
+                    printf("PSEG load failed: %s\n", path);
+                    printf("Error: %s\n", nd500_load_strerror(rc, pseg_base, m->memory_size));
+                }
+            } else if (strcasecmp(type_or_path, "dseg") == 0) {
+                char* path = strtok(NULL, " \t\r\n");
+                char* mode_or_addr = strtok(NULL, " \t\r\n");
+                char* addr_s = strtok(NULL, " \t\r\n");
+
+                if (!path) {
+                    printf("usage: load dseg <path> [mode] [addr]\n");
+                    printf("       mode: kernel|user (auto if omitted)\n");
+                    continue;
+                }
+
+                /* Parse mode parameter (kernel/user/auto) */
+                int kernel_mode = 1; /* default */
+                int mode_specified = 0;
+
+                if (mode_or_addr) {
+                    if (strcasecmp(mode_or_addr, "kernel") == 0) {
+                        kernel_mode = 1;
+                        mode_specified = 1;
+                    } else if (strcasecmp(mode_or_addr, "user") == 0) {
+                        kernel_mode = 0;
+                        mode_specified = 1;
+                    } else if (strcasecmp(mode_or_addr, "auto") == 0) {
+                        /* Auto-detect from filename: user mode if contains "user", else kernel */
+                        kernel_mode = (strstr(path, "user") == NULL) ? 1 : 0;
+                        mode_specified = 1;
+                    } else {
+                        /* Not a mode keyword, treat as address */
+                        addr_s = mode_or_addr;
+                    }
+                }
+
+                /* Auto-detect if no mode specified */
+                if (!mode_specified) {
+                    /* Default: kernel mode unless filename contains "user" */
+                    kernel_mode = (strstr(path, "user") == NULL) ? 1 : 0;
+                }
+
+                uint32_t dseg_base = kernel_mode ? 0x00000000u : 0xF0000000u;
+                if (addr_s) {
+                    dseg_base = parse_u32(addr_s, dseg_base);
+                }
+
+                const char* mode_name = kernel_mode ? "kernel" : "user";
+                int rc = nd500_load_dseg_file(m, path, dseg_base);
+                if (rc == 0) {
+                    printf("DSEG loaded at 0x%08X (%s mode)\n", dseg_base, mode_name);
+                } else {
+                    printf("DSEG load failed: %s\n", path);
+                    printf("Error: %s\n", nd500_load_strerror(rc, dseg_base, m->memory_size));
+                }
+            } else {
+                /* Backward compatible: treat as load <path> for a.out */
+                const char* path = type_or_path;
+                uint32_t entry = 0;
+                if (ndlib_loadaout_file(m, path, &entry) == 0) {
+                    printf("loaded, entry=0x%08X\n", entry);
+                    if (ndlib_symbols_load(path) == 0) printf("symbols loaded\n");
+                    (void)ndlib_aout_dump_metadata(path);
+                } else {
+                    printf("load failed\n");
+                }
+            }
 		} else if (strcmp(tok, "run") == 0) {
 			nd500_dbg_run(m);
 			printf("running...\n");
@@ -1070,6 +1191,9 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("  regs                        Show CPU registers\n");
             printf("  set <register> <value>      Set register value\n");
             printf("  load <path>                 Load ND-500 a.out into memory\n");
+            printf("  load pseg <path> [mode] [addr]  Load PSEG binary (auto-detect mode from filename)\n");
+            printf("  load dseg <path> [mode] [addr]  Load DSEG binary (auto-detect mode from filename)\n");
+            printf("                              mode: kernel (0x08000000) | user (0xD0000000)\n");
             printf("  run                         Start execution (background)\n");
             printf("  stop                        Stop execution\n");
             printf("  continue (c/cont)           Continue execution after breakpoint\n");

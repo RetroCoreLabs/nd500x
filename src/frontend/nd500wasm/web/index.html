@@ -9,12 +9,12 @@
     <div id="header">
         <h1>ND500X Emulator - Web Debugger</h1>
         <div id="controls">
-            <input type="file" id="fileInput" accept=".o,.out">
-            <button id="loadBtn">Load File</button>
-            <button id="stepBtn">Step</button>
-            <button id="runBtn">Run</button>
-            <button id="stopBtn">Stop</button>
-            <button id="resetBtn">Reset</button>
+            <button id="loadBtn" class="btn-load">📁 Load</button>
+            <button id="symbolsBtn" class="btn-symbols">🔍 Symbols</button>
+            <button id="stepBtn" class="btn-step">⏭️ Step</button>
+            <button id="runBtn" class="btn-run">▶️ Run</button>
+            <button id="stopBtn" class="btn-stop">⏹️ Stop</button>
+            <button id="resetBtn" class="btn-reset">🔄 Reset</button>
         </div>
     </div>
     <div id="main-container">
@@ -43,13 +43,9 @@
             <div id="memory-panel">
                 <h2>Memory</h2>
                 <div class="memory-controls">
-                    <input id="memAddr" placeholder="Address (hex)">
-                    <input id="memLen" placeholder="Length">
+                    <label>Start Address: <input id="memAddr" placeholder="hex" size="10"></label>
+                    <label>Length: <input id="memLen" placeholder="bytes" size="8"></label>
                     <button id="memViewBtn">View</button>
-                    <label>
-                        <input type="checkbox" id="memAsciiToggle" checked>
-                        Show ASCII
-                    </label>
                 </div>
                 <div id="memory-content"></div>
             </div>
@@ -66,7 +62,69 @@
     </div>
     <div id="status-bar">Ready</div>
     <div id="drop-zone" class="hidden">Drop .o or .out file here</div>
-    
+    <!-- Load Modal -->
+    <div id="loadModal" class="hidden">
+        <div class="modal-content">
+            <h3>Load Program</h3>
+            <div class="row">
+                <label><input type="radio" name="loadType" value="aout" checked> a.out</label>
+                <label><input type="radio" name="loadType" value="split"> PSEG/DSEG</label>
+            </div>
+            <div id="aoutFields">
+                <input type="file" id="aoutFile" accept=".out,.aout">
+            </div>
+            <div id="splitFields" class="hidden">
+                <div class="row">
+                    <label>PSEG File: <input type="file" id="psegFile" accept=".pseg"></label>
+                </div>
+                <div class="row">
+                    <label>PSEG Address (hex, optional): <input type="text" id="psegAddr" placeholder="Default: 0x08000000 (kernel) or 0xD0000000 (user)"></label>
+                </div>
+                <div class="row">
+                    <label>DSEG File: <input type="file" id="dsegFile" accept=".dseg"></label>
+                </div>
+                <div class="row">
+                    <label>DSEG Address (hex, optional): <input type="text" id="dsegAddr" placeholder="Default: 0x00000000 (kernel) or 0xF0000000 (user)"></label>
+                </div>
+                <div class="row">
+                    <label>Mode:
+                        <select id="modeSelect">
+                            <option value="kernel">Kernel</option>
+                            <option value="user">User</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+            <div class="row">
+                <label>Start PC (hex, optional): <input type="text" id="startPc" placeholder="e.g. 0x08000000"></label>
+            </div>
+            <div class="actions">
+                <button id="loadCancelBtn">Cancel</button>
+                <button id="loadConfirmBtn">Load</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Symbols Modal -->
+    <div id="symbolsModal" class="hidden">
+        <div class="modal-content symbols-modal">
+            <h3>Symbols</h3>
+            <div class="symbols-type-filter">
+                <label><input type="radio" name="symbolType" value="all" checked> All</label>
+                <label><input type="radio" name="symbolType" value="TEXT"> TEXT</label>
+                <label><input type="radio" name="symbolType" value="DATA"> DATA</label>
+                <label><input type="radio" name="symbolType" value="BSS"> BSS</label>
+            </div>
+            <div class="symbols-search">
+                <input type="text" id="symbolsSearchInput" placeholder="Search symbols...">
+            </div>
+            <div id="symbols-list"></div>
+            <div class="actions">
+                <button id="symbolsCancelBtn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script src="nd500wasm.js"></script>
     <script src="debugger.js"></script>
 </body>

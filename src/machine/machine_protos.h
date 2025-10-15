@@ -26,6 +26,12 @@ int    nd500_dbg_load_aout_file(Nd500Machine* m, const char* path, uint32_t* out
 int    nd500_dbg_load_aout_buffer(Nd500Machine* m, const uint8_t* data, size_t size, uint32_t* out_entry_pc);
 void   nd500_dbg_regs(struct Nd500Cpu* cpu, Nd500Regs* out_regs);
 
+/* Segment loading helpers */
+int    nd500_load_file_to_memory(Nd500Machine* m, const char* path, uint32_t base_addr);
+int    nd500_load_pseg_file(Nd500Machine* m, const char* path, uint32_t pseg_base_addr);
+int    nd500_load_dseg_file(Nd500Machine* m, const char* path, uint32_t dseg_base_addr);
+const char* nd500_load_strerror(int error_code, uint32_t attempted_addr, uint32_t mem_size);
+
 /* Disassembly configuration */
 int    nd500_dbg_set_show_ea(int onoff);
 int    nd500_dbg_get_show_ea(void);

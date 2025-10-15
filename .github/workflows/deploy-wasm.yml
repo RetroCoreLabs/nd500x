@@ -1,0 +1,93 @@
+name: Build and Deploy WASM to Azure Storage
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v14
+      with:
+        version: 'latest'
+        actions-cache-folder: 'emsdk-cache'
+
+    - name: Verify Emscripten installation
+      run: emcc -v
+
+    - name: Build WASM
+      run: make wasm
+
+    - name: List build artifacts
+      run: ls -lah build_wasm/bin/
+
+    - name: Azure Login via OIDC
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Upload to Azure Storage static website
+      uses: azure/CLI@v2
+      with:
+        inlineScript: |
+          az storage blob upload-batch \
+            --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
+            --auth-mode key \
+            --destination '$web' \
+            --source ./build_wasm/bin/ \
+            --overwrite \
+            --content-type 'application/wasm' \
+            --pattern '*.wasm'
+
+          az storage blob upload-batch \
+            --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
+            --auth-mode key \
+            --destination '$web' \
+            --source ./build_wasm/bin/ \
+            --overwrite \
+            --pattern '*.js' \
+            --content-type 'application/javascript'
+
+          az storage blob upload-batch \
+            --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
+            --auth-mode key \
+            --destination '$web' \
+            --source ./build_wasm/bin/ \
+            --overwrite \
+            --pattern '*.html' \
+            --content-type 'text/html'
+
+          az storage blob upload-batch \
+            --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
+            --auth-mode key \
+            --destination '$web' \
+            --source ./build_wasm/bin/ \
+            --overwrite \
+            --pattern '*.css' \
+            --content-type 'text/css'
+
+          az storage blob upload-batch \
+            --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
+            --auth-mode key \
+            --destination '$web' \
+            --source ./build_wasm/bin/ \
+            --overwrite \
+            --pattern 'kernel' \
+            --content-type 'application/octet-stream'
+
+    - name: Azure logout
+      run: az logout
+      if: always()
