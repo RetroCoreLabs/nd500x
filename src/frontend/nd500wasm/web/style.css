@@ -234,6 +234,39 @@ body {
     font-weight: bold;
 }
 
+/* Register section titles */
+.reg-section-title {
+    grid-column: 1 / -1;
+    padding: 8px 12px;
+    background: #495057;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: 4px;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    text-align: left;
+}
+
+.reg-section-title:first-child {
+    margin-top: 0;
+}
+
+.reg-section-title.mmu-section {
+    background: #8e44ad;
+}
+
+/* MMU registers in main panel */
+.reg-item.mmu-reg {
+    background: #f3e5f5;
+    border-color: #8e44ad;
+}
+
+.reg-item.mmu-reg:hover {
+    background: #e1bee7;
+    border-color: #7d3c98;
+}
+
 /* Memory controls */
 .memory-controls {
     display: flex;

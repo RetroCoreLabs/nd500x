@@ -1307,13 +1307,15 @@ class ND500Debugger {
 
     updateRegisters() {
         if (!this.module) return;
-        
+
         try {
             const json = this.module.ccall('nd500_dbg_regs_json', 'string', [], []);
             const regs = JSON.parse(json);
             this.currentPC = regs.PC;
-            
-            const html = `
+
+            // Build CPU registers section
+            let html = `
+                <div class="reg-section-title">CPU Registers</div>
                 <div class="reg-item" data-reg="PC" data-value="${regs.PC}">PC: 0x${regs.PC.toString(16).padStart(8,'0')}</div>
                 <div class="reg-item" data-reg="FLAGS" data-value="${regs.FLAGS}">FLAGS: 0x${regs.FLAGS.toString(16).padStart(8,'0')}</div>
                 ${regs.I.map((v,i) => `<div class="reg-item" data-reg="I${i+1}" data-value="${v}">I${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
@@ -1327,8 +1329,21 @@ class ND500Debugger {
                 <div class="reg-item" data-reg="HL" data-value="${regs.HL}">HL: 0x${regs.HL.toString(16).padStart(8,'0')}</div>
                 <div class="reg-item" data-reg="THA" data-value="${regs.THA}">THA: 0x${regs.THA.toString(16).padStart(8,'0')}</div>
             `;
+
+            // Add MMU registers section if available
+            if (regs.PSTP !== undefined) {
+                html += `
+                <div class="reg-section-title mmu-section">MMU Registers</div>
+                <div class="reg-item mmu-reg" data-reg="PSTP" data-value="${regs.PSTP}" title="Physical Segment Table Pointer">PSTP: 0x${regs.PSTP.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item mmu-reg" data-reg="DITBASE" data-value="${regs.DITBASE}" title="Domain Information Table Base">DITBASE: 0x${regs.DITBASE.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item mmu-reg" data-reg="CED" data-value="${regs.CED}" title="Current Executing Domain">CED: 0x${regs.CED.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item mmu-reg" data-reg="CAD" data-value="${regs.CAD}" title="Current Alternative Domain">CAD: 0x${regs.CAD.toString(16).padStart(8,'0')}</div>
+                <div class="reg-item mmu-reg" data-reg="PS" data-value="${regs.PS}" title="Process Segment">PS: 0x${regs.PS.toString(16).padStart(8,'0')}</div>
+                `;
+            }
+
             document.getElementById('regs-content').innerHTML = html;
-            
+
             // Add click handlers for register editing
             document.querySelectorAll('.reg-item').forEach(item => {
                 item.addEventListener('click', (e) => {

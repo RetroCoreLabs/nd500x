@@ -1,13 +1,40 @@
 # ND-500 MMU Implementation - Continuation Summary
 
 **Date**: October 15, 2025
-**Session**: MMU Phase 8 + ListPST/ListPCB + Phase 9-11 Web UI + Tabbed Refactor + Two-Domain Setup
-**Overall Progress**: 10 of 12 phases complete (~83%)
-**Latest Update**: Tabbed interface refactor + mmusetup two-domain configuration
+**Session**: MMU Phase 8 + ListPST/ListPCB + Phase 9-12 Web UI + Tabbed Refactor + Two-Domain Setup
+**Overall Progress**: 11 of 12 phases complete (~92%)
+**Latest Update**: Phase 12 complete - MMU registers in main panel
 
 ---
 
 ## Latest Session Updates (October 15, 2025)
+
+### Phase 12: MMU Register Display ✅ COMPLETE
+
+**Enhancement**: Added MMU registers to main register panel
+
+**What Was Added**:
+- 5 MMU registers now visible in main panel (PSTP, DITBASE, CED, CAD, PS)
+- Visual section headers: "CPU Registers" (gray) and "MMU Registers" (purple)
+- Purple background styling for MMU registers (matches MMU modal theme)
+- Tooltips with register descriptions on hover
+- Click-to-edit functionality (reuses existing logic)
+
+**Benefits**:
+- ✅ Zero-click visibility (no need to open MMU modal)
+- ✅ Real-time updates on every CPU step
+- ✅ Clear visual organization (CPU vs MMU sections)
+- ✅ Consistent edit experience across all registers
+
+**Code Changes**:
+- `debugger.js`: +24 lines (conditional MMU section rendering)
+- `style.css`: +34 lines (section titles and MMU register styling)
+
+**Documentation**: `docs/PHASE_12_REGISTER_DISPLAY_COMPLETE.md`
+
+**Status**: All 12 phases complete (only Phase 4 - Domain System remains optional)
+
+---
 
 ### Major UI/UX Refactor: Tabbed Interface ✅ COMPLETE
 
@@ -160,7 +187,7 @@ PCB: 1 domains with 3 segments (of 256 domains max)
 
 ## Current Implementation Status
 
-### ✅ Completed Phases (10 of 12)
+### ✅ Completed Phases (11 of 12)
 
 | Phase | Component | Status | Lines | Completion Date |
 |-------|-----------|--------|-------|-----------------|
@@ -174,17 +201,19 @@ PCB: 1 domains with 3 segments (of 256 domains max)
 | 9 | Web UI - MMU Panel | ✅ COMPLETE | ~621 | 2025-10-15 |
 | 10 | Web UI - PST Inspector | ✅ COMPLETE | ~621 | 2025-10-15 |
 | 11 | Web UI - PCB Viewer | ✅ COMPLETE | ~796 | 2025-10-15 |
+| 12 | Web UI - Register Display | ✅ COMPLETE | ~58 | 2025-10-15 |
 
-**Total MMU Code**: ~1,087 lines + 147 lines (listpst/listpcb) + 2,038 lines (web UI) = **3,272 lines**
+**Total MMU Code**: ~1,087 lines + 147 lines (listpst/listpcb) + 2,096 lines (web UI) = **3,330 lines**
 
-### ⏳ Remaining Phases (2 of 12)
+### ⏳ Remaining Phases (1 of 12) - OPTIONAL
 
 | Phase | Component | Priority | Estimated | Dependencies |
 |-------|-----------|----------|-----------|--------------|
-| 4 | Domain System | MEDIUM | 1-2 days | None |
-| 12 | Web UI - Register Display | LOW | 0.5 day | Phase 8 ✅ |
+| 4 | Domain System | OPTIONAL | 1-2 days | None |
 
-**Estimated Remaining Time**: 1.5-2.5 days
+**Note**: Phase 4 (Domain System) is optional for advanced domain switching features. All core MMU functionality and UI is complete.
+
+**Estimated Remaining Time**: 1-2 days (if Phase 4 desired)
 
 ---
 
