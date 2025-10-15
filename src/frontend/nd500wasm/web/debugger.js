@@ -106,26 +106,57 @@ class ND500Debugger {
         const mmuStatusBanner = document.getElementById('loadModalMmuStatus');
         const mmuStatusValue = document.getElementById('loadModalMmuValue');
         const mmuStatusHint = document.getElementById('loadModalMmuHint');
+        const mmuToggleBtn = document.getElementById('loadModalMmuToggle');
 
         const updateMmuStatus = () => {
             if (this.module) {
                 const mmuEnabled = this.module.ccall('nd500_dbg_mmu_is_enabled_js', 'number', [], []);
                 const mode = modeSelect.value;
 
+                // Get Mode and Domain rows
+                const modeRow = modeSelect.closest('.row');
+                const domainRow = domainSelect.closest('.row');
+                const psegAddrInput = document.getElementById('psegAddr');
+                const dsegAddrInput = document.getElementById('dsegAddr');
+
                 if (mmuEnabled) {
+                    // MMU Enabled: Show Mode and Domain, use virtual addresses
                     mmuStatusValue.textContent = '✓ Enabled';
                     mmuStatusValue.style.color = '#4CAF50';
+                    mmuStatusBanner.style.backgroundColor = '#e8f5e9';
+                    mmuToggleBtn.textContent = 'Disable MMU';
+                    mmuToggleBtn.style.backgroundColor = '#f44336';
+
+                    // Show Mode and Domain fields
+                    if (modeRow) modeRow.style.display = '';
+                    if (domainRow) domainRow.style.display = '';
+
+                    // Update hint and placeholders based on mode
                     if (mode === 'kernel') {
                         mmuStatusHint.textContent = 'Virtual addresses: Code 0x08000000-0x0FFFFFFF, Data 0x00000000-0x07FFFFFF';
+                        psegAddrInput.placeholder = 'Default: 0x08000000 (kernel code)';
+                        dsegAddrInput.placeholder = 'Default: 0x00000000 (kernel data)';
                     } else {
                         mmuStatusHint.textContent = 'Virtual addresses: Code 0xD0000000-0xD7FFFFFF, Data 0xF0000000-0xF7FFFFFF';
+                        psegAddrInput.placeholder = 'Default: 0xD0000000 (user code)';
+                        dsegAddrInput.placeholder = 'Default: 0xF0000000 (user data)';
                     }
-                    mmuStatusBanner.style.backgroundColor = '#e8f5e9';
                 } else {
+                    // MMU Disabled: Hide Mode and Domain, use physical addresses
                     mmuStatusValue.textContent = '✗ Disabled';
                     mmuStatusValue.style.color = '#f44336';
-                    mmuStatusHint.textContent = 'Physical addresses only (0x00000000-0x00FFFFFF). Load will fail at high addresses.';
+                    mmuStatusHint.textContent = 'Physical memory: 0x00000000-0x00FFFFFF (16MB) - Direct addressing, no domains';
                     mmuStatusBanner.style.backgroundColor = '#ffebee';
+                    mmuToggleBtn.textContent = 'Enable MMU';
+                    mmuToggleBtn.style.backgroundColor = '#4CAF50';
+
+                    // Hide Mode and Domain fields
+                    if (modeRow) modeRow.style.display = 'none';
+                    if (domainRow) domainRow.style.display = 'none';
+
+                    // Update placeholders for physical addresses
+                    psegAddrInput.placeholder = 'Physical address (0x00000000-0x003FFFFF)';
+                    dsegAddrInput.placeholder = 'Physical address (0x00400000-0x007FFFFF)';
                 }
             }
         };
@@ -142,6 +173,27 @@ class ND500Debugger {
 
         // Initial MMU status update
         updateMmuStatus();
+
+        // MMU toggle button handler
+        mmuToggleBtn.onclick = async () => {
+            if (this.module) {
+                const mmuEnabled = this.module.ccall('nd500_dbg_mmu_is_enabled_js', 'number', [], []);
+
+                if (mmuEnabled) {
+                    // Disable MMU
+                    this.module.ccall('nd500_dbg_execute_command_js', 'number', ['string'], ['mmu off']);
+                    this.updateStatus('MMU disabled');
+                } else {
+                    // Enable MMU - run mmusetup
+                    this.module.ccall('nd500_dbg_execute_command_js', 'number', ['string'], ['mmusetup']);
+                    this.updateStatus('MMU enabled with default configuration');
+                }
+
+                // Update UI after toggle
+                updateMmuStatus();
+                this.updateUI();
+            }
+        };
 
         const updateVisibility = () => {
             const type = Array.from(typeRadios).find(r => r.checked)?.value || 'aout';
