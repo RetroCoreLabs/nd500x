@@ -1,1 +1,0 @@
-/usr/bin/cc CMakeFiles/nd500x.dir/nd500x.c.o -o ../../../bin/nd500x  ../../../lib/libnd500_cpu.a ../../../lib/libnd500_machine.a ../../../lib/libnd500_ndlib.a ../../../lib/libnd500_debugger.a ../../../lib/libnd500_machine.a ../../../lib/libnd500_cpu.a ../../../lib/libnd500_instr.a ../../../lib/libnd500_ndlib.a -lreadline 

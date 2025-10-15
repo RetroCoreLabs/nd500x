@@ -1,2 +1,0 @@
-/usr/bin/ar qc ../../lib/libnd500_machine.a CMakeFiles/nd500_machine.dir/machine.c.o CMakeFiles/nd500_machine.dir/io.c.o CMakeFiles/nd500_machine.dir/debug_api.c.o CMakeFiles/nd500_machine.dir/machine_loader.c.o CMakeFiles/nd500_machine.dir/breakpoints.c.o
-/usr/bin/ranlib ../../lib/libnd500_machine.a
