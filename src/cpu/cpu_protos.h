@@ -194,4 +194,8 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out);
 /* Execute one decoded instruction */
 void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 
+/* Operand access helpers for instruction implementations */
+uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op);
+void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32_t value);
+
 

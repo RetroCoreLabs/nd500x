@@ -449,7 +449,7 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecod
     return address;
 }
 
-static uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
+uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
     switch (op->mode) {
         case ND500_ADDR_CONSTANT:
             return get_operand_value32(op);
@@ -476,7 +476,7 @@ static uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
     }
 }
 
-static void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32_t value) {
+void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32_t value) {
     switch (op->mode) {
         case ND500_ADDR_REGISTER:
             if (op->reg < 4) cpu->I[op->reg] = value;
@@ -501,38 +501,19 @@ static void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32
 }
 
 void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    if (!cpu || !cpu->machine || !fi || !fi->mnemonic) return;
-    
-    /* Check for unknown/illegal instructions */
-    if (strcmp(fi->mnemonic, "???") == 0 || strcmp(fi->mnemonic, "UNKNOWN") == 0) {
-        /* Raise illegal instruction trap (non-ignorable) */
+    if (!cpu || !cpu->machine || !fi) return;
+
+    /* O(1) dispatch using opcode-indexed function pointer table */
+    InstrExecFunc func = g_instr_exec_table[fi->opcode];
+
+    if (func == NULL) {
+        /* No implementation for this opcode - raise illegal instruction trap */
         trap_illegal_instruction(cpu->PC, fi->opcode);
-        /* Stop execution - trap was raised */
         return;
     }
-    
-    /* Minimal: implement move and comp as examples */
-    if (strcmp(fi->mnemonic, "move") == 0 && fi->operand_count == 2) {
-        const Nd500OperandDecoded* src = &fi->operands[0];
-        const Nd500OperandDecoded* dst = &fi->operands[1];
-        uint32_t val = read_operand_w(cpu, src);
-        write_operand_w(cpu, dst, val);
-        return;
-    }
-    if (strcmp(fi->mnemonic, "comp") == 0 && fi->operand_count == 1) {
-        /* Compare with zero as placeholder */
-        const Nd500OperandDecoded* s = &fi->operands[0];
-        uint32_t v = read_operand_w(cpu, s);
-        /* Update FLAGS basic */
-        cpu->FLAGS = 0;
-        if (v == 0) cpu->FLAGS |= 1; /* Z */
-        return;
-    }
-    
-    /* For any other unimplemented instruction, raise illegal instruction trap */
-    printf("[CPU] Unimplemented instruction: %s\n", fi->mnemonic);
-    trap_illegal_instruction(cpu->PC, fi->opcode);
-    /* Stop execution - trap was raised */
+
+    /* Call the instruction implementation */
+    func(cpu, fi);
 }
 
 

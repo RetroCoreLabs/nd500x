@@ -110,12 +110,9 @@ if(PLATFORM_WASM OR BUILD_WASM)
         COMMENT "Generating ND-500 instruction tables from JSON (using native tool)"
         VERBATIM
     )
-    
+
     add_custom_target(nd500_instr_codegen DEPENDS ${GEN_H} ${GEN_C})
-    add_library(nd500_instr STATIC ${GEN_C})
-    add_dependencies(nd500_instr nd500_instr_codegen)
-    target_include_directories(nd500_instr PUBLIC ${CMAKE_BINARY_DIR}/include)
-    target_link_libraries(nd500_cpu PUBLIC nd500_instr)
+    add_dependencies(nd500_cpu nd500_instr_codegen)
     target_include_directories(nd500_cpu PUBLIC ${CMAKE_BINARY_DIR}/include)
 else()
     # For native builds, build and use the gen_instructions tool
@@ -133,12 +130,9 @@ else()
         COMMENT "Generating ND-500 instruction tables from JSON"
         VERBATIM
     )
-    
+
     add_custom_target(nd500_instr_codegen DEPENDS ${GEN_H} ${GEN_C})
-    add_library(nd500_instr STATIC ${GEN_C})
-    add_dependencies(nd500_instr nd500_instr_codegen)
-    target_include_directories(nd500_instr PUBLIC ${CMAKE_BINARY_DIR}/include)
-    target_link_libraries(nd500_cpu PUBLIC nd500_instr)
+    add_dependencies(nd500_cpu nd500_instr_codegen)
     target_include_directories(nd500_cpu PUBLIC ${CMAKE_BINARY_DIR}/include)
 endif()
 
