@@ -63,8 +63,8 @@ if(NOT PLATFORM_WASM)
     endif()
 endif()
 
-# Optionally include externals if present
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap")
+# Optionally include externals if present (native only - DAP requires sockets)
+if(NOT PLATFORM_WASM AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap")
     add_definitions(-DHAVE_LIBDAP)
     add_subdirectory(external/libdap)
     if(TARGET dap_objects AND TARGET cjson_objects)
@@ -81,9 +81,10 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# Add subdirectories
 add_subdirectory(src/ndlib)
-    add_subdirectory(src/disasm)
-    add_subdirectory(src/machine)
+add_subdirectory(src/disasm)
+add_subdirectory(src/machine)
 add_subdirectory(src/cpu)
 add_subdirectory(src/debugger)
 
@@ -93,53 +94,10 @@ else()
     add_subdirectory(src/frontend/nd500x)
 endif()
 
-# Instruction generator tool and codegen step
-if(PLATFORM_WASM OR BUILD_WASM)
-    # For WASM builds, use native gen_instructions tool
-    set(NATIVE_BUILD_DIR "${CMAKE_SOURCE_DIR}/build")
-    set(NATIVE_GEN_TOOL "${NATIVE_BUILD_DIR}/bin/gen_instructions")
-    set(INSTR_JSON "${CMAKE_SOURCE_DIR}/src/cpu/instructions.json")
-    set(GEN_H "${CMAKE_BINARY_DIR}/include/nd500_instructions_gen.h")
-    set(GEN_C "${CMAKE_BINARY_DIR}/nd500_instructions_gen.c")
-    
-    add_custom_command(
-        OUTPUT ${GEN_H} ${GEN_C}
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include
-        COMMAND ${NATIVE_GEN_TOOL} ${INSTR_JSON} ${GEN_H} ${GEN_C}
-        DEPENDS ${NATIVE_GEN_TOOL} ${INSTR_JSON}
-        COMMENT "Generating ND-500 instruction tables from JSON (using native tool)"
-        VERBATIM
-    )
-
-    add_custom_target(nd500_instr_codegen DEPENDS ${GEN_H} ${GEN_C})
-    add_dependencies(nd500_cpu nd500_instr_codegen)
-    target_include_directories(nd500_cpu PUBLIC ${CMAKE_BINARY_DIR}/include)
-else()
-    # For native builds, build and use the gen_instructions tool
-    add_subdirectory(tools/gen_instructions)
-    set(INSTR_JSON "${CMAKE_BINARY_DIR}/src/cpu/instructions.json")
-    set(GEN_H "${CMAKE_BINARY_DIR}/include/nd500_instructions_gen.h")
-    set(GEN_C "${CMAKE_BINARY_DIR}/nd500_instructions_gen.c")
-    add_custom_command(
-        OUTPUT ${GEN_H} ${GEN_C}
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/src/cpu
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/src/cpu/instructions.json ${INSTR_JSON}
-        COMMAND gen_instructions ${INSTR_JSON} ${GEN_H} ${GEN_C}
-        DEPENDS gen_instructions ${INSTR_JSON}
-        COMMENT "Generating ND-500 instruction tables from JSON"
-        VERBATIM
-    )
-
-    add_custom_target(nd500_instr_codegen DEPENDS ${GEN_H} ${GEN_C})
-    add_dependencies(nd500_cpu nd500_instr_codegen)
-    target_include_directories(nd500_cpu PUBLIC ${CMAKE_BINARY_DIR}/include)
-endif()
-
 if(PLATFORM_WASM OR BUILD_WASM)
     if(TARGET nd500wasm)
         set_property(TARGET nd500wasm APPEND_STRING PROPERTY LINK_FLAGS " -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','UTF8ToString','lengthBytesUTF8','HEAPU8'] -s ALLOW_MEMORY_GROWTH=1")
-        set_property(TARGET nd500wasm APPEND_STRING PROPERTY LINK_FLAGS " -s EXPORTED_FUNCTIONS=['_malloc','_free','_nd500wasm_init','_nd500_dbg_mem_json','_nd500_dbg_disasm_json','_nd500_dbg_regs_json','_nd500_dbg_step_js','_nd500_dbg_run_js','_nd500_dbg_stop_js','_nd500_dbg_load_aout_js','_nd500_dbg_load_aout_path_js','_nd500_dbg_bp_add_js','_nd500_dbg_bp_del_js','_nd500_dbg_bp_enable_js','_nd500_dbg_bp_disable_js','_nd500_dbg_bp_list_json','_nd500_dbg_status_json','_nd500_dbg_traps_json','_nd500_dbg_clear_traps_js','_nd500_dbg_set_reg_js','_nd500_dbg_instr_count_js','_nd500_dbg_mnemonic_js']")
+        set_property(TARGET nd500wasm APPEND_STRING PROPERTY LINK_FLAGS " -s EXPORTED_FUNCTIONS=['_malloc','_free','_nd500wasm_init','_nd500_dbg_mem_json','_nd500_dbg_disasm_json','_nd500_dbg_regs_json','_nd500_dbg_step_js','_nd500_dbg_run_js','_nd500_dbg_stop_js','_nd500_dbg_load_aout_js','_nd500_dbg_load_aout_path_js','_nd500_dbg_load_pseg_path_js','_nd500_dbg_load_dseg_path_js','_nd500_dbg_load_segments_path_js','_nd500_dbg_load_strerror_js','_nd500_dbg_get_memory_size_js','_nd500_dbg_reset_memory_js','_nd500_dbg_set_pc_js','_nd500_dbg_bp_add_js','_nd500_dbg_bp_del_js','_nd500_dbg_bp_enable_js','_nd500_dbg_bp_disable_js','_nd500_dbg_bp_list_json','_nd500_dbg_status_json','_nd500_dbg_traps_json','_nd500_dbg_clear_traps_js','_nd500_dbg_set_reg_js','_nd500_dbg_instr_count_js','_nd500_dbg_mnemonic_js','_nd500_dbg_build_info_js','_nd500_dbg_clear_symbols_js','_nd500_dbg_symbols_json']")
         # Enable modularized factory for Node/web and ensure it works under Node tests
         set_property(TARGET nd500wasm APPEND_STRING PROPERTY LINK_FLAGS " -s MODULARIZE=1 -s EXPORT_NAME='ND500Wasm' -s ENVIRONMENT='web,node'")
         
@@ -149,11 +107,14 @@ if(PLATFORM_WASM OR BUILD_WASM)
             OUTPUT_NAME "nd500wasm")
         
         # Copy web files to build output
-        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/index.html 
+        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/index.html
              DESTINATION ${CMAKE_BINARY_DIR}/bin/)
-        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/style.css 
+        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/style.css
              DESTINATION ${CMAKE_BINARY_DIR}/bin/)
-        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/debugger.js 
+        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/debugger.js
+             DESTINATION ${CMAKE_BINARY_DIR}/bin/)
+        # Copy demo kernel binary
+        file(COPY ${CMAKE_SOURCE_DIR}/examples/05-c-kernel/kernel
              DESTINATION ${CMAKE_BINARY_DIR}/bin/)
     endif()
 endif()
