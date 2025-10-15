@@ -46,13 +46,21 @@ int nd500_load_file_to_memory(Nd500Machine* m, const char* path, uint32_t base_a
     int rc = 0;
     uint8_t buffer[4096];
     uint32_t offset = 0;
+
+    /* Check if MMU is enabled - if so, allow virtual addresses */
+    int mmu_enabled = nd500_machine_mmu_is_enabled(m);
+
     for (;;) {
         size_t rd = fread(buffer, 1, sizeof(buffer), f);
         if (rd == 0) break;
-        if (base_addr + offset + (uint32_t)rd > m->memory_size) {
+
+        /* Only check physical memory range if MMU is disabled */
+        if (!mmu_enabled && (base_addr + offset + (uint32_t)rd > m->memory_size)) {
             rc = -2; /* out of range */
             break;
         }
+
+        /* nd500_bus_write8 will handle MMU translation if enabled */
         for (size_t i = 0; i < rd; ++i) {
             nd500_bus_write8(m, base_addr + (uint32_t)offset + (uint32_t)i, buffer[i]);
         }
@@ -82,8 +90,11 @@ const char* nd500_load_strerror(int error_code, uint32_t attempted_addr, uint32_
             uint32_t mem_mb = mem_size / (1024 * 1024);
             snprintf(error_buffer, sizeof(error_buffer),
                 "Address 0x%08X is out of range. Emulator has %uMB physical memory "
-                "(0x00000000-0x%08X) but virtual memory is not yet implemented.\n"
-                "                 Workaround: Use debugger to load at custom low addresses:\n"
+                "(0x00000000-0x%08X) and MMU is disabled.\n"
+                "                 Solution: Enable MMU with 'mmusetup' command first:\n"
+                "                   1. Run 'mmusetup' to configure virtual memory\n"
+                "                   2. Then load files at virtual addresses (0x08000000 for kernel)\n"
+                "                 Or load at physical addresses:\n"
                 "                   load pseg <file> kernel 0x00000000\n"
                 "                   load dseg <file> kernel 0x00400000",
                 attempted_addr, mem_mb, mem_size - 1);

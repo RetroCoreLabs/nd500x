@@ -102,6 +102,34 @@ class ND500Debugger {
 
         const domainSelect = document.getElementById('domainSelect');
 
+        // Check and display MMU status
+        const mmuStatusBanner = document.getElementById('loadModalMmuStatus');
+        const mmuStatusValue = document.getElementById('loadModalMmuValue');
+        const mmuStatusHint = document.getElementById('loadModalMmuHint');
+
+        const updateMmuStatus = () => {
+            if (this.module) {
+                const mmuEnabled = this.module.ccall('nd500_dbg_mmu_is_enabled_js', 'number', [], []);
+                const mode = modeSelect.value;
+
+                if (mmuEnabled) {
+                    mmuStatusValue.textContent = '✓ Enabled';
+                    mmuStatusValue.style.color = '#4CAF50';
+                    if (mode === 'kernel') {
+                        mmuStatusHint.textContent = 'Virtual addresses: Code 0x08000000-0x0FFFFFFF, Data 0x00000000-0x07FFFFFF';
+                    } else {
+                        mmuStatusHint.textContent = 'Virtual addresses: Code 0xD0000000-0xD7FFFFFF, Data 0xF0000000-0xF7FFFFFF';
+                    }
+                    mmuStatusBanner.style.backgroundColor = '#e8f5e9';
+                } else {
+                    mmuStatusValue.textContent = '✗ Disabled';
+                    mmuStatusValue.style.color = '#f44336';
+                    mmuStatusHint.textContent = 'Physical addresses only (0x00000000-0x00FFFFFF). Load will fail at high addresses.';
+                    mmuStatusBanner.style.backgroundColor = '#ffebee';
+                }
+            }
+        };
+
         // Update domain when mode changes
         modeSelect.onchange = () => {
             if (modeSelect.value === 'kernel') {
@@ -109,7 +137,11 @@ class ND500Debugger {
             } else {
                 domainSelect.value = '1';
             }
+            updateMmuStatus();
         };
+
+        // Initial MMU status update
+        updateMmuStatus();
 
         const updateVisibility = () => {
             const type = Array.from(typeRadios).find(r => r.checked)?.value || 'aout';
