@@ -134,12 +134,12 @@ class ND500Debugger {
                     // Update hint and placeholders based on mode
                     if (mode === 'kernel') {
                         mmuStatusHint.textContent = 'Virtual addresses: Code 0x08000000-0x0FFFFFFF, Data 0x00000000-0x07FFFFFF';
-                        psegAddrInput.placeholder = 'Default: 0x08000000 (kernel code)';
-                        dsegAddrInput.placeholder = 'Default: 0x00000000 (kernel data)';
+                        if (psegAddrInput) psegAddrInput.placeholder = 'Default: 0x08000000 (kernel code)';
+                        if (dsegAddrInput) dsegAddrInput.placeholder = 'Default: 0x00000000 (kernel data)';
                     } else {
                         mmuStatusHint.textContent = 'Virtual addresses: Code 0xD0000000-0xD7FFFFFF, Data 0xF0000000-0xF7FFFFFF';
-                        psegAddrInput.placeholder = 'Default: 0xD0000000 (user code)';
-                        dsegAddrInput.placeholder = 'Default: 0xF0000000 (user data)';
+                        if (psegAddrInput) psegAddrInput.placeholder = 'Default: 0xD0000000 (user code)';
+                        if (dsegAddrInput) dsegAddrInput.placeholder = 'Default: 0xF0000000 (user data)';
                     }
                 } else {
                     // MMU Disabled: Hide Mode and Domain, use physical addresses
@@ -155,8 +155,8 @@ class ND500Debugger {
                     if (domainRow) domainRow.style.display = 'none';
 
                     // Update placeholders for physical addresses
-                    psegAddrInput.placeholder = 'Physical address (0x00000000-0x003FFFFF)';
-                    dsegAddrInput.placeholder = 'Physical address (0x00400000-0x007FFFFF)';
+                    if (psegAddrInput) psegAddrInput.placeholder = 'Physical address (0x00000000-0x003FFFFF)';
+                    if (dsegAddrInput) dsegAddrInput.placeholder = 'Physical address (0x00400000-0x007FFFFF)';
                 }
             }
         };
