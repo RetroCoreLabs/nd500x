@@ -71,3 +71,7 @@ void nd500_machine_enable_mmu(Nd500Machine* m);
 void nd500_machine_disable_mmu(Nd500Machine* m);
 int nd500_machine_mmu_is_enabled(Nd500Machine* m);
 
+/* Memory Map Visualization */
+const char* nd500_dbg_memory_map_json(Nd500Machine* m);
+const char* nd500_dbg_memory_map_for_domain_json(Nd500Machine* m, int domain);
+
