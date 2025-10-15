@@ -47,7 +47,7 @@ jobs:
         inlineScript: |
           az storage blob upload-batch \
             --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
-            --auth-mode key \
+            --auth-mode login \
             --destination '$web' \
             --source ./build_wasm/bin/ \
             --overwrite \
@@ -56,7 +56,7 @@ jobs:
 
           az storage blob upload-batch \
             --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
-            --auth-mode key \
+            --auth-mode login \
             --destination '$web' \
             --source ./build_wasm/bin/ \
             --overwrite \
@@ -65,7 +65,7 @@ jobs:
 
           az storage blob upload-batch \
             --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
-            --auth-mode key \
+            --auth-mode login \
             --destination '$web' \
             --source ./build_wasm/bin/ \
             --overwrite \
@@ -74,7 +74,7 @@ jobs:
 
           az storage blob upload-batch \
             --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
-            --auth-mode key \
+            --auth-mode login \
             --destination '$web' \
             --source ./build_wasm/bin/ \
             --overwrite \
@@ -83,7 +83,7 @@ jobs:
 
           az storage blob upload-batch \
             --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
-            --auth-mode key \
+            --auth-mode login \
             --destination '$web' \
             --source ./build_wasm/bin/ \
             --overwrite \
