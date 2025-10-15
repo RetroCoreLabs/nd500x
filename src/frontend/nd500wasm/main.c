@@ -180,6 +180,12 @@ const char* nd500_dbg_regs_json(void) {
 	cJSON_AddNumberToObject(root, "MTE2", r.MTE2);
 	cJSON_AddNumberToObject(root, "TEMM1", r.TEMM1);
 	cJSON_AddNumberToObject(root, "TEMM2", r.TEMM2);
+	/* MMU registers */
+	cJSON_AddNumberToObject(root, "PSTP", r.PSTP);
+	cJSON_AddNumberToObject(root, "DITBASE", r.DITBASE);
+	cJSON_AddNumberToObject(root, "CED", r.CED);
+	cJSON_AddNumberToObject(root, "CAD", r.CAD);
+	cJSON_AddNumberToObject(root, "PS", r.PS);
 	return dup_json_string(root);
 }
 
@@ -319,6 +325,16 @@ void nd500_dbg_set_reg_js(const char* reg_name, uint32_t value) {
 		g_machine.cpu->HL = value;
 	} else if (strcmp(reg_name, "THA") == 0) {
 		g_machine.cpu->THA = value;
+	} else if (strcmp(reg_name, "PSTP") == 0) {
+		g_machine.cpu->PSTP = value;
+	} else if (strcmp(reg_name, "DITBASE") == 0) {
+		g_machine.cpu->DITBASE = value;
+	} else if (strcmp(reg_name, "CED") == 0) {
+		g_machine.cpu->CED = value;
+	} else if (strcmp(reg_name, "CAD") == 0) {
+		g_machine.cpu->CAD = value;
+	} else if (strcmp(reg_name, "PS") == 0) {
+		g_machine.cpu->PS = value;
 	}
 }
 
@@ -391,11 +407,8 @@ const char* nd500_cmd_exec_js(const char* cmdline) {
 	/* Execute command */
 	int result = nd500_cmd_execute(&g_machine, cmdline, &ctx);
 
-	/* Return output buffer (or error message) */
-	if (result < 0) {
-		return "Error executing command";
-	}
-
+	/* Return output buffer (contains either success output or error messages) */
+	/* Commands write error messages to output buffer via ctx.error callback */
 	return strdup(g_wasm_output_buffer);
 }
 
