@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <setjmp.h>
 #include "cpu_protos.h"
+#include "nd500_mmu.h"
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
 
@@ -16,6 +17,9 @@ void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
 	memset(cpu, 0, sizeof(*cpu));
 	cpu->machine = machine;
 	if (machine) machine->cpu = cpu;
+
+	/* Initialize MMU structures (PST, PCB tables) */
+	nd500_mmu_init(cpu);
 }
 
 void nd500_cpu_reset(Nd500Cpu* cpu) {
@@ -30,7 +34,10 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	cpu->OTE1 = cpu->OTE2 = cpu->CTE1 = cpu->CTE2 = 0;
 	cpu->MTE1 = cpu->MTE2 = cpu->TEMM1 = cpu->TEMM2 = 0;
 	cpu->ST1 = cpu->ST2 = 0;  /* Initialize status registers */
-	
+
+	/* Initialize MMU registers */
+	cpu->PSTP = cpu->DITBASE = cpu->CED = cpu->CAD = cpu->PS = 0;
+
 	/* Clear any pending traps */
 	nd500_trap_clear();
 }
@@ -98,6 +105,8 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {
 	out->OTE1 = cpu->OTE1; out->OTE2 = cpu->OTE2; out->CTE1 = cpu->CTE1; out->CTE2 = cpu->CTE2;
 	out->MTE1 = cpu->MTE1; out->MTE2 = cpu->MTE2; out->TEMM1 = cpu->TEMM1; out->TEMM2 = cpu->TEMM2;
 	out->ST1 = cpu->ST1; out->ST2 = cpu->ST2;
+	out->PSTP = cpu->PSTP; out->DITBASE = cpu->DITBASE; out->CED = cpu->CED;
+	out->CAD = cpu->CAD; out->PS = cpu->PS;
 }
 
 /* ═══════════════════════════════════════════════════════ */

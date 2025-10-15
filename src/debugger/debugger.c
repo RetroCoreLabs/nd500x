@@ -54,7 +54,8 @@ static const char* profile_subcommands[] = {
 
 static const char* set_subcommands[] = {
     "PC", "I1", "I2", "I3", "I4", "A1", "A2", "A3", "A4", "E1", "E2", "E3", "E4",
-    "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2"
+    "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2",
+    "PSTP", "DITBASE", "CED", "CAD", "PS"
 };
 
 static int tab_complete_command(const char* partial, char* completion, size_t max_len) {
@@ -234,9 +235,10 @@ static char* command_generator(const char* text, int state) {
     };
     static const char* set_matches[] = {
         "PC", "I1", "I2", "I3", "I4", "A1", "A2", "A3", "A4", "E1", "E2", "E3", "E4",
-        "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2"
+        "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2",
+        "PSTP", "DITBASE", "CED", "CAD", "PS"
     };
-    
+
     /* Check if we're completing a subcommand */
 #ifdef HAVE_READLINE
     char* line = rl_line_buffer;
@@ -390,9 +392,10 @@ static char* subcommand_generator(const char* text, int state) {
     };
     static const char* set_matches[] = {
         "PC", "I1", "I2", "I3", "I4", "A1", "A2", "A3", "A4", "E1", "E2", "E3", "E4",
-        "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2"
+        "L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2",
+        "PSTP", "DITBASE", "CED", "CAD", "PS"
     };
-    
+
 #ifdef HAVE_READLINE
     char* line = rl_line_buffer;
 #else
@@ -810,6 +813,8 @@ int nd500_debugger_repl(Nd500Machine* m) {
             printf("TOS=%08X LL=%08X HL=%08X THA=%08X\n", r.TOS, r.LL, r.HL, r.THA);
             printf("OTE1=%08X OTE2=%08X CTE1=%08X CTE2=%08X\n", r.OTE1, r.OTE2, r.CTE1, r.CTE2);
             printf("MTE1=%08X MTE2=%08X TEMM1=%08X TEMM2=%08X\n", r.MTE1, r.MTE2, r.TEMM1, r.TEMM2);
+            printf("PSTP=%08X DITBASE=%08X PS=%08X\n", r.PSTP, r.DITBASE, r.PS);
+            printf("CED=%08X CAD=%08X\n", r.CED, r.CAD);
         } else if (strcmp(tok, "load") == 0) {
             char* type_or_path = strtok(NULL, " \t\r\n");
             if (!type_or_path) {
@@ -1204,7 +1209,8 @@ int nd500_debugger_repl(Nd500Machine* m) {
             
             if (!reg_name || !value_str) {
                 printf("usage: set <register> <value>\n");
-                printf("registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, P, FLAGS, TOS, LL, HL, THA\n");
+                printf("registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, P, FLAGS, TOS, LL, HL, THA, ST1, ST2\n");
+                printf("           PSTP, DITBASE, CED, CAD, PS\n");
                 continue;
             }
             
@@ -1280,9 +1286,25 @@ int nd500_debugger_repl(Nd500Machine* m) {
             } else if (strcmp(reg_name, "ST2") == 0) {
                 m->cpu->ST2 = value;
                 printf("ST2 = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "PSTP") == 0) {
+                m->cpu->PSTP = value;
+                printf("PSTP = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "DITBASE") == 0) {
+                m->cpu->DITBASE = value;
+                printf("DITBASE = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "CED") == 0) {
+                m->cpu->CED = value;
+                printf("CED = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "CAD") == 0) {
+                m->cpu->CAD = value;
+                printf("CAD = 0x%08X\n", value);
+            } else if (strcmp(reg_name, "PS") == 0) {
+                m->cpu->PS = value;
+                printf("PS = 0x%08X\n", value);
             } else {
                 printf("unknown register: %s\n", reg_name);
                 printf("registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2\n");
+                printf("           PSTP, DITBASE, CED, CAD, PS\n");
             }
         } else if (strcmp(tok, "dap") == 0) {
 #ifdef WITH_DEBUGGER
