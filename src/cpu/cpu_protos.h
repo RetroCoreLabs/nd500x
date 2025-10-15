@@ -23,6 +23,12 @@ typedef struct Nd500Cpu {
 	uint32_t ST1, ST2;  /* Status register (64-bit) */
 	/* Flags (simplified status) */
 	uint32_t FLAGS;
+	/* MMU registers */
+	uint32_t PSTP;      /* Physical Segment Table Pointer */
+	uint32_t DITBASE;   /* Domain Information Table Base */
+	uint32_t CED;       /* Current Executing Domain */
+	uint32_t CAD;       /* Current Alternative Domain */
+	uint32_t PS;        /* Process Segment */
 
 	Nd500Machine* machine;
 } Nd500Cpu;
@@ -97,6 +103,7 @@ typedef struct Nd500Regs {
 	uint32_t TOS, LL, HL, THA;
 	uint32_t OTE1, OTE2, CTE1, CTE2, MTE1, MTE2, TEMM1, TEMM2;
 	uint32_t ST1, ST2;  /* Status registers (64-bit) */
+	uint32_t PSTP, DITBASE, CED, CAD, PS;  /* MMU registers */
 } Nd500Regs;
 
 void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine);
