@@ -7,6 +7,7 @@
 #include "../../machine/breakpoints.h"
 #include "../../ndlib/ndlib.h"
 #include "../../disasm/nd500_disasm.h"
+#include "../../debugger/commands.h"
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #endif
@@ -352,3 +353,78 @@ const char* nd500_dbg_symbols_json(void) {
 }
 
 
+/* ═══════════════════════════════════════════════════════ */
+/* SHARED COMMAND LIBRARY WASM INTERFACE */
+/* ═══════════════════════════════════════════════════════ */
+
+/* Output buffer for WASM command execution */
+static char g_wasm_output_buffer[16384];
+static size_t g_wasm_output_pos = 0;
+
+/* Output callback for WASM - appends to buffer */
+static void wasm_output(const char* line, void* ctx) {
+	(void)ctx; /* Unused */
+	size_t len = strlen(line);
+	if (g_wasm_output_pos + len + 1 < sizeof(g_wasm_output_buffer)) {
+		memcpy(g_wasm_output_buffer + g_wasm_output_pos, line, len);
+		g_wasm_output_pos += len;
+		g_wasm_output_buffer[g_wasm_output_pos++] = '\n';
+		g_wasm_output_buffer[g_wasm_output_pos] = '\0';
+	}
+}
+
+/* Execute a debugger command and return output as string */
+const char* nd500_cmd_exec_js(const char* cmdline) {
+	if (!cmdline) return "";
+
+	/* Clear output buffer */
+	g_wasm_output_pos = 0;
+	g_wasm_output_buffer[0] = '\0';
+
+	/* Set up command context */
+	CmdContext ctx = {
+		.output = wasm_output,
+		.error = wasm_output,  /* Errors also go to output buffer */
+		.context = NULL
+	};
+
+	/* Execute command */
+	int result = nd500_cmd_execute(&g_machine, cmdline, &ctx);
+
+	/* Return output buffer (or error message) */
+	if (result < 0) {
+		return "Error executing command";
+	}
+
+	return strdup(g_wasm_output_buffer);
+}
+
+/* Get list of available commands as JSON array */
+const char* nd500_cmd_list_js(void) {
+	cJSON* root = cJSON_CreateArray();
+
+	const char** commands = nd500_cmd_get_command_list();
+	if (commands) {
+		for (int i = 0; commands[i] != NULL; i++) {
+			cJSON_AddItemToArray(root, cJSON_CreateString(commands[i]));
+		}
+	}
+
+	return dup_json_string(root);
+}
+
+/* Get list of subcommands for a command as JSON array */
+const char* nd500_cmd_subcommands_js(const char* command) {
+	cJSON* root = cJSON_CreateArray();
+
+	if (command) {
+		const char** subcommands = nd500_cmd_get_subcommands(command);
+		if (subcommands) {
+			for (int i = 0; subcommands[i] != NULL; i++) {
+				cJSON_AddItemToArray(root, cJSON_CreateString(subcommands[i]));
+			}
+		}
+	}
+
+	return dup_json_string(root);
+}
