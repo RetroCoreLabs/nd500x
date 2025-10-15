@@ -11,6 +11,7 @@
         <div id="controls">
             <button id="loadBtn" class="btn-load">📁 Load</button>
             <button id="symbolsBtn" class="btn-symbols">🔍 Symbols</button>
+            <button id="consoleBtn" class="btn-console">💻 Console</button>
             <button id="stepBtn" class="btn-step">⏭️ Step</button>
             <button id="runBtn" class="btn-run">▶️ Run</button>
             <button id="stopBtn" class="btn-stop">⏹️ Stop</button>
@@ -121,6 +122,25 @@
             <div id="symbols-list"></div>
             <div class="actions">
                 <button id="symbolsCancelBtn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Console Modal -->
+    <div id="consoleModal" class="hidden">
+        <div class="modal-content console-modal">
+            <div class="console-header">
+                <h3>ND500X Console</h3>
+                <button id="consoleClearBtn" class="console-clear-btn">🗑️ Clear</button>
+            </div>
+            <div id="console-output"></div>
+            <div class="console-input-container">
+                <span class="console-prompt">&gt;</span>
+                <input type="text" id="consoleInput" class="console-input" placeholder="Enter command... (type 'help' for commands)" autocomplete="off">
+            </div>
+            <div class="console-footer">
+                <div class="console-hint">Press ↑/↓ for history, Tab for autocomplete</div>
+                <button id="consoleCancelBtn">Close</button>
             </div>
         </div>
     </div>

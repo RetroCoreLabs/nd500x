@@ -910,8 +910,209 @@ class ND500Debugger {
     }
 }
 
+// Console Manager for interactive command-line interface
+class ConsoleManager {
+    constructor(dbg) {
+        this.dbg = dbg;
+        this.history = [];
+        this.historyIndex = -1;
+        this.commands = [];
+        this.modal = document.getElementById('consoleModal');
+        this.output = document.getElementById('console-output');
+        this.input = document.getElementById('consoleInput');
+        this.clearBtn = document.getElementById('consoleClearBtn');
+        this.closeBtn = document.getElementById('consoleCancelBtn');
+        this.setupEventHandlers();
+        this.loadCommands();
+    }
+
+    setupEventHandlers() {
+        // Console button opens modal
+        document.getElementById('consoleBtn').onclick = () => {
+            this.show();
+        };
+
+        // Close button
+        this.closeBtn.onclick = () => {
+            this.hide();
+        };
+
+        // Clear button
+        this.clearBtn.onclick = () => {
+            this.clear();
+        };
+
+        // Input field handlers
+        this.input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.executeCommand();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.navigateHistory(-1);
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.navigateHistory(1);
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                this.autocomplete();
+            }
+        });
+
+        // Click outside modal to close
+        this.modal.addEventListener('click', (e) => {
+            if (e.target === this.modal) {
+                this.hide();
+            }
+        });
+    }
+
+    async loadCommands() {
+        if (!this.dbg.module) return;
+        try {
+            const json = this.dbg.module.ccall('nd500_cmd_list_js', 'string', [], []);
+            this.commands = JSON.parse(json);
+            console.log('Loaded commands:', this.commands);
+        } catch (error) {
+            console.error('Error loading commands:', error);
+            this.commands = [];
+        }
+    }
+
+    show() {
+        this.modal.classList.remove('hidden');
+        this.input.focus();
+        // Scroll to bottom
+        this.output.scrollTop = this.output.scrollHeight;
+    }
+
+    hide() {
+        this.modal.classList.add('hidden');
+    }
+
+    clear() {
+        this.output.innerHTML = '';
+    }
+
+    addLine(text, className = 'output') {
+        const line = document.createElement('div');
+        line.className = `console-line ${className}`;
+        line.textContent = text;
+        this.output.appendChild(line);
+        // Auto-scroll to bottom
+        this.output.scrollTop = this.output.scrollHeight;
+    }
+
+    executeCommand() {
+        const cmdline = this.input.value.trim();
+        if (!cmdline) return;
+
+        // Add to history
+        if (this.history.length === 0 || this.history[this.history.length - 1] !== cmdline) {
+            this.history.push(cmdline);
+        }
+        this.historyIndex = this.history.length;
+
+        // Display command
+        this.addLine('> ' + cmdline, 'command');
+
+        // Clear input
+        this.input.value = '';
+
+        // Execute via WASM
+        try {
+            const output = this.dbg.module.ccall('nd500_cmd_exec_js', 'string', ['string'], [cmdline]);
+            if (output && output.trim()) {
+                // Split output into lines and add each
+                const lines = output.split('\n');
+                lines.forEach(line => {
+                    if (line.trim()) {
+                        // Check if line contains error indicators
+                        const isError = line.toLowerCase().includes('error') ||
+                                      line.toLowerCase().includes('invalid') ||
+                                      line.toLowerCase().includes('failed') ||
+                                      line.toLowerCase().includes('unknown');
+                        this.addLine(line, isError ? 'error' : 'output');
+                    }
+                });
+            }
+
+            // Update UI after command execution
+            this.dbg.updateUI();
+        } catch (error) {
+            console.error('Error executing command:', error);
+            this.addLine('Error: ' + error.message, 'error');
+        }
+    }
+
+    navigateHistory(direction) {
+        if (this.history.length === 0) return;
+
+        this.historyIndex += direction;
+
+        // Clamp to valid range
+        if (this.historyIndex < 0) {
+            this.historyIndex = 0;
+        } else if (this.historyIndex >= this.history.length) {
+            this.historyIndex = this.history.length;
+            this.input.value = '';
+            return;
+        }
+
+        this.input.value = this.history[this.historyIndex];
+    }
+
+    autocomplete() {
+        const text = this.input.value;
+        const words = text.split(/\s+/);
+
+        if (words.length === 0) return;
+
+        if (words.length === 1) {
+            // Autocomplete command
+            const partial = words[0].toLowerCase();
+            const matches = this.commands.filter(cmd => cmd.toLowerCase().startsWith(partial));
+
+            if (matches.length === 1) {
+                // Single match - complete it
+                this.input.value = matches[0] + ' ';
+            } else if (matches.length > 1) {
+                // Multiple matches - show them
+                this.addLine('> ' + text, 'command');
+                this.addLine('Possible commands: ' + matches.join(', '), 'output');
+            }
+        } else {
+            // Autocomplete subcommand
+            const command = words[0];
+            const partial = words[words.length - 1].toLowerCase();
+
+            try {
+                const json = this.dbg.module.ccall('nd500_cmd_subcommands_js', 'string', ['string'], [command]);
+                const subcommands = JSON.parse(json);
+
+                if (subcommands.length === 0) return;
+
+                const matches = subcommands.filter(sub => sub.toLowerCase().startsWith(partial));
+
+                if (matches.length === 1) {
+                    // Single match - complete it
+                    words[words.length - 1] = matches[0];
+                    this.input.value = words.join(' ') + ' ';
+                } else if (matches.length > 1) {
+                    // Multiple matches - show them
+                    this.addLine('> ' + text, 'command');
+                    this.addLine('Possible subcommands: ' + matches.join(', '), 'output');
+                }
+            } catch (error) {
+                console.error('Error getting subcommands:', error);
+            }
+        }
+    }
+}
+
 // Initialize when WASM loads (support factory or legacy)
 let nd500Debugger;
+let consoleManager;
 
 async function initWasmAndUI(mod) {
     console.log('WASM module initialized');
@@ -924,7 +1125,13 @@ async function initWasmAndUI(mod) {
         console.log('Initializing debugger...');
         await nd500Debugger.init();
         console.log('Debugger initialized successfully');
-        
+
+        // Create console manager
+        console.log('Creating ConsoleManager...');
+        consoleManager = new ConsoleManager(nd500Debugger);
+        window.consoleManager = consoleManager;
+        console.log('ConsoleManager initialized successfully');
+
         // Set up event handlers
         document.getElementById('clearTrapsBtn').addEventListener('click', () => {
             nd500Debugger.clearTraps();
