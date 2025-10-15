@@ -1,2 +1,0 @@
-/usr/bin/ar qc ../../lib/libnd500_debugger.a CMakeFiles/nd500_debugger.dir/debugger.c.o CMakeFiles/nd500_debugger.dir/dap_adapter.c.o
-/usr/bin/ranlib ../../lib/libnd500_debugger.a

@@ -1,1 +1,0 @@
-/usr/bin/cc CMakeFiles/disasm_tests.dir/disasm_tests.c.o -o ../bin/disasm_tests  ../lib/libnd500_machine.a ../lib/libnd500_cpu.a ../lib/libnd500_ndlib.a ../lib/libnd500_instr.a 

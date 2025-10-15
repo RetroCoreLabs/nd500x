@@ -1,1 +1,0 @@
-/usr/bin/cc CMakeFiles/gen_instructions.dir/gen_instructions.c.o -o ../../bin/gen_instructions 

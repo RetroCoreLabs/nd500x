@@ -1,2 +1,0 @@
-/usr/bin/ar qc lib/libnd500_instr.a CMakeFiles/nd500_instr.dir/nd500_instructions_gen.c.o
-/usr/bin/ranlib lib/libnd500_instr.a
