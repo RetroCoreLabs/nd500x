@@ -53,6 +53,8 @@ static int cmd_showpst(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_showpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Command table */
@@ -97,6 +99,8 @@ static const CmdEntry g_commands[] = {
 	{"showpcb",     cmd_showpcb,      "Show PCB capabilities"},
 	{"phyladr",     cmd_phyladr,      "Translate virtual to physical address"},
 	{"mmusetup",    cmd_mmusetup,     "Setup demo MMU configuration"},
+	{"listpst",     cmd_listpst,      "List configured PST entries"},
+	{"listpcb",     cmd_listpcb,      "List configured PCB domains"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
 	{"exit",        cmd_quit,         "Quit debugger"},
@@ -296,7 +300,9 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  mmu [on|off]                Enable/disable MMU address translation");
 	output(ctx, "  mmusetup                    Setup demo MMU configuration for testing");
 	output(ctx, "  showmmu                     Show MMU status and configuration");
+	output(ctx, "  listpst                     List all configured (non-zero) PST entries");
 	output(ctx, "  showpst <psn>               Show PST entry details");
+	output(ctx, "  listpcb                     List all domains with configured segments");
 	output(ctx, "  showpcb <domain> [seg]      Show PCB capabilities for domain");
 	output(ctx, "  phyladr <vaddr> [rw] [id]   Translate virtual to physical address");
 	output(ctx, "                              rw: 0=read 1=write, id: 0=data 1=instruction");
@@ -958,9 +964,40 @@ static int cmd_showmmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  CAD     = 0x%08X  (Current Alternative Domain)", m->cpu->CAD);
 	output(ctx, "  PS      = 0x%08X  (Process Segment)", m->cpu->PS);
 	output(ctx, "");
-	output(ctx, "PST: %d entries max", MAX_PST);
-	output(ctx, "PCB: %d domains max", MAXDOM);
+
+	/* Count configured PST entries */
+	int pst_count = 0;
+	for (uint32_t psn = 0; psn < MAX_PST; psn++) {
+		PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(m->cpu, psn);
+		if (pst.index_mode != 0 || pst.physical_pfn != 0) {
+			pst_count++;
+		}
+	}
+
+	/* Count configured PCB domains/segments */
+	int domain_count = 0;
+	int segment_count = 0;
+	for (uint32_t domain = 0; domain < MAXDOM; domain++) {
+		int has_segments = 0;
+		for (int seg = 0; seg < 32; seg++) {
+			uint16_t pc = nd500_mmu_get_program_capability(m->cpu, domain, seg);
+			uint16_t dc = nd500_mmu_get_data_capability(m->cpu, domain, seg);
+			if (pc != 0 || dc != 0) {
+				if (!has_segments) {
+					domain_count++;
+					has_segments = 1;
+				}
+				segment_count++;
+			}
+		}
+	}
+
+	output(ctx, "PST: %d configured entries (of %d max)", pst_count, MAX_PST);
+	output(ctx, "PCB: %d domains with %d segments (of %d domains max)", domain_count, segment_count, MAXDOM);
 	output(ctx, "Page size: %d bytes", NBPG);
+	output(ctx, "");
+	output(ctx, "Use 'listpst' to see all configured PST entries");
+	output(ctx, "Use 'listpcb' to see all configured domains and segments");
 
 	return 0;
 }
@@ -1197,6 +1234,114 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  showpcb 0 5       - View segment 5 capabilities");
 	output(ctx, "  mmu on            - Enable MMU");
 	output(ctx, "  phyladr 0x00000000 - Translate segment 0 address");
+
+	return 0;
+}
+
+static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	output(ctx, "=== Configured PST Entries ===");
+	output(ctx, "PSN   Mode  PFN     Physical Address");
+	output(ctx, "----  ----  ------  ----------------");
+
+	int count = 0;
+	for (uint32_t psn = 0; psn < MAX_PST; psn++) {
+		PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(m->cpu, psn);
+
+		/* Only show non-zero entries */
+		if (pst.index_mode != 0 || pst.physical_pfn != 0) {
+			const char* mode_str;
+			switch (pst.index_mode) {
+				case PS_AZI: mode_str = "AZI "; break;
+				case PS_ASI: mode_str = "ASI "; break;
+				case PS_ADI: mode_str = "ADI "; break;
+				default: mode_str = "??? "; break;
+			}
+
+			output(ctx, "%4u  %s  0x%04X  0x%08X",
+				psn, mode_str, pst.physical_pfn, pst.physical_pfn << PGSHIFT);
+			count++;
+		}
+	}
+
+	if (count == 0) {
+		output(ctx, "(no configured entries)");
+		output(ctx, "");
+		output(ctx, "Use 'mmusetup' to create a demo configuration");
+	} else {
+		output(ctx, "");
+		output(ctx, "Total: %d configured entries (of %d max)", count, MAX_PST);
+	}
+
+	return 0;
+}
+
+static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	output(ctx, "=== Configured PCB Domains ===");
+
+	int total_domains = 0;
+	int total_segments = 0;
+
+	for (uint32_t domain = 0; domain < MAXDOM; domain++) {
+		int domain_has_segments = 0;
+
+		/* Check if this domain has any configured segments */
+		for (int seg = 0; seg < 32; seg++) {
+			uint16_t pc = nd500_mmu_get_program_capability(m->cpu, domain, seg);
+			uint16_t dc = nd500_mmu_get_data_capability(m->cpu, domain, seg);
+
+			if (pc != 0 || dc != 0) {
+				if (!domain_has_segments) {
+					/* First segment for this domain - print header */
+					output(ctx, "");
+					output(ctx, "Domain %u:", domain);
+					output(ctx, "  Seg  Prog   Data   Description");
+					output(ctx, "  ---  ----   ----   -----------");
+					domain_has_segments = 1;
+					total_domains++;
+				}
+
+				/* Build description */
+				char desc[80] = "";
+				if (pc != 0) {
+					uint16_t psn = pc & PC_PSN;
+					snprintf(desc, sizeof(desc), "P:PSN=%u", psn);
+					if (pc & PC_DIR) strcat(desc, ",DIR");
+				}
+				if (dc != 0) {
+					uint16_t psn = dc & DC_PSN;
+					if (desc[0]) strcat(desc, " ");
+					char temp[40];
+					snprintf(temp, sizeof(temp), "D:PSN=%u", psn);
+					strcat(desc, temp);
+					if (dc & DC_WRP) strcat(desc, ",WRP");
+					if (dc & DC_PAC) strcat(desc, ",PAC");
+				}
+
+				output(ctx, "  %3d  %04X   %04X   %s", seg, pc, dc, desc);
+				total_segments++;
+			}
+		}
+	}
+
+	if (total_domains == 0) {
+		output(ctx, "(no configured domains)");
+		output(ctx, "");
+		output(ctx, "Use 'mmusetup' to create a demo configuration");
+	} else {
+		output(ctx, "");
+		output(ctx, "Total: %d domains with %d configured segments", total_domains, total_segments);
+		output(ctx, "(Maximum: %d domains × 32 segments)", MAXDOM);
+	}
 
 	return 0;
 }
