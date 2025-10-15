@@ -92,6 +92,11 @@ class ND500Debugger {
 
     openLoadModal() {
         const modal = document.getElementById('loadModal');
+        if (!modal) {
+            console.error('Load modal not found');
+            return;
+        }
+
         const typeRadios = document.getElementsByName('loadType');
         const aoutFields = document.getElementById('aoutFields');
         const splitFields = document.getElementById('splitFields');
@@ -99,7 +104,6 @@ class ND500Debugger {
         const confirmBtn = document.getElementById('loadConfirmBtn');
         const modeSelect = document.getElementById('modeSelect');
         const startPc = document.getElementById('startPc');
-
         const domainSelect = document.getElementById('domainSelect');
 
         // Check and display MMU status
@@ -108,8 +112,21 @@ class ND500Debugger {
         const mmuStatusHint = document.getElementById('loadModalMmuHint');
         const mmuToggleBtn = document.getElementById('loadModalMmuToggle');
 
+        // Verify critical elements exist
+        if (!modeSelect || !domainSelect || !mmuStatusBanner || !mmuStatusValue || !mmuStatusHint || !mmuToggleBtn) {
+            console.error('Load modal elements missing:', {
+                modeSelect: !!modeSelect,
+                domainSelect: !!domainSelect,
+                mmuStatusBanner: !!mmuStatusBanner,
+                mmuStatusValue: !!mmuStatusValue,
+                mmuStatusHint: !!mmuStatusHint,
+                mmuToggleBtn: !!mmuToggleBtn
+            });
+            return;
+        }
+
         const updateMmuStatus = () => {
-            if (this.module) {
+            if (this.module && modeSelect) {
                 const mmuEnabled = this.module.ccall('nd500_dbg_mmu_is_enabled_js', 'number', [], []);
                 const mode = modeSelect.value;
 
