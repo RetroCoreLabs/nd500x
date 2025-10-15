@@ -20,5 +20,9 @@ const char* ndlib_symbols_reloc_for_range(uint32_t start_addr, uint32_t end_addr
 int ndlib_symbols_line_for_addr(uint32_t addr);
 void ndlib_symbols_list_all(void);
 void ndlib_symbols_list_unresolved(void);
+int ndlib_symbols_get_count(void);
+const char* ndlib_symbols_get_name(int index);
+uint32_t ndlib_symbols_get_addr(int index);
+uint8_t ndlib_symbols_get_type(int index);
 
 

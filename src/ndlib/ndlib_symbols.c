@@ -229,15 +229,35 @@ void ndlib_symbols_list_unresolved(void) {
             count++;
         }
     }
-    
+
     if (count == 0) return;
-    
+
     printf("; Unresolved Externals: %d\n", count);
     for (int i = 0; i < g_symbol_count; i++) {
         if ((g_symbols[i].type & 0x0E) == 0x00 && (g_symbols[i].type & 0x01)) {
             printf(";   - %s\n", g_symbols[i].name);
         }
     }
+}
+
+/* Get symbols count and data for iteration */
+int ndlib_symbols_get_count(void) {
+    return g_symbol_count;
+}
+
+const char* ndlib_symbols_get_name(int index) {
+    if (index < 0 || index >= g_symbol_count) return NULL;
+    return g_symbols[index].name;
+}
+
+uint32_t ndlib_symbols_get_addr(int index) {
+    if (index < 0 || index >= g_symbol_count) return 0;
+    return g_symbols[index].addr;
+}
+
+uint8_t ndlib_symbols_get_type(int index) {
+    if (index < 0 || index >= g_symbol_count) return 0;
+    return g_symbols[index].type;
 }
 
 /* Find relocation at or within address range */

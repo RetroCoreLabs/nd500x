@@ -463,14 +463,9 @@ void nd500_dbg_regs(struct Nd500Cpu* cpu, Nd500Regs* out_regs) {
 	nd500_cpu_get_regs(cpu, out_regs);
 }
 
-int nd500_dbg_load_aout_file(Nd500Machine* m, const char* path, uint32_t* out_entry_pc) {
-	/* TODO: integrate libsymbols; placeholder just zero entry */
-	if (out_entry_pc) *out_entry_pc = 0;
-	(void)m; (void)path;
-	return 0;
-}
+/* NOTE: nd500_dbg_load_aout_file and nd500_dbg_load_aout_buffer are now in machine_loader.c */
 
-int nd500_dbg_load_aout_buffer(Nd500Machine* m, const uint8_t* buf, size_t size, uint32_t* out_entry_pc) {
+int nd500_dbg_load_aout_buffer_OLD_UNUSED(Nd500Machine* m, const uint8_t* buf, size_t size, uint32_t* out_entry_pc) {
     if (!m || !buf || size < sizeof(unsigned int) * 8) return -1;
     /* Parse nd500 a.out header (32-bit fields, little-endian in our toolchain outputs) */
     unsigned int a_magic   = (unsigned int)(buf[0]  | (buf[1]  << 8) | (buf[2]  << 16) | (buf[3]  << 24));

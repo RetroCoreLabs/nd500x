@@ -35,12 +35,77 @@ unsigned int nd500_dbg_instr_count_js(void) { return g_nd500_instrs_count; }
 const char* nd500_dbg_mnemonic_js(unsigned int opcode) { return nd500_instr_mnemonic((uint16_t)opcode); }
 
 void nd500wasm_init(void) {
-	nd500_machine_init(&g_machine, 8 * 1024 * 1024);
+	nd500_machine_init(&g_machine, 16 * 1024 * 1024);
 	nd500_cpu_init(&g_cpu, &g_machine);
 	nd500_cpu_reset(&g_cpu);
     /* Force reference to instruction table so it is linked in */
     (void)anchor_instr_table();
 }
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+const char* nd500_dbg_build_info_js(void) {
+    return "Built: " __DATE__ " " __TIME__;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void nd500_dbg_clear_symbols_js(void) {
+    ndlib_symbols_clear();
+}
+#endif
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+int nd500_dbg_set_pc_js(uint32_t pc) {
+    g_cpu.PC = pc;
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int nd500_dbg_load_pseg_path_js(const char* path, uint32_t base_addr) {
+    return nd500_load_pseg_file(&g_machine, path, base_addr);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int nd500_dbg_load_dseg_path_js(const char* path, uint32_t base_addr) {
+    return nd500_load_dseg_file(&g_machine, path, base_addr);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* nd500_dbg_load_strerror_js(int error_code, uint32_t attempted_addr) {
+    return nd500_load_strerror(error_code, attempted_addr, g_machine.memory_size);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t nd500_dbg_get_memory_size_js(void) {
+    return g_machine.memory_size;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void nd500_dbg_reset_memory_js(void) {
+    memset(g_machine.memory, 0, g_machine.memory_size);
+    nd500_cpu_reset(&g_cpu);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int nd500_dbg_load_segments_path_js(const char* pseg_path, uint32_t pseg_base,
+                                    const char* dseg_path, uint32_t dseg_base,
+                                    int set_pc, uint32_t pc) {
+    int rc = 0;
+    if (pseg_path && *pseg_path) {
+        rc = nd500_load_pseg_file(&g_machine, pseg_path, pseg_base);
+        if (rc != 0) return rc;
+    }
+    if (dseg_path && *dseg_path) {
+        rc = nd500_load_dseg_file(&g_machine, dseg_path, dseg_base);
+        if (rc != 0) return rc;
+    }
+    if (set_pc) {
+        g_cpu.PC = pc;
+    }
+    return 0;
+}
+#endif
 
 static char* dup_json_string(cJSON* obj) {
 	char* s = cJSON_PrintUnformatted(obj);
@@ -138,6 +203,8 @@ int nd500_dbg_load_aout_path_js(const char* path) {
     if (rc == 0) {
         /* Objects: entry often 0 or 4; we keep PC at 0 for objects per user policy */
         if (entry != 0 && entry != 4) g_cpu.PC = entry; else g_cpu.PC = 0;
+        /* Load symbols for disassembly enhancement */
+        ndlib_symbols_load(path);
     }
     return rc;
 }
@@ -216,7 +283,7 @@ void nd500_dbg_clear_traps_js(void) {
 
 void nd500_dbg_set_reg_js(const char* reg_name, uint32_t value) {
 	if (!g_machine.cpu) return;
-	
+
 	// Map register names to CPU fields
 	if (strcmp(reg_name, "PC") == 0) {
 		g_machine.cpu->PC = value;
@@ -252,6 +319,36 @@ void nd500_dbg_set_reg_js(const char* reg_name, uint32_t value) {
 	} else if (strcmp(reg_name, "THA") == 0) {
 		g_machine.cpu->THA = value;
 	}
+}
+
+/* Get all symbols as JSON array */
+const char* nd500_dbg_symbols_json(void) {
+	cJSON* root = cJSON_CreateArray();
+
+	int count = ndlib_symbols_get_count();
+	for (int i = 0; i < count; i++) {
+		const char* name = ndlib_symbols_get_name(i);
+		uint32_t addr = ndlib_symbols_get_addr(i);
+		uint8_t type = ndlib_symbols_get_type(i);
+
+		/* Skip unresolved/undefined symbols (type & 0x0E == 0x00) */
+		if ((type & 0x0E) == 0x00) continue;
+
+		cJSON* sym = cJSON_CreateObject();
+		cJSON_AddStringToObject(sym, "name", name ? name : "");
+		cJSON_AddNumberToObject(sym, "addr", addr);
+
+		/* Add type description */
+		const char* type_str = "UNKNOWN";
+		if ((type & 0x0E) == 0x04) type_str = "TEXT";
+		else if ((type & 0x0E) == 0x06) type_str = "DATA";
+		else if ((type & 0x0E) == 0x08) type_str = "BSS";
+		cJSON_AddStringToObject(sym, "type", type_str);
+
+		cJSON_AddItemToArray(root, sym);
+	}
+
+	return dup_json_string(root);
 }
 
 

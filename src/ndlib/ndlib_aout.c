@@ -1,21 +1,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <errno.h>
 #include "../machine/machine_protos.h"
 #include "ndlib.h"
 
-/* Minimal ND-500 a.out header and symbol structures based on ragge/pcc-nd500 */
+/* Minimal ND-500 a.out header and symbol structures based on ragge/pcc-nd500
+ *
+ * IMPORTANT: This matches the actual binary format from ragge/pcc-nd500 toolchain.
+ * Total size: 32 bytes (0x20)
+ *
+ * Magic field is 2 bytes + 2 bytes padding to maintain 4-byte alignment.
+ * All size fields are 4 bytes (uint32_t).
+ *
+ * See: /home/ronny/repos/ragge/pcc-nd500/src/include/nd500/a.out.h
+ * See: /home/ronny/repos/ragge/pcc-nd500/docs/toolchain/OBJECT_VS_EXECUTABLE_DETECTION.md
+ */
 struct nd500_exec {
-	unsigned int   a_magic;
-	unsigned int   a_text;
-	unsigned int   a_data;
-	unsigned int   a_bss;
-	unsigned int   a_syms;
-	unsigned int   a_entry;
-	unsigned int   a_trsize;
-	unsigned int   a_drsize;
-};
+	uint16_t   a_magic;     /* Magic number (2 bytes) - offset 0 */
+	uint16_t   a_pad;       /* Padding (2 bytes) - offset 2 */
+	uint32_t   a_text;      /* Size of text segment (4 bytes) - offset 4 */
+	uint32_t   a_data;      /* Size of initialized data (4 bytes) - offset 8 */
+	uint32_t   a_bss;       /* Size of uninitialized data (4 bytes) - offset 12 */
+	uint32_t   a_syms;      /* Size of symbol table (4 bytes) - offset 16 */
+	uint32_t   a_entry;     /* Entry point (4 bytes) - offset 20 */
+	uint32_t   a_trsize;    /* Text relocation size (4 bytes) - offset 24 */
+	uint32_t   a_drsize;    /* Data relocation size (4 bytes) - offset 28 */
+} __attribute__((packed));
 
 /* On-disk symbol table entry format (24 bytes with padding) */
 struct nd500_nlist {
@@ -50,31 +62,28 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
 	}
 	if (bad_magic(hdr.a_magic)) { fclose(f); return -1; }
 	
-	/* Detect file type:
-	 * 
-	 * IMPORTANT: On ND-500, both object files and executables typically use IMAGIC (0x0109).
-	 * Magic number alone is NOT sufficient to distinguish them!
-	 * 
-	 * Detection logic (tested against nd500-dump and real files):
-	 *   1. Has relocations (a_trsize > 0 || a_drsize > 0) → OBJECT FILE
-	 *      - Even partially linked files with external deps have relocations
-	 *   2. Entry point == 4 → OBJECT FILE
-	 *      - Historical placeholder value used by assembler
-	 *   3. No relocations AND entry != 4 → EXECUTABLE
-	 *      - Fully linked, ready to run
-	 * 
-	 * Test results:
-	 *   add.o:  IMAGIC, relocs=0,  entry=0x4  → OBJECT (placeholder entry)
-	 *   math.o: IMAGIC, relocs=24, entry=0x4  → OBJECT (has relocations)
-	 *   math:   IMAGIC, relocs=24, entry=0x26 → OBJECT (still has relocations)
-	 * 
-	 * Note: NMAGIC (0x0108) and ZMAGIC (0x010B) are always executables if encountered.
-	 * 
-	 * See: /home/ronny/repos/ragge/pcc-nd500/docs/reference/nd500/AOUT_FORMAT.md
+	/* Detect file type correctly (object vs executable):
+	 * Object file if it has unresolved externals (UNDF|EXT) OR relocations.
+	 * Executable if no unresolved externals and no relocations.
+	 * Magic number alone is insufficient on ND-500.
 	 */
 	int has_relocations = (hdr.a_trsize > 0 || hdr.a_drsize > 0);
-	int is_placeholder_entry = (hdr.a_entry == 4);
-	int is_object = has_relocations || is_placeholder_entry;
+	int has_unresolved = 0;
+	if (hdr.a_syms > 0) {
+		unsigned int sym_off = (unsigned int)sizeof(hdr) + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize;
+		if (fseek(f, (long)sym_off, SEEK_SET) == 0) {
+			int nsyms = (int)(hdr.a_syms / (unsigned int)sizeof(struct nd500_nlist));
+			for (int i = 0; i < nsyms; i++) {
+				struct nd500_nlist sym;
+				if (fread(&sym, 1, sizeof(sym), f) != sizeof(sym)) break;
+				unsigned char base_type = (unsigned char)(sym.n_type & 0x0E); /* N_TYPE mask */
+				int ext = (sym.n_type & 0x01) ? 1 : 0; /* N_EXT */
+				if (base_type == 0x00 && ext) { has_unresolved = 1; break; } /* N_UNDF|EXT */
+			}
+		}
+		/* Position will be reset before actual segment reads */
+	}
+	int is_object = (has_relocations || has_unresolved);
 	unsigned int entry_point;
 	
 	if (is_object) {
@@ -85,8 +94,8 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
 			printf("Relocations:    text=%u data=%u bytes (not yet resolved)\n",
 			       hdr.a_trsize, hdr.a_drsize);
 		}
-		if (is_placeholder_entry) {
-			printf("Note:           Entry point is placeholder (0x4)\n");
+		if (has_unresolved) {
+			printf("Symbols:        unresolved externals present (UNDF|EXT)\n");
 		}
 		printf("Note:           Setting entry point to 0 (object files cannot execute)\n");
 	} else {

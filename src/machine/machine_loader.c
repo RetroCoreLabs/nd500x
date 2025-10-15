@@ -38,4 +38,65 @@ int nd500_dbg_load_aout_file(Nd500Machine* m, const char* path, uint32_t* out_en
 	return rc;
 }
 
+/* Generic helper: load a binary file into memory at base address */
+int nd500_load_file_to_memory(Nd500Machine* m, const char* path, uint32_t base_addr) {
+    if (!m || !path) return -1;
+    FILE* f = fopen(path, "rb");
+    if (!f) return -1;
+    int rc = 0;
+    uint8_t buffer[4096];
+    uint32_t offset = 0;
+    for (;;) {
+        size_t rd = fread(buffer, 1, sizeof(buffer), f);
+        if (rd == 0) break;
+        if (base_addr + offset + (uint32_t)rd > m->memory_size) {
+            rc = -2; /* out of range */
+            break;
+        }
+        for (size_t i = 0; i < rd; ++i) {
+            nd500_bus_write8(m, base_addr + (uint32_t)offset + (uint32_t)i, buffer[i]);
+        }
+        offset += (uint32_t)rd;
+    }
+    fclose(f);
+    return rc;
+}
+
+int nd500_load_pseg_file(Nd500Machine* m, const char* path, uint32_t pseg_base_addr) {
+    return nd500_load_file_to_memory(m, path, pseg_base_addr);
+}
+
+int nd500_load_dseg_file(Nd500Machine* m, const char* path, uint32_t dseg_base_addr) {
+    return nd500_load_file_to_memory(m, path, dseg_base_addr);
+}
+
+/* Helper: Get descriptive error message for load failures */
+const char* nd500_load_strerror(int error_code, uint32_t attempted_addr, uint32_t mem_size) {
+    static char error_buffer[512];
+
+    switch (error_code) {
+        case -1:
+            return "Cannot open file or invalid parameters";
+
+        case -2: {
+            uint32_t mem_mb = mem_size / (1024 * 1024);
+            snprintf(error_buffer, sizeof(error_buffer),
+                "Address 0x%08X is out of range. Emulator has %uMB physical memory "
+                "(0x00000000-0x%08X) but virtual memory is not yet implemented.\n"
+                "                 Workaround: Use debugger to load at custom low addresses:\n"
+                "                   load pseg <file> kernel 0x00000000\n"
+                "                   load dseg <file> kernel 0x00400000",
+                attempted_addr, mem_mb, mem_size - 1);
+            return error_buffer;
+        }
+
+        case 0:
+            return "Success";
+
+        default:
+            snprintf(error_buffer, sizeof(error_buffer), "Unknown error code: %d", error_code);
+            return error_buffer;
+    }
+}
+
 

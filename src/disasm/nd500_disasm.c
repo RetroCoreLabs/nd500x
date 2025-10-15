@@ -4,6 +4,7 @@
 #include "nd500_disasm.h"
 #include "../cpu/cpu_protos.h"
 #include "../machine/machine_protos.h"
+#include "../ndlib/ndlib.h"
 
 /* Minimal operand formatter for plain-text disassembly (no colors) */
 static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op) {
@@ -247,8 +248,92 @@ size_t nd500_disasm_format_range_json(struct Nd500Machine* m,
                 }
             }
         }
-        pos = buf_append(out, out_cap, pos, "\",\"is_unknown\":false}");
-        
+        pos = buf_append(out, out_cap, pos, "\",\"is_unknown\":false");
+
+        /* === Add symbol information === */
+        const char* symbol_at_addr = ndlib_symbols_name_for_addr(fi.address);
+        if (symbol_at_addr && *symbol_at_addr) {
+            /* Escape any quotes in symbol name for JSON */
+            pos = buf_append(out, out_cap, pos, ",\"symbol\":\"");
+            for (const char* p = symbol_at_addr; *p; p++) {
+                if (*p == '"' || *p == '\\') {
+                    pos = buf_append(out, out_cap, pos, "\\%c", *p);
+                } else {
+                    pos = buf_append(out, out_cap, pos, "%c", *p);
+                }
+            }
+            pos = buf_append(out, out_cap, pos, "\"");
+        }
+
+        /* Check for relocations/unresolved externals */
+        uint8_t is_undefined = 0;
+        const char* reloc_symbol = ndlib_symbols_reloc_for_range(fi.address, fi.address + fi.total_len, &is_undefined);
+
+        if (reloc_symbol && *reloc_symbol) {
+            pos = buf_append(out, out_cap, pos, ",\"reloc_symbol\":\"");
+            for (const char* p = reloc_symbol; *p; p++) {
+                if (*p == '"' || *p == '\\') {
+                    pos = buf_append(out, out_cap, pos, "\\%c", *p);
+                } else {
+                    pos = buf_append(out, out_cap, pos, "%c", *p);
+                }
+            }
+            pos = buf_append(out, out_cap, pos, "\",\"is_unresolved\":%s", is_undefined ? "true" : "false");
+        } else if (nd500_instr_is_branch(fi.opcode) && fi.operand_count > 0) {
+            /* Calculate branch/call target and look up symbol */
+            uint32_t target = 0;
+            int found_target = 0;
+
+            if (fi.operands[0].address_code == 0xFF || fi.operands[0].address_code == 0xFE) {
+                int is_pc_relative = (fi.operand_count == 1);
+
+                if (is_pc_relative) {
+                    /* PC-relative branch: target = PC + length + displacement */
+                    int32_t displacement = 0;
+                    if (fi.operands[0].data_len == 1) {
+                        displacement = (int8_t)fi.operands[0].data[0];
+                    } else if (fi.operands[0].data_len == 2) {
+                        uint16_t raw = (uint16_t)fi.operands[0].data[0] | ((uint16_t)fi.operands[0].data[1] << 8);
+                        displacement = (int16_t)raw;
+                    } else if (fi.operands[0].data_len == 4) {
+                        uint32_t raw = (uint32_t)fi.operands[0].data[0] | ((uint32_t)fi.operands[0].data[1] << 8) |
+                                       ((uint32_t)fi.operands[0].data[2] << 16) | ((uint32_t)fi.operands[0].data[3] << 24);
+                        displacement = (int32_t)raw;
+                    }
+                    target = (uint32_t)((int32_t)fi.address + (int32_t)fi.total_len + displacement);
+                    found_target = 1;
+                } else {
+                    /* Absolute call: target is first operand value */
+                    if (fi.operands[0].data_len >= 4) {
+                        target = (uint32_t)fi.operands[0].data[0] | ((uint32_t)fi.operands[0].data[1] << 8) |
+                                 ((uint32_t)fi.operands[0].data[2] << 16) | ((uint32_t)fi.operands[0].data[3] << 24);
+                        found_target = 1;
+                    }
+                }
+            } else {
+                /* Indirect calls/branches - use effective address */
+                target = fi.operands[0].effective_address;
+                found_target = 1;
+            }
+
+            if (found_target) {
+                const char* target_sym = ndlib_symbols_name_for_addr(target);
+                if (target_sym && *target_sym) {
+                    pos = buf_append(out, out_cap, pos, ",\"target_symbol\":\"");
+                    for (const char* p = target_sym; *p; p++) {
+                        if (*p == '"' || *p == '\\') {
+                            pos = buf_append(out, out_cap, pos, "\\%c", *p);
+                        } else {
+                            pos = buf_append(out, out_cap, pos, "%c", *p);
+                        }
+                    }
+                    pos = buf_append(out, out_cap, pos, "\",\"target_address\":\"%08X\"", target);
+                }
+            }
+        }
+
+        pos = buf_append(out, out_cap, pos, "}");
+
         a += (uint32_t)fi.total_len;
     }
     
