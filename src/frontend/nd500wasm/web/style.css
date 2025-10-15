@@ -925,6 +925,15 @@ body {
     background: #138d75;
 }
 
+/* MMU Button */
+.btn-mmu {
+    background: #8e44ad; /* Purple - memory management */
+}
+
+.btn-mmu:hover:not(:disabled) {
+    background: #7d3c98;
+}
+
 /* Console Modal */
 #consoleModal {
     position: fixed;
@@ -1109,4 +1118,1118 @@ body {
 
 #console-output::-webkit-scrollbar-thumb:hover {
     background: #4e4e4e;
+}
+
+/* MMU Panel (inline status in right pane) */
+#mmu-panel {
+    padding: 15px;
+    border-bottom: 1px solid #ecf0f1;
+    flex: 1;
+}
+
+#mmu-panel h2 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #2c3e50;
+    border-bottom: 2px solid #8e44ad;
+    padding-bottom: 5px;
+}
+
+#mmu-content {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.mmu-status-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mmu-status-inline-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+}
+
+.mmu-status-inline-label {
+    font-weight: 600;
+    color: #495057;
+}
+
+.mmu-status-inline-value {
+    color: #2c3e50;
+}
+
+.mmu-status-inline-value.enabled {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.mmu-status-inline-value.disabled {
+    color: #6c757d;
+}
+
+/* MMU Modal */
+#mmuModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(3px);
+}
+
+#mmuModal.hidden {
+    display: none;
+}
+
+.mmu-modal {
+    background: white;
+    border-radius: 8px;
+    padding: 30px;
+    max-width: 1000px;
+    width: 95%;
+    max-height: 90vh;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+}
+
+.mmu-modal h3 {
+    margin: 0 0 20px 0;
+    font-size: 24px;
+    color: #2c3e50;
+    border-bottom: 2px solid #8e44ad;
+    padding-bottom: 10px;
+    flex-shrink: 0;
+}
+
+/* MMU Tabs */
+.mmu-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #dee2e6;
+    flex-shrink: 0;
+}
+
+.mmu-tab {
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: #6c757d;
+    transition: all 0.2s;
+    position: relative;
+    bottom: -2px;
+}
+
+.mmu-tab:hover {
+    color: #8e44ad;
+    background: #f8f9fa;
+}
+
+.mmu-tab.active {
+    color: #8e44ad;
+    border-bottom-color: #8e44ad;
+    background: transparent;
+}
+
+/* Tab Content */
+.mmu-tab-content {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.mmu-tab-content.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.tab-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+.mmu-section {
+    margin-bottom: 25px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+}
+
+.mmu-section h4 {
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    color: #495057;
+    font-weight: 600;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 8px;
+}
+
+.mmu-status-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: white;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.mmu-status-row:last-child {
+    margin-bottom: 0;
+}
+
+.mmu-label {
+    font-weight: 600;
+    color: #495057;
+    min-width: 100px;
+}
+
+.mmu-value {
+    flex: 1;
+    font-family: 'Courier New', monospace;
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.mmu-value.enabled {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.mmu-value.disabled {
+    color: #6c757d;
+}
+
+.mmu-toggle-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.2s;
+    min-width: 80px;
+}
+
+.mmu-toggle-btn:hover {
+    background: #218838;
+}
+
+.mmu-toggle-btn.disable {
+    background: #dc3545;
+}
+
+.mmu-toggle-btn.disable:hover {
+    background: #c82333;
+}
+
+.mmu-action-btn {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.mmu-action-btn:hover {
+    background: #2980b9;
+}
+
+.mmu-action-btn.primary {
+    background: #8e44ad;
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.mmu-action-btn.primary:hover {
+    background: #7d3c98;
+}
+
+.mmu-regs-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.mmu-reg-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mmu-reg-item:hover {
+    background: #e3f2fd;
+    border-color: #3498db;
+}
+
+.mmu-reg-name {
+    font-weight: 600;
+    color: #8e44ad;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+}
+
+.mmu-reg-value {
+    font-family: 'Courier New', monospace;
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.mmu-reg-desc {
+    font-size: 12px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.mmu-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+#mmuCancelBtn {
+    background: #95a5a6;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#mmuCancelBtn:hover {
+    background: #7f8c8d;
+}
+
+/* PST Inspector Modal */
+#pstModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2100;
+    backdrop-filter: blur(3px);
+}
+
+#pstModal.hidden {
+    display: none;
+}
+
+.pst-modal {
+    background: white;
+    border-radius: 8px;
+    padding: 30px;
+    max-width: 1000px;
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+}
+
+.pst-modal h3 {
+    margin: 0 0 20px 0;
+    font-size: 24px;
+    color: #2c3e50;
+    border-bottom: 2px solid #8e44ad;
+    padding-bottom: 10px;
+}
+
+.pst-filters {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.pst-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pst-filter-group label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+.pst-mode-filter {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.pst-mode-filter label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: normal;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.pst-mode-filter label:hover {
+    background: #e9ecef;
+}
+
+.pst-mode-filter input[type="radio"] {
+    cursor: pointer;
+}
+
+#pstSearchInput {
+    padding: 8px 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    min-width: 200px;
+    transition: border-color 0.2s;
+}
+
+#pstSearchInput:focus {
+    outline: none;
+    border-color: #8e44ad;
+}
+
+.pst-stats {
+    margin-left: auto;
+    font-weight: 600;
+    color: #6c757d;
+    font-size: 14px;
+}
+
+#pst-table-container {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    min-height: 300px;
+    max-height: 500px;
+}
+
+.pst-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
+
+.pst-table thead {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 10;
+}
+
+.pst-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #2c3e50;
+    border-bottom: 2px solid #8e44ad;
+    white-space: nowrap;
+}
+
+.pst-table tbody tr {
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.pst-table tbody tr:hover {
+    background: #e3f2fd;
+}
+
+.pst-table tbody tr:active {
+    background: #bbdefb;
+}
+
+.pst-table td {
+    padding: 10px 12px;
+    color: #2c3e50;
+}
+
+.pst-mode-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.pst-mode-badge.azi {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.pst-mode-badge.asi {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.pst-mode-badge.adi {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.pst-action-btn {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.2s;
+}
+
+.pst-action-btn:hover {
+    background: #2980b9;
+}
+
+.pst-table-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    font-size: 14px;
+}
+
+#pstCloseBtn {
+    background: #95a5a6;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#pstCloseBtn:hover {
+    background: #7f8c8d;
+}
+
+#pstRefreshBtn {
+    background: #28a745;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#pstRefreshBtn:hover {
+    background: #218838;
+}
+
+/* PST Entry Edit Modal */
+#pstEditModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2200;
+    backdrop-filter: blur(3px);
+}
+
+#pstEditModal.hidden {
+    display: none;
+}
+
+.pst-edit-modal {
+    background: white;
+    border-radius: 8px;
+    padding: 30px;
+    max-width: 600px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.2s ease-out;
+}
+
+.pst-edit-modal h3 {
+    margin: 0 0 25px 0;
+    font-size: 20px;
+    color: #2c3e50;
+    border-bottom: 2px solid #8e44ad;
+    padding-bottom: 10px;
+}
+
+.pst-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.pst-edit-form .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pst-edit-form label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+.pst-edit-form input,
+.pst-edit-form select {
+    padding: 10px 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    transition: border-color 0.2s;
+}
+
+.pst-edit-form input:focus,
+.pst-edit-form select:focus {
+    outline: none;
+    border-color: #8e44ad;
+}
+
+.pst-edit-form input[readonly] {
+    background: #f8f9fa;
+    color: #6c757d;
+    cursor: not-allowed;
+}
+
+#pstEditCancelBtn {
+    background: #95a5a6;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#pstEditCancelBtn:hover {
+    background: #7f8c8d;
+}
+
+#pstEditSaveBtn {
+    background: #8e44ad;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#pstEditSaveBtn:hover {
+    background: #7d3c98;
+}
+
+/* PCB Viewer Modal */
+#pcbModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2100;
+    backdrop-filter: blur(3px);
+}
+
+#pcbModal.hidden {
+    display: none;
+}
+
+.pcb-modal {
+    background: white;
+    border-radius: 8px;
+    padding: 30px;
+    max-width: 1000px;
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+}
+
+.pcb-modal h3 {
+    margin: 0 0 20px 0;
+    font-size: 24px;
+    color: #2c3e50;
+    border-bottom: 2px solid #8e44ad;
+    padding-bottom: 10px;
+}
+
+.pcb-filters {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    align-items: center;
+}
+
+.pcb-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pcb-filter-group label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+#pcbSearchInput {
+    padding: 8px 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    min-width: 200px;
+    transition: border-color 0.2s;
+}
+
+#pcbSearchInput:focus {
+    outline: none;
+    border-color: #8e44ad;
+}
+
+.pcb-stats {
+    margin-left: auto;
+    font-weight: 600;
+    color: #6c757d;
+    font-size: 14px;
+}
+
+#pcb-domain-container {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    min-height: 300px;
+    max-height: 500px;
+    background: white;
+}
+
+#pcb-domain-list {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
+
+.pcb-domain {
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.pcb-domain-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-left: 4px solid #8e44ad;
+}
+
+.pcb-domain-header:hover {
+    background: #e9ecef;
+}
+
+.pcb-domain-header.expanded {
+    background: #e3f2fd;
+    border-left-color: #2196f3;
+}
+
+.pcb-domain-toggle {
+    font-size: 16px;
+    margin-right: 10px;
+    user-select: none;
+    width: 20px;
+    text-align: center;
+}
+
+.pcb-domain-name {
+    font-weight: 600;
+    color: #2c3e50;
+    flex: 1;
+}
+
+.pcb-domain-count {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.pcb-segments {
+    display: none;
+    background: white;
+}
+
+.pcb-segments.expanded {
+    display: block;
+}
+
+.pcb-segments-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pcb-segments-table thead {
+    background: #f8f9fa;
+}
+
+.pcb-segments-table th {
+    padding: 10px 15px;
+    text-align: left;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 1px solid #dee2e6;
+    font-size: 12px;
+}
+
+.pcb-segments-table tbody tr {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.pcb-segments-table tbody tr:hover {
+    background: #f0f8ff;
+}
+
+.pcb-segments-table td {
+    padding: 8px 15px;
+    color: #2c3e50;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.pcb-expand-arrow {
+    font-size: 14px;
+    margin-right: 10px;
+    user-select: none;
+    width: 20px;
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.pcb-domain-title {
+    font-weight: 600;
+    color: #2c3e50;
+    flex: 1;
+}
+
+.pcb-no-flags {
+    color: #adb5bd;
+    font-style: italic;
+}
+
+.pcb-description {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.pcb-capability {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.pcb-flags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.pcb-flag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.pcb-flag.dir {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.pcb-flag.wrp {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.pcb-flag.pac {
+    background: #d4edda;
+    color: #155724;
+}
+
+.pcb-action-btn {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background 0.2s;
+}
+
+.pcb-action-btn:hover {
+    background: #2980b9;
+}
+
+.pcb-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    font-size: 14px;
+}
+
+#pcbCloseBtn {
+    background: #95a5a6;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#pcbCloseBtn:hover {
+    background: #7f8c8d;
+}
+
+#pcbRefreshBtn {
+    background: #28a745;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#pcbRefreshBtn:hover {
+    background: #218838;
+}
+
+/* PCB Capability Edit Modal */
+#pcbEditModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2200;
+    backdrop-filter: blur(3px);
+}
+
+#pcbEditModal.hidden {
+    display: none;
+}
+
+.pcb-edit-modal {
+    background: white;
+    border-radius: 8px;
+    padding: 30px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.2s ease-out;
+}
+
+.pcb-edit-modal h3 {
+    margin: 0 0 25px 0;
+    font-size: 20px;
+    color: #2c3e50;
+    border-bottom: 2px solid #8e44ad;
+    padding-bottom: 10px;
+}
+
+.pcb-edit-modal h4 {
+    margin: 20px 0 10px 0;
+    font-size: 16px;
+    color: #495057;
+    font-weight: 600;
+}
+
+.pcb-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.pcb-edit-form .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pcb-edit-form label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+.pcb-edit-form .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.pcb-edit-form .checkbox-label:hover {
+    background: #f8f9fa;
+}
+
+.pcb-edit-form input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.pcb-edit-form input[type="text"],
+.pcb-edit-form select {
+    padding: 10px 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    transition: border-color 0.2s;
+}
+
+.pcb-edit-form input[type="text"]:focus,
+.pcb-edit-form select:focus {
+    outline: none;
+    border-color: #8e44ad;
+}
+
+.pcb-edit-form input[readonly] {
+    background: #f8f9fa;
+    color: #6c757d;
+    cursor: not-allowed;
+}
+
+#pcbEditCancelBtn {
+    background: #95a5a6;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#pcbEditCancelBtn:hover {
+    background: #7f8c8d;
+}
+
+#pcbEditSaveBtn {
+    background: #8e44ad;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#pcbEditSaveBtn:hover {
+    background: #7d3c98;
 }

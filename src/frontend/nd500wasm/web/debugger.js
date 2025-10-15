@@ -47,6 +47,12 @@ class ND500Debugger {
             this.openSymbolsModal();
         };
 
+        // MMU button opens MMU modal
+        document.getElementById('mmuBtn').onclick = () => {
+            console.log('MMU button clicked');
+            this.openMmuModal();
+        };
+
         // Controls
         document.getElementById('stepBtn').onclick = () => this.step();
         document.getElementById('runBtn').onclick = () => this.run();
@@ -264,6 +270,739 @@ class ND500Debugger {
             modal.classList.add('hidden');
             searchInput.value = '';
             document.querySelector('input[name="symbolType"][value="all"]').checked = true;
+        };
+
+        modal.classList.remove('hidden');
+    }
+
+    openMmuModal(initialTab = 'mmu') {
+        if (!this.module) return;
+
+        const modal = document.getElementById('mmuModal');
+        const cancelBtn = document.getElementById('mmuCancelBtn');
+        const toggleBtn = document.getElementById('mmuToggleBtn');
+        const setupBtn = document.getElementById('mmuSetupBtn');
+        const translateBtn = document.getElementById('mmuTranslateBtn');
+        const pstRefreshBtn = document.getElementById('pstRefreshBtn');
+        const pcbRefreshBtn = document.getElementById('pcbRefreshBtn');
+
+        // Setup tab switching
+        const tabs = document.querySelectorAll('.mmu-tab');
+        const tabContents = document.querySelectorAll('.mmu-tab-content');
+
+        tabs.forEach(tab => {
+            tab.onclick = () => {
+                const targetTab = tab.dataset.tab;
+
+                // Remove active class from all tabs and contents
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(tc => tc.classList.remove('active'));
+
+                // Add active class to clicked tab
+                tab.classList.add('active');
+
+                // Show corresponding content
+                const contentMap = {
+                    'mmu': 'mmuTabContent',
+                    'pst': 'pstTabContent',
+                    'pcb': 'pcbTabContent'
+                };
+
+                const content = document.getElementById(contentMap[targetTab]);
+                if (content) {
+                    content.classList.add('active');
+
+                    // Load data for newly activated tab
+                    if (targetTab === 'pst') {
+                        this.updatePstTable();
+                    } else if (targetTab === 'pcb') {
+                        this.updatePcbDomainList();
+                    }
+                }
+            };
+        });
+
+        // Update MMU status
+        this.updateMmuModal();
+
+        // Cancel button closes modal
+        cancelBtn.onclick = () => {
+            modal.classList.add('hidden');
+        };
+
+        // Toggle MMU on/off
+        toggleBtn.onclick = () => {
+            try {
+                const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmu']);
+                const isEnabled = output.includes('enabled');
+
+                // Toggle state
+                const newState = isEnabled ? 'off' : 'on';
+                this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], [`mmu ${newState}`]);
+
+                // Update display
+                this.updateMmuModal();
+                this.updateMmuPanel();
+                this.updateStatus(`MMU ${newState === 'on' ? 'enabled' : 'disabled'}`);
+            } catch (error) {
+                console.error('Error toggling MMU:', error);
+                this.updateStatus('Error toggling MMU');
+            }
+        };
+
+        // Setup demo configuration
+        setupBtn.onclick = () => {
+            try {
+                const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmusetup']);
+                this.updateMmuModal();
+                this.updateMmuPanel();
+                this.updateStatus('MMU demo configuration loaded');
+
+                // Show output in console if available
+                if (window.consoleManager) {
+                    window.consoleManager.addLine('> mmusetup', 'command');
+                    output.split('\n').forEach(line => {
+                        if (line.trim()) window.consoleManager.addLine(line, 'output');
+                    });
+                }
+
+                // Refresh PST/PCB tabs if they're visible
+                this.updatePstTable();
+                this.updatePcbDomainList();
+            } catch (error) {
+                console.error('Error running mmusetup:', error);
+                this.updateStatus('Error running mmusetup');
+            }
+        };
+
+        // Translate address
+        translateBtn.onclick = () => {
+            const addr = prompt('Enter virtual address to translate (hex):', '0x00000000');
+            if (addr) {
+                try {
+                    const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], [`phyladr ${addr}`]);
+                    if (window.consoleManager) {
+                        window.consoleManager.show();
+                        window.consoleManager.addLine(`> phyladr ${addr}`, 'command');
+                        output.split('\n').forEach(line => {
+                            if (line.trim()) window.consoleManager.addLine(line, 'output');
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error translating address:', error);
+                }
+            }
+        };
+
+        // PST refresh button
+        pstRefreshBtn.onclick = () => {
+            this.updatePstTable();
+            this.updateMmuModal();
+            this.updateStatus('PST table refreshed');
+        };
+
+        // PCB refresh button
+        pcbRefreshBtn.onclick = () => {
+            this.updatePcbDomainList();
+            this.updateMmuModal();
+            this.updateStatus('PCB table refreshed');
+        };
+
+        // Setup PST filter handlers
+        const pstSearchInput = document.getElementById('pstSearchInput');
+        const pstModeRadios = document.querySelectorAll('input[name="pstMode"]');
+
+        pstSearchInput.oninput = () => {
+            this.updatePstTable();
+        };
+
+        pstModeRadios.forEach(radio => {
+            radio.onchange = () => {
+                this.updatePstTable();
+            };
+        });
+
+        // Setup PCB filter handlers
+        const pcbSearchInput = document.getElementById('pcbSearchInput');
+        pcbSearchInput.oninput = () => {
+            this.updatePcbDomainList();
+        };
+
+        // Add click handlers for register editing
+        document.querySelectorAll('.mmu-reg-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const regName = e.currentTarget.dataset.reg;
+                const currentValue = document.getElementById(`reg${regName}`).textContent;
+                const newValue = prompt(`Enter new value for ${regName} (hex):`, currentValue);
+
+                if (newValue !== null && newValue.trim()) {
+                    let value;
+                    if (newValue.startsWith('0x') || newValue.startsWith('0X')) {
+                        value = parseInt(newValue, 16);
+                    } else {
+                        value = parseInt(newValue, 10);
+                    }
+
+                    if (!isNaN(value)) {
+                        try {
+                            this.module.ccall('nd500_dbg_set_reg_js', null, ['string', 'number'], [regName, value]);
+                            this.updateMmuModal();
+                            this.updateStatus(`${regName} set to 0x${value.toString(16).padStart(8,'0')}`);
+                        } catch (error) {
+                            console.error('Error setting register:', error);
+                            this.updateStatus('Error setting register');
+                        }
+                    } else {
+                        alert('Invalid value. Please enter a valid hex (0x...) or decimal number.');
+                    }
+                }
+            });
+        });
+
+        // Activate initial tab
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(tc => tc.classList.remove('active'));
+
+        const initialTabBtn = document.querySelector(`[data-tab="${initialTab}"]`);
+        if (initialTabBtn) {
+            initialTabBtn.classList.add('active');
+            const contentMap = {
+                'mmu': 'mmuTabContent',
+                'pst': 'pstTabContent',
+                'pcb': 'pcbTabContent'
+            };
+            const content = document.getElementById(contentMap[initialTab]);
+            if (content) {
+                content.classList.add('active');
+
+                // Load initial data if not MMU tab
+                if (initialTab === 'pst') {
+                    this.updatePstTable();
+                } else if (initialTab === 'pcb') {
+                    this.updatePcbDomainList();
+                }
+            }
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    updateMmuModal() {
+        if (!this.module) return;
+
+        try {
+            // Get MMU status via command
+            const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['showmmu']);
+            const isEnabled = output.includes('enabled');
+
+            // Update state display
+            const stateElem = document.getElementById('mmuState');
+            const toggleBtn = document.getElementById('mmuToggleBtn');
+
+            if (isEnabled) {
+                stateElem.textContent = 'enabled';
+                stateElem.className = 'mmu-value enabled';
+                toggleBtn.textContent = 'Disable';
+                toggleBtn.className = 'mmu-toggle-btn disable';
+            } else {
+                stateElem.textContent = 'disabled';
+                stateElem.className = 'mmu-value disabled';
+                toggleBtn.textContent = 'Enable';
+                toggleBtn.className = 'mmu-toggle-btn';
+            }
+
+            // Parse PST count from output
+            const pstMatch = output.match(/PST: (\d+) configured entries \(of (\d+) max\)/);
+            if (pstMatch) {
+                document.getElementById('mmuPstCount').textContent =
+                    `${pstMatch[1]} configured (of ${pstMatch[2]} max)`;
+            }
+
+            // Parse PCB count from output
+            const pcbMatch = output.match(/PCB: (\d+) domains with (\d+) segments/);
+            if (pcbMatch) {
+                document.getElementById('mmuPcbCount').textContent =
+                    `${pcbMatch[1]} domains with ${pcbMatch[2]} segments`;
+            }
+
+            // Get registers from JSON
+            const json = this.module.ccall('nd500_dbg_regs_json', 'string', [], []);
+            const regs = JSON.parse(json);
+
+            // Update MMU registers
+            if (regs.PSTP !== undefined) {
+                document.getElementById('regPSTP').textContent = '0x' + regs.PSTP.toString(16).padStart(8,'0').toUpperCase();
+            }
+            if (regs.DITBASE !== undefined) {
+                document.getElementById('regDITBASE').textContent = '0x' + regs.DITBASE.toString(16).padStart(8,'0').toUpperCase();
+            }
+            if (regs.CED !== undefined) {
+                document.getElementById('regCED').textContent = '0x' + regs.CED.toString(16).padStart(8,'0').toUpperCase();
+            }
+            if (regs.CAD !== undefined) {
+                document.getElementById('regCAD').textContent = '0x' + regs.CAD.toString(16).padStart(8,'0').toUpperCase();
+            }
+            if (regs.PS !== undefined) {
+                document.getElementById('regPS').textContent = '0x' + regs.PS.toString(16).padStart(8,'0').toUpperCase();
+            }
+        } catch (error) {
+            console.error('Error updating MMU modal:', error);
+        }
+    }
+
+    updateMmuPanel() {
+        if (!this.module) return;
+
+        try {
+            // Get MMU status
+            const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['showmmu']);
+            const isEnabled = output.includes('enabled');
+
+            // Parse counts
+            const pstMatch = output.match(/PST: (\d+) configured entries/);
+            const pcbMatch = output.match(/PCB: (\d+) domains with (\d+) segments/);
+
+            const pstCount = pstMatch ? pstMatch[1] : '0';
+            const pcbDomains = pcbMatch ? pcbMatch[1] : '0';
+            const pcbSegments = pcbMatch ? pcbMatch[2] : '0';
+
+            // Create inline status display
+            const statusClass = isEnabled ? 'enabled' : 'disabled';
+            const statusText = isEnabled ? 'Enabled' : 'Disabled';
+
+            const html = `
+                <div class="mmu-status-inline">
+                    <div class="mmu-status-inline-row">
+                        <span class="mmu-status-inline-label">State:</span>
+                        <span class="mmu-status-inline-value ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="mmu-status-inline-row">
+                        <span class="mmu-status-inline-label">PST:</span>
+                        <span class="mmu-status-inline-value">${pstCount} entries</span>
+                    </div>
+                    <div class="mmu-status-inline-row">
+                        <span class="mmu-status-inline-label">PCB:</span>
+                        <span class="mmu-status-inline-value">${pcbDomains} domains, ${pcbSegments} segs</span>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('mmu-content').innerHTML = html;
+        } catch (error) {
+            console.error('Error updating MMU panel:', error);
+            document.getElementById('mmu-content').innerHTML =
+                '<div class="mmu-status-inline-row">MMU status unavailable</div>';
+        }
+    }
+
+    updatePstTable() {
+        if (!this.module) return;
+
+        try {
+            // Get listpst output
+            const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['listpst']);
+
+            // Parse PST entries from output
+            const entries = [];
+            const lines = output.split('\n');
+
+            for (const line of lines) {
+                // Match lines like: " 100  AZI   0x1000  0x00800000"
+                const match = line.match(/^\s*(\d+)\s+(AZI|ASI|ADI)\s+0x([0-9A-Fa-f]+)\s+0x([0-9A-Fa-f]+)/);
+                if (match) {
+                    entries.push({
+                        psn: parseInt(match[1]),
+                        mode: match[2],
+                        pfn: parseInt(match[3], 16),
+                        physAddr: parseInt(match[4], 16)
+                    });
+                }
+            }
+
+            // Apply filters
+            const modeFilter = document.querySelector('input[name="pstMode"]:checked')?.value || 'all';
+            const searchText = document.getElementById('pstSearchInput').value.toLowerCase().trim();
+
+            let filtered = entries;
+
+            // Filter by mode
+            if (modeFilter !== 'all') {
+                filtered = filtered.filter(e => e.mode === modeFilter);
+            }
+
+            // Filter by search (PSN)
+            if (searchText) {
+                filtered = filtered.filter(e => e.psn.toString().includes(searchText));
+            }
+
+            // Update stats
+            document.getElementById('pstTableStats').textContent =
+                `${filtered.length} entries shown` + (filtered.length !== entries.length ? ` (of ${entries.length} total)` : '');
+
+            // Render table
+            const tbody = document.getElementById('pst-table-body');
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="pst-table-empty">No PST entries found. Use 'mmusetup' to create a demo configuration.</td></tr>`;
+            } else {
+                let html = '';
+                filtered.forEach(entry => {
+                    const modeClass = entry.mode.toLowerCase();
+                    html += `<tr onclick="nd500Debugger.openPstEditModal(${entry.psn}, '${entry.mode}', ${entry.pfn})">
+                        <td>${entry.psn}</td>
+                        <td><span class="pst-mode-badge ${modeClass}">${entry.mode}</span></td>
+                        <td>0x${entry.pfn.toString(16).padStart(4,'0').toUpperCase()}</td>
+                        <td>0x${entry.physAddr.toString(16).padStart(8,'0').toUpperCase()}</td>
+                        <td><button class="pst-action-btn" onclick="event.stopPropagation(); nd500Debugger.openPstEditModal(${entry.psn}, '${entry.mode}', ${entry.pfn});">Edit</button></td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+            }
+        } catch (error) {
+            console.error('Error updating PST table:', error);
+            const tbody = document.getElementById('pst-table-body');
+            tbody.innerHTML = `<tr><td colspan="5" class="pst-table-empty">Error loading PST entries</td></tr>`;
+        }
+    }
+
+    openPstEditModal(psn, mode, pfn) {
+        if (!this.module) return;
+
+        const modal = document.getElementById('pstEditModal');
+        const psnSpan = document.getElementById('pstEditPsn');
+        const psnInput = document.getElementById('pstEditPsnInput');
+        const modeSelect = document.getElementById('pstEditMode');
+        const pfnInput = document.getElementById('pstEditPfn');
+        const physAddrInput = document.getElementById('pstEditPhysAddr');
+        const cancelBtn = document.getElementById('pstEditCancelBtn');
+        const saveBtn = document.getElementById('pstEditSaveBtn');
+
+        // Populate form
+        psnSpan.textContent = psn;
+        psnInput.value = psn;
+
+        // Map mode string to value
+        const modeMap = { 'AZI': 0, 'ASI': 1, 'ADI': 2 };
+        modeSelect.value = modeMap[mode] || 0;
+
+        pfnInput.value = '0x' + pfn.toString(16).padStart(4, '0').toUpperCase();
+
+        // Calculate and show physical address
+        const updatePhysAddr = () => {
+            try {
+                const pfnValue = pfnInput.value.startsWith('0x') ?
+                    parseInt(pfnInput.value, 16) : parseInt(pfnInput.value, 10);
+                const physAddr = pfnValue << 11; // PGSHIFT = 11
+                physAddrInput.value = '0x' + physAddr.toString(16).padStart(8, '0').toUpperCase();
+            } catch (e) {
+                physAddrInput.value = 'Invalid PFN';
+            }
+        };
+
+        updatePhysAddr();
+
+        // Update physical address when PFN changes
+        pfnInput.oninput = updatePhysAddr;
+
+        // Cancel button
+        cancelBtn.onclick = () => {
+            modal.classList.add('hidden');
+        };
+
+        // Save button
+        saveBtn.onclick = () => {
+            try {
+                const newMode = modeSelect.value;
+                const newPfnStr = pfnInput.value.trim();
+                const newPfn = newPfnStr.startsWith('0x') ?
+                    parseInt(newPfnStr, 16) : parseInt(newPfnStr, 10);
+
+                if (isNaN(newPfn)) {
+                    alert('Invalid PFN value. Please enter a valid hex (0x...) or decimal number.');
+                    return;
+                }
+
+                // Execute setpst command (if available) or manual register writes
+                // For now, we'll use a command approach
+                const cmd = `setpst ${psn} ${newMode} ${newPfn}`;
+                console.log('Executing PST update:', cmd);
+
+                // Note: setpst command may not exist, so we'll provide user feedback
+                // In a full implementation, this would call the backend command
+                this.updateStatus(`PST[${psn}] would be set to mode=${newMode}, pfn=0x${newPfn.toString(16)} (command not yet implemented in backend)`);
+
+                modal.classList.add('hidden');
+
+                // Refresh PST table
+                this.updatePstTable();
+            } catch (error) {
+                console.error('Error saving PST entry:', error);
+                alert('Error saving PST entry: ' + error.message);
+            }
+        };
+
+        modal.classList.remove('hidden');
+    }
+
+    updatePcbDomainList() {
+        if (!this.module) return;
+
+        try {
+            // Get listpcb output
+            const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['listpcb']);
+
+            // Parse PCB domains from output
+            const domains = [];
+            const lines = output.split('\n');
+            let currentDomain = null;
+
+            for (const line of lines) {
+                // Match domain headers like: "Domain 0:"
+                const domainMatch = line.match(/^Domain (\d+):/);
+                if (domainMatch) {
+                    if (currentDomain) {
+                        domains.push(currentDomain);
+                    }
+                    currentDomain = {
+                        domain: parseInt(domainMatch[1]),
+                        segments: []
+                    };
+                    continue;
+                }
+
+                // Match segment lines like: "    0  0064   0064   P:PSN=100 D:PSN=100"
+                if (currentDomain) {
+                    const segMatch = line.match(/^\s+(\d+)\s+([0-9A-Fa-f]{4})\s+([0-9A-Fa-f]{4})\s+(.+)$/);
+                    if (segMatch) {
+                        const segment = parseInt(segMatch[1]);
+                        const progCap = parseInt(segMatch[2], 16);
+                        const dataCap = parseInt(segMatch[3], 16);
+                        const description = segMatch[4];
+
+                        // Decode capabilities
+                        const progInfo = this.decodeProgCapability(progCap);
+                        const dataInfo = this.decodeDataCapability(dataCap);
+
+                        currentDomain.segments.push({
+                            segment,
+                            progCap,
+                            dataCap,
+                            progInfo,
+                            dataInfo,
+                            description
+                        });
+                    }
+                }
+            }
+
+            // Push last domain
+            if (currentDomain) {
+                domains.push(currentDomain);
+            }
+
+            // Apply search filter
+            const searchText = document.getElementById('pcbSearchInput').value.toLowerCase().trim();
+            let filtered = domains;
+
+            if (searchText) {
+                filtered = filtered.filter(d => d.domain.toString().includes(searchText));
+            }
+
+            // Update stats
+            const totalSegments = filtered.reduce((sum, d) => sum + d.segments.length, 0);
+            document.getElementById('pcbTableStats').textContent =
+                `${filtered.length} domains shown with ${totalSegments} segments` +
+                (filtered.length !== domains.length ? ` (of ${domains.length} total domains)` : '');
+
+            // Render domain list
+            const container = document.getElementById('pcb-domain-list');
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="pcb-empty">No PCB domains found. Use 'mmusetup' to create a demo configuration.</div>`;
+            } else {
+                let html = '';
+                filtered.forEach(domain => {
+                    html += this.renderPcbDomain(domain);
+                });
+                container.innerHTML = html;
+
+                // Add click handlers for expand/collapse
+                document.querySelectorAll('.pcb-domain-header').forEach(header => {
+                    header.onclick = () => {
+                        const domainId = header.dataset.domain;
+                        this.togglePcbDomain(domainId);
+                    };
+                });
+            }
+        } catch (error) {
+            console.error('Error updating PCB domain list:', error);
+            const container = document.getElementById('pcb-domain-list');
+            container.innerHTML = `<div class="pcb-empty">Error loading PCB domains</div>`;
+        }
+    }
+
+    renderPcbDomain(domain) {
+        let html = `
+            <div class="pcb-domain" data-domain="${domain.domain}">
+                <div class="pcb-domain-header" data-domain="${domain.domain}">
+                    <span class="pcb-expand-arrow">▶</span>
+                    <span class="pcb-domain-title">Domain ${domain.domain}</span>
+                    <span class="pcb-domain-count">${domain.segments.length} segments</span>
+                </div>
+                <div class="pcb-segments" data-domain="${domain.domain}">
+                    <table class="pcb-segments-table">
+                        <thead>
+                            <tr>
+                                <th>Seg</th>
+                                <th>Prog Cap</th>
+                                <th>Data Cap</th>
+                                <th>Flags</th>
+                                <th>Description</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+        domain.segments.forEach(seg => {
+            // Build flags display
+            let flags = [];
+            if (seg.progInfo.dir) flags.push('<span class="pcb-flag dir">DIR</span>');
+            if (seg.dataInfo.wrp) flags.push('<span class="pcb-flag wrp">WRP</span>');
+            if (seg.dataInfo.pac) flags.push('<span class="pcb-flag pac">PAC</span>');
+            const flagsHtml = flags.length > 0 ? flags.join(' ') : '<span class="pcb-no-flags">-</span>';
+
+            html += `
+                <tr>
+                    <td>${seg.segment}</td>
+                    <td>0x${seg.progCap.toString(16).padStart(4,'0').toUpperCase()}</td>
+                    <td>0x${seg.dataCap.toString(16).padStart(4,'0').toUpperCase()}</td>
+                    <td>${flagsHtml}</td>
+                    <td class="pcb-description">${this.escapeHtml(seg.description)}</td>
+                    <td><button class="pcb-action-btn" onclick="event.stopPropagation(); nd500Debugger.openPcbEditModal(${domain.domain}, ${seg.segment}, ${seg.progCap}, ${seg.dataCap});">Edit</button></td>
+                </tr>`;
+        });
+
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+
+        return html;
+    }
+
+    togglePcbDomain(domainId) {
+        const header = document.querySelector(`.pcb-domain-header[data-domain="${domainId}"]`);
+        const segments = document.querySelector(`.pcb-segments[data-domain="${domainId}"]`);
+        const arrow = header.querySelector('.pcb-expand-arrow');
+
+        if (segments.classList.contains('expanded')) {
+            segments.classList.remove('expanded');
+            header.classList.remove('expanded');
+            arrow.textContent = '▶';
+        } else {
+            segments.classList.add('expanded');
+            header.classList.add('expanded');
+            arrow.textContent = '▼';
+        }
+    }
+
+    decodeProgCapability(cap) {
+        // Program capability: PSN (bits 0-12), DIR (bit 15)
+        const psn = cap & 0x1FFF;
+        const dir = (cap & 0x8000) !== 0;
+        return { psn, dir };
+    }
+
+    decodeDataCapability(cap) {
+        // Data capability: PSN (bits 0-12), WRP (bit 14), PAC (bit 15)
+        const psn = cap & 0x1FFF;
+        const wrp = (cap & 0x4000) !== 0;
+        const pac = (cap & 0x8000) !== 0;
+        return { psn, wrp, pac };
+    }
+
+    openPcbEditModal(domain, segment, progCap, dataCap) {
+        if (!this.module) return;
+
+        const modal = document.getElementById('pcbEditModal');
+        const domainSpan = document.getElementById('pcbEditDomain');
+        const segmentSpan = document.getElementById('pcbEditSegment');
+        const domainInput = document.getElementById('pcbEditDomainInput');
+        const segmentInput = document.getElementById('pcbEditSegmentInput');
+        const progPsnInput = document.getElementById('pcbEditProgPsn');
+        const progDirCheck = document.getElementById('pcbEditProgDir');
+        const dataPsnInput = document.getElementById('pcbEditDataPsn');
+        const dataWrpCheck = document.getElementById('pcbEditDataWrp');
+        const dataPacCheck = document.getElementById('pcbEditDataPac');
+        const cancelBtn = document.getElementById('pcbEditCancelBtn');
+        const saveBtn = document.getElementById('pcbEditSaveBtn');
+
+        // Populate form
+        domainSpan.textContent = domain;
+        segmentSpan.textContent = segment;
+        domainInput.value = domain;
+        segmentInput.value = segment;
+
+        // Decode capabilities
+        const progInfo = this.decodeProgCapability(progCap);
+        const dataInfo = this.decodeDataCapability(dataCap);
+
+        // Populate program capability
+        progPsnInput.value = progInfo.psn === 0 ? '' : progInfo.psn.toString();
+        progDirCheck.checked = progInfo.dir;
+
+        // Populate data capability
+        dataPsnInput.value = dataInfo.psn === 0 ? '' : dataInfo.psn.toString();
+        dataWrpCheck.checked = dataInfo.wrp;
+        dataPacCheck.checked = dataInfo.pac;
+
+        // Cancel button
+        cancelBtn.onclick = () => {
+            modal.classList.add('hidden');
+        };
+
+        // Save button
+        saveBtn.onclick = () => {
+            try {
+                // Encode program capability
+                let newProgCap = 0;
+                const progPsn = progPsnInput.value.trim();
+                if (progPsn) {
+                    newProgCap = parseInt(progPsn, 10) & 0x1FFF;
+                }
+                if (progDirCheck.checked) {
+                    newProgCap |= 0x8000;
+                }
+
+                // Encode data capability
+                let newDataCap = 0;
+                const dataPsn = dataPsnInput.value.trim();
+                if (dataPsn) {
+                    newDataCap = parseInt(dataPsn, 10) & 0x1FFF;
+                }
+                if (dataWrpCheck.checked) {
+                    newDataCap |= 0x4000;
+                }
+                if (dataPacCheck.checked) {
+                    newDataCap |= 0x8000;
+                }
+
+                // Execute setpcb command (if available)
+                const cmd = `setpcb ${domain} ${segment} 0x${newProgCap.toString(16)} 0x${newDataCap.toString(16)}`;
+                console.log('Executing PCB update:', cmd);
+
+                // Note: setpcb command may not exist, so we'll provide user feedback
+                this.updateStatus(`PCB[${domain}][${segment}] would be set to prog=0x${newProgCap.toString(16)}, data=0x${newDataCap.toString(16)} (command not yet implemented in backend)`);
+
+                modal.classList.add('hidden');
+
+                // Refresh PCB viewer
+                this.updatePcbDomainList();
+            } catch (error) {
+                console.error('Error saving PCB entry:', error);
+                alert('Error saving PCB entry: ' + error.message);
+            }
         };
 
         modal.classList.remove('hidden');
@@ -563,6 +1302,7 @@ class ND500Debugger {
         this.updateTraps();
         this.updateDisassembly();
         this.updateBreakpoints();
+        this.updateMmuPanel();
     }
 
     updateRegisters() {

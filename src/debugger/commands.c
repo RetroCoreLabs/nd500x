@@ -1189,6 +1189,14 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	nd500_mmu_set_pst_entry(m->cpu, 102, PS_ADI, 0x3000);
 	output(ctx, "PST[102] = PS_ADI (Two-level), L1 table at 0x01800000");
 
+	/* PST Entry 200: Direct mapping for domain 1 code */
+	nd500_mmu_set_pst_entry(m->cpu, 200, PS_AZI, 0x4000);
+	output(ctx, "PST[200] = PS_AZI (Direct), PFN=0x4000 → 0x02000000");
+
+	/* PST Entry 201: Single-level paging for domain 1 data */
+	nd500_mmu_set_pst_entry(m->cpu, 201, PS_ASI, 0x5000);
+	output(ctx, "PST[201] = PS_ASI (Single-level), Page table at 0x02800000");
+
 	output(ctx, "");
 	output(ctx, "=== PCB Configuration (Domain 0) ===");
 
@@ -1210,6 +1218,22 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "PCB[0].data[7] = PSN 102, writable, kernel only");
 
 	output(ctx, "");
+	output(ctx, "=== PCB Configuration (Domain 1) ===");
+
+	/* Setup PCB for domain 1 - User domain with different configuration */
+	/* Segment 0: Program segment, direct mapped to PST 200 */
+	nd500_mmu_set_program_capability(m->cpu, 1, 0, 200 | PC_DIR);
+	output(ctx, "PCB[1].prog[0] = PSN 200, DIR=1 (direct mapped)");
+
+	/* Segment 0: Data segment, writable, maps to PST 200 */
+	nd500_mmu_set_data_capability(m->cpu, 1, 0, 200);
+	output(ctx, "PCB[1].data[0] = PSN 200, writable");
+
+	/* Segment 3: Data segment, user accessible, writable, maps to PST 201 */
+	nd500_mmu_set_data_capability(m->cpu, 1, 3, 201 | DC_PAC);
+	output(ctx, "PCB[1].data[3] = PSN 201, writable, user accessible");
+
+	output(ctx, "");
 	output(ctx, "=== MMU Registers ===");
 	m->cpu->PSTP = 0x00100000;
 	m->cpu->DITBASE = 0x00200000;
@@ -1227,11 +1251,12 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "");
 	output(ctx, "Try these commands:");
 	output(ctx, "  showmmu           - View MMU status");
-	output(ctx, "  showpst 100       - View direct-mapped PST entry");
-	output(ctx, "  showpst 101       - View single-level paging PST entry");
-	output(ctx, "  showpst 102       - View two-level paging PST entry");
+	output(ctx, "  listpst           - List all PST entries");
+	output(ctx, "  listpcb           - List all domains");
+	output(ctx, "  showpst 100       - View domain 0 PST entries");
+	output(ctx, "  showpst 200       - View domain 1 PST entries");
 	output(ctx, "  showpcb 0         - View domain 0 capabilities");
-	output(ctx, "  showpcb 0 5       - View segment 5 capabilities");
+	output(ctx, "  showpcb 1         - View domain 1 capabilities");
 	output(ctx, "  mmu on            - Enable MMU");
 	output(ctx, "  phyladr 0x00000000 - Translate segment 0 address");
 
