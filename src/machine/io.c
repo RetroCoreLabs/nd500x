@@ -2,13 +2,15 @@
 #include <string.h>
 #include "machine_protos.h"
 #include "breakpoints.h"
+#include "../cpu/nd500_mmu.h"
 
 void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
 	if (!m) return;
 	m->memory_size = mem_size;
 	m->memory = (uint8_t*)calloc(1, mem_size);
 	m->run_flag = 0;
-	
+	m->mmu_enabled = 0;  /* MMU starts disabled */
+
 	/* Initialize breakpoint manager */
 	m->bp_mgr = (BreakpointManager*)calloc(1, sizeof(BreakpointManager));
 	if (m->bp_mgr) {
@@ -35,24 +37,42 @@ static inline int in_range(Nd500Machine* m, uint32_t addr, uint32_t size) {
 }
 
 uint8_t nd500_bus_read8(Nd500Machine* m, uint32_t addr) {
+	/*
+	 * NOTE: MMU translation for CPU-initiated accesses should happen BEFORE
+	 * calling this function (in the CPU instruction implementations).
+	 * This function provides raw physical memory access used by:
+	 * - CPU after address translation
+	 * - MMU for reading PTEs (nd500_mmu_read_pte uses physical addresses)
+	 * - Debugger for direct memory inspection
+	 */
+
 	if (!in_range(m, addr, 1)) return 0;
-	
+
 	/* Check watchpoints on read */
 	if (m->bp_mgr && wp_should_break_on_read(m->bp_mgr, addr)) {
 		m->run_flag = 0; /* Stop execution */
 	}
-	
+
 	return m->memory[addr];
 }
 
 void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
+	/*
+	 * NOTE: MMU translation for CPU-initiated accesses should happen BEFORE
+	 * calling this function (in the CPU instruction implementations).
+	 * This function provides raw physical memory access used by:
+	 * - CPU after address translation
+	 * - MMU for writing PTEs (if needed)
+	 * - Debugger for direct memory modification
+	 */
+
 	if (!in_range(m, addr, 1)) return;
-	
+
 	/* Check watchpoints on write */
 	if (m->bp_mgr && wp_should_break_on_write(m->bp_mgr, addr, val)) {
 		m->run_flag = 0; /* Stop execution */
 	}
-	
+
 	m->memory[addr] = val;
 }
 

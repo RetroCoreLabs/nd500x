@@ -5,6 +5,107 @@
 #include "cpu_protos.h"
 #include "../machine/machine_protos.h"
 #include "nd500_instructions.h"
+#include "nd500_mmu.h"
+
+/* ═══════════════════════════════════════════════════════
+ * MMU-AWARE MEMORY ACCESS HELPERS
+ * ═══════════════════════════════════════════════════════
+ * These functions handle MMU translation automatically when enabled.
+ * They provide a clean abstraction for instruction implementations.
+ */
+
+/**
+ * Read 8-bit value with MMU translation
+ * @param cpu   CPU state (for MMU translation)
+ * @param vaddr Virtual address to read from
+ * @param is_write 0 for read, 1 for write access (for permission checking)
+ * @param is_instruction 1 for instruction fetch, 0 for data access
+ * @return Physical memory contents
+ */
+static inline uint8_t mmu_read8(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int is_instruction) {
+	if (!cpu || !cpu->machine) return 0;
+
+	/* Translate virtual → physical if MMU enabled */
+	uint32_t paddr = vaddr;
+	if (cpu->machine->mmu_enabled) {
+		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
+	}
+
+	/* Access physical memory via bus (no further translation) */
+	return nd500_bus_read8(cpu->machine, paddr);
+}
+
+/**
+ * Write 8-bit value with MMU translation
+ */
+static inline void mmu_write8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t val) {
+	if (!cpu || !cpu->machine) return;
+
+	uint32_t paddr = vaddr;
+	if (cpu->machine->mmu_enabled) {
+		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); /* is_write=1, is_instruction=0 */
+	}
+
+	nd500_bus_write8(cpu->machine, paddr, val);
+}
+
+/**
+ * Read 16-bit value with MMU translation
+ */
+static inline uint16_t mmu_read16(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int is_instruction) {
+	if (!cpu || !cpu->machine) return 0;
+
+	uint32_t paddr = vaddr;
+	if (cpu->machine->mmu_enabled) {
+		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
+	}
+
+	return nd500_bus_read16(cpu->machine, paddr);
+}
+
+/**
+ * Write 16-bit value with MMU translation
+ */
+static inline void mmu_write16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) {
+	if (!cpu || !cpu->machine) return;
+
+	uint32_t paddr = vaddr;
+	if (cpu->machine->mmu_enabled) {
+		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
+	}
+
+	nd500_bus_write16(cpu->machine, paddr, val);
+}
+
+/**
+ * Read 32-bit value with MMU translation
+ */
+static inline uint32_t mmu_read32(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int is_instruction) {
+	if (!cpu || !cpu->machine) return 0;
+
+	uint32_t paddr = vaddr;
+	if (cpu->machine->mmu_enabled) {
+		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
+	}
+
+	return nd500_bus_read32(cpu->machine, paddr);
+}
+
+/**
+ * Write 32-bit value with MMU translation
+ */
+static inline void mmu_write32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t val) {
+	if (!cpu || !cpu->machine) return;
+
+	uint32_t paddr = vaddr;
+	if (cpu->machine->mmu_enabled) {
+		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
+	}
+
+	nd500_bus_write32(cpu->machine, paddr, val);
+}
+
+/* ═══════════════════════════════════════════════════════ */
 
 typedef struct InstrMeta {
 	uint16_t opcode;
@@ -179,7 +280,17 @@ static uint8_t data_part_size(uint8_t ac) {
 static uint8_t read_data_part(Nd500Machine* m, uint32_t base, uint8_t addr_code, uint8_t* out, uint8_t out_cap) {
     uint8_t len = data_part_size(addr_code);
     if (len > out_cap) len = out_cap;
-    for (uint8_t i = 0; i < len; ++i) out[i] = nd500_bus_read8(m, base + i);
+    /* Instruction fetch: use MMU-aware reads if CPU available */
+    if (m->cpu) {
+        for (uint8_t i = 0; i < len; ++i) {
+            out[i] = mmu_read8(m->cpu, base + i, 0, 1); /* is_write=0, is_instruction=1 */
+        }
+    } else {
+        /* Debugger/disassembler: direct physical access */
+        for (uint8_t i = 0; i < len; ++i) {
+            out[i] = nd500_bus_read8(m, base + i);
+        }
+    }
     return len;
 }
 
@@ -187,8 +298,17 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
 	if (!m || !out) return -1;
 	memset(out, 0, sizeof(*out));
 	out->address = pc;
-	uint8_t b0 = nd500_bus_read8(m, pc);
-	uint8_t b1 = nd500_bus_read8(m, pc+1);
+
+	/* Fetch opcode with MMU translation if CPU available */
+	uint8_t b0, b1;
+	if (m->cpu) {
+		b0 = mmu_read8(m->cpu, pc, 0, 1);     /* is_write=0, is_instruction=1 */
+		b1 = mmu_read8(m->cpu, pc+1, 0, 1);
+	} else {
+		/* Debugger/disassembler: direct physical access */
+		b0 = nd500_bus_read8(m, pc);
+		b1 = nd500_bus_read8(m, pc+1);
+	}
     /* For little-endian, check HIGH byte (b1) for long opcode marker 0xFC-0xFF */
     int oplen = (b1 >= 0xFC) ? 2 : 1;
     uint16_t opcode = (oplen == 2) ? (uint16_t)b0 | ((uint16_t)b1 << 8) : (uint16_t)b0;
@@ -247,7 +367,11 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         
         op->data_len = disp_len;
         for (uint8_t j = 0; j < disp_len; j++) {
-            op->data[j] = nd500_bus_read8(m, cursor + j);
+            if (m->cpu) {
+                op->data[j] = mmu_read8(m->cpu, cursor + j, 0, 1); /* Instruction fetch */
+            } else {
+                op->data[j] = nd500_bus_read8(m, cursor + j);
+            }
             if (oplen + j < 32) out->bytes[oplen + j] = op->data[j];
         }
         cursor += disp_len;
@@ -274,7 +398,12 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         
         Nd500OperandDecoded *op = &out->operands[i];
         /* Handle optional ALT/DESC prefixes */
-        uint8_t ac = nd500_bus_read8(m, cursor);
+        uint8_t ac;
+        if (m->cpu) {
+            ac = mmu_read8(m->cpu, cursor, 0, 1); /* Instruction fetch */
+        } else {
+            ac = nd500_bus_read8(m, cursor);
+        }
         op->has_alt_prefix = 0;
         op->has_desc_prefix = 0;
         while (ac == 0xC8 || (ac >= 0xF0 && ac <= 0xF3)) {
@@ -287,7 +416,11 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
                 op->reg = ac & 0x03;
                 cursor += 1;
             }
-            ac = nd500_bus_read8(m, cursor);
+            if (m->cpu) {
+                ac = mmu_read8(m->cpu, cursor, 0, 1);
+            } else {
+                ac = nd500_bus_read8(m, cursor);
+            }
         }
         op->address_code = ac;
         if (byte_idx < 32) out->bytes[byte_idx++] = ac;
@@ -424,8 +557,8 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecod
     switch (op->mode) {
         case ND500_ADDR_LOCAL_IND:
         case ND500_ADDR_LOCAL_IND_PI:
-            /* Indirect - read 32-bit pointer from address */
-            address = nd500_bus_read32(cpu->machine, address);
+            /* Indirect - read 32-bit pointer from address (DATA access, not instruction) */
+            address = mmu_read32(cpu, address, 0, 0); /* is_write=0, is_instruction=0 */
             break;
         default:
             break;
@@ -468,8 +601,8 @@ uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
         case ND500_ADDR_LOCAL_SHORT:
         case ND500_ADDR_RECORD_SHORT:
         case ND500_ADDR_PREINDEXED: {
-            /* Use pre-computed effective address from decode */
-            return nd500_bus_read32(cpu->machine, op->effective_address);
+            /* Use pre-computed effective address from decode (DATA access, NOT instruction fetch) */
+            return mmu_read32(cpu, op->effective_address, 0, 0); /* is_write=0, is_instruction=0 */
         }
         default:
             return 0;
@@ -491,8 +624,8 @@ void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32_t valu
         case ND500_ADDR_LOCAL_SHORT:
         case ND500_ADDR_RECORD_SHORT:
         case ND500_ADDR_PREINDEXED: {
-            /* Use pre-computed effective address from decode */
-            nd500_bus_write32(cpu->machine, op->effective_address, value);
+            /* Use pre-computed effective address from decode (DATA access, NOT instruction fetch) */
+            mmu_write32(cpu, op->effective_address, value); /* is_write=1, is_instruction=0 */
             break;
         }
         default:

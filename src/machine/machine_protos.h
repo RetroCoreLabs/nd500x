@@ -66,4 +66,8 @@ void   nd500_dbg_clear_traps(void);
 int    nd500_dbg_trap_occurred(void);
 const char* nd500_dbg_get_trap_description(void);
 
+/* MMU control */
+void nd500_machine_enable_mmu(Nd500Machine* m);
+void nd500_machine_disable_mmu(Nd500Machine* m);
+int nd500_machine_mmu_is_enabled(Nd500Machine* m);
 
