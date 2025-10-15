@@ -73,7 +73,12 @@ int nd500_mmu_is_enabled(Nd500Cpu* cpu) {
 
 /**
  * Translate virtual address to physical address
- * This is a stub implementation - will be completed in Phase 3
+ * Implements three-level address translation:
+ *   1. Virtual Address → Capability (via PCB)
+ *   2. Capability → PST Entry (via PSN)
+ *   3. PST Entry → Physical Page (AZI/ASI/ADI modes)
+ *
+ * Based on C# CpuND500.MMU.cs TranslateVirtualAddress() (lines 282-448)
  */
 uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction) {
     /* If MMU disabled, direct mapping */
@@ -81,16 +86,160 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
         return virtual_addr;
     }
 
-    /* TODO (Phase 3): Implement three-level translation:
-     * 1. Extract segment, page, offset from virtual address
-     * 2. Get capability from PCB[domain].capabilities[segment]
-     * 3. Extract PSN from capability
-     * 4. Get PST entry and translate based on mode (AZI/ASI/ADI)
-     * 5. Return physical address
-     */
+    /* Sanity check tables */
+    if (!g_pst || !g_pcb_table) {
+        return virtual_addr;  /* MMU not initialized */
+    }
 
-    /* For now, return direct mapping */
-    return virtual_addr;
+    /* ─────────────────────────────────────────────────────────
+     * LEVEL 1: Virtual Address → Capability
+     * ───────────────────────────────────────────────────────── */
+
+    /* Extract address components: [Segment(5) | Page(16) | Offset(11)] */
+    int segment = (virtual_addr >> 27) & 0x1F;         /* Bits 31-27 */
+    int page = (virtual_addr >> PGSHIFT) & 0xFFFF;     /* Bits 26-11 */
+    int offset = virtual_addr & (NBPG - 1);            /* Bits 10-0 */
+
+    /* Get current domain (CAD = Current Alternative Domain) */
+    uint8_t domain = (uint8_t)cpu->CAD;
+    if (domain >= MAXDOM) {
+        trap_protect_violation(cpu->PC, virtual_addr);
+        return 0;  /* Invalid domain */
+    }
+
+    /* Get capability from PCB */
+    uint16_t capability;
+    if (is_instruction) {
+        /* Instruction fetch: use program capability */
+        capability = g_pcb_table[domain].program_capabilities[segment];
+    } else {
+        /* Data access: use data capability */
+        capability = g_pcb_table[domain].data_capabilities[segment];
+    }
+
+    /* Check if capability is valid (non-zero) */
+    if (capability == 0) {
+        trap_protect_violation(cpu->PC, virtual_addr);
+        return 0;  /* No access rights to this segment */
+    }
+
+    /* ─────────────────────────────────────────────────────────
+     * LEVEL 2: Capability → PST Entry
+     * ───────────────────────────────────────────────────────── */
+
+    /* Extract PSN (Physical Segment Number) from capability */
+    int psn = capability & PC_PSN;  /* Lower 13 bits */
+
+    if (psn >= MAX_PST) {
+        trap_protect_violation(cpu->PC, virtual_addr);
+        return 0;  /* Invalid PSN */
+    }
+
+    /* Check write permission (for data writes only) */
+    if (!is_instruction && is_write) {
+        /* Check DC_WRP flag: 0=writable, 1=read-only */
+        if (capability & DC_WRP) {
+            trap_protect_violation(cpu->PC, virtual_addr);
+            return 0;  /* Write to read-only segment */
+        }
+    }
+
+    /* Get PST entry */
+    PhysicalSegmentTableEntry pst_entry = g_pst[psn];
+
+    /* ─────────────────────────────────────────────────────────
+     * LEVEL 3: PST Entry → Physical Address
+     * Mode-dependent translation (AZI, ASI, ADI)
+     * ───────────────────────────────────────────────────────── */
+
+    uint32_t physical_pfn;
+
+    switch (pst_entry.index_mode) {
+        case PS_AZI: {
+            /* Mode 0: Direct Addressing (no paging) */
+            /* Physical PFN comes directly from PST entry */
+            physical_pfn = pst_entry.physical_pfn;
+            break;
+        }
+
+        case PS_ASI: {
+            /* Mode 1: Single-Level Paging */
+            /* PST entry points to a page table */
+            uint32_t page_table_base = pst_entry.physical_pfn << PGSHIFT;
+            uint32_t pte_addr = page_table_base + (page * 4);  /* 4 bytes per PTE */
+
+            /* Read PTE from memory */
+            PageTableEntry pte = nd500_mmu_read_pte(cpu, pte_addr);
+
+            /* Check if page is present */
+            if (pte.physical_pfn == 0) {
+                trap_page_fault(cpu->PC, virtual_addr);
+                return 0;  /* Page not mapped */
+            }
+
+            /* Check write permission */
+            if (is_write && pte.protection != 0) {
+                trap_protect_violation(cpu->PC, virtual_addr);
+                return 0;  /* Write to read-only page */
+            }
+
+            physical_pfn = pte.physical_pfn;
+            break;
+        }
+
+        case PS_ADI: {
+            /* Mode 2: Two-Level Paging */
+            /* PST entry points to L1 page table */
+            uint32_t l1_table_base = pst_entry.physical_pfn << PGSHIFT;
+
+            /* Extract L1 and L2 indices from page number */
+            int l1_index = (page >> 8) & 0xFF;   /* Upper 8 bits of page */
+            int l2_index = page & 0xFF;          /* Lower 8 bits of page */
+
+            /* Read L1 PTE */
+            uint32_t l1_pte_addr = l1_table_base + (l1_index * 4);
+            PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
+
+            if (l1_pte.physical_pfn == 0) {
+                trap_page_fault(cpu->PC, virtual_addr);
+                return 0;  /* L1 page table not present */
+            }
+
+            /* L1 PTE points to L2 page table */
+            uint32_t l2_table_base = l1_pte.physical_pfn << PGSHIFT;
+            uint32_t l2_pte_addr = l2_table_base + (l2_index * 4);
+
+            /* Read L2 PTE */
+            PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
+
+            if (l2_pte.physical_pfn == 0) {
+                trap_page_fault(cpu->PC, virtual_addr);
+                return 0;  /* L2 page not mapped */
+            }
+
+            /* Check write permission */
+            if (is_write && (l1_pte.protection != 0 || l2_pte.protection != 0)) {
+                trap_protect_violation(cpu->PC, virtual_addr);
+                return 0;  /* Write to read-only page */
+            }
+
+            physical_pfn = l2_pte.physical_pfn;
+            break;
+        }
+
+        default:
+            /* Invalid index mode */
+            trap_illegal_operand(cpu->PC);
+            return 0;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+     * Construct physical address: (PFN << 11) | Offset
+     * ───────────────────────────────────────────────────────── */
+
+    uint32_t physical_addr = (physical_pfn << PGSHIFT) | offset;
+
+    return physical_addr;
 }
 
 /**
