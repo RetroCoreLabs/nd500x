@@ -11,6 +11,8 @@
 ND500X is an emulator for the Norsk Data ND-500 architecture, featuring:
 
 - **Accurate CPU emulation** with full register set (PC, FLAGS, I/A/E registers, etc.)
+- **O(1) instruction dispatch** with opcode-indexed function pointer table for million-per-second execution
+- **Modular instruction architecture** with 241 functions organized in 13 class-based directories
 - **Byte-addressed memory** with bus interface
 - **14 addressing modes** including short forms, extended modes, and special modifiers
 - **Interactive CLI debugger** with memory inspection, disassembly, and step-through execution
@@ -19,7 +21,7 @@ ND500X is an emulator for the Norsk Data ND-500 architecture, featuring:
 - **Breakpoints and Watchpoints** for advanced debugging (PC-based, memory read/write/change)
 - **Advanced debugging features** including conditional breakpoints, instruction tracing, performance profiling, and call stack tracking
 - **WebAssembly support** for browser-based emulation
-- **Instruction code generation** from JSON specification (1078 instruction variants)
+- **Instruction code generation** from JSON specification (1078 instruction variants, 241 unique functions)
 - **Debug Adapter Protocol** (DAP) support for IDE integration (optional)
 
 ## Table of Contents
@@ -351,11 +353,22 @@ The emulator supports loading ND-500 a.out format files with full symbol table p
 
 ### Key Features
 
+**Instruction Dispatch Architecture:**
+1. **O(1) Dispatch Table**: 65,536-entry sparse array indexed by opcode (1,078 populated entries)
+2. **Modular Implementation**: 241 unique instruction functions organized by class:
+   - ARITHMETIC (55), MOVE (48), SYSTEM (26), CALL (17), STRING (15), BRANCH (15)
+   - FLOAT_MATH (25), COMPARE (4), BITFIELD (6), LOGICAL (6), SHIFT (5), CONTROL (7), IO (1)
+3. **Auto-Generated Stubs**: Build-time code generator creates stub files (never overwritten)
+4. **Fast Execution**: Function pointer dispatch enables million-per-second instruction execution
+5. **Safe Fallback**: NULL dispatch entries trigger illegal instruction trap instead of crashes
+
 **Instruction Generation Pipeline:**
 1. `instructions.json` (424KB+) defines the ND-500 instruction set
 2. `gen_instructions` tool parses JSON at build time
-3. Generates C code with instruction lookup tables
-4. CPU uses generated tables for decoding and disassembly
+3. Generates dispatch table (`nd500_instructions_gen.c/h`) and 241 stub files
+4. Stubs organized in `build/src/cpu/instructions/<CLASS>/<FunctionName>.c`
+5. Each stub includes documentation, operand helpers, and implementation notes
+6. CPU uses O(1) dispatch table for instant instruction lookup
 
 **ND-500 Addressing Modes (14 modes):**
 - Short forms: CONSTANT_SHORT, LOCAL_SHORT, RECORD_SHORT
@@ -408,7 +421,7 @@ nd500x/
 │   │   ├── ndlib.c         # Core logging
 │   │   ├── ndlib_aout.c    # a.out binary loader
 │   │   └── ndlib_symbols.c # Symbol table support
-│   ├── disasm/             # Disassembly module (NEW)
+│   ├── disasm/             # Disassembly module
 │   │   ├── nd500_disasm.c  # JSON-based disassembly formatter
 │   │   └── nd500_disasm.h  # Disassembly API
 │   ├── machine/            # Machine state and debug API
@@ -419,7 +432,8 @@ nd500x/
 │   │   └── io.c
 │   ├── cpu/                # CPU core
 │   │   ├── cpu.c           # Register state, reset, step, traps
-│   │   └── cpu_instr.c     # Instruction decoder, addressing modes
+│   │   ├── cpu_instr.c     # Instruction decoder, O(1) dispatch, addressing modes
+│   │   └── cpu_protos.h    # CPU API and operand access helpers
 │   ├── debugger/           # Interactive debugger
 │   │   ├── debugger.c      # REPL implementation
 │   │   └── dap_adapter.c   # Debug Adapter Protocol
@@ -434,12 +448,29 @@ nd500x/
 │               └── debugger.js   # Frontend logic
 ├── tools/
 │   └── gen_instructions/   # Build-time code generator
-│       └── gen_instructions.c
+│       └── gen_instructions.c  # Parses JSON, generates dispatch table & stubs
 ├── build/                  # Build output (created by CMake)
 │   ├── bin/                # Executables
-│   ├── lib/                # Libraries
+│   ├── lib/                # Libraries (libnd500_cpu.a contains all instructions)
 │   ├── include/            # Generated headers
-│   └── src/cpu/instructions.json  # Instruction set definition
+│   │   └── nd500_instructions_gen.h  # Dispatch table declarations
+│   ├── nd500_instructions_gen.c      # Dispatch table implementation (1,078 entries)
+│   └── src/cpu/
+│       ├── instructions.json         # Instruction set definition (424KB+)
+│       └── instructions/             # Auto-generated instruction stubs (241 files)
+│           ├── ARITHMETIC/           # 55 arithmetic instruction implementations
+│           ├── MOVE/                 # 48 move/data transfer instructions
+│           ├── SYSTEM/               # 26 system instructions
+│           ├── CALL/                 # 17 call/return instructions
+│           ├── STRING/               # 15 string manipulation instructions
+│           ├── BRANCH/               # 15 branch/jump instructions
+│           ├── FLOAT_MATH/           # 25 floating-point math instructions
+│           ├── COMPARE/              # 4 comparison instructions
+│           ├── BITFIELD/             # 6 bit manipulation instructions
+│           ├── LOGICAL/              # 6 logical operation instructions
+│           ├── SHIFT/                # 5 shift/rotate instructions
+│           ├── CONTROL/              # 7 control flow instructions
+│           └── IO/                   # 1 I/O instruction
 ├── CMakeLists.txt          # Main CMake configuration
 ├── Makefile                # Convenience wrapper
 ├── README.md
