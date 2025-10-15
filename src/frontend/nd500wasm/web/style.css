@@ -2266,3 +2266,224 @@ body {
 #pcbEditSaveBtn:hover {
     background: #7d3c98;
 }
+
+/* Bit Editor Modal */
+#bitEditorModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2300;
+    backdrop-filter: blur(3px);
+}
+
+#bitEditorModal.hidden {
+    display: none;
+}
+
+.bit-editor-modal {
+    background: white;
+    border-radius: 8px;
+    padding: 30px;
+    max-width: 900px;
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.2s ease-out;
+}
+
+.bit-editor-modal h3 {
+    margin: 0 0 20px 0;
+    font-size: 24px;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+}
+
+.bit-editor-current-value {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.bit-editor-current-value label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+#bitEditorCurrentValue {
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.bit-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+    margin: 20px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+}
+
+.bit-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 8px;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 80px;
+    justify-content: center;
+}
+
+.bit-item:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+    transform: scale(1.05);
+}
+
+.bit-item.active {
+    background: #007bff;
+    color: white;
+    border-color: #0056b3;
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+}
+
+.bit-item.active:hover {
+    background: #0056b3;
+}
+
+.bit-number {
+    font-size: 11px;
+    font-weight: bold;
+    margin-bottom: 6px;
+    opacity: 0.7;
+}
+
+.bit-item.active .bit-number {
+    opacity: 1;
+}
+
+.bit-toggle {
+    font-size: 28px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.bit-label {
+    font-size: 9px;
+    text-align: center;
+    margin-top: 6px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-wrap: break-word;
+    line-height: 1.2;
+    max-height: 2.4em;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.bit-editor-preview {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px;
+    background: #e3f2fd;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border: 2px solid #2196f3;
+}
+
+.bit-editor-preview label {
+    font-weight: 600;
+    color: #0d47a1;
+    font-size: 14px;
+}
+
+#bitEditorPreview {
+    flex: 1;
+    padding: 10px 15px;
+    border: 2px solid #2196f3;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: #0d47a1;
+    background: white;
+}
+
+#bitEditorCancelBtn {
+    background: #95a5a6;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#bitEditorCancelBtn:hover {
+    background: #7f8c8d;
+}
+
+#bitEditorApplyBtn {
+    background: #3498db;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#bitEditorApplyBtn:hover {
+    background: #2980b9;
+}
+
+/* Responsive bit grid for smaller screens */
+@media (max-width: 768px) {
+    .bit-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        padding: 10px;
+    }
+
+    .bit-item {
+        padding: 8px 4px;
+        min-height: 60px;
+    }
+
+    .bit-toggle {
+        font-size: 20px;
+    }
+
+    .bit-label {
+        font-size: 8px;
+    }
+}

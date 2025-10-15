@@ -102,20 +102,9 @@ if(PLATFORM_WASM OR BUILD_WASM)
         set_property(TARGET nd500wasm APPEND_STRING PROPERTY LINK_FLAGS " -s MODULARIZE=1 -s EXPORT_NAME='ND500Wasm' -s ENVIRONMENT='web,node'")
         
         # Configure output to bin/ directory with .js extension
-        set_target_properties(nd500wasm PROPERTIES 
+        set_target_properties(nd500wasm PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
             OUTPUT_NAME "nd500wasm")
-        
-        # Copy web files to build output
-        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/index.html
-             DESTINATION ${CMAKE_BINARY_DIR}/bin/)
-        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/style.css
-             DESTINATION ${CMAKE_BINARY_DIR}/bin/)
-        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/debugger.js
-             DESTINATION ${CMAKE_BINARY_DIR}/bin/)
-        # Copy demo kernel binary
-        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/demo/kernel
-             DESTINATION ${CMAKE_BINARY_DIR}/bin/)
     endif()
 endif()
 
