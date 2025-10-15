@@ -8,6 +8,7 @@
 #include "../machine/breakpoints.h"
 #include "../ndlib/ndlib.h"
 #include "../cpu/cpu_protos.h"
+#include "../cpu/nd500_mmu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,6 +47,12 @@ static int cmd_backtrace(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_bp(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_wp(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_clear_traps(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_showmmu(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_showpst(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_showpcb(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Command table */
@@ -84,6 +91,12 @@ static const CmdEntry g_commands[] = {
 	{"watch",       cmd_wp,           "Manage watchpoints"},
 	{"watchpoint",  cmd_wp,           "Manage watchpoints"},
 	{"clear-traps", cmd_clear_traps,  "Clear pending traps"},
+	{"mmu",         cmd_mmu,          "Enable/disable MMU"},
+	{"showmmu",     cmd_showmmu,      "Show MMU status"},
+	{"showpst",     cmd_showpst,      "Show PST entry"},
+	{"showpcb",     cmd_showpcb,      "Show PCB capabilities"},
+	{"phyladr",     cmd_phyladr,      "Translate virtual to physical address"},
+	{"mmusetup",    cmd_mmusetup,     "Setup demo MMU configuration"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
 	{"exit",        cmd_quit,         "Quit debugger"},
@@ -278,6 +291,15 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  show traps [on|off]         Show trap system status");
 	output(ctx, "  show trap-status            Show current trap status");
 	output(ctx, "  clear-traps                 Clear any pending traps");
+	output(ctx, "");
+	output(ctx, "MMU Commands:");
+	output(ctx, "  mmu [on|off]                Enable/disable MMU address translation");
+	output(ctx, "  mmusetup                    Setup demo MMU configuration for testing");
+	output(ctx, "  showmmu                     Show MMU status and configuration");
+	output(ctx, "  showpst <psn>               Show PST entry details");
+	output(ctx, "  showpcb <domain> [seg]      Show PCB capabilities for domain");
+	output(ctx, "  phyladr <vaddr> [rw] [id]   Translate virtual to physical address");
+	output(ctx, "                              rw: 0=read 1=write, id: 0=data 1=instruction");
 	output(ctx, "");
 	output(ctx, "  q (quit/exit)               Quit debugger");
 	return 0;
@@ -880,6 +902,302 @@ static int cmd_wp(Nd500Machine* m, CmdContext* ctx, char* args) {
 static int cmd_clear_traps(Nd500Machine* m, CmdContext* ctx, char* args) {
 	nd500_dbg_clear_traps();
 	output(ctx, "Traps cleared");
+	return 0;
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* MMU COMMAND HANDLERS */
+/* ═══════════════════════════════════════════════════════ */
+
+static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m) {
+		error(ctx, "no machine");
+		return -1;
+	}
+
+	char* subcmd = args ? strtok(args, " \t\r\n") : NULL;
+
+	if (!subcmd) {
+		/* No argument - show current status */
+		int enabled = nd500_machine_mmu_is_enabled(m);
+		output(ctx, "MMU: %s", enabled ? "enabled" : "disabled");
+		return 0;
+	}
+
+	if (strcasecmp(subcmd, "on") == 0) {
+		nd500_machine_enable_mmu(m);
+		output(ctx, "MMU enabled");
+	} else if (strcasecmp(subcmd, "off") == 0) {
+		nd500_machine_disable_mmu(m);
+		output(ctx, "MMU disabled");
+	} else {
+		error(ctx, "usage: mmu [on|off]");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int cmd_showmmu(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	int mmu_enabled = nd500_machine_mmu_is_enabled(m);
+	int mmu_initialized = nd500_mmu_is_enabled(m->cpu);
+
+	output(ctx, "=== MMU STATUS ===");
+	output(ctx, "Machine MMU flag: %s", mmu_enabled ? "enabled" : "disabled");
+	output(ctx, "CPU MMU state:    %s", mmu_initialized ? "enabled" : "disabled");
+	output(ctx, "");
+	output(ctx, "MMU Registers:");
+	output(ctx, "  PSTP    = 0x%08X  (Physical Segment Table Pointer)", m->cpu->PSTP);
+	output(ctx, "  DITBASE = 0x%08X  (Domain Information Table Base)", m->cpu->DITBASE);
+	output(ctx, "  CED     = 0x%08X  (Current Executing Domain)", m->cpu->CED);
+	output(ctx, "  CAD     = 0x%08X  (Current Alternative Domain)", m->cpu->CAD);
+	output(ctx, "  PS      = 0x%08X  (Process Segment)", m->cpu->PS);
+	output(ctx, "");
+	output(ctx, "PST: %d entries max", MAX_PST);
+	output(ctx, "PCB: %d domains max", MAXDOM);
+	output(ctx, "Page size: %d bytes", NBPG);
+
+	return 0;
+}
+
+static int cmd_showpst(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	char* psn_str = args ? strtok(args, " \t\r\n") : NULL;
+	if (!psn_str) {
+		error(ctx, "usage: showpst <psn>");
+		return -1;
+	}
+
+	uint32_t psn = nd500_cmd_parse_u32(psn_str, 0);
+	if (psn >= MAX_PST) {
+		error(ctx, "PSN out of range (0-%d)", MAX_PST - 1);
+		return -1;
+	}
+
+	PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(m->cpu, psn);
+
+	output(ctx, "=== PST Entry %u ===", psn);
+	output(ctx, "Index Mode:    %u (%s)", pst.index_mode,
+		pst.index_mode == PS_AZI ? "PS_AZI - Direct" :
+		pst.index_mode == PS_ASI ? "PS_ASI - Single-level paging" :
+		pst.index_mode == PS_ADI ? "PS_ADI - Two-level paging" : "Unknown");
+	output(ctx, "Physical PFN:  0x%04X (Physical address: 0x%08X)",
+		pst.physical_pfn, pst.physical_pfn << PGSHIFT);
+
+	if (pst.index_mode == PS_AZI) {
+		output(ctx, "Direct mapping: segment maps to physical frame 0x%04X", pst.physical_pfn);
+	} else if (pst.index_mode == PS_ASI) {
+		output(ctx, "Page table at: 0x%08X (single-level)", pst.physical_pfn << PGSHIFT);
+	} else if (pst.index_mode == PS_ADI) {
+		output(ctx, "L1 page table at: 0x%08X (two-level)", pst.physical_pfn << PGSHIFT);
+	}
+
+	return 0;
+}
+
+static int cmd_showpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	char* domain_str = args ? strtok(args, " \t\r\n") : NULL;
+	char* seg_str = domain_str ? strtok(NULL, " \t\r\n") : NULL;
+
+	if (!domain_str) {
+		error(ctx, "usage: showpcb <domain> [segment]");
+		return -1;
+	}
+
+	uint32_t domain = nd500_cmd_parse_u32(domain_str, 0);
+	if (domain >= MAXDOM) {
+		error(ctx, "Domain out of range (0-%d)", MAXDOM - 1);
+		return -1;
+	}
+
+	if (seg_str) {
+		/* Show specific segment */
+		uint32_t seg = nd500_cmd_parse_u32(seg_str, 0);
+		if (seg >= 32) {
+			error(ctx, "Segment out of range (0-31)");
+			return -1;
+		}
+
+		uint16_t pc = nd500_mmu_get_program_capability(m->cpu, domain, seg);
+		uint16_t dc = nd500_mmu_get_data_capability(m->cpu, domain, seg);
+
+		output(ctx, "=== PCB Domain %u Segment %u ===", domain, seg);
+		output(ctx, "Program Capability: 0x%04X", pc);
+		output(ctx, "  PSN:     %u (0x%03X)", pc & PC_PSN, pc & PC_PSN);
+		output(ctx, "  DIR bit: %u (%s)", (pc & PC_DIR) ? 1 : 0, (pc & PC_DIR) ? "Direct mapped" : "Not direct");
+		output(ctx, "");
+		output(ctx, "Data Capability:    0x%04X", dc);
+		output(ctx, "  PSN:     %u (0x%03X)", dc & DC_PSN, dc & DC_PSN);
+		output(ctx, "  WRP bit: %u (%s)", (dc & DC_WRP) ? 1 : 0, (dc & DC_WRP) ? "Write-protected" : "Writable");
+		output(ctx, "  PAC bit: %u (%s)", (dc & DC_PAC) ? 1 : 0, (dc & DC_PAC) ? "User accessible" : "Kernel only");
+	} else {
+		/* Show all segments for domain */
+		output(ctx, "=== PCB Domain %u ===", domain);
+		output(ctx, "Seg  Prog Cap  Data Cap");
+		output(ctx, "---  --------  --------");
+
+		for (int seg = 0; seg < 32; seg++) {
+			uint16_t pc = nd500_mmu_get_program_capability(m->cpu, domain, seg);
+			uint16_t dc = nd500_mmu_get_data_capability(m->cpu, domain, seg);
+
+			/* Only show non-zero entries */
+			if (pc != 0 || dc != 0) {
+				output(ctx, "%3d  %04X      %04X", seg, pc, dc);
+			}
+		}
+	}
+
+	return 0;
+}
+
+static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		error(ctx, "MMU is disabled - addresses are already physical");
+		return -1;
+	}
+
+	char* vaddr_str = args ? strtok(args, " \t\r\n") : NULL;
+	char* rw_str = vaddr_str ? strtok(NULL, " \t\r\n") : NULL;
+	char* id_str = rw_str ? strtok(NULL, " \t\r\n") : NULL;
+
+	if (!vaddr_str) {
+		error(ctx, "usage: phyladr <vaddr> [is_write] [is_instruction]");
+		error(ctx, "  is_write: 0=read (default), 1=write");
+		error(ctx, "  is_instruction: 0=data (default), 1=instruction");
+		return -1;
+	}
+
+	uint32_t vaddr = nd500_cmd_parse_u32(vaddr_str, 0);
+	int is_write = rw_str ? (int)nd500_cmd_parse_u32(rw_str, 0) : 0;
+	int is_instruction = id_str ? (int)nd500_cmd_parse_u32(id_str, 0) : 0;
+
+	/* Extract address components */
+	int segment = (vaddr >> 27) & 0x1F;
+	int page = (vaddr >> PGSHIFT) & 0xFFFF;
+	int offset = vaddr & (NBPG - 1);
+
+	output(ctx, "=== Virtual Address Translation ===");
+	output(ctx, "Virtual Address: 0x%08X", vaddr);
+	output(ctx, "  Segment: %d (0x%02X)", segment, segment);
+	output(ctx, "  Page:    %d (0x%04X)", page, page);
+	output(ctx, "  Offset:  %d (0x%03X)", offset, offset);
+	output(ctx, "");
+	output(ctx, "Access Type:");
+	output(ctx, "  %s access", is_write ? "Write" : "Read");
+	output(ctx, "  %s space", is_instruction ? "Instruction" : "Data");
+	output(ctx, "");
+	output(ctx, "Current Domain:");
+	output(ctx, "  CAD (Alternative): %u", m->cpu->CAD);
+	output(ctx, "  CED (Executing):   %u", m->cpu->CED);
+	output(ctx, "");
+
+	/* Perform translation */
+	uint32_t paddr = nd500_mmu_translate(m->cpu, vaddr, is_write, is_instruction);
+
+	if (paddr == 0 && vaddr != 0) {
+		output(ctx, "Translation FAILED (trap would occur)");
+		output(ctx, "  Possible causes:");
+		output(ctx, "  - Invalid capability (null)");
+		output(ctx, "  - Protection violation");
+		output(ctx, "  - Page fault (PFN=0)");
+	} else {
+		output(ctx, "Physical Address: 0x%08X", paddr);
+		output(ctx, "  PFN:    0x%04X", paddr >> PGSHIFT);
+		output(ctx, "  Offset: 0x%03X", paddr & (NBPG - 1));
+	}
+
+	return 0;
+}
+
+static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	output(ctx, "Setting up demo MMU configuration...");
+	output(ctx, "");
+
+	/* Setup PST entries for demonstration */
+	output(ctx, "=== PST Configuration ===");
+
+	/* PST Entry 100: Direct mapping to physical frame 0x1000 */
+	nd500_mmu_set_pst_entry(m->cpu, 100, PS_AZI, 0x1000);
+	output(ctx, "PST[100] = PS_AZI (Direct), PFN=0x1000 → 0x00800000");
+
+	/* PST Entry 101: Single-level paging, page table at 0x2000 */
+	nd500_mmu_set_pst_entry(m->cpu, 101, PS_ASI, 0x2000);
+	output(ctx, "PST[101] = PS_ASI (Single-level), Page table at 0x01000000");
+
+	/* PST Entry 102: Two-level paging, L1 table at 0x3000 */
+	nd500_mmu_set_pst_entry(m->cpu, 102, PS_ADI, 0x3000);
+	output(ctx, "PST[102] = PS_ADI (Two-level), L1 table at 0x01800000");
+
+	output(ctx, "");
+	output(ctx, "=== PCB Configuration (Domain 0) ===");
+
+	/* Setup PCB for domain 0 */
+	/* Segment 0: Program segment, direct mapped to PST 100 */
+	nd500_mmu_set_program_capability(m->cpu, 0, 0, 100 | PC_DIR);
+	output(ctx, "PCB[0].prog[0] = PSN 100, DIR=1 (direct mapped)");
+
+	/* Segment 0: Data segment, writable, maps to PST 100 */
+	nd500_mmu_set_data_capability(m->cpu, 0, 0, 100);
+	output(ctx, "PCB[0].data[0] = PSN 100, writable");
+
+	/* Segment 5: Data segment, write-protected, user accessible, maps to PST 101 */
+	nd500_mmu_set_data_capability(m->cpu, 0, 5, 101 | DC_WRP | DC_PAC);
+	output(ctx, "PCB[0].data[5] = PSN 101, read-only, user accessible");
+
+	/* Segment 7: Data segment, writable, kernel only, maps to PST 102 */
+	nd500_mmu_set_data_capability(m->cpu, 0, 7, 102);
+	output(ctx, "PCB[0].data[7] = PSN 102, writable, kernel only");
+
+	output(ctx, "");
+	output(ctx, "=== MMU Registers ===");
+	m->cpu->PSTP = 0x00100000;
+	m->cpu->DITBASE = 0x00200000;
+	m->cpu->CAD = 0;
+	m->cpu->CED = 0;
+	m->cpu->PS = 0;
+	output(ctx, "PSTP    = 0x00100000");
+	output(ctx, "DITBASE = 0x00200000");
+	output(ctx, "CAD     = 0 (Alternative Domain)");
+	output(ctx, "CED     = 0 (Executing Domain)");
+	output(ctx, "PS      = 0 (Process Segment)");
+
+	output(ctx, "");
+	output(ctx, "Demo configuration complete!");
+	output(ctx, "");
+	output(ctx, "Try these commands:");
+	output(ctx, "  showmmu           - View MMU status");
+	output(ctx, "  showpst 100       - View direct-mapped PST entry");
+	output(ctx, "  showpst 101       - View single-level paging PST entry");
+	output(ctx, "  showpst 102       - View two-level paging PST entry");
+	output(ctx, "  showpcb 0         - View domain 0 capabilities");
+	output(ctx, "  showpcb 0 5       - View segment 5 capabilities");
+	output(ctx, "  mmu on            - Enable MMU");
+	output(ctx, "  phyladr 0x00000000 - Translate segment 0 address");
+
 	return 0;
 }
 

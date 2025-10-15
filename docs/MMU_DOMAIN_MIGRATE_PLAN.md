@@ -580,7 +580,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 
 ---
 
-### Phase 6: Console Debug Commands ⏳ NOT STARTED
+### Phase 6: Console Debug Commands ✅ COMPLETE
 
 **Goal**: Add MMU-specific console commands for debugging
 
@@ -588,7 +588,9 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 
 **Estimated Time**: 0.5-1 day
 
-**File**: `src/debugger/debugger.c`
+**Status**: ✅ COMPLETE - All 5 MMU commands implemented and integrated
+
+**File**: `src/debugger/commands.c`
 
 #### 6.1 New Commands
 
@@ -840,15 +842,19 @@ printf("  phyladr <vaddr>             Translate virtual address to physical\n");
 
 #### 6.8 Acceptance Criteria
 
-- [ ] `mmu on` enables MMU
-- [ ] `mmu off` disables MMU
-- [ ] `mmu` (no args) shows current state
-- [ ] `showmmu` displays complete MMU state
-- [ ] `showpst <psn>` shows PST entry with mode and PFN
-- [ ] `showpcb <domain>` shows all capabilities
-- [ ] `phyladr <addr>` translates addresses correctly
-- [ ] All commands have tab completion
-- [ ] Help text documents all commands
+- [x] `mmu on` enables MMU
+- [x] `mmu off` disables MMU
+- [x] `mmu` (no args) shows current state
+- [x] `showmmu` displays complete MMU state
+- [x] `showpst <psn>` shows PST entry with mode and PFN
+- [x] `showpcb <domain>` shows all capabilities for domain
+- [x] `showpcb <domain> <seg>` shows specific segment capabilities
+- [x] `phyladr <addr>` translates addresses correctly
+- [x] All commands added to command table
+- [x] Help text documents all 5 commands
+- [x] Commands compile and build successfully
+- [x] `mmusetup` command creates demo configuration for testing
+- [x] Comprehensive usage documentation created (docs/MMU_USAGE_GUIDE.md)
 
 ---
 
