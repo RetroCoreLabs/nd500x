@@ -114,7 +114,7 @@ if(PLATFORM_WASM OR BUILD_WASM)
         file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/debugger.js
              DESTINATION ${CMAKE_BINARY_DIR}/bin/)
         # Copy demo kernel binary
-        file(COPY ${CMAKE_SOURCE_DIR}/examples/05-c-kernel/kernel
+        file(COPY ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/demo/kernel
              DESTINATION ${CMAKE_BINARY_DIR}/bin/)
     endif()
 endif()
