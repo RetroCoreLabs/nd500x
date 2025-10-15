@@ -120,31 +120,45 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {
 /**
  * Raise a trap condition in the ND-500 CPU
  *
+ * @param cpu       CPU structure to modify
  * @param trapBit   The trap bit(s) to set (use TRAP_xxx defines)
  * @param trapPC    PC where trap occurred
  * @param dataAddr  Related memory address (if applicable)
  *
  * For non-ignorable/fatal traps: Sets status bit and longjmps back to cpu_run()
- * For ignorable traps: Only sets status bit
+ * For ignorable traps: Sets status bit only if enabled in OTE mask
  */
-void raise_trap(uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
-	/* This function needs access to the CPU structure, but we'll implement it
-	 * as a global function that works with the current CPU context */
-	printf("\n[TRAP] Trap 0x%016llx at PC=0x%08X Data=0x%08X\n", 
+void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
+	if (!cpu) return;
+
+	printf("\n[TRAP] Trap 0x%016llx at PC=0x%08X Data=0x%08X\n",
 	       (unsigned long long)trapBit, trapPC, dataAddr);
-	
+
+	/* Set the corresponding bit in ST1/ST2 status registers */
+	if (trapBit & 0xFFFFFFFF) {
+		cpu->ST1 |= (uint32_t)(trapBit & 0xFFFFFFFF);
+	}
+	if (trapBit >> 32) {
+		cpu->ST2 |= (uint32_t)(trapBit >> 32);
+	}
+
 	/* Set trap state for the runner to check */
 	nd500_trap_set_state(trapBit, trapPC, dataAddr, "Trap occurred during instruction execution");
-	
-	/* Check if this trap interrupts instruction execution */
+
+	/* Check if this is a non-ignorable trap (bits 0-10) */
 	if (trapBit & TRAP_INTERRUPT_MASK) {
-		printf("[TRAP] Interrupting instruction execution\n");
-		printf("[TRAP] Stopping execution due to non-ignorable trap\n");
+		printf("[TRAP] Non-ignorable trap - interrupting instruction execution\n");
+		printf("[TRAP] Stopping execution\n");
 		return;
 	}
-	
-	/* Ignorable trap: just set bit, will be checked at end of instruction */
-	printf("[TRAP] Ignorable trap - setting status bit\n");
+
+	/* Ignorable trap (bits 11-29): check if enabled in OTE mask */
+	uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
+	if (trapBit & ote) {
+		printf("[TRAP] Ignorable trap enabled in OTE - will be checked at end of instruction\n");
+	} else {
+		printf("[TRAP] Ignorable trap NOT enabled in OTE - suppressed\n");
+	}
 }
 
 /**
@@ -214,79 +228,79 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 /* TRAP HELPER FUNCTIONS */
 /* ═══════════════════════════════════════════════════════ */
 
-void trap_illegal_instruction(uint32_t pc, uint32_t opcode) {
+void trap_illegal_instruction(Nd500Cpu* cpu, uint32_t pc, uint32_t opcode) {
 	printf("[TRAP] Illegal instruction 0x%04X at PC=0x%08X\n", opcode, pc);
-	raise_trap(TRAP_IIC, pc, opcode);
+	raise_trap(cpu, TRAP_IIC, pc, opcode);
 }
 
-void trap_illegal_operand(uint32_t pc) {
+void trap_illegal_operand(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Illegal operand at PC=0x%08X\n", pc);
-	raise_trap(TRAP_IOS, pc, 0);
+	raise_trap(cpu, TRAP_IOS, pc, 0);
 }
 
-void trap_instruction_sequence_error(uint32_t pc) {
+void trap_instruction_sequence_error(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Instruction sequence error at PC=0x%08X\n", pc);
-	raise_trap(TRAP_ISE, pc, 0);
+	raise_trap(cpu, TRAP_ISE, pc, 0);
 }
 
-void trap_protect_violation(uint32_t pc, uint32_t address) {
+void trap_protect_violation(Nd500Cpu* cpu, uint32_t pc, uint32_t address) {
 	printf("[TRAP] Protect violation at PC=0x%08X address=0x%08X\n", pc, address);
-	raise_trap(TRAP_PV, pc, address);
+	raise_trap(cpu, TRAP_PV, pc, address);
 }
 
-void trap_page_fault(uint32_t pc, uint32_t address) {
+void trap_page_fault(Nd500Cpu* cpu, uint32_t pc, uint32_t address) {
 	printf("[TRAP] Page fault at PC=0x%08X address=0x%08X\n", pc, address);
-	raise_trap(TRAP_PGF, pc, address);
+	raise_trap(cpu, TRAP_PGF, pc, address);
 }
 
-void trap_divide_by_zero(uint32_t pc) {
+void trap_divide_by_zero(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Divide by zero at PC=0x%08X\n", pc);
-	raise_trap(TRAP_DZ, pc, 0);
+	raise_trap(cpu, TRAP_DZ, pc, 0);
 }
 
-void trap_floating_overflow(uint32_t pc) {
+void trap_floating_overflow(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Floating overflow at PC=0x%08X\n", pc);
-	raise_trap(TRAP_FO, pc, 0);
+	raise_trap(cpu, TRAP_FO, pc, 0);
 }
 
-void trap_floating_underflow(uint32_t pc) {
+void trap_floating_underflow(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Floating underflow at PC=0x%08X\n", pc);
-	raise_trap(TRAP_FU, pc, 0);
+	raise_trap(cpu, TRAP_FU, pc, 0);
 }
 
-void trap_invalid_operation(uint32_t pc) {
+void trap_invalid_operation(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Invalid operation at PC=0x%08X\n", pc);
-	raise_trap(TRAP_IVO, pc, 0);
+	raise_trap(cpu, TRAP_IVO, pc, 0);
 }
 
-void trap_stack_overflow(uint32_t pc) {
+void trap_stack_overflow(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Stack overflow at PC=0x%08X\n", pc);
-	raise_trap(TRAP_STO, pc, 0);
+	raise_trap(cpu, TRAP_STO, pc, 0);
 }
 
-void trap_stack_underflow(uint32_t pc) {
+void trap_stack_underflow(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Stack underflow at PC=0x%08X\n", pc);
-	raise_trap(TRAP_STU, pc, 0);
+	raise_trap(cpu, TRAP_STU, pc, 0);
 }
 
-void trap_breakpoint(uint32_t pc) {
+void trap_breakpoint(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Breakpoint at PC=0x%08X\n", pc);
-	raise_trap(TRAP_BPT, pc, 0);
+	raise_trap(cpu, TRAP_BPT, pc, 0);
 }
 
-void trap_single_instruction(uint32_t pc) {
+void trap_single_instruction(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Single instruction trap at PC=0x%08X\n", pc);
-	raise_trap(TRAP_SIT, pc, 0);
+	raise_trap(cpu, TRAP_SIT, pc, 0);
 }
 
-void trap_branch(uint32_t pc) {
+void trap_branch(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Branch trap at PC=0x%08X\n", pc);
-	raise_trap(TRAP_BT, pc, 0);
+	raise_trap(cpu, TRAP_BT, pc, 0);
 }
 
-void trap_call(uint32_t pc) {
+void trap_call(Nd500Cpu* cpu, uint32_t pc) {
 	printf("[TRAP] Call trap at PC=0x%08X\n", pc);
-	raise_trap(TRAP_CT, pc, 0);
+	raise_trap(cpu, TRAP_CT, pc, 0);
 }
 
 /* ═══════════════════════════════════════════════════════ */

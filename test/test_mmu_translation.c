@@ -19,9 +19,9 @@ typedef struct {
 } TestCpu;
 
 /* Stub functions for testing (not used in unit tests) */
-void trap_protect_violation(uint32_t pc, uint32_t addr) { (void)pc; (void)addr; }
-void trap_page_fault(uint32_t pc, uint32_t addr) { (void)pc; (void)addr; }
-void trap_illegal_operand(uint32_t pc) { (void)pc; }
+void trap_protect_violation(void* cpu, uint32_t pc, uint32_t addr) { (void)cpu; (void)pc; (void)addr; }
+void trap_page_fault(void* cpu, uint32_t pc, uint32_t addr) { (void)cpu; (void)pc; (void)addr; }
+void trap_illegal_operand(void* cpu, uint32_t pc) { (void)cpu; (void)pc; }
 uint8_t nd500_bus_read8(void* m, uint32_t addr) { (void)m; (void)addr; return 0xFF; }
 void nd500_bus_write8(void* m, uint32_t addr, uint8_t val) { (void)m; (void)addr; (void)val; }
 

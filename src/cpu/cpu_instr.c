@@ -641,7 +641,7 @@ void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     if (func == NULL) {
         /* No implementation for this opcode - raise illegal instruction trap */
-        trap_illegal_instruction(cpu->PC, fi->opcode);
+        trap_illegal_instruction(cpu, cpu->PC, fi->opcode);
         return;
     }
 

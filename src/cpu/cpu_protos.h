@@ -113,7 +113,7 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out);
 int nd500_cpu_run(Nd500Cpu* cpu, int steps);
 
 /* Trap system functions */
-void raise_trap(uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr);
+void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr);
 void check_pending_traps(Nd500Cpu* cpu);
 void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP);
 
@@ -124,21 +124,21 @@ const Nd500TrapState* nd500_trap_get_state(void);
 void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, const char* description);
 
 /* Trap helper functions */
-void trap_illegal_instruction(uint32_t pc, uint32_t opcode);
-void trap_illegal_operand(uint32_t pc);
-void trap_instruction_sequence_error(uint32_t pc);
-void trap_protect_violation(uint32_t pc, uint32_t address);
-void trap_page_fault(uint32_t pc, uint32_t address);
-void trap_divide_by_zero(uint32_t pc);
-void trap_floating_overflow(uint32_t pc);
-void trap_floating_underflow(uint32_t pc);
-void trap_invalid_operation(uint32_t pc);
-void trap_stack_overflow(uint32_t pc);
-void trap_stack_underflow(uint32_t pc);
-void trap_breakpoint(uint32_t pc);
-void trap_single_instruction(uint32_t pc);
-void trap_branch(uint32_t pc);
-void trap_call(uint32_t pc);
+void trap_illegal_instruction(Nd500Cpu* cpu, uint32_t pc, uint32_t opcode);
+void trap_illegal_operand(Nd500Cpu* cpu, uint32_t pc);
+void trap_instruction_sequence_error(Nd500Cpu* cpu, uint32_t pc);
+void trap_protect_violation(Nd500Cpu* cpu, uint32_t pc, uint32_t address);
+void trap_page_fault(Nd500Cpu* cpu, uint32_t pc, uint32_t address);
+void trap_divide_by_zero(Nd500Cpu* cpu, uint32_t pc);
+void trap_floating_overflow(Nd500Cpu* cpu, uint32_t pc);
+void trap_floating_underflow(Nd500Cpu* cpu, uint32_t pc);
+void trap_invalid_operation(Nd500Cpu* cpu, uint32_t pc);
+void trap_stack_overflow(Nd500Cpu* cpu, uint32_t pc);
+void trap_stack_underflow(Nd500Cpu* cpu, uint32_t pc);
+void trap_breakpoint(Nd500Cpu* cpu, uint32_t pc);
+void trap_single_instruction(Nd500Cpu* cpu, uint32_t pc);
+void trap_branch(Nd500Cpu* cpu, uint32_t pc);
+void trap_call(Nd500Cpu* cpu, uint32_t pc);
 
 /* Instruction metadata (loaded from build/src/cpu/instructions.json if available) */
 int nd500_instr_load_default(void);
