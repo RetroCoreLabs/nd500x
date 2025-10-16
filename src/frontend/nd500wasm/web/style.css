@@ -2755,7 +2755,7 @@ body {
 }
 
 .memory-blocks {
-    display: flex;
+    position: relative;
     height: 60px;
     border: 2px solid #dee2e6;
     border-radius: 6px;
