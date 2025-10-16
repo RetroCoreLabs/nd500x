@@ -5,7 +5,7 @@ class ND500Debugger {
         this.breakpoints = [];
         this.isRunning = false;
         this.runInterval = null;
-        this.VERSION = '20251016g'; // Update this with each change
+        this.VERSION = '20251016h'; // Update this with each change
         this.memoryMapDomainFilter = 'all'; // Default to showing all domains
     }
 
@@ -224,11 +224,16 @@ class ND500Debugger {
                 if (mmuEnabled) {
                     // Disable MMU
                     this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmu off']);
-                    this.updateStatus('MMU disabled');
+                    // Reset PC to physical address where code was loaded
+                    this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [0x00000000]);
+                    this.updateStatus('MMU disabled - PC reset to 0x00000000 (physical)');
                 } else {
                     // Enable MMU - run mmusetup
                     this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmusetup']);
-                    this.updateStatus('MMU enabled with default configuration');
+                    // Set PC to kernel code virtual address (as configured by mmusetup)
+                    // Domain 0 code is mapped to virtual segment 26 = 0x08000000
+                    this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [0x08000000]);
+                    this.updateStatus('MMU enabled - PC set to 0x08000000 (kernel virtual)');
                 }
 
                 // Update UI after toggle
@@ -496,9 +501,19 @@ class ND500Debugger {
                 const newState = isEnabled ? 'off' : 'on';
                 this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], [`mmu ${newState}`]);
 
+                // Adjust PC based on new MMU state
+                if (newState === 'on') {
+                    // MMU enabled - set PC to kernel virtual address
+                    this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [0x08000000]);
+                } else {
+                    // MMU disabled - reset PC to physical address
+                    this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [0x00000000]);
+                }
+
                 // Update display
                 this.updateMmuModal();
                 this.updateMmuPanel();
+                this.updateUI();  // Refresh disassembly after MMU state change
                 this.updateStatus(`MMU ${newState === 'on' ? 'enabled' : 'disabled'}`);
             } catch (error) {
                 console.error('Error toggling MMU:', error);
@@ -1534,12 +1549,15 @@ class ND500Debugger {
                 this.updateStatus('Demo kernel loaded - NDIX-C Simulated Kernel v1.0 for ND-500');
                 this.updateUI();
 
-                // Automatically run mmusetup to initialize MMU with demo configuration
+                // Automatically run mmusetup to configure MMU tables, but keep MMU disabled
                 try {
                     console.log('Running automatic mmusetup...');
                     const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmusetup']);
                     console.log('mmusetup completed:', output);
-                    this.updateStatus('Demo kernel loaded with MMU configuration');
+                    // Disable MMU so code runs at physical addresses initially
+                    console.log('Disabling MMU to run at physical addresses...');
+                    this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmu off']);
+                    this.updateStatus('Demo kernel loaded - MMU configured but disabled');
                     this.updateMmuPanel();
                 } catch (mmuError) {
                     console.warn('Could not run automatic mmusetup:', mmuError);
