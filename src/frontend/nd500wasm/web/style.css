@@ -1193,19 +1193,23 @@ body {
 .mmu-status-inline-label {
     font-weight: 600;
     color: #495057;
+    font-size: 0.95em;
 }
 
 .mmu-status-inline-value {
-    color: #2c3e50;
+    color: #1a252f;
+    font-weight: 600;
+    font-size: 1.0em;
 }
 
 .mmu-status-inline-value.enabled {
     color: #28a745;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .mmu-status-inline-value.disabled {
-    color: #6c757d;
+    color: #dc3545;
+    font-weight: 700;
 }
 
 /* MMU Modal */
