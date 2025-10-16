@@ -5,7 +5,7 @@ class ND500Debugger {
         this.breakpoints = [];
         this.isRunning = false;
         this.runInterval = null;
-        this.VERSION = '20251016i'; // Update this with each change
+        this.VERSION = '20251016j'; // Update this with each change
         this.memoryMapDomainFilter = 'all'; // Default to showing all domains
     }
 

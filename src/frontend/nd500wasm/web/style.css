@@ -1349,17 +1349,19 @@ body {
 .mmu-value {
     flex: 1;
     font-family: 'Courier New', monospace;
-    color: #2c3e50;
+    color: #1a252f;
     font-size: 14px;
+    font-weight: 600;
 }
 
 .mmu-value.enabled {
     color: #28a745;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .mmu-value.disabled {
-    color: #6c757d;
+    color: #dc3545;
+    font-weight: 700;
 }
 
 .mmu-toggle-btn {
