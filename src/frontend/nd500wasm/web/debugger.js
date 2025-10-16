@@ -5,7 +5,7 @@ class ND500Debugger {
         this.breakpoints = [];
         this.isRunning = false;
         this.runInterval = null;
-        this.VERSION = '20251015d'; // Update this with each change
+        this.VERSION = '20251016g'; // Update this with each change
         this.memoryMapDomainFilter = 'all'; // Default to showing all domains
     }
 
@@ -55,7 +55,6 @@ class ND500Debugger {
 
         // MMU button opens MMU modal
         document.getElementById('mmuBtn').onclick = () => {
-            console.log('MMU button clicked');
             this.openMmuModal();
         };
 
@@ -574,7 +573,7 @@ class ND500Debugger {
         // Setup Memory Map domain filter
         const memoryMapDomainFilter = document.getElementById('memoryMapDomainFilter');
         if (memoryMapDomainFilter) {
-            memoryMapDomainFilter.onchange = () => {
+            memoryMapDomainFilter.onchange = (event) => {
                 this.memoryMapDomainFilter = memoryMapDomainFilter.value;
                 this.updateMemoryMap();
             };
@@ -1092,18 +1091,21 @@ class ND500Debugger {
                 jsonStr = this.module.ccall('nd500_dbg_memory_map_for_domain_json_js', 'string', ['number'], [domain]);
             }
 
-            console.log('Memory map JSON (filter=' + this.memoryMapDomainFilter + '):', jsonStr);
             const data = JSON.parse(jsonStr);
 
             if (data.error) {
                 throw new Error(data.error);
             }
 
-            console.log('Memory map data:', data);
+            // Filter blocks by accessibility if domain filter is active
+            let visibleBlocks = data.blocks;
+            if (this.memoryMapDomainFilter !== 'all') {
+                visibleBlocks = data.blocks.filter(block => block.accessible_from_filter === true);
+            }
 
-            // Calculate memory usage
+            // Calculate memory usage (only count visible blocks)
             const totalMem = data.total_memory;
-            const usedMem = data.blocks.reduce((sum, block) => sum + block.size, 0);
+            const usedMem = visibleBlocks.reduce((sum, block) => sum + block.size, 0);
             const usedPercent = totalMem > 0 ? (usedMem / totalMem * 100).toFixed(1) : 0;
             const freeMem = totalMem - usedMem;
 
@@ -1112,15 +1114,15 @@ class ND500Debugger {
             if (this.memoryMapDomainFilter === 'all') {
                 statEl.textContent = `${this.formatSize(usedMem)} used / ${this.formatSize(totalMem)} total (${usedPercent}% used, ${this.formatSize(freeMem)} free)`;
             } else {
-                statEl.textContent = `Domain ${this.memoryMapDomainFilter}: ${this.formatSize(usedMem)} used / ${this.formatSize(totalMem)} total (${usedPercent}% used, ${this.formatSize(freeMem)} free)`;
+                statEl.textContent = `Domain ${this.memoryMapDomainFilter}: ${this.formatSize(usedMem)} accessible / ${this.formatSize(totalMem)} total (${usedPercent}% accessible)`;
             }
 
             // Update usage bar
             const usedBar = document.getElementById('memoryUsedBar');
             usedBar.style.width = `${usedPercent}%`;
 
-            // Render memory blocks
-            this.renderMemoryBlocks(data.blocks, totalMem);
+            // Render memory blocks (only visible ones after filtering)
+            this.renderMemoryBlocks(visibleBlocks, totalMem);
 
         } catch (error) {
             console.error('Error updating memory map:', error);
@@ -1141,46 +1143,22 @@ class ND500Debugger {
         // Sort blocks by physical address (should already be sorted from backend)
         blocks.sort((a, b) => a.phys_start - b.phys_start);
 
-        // Build blocks with gap detection
+        // Use absolute positioning so blocks stay in their physical address locations
         let html = '';
-        let lastEnd = 0;
 
         blocks.forEach((block, idx) => {
-            // Add free space gap if there's a gap
-            if (block.phys_start > lastEnd) {
-                const gapSize = block.phys_start - lastEnd;
-                const gapPercent = (gapSize / totalMem * 100);
-                if (gapPercent > 0.1) { // Only show gaps > 0.1%
-                    html += `<div class="memory-block free" style="width: ${gapPercent}%"
-                        title="Free memory: ${this.formatAddr(lastEnd)} - ${this.formatAddr(block.phys_start)}">
-                    </div>`;
-                }
-            }
-
-            // Add mapped block
-            const percent = (block.size / totalMem * 100);
+            // Calculate position and width based on absolute physical addresses
+            const leftPercent = (block.phys_start / totalMem * 100);
+            const widthPercent = (block.size / totalMem * 100);
             const color = this.getBlockColor(block.domain, block.segment);
             const title = this.getBlockTitle(block);
 
             html += `<div class="memory-block mapped"
-                style="width: ${percent}%; background-color: ${color};"
+                style="position: absolute; left: ${leftPercent}%; width: ${widthPercent}%; background-color: ${color};"
                 data-block-index="${idx}"
                 title="${title}">
             </div>`;
-
-            lastEnd = block.phys_end;
         });
-
-        // Add trailing free space if any
-        if (lastEnd < totalMem) {
-            const gapSize = totalMem - lastEnd;
-            const gapPercent = (gapSize / totalMem * 100);
-            if (gapPercent > 0.1) {
-                html += `<div class="memory-block free" style="width: ${gapPercent}%"
-                    title="Free memory: ${this.formatAddr(lastEnd)} - ${this.formatAddr(totalMem)}">
-                </div>`;
-            }
-        }
 
         container.innerHTML = html;
 
@@ -1256,7 +1234,7 @@ class ND500Debugger {
         lines.push(`<div class="memory-info-row"><strong>Physical Address:</strong> ${this.formatAddr(block.phys_start)} - ${this.formatAddr(block.phys_end)}</div>`);
         lines.push(`<div class="memory-info-row"><strong>Size:</strong> ${this.formatSize(block.size)}</div>`);
 
-        if (block.domain >= 0) {
+        if (block.domain >= 0 && block.domain !== null && block.domain !== undefined) {
             lines.push(`<div class="memory-info-row"><strong>Owner Domain:</strong> ${block.domain}</div>`);
             lines.push(`<div class="memory-info-row"><strong>Segment:</strong> ${block.segment}</div>`);
             lines.push(`<div class="memory-info-row"><strong>PSN:</strong> ${block.psn}</div>`);
@@ -1284,7 +1262,9 @@ class ND500Debugger {
 
             lines.push(`<div class="memory-info-row"><strong>Flags:</strong> ${flags.join(', ')}</div>`);
         } else {
-            lines.push(`<div class="memory-info-row"><strong>Status:</strong> Free (unmapped)</div>`);
+            // Free/unallocated memory
+            lines.push(`<div class="memory-info-row" style="color: #999;"><strong>Status:</strong> Free (unallocated)</div>`);
+            lines.push(`<div class="memory-info-row" style="color: #999;"><em>Not mapped to any domain</em></div>`);
         }
 
         return lines.join('');
@@ -1716,6 +1696,9 @@ class ND500Debugger {
         this.updateRegisters();
         this.updateTraps();
         this.updateDisassembly();
+        // Clear any traps that occurred during disassembly of unmapped addresses
+        // (these are expected when PC points to an unmapped address with MMU enabled)
+        this.module.ccall('nd500_dbg_clear_traps_js', null, [], []);
         this.updateBreakpoints();
         this.updateMmuPanel();
     }
