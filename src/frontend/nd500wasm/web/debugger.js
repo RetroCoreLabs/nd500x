@@ -800,16 +800,16 @@ class ND500Debugger {
 
             // Parse PST count from output
             const pstMatch = output.match(/PST: (\d+) configured entries \(of (\d+) max\)/);
-            if (pstMatch) {
-                document.getElementById('mmuPstCount').textContent =
-                    `${pstMatch[1]} configured (of ${pstMatch[2]} max)`;
+            const mmuPstCount = document.getElementById('mmuPstCount');
+            if (pstMatch && mmuPstCount) {
+                mmuPstCount.textContent = `${pstMatch[1]} configured (of ${pstMatch[2]} max)`;
             }
 
             // Parse PCB count from output
             const pcbMatch = output.match(/PCB: (\d+) domains with (\d+) segments/);
-            if (pcbMatch) {
-                document.getElementById('mmuPcbCount').textContent =
-                    `${pcbMatch[1]} domains with ${pcbMatch[2]} segments`;
+            const mmuPcbCount = document.getElementById('mmuPcbCount');
+            if (pcbMatch && mmuPcbCount) {
+                mmuPcbCount.textContent = `${pcbMatch[1]} domains with ${pcbMatch[2]} segments`;
             }
 
             // Get registers from JSON
@@ -817,20 +817,25 @@ class ND500Debugger {
             const regs = JSON.parse(json);
 
             // Update MMU registers
-            if (regs.PSTP !== undefined) {
-                document.getElementById('regPSTP').textContent = '0x' + regs.PSTP.toString(16).padStart(8,'0').toUpperCase();
+            const regPSTP = document.getElementById('regPSTP');
+            if (regPSTP && regs.PSTP !== undefined) {
+                regPSTP.textContent = '0x' + regs.PSTP.toString(16).padStart(8,'0').toUpperCase();
             }
-            if (regs.DITBASE !== undefined) {
-                document.getElementById('regDITBASE').textContent = '0x' + regs.DITBASE.toString(16).padStart(8,'0').toUpperCase();
+            const regDITBASE = document.getElementById('regDITBASE');
+            if (regDITBASE && regs.DITBASE !== undefined) {
+                regDITBASE.textContent = '0x' + regs.DITBASE.toString(16).padStart(8,'0').toUpperCase();
             }
-            if (regs.CED !== undefined) {
-                document.getElementById('regCED').textContent = '0x' + regs.CED.toString(16).padStart(8,'0').toUpperCase();
+            const regCED = document.getElementById('regCED');
+            if (regCED && regs.CED !== undefined) {
+                regCED.textContent = '0x' + regs.CED.toString(16).padStart(8,'0').toUpperCase();
             }
-            if (regs.CAD !== undefined) {
-                document.getElementById('regCAD').textContent = '0x' + regs.CAD.toString(16).padStart(8,'0').toUpperCase();
+            const regCAD = document.getElementById('regCAD');
+            if (regCAD && regs.CAD !== undefined) {
+                regCAD.textContent = '0x' + regs.CAD.toString(16).padStart(8,'0').toUpperCase();
             }
-            if (regs.PS !== undefined) {
-                document.getElementById('regPS').textContent = '0x' + regs.PS.toString(16).padStart(8,'0').toUpperCase();
+            const regPS = document.getElementById('regPS');
+            if (regPS && regs.PS !== undefined) {
+                regPS.textContent = '0x' + regs.PS.toString(16).padStart(8,'0').toUpperCase();
             }
         } catch (error) {
             console.error('Error updating MMU modal:', error);
