@@ -435,6 +435,107 @@ void nd500_dbg_mmu_disable_data_js(void) {
 	nd500_mmu_disable_data(g_machine.cpu);
 }
 
+/* Get PCB segment capabilities as JSON with decoded bit fields */
+const char* nd500_dbg_pcb_segment_json_js(int domain, int segment) {
+	if (!g_machine.cpu || domain < 0 || domain > 255 || segment < 0 || segment >= MAXSEG) {
+		return "{}";
+	}
+
+	cJSON* root = cJSON_CreateObject();
+	cJSON_AddNumberToObject(root, "domain", domain);
+	cJSON_AddNumberToObject(root, "segment", segment);
+
+	/* ═══════════════════════════════════════════════════════ */
+	/* Program Capability */
+	/* ═══════════════════════════════════════════════════════ */
+	uint16_t prog_cap = nd500_mmu_get_program_capability(g_machine.cpu, (uint8_t)domain, segment);
+	cJSON* prog = cJSON_CreateObject();
+	cJSON_AddNumberToObject(prog, "raw", prog_cap);
+
+	/* Bit 15: Direct (0) or Indirect (1) */
+	int bit15 = (prog_cap >> 15) & 1;
+	cJSON_AddNumberToObject(prog, "bit15", bit15);
+	cJSON_AddStringToObject(prog, "type", bit15 ? "INDIRECT" : "DIRECT");
+
+	if (bit15 == 0) {
+		/* DIRECT segment: bit15=0, bits 14-13 unused, bits 12-0 = PSN */
+		int unused_bits = (prog_cap >> 13) & 0x3;
+		int psn = prog_cap & 0x1FFF;
+
+		cJSON_AddNumberToObject(prog, "unused_bits", unused_bits);
+		cJSON_AddNumberToObject(prog, "psn", psn);
+		cJSON_AddNullToObject(prog, "omc_bit");
+		cJSON_AddNullToObject(prog, "unused_bit13");
+		cJSON_AddNullToObject(prog, "domain");
+		cJSON_AddNullToObject(prog, "segment");
+	} else {
+		/* INDIRECT segment: bit15=1, bit14=OMC, bit13 unused, bits 12-5=domain, bits 4-0=segment */
+		int omc_bit = (prog_cap >> 14) & 1;
+		int unused_bit13 = (prog_cap >> 13) & 1;
+		int domain_field = (prog_cap >> 5) & 0xFF;
+		int segment_field = prog_cap & 0x1F;
+
+		cJSON_AddNumberToObject(prog, "omc_bit", omc_bit);
+		cJSON_AddNumberToObject(prog, "unused_bit13", unused_bit13);
+		cJSON_AddNumberToObject(prog, "domain", domain_field);
+		cJSON_AddNumberToObject(prog, "segment", segment_field);
+		cJSON_AddNullToObject(prog, "unused_bits");
+		cJSON_AddNullToObject(prog, "psn");
+	}
+
+	cJSON_AddItemToObject(root, "program", prog);
+
+	/* ═══════════════════════════════════════════════════════ */
+	/* Data Capability */
+	/* ═══════════════════════════════════════════════════════ */
+	uint16_t data_cap = nd500_mmu_get_data_capability(g_machine.cpu, (uint8_t)domain, segment);
+	cJSON* data = cJSON_CreateObject();
+	cJSON_AddNumberToObject(data, "raw", data_cap);
+
+	/* Bit 15: Write Permitted */
+	int wrp_bit = (data_cap >> 15) & 1;
+	cJSON_AddNumberToObject(data, "wrp_bit", wrp_bit);
+
+	/* Bit 14: Parameter Access (user accessible) */
+	int pac_bit = (data_cap >> 14) & 1;
+	cJSON_AddNumberToObject(data, "pac_bit", pac_bit);
+
+	/* Bit 13: Shared Segment */
+	int shs_bit = (data_cap >> 13) & 1;
+	cJSON_AddNumberToObject(data, "shs_bit", shs_bit);
+
+	/* Bits 12-0: Physical Segment Number */
+	int psn = data_cap & 0x1FFF;
+	cJSON_AddNumberToObject(data, "psn", psn);
+
+	/* Determine permission level based on WRP and PAC bits */
+	const char* permission = "NONE";
+	const char* permission_desc = "No access";
+
+	if (data_cap != 0) {
+		if (wrp_bit && pac_bit) {
+			permission = "SG_URW";
+			permission_desc = "User Read/Write";
+		} else if (!wrp_bit && pac_bit) {
+			permission = "SG_URO";
+			permission_desc = "User Read-Only";
+		} else if (wrp_bit && !pac_bit) {
+			permission = "SG_RW";
+			permission_desc = "Kernel Read/Write";
+		} else {
+			permission = "SG_RO";
+			permission_desc = "Kernel Read-Only";
+		}
+	}
+
+	cJSON_AddStringToObject(data, "permission", permission);
+	cJSON_AddStringToObject(data, "permission_desc", permission_desc);
+
+	cJSON_AddItemToObject(root, "data", data);
+
+	return dup_json_string(root);
+}
+
 /* ═══════════════════════════════════════════════════════ */
 /* SHARED COMMAND LIBRARY WASM INTERFACE */
 /* ═══════════════════════════════════════════════════════ */

@@ -2101,6 +2101,178 @@ body {
     font-size: 14px;
 }
 
+/* ═══════════════════════════════════════════════════════ */
+/* Segment Card - Detailed Bit Layout Display */
+/* ═══════════════════════════════════════════════════════ */
+
+.segment-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin: 8px 0;
+    padding: 12px;
+}
+
+.segment-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.segment-number {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #212529;
+}
+
+.segment-hint {
+    color: #6c757d;
+    font-size: 0.9em;
+    font-style: italic;
+}
+
+.pcb-action-btn-small {
+    margin-left: auto;
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background 0.2s;
+}
+
+.pcb-action-btn-small:hover {
+    background: #2980b9;
+}
+
+/* Capability Section Styles */
+
+.capability-section {
+    margin: 12px 0;
+    padding: 10px;
+    border-radius: 4px;
+    background: #f8f9fa;
+}
+
+.prog-cap-direct {
+    border-left: 4px solid #4CAF50;
+}
+
+.prog-cap-indirect {
+    border-left: 4px solid #2196F3;
+}
+
+.data-cap {
+    border-left: 4px solid #FF9800;
+}
+
+.capability-title {
+    font-weight: 600;
+    font-size: 0.95em;
+    color: #495057;
+    margin-bottom: 4px;
+}
+
+.capability-raw {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+    color: #6c757d;
+    margin-bottom: 8px;
+}
+
+/* Bit Layout Display */
+
+.bit-layout {
+    display: flex;
+    gap: 2px;
+    font-family: 'Courier New', monospace;
+    margin: 8px 0;
+}
+
+.bit-field {
+    background: #e3f2fd;
+    border: 1px solid #2196F3;
+    padding: 4px 8px;
+    text-align: center;
+    font-size: 0.9em;
+    font-weight: 600;
+    min-width: 30px;
+    flex-shrink: 0;
+}
+
+.bit-field.wide {
+    flex: 2;
+    min-width: 60px;
+}
+
+.bit-labels {
+    display: flex;
+    gap: 2px;
+    font-size: 0.8em;
+    color: #495057;
+    margin-top: 2px;
+}
+
+.bit-labels span {
+    padding: 2px 8px;
+    min-width: 30px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.bit-labels span:last-child {
+    flex: 2;
+    min-width: 60px;
+}
+
+.indirect-pointer {
+    margin-top: 8px;
+    font-size: 0.9em;
+    color: #495057;
+    font-style: italic;
+}
+
+/* Permission Badge */
+
+.permission-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 4px;
+    margin-top: 8px;
+    font-weight: bold;
+    font-size: 0.85em;
+}
+
+.permission-badge.sg-rw {
+    background: #4CAF50;
+    color: white;
+}
+
+.permission-badge.sg-ro {
+    background: #FFC107;
+    color: black;
+}
+
+.permission-badge.sg-urw {
+    background: #2196F3;
+    color: white;
+}
+
+.permission-badge.sg-uro {
+    background: #9C27B0;
+    color: white;
+}
+
+.permission-badge.none {
+    background: #9E9E9E;
+    color: white;
+}
+
 #pcbCloseBtn {
     background: #95a5a6;
     color: white;

@@ -1150,46 +1150,140 @@ class ND500Debugger {
                     <span class="pcb-domain-title">Domain ${domain.domain}</span>
                     <span class="pcb-domain-count">${domain.segments.length} segments</span>
                 </div>
-                <div class="pcb-segments" data-domain="${domain.domain}">
-                    <table class="pcb-segments-table">
-                        <thead>
-                            <tr>
-                                <th>Seg</th>
-                                <th>Prog Cap</th>
-                                <th>Data Cap</th>
-                                <th>Flags</th>
-                                <th>Description</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
+                <div class="pcb-segments" data-domain="${domain.domain}">`;
 
+        // Render each segment with detailed bit layout
         domain.segments.forEach(seg => {
-            // Build flags display
-            let flags = [];
-            if (seg.progInfo.dir) flags.push('<span class="pcb-flag dir">DIR</span>');
-            if (seg.dataInfo.wrp) flags.push('<span class="pcb-flag wrp">WRP</span>');
-            if (seg.dataInfo.pac) flags.push('<span class="pcb-flag pac">PAC</span>');
-            const flagsHtml = flags.length > 0 ? flags.join(' ') : '<span class="pcb-no-flags">-</span>';
+            // Fetch detailed capability data from new JSON API
+            let capData = null;
+            try {
+                const jsonStr = this.module.ccall('nd500_dbg_pcb_segment_json_js', 'string', ['number', 'number'], [domain.domain, seg.segment]);
+                capData = JSON.parse(jsonStr);
+            } catch (error) {
+                console.error(`Error fetching capability data for domain ${domain.domain}, segment ${seg.segment}:`, error);
+            }
 
-            html += `
-                <tr>
-                    <td>${seg.segment}</td>
-                    <td>0x${seg.progCap.toString(16).padStart(4,'0').toUpperCase()}</td>
-                    <td>0x${seg.dataCap.toString(16).padStart(4,'0').toUpperCase()}</td>
-                    <td>${flagsHtml}</td>
-                    <td class="pcb-description">${this.escapeHtml(seg.description)}</td>
-                    <td><button class="pcb-action-btn" onclick="event.stopPropagation(); nd500Debugger.openPcbEditModal(${domain.domain}, ${seg.segment}, ${seg.progCap}, ${seg.dataCap});">Edit</button></td>
-                </tr>`;
+            if (capData && capData.program && capData.data) {
+                html += this.renderSegmentDetailed(capData);
+            } else {
+                // Fallback to simple display if JSON API fails
+                html += `<div class="segment-card">
+                    <div class="segment-header">Segment ${seg.segment} - Error loading details</div>
+                </div>`;
+            }
         });
 
         html += `
-                        </tbody>
-                    </table>
                 </div>
             </div>`;
 
         return html;
+    }
+
+    renderSegmentDetailed(capData) {
+        const domain = capData.domain;
+        const segment = capData.segment;
+        const prog = capData.program;
+        const data = capData.data;
+
+        // Get segment name hint
+        const segmentName = this.getSegmentNameHint(segment);
+
+        let html = `
+            <div class="segment-card">
+                <div class="segment-header">
+                    <span class="segment-number">Segment ${segment}</span>
+                    ${segmentName ? `<span class="segment-hint">${segmentName}</span>` : ''}
+                    <button class="pcb-action-btn-small" onclick="event.stopPropagation(); nd500Debugger.openPcbEditModal(${domain}, ${segment}, ${prog.raw}, ${data.raw});">✎ Edit</button>
+                </div>
+
+                <!-- Program Capability -->
+                <div class="capability-section prog-cap-${prog.type.toLowerCase()}">
+                    <div class="capability-title">Program Capability: ${prog.type}</div>
+                    <div class="capability-raw">Raw: 0x${prog.raw.toString(16).padStart(4,'0').toUpperCase()}</div>
+
+                    <div class="bit-layout">`;
+
+        if (prog.bit15 === 0) {
+            // DIRECT layout
+            html += `
+                        <span class="bit-field" title="bit 15: Direct=0, Indirect=1">0</span>
+                        <span class="bit-field" title="bits 14-13: unused">${prog.unused_bits.toString(2).padStart(2,'0')}</span>
+                        <span class="bit-field wide" title="bits 12-0: Physical Segment Number">0x${prog.psn.toString(16).padStart(4,'0').toUpperCase()}</span>
+                    </div>
+                    <div class="bit-labels">
+                        <span>Dir</span>
+                        <span>Unused</span>
+                        <span>PSN ${prog.psn} → PST[${prog.psn}]</span>
+                    </div>`;
+        } else {
+            // INDIRECT layout
+            html += `
+                        <span class="bit-field" title="bit 15: Direct=0, Indirect=1">1</span>
+                        <span class="bit-field" title="bit 14: Other Machine">${prog.omc_bit}</span>
+                        <span class="bit-field" title="bit 13: unused">${prog.unused_bit13}</span>
+                        <span class="bit-field" title="bits 12-5: Domain">0x${prog.domain.toString(16).padStart(2,'0').toUpperCase()}</span>
+                        <span class="bit-field" title="bits 4-0: Segment">0x${prog.segment.toString(16).padStart(2,'0').toUpperCase()}</span>
+                    </div>
+                    <div class="bit-labels">
+                        <span>Ind</span>
+                        <span>OMC${prog.omc_bit ? '✅' : '❌'}</span>
+                        <span>Unu</span>
+                        <span>Domain ${prog.domain}</span>
+                        <span>Segment ${prog.segment}</span>
+                    </div>
+                    <div class="indirect-pointer">→ Points to Domain ${prog.domain}, Segment ${prog.segment}</div>`;
+        }
+
+        html += `
+                </div>
+
+                <!-- Data Capability -->
+                <div class="capability-section data-cap">
+                    <div class="capability-title">Data Capability</div>
+                    <div class="capability-raw">Raw: 0x${data.raw.toString(16).padStart(4,'0').toUpperCase()}</div>
+
+                    <div class="bit-layout">
+                        <span class="bit-field" title="bit 15: Write Permitted">${data.wrp_bit}</span>
+                        <span class="bit-field" title="bit 14: Parameter Access (User)">${data.pac_bit}</span>
+                        <span class="bit-field" title="bit 13: Shared Segment">${data.shs_bit}</span>
+                        <span class="bit-field wide" title="bits 12-0: Physical Segment Number">0x${data.psn.toString(16).padStart(4,'0').toUpperCase()}</span>
+                    </div>
+                    <div class="bit-labels">
+                        <span>WRP${data.wrp_bit ? '✅' : '❌'}</span>
+                        <span>PAC${data.pac_bit ? '✅' : '❌'}</span>
+                        <span>SHS${data.shs_bit ? '✅' : '❌'}</span>
+                        <span>PSN ${data.psn} → PST[${data.psn}]</span>
+                    </div>
+                    ${data.permission !== 'NONE' ? `
+                    <div class="permission-badge ${data.permission.toLowerCase().replace(/_/g, '-')}">
+                        ${data.permission}: ${data.permission_desc}
+                    </div>` : ''}
+                </div>
+            </div>`;
+
+        return html;
+    }
+
+    getSegmentNameHint(segment) {
+        const hints = {
+            0: 'Kernel Data',
+            1: 'Kernel Text',
+            2: 'Physical Memory',
+            3: 'System Tables',
+            4: 'User Page Tables',
+            5: 'Shadow Page Tables',
+            6: 'Shared Segment',
+            7: 'System Tables (NC)',
+            8: 'Context Block Table',
+            26: 'User Text',
+            27: 'PST',
+            28: 'Process Segment (PCB)',
+            29: 'Kernel Stack',
+            30: 'User Data',
+            31: 'User Stack / Other Machine'
+        };
+        return hints[segment] || null;
     }
 
     togglePcbDomain(domainId) {
