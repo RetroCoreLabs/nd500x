@@ -40,8 +40,22 @@ make wasm
 
 ### Clean
 ```bash
-make clean          # Clean native build
-make wasm-clean     # Clean WASM build
+make clean          # Clean all build directories (native + WASM)
+make wasm-clean     # Clean WASM build only
+```
+
+### Build Variants
+```bash
+# DAP support variants
+make with-dap       # Build with DAP support (requires external/libdap)
+make without-dap    # Build without DAP support
+
+# Debug builds with sanitizers
+make with-sanitizer # Build with address sanitizer (-fsanitize=address)
+make dap-sanitizer  # Build with both DAP and sanitizer
+
+# Get help on all targets
+make help           # Display all available build targets
 ```
 
 ## Important Build Notes
@@ -159,21 +173,66 @@ The CPU implements 14 addressing modes identified by address codes (see `cpu_ins
 
 Operands include address code byte + optional data part (1-8 bytes depending on mode).
 
+### MMU (Memory Management Unit)
+
+The ND-500 MMU implementation (`src/cpu/nd500_mmu.c`) provides three-level address translation:
+
+**Architecture:**
+1. **Virtual Address → Capability** (via Process Control Block)
+2. **Capability → PST Entry** (via Physical Segment Number)
+3. **PST Entry → Physical Page** (AZI/ASI/ADI addressing modes)
+
+**Key Components:**
+- **PST (Physical Segment Table)**: 8,192 entries × 8 bytes each
+- **PCB (Process Control Block)**: 256 domains, each with capability tables
+- **Virtual Address Format**: `[Segment(5) | Page(16) | Offset(11)]` (32-bit addressing)
+
+**MMU Control:**
+- Toggle via debugger: `show mmu [on|off]`
+- Enable/disable functions: `nd500_mmu_enable()`, `nd500_mmu_disable()`
+- Direct mapping when MMU disabled (virtual == physical)
+
+**Current Status:** MMU implementation is functional with unit tests in `test/test_mmu_translation.c`. Integration with memory bus pending.
+
+## Testing
+
+### Running Tests
+```bash
+# Build and run all tests
+cd build
+ctest
+
+# Run specific tests
+./build/bin/disasm_tests
+./build/bin/test_mmu_translation
+```
+
+**Available Tests:**
+- `disasm_tests`: Disassembly functionality tests
+- `test_mmu_translation`: MMU translation unit tests
+- `test_effective_address`: Effective address calculation tests
+- `test_mmu_structures`: MMU structure validation tests
+
 ## Dependencies
 
 ### Native Build
 - **libcjson** (via pkg-config): Required for JSON output. If missing, build proceeds without JSON support.
+- **libreadline-dev** (via pkg-config): Optional, provides tab completion and command history. Graceful fallback if missing.
+- **pthread**: Required for background execution (`run` command). Built into libc on Linux/Unix.
 - **Optional externals**:
   - `external/libdap/`: Debug Adapter Protocol library (enables `dap` debugger command)
   - `external/libsymbols/`: Symbol table support (enables symbol loading)
 
 ### WASM Build
+- **Emscripten SDK**: Required for WebAssembly compilation
 - **cJSON**: Auto-fetched via CMake FetchContent from https://github.com/DaveGamble/cJSON.git
 
 ## CMake Options
 
 - `BUILD_WASM=ON/OFF`: Build WebAssembly target (default: OFF)
 - `DEBUGGER_ENABLED=ON/OFF`: Enable debugger support (default: ON, forced OFF for WASM)
+- `SKIP_LIBDAP=ON/OFF`: Skip DAP library even if present (default: OFF)
+- `CMAKE_C_FLAGS`: Additional compiler flags (e.g., `-fsanitize=address` for sanitizers)
 
 ## Platform Detection
 
@@ -213,10 +272,25 @@ When running `./build/bin/nd500x --debug`, the REPL supports:
 - `wp enable <id>`: Enable watchpoint
 - `wp disable <id>`: Disable watchpoint
 
+**Advanced Debugging Commands:**
+- `show ea [on|off]`: Toggle effective address breakdown display
+- `show demangle [on|off]`: Toggle C symbol demangling
+- `show trace [on|off]`: Toggle instruction tracing
+- `show profile [on|off]`: Toggle performance profiling
+- `show trap [on|off]`: Toggle invalid instruction 0x00 trap handling
+- `show traps` / `show trap-status`: Display trap system status
+- `clear-traps`: Clear all pending traps
+- `set <register> <value>`: Set CPU register value (PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2)
+- `backtrace` / `bt`: Show call stack
+- `profile show`: Display profiling statistics
+- `profile reset`: Reset profiling data
+- `history`: List command history (with readline)
+
 ## Code Style Notes
 
 - C11 standard with standard compliance required
-- No Python/JS/TypeScript - pure C project
+- No Python/JS/TypeScript for core emulator - pure C project (JavaScript only for WASM frontend)
 - Generated files marked with `AUTO-GENERATED FILE - DO NOT EDIT` header
-- Instruction JSON is ~424KB and contains ND-500 architecture instruction set definitions
-- Never mention claude code in any document
+- Pre-generated dispatch table files (`nd500_instructions.{c,h}`) are committed to repository
+- Instruction stubs organized in `src/cpu/instructions/<CLASS>/<FunctionName>.c` (241 functions across 13 classes)
+- Use snake_case for function names, UPPER_CASE for macros/constants

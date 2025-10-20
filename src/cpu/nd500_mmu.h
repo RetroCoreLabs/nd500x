@@ -172,6 +172,18 @@ typedef struct Nd500Cpu Nd500Cpu;
 
 /* MMU Initialization */
 void nd500_mmu_init(Nd500Cpu* cpu);
+
+/* Data MMU Control (DMON/DMOF instructions) */
+void nd500_mmu_enable_data(Nd500Cpu* cpu);
+void nd500_mmu_disable_data(Nd500Cpu* cpu);
+int nd500_mmu_is_data_enabled(Nd500Cpu* cpu);
+
+/* Program MMU Control (PMON/PMOF instructions) */
+void nd500_mmu_enable_program(Nd500Cpu* cpu);
+void nd500_mmu_disable_program(Nd500Cpu* cpu);
+int nd500_mmu_is_program_enabled(Nd500Cpu* cpu);
+
+/* Legacy MMU Control (enables/disables BOTH data and program MMU) */
 void nd500_mmu_enable(Nd500Cpu* cpu);
 void nd500_mmu_disable(Nd500Cpu* cpu);
 int nd500_mmu_is_enabled(Nd500Cpu* cpu);

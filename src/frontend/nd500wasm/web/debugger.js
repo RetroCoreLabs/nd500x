@@ -108,26 +108,22 @@ class ND500Debugger {
 
         // Check and display MMU status
         const mmuStatusBanner = document.getElementById('loadModalMmuStatus');
-        const mmuStatusValue = document.getElementById('loadModalMmuValue');
+        const mmuProgramValue = document.getElementById('loadModalMmuProgramValue');
+        const mmuDataValue = document.getElementById('loadModalMmuDataValue');
         const mmuStatusHint = document.getElementById('loadModalMmuHint');
-        const mmuToggleBtn = document.getElementById('loadModalMmuToggle');
+        const mmuProgramToggleBtn = document.getElementById('loadModalMmuProgramToggle');
+        const mmuDataToggleBtn = document.getElementById('loadModalMmuDataToggle');
 
         // Verify critical elements exist
-        if (!modeSelect || !domainSelect || !mmuStatusBanner || !mmuStatusValue || !mmuStatusHint || !mmuToggleBtn) {
-            console.error('Load modal elements missing:', {
-                modeSelect: !!modeSelect,
-                domainSelect: !!domainSelect,
-                mmuStatusBanner: !!mmuStatusBanner,
-                mmuStatusValue: !!mmuStatusValue,
-                mmuStatusHint: !!mmuStatusHint,
-                mmuToggleBtn: !!mmuToggleBtn
-            });
+        if (!modeSelect || !domainSelect || !mmuStatusBanner || !mmuProgramValue || !mmuDataValue) {
+            console.error('Load modal elements missing');
             return;
         }
 
         const updateMmuStatus = () => {
             if (this.module && modeSelect) {
-                const mmuEnabled = this.module.ccall('nd500_dbg_mmu_is_enabled_js', 'number', [], []);
+                const programEnabled = this.module.ccall('nd500_dbg_mmu_is_program_enabled_js', 'number', [], []);
+                const dataEnabled = this.module.ccall('nd500_dbg_mmu_is_data_enabled_js', 'number', [], []);
                 const mode = modeSelect.value;
 
                 // Get Mode and Domain rows
@@ -136,13 +132,29 @@ class ND500Debugger {
                 const psegAddrInput = document.getElementById('psegAddr');
                 const dsegAddrInput = document.getElementById('dsegAddr');
 
+                // Update Program MMU status
+                if (mmuProgramValue) {
+                    mmuProgramValue.textContent = programEnabled ? 'ON' : 'OFF';
+                    mmuProgramValue.style.color = programEnabled ? '#4CAF50' : '#f44336';
+                }
+                if (mmuProgramToggleBtn) {
+                    mmuProgramToggleBtn.textContent = programEnabled ? 'PMOF' : 'PMON';
+                }
+
+                // Update Data MMU status
+                if (mmuDataValue) {
+                    mmuDataValue.textContent = dataEnabled ? 'ON' : 'OFF';
+                    mmuDataValue.style.color = dataEnabled ? '#4CAF50' : '#f44336';
+                }
+                if (mmuDataToggleBtn) {
+                    mmuDataToggleBtn.textContent = dataEnabled ? 'DMOF' : 'DMON';
+                }
+
+                const mmuEnabled = programEnabled || dataEnabled;
+
                 if (mmuEnabled) {
                     // MMU Enabled: Show Mode and Domain, use virtual addresses
-                    mmuStatusValue.textContent = '✓ Enabled';
-                    mmuStatusValue.style.color = '#4CAF50';
                     mmuStatusBanner.style.backgroundColor = '#e8f5e9';
-                    mmuToggleBtn.textContent = 'Disable MMU';
-                    mmuToggleBtn.style.backgroundColor = '#f44336';
 
                     // Show Mode and Domain fields
                     if (modeRow) modeRow.style.display = '';
@@ -216,31 +228,45 @@ class ND500Debugger {
         // Initial MMU status update
         updateMmuStatus();
 
-        // MMU toggle button handler
-        mmuToggleBtn.onclick = async () => {
-            if (this.module) {
-                const mmuEnabled = this.module.ccall('nd500_dbg_mmu_is_enabled_js', 'number', [], []);
+        // Program MMU toggle button handler
+        if (mmuProgramToggleBtn) {
+            mmuProgramToggleBtn.onclick = async () => {
+                if (this.module) {
+                    const isEnabled = this.module.ccall('nd500_dbg_mmu_is_program_enabled_js', 'number', [], []);
 
-                if (mmuEnabled) {
-                    // Disable MMU
-                    this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmu off']);
-                    // Reset PC to physical address where code was loaded
-                    this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [0x00000000]);
-                    this.updateStatus('MMU disabled - PC reset to 0x00000000 (physical)');
-                } else {
-                    // Enable MMU - run mmusetup
-                    this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmusetup']);
-                    // Set PC to kernel code virtual address (as configured by mmusetup)
-                    // Domain 0 code is mapped to virtual segment 26 = 0x08000000
-                    this.module.ccall('nd500_dbg_set_pc_js', 'number', ['number'], [0x08000000]);
-                    this.updateStatus('MMU enabled - PC set to 0x08000000 (kernel virtual)');
+                    if (isEnabled) {
+                        this.module.ccall('nd500_dbg_mmu_disable_program_js', 'void', [], []);
+                        this.updateStatus('Program MMU disabled (PMOF)');
+                    } else {
+                        this.module.ccall('nd500_dbg_mmu_enable_program_js', 'void', [], []);
+                        this.updateStatus('Program MMU enabled (PMON)');
+                    }
+
+                    updateMmuStatus();
+                    this.updateUI();
                 }
+            };
+        }
 
-                // Update UI after toggle
-                updateMmuStatus();
-                this.updateUI();
-            }
-        };
+        // Data MMU toggle button handler
+        if (mmuDataToggleBtn) {
+            mmuDataToggleBtn.onclick = async () => {
+                if (this.module) {
+                    const isEnabled = this.module.ccall('nd500_dbg_mmu_is_data_enabled_js', 'number', [], []);
+
+                    if (isEnabled) {
+                        this.module.ccall('nd500_dbg_mmu_disable_data_js', 'void', [], []);
+                        this.updateStatus('Data MMU disabled (DMOF)');
+                    } else {
+                        this.module.ccall('nd500_dbg_mmu_enable_data_js', 'void', [], []);
+                        this.updateStatus('Data MMU enabled (DMON)');
+                    }
+
+                    updateMmuStatus();
+                    this.updateUI();
+                }
+            };
+        }
 
         const updateVisibility = () => {
             const type = Array.from(typeRadios).find(r => r.checked)?.value || 'aout';
@@ -491,9 +517,60 @@ class ND500Debugger {
             modal.classList.add('hidden');
         };
 
-        // Toggle MMU on/off
-        toggleBtn.onclick = () => {
-            try {
+        // Toggle Program MMU (PMON/PMOF)
+        const programToggleBtn = document.getElementById('mmuProgramToggleBtn');
+        if (programToggleBtn) {
+            programToggleBtn.onclick = () => {
+                try {
+                    const isEnabled = this.module.ccall('nd500_dbg_mmu_is_program_enabled_js', 'number', [], []);
+
+                    if (isEnabled) {
+                        this.module.ccall('nd500_dbg_mmu_disable_program_js', 'void', [], []);
+                        this.updateStatus('Program MMU disabled (PMOF)');
+                    } else {
+                        this.module.ccall('nd500_dbg_mmu_enable_program_js', 'void', [], []);
+                        this.updateStatus('Program MMU enabled (PMON)');
+                    }
+
+                    this.updateMmuModal();
+                    this.updateMmuPanel();
+                    this.updateUI();
+                } catch (error) {
+                    console.error('Error toggling Program MMU:', error);
+                    this.updateStatus('Error toggling Program MMU');
+                }
+            };
+        }
+
+        // Toggle Data MMU (DMON/DMOF)
+        const dataToggleBtn = document.getElementById('mmuDataToggleBtn');
+        if (dataToggleBtn) {
+            dataToggleBtn.onclick = () => {
+                try {
+                    const isEnabled = this.module.ccall('nd500_dbg_mmu_is_data_enabled_js', 'number', [], []);
+
+                    if (isEnabled) {
+                        this.module.ccall('nd500_dbg_mmu_disable_data_js', 'void', [], []);
+                        this.updateStatus('Data MMU disabled (DMOF)');
+                    } else {
+                        this.module.ccall('nd500_dbg_mmu_enable_data_js', 'void', [], []);
+                        this.updateStatus('Data MMU enabled (DMON)');
+                    }
+
+                    this.updateMmuModal();
+                    this.updateMmuPanel();
+                    this.updateUI();
+                } catch (error) {
+                    console.error('Error toggling Data MMU:', error);
+                    this.updateStatus('Error toggling Data MMU');
+                }
+            };
+        }
+
+        // Toggle MMU on/off (legacy - kept for compatibility)
+        if (toggleBtn) {
+            toggleBtn.onclick = () => {
+                try {
                 const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmu']);
                 const isEnabled = output.includes('enabled');
 
@@ -515,11 +592,12 @@ class ND500Debugger {
                 this.updateMmuPanel();
                 this.updateUI();  // Refresh disassembly after MMU state change
                 this.updateStatus(`MMU ${newState === 'on' ? 'enabled' : 'disabled'}`);
-            } catch (error) {
-                console.error('Error toggling MMU:', error);
-                this.updateStatus('Error toggling MMU');
-            }
-        };
+                } catch (error) {
+                    console.error('Error toggling MMU:', error);
+                    this.updateStatus('Error toggling MMU');
+                }
+            };
+        }
 
         // Setup demo configuration
         setupBtn.onclick = () => {
@@ -679,22 +757,45 @@ class ND500Debugger {
         try {
             // Get MMU status via command
             const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['showmmu']);
-            const isEnabled = output.includes('enabled');
 
-            // Update state display
-            const stateElem = document.getElementById('mmuState');
-            const toggleBtn = document.getElementById('mmuToggleBtn');
+            // Check separate Program and Data MMU states
+            const programEnabled = this.module.ccall('nd500_dbg_mmu_is_program_enabled_js', 'number', [], []);
+            const dataEnabled = this.module.ccall('nd500_dbg_mmu_is_data_enabled_js', 'number', [], []);
 
-            if (isEnabled) {
-                stateElem.textContent = 'enabled';
-                stateElem.className = 'mmu-value enabled';
-                toggleBtn.textContent = 'Disable';
-                toggleBtn.className = 'mmu-toggle-btn disable';
-            } else {
-                stateElem.textContent = 'disabled';
-                stateElem.className = 'mmu-value disabled';
-                toggleBtn.textContent = 'Enable';
-                toggleBtn.className = 'mmu-toggle-btn';
+            // Update Program MMU state display
+            const programStateElem = document.getElementById('mmuProgramState');
+            const programToggleBtn = document.getElementById('mmuProgramToggleBtn');
+
+            if (programStateElem && programToggleBtn) {
+                if (programEnabled) {
+                    programStateElem.textContent = 'enabled';
+                    programStateElem.className = 'mmu-value enabled';
+                    programToggleBtn.textContent = 'Disable (PMOF)';
+                    programToggleBtn.className = 'mmu-toggle-btn disable';
+                } else {
+                    programStateElem.textContent = 'disabled';
+                    programStateElem.className = 'mmu-value disabled';
+                    programToggleBtn.textContent = 'Enable (PMON)';
+                    programToggleBtn.className = 'mmu-toggle-btn';
+                }
+            }
+
+            // Update Data MMU state display
+            const dataStateElem = document.getElementById('mmuDataState');
+            const dataToggleBtn = document.getElementById('mmuDataToggleBtn');
+
+            if (dataStateElem && dataToggleBtn) {
+                if (dataEnabled) {
+                    dataStateElem.textContent = 'enabled';
+                    dataStateElem.className = 'mmu-value enabled';
+                    dataToggleBtn.textContent = 'Disable (DMOF)';
+                    dataToggleBtn.className = 'mmu-toggle-btn disable';
+                } else {
+                    dataStateElem.textContent = 'disabled';
+                    dataStateElem.className = 'mmu-value disabled';
+                    dataToggleBtn.textContent = 'Enable (DMON)';
+                    dataToggleBtn.className = 'mmu-toggle-btn';
+                }
             }
 
             // Parse PST count from output
@@ -740,9 +841,12 @@ class ND500Debugger {
         if (!this.module) return;
 
         try {
-            // Get MMU status
+            // Get separate Program and Data MMU status
+            const programEnabled = this.module.ccall('nd500_dbg_mmu_is_program_enabled_js', 'number', [], []);
+            const dataEnabled = this.module.ccall('nd500_dbg_mmu_is_data_enabled_js', 'number', [], []);
+
+            // Get MMU status output for counts
             const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['showmmu']);
-            const isEnabled = output.includes('enabled');
 
             // Parse counts
             const pstMatch = output.match(/PST: (\d+) configured entries/);
@@ -752,15 +856,21 @@ class ND500Debugger {
             const pcbDomains = pcbMatch ? pcbMatch[1] : '0';
             const pcbSegments = pcbMatch ? pcbMatch[2] : '0';
 
-            // Create inline status display
-            const statusClass = isEnabled ? 'enabled' : 'disabled';
-            const statusText = isEnabled ? 'Enabled' : 'Disabled';
+            // Create inline status display with separate I&D
+            const programClass = programEnabled ? 'enabled' : 'disabled';
+            const programText = programEnabled ? 'ON' : 'OFF';
+            const dataClass = dataEnabled ? 'enabled' : 'disabled';
+            const dataText = dataEnabled ? 'ON' : 'OFF';
 
             const html = `
                 <div class="mmu-status-inline">
                     <div class="mmu-status-inline-row">
-                        <span class="mmu-status-inline-label">State:</span>
-                        <span class="mmu-status-inline-value ${statusClass}">${statusText}</span>
+                        <span class="mmu-status-inline-label">Program MMU:</span>
+                        <span class="mmu-status-inline-value ${programClass}">${programText}</span>
+                    </div>
+                    <div class="mmu-status-inline-row">
+                        <span class="mmu-status-inline-label">Data MMU:</span>
+                        <span class="mmu-status-inline-value ${dataClass}">${dataText}</span>
                     </div>
                     <div class="mmu-status-inline-row">
                         <span class="mmu-status-inline-label">PST:</span>

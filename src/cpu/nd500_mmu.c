@@ -18,7 +18,11 @@
 // into the Nd500Cpu structure.
 static PhysicalSegmentTableEntry* g_pst = NULL;
 static ProcessControlBlock* g_pcb_table = NULL;
-static int g_mmu_enabled = 0;
+
+// Separate I&D (Instruction & Data) MMU enable flags
+// The ND-500 has independent MMU control for instruction and data accesses
+static int g_mmu_data_enabled = 0;     // Controlled by DMON/DMOF instructions
+static int g_mmu_program_enabled = 0;  // Controlled by PMON/PMOF instructions
 
 // ═══════════════════════════════════════════════════════
 // MMU INITIALIZATION
@@ -45,26 +49,72 @@ void nd500_mmu_init(Nd500Cpu* cpu) {
         }
     }
 
-    /* MMU starts disabled */
-    g_mmu_enabled = 0;
+    /* MMU starts disabled (both data and program) */
+    g_mmu_data_enabled = 0;
+    g_mmu_program_enabled = 0;
 
     printf("ND-500: MMU initialized - PST: %d entries, PCB: %d domains\n", MAX_PST, MAXDOM);
 }
 
-void nd500_mmu_enable(Nd500Cpu* cpu) {
+// ═══════════════════════════════════════════════════════
+// DATA MMU CONTROL (DMON/DMOF instructions)
+// ═══════════════════════════════════════════════════════
+
+void nd500_mmu_enable_data(Nd500Cpu* cpu) {
     if (!cpu) return;
-    g_mmu_enabled = 1;
-    printf("ND-500: MMU enabled\n");
+    g_mmu_data_enabled = 1;
+    printf("ND-500: Data MMU enabled (DMON)\n");
+}
+
+void nd500_mmu_disable_data(Nd500Cpu* cpu) {
+    if (!cpu) return;
+    g_mmu_data_enabled = 0;
+    printf("ND-500: Data MMU disabled (DMOF)\n");
+}
+
+int nd500_mmu_is_data_enabled(Nd500Cpu* cpu) {
+    return g_mmu_data_enabled;
+}
+
+// ═══════════════════════════════════════════════════════
+// PROGRAM MMU CONTROL (PMON/PMOF instructions)
+// ═══════════════════════════════════════════════════════
+
+void nd500_mmu_enable_program(Nd500Cpu* cpu) {
+    if (!cpu) return;
+    g_mmu_program_enabled = 1;
+    printf("ND-500: Program MMU enabled (PMON)\n");
+}
+
+void nd500_mmu_disable_program(Nd500Cpu* cpu) {
+    if (!cpu) return;
+    g_mmu_program_enabled = 0;
+    printf("ND-500: Program MMU disabled (PMOF)\n");
+}
+
+int nd500_mmu_is_program_enabled(Nd500Cpu* cpu) {
+    return g_mmu_program_enabled;
+}
+
+// ═══════════════════════════════════════════════════════
+// LEGACY FUNCTIONS (for compatibility)
+// ═══════════════════════════════════════════════════════
+
+void nd500_mmu_enable(Nd500Cpu* cpu) {
+    /* Enable BOTH data and program MMU (legacy behavior) */
+    nd500_mmu_enable_data(cpu);
+    nd500_mmu_enable_program(cpu);
 }
 
 void nd500_mmu_disable(Nd500Cpu* cpu) {
-    if (!cpu) return;
-    g_mmu_enabled = 0;
-    printf("ND-500: MMU disabled\n");
+    /* Disable BOTH data and program MMU (legacy behavior) */
+    nd500_mmu_disable_data(cpu);
+    nd500_mmu_disable_program(cpu);
 }
 
 int nd500_mmu_is_enabled(Nd500Cpu* cpu) {
-    return g_mmu_enabled;
+    /* Return true if EITHER MMU is enabled (legacy behavior) */
+    return g_mmu_data_enabled || g_mmu_program_enabled;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -81,9 +131,21 @@ int nd500_mmu_is_enabled(Nd500Cpu* cpu) {
  * Based on C# CpuND500.MMU.cs TranslateVirtualAddress() (lines 282-448)
  */
 uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction) {
-    /* If MMU disabled, direct mapping */
-    if (!g_mmu_enabled || !cpu) {
+    if (!cpu) {
         return virtual_addr;
+    }
+
+    /* Check if appropriate MMU is enabled based on access type */
+    if (is_instruction) {
+        /* Instruction fetch: check program MMU */
+        if (!g_mmu_program_enabled) {
+            return virtual_addr;  /* Program MMU disabled - direct physical addressing */
+        }
+    } else {
+        /* Data access: check data MMU */
+        if (!g_mmu_data_enabled) {
+            return virtual_addr;  /* Data MMU disabled - direct physical addressing */
+        }
     }
 
     /* Sanity check tables */
