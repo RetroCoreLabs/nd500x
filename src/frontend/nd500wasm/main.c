@@ -4,6 +4,7 @@
 #include <string.h>
 #include "../../machine/machine_protos.h"
 #include "../../cpu/cpu_protos.h"
+#include "../../cpu/nd500_mmu.h"
 #include "../../machine/breakpoints.h"
 #include "../../ndlib/ndlib.h"
 #include "../../disasm/nd500_disasm.h"
@@ -11,7 +12,6 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #endif
-#include "../../cpu/cpu_protos.h"
 #ifndef HAVE_SYSTEM_CJSON
 #include <cjson/cJSON.h>
 #endif
