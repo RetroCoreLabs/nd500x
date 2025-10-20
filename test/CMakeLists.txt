@@ -13,3 +13,8 @@ target_include_directories(test_mmu_translation PRIVATE ../src/cpu)
 # Note: This is a unit test that links only nd500_mmu.c directly
 # Full integration tests will be in Phase 5 (Memory Bus Integration)
 
+add_executable(test_mmu_separate_id
+    test_mmu_separate_id.c
+)
+target_link_libraries(test_mmu_separate_id PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
