@@ -76,10 +76,17 @@
             <div class="mmu-status-banner" id="loadModalMmuStatus">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                     <div style="flex: 1;">
-                        <span class="mmu-status-label">MMU Status:</span>
-                        <span class="mmu-status-value" id="loadModalMmuValue">Unknown</span>
+                        <span class="mmu-status-label">MMU Status (I&D):</span>
+                        <div style="margin-top: 4px;">
+                            <span style="font-size: 0.9em;">Program: <span class="mmu-status-value" id="loadModalMmuProgramValue">OFF</span></span>
+                            <span style="margin: 0 8px;">|</span>
+                            <span style="font-size: 0.9em;">Data: <span class="mmu-status-value" id="loadModalMmuDataValue">OFF</span></span>
+                        </div>
                     </div>
-                    <button id="loadModalMmuToggle" class="mmu-toggle-btn-small">Enable MMU</button>
+                    <div>
+                        <button id="loadModalMmuProgramToggle" class="mmu-toggle-btn-small">PMON</button>
+                        <button id="loadModalMmuDataToggle" class="mmu-toggle-btn-small" style="margin-left: 4px;">DMON</button>
+                    </div>
                 </div>
                 <span class="mmu-status-hint" id="loadModalMmuHint"></span>
             </div>
@@ -165,11 +172,16 @@
             <div id="mmuTabContent" class="mmu-tab-content active">
                 <!-- MMU Status Section -->
                 <div class="mmu-section">
-                    <h4>Status</h4>
+                    <h4>Status (Separate I&D)</h4>
                     <div class="mmu-status-row">
-                        <span class="mmu-label">MMU State:</span>
-                        <span id="mmuState" class="mmu-value">disabled</span>
-                        <button id="mmuToggleBtn" class="mmu-toggle-btn">Enable</button>
+                        <span class="mmu-label">Program MMU (PMON/PMOF):</span>
+                        <span id="mmuProgramState" class="mmu-value">disabled</span>
+                        <button id="mmuProgramToggleBtn" class="mmu-toggle-btn">Enable</button>
+                    </div>
+                    <div class="mmu-status-row">
+                        <span class="mmu-label">Data MMU (DMON/DMOF):</span>
+                        <span id="mmuDataState" class="mmu-value">disabled</span>
+                        <button id="mmuDataToggleBtn" class="mmu-toggle-btn">Enable</button>
                     </div>
                     <div class="mmu-status-row">
                         <span class="mmu-label">PST Entries:</span>

@@ -1,33 +1,37 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "nd500_mmu.h"
 #include <stdio.h>
 
 /**
- * Pmon instruction - SYSTEM class
- * 
+ * PMON instruction - SYSTEM class
+ *
  * Mnemonic: pmon
  * Operands: 0
- * Opcode: 0xFF17
+ * Opcode: 0xFF17 (177427 octal)
+ *
+ * Operation: Turn on program memory management system; L → P
+ *
+ * Description:
+ * Privileged instruction.
+ * Following instruction accesses will be mapped on a physical segment through the
+ * memory management system, rather than being interpreted directly as physical addresses.
+ * The virtual address of the next instruction to be executed is found in the L register.
+ * If the program memory management system is already turned on, control is transferred
+ * to the instruction pointed to by the L register and the instruction has no further effect.
+ *
+ * Trap conditions: Illegal instruction code (IIC) if not privileged
+ * Data status bits: Unaffected
+ *
+ * Reference: ND-500 Reference Manual ND-05.009.4 EN, Page 302, Section 16.14
  */
 void nd500_instr_Pmon(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Pmon instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 0
-     * - Access operands via: fi->operands[0..-1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Pmon instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
-    }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+    (void)fi;  /* Unused parameter */
+
+    /* Enable program MMU (for instruction fetches only, not data accesses) */
+    nd500_mmu_enable_program(cpu);
+
+    /* Transfer control to virtual address in L register */
+    /* The next instruction fetch will be translated through the program MMU */
+    cpu->PC = cpu->L;
 }

@@ -400,9 +400,39 @@ const char* nd500_dbg_memory_map_for_domain_json_js(int domain) {
 	return nd500_dbg_memory_map_for_domain_json(&g_machine, domain);
 }
 
-/* Check if MMU is enabled */
+/* Check if MMU is enabled (legacy - returns true if either is enabled) */
 int nd500_dbg_mmu_is_enabled_js(void) {
 	return nd500_machine_mmu_is_enabled(&g_machine);
+}
+
+/* Check if Program MMU is enabled (PMON/PMOF) */
+int nd500_dbg_mmu_is_program_enabled_js(void) {
+	return nd500_mmu_is_program_enabled(g_machine.cpu);
+}
+
+/* Check if Data MMU is enabled (DMON/DMOF) */
+int nd500_dbg_mmu_is_data_enabled_js(void) {
+	return nd500_mmu_is_data_enabled(g_machine.cpu);
+}
+
+/* Enable Program MMU (PMON) */
+void nd500_dbg_mmu_enable_program_js(void) {
+	nd500_mmu_enable_program(g_machine.cpu);
+}
+
+/* Disable Program MMU (PMOF) */
+void nd500_dbg_mmu_disable_program_js(void) {
+	nd500_mmu_disable_program(g_machine.cpu);
+}
+
+/* Enable Data MMU (DMON) */
+void nd500_dbg_mmu_enable_data_js(void) {
+	nd500_mmu_enable_data(g_machine.cpu);
+}
+
+/* Disable Data MMU (DMOF) */
+void nd500_dbg_mmu_disable_data_js(void) {
+	nd500_mmu_disable_data(g_machine.cpu);
 }
 
 /* ═══════════════════════════════════════════════════════ */
