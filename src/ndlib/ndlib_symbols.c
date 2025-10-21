@@ -19,11 +19,34 @@ typedef struct {
     uint8_t is_undefined;  /* 1 if UNDF|EXT */
 } RelocationEntry;
 
+/* Source line mapping (from .map file) */
+typedef struct {
+    char* source_file;     /* Source filename */
+    int line_number;       /* Line number in source */
+    uint32_t address;      /* Memory address */
+    int is_text;           /* 1 = TEXT (code), 0 = DATA (variable) */
+} SourceLineEntry;
+
+/* Source file content cache */
+typedef struct {
+    char* filename;
+    char* content;         /* Full file content */
+    char** lines;          /* Array of line pointers */
+    int line_count;
+} SourceFileCache;
+
 static SymbolEntry* g_symbols = NULL;
 static int g_symbol_count = 0;
 
 static RelocationEntry* g_text_relocs = NULL;
 static int g_text_reloc_count = 0;
+
+static SourceLineEntry* g_source_lines = NULL;
+static int g_source_line_count = 0;
+
+#define MAX_SOURCE_FILES 32
+static SourceFileCache g_source_files[MAX_SOURCE_FILES];
+static int g_source_file_count = 0;
 
 /* ND-500 a.out structures (same as ndlib_aout.c) */
 struct nd500_exec {
@@ -57,7 +80,7 @@ void ndlib_symbols_clear(void) {
         g_symbols = NULL;
     }
     g_symbol_count = 0;
-    
+
     /* Clear relocations */
     if (g_text_relocs) {
         for (int i = 0; i < g_text_reloc_count; i++) {
@@ -67,6 +90,24 @@ void ndlib_symbols_clear(void) {
         g_text_relocs = NULL;
     }
     g_text_reloc_count = 0;
+
+    /* Clear source line mappings */
+    if (g_source_lines) {
+        for (int i = 0; i < g_source_line_count; i++) {
+            free(g_source_lines[i].source_file);
+        }
+        free(g_source_lines);
+        g_source_lines = NULL;
+    }
+    g_source_line_count = 0;
+
+    /* Clear source file cache */
+    for (int i = 0; i < g_source_file_count; i++) {
+        free(g_source_files[i].filename);
+        free(g_source_files[i].content);
+        free(g_source_files[i].lines);
+    }
+    g_source_file_count = 0;
 }
 
 int ndlib_symbols_load(const char* aout_path) {
@@ -206,11 +247,6 @@ const char* ndlib_symbols_unresolved_for_addr(uint32_t addr) {
         }
     }
     return NULL;
-}
-
-int ndlib_symbols_line_for_addr(uint32_t addr) {
-    (void)addr;
-    return -1;
 }
 
 void ndlib_symbols_list_all(void) {
@@ -374,6 +410,360 @@ void ndlib_symbols_list_by_type(uint8_t seg_type) {
         }
     }
     printf("\n");
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* SOURCE LINE MAPPING (.map file support) */
+/* ═══════════════════════════════════════════════════════ */
+
+/* Comparison function for sorting source lines by address */
+static int compare_source_lines(const void* a, const void* b) {
+    const SourceLineEntry* sa = (const SourceLineEntry*)a;
+    const SourceLineEntry* sb = (const SourceLineEntry*)b;
+    if (sa->address < sb->address) return -1;
+    if (sa->address > sb->address) return 1;
+    return 0;
+}
+
+/* Parse address from map file - hex if 0x prefix, otherwise octal */
+static uint32_t parse_map_address(const char* str) {
+    if (!str) return 0;
+
+    /* Skip whitespace */
+    while (*str == ' ' || *str == '\t') str++;
+
+    /* Hex format: 0x... or 0X... */
+    if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
+        return (uint32_t)strtoul(str, NULL, 16);
+    }
+
+    /* Default: octal (ND-500 convention) */
+    return (uint32_t)strtoul(str, NULL, 8);
+}
+
+/* Load .map file: format "filename:line -> address" */
+int ndlib_map_load(const char* map_path) {
+    if (!map_path) return -1;
+
+    FILE* f = fopen(map_path, "r");
+    if (!f) return -1;
+
+    /* First pass: count lines */
+    char line[1024];
+    int count = 0;
+    while (fgets(line, sizeof(line), f)) {
+        /* Skip comment lines starting with ; */
+        char* p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == ';' || *p == '\n' || *p == '\0') continue;
+
+        /* Check for valid format: filename:line -> address */
+        if (strchr(line, ':') && strstr(line, "->")) {
+            count++;
+        }
+    }
+
+    if (count == 0) {
+        fclose(f);
+        return 0;  /* Empty map file, not an error */
+    }
+
+    /* Allocate storage */
+    g_source_lines = calloc(count, sizeof(SourceLineEntry));
+    if (!g_source_lines) {
+        fclose(f);
+        return -1;
+    }
+
+    /* Second pass: parse lines */
+    rewind(f);
+    int idx = 0;
+    while (fgets(line, sizeof(line), f) && idx < count) {
+        /* Skip comment lines starting with ; */
+        char* p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == ';' || *p == '\n' || *p == '\0') continue;
+
+        /* Parse format: "filename:line -> address" */
+        char* colon = strchr(line, ':');
+        if (!colon) continue;
+
+        char* arrow = strstr(line, "->");
+        if (!arrow) continue;
+
+        /* Extract filename */
+        *colon = '\0';
+        char* filename = line;
+        /* Trim leading whitespace */
+        while (*filename == ' ' || *filename == '\t') filename++;
+
+        /* Strip path - keep only basename */
+        char* basename = filename;
+        char* last_slash = strrchr(filename, '/');
+        char* last_backslash = strrchr(filename, '\\');
+        /* Use whichever path separator is found last */
+        if (last_slash && last_backslash) {
+            basename = (last_slash > last_backslash) ? last_slash + 1 : last_backslash + 1;
+        } else if (last_slash) {
+            basename = last_slash + 1;
+        } else if (last_backslash) {
+            basename = last_backslash + 1;
+        }
+
+        /* Extract line number */
+        char* line_str = colon + 1;
+        int line_num = atoi(line_str);
+
+        /* Extract address */
+        char* addr_str = arrow + 2;
+        uint32_t addr = parse_map_address(addr_str);
+
+        /* Check for segment marker in comment: "# TEXT" or "# DATA" */
+        int is_text = 1;  /* Default to TEXT if no marker */
+        char* comment = strchr(addr_str, '#');
+        if (comment) {
+            /* Skip whitespace after # */
+            comment++;
+            while (*comment == ' ' || *comment == '\t') comment++;
+
+            /* Check for DATA marker */
+            if (strncmp(comment, "DATA", 4) == 0) {
+                is_text = 0;
+            }
+            /* TEXT is already the default, but check explicitly for clarity */
+            else if (strncmp(comment, "TEXT", 4) == 0) {
+                is_text = 1;
+            }
+        }
+
+        /* Only store TEXT entries (skip DATA) */
+        if (is_text) {
+            g_source_lines[idx].source_file = strdup(basename);
+            g_source_lines[idx].line_number = line_num;
+            g_source_lines[idx].address = addr;
+            g_source_lines[idx].is_text = is_text;
+            idx++;
+        }
+    }
+
+    g_source_line_count = idx;
+    fclose(f);
+
+    /* Sort by address for fast lookups */
+    qsort(g_source_lines, g_source_line_count, sizeof(SourceLineEntry), compare_source_lines);
+
+    return 0;
+}
+
+/* Get line number for address */
+int ndlib_symbols_line_for_addr(uint32_t addr) {
+    for (int i = 0; i < g_source_line_count; i++) {
+        if (g_source_lines[i].address == addr) {
+            return g_source_lines[i].line_number;
+        }
+    }
+    return -1;
+}
+
+/* Get source filename for address */
+const char* ndlib_symbols_file_for_addr(uint32_t addr) {
+    for (int i = 0; i < g_source_line_count; i++) {
+        if (g_source_lines[i].address == addr) {
+            return g_source_lines[i].source_file;
+        }
+    }
+    return NULL;
+}
+
+/* Get C source mapping for address (returns 1 if found, 0 if not) */
+int ndlib_symbols_get_c_mapping(uint32_t addr, const char** out_file, int* out_line) {
+    /* Search backwards to find the LAST .c entry for this address
+     * (multiple entries can exist for same address; last is most specific) */
+    for (int i = g_source_line_count - 1; i >= 0; i--) {
+        if (g_source_lines[i].address == addr) {
+            const char* ext = strrchr(g_source_lines[i].source_file, '.');
+            if (ext && strcmp(ext, ".c") == 0) {
+                if (out_file) *out_file = g_source_lines[i].source_file;
+                if (out_line) *out_line = g_source_lines[i].line_number;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+/* Get assembly source mapping for address (returns 1 if found, 0 if not) */
+int ndlib_symbols_get_s_mapping(uint32_t addr, const char** out_file, int* out_line) {
+    /* Search backwards to find the LAST .s entry for this address
+     * (multiple entries can exist for same address; last is most specific) */
+    for (int i = g_source_line_count - 1; i >= 0; i--) {
+        if (g_source_lines[i].address == addr) {
+            const char* ext = strrchr(g_source_lines[i].source_file, '.');
+            if (ext && strcmp(ext, ".s") == 0) {
+                if (out_file) *out_file = g_source_lines[i].source_file;
+                if (out_line) *out_line = g_source_lines[i].line_number;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+/* Get address for source file:line (for breakpoints) */
+int ndlib_symbols_addr_for_line(const char* file, int line, uint32_t* out_addr) {
+    if (!file || !out_addr) return -1;
+
+    for (int i = 0; i < g_source_line_count; i++) {
+        if (g_source_lines[i].line_number == line &&
+            strcmp(g_source_lines[i].source_file, file) == 0) {
+            *out_addr = g_source_lines[i].address;
+            return 0;
+        }
+    }
+    return -1;  /* Not found */
+}
+
+/* Get all addresses for source file:line (for checking breakpoints across multiple mappings) */
+int ndlib_symbols_get_addrs_for_line(const char* file, int line, uint32_t* out_addrs, int max_addrs) {
+    if (!file || !out_addrs || max_addrs <= 0) return 0;
+
+    int count = 0;
+    for (int i = 0; i < g_source_line_count && count < max_addrs; i++) {
+        if (g_source_lines[i].line_number == line &&
+            strcmp(g_source_lines[i].source_file, file) == 0) {
+            out_addrs[count++] = g_source_lines[i].address;
+        }
+    }
+    return count;
+}
+
+/* Get first non-zero instruction address (for initial PC in object files) */
+uint32_t ndlib_symbols_first_instruction_addr(void) {
+    /* Source lines are sorted by address after map load */
+    for (int i = 0; i < g_source_line_count; i++) {
+        if (g_source_lines[i].address > 0) {
+            return g_source_lines[i].address;
+        }
+    }
+    return 0;  /* No instructions found, default to 0 */
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* SOURCE FILE CONTENT CACHE */
+/* ═══════════════════════════════════════════════════════ */
+
+/* Store source file content in memory */
+int ndlib_source_store(const char* filename, const char* content) {
+    if (!filename || !content) return -1;
+    if (g_source_file_count >= MAX_SOURCE_FILES) return -1;
+
+    /* Check if already loaded */
+    for (int i = 0; i < g_source_file_count; i++) {
+        if (strcmp(g_source_files[i].filename, filename) == 0) {
+            /* Replace existing */
+            free(g_source_files[i].content);
+            free(g_source_files[i].lines);
+            g_source_files[i].content = strdup(content);
+
+            /* Split into lines */
+            int line_count = 1;
+            for (const char* p = content; *p; p++) {
+                if (*p == '\n') line_count++;
+            }
+
+            g_source_files[i].lines = calloc(line_count + 1, sizeof(char*));
+            g_source_files[i].line_count = line_count;
+
+            char* copy = strdup(content);
+            char* line = copy;
+            int idx = 0;
+            for (char* p = copy; *p; p++) {
+                if (*p == '\n') {
+                    *p = '\0';
+                    g_source_files[i].lines[idx++] = strdup(line);
+                    line = p + 1;
+                }
+            }
+            /* Last line */
+            if (*line) {
+                g_source_files[i].lines[idx] = strdup(line);
+            }
+            free(copy);
+
+            return 0;
+        }
+    }
+
+    /* Add new */
+    int idx = g_source_file_count++;
+    g_source_files[idx].filename = strdup(filename);
+    g_source_files[idx].content = strdup(content);
+
+    /* Split into lines */
+    int line_count = 1;
+    for (const char* p = content; *p; p++) {
+        if (*p == '\n') line_count++;
+    }
+
+    g_source_files[idx].lines = calloc(line_count + 1, sizeof(char*));
+    g_source_files[idx].line_count = line_count;
+
+    char* copy = strdup(content);
+    char* line = copy;
+    int i = 0;
+    for (char* p = copy; *p; p++) {
+        if (*p == '\n') {
+            *p = '\0';
+            g_source_files[idx].lines[i++] = strdup(line);
+            line = p + 1;
+        }
+    }
+    /* Last line */
+    if (*line) {
+        g_source_files[idx].lines[i] = strdup(line);
+    }
+    free(copy);
+
+    return 0;
+}
+
+/* Get specific line from cached source file */
+const char* ndlib_source_get_line(const char* filename, int line) {
+    if (!filename || line < 1) return NULL;
+
+    for (int i = 0; i < g_source_file_count; i++) {
+        if (strcmp(g_source_files[i].filename, filename) == 0) {
+            if (line <= g_source_files[i].line_count) {
+                return g_source_files[i].lines[line - 1];
+            }
+            return NULL;
+        }
+    }
+    return NULL;
+}
+
+/* Get full source file content */
+const char* ndlib_source_get_content(const char* filename) {
+    if (!filename) return NULL;
+
+    for (int i = 0; i < g_source_file_count; i++) {
+        if (strcmp(g_source_files[i].filename, filename) == 0) {
+            return g_source_files[i].content;
+        }
+    }
+    return NULL;
+}
+
+/* Get line count for a source file */
+int ndlib_source_count_lines(const char* filename) {
+    if (!filename) return 0;
+
+    for (int i = 0; i < g_source_file_count; i++) {
+        if (strcmp(g_source_files[i].filename, filename) == 0) {
+            return g_source_files[i].line_count;
+        }
+    }
+    return 0;
 }
 
 

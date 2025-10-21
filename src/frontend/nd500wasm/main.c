@@ -57,6 +57,11 @@ void nd500_dbg_clear_symbols_js(void) {
 
 #ifdef __EMSCRIPTEN__
 EMSCRIPTEN_KEEPALIVE
+uint32_t nd500_dbg_get_pc_js(void) {
+    return g_cpu.PC;
+}
+
+EMSCRIPTEN_KEEPALIVE
 int nd500_dbg_set_pc_js(uint32_t pc) {
     g_cpu.PC = pc;
     return 0;
@@ -207,15 +212,8 @@ int nd500_dbg_load_aout_js(const uint8_t* data, uint32_t size) {
 /* Load via path on MEMFS (browser) or node FS (ENVIRONMENT=node) */
 int nd500_dbg_load_aout_path_js(const char* path) {
     if (!path) return -1;
-    unsigned int entry = 0;
-    int rc = ndlib_loadaout_file_ex(&g_machine, path, &entry, NULL);
-    if (rc == 0) {
-        /* Objects: entry often 0 or 4; we keep PC at 0 for objects per user policy */
-        if (entry != 0 && entry != 4) g_cpu.PC = entry; else g_cpu.PC = 0;
-        /* Load symbols for disassembly enhancement */
-        ndlib_symbols_load(path);
-    }
-    return rc;
+    /* Use unified loading function (no auto-map - handled by JS) */
+    return ndlib_load_aout_with_debug(&g_machine, path, 0, NULL, NULL);
 }
 
 /* Breakpoint API functions */
@@ -631,4 +629,138 @@ const char* nd500_cmd_subcommands_js(const char* command) {
 	}
 
 	return dup_json_string(root);
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* SOURCE-LEVEL DEBUGGING SUPPORT (MAP FILES) */
+/* ═══════════════════════════════════════════════════════ */
+
+/* Load .map file from WASM filesystem path */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+int nd500_dbg_load_map_js(const char* path) {
+	if (!path) return -1;
+	return ndlib_map_load(path);
+}
+
+/* Get first non-zero instruction address from map file */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+uint32_t nd500_dbg_first_instruction_addr_js(void) {
+	return ndlib_symbols_first_instruction_addr();
+}
+
+/* Store source file content in memory */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+int nd500_dbg_store_source_js(const char* filename, const char* content) {
+	if (!filename || !content) return -1;
+	return ndlib_source_store(filename, content);
+}
+
+/* Get source location info for address as JSON: {file, line} */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+const char* nd500_dbg_source_info_json_js(uint32_t addr) {
+	cJSON* root = cJSON_CreateObject();
+
+	const char* file = ndlib_symbols_file_for_addr(addr);
+	int line = ndlib_symbols_line_for_addr(addr);
+
+	if (file && line >= 0) {
+		cJSON_AddStringToObject(root, "file", file);
+		cJSON_AddNumberToObject(root, "line", line);
+		cJSON_AddBoolToObject(root, "found", 1);
+	} else {
+		cJSON_AddBoolToObject(root, "found", 0);
+		cJSON_AddNullToObject(root, "file");
+		cJSON_AddNumberToObject(root, "line", -1);
+	}
+
+	return dup_json_string(root);
+}
+
+/* Get C source mapping for address as JSON: {file, line, found} */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+const char* nd500_dbg_source_c_mapping_json_js(uint32_t addr) {
+	cJSON* root = cJSON_CreateObject();
+
+	const char* file = NULL;
+	int line = -1;
+	int found = ndlib_symbols_get_c_mapping(addr, &file, &line);
+
+	if (found) {
+		cJSON_AddStringToObject(root, "file", file);
+		cJSON_AddNumberToObject(root, "line", line);
+		cJSON_AddBoolToObject(root, "found", 1);
+	} else {
+		cJSON_AddBoolToObject(root, "found", 0);
+		cJSON_AddNullToObject(root, "file");
+		cJSON_AddNumberToObject(root, "line", -1);
+	}
+
+	return dup_json_string(root);
+}
+
+/* Get assembly source mapping for address as JSON: {file, line, found} */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+const char* nd500_dbg_source_s_mapping_json_js(uint32_t addr) {
+	cJSON* root = cJSON_CreateObject();
+
+	const char* file = NULL;
+	int line = -1;
+	int found = ndlib_symbols_get_s_mapping(addr, &file, &line);
+
+	if (found) {
+		cJSON_AddStringToObject(root, "file", file);
+		cJSON_AddNumberToObject(root, "line", line);
+		cJSON_AddBoolToObject(root, "found", 1);
+	} else {
+		cJSON_AddBoolToObject(root, "found", 0);
+		cJSON_AddNullToObject(root, "file");
+		cJSON_AddNumberToObject(root, "line", -1);
+	}
+
+	return dup_json_string(root);
+}
+
+/* Get full source file content */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+const char* nd500_dbg_source_content_js(const char* filename) {
+	if (!filename) return "";
+	const char* content = ndlib_source_get_content(filename);
+	return content ? strdup(content) : "";
+}
+
+/* Get specific line from source file */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+const char* nd500_dbg_source_line_js(const char* filename, int line) {
+	if (!filename) return "";
+	const char* line_content = ndlib_source_get_line(filename, line);
+	return line_content ? strdup(line_content) : "";
+}
+
+/* Get address for source file:line (for breakpoints) - returns -1 if not found */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+int nd500_dbg_addr_for_source_js(const char* file, int line) {
+	if (!file) return -1;
+	uint32_t addr = 0;
+	if (ndlib_symbols_addr_for_line(file, line, &addr) == 0) {
+		return (int)addr;
+	}
+	return -1;
 }

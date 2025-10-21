@@ -5,8 +5,13 @@ class ND500Debugger {
         this.breakpoints = [];
         this.isRunning = false;
         this.runInterval = null;
-        this.VERSION = '20251016j'; // Update this with each change
+        this.VERSION = '20251021e'; // Update this with each change
         this.memoryMapDomainFilter = 'all'; // Default to showing all domains
+
+        // Source-level debugging state
+        this.sourceFiles = new Map(); // filename -> content
+        this.currentSourceFile = null;
+        this.activeTab = 'disasm'; // 'disasm', 'asm', or 'c'
     }
 
     async init() {
@@ -88,6 +93,35 @@ class ND500Debugger {
                 this.editRegister(regItem);
             }
         });
+
+        // Source Files button
+        document.getElementById('sourceBtn').onclick = () => this.openSourceModal();
+
+        // Code view tabs
+        document.querySelectorAll('.code-tab').forEach(tab => {
+            tab.onclick = () => this.switchCodeTab(tab.dataset.tab);
+        });
+
+        // Assembly file dropdown
+        document.getElementById('asm-file-dropdown').onchange = (e) => {
+            this.renderAsmSourceView();
+        };
+
+        // C file dropdown
+        document.getElementById('c-file-dropdown').onchange = (e) => {
+            this.renderCSourceView();
+        };
+
+        // Source file selection events
+        document.getElementById('sourceFileInput').onchange = (e) => {
+            this.updateFileName('sourceFileName', e.target.files[0]);
+        };
+        document.getElementById('mapFileInput').onchange = (e) => {
+            this.updateFileName('mapFileName', e.target.files[0]);
+        };
+        document.getElementById('zipFileInput').onchange = (e) => {
+            this.updateFileName('zipFileName', e.target.files[0]);
+        };
     }
 
     openLoadModal() {
@@ -192,12 +226,8 @@ class ND500Debugger {
                     }
                 } else {
                     // MMU Disabled: Hide Mode and Domain, use physical addresses
-                    mmuStatusValue.textContent = '✗ Disabled';
-                    mmuStatusValue.style.color = '#f44336';
                     mmuStatusHint.textContent = 'Physical memory: 0x00000000-0x00FFFFFF (16MB) - Direct addressing, no domains';
                     mmuStatusBanner.style.backgroundColor = '#ffebee';
-                    mmuToggleBtn.textContent = 'Enable MMU';
-                    mmuToggleBtn.style.backgroundColor = '#4CAF50';
 
                     // Hide Mode and Domain fields
                     if (modeRow) modeRow.style.display = 'none';
@@ -692,6 +722,11 @@ class ND500Debugger {
             this.updatePcbDomainList();
         };
 
+        const pcbSegmentSearchInput = document.getElementById('pcbSegmentSearchInput');
+        pcbSegmentSearchInput.oninput = () => {
+            this.updatePcbDomainList();
+        };
+
         // Add click handlers for register editing
         document.querySelectorAll('.mmu-reg-item').forEach(item => {
             item.addEventListener('click', (e) => {
@@ -1101,19 +1136,36 @@ class ND500Debugger {
                 domains.push(currentDomain);
             }
 
-            // Apply search filter
-            const searchText = document.getElementById('pcbSearchInput').value.toLowerCase().trim();
+            // Apply search filters
+            const domainSearchText = document.getElementById('pcbSearchInput').value.toLowerCase().trim();
+            const segmentSearchText = document.getElementById('pcbSegmentSearchInput').value.toLowerCase().trim();
             let filtered = domains;
 
-            if (searchText) {
-                filtered = filtered.filter(d => d.domain.toString().includes(searchText));
+            // Filter by domain
+            if (domainSearchText) {
+                filtered = filtered.filter(d => d.domain.toString().includes(domainSearchText));
+            }
+
+            // Filter by segment within each domain
+            if (segmentSearchText) {
+                filtered = filtered.map(d => {
+                    return {
+                        ...d,
+                        segments: d.segments.filter(s => s.segment.toString().includes(segmentSearchText))
+                    };
+                }).filter(d => d.segments.length > 0); // Only show domains that have matching segments
             }
 
             // Update stats
             const totalSegments = filtered.reduce((sum, d) => sum + d.segments.length, 0);
-            document.getElementById('pcbTableStats').textContent =
-                `${filtered.length} domains shown with ${totalSegments} segments` +
-                (filtered.length !== domains.length ? ` (of ${domains.length} total domains)` : '');
+            const totalDomains = domains.length;
+            const totalAllSegments = domains.reduce((sum, d) => sum + d.segments.length, 0);
+
+            let statsText = `${filtered.length} domains shown with ${totalSegments} segments`;
+            if (filtered.length !== totalDomains || totalSegments !== totalAllSegments) {
+                statsText += ` (of ${totalDomains} total domains with ${totalAllSegments} segments)`;
+            }
+            document.getElementById('pcbTableStats').textContent = statsText;
 
             // Render domain list
             const container = document.getElementById('pcb-domain-list');
@@ -1515,11 +1567,12 @@ class ND500Debugger {
     }
 
     decodeDataCapability(cap) {
-        // Data capability: PSN (bits 0-12), WRP (bit 14), PAC (bit 15)
+        // Data capability: PSN (bits 0-12), SHS (bit 13), PAC (bit 14), WRP (bit 15)
         const psn = cap & 0x1FFF;
-        const wrp = (cap & 0x4000) !== 0;
-        const pac = (cap & 0x8000) !== 0;
-        return { psn, wrp, pac };
+        const shs = (cap & 0x2000) !== 0;
+        const pac = (cap & 0x4000) !== 0;
+        const wrp = (cap & 0x8000) !== 0;
+        return { psn, wrp, pac, shs };
     }
 
     openPcbEditModal(domain, segment, progCap, dataCap) {
@@ -1530,15 +1583,28 @@ class ND500Debugger {
         const segmentSpan = document.getElementById('pcbEditSegment');
         const domainInput = document.getElementById('pcbEditDomainInput');
         const segmentInput = document.getElementById('pcbEditSegmentInput');
-        const progPsnInput = document.getElementById('pcbEditProgPsn');
-        const progDirCheck = document.getElementById('pcbEditProgDir');
-        const dataPsnInput = document.getElementById('pcbEditDataPsn');
-        const dataWrpCheck = document.getElementById('pcbEditDataWrp');
-        const dataPacCheck = document.getElementById('pcbEditDataPac');
+
+        // Program capability fields
+        const progTypeRadios = document.querySelectorAll('input[name="progCapType"]');
+        const progDirectFields = document.getElementById('progCapDirectFields');
+        const progIndirectFields = document.getElementById('progCapIndirectFields');
+        const progPsnDirect = document.getElementById('pcbEditProgPsnDirect');
+        const progOmc = document.getElementById('pcbEditProgOmc');
+        const progDomain = document.getElementById('pcbEditProgDomain');
+        const progSegment = document.getElementById('pcbEditProgSegment');
+        const progRawPreview = document.getElementById('pcbEditProgRawPreview');
+
+        // Data capability fields
+        const dataPsn = document.getElementById('pcbEditDataPsn');
+        const dataWrp = document.getElementById('pcbEditDataWrp');
+        const dataPac = document.getElementById('pcbEditDataPac');
+        const dataShs = document.getElementById('pcbEditDataShs');
+        const dataRawPreview = document.getElementById('pcbEditDataRawPreview');
+
         const cancelBtn = document.getElementById('pcbEditCancelBtn');
         const saveBtn = document.getElementById('pcbEditSaveBtn');
 
-        // Populate form
+        // Populate form header
         domainSpan.textContent = domain;
         segmentSpan.textContent = segment;
         domainInput.value = domain;
@@ -1548,14 +1614,132 @@ class ND500Debugger {
         const progInfo = this.decodeProgCapability(progCap);
         const dataInfo = this.decodeDataCapability(dataCap);
 
-        // Populate program capability
-        progPsnInput.value = progInfo.psn === 0 ? '' : progInfo.psn.toString();
-        progDirCheck.checked = progInfo.dir;
+        // Populate program capability based on type
+        const bit15 = (progCap >> 15) & 1;
+        if (bit15 === 0) {
+            // Direct segment
+            progTypeRadios[0].checked = true;
+            progDirectFields.classList.remove('hidden');
+            progIndirectFields.classList.add('hidden');
+            progPsnDirect.value = progInfo.psn;
+        } else {
+            // Indirect segment
+            progTypeRadios[1].checked = true;
+            progDirectFields.classList.add('hidden');
+            progIndirectFields.classList.remove('hidden');
+            progOmc.checked = ((progCap >> 14) & 1) === 1;
+            progDomain.value = (progCap >> 5) & 0xFF;
+            progSegment.value = progCap & 0x1F;
+        }
 
         // Populate data capability
-        dataPsnInput.value = dataInfo.psn === 0 ? '' : dataInfo.psn.toString();
-        dataWrpCheck.checked = dataInfo.wrp;
-        dataPacCheck.checked = dataInfo.pac;
+        dataPsn.value = dataInfo.psn;
+        dataWrp.checked = dataInfo.wrp;
+        dataPac.checked = dataInfo.pac;
+        dataShs.checked = dataInfo.shs;
+
+        // Update raw previews
+        const updateProgRawPreview = () => {
+            let raw = 0;
+            if (progTypeRadios[0].checked) {
+                // Direct: bit15=0, PSN in bits 12-0
+                const psn = parseInt(progPsnDirect.value || '0', 10) & 0x1FFF;
+                raw = psn;
+            } else {
+                // Indirect: bit15=1, OMC=bit14, domain=bits 12-5, segment=bits 4-0
+                raw = 0x8000; // bit 15 = 1
+                if (progOmc.checked) raw |= 0x4000; // bit 14
+                const dom = (parseInt(progDomain.value || '0', 10) & 0xFF) << 5;
+                const seg = parseInt(progSegment.value || '0', 10) & 0x1F;
+                raw |= dom | seg;
+            }
+            progRawPreview.value = '0x' + raw.toString(16).toUpperCase().padStart(4, '0');
+        };
+
+        const updateDataRawPreview = () => {
+            let raw = 0;
+            const psn = parseInt(dataPsn.value || '0', 10) & 0x1FFF;
+            raw = psn;
+            if (dataWrp.checked) raw |= 0x8000; // bit 15
+            if (dataPac.checked) raw |= 0x4000; // bit 14
+            if (dataShs.checked) raw |= 0x2000; // bit 13
+            dataRawPreview.value = '0x' + raw.toString(16).toUpperCase().padStart(4, '0');
+        };
+
+        // Radio button toggle handler
+        progTypeRadios.forEach(radio => {
+            radio.onchange = () => {
+                if (radio.value === 'direct') {
+                    progDirectFields.classList.remove('hidden');
+                    progIndirectFields.classList.add('hidden');
+                } else {
+                    progDirectFields.classList.add('hidden');
+                    progIndirectFields.classList.remove('hidden');
+                }
+                updateProgRawPreview();
+            };
+        });
+
+        // Input handlers for real-time preview
+        progPsnDirect.oninput = updateProgRawPreview;
+        progOmc.onchange = updateProgRawPreview;
+        progDomain.oninput = updateProgRawPreview;
+        progSegment.oninput = updateProgRawPreview;
+
+        dataPsn.oninput = updateDataRawPreview;
+        dataWrp.onchange = updateDataRawPreview;
+        dataPac.onchange = updateDataRawPreview;
+        dataShs.onchange = updateDataRawPreview;
+
+        // Permission preset buttons
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                e.preventDefault();
+                const perm = btn.dataset.perm;
+                switch (perm) {
+                    case 'SG_RW': // Kernel R/W: WRP=1, PAC=0
+                        dataWrp.checked = true;
+                        dataPac.checked = false;
+                        break;
+                    case 'SG_RO': // Kernel R/O: WRP=0, PAC=0
+                        dataWrp.checked = false;
+                        dataPac.checked = false;
+                        break;
+                    case 'SG_URW': // User R/W: WRP=1, PAC=1
+                        dataWrp.checked = true;
+                        dataPac.checked = true;
+                        break;
+                    case 'SG_URO': // User R/O: WRP=0, PAC=1
+                        dataWrp.checked = false;
+                        dataPac.checked = true;
+                        break;
+                }
+                updateDataRawPreview();
+            };
+        });
+
+        // Initial preview update
+        updateProgRawPreview();
+        updateDataRawPreview();
+
+        // Tab switching handlers
+        document.querySelectorAll('.pcb-tab-btn').forEach(btn => {
+            btn.onclick = () => {
+                const tabName = btn.dataset.tab;
+
+                // Update tab buttons
+                document.querySelectorAll('.pcb-tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Update tab content
+                document.querySelectorAll('.pcb-tab-content').forEach(c => c.classList.remove('active'));
+                if (tabName === 'program') {
+                    document.getElementById('pcbEditProgTab').classList.add('active');
+                } else if (tabName === 'data') {
+                    document.getElementById('pcbEditDataTab').classList.add('active');
+                }
+            };
+        });
 
         // Cancel button
         cancelBtn.onclick = () => {
@@ -1567,26 +1751,26 @@ class ND500Debugger {
             try {
                 // Encode program capability
                 let newProgCap = 0;
-                const progPsn = progPsnInput.value.trim();
-                if (progPsn) {
-                    newProgCap = parseInt(progPsn, 10) & 0x1FFF;
-                }
-                if (progDirCheck.checked) {
-                    newProgCap |= 0x8000;
+                if (progTypeRadios[0].checked) {
+                    // Direct segment
+                    const psn = parseInt(progPsnDirect.value || '0', 10) & 0x1FFF;
+                    newProgCap = psn;
+                } else {
+                    // Indirect segment
+                    newProgCap = 0x8000; // bit 15 = 1
+                    if (progOmc.checked) newProgCap |= 0x4000; // bit 14
+                    const dom = (parseInt(progDomain.value || '0', 10) & 0xFF) << 5;
+                    const seg = parseInt(progSegment.value || '0', 10) & 0x1F;
+                    newProgCap |= dom | seg;
                 }
 
                 // Encode data capability
                 let newDataCap = 0;
-                const dataPsn = dataPsnInput.value.trim();
-                if (dataPsn) {
-                    newDataCap = parseInt(dataPsn, 10) & 0x1FFF;
-                }
-                if (dataWrpCheck.checked) {
-                    newDataCap |= 0x4000;
-                }
-                if (dataPacCheck.checked) {
-                    newDataCap |= 0x8000;
-                }
+                const psn = parseInt(dataPsn.value || '0', 10) & 0x1FFF;
+                newDataCap = psn;
+                if (dataWrp.checked) newDataCap |= 0x8000; // bit 15
+                if (dataPac.checked) newDataCap |= 0x4000; // bit 14
+                if (dataShs.checked) newDataCap |= 0x2000; // bit 13
 
                 // Execute setpcb command (if available)
                 const cmd = `setpcb ${domain} ${segment} 0x${newProgCap.toString(16)} 0x${newDataCap.toString(16)}`;
@@ -1744,18 +1928,17 @@ class ND500Debugger {
 
     async loadDemoKernel() {
         try {
-            this.updateStatus('Loading demo kernel...');
-            const response = await fetch('kernel');
-            if (!response.ok) throw new Error('Demo kernel not found');
-            const buffer = await response.arrayBuffer();
-            const uint8 = new Uint8Array(buffer);
-            const fname = '/demo_kernel.out';
-            if (this.module.FS && this.module.FS.writeFile) {
-                try { this.module.FS.unlink(fname); } catch (_) {}
-                this.module.FS.writeFile(fname, uint8);
-                const rc = this.module.ccall('nd500_dbg_load_aout_path_js', 'number', ['string'], [fname]);
-                if (rc !== 0) throw new Error('Demo kernel load failed rc=' + rc);
-                this.updateStatus('Demo kernel loaded - NDIX-C Simulated Kernel v1.0 for ND-500');
+            this.updateStatus('Loading demo kernel with source files...');
+
+            // Load kernel.zip with source files
+            console.log('Fetching kernel.zip...');
+            const zipResponse = await fetch('kernel.zip');
+            if (zipResponse.ok) {
+                console.log('kernel.zip found, loading with source files...');
+                const zipBlob = await zipResponse.blob();
+                const zipFile = new File([zipBlob], 'kernel.zip');
+                await this.handleZipUpload(zipFile);
+                this.updateStatus('Demo kernel loaded with source files - NDIX-C Simulated Kernel v1.0');
                 this.updateUI();
 
                 // Automatically run mmusetup to configure MMU tables, but keep MMU disabled
@@ -1772,13 +1955,32 @@ class ND500Debugger {
                     console.warn('Could not run automatic mmusetup:', mmuError);
                 }
 
+                // Source files loaded - they're available in Assembly/C tabs
+                // (Keep disassembly tab active by default)
+
                 // Set default memory view
                 document.getElementById('memAddr').value = '0';
                 document.getElementById('memLen').value = '256';
                 this.viewMemory();
                 return true;
             } else {
-                throw new Error('MEMFS unavailable');
+                // Fallback: load just the kernel binary without source files
+                console.log('kernel.zip not found, loading binary only...');
+                const response = await fetch('kernel');
+                if (!response.ok) throw new Error('Demo kernel not found');
+                const buffer = await response.arrayBuffer();
+                const uint8 = new Uint8Array(buffer);
+                const fname = '/demo_kernel.out';
+                if (this.module.FS && this.module.FS.writeFile) {
+                    try { this.module.FS.unlink(fname); } catch (_) {}
+                    this.module.FS.writeFile(fname, uint8);
+                    const rc = this.module.ccall('nd500_dbg_load_aout_path_js', 'number', ['string'], [fname]);
+                    if (rc !== 0) throw new Error('Demo kernel load failed rc=' + rc);
+                    this.updateStatus('Demo kernel loaded (binary only) - NDIX-C Simulated Kernel v1.0');
+                    this.updateUI();
+                } else {
+                    throw new Error('MEMFS unavailable');
+                }
             }
         } catch (error) {
             console.warn('Could not load demo kernel:', error);
@@ -1862,9 +2064,11 @@ class ND500Debugger {
 
     step() {
         if (!this.module) return;
-        
+
+        console.log(`[step] Before step: PC=0x${this.currentPC.toString(16)}, activeTab=${this.activeTab}`);
         this.module.ccall('nd500_dbg_step_js', null, ['number'], [1]);
         this.updateUI();
+        console.log(`[step] After step: PC=0x${this.currentPC.toString(16)}`);
         this.updateStatus('Stepped one instruction');
     }
 
@@ -1928,6 +2132,11 @@ class ND500Debugger {
         this.module.ccall('nd500_dbg_clear_traps_js', null, [], []);
         this.updateBreakpoints();
         this.updateMmuPanel();
+
+        // Update source view if active (asm or c tabs)
+        if (this.activeTab === 'asm' || this.activeTab === 'c') {
+            this.renderSourceView();
+        }
     }
 
     updateRegisters() {
@@ -1996,8 +2205,9 @@ class ND500Debugger {
             const json = this.module.ccall('nd500_dbg_disasm_json', 'string',
                 ['number', 'number'], [addr, 128]);
             const data = JSON.parse(json);
-            console.log('Disassembly JSON:', data);
+            console.log(`[updateDisassembly] currentPC=0x${this.currentPC.toString(16)}, instructions=${data.instructions?.length || 0}`);
 
+            let foundCurrentPC = false;
             // Parse JSON instructions and render with PC highlighting in three lanes
             const lines = (data.instructions || []).map(inst => {
                 const lineAddr = parseInt(inst.address, 16) || 0;
@@ -2013,9 +2223,23 @@ class ND500Debugger {
                 const isCurrent = lineAddr === this.currentPC;
                 const hasBP = this.breakpoints.some(bp => bp.addr === lineAddr);
 
+                if (isCurrent) {
+                    foundCurrentPC = true;
+                    console.log(`[updateDisassembly] Found current PC at address 0x${lineAddr.toString(16)}`);
+                }
+
                 let classes = 'disasm-line';
                 if (isCurrent) classes += ' current-pc';
                 if (hasBP) classes += ' breakpoint';
+
+                // Get source line information for this address
+                const sourceInfo = this.getSourceInfoForAddr(lineAddr);
+                let sourceAnnotationHtml = '';
+                if (sourceInfo && sourceInfo.found) {
+                    // Show just the filename, not the full path
+                    const displayFilename = sourceInfo.file.split('/').pop();
+                    sourceAnnotationHtml = `<div class="disasm-source-annotation"><span class="disasm-source-file">${this.escapeHtml(displayFilename)}</span><span class="disasm-source-line">:${sourceInfo.line}</span></div>`;
+                }
 
                 // Show symbol label on its own line if present
                 let symbolLineHtml = '';
@@ -2048,9 +2272,12 @@ class ND500Debugger {
 
                 const instructionHtml = `<div class="${classes}" data-addr="${lineAddr}">${gutterHtml}${addrHtml}${bytesHtml}${textHtml}</div>`;
 
-                return symbolLineHtml + instructionHtml;
+                return sourceAnnotationHtml + symbolLineHtml + instructionHtml;
             }).join('');
-            console.log('Rendered disasm lines:', (data.instructions || []).length);
+            console.log(`[updateDisassembly] Rendered ${(data.instructions || []).length} lines, foundCurrentPC=${foundCurrentPC}`);
+            if (!foundCurrentPC) {
+                console.warn(`[updateDisassembly] WARNING: Current PC 0x${this.currentPC.toString(16)} not found in disassembly!`);
+            }
             document.getElementById('disasm-content').innerHTML = lines;
         } catch (error) {
             console.error('Error updating disassembly:', error);
@@ -2125,16 +2352,16 @@ class ND500Debugger {
 
     addBreakpoint() {
         if (!this.module) return;
-        
+
         const addrStr = document.getElementById('bpAddr').value.trim();
         if (!addrStr) return;
-        
+
         const addr = parseInt(addrStr, 16);
         if (isNaN(addr)) {
             this.updateStatus('Invalid address format. Use hex (e.g., 0x1000)');
             return;
         }
-        
+
         const result = this.module.ccall('nd500_dbg_bp_add_js', 'number', ['number'], [addr]);
         if (result >= 0) {
             this.updateStatus(`Breakpoint added at 0x${addr.toString(16)}`);
@@ -2144,6 +2371,37 @@ class ND500Debugger {
         }
         this.updateBreakpoints();
         this.updateDisassembly();
+    }
+
+    addBreakpointAtSourceLine(filename, lineNumber) {
+        if (!this.module) return;
+
+        // Get address for this source line
+        const addr = this.module.ccall('nd500_dbg_addr_for_source_js', 'number', ['string', 'number'], [filename, lineNumber]);
+
+        if (addr < 0) {
+            this.updateStatus(`No code found at ${filename}:${lineNumber}`);
+            return;
+        }
+
+        // Check if breakpoint already exists at this address
+        const existing = this.breakpoints.find(bp => bp.addr === addr);
+        if (existing) {
+            this.updateStatus(`Breakpoint already exists at ${filename}:${lineNumber} (0x${addr.toString(16)})`);
+            return;
+        }
+
+        // Add breakpoint
+        const result = this.module.ccall('nd500_dbg_bp_add_js', 'number', ['number'], [addr]);
+        if (result >= 0) {
+            this.updateStatus(`Breakpoint added at ${filename}:${lineNumber} (0x${addr.toString(16)})`);
+            this.updateBreakpoints();
+            this.updateDisassembly();
+            // Refresh the current source view to show the breakpoint marker
+            this.renderSourceView();
+        } else {
+            this.updateStatus(`Failed to add breakpoint at ${filename}:${lineNumber}`);
+        }
     }
 
     updateBreakpoints() {
@@ -2829,6 +3087,575 @@ class ND500Debugger {
         div.textContent = text;
         return div.innerHTML;
     }
+
+    sourceLineHasBreakpoint(filename, lineNumber) {
+        if (!this.breakpoints || !this.module) return false;
+
+        // Check if any breakpoint's address maps to this source line
+        for (const bp of this.breakpoints) {
+            if (!bp.enabled) continue;
+
+            // Get source mapping for this breakpoint address
+            const fileType = filename.endsWith('.c') ? 'c' : 's';
+            const sourceInfo = this.getSourceMappingForAddr(bp.addr, fileType);
+
+            if (sourceInfo && sourceInfo.found) {
+                const sourceFilename = sourceInfo.file.split('/').pop();
+                if (sourceFilename === filename && sourceInfo.line === lineNumber) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /* ═══════════════════════════════════════════════════════ */
+    /* SOURCE-LEVEL DEBUGGING */
+    /* ═══════════════════════════════════════════════════════ */
+
+    openSourceModal() {
+        console.log('openSourceModal called');
+        const modal = document.getElementById('sourceModal');
+        if (!modal) {
+            console.error('sourceModal element not found');
+            return;
+        }
+        modal.classList.remove('hidden');
+
+        // Setup modal event handlers
+        const cancelBtn = document.getElementById('sourceCancelBtn');
+        const uploadBtn = document.getElementById('sourceUploadBtn');
+
+        if (cancelBtn) {
+            cancelBtn.onclick = () => {
+                modal.classList.add('hidden');
+            };
+        } else {
+            console.error('sourceCancelBtn not found');
+        }
+
+        if (uploadBtn) {
+            uploadBtn.onclick = () => {
+                this.uploadSourceFiles();
+            };
+        } else {
+            console.error('sourceUploadBtn not found');
+        }
+
+        // Click outside to close
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.classList.add('hidden');
+            }
+        };
+    }
+
+    updateFileName(elementId, file) {
+        const elem = document.getElementById(elementId);
+        if (file) {
+            elem.textContent = file.name;
+            elem.classList.add('has-file');
+        } else {
+            elem.textContent = 'No file selected';
+            elem.classList.remove('has-file');
+        }
+    }
+
+    async uploadSourceFiles() {
+        const statusDiv = document.getElementById('sourceUploadStatus');
+        const sourceFile = document.getElementById('sourceFileInput').files[0];
+        const mapFile = document.getElementById('mapFileInput').files[0];
+        const zipFile = document.getElementById('zipFileInput').files[0];
+
+        statusDiv.classList.remove('hidden', 'success', 'error', 'info');
+        statusDiv.classList.add('info');
+        statusDiv.textContent = 'Uploading files...';
+
+        try {
+            if (zipFile) {
+                // Handle ZIP file
+                await this.handleZipUpload(zipFile);
+            } else {
+                // Handle individual files
+                if (sourceFile) await this.handleSourceUpload(sourceFile);
+                if (mapFile) await this.handleMapUpload(mapFile);
+            }
+
+            statusDiv.classList.remove('info');
+            statusDiv.classList.add('success');
+            statusDiv.textContent = 'Files uploaded successfully!';
+
+            // Update source file dropdown
+            this.updateSourceDropdown();
+
+            // Source files now available in Assembly/C tabs
+            // (User can manually switch tabs to view them)
+
+            setTimeout(() => {
+                document.getElementById('sourceModal').classList.add('hidden');
+            }, 1500);
+
+        } catch (error) {
+            statusDiv.classList.remove('info');
+            statusDiv.classList.add('error');
+            statusDiv.textContent = 'Error: ' + error.message;
+        }
+    }
+
+    async handleSourceUpload(file) {
+        const content = await file.text();
+        const fullPath = file.name;
+        // Extract just the filename from path (e.g., "arithmetic/test.s" -> "test.s")
+        const filename = fullPath.split('/').pop();
+
+        console.log(`[handleSourceUpload] Processing: ${filename}`);
+        console.log(`[handleSourceUpload] Content length: ${content.length} bytes`);
+        console.log(`[handleSourceUpload] First 100 chars: ${content.substring(0, 100)}`);
+
+        // Store in JS
+        this.sourceFiles.set(filename, content);
+        console.log(`[handleSourceUpload] Stored in sourceFiles map. Total files now: ${this.sourceFiles.size}`);
+
+        // Store in WASM - ccall handles string conversion automatically
+        const result = this.module.ccall('nd500_dbg_store_source_js', 'number', ['string', 'string'], [filename, content]);
+        if (result !== 0) {
+            console.error(`[handleSourceUpload] WASM storage failed for ${filename}`);
+            throw new Error('Failed to store source file in WASM');
+        }
+
+        console.log(`[handleSourceUpload] Successfully uploaded: ${filename}`);
+    }
+
+    async handleMapUpload(file) {
+        const content = await file.text();
+        const fullPath = file.name;
+        // Extract just the filename from path (e.g., "arithmetic/test.map" -> "test.map")
+        const filename = fullPath.split('/').pop();
+
+        console.log(`[handleMapUpload] Processing: ${filename}`);
+        console.log(`[handleMapUpload] Content length: ${content.length} bytes`);
+        console.log(`[handleMapUpload] First 300 chars: ${content.substring(0, 300)}`);
+
+        // Write map file to WASM filesystem
+        this.module.FS.writeFile(`/${filename}`, content);
+        console.log(`[handleMapUpload] Written to WASM filesystem: /${filename}`);
+
+        // Load via WASM
+        const result = this.module.ccall('nd500_dbg_load_map_js', 'number', ['string'], [`/${filename}`]);
+        if (result !== 0) {
+            console.error(`[handleMapUpload] WASM load_map failed with result: ${result}`);
+            throw new Error('Failed to load map file');
+        }
+        console.log(`[handleMapUpload] Map file loaded successfully into WASM`);
+
+        // Don't change PC - the executable already set it correctly
+        const currentPC = this.module.ccall('nd500_dbg_get_pc_js', 'number', [], []);
+        console.log(`[handleMapUpload] Current PC: 0x${currentPC.toString(16)} (not changing)`);
+
+        console.log(`[handleMapUpload] Successfully uploaded map file: ${filename}`);
+    }
+
+    async handleZipUpload(file) {
+        const JSZip = window.JSZip;
+        if (!JSZip) {
+            throw new Error('JSZip library not loaded');
+        }
+
+        console.log(`[handleZipUpload] Starting ZIP extraction: ${file.name}`);
+        this.updateStatus(`Extracting ZIP: ${file.name}...`);
+        const zip = await JSZip.loadAsync(file);
+        console.log(`[handleZipUpload] ZIP file contents:`, Object.keys(zip.files));
+
+        let counts = { source: 0, map: 0, executable: 0, skipped: 0 };
+
+        // Process files in ZIP
+        for (const [filename, zipEntry] of Object.entries(zip.files)) {
+            if (zipEntry.dir) {
+                console.log(`[handleZipUpload] Skipping directory: ${filename}`);
+                continue;
+            }
+
+            // Extract basename (without path)
+            const basename = filename.split('/').pop();
+            console.log(`[handleZipUpload] Processing file: ${filename} -> basename: ${basename}`);
+
+            // Read each file in its appropriate format
+            if (filename.endsWith('.s') || filename.endsWith('.asm') || filename.endsWith('.c')) {
+                // Source file (.s, .asm, .c) - read as text
+                console.log(`[handleZipUpload] Detected as SOURCE file: ${basename}`);
+                const content = await zipEntry.async('string');
+                await this.handleSourceUpload(new File([content], basename));
+                counts.source++;
+            } else if (filename.endsWith('.map')) {
+                // Map file - read as text
+                console.log(`[handleZipUpload] Detected as MAP file: ${basename}`);
+                const content = await zipEntry.async('string');
+                await this.handleMapUpload(new File([content], basename));
+                counts.map++;
+            } else if (filename.endsWith('.o') || filename.endsWith('.out') ||
+                       (!filename.includes('.') && basename !== '__MACOSX' && !basename.startsWith('.'))) {
+                // Binary executable file:
+                // - .o or .out extension
+                // - No extension at all (e.g., "kernel", "program")
+                // - Skip macOS metadata and hidden files
+                console.log(`[handleZipUpload] Detected as EXECUTABLE file: ${basename}`);
+                const bytes = await zipEntry.async('uint8array');
+                await this.loadAoutFromBuffer(bytes, basename);
+                counts.executable++;
+            } else {
+                console.log(`[handleZipUpload] SKIPPING unrecognized file: ${filename}`);
+                counts.skipped++;
+            }
+        }
+
+        console.log(`[handleZipUpload] Processing complete. Counts:`, counts);
+        console.log(`[handleZipUpload] sourceFiles map now has ${this.sourceFiles.size} entries:`, Array.from(this.sourceFiles.keys()));
+
+        // Update source dropdowns after all files loaded
+        console.log(`[handleZipUpload] Calling updateSourceDropdown()`);
+        this.updateSourceDropdown();
+
+        // Show summary
+        const parts = [];
+        if (counts.executable > 0) parts.push(`${counts.executable} executable(s)`);
+        if (counts.source > 0) parts.push(`${counts.source} source file(s)`);
+        if (counts.map > 0) parts.push(`${counts.map} map file(s)`);
+        const summary = parts.length > 0 ? parts.join(', ') : 'no recognized files';
+        console.log(`[handleZipUpload] Final summary: ${summary}`);
+        this.updateStatus(`ZIP loaded: ${summary}`);
+    }
+
+    async loadAoutFromBuffer(bytes, fullPath) {
+        // Extract just the filename from path (e.g., "arithmetic/test.o" -> "test.o")
+        const filename = fullPath.split('/').pop();
+
+        this.updateStatus(`Loading executable: ${filename}...`);
+
+        // Write to WASM filesystem
+        this.module.FS.writeFile(`/${filename}`, bytes);
+
+        // Load via WASM
+        const result = this.module.ccall('nd500_dbg_load_aout_path_js', 'number', ['string'], [`/${filename}`]);
+        if (result !== 0) {
+            console.warn(`Failed to load executable: ${filename}`);
+            this.updateStatus(`Failed to load executable: ${filename}`);
+        } else {
+            console.log(`Loaded executable: ${filename}`);
+            this.updateStatus(`Loaded executable: ${filename}`);
+            this.updateUI();
+        }
+    }
+
+    updateSourceDropdown() {
+        console.log(`[updateSourceDropdown] Called. sourceFiles has ${this.sourceFiles.size} entries`);
+
+        // Update both assembly and C dropdowns separately
+        const asmDropdown = document.getElementById('asm-file-dropdown');
+        const cDropdown = document.getElementById('c-file-dropdown');
+
+        if (!asmDropdown) {
+            console.error(`[updateSourceDropdown] asm-file-dropdown element not found!`);
+            return;
+        }
+        if (!cDropdown) {
+            console.error(`[updateSourceDropdown] c-file-dropdown element not found!`);
+            return;
+        }
+
+        asmDropdown.innerHTML = '';
+        cDropdown.innerHTML = '';
+
+        let hasAsm = false;
+        let hasC = false;
+
+        // Separate files by extension
+        for (const filename of this.sourceFiles.keys()) {
+            const ext = filename.substring(filename.lastIndexOf('.'));
+            console.log(`[updateSourceDropdown] Processing: ${filename}, extension: ${ext}`);
+
+            if (ext === '.s') {
+                console.log(`[updateSourceDropdown] Adding to ASM dropdown: ${filename}`);
+                const option = document.createElement('option');
+                option.value = filename;
+                option.textContent = filename;
+                asmDropdown.appendChild(option);
+                hasAsm = true;
+            } else if (ext === '.c') {
+                console.log(`[updateSourceDropdown] Adding to C dropdown: ${filename}`);
+                const option = document.createElement('option');
+                option.value = filename;
+                option.textContent = filename;
+                cDropdown.appendChild(option);
+                hasC = true;
+            } else {
+                console.log(`[updateSourceDropdown] Unrecognized extension for: ${filename}`);
+            }
+        }
+
+        // Set default options if no files
+        if (!hasAsm) {
+            console.log(`[updateSourceDropdown] No ASM files found, setting default message`);
+            asmDropdown.innerHTML = '<option value="">-- No assembly files loaded --</option>';
+        } else {
+            console.log(`[updateSourceDropdown] Added ${asmDropdown.options.length} ASM files to dropdown`);
+            // Auto-select first option
+            if (asmDropdown.options.length > 0) {
+                asmDropdown.selectedIndex = 0;
+                console.log(`[updateSourceDropdown] Auto-selected ASM file: ${asmDropdown.value}`);
+            }
+        }
+        if (!hasC) {
+            console.log(`[updateSourceDropdown] No C files found, setting default message`);
+            cDropdown.innerHTML = '<option value="">-- No C files loaded --</option>';
+        } else {
+            console.log(`[updateSourceDropdown] Added ${cDropdown.options.length} C files to dropdown`);
+            // Auto-select first option
+            if (cDropdown.options.length > 0) {
+                cDropdown.selectedIndex = 0;
+                console.log(`[updateSourceDropdown] Auto-selected C file: ${cDropdown.value}`);
+            }
+        }
+
+        // Render source views after updating dropdowns
+        console.log(`[updateSourceDropdown] Calling renderSourceView() to display content`);
+        this.renderSourceView();
+    }
+
+    switchCodeTab(tabName) {
+        this.activeTab = tabName;
+
+        // Update tab buttons
+        document.querySelectorAll('.code-tab').forEach(tab => {
+            if (tab.dataset.tab === tabName) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+
+        // Update panels
+        document.querySelectorAll('.code-panel').forEach(panel => {
+            panel.classList.remove('active');
+        });
+
+        if (tabName === 'disasm') {
+            document.getElementById('disasm-panel').classList.add('active');
+        } else if (tabName === 'asm') {
+            document.getElementById('asm-panel').classList.add('active');
+            // Update registers to ensure currentPC is current
+            this.updateRegisters();
+            this.renderAsmSourceView();
+        } else if (tabName === 'c') {
+            document.getElementById('c-panel').classList.add('active');
+            // Update registers to ensure currentPC is current
+            this.updateRegisters();
+            this.renderCSourceView();
+        }
+    }
+
+    renderSourceView() {
+        console.log(`[renderSourceView] Called. activeTab=${this.activeTab}, currentPC=0x${this.currentPC.toString(16)}`);
+        // Legacy function - redirects to appropriate source view based on active tab
+        if (this.activeTab === 'asm') {
+            this.renderAsmSourceView();
+        } else if (this.activeTab === 'c') {
+            this.renderCSourceView();
+        }
+    }
+
+    renderAsmSourceView() {
+        console.log(`[renderAsmSourceView] Called. currentPC=0x${this.currentPC.toString(16)}`);
+        const contentDiv = document.getElementById('asm-content');
+        const dropdown = document.getElementById('asm-file-dropdown');
+
+        // Get selected file from dropdown
+        let currentFile = dropdown.value;
+
+        // If no file selected, try to auto-select based on PC
+        if (!currentFile && this.sourceFiles.size > 0) {
+            const pc = this.currentPC;
+            const sourceInfo = this.getSourceMappingForAddr(pc, 's');
+            if (sourceInfo && sourceInfo.found) {
+                currentFile = sourceInfo.file.split('/').pop();
+                dropdown.value = currentFile;
+            }
+        }
+
+        if (!currentFile || !this.sourceFiles.has(currentFile)) {
+            console.log(`[renderAsmSourceView] No file selected or not in sourceFiles`);
+            contentDiv.innerHTML = '<div class="source-empty-state">No assembly file selected.<br>Click "Source Files" to upload .s files.</div>';
+            return;
+        }
+
+        const content = this.sourceFiles.get(currentFile);
+        const lines = content.split('\n');
+
+        // Get current PC and find matching source line
+        const pc = this.currentPC;
+        const sourceInfo = this.getSourceMappingForAddr(pc, 's');
+        let currentLine = -1;
+
+        if (sourceInfo && sourceInfo.found) {
+            const sourceFilename = sourceInfo.file.split('/').pop();
+            if (sourceFilename === currentFile) {
+                currentLine = sourceInfo.line;
+            }
+        }
+        console.log(`[renderAsmSourceView] File=${currentFile}, currentLine=${currentLine}, totalLines=${lines.length}`);
+
+        // Render lines
+        let html = '';
+        lines.forEach((line, index) => {
+            const lineNumber = index + 1;
+            const isCurrent = lineNumber === currentLine;
+            const hasBreakpoint = this.sourceLineHasBreakpoint(currentFile, lineNumber);
+            const classes = ['source-line'];
+            if (isCurrent) classes.push('current-line');
+            if (hasBreakpoint) classes.push('has-breakpoint');
+
+            html += `<div class="${classes.join(' ')}" data-line="${lineNumber}" data-filename="${currentFile}">`;
+            html += `<span class="source-line-number">${lineNumber}</span>`;
+            html += `<span class="source-line-content">${this.escapeHtml(line)}</span>`;
+            html += '</div>';
+        });
+
+        contentDiv.innerHTML = html;
+
+        // Add click handlers to each line for setting breakpoints
+        contentDiv.querySelectorAll('.source-line').forEach(lineElem => {
+            lineElem.addEventListener('click', (e) => {
+                const lineNum = parseInt(lineElem.getAttribute('data-line'));
+                const filename = lineElem.getAttribute('data-filename');
+                this.addBreakpointAtSourceLine(filename, lineNum);
+            });
+        });
+
+        // Scroll to current line
+        if (currentLine >= 0) {
+            const currentLineElem = contentDiv.querySelector(`.source-line[data-line="${currentLine}"]`);
+            if (currentLineElem) {
+                currentLineElem.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+        }
+    }
+
+    renderCSourceView() {
+        console.log(`[renderCSourceView] Called. currentPC=0x${this.currentPC.toString(16)}`);
+        const contentDiv = document.getElementById('c-content');
+        const dropdown = document.getElementById('c-file-dropdown');
+
+        // Get selected file from dropdown
+        let currentFile = dropdown.value;
+
+        // If no file selected, try to auto-select based on PC
+        if (!currentFile && this.sourceFiles.size > 0) {
+            const pc = this.currentPC;
+            const sourceInfo = this.getSourceMappingForAddr(pc, 'c');
+            if (sourceInfo && sourceInfo.found) {
+                currentFile = sourceInfo.file.split('/').pop();
+                dropdown.value = currentFile;
+            }
+        }
+
+        if (!currentFile || !this.sourceFiles.has(currentFile)) {
+            console.log(`[renderCSourceView] No file selected or not in sourceFiles`);
+            contentDiv.innerHTML = '<div class="source-empty-state">No C file selected.<br>Click "Source Files" to upload .c files.</div>';
+            return;
+        }
+
+        const content = this.sourceFiles.get(currentFile);
+        const lines = content.split('\n');
+
+        // Get current PC and find matching source line
+        const pc = this.currentPC;
+        const sourceInfo = this.getSourceMappingForAddr(pc, 'c');
+        let currentLine = -1;
+
+        if (sourceInfo && sourceInfo.found) {
+            const sourceFilename = sourceInfo.file.split('/').pop();
+            if (sourceFilename === currentFile) {
+                currentLine = sourceInfo.line;
+            }
+        }
+        console.log(`[renderCSourceView] File=${currentFile}, currentLine=${currentLine}, totalLines=${lines.length}`);
+
+        // Render lines
+        let html = '';
+        lines.forEach((line, index) => {
+            const lineNumber = index + 1;
+            const isCurrent = lineNumber === currentLine;
+            const hasBreakpoint = this.sourceLineHasBreakpoint(currentFile, lineNumber);
+            const classes = ['source-line'];
+            if (isCurrent) classes.push('current-line');
+            if (hasBreakpoint) classes.push('has-breakpoint');
+
+            html += `<div class="${classes.join(' ')}" data-line="${lineNumber}" data-filename="${currentFile}">`;
+            html += `<span class="source-line-number">${lineNumber}</span>`;
+            html += `<span class="source-line-content">${this.escapeHtml(line)}</span>`;
+            html += '</div>';
+        });
+
+        contentDiv.innerHTML = html;
+
+        // Add click handlers to each line for setting breakpoints
+        contentDiv.querySelectorAll('.source-line').forEach(lineElem => {
+            lineElem.addEventListener('click', (e) => {
+                const lineNum = parseInt(lineElem.getAttribute('data-line'));
+                const filename = lineElem.getAttribute('data-filename');
+                this.addBreakpointAtSourceLine(filename, lineNum);
+            });
+        });
+
+        // Scroll to current line
+        if (currentLine >= 0) {
+            const currentLineElem = contentDiv.querySelector(`.source-line[data-line="${currentLine}"]`);
+            if (currentLineElem) {
+                currentLineElem.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+        }
+    }
+
+    getSourceMappingForAddr(addr, fileType) {
+        // fileType: 's' for assembly, 'c' for C
+        if (!this.module) return { found: false };
+
+        try {
+            // Use file-type-specific WASM function
+            const funcName = fileType === 'c' ?
+                'nd500_dbg_source_c_mapping_json_js' :
+                'nd500_dbg_source_s_mapping_json_js';
+
+            console.log(`[getSourceMappingForAddr] addr=0x${addr.toString(16)}, fileType=${fileType}, calling ${funcName}`);
+
+            const json = this.module.ccall(funcName, 'string', ['number'], [addr]);
+            const info = JSON.parse(json);
+
+            console.log(`[getSourceMappingForAddr] WASM returned:`, info);
+
+            if (!info || !info.found) {
+                console.log(`[getSourceMappingForAddr] Not found for type ${fileType}`);
+                return { found: false };
+            }
+
+            console.log(`[getSourceMappingForAddr] Found! Returning ${info.file}:${info.line}`);
+            return info;
+        } catch (error) {
+            console.error('Error getting source mapping:', error);
+            return { found: false };
+        }
+    }
+
+    getSourceInfoForAddr(addr) {
+        if (!this.module) return { found: false };
+
+        try {
+            const json = this.module.ccall('nd500_dbg_source_info_json_js', 'string', ['number'], [addr]);
+            return JSON.parse(json);
+        } catch (error) {
+            console.error('Error getting source info:', error);
+            return { found: false };
+        }
+    }
 }
 
 // Console Manager for interactive command-line interface
@@ -2942,10 +3769,15 @@ class ConsoleManager {
 
         // Execute via WASM
         try {
+            console.log(`[ConsoleManager] Executing command: "${cmdline}"`);
             const output = this.dbg.module.ccall('nd500_cmd_exec_js', 'string', ['string'], [cmdline]);
+            console.log(`[ConsoleManager] Command output length: ${output ? output.length : 0}`);
+            console.log(`[ConsoleManager] Command output:`, output);
+
             if (output && output.trim()) {
                 // Split output into lines and add each
                 const lines = output.split('\n');
+                console.log(`[ConsoleManager] Output has ${lines.length} lines`);
                 lines.forEach(line => {
                     if (line.trim()) {
                         // Check if line contains error indicators
@@ -2956,6 +3788,9 @@ class ConsoleManager {
                         this.addLine(line, isError ? 'error' : 'output');
                     }
                 });
+            } else {
+                console.log(`[ConsoleManager] No output to display (empty or whitespace only)`);
+                this.addLine('(no output)', 'output');
             }
 
             // Update UI after command execution
