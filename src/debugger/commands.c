@@ -1248,6 +1248,11 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	}
 	output(ctx, "  Data segments [0-127]   → PSN [128-255] (virtual 0x00000000-0x3F800000)");
 
+	/* Special: Segment 31 for Domain 0 = ND-100 Other Machine (INDIRECT + OMC) */
+	/* Bit 15 = 1 (INDIRECT), Bit 14 = 1 (OMC), Domain=0, Segment=0 */
+	nd500_mmu_set_program_capability(m->cpu, 0, 31, PC_IND | PC_OMC | (0 << 5) | 0);
+	output(ctx, "  Prog segment 31         → INDIRECT OMC Domain=0 Seg=0 (ND-100)");
+
 	output(ctx, "");
 	output(ctx, "Domain 1 (User1):");
 	/* Code segments 0-127: Each segment i maps to PSN 256+i (phys 0x00080000+) */
@@ -1262,6 +1267,11 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	}
 	output(ctx, "  Data segments [0-127]   → PSN [384-511] (virtual 0x00000000-0x3F800000)");
 
+	/* Special: Segment 31 for Domain 1 = Link to Kernel (INDIRECT, no OMC) */
+	/* Bit 15 = 1 (INDIRECT), Bit 14 = 0 (no OMC), Domain=0, Segment=1 */
+	nd500_mmu_set_program_capability(m->cpu, 1, 31, PC_IND | (0 << 5) | 1);
+	output(ctx, "  Prog segment 31         → INDIRECT Domain=0 Seg=1 (→ Kernel)");
+
 	output(ctx, "");
 	output(ctx, "Domain 2 (User2):");
 	/* Code segments 0-127: Each segment i maps to PSN 512+i (phys 0x00100000+) */
@@ -1275,6 +1285,11 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 		nd500_mmu_set_data_capability(m->cpu, 2, seg, (640 + seg) | DC_PAC);
 	}
 	output(ctx, "  Data segments [0-127]   → PSN [640-767] (virtual 0x00140000-0x0017FFFF)");
+
+	/* Special: Segment 31 for Domain 2 = Link to Kernel (INDIRECT, no OMC) */
+	/* Bit 15 = 1 (INDIRECT), Bit 14 = 0 (no OMC), Domain=0, Segment=1 */
+	nd500_mmu_set_program_capability(m->cpu, 2, 31, PC_IND | (0 << 5) | 1);
+	output(ctx, "  Prog segment 31         → INDIRECT Domain=0 Seg=1 (→ Kernel)");
 
 	output(ctx, "");
 	output(ctx, "=== MMU Registers ===");
