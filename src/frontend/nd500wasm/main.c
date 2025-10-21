@@ -401,41 +401,65 @@ const char* nd500_dbg_memory_map_for_domain_json_js(int domain) {
 }
 
 /* Check if MMU is enabled (legacy - returns true if either is enabled) */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 int nd500_dbg_mmu_is_enabled_js(void) {
 	return nd500_machine_mmu_is_enabled(&g_machine);
 }
 
 /* Check if Program MMU is enabled (PMON/PMOF) */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 int nd500_dbg_mmu_is_program_enabled_js(void) {
 	return nd500_mmu_is_program_enabled(g_machine.cpu);
 }
 
 /* Check if Data MMU is enabled (DMON/DMOF) */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 int nd500_dbg_mmu_is_data_enabled_js(void) {
 	return nd500_mmu_is_data_enabled(g_machine.cpu);
 }
 
 /* Enable Program MMU (PMON) */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 void nd500_dbg_mmu_enable_program_js(void) {
 	nd500_mmu_enable_program(g_machine.cpu);
 }
 
 /* Disable Program MMU (PMOF) */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 void nd500_dbg_mmu_disable_program_js(void) {
 	nd500_mmu_disable_program(g_machine.cpu);
 }
 
 /* Enable Data MMU (DMON) */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 void nd500_dbg_mmu_enable_data_js(void) {
 	nd500_mmu_enable_data(g_machine.cpu);
 }
 
 /* Disable Data MMU (DMOF) */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 void nd500_dbg_mmu_disable_data_js(void) {
 	nd500_mmu_disable_data(g_machine.cpu);
 }
 
 /* Get PCB segment capabilities as JSON with decoded bit fields */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 const char* nd500_dbg_pcb_segment_json_js(int domain, int segment) {
 	if (!g_machine.cpu || domain < 0 || domain > 255 || segment < 0 || segment >= MAXSEG) {
 		return "{}";
