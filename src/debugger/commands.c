@@ -1249,9 +1249,9 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  Data segments [0-127]   → PSN [128-255] (virtual 0x00000000-0x3F800000)");
 
 	/* Special: Segment 31 for Domain 0 = ND-100 Other Machine (INDIRECT + OMC) */
-	/* Bit 15 = 1 (INDIRECT), Bit 14 = 1 (OMC), Domain=0, Segment=0 */
-	nd500_mmu_set_program_capability(m->cpu, 0, 31, PC_IND | PC_OMC | (0 << 5) | 0);
-	output(ctx, "  Prog segment 31         → INDIRECT OMC Domain=0 Seg=0 (ND-100)");
+	/* Bit 15 = 1 (INDIRECT), Bit 14 = 1 (OMC), Domain=0, Segment=1 */
+	nd500_mmu_set_program_capability(m->cpu, 0, 31, PC_IND | PC_OMC | (0 << 5) | 1);
+	output(ctx, "  Prog segment 31         → INDIRECT OMC Domain=0 Seg=1 (ND-100)");
 
 	output(ctx, "");
 	output(ctx, "Domain 1 (User1):");
