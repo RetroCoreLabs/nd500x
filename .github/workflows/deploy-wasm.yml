@@ -90,6 +90,15 @@ jobs:
             --pattern 'kernel' \
             --content-type 'application/octet-stream'
 
+          az storage blob upload-batch \
+            --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }} \
+            --auth-mode login \
+            --destination '$web' \
+            --source ./build_wasm/bin/ \
+            --overwrite \
+            --pattern '*.zip' \
+            --content-type 'application/zip'
+
     - name: Azure logout
       run: az logout
       if: always()
