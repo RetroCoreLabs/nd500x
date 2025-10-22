@@ -33,4 +33,39 @@ int ndlib_symbols_lookup(const char* name, uint32_t* out_addr, uint8_t* out_type
 int ndlib_symbols_absolute_addr(const char* name, uint32_t* out_addr);
 void ndlib_symbols_list_by_type(uint8_t seg_type);
 
+/* Map file support (source-level debugging) */
+int ndlib_map_load(const char* map_path);
+const char* ndlib_symbols_file_for_addr(uint32_t addr);
+int ndlib_symbols_get_c_mapping(uint32_t addr, const char** out_file, int* out_line);
+int ndlib_symbols_get_s_mapping(uint32_t addr, const char** out_file, int* out_line);
+int ndlib_symbols_addr_for_line(const char* file, int line, uint32_t* out_addr);
+int ndlib_symbols_get_addrs_for_line(const char* file, int line, uint32_t* out_addrs, int max_addrs);
+uint32_t ndlib_symbols_first_instruction_addr(void);
+
+/* Source file storage and retrieval */
+int ndlib_source_store(const char* filename, const char* content);
+const char* ndlib_source_get_line(const char* filename, int line);
+const char* ndlib_source_get_content(const char* filename);
+int ndlib_source_count_lines(const char* filename);
+
+/* ═══════════════════════════════════════════════════════════════════
+ * UNIFIED FILE LOADING (eliminates code duplication)
+ * ═══════════════════════════════════════════════════════════════════
+ */
+
+/* Load a.out file with symbols, optional map file, and set PC correctly.
+ * This function consolidates the loading logic used by CLI, DAP, and WASM.
+ *
+ * Parameters:
+ *   m            - Machine to load into
+ *   aout_path    - Path to .o or .out file (required)
+ *   auto_map     - If 1, try to load .map file automatically
+ *   out_entry    - Returns entry point from a.out header
+ *   out_pc       - Returns PC value set (first instruction or entry point)
+ *
+ * Returns: 0 on success, -1 on error
+ */
+int ndlib_load_aout_with_debug(Nd500Machine* m, const char* aout_path,
+                                int auto_map, uint32_t* out_entry, uint32_t* out_pc);
+
 
