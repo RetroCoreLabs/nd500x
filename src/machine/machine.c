@@ -66,8 +66,11 @@ void nd500_machine_disable_mmu(Nd500Machine* m) {
 
 /**
  * Check if MMU is enabled
+ * Returns true if EITHER program or data MMU is enabled
  */
 int nd500_machine_mmu_is_enabled(Nd500Machine* m) {
-	return m ? m->mmu_enabled : 0;
+	if (!m || !m->cpu) return 0;
+	/* Check the actual CPU MMU state, not the cached flag */
+	return nd500_mmu_is_enabled(m->cpu);
 }
 
