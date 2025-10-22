@@ -362,4 +362,102 @@ void ndlib_aout_get_segment_info(uint32_t* text_base, uint32_t* text_size,
     if (bss_size) *bss_size = g_bss_size;
 }
 
+/* Helper: Read entire file into dynamically allocated string */
+static char* read_file_contents(const char* path) {
+    FILE* f = fopen(path, "rb");
+    if (!f) return NULL;
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    if (size < 0) {
+        fclose(f);
+        return NULL;
+    }
+    fseek(f, 0, SEEK_SET);
+
+    char* content = (char*)malloc((size_t)size + 1);
+    if (!content) {
+        fclose(f);
+        return NULL;
+    }
+
+    size_t read = fread(content, 1, (size_t)size, f);
+    content[read] = '\0';
+    fclose(f);
+
+    return content;
+}
+
+/* Unified loading function to eliminate code duplication across CLI/DAP/WASM */
+int ndlib_load_aout_with_debug(Nd500Machine* m, const char* aout_path,
+                                int auto_map, uint32_t* out_entry, uint32_t* out_pc) {
+    if (!m || !aout_path) return -1;
+
+    /* Step 1: Load a.out file */
+    uint32_t entry = 0;
+    int rc = ndlib_loadaout_file_ex(m, aout_path, &entry, NULL);
+    if (rc != 0) return -1;
+
+    /* Step 2: Load symbols from a.out */
+    ndlib_symbols_load(aout_path);
+
+    /* Step 3: Auto-load .map and .s files if requested */
+    if (auto_map) {
+        char alt_path[512];
+        strncpy(alt_path, aout_path, sizeof(alt_path) - 1);
+        alt_path[sizeof(alt_path) - 1] = '\0';
+
+        char* ext = strrchr(alt_path, '.');
+        if (ext && (strcmp(ext, ".o") == 0 || strcmp(ext, ".out") == 0)) {
+            /* Try to load .map file */
+            strcpy(ext, ".map");
+            ndlib_map_load(alt_path);  /* Ignore errors - map file is optional */
+
+            /* Try to load .s source file */
+            strcpy(ext, ".s");
+            char* source_content = read_file_contents(alt_path);
+            if (source_content) {
+                /* Extract just the filename (no path) for storage */
+                const char* basename = strrchr(alt_path, '/');
+                basename = basename ? basename + 1 : alt_path;
+                ndlib_source_store(basename, source_content);
+                free(source_content);
+            }
+
+            /* Try to load .c source file */
+            strcpy(ext, ".c");
+            char* c_content = read_file_contents(alt_path);
+            if (c_content) {
+                /* Extract just the filename (no path) for storage */
+                const char* basename = strrchr(alt_path, '/');
+                basename = basename ? basename + 1 : alt_path;
+                ndlib_source_store(basename, c_content);
+                free(c_content);
+            }
+        }
+    }
+
+    /* Step 4: Set PC correctly for object files vs executables */
+    uint32_t pc = 0;
+    if (entry == 0 || entry == 4) {
+        /* Object file - use first instruction from map */
+        uint32_t first_instr = ndlib_symbols_first_instruction_addr();
+        pc = (first_instr > 0) ? first_instr : 0;
+    } else {
+        /* Executable - use entry point */
+        pc = entry;
+    }
+
+    /* Set PC on machine's CPU */
+    if (m->cpu) {
+        m->cpu->PC = pc;
+    }
+
+    /* Return values */
+    if (out_entry) *out_entry = entry;
+    if (out_pc) *out_pc = pc;
+
+    return 0;
+}
+
 
