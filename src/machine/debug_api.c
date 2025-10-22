@@ -2,7 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include "machine_protos.h"
+#include "breakpoints.h"
 #include "../disasm/nd500_disasm.h"
 #include "../cpu/cpu_protos.h"
 #include "../ndlib/ndlib.h"
@@ -28,6 +30,7 @@ static int g_demangle = -1;      /* demangle C-style symbols (strip leading _) *
 static int g_trace_mode = -1;   /* instruction trace mode */
 static int g_profiling = -1;    /* instruction profiling mode */
 static int g_trap_invalid = -1; /* trap on invalid instruction 0x00 */
+static int g_show_source = 0;   /* 0: off, 1: asm only, 2: c only, 3: both */
 
 /* Profiling data structures */
 #define MAX_PROFILE_ENTRIES 256
@@ -88,6 +91,16 @@ int nd500_dbg_get_demangle(void) {
         g_demangle = (env && *env == '1') ? 1 : 0;
     }
     return g_demangle;
+}
+
+int nd500_dbg_set_show_source(int mode) {
+    if (mode < 0 || mode > 3) return -1;
+    g_show_source = mode;
+    return g_show_source;
+}
+
+int nd500_dbg_get_show_source(void) {
+    return g_show_source;
 }
 
 static size_t format_operand_impl(char* dst, size_t cap, const Nd500OperandDecoded* op) {
@@ -235,13 +248,54 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
         const char* sym_at_addr = ndlib_symbols_name_for_addr(fi.address);
         sym_at_addr = maybe_demangle(sym_at_addr);
         if (sym_at_addr && *sym_at_addr) {
-            printf("%s%08X:%s                                   %s%s:%s\n", 
+            printf("%s%08X:%s                                   %s%s:%s\n",
                    color_address(), fi.address, color_reset(),
                    color_label(), sym_at_addr, color_reset());
+        }
+
+        /* Check for source line mapping */
+        int source_mode = nd500_dbg_get_show_source();
+        if (source_mode > 0) {
+            const char* c_file = NULL;
+            const char* s_file = NULL;
+            int c_line = 0;
+            int s_line = 0;
+
+            /* Query both C and assembly mappings */
+            int has_c = ndlib_symbols_get_c_mapping(fi.address, &c_file, &c_line);
+            int has_s = ndlib_symbols_get_s_mapping(fi.address, &s_file, &s_line);
+
+            /* Display based on mode */
+            if (source_mode == 3) {
+                /* Both: show C first, then asm */
+                if (has_c) {
+                    printf("%s  %s:%d%s\n", color_comment(), c_file, c_line, color_reset());
+                }
+                if (has_s) {
+                    printf("%s  %s:%d%s\n", color_comment(), s_file, s_line, color_reset());
+                }
+            } else if (source_mode == 2) {
+                /* C only */
+                if (has_c) {
+                    printf("%s  %s:%d%s\n", color_comment(), c_file, c_line, color_reset());
+                }
+            } else if (source_mode == 1) {
+                /* Assembly only */
+                if (has_s) {
+                    printf("%s  %s:%d%s\n", color_comment(), s_file, s_line, color_reset());
+                }
+            }
         }
         
         /* If opcode is 0 or unknown, show ??? */
         if (fi.opcode == 0 || !fi.mnemonic || strcmp(fi.mnemonic, "???") == 0) {
+            /* Print breakpoint marker if present */
+            if (nd500_dbg_has_breakpoint_at(m, a)) {
+                printf("%s●%s ", color_branch(), color_reset());  /* Red bullet for breakpoint */
+            } else {
+                printf("  ");  /* Two spaces for alignment */
+            }
+
             /* Show hex bytes for unknown opcodes too */
             printf("%s%08X:%s ", color_address(), a, color_reset());
             uint32_t unk_len = fi.total_len > 0 ? fi.total_len : 1;
@@ -249,8 +303,8 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
             for (uint32_t b = 0; b < unk_len && b < 8; b++) {
                 printf("%02X ", fi.bytes[b]);
             }
-            printf("%s%-*s %s???%s %s; opcode 0x%04X%s\n", 
-                   color_reset(), (int)(24 - unk_len * 3), "", 
+            printf("%s%-*s %s???%s %s; opcode 0x%04X%s\n",
+                   color_reset(), (int)(24 - unk_len * 3), "",
                    color_instr(), color_reset(),
                    color_comment(), fi.opcode, color_reset());
             a += unk_len;
@@ -283,7 +337,14 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
         if (nd500_instr_is_branch(fi.opcode)) {
             instr_color = color_branch();
         }
-        
+
+        /* Print breakpoint marker if present */
+        if (nd500_dbg_has_breakpoint_at(m, fi.address)) {
+            printf("%s●%s ", color_branch(), color_reset());  /* Red bullet for breakpoint */
+        } else {
+            printf("  ");  /* Two spaces for alignment */
+        }
+
         /* Print address in gray */
         printf("%s%08X:%s ", color_address(), fi.address, color_reset());
         
@@ -703,6 +764,19 @@ const char* nd500_dbg_get_trap_description(void) {
         return trap->trap_description;
     }
     return NULL;
+}
+
+/* Breakpoint helper functions */
+bool nd500_dbg_has_breakpoint_at(Nd500Machine* m, uint32_t addr) {
+    if (!m || !m->bp_mgr) return false;
+
+    for (int i = 0; i < m->bp_mgr->bp_count; i++) {
+        if (m->bp_mgr->breakpoints[i].enabled &&
+            m->bp_mgr->breakpoints[i].address == addr) {
+            return true;
+        }
+    }
+    return false;
 }
 
 

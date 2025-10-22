@@ -37,6 +37,8 @@ int    nd500_dbg_set_show_ea(int onoff);
 int    nd500_dbg_get_show_ea(void);
 int    nd500_dbg_set_demangle(int onoff);
 int    nd500_dbg_get_demangle(void);
+int    nd500_dbg_set_show_source(int mode);  /* 0=off, 1=asm, 2=c, 3=both */
+int    nd500_dbg_get_show_source(void);
 
 /* Trace configuration */
 int    nd500_dbg_set_trace_mode(int onoff);
@@ -65,6 +67,10 @@ void   nd500_dbg_toggle_trap_invalid(void);
 void   nd500_dbg_clear_traps(void);
 int    nd500_dbg_trap_occurred(void);
 const char* nd500_dbg_get_trap_description(void);
+
+/* Breakpoint helper functions */
+#include <stdbool.h>
+bool   nd500_dbg_has_breakpoint_at(Nd500Machine* m, uint32_t addr);
 
 /* MMU control */
 void nd500_machine_enable_mmu(Nd500Machine* m);

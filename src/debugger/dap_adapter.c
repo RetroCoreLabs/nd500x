@@ -5,6 +5,7 @@
 #include "debugger.h"
 #include "../machine/machine_protos.h"
 #include "../cpu/cpu_protos.h"
+#include "../ndlib/ndlib.h"
 #include "../../external/libdap/libdap/include/dap_server.h"
 
 static Nd500Machine* g_machine = NULL;
@@ -85,10 +86,8 @@ static int cmd_launch_cb(DAPServer *server) {
 	(void)server;
 	if (!g_machine) return -1;
 	if (ctx->program_path && *ctx->program_path) {
-		uint32_t entry = 0;
-		if (nd500_dbg_load_aout_file(g_machine, ctx->program_path, &entry) == 0 && g_machine->cpu) {
-			g_machine->cpu->PC = entry;
-		}
+		/* Use unified loading function (no auto-map for DAP - let IDE handle it) */
+		ndlib_load_aout_with_debug(g_machine, ctx->program_path, 0, NULL, NULL);
 	}
 	return 0;
 }

@@ -35,6 +35,8 @@ static int cmd_step(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_set(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_load(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_loadmap(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_loadsrc(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_run(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_stop(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_continue(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -43,6 +45,7 @@ static int cmd_segments(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_goto(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_msym(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_dsym(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_list(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_profile(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_backtrace(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_bp(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -72,6 +75,8 @@ static const CmdEntry g_commands[] = {
 	{"regs",        cmd_regs,         "Display CPU registers"},
 	{"set",         cmd_set,          "Set register value"},
 	{"load",        cmd_load,         "Load binary file"},
+	{"loadmap",     cmd_loadmap,      "Load additional map file"},
+	{"loadsrc",     cmd_loadsrc,      "Load additional source file"},
 	{"run",         cmd_run,          "Start execution"},
 	{"stop",        cmd_stop,         "Stop execution"},
 	{"continue",    cmd_continue,     "Continue execution"},
@@ -84,6 +89,8 @@ static const CmdEntry g_commands[] = {
 	{"goto",        cmd_goto,         "Set PC to symbol"},
 	{"msym",        cmd_msym,         "Memory dump at symbol"},
 	{"dsym",        cmd_dsym,         "Disassemble at symbol"},
+	{"list",        cmd_list,         "List source code"},
+	{"l",           cmd_list,         "List source code"},
 	{"profile",     cmd_profile,      "Show/reset profiling stats"},
 	{"backtrace",   cmd_backtrace,    "Show call stack"},
 	{"bt",          cmd_backtrace,    "Show call stack"},
@@ -94,8 +101,8 @@ static const CmdEntry g_commands[] = {
 	{"watch",       cmd_wp,           "Manage watchpoints"},
 	{"watchpoint",  cmd_wp,           "Manage watchpoints"},
 	{"clear-traps", cmd_clear_traps,  "Clear pending traps"},
-	{"mmu",         cmd_mmu,          "Enable/disable MMU"},
-	{"showmmu",     cmd_showmmu,      "Show MMU status"},
+	{"mmu",         cmd_mmu,          "Control Program/Data MMU"},
+	{"showmmu",     cmd_showmmu,      "Show detailed MMU status"},
 	{"showpst",     cmd_showpst,      "Show PST entry"},
 	{"showpcb",     cmd_showpcb,      "Show PCB capabilities"},
 	{"phyladr",     cmd_phyladr,      "Translate virtual to physical address"},
@@ -111,7 +118,7 @@ static const int g_command_count = sizeof(g_commands) / sizeof(g_commands[0]);
 
 /* Subcommand lists for autocomplete */
 static const char* g_show_subcommands[] = {
-	"ea", "demangle", "trace", "profile", "trap", "traps", "trap-status", NULL
+	"ea", "demangle", "source", "trace", "profile", "trap", "traps", "trap-status", NULL
 };
 
 static const char* g_bp_subcommands[] = {
@@ -254,6 +261,7 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  d [addr [len]]              Disassemble bytes (default addr=PC, len=100)");
 	output(ctx, "  show ea [on|off]            Toggle/show effective-address breakdown in disassembly");
 	output(ctx, "  show demangle [on|off]      Toggle C-symbol demangling (strip leading _)");
+	output(ctx, "  show source [off|asm|c|both] Set source annotations in disassembly");
 	output(ctx, "  show trace [on|off]         Toggle instruction execution tracing");
 	output(ctx, "  show profile [on|off]      Toggle instruction execution profiling");
 	output(ctx, "  profile [show|reset]       Show profiling statistics or reset data");
@@ -265,6 +273,8 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  load pseg <path> [mode] [addr]  Load PSEG binary (auto-detect mode from filename)");
 	output(ctx, "  load dseg <path> [mode] [addr]  Load DSEG binary (auto-detect mode from filename)");
 	output(ctx, "                              mode: kernel (0x08000000) | user (0xD0000000)");
+	output(ctx, "  loadmap <path>              Load additional map file (for multi-file programs)");
+	output(ctx, "  loadsrc <path>              Load additional source file (.c or .s)");
 	output(ctx, "  run                         Start execution (background)");
 	output(ctx, "  stop                        Stop execution");
 	output(ctx, "  continue (c/cont)           Continue execution after breakpoint");
@@ -274,8 +284,16 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  msym <symbol> [len]         Memory dump at symbol address");
 	output(ctx, "  dsym <symbol> [len]         Disassemble at symbol address");
 	output(ctx, "");
+	output(ctx, "Source-Level Debugging:");
+	output(ctx, "  list [n]                    Show source at PC with n lines context (default 5)");
+	output(ctx, "  list [addr]                 Show source at address");
+	output(ctx, "  list c [addr]               Show C source (force .c file)");
+	output(ctx, "  list asm [addr]             Show assembly source (force .s file)");
+	output(ctx, "  l                           Alias for list");
+	output(ctx, "");
 	output(ctx, "Breakpoints:");
 	output(ctx, "  bp [addr] (break/breakpoint) Set breakpoint at address (default: PC)");
+	output(ctx, "  bp source <file> <line>     Set breakpoint at source file:line");
 	output(ctx, "  bp cond <addr> <condition>   Set conditional breakpoint");
 	output(ctx, "  bp list                     List all breakpoints");
 	output(ctx, "  bp del <id>                 Delete breakpoint");
@@ -298,9 +316,11 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  clear-traps                 Clear any pending traps");
 	output(ctx, "");
 	output(ctx, "MMU Commands:");
-	output(ctx, "  mmu [on|off]                Enable/disable MMU address translation");
+	output(ctx, "  mmu                         Show Program and Data MMU status");
+	output(ctx, "  mmu on [program|data]       Enable MMU (both, program only, or data only)");
+	output(ctx, "  mmu off [program|data]      Disable MMU (both, program only, or data only)");
 	output(ctx, "  mmusetup                    Setup demo MMU configuration for testing");
-	output(ctx, "  showmmu                     Show MMU status and configuration");
+	output(ctx, "  showmmu                     Show detailed MMU status and configuration");
 	output(ctx, "  listpst                     List all configured (non-zero) PST entries");
 	output(ctx, "  showpst <psn>               Show PST entry details");
 	output(ctx, "  listpcb                     List all domains with configured segments");
@@ -401,6 +421,28 @@ static int cmd_show(Nd500Machine* m, CmdContext* ctx, char* args) {
 		}
 		nd500_dbg_set_demangle(newv);
 		output(ctx, "show demangle: %s", newv ? "on" : "off");
+	} else if (strcmp(sub, "source") == 0) {
+		char* val = strtok(NULL, " \t\r\n");
+		int newv = -1;
+		if (!val) {
+			/* No argument: cycle through modes */
+			int cur = nd500_dbg_get_show_source();
+			newv = (cur + 1) % 4;  /* 0 -> 1 -> 2 -> 3 -> 0 */
+		} else if (strcasecmp(val, "off") == 0) {
+			newv = 0;
+		} else if (strcasecmp(val, "asm") == 0) {
+			newv = 1;
+		} else if (strcasecmp(val, "c") == 0) {
+			newv = 2;
+		} else if (strcasecmp(val, "both") == 0) {
+			newv = 3;
+		} else {
+			error(ctx, "usage: show source [off|asm|c|both]");
+			return -1;
+		}
+		nd500_dbg_set_show_source(newv);
+		const char* mode_str[] = {"off", "asm", "c", "both"};
+		output(ctx, "show source: %s", mode_str[newv]);
 	} else if (strcmp(sub, "trace") == 0) {
 		char* val = strtok(NULL, " \t\r\n");
 		int newv;
@@ -625,10 +667,156 @@ static int cmd_set(Nd500Machine* m, CmdContext* ctx, char* args) {
 }
 
 static int cmd_load(Nd500Machine* m, CmdContext* ctx, char* args) {
-	/* This command is complex and involves file I/O
-	 * For now, output an error that this needs native file access */
-	error(ctx, "load command not yet supported in shared library (requires file I/O refactoring)");
-	return -1;
+	if (!m || !m->cpu) {
+		error(ctx, "no machine or cpu");
+		return -1;
+	}
+
+	/* Parse file path argument */
+	char* filepath = args ? strtok(args, " \t\r\n") : NULL;
+	if (!filepath) {
+		error(ctx, "usage: load <path-to-aout-file>");
+		return -1;
+	}
+
+	/* Use unified loading function (auto-loads .map and .s files) */
+	uint32_t entry = 0, pc = 0;
+	int rc = ndlib_load_aout_with_debug(m, filepath, 1, &entry, &pc);
+	if (rc != 0) {
+		error(ctx, "failed to load '%s'", filepath);
+		return -1;
+	}
+
+	/* Report results */
+	output(ctx, "loaded: %s", filepath);
+
+	/* Check if .map, .s, and .c files were also loaded */
+	char alt_path[512];
+	strncpy(alt_path, filepath, sizeof(alt_path) - 1);
+	alt_path[sizeof(alt_path) - 1] = '\0';
+	char* ext = strrchr(alt_path, '.');
+	if (ext && (strcmp(ext, ".o") == 0 || strcmp(ext, ".out") == 0)) {
+		/* Check for .map */
+		strcpy(ext, ".map");
+		FILE* f = fopen(alt_path, "r");
+		if (f) {
+			fclose(f);
+			output(ctx, "loaded: %s", alt_path);
+		}
+
+		/* Check for .s */
+		strcpy(ext, ".s");
+		f = fopen(alt_path, "r");
+		if (f) {
+			fclose(f);
+			output(ctx, "loaded: %s", alt_path);
+		}
+
+		/* Check for .c */
+		strcpy(ext, ".c");
+		f = fopen(alt_path, "r");
+		if (f) {
+			fclose(f);
+			output(ctx, "loaded: %s", alt_path);
+		}
+	}
+
+	/* Report PC setting */
+	if (entry == 0 || entry == 4) {
+		if (pc > 0) {
+			output(ctx, "PC set to first instruction: 0x%08X", pc);
+		} else {
+			output(ctx, "PC set to 0 (no map file or first instruction found)");
+		}
+	} else {
+		output(ctx, "PC set to entry point: 0x%08X", pc);
+	}
+
+	return 0;
+}
+
+static int cmd_loadmap(Nd500Machine* m, CmdContext* ctx, char* args) {
+	/* Parse file path argument */
+	char* filepath = args ? strtok(args, " \t\r\n") : NULL;
+	if (!filepath) {
+		error(ctx, "usage: loadmap <path-to-map-file>");
+		return -1;
+	}
+
+	/* Load the map file */
+	int rc = ndlib_map_load(filepath);
+	if (rc != 0) {
+		error(ctx, "failed to load map file: %s", filepath);
+		return -1;
+	}
+
+	output(ctx, "loaded map: %s", filepath);
+	return 0;
+}
+
+static int cmd_loadsrc(Nd500Machine* m, CmdContext* ctx, char* args) {
+	/* Parse file path argument */
+	char* filepath = args ? strtok(args, " \t\r\n") : NULL;
+	if (!filepath) {
+		error(ctx, "usage: loadsrc <path-to-source-file>");
+		return -1;
+	}
+
+	/* Check file extension */
+	const char* ext = strrchr(filepath, '.');
+	if (!ext) {
+		error(ctx, "source file must have .c or .s extension");
+		return -1;
+	}
+
+	if (strcmp(ext, ".c") != 0 && strcmp(ext, ".s") != 0) {
+		error(ctx, "source file must have .c or .s extension (got %s)", ext);
+		return -1;
+	}
+
+	/* Read file contents */
+	FILE* f = fopen(filepath, "rb");
+	if (!f) {
+		error(ctx, "failed to open: %s", filepath);
+		return -1;
+	}
+
+	fseek(f, 0, SEEK_END);
+	long size = ftell(f);
+	if (size < 0) {
+		fclose(f);
+		error(ctx, "failed to read: %s", filepath);
+		return -1;
+	}
+	fseek(f, 0, SEEK_SET);
+
+	char* content = (char*)malloc((size_t)size + 1);
+	if (!content) {
+		fclose(f);
+		error(ctx, "out of memory");
+		return -1;
+	}
+
+	size_t read = fread(content, 1, (size_t)size, f);
+	content[read] = '\0';
+	fclose(f);
+
+	/* Extract basename for storage */
+	const char* basename = strrchr(filepath, '/');
+	if (!basename) basename = strrchr(filepath, '\\');
+	basename = basename ? basename + 1 : filepath;
+
+	/* Store the source */
+	int rc = ndlib_source_store(basename, content);
+	free(content);
+
+	if (rc != 0) {
+		error(ctx, "failed to store source: %s", basename);
+		return -1;
+	}
+
+	output(ctx, "loaded source: %s (stored as %s)", filepath, basename);
+	return 0;
 }
 
 static int cmd_run(Nd500Machine* m, CmdContext* ctx, char* args) {
@@ -769,6 +957,140 @@ static int cmd_dsym(Nd500Machine* m, CmdContext* ctx, char* args) {
 	return cmd_dis(m, ctx, combined_args);
 }
 
+static int cmd_list(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	/* Parse arguments: [c|asm] [addr|n] */
+	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
+	char* a2 = a1 ? strtok(NULL, " \t\r\n") : NULL;
+
+	int force_c = 0, force_asm = 0;
+	uint32_t addr = m->cpu->PC;
+	int context_lines = 5;
+
+	/* Check first argument for c/asm forcing */
+	if (a1 && (strcasecmp(a1, "c") == 0 || strcasecmp(a1, "asm") == 0)) {
+		if (strcasecmp(a1, "c") == 0) force_c = 1;
+		else force_asm = 1;
+		/* Second argument becomes address or context */
+		if (a2) {
+			addr = nd500_cmd_parse_u32(a2, m->cpu->PC);
+		}
+	} else if (a1) {
+		/* First argument is address or context lines */
+		uint32_t val = nd500_cmd_parse_u32(a1, m->cpu->PC);
+		/* If value is small (< 100), treat as context lines, else as address */
+		if (val < 100) {
+			context_lines = (int)val;
+		} else {
+			addr = val;
+		}
+	}
+
+	/* Get source file and line at this address */
+	const char* c_file = NULL;
+	const char* s_file = NULL;
+	int c_line = 0;
+	int s_line = 0;
+
+	int has_c = ndlib_symbols_get_c_mapping(addr, &c_file, &c_line);
+	int has_s = ndlib_symbols_get_s_mapping(addr, &s_file, &s_line);
+
+	/* Determine which source to show based on forcing and availability */
+	const char* source_file = NULL;
+	int source_line = 0;
+
+	if (force_c) {
+		/* User explicitly requested C source */
+		if (!has_c) {
+			if (has_s) {
+				error(ctx, "no C source at address 0x%08X (only assembly %s available)", addr, s_file);
+			} else {
+				error(ctx, "no C source at address 0x%08X", addr);
+			}
+			return -1;
+		}
+		source_file = c_file;
+		source_line = c_line;
+	} else if (force_asm) {
+		/* User explicitly requested assembly source */
+		if (!has_s) {
+			if (has_c) {
+				error(ctx, "no assembly source at address 0x%08X (only C %s available)", addr, c_file);
+			} else {
+				error(ctx, "no assembly source at address 0x%08X", addr);
+			}
+			return -1;
+		}
+		source_file = s_file;
+		source_line = s_line;
+	} else {
+		/* Default: prefer C, fall back to assembly */
+		if (has_c) {
+			source_file = c_file;
+			source_line = c_line;
+		} else if (has_s) {
+			source_file = s_file;
+			source_line = s_line;
+		} else {
+			error(ctx, "no source mapping at address 0x%08X", addr);
+			return -1;
+		}
+	}
+
+	/* Get total line count and calculate range */
+	int total_lines = ndlib_source_count_lines(source_file);
+	if (total_lines == 0) {
+		error(ctx, "source file not loaded: %s", source_file);
+		return -1;
+	}
+
+	int start_line = source_line - context_lines;
+	int end_line = source_line + context_lines;
+	if (start_line < 1) start_line = 1;
+	if (end_line > total_lines) end_line = total_lines;
+
+	/* Display header */
+	output(ctx, "=== %s (lines %d-%d) ===", source_file, start_line, end_line);
+
+	/* Display source lines */
+	for (int line = start_line; line <= end_line; line++) {
+		const char* line_text = ndlib_source_get_line(source_file, line);
+		if (line_text) {
+			/* Check if this line has any breakpoints */
+			uint32_t line_addrs[16];
+			int addr_count = ndlib_symbols_get_addrs_for_line(source_file, line, line_addrs, 16);
+			int has_breakpoint = 0;
+			for (int i = 0; i < addr_count; i++) {
+				if (nd500_dbg_has_breakpoint_at(m, line_addrs[i])) {
+					has_breakpoint = 1;
+					break;
+				}
+			}
+
+			/* Build marker: ● for breakpoint, → for current line */
+			if (has_breakpoint && line == source_line) {
+				/* Both breakpoint and current line */
+				output(ctx, "●→%4d  %s", line, line_text);
+			} else if (has_breakpoint) {
+				/* Breakpoint only */
+				output(ctx, "● %4d  %s", line, line_text);
+			} else if (line == source_line) {
+				/* Current line only */
+				output(ctx, " →%4d  %s", line, line_text);
+			} else {
+				/* Neither */
+				output(ctx, "  %4d  %s", line, line_text);
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int cmd_profile(Nd500Machine* m, CmdContext* ctx, char* args) {
 	char* subcmd = args ? strtok(args, " \t\r\n") : NULL;
 	if (!subcmd || strcmp(subcmd, "show") == 0) {
@@ -831,6 +1153,33 @@ static int cmd_bp(Nd500Machine* m, CmdContext* ctx, char* args) {
 			return -1;
 		}
 		bp_add_conditional(m->bp_mgr, addr, condition, false);
+	} else if (strcasecmp(a1, "source") == 0 || strcasecmp(a1, "src") == 0) {
+		/* Set breakpoint by source file and line number */
+		if (!a2) {
+			error(ctx, "usage: bp source <file> <line>");
+			return -1;
+		}
+		char* a3 = strtok(NULL, " \t\r\n");
+		if (!a3) {
+			error(ctx, "usage: bp source <file> <line>");
+			return -1;
+		}
+
+		const char* filename = a2;
+		int line = (int)nd500_cmd_parse_u32(a3, 0);
+
+		/* Look up address for this source location */
+		uint32_t addr = 0;
+		if (ndlib_symbols_addr_for_line(filename, line, &addr) != 0) {
+			error(ctx, "no code found at %s:%d", filename, line);
+			return -1;
+		}
+
+		/* Set breakpoint at the found address */
+		int bp_id = bp_add(m->bp_mgr, addr, false);
+		if (bp_id >= 0) {
+			output(ctx, "breakpoint %d set at %s:%d (address 0x%08X)", bp_id, filename, line, addr);
+		}
 	} else {
 		uint32_t addr = nd500_cmd_parse_u32(a1, m->cpu ? m->cpu->PC : 0);
 		bp_add(m->bp_mgr, addr, false);
@@ -917,7 +1266,7 @@ static int cmd_clear_traps(Nd500Machine* m, CmdContext* ctx, char* args) {
 /* ═══════════════════════════════════════════════════════ */
 
 static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
-	if (!m) {
+	if (!m || !m->cpu) {
 		error(ctx, "no machine");
 		return -1;
 	}
@@ -926,19 +1275,48 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 	if (!subcmd) {
 		/* No argument - show current status */
-		int enabled = nd500_machine_mmu_is_enabled(m);
-		output(ctx, "MMU: %s", enabled ? "enabled" : "disabled");
+		int prog_enabled = nd500_mmu_is_program_enabled(m->cpu);
+		int data_enabled = nd500_mmu_is_data_enabled(m->cpu);
+		output(ctx, "Program MMU: %s", prog_enabled ? "enabled" : "disabled");
+		output(ctx, "Data MMU:    %s", data_enabled ? "enabled" : "disabled");
 		return 0;
 	}
 
+	/* Parse type argument (optional) */
+	char* type = strtok(NULL, " \t\r\n");
+
 	if (strcasecmp(subcmd, "on") == 0) {
-		nd500_machine_enable_mmu(m);
-		output(ctx, "MMU enabled");
+		if (!type) {
+			/* Enable both */
+			nd500_machine_enable_mmu(m);
+			output(ctx, "Program and Data MMU enabled");
+		} else if (strcasecmp(type, "program") == 0 || strcasecmp(type, "prog") == 0) {
+			nd500_mmu_enable_program(m->cpu);
+			output(ctx, "Program MMU enabled (PMON)");
+		} else if (strcasecmp(type, "data") == 0) {
+			nd500_mmu_enable_data(m->cpu);
+			output(ctx, "Data MMU enabled (DMON)");
+		} else {
+			error(ctx, "usage: mmu on [program|data]");
+			return -1;
+		}
 	} else if (strcasecmp(subcmd, "off") == 0) {
-		nd500_machine_disable_mmu(m);
-		output(ctx, "MMU disabled");
+		if (!type) {
+			/* Disable both */
+			nd500_machine_disable_mmu(m);
+			output(ctx, "Program and Data MMU disabled");
+		} else if (strcasecmp(type, "program") == 0 || strcasecmp(type, "prog") == 0) {
+			nd500_mmu_disable_program(m->cpu);
+			output(ctx, "Program MMU disabled (PMOF)");
+		} else if (strcasecmp(type, "data") == 0) {
+			nd500_mmu_disable_data(m->cpu);
+			output(ctx, "Data MMU disabled (DMOF)");
+		} else {
+			error(ctx, "usage: mmu off [program|data]");
+			return -1;
+		}
 	} else {
-		error(ctx, "usage: mmu [on|off]");
+		error(ctx, "usage: mmu [on|off] [program|data]");
 		return -1;
 	}
 
@@ -951,12 +1329,12 @@ static int cmd_showmmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return -1;
 	}
 
-	int mmu_enabled = nd500_machine_mmu_is_enabled(m);
-	int mmu_initialized = nd500_mmu_is_enabled(m->cpu);
+	int prog_enabled = nd500_mmu_is_program_enabled(m->cpu);
+	int data_enabled = nd500_mmu_is_data_enabled(m->cpu);
 
 	output(ctx, "=== MMU STATUS ===");
-	output(ctx, "Machine MMU flag: %s", mmu_enabled ? "enabled" : "disabled");
-	output(ctx, "CPU MMU state:    %s", mmu_initialized ? "enabled" : "disabled");
+	output(ctx, "Program MMU (PMON/PMOF): %s", prog_enabled ? "enabled" : "disabled");
+	output(ctx, "Data MMU (DMON/DMOF):    %s", data_enabled ? "enabled" : "disabled");
 	output(ctx, "");
 	output(ctx, "MMU Registers:");
 	output(ctx, "  PSTP    = 0x%08X  (Physical Segment Table Pointer)", m->cpu->PSTP);

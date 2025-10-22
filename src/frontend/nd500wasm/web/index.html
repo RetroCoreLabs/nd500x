@@ -3,13 +3,14 @@
 <head>
     <meta charset="utf-8">
     <title>ND500X Web Debugger</title>
-    <link rel="stylesheet" href="style.css?v=20251016j">
+    <link rel="stylesheet" href="style.css?v=20251021h">
 </head>
 <body>
     <div id="header">
         <h1>ND500X Emulator - Web Debugger</h1>
         <div id="controls">
             <button id="loadBtn" class="btn-load">📁 Load</button>
+            <button id="sourceBtn" class="btn-source">📝 Source Files</button>
             <button id="symbolsBtn" class="btn-symbols">🔍 Symbols</button>
             <button id="consoleBtn" class="btn-console">💻 Console</button>
             <button id="mmuBtn" class="btn-mmu">🧠 MMU</button>
@@ -21,10 +22,37 @@
     </div>
     <div id="main-container">
         <div id="left-pane">
+            <!-- Code View Tabs -->
+            <div class="code-tabs">
+                <button class="code-tab active" data-tab="disasm">Disassembly</button>
+                <button class="code-tab" data-tab="asm">Assembly</button>
+                <button class="code-tab" data-tab="c">C</button>
+            </div>
             <!-- Disassembly view -->
-            <div id="disasm-panel">
-                <h2>Disassembly</h2>
+            <div id="disasm-panel" class="code-panel active">
                 <div id="disasm-content"></div>
+            </div>
+            <!-- Assembly source view -->
+            <div id="asm-panel" class="code-panel">
+                <div id="asm-file-selector">
+                    <label>File:
+                        <select id="asm-file-dropdown">
+                            <option value="">-- No assembly files loaded --</option>
+                        </select>
+                    </label>
+                </div>
+                <div id="asm-content"></div>
+            </div>
+            <!-- C source view -->
+            <div id="c-panel" class="code-panel">
+                <div id="c-file-selector">
+                    <label>File:
+                        <select id="c-file-dropdown">
+                            <option value="">-- No C files loaded --</option>
+                        </select>
+                    </label>
+                </div>
+                <div id="c-content"></div>
             </div>
         </div>
         <div id="right-pane">
@@ -288,6 +316,10 @@
                         <label>Search Domain:</label>
                         <input type="text" id="pcbSearchInput" placeholder="Enter domain number...">
                     </div>
+                    <div class="pcb-filter-group">
+                        <label>Search Segment:</label>
+                        <input type="text" id="pcbSegmentSearchInput" placeholder="Enter segment number (0-31)...">
+                    </div>
                     <div class="pcb-stats">
                         <span id="pcbTableStats">0 domains shown</span>
                     </div>
@@ -407,34 +439,102 @@
                     <input type="text" id="pcbEditSegmentInput" readonly>
                 </div>
 
-                <h4>Program Capability</h4>
-                <div class="form-row">
-                    <label>PSN (Physical Segment Number):</label>
-                    <input type="text" id="pcbEditProgPsn" placeholder="0-8191 or leave empty">
-                </div>
-                <div class="form-row">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="pcbEditProgDir">
-                        DIR (Direct mapped)
-                    </label>
+                <!-- Tab Navigation -->
+                <div class="pcb-edit-tabs">
+                    <button class="pcb-tab-btn active" data-tab="program">Program Capability</button>
+                    <button class="pcb-tab-btn" data-tab="data">Data Capability</button>
                 </div>
 
-                <h4>Data Capability</h4>
-                <div class="form-row">
-                    <label>PSN (Physical Segment Number):</label>
-                    <input type="text" id="pcbEditDataPsn" placeholder="0-8191 or leave empty">
+                <!-- Program Capability Tab -->
+                <div id="pcbEditProgTab" class="pcb-tab-content active">
+                    <div class="form-row prog-type-selector">
+                        <label>
+                            <input type="radio" name="progCapType" value="direct" checked>
+                            Direct Segment (bit 15 = 0)
+                        </label>
+                        <label>
+                            <input type="radio" name="progCapType" value="indirect">
+                            Indirect Segment (bit 15 = 1)
+                        </label>
+                    </div>
+
+                    <!-- Direct Segment Fields -->
+                    <div id="progCapDirectFields" class="prog-cap-fields">
+                        <div class="form-row">
+                            <label>PSN (bits 12-0):</label>
+                            <input type="text" id="pcbEditProgPsnDirect" placeholder="0-8191 (0x0000-0x1FFF)">
+                            <span class="hint">Physical Segment Number for direct mapping</span>
+                        </div>
+                    </div>
+
+                    <!-- Indirect Segment Fields -->
+                    <div id="progCapIndirectFields" class="prog-cap-fields hidden">
+                        <div class="form-row">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="pcbEditProgOmc">
+                                OMC - Other Machine (bit 14)
+                            </label>
+                            <span class="hint">Set for ND-100 interface</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Domain (bits 12-5):</label>
+                            <input type="text" id="pcbEditProgDomain" placeholder="0-255 (0x00-0xFF)">
+                            <span class="hint">Target domain for indirect call</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Segment (bits 4-0):</label>
+                            <input type="text" id="pcbEditProgSegment" placeholder="0-31 (0x00-0x1F)">
+                            <span class="hint">Target segment in domain</span>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <label>Raw Value Preview:</label>
+                        <input type="text" id="pcbEditProgRawPreview" readonly>
+                    </div>
                 </div>
-                <div class="form-row">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="pcbEditDataWrp">
-                        WRP (Write Protected)
-                    </label>
-                </div>
-                <div class="form-row">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="pcbEditDataPac">
-                        PAC (Public Access / User accessible)
-                    </label>
+
+                <!-- Data Capability Tab -->
+                <div id="pcbEditDataTab" class="pcb-tab-content">
+                    <div class="form-row">
+                        <label>PSN (bits 12-0):</label>
+                        <input type="text" id="pcbEditDataPsn" placeholder="0-8191 (0x0000-0x1FFF)">
+                        <span class="hint">Physical Segment Number</span>
+                    </div>
+                    <div class="form-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="pcbEditDataWrp">
+                            WRP - Write Permitted (bit 15)
+                        </label>
+                    </div>
+                    <div class="form-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="pcbEditDataPac">
+                            PAC - Parameter Access / User (bit 14)
+                        </label>
+                    </div>
+                    <div class="form-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="pcbEditDataShs">
+                            SHS - Shared Segment (bit 13)
+                        </label>
+                        <span class="hint">Disable cache for shared memory</span>
+                    </div>
+
+                    <div class="form-row">
+                        <label>Permission Presets:</label>
+                        <div class="permission-presets">
+                            <button type="button" class="preset-btn" data-perm="SG_RW">Kernel R/W</button>
+                            <button type="button" class="preset-btn" data-perm="SG_RO">Kernel R/O</button>
+                            <button type="button" class="preset-btn" data-perm="SG_URW">User R/W</button>
+                            <button type="button" class="preset-btn" data-perm="SG_URO">User R/O</button>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <label>Raw Value Preview:</label>
+                        <input type="text" id="pcbEditDataRawPreview" readonly>
+                    </div>
                 </div>
             </div>
 
@@ -517,7 +617,57 @@
         </div>
     </div>
 
-    <script src="nd500wasm.js?v=20251015d"></script>
-    <script src="debugger.js?v=20251016j"></script>
+    <!-- Source Files Upload Modal -->
+    <div id="sourceModal" class="hidden">
+        <div class="modal-content source-modal">
+            <h3>Load Source Files</h3>
+            <p class="modal-description">
+                Upload source files (.s or .c), map files (.map), or a ZIP bundle containing all files.
+            </p>
+
+            <div class="source-upload-section">
+                <h4>Individual Files</h4>
+                <div class="file-upload-row">
+                    <label class="file-upload-label">
+                        <span class="label-text">Source File (.s/.c):</span>
+                        <input type="file" id="sourceFileInput" accept=".s,.asm,.c">
+                        <span class="file-name" id="sourceFileName">No file selected</span>
+                    </label>
+                </div>
+                <div class="file-upload-row">
+                    <label class="file-upload-label">
+                        <span class="label-text">Map File (.map):</span>
+                        <input type="file" id="mapFileInput" accept=".map">
+                        <span class="file-name" id="mapFileName">No file selected</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="source-upload-divider">OR</div>
+
+            <div class="source-upload-section">
+                <h4>ZIP Bundle</h4>
+                <div class="file-upload-row">
+                    <label class="file-upload-label">
+                        <span class="label-text">ZIP File (.zip):</span>
+                        <input type="file" id="zipFileInput" accept=".zip">
+                        <span class="file-name" id="zipFileName">No file selected</span>
+                    </label>
+                </div>
+                <p class="hint">ZIP file should contain .s and .map files (and optionally .o file)</p>
+            </div>
+
+            <div id="sourceUploadStatus" class="upload-status hidden"></div>
+
+            <div class="actions">
+                <button id="sourceCancelBtn">Cancel</button>
+                <button id="sourceUploadBtn" class="primary">Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="nd500wasm.js?v=20251021e"></script>
+    <script src="debugger.js?v=20251021g"></script>
 </body>
 </html>
