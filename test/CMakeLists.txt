@@ -18,3 +18,8 @@ add_executable(test_mmu_separate_id
 )
 target_link_libraries(test_mmu_separate_id PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+add_executable(test_source_mapping
+    test_source_mapping.c
+)
+target_link_libraries(test_source_mapping PRIVATE nd500_ndlib nd500_machine)
+

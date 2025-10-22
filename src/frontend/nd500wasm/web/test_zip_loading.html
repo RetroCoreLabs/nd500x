@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZIP Loading Integration Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #555;
+            background: #2d2d2d;
+        }
+        .pass { color: #4ec9b0; }
+        .fail { color: #f48771; }
+        .info { color: #dcdcaa; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #0e639c;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover { background: #1177bb; }
+        pre {
+            background: #1e1e1e;
+            padding: 10px;
+            overflow-x: auto;
+            border-left: 3px solid #0e639c;
+            max-height: 400px;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 10px;
+            background: #1e1e1e;
+            border: 1px solid #555;
+            min-height: 200px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>ZIP Loading Integration Test</h1>
+
+    <div class="test-section">
+        <h2>Test: Load kernel.zip</h2>
+        <p>This test will actually load the kernel.zip file and process it</p>
+        <button onclick="testZipLoading()">Run ZIP Loading Test</button>
+        <div id="test-output"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Console Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const sourceFiles = new Map();
+
+        function log(msg) {
+            const output = document.getElementById('output');
+            const line = document.createElement('div');
+            line.textContent = msg;
+            output.appendChild(line);
+            console.log(msg);
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+            document.getElementById('test-output').innerHTML = '';
+        }
+
+        async function testZipLoading() {
+            clearOutput();
+            const output = document.getElementById('test-output');
+            output.innerHTML = '<h3>Loading kernel.zip...</h3>';
+
+            try {
+                log('='.repeat(60));
+                log('INTEGRATION TEST: Loading kernel.zip');
+                log('='.repeat(60));
+
+                // Fetch the ZIP file
+                log('1. Fetching kernel.zip from server...');
+                const response = await fetch('kernel.zip');
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch kernel.zip: ${response.status} ${response.statusText}`);
+                }
+
+                const arrayBuffer = await response.arrayBuffer();
+                log(`✓ Fetched kernel.zip: ${arrayBuffer.byteLength} bytes`);
+
+                // Load with JSZip
+                log('2. Loading ZIP with JSZip...');
+                const zip = await JSZip.loadAsync(arrayBuffer);
+                log('✓ ZIP loaded successfully');
+                log('   Files in ZIP:', Object.keys(zip.files).join(', '));
+
+                // Process each file
+                log('3. Processing ZIP contents...');
+                sourceFiles.clear();
+
+                const counts = {
+                    source: 0,
+                    map: 0,
+                    executable: 0,
+                    skipped: 0
+                };
+
+                for (const [filename, zipEntry] of Object.entries(zip.files)) {
+                    // Skip directories
+                    if (zipEntry.dir) {
+                        log(`   SKIP (directory): ${filename}`);
+                        continue;
+                    }
+
+                    // Skip __MACOSX and hidden files
+                    const basename = filename.split('/').pop();
+                    if (filename.includes('__MACOSX') || basename.startsWith('.')) {
+                        log(`   SKIP (metadata/hidden): ${filename}`);
+                        counts.skipped++;
+                        continue;
+                    }
+
+                    log(`   Processing: ${filename} -> basename: ${basename}`);
+
+                    if (filename.endsWith('.s') || filename.endsWith('.c') || filename.endsWith('.cpp') || filename.endsWith('.h')) {
+                        // Source file
+                        log(`   → Detected as SOURCE file: ${basename}`);
+                        const content = await zipEntry.async('string');
+                        log(`   → Content length: ${content.length} bytes`);
+                        log(`   → First 100 chars: ${content.substring(0, 100).replace(/\n/g, '\\n')}`);
+
+                        sourceFiles.set(basename, content);
+                        log(`   ✓ Stored in sourceFiles map. Total files now: ${sourceFiles.size}`);
+                        counts.source++;
+
+                    } else if (filename.endsWith('.map')) {
+                        // Map file
+                        log(`   → Detected as MAP file: ${basename}`);
+                        const content = await zipEntry.async('string');
+                        log(`   → Content length: ${content.length} bytes`);
+                        log(`   → First 200 chars: ${content.substring(0, 200).replace(/\n/g, '\\n')}`);
+                        counts.map++;
+
+                    } else if (filename.endsWith('.o') || filename.endsWith('.out') ||
+                               (!filename.includes('.') && basename !== '__MACOSX' && !basename.startsWith('.'))) {
+                        // Binary executable
+                        log(`   → Detected as EXECUTABLE file: ${basename}`);
+                        const bytes = await zipEntry.async('uint8array');
+                        log(`   → Binary size: ${bytes.length} bytes`);
+                        log(`   → First 16 bytes: ${Array.from(bytes.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+                        counts.executable++;
+
+                    } else {
+                        log(`   → SKIPPING unrecognized file: ${filename}`);
+                        counts.skipped++;
+                    }
+                }
+
+                log('4. Processing complete!');
+                log(`   Counts: executable=${counts.executable}, source=${counts.source}, map=${counts.map}, skipped=${counts.skipped}`);
+                log(`   sourceFiles map has ${sourceFiles.size} entries:`, Array.from(sourceFiles.keys()).join(', '));
+
+                // Test dropdown population
+                log('5. Testing dropdown population...');
+                const asmFiles = [];
+                const cFiles = [];
+
+                for (const [filename, content] of sourceFiles.entries()) {
+                    const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+                    log(`   ${filename} -> extension: ${ext}`);
+
+                    if (ext === '.s') {
+                        asmFiles.push(filename);
+                        log(`   → Added to ASM list`);
+                    } else if (ext === '.c' || ext === '.cpp' || ext === '.h') {
+                        cFiles.push(filename);
+                        log(`   → Added to C list`);
+                    }
+                }
+
+                log(`   ASM files (${asmFiles.length}): ${asmFiles.join(', ')}`);
+                log(`   C files (${cFiles.length}): ${cFiles.join(', ')}`);
+
+                // Display results
+                output.innerHTML += '<div class="info">ZIP Contents:</div>';
+                output.innerHTML += `<div>- Executables: ${counts.executable}</div>`;
+                output.innerHTML += `<div>- Source files: ${counts.source}</div>`;
+                output.innerHTML += `<div>- Map files: ${counts.map}</div>`;
+                output.innerHTML += `<div>- Skipped: ${counts.skipped}</div>`;
+                output.innerHTML += '<div class="info">Source Files Stored:</div>';
+                output.innerHTML += `<div>- sourceFiles.size: ${sourceFiles.size}</div>`;
+                output.innerHTML += `<div>- ASM files: ${asmFiles.length} (${asmFiles.join(', ')})</div>`;
+                output.innerHTML += `<div>- C files: ${cFiles.length} (${cFiles.join(', ')})</div>`;
+
+                if (sourceFiles.size > 0 && (asmFiles.length > 0 || cFiles.length > 0)) {
+                    output.innerHTML += '<div class="pass">✓ PASS: ZIP loaded and source files extracted</div>';
+                    log('✓ TEST PASSED');
+                } else {
+                    output.innerHTML += '<div class="fail">✗ FAIL: No source files extracted from ZIP</div>';
+                    log('✗ TEST FAILED');
+                }
+
+                // Show actual file contents
+                log('6. Showing file contents:');
+                for (const [filename, content] of sourceFiles.entries()) {
+                    log(`\n--- ${filename} (${content.length} bytes) ---`);
+                    log(content.substring(0, 500));
+                    if (content.length > 500) {
+                        log('... (truncated)');
+                    }
+                }
+
+            } catch (error) {
+                output.innerHTML += '<div class="fail">✗ EXCEPTION: ' + error.message + '</div>';
+                log('✗ Exception: ' + error.message);
+                log('Stack trace: ' + error.stack);
+            }
+        }
+    </script>
+</body>
+</html>

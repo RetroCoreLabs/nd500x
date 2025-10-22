@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Source Loading Unit Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #555;
+            background: #2d2d2d;
+        }
+        .pass { color: #4ec9b0; }
+        .fail { color: #f48771; }
+        .info { color: #dcdcaa; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #0e639c;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover { background: #1177bb; }
+        pre {
+            background: #1e1e1e;
+            padding: 10px;
+            overflow-x: auto;
+            border-left: 3px solid #0e639c;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 10px;
+            background: #1e1e1e;
+            border: 1px solid #555;
+            min-height: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Source Loading Unit Test</h1>
+
+    <div class="test-section">
+        <h2>Test 1: sourceFiles Map Storage</h2>
+        <button onclick="test1()">Run Test 1</button>
+        <div id="test1-output"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Source Content Retrieval</h2>
+        <button onclick="test2()">Run Test 2</button>
+        <div id="test2-output"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Dropdown Population</h2>
+        <button onclick="test3()">Run Test 3</button>
+        <div id="test3-output"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: File Extension Detection</h2>
+        <button onclick="test4()">Run Test 4</button>
+        <div id="test4-output"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 5: Full Source Upload Flow</h2>
+        <button onclick="test5()">Run Test 5</button>
+        <div id="test5-output"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Console Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        // Mock debugger class
+        class TestDebugger {
+            constructor() {
+                this.sourceFiles = new Map();
+                this.currentSourceFile = null;
+            }
+
+            // Simplified version of updateSourceDropdown
+            updateSourceDropdown() {
+                log('[updateSourceDropdown] Called. sourceFiles has ' + this.sourceFiles.size + ' entries');
+
+                const asmFiles = [];
+                const cFiles = [];
+
+                for (const [filename, content] of this.sourceFiles.entries()) {
+                    log(`[updateSourceDropdown] Processing: ${filename}`);
+                    const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+                    log(`[updateSourceDropdown] Extension: ${ext}`);
+
+                    if (ext === '.s') {
+                        asmFiles.push(filename);
+                        log(`[updateSourceDropdown] Added to asmFiles: ${filename}`);
+                    } else if (ext === '.c' || ext === '.cpp' || ext === '.h') {
+                        cFiles.push(filename);
+                        log(`[updateSourceDropdown] Added to cFiles: ${filename}`);
+                    }
+                }
+
+                log(`[updateSourceDropdown] Total ASM files: ${asmFiles.length}`);
+                log(`[updateSourceDropdown] Total C files: ${cFiles.length}`);
+
+                return { asmFiles, cFiles };
+            }
+        }
+
+        let testDebugger = new TestDebugger();
+
+        function log(msg) {
+            const output = document.getElementById('output');
+            const line = document.createElement('div');
+            line.textContent = msg;
+            output.appendChild(line);
+            console.log(msg);
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+
+        function test1() {
+            clearOutput();
+            const output = document.getElementById('test1-output');
+            output.innerHTML = '<h3>Testing sourceFiles Map Storage</h3>';
+
+            try {
+                // Test adding files to Map
+                testDebugger.sourceFiles.clear();
+
+                testDebugger.sourceFiles.set('kernel.s', 'MOV I1,0\nMOV I2,1\n');
+                log('✓ Added kernel.s to Map');
+
+                testDebugger.sourceFiles.set('kernel.c', 'int main() {\n  return 0;\n}\n');
+                log('✓ Added kernel.c to Map');
+
+                // Verify size
+                if (testDebugger.sourceFiles.size === 2) {
+                    output.innerHTML += '<div class="pass">✓ PASS: Map has 2 files</div>';
+                    log('✓ Map size correct: 2');
+                } else {
+                    output.innerHTML += '<div class="fail">✗ FAIL: Map has ' + testDebugger.sourceFiles.size + ' files, expected 2</div>';
+                    log('✗ Map size incorrect: ' + testDebugger.sourceFiles.size);
+                }
+
+                // Verify retrieval
+                const asmContent = testDebugger.sourceFiles.get('kernel.s');
+                const cContent = testDebugger.sourceFiles.get('kernel.c');
+
+                if (asmContent && asmContent.includes('MOV I1,0')) {
+                    output.innerHTML += '<div class="pass">✓ PASS: kernel.s content retrieved</div>';
+                    log('✓ Retrieved kernel.s: ' + asmContent.substring(0, 50));
+                } else {
+                    output.innerHTML += '<div class="fail">✗ FAIL: kernel.s content not retrieved</div>';
+                    log('✗ Failed to retrieve kernel.s');
+                }
+
+                if (cContent && cContent.includes('int main()')) {
+                    output.innerHTML += '<div class="pass">✓ PASS: kernel.c content retrieved</div>';
+                    log('✓ Retrieved kernel.c: ' + cContent.substring(0, 50));
+                } else {
+                    output.innerHTML += '<div class="fail">✗ FAIL: kernel.c content not retrieved</div>';
+                    log('✗ Failed to retrieve kernel.c');
+                }
+
+            } catch (e) {
+                output.innerHTML += '<div class="fail">✗ EXCEPTION: ' + e.message + '</div>';
+                log('✗ Exception: ' + e.message);
+            }
+        }
+
+        function test2() {
+            clearOutput();
+            const output = document.getElementById('test2-output');
+            output.innerHTML = '<h3>Testing Source Content Retrieval</h3>';
+
+            try {
+                testDebugger.sourceFiles.clear();
+
+                const testContent = `; ND-500 Assembly Test
+                    MOV I1,0
+                    MOV I2,1
+                    ADD I1,I2
+                    HALT`;
+
+                testDebugger.sourceFiles.set('test.s', testContent);
+                log('✓ Added test.s with multi-line content');
+
+                const retrieved = testDebugger.sourceFiles.get('test.s');
+
+                if (retrieved === testContent) {
+                    output.innerHTML += '<div class="pass">✓ PASS: Content matches exactly</div>';
+                    log('✓ Content matches exactly');
+                } else {
+                    output.innerHTML += '<div class="fail">✗ FAIL: Content mismatch</div>';
+                    log('✗ Content mismatch');
+                    log('Expected: ' + testContent);
+                    log('Got: ' + retrieved);
+                }
+
+                // Test line splitting
+                const lines = retrieved.split('\n');
+                output.innerHTML += '<div class="info">Lines in file: ' + lines.length + '</div>';
+                log('Lines in file: ' + lines.length);
+                lines.forEach((line, i) => {
+                    log('Line ' + (i+1) + ': ' + line);
+                });
+
+            } catch (e) {
+                output.innerHTML += '<div class="fail">✗ EXCEPTION: ' + e.message + '</div>';
+                log('✗ Exception: ' + e.message);
+            }
+        }
+
+        function test3() {
+            clearOutput();
+            const output = document.getElementById('test3-output');
+            output.innerHTML = '<h3>Testing Dropdown Population</h3>';
+
+            try {
+                testDebugger.sourceFiles.clear();
+
+                // Add various files
+                testDebugger.sourceFiles.set('kernel.s', 'asm content');
+                testDebugger.sourceFiles.set('kernel.c', 'c content');
+                testDebugger.sourceFiles.set('helper.s', 'more asm');
+                testDebugger.sourceFiles.set('utils.c', 'more c');
+                testDebugger.sourceFiles.set('header.h', 'header file');
+
+                log('✓ Added 5 files to sourceFiles Map');
+
+                const result = testDebugger.updateSourceDropdown();
+
+                output.innerHTML += '<div class="info">ASM files found: ' + result.asmFiles.length + '</div>';
+                output.innerHTML += '<div class="info">C files found: ' + result.cFiles.length + '</div>';
+
+                if (result.asmFiles.length === 2) {
+                    output.innerHTML += '<div class="pass">✓ PASS: Found 2 .s files</div>';
+                    log('✓ ASM files: ' + result.asmFiles.join(', '));
+                } else {
+                    output.innerHTML += '<div class="fail">✗ FAIL: Expected 2 .s files, got ' + result.asmFiles.length + '</div>';
+                }
+
+                if (result.cFiles.length === 3) {
+                    output.innerHTML += '<div class="pass">✓ PASS: Found 3 C/H files</div>';
+                    log('✓ C files: ' + result.cFiles.join(', '));
+                } else {
+                    output.innerHTML += '<div class="fail">✗ FAIL: Expected 3 C/H files, got ' + result.cFiles.length + '</div>';
+                }
+
+            } catch (e) {
+                output.innerHTML += '<div class="fail">✗ EXCEPTION: ' + e.message + '</div>';
+                log('✗ Exception: ' + e.message);
+            }
+        }
+
+        function test4() {
+            clearOutput();
+            const output = document.getElementById('test4-output');
+            output.innerHTML = '<h3>Testing File Extension Detection</h3>';
+
+            const testCases = [
+                { filename: 'kernel.s', expectedExt: '.s', expectedType: 'asm' },
+                { filename: 'kernel.c', expectedExt: '.c', expectedType: 'c' },
+                { filename: 'test.cpp', expectedExt: '.cpp', expectedType: 'c' },
+                { filename: 'header.h', expectedExt: '.h', expectedType: 'c' },
+                { filename: 'PROGRAM.S', expectedExt: '.s', expectedType: 'asm' },
+                { filename: 'main.C', expectedExt: '.c', expectedType: 'c' },
+            ];
+
+            let passed = 0;
+            let failed = 0;
+
+            testCases.forEach(test => {
+                const ext = test.filename.substring(test.filename.lastIndexOf('.')).toLowerCase();
+                log(`Testing: ${test.filename} -> extension: ${ext}`);
+
+                if (ext === test.expectedExt) {
+                    output.innerHTML += `<div class="pass">✓ ${test.filename}: ${ext}</div>`;
+                    passed++;
+                } else {
+                    output.innerHTML += `<div class="fail">✗ ${test.filename}: got ${ext}, expected ${test.expectedExt}</div>`;
+                    failed++;
+                }
+            });
+
+            output.innerHTML += `<div class="info">Passed: ${passed}/${testCases.length}</div>`;
+            log(`Extension detection: ${passed}/${testCases.length} passed`);
+        }
+
+        function test5() {
+            clearOutput();
+            const output = document.getElementById('test5-output');
+            output.innerHTML = '<h3>Testing Full Upload Flow</h3>';
+
+            try {
+                // Simulate the full upload flow
+                testDebugger.sourceFiles.clear();
+                log('1. Cleared sourceFiles Map');
+
+                // Simulate file upload
+                const files = [
+                    { name: 'kernel.s', content: '; Assembly source\nMOV I1,0\nHALT\n' },
+                    { name: 'kernel.c', content: 'int main() {\n  return 0;\n}\n' },
+                ];
+
+                files.forEach(file => {
+                    log(`2. Processing file: ${file.name}`);
+                    log(`   Content length: ${file.content.length} bytes`);
+                    log(`   First 50 chars: ${file.content.substring(0, 50)}`);
+
+                    // Store in Map
+                    testDebugger.sourceFiles.set(file.name, file.content);
+                    log(`   Stored in sourceFiles map. Total files now: ${testDebugger.sourceFiles.size}`);
+                });
+
+                // Update dropdown
+                log('3. Calling updateSourceDropdown()');
+                const result = testDebugger.updateSourceDropdown();
+
+                output.innerHTML += '<div class="info">Final state:</div>';
+                output.innerHTML += '<div class="info">- sourceFiles.size: ' + testDebugger.sourceFiles.size + '</div>';
+                output.innerHTML += '<div class="info">- ASM files: ' + result.asmFiles.length + '</div>';
+                output.innerHTML += '<div class="info">- C files: ' + result.cFiles.length + '</div>';
+
+                if (testDebugger.sourceFiles.size === 2 &&
+                    result.asmFiles.length === 1 &&
+                    result.cFiles.length === 1) {
+                    output.innerHTML += '<div class="pass">✓ PASS: Full flow completed successfully</div>';
+                    log('✓ Full flow test PASSED');
+                } else {
+                    output.innerHTML += '<div class="fail">✗ FAIL: Full flow test failed</div>';
+                    log('✗ Full flow test FAILED');
+                }
+
+            } catch (e) {
+                output.innerHTML += '<div class="fail">✗ EXCEPTION: ' + e.message + '</div>';
+                log('✗ Exception: ' + e.message + '\n' + e.stack);
+            }
+        }
+
+        // Run all tests on load
+        window.onload = function() {
+            log('='.repeat(60));
+            log('Source Loading Unit Test Suite');
+            log('='.repeat(60));
+        };
+    </script>
+</body>
+</html>

@@ -94,24 +94,23 @@ int main(int argc, char** argv) {
 
 	uint32_t text_size = 0;
     if (input_path) {
-		uint32_t entry = 0;
-		if (ndlib_loadaout_file_ex(&machine, input_path, &entry, &text_size) == 0) {
-			printf("loaded, entry=0x%08X\n", entry);
-			(void)ndlib_symbols_load(input_path);
+		uint32_t entry = 0, pc = 0;
+		/* Use unified loading (auto-loads .map and .s files) */
+		if (ndlib_load_aout_with_debug(&machine, input_path, 1, &entry, &pc) == 0) {
+			printf("loaded: %s (entry=0x%08X, PC=0x%08X)\n", input_path, entry, pc);
 			(void)ndlib_aout_dump_metadata(input_path);
-			cpu.PC = entry;
 		} else {
 			printf("load failed: %s\n", input_path);
 		}
 	}
 
     if (aout_path) {
-        uint32_t entry = 0;
-        if (ndlib_loadaout_file_ex(&machine, aout_path, &entry, &text_size) == 0) {
-            printf("loaded a.out, entry=0x%08X\n", entry);
-            (void)ndlib_symbols_load(aout_path);
+        uint32_t entry = 0, pc = 0;
+		/* Use unified loading (auto-loads .map and .s files) */
+        if (ndlib_load_aout_with_debug(&machine, aout_path, 1, &entry, &pc) == 0) {
+            printf("loaded: %s (entry=0x%08X, PC=0x%08X)\n", aout_path, entry, pc);
             (void)ndlib_aout_dump_metadata(aout_path);
-            if (has_start_pc) cpu.PC = start_pc; else cpu.PC = entry;
+            if (has_start_pc) cpu.PC = start_pc;  /* Override PC if specified */
         } else {
             printf("load failed: %s\n", aout_path);
         }
