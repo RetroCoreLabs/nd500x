@@ -45,120 +45,35 @@ instruction:
 # Total variants: 1
 
   manual_reference:
-    section: "10.22"
-    title: "Or"
+    section: "10.3"
+    title: "Load record register"
     content: |
-      ## 10.22 Or  
+      ### 10.3 Load record register
       
-      ### Format:  
-      tn OR <operand/r/t>  
+      **Format:** R := `<source/r/W>`
       
-      | Assembly notation | Name               | Hex code         | Octal code       |
-      |-------------------|--------------------|------------------|------------------|
-      | BIn OR            | bit 'or' register  | OFDB8H-(n-1)     | 176770B-(n-1)    |
-      | BYn OR            | byte 'or' register | OFC98H-(n-1)     | 176230B-(n-1)    |
-      | Hn OR             | halfword 'or' register | OFC9CH-(n-1) | 176234B-(n-1)    |
-      | Wn OR             | word 'or' register | OA0H-(n-1)       | 240B-(n-1)       |
+      | Assembly notation | Name               | Hex code | Octal code |
+      |-------------------|--------------------|----------|------------|
+      | R :=              | load record register| 018H     | 030B       |
       
-      ### Operation:  
-      Rn OR <operand> -> Rn  
+      **Operation:** `<source>` -> R
       
-      ### Description:  
-      A bitwise OR is performed between the contents of the specified register and the <operand> and the result is stored in the register. When the data type is BI, BY, or H, the upper part of the register is zero filled.  
+      **Description:**
       
-      ### Trap conditions:  
-      Addressing traps  
+      The contents of `<source>` is loaded into the record base register.
       
-      ### Data status bits:  
+      **Trap conditions:** Addressing traps
       
-      result = 0 -> Z  
-      result.signbit -> S  
+      **Data status bits:**
       
-      ### Example:  
+      `<source>` = 0 -> Z  
+      `<source>`.signbit -> S
       
-      OR byte register R1 with 111 octal  
+      **Example:**
       
-      BY1 OR 111B  
+      Load R with the base of the R2nd element of the word array RECPTRS
       
-      Norsk Data ND-05.009.4 EN
-      
-      ---
-
-  manual_reference:
-    section: "10.22"
-    title: "Or"
-    content: |
-      ## 10.22 Or  
-      
-      ### Format:  
-      tn OR <operand/r/t>  
-      
-      | Assembly notation | Name               | Hex code         | Octal code       |
-      |-------------------|--------------------|------------------|------------------|
-      | BIn OR            | bit 'or' register  | OFDB8H-(n-1)     | 176770B-(n-1)    |
-      | BYn OR            | byte 'or' register | OFC98H-(n-1)     | 176230B-(n-1)    |
-      | Hn OR             | halfword 'or' register | OFC9CH-(n-1) | 176234B-(n-1)    |
-      | Wn OR             | word 'or' register | OA0H-(n-1)       | 240B-(n-1)       |
-      
-      ### Operation:  
-      Rn OR <operand> -> Rn  
-      
-      ### Description:  
-      A bitwise OR is performed between the contents of the specified register and the <operand> and the result is stored in the register. When the data type is BI, BY, or H, the upper part of the register is zero filled.  
-      
-      ### Trap conditions:  
-      Addressing traps  
-      
-      ### Data status bits:  
-      
-      result = 0 -> Z  
-      result.signbit -> S  
-      
-      ### Example:  
-      
-      OR byte register R1 with 111 octal  
-      
-      BY1 OR 111B  
-      
-      Norsk Data ND-05.009.4 EN
-      
-      ---
-
-  manual_reference:
-    section: "10.22"
-    title: "Or"
-    content: |
-      ## 10.22 Or  
-      
-      ### Format:  
-      tn OR <operand/r/t>  
-      
-      | Assembly notation | Name               | Hex code         | Octal code       |
-      |-------------------|--------------------|------------------|------------------|
-      | BIn OR            | bit 'or' register  | OFDB8H-(n-1)     | 176770B-(n-1)    |
-      | BYn OR            | byte 'or' register | OFC98H-(n-1)     | 176230B-(n-1)    |
-      | Hn OR             | halfword 'or' register | OFC9CH-(n-1) | 176234B-(n-1)    |
-      | Wn OR             | word 'or' register | OA0H-(n-1)       | 240B-(n-1)       |
-      
-      ### Operation:  
-      Rn OR <operand> -> Rn  
-      
-      ### Description:  
-      A bitwise OR is performed between the contents of the specified register and the <operand> and the result is stored in the register. When the data type is BI, BY, or H, the upper part of the register is zero filled.  
-      
-      ### Trap conditions:  
-      Addressing traps  
-      
-      ### Data status bits:  
-      
-      result = 0 -> Z  
-      result.signbit -> S  
-      
-      ### Example:  
-      
-      OR byte register R1 with 111 octal  
-      
-      BY1 OR 111B  
+          R := RECPTRS(R2)
       
       Norsk Data ND-05.009.4 EN
       

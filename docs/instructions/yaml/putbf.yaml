@@ -512,3 +512,46 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Putbf
 # Total variants: 12
+
+  manual_reference:
+    section: "10.32"
+    title: "Put bit field"
+    content: |
+      # 10.32 Put bit field
+      
+      ### Format:
+      tn PUTBF <operand/w/t>,<bit no/r/BY>,<field size/r/BY>
+      
+      ### Assembly
+      | Notation | Name                | Hex Code  | Octal Code      |
+      |----------|---------------------|-----------|-----------------|
+      | BYn      | PUTBF byte put bit field    | OFDEC+(n-1) | 176754B+(n-1)  |
+      | Hn       | PUTBF halfword put bit field| OFDOH+(n-1) | 176760B+(n-1)  |
+      | Wn       | PUTBF word put bit field    | OFDFLH+(n-1)| 176764B+(n-1)  |
+      
+      ### Operation:
+      Rn -> specified bit field
+      
+      ### Description:
+      The contents of bit 0 to <field size> - 1 of the specified register are stored in the specified bit field of the operand. In the <operand>, the bit field is composed of the <bit No.> bit and as many higher numbered bits as necessary to obtain a field size of <field size> bits. (See the section on data types in memory for an explanation of bit numbers within data types.) The <operand> may have BY, H, or W as the data type. <bit No.> and <field size> are interpreted as signed byte integers.
+      
+      An illegal operand value trap condition is caused if <bit No.> is negative, if <field size> is zero or negative, or if <bit No.> or <bit No.> + <field size> is greater than the number of bits in the data type.
+      
+      ### Trap conditions:
+      Addressing traps, Illegal operand value (IOV)
+      
+      ### Data status bits:
+      
+      bit field = 0 -> Z  
+      bit field.leftmost bit -> S
+      
+      ### Example:
+      Put the 8 lower bits of R2 into the the record variable FLAGSET from bit ERRFLAGS and up
+      
+      W2 PUTBF R.FLAGSET, ERRFLAGS, 8
+      
+      ---
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

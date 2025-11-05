@@ -524,3 +524,44 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Getbf
 # Total variants: 12
+
+  manual_reference:
+    section: "10.31"
+    title: "Get bit field"
+    content: |
+      # 10.31 Get bit field
+      
+      **Format:** tn GETBF <operand/r/t>,<bit No./r/BY>,<field size/r/BY>
+      
+      | Assembly notation | Name                   | Hex code        | Octal code    |
+      |-------------------|------------------------|-----------------|---------------|
+      | BYn GETBF         | byte get bit field     | OFDE0H+(n-1)    | 176740B+(n-1) |
+      | Hn GETBF          | halfword get bit field | OFDE4H+(n-1)    | 176744B+(n-1) |
+      | Wn GETBF          | word get bit field     | OFDE8H+(n-1)    | 176750B+(n-1) |
+      
+      **Operation:** specified bit field -> Rn
+      
+      **Description:**
+      
+      Bit 0 to <field size> - 1 of the specified register is loaded with the specified bit field. In the <operand>, the bit field is composed of the <bit No.> bit and as many higher numbered bits as necessary to obtain a field size of <field size> bits. (See the section on data types in memory for an explanation of bit numbers within data types.) The <operand> may have BY, H, or W as the data type. <bit No.> and <field size> are interpreted as signed byte integers.
+      
+      An illegal operand value trap condition is caused if <bit No.> is negative, if <field size> is zero or negative, or if <bit No.> or <bit No.> + <field size> is greater than the number of bits in the data type.
+      
+      The upper bits of the register are zero filled.
+      
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+      
+      **Data status bits:**
+      
+      - bit field = 0 -> Z
+      - bit field.leftmost bit -> S
+      
+      **Example:**
+      
+      Load R2 with a field consisting of bits 11 to 18 of the word variable 16 bytes away from the current R register
+      
+      W2 GETBF R.16, 11, 8
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

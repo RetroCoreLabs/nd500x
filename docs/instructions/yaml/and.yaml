@@ -454,25 +454,41 @@ instruction:
 # Total variants: 16
 
   manual_reference:
-    section: "10.10"
-    title: "Compare two operands"
+    section: "10.21"
+    title: "And"
     content: |
-      ## 10.10 Compare two operands
+      ## 10.21 And
       
-      132
-
-  manual_reference:
-    section: "10.10"
-    title: "Compare two operands"
-    content: |
-      ## 10.10 Compare two operands
+      **Format:**  
+      tn AND ⟨operand/r/t⟩
       
-      132
-
-  manual_reference:
-    section: "10.10"
-    title: "Compare two operands"
-    content: |
-      ## 10.10 Compare two operands
+      | Assembly notation | Name                  | Hex code      | Octal code    |
+      |-------------------|-----------------------|---------------|---------------|
+      | BIn               | AND bit 'and' register| 0FDCCH+(n-1)  | 176714B+(n-1) |
+      | BYn               | AND byte 'and' register| 0FC90H+(n-1) | 176220B+(n-1) |
+      | Hn                | AND halfword 'and' register| 0FC94H+(n-1) | 176224B+(n-1) |
+      | Wn                | AND word 'and' register| 0E4H+(n-1)   | 344B+(n-1)    |
       
-      132
+      **Operation:**  
+      Rn AND ⟨operand⟩ -> Rn
+      
+      **Description:**  
+      
+      A bitwise AND is performed between the contents of the specified register and the ⟨operand⟩ and the result is stored in the register. When the data type is BI, BY, or H, the upper part of the register is zero filled.
+      
+      **Trap conditions:** Addressing traps
+      
+      **Data status bits:**
+      
+      result = 0 -> Z  
+      result.signbit -> S
+      
+      **Example:**
+      
+      AND operation between R2 and the R3rd element of the array described by the Rlst array descriptor in the local array MASKS
+      
+          W2 AND DESC(B.MASKS(R1))(R3)
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

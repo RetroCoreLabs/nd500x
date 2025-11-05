@@ -194,14 +194,42 @@ instruction:
     section: "10.11"
     title: "Test against zero"
     content: |
-      ## 10.11 Test against zero
+      ### 10.11 Test against zero
       
-      133
-
-  manual_reference:
-    section: "10.11"
-    title: "Test against zero"
-    content: |
-      ## 10.11 Test against zero
+      **Format:**  
+      t TEST <operand/r/t>
       
-      133
+      | Assembly notation | Name                     | Hex code | Octal code |
+      |-------------------|--------------------------|----------|------------|
+      | BI TEST           | bit test against zero    | 041H     | 101B       |
+      | BY TEST           | byte test against zero   | 042H     | 102B       |
+      | H TEST            | halfword test against zero | 043H   | 103B       |
+      | W TEST            | word test against zero   | 044H     | 104B       |
+      | F TEST            | float test against zero  | 045H     | 105B       |
+      | D TEST            | double test against zero | 046H     | 106B       |
+      
+      **Operation:**  
+      <operand> - 0
+      
+      **Description:**
+      
+      This instruction is similar to comparing two operands, except that the second operand is implicitly zero.
+      
+      **Trap conditions:**  
+      Addressing traps
+      
+      **Data status bits:**
+      
+      - result = 0 -> Z
+      - result.signbit XOR Overflow -> S
+      - 1 -> C (integer)
+      
+      **Example:**
+      
+      Test if local byte variable COUNTER has reached zero
+      
+          BY TEST B.COUNTER
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

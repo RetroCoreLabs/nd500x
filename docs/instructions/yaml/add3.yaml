@@ -230,27 +230,3 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Add3
 # Total variants: 5
-
-  manual_reference:
-    section: "11.1"
-    title: "Add"
-    content: |
-      ## 11.1 Add
-      
-      163
-
-  manual_reference:
-    section: "11.1"
-    title: "Add"
-    content: |
-      ## 11.1 Add
-      
-      163
-
-  manual_reference:
-    section: "11.1"
-    title: "Add"
-    content: |
-      ## 11.1 Add
-      
-      163

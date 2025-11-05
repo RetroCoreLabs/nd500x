@@ -222,78 +222,40 @@ instruction:
 # Total variants: 8
 
   manual_reference:
-    section: "12.11"
-    title: "Arc tangent two argument"
+    section: "12.9"
+    title: "Tangent"
     content: |
-      # 12.11 Arc tangent two argument
+      ### 12.9 Tangent  
       
       **Format:**  
-      tn ATAN2 <num/r/t>, <den/r/t>
+      tn TAN ⟨argument/r/t⟩  
       
-      | Assembly notation | Name       | Hex code    | Octal code       |
-      |-------------------|------------|-------------|------------------|
-      | Fn ATAN2          | float arctangent2 | OFF70H+(n-1) | 177560B+(n-1) |
-      | Dn ATAN2          | double float arctangent2 | OFF9CH+(n-1) | 177634B+(n-1) |
-      
-      **Operation:**  
-      arctangent(<num>/<den>) -> Rn
-      
-      **Description:**
-      
-      The trigonometric arc tangent of <num>/<den> is loaded into the specified float or double float register. The result value gives the angle in radians in the correct quadrant in the range -pi to pi. A zero value of both <num> and <den> will cause an invalid operation trap condition and the specified register will be set to zero.
-      
-      **Trap conditions:**  
-      Addressing traps, Invalid operation (IVO)
-      
-      **Data status bits:**
-      
-      result = 0 -> Z  
-      result.signbit -> S
-      
-      **Example:**
-      
-      Load into D3 the arc tangent of WIDTH divided by DIST
-      
-          D3 ATAN2 WIDTH, DIST
-      
-      Norsk Data ND-05.009.4 EN
-      
-      ---
-
-  manual_reference:
-    section: "12.11"
-    title: "Arc tangent two argument"
-    content: |
-      # 12.11 Arc tangent two argument
-      
-      **Format:**  
-      tn ATAN2 <num/r/t>, <den/r/t>
-      
-      | Assembly notation | Name       | Hex code    | Octal code       |
-      |-------------------|------------|-------------|------------------|
-      | Fn ATAN2          | float arctangent2 | OFF70H+(n-1) | 177560B+(n-1) |
-      | Dn ATAN2          | double float arctangent2 | OFF9CH+(n-1) | 177634B+(n-1) |
+      | Assembly notation | Name               | Hex code   | Octal code   |
+      |-------------------|--------------------|------------|--------------|
+      | Fn TAN            | float tangent      | OFF68H+(n-1) | 177550B+(n-1) |
+      | Dn TAN            | double float tangent | OFF94H+(n-1) | 177624B+(n-1) |
       
       **Operation:**  
-      arctangent(<num>/<den>) -> Rn
+      tangent(⟨argument⟩) -> Rn  
       
-      **Description:**
+      **Description:**  
       
-      The trigonometric arc tangent of <num>/<den> is loaded into the specified float or double float register. The result value gives the angle in radians in the correct quadrant in the range -pi to pi. A zero value of both <num> and <den> will cause an invalid operation trap condition and the specified register will be set to zero.
+      The trigonometric tangent of ⟨argument⟩ is loaded into the specified float or double float register. The maximum absolute value of ⟨argument⟩ is 65536.0 radians; a larger value will cause an invalid operation trap condition and the specified register is set to zero.  
       
       **Trap conditions:**  
-      Addressing traps, Invalid operation (IVO)
+      Addressing traps, Invalid operation (IVO)  
       
-      **Data status bits:**
+      **Data status bits:**  
+      result = 0  -> Z  
+      result.signbit -> S  
       
-      result = 0 -> Z  
-      result.signbit -> S
+      **Example:**  
       
-      **Example:**
+      Calculate the tangent of argument SPREAD and load into F4  
       
-      Load into D3 the arc tangent of WIDTH divided by DIST
-      
-          D3 ATAN2 WIDTH, DIST
+      ```
+      F4 TAN SPREAD
+      ```
       
       Norsk Data ND-05.009.4 EN
       

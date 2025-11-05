@@ -719,138 +719,41 @@ instruction:
 # Total variants: 24
 
   manual_reference:
-    section: "10.4"
-    title: "Store"
+    section: "10.1"
+    title: "Load"
     content: |
-      # 10.4 Store
+      ### 10.1 Load  
       
-      **Format:**  
-      tn =: `<dest/w/t>`
+      **Format:** tn := <source/r/t>
       
-      | Assembly notation | Name              | Hex code     | Octal code    |
-      |-------------------|-------------------|--------------|---------------|
-      | BIn =:            | store bit         | 0FC0CH+(n-1) | 176014B+(n-1) |
-      | BYn =:            | store byte        | 01C1H+(n-1)  | 034B+(n-1)    |
-      | Hn =:             | store halfword    | 0FC10H+(n-1) | 176020B+(n-1) |
-      | Wn =:             | store word        | 020H+(n-1)   | 040B+(n-1)    |
-      | Fn =:             | store float       | 024H+(n-1)   | 044B+(n-1)    |
-      | Dn =:             | store double float| 028H+(n-1)   | 050B+(n-1)    |
+      | Assembly notation | Name             | Hex code   | Octal code    |
+      |-------------------|------------------|------------|---------------|
+      | BIn               | load bit         | 0FC04H+(n-1) | 176004B+(n-1) |
+      | BYn               | load byte        | 004H+(n-1)  | 004B+(n-1)    |
+      | Hn                | load halfword    | 008H+(n-1)  | 010B+(n-1)    |
+      | Wn                | load word        | 00CH+(n-1)  | 014B+(n-1)    |
+      | Fn                | load float       | 010H+(n-1)  | 020B+(n-1)    |
+      | Dn                | load double float| 014H+(n-1)  | 024B+(n-1)    |
       
-      **Operation:**
+      **Operation:**  
+      <source> -> Rn  
       
-      Rn -> `<dest>`  
-      datatype dependent part of register -> `<dest>`
+      **Description:**  
       
-      **Description:**
+      The value of the operand (source) is loaded into the register specified in the instruction code. When the data type is BI, BY, H or W, one of the I registers is loaded. The value is right justified in the register, the least significant bit of the operand goes in the least significant bit of the register. With BI, BY, or H as data type, the rest of the register is zero filled. One of the floating point registers is loaded when the data type is F or D.  
       
-      The datatype-dependent part of the contents of the specified register is stored in the memory location or register specified in the operand specifier. The datatype-dependent part of the register is the least significant bits of the register needed to represent the data type in question. Constant operands are illegal. The source register is unaffected.
+      **Trap conditions:** Addressing traps  
       
-      If the destination is a register, the instruction has the same effect as a load destination register. If the data type is BI, BY, or H, the upper part of the register is zero filled.
+      **Data status bits:**  
       
-      **Trap conditions:** Addressing traps
+      <source> = 0 -> Z  
+      <source>.signbit -> S  
       
-      **Data status bits:**
+      **Example:**  
       
-      datatype-dependent part of register = 0 -> Z  
-      datatype-dependent part of register.signbit -> S
+      Load local halfword variable MEMBERS into R3  
       
-      **Example:**
-      
-      Store byte in R4 into the 6th byte of the record pointed to by R, forcing word displacement part
-      
-      BY4 =: R.6:W
-      
-      Norsk Data ND-05.009.4 EN
-      
-      ---
-
-  manual_reference:
-    section: "10.4"
-    title: "Store"
-    content: |
-      # 10.4 Store
-      
-      **Format:**  
-      tn =: `<dest/w/t>`
-      
-      | Assembly notation | Name              | Hex code     | Octal code    |
-      |-------------------|-------------------|--------------|---------------|
-      | BIn =:            | store bit         | 0FC0CH+(n-1) | 176014B+(n-1) |
-      | BYn =:            | store byte        | 01C1H+(n-1)  | 034B+(n-1)    |
-      | Hn =:             | store halfword    | 0FC10H+(n-1) | 176020B+(n-1) |
-      | Wn =:             | store word        | 020H+(n-1)   | 040B+(n-1)    |
-      | Fn =:             | store float       | 024H+(n-1)   | 044B+(n-1)    |
-      | Dn =:             | store double float| 028H+(n-1)   | 050B+(n-1)    |
-      
-      **Operation:**
-      
-      Rn -> `<dest>`  
-      datatype dependent part of register -> `<dest>`
-      
-      **Description:**
-      
-      The datatype-dependent part of the contents of the specified register is stored in the memory location or register specified in the operand specifier. The datatype-dependent part of the register is the least significant bits of the register needed to represent the data type in question. Constant operands are illegal. The source register is unaffected.
-      
-      If the destination is a register, the instruction has the same effect as a load destination register. If the data type is BI, BY, or H, the upper part of the register is zero filled.
-      
-      **Trap conditions:** Addressing traps
-      
-      **Data status bits:**
-      
-      datatype-dependent part of register = 0 -> Z  
-      datatype-dependent part of register.signbit -> S
-      
-      **Example:**
-      
-      Store byte in R4 into the 6th byte of the record pointed to by R, forcing word displacement part
-      
-      BY4 =: R.6:W
-      
-      Norsk Data ND-05.009.4 EN
-      
-      ---
-
-  manual_reference:
-    section: "10.4"
-    title: "Store"
-    content: |
-      # 10.4 Store
-      
-      **Format:**  
-      tn =: `<dest/w/t>`
-      
-      | Assembly notation | Name              | Hex code     | Octal code    |
-      |-------------------|-------------------|--------------|---------------|
-      | BIn =:            | store bit         | 0FC0CH+(n-1) | 176014B+(n-1) |
-      | BYn =:            | store byte        | 01C1H+(n-1)  | 034B+(n-1)    |
-      | Hn =:             | store halfword    | 0FC10H+(n-1) | 176020B+(n-1) |
-      | Wn =:             | store word        | 020H+(n-1)   | 040B+(n-1)    |
-      | Fn =:             | store float       | 024H+(n-1)   | 044B+(n-1)    |
-      | Dn =:             | store double float| 028H+(n-1)   | 050B+(n-1)    |
-      
-      **Operation:**
-      
-      Rn -> `<dest>`  
-      datatype dependent part of register -> `<dest>`
-      
-      **Description:**
-      
-      The datatype-dependent part of the contents of the specified register is stored in the memory location or register specified in the operand specifier. The datatype-dependent part of the register is the least significant bits of the register needed to represent the data type in question. Constant operands are illegal. The source register is unaffected.
-      
-      If the destination is a register, the instruction has the same effect as a load destination register. If the data type is BI, BY, or H, the upper part of the register is zero filled.
-      
-      **Trap conditions:** Addressing traps
-      
-      **Data status bits:**
-      
-      datatype-dependent part of register = 0 -> Z  
-      datatype-dependent part of register.signbit -> S
-      
-      **Example:**
-      
-      Store byte in R4 into the 6th byte of the record pointed to by R, forcing word displacement part
-      
-      BY4 =: R.6:W
+          H3 := B.MEMBERS  
       
       Norsk Data ND-05.009.4 EN
       

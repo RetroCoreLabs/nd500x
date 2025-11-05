@@ -121,22 +121,47 @@ instruction:
     section: "10.25"
     title: "Arithmetical shift"
     content: |
-      ## 10.25 Arithmetical shift
+      ### 10.25 Arithmetical shift
       
-      147
-
-  manual_reference:
-    section: "10.25"
-    title: "Arithmetical shift"
-    content: |
-      ## 10.25 Arithmetical shift
+      **Format:**
       
-      147
-
-  manual_reference:
-    section: "10.25"
-    title: "Arithmetical shift"
-    content: |
-      ## 10.25 Arithmetical shift
+      ```
+      t SHA <operand/rw/r>,<shiftcount/r/BY>
+      ```
       
-      147
+      **Assembly notation**
+      
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BY SHA | OFCABH | 176253B |
+      | H SHA | OFCACh | 176254B |
+      | W SHA | OFCADH | 176255B |
+      
+      **Operation:**  
+      arithmetically shifted `<operand>` -> `<operand>`
+      
+      **Description:**
+      
+      An arithmetic shift is performed on the byte, halfword or word operand. `<shiftcount>` is interpreted as a signed byte. Positive `<shiftcount>` implies left shift, negative `<shiftcount>` implies right shift. A shiftcount equal to or greater than the size of the operand will produce an illegal operand value trap condition. A shiftcount of zero is legal and leaves the operand unchanged.
+      
+      **Trap conditions:**  
+      Addressing traps, Illegal operand value (IOV)
+      
+      **Data status bits:**
+      
+      ```
+      shifted operand = 0 -> Z
+      shifted operand.signbit -> S
+      ```
+      
+      **Example:**
+      
+      Shift byte register R4 two places to the right
+      
+      ```
+      BY SHA R4, -2
+      ```
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

@@ -116,3 +116,45 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Shr
 # Total variants: 3
+
+  manual_reference:
+    section: "10.26"
+    title: "Rotational shift"
+    content: |
+      # 10.26 Rotational shift
+      
+      **Format:**  
+      t SHR ⟨operand/rw/t⟩,⟨shiftcount/r/BY⟩
+      
+      **Assembly notation**
+      
+      | Name                          | Hex code | Octal code |
+      |-------------------------------|----------|------------|
+      | BY SHR byte shift rotationally | OFCAEH   | 176256B    |
+      | H SHR halfword shift rotationally | OFCAFH | 176257B    |
+      | W SHR word shift rotationally  | OFCBOH   | 176260B    |
+      
+      **Operation:**  
+      rotationally shifted ⟨operand⟩ -> ⟨operand⟩
+      
+      **Description:**
+      
+      A rotational shift is performed on the byte, halfword or word operand. ⟨shiftcount⟩ is interpreted as a signed byte. Positive ⟨shiftcount⟩ implies left shift, negative ⟨shiftcount⟩ implies right shift. A shiftcount equal to or greater than the size of the operand will produce an illegal operand value trap condition. A shiftcount of zero is legal and leaves the operand unchanged.
+      
+      **Trap conditions:**  
+      Addressing traps, Illegal operand value (IOV)
+      
+      **Data status bits:**
+      
+      - shifted operand = 0 -> Z
+      - shifted operand.signbit -> S
+      
+      **Example:**
+      
+      Exchange nibbles (4 bit groups) of variable pointed at by R4
+      
+          BY SHR R4.0, 4
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

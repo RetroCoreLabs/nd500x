@@ -238,126 +238,47 @@ instruction:
 # Total variants: 6
 
   manual_reference:
-    section: "10.7"
-    title: "Move"
+    section: "14.2"
+    title: "String Move"
     content: |
-      ## 10.7 Move
+      # 14.2 String Move
       
       **Format:**  
-      t MOVE <source/r/t>,<dest/w/t>
+      t SMOVE <source/r/t/I1>,<dest/w/t/I2>
       
-      | Assembly notation | Name               | Hex code | Octal code |
-      |-------------------|--------------------|----------|------------|
-      | BI MOVE           | move bit           | 0FC0BH   | 176013B    |
-      | BY MOVE           | move byte          | 019H     | 031B       |
-      | H MOVE            | move halfword      | 0FC14H   | 176024B    |
-      | W MOVE            | move word          | 01AH     | 032B       |
-      | F MOVE            | move float         | 01BH     | 033B       |
-      | D MOVE            | move double float  | 02CH     | 054B       |
+      | Assembly Notation | Name                  | Hex Code | Octal Code |
+      |-------------------|-----------------------|----------|------------|
+      | BI SMOVE          | bit string move       | 0FD66H   | 176546B    |
+      | BY SMOVE          | byte string move      | 0FD67H   | 176547B    |
+      | H SMOVE           | halfword string move  | 0FD68H   | 176550B    |
+      | W SMOVE           | word string move      | 0FD69H   | 176551B    |
+      | F SMOVE           | float string move     | 0FD6AH   | 176552B    |
+      | D SMOVE           | double float string move | 0FD6BH   | 176553B    |
       
       **Operation:**  
-      <source> -> <dest>
+      while not end of strings do  
+      S(I1) -> D(I2), I1+1 -> I1, I2+1 -> I2  
+      enddo  
       
       **Description:**
       
-      The number of bits needed to represent the data type are moved from source to destination. The source is unaffected, and a constant destination operand is illegal.
+      String elements are moved from the `<source>` operand to the `<dest>` operand until the end of `<source>` is reached or the `<dest>` is full.
       
-      **Trap conditions:** Addressing traps
+      Overlap is taken care of.
       
-      **Data status bits:**
+      **Terminating Conditions:**
       
-      <source> = 0 -> Z  
-      <source>.signbit -> S
-      
-      **Example:**
-      
-      Move the double precision value in GLOBAL to local variable LOCAL
-      
-          D MOVE GLOBAL, B.LOCAL
-      
-      Norsk Data ND-05.009.4 EN
-      
-      ---
-
-  manual_reference:
-    section: "10.7"
-    title: "Move"
-    content: |
-      ## 10.7 Move
-      
-      **Format:**  
-      t MOVE <source/r/t>,<dest/w/t>
-      
-      | Assembly notation | Name               | Hex code | Octal code |
-      |-------------------|--------------------|----------|------------|
-      | BI MOVE           | move bit           | 0FC0BH   | 176013B    |
-      | BY MOVE           | move byte          | 019H     | 031B       |
-      | H MOVE            | move halfword      | 0FC14H   | 176024B    |
-      | W MOVE            | move word          | 01AH     | 032B       |
-      | F MOVE            | move float         | 01BH     | 033B       |
-      | D MOVE            | move double float  | 02CH     | 054B       |
-      
-      **Operation:**  
-      <source> -> <dest>
-      
-      **Description:**
-      
-      The number of bits needed to represent the data type are moved from source to destination. The source is unaffected, and a constant destination operand is illegal.
-      
-      **Trap conditions:** Addressing traps
-      
-      **Data status bits:**
-      
-      <source> = 0 -> Z  
-      <source>.signbit -> S
+      - Outside source: K=0  I1, I2 unmodified, DR trap condition
+      - Outside dest: K=1  I1, I2 unmodified, DR trap condition
+      - Source empty: K=0  I1, I2 :- next element
+      - Dest full: K=1  I1, I2 :- next element
       
       **Example:**
       
-      Move the double precision value in GLOBAL to local variable LOCAL
+      Move the double float array whose descriptor is argument DATABLOCK to the area described by local descriptor COPY
       
-          D MOVE GLOBAL, B.LOCAL
-      
-      Norsk Data ND-05.009.4 EN
-      
-      ---
-
-  manual_reference:
-    section: "10.7"
-    title: "Move"
-    content: |
-      ## 10.7 Move
-      
-      **Format:**  
-      t MOVE <source/r/t>,<dest/w/t>
-      
-      | Assembly notation | Name               | Hex code | Octal code |
-      |-------------------|--------------------|----------|------------|
-      | BI MOVE           | move bit           | 0FC0BH   | 176013B    |
-      | BY MOVE           | move byte          | 019H     | 031B       |
-      | H MOVE            | move halfword      | 0FC14H   | 176024B    |
-      | W MOVE            | move word          | 01AH     | 032B       |
-      | F MOVE            | move float         | 01BH     | 033B       |
-      | D MOVE            | move double float  | 02CH     | 054B       |
-      
-      **Operation:**  
-      <source> -> <dest>
-      
-      **Description:**
-      
-      The number of bits needed to represent the data type are moved from source to destination. The source is unaffected, and a constant destination operand is illegal.
-      
-      **Trap conditions:** Addressing traps
-      
-      **Data status bits:**
-      
-      <source> = 0 -> Z  
-      <source>.signbit -> S
-      
-      **Example:**
-      
-      Move the double precision value in GLOBAL to local variable LOCAL
-      
-          D MOVE GLOBAL, B.LOCAL
+          W1 CLR; W2 CLR
+          D SMOVE IND(B.DATABLOCK), B.COPY
       
       Norsk Data ND-05.009.4 EN
       

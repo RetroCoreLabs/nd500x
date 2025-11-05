@@ -722,22 +722,42 @@ instruction:
     section: "10.9"
     title: "Compare"
     content: |
-      ## 10.9 Compare
+      ### 10.9 Compare
       
-      131
-
-  manual_reference:
-    section: "10.9"
-    title: "Compare"
-    content: |
-      ## 10.9 Compare
+      **Format:**  
+      tn COMP `<operand/r/t>`
       
-      131
-
-  manual_reference:
-    section: "10.9"
-    title: "Compare"
-    content: |
-      ## 10.9 Compare
+      | Assembly notation | Name                      | Hex code        | Octal code     |
+      |-------------------|---------------------------|-----------------|----------------|
+      | BIn COMP          | register bit compare      | 0FC18H+(n-1)    | 176030B+(n-1)  |
+      | BYn COMP          | register byte compare     | 030H+(n-1)      | 060B+(n-1)     |
+      | Hn COMP           | register halfword compare | 0FC1CH+(n-1)    | 176034B+(n-1)  |
+      | Wn COMP           | register word compare     | 034H+(n-1)      | 064B+(n-1)     |
+      | Fn COMP           | register float compare    | 038H+(n-1)      | 070B+(n-1)     |
+      | Dn COMP           | register double float compare | 03CH+(n-1) | 074B+(n-1)     |
       
-      131
+      **Operation:**  
+      Rn - `<operand>`
+      
+      **Description:**
+      
+      The compare instruction subtracts the operand from the contents of the specified register. The result of the subtraction is not saved, but rather compared to zero, and this result is saved in the data status bits. The instruction is a true comparison, hence the sign bit is changed in case of integer overflow.
+      
+      **Trap conditions:**  
+      Addressing traps, Floating overflow (F0), Floating underflow (FU)
+      
+      **Data status bits:**
+      
+      - result = 0 -> Z  
+      - result.signbit XOR Overflow -> S  
+      - carry from most significant bit -> C
+      
+      **Example:**
+      
+      Compare bit zero in R1 with one
+      
+      B11 COMP 1
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

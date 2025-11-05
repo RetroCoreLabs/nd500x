@@ -116,3 +116,39 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Clebi
 # Total variants: 3
+
+  manual_reference:
+    section: "10.29"
+    title: "Clear bit"
+    content: |
+      ### 10.29 Clear bit  
+      
+      **Format:**  
+      t CLEBI 〈operand/w/t〉,〈bit No./r/BY〉  
+      
+      | Assembly notation | Name             | Hex code | Octal code |
+      |-------------------|------------------|----------|------------|
+      | BY CLEBI          | byte clear bit   | 0FE7DH   | 177175B    |
+      | H CLEBI           | halfword clear bit | 0FE7EH   | 177176B    |
+      | W CLEBI           | word clear bit   | 0FE7FH   | 177177B    |
+      
+      **Operation:**  
+      0 -> bit 〈bit No.〉 of 〈operand〉  
+      
+      **Description:**  
+      
+      The specified bit of a BY, H, or W 〈operand〉 is cleared. A 〈bit No.〉 greater than or equal to the number of bits of the data type or a negative 〈bit No.〉 will cause an illegal operand value trap condition.  
+      
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)  
+      
+      **Data status bits:** 1 -> Z  
+      
+      **Example:**  
+      
+      Clear bit N of word register R1  
+      
+          W CLEBI R1, N  
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
