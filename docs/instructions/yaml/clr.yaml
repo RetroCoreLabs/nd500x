@@ -379,39 +379,32 @@ instruction:
 # Instruction group: Clr
 # Total variants: 24
 
+
   manual_reference:
-    section: "10.16"
-    title: "Clear register"
+    section: "15.18"
+    title: "CLREAD - Read local clock ('87 extension)"
     content: |
-      # 10.16 Clear register
-      
-      **Format:** tn CLR
-      
-      | Assembly notation | Name                        | Hex code | Octal code |
-      |-------------------|-----------------------------|----------|------------|
-      | BIn CLR           | bit register clear          | 084H+(n-1) | 204B+(n-1) |
-      | BYn CLR           | byte register clear         | 084H+(n-1) | 204B+(n-1) |
-      | Hn CLR            | halfword register clear     | 084H+(n-1) | 204B+(n-1) |
-      | Wn CLR            | word register clear         | 084H+(n-1) | 204B+(n-1) |
-      | Fn CLR            | float register clear        | 088H+(n-1) | 210B+(n-1) |
-      | Dn CLR            | double float register clear | 08CH+(n-1) | 214B+(n-1) |
-      
-      **Operation:** 0 -> Rn
-      
-      **Description:**
-      
-      The register is set to all zeroes. For all integer data types, the entire register is cleared.
-      
-      **Trap conditions:** None
-      
-      **Data status bits:** 1 -> Z
-      
-      **Example:**
-      
-      Clear double register D3
-      
-          D3 CLR
-      
+      ### 15.18 CLREAD - Read local clock ('87 extension)
+
+      | Assembly notation | Name              | Hex code | Octal code |
+      |-------------------|-------------------|----------|------------|
+      | CLREAD            | read CPU's clock | FF1FH    | 177437B    |
+
+      #### Operation:
+      `<clock> -> W1`
+
+      #### Description:
+      The clock value is read into register number 1. Time is an integer value giving the number of microseconds since the last CLINIT instruction.
+
+      Note that the clock counts for a period of 2**32 microseconds after which it starts from zero again.
+
+      #### Trap Conditions:
+      None
+
+      #### Data Status Bits:
+      - `<clock> = 0 -> Z`
+      - `<clock>.signbit -> S`
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---

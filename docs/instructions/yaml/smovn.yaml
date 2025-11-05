@@ -31,35 +31,39 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x00017FE0"
-        - "0x00017FE0"
-        - "0x0001FFE8"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
     - variant: 2/6
       opcode: "0xFD77"
@@ -75,35 +79,39 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x00017FE0"
-        - "0x00017FE0"
-        - "0x0001FFE8"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
     - variant: 3/6
       opcode: "0xFD78"
@@ -119,35 +127,39 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x00017FE0"
-        - "0x00017FE0"
-        - "0x0001FFE8"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
     - variant: 4/6
       opcode: "0xFD79"
@@ -163,35 +175,39 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x00017FE0"
-        - "0x00017FE0"
-        - "0x0001FFE8"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
     - variant: 5/6
       opcode: "0xFD7A"
@@ -207,35 +223,39 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x00017FE0"
-        - "0x00017FE0"
-        - "0x0001FFE8"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
     - variant: 6/6
       opcode: "0xFD7B"
@@ -251,35 +271,39 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x00017FE0"
-        - "0x00017FE0"
-        - "0x0001FFE8"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
 # Generated from nd500-opcodes
 # Instruction group: Smovn

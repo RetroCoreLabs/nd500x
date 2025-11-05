@@ -30,19 +30,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 1/4
       opcode: "0xFDCD"
@@ -57,19 +55,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 1/4
       opcode: "0xFDCE"
@@ -84,19 +80,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 1/4
       opcode: "0xFDCF"
@@ -111,19 +105,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/4
       opcode: "0xFC90"
@@ -138,19 +130,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/4
       opcode: "0xFC91"
@@ -165,19 +155,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/4
       opcode: "0xFC92"
@@ -192,19 +180,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/4
       opcode: "0xFC93"
@@ -219,19 +205,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/4
       opcode: "0xFC94"
@@ -246,19 +230,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/4
       opcode: "0xFC95"
@@ -273,19 +255,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/4
       opcode: "0xFC96"
@@ -300,19 +280,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/4
       opcode: "0xFC97"
@@ -327,19 +305,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 4/4
       opcode: "0x00E4"
@@ -354,19 +330,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 4/4
       opcode: "0x00E5"
@@ -381,19 +355,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 4/4
       opcode: "0x00E6"
@@ -408,19 +380,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 4/4
       opcode: "0x00E7"
@@ -435,60 +405,59 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: And
 # Total variants: 16
+
 
   manual_reference:
     section: "10.21"
     title: "And"
     content: |
       ## 10.21 And
-      
-      **Format:**  
+
+      **Format:**
       tn AND ⟨operand/r/t⟩
-      
+
       | Assembly notation | Name                  | Hex code      | Octal code    |
       |-------------------|-----------------------|---------------|---------------|
       | BIn               | AND bit 'and' register| 0FDCCH+(n-1)  | 176714B+(n-1) |
       | BYn               | AND byte 'and' register| 0FC90H+(n-1) | 176220B+(n-1) |
       | Hn                | AND halfword 'and' register| 0FC94H+(n-1) | 176224B+(n-1) |
       | Wn                | AND word 'and' register| 0E4H+(n-1)   | 344B+(n-1)    |
-      
-      **Operation:**  
+
+      **Operation:**
       Rn AND ⟨operand⟩ -> Rn
-      
-      **Description:**  
-      
+
+      **Description:**
+
       A bitwise AND is performed between the contents of the specified register and the ⟨operand⟩ and the result is stored in the register. When the data type is BI, BY, or H, the upper part of the register is zero filled.
-      
+
       **Trap conditions:** Addressing traps
-      
+
       **Data status bits:**
-      
-      result = 0 -> Z  
+
+      result = 0 -> Z
       result.signbit -> S
-      
+
       **Example:**
-      
+
       AND operation between R2 and the R3rd element of the array described by the Rlst array descriptor in the local array MASKS
-      
+
           W2 AND DESC(B.MASKS(R1))(R3)
-      
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---

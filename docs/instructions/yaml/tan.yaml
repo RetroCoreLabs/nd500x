@@ -28,19 +28,17 @@ instruction:
         - D
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 1/2
       opcode: "0xFF69"
@@ -53,19 +51,17 @@ instruction:
         - D
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 1/2
       opcode: "0xFF6A"
@@ -78,19 +74,17 @@ instruction:
         - D
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 1/2
       opcode: "0xFF6B"
@@ -103,19 +97,17 @@ instruction:
         - D
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/2
       opcode: "0xFF94"
@@ -128,19 +120,17 @@ instruction:
         - D
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/2
       opcode: "0xFF95"
@@ -153,19 +143,17 @@ instruction:
         - D
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/2
       opcode: "0xFF96"
@@ -178,19 +166,17 @@ instruction:
         - D
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/2
       opcode: "0xFF97"
@@ -203,60 +189,73 @@ instruction:
         - D
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: Tan
 # Total variants: 8
 
+
   manual_reference:
-    section: "12.9"
-    title: "Tangent"
+    section: "8.12"
+    title: "Constant Operand Addressing"
     content: |
-      ### 12.9 Tangent  
-      
-      **Format:**  
-      tn TAN ⟨argument/r/t⟩  
-      
-      | Assembly notation | Name               | Hex code   | Octal code   |
-      |-------------------|--------------------|------------|--------------|
-      | Fn TAN            | float tangent      | OFF68H+(n-1) | 177550B+(n-1) |
-      | Dn TAN            | double float tangent | OFF94H+(n-1) | 177624B+(n-1) |
-      
-      **Operation:**  
-      tangent(⟨argument⟩) -> Rn  
-      
-      **Description:**  
-      
-      The trigonometric tangent of ⟨argument⟩ is loaded into the specified float or double float register. The maximum absolute value of ⟨argument⟩ is 65536.0 radians; a larger value will cause an invalid operation trap condition and the specified register is set to zero.  
-      
-      **Trap conditions:**  
-      Addressing traps, Invalid operation (IVO)  
-      
-      **Data status bits:**  
-      result = 0  -> Z  
-      result.signbit -> S  
-      
-      **Example:**  
-      
-      Calculate the tangent of argument SPREAD and load into F4  
-      
-      ```
-      F4 TAN SPREAD
-      ```
-      
+      # 8.12 Constant Operand Addressing
+
+      ## Assembly Notation
+
+      | Assembly Notation  | Name                          | Hex Code | Octal Code |
+      |--------------------|-------------------------------|----------|------------|
+      | `<constant>`       | General Constant              |          |            |
+      | `<constant>:S`     | Short Constant                | 000H+xx  | 000B+xx    |
+      | `<constant>:B`     | Byte Constant                 | OCDH     | 315B       |
+      | `<constant>:H`     | Halfword Constant             | 0CEH     | 316B       |
+      | `<constant>:W`     | Word Constant                 | 0CFH     | 317B       |
+      | `<constant>:F`     | Floating-point Constant       | 0CFH     | 317B       |
+      | `<constant>:D`     | Double Floating-point Constant| OCCH     | 314B       |
+
+      op = data part of operand specifier
+
+      The data to be operated on is part of the operand specifier. It resides in the program memory and cannot be modified by any instruction. The value of the operand may have a length of six bits or one, two, four or eight bytes.
+
+      Constant operands are illegal for all write instructions, e.g. store, swap, or shift instructions. They are also illegal as destination operand(s) for multi-operand instructions, and in certain special instructions like TSET and RDUS. They are also illegal as subroutine arguments, as they have no address in data memory.
+
+      Note that word and floating-point constants have the same address code.
+
+      ## Assembly Notation
+
+      | Assembly Notation | Byte0 | Byte1 | Byte2 | Byte3 | Byte4 |
+      |-------------------|-------|-------|-------|-------|-------|
+      | 150B:B            |       |       |       |       |       |
+      | Octal: 315B       | 150B  |       |       |       |       |
+      | Hex:  OCDH        | 068H  |       |       |       |       |
+
+      | 1200000:W         |       |       |       |       |       |
+      | Octal: 317B       | 000B  | 022B  | 117B  | 200B  |       |
+      | Hex:  0CFH        | 000H  | 012H  | 04FH  | 080H  |       |
+
+      | 12B:S             |       |       |       |       |       |
+      | Octal: 012B       |       |       |       |       |       |
+      | Hex:  00AH        |       |       |       |       |       |
+
+      | 6400H:H           |       |       |       |       |       |
+      | Octal: 316B       | 144B  | 000B  |       |       |       |
+      | Hex:  0CEH        | 064H  | 000H  |       |       |       |
+
+      *Table 12. Example of constants*
+
+      The instruction code decides the interpretation of the operand addressed by the operand specifier. This may produce conflicts between the operand interpretation and the size of the data part of constant operands. These are solved by sign extension or data conversion if possible, done automatically by hardware. If no conversion is meaningful an illegal operand specifier trap condition occurs.
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---

@@ -27,19 +27,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 1/1
       opcode: "0xFE4D"
@@ -51,19 +49,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 1/1
       opcode: "0xFE4E"
@@ -75,19 +71,17 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 1/1
       opcode: "0xFE4F"
@@ -99,58 +93,59 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: Getb
 # Total variants: 4
 
+
   manual_reference:
-    section: "10.27"
-    title: "Get bit"
+    section: "15.13"
+    title: "Get buddy element"
     content: |
-      ### 10.27 Get bit
-      
-      **Format:**  
-      tn GETBI <operand/r/t>,<bit no/r/BY>
-      
-      | Assembly notation | Name         | Hex code        | Octal code     |
-      |-------------------|--------------|-----------------|----------------|
-      | BYn GETBI         | byte get bit | 0FCB4H+(n-1)    | 176264B+(n-1)  |
-      | Hn GETBI          | halfword get bit | 0FCB8H+(n-1) | 176270B+(n-1)  |
-      | Wn GETBI          | word get bit | 0FDD0H+(n-1)    | 176720B+(n-1)  |
-      
-      **Operation:**  
-      bit <bit No.> of <operand> -> bit 0 of Rn
-      
+      # 15.13 Get buddy element
+
+      **Format:**
+      Wn GETB `<log size/r/BY>`
+
+      | Assembly notation | Hex code         | Octal code            |
+      |-------------------|------------------|-----------------------|
+      | Name              |                  |                       |
+      | Wn GETB           | get buddy element from heap | 0FE4C+(n-1) | 177114B+(n-1) |
+
+      **Operation:**
+      Allocates element of size 2**`<log size>` words
+      Address of element -> Wn
+
       **Description:**
-      
-      Bit zero of the specified register is loaded with bit <bit No.> of a BY, H, or W <operand>. A <bit No.> greater than or equal to the number of bits of the data type or a negative <bit No.> will cause an illegal operand value trap condition.
-      
-      **Trap conditions:**  
-      Addressing traps, Illegal operand value (IOV)
-      
-      **Data status bits:**  
-      transferred bit = 0 -> Z
-      
+
+      Allocate an element of size 2**`<log size>` words from the heap.
+
+      If an element of the given size is available, it is removed from the freelist and its address is returned to the specified register. Otherwise the list is examined for larger elements. If none are available, a stack overflow trap condition occurs. If a larger element is found, it is removed from its freelist and chopped into halves until an element of the desired size can be allocated. The other half of the chopped element(s) will be added to the appropriate freelists.
+
+      The administration of the heap is described in section 3.3. When executing the GETB instruction, the TOS register must point to the variables describing the heap.
+
+      **Trap conditions:**
+      Addressing traps, Stack overflow (STO)
+
+      **Data status bits:**
+      Unaffected
+
       **Example:**
-      
-      Load R1 with the BITNO bit of word variable STATUS
-      
-          W1 GETBI STATUS, BITNO
-      
-      Norsk Data ND-05.009.4 EN
-      
+
+      Allocate a 64 word data block from the heap, leaving its address in W3
+
+          W3 GETB 6
+
       ---

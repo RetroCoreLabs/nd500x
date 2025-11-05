@@ -26,14 +26,12 @@ instruction:
       prefixes:
         - NONE
 
-      addressing_modes:
-        - NONE
-
-      operand_templates:
-        - "0x0006000E"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - NONE
+          template: "0x0006000E"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/3
       opcode: "0x00C1"
@@ -44,14 +42,12 @@ instruction:
       prefixes:
         - NONE
 
-      addressing_modes:
-        - NONE
-
-      operand_templates:
-        - "0x0006000E"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - NONE
+          template: "0x0006000E"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/3
       opcode: "0x00C2"
@@ -62,49 +58,42 @@ instruction:
       prefixes:
         - NONE
 
-      addressing_modes:
-        - NONE
-
-      operand_templates:
-        - "0x0006000E"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - NONE
+          template: "0x0006000E"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: Go
 # Total variants: 3
 
+
   manual_reference:
-    section: "13.2"
-    title: "Unconditional absolute jump"
+    section: "6.1"
+    title: "General"
     content: |
-      # 13.2 Unconditional absolute jump
-      
-      **Format:** JUMPG ⟨address/r/W⟩
-      
-      | Assembly notation | Name        | Hex code | Octal code |
-      |-------------------|-------------|----------|------------|
-      | JUMPG             | jump general| 0B4H     | 264B       |
-      
-      **Operation:** ⟨address⟩ -> P
-      
-      **Description:**
-      
-      Perform a jump to the absolute address given by the operand. JUMPG requires a general operand. The ⟨address⟩ operand may not be prefixed by the operand specifier prefix ALT.
-      
-      If a descriptor range trap occurs, the next instruction to be executed is the one following the JUMPG instruction ("fall through").
-      
-      **Trap conditions:** Addressing traps, Branch trap (BT), Illegal operand specifier (IOS)
-      
-      **Data status bits:** Unaffected
-      
-      **Example:**
-      
-      Jump to the R1st address in a jump table described by CASETABLE
-      
-          JUMPG DESC(CASETABLE)(R1)
-      
-      Norsk Data ND-05.009.4 EN
-      
+      ## 6.1 General
+
+      It is an advantage to be able to detect special situations arising during program execution, such as attempts to divide numbers by zero in a program performing many arithmetic divisions. Such checks may be made by software, but will require explicit programming. The CPU performs a number of checks automatically on every arithmetic operation, showing errors that would otherwise go unnoticed. Errors caught this way are said to be **trapped**. Situations leading to a possible trap are called trap conditions. A trap condition may or may not lead to a trap, depending on whether the trap is enabled. The above case is called a divide by zero trap condition.
+
+      Other examples of trap conditions are floating point overflow, illegal index and stack overflow.
+
+      For most trap conditions, it is possible to choose whether the trap is to be acted upon (i.e. enabled) or not. If a trap is to be acted upon, a trap handler routine will be entered.
+
+      Trap conditions are divided into three categories depending on the way they are treated by hardware.
+
+      - Ignorable trap conditions
+      - Non-ignorable trap conditions
+      - Fatal trap conditions
+
+      Ignorable trap conditions do not require any handling; they may be disabled and will have no effect on program execution. Non-ignorable trap conditions require some kind of handling. If the current domain does not have a handler for it, the trap is propagated to the mother domain. After handling, program execution may continue.
+
+      Fatal trap conditions make it impossible to continue execution of the process. The CPU will report to the I/O processor, which will take appropriate action depending on the kind of trap.
+
+      The CPU status register has one bit for each possible trap condition. When a trap condition occurs, this bit is set. The same bit is reset when a trap handler routine is invoked.
+
+      Status bits representing non-ignorable and fatal trap conditions will always yield a zero result (bit reset) if explicitly tested. It is not meaningful to perform a conditional jump on these bits, as the condition is always false.
+
       ---

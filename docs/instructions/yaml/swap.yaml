@@ -31,25 +31,26 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001DFE0"
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/6
       opcode: "0xFCBE"
@@ -65,25 +66,26 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001DFE0"
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/6
       opcode: "0xFCBF"
@@ -99,25 +101,26 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001DFE0"
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 4/6
       opcode: "0x0052"
@@ -133,25 +136,26 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001DFE0"
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 5/6
       opcode: "0xFCDC"
@@ -167,25 +171,26 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001DFE0"
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 6/6
       opcode: "0xFCDD"
@@ -201,39 +206,41 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001DFE0"
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: Swap
 # Total variants: 6
+
 
   manual_reference:
     section: "10.8"
     title: "Swap"
     content: |
       # 10.8 Swap
-      
-      **Format:**  
+
+      **Format:**
       t SWAP <op1/rw/t>,<op2/rw/t>
-      
+
       | Assembly notation | Name            | Hex code | Octal code |
       |-------------------|-----------------|----------|------------|
       | BI SWAP           | bit swap        | 0FCBDH   | 176275B    |
@@ -242,27 +249,27 @@ instruction:
       | W SWAP            | word swap       | 052H     | 122B       |
       | F SWAP            | float swap      | 0FCDCH   | 176334B    |
       | D SWAP            | double float swap | 0FCDDH  | 176335B    |
-      
-      **Operation:**  
+
+      **Operation:**
       <op1> ::= <op2>
-      
-      **Description:**  
-      
+
+      **Description:**
+
       The contents of the first operand are stored in the second, and the original contents of the second operand are stored in the first. The operands are assumed to have the same data type (see section 7.3 on page 73).
-      
+
       **Trap conditions:** Addressing traps
-      
+
       **Data status bits:**
-      
-      original contents of <op1> = 0  -> Z  
+
+      original contents of <op1> = 0  -> Z
       original contents of <op1>.signbit -> S
-      
+
       **Example:**
-      
+
       Exchange contents of word variables EAST and WEST
-      
+
           W SWAP EAST, WEST
-      
+
       *Norsk Data ND-05.009.4 EN*
-      
+
       ---

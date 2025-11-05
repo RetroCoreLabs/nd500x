@@ -230,40 +230,41 @@ instruction:
 # Instruction group: Inv
 # Total variants: 16
 
+
   manual_reference:
     section: "10.13"
     title: "Invert"
     content: |
       ### 10.13 Invert
-      
+
       **Format:** tn INV
-      
+
       | Assembly notation | Name                    | Hex code     | Octal code   |
       |-------------------|-------------------------|--------------|--------------|
       | BIn               | bit invert register     | 0FE10H+(n-1) | 177020B+(n-1)|
       | BYn               | byte invert register    | 0FE14H+(n-1) | 177024B+(n-1)|
       | Hn                | halfword invert register| 0FE18H+(n-1) | 177030B+(n-1)|
       | Wn                | word invert register    | 098H+(n-1)   | 230B+(n-1)   |
-      
-      **Operation:**  
+
+      **Operation:**
       One's complement of Rn -> Rn
-      
-      **Description:**  
-      
+
+      **Description:**
+
       The one's complement of the contents of the specified register is calculated and stored in the same register. When the datatype is BI, BY, or H only the lower part of the register is complemented and the rest of the register is cleared.
-      
+
       **Trap conditions:** None
-      
+
       **Data status bits:**
-      
-      result = 0 -> Z  
+
+      result = 0 -> Z
       result.signbit -> S
-      
+
       **Example:**
-      
-      Invert the lowermost bit of R4 and clear the upper 31 bits  
+
+      Invert the lowermost bit of R4 and clear the upper 31 bits
       BI4 INV
-      
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---

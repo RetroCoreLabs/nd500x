@@ -29,42 +29,33 @@ instruction:
 # Instruction group: Noop
 # Total variants: 1
 
+
   manual_reference:
-    section: "15.13"
+    section: "15.10"
     title: "No operation"
     content: |
-      # 15.13 Get buddy element
-      
-      **Format:**  
-      Wn GETB `<log size/r/BY>`
-      
-      | Assembly notation | Hex code         | Octal code            |
-      |-------------------|------------------|-----------------------|
-      | Name              |                  |                       |
-      | Wn GETB           | get buddy element from heap | 0FE4C+(n-1) | 177114B+(n-1) |
-      
-      **Operation:**  
-      Allocates element of size 2**`<log size>` words  
-      Address of element -> Wn
-      
+      ## 15.10 No operation
+
+      **Format:** NOOP
+
+      | Assembly notation | Name        | Hex code | Octal code |
+      |-------------------|-------------|----------|------------|
+      | NOOP              | no operation| 003H     | 003B       |
+
+      **Operation:** None
+
       **Description:**
-      
-      Allocate an element of size 2**`<log size>` words from the heap.
-      
-      If an element of the given size is available, it is removed from the freelist and its address is returned to the specified register. Otherwise the list is examined for larger elements. If none are available, a stack overflow trap condition occurs. If a larger element is found, it is removed from its freelist and chopped into halves until an element of the desired size can be allocated. The other half of the chopped element(s) will be added to the appropriate freelists.
-      
-      The administration of the heap is described in section 3.3. When executing the GETB instruction, the TOS register must point to the variables describing the heap.
-      
-      **Trap conditions:**  
-      Addressing traps, Stack overflow (STO)
-      
-      **Data status bits:**  
-      Unaffected
-      
+
+      The no operation instruction may be used for deleting code from a program or to leave open space for later modifications.
+
+      **Trap conditions:** None
+
+      **Data status bits:** Unaffected
+
       **Example:**
-      
-      Allocate a 64 word data block from the heap, leaving its address in W3
-      
-          W3 GETB 6
-      
+
+      NOOP
+
+      Norsk Data ND-05.009.4 EN
+
       ---

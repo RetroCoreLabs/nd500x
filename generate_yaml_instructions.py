@@ -67,26 +67,31 @@ def parse_prefixes(prefix_str):
 
     return prefixes if prefixes else ["NONE"]
 
-def parse_addressing_modes(modes_list):
-    """Parse addressing modes list/string to clean list"""
-    if not modes_list:
+def parse_addressing_modes_single(mode_str):
+    """Parse a single operand's addressing modes string"""
+    if not mode_str:
         return []
 
     modes = []
-
-    # Handle if it's a list
-    if isinstance(modes_list, list):
-        mode_str = ' | '.join(str(m) for m in modes_list)
-    else:
-        mode_str = str(modes_list)
-
-    for part in mode_str.split('|'):
+    for part in str(mode_str).split('|'):
         part = part.strip()
         if part.startswith('AddressingModes.'):
             mode = part.replace('AddressingModes.', '').strip()
             modes.append(mode)
 
     return modes
+
+def parse_addressing_modes(modes_list):
+    """Parse addressing modes list - returns list of lists (one per operand)"""
+    if not modes_list:
+        return []
+
+    # If it's a list, parse each operand separately
+    if isinstance(modes_list, list):
+        return [parse_addressing_modes_single(m) for m in modes_list]
+    else:
+        # Single operand
+        return [parse_addressing_modes_single(modes_list)]
 
 def get_privilege_level(instruction_class, function_name):
     """Determine privilege level based on instruction characteristics"""
@@ -293,23 +298,31 @@ def instruction_group_to_yaml(instruction_group, group_key):
             yaml_lines.append(f'        - {prefix}')
         yaml_lines.append('')
 
-        if allowed_modes:
-            yaml_lines.append(f'      addressing_modes:')
-            for mode in allowed_modes:
-                yaml_lines.append(f'        - {mode}')
-            yaml_lines.append('')
+        # Structure operands properly (allowed_modes is now list of lists)
+        if allowed_modes and any(allowed_modes):
+            num_operands = len(allowed_modes)
 
-        if operand_templates:
-            yaml_lines.append(f'      operand_templates:')
-            for template in operand_templates:
-                yaml_lines.append(f'        - "{template}"')
-            yaml_lines.append('')
+            # If we have multiple operands, structure them properly
+            if num_operands > 0:
+                yaml_lines.append(f'      operands:')
+                for op_idx in range(num_operands):
+                    yaml_lines.append(f'        - operand: {op_idx + 1}')
 
-        if metadata:
-            yaml_lines.append(f'      metadata:')
-            for meta in metadata:
-                yaml_lines.append(f'        - "{meta}"')
-            yaml_lines.append('')
+                    # Addressing modes for this operand
+                    if op_idx < len(allowed_modes) and allowed_modes[op_idx]:
+                        yaml_lines.append(f'          addressing_modes:')
+                        for mode in allowed_modes[op_idx]:
+                            yaml_lines.append(f'            - {mode}')
+
+                    # Template for this operand
+                    if operand_templates and op_idx < len(operand_templates):
+                        yaml_lines.append(f'          template: "{operand_templates[op_idx]}"')
+
+                    # Metadata for this operand
+                    if metadata and op_idx < len(metadata):
+                        yaml_lines.append(f'          metadata: "{metadata[op_idx]}"')
+
+                    yaml_lines.append('')
 
     yaml_lines.append('# Generated from nd500-opcodes')
     yaml_lines.append(f'# Instruction group: {group_key}')

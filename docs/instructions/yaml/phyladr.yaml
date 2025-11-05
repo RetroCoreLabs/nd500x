@@ -26,17 +26,15 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00001FE8"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00001FE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
 
     - variant: 1/1
       opcode: "0xFFF1"
@@ -48,17 +46,15 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00001FE8"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00001FE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
 
     - variant: 1/1
       opcode: "0xFFF2"
@@ -70,17 +66,15 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00001FE8"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00001FE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
 
     - variant: 1/1
       opcode: "0xFFF3"
@@ -92,17 +86,15 @@ instruction:
         - W
         - R_N
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00001FE8"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00001FE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
 
 # Generated from nd500-opcodes
 # Instruction group: Phyladr
