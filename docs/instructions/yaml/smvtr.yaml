@@ -1,0 +1,59 @@
+instruction:
+  name: "smvtr"
+  function: "Smvtr"
+  mnemonic: "smvtr"
+  description: |
+    Smvtr
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD74"
+      opcode_binary: "1111_1101_0111_0100"
+      opcode_decimal: 64884
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE2"
+        - "0x00017FE2"
+        - "0x00019FE2"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Smvtr
+# Total variants: 1

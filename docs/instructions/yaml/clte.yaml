@@ -1,0 +1,44 @@
+instruction:
+  name: "clte"
+  function: "Clte"
+  mnemonic: "clte"
+  description: |
+    Clte
+    
+    Control flow operation
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "CONTROL"
+  instruction_class: "control"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD3A"
+      opcode_binary: "1111_1101_0011_1010"
+      opcode_decimal: 64826
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE2"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Clte
+# Total variants: 1

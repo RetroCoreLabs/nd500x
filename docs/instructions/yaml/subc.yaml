@@ -1,0 +1,118 @@
+instruction:
+  name: "subc"
+  function: "Subc"
+  mnemonic: "subc"
+  description: |
+    Subc
+    
+    Subtraction operation:
+    Result ← op1 - op2
+    
+    Operands: 1
+    Variants: 4 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE44"
+      opcode_binary: "1111_1110_0100_0100"
+      opcode_decimal: 65092
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/1
+      opcode: "0xFE45"
+      opcode_binary: "1111_1110_0100_0101"
+      opcode_decimal: 65093
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/1
+      opcode: "0xFE46"
+      opcode_binary: "1111_1110_0100_0110"
+      opcode_decimal: 65094
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/1
+      opcode: "0xFE47"
+      opcode_binary: "1111_1110_0100_0111"
+      opcode_decimal: 65095
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Subc
+# Total variants: 4

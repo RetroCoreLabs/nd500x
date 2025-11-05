@@ -1,0 +1,453 @@
+instruction:
+  name: "rdus"
+  function: "Rdus"
+  mnemonic: "rdus"
+  description: |
+    Rdus
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 16 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/4
+      opcode: "0xFEA0"
+      opcode_binary: "1111_1110_1010_0000"
+      opcode_decimal: 65184
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/4
+      opcode: "0xFEA1"
+      opcode_binary: "1111_1110_1010_0001"
+      opcode_decimal: 65185
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/4
+      opcode: "0xFEA2"
+      opcode_binary: "1111_1110_1010_0010"
+      opcode_decimal: 65186
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/4
+      opcode: "0xFEA3"
+      opcode_binary: "1111_1110_1010_0011"
+      opcode_decimal: 65187
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/4
+      opcode: "0xFEA4"
+      opcode_binary: "1111_1110_1010_0100"
+      opcode_decimal: 65188
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/4
+      opcode: "0xFEA5"
+      opcode_binary: "1111_1110_1010_0101"
+      opcode_decimal: 65189
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/4
+      opcode: "0xFEA6"
+      opcode_binary: "1111_1110_1010_0110"
+      opcode_decimal: 65190
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/4
+      opcode: "0xFEA7"
+      opcode_binary: "1111_1110_1010_0111"
+      opcode_decimal: 65191
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/4
+      opcode: "0xFEA8"
+      opcode_binary: "1111_1110_1010_1000"
+      opcode_decimal: 65192
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/4
+      opcode: "0xFEA9"
+      opcode_binary: "1111_1110_1010_1001"
+      opcode_decimal: 65193
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/4
+      opcode: "0xFEAA"
+      opcode_binary: "1111_1110_1010_1010"
+      opcode_decimal: 65194
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/4
+      opcode: "0xFEAB"
+      opcode_binary: "1111_1110_1010_1011"
+      opcode_decimal: 65195
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/4
+      opcode: "0xFEAC"
+      opcode_binary: "1111_1110_1010_1100"
+      opcode_decimal: 65196
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/4
+      opcode: "0xFEAD"
+      opcode_binary: "1111_1110_1010_1101"
+      opcode_decimal: 65197
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/4
+      opcode: "0xFEAE"
+      opcode_binary: "1111_1110_1010_1110"
+      opcode_decimal: 65198
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/4
+      opcode: "0xFEAF"
+      opcode_binary: "1111_1110_1010_1111"
+      opcode_decimal: 65199
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Rdus
+# Total variants: 16

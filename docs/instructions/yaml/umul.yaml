@@ -1,0 +1,177 @@
+instruction:
+  name: "umul"
+  function: "Umul"
+  mnemonic: "umul"
+  description: |
+    Umul
+    
+    Arithmetic operation
+    
+    Operands: 3
+    Variants: 4 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFC80"
+      opcode_binary: "1111_1100_1000_0000"
+      opcode_decimal: 64640
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+        - "0x0001FFE0"
+        - "0x0001DFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/1
+      opcode: "0xFC81"
+      opcode_binary: "1111_1100_1000_0001"
+      opcode_decimal: 64641
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+        - "0x0001FFE0"
+        - "0x0001DFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/1
+      opcode: "0xFC82"
+      opcode_binary: "1111_1100_1000_0010"
+      opcode_decimal: 64642
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+        - "0x0001FFE0"
+        - "0x0001DFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/1
+      opcode: "0xFC83"
+      opcode_binary: "1111_1100_1000_0011"
+      opcode_decimal: 64643
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+        - "0x0001FFE0"
+        - "0x0001DFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Umul
+# Total variants: 4

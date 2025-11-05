@@ -1,0 +1,231 @@
+instruction:
+  name: "inv"
+  function: "Inv"
+  mnemonic: "inv"
+  description: |
+    Inv
+    
+    Invert/NOT operation:
+    Performs bitwise NOT (one's complement)
+    Result ← ~operand
+    
+    Operands: None (operates on implicit register)
+    Variants: 16 opcode(s)
+
+  category: "LOGICAL"
+  instruction_class: "logical"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/4
+      opcode: "0xFE10"
+      opcode_binary: "1111_1110_0001_0000"
+      opcode_decimal: 65040
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 1/4
+      opcode: "0xFE11"
+      opcode_binary: "1111_1110_0001_0001"
+      opcode_decimal: 65041
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 1/4
+      opcode: "0xFE12"
+      opcode_binary: "1111_1110_0001_0010"
+      opcode_decimal: 65042
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 1/4
+      opcode: "0xFE13"
+      opcode_binary: "1111_1110_0001_0011"
+      opcode_decimal: 65043
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 2/4
+      opcode: "0xFE14"
+      opcode_binary: "1111_1110_0001_0100"
+      opcode_decimal: 65044
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 2/4
+      opcode: "0xFE15"
+      opcode_binary: "1111_1110_0001_0101"
+      opcode_decimal: 65045
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 2/4
+      opcode: "0xFE16"
+      opcode_binary: "1111_1110_0001_0110"
+      opcode_decimal: 65046
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 2/4
+      opcode: "0xFE17"
+      opcode_binary: "1111_1110_0001_0111"
+      opcode_decimal: 65047
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 3/4
+      opcode: "0xFE18"
+      opcode_binary: "1111_1110_0001_1000"
+      opcode_decimal: 65048
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 3/4
+      opcode: "0xFE19"
+      opcode_binary: "1111_1110_0001_1001"
+      opcode_decimal: 65049
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 3/4
+      opcode: "0xFE1A"
+      opcode_binary: "1111_1110_0001_1010"
+      opcode_decimal: 65050
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 3/4
+      opcode: "0xFE1B"
+      opcode_binary: "1111_1110_0001_1011"
+      opcode_decimal: 65051
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 4/4
+      opcode: "0x0098"
+      opcode_binary: "0000_0000_1001_1000"
+      opcode_decimal: 152
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 4/4
+      opcode: "0x0099"
+      opcode_binary: "0000_0000_1001_1001"
+      opcode_decimal: 153
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 4/4
+      opcode: "0x009A"
+      opcode_binary: "0000_0000_1001_1010"
+      opcode_decimal: 154
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+    - variant: 4/4
+      opcode: "0x009B"
+      opcode_binary: "0000_0000_1001_1011"
+      opcode_decimal: 155
+      prefix_mask: "0x4F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - R_N
+
+# Generated from nd500-opcodes
+# Instruction group: Inv
+# Total variants: 16

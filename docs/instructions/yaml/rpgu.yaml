@@ -1,0 +1,221 @@
+instruction:
+  name: "rpgu"
+  function: "Rpgu"
+  mnemonic: "rpgu"
+  description: |
+    Rpgu
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 8 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/2
+      opcode: "0xFE88"
+      opcode_binary: "1111_1110_1000_1000"
+      opcode_decimal: 65160
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 1/2
+      opcode: "0xFE89"
+      opcode_binary: "1111_1110_1000_1001"
+      opcode_decimal: 65161
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 1/2
+      opcode: "0xFE8A"
+      opcode_binary: "1111_1110_1000_1010"
+      opcode_decimal: 65162
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 1/2
+      opcode: "0xFE8B"
+      opcode_binary: "1111_1110_1000_1011"
+      opcode_decimal: 65163
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 2/2
+      opcode: "0xFE8C"
+      opcode_binary: "1111_1110_1000_1100"
+      opcode_decimal: 65164
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 2/2
+      opcode: "0xFE8D"
+      opcode_binary: "1111_1110_1000_1101"
+      opcode_decimal: 65165
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 2/2
+      opcode: "0xFE8E"
+      opcode_binary: "1111_1110_1000_1110"
+      opcode_decimal: 65166
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 2/2
+      opcode: "0xFE8F"
+      opcode_binary: "1111_1110_1000_1111"
+      opcode_decimal: 65167
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Rpgu
+# Total variants: 8

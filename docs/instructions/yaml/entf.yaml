@@ -1,0 +1,40 @@
+instruction:
+  name: "entf"
+  function: "Entf"
+  mnemonic: "entf"
+  description: |
+    Entf
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0x00DD"
+      opcode_binary: "0000_0000_1101_1101"
+      opcode_decimal: 221
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - NONE
+
+      operand_templates:
+        - "0x00020008"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Entf
+# Total variants: 1

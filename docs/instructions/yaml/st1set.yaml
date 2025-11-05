@@ -1,0 +1,43 @@
+instruction:
+  name: "st1:="
+  function: "St1Set"
+  mnemonic: "st1:="
+  description: |
+    St1Set
+    
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDB9"
+      opcode_binary: "1111_1101_1011_1001"
+      opcode_decimal: 64953
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: St1Set
+# Total variants: 1

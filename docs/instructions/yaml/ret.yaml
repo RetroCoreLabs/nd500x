@@ -1,0 +1,31 @@
+instruction:
+  name: "ret"
+  function: "Ret"
+  mnemonic: "ret"
+  description: |
+    Ret
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0x0080"
+      opcode_binary: "0000_0000_1000_0000"
+      opcode_decimal: 128
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Ret
+# Total variants: 1

@@ -1,0 +1,42 @@
+instruction:
+  name: "p=:"
+  function: "PGet"
+  mnemonic: "p=:"
+  description: |
+    PGet
+    
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD62"
+      opcode_binary: "1111_1101_0110_0010"
+      opcode_decimal: 64866
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001DFE8"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: PGet
+# Total variants: 1

@@ -1,0 +1,192 @@
+instruction:
+  name: "wconv"
+  function: "Wconv"
+  mnemonic: "wconv"
+  description: |
+    Wconv
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 2
+    Variants: 5 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFD46"
+      opcode_binary: "1111_1101_0100_0110"
+      opcode_decimal: 64838
+      prefix_mask: "0x37"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+        - "0x0001DFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 2/5
+      opcode: "0xFD4B"
+      opcode_binary: "1111_1101_0100_1011"
+      opcode_decimal: 64843
+      prefix_mask: "0x37"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+        - "0x0001DFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 3/5
+      opcode: "0xFD50"
+      opcode_binary: "1111_1101_0101_0000"
+      opcode_decimal: 64848
+      prefix_mask: "0x37"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+        - "0x0001DFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 4/5
+      opcode: "0xFD5B"
+      opcode_binary: "1111_1101_0101_1011"
+      opcode_decimal: 64859
+      prefix_mask: "0x37"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+        - "0x0001DFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 5/5
+      opcode: "0xFD60"
+      opcode_binary: "1111_1101_0110_0000"
+      opcode_decimal: 64864
+      prefix_mask: "0x37"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+        - "0x0001DFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Wconv
+# Total variants: 5

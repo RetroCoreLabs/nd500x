@@ -1,0 +1,60 @@
+instruction:
+  name: "pmpy"
+  function: "Pmpy"
+  mnemonic: "pmpy"
+  description: |
+    Pmpy
+    
+    Arithmetic operation
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFEB4"
+      opcode_binary: "1111_1110_1011_0100"
+      opcode_decimal: 65204
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE0"
+        - "0x00017FE0"
+        - "0x00017FE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Pmpy
+# Total variants: 1

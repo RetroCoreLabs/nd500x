@@ -1,0 +1,61 @@
+instruction:
+  name: "riom"
+  function: "Riom"
+  mnemonic: "riom"
+  description: |
+    Riom
+    
+    I/O operation:
+    Performs input/output operations
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "IO"
+  instruction_class: "io"
+  privilege: "supervisor"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE76"
+      opcode_binary: "1111_1110_0111_0110"
+      opcode_decimal: 65142
+      prefix_mask: "0x04"
+
+      prefixes:
+        - H
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+        - "0x0001FFEF"
+        - "0x0001FFEF"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Riom
+# Total variants: 1

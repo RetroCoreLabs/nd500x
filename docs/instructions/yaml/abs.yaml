@@ -1,0 +1,302 @@
+instruction:
+  name: "abs"
+  function: "Abs"
+  mnemonic: "abs"
+  description: |
+    Abs
+    
+    Absolute value operation:
+    Result ← |operand|
+    
+    Operands: None (operates on implicit register)
+    Variants: 20 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFF00"
+      opcode_binary: "1111_1111_0000_0000"
+      opcode_decimal: 65280
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 1/5
+      opcode: "0xFF01"
+      opcode_binary: "1111_1111_0000_0001"
+      opcode_decimal: 65281
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 1/5
+      opcode: "0xFF02"
+      opcode_binary: "1111_1111_0000_0010"
+      opcode_decimal: 65282
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 1/5
+      opcode: "0xFF03"
+      opcode_binary: "1111_1111_0000_0011"
+      opcode_decimal: 65283
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/5
+      opcode: "0xFF04"
+      opcode_binary: "1111_1111_0000_0100"
+      opcode_decimal: 65284
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/5
+      opcode: "0xFF05"
+      opcode_binary: "1111_1111_0000_0101"
+      opcode_decimal: 65285
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/5
+      opcode: "0xFF06"
+      opcode_binary: "1111_1111_0000_0110"
+      opcode_decimal: 65286
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/5
+      opcode: "0xFF07"
+      opcode_binary: "1111_1111_0000_0111"
+      opcode_decimal: 65287
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/5
+      opcode: "0xFF08"
+      opcode_binary: "1111_1111_0000_1000"
+      opcode_decimal: 65288
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/5
+      opcode: "0xFF09"
+      opcode_binary: "1111_1111_0000_1001"
+      opcode_decimal: 65289
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/5
+      opcode: "0xFF0A"
+      opcode_binary: "1111_1111_0000_1010"
+      opcode_decimal: 65290
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/5
+      opcode: "0xFF0B"
+      opcode_binary: "1111_1111_0000_1011"
+      opcode_decimal: 65291
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/5
+      opcode: "0xFF0C"
+      opcode_binary: "1111_1111_0000_1100"
+      opcode_decimal: 65292
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/5
+      opcode: "0xFF0D"
+      opcode_binary: "1111_1111_0000_1101"
+      opcode_decimal: 65293
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/5
+      opcode: "0xFF0E"
+      opcode_binary: "1111_1111_0000_1110"
+      opcode_decimal: 65294
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/5
+      opcode: "0xFF0F"
+      opcode_binary: "1111_1111_0000_1111"
+      opcode_decimal: 65295
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/5
+      opcode: "0xFF0C"
+      opcode_binary: "1111_1111_0000_1100"
+      opcode_decimal: 65292
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/5
+      opcode: "0xFF0D"
+      opcode_binary: "1111_1111_0000_1101"
+      opcode_decimal: 65293
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/5
+      opcode: "0xFF0E"
+      opcode_binary: "1111_1111_0000_1110"
+      opcode_decimal: 65294
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/5
+      opcode: "0xFF0F"
+      opcode_binary: "1111_1111_0000_1111"
+      opcode_decimal: 65295
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+# Generated from nd500-opcodes
+# Instruction group: Abs
+# Total variants: 20

@@ -1,0 +1,222 @@
+instruction:
+  name: "atan"
+  function: "Atan"
+  mnemonic: "atan"
+  description: |
+    Atan
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 1
+    Variants: 8 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/2
+      opcode: "0xFF6C"
+      opcode_binary: "1111_1111_0110_1100"
+      opcode_decimal: 65388
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/2
+      opcode: "0xFF6D"
+      opcode_binary: "1111_1111_0110_1101"
+      opcode_decimal: 65389
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/2
+      opcode: "0xFF6E"
+      opcode_binary: "1111_1111_0110_1110"
+      opcode_decimal: 65390
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/2
+      opcode: "0xFF6F"
+      opcode_binary: "1111_1111_0110_1111"
+      opcode_decimal: 65391
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFF98"
+      opcode_binary: "1111_1111_1001_1000"
+      opcode_decimal: 65432
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFF99"
+      opcode_binary: "1111_1111_1001_1001"
+      opcode_decimal: 65433
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFF9A"
+      opcode_binary: "1111_1111_1001_1010"
+      opcode_decimal: 65434
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFF9B"
+      opcode_binary: "1111_1111_1001_1011"
+      opcode_decimal: 65435
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Atan
+# Total variants: 8

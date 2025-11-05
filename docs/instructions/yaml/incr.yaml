@@ -1,0 +1,151 @@
+instruction:
+  name: "incr"
+  function: "Incr"
+  mnemonic: "incr"
+  description: |
+    Incr
+    
+    Arithmetic operation
+    
+    Operands: 1
+    Variants: 5 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFC8A"
+      opcode_binary: "1111_1100_1000_1010"
+      opcode_decimal: 64650
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001DFE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/5
+      opcode: "0x004E"
+      opcode_binary: "0000_0000_0100_1110"
+      opcode_decimal: 78
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001DFE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/5
+      opcode: "0x004F"
+      opcode_binary: "0000_0000_0100_1111"
+      opcode_decimal: 79
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001DFE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/5
+      opcode: "0x0050"
+      opcode_binary: "0000_0000_0101_0000"
+      opcode_decimal: 80
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001DFE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/5
+      opcode: "0xFC8B"
+      opcode_binary: "1111_1100_1000_1011"
+      opcode_decimal: 64651
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001DFE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Incr
+# Total variants: 5

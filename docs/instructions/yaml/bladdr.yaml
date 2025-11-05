@@ -1,0 +1,177 @@
+instruction:
+  name: "bladdr"
+  function: "Bladdr"
+  mnemonic: "bladdr"
+  description: |
+    Bladdr
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 6 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/6
+      opcode: "0xFCB3"
+      opcode_binary: "1111_1100_1011_0011"
+      opcode_decimal: 64691
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/6
+      opcode: "0xFCBC"
+      opcode_binary: "1111_1100_1011_1100"
+      opcode_decimal: 64700
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/6
+      opcode: "0xFD37"
+      opcode_binary: "1111_1101_0011_0111"
+      opcode_decimal: 64823
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/6
+      opcode: "0xFD63"
+      opcode_binary: "1111_1101_0110_0011"
+      opcode_decimal: 64867
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/6
+      opcode: "0xFD63"
+      opcode_binary: "1111_1101_0110_0011"
+      opcode_decimal: 64867
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/6
+      opcode: "0xFD38"
+      opcode_binary: "1111_1101_0011_1000"
+      opcode_decimal: 64824
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Bladdr
+# Total variants: 6

@@ -1,0 +1,45 @@
+instruction:
+  name: "entb"
+  function: "Entb"
+  mnemonic: "entb"
+  description: |
+    Entb
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0x00BD"
+      opcode_binary: "0000_0000_1011_1101"
+      opcode_decimal: 189
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE2"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Entb
+# Total variants: 1

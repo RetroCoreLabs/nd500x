@@ -1,0 +1,58 @@
+instruction:
+  name: "if-kgo"
+  function: "IfKeyGo"
+  mnemonic: "if-kgo"
+  description: |
+    IfKeyGo
+    
+    Branch/Jump operation:
+    Conditional or unconditional program flow transfer
+    
+    Operands: 1
+    Variants: 2 opcode(s)
+
+  category: "BRANCH"
+  instruction_class: "branch"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/2
+      opcode: "0x00D2"
+      opcode_binary: "0000_0000_1101_0010"
+      opcode_decimal: 210
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - NONE
+
+      operand_templates:
+        - "0x00060006"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0x00D3"
+      opcode_binary: "0000_0000_1101_0011"
+      opcode_decimal: 211
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - NONE
+
+      operand_templates:
+        - "0x00060006"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: IfKeyGo
+# Total variants: 2

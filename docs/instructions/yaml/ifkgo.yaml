@@ -1,0 +1,58 @@
+instruction:
+  name: "ifkgo"
+  function: "Ifkgo"
+  mnemonic: "ifkgo"
+  description: |
+    Ifkgo
+    
+    Branch/Jump operation:
+    Conditional or unconditional program flow transfer
+    
+    Operands: 1
+    Variants: 2 opcode(s)
+
+  category: "BRANCH"
+  instruction_class: "branch"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/2
+      opcode: "0x00D0"
+      opcode_binary: "0000_0000_1101_0000"
+      opcode_decimal: 208
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - NONE
+
+      operand_templates:
+        - "0x00060006"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0x00D1"
+      opcode_binary: "0000_0000_1101_0001"
+      opcode_decimal: 209
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - NONE
+
+      operand_templates:
+        - "0x00060006"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Ifkgo
+# Total variants: 2

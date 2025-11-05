@@ -1,0 +1,31 @@
+instruction:
+  name: "entd"
+  function: "Entd"
+  mnemonic: "entd"
+  description: |
+    Entd
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0x009C"
+      opcode_binary: "0000_0000_1001_1100"
+      opcode_decimal: 156
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Entd
+# Total variants: 1

@@ -1,0 +1,118 @@
+instruction:
+  name: "pwconv"
+  function: "Pwconv"
+  mnemonic: "pwconv"
+  description: |
+    Pwconv
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 1
+    Variants: 4 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFEBC"
+      opcode_binary: "1111_1110_1011_1100"
+      opcode_decimal: 65212
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/1
+      opcode: "0xFEBD"
+      opcode_binary: "1111_1110_1011_1101"
+      opcode_decimal: 65213
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/1
+      opcode: "0xFEBE"
+      opcode_binary: "1111_1110_1011_1110"
+      opcode_decimal: 65214
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/1
+      opcode: "0xFEBF"
+      opcode_binary: "1111_1110_1011_1111"
+      opcode_decimal: 65215
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Pwconv
+# Total variants: 4
