@@ -26,14 +26,12 @@ instruction:
       prefixes:
         - NONE
 
-      addressing_modes:
-        - NONE
-
-      operand_templates:
-        - "0x00060006"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - NONE
+          template: "0x00060006"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/2
       opcode: "0x00CF"
@@ -44,14 +42,12 @@ instruction:
       prefixes:
         - NONE
 
-      addressing_modes:
-        - NONE
-
-      operand_templates:
-        - "0x00060006"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - NONE
+          template: "0x00060006"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: IfLessEqualGo

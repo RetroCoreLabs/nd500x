@@ -28,26 +28,27 @@ instruction:
         - H
         - W
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001DFE0"
-        - "0x0001FFE2"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/3
       opcode: "0xFCAC"
@@ -60,26 +61,27 @@ instruction:
         - H
         - W
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001DFE0"
-        - "0x0001FFE2"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/3
       opcode: "0xFCAD"
@@ -92,76 +94,78 @@ instruction:
         - H
         - W
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001DFE0"
-        - "0x0001FFE2"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: Sha
 # Total variants: 3
+
 
   manual_reference:
     section: "10.25"
     title: "Arithmetical shift"
     content: |
       ### 10.25 Arithmetical shift
-      
+
       **Format:**
-      
+
       ```
       t SHA <operand/rw/r>,<shiftcount/r/BY>
       ```
-      
+
       **Assembly notation**
-      
+
       | Name | Hex code | Octal code |
       |------|----------|------------|
       | BY SHA | OFCABH | 176253B |
       | H SHA | OFCACh | 176254B |
       | W SHA | OFCADH | 176255B |
-      
-      **Operation:**  
+
+      **Operation:**
       arithmetically shifted `<operand>` -> `<operand>`
-      
+
       **Description:**
-      
+
       An arithmetic shift is performed on the byte, halfword or word operand. `<shiftcount>` is interpreted as a signed byte. Positive `<shiftcount>` implies left shift, negative `<shiftcount>` implies right shift. A shiftcount equal to or greater than the size of the operand will produce an illegal operand value trap condition. A shiftcount of zero is legal and leaves the operand unchanged.
-      
-      **Trap conditions:**  
+
+      **Trap conditions:**
       Addressing traps, Illegal operand value (IOV)
-      
+
       **Data status bits:**
-      
+
       ```
       shifted operand = 0 -> Z
       shifted operand.signbit -> S
       ```
-      
+
       **Example:**
-      
+
       Shift byte register R4 two places to the right
-      
+
       ```
       BY SHA R4, -2
       ```
-      
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---

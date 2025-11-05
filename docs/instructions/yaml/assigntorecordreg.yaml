@@ -27,56 +27,55 @@ instruction:
       prefixes:
         - NONE
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001DFE8"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
 
 # Generated from nd500-opcodes
 # Instruction group: AssignToRecordReg
 # Total variants: 1
+
 
   manual_reference:
     section: "10.6"
     title: "Store record register"
     content: |
       ### 10.6 Store record register
-      
-      **Format:**  
+
+      **Format:**
       R =: `<operand/w/W>`
-      
+
       | Assembly notation | Name                   | Hex code | Octal code |
       |-------------------|------------------------|----------|------------|
       | R =:              | store record register  | OFC09H   | 176011B    |
-      
-      **Operation:**  
+
+      **Operation:**
       R -> `<operand>`
-      
+
       **Description:**
-      
+
       The contents of the record register are stored in the `<operand>`.
-      
+
       **Trap conditions:** Addressing traps
-      
+
       **Data status bits:**
-      
+
       - R register = 0  -> Z
       - R register.signbit -> S
-      
+
       **Example:**
-      
+
       Store R in register R2
-      
+
           R =: R2
-      
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---

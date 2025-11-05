@@ -30,17 +30,15 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00019FE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/6
       opcode: "0xFCBC"
@@ -56,17 +54,15 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00019FE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/6
       opcode: "0xFD37"
@@ -82,17 +78,15 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00019FE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 4/6
       opcode: "0xFD63"
@@ -108,17 +102,15 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00019FE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 5/6
       opcode: "0xFD63"
@@ -134,17 +126,15 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00019FE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 6/6
       opcode: "0xFD38"
@@ -160,56 +150,57 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x00019FE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: Bladdr
 # Total variants: 6
 
+
   manual_reference:
-    section: "15.5"
-    title: "Load address"
+    section: "15.6"
+    title: "Load address into base register"
     content: |
-      # 15.5 Load address into record register
-      
-      **Format:**  
-      t RLADDR `<operand/aa/t>`
-      
-      **Assembly Notation | Name**  
-      | Assembly Notation | Name                              | Hex Code | Octal Code |
-      |-------------------|-----------------------------------|----------|------------|
-      | BI RLADDR         | bit load address to R             | 0FC55H   | 176125B    |
-      | BY RLADDR         | byte load address to R            | 0FC54H   | 176132B    |
-      | H RLADDR          | halfword load address to R        | 0FC81H   | 176261B    |
-      | W RLADDR          | word load address to R            | 0BEH     | 276B       |
-      | F RLADDR          | float load address to R           | 0BEH     | 276B       |
-      | D RLADDR          | double float load address to R    | 0FCB2H  | 176262B    |
-      
-      **Operation:**  
-      addr(`<operand>`) -> R
-      
-      **Description:**  
-      
-      The address of the operand is loaded into the record register. Registers and constants have no address in memory and are illegal as operands.
-      
-      **Trap Conditions:** Addressing traps
-      
-      **Data Status Bits:** address = 0 -> Z
-      
+      ### 15.6 Load address into base register
+
+      **Format:**
+      `t BLADDR <operand/aa/t>`
+
+      | Assembly notation | Name                           | Hex code | Octal code |
+      |-------------------|--------------------------------|----------|------------|
+      | BI BLADDR         | bit load address to B          | 0FCB3H   | 176263B    |
+      | BY BLADDR         | byte load address to B         | 0FCBCH   | 176274B    |
+      | H BLADDR          | halfword load address to B     | 0FD37H   | 176467B    |
+      | W BLADDR          | word load address to B         | 0FD63H   | 176543B    |
+      | F BLADDR          | float load address to B        | 0FD63H   | 176543B    |
+      | D BLADDR          | double float load address to B | 0FD38H   | 176470B    |
+
+      **Operation:**
+      `addr(<operand>) -> B`
+
+      **Description:**
+
+      The address of the operand is loaded into the local base register.
+      Registers and constants have no address in memory and are illegal as operands.
+
+      **Trap conditions:** Addressing traps
+
+      **Data status bits:** address = 0 -> Z
+
       **Example:**
-      
-      Load R with the base address of the first stack frame below the current stack frame
-      
-          W RLADDR IND(B.0)
-      
+
+      Load B with the address of argument NEWB
+
+      `W BLADDR B.NEWB`
+
+      Norsk Data ND-05.009.4 EN
+
       ---

@@ -26,14 +26,12 @@ instruction:
       prefixes:
         - NONE
 
-      addressing_modes:
-        - NONE
-
-      operand_templates:
-        - "0x00020008"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - NONE
+          template: "0x00020008"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
 
 # Generated from nd500-opcodes
 # Instruction group: Entf

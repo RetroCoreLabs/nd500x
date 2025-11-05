@@ -29,18 +29,16 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/5
       opcode: "0x004E"
@@ -55,18 +53,16 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/5
       opcode: "0x004F"
@@ -81,18 +77,16 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 4/5
       opcode: "0x0050"
@@ -107,18 +101,16 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 5/5
       opcode: "0xFC8B"
@@ -133,66 +125,69 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001DFE0"
-
-      metadata:
-        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: Incr
 # Total variants: 5
 
+
   manual_reference:
-    section: "10.19"
-    title: "Increment"
+    section: "13.4"
+    title: "Loop with increment"
     content: |
-      ## 10.19 Increment
-      
-      **Format:**  
-      `t INCR <operand/rw/t>`
-      
-      | Assembly notation | Name                   | Hex code | Octal code |
-      |-------------------|------------------------|----------|------------|
-      | BY INCR           | byte increment         | 0FC8AH   | 176212B    |
-      | H INCR            | halfword increment     | 04EH     | 116B       |
-      | W INCR            | word increment         | 04FH     | 117B       |
-      | F INCR            | float increment        | 050H     | 120B       |
-      | D INCR            | double float increment | 0FC8BH   | 176213B    |
-      
-      **Operation:**  
-      `<operand> + 1 -> <operand>`
-      
+      ## 13.4 Loop with increment
+
+      **Format:**
+      t LOOPI 〈index/rw/t〉,〈limit/r/t〉,〈〈displacement〉〉
+
+      | Assembly notation | Name                    | Hex code | Octal code |
+      |-------------------|-------------------------|----------|------------|
+      | BY LOOPI:B        | byte loop increment     | OFCDEH   | 176336B    |
+      | BY LOOPI:H        | byte loop increment     | OFD1EH   | 176436B    |
+      | H LOOPI:B         | halfword loop increment | OFCDFH   | 176337B    |
+      | H LOOPI:H         | halfword loop increment | OFD1FH   | 176437B    |
+      | W LOOPI:B         | word loop increment     | OFBFH    | 277B       |
+      | W LOOPI:H         | word loop increment     | OE1H     | 341B       |
+      | F LOOPI:B         | float loop increment    | OFD1CH   | 176434B    |
+      | F LOOPI:H         | float loop increment    | OFD21H   | 176441B    |
+      | D LOOPI:B         | double float loop increment | OFD1DH | 176435B    |
+      | D LOOPI:H         | double float loop increment | OFD22H | 176442B    |
+
+      **Operation:**
+      if 〈index + 1〉 - 〈limit〉 > 0 then
+      &nbsp;&nbsp;&nbsp;&nbsp;address of next instruction -> P
+      else
+      &nbsp;&nbsp;&nbsp;&nbsp;P+〈〈displacement〉〉 -> P
+      endif
+      〈index〉 + 1 -> 〈index〉
+
       **Description:**
-      
-      The `<operand>` is incremented by one. The Carry bit is set if a carry occurs from the sign bit position of the adder, otherwise it is reset. Carry will occur when and only when integer -1 is incremented.
-      
-      **Trap conditions:** Addressing traps, Integer overflow (0)
-      
-      **Data status bits:**
-      
-      ```
-      sum.signbit           -> S
-      sum = 0              -> Z
-      overflow             -> O
-      carry from most significant bit -> C (integer)
-      ```
-      
-      **Example:**
-      
-      Increment the halfword record variable LOOPER and force displacement part to halfword
-      
-      ```
-      H INCR R.LOOPER:H
-      ```
-      
+
+      The 〈index〉 operand is incremented by one and compared with 〈limit〉.
+      If it is less than or equal to 〈limit〉, the signed 〈〈displacement〉〉 is
+      added to the program counter; otherwise control goes to the next instruction.
+
+      Normally the LOOPI instruction will be placed at the end of the loop,
+      with a negative 〈〈displacement〉〉. The 〈〈displacement〉〉 is the number
+      of bytes from the first byte of the loop to the first byte of the
+      LOOPI instruction.
+
+      The 〈index〉 and 〈limit〉 operands are of the same data type, which may
+      be BY, H, W, F or D. 〈〈displacement〉〉 is a byte or halfword direct
+      operand, depending on the instruction.
+
+      * * *
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---

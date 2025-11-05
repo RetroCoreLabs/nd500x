@@ -32,19 +32,17 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 2/6
       opcode: "0x0042"
@@ -60,19 +58,17 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 3/6
       opcode: "0x0043"
@@ -88,19 +84,17 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 4/6
       opcode: "0x0044"
@@ -116,19 +110,17 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 5/6
       opcode: "0x0045"
@@ -144,19 +136,17 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
     - variant: 6/6
       opcode: "0x0046"
@@ -172,64 +162,64 @@ instruction:
         - F
         - D
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-
-      operand_templates:
-        - "0x0001FFE0"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
 # Generated from nd500-opcodes
 # Instruction group: Test
 # Total variants: 6
 
+
   manual_reference:
-    section: "10.11"
-    title: "Test against zero"
+    section: "16.3"
+    title: "Test and set"
     content: |
-      ### 10.11 Test against zero
-      
-      **Format:**  
-      t TEST <operand/r/t>
-      
-      | Assembly notation | Name                     | Hex code | Octal code |
-      |-------------------|--------------------------|----------|------------|
-      | BI TEST           | bit test against zero    | 041H     | 101B       |
-      | BY TEST           | byte test against zero   | 042H     | 102B       |
-      | H TEST            | halfword test against zero | 043H   | 103B       |
-      | W TEST            | word test against zero   | 044H     | 104B       |
-      | F TEST            | float test against zero  | 045H     | 105B       |
-      | D TEST            | double test against zero | 046H     | 106B       |
-      
-      **Operation:**  
-      <operand> - 0
-      
+      ### 16.3 Test and set
+
+      **Format:**
+      BY TSET <operand/rwl/BY>
+
+      | Assembly notation | Name        | Hex code | Octal code |
+      |-------------------|-------------|----------|------------|
+      | BY TSET           | test and set| 0FD40H   | 176500B    |
+
+      **Operation:**
+
+      - lock
+        - read operand and set status bits
+        - set operand to all ones
+      - unlock
+
       **Description:**
-      
-      This instruction is similar to comparing two operands, except that the second operand is implicitly zero.
-      
-      **Trap conditions:**  
-      Addressing traps
-      
+
+      The TSET instruction performs the two necessary memory accesses uninterruptible by other processors or by channels connected to the memory system. It may therefore be used to implement processor synchronization. The TSET instruction always reads the contents of main memory, even if the addressed data are present in cache memory. The cache is updated for later references by ordinary load instructions.
+
+      The TSET instruction is valid in the MPM-IV and later memory systems. In installations using MPM-III, it will work algorithmically as specified here but the memory operations are independent and other memory accesses may interfere.
+
+      Register and constant operands are illegal, and will cause an illegal operand specifier trap condition.
+
+      **Trap conditions:** Addressing traps, Illegal operand specifier (IOS)
+
       **Data status bits:**
-      
-      - result = 0 -> Z
-      - result.signbit XOR Overflow -> S
-      - 1 -> C (integer)
-      
+
+      - operand was zero before store -> Z
+      - operand was negative before store -> S
+
       **Example:**
-      
-      Test if local byte variable COUNTER has reached zero
-      
-          BY TEST B.COUNTER
-      
+
+      Set byte variable RESERVE to all ones
+
+      BY4 TSET RESERVE
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---

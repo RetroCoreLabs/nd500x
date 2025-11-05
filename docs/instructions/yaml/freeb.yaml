@@ -25,64 +25,66 @@ instruction:
       prefixes:
         - NONE
 
-      addressing_modes:
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
-        - LOCAL
-        - RECORD
-        - CONSTANT
-        - REGISTER
-        - PRE_INDEXED
-        - ABSOLUTE
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-      operand_templates:
-        - "0x0001FFE2"
-        - "0x0001FFE8"
-
-      metadata:
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
-        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
 # Generated from nd500-opcodes
 # Instruction group: Freeb
 # Total variants: 1
+
 
   manual_reference:
     section: "15.14"
     title: "Free buddy element"
     content: |
       ### 15.14 Free buddy element
-      
+
       **Format:** FREEB `<log size/r/BY>,<element/s/W>`
-      
+
       | Assembly notation | Name      | Hex code | Octal code |
       |-------------------|-----------|----------|------------|
       | FREEB             | free buddy| 0FDB6H   | 176666B    |
-      
+
       **Operation:** Release `<element>` of size 2\*\*`<log size>` words to heap
-      
+
       **Description:**
-      
+
       The specified `<element>` is appended to the appropriate freelist of the heap. Elements are not combined; this may be done by a trap handler for the stack overflow condition.
-      
+
       The administration of the heap is described in section 3.3. When executing the FREEB instruction, the TOS register must point to the variables describing the heap.
-      
+
       Write access to the `<element>` is required, but if `<element>` is addressed with a DESC prefix, the index register is not updated.
-      
+
       **Trap conditions:** Addressing traps
-      
+
       **Data status bits:** Unaffected
-      
+
       **Example:**
-      
+
       Release string LINE of length 128 bytes to heap (LINE is a descriptor)
-      
+
           FREEB 5, IND(LINE)
-      
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---

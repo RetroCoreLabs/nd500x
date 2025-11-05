@@ -302,14 +302,15 @@ instruction:
 # Instruction group: Neg
 # Total variants: 20
 
+
   manual_reference:
     section: "10.12"
     title: "Negate"
     content: |
       # 10.12 Negate
-      
+
       **Format:** tn NEG
-      
+
       | Assembly notation | Name                               | Hex code       | Octal code       |
       |-------------------|----------------------------------- |----------------|------------------|
       | BYn NEG           | byte register negate               | 0FE08H+(n-1)   | 177010B+(n-1)    |
@@ -317,31 +318,31 @@ instruction:
       | Wn NEG            | word register negate               | 090H+(n-1)     | 220B+(n-1)       |
       | Fn NEG            | float register negate              | 094H+(n-1)     | 224B+(n-1)       |
       | Dn NEG            | double float register negate       | 094H+(n-1)     | 224B+(n-1)       |
-      
-      **Operation:**  
+
+      **Operation:**
       -Rn -> Rn
-      
+
       **Description:**
-      
+
       The contents of the specified register are negated. An integer value is negated by taking the two's complement of its value. A floating point value is negated by inverting its sign bit. Byte and halfword negate will clear the upper part of the register.
-      
+
       Integer overflow occurs if and only if the greatest negative integer is negated. Carry is zero except when integer zero is negated.
-      
+
       **Trap conditions:** Integer overflow (0)
-      
+
       **Data status bits:**
-      
-      negated register = 0 -> Z  
-      negated register.signbit -> S  
-      carry -> C  
-      overflow -> O  
-      
+
+      negated register = 0 -> Z
+      negated register.signbit -> S
+      carry -> C
+      overflow -> O
+
       **Example:**
-      
+
       Negate double precision register D3
-      
+
           D3 NEG
-      
+
       Norsk Data ND-05.009.4 EN
-      
+
       ---
