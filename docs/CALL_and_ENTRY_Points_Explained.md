@@ -4,9 +4,53 @@
 
 The ND-500 calling convention uses a two-instruction protocol where **CALL/CALLG** (caller) and **ENTR** (callee) instructions work together to pass parameters and set up the subroutine's local data area (stack frame).
 
+```mermaid
+sequenceDiagram
+    participant Caller as 📞 Caller<br/>CALLG
+    participant CPU as ⚙️ CPU
+    participant Callee as 🎯 Callee<br/>ENTS/ENTSN
+    participant Stack as 📚 Stack
+
+    Caller->>CPU: CALLG FUNC, 2, VAR1, VAR2
+    Note over CPU: Calculate effective<br/>addresses
+    CPU->>CPU: addr1 = &VAR1<br/>addr2 = &VAR2
+    CPU->>CPU: Save return address
+    CPU->>Callee: Jump to FUNC
+    Callee->>CPU: ENTSN 100, 10
+    CPU->>Stack: Allocate 100 bytes
+    CPU->>Stack: B.N = 2<br/>B.ARG1 = addr1<br/>B.ARG2 = addr2
+    Note over Callee,Stack: Stack frame ready!
+    Callee->>Stack: W1 := IND(B.ARG1)
+    Stack-->>Callee: Value from VAR1
+    Callee->>Stack: W2 := IND(B.ARG2)
+    Stack-->>Callee: Value from VAR2
+    Note over Callee: Process arguments
+    Callee->>Caller: RET
+```
+
 ## Key Concept: Address-Based Parameter Passing
 
-**CRITICAL:** The ND-500 does NOT pass parameter *values* - it passes parameter *addresses* (pointers). This is why:
+**CRITICAL:** The ND-500 does NOT pass parameter *values* - it passes parameter *addresses* (pointers).
+
+```mermaid
+graph LR
+    subgraph "❌ What ND-500 Does NOT Do"
+        A1[VAR1<br/>Value: 42] -->|"Pass value 42"| B1[Function]
+    end
+
+    subgraph "✅ What ND-500 Actually Does"
+        A2[VAR1<br/>Address: 0x1000<br/>Value: 42] -->|"Pass address 0x1000"| B2[Function]
+        B2 -->|"Dereference<br/>IND(0x1000)"| C2[Get value: 42]
+    end
+
+    style A1 fill:#ff6b6b,stroke:#c92a2a,stroke-width:3px,color:#fff
+    style B1 fill:#ff6b6b,stroke:#c92a2a,stroke-width:3px,color:#fff
+    style A2 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style B2 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style C2 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+```
+
+**This is why:**
 - Arguments must be memory locations (not registers or constants)
 - Arguments are always interpreted as word addresses
 - The callee accesses parameters by dereferencing these addresses
@@ -23,6 +67,31 @@ CALLG <subr_addr>, <no_of_args>, <arg1>, <arg2>, ..., <argn>
 ```
 
 ### Parameters Explained
+
+```mermaid
+graph TD
+    CALL["🔵 CALLG FUNC, 3, VAR1, VAR2, VAR3"]
+
+    P1["📍 Parameter 1: &lt;subr_addr&gt;<br/>Where: FUNC<br/>Must point to ENTR instruction"]
+    P2["🔢 Parameter 2: &lt;no_of_args&gt;<br/>Count: 3<br/>Must be constant byte 0-255"]
+    P3["📦 Parameters 3+: Arguments<br/>VAR1, VAR2, VAR3<br/>Memory addresses only!"]
+
+    CALL --> P1
+    CALL --> P2
+    CALL --> P3
+
+    P1 --> A1["Jump target verification"]
+    P2 --> A2["Operand count for CPU"]
+    P3 --> A3["Address calculation<br/>&VAR1, &VAR2, &VAR3"]
+
+    style CALL fill:#4c6ef5,stroke:#364fc7,stroke-width:4px,color:#fff
+    style P1 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style P2 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style P3 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style A1 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px
+    style A2 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px
+    style A3 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px
+```
 
 **Parameter 1: `<subr_addr>`** - Subroutine Address
 - **CALL**: Direct 4-byte absolute address in the instruction
@@ -44,11 +113,22 @@ CALLG <subr_addr>, <no_of_args>, <arg1>, <arg2>, ..., <argn>
 
 ### What CALL/CALLG Does
 
-1. **Calculates effective addresses** of all arguments
-2. **Stores these addresses** in a temporary area
-3. **Saves return address** (where to return after RET)
-4. **Jumps to the entry point instruction** at `<subr_addr>`
-5. The entry point instruction then initializes the stack frame
+```mermaid
+flowchart TD
+    Start([🚀 CALLG Execution Begins]) --> Step1
+    Step1[📐 Calculate effective addresses<br/>of all arguments] --> Step2
+    Step2[💾 Store addresses in<br/>temporary area] --> Step3
+    Step3[🔖 Save return address<br/>where to return after RET] --> Step4
+    Step4[🎯 Jump to entry point<br/>instruction at subr_addr] --> Step5
+    Step5[⚡ Entry instruction<br/>initializes stack frame]
+
+    style Start fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Step1 fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
+    style Step2 fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
+    style Step3 fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
+    style Step4 fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
+    style Step5 fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
+```
 
 ---
 
@@ -56,18 +136,55 @@ CALLG <subr_addr>, <no_of_args>, <arg1>, <arg2>, ..., <argn>
 
 There are multiple entry point types, each with different stack frame initialization:
 
+```mermaid
+mindmap
+  root((🎯 ENTR<br/>Entry Points))
+    ENTS
+      Stack allocation
+      Full parameter transfer
+      Reentrant ✓
+    ENTSN
+      Stack allocation
+      Limited parameters
+      Version compatible
+    ENTF
+      Static data area
+      Persistent state
+      Non-reentrant ✗
+    ENTFN
+      Static + limited params
+      Persistent state
+      Version compatible
+    ENTB
+      Heap allocation
+      Dynamic sizing
+      Slow but flexible
+    ENTD
+      No parameters
+      Minimal overhead
+      Leaf functions
+    ENTM
+      Cross-domain calls
+      New stack init
+      Module entry
+    ENTT
+      Trap handler
+      Register save
+      Error handling
+```
+
 ### Entry Point Types
 
 | Entry Point | Parameters | Purpose |
 |-------------|------------|---------|
-| **ENTS**    | `<stack_demand>` | Standard stack-based subroutine |
-| **ENTSN**   | `<stack_demand>`, `<max_args>` | Stack subroutine with argument limit |
-| **ENTF**    | `<address_of_data_area>` | Fixed (static) data area |
-| **ENTFN**   | `<address_of_data_area>`, `<max_args>` | Fixed data area with argument limit |
-| **ENTB**    | `<log_size>` | Heap-allocated block |
-| **ENTD**    | `<stack_demand>` | Direct entry (no parameter transfer) |
-| **ENTM**    | `<bottom>`, `<main_demand>`, `<total_demand>` | Module entry (new stack) |
-| **ENTT**    | `<main_demand>`, `<total_demand>` | Trap handler entry |
+| **ENTS** 🔵 | `<stack_demand>` | Standard stack-based subroutine |
+| **ENTSN** 🟢 | `<stack_demand>`, `<max_args>` | Stack subroutine with argument limit |
+| **ENTF** 🟡 | `<address_of_data_area>` | Fixed (static) data area |
+| **ENTFN** 🟠 | `<address_of_data_area>`, `<max_args>` | Fixed data area with argument limit |
+| **ENTB** 🔴 | `<log_size>` | Heap-allocated block |
+| **ENTD** ⚡ | `<stack_demand>` | Direct entry (no parameter transfer) |
+| **ENTM** 🌐 | `<bottom>`, `<main_demand>`, `<total_demand>` | Module entry (new stack) |
+| **ENTT** ⚠️ | `<main_demand>`, `<total_demand>` | Trap handler entry |
 
 ---
 
@@ -99,25 +216,37 @@ ENTSN <stack_demand>, <max_no_of_args>
 
 ### Stack Frame Layout Created by ENTS/ENTSN
 
-When ENTS or ENTSN executes, it creates this structure:
+```mermaid
+graph TD
+    subgraph "📚 Stack Frame Structure"
+        direction TB
+        B["🔵 B Register points here"]
 
-```
-        B register points here ↓
+        B --> B0["B+0: B.PREVB<br/>Previous B register value<br/>4 bytes"]
+        B0 --> B4["B+4: B.RETA<br/>Return address<br/>also copied to L register<br/>4 bytes"]
+        B4 --> B8["B+8: B.SP<br/>Stack pointer<br/>B + stack_demand<br/>4 bytes"]
+        B8 --> B12["B+12: B.AUX/LOG<br/>Auxiliary location<br/>language-specific use<br/>4 bytes"]
+        B12 --> B16["B+16: B.N<br/>Number of arguments<br/>transferred<br/>4 bytes"]
+        B16 --> B20["B+20: B.ARG1<br/>📍 Address of arg1<br/>← from CALLER<br/>4 bytes"]
+        B20 --> B24["B+24: B.ARG2<br/>📍 Address of arg2<br/>← from CALLER<br/>4 bytes"]
+        B24 --> B28["B+28: B.ARG3<br/>📍 Address of arg3<br/>← from CALLER<br/>4 bytes"]
+        B28 --> BN["B+20+4n: B.ARGn<br/>📍 More arguments...<br/>4 bytes each"]
+        BN --> LOC["🔶 Local Variables<br/>uninitialized<br/>variable size"]
+        LOC --> SP["B.SP →<br/>First free location"]
+    end
 
-Offset  Location    Content
-------  ----------  ------------------------------------------
-B+0     B.PREVB     Previous B register value (for return)
-B+4     B.RETA      Return address (also copied to L register)
-B+8     B.SP        Stack pointer (B + stack_demand)
-B+12    B.AUX       Auxiliary location (language-specific use)
-B+16    B.N         Number of arguments actually transferred
-B+20    B.ARG1      Address of first argument  ← CALLER'S <arg1> address
-B+24    B.ARG2      Address of second argument ← CALLER'S <arg2> address
-B+28    B.ARG3      Address of third argument  ← CALLER'S <arg3> address
-...     ...         ... more argument addresses ...
-B+20+4n B.ARGn      Address of nth argument
-...     ...         Local variables (uninitialized)
-        B.SP →      First free location
+    style B fill:#ff6b6b,stroke:#e03131,stroke-width:4px,color:#fff
+    style B0 fill:#ffc9c9,stroke:#ff8787,stroke-width:2px
+    style B4 fill:#ffc9c9,stroke:#ff8787,stroke-width:2px
+    style B8 fill:#ffc9c9,stroke:#ff8787,stroke-width:2px
+    style B12 fill:#ffc9c9,stroke:#ff8787,stroke-width:2px
+    style B16 fill:#a9e34b,stroke:#82c91e,stroke-width:3px,color:#000
+    style B20 fill:#69db7c,stroke:#51cf66,stroke-width:3px,color:#fff
+    style B24 fill:#69db7c,stroke:#51cf66,stroke-width:3px,color:#fff
+    style B28 fill:#69db7c,stroke:#51cf66,stroke-width:3px,color:#fff
+    style BN fill:#69db7c,stroke:#51cf66,stroke-width:3px,color:#fff
+    style LOC fill:#ffd43b,stroke:#fcc419,stroke-width:2px
+    style SP fill:#74c0fc,stroke:#339af0,stroke-width:3px,color:#fff
 ```
 
 **Key Point:** `B.ARG1`, `B.ARG2`, etc. contain the **addresses** that CALL calculated, NOT the values.
@@ -148,12 +277,25 @@ ENTFN <address_of_local_data_area>, <max_no_of_args>
 
 ### What ENTF/ENTFN Does
 
-1. Sets B register to `<address_of_local_data_area>`
-2. Saves old B in `B.PREVB`
-3. Saves return address in `B.RETA` and L register
-4. Sets `B.SP` to `oldB.SP` (no stack growth)
-5. Transfers argument addresses to `B.ARG1`, `B.ARG2`, etc.
-6. Sets `B.N` to number of arguments
+```mermaid
+flowchart LR
+    Start([ENTF/ENTFN]) --> S1[Set B to data area address]
+    S1 --> S2[Save old B in B.PREVB]
+    S2 --> S3[Save return in B.RETA and L]
+    S3 --> S4[Set B.SP = oldB.SP<br/>no stack growth]
+    S4 --> S5[Transfer arg addresses<br/>to B.ARG1, B.ARG2...]
+    S5 --> S6[Set B.N = arg count]
+    S6 --> Done([Ready])
+
+    style Start fill:#f783ac,stroke:#e64980,stroke-width:3px,color:#fff
+    style S1 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
+    style S2 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
+    style S3 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
+    style S4 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
+    style S5 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
+    style S6 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
+    style Done fill:#f783ac,stroke:#e64980,stroke-width:3px,color:#fff
+```
 
 **Use Case:** Functions with persistent state (e.g., random number generator with seed)
 
@@ -171,6 +313,29 @@ ENTB <log_size>
 - Allocates a block from the heap
 - Block size = 2^(log_size) bytes
 - Example: `ENTB 8` allocates 256 bytes (2^8)
+
+```mermaid
+graph LR
+    L5[log_size = 5] -->|2^5| B32[32 bytes]
+    L6[log_size = 6] -->|2^6| B64[64 bytes]
+    L7[log_size = 7] -->|2^7| B128[128 bytes]
+    L8[log_size = 8] -->|2^8| B256[256 bytes]
+    L9[log_size = 9] -->|2^9| B512[512 bytes]
+    L10[log_size = 10] -->|2^10| B1024[1024 bytes]
+
+    style L5 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style L6 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style L7 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style L8 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style L9 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style L10 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style B32 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+    style B64 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+    style B128 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+    style B256 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+    style B512 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+    style B1024 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+```
 
 ### What ENTB Does
 
@@ -194,6 +359,25 @@ ENTD <stack_demand>
 **Parameter: `<stack_demand>`** - Stack space (unused)
 
 ### What ENTD Does
+
+```mermaid
+graph TD
+    ENTD[⚡ ENTD<br/>Minimal Entry] --> Only[Only one action]
+    Only --> Ret[Copy return address<br/>to L register]
+    Ret --> Done[✅ Done!<br/>Fastest entry type]
+
+    No1[❌ No stack frame]
+    No2[❌ No parameter transfer]
+    No3[❌ Must be called with 0 args]
+
+    style ENTD fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
+    style Only fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style Ret fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style Done fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style No1 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style No2 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style No3 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+```
 
 **MINIMAL SETUP:**
 - Only copies return address to L register
@@ -221,18 +405,64 @@ VALUE:   .SPACE  4          ; Local variable on stack at B.16
 CALLG PRINT, 3, UNIT, FORMAT, B.VALUE
 ```
 
-### What Happens During CALLG
+### Complete Call Flow Diagram
 
-1. **Calculate effective addresses:**
-   - arg1 address = &UNIT (absolute address of UNIT)
-   - arg2 address = &FORMAT (absolute address of FORMAT)
-   - arg3 address = B + 16 (effective address of local variable)
+```mermaid
+sequenceDiagram
+    autonumber
 
-2. **Store these three addresses** in temporary area
+    participant Memory as 💾 Memory<br/>UNIT=5<br/>FORMAT=0x100<br/>VALUE@B+16
+    participant Caller as 📞 Caller Code
+    participant CPU as ⚙️ CPU
+    participant Stack as 📚 Stack
+    participant Print as 🖨️ PRINT<br/>Subroutine
 
-3. **Save return address** (address of instruction after CALLG)
+    rect rgb(230, 242, 255)
+        Note over Caller,CPU: CALLG Execution Phase
+        Caller->>CPU: CALLG PRINT, 3, UNIT, FORMAT, B.VALUE
+        CPU->>Memory: Calculate &UNIT
+        Memory-->>CPU: 0x2000
+        CPU->>Memory: Calculate &FORMAT
+        Memory-->>CPU: 0x2004
+        CPU->>Memory: Calculate B+16
+        Memory-->>CPU: 0x3010
+        Note over CPU: Store addresses:<br/>addr1=0x2000<br/>addr2=0x2004<br/>addr3=0x3010
+        CPU->>CPU: Save return address
+    end
 
-4. **Jump to PRINT** (which must start with an ENTR instruction)
+    rect rgb(230, 255, 237)
+        Note over CPU,Stack: ENTSN Execution Phase
+        CPU->>Print: Jump to PRINT
+        Print->>CPU: ENTSN 100, 10
+        CPU->>Stack: Allocate 100 bytes
+        CPU->>Stack: Initialize header<br/>B.PREVB, B.RETA, B.SP
+        CPU->>Stack: B.N = 3
+        CPU->>Stack: B.ARG1 = 0x2000 (addr of UNIT)
+        CPU->>Stack: B.ARG2 = 0x2004 (addr of FORMAT)
+        CPU->>Stack: B.ARG3 = 0x3010 (addr of VALUE)
+    end
+
+    rect rgb(255, 243, 224)
+        Note over Print,Memory: Argument Access Phase
+        Print->>Stack: W1 := IND(B.ARG1)
+        Stack->>Memory: Read from 0x2000
+        Memory-->>Print: W1 = 5
+        Print->>Stack: W2 := IND(B.ARG2)
+        Stack->>Memory: Read from 0x2004
+        Memory-->>Print: W2 = 0x100
+        Print->>Stack: W3 := IND(B.ARG3)
+        Stack->>Memory: Read from 0x3010
+        Memory-->>Print: W3 = (value from caller's stack)
+    end
+
+    rect rgb(255, 230, 230)
+        Note over Print,Caller: Return Phase
+        Print->>CPU: RET instruction
+        CPU->>Stack: Read B.RETA
+        Stack-->>CPU: Return address
+        CPU->>Caller: Jump back
+    end
+```
 
 ### Callee Code (PRINT subroutine)
 ```asm
@@ -255,6 +485,48 @@ PRINT:
     RET                 ; Return to caller
 ```
 
+### Address vs Value Visualization
+
+```mermaid
+graph TD
+    subgraph "🎯 Inside PRINT Subroutine"
+        SF["📚 Stack Frame"]
+
+        ARG1["B.ARG1 = 0x2000<br/>📍 This is an ADDRESS"]
+        ARG2["B.ARG2 = 0x2004<br/>📍 This is an ADDRESS"]
+        ARG3["B.ARG3 = 0x3010<br/>📍 This is an ADDRESS"]
+
+        SF --> ARG1
+        SF --> ARG2
+        SF --> ARG3
+
+        ARG1 -->|"IND()<br/>Dereference"| V1["💎 Value = 5<br/>from UNIT"]
+        ARG2 -->|"IND()<br/>Dereference"| V2["💎 Value = 0x100<br/>from FORMAT"]
+        ARG3 -->|"IND()<br/>Dereference"| V3["💎 Value from<br/>caller's VALUE"]
+    end
+
+    subgraph "💾 Memory"
+        M1["0x2000: UNIT<br/>Value = 5"]
+        M2["0x2004: FORMAT<br/>Value = 0x100"]
+        M3["0x3010: VALUE<br/>Value = ???"]
+    end
+
+    ARG1 -.->|"points to"| M1
+    ARG2 -.->|"points to"| M2
+    ARG3 -.->|"points to"| M3
+
+    style SF fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
+    style ARG1 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style ARG2 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style ARG3 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style V1 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style V2 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style V3 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style M1 fill:#ffd43b,stroke:#fab005,stroke-width:2px
+    style M2 fill:#ffd43b,stroke:#fab005,stroke-width:2px
+    style M3 fill:#ffd43b,stroke:#fab005,stroke-width:2px
+```
+
 ### Key Insight
 
 The callee **must dereference** `B.ARG1`, `B.ARG2`, etc. using **IND()** to get the actual values:
@@ -274,6 +546,35 @@ You might wonder: why does CALL need both `<no_of_args>` AND the argument list? 
 The ND-500 has complex addressing modes. The CPU can't easily tell where one operand ends and the next begins without decoding each one. The `<no_of_args>` parameter tells the CPU exactly how many operands to decode.
 
 ### Reason 2: ENTSN/ENTFN Argument Limiting
+
+```mermaid
+flowchart TD
+    Caller["📞 Caller passes 5 arguments<br/>CALLG SUBR, 5, A1, A2, A3, A4, A5"]
+
+    Caller --> Entry["🎯 ENTSN 100, 3<br/>max_args = 3"]
+
+    Entry --> Transfer[Transfer Phase]
+
+    Transfer --> T1["✅ Transfer A1 → B.ARG1"]
+    Transfer --> T2["✅ Transfer A2 → B.ARG2"]
+    Transfer --> T3["✅ Transfer A3 → B.ARG3"]
+    Transfer --> T4["❌ Ignore A4"]
+    Transfer --> T5["❌ Ignore A5"]
+
+    T1 --> Result["B.N = 3<br/>not 5!"]
+    T2 --> Result
+    T3 --> Result
+
+    style Caller fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Entry fill:#7950f2,stroke:#6741d9,stroke-width:3px,color:#fff
+    style Transfer fill:#9775fa,stroke:#7950f2,stroke-width:2px,color:#fff
+    style T1 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style T2 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style T3 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style T4 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style T5 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style Result fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
+```
 
 The `<max_no_of_args>` parameter on ENTSN/ENTFN allows the callee to limit how many arguments it accepts:
 
@@ -295,6 +596,32 @@ This enables **versioning**: older code with fewer parameters can call newer fun
 ## Argument Restrictions
 
 ### Cannot Use Registers or Constants
+
+```mermaid
+graph TD
+    subgraph "❌ ILLEGAL Examples"
+        I1["CALLG SUBR, 2, W1, 42"] --> E1["❌ TRAP!<br/>Illegal Operand Specifier"]
+        I2["CALLG SUBR, 1, 100"] --> E2["❌ TRAP!<br/>No address for constant"]
+        I3["CALLG SUBR, 1, F2"] --> E3["❌ TRAP!<br/>Registers have no address"]
+    end
+
+    subgraph "✅ CORRECT Approach"
+        C1["TEMP1: .WORD 0<br/>TEMP2: .WORD 42"] --> C2["W1 := TEMP1"]
+        C2 --> C3["CALLG SUBR, 2, TEMP1, TEMP2"]
+        C3 --> C4["✅ Works!<br/>Memory has addresses"]
+    end
+
+    style I1 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style I2 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style I3 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style E1 fill:#f03e3e,stroke:#c92a2a,stroke-width:3px,color:#fff
+    style E2 fill:#f03e3e,stroke:#c92a2a,stroke-width:3px,color:#fff
+    style E3 fill:#f03e3e,stroke:#c92a2a,stroke-width:3px,color:#fff
+    style C1 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style C2 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style C3 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style C4 fill:#37b24d,stroke:#2b8a3e,stroke-width:3px,color:#fff
+```
 
 ```asm
 ; ILLEGAL - Will cause trap!
@@ -328,6 +655,29 @@ CALLG SUBR, 1, TEMP    ; Pass address of result
 ---
 
 ## Entry Point Mismatches
+
+### Error Detection
+
+```mermaid
+graph TD
+    Call["CALLG SUBR, 3, A1, A2, A3"] --> CPU["⚙️ CPU"]
+
+    CPU --> Check{Is target an<br/>ENTR instruction?}
+
+    Check -->|Yes| ArgCheck{Does arg count<br/>match entry type?}
+    Check -->|No| ISE1["⚠️ TRAP!<br/>Instruction Sequence Error<br/>Not an entry point"]
+
+    ArgCheck -->|Match| OK["✅ Proceed"]
+    ArgCheck -->|Mismatch| ISE2["⚠️ TRAP!<br/>Instruction Sequence Error<br/>Wrong arg count"]
+
+    style Call fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
+    style CPU fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style Check fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
+    style ArgCheck fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
+    style ISE1 fill:#ff6b6b,stroke:#e03131,stroke-width:3px,color:#fff
+    style ISE2 fill:#ff6b6b,stroke:#e03131,stroke-width:3px,color:#fff
+    style OK fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+```
 
 ### What Happens If You Call The Wrong Entry Point?
 
@@ -376,6 +726,39 @@ LABEL:
 
 Inside the subroutine, access arguments through the B register:
 
+```mermaid
+graph TD
+    subgraph "Method 1: Direct Indexed Access"
+        M1A["W1 := IND(B.20)"] --> M1B["B.N - number of args"]
+        M1C["W2 := IND(B.24)"] --> M1D["B.ARG1 - first arg"]
+        M1E["W3 := IND(B.28)"] --> M1F["B.ARG2 - second arg"]
+    end
+
+    subgraph "Method 2: Named Access"
+        M2A["Define: N = 20<br/>ARG1 = 24<br/>ARG2 = 28"] --> M2B["W1 := IND(B.N)"]
+        M2B --> M2C["W2 := IND(B.ARG1)"]
+        M2C --> M2D["W3 := IND(B.ARG2)"]
+    end
+
+    subgraph "Method 3: Two-Step"
+        M3A["W1 := B.ARG1"] --> M3B["W1 = address"]
+        M3B --> M3C["W2 := IND(W1)"]
+        M3C --> M3D["W2 = value"]
+    end
+
+    style M1A fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
+    style M1C fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
+    style M1E fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
+    style M2A fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style M2B fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style M2C fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style M2D fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style M3A fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style M3B fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style M3C fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style M3D fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+```
+
 ### Method 1: Direct Indexed Access
 ```asm
 SUBR:
@@ -419,6 +802,40 @@ SUBR:
 ---
 
 ## Real-World Example: String Copy Function
+
+### Complete strcpy Implementation
+
+```mermaid
+flowchart TD
+    Start([🚀 STRCPY Entry]) --> Entry["ENTSN 40, 2<br/>Allocate frame<br/>Accept max 2 args"]
+
+    Entry --> Check["Check B.N = 2?"]
+    Check -->|"B.N ≠ 2"| Error["❌ ERROR:<br/>Wrong arg count"]
+    Check -->|"B.N = 2"| Load["Load addresses:<br/>W1 := IND(B.ARG1)<br/>W2 := IND(B.ARG2)"]
+
+    Load --> Loop["🔄 LOOP:<br/>BY1 := IND(W1)<br/>Load byte from source"]
+    Loop --> Store["IND(W2) := BY1<br/>Store byte to dest"]
+    Store --> Inc1["W1 + 1<br/>Increment source"]
+    Inc1 --> Inc2["W2 + 1<br/>Increment dest"]
+    Inc2 --> Test["BY1 - 0<br/>Null terminator?"]
+
+    Test -->|"Not zero"| Loop
+    Test -->|"Zero"| Return["✅ RET<br/>Return to caller"]
+
+    Error --> Return
+
+    style Start fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Entry fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
+    style Check fill:#ffd43b,stroke:#fab005,stroke-width:2px,color:#000
+    style Load fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
+    style Loop fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style Store fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style Inc1 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+    style Inc2 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+    style Test fill:#ffd43b,stroke:#fab005,stroke-width:2px,color:#000
+    style Return fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Error fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+```
 
 ### Caller
 ```asm
@@ -464,6 +881,27 @@ ERROR:
 ## Common Pitfalls
 
 ### 1. Forgetting to Dereference
+
+```mermaid
+graph LR
+    subgraph "❌ WRONG"
+        W1["W1 := B.ARG1<br/>W2 := B.ARG2"] --> W2["W1 - W2"]
+        W2 --> W3["Compares ADDRESSES<br/>not values!"]
+    end
+
+    subgraph "✅ CORRECT"
+        C1["W1 := IND(B.ARG1)<br/>W2 := IND(B.ARG2)"] --> C2["W1 - W2"]
+        C2 --> C3["Compares VALUES<br/>at those addresses"]
+    end
+
+    style W1 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style W2 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style W3 fill:#f03e3e,stroke:#c92a2a,stroke-width:3px,color:#fff
+    style C1 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style C2 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style C3 fill:#37b24d,stroke:#2b8a3e,stroke-width:3px,color:#fff
+```
+
 ```asm
 ; WRONG - Compares addresses, not values!
 W1 := B.ARG1
@@ -477,6 +915,7 @@ W1 - W2             ; Compares the values at those addresses
 ```
 
 ### 2. Using Wrong Stack Demand
+
 ```asm
 SUBR:
     ; Need: 20 (header) + 16 (4 local words) = 36 bytes
@@ -487,6 +926,7 @@ SUBR:
 ```
 
 ### 3. Passing Too Many Arguments with ENTSN
+
 ```asm
 ; Caller passes 10 arguments
 CALLG SUBR, 10, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10
@@ -500,6 +940,25 @@ SUBR:
 ```
 
 ### 4. Modifying Caller's Data Unintentionally
+
+```mermaid
+graph TD
+    Caller["📞 Caller<br/>VAR = 100"] --> Call["CALLG FUNC, 1, VAR"]
+    Call --> Func["🎯 Function"]
+    Func --> Load["W1 := IND(B.ARG1)<br/>W1 = address of VAR"]
+    Load --> Mod["W2 := 999<br/>IND(W1) := W2"]
+    Mod --> Ret["RET"]
+    Ret --> Result["😱 Caller's VAR<br/>now = 999!"]
+
+    style Caller fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
+    style Call fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style Func fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style Load fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style Mod fill:#ff9800,stroke:#f57c00,stroke-width:3px,color:#fff
+    style Ret fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style Result fill:#ff6b6b,stroke:#e03131,stroke-width:3px,color:#fff
+```
+
 ```asm
 ; Since arguments are passed by reference, modifications affect caller!
 SUBR:
@@ -518,6 +977,34 @@ This is by design - allows **output parameters**.
 
 ## Advanced: Cross-Domain Calls
 
+```mermaid
+graph TD
+    Start["Domain A"] --> CallG["CALLG routine<br/>in Domain B"]
+    CallG --> Switch{Entry point<br/>type?}
+
+    Switch -->|ENTM| OK["✅ Allowed<br/>Cross-domain call"]
+    Switch -->|Other| ERR["❌ TRAP!<br/>Only ENTM can be<br/>called cross-domain"]
+
+    OK --> Save["Save context:<br/>TOS, LL, HL, THA<br/>→ Domain A table"]
+    Save --> Load["Load context:<br/>Domain B table<br/>→ TOS, LL, HL, THA"]
+    Load --> Exec["Execute in<br/>Domain B"]
+    Exec --> Return["RET"]
+    Return --> Restore["Restore context:<br/>Domain A table<br/>→ TOS, LL, HL, THA"]
+    Restore --> Back["Back to<br/>Domain A"]
+
+    style Start fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
+    style CallG fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style Switch fill:#ffd43b,stroke:#fab005,stroke-width:2px,color:#000
+    style OK fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style ERR fill:#ff6b6b,stroke:#e03131,stroke-width:3px,color:#fff
+    style Save fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style Load fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style Exec fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style Return fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style Restore fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style Back fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
+```
+
 Only **ENTM** (enter module) can be called from another domain. All other entry points are intra-domain only.
 
 When calling across domains:
@@ -532,22 +1019,41 @@ When calling across domains:
 
 ## Performance Considerations
 
-### Fastest: ENTD
+```mermaid
+graph LR
+    subgraph "⚡ Speed Ranking"
+        ENTD["1️⃣ ENTD<br/>⚡⚡⚡⚡⚡<br/>Fastest<br/>Just return addr"]
+        ENTS["2️⃣ ENTS<br/>⚡⚡⚡⚡<br/>Fast<br/>Stack + params"]
+        ENTF["3️⃣ ENTF/ENTFN<br/>⚡⚡⚡<br/>Slower<br/>Static + params"]
+        ENTB["4️⃣ ENTB<br/>⚡⚡<br/>Slowest<br/>Heap allocation"]
+    end
+
+    ENTD --> ENTS
+    ENTS --> ENTF
+    ENTF --> ENTB
+
+    style ENTD fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style ENTS fill:#a9e34b,stroke:#82c91e,stroke-width:3px,color:#000
+    style ENTF fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
+    style ENTB fill:#ff9800,stroke:#f57c00,stroke-width:3px,color:#fff
+```
+
+### Fastest: ENTD ⚡⚡⚡⚡⚡
 - No parameter transfer
 - No stack frame setup
 - Just return address → L
 
-### Fast: ENTS
+### Fast: ENTS ⚡⚡⚡⚡
 - Stack frame setup
 - Parameter address transfer
 - Good for most subroutines
 
-### Slower: ENTF/ENTFN
+### Slower: ENTF/ENTFN ⚡⚡⚡
 - Static allocation
 - Parameters still transferred
 - Non-reentrant limitation
 
-### Slowest: ENTB
+### Slowest: ENTB ⚡⚡
 - Heap allocation overhead
 - Memory management
 - Best for large/variable-sized structures
@@ -555,6 +1061,36 @@ When calling across domains:
 ---
 
 ## Conclusion
+
+```mermaid
+mindmap
+  root((🎯 ND-500<br/>Calling Convention))
+    📞 CALL/CALLG
+      Calculates addresses
+      Saves return addr
+      Jumps to entry
+    🔑 Key Concept
+      Pass ADDRESSES
+      Not values
+      Call by reference
+    🎯 Entry Points
+      ENTS: Stack
+      ENTSN: Limited args
+      ENTF: Static
+      ENTB: Heap
+      ENTD: Minimal
+    📚 Stack Frame
+      B.PREVB
+      B.RETA
+      B.N
+      B.ARG1+
+      Local vars
+    ✨ Benefits
+      Efficient passing
+      Output parameters
+      Flexible memory
+      Version compatible
+```
 
 The ND-500 calling convention is sophisticated:
 
