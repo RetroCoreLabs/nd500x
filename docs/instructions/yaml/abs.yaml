@@ -300,3 +300,123 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Abs
 # Total variants: 20
+
+  manual_reference:
+    section: "10.15"
+    title: "Absolute value"
+    content: |
+      ## 10.15 Absolute value
+      
+      **Format:** tn ABS
+      
+      | Assembly notation | Name                       | Hex code     | Octal code       |
+      |-------------------|----------------------------|--------------|------------------|
+      | BYn ABS           | byte absolute value        | OFF00H+(n-1) | 177400B+(n-1)    |
+      | Hn ABS            | halfword absolute value    | OFF04H+(n-1) | 177404B+(n-1)    |
+      | Wn ABS            | word absolute value        | OFF08H+(n-1) | 177410B+(n-1)    |
+      | Fn ABS            | float absolute value       | OFF0CH+(n-1) | 177414B+(n-1)    |
+      | Dn ABS            | double float absolute value| OFF0CH+(n-1) | 177414B+(n-1)    |
+      
+      **Operation:** Absolute value of Rn -> Rn
+      
+      **Description:**
+      
+      The absolute value of the contents of the specified register is calculated and stored in the same register. When the datatype is either BY or H, the result is stored in the least significant bits and the rest of the register is cleared. Overflow occurs if and only if the greatest negative integer is negated.
+      
+      **Trap conditions:** Integer overflow (0)
+      
+      **Data status bits:**
+      
+      - result = 0 -> Z
+      - 0 -> S
+      - overflow -> O (integer)
+      
+      **Example:**
+      
+      Take the absolute value of double precision register D1
+      
+          D1 ABS
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "10.15"
+    title: "Absolute value"
+    content: |
+      ## 10.15 Absolute value
+      
+      **Format:** tn ABS
+      
+      | Assembly notation | Name                       | Hex code     | Octal code       |
+      |-------------------|----------------------------|--------------|------------------|
+      | BYn ABS           | byte absolute value        | OFF00H+(n-1) | 177400B+(n-1)    |
+      | Hn ABS            | halfword absolute value    | OFF04H+(n-1) | 177404B+(n-1)    |
+      | Wn ABS            | word absolute value        | OFF08H+(n-1) | 177410B+(n-1)    |
+      | Fn ABS            | float absolute value       | OFF0CH+(n-1) | 177414B+(n-1)    |
+      | Dn ABS            | double float absolute value| OFF0CH+(n-1) | 177414B+(n-1)    |
+      
+      **Operation:** Absolute value of Rn -> Rn
+      
+      **Description:**
+      
+      The absolute value of the contents of the specified register is calculated and stored in the same register. When the datatype is either BY or H, the result is stored in the least significant bits and the rest of the register is cleared. Overflow occurs if and only if the greatest negative integer is negated.
+      
+      **Trap conditions:** Integer overflow (0)
+      
+      **Data status bits:**
+      
+      - result = 0 -> Z
+      - 0 -> S
+      - overflow -> O (integer)
+      
+      **Example:**
+      
+      Take the absolute value of double precision register D1
+      
+          D1 ABS
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "10.15"
+    title: "Absolute value"
+    content: |
+      ## 10.15 Absolute value
+      
+      **Format:** tn ABS
+      
+      | Assembly notation | Name                       | Hex code     | Octal code       |
+      |-------------------|----------------------------|--------------|------------------|
+      | BYn ABS           | byte absolute value        | OFF00H+(n-1) | 177400B+(n-1)    |
+      | Hn ABS            | halfword absolute value    | OFF04H+(n-1) | 177404B+(n-1)    |
+      | Wn ABS            | word absolute value        | OFF08H+(n-1) | 177410B+(n-1)    |
+      | Fn ABS            | float absolute value       | OFF0CH+(n-1) | 177414B+(n-1)    |
+      | Dn ABS            | double float absolute value| OFF0CH+(n-1) | 177414B+(n-1)    |
+      
+      **Operation:** Absolute value of Rn -> Rn
+      
+      **Description:**
+      
+      The absolute value of the contents of the specified register is calculated and stored in the same register. When the datatype is either BY or H, the result is stored in the least significant bits and the rest of the register is cleared. Overflow occurs if and only if the greatest negative integer is negated.
+      
+      **Trap conditions:** Integer overflow (0)
+      
+      **Data status bits:**
+      
+      - result = 0 -> Z
+      - 0 -> S
+      - overflow -> O (integer)
+      
+      **Example:**
+      
+      Take the absolute value of double precision register D1
+      
+          D1 ABS
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

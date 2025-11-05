@@ -452,3 +452,27 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Or
 # Total variants: 16
+
+  manual_reference:
+    section: "10.3"
+    title: "Load record register"
+    content: |
+      ## 10.3 Load record register
+      
+      125
+
+  manual_reference:
+    section: "10.3"
+    title: "Load record register"
+    content: |
+      ## 10.3 Load record register
+      
+      125
+
+  manual_reference:
+    section: "10.3"
+    title: "Load record register"
+    content: |
+      ## 10.3 Load record register
+      
+      125

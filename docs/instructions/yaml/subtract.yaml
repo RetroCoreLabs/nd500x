@@ -580,3 +580,93 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Subtract
 # Total variants: 20
+
+  manual_reference:
+    section: "11.2"
+    title: "Subtract"
+    content: |
+      # 11.2 Subtract
+      
+      **Format:** tn - `<subtrahend/r/t>`
+      
+      | Assembly notation | Name                    | Hex code        | Octal code        |
+      |-------------------|-------------------------|-----------------|-------------------|
+      | BYn               | byte subtract           | OFC3CH+(n-1)    | 176074B+(n-1)     |
+      | Hn                | halfword subtract       | OFC40H+(n-1)    | 176100B+(n-1)     |
+      | Wn                | word subtract           | 060H+(n-1)      | 140B+(n-1)        |
+      | Fn                | float subtract          | 064H+(n-1)      | 144B+(n-1)        |
+      | Dn                | double float subtract   | 068H+(n-1)      | 150B+(n-1)        |
+      
+      **Operation:** Rn - `<subtrahend>` -> Rn
+      
+      **Description:**
+      
+      The `<subtrahend>` operand is subtracted from the contents of the specified register. The same rules as for ADD apply for the setting of the carry bit. For overflow, see section on arithmetical traps.
+      
+      **Trap conditions:** Addressing traps, Integer overflow (0), Floating overflow (FO), Floating underflow (FU)
+      
+      **Data status bits:**
+      
+      - difference = 0 -> Z
+      - difference.signbit -> S
+      - overflow -> O
+      - carry from the most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> FO
+      
+      **Example:**
+      
+      Subtract the contents of register F1 from the contents of register F4
+      
+      F4 - F1
+      
+      ---
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "11.2"
+    title: "Subtract"
+    content: |
+      # 11.2 Subtract
+      
+      **Format:** tn - `<subtrahend/r/t>`
+      
+      | Assembly notation | Name                    | Hex code        | Octal code        |
+      |-------------------|-------------------------|-----------------|-------------------|
+      | BYn               | byte subtract           | OFC3CH+(n-1)    | 176074B+(n-1)     |
+      | Hn                | halfword subtract       | OFC40H+(n-1)    | 176100B+(n-1)     |
+      | Wn                | word subtract           | 060H+(n-1)      | 140B+(n-1)        |
+      | Fn                | float subtract          | 064H+(n-1)      | 144B+(n-1)        |
+      | Dn                | double float subtract   | 068H+(n-1)      | 150B+(n-1)        |
+      
+      **Operation:** Rn - `<subtrahend>` -> Rn
+      
+      **Description:**
+      
+      The `<subtrahend>` operand is subtracted from the contents of the specified register. The same rules as for ADD apply for the setting of the carry bit. For overflow, see section on arithmetical traps.
+      
+      **Trap conditions:** Addressing traps, Integer overflow (0), Floating overflow (FO), Floating underflow (FU)
+      
+      **Data status bits:**
+      
+      - difference = 0 -> Z
+      - difference.signbit -> S
+      - overflow -> O
+      - carry from the most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> FO
+      
+      **Example:**
+      
+      Subtract the contents of register F1 from the contents of register F4
+      
+      F4 - F1
+      
+      ---
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

@@ -116,3 +116,27 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sha
 # Total variants: 3
+
+  manual_reference:
+    section: "10.25"
+    title: "Arithmetical shift"
+    content: |
+      ## 10.25 Arithmetical shift
+      
+      147
+
+  manual_reference:
+    section: "10.25"
+    title: "Arithmetical shift"
+    content: |
+      ## 10.25 Arithmetical shift
+      
+      147
+
+  manual_reference:
+    section: "10.25"
+    title: "Arithmetical shift"
+    content: |
+      ## 10.25 Arithmetical shift
+      
+      147

@@ -116,3 +116,123 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Shl
 # Total variants: 3
+
+  manual_reference:
+    section: "10.24"
+    title: "Logical shift"
+    content: |
+      # 10.24 Logical shift
+      
+      **Format:**  
+      t SHL <operand/rw/t>,<shiftcount/r/BY>  
+      
+      **Assembly notation**
+      
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BY SHL | byte shift logically | OFCA8H | 176250B |
+      | H SHL  | halfword shift logically | OFCA9H | 176251B |
+      | W SHL  | word shift logically | OFCAAH | 176252B |
+      
+      **Operation:** logically shifted <operand> -> <operand>
+      
+      **Description:**
+      
+      A logical shift is performed on the byte, halfword or word operand. <shiftcount> is interpreted as a signed byte. Positive <shiftcount> implies left shift, negative <shiftcount> implies right shift. A shiftcount equal to or greater than the size of the operand will produce an illegal operand value trap condition. A shiftcount of zero is legal and leaves the operand unchanged.
+      
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+      
+      **Data status bits:**
+      
+      shifted operand = 0 -> Z  
+      shifted operand.signbit -> S  
+      
+      **Example:**
+      
+      Shift local word COUNT TWOFACTORS places  
+      
+          W SHL B.COUNT, TWOFACTORS
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "10.24"
+    title: "Logical shift"
+    content: |
+      # 10.24 Logical shift
+      
+      **Format:**  
+      t SHL <operand/rw/t>,<shiftcount/r/BY>  
+      
+      **Assembly notation**
+      
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BY SHL | byte shift logically | OFCA8H | 176250B |
+      | H SHL  | halfword shift logically | OFCA9H | 176251B |
+      | W SHL  | word shift logically | OFCAAH | 176252B |
+      
+      **Operation:** logically shifted <operand> -> <operand>
+      
+      **Description:**
+      
+      A logical shift is performed on the byte, halfword or word operand. <shiftcount> is interpreted as a signed byte. Positive <shiftcount> implies left shift, negative <shiftcount> implies right shift. A shiftcount equal to or greater than the size of the operand will produce an illegal operand value trap condition. A shiftcount of zero is legal and leaves the operand unchanged.
+      
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+      
+      **Data status bits:**
+      
+      shifted operand = 0 -> Z  
+      shifted operand.signbit -> S  
+      
+      **Example:**
+      
+      Shift local word COUNT TWOFACTORS places  
+      
+          W SHL B.COUNT, TWOFACTORS
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "10.24"
+    title: "Logical shift"
+    content: |
+      # 10.24 Logical shift
+      
+      **Format:**  
+      t SHL <operand/rw/t>,<shiftcount/r/BY>  
+      
+      **Assembly notation**
+      
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BY SHL | byte shift logically | OFCA8H | 176250B |
+      | H SHL  | halfword shift logically | OFCA9H | 176251B |
+      | W SHL  | word shift logically | OFCAAH | 176252B |
+      
+      **Operation:** logically shifted <operand> -> <operand>
+      
+      **Description:**
+      
+      A logical shift is performed on the byte, halfword or word operand. <shiftcount> is interpreted as a signed byte. Positive <shiftcount> implies left shift, negative <shiftcount> implies right shift. A shiftcount equal to or greater than the size of the operand will produce an illegal operand value trap condition. A shiftcount of zero is legal and leaves the operand unchanged.
+      
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+      
+      **Data status bits:**
+      
+      shifted operand = 0 -> Z  
+      shifted operand.signbit -> S  
+      
+      **Example:**
+      
+      Shift local word COUNT TWOFACTORS places  
+      
+          W SHL B.COUNT, TWOFACTORS
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

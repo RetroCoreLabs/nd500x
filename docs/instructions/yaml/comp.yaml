@@ -717,3 +717,27 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Comp
 # Total variants: 24
+
+  manual_reference:
+    section: "10.9"
+    title: "Compare"
+    content: |
+      ## 10.9 Compare
+      
+      131
+
+  manual_reference:
+    section: "10.9"
+    title: "Compare"
+    content: |
+      ## 10.9 Compare
+      
+      131
+
+  manual_reference:
+    section: "10.9"
+    title: "Compare"
+    content: |
+      ## 10.9 Compare
+      
+      131

@@ -452,3 +452,27 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: And
 # Total variants: 16
+
+  manual_reference:
+    section: "10.10"
+    title: "Compare two operands"
+    content: |
+      ## 10.10 Compare two operands
+      
+      132
+
+  manual_reference:
+    section: "10.10"
+    title: "Compare two operands"
+    content: |
+      ## 10.10 Compare two operands
+      
+      132
+
+  manual_reference:
+    section: "10.10"
+    title: "Compare two operands"
+    content: |
+      ## 10.10 Compare two operands
+      
+      132
