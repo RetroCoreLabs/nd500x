@@ -16,7 +16,7 @@ instruction:
   operand_count: 3
 
   variants:
-    - variant: 1/3
+    - variant: 1/12
       opcode: "0xFD14"
       opcode_binary: "1111_1101_0001_0100"
       opcode_decimal: 64788
@@ -62,7 +62,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/3
+    - variant: 2/12
       opcode: "0xFD15"
       opcode_binary: "1111_1101_0001_0101"
       opcode_decimal: 64789
@@ -108,7 +108,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/3
+    - variant: 3/12
       opcode: "0xFD16"
       opcode_binary: "1111_1101_0001_0110"
       opcode_decimal: 64790
@@ -154,7 +154,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/3
+    - variant: 4/12
       opcode: "0xFD17"
       opcode_binary: "1111_1101_0001_0111"
       opcode_decimal: 64791
@@ -200,7 +200,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/3
+    - variant: 5/12
       opcode: "0xFD18"
       opcode_binary: "1111_1101_0001_1000"
       opcode_decimal: 64792
@@ -246,7 +246,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/3
+    - variant: 6/12
       opcode: "0xFD19"
       opcode_binary: "1111_1101_0001_1001"
       opcode_decimal: 64793
@@ -292,7 +292,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/3
+    - variant: 7/12
       opcode: "0xFD1A"
       opcode_binary: "1111_1101_0001_1010"
       opcode_decimal: 64794
@@ -338,7 +338,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/3
+    - variant: 8/12
       opcode: "0xFD1B"
       opcode_binary: "1111_1101_0001_1011"
       opcode_decimal: 64795
@@ -384,7 +384,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 3/3
+    - variant: 9/12
       opcode: "0x00B0"
       opcode_binary: "0000_0000_1011_0000"
       opcode_decimal: 176
@@ -430,7 +430,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 3/3
+    - variant: 10/12
       opcode: "0x00B1"
       opcode_binary: "0000_0000_1011_0001"
       opcode_decimal: 177
@@ -476,7 +476,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 3/3
+    - variant: 11/12
       opcode: "0x00B2"
       opcode_binary: "0000_0000_1011_0010"
       opcode_decimal: 178
@@ -522,7 +522,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 3/3
+    - variant: 12/12
       opcode: "0x00B3"
       opcode_binary: "0000_0000_1011_0011"
       opcode_decimal: 179

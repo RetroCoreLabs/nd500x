@@ -18,7 +18,7 @@ instruction:
   operand_count: 0
 
   variants:
-    - variant: 1/4
+    - variant: 1/16
       opcode: "0xFE10"
       opcode_binary: "1111_1110_0001_0000"
       opcode_decimal: 65040
@@ -31,7 +31,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 1/4
+    - variant: 2/16
       opcode: "0xFE11"
       opcode_binary: "1111_1110_0001_0001"
       opcode_decimal: 65041
@@ -44,7 +44,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 1/4
+    - variant: 3/16
       opcode: "0xFE12"
       opcode_binary: "1111_1110_0001_0010"
       opcode_decimal: 65042
@@ -57,7 +57,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 1/4
+    - variant: 4/16
       opcode: "0xFE13"
       opcode_binary: "1111_1110_0001_0011"
       opcode_decimal: 65043
@@ -70,7 +70,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 2/4
+    - variant: 5/16
       opcode: "0xFE14"
       opcode_binary: "1111_1110_0001_0100"
       opcode_decimal: 65044
@@ -83,7 +83,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 2/4
+    - variant: 6/16
       opcode: "0xFE15"
       opcode_binary: "1111_1110_0001_0101"
       opcode_decimal: 65045
@@ -96,7 +96,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 2/4
+    - variant: 7/16
       opcode: "0xFE16"
       opcode_binary: "1111_1110_0001_0110"
       opcode_decimal: 65046
@@ -109,7 +109,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 2/4
+    - variant: 8/16
       opcode: "0xFE17"
       opcode_binary: "1111_1110_0001_0111"
       opcode_decimal: 65047
@@ -122,7 +122,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 3/4
+    - variant: 9/16
       opcode: "0xFE18"
       opcode_binary: "1111_1110_0001_1000"
       opcode_decimal: 65048
@@ -135,7 +135,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 3/4
+    - variant: 10/16
       opcode: "0xFE19"
       opcode_binary: "1111_1110_0001_1001"
       opcode_decimal: 65049
@@ -148,7 +148,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 3/4
+    - variant: 11/16
       opcode: "0xFE1A"
       opcode_binary: "1111_1110_0001_1010"
       opcode_decimal: 65050
@@ -161,7 +161,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 3/4
+    - variant: 12/16
       opcode: "0xFE1B"
       opcode_binary: "1111_1110_0001_1011"
       opcode_decimal: 65051
@@ -174,7 +174,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 4/4
+    - variant: 13/16
       opcode: "0x0098"
       opcode_binary: "0000_0000_1001_1000"
       opcode_decimal: 152
@@ -187,7 +187,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 4/4
+    - variant: 14/16
       opcode: "0x0099"
       opcode_binary: "0000_0000_1001_1001"
       opcode_decimal: 153
@@ -200,7 +200,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 4/4
+    - variant: 15/16
       opcode: "0x009A"
       opcode_binary: "0000_0000_1001_1010"
       opcode_decimal: 154
@@ -213,7 +213,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 4/4
+    - variant: 16/16
       opcode: "0x009B"
       opcode_binary: "0000_0000_1001_1011"
       opcode_decimal: 155

@@ -18,7 +18,7 @@ instruction:
   operand_count: 1
 
   variants:
-    - variant: 1/6
+    - variant: 1/24
       opcode: "0xFC0C"
       opcode_binary: "1111_1100_0000_1100"
       opcode_decimal: 64524
@@ -44,7 +44,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/6
+    - variant: 2/24
       opcode: "0xFC0D"
       opcode_binary: "1111_1100_0000_1101"
       opcode_decimal: 64525
@@ -70,7 +70,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/6
+    - variant: 3/24
       opcode: "0xFC0E"
       opcode_binary: "1111_1100_0000_1110"
       opcode_decimal: 64526
@@ -96,7 +96,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/6
+    - variant: 4/24
       opcode: "0xFC0F"
       opcode_binary: "1111_1100_0000_1111"
       opcode_decimal: 64527
@@ -122,7 +122,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/6
+    - variant: 5/24
       opcode: "0x001C"
       opcode_binary: "0000_0000_0001_1100"
       opcode_decimal: 28
@@ -148,7 +148,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/6
+    - variant: 6/24
       opcode: "0x001D"
       opcode_binary: "0000_0000_0001_1101"
       opcode_decimal: 29
@@ -174,7 +174,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/6
+    - variant: 7/24
       opcode: "0x001E"
       opcode_binary: "0000_0000_0001_1110"
       opcode_decimal: 30
@@ -200,7 +200,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/6
+    - variant: 8/24
       opcode: "0x001F"
       opcode_binary: "0000_0000_0001_1111"
       opcode_decimal: 31
@@ -226,7 +226,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 3/6
+    - variant: 9/24
       opcode: "0xFC10"
       opcode_binary: "1111_1100_0001_0000"
       opcode_decimal: 64528
@@ -252,7 +252,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 3/6
+    - variant: 10/24
       opcode: "0xFC11"
       opcode_binary: "1111_1100_0001_0001"
       opcode_decimal: 64529
@@ -278,7 +278,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 3/6
+    - variant: 11/24
       opcode: "0xFC12"
       opcode_binary: "1111_1100_0001_0010"
       opcode_decimal: 64530
@@ -304,7 +304,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 3/6
+    - variant: 12/24
       opcode: "0xFC13"
       opcode_binary: "1111_1100_0001_0011"
       opcode_decimal: 64531
@@ -330,7 +330,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 4/6
+    - variant: 13/24
       opcode: "0x0020"
       opcode_binary: "0000_0000_0010_0000"
       opcode_decimal: 32
@@ -356,7 +356,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 4/6
+    - variant: 14/24
       opcode: "0x0021"
       opcode_binary: "0000_0000_0010_0001"
       opcode_decimal: 33
@@ -382,7 +382,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 4/6
+    - variant: 15/24
       opcode: "0x0022"
       opcode_binary: "0000_0000_0010_0010"
       opcode_decimal: 34
@@ -408,7 +408,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 4/6
+    - variant: 16/24
       opcode: "0x0023"
       opcode_binary: "0000_0000_0010_0011"
       opcode_decimal: 35
@@ -434,7 +434,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 5/6
+    - variant: 17/24
       opcode: "0x0024"
       opcode_binary: "0000_0000_0010_0100"
       opcode_decimal: 36
@@ -460,7 +460,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 5/6
+    - variant: 18/24
       opcode: "0x0025"
       opcode_binary: "0000_0000_0010_0101"
       opcode_decimal: 37
@@ -486,7 +486,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 5/6
+    - variant: 19/24
       opcode: "0x0026"
       opcode_binary: "0000_0000_0010_0110"
       opcode_decimal: 38
@@ -512,7 +512,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 5/6
+    - variant: 20/24
       opcode: "0x0027"
       opcode_binary: "0000_0000_0010_0111"
       opcode_decimal: 39
@@ -538,7 +538,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 6/6
+    - variant: 21/24
       opcode: "0x0028"
       opcode_binary: "0000_0000_0010_1000"
       opcode_decimal: 40
@@ -564,7 +564,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 6/6
+    - variant: 22/24
       opcode: "0x0029"
       opcode_binary: "0000_0000_0010_1001"
       opcode_decimal: 41
@@ -590,7 +590,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 6/6
+    - variant: 23/24
       opcode: "0x002A"
       opcode_binary: "0000_0000_0010_1010"
       opcode_decimal: 42
@@ -616,7 +616,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 6/6
+    - variant: 24/24
       opcode: "0x002B"
       opcode_binary: "0000_0000_0010_1011"
       opcode_decimal: 43

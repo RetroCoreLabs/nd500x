@@ -16,7 +16,7 @@ instruction:
   operand_count: 1
 
   variants:
-    - variant: 1/1
+    - variant: 1/4
       opcode: "0xFFF0"
       opcode_binary: "1111_1111_1111_0000"
       opcode_decimal: 65520
@@ -36,7 +36,7 @@ instruction:
           template: "0x00001FE8"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
 
-    - variant: 1/1
+    - variant: 2/4
       opcode: "0xFFF1"
       opcode_binary: "1111_1111_1111_0001"
       opcode_decimal: 65521
@@ -56,7 +56,7 @@ instruction:
           template: "0x00001FE8"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
 
-    - variant: 1/1
+    - variant: 3/4
       opcode: "0xFFF2"
       opcode_binary: "1111_1111_1111_0010"
       opcode_decimal: 65522
@@ -76,7 +76,7 @@ instruction:
           template: "0x00001FE8"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
 
-    - variant: 1/1
+    - variant: 4/4
       opcode: "0xFFF3"
       opcode_binary: "1111_1111_1111_0011"
       opcode_decimal: 65523

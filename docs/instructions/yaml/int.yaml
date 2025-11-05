@@ -16,7 +16,7 @@ instruction:
   operand_count: 1
 
   variants:
-    - variant: 1/2
+    - variant: 1/8
       opcode: "0xFE60"
       opcode_binary: "1111_1110_0110_0000"
       opcode_decimal: 65120
@@ -39,7 +39,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/2
+    - variant: 2/8
       opcode: "0xFE61"
       opcode_binary: "1111_1110_0110_0001"
       opcode_decimal: 65121
@@ -62,7 +62,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/2
+    - variant: 3/8
       opcode: "0xFE62"
       opcode_binary: "1111_1110_0110_0010"
       opcode_decimal: 65122
@@ -85,7 +85,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/2
+    - variant: 4/8
       opcode: "0xFE63"
       opcode_binary: "1111_1110_0110_0011"
       opcode_decimal: 65123
@@ -108,7 +108,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/2
+    - variant: 5/8
       opcode: "0xFE64"
       opcode_binary: "1111_1110_0110_0100"
       opcode_decimal: 65124
@@ -131,7 +131,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/2
+    - variant: 6/8
       opcode: "0xFE65"
       opcode_binary: "1111_1110_0110_0101"
       opcode_decimal: 65125
@@ -154,7 +154,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/2
+    - variant: 7/8
       opcode: "0xFE66"
       opcode_binary: "1111_1110_0110_0110"
       opcode_decimal: 65126
@@ -177,7 +177,7 @@ instruction:
           template: "0x0001FFE0"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/2
+    - variant: 8/8
       opcode: "0xFE67"
       opcode_binary: "1111_1110_0110_0111"
       opcode_decimal: 65127
