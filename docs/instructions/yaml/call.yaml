@@ -1,0 +1,43 @@
+instruction:
+  name: "call"
+  function: "Call"
+  mnemonic: "call"
+  description: |
+    Call
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0x00C3"
+      opcode_binary: "0000_0000_1100_0011"
+      opcode_decimal: 195
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - NONE
+        - CONSTANT
+
+      operand_templates:
+        - "0x00020008"
+        - "0x00002002"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Call
+# Total variants: 1

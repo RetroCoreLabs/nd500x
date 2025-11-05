@@ -1,0 +1,53 @@
+instruction:
+  name: "scomp"
+  function: "Scomp"
+  mnemonic: "scomp"
+  description: |
+    Scomp
+    
+    Comparison operation
+    Sets Z (zero), N (negative), V (overflow), C (carry) flags
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "COMPARE"
+  instruction_class: "compare"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDAC"
+      opcode_binary: "1111_1101_1010_1100"
+      opcode_decimal: 64940
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE2"
+        - "0x00017FE2"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Scomp
+# Total variants: 1

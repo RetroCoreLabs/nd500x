@@ -1,0 +1,53 @@
+instruction:
+  name: "sskip"
+  function: "Sskip"
+  mnemonic: "sskip"
+  description: |
+    Sskip
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDAE"
+      opcode_binary: "1111_1101_1010_1110"
+      opcode_decimal: 64942
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE2"
+        - "0x0001FFE2"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sskip
+# Total variants: 1

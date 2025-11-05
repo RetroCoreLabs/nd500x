@@ -1,0 +1,109 @@
+instruction:
+  name: "phyladr"
+  function: "Phyladr"
+  mnemonic: "phyladr"
+  description: |
+    Phyladr
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 4 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFFF0"
+      opcode_binary: "1111_1111_1111_0000"
+      opcode_decimal: 65520
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00001FE8"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 1/1
+      opcode: "0xFFF1"
+      opcode_binary: "1111_1111_1111_0001"
+      opcode_decimal: 65521
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00001FE8"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 1/1
+      opcode: "0xFFF2"
+      opcode_binary: "1111_1111_1111_0010"
+      opcode_decimal: 65522
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00001FE8"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 1/1
+      opcode: "0xFFF3"
+      opcode_binary: "1111_1111_1111_0011"
+      opcode_decimal: 65523
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00001FE8"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Phyladr
+# Total variants: 4

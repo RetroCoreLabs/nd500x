@@ -1,0 +1,29 @@
+instruction:
+  name: "clrk"
+  function: "Clrk"
+  mnemonic: "clrk"
+  description: |
+    Clrk
+    
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE03"
+      opcode_binary: "1111_1110_0000_0011"
+      opcode_decimal: 65027
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Clrk
+# Total variants: 1

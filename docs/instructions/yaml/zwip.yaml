@@ -1,0 +1,44 @@
+instruction:
+  name: "zwip"
+  function: "Zwip"
+  mnemonic: "zwip"
+  description: |
+    Zwip
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE9C"
+      opcode_binary: "1111_1110_1001_1100"
+      opcode_decimal: 65180
+      prefix_mask: "0x01"
+
+      prefixes:
+        - BI
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Zwip
+# Total variants: 1

@@ -1,0 +1,31 @@
+instruction:
+  name: "retd"
+  function: "Retd"
+  mnemonic: "retd"
+  description: |
+    Retd
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0x0082"
+      opcode_binary: "0000_0000_1000_0010"
+      opcode_decimal: 130
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Retd
+# Total variants: 1

@@ -1,0 +1,45 @@
+instruction:
+  name: "r=:"
+  function: "AssignToRecordReg"
+  mnemonic: "r=:"
+  description: |
+    AssignToRecordReg
+    
+    Load/Assign operation:
+    Loads value into accumulator/register from operand
+    Syntax: r=: <source>
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFC09"
+      opcode_binary: "1111_1100_0000_1001"
+      opcode_decimal: 64521
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001DFE8"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: AssignToRecordReg
+# Total variants: 1

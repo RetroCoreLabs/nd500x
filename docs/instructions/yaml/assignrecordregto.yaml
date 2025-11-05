@@ -1,0 +1,45 @@
+instruction:
+  name: "r:="
+  function: "AssignRecordRegTo"
+  mnemonic: "r:="
+  description: |
+    AssignRecordRegTo
+    
+    Load Record Register:
+    R ← <operand>
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0x0018"
+      opcode_binary: "0000_0000_0001_1000"
+      opcode_decimal: 24
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE8"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: AssignRecordRegTo
+# Total variants: 1

@@ -1,0 +1,48 @@
+instruction:
+  name: "callg"
+  function: "Callg"
+  mnemonic: "callg"
+  description: |
+    Callg
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0x00B5"
+      opcode_binary: "0000_0000_1011_0101"
+      opcode_decimal: 181
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - CONSTANT
+
+      operand_templates:
+        - "0x0001FFE8"
+        - "0x00002002"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Callg
+# Total variants: 1

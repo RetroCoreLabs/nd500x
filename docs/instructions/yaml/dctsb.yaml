@@ -1,0 +1,30 @@
+instruction:
+  name: "dctsb"
+  function: "Dctsb"
+  mnemonic: "dctsb"
+  description: |
+    Dctsb
+    
+    System operation (privileged)
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFF1D"
+      opcode_binary: "1111_1111_0001_1101"
+      opcode_decimal: 65309
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Dctsb
+# Total variants: 1

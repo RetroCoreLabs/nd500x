@@ -1,0 +1,85 @@
+instruction:
+  name: "sloca"
+  function: "Sloca"
+  mnemonic: "sloca"
+  description: |
+    Sloca
+    
+    System operation (privileged)
+    
+    Operands: 2
+    Variants: 2 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 2
+
+  variants:
+    - variant: 1/2
+      opcode: "0xFDAF"
+      opcode_binary: "1111_1101_1010_1111"
+      opcode_decimal: 64943
+      prefix_mask: "0x03"
+
+      prefixes:
+        - BI
+        - BY
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE0"
+        - "0x0001FFE2"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFDB0"
+      opcode_binary: "1111_1101_1011_0000"
+      opcode_decimal: 64944
+      prefix_mask: "0x03"
+
+      prefixes:
+        - BI
+        - BY
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE0"
+        - "0x0001FFE2"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sloca
+# Total variants: 2

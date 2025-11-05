@@ -1,0 +1,177 @@
+instruction:
+  name: "rladdr"
+  function: "Rladdr"
+  mnemonic: "rladdr"
+  description: |
+    Rladdr
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 6 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/6
+      opcode: "0xFC55"
+      opcode_binary: "1111_1100_0101_0101"
+      opcode_decimal: 64597
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/6
+      opcode: "0xFC5A"
+      opcode_binary: "1111_1100_0101_1010"
+      opcode_decimal: 64602
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/6
+      opcode: "0xFCB1"
+      opcode_binary: "1111_1100_1011_0001"
+      opcode_decimal: 64689
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/6
+      opcode: "0x00BE"
+      opcode_binary: "0000_0000_1011_1110"
+      opcode_decimal: 190
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/6
+      opcode: "0x00BE"
+      opcode_binary: "0000_0000_1011_1110"
+      opcode_decimal: 190
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/6
+      opcode: "0xFCB2"
+      opcode_binary: "1111_1100_1011_0010"
+      opcode_decimal: 64690
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00019FE0"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Rladdr
+# Total variants: 6

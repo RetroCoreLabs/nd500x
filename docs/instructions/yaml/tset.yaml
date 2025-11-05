@@ -1,0 +1,43 @@
+instruction:
+  name: "tset"
+  function: "Tset"
+  mnemonic: "tset"
+  description: |
+    Tset
+    
+    Control flow operation
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "CONTROL"
+  instruction_class: "control"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD40"
+      opcode_binary: "1111_1101_0100_0000"
+      opcode_decimal: 64832
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001DFE2"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Tset
+# Total variants: 1

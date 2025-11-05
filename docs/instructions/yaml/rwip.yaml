@@ -1,0 +1,221 @@
+instruction:
+  name: "rwip"
+  function: "Rwip"
+  mnemonic: "rwip"
+  description: |
+    Rwip
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 8 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/2
+      opcode: "0xFE94"
+      opcode_binary: "1111_1110_1001_0100"
+      opcode_decimal: 65172
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/2
+      opcode: "0xFE95"
+      opcode_binary: "1111_1110_1001_0101"
+      opcode_decimal: 65173
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/2
+      opcode: "0xFE96"
+      opcode_binary: "1111_1110_1001_0110"
+      opcode_decimal: 65174
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 1/2
+      opcode: "0xFE97"
+      opcode_binary: "1111_1110_1001_0111"
+      opcode_decimal: 65175
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFE98"
+      opcode_binary: "1111_1110_1001_1000"
+      opcode_decimal: 65176
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFE99"
+      opcode_binary: "1111_1110_1001_1001"
+      opcode_decimal: 65177
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFE9A"
+      opcode_binary: "1111_1110_1001_1010"
+      opcode_decimal: 65178
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFE9B"
+      opcode_binary: "1111_1110_1001_1011"
+      opcode_decimal: 65179
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x0001FFE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Rwip
+# Total variants: 8

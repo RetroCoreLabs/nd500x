@@ -1,0 +1,58 @@
+instruction:
+  name: "if>go"
+  function: "IfGreaterThanGo"
+  mnemonic: "if>go"
+  description: |
+    IfGreaterThanGo
+    
+    Branch/Jump operation:
+    Conditional or unconditional program flow transfer
+    
+    Operands: 1
+    Variants: 2 opcode(s)
+
+  category: "BRANCH"
+  instruction_class: "branch"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/2
+      opcode: "0x00C8"
+      opcode_binary: "0000_0000_1100_1000"
+      opcode_decimal: 200
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - NONE
+
+      operand_templates:
+        - "0x00060006"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0x00C9"
+      opcode_binary: "0000_0000_1100_1001"
+      opcode_decimal: 201
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - NONE
+
+      operand_templates:
+        - "0x00060006"
+
+      metadata:
+        - "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: IfGreaterThanGo
+# Total variants: 2

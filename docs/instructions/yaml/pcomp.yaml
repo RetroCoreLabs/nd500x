@@ -1,0 +1,53 @@
+instruction:
+  name: "pcomp"
+  function: "Pcomp"
+  mnemonic: "pcomp"
+  description: |
+    Pcomp
+    
+    Comparison operation
+    Sets Z (zero), N (negative), V (overflow), C (carry) flags
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "COMPARE"
+  instruction_class: "compare"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFEB3"
+      opcode_binary: "1111_1110_1011_0011"
+      opcode_decimal: 65203
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE0"
+        - "0x00017FE0"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Pcomp
+# Total variants: 1

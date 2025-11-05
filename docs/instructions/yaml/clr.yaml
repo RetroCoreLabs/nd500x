@@ -1,0 +1,380 @@
+instruction:
+  name: "clr"
+  function: "Clr"
+  mnemonic: "clr"
+  description: |
+    Clr
+    
+    
+    Operands: None (operates on implicit register)
+    Variants: 24 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/6
+      opcode: "0x0084"
+      opcode_binary: "0000_0000_1000_0100"
+      opcode_decimal: 132
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 1/6
+      opcode: "0x0085"
+      opcode_binary: "0000_0000_1000_0101"
+      opcode_decimal: 133
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 1/6
+      opcode: "0x0086"
+      opcode_binary: "0000_0000_1000_0110"
+      opcode_decimal: 134
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 1/6
+      opcode: "0x0087"
+      opcode_binary: "0000_0000_1000_0111"
+      opcode_decimal: 135
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/6
+      opcode: "0x0084"
+      opcode_binary: "0000_0000_1000_0100"
+      opcode_decimal: 132
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/6
+      opcode: "0x0085"
+      opcode_binary: "0000_0000_1000_0101"
+      opcode_decimal: 133
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/6
+      opcode: "0x0086"
+      opcode_binary: "0000_0000_1000_0110"
+      opcode_decimal: 134
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/6
+      opcode: "0x0087"
+      opcode_binary: "0000_0000_1000_0111"
+      opcode_decimal: 135
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/6
+      opcode: "0x0084"
+      opcode_binary: "0000_0000_1000_0100"
+      opcode_decimal: 132
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/6
+      opcode: "0x0085"
+      opcode_binary: "0000_0000_1000_0101"
+      opcode_decimal: 133
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/6
+      opcode: "0x0086"
+      opcode_binary: "0000_0000_1000_0110"
+      opcode_decimal: 134
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/6
+      opcode: "0x0087"
+      opcode_binary: "0000_0000_1000_0111"
+      opcode_decimal: 135
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/6
+      opcode: "0x0084"
+      opcode_binary: "0000_0000_1000_0100"
+      opcode_decimal: 132
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/6
+      opcode: "0x0085"
+      opcode_binary: "0000_0000_1000_0101"
+      opcode_decimal: 133
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/6
+      opcode: "0x0086"
+      opcode_binary: "0000_0000_1000_0110"
+      opcode_decimal: 134
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/6
+      opcode: "0x0087"
+      opcode_binary: "0000_0000_1000_0111"
+      opcode_decimal: 135
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/6
+      opcode: "0x0088"
+      opcode_binary: "0000_0000_1000_1000"
+      opcode_decimal: 136
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/6
+      opcode: "0x0089"
+      opcode_binary: "0000_0000_1000_1001"
+      opcode_decimal: 137
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/6
+      opcode: "0x008A"
+      opcode_binary: "0000_0000_1000_1010"
+      opcode_decimal: 138
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/6
+      opcode: "0x008B"
+      opcode_binary: "0000_0000_1000_1011"
+      opcode_decimal: 139
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 6/6
+      opcode: "0x008C"
+      opcode_binary: "0000_0000_1000_1100"
+      opcode_decimal: 140
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 6/6
+      opcode: "0x008D"
+      opcode_binary: "0000_0000_1000_1101"
+      opcode_decimal: 141
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 6/6
+      opcode: "0x008E"
+      opcode_binary: "0000_0000_1000_1110"
+      opcode_decimal: 142
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 6/6
+      opcode: "0x008F"
+      opcode_binary: "0000_0000_1000_1111"
+      opcode_decimal: 143
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+# Generated from nd500-opcodes
+# Instruction group: Clr
+# Total variants: 24

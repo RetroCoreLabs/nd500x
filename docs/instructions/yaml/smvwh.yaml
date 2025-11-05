@@ -1,0 +1,69 @@
+instruction:
+  name: "smvwh"
+  function: "Smvwh"
+  mnemonic: "smvwh"
+  description: |
+    Smvwh
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 4
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 4
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD72"
+      opcode_binary: "1111_1101_0111_0010"
+      opcode_decimal: 64882
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      addressing_modes:
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+        - LOCAL
+        - RECORD
+        - CONSTANT
+        - REGISTER
+        - PRE_INDEXED
+        - ABSOLUTE
+
+      operand_templates:
+        - "0x00017FE2"
+        - "0x00017FE2"
+        - "0x0001FFE2"
+        - "0x0001FFE2"
+
+      metadata:
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+        - "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Smvwh
+# Total variants: 1

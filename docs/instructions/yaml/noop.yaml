@@ -1,0 +1,30 @@
+instruction:
+  name: "noop"
+  function: "Noop"
+  mnemonic: "noop"
+  description: |
+    Noop
+    
+    Control flow operation
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "CONTROL"
+  instruction_class: "control"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0x0003"
+      opcode_binary: "0000_0000_0000_0011"
+      opcode_decimal: 3
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Noop
+# Total variants: 1
