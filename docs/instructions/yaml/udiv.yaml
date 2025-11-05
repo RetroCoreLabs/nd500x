@@ -193,6 +193,45 @@ instruction:
 # Total variants: 4
 
 
+  examples:
+    - description: |
+        Basic udiv operation using word register
+      prefix: "W"
+      code: |
+        W1 UDIV W2, B.16, R.8
+      explanation: |
+        Perform udiv operation on word-sized data
+
+    - description: |
+        Udiv with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 UDIV B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Udiv with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 UDIV ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of udiv instruction
+      code: |
+        Variant 1/4: W1 UDIV\nVariant 2/4: W1 UDIV\nVariant 3/4: W1 UDIV
+      explanation: |
+        The udiv instruction has 4 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 UDIV 1\n; Result in W1
+      explanation: |
+        Common use case for udiv in calculations
+
   manual_reference:
     section: "11.16"
     title: "Unsigned divide"

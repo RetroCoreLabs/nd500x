@@ -141,6 +141,61 @@ instruction:
 # Total variants: 5
 
 
+  examples:
+    - description: |
+        Basic incr operation using word register
+      prefix: "W"
+      code: |
+        W1 INCR W2
+      explanation: |
+        Perform incr operation on word-sized data
+
+    - description: |
+        Incr with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 INCR B.0
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Incr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 INCR B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Incr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 INCR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Incr with floating-point data
+      prefix: "F"
+      code: |
+        F1 INCR F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of incr instruction
+      code: |
+        Variant 1/5: BY1 INCR\nVariant 2/5: BY1 INCR\nVariant 3/5: BY1 INCR
+      explanation: |
+        The incr instruction has 5 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 INCR 1\n; Result in W1
+      explanation: |
+        Common use case for incr in calculations
+
   manual_reference:
     section: "13.4"
     title: "Loop with increment"

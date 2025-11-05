@@ -671,6 +671,61 @@ instruction:
 # Total variants: 24
 
 
+  examples:
+    - description: |
+        Basic comp operation using word register
+      prefix: "W"
+      code: |
+        W1 COMP W2
+      explanation: |
+        Perform comp operation on word-sized data
+
+    - description: |
+        Comp with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 COMP 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Comp with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 COMP B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Comp with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 COMP ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Comp with floating-point data
+      prefix: "F"
+      code: |
+        F1 COMP F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of comp instruction
+      code: |
+        Variant 1/24: BI1 COMP\nVariant 2/24: BI1 COMP\nVariant 3/24: BI1 COMP
+      explanation: |
+        The comp instruction has 24 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: bounds checking
+      code: |
+        ; Check if index < limit\nW1 COMP MAX_SIZE\n; Sets flags for conditional branch
+      explanation: |
+        Using comp for validation and conditional logic
+
   manual_reference:
     section: "14.11"
     title: "String compare translated"

@@ -110,6 +110,45 @@ instruction:
 # Total variants: 4
 
 
+  examples:
+    - description: |
+        Basic addc operation using word register
+      prefix: "W"
+      code: |
+        W1 ADDC W2
+      explanation: |
+        Perform addc operation on word-sized data
+
+    - description: |
+        Addc with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ADDC B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Addc with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ADDC ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of addc instruction
+      code: |
+        Variant 1/4: W1 ADDC\nVariant 2/4: W1 ADDC\nVariant 3/4: W1 ADDC
+      explanation: |
+        The addc instruction has 4 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 ADDC 1\n; Result in W1
+      explanation: |
+        Common use case for addc in calculations
+
   manual_reference:
     section: "11.17"
     title: "Add with carry"

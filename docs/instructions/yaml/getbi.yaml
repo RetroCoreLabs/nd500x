@@ -442,6 +442,46 @@ instruction:
 # Total variants: 12
 
 
+  examples:
+    - description: |
+        Basic getbi operation using word register
+      prefix: "W"
+      code: |
+        W1 GETBI W2, B.16
+      explanation: |
+        Perform getbi operation on word-sized data
+
+    - description: |
+        Getbi with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 GETBI 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Getbi with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 GETBI B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Getbi with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 GETBI ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of getbi instruction
+      code: |
+        Variant 1/12: BY1 GETBI\nVariant 2/12: BY1 GETBI\nVariant 3/12: BY1 GETBI
+      explanation: |
+        The getbi instruction has 12 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.27"
     title: "Get bit"

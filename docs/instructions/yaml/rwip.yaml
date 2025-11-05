@@ -205,6 +205,38 @@ instruction:
 # Total variants: 8
 
 
+  examples:
+    - description: |
+        Basic rwip operation using word register
+      prefix: "W"
+      code: |
+        W1 RWIP W2
+      explanation: |
+        Perform rwip operation on word-sized data
+
+    - description: |
+        Rwip with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 RWIP B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Rwip with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 RWIP ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of rwip instruction
+      code: |
+        Variant 1/8: BI1 RWIP\nVariant 2/8: BI1 RWIP\nVariant 3/8: BI1 RWIP
+      explanation: |
+        The rwip instruction has 8 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "16.17"
     title: "Read Written In Page table"

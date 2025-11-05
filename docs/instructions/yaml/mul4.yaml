@@ -562,6 +562,53 @@ instruction:
 # Total variants: 12
 
 
+  examples:
+    - description: |
+        Basic mul4 operation using word register
+      prefix: "W"
+      code: |
+        W1 MUL4 W2, B.16, R.8
+      explanation: |
+        Perform mul4 operation on word-sized data
+
+    - description: |
+        Mul4 with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 MUL4 5, 6, B.8
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Mul4 with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 MUL4 B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Mul4 with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 MUL4 ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of mul4 instruction
+      code: |
+        Variant 1/12: BY1 MUL4\nVariant 2/12: BY1 MUL4\nVariant 3/12: BY1 MUL4
+      explanation: |
+        The mul4 instruction has 12 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 MUL4 1\n; Result in W1
+      explanation: |
+        Common use case for mul4 in calculations
+
   manual_reference:
     section: "11.13"
     title: "Multiply with overflow to register"

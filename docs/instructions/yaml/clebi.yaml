@@ -121,6 +121,46 @@ instruction:
 # Total variants: 3
 
 
+  examples:
+    - description: |
+        Basic clebi operation using word register
+      prefix: "W"
+      code: |
+        W1 CLEBI W2, B.16
+      explanation: |
+        Perform clebi operation on word-sized data
+
+    - description: |
+        Clebi with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 CLEBI B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Clebi with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 CLEBI B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Clebi with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 CLEBI ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of clebi instruction
+      code: |
+        Variant 1/3: BY1 CLEBI\nVariant 2/3: BY1 CLEBI\nVariant 3/3: BY1 CLEBI
+      explanation: |
+        The clebi instruction has 3 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.29"
     title: "Clear bit"

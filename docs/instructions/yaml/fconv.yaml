@@ -197,6 +197,46 @@ instruction:
 # Total variants: 5
 
 
+  examples:
+    - description: |
+        Basic fconv operation using word register
+      prefix: "W"
+      code: |
+        W1 FCONV W2, B.16
+      explanation: |
+        Perform fconv operation on word-sized data
+
+    - description: |
+        Fconv with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 FCONV 5, B.4
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Fconv with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 FCONV B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Fconv with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 FCONV ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of fconv instruction
+      code: |
+        Variant 1/5: BI1 FCONV\nVariant 2/5: BI1 FCONV\nVariant 3/5: BI1 FCONV
+      explanation: |
+        The fconv instruction has 5 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.2"
     title: "Data type conversion"

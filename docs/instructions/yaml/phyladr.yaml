@@ -101,6 +101,38 @@ instruction:
 # Total variants: 4
 
 
+  examples:
+    - description: |
+        Basic phyladr operation using word register
+      prefix: "W"
+      code: |
+        W1 PHYLADR B.8
+      explanation: |
+        Perform phyladr operation on word-sized data
+
+    - description: |
+        Phyladr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 PHYLADR B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Phyladr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 PHYLADR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of phyladr instruction
+      code: |
+        Variant 1/4: W1 PHYLADR\nVariant 2/4: W1 PHYLADR\nVariant 3/4: W1 PHYLADR
+      explanation: |
+        The phyladr instruction has 4 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "16.37"
     title: "PHYLADR - Get physical address ('87 extension)"

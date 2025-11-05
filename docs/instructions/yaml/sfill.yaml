@@ -670,6 +670,54 @@ instruction:
 # Total variants: 24
 
 
+  examples:
+    - description: |
+        Basic sfill operation using word register
+      prefix: "W"
+      code: |
+        W1 SFILL W2
+      explanation: |
+        Perform sfill operation on word-sized data
+
+    - description: |
+        Sfill with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SFILL 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sfill with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SFILL B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sfill with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SFILL ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Sfill with floating-point data
+      prefix: "F"
+      code: |
+        F1 SFILL F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of sfill instruction
+      code: |
+        Variant 1/24: BI1 SFILL\nVariant 2/24: BI1 SFILL\nVariant 3/24: BI1 SFILL
+      explanation: |
+        The sfill instruction has 24 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "14.8"
     title: "String Fill"

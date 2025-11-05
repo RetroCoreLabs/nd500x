@@ -254,6 +254,46 @@ instruction:
 # Total variants: 8
 
 
+  examples:
+    - description: |
+        Basic poly operation using word register
+      prefix: "W"
+      code: |
+        W1 POLY W2, 20
+      explanation: |
+        Perform poly operation on word-sized data
+
+    - description: |
+        Poly with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 POLY B.16, 100
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Poly with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 POLY ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Poly with floating-point data
+      prefix: "F"
+      code: |
+        F1 POLY F2, 3.14
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of poly instruction
+      code: |
+        Variant 1/8: F1 POLY\nVariant 2/8: F1 POLY\nVariant 3/8: F1 POLY
+      explanation: |
+        The poly instruction has 8 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "12.3"
     title: "Polynomial"

@@ -63,6 +63,31 @@ instruction:
 # Total variants: 1
 
 
+  examples:
+    - description: |
+        Smvtr with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SMVTR 5, 6, B.8
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Smvtr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SMVTR B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Smvtr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SMVTR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
   manual_reference:
     section: "14.5"
     title: "String move translated"

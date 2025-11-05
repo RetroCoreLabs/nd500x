@@ -197,6 +197,46 @@ instruction:
 # Total variants: 5
 
 
+  examples:
+    - description: |
+        Basic byconv operation using word register
+      prefix: "W"
+      code: |
+        W1 BYCONV W2, B.16
+      explanation: |
+        Perform byconv operation on word-sized data
+
+    - description: |
+        Byconv with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 BYCONV B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Byconv with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 BYCONV ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Byconv with floating-point data
+      prefix: "F"
+      code: |
+        F1 BYCONV F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of byconv instruction
+      code: |
+        Variant 1/5: BI1 BYCONV\nVariant 2/5: BI1 BYCONV\nVariant 3/5: BI1 BYCONV
+      explanation: |
+        The byconv instruction has 5 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.2"
     title: "Data type conversion"

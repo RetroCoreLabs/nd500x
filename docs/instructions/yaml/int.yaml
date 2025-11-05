@@ -205,6 +205,46 @@ instruction:
 # Total variants: 8
 
 
+  examples:
+    - description: |
+        Basic int operation using word register
+      prefix: "W"
+      code: |
+        W1 INT W2
+      explanation: |
+        Perform int operation on word-sized data
+
+    - description: |
+        Int with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 INT B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Int with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 INT ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Int with floating-point data
+      prefix: "F"
+      code: |
+        F1 INT F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of int instruction
+      code: |
+        Variant 1/8: F1 INT\nVariant 2/8: F1 INT\nVariant 3/8: F1 INT
+      explanation: |
+        The int instruction has 8 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "4.1"
     title: "Introduction"

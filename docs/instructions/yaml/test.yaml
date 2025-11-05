@@ -179,6 +179,61 @@ instruction:
 # Total variants: 6
 
 
+  examples:
+    - description: |
+        Basic test operation using word register
+      prefix: "W"
+      code: |
+        W1 TEST W2
+      explanation: |
+        Perform test operation on word-sized data
+
+    - description: |
+        Test with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 TEST 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Test with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 TEST B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Test with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 TEST ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Test with floating-point data
+      prefix: "F"
+      code: |
+        F1 TEST F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of test instruction
+      code: |
+        Variant 1/6: BI1 TEST\nVariant 2/6: BI1 TEST\nVariant 3/6: BI1 TEST
+      explanation: |
+        The test instruction has 6 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: bounds checking
+      code: |
+        ; Check if index < limit\nW1 TEST MAX_SIZE\n; Sets flags for conditional branch
+      explanation: |
+        Using test for validation and conditional logic
+
   manual_reference:
     section: "16.3"
     title: "Test and set"

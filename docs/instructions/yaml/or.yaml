@@ -422,6 +422,46 @@ instruction:
 # Total variants: 16
 
 
+  examples:
+    - description: |
+        Basic or operation using word register
+      prefix: "W"
+      code: |
+        W1 OR W2
+      explanation: |
+        Perform or operation on word-sized data
+
+    - description: |
+        Or with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 OR 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Or with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 OR B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Or with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 OR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of or instruction
+      code: |
+        Variant 1/16: BI1 OR\nVariant 2/16: BI1 OR\nVariant 3/16: BI1 OR
+      explanation: |
+        The or instruction has 16 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.22"
     title: "Or"

@@ -59,6 +59,15 @@ instruction:
 # Total variants: 1
 
 
+  examples:
+    - description: |
+        Init with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 INIT ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
   manual_reference:
     section: "13.9"
     title: "Initialize stack"

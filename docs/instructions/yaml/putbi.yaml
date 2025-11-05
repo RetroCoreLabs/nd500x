@@ -430,6 +430,46 @@ instruction:
 # Total variants: 12
 
 
+  examples:
+    - description: |
+        Basic putbi operation using word register
+      prefix: "W"
+      code: |
+        W1 PUTBI W2, B.16
+      explanation: |
+        Perform putbi operation on word-sized data
+
+    - description: |
+        Putbi with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 PUTBI B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Putbi with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 PUTBI B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Putbi with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 PUTBI ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of putbi instruction
+      code: |
+        Variant 1/12: BY1 PUTBI\nVariant 2/12: BY1 PUTBI\nVariant 3/12: BY1 PUTBI
+      explanation: |
+        The putbi instruction has 12 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.28"
     title: "Put bit"

@@ -573,6 +573,46 @@ instruction:
 # Total variants: 12
 
 
+  examples:
+    - description: |
+        Basic lind operation using word register
+      prefix: "W"
+      code: |
+        W1 LIND W2, B.16, R.8
+      explanation: |
+        Perform lind operation on word-sized data
+
+    - description: |
+        Lind with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 LIND 5, 6, 7
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Lind with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 LIND B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Lind with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 LIND ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of lind instruction
+      code: |
+        Variant 1/12: BY1 LIND\nVariant 2/12: BY1 LIND\nVariant 3/12: BY1 LIND
+      explanation: |
+        The lind instruction has 12 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.8"
     title: "Load index"

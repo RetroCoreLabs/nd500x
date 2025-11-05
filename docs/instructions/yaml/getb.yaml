@@ -110,6 +110,38 @@ instruction:
 # Total variants: 4
 
 
+  examples:
+    - description: |
+        Basic getb operation using word register
+      prefix: "W"
+      code: |
+        W1 GETB W2
+      explanation: |
+        Perform getb operation on word-sized data
+
+    - description: |
+        Getb with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 GETB B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Getb with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 GETB ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of getb instruction
+      code: |
+        Variant 1/4: W1 GETB\nVariant 2/4: W1 GETB\nVariant 3/4: W1 GETB
+      explanation: |
+        The getb instruction has 4 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.13"
     title: "Get buddy element"

@@ -310,6 +310,54 @@ instruction:
 # Total variants: 6
 
 
+  examples:
+    - description: |
+        Basic smovn operation using word register
+      prefix: "W"
+      code: |
+        W1 SMOVN W2, B.16, R.8
+      explanation: |
+        Perform smovn operation on word-sized data
+
+    - description: |
+        Smovn with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SMOVN 5, 6, 7
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Smovn with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SMOVN B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Smovn with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SMOVN ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Smovn with floating-point data
+      prefix: "F"
+      code: |
+        F1 SMOVN F2, F3, F4
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of smovn instruction
+      code: |
+        Variant 1/6: BI1 SMOVN\nVariant 2/6: BI1 SMOVN\nVariant 3/6: BI1 SMOVN
+      explanation: |
+        The smovn instruction has 6 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "14.7"
     title: "String move *m* elements"

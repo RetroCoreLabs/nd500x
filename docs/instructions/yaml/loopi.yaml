@@ -432,6 +432,54 @@ instruction:
 # Total variants: 10
 
 
+  examples:
+    - description: |
+        Basic loopi operation using word register
+      prefix: "W"
+      code: |
+        W1 LOOPI W2, B.16
+      explanation: |
+        Perform loopi operation on word-sized data
+
+    - description: |
+        Loopi with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 LOOPI B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Loopi with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 LOOPI B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Loopi with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 LOOPI ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Loopi with floating-point data
+      prefix: "F"
+      code: |
+        F1 LOOPI F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of loopi instruction
+      code: |
+        Variant 1/10: BY1 LOOPI\nVariant 2/10: BY1 LOOPI\nVariant 3/10: BY1 LOOPI
+      explanation: |
+        The loopi instruction has 10 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "13.4"
     title: "Loop with increment"

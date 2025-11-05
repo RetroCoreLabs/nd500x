@@ -309,6 +309,46 @@ instruction:
 # Total variants: 12
 
 
+  examples:
+    - description: |
+        Basic wdus operation using word register
+      prefix: "W"
+      code: |
+        W1 WDUS W2
+      explanation: |
+        Perform wdus operation on word-sized data
+
+    - description: |
+        Wdus with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 WDUS 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Wdus with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 WDUS B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Wdus with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 WDUS ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of wdus instruction
+      code: |
+        Variant 1/12: BY1 WDUS\nVariant 2/12: BY1 WDUS\nVariant 3/12: BY1 WDUS
+      explanation: |
+        The wdus instruction has 12 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "16.26"
     title: "Operating Systems Support Instructions"

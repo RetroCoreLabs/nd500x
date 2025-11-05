@@ -87,6 +87,38 @@ instruction:
 # Total variants: 2
 
 
+  examples:
+    - description: |
+        Sloca with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SLOCA 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sloca with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SLOCA B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sloca with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SLOCA ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of sloca instruction
+      code: |
+        Variant 1/2: BI1 SLOCA\nVariant 2/2: BI1 SLOCA
+      explanation: |
+        The sloca instruction has 2 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "14.15"
     title: "String locate element"

@@ -671,6 +671,54 @@ instruction:
 # Total variants: 24
 
 
+  examples:
+    - description: |
+        Basic := operation using word register
+      prefix: "W"
+      code: |
+        W1 := W2
+      explanation: |
+        Perform := operation on word-sized data
+
+    - description: |
+        := with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 := 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        := with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 := B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        := with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 := ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        := with floating-point data
+      prefix: "F"
+      code: |
+        F1 := F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of := instruction
+      code: |
+        Variant 1/24: BI1 :=\nVariant 2/24: BI1 :=\nVariant 3/24: BI1 :=
+      explanation: |
+        The := instruction has 24 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "16.7"
     title: "Load special register"
