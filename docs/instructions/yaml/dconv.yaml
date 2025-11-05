@@ -197,6 +197,54 @@ instruction:
 # Total variants: 5
 
 
+  examples:
+    - description: |
+        Basic dconv operation using word register
+      prefix: "W"
+      code: |
+        W1 DCONV W2, B.16
+      explanation: |
+        Perform dconv operation on word-sized data
+
+    - description: |
+        Dconv with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 DCONV 5, B.4
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Dconv with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 DCONV B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Dconv with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 DCONV ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Dconv with floating-point data
+      prefix: "F"
+      code: |
+        F1 DCONV F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of dconv instruction
+      code: |
+        Variant 1/5: BI1 DCONV\nVariant 2/5: BI1 DCONV\nVariant 3/5: BI1 DCONV
+      explanation: |
+        The dconv instruction has 5 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.2"
     title: "Data type conversion"

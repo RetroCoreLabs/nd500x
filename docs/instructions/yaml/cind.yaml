@@ -573,6 +573,46 @@ instruction:
 # Total variants: 12
 
 
+  examples:
+    - description: |
+        Basic cind operation using word register
+      prefix: "W"
+      code: |
+        W1 CIND W2, B.16, R.8
+      explanation: |
+        Perform cind operation on word-sized data
+
+    - description: |
+        Cind with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 CIND 5, 6, 7
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Cind with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 CIND B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Cind with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 CIND ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of cind instruction
+      code: |
+        Variant 1/12: BY1 CIND\nVariant 2/12: BY1 CIND\nVariant 3/12: BY1 CIND
+      explanation: |
+        The cind instruction has 12 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.9"
     title: "Calculate Index"

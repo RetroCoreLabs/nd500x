@@ -54,6 +54,38 @@ instruction:
 # Total variants: 1
 
 
+  examples:
+    - description: |
+        Scomp with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SCOMP 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Scomp with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SCOMP B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Scomp with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SCOMP ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Real-world use: bounds checking
+      code: |
+        ; Check if index < limit\nW1 SCOMP MAX_SIZE\n; Sets flags for conditional branch
+      explanation: |
+        Using scomp for validation and conditional logic
+
   manual_reference:
     section: "14.10"
     title: "String compare"

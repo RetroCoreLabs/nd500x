@@ -76,6 +76,30 @@ instruction:
 # Total variants: 2
 
 
+  examples:
+    - description: |
+        Ifstgo with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 IFSTGO B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Ifstgo with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 IFSTGO ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of ifstgo instruction
+      code: |
+        Variant 1/2: NONE1 IFSTGO\nVariant 2/2: NONE1 IFSTGO
+      explanation: |
+        The ifstgo instruction has 2 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "13.3"
     title: "Conditional Jump"

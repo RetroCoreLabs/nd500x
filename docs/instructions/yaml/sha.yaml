@@ -121,6 +121,46 @@ instruction:
 # Total variants: 3
 
 
+  examples:
+    - description: |
+        Basic sha operation using word register
+      prefix: "W"
+      code: |
+        W1 SHA W2, B.16
+      explanation: |
+        Perform sha operation on word-sized data
+
+    - description: |
+        Sha with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SHA B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sha with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SHA B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sha with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SHA ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of sha instruction
+      code: |
+        Variant 1/3: BY1 SHA\nVariant 2/3: BY1 SHA\nVariant 3/3: BY1 SHA
+      explanation: |
+        The sha instruction has 3 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.25"
     title: "Arithmetical shift"

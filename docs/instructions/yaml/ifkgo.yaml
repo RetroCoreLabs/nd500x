@@ -54,6 +54,14 @@ instruction:
 # Total variants: 2
 
 
+  examples:
+    - description: |
+        Different variants of ifkgo instruction
+      code: |
+        Variant 1/2: NONE1 IFKGO\nVariant 2/2: NONE1 IFKGO
+      explanation: |
+        The ifkgo instruction has 2 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "13.3"
     title: "Conditional Jump"

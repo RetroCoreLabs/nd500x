@@ -141,6 +141,61 @@ instruction:
 # Total variants: 5
 
 
+  examples:
+    - description: |
+        Basic decr operation using word register
+      prefix: "W"
+      code: |
+        W1 DECR W2
+      explanation: |
+        Perform decr operation on word-sized data
+
+    - description: |
+        Decr with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 DECR B.0
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Decr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 DECR B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Decr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 DECR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Decr with floating-point data
+      prefix: "F"
+      code: |
+        F1 DECR F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of decr instruction
+      code: |
+        Variant 1/5: BY1 DECR\nVariant 2/5: BY1 DECR\nVariant 3/5: BY1 DECR
+      explanation: |
+        The decr instruction has 5 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 DECR 1\n; Result in W1
+      explanation: |
+        Common use case for decr in calculations
+
   manual_reference:
     section: "13.5"
     title: "Loop with decrement"

@@ -43,6 +43,23 @@ instruction:
 # Total variants: 1
 
 
+  examples:
+    - description: |
+        Ents with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ENTS B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Ents with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ENTS ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
   manual_reference:
     section: "1.4"
     title: "Domains, segments and processes"

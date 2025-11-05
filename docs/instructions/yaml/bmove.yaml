@@ -245,6 +245,54 @@ instruction:
 # Total variants: 5
 
 
+  examples:
+    - description: |
+        Basic bmove operation using word register
+      prefix: "W"
+      code: |
+        W1 BMOVE W2, B.16, R.8
+      explanation: |
+        Perform bmove operation on word-sized data
+
+    - description: |
+        Bmove with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 BMOVE 5, B.4, 7
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Bmove with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 BMOVE B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Bmove with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 BMOVE ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Bmove with floating-point data
+      prefix: "F"
+      code: |
+        F1 BMOVE F2, F4
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of bmove instruction
+      code: |
+        Variant 1/5: BY1 BMOVE\nVariant 2/5: BY1 BMOVE\nVariant 3/5: BY1 BMOVE
+      explanation: |
+        The bmove instruction has 5 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.1"
     title: "Block Move and Fill"

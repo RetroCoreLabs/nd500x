@@ -54,6 +54,14 @@ instruction:
 # Total variants: 2
 
 
+  examples:
+    - description: |
+        Different variants of if>>=go instruction
+      code: |
+        Variant 1/2: NONE1 IF>>=GO\nVariant 2/2: NONE1 IF>>=GO
+      explanation: |
+        The if>>=go instruction has 2 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "13.3"
     title: "Conditional Jump"

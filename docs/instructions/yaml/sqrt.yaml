@@ -206,6 +206,46 @@ instruction:
 # Total variants: 8
 
 
+  examples:
+    - description: |
+        Basic sqrt operation using word register
+      prefix: "W"
+      code: |
+        W1 SQRT W2
+      explanation: |
+        Perform sqrt operation on word-sized data
+
+    - description: |
+        Sqrt with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SQRT B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sqrt with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SQRT ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Sqrt with floating-point data
+      prefix: "F"
+      code: |
+        F1 SQRT F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of sqrt instruction
+      code: |
+        Variant 1/8: F1 SQRT\nVariant 2/8: F1 SQRT\nVariant 3/8: F1 SQRT
+      explanation: |
+        The sqrt instruction has 8 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "12.4"
     title: "Square root"

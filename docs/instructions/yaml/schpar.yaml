@@ -54,6 +54,31 @@ instruction:
 # Total variants: 1
 
 
+  examples:
+    - description: |
+        Schpar with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SCHPAR 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Schpar with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SCHPAR B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Schpar with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SCHPAR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
   manual_reference:
     section: "14.20"
     title: "Check parity in string"

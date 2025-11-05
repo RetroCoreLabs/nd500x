@@ -165,6 +165,54 @@ instruction:
 # Total variants: 6
 
 
+  examples:
+    - description: |
+        Basic rladdr operation using word register
+      prefix: "W"
+      code: |
+        W1 RLADDR B.8
+      explanation: |
+        Perform rladdr operation on word-sized data
+
+    - description: |
+        Rladdr with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 RLADDR B.0
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Rladdr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 RLADDR B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Rladdr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 RLADDR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Rladdr with floating-point data
+      prefix: "F"
+      code: |
+        F1 RLADDR
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of rladdr instruction
+      code: |
+        Variant 1/6: BI1 RLADDR\nVariant 2/6: BI1 RLADDR\nVariant 3/6: BI1 RLADDR
+      explanation: |
+        The rladdr instruction has 6 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.5"
     title: "Load address into record register"

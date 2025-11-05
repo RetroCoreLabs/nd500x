@@ -422,6 +422,46 @@ instruction:
 # Total variants: 16
 
 
+  examples:
+    - description: |
+        Basic xor operation using word register
+      prefix: "W"
+      code: |
+        W1 XOR W2
+      explanation: |
+        Perform xor operation on word-sized data
+
+    - description: |
+        Xor with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 XOR 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Xor with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 XOR B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Xor with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 XOR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of xor instruction
+      code: |
+        Variant 1/16: BI1 XOR\nVariant 2/16: BI1 XOR\nVariant 3/16: BI1 XOR
+      explanation: |
+        The xor instruction has 16 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.23"
     title: "Exclusive or"

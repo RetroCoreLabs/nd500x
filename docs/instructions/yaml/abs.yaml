@@ -302,6 +302,30 @@ instruction:
 # Total variants: 20
 
 
+  examples:
+    - description: |
+        Basic abs operation using word register
+      prefix: "W"
+      code: |
+        W1 ABS
+      explanation: |
+        Perform abs operation on word-sized data
+
+    - description: |
+        Abs with floating-point data
+      prefix: "F"
+      code: |
+        F1 ABS
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of abs instruction
+      code: |
+        Variant 1/20: BY1 ABS\nVariant 2/20: BY1 ABS\nVariant 3/20: BY1 ABS
+      explanation: |
+        The abs instruction has 20 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "13.8"
     title: "Call subroutine absolute"

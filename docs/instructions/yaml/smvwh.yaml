@@ -76,6 +76,31 @@ instruction:
 # Total variants: 1
 
 
+  examples:
+    - description: |
+        Smvwh with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SMVWH 5, 6, 7, 8
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Smvwh with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SMVWH B.16, B.32, B.48, B.64
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Smvwh with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SMVWH ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
   manual_reference:
     section: "14.3"
     title: "String move while"

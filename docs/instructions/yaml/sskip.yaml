@@ -54,6 +54,31 @@ instruction:
 # Total variants: 1
 
 
+  examples:
+    - description: |
+        Sskip with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SSKIP 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sskip with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SSKIP B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sskip with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SSKIP ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
   manual_reference:
     section: "14.14"
     title: "String skip elements"

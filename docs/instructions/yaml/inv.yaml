@@ -231,6 +231,22 @@ instruction:
 # Total variants: 16
 
 
+  examples:
+    - description: |
+        Basic inv operation using word register
+      prefix: "W"
+      code: |
+        W1 INV
+      explanation: |
+        Perform inv operation on word-sized data
+
+    - description: |
+        Different variants of inv instruction
+      code: |
+        Variant 1/16: BI1 INV\nVariant 2/16: BI1 INV\nVariant 3/16: BI1 INV
+      explanation: |
+        The inv instruction has 16 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.13"
     title: "Invert"

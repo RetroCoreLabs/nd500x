@@ -562,6 +562,46 @@ instruction:
 # Total variants: 12
 
 
+  examples:
+    - description: |
+        Basic putbf operation using word register
+      prefix: "W"
+      code: |
+        W1 PUTBF W2, B.16, R.8
+      explanation: |
+        Perform putbf operation on word-sized data
+
+    - description: |
+        Putbf with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 PUTBF B.0, 6, 7
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Putbf with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 PUTBF B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Putbf with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 PUTBF ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of putbf instruction
+      code: |
+        Variant 1/12: BY1 PUTBF\nVariant 2/12: BY1 PUTBF\nVariant 3/12: BY1 PUTBF
+      explanation: |
+        The putbf instruction has 12 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.32"
     title: "Put bit field"

@@ -574,6 +574,46 @@ instruction:
 # Total variants: 12
 
 
+  examples:
+    - description: |
+        Basic getbf operation using word register
+      prefix: "W"
+      code: |
+        W1 GETBF W2, B.16, R.8
+      explanation: |
+        Perform getbf operation on word-sized data
+
+    - description: |
+        Getbf with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 GETBF 5, 6, 7
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Getbf with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 GETBF B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Getbf with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 GETBF ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of getbf instruction
+      code: |
+        Variant 1/12: BY1 GETBF\nVariant 2/12: BY1 GETBF\nVariant 3/12: BY1 GETBF
+      explanation: |
+        The getbf instruction has 12 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.31"
     title: "Get bit field"

@@ -205,6 +205,38 @@ instruction:
 # Total variants: 8
 
 
+  examples:
+    - description: |
+        Basic rpgu operation using word register
+      prefix: "W"
+      code: |
+        W1 RPGU W2
+      explanation: |
+        Perform rpgu operation on word-sized data
+
+    - description: |
+        Rpgu with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 RPGU B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Rpgu with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 RPGU ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of rpgu instruction
+      code: |
+        Variant 1/8: BI1 RPGU\nVariant 2/8: BI1 RPGU\nVariant 3/8: BI1 RPGU
+      explanation: |
+        The rpgu instruction has 8 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "16.20"
     title: "Read Page Used Table"

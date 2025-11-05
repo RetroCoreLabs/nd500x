@@ -762,6 +762,61 @@ instruction:
 # Total variants: 20
 
 
+  examples:
+    - description: |
+        Basic mulad operation using word register
+      prefix: "W"
+      code: |
+        W1 MULAD W2, B.16
+      explanation: |
+        Perform mulad operation on word-sized data
+
+    - description: |
+        Mulad with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 MULAD 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Mulad with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 MULAD B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Mulad with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 MULAD ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Mulad with floating-point data
+      prefix: "F"
+      code: |
+        F1 MULAD F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of mulad instruction
+      code: |
+        Variant 1/20: BY1 MULAD\nVariant 2/20: BY1 MULAD\nVariant 3/20: BY1 MULAD
+      explanation: |
+        The mulad instruction has 20 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 MULAD 1\n; Result in W1
+      explanation: |
+        Common use case for mulad in calculations
+
   manual_reference:
     section: "11.19"
     title: "Multiply and add"

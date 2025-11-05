@@ -86,6 +86,38 @@ instruction:
 # Total variants: 2
 
 
+  examples:
+    - description: |
+        Basic fconr operation using word register
+      prefix: "W"
+      code: |
+        W1 FCONR W2, B.16
+      explanation: |
+        Perform fconr operation on word-sized data
+
+    - description: |
+        Fconr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 FCONR B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Fconr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 FCONR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of fconr instruction
+      code: |
+        Variant 1/2: W1 FCONR\nVariant 2/2: W1 FCONR
+      explanation: |
+        The fconr instruction has 2 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.3"
     title: "Data type conversion with rounding"

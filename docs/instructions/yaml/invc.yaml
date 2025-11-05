@@ -63,6 +63,22 @@ instruction:
 # Total variants: 4
 
 
+  examples:
+    - description: |
+        Basic invc operation using word register
+      prefix: "W"
+      code: |
+        W1 INVC
+      explanation: |
+        Perform invc operation on word-sized data
+
+    - description: |
+        Different variants of invc instruction
+      code: |
+        Variant 1/4: W1 INVC\nVariant 2/4: W1 INVC\nVariant 3/4: W1 INVC
+      explanation: |
+        The invc instruction has 4 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.14"
     title: "Invert with carry add"

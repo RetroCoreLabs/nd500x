@@ -303,6 +303,30 @@ instruction:
 # Total variants: 20
 
 
+  examples:
+    - description: |
+        Basic neg operation using word register
+      prefix: "W"
+      code: |
+        W1 NEG
+      explanation: |
+        Perform neg operation on word-sized data
+
+    - description: |
+        Neg with floating-point data
+      prefix: "F"
+      code: |
+        F1 NEG
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of neg instruction
+      code: |
+        Variant 1/20: BY1 NEG\nVariant 2/20: BY1 NEG\nVariant 3/20: BY1 NEG
+      explanation: |
+        The neg instruction has 20 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.12"
     title: "Negate"

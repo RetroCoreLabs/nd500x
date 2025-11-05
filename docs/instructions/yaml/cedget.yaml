@@ -40,6 +40,23 @@ instruction:
 # Total variants: 1
 
 
+  examples:
+    - description: |
+        Ced=: with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 CED=: B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Ced=: with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 CED=: ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
   manual_reference:
     section: "16.8"
     title: "Store Special Register"

@@ -121,6 +121,46 @@ instruction:
 # Total variants: 3
 
 
+  examples:
+    - description: |
+        Basic shl operation using word register
+      prefix: "W"
+      code: |
+        W1 SHL W2, B.16
+      explanation: |
+        Perform shl operation on word-sized data
+
+    - description: |
+        Shl with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SHL B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Shl with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SHL B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Shl with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SHL ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of shl instruction
+      code: |
+        Variant 1/3: BY1 SHL\nVariant 2/3: BY1 SHL\nVariant 3/3: BY1 SHL
+      explanation: |
+        The shl instruction has 3 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "10.24"
     title: "Logical shift"

@@ -52,6 +52,23 @@ instruction:
 # Total variants: 1
 
 
+  examples:
+    - description: |
+        Scntxt with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SCNTXT B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Scntxt with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SCNTXT ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
   manual_reference:
     section: "16.27.3"
     title: "SCNTXT - Save context block ('87 extension)"

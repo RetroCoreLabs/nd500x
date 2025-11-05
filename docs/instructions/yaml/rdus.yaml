@@ -421,6 +421,46 @@ instruction:
 # Total variants: 16
 
 
+  examples:
+    - description: |
+        Basic rdus operation using word register
+      prefix: "W"
+      code: |
+        W1 RDUS W2
+      explanation: |
+        Perform rdus operation on word-sized data
+
+    - description: |
+        Rdus with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 RDUS 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Rdus with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 RDUS B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Rdus with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 RDUS ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of rdus instruction
+      code: |
+        Variant 1/16: BI1 RDUS\nVariant 2/16: BI1 RDUS\nVariant 3/16: BI1 RDUS
+      explanation: |
+        The rdus instruction has 16 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "16.25"
     title: "Load bypassing cache"

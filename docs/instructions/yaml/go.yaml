@@ -70,6 +70,14 @@ instruction:
 # Total variants: 3
 
 
+  examples:
+    - description: |
+        Different variants of go instruction
+      code: |
+        Variant 1/3: NONE1 GO\nVariant 2/3: NONE1 GO\nVariant 3/3: NONE1 GO
+      explanation: |
+        The go instruction has 3 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "6.1"
     title: "General"

@@ -190,6 +190,38 @@ instruction:
 # Total variants: 4
 
 
+  examples:
+    - description: |
+        Basic chain operation using word register
+      prefix: "W"
+      code: |
+        W1 CHAIN B.8, B.16, R.8
+      explanation: |
+        Perform chain operation on word-sized data
+
+    - description: |
+        Chain with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 CHAIN B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Chain with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 CHAIN ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of chain instruction
+      code: |
+        Variant 1/4: W1 CHAIN\nVariant 2/4: W1 CHAIN\nVariant 3/4: W1 CHAIN
+      explanation: |
+        The chain instruction has 4 variants for different addressing modes and prefixes
+
   manual_reference:
     section: "15.7"
     title: "Load Address of Multilevel Chain"
