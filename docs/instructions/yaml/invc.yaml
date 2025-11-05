@@ -18,7 +18,7 @@ instruction:
   operand_count: 0
 
   variants:
-    - variant: 1/1
+    - variant: 1/4
       opcode: "0xFF10"
       opcode_binary: "1111_1111_0001_0000"
       opcode_decimal: 65296
@@ -28,7 +28,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 1/1
+    - variant: 2/4
       opcode: "0xFF11"
       opcode_binary: "1111_1111_0001_0001"
       opcode_decimal: 65297
@@ -38,7 +38,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 1/1
+    - variant: 3/4
       opcode: "0xFF12"
       opcode_binary: "1111_1111_0001_0010"
       opcode_decimal: 65298
@@ -48,7 +48,7 @@ instruction:
         - W
         - R_N
 
-    - variant: 1/1
+    - variant: 4/4
       opcode: "0xFF13"
       opcode_binary: "1111_1111_0001_0011"
       opcode_decimal: 65299

@@ -16,7 +16,7 @@ instruction:
   operand_count: 3
 
   variants:
-    - variant: 1/2
+    - variant: 1/8
       opcode: "0xFE58"
       opcode_binary: "1111_1110_0101_1000"
       opcode_decimal: 65112
@@ -60,7 +60,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/2
+    - variant: 2/8
       opcode: "0xFE59"
       opcode_binary: "1111_1110_0101_1001"
       opcode_decimal: 65113
@@ -104,7 +104,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/2
+    - variant: 3/8
       opcode: "0xFE5A"
       opcode_binary: "1111_1110_0101_1010"
       opcode_decimal: 65114
@@ -148,7 +148,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/2
+    - variant: 4/8
       opcode: "0xFE5B"
       opcode_binary: "1111_1110_0101_1011"
       opcode_decimal: 65115
@@ -192,7 +192,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/2
+    - variant: 5/8
       opcode: "0xFE5C"
       opcode_binary: "1111_1110_0101_1100"
       opcode_decimal: 65116
@@ -236,7 +236,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/2
+    - variant: 6/8
       opcode: "0xFE5D"
       opcode_binary: "1111_1110_0101_1101"
       opcode_decimal: 65117
@@ -280,7 +280,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/2
+    - variant: 7/8
       opcode: "0xFE5E"
       opcode_binary: "1111_1110_0101_1110"
       opcode_decimal: 65118
@@ -324,7 +324,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 2/2
+    - variant: 8/8
       opcode: "0xFE5F"
       opcode_binary: "1111_1110_0101_1111"
       opcode_decimal: 65119

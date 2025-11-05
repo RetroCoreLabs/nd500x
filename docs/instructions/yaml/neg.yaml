@@ -18,7 +18,7 @@ instruction:
   operand_count: 0
 
   variants:
-    - variant: 1/5
+    - variant: 1/20
       opcode: "0xFE08"
       opcode_binary: "1111_1110_0000_1000"
       opcode_decimal: 65032
@@ -32,7 +32,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 1/5
+    - variant: 2/20
       opcode: "0xFE09"
       opcode_binary: "1111_1110_0000_1001"
       opcode_decimal: 65033
@@ -46,7 +46,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 1/5
+    - variant: 3/20
       opcode: "0xFE0A"
       opcode_binary: "1111_1110_0000_1010"
       opcode_decimal: 65034
@@ -60,7 +60,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 1/5
+    - variant: 4/20
       opcode: "0xFE0B"
       opcode_binary: "1111_1110_0000_1011"
       opcode_decimal: 65035
@@ -74,7 +74,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 2/5
+    - variant: 5/20
       opcode: "0xFE0C"
       opcode_binary: "1111_1110_0000_1100"
       opcode_decimal: 65036
@@ -88,7 +88,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 2/5
+    - variant: 6/20
       opcode: "0xFE0D"
       opcode_binary: "1111_1110_0000_1101"
       opcode_decimal: 65037
@@ -102,7 +102,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 2/5
+    - variant: 7/20
       opcode: "0xFE0E"
       opcode_binary: "1111_1110_0000_1110"
       opcode_decimal: 65038
@@ -116,7 +116,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 2/5
+    - variant: 8/20
       opcode: "0xFE0F"
       opcode_binary: "1111_1110_0000_1111"
       opcode_decimal: 65039
@@ -130,7 +130,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 3/5
+    - variant: 9/20
       opcode: "0x0090"
       opcode_binary: "0000_0000_1001_0000"
       opcode_decimal: 144
@@ -144,7 +144,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 3/5
+    - variant: 10/20
       opcode: "0x0091"
       opcode_binary: "0000_0000_1001_0001"
       opcode_decimal: 145
@@ -158,7 +158,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 3/5
+    - variant: 11/20
       opcode: "0x0092"
       opcode_binary: "0000_0000_1001_0010"
       opcode_decimal: 146
@@ -172,7 +172,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 3/5
+    - variant: 12/20
       opcode: "0x0093"
       opcode_binary: "0000_0000_1001_0011"
       opcode_decimal: 147
@@ -186,7 +186,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 4/5
+    - variant: 13/20
       opcode: "0x0094"
       opcode_binary: "0000_0000_1001_0100"
       opcode_decimal: 148
@@ -200,7 +200,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 4/5
+    - variant: 14/20
       opcode: "0x0095"
       opcode_binary: "0000_0000_1001_0101"
       opcode_decimal: 149
@@ -214,7 +214,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 4/5
+    - variant: 15/20
       opcode: "0x0096"
       opcode_binary: "0000_0000_1001_0110"
       opcode_decimal: 150
@@ -228,7 +228,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 4/5
+    - variant: 16/20
       opcode: "0x0097"
       opcode_binary: "0000_0000_1001_0111"
       opcode_decimal: 151
@@ -242,7 +242,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 5/5
+    - variant: 17/20
       opcode: "0x0094"
       opcode_binary: "0000_0000_1001_0100"
       opcode_decimal: 148
@@ -256,7 +256,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 5/5
+    - variant: 18/20
       opcode: "0x0095"
       opcode_binary: "0000_0000_1001_0101"
       opcode_decimal: 149
@@ -270,7 +270,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 5/5
+    - variant: 19/20
       opcode: "0x0096"
       opcode_binary: "0000_0000_1001_0110"
       opcode_decimal: 150
@@ -284,7 +284,7 @@ instruction:
         - D
         - R_N
 
-    - variant: 5/5
+    - variant: 20/20
       opcode: "0x0097"
       opcode_binary: "0000_0000_1001_0111"
       opcode_decimal: 151

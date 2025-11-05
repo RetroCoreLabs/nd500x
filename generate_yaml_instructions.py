@@ -270,12 +270,14 @@ def instruction_group_to_yaml(instruction_group, group_key):
 
     # Variants section
     yaml_lines.append(f'  variants:')
+
+    # FIX: Use actual index in group, not JSON's variantNumber (which is wrong!)
+    total_in_group = len(instruction_group)
+
     for variant_idx, instruction in enumerate(instruction_group):
         opcode = instruction.get('opcode', '0x0000')
         prefixes = parse_prefixes(instruction.get('prefixes', ''))
         prefix_mask = instruction.get('prefixMask', '0x00')
-        variant_number = instruction.get('variantNumber', 0)
-        total_variants = instruction.get('totalVariants', 1)
         allowed_modes = parse_addressing_modes(instruction.get('allowedModes', []))
         operand_templates = instruction.get('operandTemplates', [])
         metadata = instruction.get('metadata', [])
@@ -286,7 +288,8 @@ def instruction_group_to_yaml(instruction_group, group_key):
         # Format binary with underscores for readability
         opcode_binary_formatted = '_'.join([opcode_binary[i:i+4] for i in range(0, 16, 4)])
 
-        yaml_lines.append(f'    - variant: {variant_number + 1}/{total_variants}')
+        # Use actual position in group: 1/12, 2/12, 3/12... NOT 1/3, 1/3, 1/3, 1/3
+        yaml_lines.append(f'    - variant: {variant_idx + 1}/{total_in_group}')
         yaml_lines.append(f'      opcode: "{opcode}"')
         yaml_lines.append(f'      opcode_binary: "{opcode_binary_formatted}"')
         yaml_lines.append(f'      opcode_decimal: {opcode_int}')

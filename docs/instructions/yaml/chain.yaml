@@ -17,7 +17,7 @@ instruction:
   operand_count: 3
 
   variants:
-    - variant: 1/1
+    - variant: 1/4
       opcode: "0xFD6C"
       opcode_binary: "1111_1101_0110_1100"
       opcode_decimal: 64876
@@ -59,7 +59,7 @@ instruction:
           template: "0x0001FFE8"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
-    - variant: 1/1
+    - variant: 2/4
       opcode: "0xFD6D"
       opcode_binary: "1111_1101_0110_1101"
       opcode_decimal: 64877
@@ -101,7 +101,7 @@ instruction:
           template: "0x0001FFE8"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
-    - variant: 1/1
+    - variant: 3/4
       opcode: "0xFD6E"
       opcode_binary: "1111_1101_0110_1110"
       opcode_decimal: 64878
@@ -143,7 +143,7 @@ instruction:
           template: "0x0001FFE8"
           metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
 
-    - variant: 1/1
+    - variant: 4/4
       opcode: "0xFD6F"
       opcode_binary: "1111_1101_0110_1111"
       opcode_decimal: 64879

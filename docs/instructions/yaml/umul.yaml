@@ -16,7 +16,7 @@ instruction:
   operand_count: 3
 
   variants:
-    - variant: 1/1
+    - variant: 1/4
       opcode: "0xFC80"
       opcode_binary: "1111_1100_1000_0000"
       opcode_decimal: 64640
@@ -59,7 +59,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/1
+    - variant: 2/4
       opcode: "0xFC81"
       opcode_binary: "1111_1100_1000_0001"
       opcode_decimal: 64641
@@ -102,7 +102,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/1
+    - variant: 3/4
       opcode: "0xFC82"
       opcode_binary: "1111_1100_1000_0010"
       opcode_decimal: 64642
@@ -145,7 +145,7 @@ instruction:
           template: "0x0001DFE0"
           metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
 
-    - variant: 1/1
+    - variant: 4/4
       opcode: "0xFC83"
       opcode_binary: "1111_1100_1000_0011"
       opcode_decimal: 64643
