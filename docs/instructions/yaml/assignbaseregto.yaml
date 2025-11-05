@@ -43,3 +43,40 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: AssignBaseRegTo
 # Total variants: 1
+
+  manual_reference:
+    section: "10.2"
+    title: "Load local base register"
+    content: |
+      ## 10.2 Load local base register
+      
+      Format:  
+      B := \<source/r/W>
+      
+      | Assembly notation | Hex code | Octal code |
+      |-------------------|----------|------------|
+      | B :=              | OFC08H   | 176010B    |
+      
+      `Operation:`  
+      \<source> -> B
+      
+      `Description:`  
+      
+      The contents of \<source> are loaded into the local base register.
+      
+      `Trap conditions:` Addressing traps
+      
+      `Data status bits:`
+      
+      \<source> = 0 -> Z  
+      \<source>.signbit -> S
+      
+      `Example:`
+      
+      Load the word variable GLOBBASE into B
+      
+      B := GLOBBASE
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

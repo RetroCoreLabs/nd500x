@@ -116,27 +116,3 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Addc
 # Total variants: 4
-
-  manual_reference:
-    section: "11.1"
-    title: "Add"
-    content: |
-      ## 11.1 Add
-      
-      163
-
-  manual_reference:
-    section: "11.1"
-    title: "Add"
-    content: |
-      ## 11.1 Add
-      
-      163
-
-  manual_reference:
-    section: "11.1"
-    title: "Add"
-    content: |
-      ## 11.1 Add
-      
-      163

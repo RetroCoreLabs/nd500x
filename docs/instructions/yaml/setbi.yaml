@@ -116,3 +116,41 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Setbi
 # Total variants: 3
+
+  manual_reference:
+    section: "10.30"
+    title: "Set bit"
+    content: |
+      # 10.30 Set bit
+      
+      **Format:**  
+      t SETBI \<operand/w/t>,\<bit No./r/BY>
+      
+      | Assembly notation | Name          | Hex code | Octal code |
+      |-------------------|---------------|----------|------------|
+      | BY                | SETBI byte set bit   | 0FE80H   | 176200B    |
+      | H                 | SETBI halfword set bit | 0FE81H   | 176201B    |
+      | W                 | SETBI word set bit  | 0FE82H   | 176202B    |
+      
+      **Operation:**  
+      1 -> bit \<bit No.> of \<operand>
+      
+      **Description:**
+      
+      The specified bit of a BY, H, or W \<operand> is set. A \<bit No.> greater than or equal to the number of bits of the data type or a negative \<bit No.> will cause an illegal operand value trap condition.
+      
+      **Trap conditions:**  
+      Addressing traps, Illegal operand value (IOV)
+      
+      **Data status bits:**  
+      All cleared
+      
+      **Example:**
+      
+      Set bit FAILURE in word argument EXCEPTIONS on the alternative domain
+      
+          W SETBI ALT(IND(B.EXCEPTIONS)), FAILURE
+      
+      Norsk Data ND–05.009.4 EN
+      
+      ---

@@ -177,25 +177,39 @@ instruction:
 # Total variants: 6
 
   manual_reference:
-    section: "11.1"
-    title: "Add"
+    section: "15.5"
+    title: "Load address"
     content: |
-      ## 11.1 Add
+      # 15.5 Load address into record register
       
-      163
-
-  manual_reference:
-    section: "11.1"
-    title: "Add"
-    content: |
-      ## 11.1 Add
+      **Format:**  
+      t RLADDR `<operand/aa/t>`
       
-      163
-
-  manual_reference:
-    section: "11.1"
-    title: "Add"
-    content: |
-      ## 11.1 Add
+      **Assembly Notation | Name**  
+      | Assembly Notation | Name                              | Hex Code | Octal Code |
+      |-------------------|-----------------------------------|----------|------------|
+      | BI RLADDR         | bit load address to R             | 0FC55H   | 176125B    |
+      | BY RLADDR         | byte load address to R            | 0FC54H   | 176132B    |
+      | H RLADDR          | halfword load address to R        | 0FC81H   | 176261B    |
+      | W RLADDR          | word load address to R            | 0BEH     | 276B       |
+      | F RLADDR          | float load address to R           | 0BEH     | 276B       |
+      | D RLADDR          | double float load address to R    | 0FCB2H  | 176262B    |
       
-      163
+      **Operation:**  
+      addr(`<operand>`) -> R
+      
+      **Description:**  
+      
+      The address of the operand is loaded into the record register. Registers and constants have no address in memory and are illegal as operands.
+      
+      **Trap Conditions:** Addressing traps
+      
+      **Data Status Bits:** address = 0 -> Z
+      
+      **Example:**
+      
+      Load R with the base address of the first stack frame below the current stack frame
+      
+          W RLADDR IND(B.0)
+      
+      ---

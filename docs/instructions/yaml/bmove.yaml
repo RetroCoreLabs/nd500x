@@ -225,127 +225,45 @@ instruction:
 # Total variants: 5
 
   manual_reference:
-    section: "10.7"
-    title: "Move"
+    section: "15.1"
+    title: "Block Move and Fill"
     content: |
-      ## 10.7 Move
+      #### 15.1 Block Move and Fill
       
       **Format:**  
-      t MOVE <source/r/t>,<dest/w/t>
+      t BMOVE `<source/r/t>,<dest/w/t>,<m/r/w>`
       
-      | Assembly notation | Name               | Hex code | Octal code |
-      |-------------------|--------------------|----------|------------|
-      | BI MOVE           | move bit           | 0FC0BH   | 176013B    |
-      | BY MOVE           | move byte          | 019H     | 031B       |
-      | H MOVE            | move halfword      | 0FC14H   | 176024B    |
-      | W MOVE            | move word          | 01AH     | 032B       |
-      | F MOVE            | move float         | 01BH     | 033B       |
-      | D MOVE            | move double float  | 02CH     | 054B       |
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | BY BMOVE          | byte block move        | 0FD20H   | 176440B    |
+      | H BMOVE           | halfword block move    | 0FE78H   | 177170B    |
+      | W BMOVE           | word block move        | 0FE79H   | 177171B    |
+      | F BMOVE           | float block move       | 0FE7AH   | 177172B    |
+      | D BMOVE           | double float block move| 0FE7BH   | 177173B    |
       
       **Operation:**  
-      <source> -> <dest>
+      0 -> i  
+      while i < m do  
+      &nbsp;&nbsp;&nbsp;&nbsp;source(i) -> dest(i); i + 1 -> i  
+      enddo  
       
       **Description:**
       
-      The number of bits needed to represent the data type are moved from source to destination. The source is unaffected, and a constant destination operand is illegal.
+      `<m>` elements are moved from the `<source>` to the `<dest>` operand. The operands are pointers to the start of the blocks. Overlap is taken care of. Constants and registers are illegal as destination operands. When a register or a constant is specified as a source operand, the destination string is filled with `<m>` elements equal to the value of the `<source>` operand. `<m>` is unsigned.
       
       **Trap conditions:** Addressing traps
       
-      **Data status bits:**
+      **Data status bits:** All cleared
       
-      <source> = 0 -> Z  
-      <source>.signbit -> S
-      
-      **Example:**
-      
-      Move the double precision value in GLOBAL to local variable LOCAL
-      
-          D MOVE GLOBAL, B.LOCAL
-      
-      Norsk Data ND-05.009.4 EN
-      
-      ---
-
-  manual_reference:
-    section: "10.7"
-    title: "Move"
-    content: |
-      ## 10.7 Move
-      
-      **Format:**  
-      t MOVE <source/r/t>,<dest/w/t>
-      
-      | Assembly notation | Name               | Hex code | Octal code |
-      |-------------------|--------------------|----------|------------|
-      | BI MOVE           | move bit           | 0FC0BH   | 176013B    |
-      | BY MOVE           | move byte          | 019H     | 031B       |
-      | H MOVE            | move halfword      | 0FC14H   | 176024B    |
-      | W MOVE            | move word          | 01AH     | 032B       |
-      | F MOVE            | move float         | 01BH     | 033B       |
-      | D MOVE            | move double float  | 02CH     | 054B       |
-      
-      **Operation:**  
-      <source> -> <dest>
-      
-      **Description:**
-      
-      The number of bits needed to represent the data type are moved from source to destination. The source is unaffected, and a constant destination operand is illegal.
-      
-      **Trap conditions:** Addressing traps
-      
-      **Data status bits:**
-      
-      <source> = 0 -> Z  
-      <source>.signbit -> S
+      **Terminating conditions:** m elements moved
       
       **Example:**
       
-      Move the double precision value in GLOBAL to local variable LOCAL
+      Fill local data area of routine (excluding header) with the largest negative word value (bit pattern equivalent to float minus zero) with the intention of facilitating detection of uninitialized variables
       
-          D MOVE GLOBAL, B.LOCAL
-      
-      Norsk Data ND-05.009.4 EN
-      
-      ---
-
-  manual_reference:
-    section: "10.7"
-    title: "Move"
-    content: |
-      ## 10.7 Move
-      
-      **Format:**  
-      t MOVE <source/r/t>,<dest/w/t>
-      
-      | Assembly notation | Name               | Hex code | Octal code |
-      |-------------------|--------------------|----------|------------|
-      | BI MOVE           | move bit           | 0FC0BH   | 176013B    |
-      | BY MOVE           | move byte          | 019H     | 031B       |
-      | H MOVE            | move halfword      | 0FC14H   | 176024B    |
-      | W MOVE            | move word          | 01AH     | 032B       |
-      | F MOVE            | move float         | 01BH     | 033B       |
-      | D MOVE            | move double float  | 02CH     | 054B       |
-      
-      **Operation:**  
-      <source> -> <dest>
-      
-      **Description:**
-      
-      The number of bits needed to represent the data type are moved from source to destination. The source is unaffected, and a constant destination operand is illegal.
-      
-      **Trap conditions:** Addressing traps
-      
-      **Data status bits:**
-      
-      <source> = 0 -> Z  
-      <source>.signbit -> S
-      
-      **Example:**
-      
-      Move the double precision value in GLOBAL to local variable LOCAL
-      
-          D MOVE GLOBAL, B.LOCAL
-      
-      Norsk Data ND-05.009.4 EN
+      ```
+      W1 := 080000000H
+      W BMOVE W1, B.20, AREASIZE
+      ```
       
       ---

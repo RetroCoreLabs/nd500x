@@ -220,3 +220,36 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sqrt
 # Total variants: 8
+
+  manual_reference:
+    section: "12.4"
+    title: "Square root"
+    content: |
+      # 12.4 Square root
+      
+      **Format:** tn SQRT \<argument/r/t\>
+      
+      | Assembly notation | Name                  | Hex code        | Octal code       |
+      |-------------------|-----------------------|-----------------|------------------|
+      | Fn SQRT           | float square root     | OFCD4H+(n-1)    | 176324B+(n-1)    |
+      | Dn SQRT           | double float square root | OFCD8H+(n-1) | 176330B+(n-1)    |
+      
+      **Operation:** sqrt(\<argument\>) -> Rn
+      
+      **Description:**
+      
+      The square root of the argument is calculated and the result is loaded into the specified float or double float register. A negative argument is illegal and will give a result of zero and cause an invalid operation trap condition.
+      
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
+      
+      **Data status bits:** result = 0 -> Z
+      
+      **Example:**
+      
+      Load double float register D1 with the square root of AREA
+      
+          D1 SQRT AREA
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

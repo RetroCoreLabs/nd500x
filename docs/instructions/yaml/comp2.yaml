@@ -237,3 +237,49 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Comp2
 # Total variants: 6
+
+  manual_reference:
+    section: "10.10"
+    title: "Compare two operands"
+    content: |
+      ### 10.10 Compare two operands
+      
+      **Format:**  
+      t COMP2 <op1/r/t>,<op2/r/t>
+      
+      **Assembly notation**
+      
+      | Name    | Hex code | Octal code |
+      |---------|----------|------------|
+      | BI COMP2 | 0FC15H   | 176025B    |
+      | BY COMP2 | 02DH     | 055B       |
+      | H COMP2  | 0FC16H   | 176026B    |
+      | W COMP2  | 02EH     | 056B       |
+      | F COMP2  | 02FH     | 057B       |
+      | D COMP2  | 040H     | 100B       |
+      
+      **Operation:**  
+      <op1> - <op2>
+      
+      **Description:**
+      
+      The compare two operands instruction subtracts the second operand from the first. The result sets the data status bits accordingly, but the result is otherwise discarded.
+      
+      **Trap conditions:**  
+      Addressing traps, Floating underflow (FU), Floating overflow (FO)
+      
+      **Data status bits:**
+      
+      - result = 0 -> Z
+      - result.signbit XOR Overflow -> S
+      - carry from most significant bit -> C
+      
+      **Example:**
+      
+      Compare record variable floating point DELTA with 0.005
+      
+      F COMP2 R.DELTA, 0.005
+      
+      * *Norsk Data ND-05.009.4 EN*
+      
+      ---

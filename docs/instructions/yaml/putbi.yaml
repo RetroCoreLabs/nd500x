@@ -416,3 +416,43 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Putbi
 # Total variants: 12
+
+  manual_reference:
+    section: "10.28"
+    title: "Put bit"
+    content: |
+      # 10.28 Put bit
+      
+      **Format:**  
+      tn PUTBI `<operand/w/t>,<bit no/r/BY>`
+      
+      | Assembly notation | Name        | Hex code     | Octal code       |
+      |-------------------|-------------|--------------|------------------|
+      | BYn PUTBI         | byte put bit| OFDD4H+(n-1) | 176724B+(n-1)    |
+      | Hn PUTBI          | halfword put bit | OFDD8H+(n-1) | 176730B+(n-1) |
+      | Wn PUTBI          | word put bit| OFDDCH+(n-1) | 176734B+(n-1)    |
+      
+      **Operation:**  
+      bit 0 of Rn -> bit `<bit No.>` of `<operand>`
+      
+      **Description:**
+      
+      Bit zero of the specified register is stored in bit `<bit No.>` of a BY, H, or W `<operand>`. The upper bits of the `<operand>` are unaffected, even when the destination is a word register. A `<bit No.>` greater than or equal to the number of bits of the data type or a negative `<bit No.>` will cause an illegal operand value trap condition.
+      
+      **Trap conditions:**  
+      Addressing traps, Illegal operand value (IOV)
+      
+      **Data status bits:**  
+      transferred bit = 0 -> Z
+      
+      **Example:**
+      
+      Store bit zero of R4 in bit 4 of local byte variable FLAGS
+      
+      ```
+      BY4 PUTBI B.FLAGS, 4
+      ```
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

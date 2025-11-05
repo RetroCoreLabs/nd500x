@@ -180,3 +180,44 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Stz
 # Total variants: 6
+
+  manual_reference:
+    section: "10.17"
+    title: "Store zero"
+    content: |
+      ### 10.17 Store zero
+      
+      **Format:** t STZ `<operand/w/t>`
+      
+      **Assembly Notation**
+      
+      | Notation | Name                     | Hex Code | Octal Code |
+      |----------|--------------------------|----------|------------|
+      | BI STZ   | bit store zero           | 0FC85H   | 176205B    |
+      | BY STZ   | byte store zero          | 048H     | 110B       |
+      | H STZ    | halfword store zero      | 049H     | 111B       |
+      | W STZ    | word store zero          | 04AH     | 112B       |
+      | F STZ    | float store zero         | 04BH     | 113B       |
+      | D STZ    | double float store zero  | 04CH     | 114B       |
+      
+      **Operation:** 0 -> `<operand>`
+      
+      **Description:**
+      
+      The contents of the destination operand are replaced by zero.
+      
+      **Trap conditions:** Addressing traps
+      
+      **Data status bits:** 1 -> Z
+      
+      **Example:**
+      
+      Clear the byte FLAGS
+      
+      ```
+      BY STZ FLAGS
+      ```
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
