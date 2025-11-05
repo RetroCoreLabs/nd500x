@@ -580,3 +580,147 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Divide
 # Total variants: 20
+
+  manual_reference:
+    section: "11.4"
+    title: "Divide"
+    content: |
+      # 11.4 Divide
+      
+      **Format:**  
+      tn / `<divisor/r/t>`
+      
+      **Assembly notation**
+      
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BYn  | byte divide | 0FC4CH+(n-1) | 176114B+(n-1) |
+      | Hn   | halfword divide | 0FC50H+(n-1) | 176120B+(n-1) |
+      | Wn   | word divide | 078H+(n-1) | 170B+(n-1) |
+      | Fn   | float divide | 07CH+(n-1) | 174B+(n-1) |
+      | Dn   | double float divide | 0E8H+(n-1) | 350B+(n-1) |
+      
+      **Operation:**  
+      Rn / `<divisor>` -> Rn
+      
+      **Description:**
+      
+      The contents of the specified register are divided by the `<divisor>` operand. The quotient is left in the same register. In integer division the remainder (unless it is zero) has the same sign as the register contents, i.e., the quotient is truncated towards 0. Integer overflow occurs if and only if the largest possible negative integer is divided by -1.
+      
+      **Trap conditions:**  
+      Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU), Divide by zero (DZ)
+      
+      **Data status bits:**
+      
+          quotient = 0 -> Z  
+          quotient.signbit -> S  
+          overflow -> O  
+          floating underflow -> FU  
+          floating overflow -> FO  
+          divisor = 0 -> DZ  
+      
+      **Example:**
+      
+      Divide float register A3 by the R4th element of argument ARR
+      
+          F3 / IND(B.ARR)(R4)
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "11.4"
+    title: "Divide"
+    content: |
+      # 11.4 Divide
+      
+      **Format:**  
+      tn / `<divisor/r/t>`
+      
+      **Assembly notation**
+      
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BYn  | byte divide | 0FC4CH+(n-1) | 176114B+(n-1) |
+      | Hn   | halfword divide | 0FC50H+(n-1) | 176120B+(n-1) |
+      | Wn   | word divide | 078H+(n-1) | 170B+(n-1) |
+      | Fn   | float divide | 07CH+(n-1) | 174B+(n-1) |
+      | Dn   | double float divide | 0E8H+(n-1) | 350B+(n-1) |
+      
+      **Operation:**  
+      Rn / `<divisor>` -> Rn
+      
+      **Description:**
+      
+      The contents of the specified register are divided by the `<divisor>` operand. The quotient is left in the same register. In integer division the remainder (unless it is zero) has the same sign as the register contents, i.e., the quotient is truncated towards 0. Integer overflow occurs if and only if the largest possible negative integer is divided by -1.
+      
+      **Trap conditions:**  
+      Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU), Divide by zero (DZ)
+      
+      **Data status bits:**
+      
+          quotient = 0 -> Z  
+          quotient.signbit -> S  
+          overflow -> O  
+          floating underflow -> FU  
+          floating overflow -> FO  
+          divisor = 0 -> DZ  
+      
+      **Example:**
+      
+      Divide float register A3 by the R4th element of argument ARR
+      
+          F3 / IND(B.ARR)(R4)
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "11.4"
+    title: "Divide"
+    content: |
+      # 11.4 Divide
+      
+      **Format:**  
+      tn / `<divisor/r/t>`
+      
+      **Assembly notation**
+      
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BYn  | byte divide | 0FC4CH+(n-1) | 176114B+(n-1) |
+      | Hn   | halfword divide | 0FC50H+(n-1) | 176120B+(n-1) |
+      | Wn   | word divide | 078H+(n-1) | 170B+(n-1) |
+      | Fn   | float divide | 07CH+(n-1) | 174B+(n-1) |
+      | Dn   | double float divide | 0E8H+(n-1) | 350B+(n-1) |
+      
+      **Operation:**  
+      Rn / `<divisor>` -> Rn
+      
+      **Description:**
+      
+      The contents of the specified register are divided by the `<divisor>` operand. The quotient is left in the same register. In integer division the remainder (unless it is zero) has the same sign as the register contents, i.e., the quotient is truncated towards 0. Integer overflow occurs if and only if the largest possible negative integer is divided by -1.
+      
+      **Trap conditions:**  
+      Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU), Divide by zero (DZ)
+      
+      **Data status bits:**
+      
+          quotient = 0 -> Z  
+          quotient.signbit -> S  
+          overflow -> O  
+          floating underflow -> FU  
+          floating overflow -> FO  
+          divisor = 0 -> DZ  
+      
+      **Example:**
+      
+      Divide float register A3 by the R4th element of argument ARR
+      
+          F3 / IND(B.ARR)(R4)
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

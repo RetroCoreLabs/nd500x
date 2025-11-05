@@ -219,3 +219,153 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Int
 # Total variants: 8
+
+  manual_reference:
+    section: "10.33"
+    title: "Floating point remainder"
+    content: |
+      ## 10.33 Floating point remainder
+      
+      **Format:**  
+      tn REM `<x/r/t>,<y/r/t>,<q/w/t>`
+      
+      | Assembly notation | Name                         | Hex code   | Octal code     |
+      |------------------|-------------------------------|------------|----------------|
+      | Fn REM           | float divide with remainder   | 0FE58H+(n-1)| 177130B+(n-1)  |
+      | Dn REM           | double float divide with remainder | 0FE5CH+(n-1)| 177134B+(n-1)  |
+      
+      ### Operation:
+      
+      - remainder of `<x>/<y>` in float format -> Rn
+      - integer part of `<x>/<y>` in float format -> `<q>`
+      
+      ### Description:
+      
+      The value of the `<x>` operand is divided by the value of the `<y>` operand and the integer part of the quotient in float format stored in `<q>`. The remainder of the quotient in float format is loaded into the specified register.
+      
+      Algorithms used:  
+      `<q>` = `int(<x>/<y>)`  
+      `Rn` = `<x>` - `<q>*<y>`
+      
+      **Note:** Some precision may be lost in the subtraction if the quotient `<x>/<y>` is large. If it is so large that the binary point is outside the floating format, then `int(<x>/<y>)` = `<x>/<y>`, and `Rn` will be zero.
+      
+      **Trap conditions:**  
+      Addressing traps, Floating overflow (F0), Floating underflow (FU), Divide by zero (DZ)
+      
+      ### Data status bits:
+      
+      - remainder = 0 -> Z
+      - remainder.signbit -> S
+      - floating underflow -> FU
+      - floating overflow -> FO
+      - `<y>` = 0 -> DZ
+      
+      ### Example:
+      
+      Divide record variables EXPENSES with AMOUNT giving UNITCOST and a remainder in F2
+      
+      F2 REM R.EXPENSES, R.AMOUNT, R.UNITCOST
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "10.33"
+    title: "Floating point remainder"
+    content: |
+      ## 10.33 Floating point remainder
+      
+      **Format:**  
+      tn REM `<x/r/t>,<y/r/t>,<q/w/t>`
+      
+      | Assembly notation | Name                         | Hex code   | Octal code     |
+      |------------------|-------------------------------|------------|----------------|
+      | Fn REM           | float divide with remainder   | 0FE58H+(n-1)| 177130B+(n-1)  |
+      | Dn REM           | double float divide with remainder | 0FE5CH+(n-1)| 177134B+(n-1)  |
+      
+      ### Operation:
+      
+      - remainder of `<x>/<y>` in float format -> Rn
+      - integer part of `<x>/<y>` in float format -> `<q>`
+      
+      ### Description:
+      
+      The value of the `<x>` operand is divided by the value of the `<y>` operand and the integer part of the quotient in float format stored in `<q>`. The remainder of the quotient in float format is loaded into the specified register.
+      
+      Algorithms used:  
+      `<q>` = `int(<x>/<y>)`  
+      `Rn` = `<x>` - `<q>*<y>`
+      
+      **Note:** Some precision may be lost in the subtraction if the quotient `<x>/<y>` is large. If it is so large that the binary point is outside the floating format, then `int(<x>/<y>)` = `<x>/<y>`, and `Rn` will be zero.
+      
+      **Trap conditions:**  
+      Addressing traps, Floating overflow (F0), Floating underflow (FU), Divide by zero (DZ)
+      
+      ### Data status bits:
+      
+      - remainder = 0 -> Z
+      - remainder.signbit -> S
+      - floating underflow -> FU
+      - floating overflow -> FO
+      - `<y>` = 0 -> DZ
+      
+      ### Example:
+      
+      Divide record variables EXPENSES with AMOUNT giving UNITCOST and a remainder in F2
+      
+      F2 REM R.EXPENSES, R.AMOUNT, R.UNITCOST
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "10.33"
+    title: "Floating point remainder"
+    content: |
+      ## 10.33 Floating point remainder
+      
+      **Format:**  
+      tn REM `<x/r/t>,<y/r/t>,<q/w/t>`
+      
+      | Assembly notation | Name                         | Hex code   | Octal code     |
+      |------------------|-------------------------------|------------|----------------|
+      | Fn REM           | float divide with remainder   | 0FE58H+(n-1)| 177130B+(n-1)  |
+      | Dn REM           | double float divide with remainder | 0FE5CH+(n-1)| 177134B+(n-1)  |
+      
+      ### Operation:
+      
+      - remainder of `<x>/<y>` in float format -> Rn
+      - integer part of `<x>/<y>` in float format -> `<q>`
+      
+      ### Description:
+      
+      The value of the `<x>` operand is divided by the value of the `<y>` operand and the integer part of the quotient in float format stored in `<q>`. The remainder of the quotient in float format is loaded into the specified register.
+      
+      Algorithms used:  
+      `<q>` = `int(<x>/<y>)`  
+      `Rn` = `<x>` - `<q>*<y>`
+      
+      **Note:** Some precision may be lost in the subtraction if the quotient `<x>/<y>` is large. If it is so large that the binary point is outside the floating format, then `int(<x>/<y>)` = `<x>/<y>`, and `Rn` will be zero.
+      
+      **Trap conditions:**  
+      Addressing traps, Floating overflow (F0), Floating underflow (FU), Divide by zero (DZ)
+      
+      ### Data status bits:
+      
+      - remainder = 0 -> Z
+      - remainder.signbit -> S
+      - floating underflow -> FU
+      - floating overflow -> FO
+      - `<y>` = 0 -> DZ
+      
+      ### Example:
+      
+      Divide record variables EXPENSES with AMOUNT giving UNITCOST and a remainder in F2
+      
+      F2 REM R.EXPENSES, R.AMOUNT, R.UNITCOST
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

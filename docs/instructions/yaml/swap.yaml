@@ -224,3 +224,87 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Swap
 # Total variants: 6
+
+  manual_reference:
+    section: "10.8"
+    title: "Swap"
+    content: |
+      # 10.8 Swap
+      
+      **Format:**  
+      t SWAP <op1/rw/t>,<op2/rw/t>
+      
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | BI SWAP           | bit swap        | 0FCBDH   | 176275B    |
+      | BY SWAP           | byte swap       | 0FCBEH   | 176276B    |
+      | H SWAP            | halfword swap   | 0FCBFH   | 176277B    |
+      | W SWAP            | word swap       | 052H     | 122B       |
+      | F SWAP            | float swap      | 0FCDCH   | 176334B    |
+      | D SWAP            | double float swap | 0FCDDH  | 176335B    |
+      
+      **Operation:**  
+      <op1> ::= <op2>
+      
+      **Description:**  
+      
+      The contents of the first operand are stored in the second, and the original contents of the second operand are stored in the first. The operands are assumed to have the same data type (see section 7.3 on page 73).
+      
+      **Trap conditions:** Addressing traps
+      
+      **Data status bits:**
+      
+      original contents of <op1> = 0  -> Z  
+      original contents of <op1>.signbit -> S
+      
+      **Example:**
+      
+      Exchange contents of word variables EAST and WEST
+      
+          W SWAP EAST, WEST
+      
+      *Norsk Data ND-05.009.4 EN*
+      
+      ---
+
+  manual_reference:
+    section: "10.8"
+    title: "Swap"
+    content: |
+      # 10.8 Swap
+      
+      **Format:**  
+      t SWAP <op1/rw/t>,<op2/rw/t>
+      
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | BI SWAP           | bit swap        | 0FCBDH   | 176275B    |
+      | BY SWAP           | byte swap       | 0FCBEH   | 176276B    |
+      | H SWAP            | halfword swap   | 0FCBFH   | 176277B    |
+      | W SWAP            | word swap       | 052H     | 122B       |
+      | F SWAP            | float swap      | 0FCDCH   | 176334B    |
+      | D SWAP            | double float swap | 0FCDDH  | 176335B    |
+      
+      **Operation:**  
+      <op1> ::= <op2>
+      
+      **Description:**  
+      
+      The contents of the first operand are stored in the second, and the original contents of the second operand are stored in the first. The operands are assumed to have the same data type (see section 7.3 on page 73).
+      
+      **Trap conditions:** Addressing traps
+      
+      **Data status bits:**
+      
+      original contents of <op1> = 0  -> Z  
+      original contents of <op1>.signbit -> S
+      
+      **Example:**
+      
+      Exchange contents of word variables EAST and WEST
+      
+          W SWAP EAST, WEST
+      
+      *Norsk Data ND-05.009.4 EN*
+      
+      ---

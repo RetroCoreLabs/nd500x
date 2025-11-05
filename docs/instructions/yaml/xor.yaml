@@ -452,3 +452,19 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Xor
 # Total variants: 16
+
+  manual_reference:
+    section: "10.23"
+    title: "Exclusive or"
+    content: |
+      ## 10.23 Exclusive or
+      
+      145
+
+  manual_reference:
+    section: "10.23"
+    title: "Exclusive or"
+    content: |
+      ## 10.23 Exclusive or
+      
+      145

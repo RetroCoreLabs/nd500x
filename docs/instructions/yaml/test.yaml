@@ -189,3 +189,19 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Test
 # Total variants: 6
+
+  manual_reference:
+    section: "10.11"
+    title: "Test against zero"
+    content: |
+      ## 10.11 Test against zero
+      
+      133
+
+  manual_reference:
+    section: "10.11"
+    title: "Test against zero"
+    content: |
+      ## 10.11 Test against zero
+      
+      133

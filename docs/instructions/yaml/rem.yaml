@@ -339,3 +339,144 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Rem
 # Total variants: 8
+
+  manual_reference:
+    section: "10.19"
+    title: "Increment"
+    content: |
+      ## 10.19 Increment
+      
+      **Format:**  
+      `t INCR <operand/rw/t>`
+      
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | BY INCR           | byte increment         | 0FC8AH   | 176212B    |
+      | H INCR            | halfword increment     | 04EH     | 116B       |
+      | W INCR            | word increment         | 04FH     | 117B       |
+      | F INCR            | float increment        | 050H     | 120B       |
+      | D INCR            | double float increment | 0FC8BH   | 176213B    |
+      
+      **Operation:**  
+      `<operand> + 1 -> <operand>`
+      
+      **Description:**
+      
+      The `<operand>` is incremented by one. The Carry bit is set if a carry occurs from the sign bit position of the adder, otherwise it is reset. Carry will occur when and only when integer -1 is incremented.
+      
+      **Trap conditions:** Addressing traps, Integer overflow (0)
+      
+      **Data status bits:**
+      
+      ```
+      sum.signbit           -> S
+      sum = 0              -> Z
+      overflow             -> O
+      carry from most significant bit -> C (integer)
+      ```
+      
+      **Example:**
+      
+      Increment the halfword record variable LOOPER and force displacement part to halfword
+      
+      ```
+      H INCR R.LOOPER:H
+      ```
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "10.19"
+    title: "Increment"
+    content: |
+      ## 10.19 Increment
+      
+      **Format:**  
+      `t INCR <operand/rw/t>`
+      
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | BY INCR           | byte increment         | 0FC8AH   | 176212B    |
+      | H INCR            | halfword increment     | 04EH     | 116B       |
+      | W INCR            | word increment         | 04FH     | 117B       |
+      | F INCR            | float increment        | 050H     | 120B       |
+      | D INCR            | double float increment | 0FC8BH   | 176213B    |
+      
+      **Operation:**  
+      `<operand> + 1 -> <operand>`
+      
+      **Description:**
+      
+      The `<operand>` is incremented by one. The Carry bit is set if a carry occurs from the sign bit position of the adder, otherwise it is reset. Carry will occur when and only when integer -1 is incremented.
+      
+      **Trap conditions:** Addressing traps, Integer overflow (0)
+      
+      **Data status bits:**
+      
+      ```
+      sum.signbit           -> S
+      sum = 0              -> Z
+      overflow             -> O
+      carry from most significant bit -> C (integer)
+      ```
+      
+      **Example:**
+      
+      Increment the halfword record variable LOOPER and force displacement part to halfword
+      
+      ```
+      H INCR R.LOOPER:H
+      ```
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "10.19"
+    title: "Increment"
+    content: |
+      ## 10.19 Increment
+      
+      **Format:**  
+      `t INCR <operand/rw/t>`
+      
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | BY INCR           | byte increment         | 0FC8AH   | 176212B    |
+      | H INCR            | halfword increment     | 04EH     | 116B       |
+      | W INCR            | word increment         | 04FH     | 117B       |
+      | F INCR            | float increment        | 050H     | 120B       |
+      | D INCR            | double float increment | 0FC8BH   | 176213B    |
+      
+      **Operation:**  
+      `<operand> + 1 -> <operand>`
+      
+      **Description:**
+      
+      The `<operand>` is incremented by one. The Carry bit is set if a carry occurs from the sign bit position of the adder, otherwise it is reset. Carry will occur when and only when integer -1 is incremented.
+      
+      **Trap conditions:** Addressing traps, Integer overflow (0)
+      
+      **Data status bits:**
+      
+      ```
+      sum.signbit           -> S
+      sum = 0              -> Z
+      overflow             -> O
+      carry from most significant bit -> C (integer)
+      ```
+      
+      **Example:**
+      
+      Increment the halfword record variable LOOPER and force displacement part to halfword
+      
+      ```
+      H INCR R.LOOPER:H
+      ```
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

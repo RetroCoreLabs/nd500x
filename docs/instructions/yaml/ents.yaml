@@ -43,3 +43,162 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Ents
 # Total variants: 1
+
+  manual_reference:
+    section: "14.7"
+    title: "String move *m* elements"
+    content: |
+      ## 14.7 String move *m* elements
+      
+      **Format:**
+      
+      t SMOVN ⟨=source/r/t/I1=⟩,⟨=dest/w/t/I2=⟩,⟨m/r/W⟩  
+      
+      **Assembly notation**
+      
+      | Name     | Hex code | Octal code |
+      |----------|----------|------------|
+      | BI SMOVN | 0FD76H   | 176568B    |
+      | BY SMOVN | 0FD77H   | 176567B    |
+      | H SMOVN  | 0FD78H   | 176570B    |
+      | W SMOVN  | 0FD79H   | 176571B    |
+      | F SMOVN  | 0FD7AH   | 176572B    |
+      | D SMOVN  | 0FD7BH   | 176573B    |
+      
+      **Operation:**
+      
+      0 -> i  
+      while not end of strings and i < m do  
+      S(I1) -> D(I2)  
+      I1 + 1 -> I1, I2 + 1 -> I2  
+      i + 1 -> i  
+      enddo  
+      
+      **Description:**
+      
+      M items are moved from the ⟨source⟩ to the ⟨dest⟩ operand, unless the end of the ⟨source⟩ operand is reached or the ⟨dest⟩ operand full. Overlap is taken care of.
+      
+      **Terminating conditions:**
+      
+      - outside source: K=0 Z=0   I1, I2 unmodified, DR trap condition
+      - outside dest:   K=1 Z=0   I1, I2 unmodified, DR trap condition
+      - m items moved:  K=0 Z=1   I1, I2 :- next element
+      - source empty:   K=0 Z=0   I1, I2 :- next element
+      - dest full:      K=1 Z=0   I1, I2 :- next element
+      
+      **Example:**
+      
+      Copy next 64 bits from S1 to start of S2, both global descriptors
+      
+          W2 CLR  
+          BI SMOVN S1, S2, 64  
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "14.7"
+    title: "String move *m* elements"
+    content: |
+      ## 14.7 String move *m* elements
+      
+      **Format:**
+      
+      t SMOVN ⟨=source/r/t/I1=⟩,⟨=dest/w/t/I2=⟩,⟨m/r/W⟩  
+      
+      **Assembly notation**
+      
+      | Name     | Hex code | Octal code |
+      |----------|----------|------------|
+      | BI SMOVN | 0FD76H   | 176568B    |
+      | BY SMOVN | 0FD77H   | 176567B    |
+      | H SMOVN  | 0FD78H   | 176570B    |
+      | W SMOVN  | 0FD79H   | 176571B    |
+      | F SMOVN  | 0FD7AH   | 176572B    |
+      | D SMOVN  | 0FD7BH   | 176573B    |
+      
+      **Operation:**
+      
+      0 -> i  
+      while not end of strings and i < m do  
+      S(I1) -> D(I2)  
+      I1 + 1 -> I1, I2 + 1 -> I2  
+      i + 1 -> i  
+      enddo  
+      
+      **Description:**
+      
+      M items are moved from the ⟨source⟩ to the ⟨dest⟩ operand, unless the end of the ⟨source⟩ operand is reached or the ⟨dest⟩ operand full. Overlap is taken care of.
+      
+      **Terminating conditions:**
+      
+      - outside source: K=0 Z=0   I1, I2 unmodified, DR trap condition
+      - outside dest:   K=1 Z=0   I1, I2 unmodified, DR trap condition
+      - m items moved:  K=0 Z=1   I1, I2 :- next element
+      - source empty:   K=0 Z=0   I1, I2 :- next element
+      - dest full:      K=1 Z=0   I1, I2 :- next element
+      
+      **Example:**
+      
+      Copy next 64 bits from S1 to start of S2, both global descriptors
+      
+          W2 CLR  
+          BI SMOVN S1, S2, 64  
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---
+
+  manual_reference:
+    section: "14.7"
+    title: "String move *m* elements"
+    content: |
+      ## 14.7 String move *m* elements
+      
+      **Format:**
+      
+      t SMOVN ⟨=source/r/t/I1=⟩,⟨=dest/w/t/I2=⟩,⟨m/r/W⟩  
+      
+      **Assembly notation**
+      
+      | Name     | Hex code | Octal code |
+      |----------|----------|------------|
+      | BI SMOVN | 0FD76H   | 176568B    |
+      | BY SMOVN | 0FD77H   | 176567B    |
+      | H SMOVN  | 0FD78H   | 176570B    |
+      | W SMOVN  | 0FD79H   | 176571B    |
+      | F SMOVN  | 0FD7AH   | 176572B    |
+      | D SMOVN  | 0FD7BH   | 176573B    |
+      
+      **Operation:**
+      
+      0 -> i  
+      while not end of strings and i < m do  
+      S(I1) -> D(I2)  
+      I1 + 1 -> I1, I2 + 1 -> I2  
+      i + 1 -> i  
+      enddo  
+      
+      **Description:**
+      
+      M items are moved from the ⟨source⟩ to the ⟨dest⟩ operand, unless the end of the ⟨source⟩ operand is reached or the ⟨dest⟩ operand full. Overlap is taken care of.
+      
+      **Terminating conditions:**
+      
+      - outside source: K=0 Z=0   I1, I2 unmodified, DR trap condition
+      - outside dest:   K=1 Z=0   I1, I2 unmodified, DR trap condition
+      - m items moved:  K=0 Z=1   I1, I2 :- next element
+      - source empty:   K=0 Z=0   I1, I2 :- next element
+      - dest full:      K=1 Z=0   I1, I2 :- next element
+      
+      **Example:**
+      
+      Copy next 64 bits from S1 to start of S2, both global descriptors
+      
+          W2 CLR  
+          BI SMOVN S1, S2, 64  
+      
+      Norsk Data ND-05.009.4 EN
+      
+      ---

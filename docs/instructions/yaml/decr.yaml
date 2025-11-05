@@ -149,3 +149,141 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Decr
 # Total variants: 5
+
+  manual_reference:
+    section: "10.20"
+    title: "Decrement"
+    content: |
+      # 10.20 Decrement
+      
+      **Format:**  
+      `t DECR <operand/rw/t>`
+      
+      | Assembly notation | Name                 | Hex code | Octal code |
+      |-------------------|----------------------|----------|------------|
+      | BY DECR           | byte decrement       | 0FC86H   | 176214B    |
+      | H DECR            | halfword decrement   | 0FC87H   | 176215B    |
+      | W DECR            | word decrement       | 0511H    | 121B       |
+      | F DECR            | float decrement      | 0FC88H   | 176216B    |
+      | D DECR            | double float decrement | 0FC89H | 176217B    |
+      
+      ### Operation
+      
+      `<operand> - 1 -> <operand>`
+      
+      ### Description
+      
+      The `<operand>` is decremented by one.
+      
+      ### Trap conditions
+      
+      Addressing traps, Integer overflow (0)
+      
+      ### Data status bits
+      
+      - `difference = 0` -> `Z`
+      - `difference.signbit` -> `S`
+      - `overflow` -> `O`
+      - `carry from most significant bit` -> `C`
+      
+      ### Example
+      
+      Decrement the halfword record variable STEP on the alternative domain
+      
+      ```
+      H DECR ALT(R.STEP)
+      ```
+      
+      ---
+
+  manual_reference:
+    section: "10.20"
+    title: "Decrement"
+    content: |
+      # 10.20 Decrement
+      
+      **Format:**  
+      `t DECR <operand/rw/t>`
+      
+      | Assembly notation | Name                 | Hex code | Octal code |
+      |-------------------|----------------------|----------|------------|
+      | BY DECR           | byte decrement       | 0FC86H   | 176214B    |
+      | H DECR            | halfword decrement   | 0FC87H   | 176215B    |
+      | W DECR            | word decrement       | 0511H    | 121B       |
+      | F DECR            | float decrement      | 0FC88H   | 176216B    |
+      | D DECR            | double float decrement | 0FC89H | 176217B    |
+      
+      ### Operation
+      
+      `<operand> - 1 -> <operand>`
+      
+      ### Description
+      
+      The `<operand>` is decremented by one.
+      
+      ### Trap conditions
+      
+      Addressing traps, Integer overflow (0)
+      
+      ### Data status bits
+      
+      - `difference = 0` -> `Z`
+      - `difference.signbit` -> `S`
+      - `overflow` -> `O`
+      - `carry from most significant bit` -> `C`
+      
+      ### Example
+      
+      Decrement the halfword record variable STEP on the alternative domain
+      
+      ```
+      H DECR ALT(R.STEP)
+      ```
+      
+      ---
+
+  manual_reference:
+    section: "10.20"
+    title: "Decrement"
+    content: |
+      # 10.20 Decrement
+      
+      **Format:**  
+      `t DECR <operand/rw/t>`
+      
+      | Assembly notation | Name                 | Hex code | Octal code |
+      |-------------------|----------------------|----------|------------|
+      | BY DECR           | byte decrement       | 0FC86H   | 176214B    |
+      | H DECR            | halfword decrement   | 0FC87H   | 176215B    |
+      | W DECR            | word decrement       | 0511H    | 121B       |
+      | F DECR            | float decrement      | 0FC88H   | 176216B    |
+      | D DECR            | double float decrement | 0FC89H | 176217B    |
+      
+      ### Operation
+      
+      `<operand> - 1 -> <operand>`
+      
+      ### Description
+      
+      The `<operand>` is decremented by one.
+      
+      ### Trap conditions
+      
+      Addressing traps, Integer overflow (0)
+      
+      ### Data status bits
+      
+      - `difference = 0` -> `Z`
+      - `difference.signbit` -> `S`
+      - `overflow` -> `O`
+      - `carry from most significant bit` -> `C`
+      
+      ### Example
+      
+      Decrement the halfword record variable STEP on the alternative domain
+      
+      ```
+      H DECR ALT(R.STEP)
+      ```
+      
+      ---

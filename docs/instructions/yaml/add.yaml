@@ -580,3 +580,123 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Add
 # Total variants: 20
+
+  manual_reference:
+    section: "10.14"
+    title: "Invert with carry add"
+    content: |
+      # 10.14 Invert with carry add
+      
+      **Format:**  
+      Wn INVC
+      
+      | Assembly notation | Name | Hex code      | Octal code     |
+      |-------------------|------|---------------|----------------|
+      | Wn INVC           | word invert register w/carry | OFF10B+(n-1) | 177420B+(n-1) |
+      
+      **Operation:**  
+      One's complement of Rn + C -> Rn
+      
+      **Description:**  
+      
+      The one's complement of the contents of the specified word register is calculated. The carry is added and the result is loaded into the specified register. This instruction is used for multiple precision arithmetic.
+      
+      **Trap conditions:**  
+      Integer overflow (O)
+      
+      **Data status bits:**
+      
+      - result = 0 -> Z
+      - result.signbit -> S
+      - carry -> C
+      - overflow -> O
+      
+      **Example:**
+      
+      Invert W2 and add carry  
+      
+          W2 INVC  
+      
+      *Norsk Data ND-05.009.4 EN*
+      
+      ---
+
+  manual_reference:
+    section: "10.14"
+    title: "Invert with carry add"
+    content: |
+      # 10.14 Invert with carry add
+      
+      **Format:**  
+      Wn INVC
+      
+      | Assembly notation | Name | Hex code      | Octal code     |
+      |-------------------|------|---------------|----------------|
+      | Wn INVC           | word invert register w/carry | OFF10B+(n-1) | 177420B+(n-1) |
+      
+      **Operation:**  
+      One's complement of Rn + C -> Rn
+      
+      **Description:**  
+      
+      The one's complement of the contents of the specified word register is calculated. The carry is added and the result is loaded into the specified register. This instruction is used for multiple precision arithmetic.
+      
+      **Trap conditions:**  
+      Integer overflow (O)
+      
+      **Data status bits:**
+      
+      - result = 0 -> Z
+      - result.signbit -> S
+      - carry -> C
+      - overflow -> O
+      
+      **Example:**
+      
+      Invert W2 and add carry  
+      
+          W2 INVC  
+      
+      *Norsk Data ND-05.009.4 EN*
+      
+      ---
+
+  manual_reference:
+    section: "10.14"
+    title: "Invert with carry add"
+    content: |
+      # 10.14 Invert with carry add
+      
+      **Format:**  
+      Wn INVC
+      
+      | Assembly notation | Name | Hex code      | Octal code     |
+      |-------------------|------|---------------|----------------|
+      | Wn INVC           | word invert register w/carry | OFF10B+(n-1) | 177420B+(n-1) |
+      
+      **Operation:**  
+      One's complement of Rn + C -> Rn
+      
+      **Description:**  
+      
+      The one's complement of the contents of the specified word register is calculated. The carry is added and the result is loaded into the specified register. This instruction is used for multiple precision arithmetic.
+      
+      **Trap conditions:**  
+      Integer overflow (O)
+      
+      **Data status bits:**
+      
+      - result = 0 -> Z
+      - result.signbit -> S
+      - carry -> C
+      - overflow -> O
+      
+      **Example:**
+      
+      Invert W2 and add carry  
+      
+          W2 INVC  
+      
+      *Norsk Data ND-05.009.4 EN*
+      
+      ---

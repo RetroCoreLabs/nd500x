@@ -229,3 +229,27 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Inv
 # Total variants: 16
+
+  manual_reference:
+    section: "10.13"
+    title: "Invert"
+    content: |
+      ## 10.13 Invert
+      
+      135
+
+  manual_reference:
+    section: "10.13"
+    title: "Invert"
+    content: |
+      ## 10.13 Invert
+      
+      135
+
+  manual_reference:
+    section: "10.13"
+    title: "Invert"
+    content: |
+      ## 10.13 Invert
+      
+      135

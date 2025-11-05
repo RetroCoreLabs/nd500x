@@ -58,3 +58,27 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Paddr
 # Total variants: 1
+
+  manual_reference:
+    section: "11.1"
+    title: "Add"
+    content: |
+      ## 11.1 Add
+      
+      163
+
+  manual_reference:
+    section: "11.1"
+    title: "Add"
+    content: |
+      ## 11.1 Add
+      
+      163
+
+  manual_reference:
+    section: "11.1"
+    title: "Add"
+    content: |
+      ## 11.1 Add
+      
+      163
