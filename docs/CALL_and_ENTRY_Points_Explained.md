@@ -212,6 +212,7 @@ This does:
 ### Summary
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#1864ab', 'primaryTextColor':'#fff', 'primaryBorderColor':'#1864ab', 'lineColor':'#495057', 'secondaryColor':'#1971c2', 'tertiaryColor':'#2b8a3e', 'tertiaryTextColor':'#fff'}}}%%
 mindmap
   root((IND<br/>Indirect))
     Addressing Mode
@@ -314,6 +315,7 @@ flowchart TD
 There are multiple entry point types, each with different stack frame initialization:
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#1864ab', 'primaryTextColor':'#fff', 'primaryBorderColor':'#1864ab', 'lineColor':'#495057', 'secondaryColor':'#2b8a3e', 'tertiaryColor':'#1971c2', 'tertiaryTextColor':'#fff'}}}%%
 mindmap
   root((🎯 ENTR<br/>Entry Points))
     ENTS
@@ -1240,6 +1242,7 @@ graph LR
 ## Conclusion
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#1864ab', 'primaryTextColor':'#fff', 'primaryBorderColor':'#1864ab', 'lineColor':'#495057', 'secondaryColor':'#1971c2', 'tertiaryColor':'#2b8a3e', 'tertiaryTextColor':'#fff'}}}%%
 mindmap
   root((🎯 ND-500<br/>Calling Convention))
     📞 CALL/CALLG
