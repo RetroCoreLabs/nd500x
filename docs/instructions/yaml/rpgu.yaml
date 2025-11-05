@@ -219,3 +219,39 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Rpgu
 # Total variants: 8
+
+
+  manual_reference:
+    section: "16.20"
+    title: "Read Page Used Table"
+    content: |
+      # 16.20 Read Page Used Table
+
+      **Format:** tn RPGU <bit or group no./r/W>
+
+      | Assembly Notation | Name            | Hex Code    | Octal Code       |
+      |-------------------|-----------------|-------------|------------------|
+      | Bln RPGU          | read PGU bit    | 0FE88H+(n-1)| 177210B+(n-1)    |
+      | Hn RPGU           | read PGU group  | 0FE8CH+(n-1)| 177214B+(n-1)    |
+
+      **Operation:** specified PGU bit or group -> Rn
+
+      **Description:**
+
+      Privileged instruction.
+
+      A bit or 16-bit group is read from the Page Used table into the specified register. The operand specifies the physical memory page number (Bln RPGU) or physical page number/16 (Hn RPGU).
+
+      A bit set in this table indicates that the page has been used in some instruction since the last time the bit was cleared. The bit is automatically set by hardware, and is used by the swapping routines.
+
+      In hardware there are separate PGU tables for program and data. RPGU will return a logical OR of the two tables, making them appear as one. Consequently, an ND-500 system cannot have physically separate memory for program and data at the same physical addresses.
+
+      This instruction is installation dependent; using it requires knowledge of the physical memory configuration. Only the lower 25 bits of the bit number are significant. Reading bits representing non-existing memory will give a zero result.
+
+      **Trap Conditions:** Illegal instruction code (IIC), Illegal operand value (IOV)
+
+      **Data Status Bits:**
+
+      bit or bit group = 0 -> Z
+
+      ---

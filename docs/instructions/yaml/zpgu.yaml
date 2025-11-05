@@ -42,3 +42,36 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Zpgu
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.21"
+    title: "Clear Page Used bit"
+    content: |
+      ### 16.21 Clear Page Used bit
+
+      **Format:** BI ZPGU \<bit no./r/W\>
+
+      | Assembly notation | Name          | Hex code | Octal code |
+      |-------------------|---------------|----------|------------|
+      | BI ZPGU           | clear PGU bit | 0FE90H   | 177220B    |
+
+      **Operation:** 0 -> specified PGU bit
+
+      **Description:**
+
+      Privileged instruction.
+
+      The specified bit in the page used table is cleared. This instruction is used by the swapper routines after a new page has been read from disk into physical memory.
+
+      In hardware there are separate PGU tables for program and data. ZPGU will clear the specified bit in both tables. Consequently, an ND-500 system cannot have physically separate memory for program and data at the same physical address.
+
+      This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
+
+      **Trap conditions:** Illegal instruction code (IIC), Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

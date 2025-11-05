@@ -451,3 +451,50 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Rdus
 # Total variants: 16
+
+
+  manual_reference:
+    section: "16.25"
+    title: "Load bypassing cache"
+    content: |
+      ### 16.25 Load bypassing cache
+
+      **Format:**
+      tn RDUS {source/r/t}
+
+      | Assembly notation | Name                      | Hex code     | Octal code     |
+      |-------------------|---------------------------|--------------|----------------|
+      | BIn               | RDUS load bit, bypass cache | OFEA0H+(n-1) | 177240B+(n-1)  |
+      | BYn               | RDUS load byte, bypass cache | OFEA4H+(n-1) | 177244B+(n-1)  |
+      | Hn                | RDUS load halfword, bypass cache | OFEA8H+(n-1) | 177250B+(n-1)  |
+      | Wn                | RDUS load word, bypass cache | OFEACH+(n-1) | 177254B+(n-1)  |
+
+      **Operation:**
+      {source} -> Rn
+
+      **Description:**
+
+      The operand is loaded from main memory, disregarding cache contents. This is primarily useful after a DMA transfer to memory has been performed to prevent use of obsolete data in the cache. Register and constant operands are illegal and will cause an illegal operand specifier trap condition.
+
+      If the shared segment bit in the capability table is set, the cache will under no circumstances be used for accesses to that segment. Thus in multiprocess applications it is usually unnecessary to use the RDUS instruction to ensure data consistency; the ordinary load (: =) will have the same effect.
+
+      The addressed data are also loaded into the cache for later references. If no cache is present, RDUS is equivalent to :=.
+
+      **Trap conditions:** Addressing traps, Illegal operand specifier (IOS)
+
+      **Data status bits:**
+
+      - {source} = 0 -> Z
+      - {source}.signbit -> S
+
+      **Example:**
+
+      Read the field STAT in the record pointed to by the R register into W3, not using the cache
+
+      ```
+      W3 RDUS R.STAT
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

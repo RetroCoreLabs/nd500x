@@ -28,3 +28,36 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Pcc
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.12"
+    title: "Program cache clear"
+    content: |
+      # 16.12 Program cache clear
+
+      **Format:** PCC
+
+      | Assembly notation | Name               | Hex code | Octal code |
+      |-------------------|--------------------|----------|------------|
+      | PCC               | program cache clear| OFF14H   | 177424B    |
+
+      **Operation:** Clear program cache
+
+      **Description:**
+
+      Data in the program cache are marked as invalid.
+
+      If no cache is present, the instruction has no effect.
+
+      **Trap conditions:** None
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+          PCC
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

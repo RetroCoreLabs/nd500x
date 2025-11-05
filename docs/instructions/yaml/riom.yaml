@@ -59,3 +59,40 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Riom
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.23"
+    title: "Read I/O processor memory"
+    content: |
+      ### 16.23 Read I/O processor memory
+
+      **Format:** H RIOM <ND-100 addr/r/W>,<buffer/w/H>,<no of halfwords>
+
+      | Assembly notation | Name                     | Hex code | Octal code |
+      |-------------------|--------------------------|----------|------------|
+      | H RIOM            | read I/O processor memory| 0FE76H   | 177166B    |
+
+      **Operation:** I/O processor memory -> ND-500 memory
+
+      **Description:**
+
+      Privileged instruction.
+
+      The I/O processor memory contents are copied to the ND-500 memory buffer through the ND-500 interface. The `<ND-100 addr>` specifies the physical ND-100 address and is usually private ND-100 memory, not directly addressable by the ND-500. `<buffer>` is a logical ND-500 address.
+
+      The ND-100 memory is accessed by DMA, and does not interrupt the ND-100 program execution.
+
+      **Trap conditions:** Addressing traps, Illegal instruction code (IIC), Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      Copy one page (1024 halfwords) from ND-100 address 66000B to array PG
+
+          H RIOM 66000B:W, PG, 1024
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -57,3 +57,43 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Smvtr
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.5"
+    title: "String move translated"
+    content: |
+      ### 14.5 String move translated
+
+      **Format:**
+      BY SMVTR `<source/r/BY/I1=>,<dest/w/BY/I2=>, <trans table/aa/BY>`
+
+      | Assembly notation | Name                     | Hex code | Octal code |
+      |-------------------|--------------------------|----------|------------|
+      | BY SMVTR          | byte string move translated | OFD74H   | 176564B    |
+
+      **Operation:**
+      while not end of strings do
+      tr(S(I1)) -> D(I2), I1+1 -> I1, I2+1 -> I2
+      enddo
+
+      **Description:**
+      Bytes from the `<source>` operand are translated via a translation table found at the address specified in the operand `<trans table>`. Translated bytes are moved from the `<source>` to the `<dest>` operand until the `<source>` is empty or the `<dest>` is full. Overlap is taken care of.
+
+      **Terminating conditions:**
+
+      - outside source: K=0  I1, I2 unmodified, DR trap condition
+      - outside dest: K=1  I1, I2 unmodified, DR trap condition
+      - source empty: K=0  I1, I2 :- next element
+      - dest full: K=1  I1, I2 :- next element
+
+      **Example:**
+
+      Convert the string CHARACTERS from EBCDIC to ASCII
+
+          W1 CLR; W2 CLR
+          BY SMVTR CHARACTERS, CHARACTERS, EBCDIC2ASCII
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

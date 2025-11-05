@@ -28,3 +28,31 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Ddirt
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.11"
+    title: "DDIRT - Dump 'Dirty' ('87 extension)"
+    content: |
+      ### 16.11 DDIRT - Dump 'Dirty' ('87 extension)
+
+      | Assembly notation | Name       | Hex code | Octal code |
+      |-------------------|------------|----------|------------|
+      | DDIRT             | dump dirty | FFFAH    | 177772B    |
+
+      **Operation:**
+      Dump dirty
+
+      **Description:**
+      Data marked 'dirty' in the data cache is written to the memory.
+      If no cache is present, the instruction has no effect.
+
+      **Trap Conditions:** None
+
+      **Data Status Bits:** Unaffected
+
+      **Example:**
+
+      DDIRT
+
+      ---

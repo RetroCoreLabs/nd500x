@@ -58,3 +58,51 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Pmpy
 # Total variants: 1
+
+
+  manual_reference:
+    section: "17.4"
+    title: "Packed multiply"
+    content: |
+      # 17.4 Packed multiply
+
+      **Format:**
+      PMPY `<a/r/BCD>`, `<b/r/BCD>`, `<c/w/BCD>`
+
+      | Assembly notation | Name                  | Hex code | Octal code |
+      |-------------------|-----------------------|----------|------------|
+      | PMPY              | packed multiply       | 0FE34H   | 177264B    |
+      | PMPYR             | packed multiply rounded | 0FE91H | 177221B    |
+
+      **Operation:**
+      `<a> * <b> -> <c>`
+
+      **Description:**
+
+      The `<a>` operand is multiplied by the `<b>` operand and the product is stored in the `<c>` operand.
+
+      The result is scaled according to the scale factor in the `<c>` operand descriptor before storing.
+
+      For PMPY/PMPYR, an operand with invalid digit * ZRO gives the result 0, not IVO.
+
+      **Trap conditions:**
+      Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - product = 0 -> Z
+      - product.signbit -> C
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      **Example:**
+
+      Multiply local variable PRICE with DISCOUNT giving local NET. Round the resulting value before storing it
+
+      ```
+      PMPYR B.PRICE, DISCOUNT, B.NET
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

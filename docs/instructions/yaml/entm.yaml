@@ -54,3 +54,44 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Entm
 # Total variants: 1
+
+
+  manual_reference:
+    section: "3.2"
+    title: "Stack allocation"
+    content: |
+      ## 3.2 Stack allocation
+
+      A stack is initialized through the INIT or ENTM instruction, either one can declare the lowest stack address and its maximum extent. When a stack is initialized, the TOS register is loaded with the address of the first free location beyond the stack's maximum extent. TOS serves to prevent the stack from growing too large, and as a pointer to the variables describing the heap. The first free location beyond the current extent of the stack is pointed to by the B.SP location.
+
+      A new data block on the stack is allocated by executing an ENTS or ENTSN instruction. On routine entry the data block is automatically initialized as follows:
+
+      | B       | Description                                      |
+      |---------|--------------------------------------------------|
+      | PREVB   | previous stack pointer (extent of stack)         |
+      |         | previous value of B register                     |
+      | RETA    | current return address                           |
+      | SP      | stack pointer                                    |
+      |         | (first free location)                            |
+      | AUX/LOG | auxiliary location for language                  |
+      |         | processors or buddy subroutines                  |
+      | N       | number of arguments                              |
+      | arg1    |                                                  |
+      | arg2    |                                                  |
+      | .       |                                                  |
+      | .       | addresses of arguments                           |
+      | .       |                                                  |
+      |         | local variable area                              |
+      |         | (uninitialized)                                  |
+      |         |                                                  |
+      |         | Stack pointer (B.SP)                             |
+
+      Figure 3. Local data area layout
+
+      If the number of arguments supplied exceeds the maximum allowed by the ENTSN entry point instruction, only the maximum allowed number of argument addresses will be put on the stack and the N location will contain the value of the "maximum number of arguments" operand. (This also applies to the ENTFN instruction.)
+
+      The INIT instruction initializes the stack in a similar way, but the PREVB and RETA will be zeroed, so that an attempt to link downwards beyond the lower stack address will cause an Address Zero or Stack Underflow trap.
+
+      The ENTM instruction initializes a new stack starting from a specified address, giving the TOS register a new value. If the module called is within the current domain, the old TOS value is saved on the current.
+
+      ---

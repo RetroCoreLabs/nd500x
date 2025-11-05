@@ -83,3 +83,46 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sloca
 # Total variants: 2
+
+
+  manual_reference:
+    section: "14.15"
+    title: "String locate element"
+    content: |
+      ### 14.15 String locate element
+
+      **Format:**
+
+          t SLOCA (<source/r/t/I1=>,<test/r/BI,BY>)
+
+      | Assembly notation | Name                  | Hex code | Octal code |
+      |-------------------|-----------------------|----------|------------|
+      | BI SLOCA          | string locate bit     | 0FDAFH   | 176657B    |
+      | BY SLOCA          | string locate byte    | 0FDB0H   | 176660B    |
+
+      **Operation:**
+
+          while not end of string
+              and S(I1) >< <test> do
+                  I1 + 1 -> I1
+          enddo
+
+      **Description:**
+
+      The <source> operand is examined element by element until an examined element is equal to the <test> operand or until the end of <source> operand is reached.
+
+      **Terminating conditions:**
+
+      - outside source: K=0 Z=1 I1 unmodified, DR trap condition
+      - element = <test>: K=0 Z=1 I1 :- found element
+      - source empty: K=0 Z=0 I1 :- next element
+
+      **Example:**
+
+      Find the next reset bit in the bit string on the alternative domain described by the record variable RESERVED
+
+          BI SLOCA ALT(R.RESERVED), 0
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

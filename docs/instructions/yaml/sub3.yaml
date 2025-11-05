@@ -230,3 +230,50 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sub3
 # Total variants: 5
+
+
+  manual_reference:
+    section: "11.10"
+    title: "Subtract three operands"
+    content: |
+      # 11.10 Subtract three operands
+
+      ## Format:
+      t SUB3 `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      | Assembly notation | Name                           | Hex code | Octal code |
+      |-------------------|--------------------------------|----------|------------|
+      | BY SUB3           | byte subtract three operands   | 0FC6CH   | 176154B    |
+      | H SUB3            | halfword subtract three operands| 0FC6DH  | 176155B    |
+      | W SUB3            | word subtract three operands   | 0FC6EH   | 176156B    |
+      | F SUB3            | float subtract three operands  | 0FC6FH   | 176157B    |
+      | D SUB3            | double float subtract three operands | 0FC70H  | 176160B   |
+
+      ## Operation:
+      `<a> - <b> -> <c>`
+
+      ## Description:
+      The `<b>` operand is subtracted from the `<a>` operand and the result is stored in the `<c>` operand. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      ## Trap conditions:
+      Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU).
+
+      ## Data status bits:
+      - difference = 0 -> Z
+      - difference.signbit -> S
+      - overflow -> O
+      - carry from most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> FO
+
+      ## Example:
+
+      Store the difference between byte arguments X1 and X2 in local variable DIFF
+
+      B SUB3 IND(B.X1), IND(B.X2), B.DIFF
+
+      ---
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

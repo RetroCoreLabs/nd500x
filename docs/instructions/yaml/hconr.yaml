@@ -82,3 +82,59 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Hconr
 # Total variants: 2
+
+
+  manual_reference:
+    section: "15.3"
+    title: "Data type conversion with rounding"
+    content: |
+      # 15.3 Data type conversion with rounding
+
+      **Format:**
+      `t1 t2CONR <source/r/t1>,<dest/w/t2>`
+
+      | Assembly notation | Name                              | Hex code | Octal code |
+      |-------------------|-----------------------------------|----------|------------|
+      | F BYCONR          | float to byte convert             | 0FE70H   | 177160B    |
+      |                   | with rounding                     |          |            |
+      | D BYCONR          | double float to byte convert      | 0FE71H   | 177161B    |
+      |                   | with rounding                     |          |            |
+      | F HCONR           | float to halfword convert         | 0FE72H   | 177162B    |
+      |                   | with rounding                     |          |            |
+      | D HCONR           | double float to halfword convert  | 0FE73H   | 177163B    |
+      |                   | with rounding                     |          |            |
+      | F WCONR           | float to word convert             | 0FE74H   | 177164B    |
+      |                   | with rounding                     |          |            |
+      | D WCONR           | double float to word convert      | 0FE75H   | 177165B    |
+      |                   | with rounding                     |          |            |
+      | W FCONR           | word to float convert             | 0FE83H   | 177203B    |
+      |                   | with rounding                     |          |            |
+      | D FCONR           | double float to float convert     | 0FE84H   | 177204B    |
+      |                   | with rounding                     |          |            |
+
+      **Operation:**
+      `<source>` converted from t1 to t2 with rounding -> `<dest>`
+
+      **Description:**
+
+      The `<source>` operand of type t1 is converted to data type t2 with the result stored in the `<dest>` operand. The result is rounded.
+
+      **Trap conditions:**
+      Addressing traps, Floating overflow (F0), Integer overflow (O)
+
+      **Data status bits:**
+
+      - result = 0       -> Z
+      - result.signbit   -> S
+
+      **Example:**
+
+      The R2nd value in the double-precision array described by RESULTS is rounded to the R2nd element of halfword argument ROUNDEDRESULT
+
+      ```
+      D HCONR DESC(RESULTS)(R2), IND(B.ROUNDEDRESULT)(R2)
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

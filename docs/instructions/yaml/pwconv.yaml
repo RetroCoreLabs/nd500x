@@ -116,3 +116,46 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Pwconv
 # Total variants: 4
+
+
+  manual_reference:
+    section: "17.9"
+    title: "Convert packed to binary word"
+    content: |
+      ### 17.9 Convert packed to binary word
+
+      **Format:**
+      Wn PWCONV (<=source/r/BCD=>)
+
+      | Assembly notation | Name                | Hex code       | Octal code      |
+      |-------------------|---------------------|----------------|-----------------|
+      | Wn PWCONV         | convert packed to binary | OFBECH+(n-1)  | 177274B+(n-1)   |
+
+      **Operation:**
+      \<source> -> Rn
+
+      **Description:**
+
+      The contents of the \<source> operand in packed decimal format are converted to binary format and loaded into the specified register. The fractional part of \<source> is lost; no rounding is performed before the conversion.
+
+      On integer overflow the result is the least significant 32 bits of the binary result.
+
+      **Trap conditions:**
+      Addressing traps, Integer overflow (O), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      value = 0 -> Z
+      value.signbit -> S
+      overflow -> O
+      IVO or O -> K
+
+      **Example:**
+
+      Convert IFIELD to an integer number in W1
+
+          W1 PWCONV IFIELD
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -230,3 +230,52 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Add3
 # Total variants: 5
+
+
+  manual_reference:
+    section: "11.9"
+    title: "Add three operands"
+    content: |
+      ## 11.9 Add three operands
+
+      **Format:**
+      t ADD3 `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      ### Assembly notation
+
+      | Name  | Hex code | Octal code |
+      |-------|----------|------------|
+      | BY ADD3 | OFC67H | 176147B |
+      | H ADD3  | OFC68H | 176150B |
+      | W ADD3  | OFC69H | 176151B |
+      | F ADD3  | OFC6AH | 176152B |
+      | D ADD3  | OFC6BH | 176153B |
+
+      ### Operation:
+      `<a> + <b> -> <c>`
+
+      ### Description:
+
+      The `<a>` operand is added to the `<b>` operand and the result is stored in the `<c>` operand. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      ### Trap conditions:
+      Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU)
+
+      ### Data status bits:
+
+      - sum = 0 -> Z
+      - sum.signbit -> S
+      - overflow -> O
+      - carry from most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> FO
+
+      ### Example:
+
+      Add R1 and R2 and leave the result in R3
+
+      W ADD3 R1,R2,R3
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -57,3 +57,50 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Scotr
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.11"
+    title: "String compare translated"
+    content: |
+      ### 14.11 String compare translated
+
+      **Format:**
+      BY SCOTR (<source-1/r/BY/I1>,<source-2/r/BY/I2>,<trans table/aa/BY>)
+
+      | Assembly notation | Name                         | Hex code | Octal code |
+      |-------------------|------------------------------|----------|------------|
+      | BY SCOTR          | byte string compare translated | 0FADH    | 176655B    |
+
+      **Operation:**
+      while not end of strings
+      and tr(S(I1)) = tr(D(I2)) do
+      I1+1 -> I1, I2+1 -> I2
+      enddo
+
+      **Description:**
+
+      Translated bytes from the <source-1> string are compared with the corresponding translated bytes in the <source-2> string. This comparison continues until unequal bytes are found, or until the end of the <source-1> or <source-2> string is reached. The byte elements are considered to be unsigned values.
+
+      If both operands are addressed outside strings they will compare as "exact match". <source-1> addressed outside the string will compare as "<source-1> shorter than <source-2>". <source-2> addressed outside the string will compare as "<source-1> longer than <source-2>". In either case I1, I2 are unmodified and a descriptor-range trap condition arises.
+
+      **Terminating conditions:**
+
+      | Condition                                            | Action                                  |
+      |------------------------------------------------------|-----------------------------------------|
+      | both operands outside string: K=0 Z=1 S=0            | I1, I2 unmodified, DR trap condition    |
+      | exact match: K=0 Z=1 S=0                             | I1, I2 :- next element                  |
+      | source-1 longer: K=0 Z=0 S=0                         | I1, I2 :- next element                  |
+      | source-2 longer: K=0 Z=0 S=1                         | I1, I2 :- next element                  |
+      | greater byte in source-1: K=1 Z=0 S=0                | I1, I2 :- differing elements            |
+      | smaller byte in source-1: K=1 Z=0 S=1                | I1, I2 :- differing elements            |
+
+      **Example:**
+
+      Scan INPUTLINE and local COMMAND from the current position until end of string or different characters, converting to uppercase
+
+      BY SCOTR INPUTLINE, B.COMMAND, UPPERCASE
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

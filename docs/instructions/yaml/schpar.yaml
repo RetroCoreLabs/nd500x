@@ -51,3 +51,62 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Schpar
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.20"
+    title: "Check parity in string"
+    content: |
+      # 14.20 Check parity in string
+
+      **Format:**
+      BY SCHPAR `<string/r/BY/I1=>,<mode/r/BY>`
+
+      | Assembly notation | Name                  | Hex code | Octal code |
+      |-------------------|-----------------------|----------|------------|
+      | BY SCHPAR         | check parity in string | 0FDB5H   | 176665B    |
+
+      **Operation:**
+
+      ```
+      0 -> Z
+      while not end of string
+          and bit 7 of S(I1) = parity according to <mode> do
+              I1 + 1 -> I1
+          enddo
+      if bit 7 of S(I1) ≠ parity according to <mode> then
+          1 -> Z
+      endif
+      ```
+
+      **Description:**
+
+      The parity bit (bit 7) in every byte in `<string>` is checked according to the following values of the `<mode>` operand:
+
+      | Value | Description    |
+      |-------|----------------|
+      | 0     | clear parity   |
+      | 1     | set parity     |
+      | 2     | even parity    |
+      | 3     | odd parity     |
+
+      Any other value will cause an illegal operand value trap condition.
+
+      **Terminating conditions:**
+
+      - outside string: K=0 Z=0 I1 unmodified, DR trap condition
+      - string empty: K=0 Z=0 I1 :- next element
+      - parity error found: K=0 Z=1 I1 :- element with wrong parity
+
+      **Example:**
+
+      Check that parity is set according to argument MODE in all characters in record variable BUFFER
+
+      ```
+      W1 CLR
+      BY SCHPAR R.BUFFER, IND(B.MODE);
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

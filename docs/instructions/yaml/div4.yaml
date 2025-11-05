@@ -512,3 +512,53 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Div4
 # Total variants: 12
+
+
+  manual_reference:
+    section: "11.14"
+    title: "Divide with remainder to register (modulo)"
+    content: |
+      # 11.14 Divide with remainder to register (modulo)
+
+      ## Format
+      tn DIV4 `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      ## Assembly Notation
+
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BYn  | DIV4 byte divide w/remainder | 0FC2CH+(n-1) | 176054B+(n-1) |
+      | Hn   | DIV4 halfword divide w/remainder | 0FC30H+(n-1) | 176060B+(n-1) |
+      | Wn   | DIV4 word divide w/remainder | 0FC7CH+(n-1) | 176174B+(n-1) |
+
+      ## Operation
+
+      `<a> / <b> -> <c>`
+      remainder -> Rn
+
+      ## Description
+
+      The `<a>` operand is divided by the `<b>` operand and the quotient is stored in the `<c>` operand. The remainder is stored in the specified register.
+
+      Note that the register content is in compliance with ADA and SIMULA remainder. Separate testing must be done to obtain status. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      ## Trap conditions
+
+      Addressing traps, Integer overflow (O), Divide by zero (DZ)
+
+      ## Data status bits
+
+      - quotient = 0 -> Z
+      - quotient.signbit -> S
+      - overflow -> O
+      - `<b>` = 0 -> DZ
+
+      ## Example
+
+      Divide record variable BYTECOUNT by 4 and store the quotient in record variable WORDCOUNT put the remainder in R2
+
+      BY2 DIV4 R.BYTECOUNT, 4, WORDCOUNT
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

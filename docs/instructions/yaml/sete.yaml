@@ -42,3 +42,36 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sete
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.5"
+    title: "Set bit in trap enable register"
+    content: |
+      ### 16.5 Set bit in trap enable register
+
+      **Format:** SETE `<bit no/r/BY>`
+
+      | Assembly notation | Name                                 | Hex code | Octal code |
+      |-------------------|--------------------------------------|----------|------------|
+      | SETE              | set bit in own trap enable register  | 0FD39H   | 176471B    |
+
+      **Operation:** Set bit `<bit no>` in own trap enable register
+
+      **Description:**
+
+      The specified bit in the Own Trap Enable (OTE) register is set. The `<bit no>` operand is compared with a modify mask (TEMM) found in the domain description table. If a bit in this mask is set, the corresponding bit in the local trap enable register is modifiable. An attempt to modify a non-modifiable bit will cause an illegal operand value trap condition.
+
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      Enable the integer Overflow trap
+
+          SETE 9
+
+      *Norsk Data ND-05.009.4 EN*
+
+      ---

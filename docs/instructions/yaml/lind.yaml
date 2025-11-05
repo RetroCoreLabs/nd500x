@@ -523,3 +523,54 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Lind
 # Total variants: 12
+
+
+  manual_reference:
+    section: "15.8"
+    title: "Load index"
+    content: |
+      ### 15.8 Load index
+
+      **Format:**
+      tn LIND `<index/r/t>,<lower/r/t>,<upper/r/t>`
+
+      | Assembly notation | Name                      | Hex code    | Octal code     |
+      |-------------------|---------------------------|-------------|----------------|
+      | BYn LIND          | byte load index           | OFDC0H+(n-1)| 176441B+(n-1)  |
+      | Hn LIND           | halfword load index       | OFD10H+(n-1)| 176420B+(n-1)  |
+      | Wn LIND           | word load index           | 0ACH+(n-1)  | 254B+(n-1)     |
+      | Fn LIND           | floating load index       | OFFC8H+(n-1)| 177710B+(n-1)  |
+      | Dn LIND           | double floating load index| OFFCCH+(n-1)| 177714B+(n-1)  |
+
+      **Operation:**
+      `<index> -> Rn`
+      if `<index>` is less than `<lower>`
+      or `<index>` is greater than `<upper>` then
+      &nbsp;&nbsp;&nbsp;1->K
+      &nbsp;&nbsp;&nbsp;illegal index trap condition
+      else
+      &nbsp;&nbsp;&nbsp;0->K
+      endif
+
+      **Description:**
+
+      An array index value is loaded into the specified register, checking the value against the `<lower>` and `<upper>` bounds. If the `<index>` operand is less than the `<lower>` operand or greater than the `<upper>` operand, the status flag bit (K) is set and an illegal index trap condition occurs. Otherwise the K flag is reset.
+
+      **Trap conditions:** Addressing traps, Illegal index (IX)
+
+      **Data status bits:**
+
+      `<index> = 0 -> Z`
+      `<index>.signbit -> S`
+
+      **Example:**
+
+      Load R2 with the byte value IX, with limits -10 and 10
+
+      ```
+      BY2 LIND IX, -10, 10
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

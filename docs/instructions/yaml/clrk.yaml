@@ -27,3 +27,34 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Clrk
 # Total variants: 1
+
+
+  manual_reference:
+    section: "15.12"
+    title: "Clear Flag"
+    content: |
+      ### 15.12 Clear Flag
+
+      **Format:** CLRK
+
+      | Assembly notation | Name       | Hex code | Octal code |
+      |-------------------|------------|----------|------------|
+      | CLRK              | clear flag | 0FE03H   | 177003B    |
+
+      **Operation:**
+      0 -> K bit of status register
+
+      **Description:**
+      Clear the flag bit of the status register
+
+      **Trap conditions:** None
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+          CLRK
+
+      *Norsk Data ND-05.009.4 EN*
+
+      ---

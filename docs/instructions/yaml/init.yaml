@@ -53,3 +53,48 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Init
 # Total variants: 1
+
+
+  manual_reference:
+    section: "13.9"
+    title: "Initialize stack"
+    content: |
+      ### 13.9 Initialize stack
+
+      **Format:**
+      INIT <<bottom of stack/r/W>>,
+      &lt;stack demand of main program/r/W>,
+      &lt;total system stack demand/r/W>
+
+      | Assembly notation | Name             | Hex code | Octal code |
+      |-------------------|------------------|----------|------------|
+      | INIT              | initialize stack | 0DCH     | 334B       |
+
+      **Operation:**
+
+          <<bottom of stack>> -> B
+
+          <<bottom of stack>> + <total system stack demand> -> TOS
+
+          <<bottom of stack>> + <stack demand of main program> -> B.SP
+          0 -> B.PREVB
+          0 -> B.RETA -> L
+
+      **Description:**
+
+      The stack is initialized according to the instruction operands:
+      The direct operand <<bottom of stack>> is a 4 byte absolute address, which is loaded into the B register. The B.SP location, the stack pointer, is loaded with the sum of <<bottom of stack>> and &lt;stack demand of main program>. <<bottom of stack>> and &lt;total system stack demand> are added and the result is loaded into the top of stack register, TOS. PREVB and RETA are cleared. A value of &lt;stack demand of main program> greater than or equal to &lt;total system stack demand> will cause a stack overflow trap condition.
+
+      **Trap conditions:** Addressing traps, Stack overflow (STO)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      Initialize a new stack at FRAME, requiring 010000H stack locations for the system, 01000H for the main program
+
+          INIT FRAME, 010000H, 01000H
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

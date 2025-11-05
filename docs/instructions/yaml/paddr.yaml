@@ -58,3 +58,47 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Paddr
 # Total variants: 1
+
+
+  manual_reference:
+    section: "17.2"
+    title: "Packed add"
+    content: |
+      ### 17.2 Packed add
+
+      **Format:**
+      PADD `<a=/r/BCD=>`, `<b=/r/BCD=>`, `<c=/w/BCD=>`
+
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | PADD              | packed add      | 0FE80H   | 177260B    |
+      | PADDR             | packed add rounded | 0FE85H | 177205B    |
+
+      **Operation:**
+      `<a> + <b> -> <c>`
+
+      **Description:**
+
+      The `<a>` operand is added to the `<b>` operand and the sum is stored in the `<c>` operand.
+
+      The result is scaled according to the scale factor in the `<c>` operand before storing.
+
+      **Trap conditions:**
+      Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - sum = 0 -> Z
+      - sum.signbit -> S
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      **Example:**
+
+      Add local variables PRICE and TAX to form global value TOTAL
+
+          PADD B.PRICE, B.TAX, TOTAL
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

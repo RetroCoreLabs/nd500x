@@ -331,3 +331,16 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Wdus
 # Total variants: 12
+
+
+  manual_reference:
+    section: "16.26"
+    title: "Operating Systems Support Instructions"
+    content: |
+      # 16.26 Operating Systems Support Instructions
+
+      The following instructions, described on page 301 to page 320, are for running low level operating systems tasks. These tasks, known as NUCLEUS, support communication between processors in a machine (intramachine communication) and between different machines (intermachine communications).
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

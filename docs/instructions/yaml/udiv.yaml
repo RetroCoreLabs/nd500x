@@ -175,3 +175,46 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Udiv
 # Total variants: 4
+
+
+  manual_reference:
+    section: "11.16"
+    title: "Unsigned divide"
+    content: |
+      # 11.16 Unsigned divide
+
+      **Format:** Wn UDIV `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      | Assembly notation | Name                  | Hex code       | Octal code        |
+      |-------------------|-----------------------|----------------|-------------------|
+      | Wn UDIV           | word unsigned divide  | OFE48H+(n-1)   | 177110B+(n-1)     |
+
+      ## Operation:
+
+      word unsigned division
+      `<a> / <b> -> <c>`
+      remainder -> Rn
+
+      ## Description:
+
+      The operands are treated as unsigned.
+
+      The `<a>` operand is divided by the `<b>` operand and the quotient is stored in the `<c>` operand. The remainder is stored in the specified register. Byte and halfword integer constants are sign extended and the result of the sign extension is treated as unsigned.
+
+      **Trap conditions:** Addressing traps, Divide by zero (DZ)
+
+      ## Data status bits:
+
+      quotient = 0 -> Z
+      quotient.signbit -> S
+      `<b> = 0` -> DZ
+
+      ## Example:
+
+      Divide the arguments LONG and FACT on the alternative domain (LONG/FACT) and leave the quotient in the address on the alternative domain contained in RES, and put the remainder in R3
+
+          W3 UDIV ALT(B.LONG), ALT(B.FACT), ALT(IND(RES))
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

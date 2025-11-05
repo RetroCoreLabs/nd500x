@@ -220,3 +220,40 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Asin
 # Total variants: 8
+
+
+  manual_reference:
+    section: "12.6"
+    title: "Arc sine"
+    content: |
+      # 12.6 Arc sine
+
+      **Format:** tn ASIN ⟨argument/r/t⟩
+
+      | Assembly notation | Name            | Hex code     | Octal code      |
+      |-------------------|-----------------|--------------|-----------------|
+      | Fh ASIN           | float arcsine   | OFF5CH+(n-1) | 177534B+(n-1)   |
+      | Dn ASIN           | double float arcsine | OFF88H+(n-1) | 177610B+(n-1)   |
+
+      **Operation:** arcsine(⟨argument⟩) -> Rn
+
+      **Description:**
+
+      The trigonometric arcsine of ⟨argument⟩ is loaded into the specified float or double float register. The result value gives the angle in radians, in the range -pi/2 to pi/2. ⟨argument⟩ should be in the range -1 to +1, otherwise an invalid operation trap condition will occur and the specified register will be set to zero.
+
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
+
+      **Data status bits:**
+
+          result = 0  -> Z
+          result.signbit -> S
+
+      **Example:**
+
+      Replace the number in F2 with its arcsine
+
+          F2 ASIN F2
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

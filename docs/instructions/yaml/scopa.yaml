@@ -59,3 +59,52 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Scopa
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.12"
+    title: "String compare with pad"
+    content: |
+      # 14.12 String compare with pad
+
+      **Format:**
+      BY SCOPA `<source-1/r/BY/I1=>`,
+      `<source-2/r/BY/I2=>,<pad/r/BY>`
+
+      **Assembly Notation**
+
+      | Name                    | Hex Code | Octal Code |
+      |-------------------------|----------|------------|
+      | BY SCOPA string compare with pad | OFDBEI  |  176676B  |
+
+      **Operation:**
+      while not end of strings
+      and S(I1) = D(I2) do
+      I1+1 -> I1, I2+1 -> I2
+      enddo
+
+      **Description:**
+
+      Bytes from the `<source-1>` string are compared with the corresponding bytes in the `<source-2>` string until unequal bytes are found, or until the end of both strings has been reached. If the lengths of the `<source-1>` and `<source-2>` strings are not equal, the shorter string is linked with a string of pad bytes. The length of the pad string is equal to the difference in length of the `<source-1>` and the `<source-2>` string.
+
+      An operand addressed outside the string is treated as consisting of pad bytes only. Two operands both addressed outside the strings will compare as "exact match". The pointer registers are unmodified. In either case a descriptor-range trap condition arises.
+
+      When unequal bytes are found, the status bits Z and S and the K flag will indicate the termination condition. The byte elements are considered to be unsigned values.
+
+      **Terminating conditions:**
+
+      | Condition                                 | K  | Z  | S  | I1, I2                                  |
+      |-------------------------------------------|----|----|----|------------------------------------------|
+      | exact match:                              | 0  | 1  | 0  | I1, I2 :- next element                   |
+      | greater byte in source-1:                 | 1  | 0  | 0  | I1, I2 :- differing elements             |
+      | smaller byte in source-1:                 | 1  | 0  | 1  | I1, I2 :- differing elements             |
+
+      **Example:**
+
+      Compare argument ITEM with global TABLE, padding with ASCII spaces
+
+      BY SCOPA IND(B.ITEM), TABLE, 20H
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

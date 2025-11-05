@@ -57,3 +57,45 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sscan
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.16"
+    title: "String Scan"
+    content: |
+      # 14.16 String Scan
+
+      **Format:**
+      BY SSCAN `<source/r/BY/I1=>`, `<mask/r/BY>`, `<trans table/aa/BY>`
+
+      | Assembly notation | Name       | Hex code | Octal code |
+      |-------------------|------------|----------|------------|
+      | BY SSCAN          | string scan| OFDB1H   | 176661B    |
+
+      **Operation:**
+      while not end of string
+      and tr(S(I1)) AND `<mask>` = zero do
+      I1 + 1 -> I1
+      enddo
+
+      **Description:**
+
+      The `<source>` operand is scanned until the result of a logical AND between the current translated byte and `<mask>` is different from zero, or until the end of `<source>` operand is reached.
+
+      **Terminating conditions:**
+
+      |                       | K=0 | Z=1 | I1 unmodified, DR trap condition   |
+      |-----------------------|-----|-----|------------------------------------|
+      | outside source:       |     |     |                                    |
+      | byte AND mask\>zero:  | K=0 | Z=0 | I1 :- found element                |
+      | source empty:         | K=0 | Z=1 | I1 :- next element                 |
+
+      **Example:**
+
+      Skip through argument FUNCTION until a byte with one of the bits set in the mask ACTIVE, translated through the table FNTAB in the alternative domain, is encountered.
+
+      BY SSCAN IND(B.FUNCTION), ACTIVE, ALT(FNTAB)
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

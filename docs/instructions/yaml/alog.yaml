@@ -220,3 +220,42 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Alog
 # Total variants: 8
+
+
+  manual_reference:
+    section: "12.13"
+    title: "Natural logarithm"
+    content: |
+      ### 12.13 Natural logarithm
+
+      **Format:**
+      tn ALOG `<argument/r/t>`
+
+      | Assembly notation | Name                  | Hex code     | Octal code     |
+      |-------------------|-----------------------|--------------|----------------|
+      | Fn ALOG           | float natural logarithm | OFF78H+(n-1) | 177570B+(n-1)  |
+      | Dn ALOG           | double float nat. logarithm | OFFA4H+(n-1) | 177644B+(n-1)  |
+
+      **Operation:**
+      ln(`<argument>`) -> Rn
+
+      **Description:**
+
+      The natural logarithm (base e = 2.718281828459045...) of `<argument>` is loaded into the specified float or double float register. `<argument>` should be positive; zero or negative values cause an invalid operation trap condition and a result of -5.8*10**76.
+
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
+
+      **Data status bits:**
+
+      result = 0 -> Z
+      result.signbit -> S
+
+      **Example:**
+
+      Load the natural logarithm of the R1th element of global array COEFF into D1
+
+          D1 ALOG COEFF(R1)
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

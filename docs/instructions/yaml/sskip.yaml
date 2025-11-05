@@ -51,3 +51,51 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sskip
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.14"
+    title: "String skip elements"
+    content: |
+      # 14.14 String skip elements
+
+      **Format:**
+      BY SSKIP `<source/r/BY/I1>=,<test/r/BY>`
+
+      | Assembly notation | Name          | Hex code | Octal code |
+      |-------------------|---------------|----------|------------|
+      | BY SSKIP          | skip elements | OFDAEH   | 176656B    |
+
+      **Operation:**
+      while not end of string
+      and S(I1) = `<test>` do
+      I1 + 1 -> I1
+      enddo
+      if S(I1) > `<test>` then
+      0 -> S
+      else
+      1 -> S
+      endif
+
+      **Description:**
+
+      Bytes in the `<source>` operand are examined one by one until an examined byte is different from the `<test>` operand or until the end of the `<source>` operand is reached. A `<source>` operand addressed outside the string will cause immediate termination with I1 unmodified and cause a descriptor range trap condition.
+
+      The byte elements are considered to be unsigned values.
+
+      **Terminating conditions:**
+
+      - outside source: K=0 Z=1 S=0 I1 unmodified, DR trap condition
+      - byte > `<test>`: K=0 Z=0 S=0 I1 :- differing element
+      - byte < `<test>`: K=0 Z=0 S=1 I1 :- differing element
+      - source empty: K=0 Z=1 S=0 I1 :- next element
+
+      **Example:**
+
+      Skip ASCII spaces from the current character in the string described by record addressed LINE
+
+      BY SSKIP R.LINE, 32
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

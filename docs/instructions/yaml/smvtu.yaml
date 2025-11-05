@@ -57,3 +57,57 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Smvtu
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.6"
+    title: "String move translated until"
+    content: |
+      # 14.6 String move translated until
+
+      **Format:**
+      BY SMVTU `<source/r/BY/I1=>,<dest/w/BY/I2=>,<trans table/aa/BY>`
+
+      | Assembly notation | Name                               | Hex code | Octal code |
+      |-------------------|------------------------------------|----------|------------|
+      | BY SMVTU          | byte string move translated until  | 0FD75H   | 176565B    |
+
+      **Operation:**
+
+      ```
+      while not end of strings
+        and tr(S(I1)) ≠ ASCII "escape" do
+          if tr(S(I1)) ≠ zero then
+            tr(S(I1)) -> D(I2), I2+1 -> I2
+          endif
+          I1+1 -> I1
+      enddo
+      ```
+
+      **Description:**
+
+      Bytes from the `<source=>` operand are translated via the translation table found at the address specified in the `<trans table>` operand. Translated bytes are moved from `<source=>` to `<dest=>` string if they are not zero. The move operation stops if the translated byte is equal to ASCII "escape" (01BH or 33B), the `<source=>` operand is empty, or the `<dest=>` operand full. Overlap is not taken care of.
+
+      The "escape" character is not moved.
+
+      **Terminating conditions:**
+
+      | Condition         | K=0/K=1 | Z=0/Z=1  | I1, I2                        |
+      |-------------------|---------|----------|--------------------------------|
+      | outside source    | K=0     | Z=0      | I1, I2 unmodified, DR trap condition |
+      | outside dest      | K=1     | Z=0      | I1, I2 unmodified, DR trap condition |
+      | "escape" found    | K=0     | Z=1      | I1, I2 :- position of "escape". |
+      | source empty      | K=0     | Z=0      | I1, I2 :- next element          |
+      | dest full         | K=1     | Z=0      | I1, I2 :- next element          |
+
+      **Example:**
+
+      Remove ASCII NULs and translate to uppercase the string described by record variable TEXT, copying it to the string described by TEXT2, starting at the current position
+
+      BY SMVTU R.TEXT, TEXT2, UPPERCASETABLE
+
+      ---
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

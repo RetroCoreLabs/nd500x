@@ -28,3 +28,34 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Cwip
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.19"
+    title: "Clear Written In Page Table"
+    content: |
+      ### 16.19 Clear Written In Page Table
+
+      **Format:** CWIP
+
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | CWIP              | clear WIP table | OFF1BH   | 177433B    |
+
+      **Operation:** 0 -> entire WIP table
+
+      **Description:**
+
+      Privileged instruction.
+
+      The entire written in page table is cleared. This instruction is used by the swapper routines.
+
+      This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
+
+      **Trap conditions:** Illegal instruction code (IIC)
+
+      **Data status bits:** Unaffected
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

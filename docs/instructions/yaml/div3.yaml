@@ -230,3 +230,54 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Div3
 # Total variants: 5
+
+
+  manual_reference:
+    section: "11.12"
+    title: "Divide three operands"
+    content: |
+      # 11.12 Divide three operands
+
+      **Format:**
+      t DIV3 `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      | Assembly notation | Name                               | Hex code | Octal code |
+      |-------------------|------------------------------------|----------|------------|
+      | BY DIV3           | byte divide three operands         | 0FC76H   | 176166B    |
+      | H DIV3            | halfword divide three operands     | 0FC77H   | 176167B    |
+      | W DIV3            | word divide three operands         | 0FC78H   | 176170B    |
+      | F DIV3            | float divide three operands        | 0FC79H   | 176171B    |
+      | D DIV3            | double float divide three operands | 0FC7AH   | 176172B    |
+
+      **Operation:**
+      `<a> / <b> -> <c>`
+
+      **Description:**
+
+      The `<a>` operand is divided by the `<b>` operand and the quotient is stored in the `<c>` operand. In integer division the remainder (unless it is zero) has the same sign as the `<a>` operand, i.e., the quotient is truncated towards zero. Integer overflow occurs if and only if the largest possible negative integer is divided by -1. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      **Trap conditions:**
+      Addressing traps, Integer overflow (O), Floating overflow (F0), Floating underflow (FU), Divide by zero (DZ)
+
+      **Data status bits:**
+
+      ```
+      quotient > 0         -> Z
+      quotient>.signbit    -> S
+      overflow             -> O
+      floating underflow   -> FU
+      floating overflow    -> F0
+      <b> = 0              -> DZ
+      ```
+
+      **Example:**
+
+      Divide the float value whose address is in PTR by the contents of F1, and store the quotient in record variable Q (record base in R)
+
+      ```
+      F DIV3 IND(PTR), F1, R.Q
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

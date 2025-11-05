@@ -908,3 +908,64 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sfilln
 # Total variants: 24
+
+
+  manual_reference:
+    section: "14.9"
+    title: "String fill n elements"
+    content: |
+      ### 14.9 String fill n elements
+
+      **Format:**
+      tn SFILLN (<dest/w/t/I2>,<m/r/W>)
+
+      | Assembly notation | Name           | Hex code       | Octal code    |
+      |-------------------|----------------|----------------|---------------|
+      | BIn               | SFILLN         | string fill n bits | 0FD94H+(n-1) | 176624B+(n-1) |
+      | BYn               | SFILLN         | string fill n bytes | 0FD98H+(n-1) | 176630B+(n-1) |
+      | Hn                | SFILLN         | string fill n halfwords | 0FD9CH+(n-1) | 176634B+(n-1) |
+      | Wn                | SFILLN         | string fill n words | 0FDA0H+(n-1) | 176640B+(n-1) |
+      | Fn                | SFILLN         | string fill n floats | 0FDA4H+(n-1) | 176644B+(n-1) |
+      | Dn                | SFILLN         | string fill n double float | 0FDA8H+(n-1) | 176650B+(n-1) |
+
+      **Operation:**
+      0 -> i
+      while not end of string and i < m do
+      tn -> D(I2)
+      I2 + 1 -> I2
+      i + 1 -> i
+      enddo
+
+      **Description:**
+
+      If the number of elements in the `<dest>` string, starting at the element indicated by I2, is greater than m, the contents of the specified register are stored in the m first elements of the `<dest>` string, starting at element I2. Otherwise all elements of the `<dest>` string from I2 to the end are filled with the contents of the register. m is unsigned.
+
+      **Terminating conditions:**
+
+      - outside dest:
+        K=1
+        Z=0
+        I2 unmodified, DR trap condition
+
+      - m elements filled:
+        K=0
+        Z=1
+        I2 :- next element
+
+      - dest full:
+        K=1
+        Z=0
+        I2 :- next element
+
+      **Example:**
+
+      Zero fill the lower 100 words of the word string described by local FI
+
+      ```
+      W1 CLR; W2 CLR
+      W1 SFILLN B.FI, 100
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

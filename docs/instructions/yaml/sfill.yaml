@@ -716,3 +716,48 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sfill
 # Total variants: 24
+
+
+  manual_reference:
+    section: "14.8"
+    title: "String Fill"
+    content: |
+      # 14.8 String Fill
+
+      **Format:** tn SFILL (<-dest/w/t/I2=>)
+
+      | Assembly Notation | Name                  | Hex Code     | Octal Code      |
+      |-------------------|-----------------------|--------------|-----------------|
+      | BIn SFILL         | bit string fill       | 0FD7C+(n-1)  | 176574B+(n-1)   |
+      | BYn SFILL         | byte string fill      | 0FD80+(n-1)  | 176600B+(n-1)   |
+      | Hn SFILL          | halfword string fill  | 0FD84B+(n-1) | 176604B+(n-1)   |
+      | Wn SFILL          | word string fill      | 0FD88H+(n-1) | 176610B+(n-1)   |
+      | Fn SFILL          | float string fill     | 0FD8C+(n-1)  | 176614B+(n-1)   |
+      | Dn SFILL          | double float string fill | 0FD90H+(n-1) | 176620B+(n-1)   |
+
+      **Operation:**
+
+          while not end of string do
+              tn -> D(I2)
+              I2 + 1 -> I2
+          enddo
+
+      **Description:**
+
+      The contents of the specified register are put into every element of the `<-dest=>` string starting at the element specified by the I2 register.
+
+      **Terminating conditions:**
+
+      - outside dest: K=1, I2 unmodified, DR trap condition
+      - string filled: K=1, I2 := next element
+
+      **Example:**
+
+      Fill the remaining characters of STRING with ASCII spaces (40B)
+
+          BY3 := 40B
+          BY3 SFILL STRING
+
+      _Norsk Data ND-05.009.4 EN_
+
+      ---

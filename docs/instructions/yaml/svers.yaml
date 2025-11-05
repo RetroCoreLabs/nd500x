@@ -41,3 +41,30 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Svers
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.35"
+    title: "SVERS - Store microprogram version ('87 extension)"
+    content: |
+      ### 16.35 SVERS - Store microprogram version ('87 extension)
+
+      **Format:** SVERS `<destination/w/w>`
+
+      | Assembly notation | Name          | Hex code | Octal code |
+      |-------------------|---------------|----------|------------|
+      | SVERS             | store version | FFFBH    | 177773B    |
+
+      **Operation:**
+      `<microprog.vers>` -> `<destination>`
+
+      **Description:**
+
+      Store microprogram version to destination address.
+
+      **Data Status Bits:**
+      Status bit set according to version.
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

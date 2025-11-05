@@ -51,3 +51,35 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Entt
 # Total variants: 1
+
+
+  manual_reference:
+    section: "6.4"
+    title: "Trap handler data field"
+    content: |
+      # 6.4 Trap handler data field
+
+      The Trap Handler Address register (THA) points to the base of an array in data memory, containing the start addresses of the trap handler routines in program memory. The Nth element of this array must hold the start address of the routine to handle the Nth trap condition. The area after the start address vector is used as a local data field for the invoked trap handler routine. This data field is filled by the ENTT instruction (see section 13.10).
+
+      | Data memory                       |
+      |-----------------------------------|
+      | THA                               |
+      |                                   |
+      | Start address vector (64 words)   |
+      | Local data field heading (5 words)|
+      | Trapping P (1 word)               |
+      |                                   |
+      | Copy of register block            |
+      | (39 words - see the ENTT instruction) |
+      |                                   |
+      | Local data area                   |
+
+      *Figure 19. Trap handler start address and local data field*
+
+      When a trap handler is invoked, trapping P (the address of the instruction that caused the trap condition), the register block, and information about the trap are saved in the local data area of the trap handler.
+
+      The P register saved in B.ARG2 holds the address of the instruction to be executed when the trap condition has been taken care of. Trapping P and the saved P register will be equal if the trap is handled before the instruction is executed. The instruction causing the trap will then be re-executed. If the trap is handled after the instruction is executed, the saved P register will point to the next instruction.
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

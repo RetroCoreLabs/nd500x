@@ -116,3 +116,44 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Addc
 # Total variants: 4
+
+
+  manual_reference:
+    section: "11.17"
+    title: "Add with carry"
+    content: |
+      ### 11.17 Add with carry
+
+      **Format:**
+      Wn ADDC 〈addend/r/t〉
+
+      | Assembly notation | Name                | Hex code        | Octal code         |
+      |-------------------|---------------------|-----------------|--------------------|
+      | Wn ADDC           | word add with carry | OFE40H+(n-1)    | 177100B+(n-1)      |
+
+      **Operation:**
+      Rn + C + 〈addend〉 -> Rn
+
+      **Description:**
+
+      The 〈addend〉 operand, the carry bit in the status register (treated as 0 or 1) and the contents of the specified register are added and the result is stored in the specified register. This instruction is used for multiple precision arithmetic.
+
+      **Trap conditions:**
+      Addressing traps, Integer overflow (0)
+
+      **Data status bits:**
+
+      - sum = 0 -> Z
+      - sum.signbit -> S
+      - integer overflow -> O
+      - carry from most significant bit -> C
+
+      **Example:**
+
+      Add variable MOST to R2 with carry
+
+          W2 ADDC MOST
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

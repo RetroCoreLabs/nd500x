@@ -51,3 +51,51 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Smatch
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.18"
+    title: "String match"
+    content: |
+      # 14.18 String match
+
+      **Format:** BY SMATCH (<substring/r/BY/I1=>,<string/r/BY/I2=>)
+
+      | Assembly notation | Name        | Hex code | Octal code |
+      |-------------------|-------------|----------|------------|
+      | BY SMATCH         | string match| OFDB3H   | 176663B    |
+
+      ## Operation
+
+          while not end of (<string>)
+          and (<substring>) ≠ (<string>)(I2..I2 + substring.length-1) do
+              I2 + 1 -> I2
+          enddo
+          if (<substring>) = (<string>)(I2..I2 + substring.length-1) then
+              1 -> Z
+          else
+              0 -> Z
+          endif
+
+      ## Description
+
+      The (<string>) operand is examined until either a substring equal to (<substring>) is found or the end of (<string>) operand is reached. The I1 register is left unmodified.
+
+      A (<substring>) operand or both (<string>) and (<substring>) operands addressed outside the strings are treated as if the (<substring>) is immediately found (Z=1). A (<string>) operand addressed outside the string and a (<substring>) operand addressed within the string is treated as (<substring>) not found (Z=0). Both cases will cause a descriptor-range trap condition.
+
+      ## Terminating conditions
+
+      - outside substring: K=0 Z=1 I2 unmodified, DR trap condition
+      - outside string: K=0 Z=0 I2 unmodified, DR trap condition
+      - substring found: K=0 Z=1 I2 :- first matching byte
+      - source empty: K=0 Z=0 I2 :- next element
+
+      ## Example
+
+      Set I2 to point to the next occurrence of COMMA in PARAMETERS
+
+          BY SMATCH COMMA, PARAMETERS
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

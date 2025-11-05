@@ -116,3 +116,42 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Subc
 # Total variants: 4
+
+
+  manual_reference:
+    section: "11.18"
+    title: "Subtract with carry"
+    content: |
+      # 11.18 Subtract with carry
+
+      **Format:** Wn SUBC \<subtrahend/r/t\>
+
+      | Assembly notation | Name                     | Hex code      | Octal code      |
+      |-------------------|--------------------------|---------------|-----------------|
+      | Wn SUBC           | word subtract with carry | 0FE44H+(n-1)  | 177104B+(n-1)   |
+
+      **Operation:**
+      Rn + C - \<subtrahend\> - 1 -> Rn
+
+      **Description:**
+
+      The carry bit in the status register (treated as 0 or 1) and the one's complement of \<subtrahend\> are added to the contents of the specified register. The result is then stored in the specified register. This instruction is used for multiple precision arithmetic.
+
+      **Trap conditions:** Addressing traps, Integer overflow (0)
+
+      **Data status bits:**
+
+      - result = 0 -> Z
+      - result.signbit -> S
+      - carry -> C
+      - integer overflow -> O
+
+      **Example:**
+
+      Subtract 400 hexadecimal from W2 with carry
+
+          W2 SUBC 0400H
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

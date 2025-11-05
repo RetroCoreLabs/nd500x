@@ -175,3 +175,51 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Umul
 # Total variants: 4
+
+
+  manual_reference:
+    section: "11.15"
+    title: "Unsigned multiply with overflow to register"
+    content: |
+      ### 11.15 Unsigned multiply with overflow to register
+
+      **Format:**
+      Wn UMUL `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      | Assembly notation | Name                    | Hex code       | Octal code      |
+      |-------------------|-------------------------|----------------|-----------------|
+      | Wn                | UMUL word unsigned multiply | OFC80H+(n-1) | 176200B+(n-1)   |
+
+      #### Operation:
+
+      ```
+      word unsigned multiplication
+      <a> * <b> -> <c>
+      overflow part -> Rn
+      ```
+
+      #### Description:
+
+      The operands are treated as unsigned.
+
+      The `<a>` operand is multiplied by the `<b>` operand and the product is stored in the `<c>` operand. The upper half of the double length result is stored in the specified register. Byte and halfword integer constants are sign extended and the result of the sign extension is treated unsigned. Integer overflow occurs when the upper part is different from zero.
+
+      **Trap conditions:** Addressing traps, Integer overflow (O)
+
+      #### Data status bits:
+
+      - product = 0 -> Z
+      - product.signbit -> S
+      - overflow -> O
+
+      #### Example:
+
+      Multiply local variable LEASTX by local LEASTY storing the result in R2 with the upper half of the result in R1
+
+      ```
+      W1 UMUL B.LEASTX, B.LEASTY, R2
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

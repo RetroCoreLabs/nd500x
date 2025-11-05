@@ -58,3 +58,47 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Psub
 # Total variants: 1
+
+
+  manual_reference:
+    section: "17.3"
+    title: "Packed subtract"
+    content: |
+      ## 17.3 Packed subtract
+
+      **Format:**
+      PSUB \<=a/r/BCD=>, \<=b/r/BCD=>, \<=c/w/BCD=>
+
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | PSUB              | packed subtract        | 0FEB1H   | 177261B    |
+      | PSUBR             | packed subtract rounded | 0FE86H   | 177206B    |
+
+      ### Operation:
+      \<a> - \<b> -> \<c>
+
+      ### Description:
+
+      The \<b> operand is subtracted from the \<a> operand and the difference is stored in the \<c> operand.
+
+      The result is scaled according to the scale factor in the \<c> operand descriptor before storing.
+
+      ### Trap conditions:
+      Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      ### Data status bits:
+
+      - difference = 0 -> Z
+      - difference.signbit -> S
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      ### Example:
+
+      Subtract local variable DISCOUNT from global variable TOTAL and round the resulting value before storing it
+
+          PSUBR TOTAL, B.DISCOUNT, TOTAL
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -42,3 +42,36 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Zwip
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.18"
+    title: "Clear Written In Page bit"
+    content: |
+      # 16.18 Clear Written In Page bit
+
+      **Format:** BI ZWIP `<bit no./r/W>`
+
+      | Assembly notation | Name         | Hex Code | Octal Code |
+      |-------------------|--------------|----------|------------|
+      | BI ZWIP           | clear WIP bit| 0FE9CH   | 177234B    |
+
+      **Operation:** 0 -> specified WIP bit
+
+      **Description:**
+
+      Privileged instruction.
+
+      The specified bit in the Written In Page table is cleared. This instruction is used by the swapper routines after a new page has been read from disk into physical memory.
+
+      In hardware there are separate WIP tables for program and data. ZWIP will clear both tables. Consequently, an ND-500 system cannot have physically separate memory for program and data at the same physical addresses.
+
+      This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
+
+      **Trap conditions:** Illegal instruction code (IIC), Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

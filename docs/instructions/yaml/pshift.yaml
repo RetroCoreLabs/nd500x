@@ -51,3 +51,48 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Pshift
 # Total variants: 1
+
+
+  manual_reference:
+    section: "17.6"
+    title: "Packed shift"
+    content: |
+      # 17.6 Packed shift
+
+      **Format:**
+
+      PSHIFT `<source/r/BCD=>`, `<dest/w/BCD=>`
+
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | PSHIFT            | packed shift           | 0FE82H   | 177262B    |
+      | PSHIFTR           | packed shift rounded   | 0FE87H   | 177207B    |
+
+      **Operation:** `<source> -> <dest>`
+
+      **Description:**
+
+      The content of the `<source>` operand is shifted to the scaling factor of the `<dest>` operand and, if specified, rounded before storing it in the `<dest>` operand. The destination string is extended with zeroes if necessary.
+
+      With the exception of rounding, the value is not modified, but the number of decimal positions may be changed. If the `<source>` and `<dest>` operands have the same scaling factor, a move is performed.
+
+      If bit 26 in the descriptor of the `<dest>` operand is set, the value is stored with a sign code equal to 1111 (unsigned). Otherwise, `<dest>` will be given the sign of the `<source>` value.
+
+      **Trap conditions:** Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - value after rounding = 0 -> Z
+      - value.signbit -> S
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      **Example:**
+
+      Copy SUBTOTAL to TOTAL
+
+      PSHIFT SUBTOTAL, TOTAL
+
+      Norsk Data ND-05.009.4 EN
+
+      ---
