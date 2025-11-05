@@ -512,3 +512,50 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Mul4
 # Total variants: 12
+
+
+  manual_reference:
+    section: "11.13"
+    title: "Multiply with overflow to register"
+    content: |
+      ### 11.13 Multiply with overflow to register
+
+      **Format:**
+      tn MUL4 `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      **Assembly notation**
+
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BYn | OFC20H+(n-1) | 176040B+(n-1) |
+      | Hn | OFC24H+(n-1) | 176044B+(n-1) |
+      | Wn | OFC28H+(n-1) | 176050B+(n-1) |
+
+      **Operation:**
+      `<a> * <b> -> <c>`
+      overflow part -> Rn
+
+      **Description:**
+
+      The `<a>` operand is multiplied by the `<b>` operand. The product is stored in the `<c>` operand. The upper half of the double length result is stored in the specified register. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      **Trap conditions:**
+      Addressing traps, Integer overflow (0)
+
+      **Data status bits:**
+
+      lower part of double length result = 0 -> Z
+      lower part of double length result.signbit -> S
+      overflow -> O
+
+      **Example:**
+
+      Multiply word arguments M and N and store product in local TEMP and the overflow in R1
+
+      ```
+      W1 MUL4 IND(B.M), IND(B.N), B.TEMP
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

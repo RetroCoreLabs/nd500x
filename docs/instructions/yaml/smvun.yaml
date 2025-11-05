@@ -67,3 +67,49 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Smvun
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.4"
+    title: "String move until"
+    content: |
+      # 14.4 String move until
+
+      **Format:** BY SMVUN (<source/r/BY/I1>,<dest/w/BY/I2>,<mask/r/BY>,<test/r/BY>)
+
+      | Assembly notation | Name                    | Hex code | Octal code |
+      |-------------------|-------------------------|----------|------------|
+      | BY SMVUN          | byte string move until  | 0FD73H   | 176563B    |
+
+      **Operation:**
+      while not end of strings
+      and S(I1) AND <mask> ≠ <test> do
+      &nbsp;&nbsp;&nbsp;&nbsp;S(I1) -> D(I2), I1+1 -> I1, I2+1 -> I2
+      enddo
+
+      **Description:**
+
+      Bytes are moved from the `<source>` to the `<dest>` operand until the `<source>` is empty, the `<dest>` is full or the result of a logical AND between the next byte to be moved and the value of the `<mask>` operand is equal to the value of the `<test>` operand. Overlap is not taken care of.
+
+      The byte satisfying the until-condition is not moved.
+
+      **Terminating conditions:**
+
+      - outside source: K=0 Z=0  I1, I2 unmodified, DR trap condition
+      - outside dest: K=1 Z=0  I1, I2 unmodified, DR trap condition
+      - byte found: K=0 Z=1  I1, I2 :- found byte in source
+      - source empty: K=0 Z=0  I1, I2 :- next element
+      - dest full: K=1 Z=0  I1, I2 :- next element
+
+      **Example:**
+
+      Copy characters from argument ARG on the alternative domain to the global string LINE in the current domain. An apostrophe (ASCII 47B) is interpreted as the end of the source string.
+
+      ```
+      W1 CLR; W2 CLR
+      BY SMVUN ALT(IND(B.ARG)), LINE, 177B, 47B
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

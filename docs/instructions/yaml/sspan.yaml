@@ -57,3 +57,43 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sspan
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.17"
+    title: "String span"
+    content: |
+      ## 14.17 String span
+
+      **Format:**
+      BY SSPAN (<source>/r/BY/I1=>,<mask>/r/BY>,
+            <trans table/aa/BY>)
+
+      | Assembly notation | Name      | Hex code | Octal code |
+      |-------------------|-----------|----------|------------|
+      | BY SSPAN          | string span | 0FDB2H   | 176662B    |
+
+      **Operation:**
+      while not end of string
+       and tr(S(I1)) AND <mask> >< zero do
+        I1 + 1 -> I1
+      enddo
+
+      **Description:**
+      The `<source>` operand is examined until the result of a logical AND between the examined byte translated and the `<mask>` is equal to zero, or until the end of `<source>` operand is reached.
+
+      **Terminating conditions:**
+
+      - outside source: K=0 Z=0 I1 unmodified, DR trap condition
+      - tr(byte) AND mask = zero: K=0 Z=1 I1 :- found element
+      - source empty: K=0 Z=0 I1 :- next element
+
+      **Example:**
+
+      Skip the rest of a string fragment DIRECTIVE which is terminated by a character translating to zero in the local table CODETABLE
+
+       BY SSPAN DIRECTIVE, OFFH, B.CODETABLE
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

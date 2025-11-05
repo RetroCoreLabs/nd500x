@@ -50,3 +50,30 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Lregbl
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.27.2"
+    title: "LREGBL - Load register block ('87 extension)"
+    content: |
+      # 16.27.2 LREGBL - Load register block ('87 extension)
+
+      ### Format: LREGBL <mask/r/W>, <address/r/W>
+
+      | Assembly notation | Name                | Hex code | Octal code |
+      |-------------------|---------------------|----------|------------|
+      | LREGBL            | load register block | FFF6H    | 177766B    |
+
+      ### Operation
+
+      Load register block from logical address according to 'mask'.
+
+      ### Description
+
+      The registers specified in the mask are loaded from logical memory locations addressed by {address} plus register number\*4. The register numbers are shown in chapter 2.
+
+      When executed in non-privileged mode, the 'mask' will be reduced to include only registers that may be modified by assembly instructions in non privileged mode.
+
+      When included in the mask, registers residing in the domain information table are loaded from the logical address to the domain information table pointed out by PS and CED as result of the LREGBL instruction.
+
+      ---

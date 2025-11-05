@@ -739,3 +739,50 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Psum
 # Total variants: 20
+
+
+  manual_reference:
+    section: "11.20"
+    title: "Sum of Products"
+    content: |
+      # 11.20 Sum of Products
+
+      **Format:**
+      tn PSUM `<x/r/t>,<y/r/t>`
+
+      | Assembly notation | Name                         | Hex code     | Octal code    |
+      |-------------------|------------------------------|--------------|---------------|
+      | BYn PSUM          | byte add and multiply        | 0FCF8H+(n-1) | 176370B+(n-1) |
+      | Hn PSUM           | halfword add and multiply    | 0FCCFH+(n-1) | 176374B+(n-1) |
+      | Wn PSUM           | word add and multiply        | 0FDOOH+(n-1) | 176400B+(n-1) |
+      | Fn PSUM           | float add and multiply       | 0FD04H+(n-1) | 176404B+(n-1) |
+      | Dn PSUM           | double float add and multiply| 0FD08H+(n-1) | 176410B+(n-1) |
+
+      **Operation:**
+      `<x> * <y> + Rn -> Rn`
+
+      **Description:**
+
+      The `<x>` operand is multiplied by the `<y>` operand and the product is added to the contents of the specified register.
+
+      **Trap conditions:**
+      Addressing traps, Integer overflow (O), Floating overflow (F0), Floating underflow (FU)
+
+      **Data status bits:**
+
+      - result = 0 -> Z
+      - result.signbit -> S
+      - carry from most significant bit -> C (integer)
+      - overflow -> O
+      - floating underflow -> FU
+      - floating overflow -> F0
+
+      **Example:**
+
+      Add local floats UNITCOST times UNITS to F4
+
+          F4 PSUM B.UNITCOST, B.UNITS
+
+      *Norsk Data ND-05.009.4 EN*
+
+      ---

@@ -28,3 +28,42 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Pctsb
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.24"
+    title: "Clear translation speedup buffer"
+    content: |
+      # 16.24 Clear translation speedup buffer
+
+      **Format:**
+      PCTSB
+      DCTSB
+
+      | Assembly notation | Name                                      | Hex code | Octal code |
+      |-------------------|-------------------------------------------|----------|------------|
+      | PCTSB             | clear prog translation speedup buffer     | OFF1CH   | 177434B    |
+      | DCTSB             | clear data translation speedup buffer     | OFF1DH   | 177435B    |
+
+      **Operation:**
+      0 -> translation speedup buffer
+
+      **Description:**
+
+      Privileged instruction.
+
+      The entire program or data translation speedup buffer is cleared, forcing the following accesses to reinitialize the buffer from the capability table, segment table and page index table.
+
+      Depending on which TSB is cleared, the related cache is cleared. When the data cache is cleared, 'dirty' data is written to memory.
+
+      **Trap conditions:** Illegal instruction code (IIC)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      DCTSB
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

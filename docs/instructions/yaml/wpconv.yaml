@@ -116,3 +116,44 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Wpconv
 # Total variants: 4
+
+
+  manual_reference:
+    section: "17.10"
+    title: "Convert binary word to packed"
+    content: |
+      # 17.10 Convert binary word to packed
+
+      **Format:**
+      Wn WPCONV <dest/w/BCD=>
+
+      | Assembly notation | Name               | Hex code         | Octal code        |
+      |-------------------|--------------------|------------------|-------------------|
+      | Wn WPCONV         | convert binary to packed | OFEB8H+(n-1) | 177270B+(n-1) |
+
+      **Operation:**
+      Rn -> <dest>
+
+      **Description:**
+
+      The contents of the specified word register are converted to packed decimal and stored in the <dest> operand. If the scaling factor of <dest> is negative, the least significant digits are lost. <dest> is extended with low order or high order zeros as required by the scaling factor.
+
+      **Trap conditions:**
+      Addressing traps, BCD overflow (BO)
+
+      **Data status bits:**
+
+      value = 0 -> Z
+      value.signbit -> S
+      BCD overflow -> BO
+      BO -> K
+
+      **Example:**
+
+      Convert W1 to packed and store in IFIELD
+
+          W1 WPCONV IFIELD
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

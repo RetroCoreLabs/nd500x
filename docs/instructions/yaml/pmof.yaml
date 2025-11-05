@@ -28,3 +28,42 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Pmof
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.16"
+    title: "Program memory management off"
+    content: |
+      # 16.16 Program memory management off
+
+      **Format:** PMOF
+
+      | Assembly notation | Name                           | Hex code | Octal code |
+      |-------------------|--------------------------------|----------|------------|
+      | PMOF              | program memory management off  | OFF19H   | 177431B    |
+
+      **Operation:**
+      turn off program memory management system
+      L -> P
+
+      **Description:**
+
+      Privileged instruction.
+
+      Following instruction accesses will be interpreted directly as physical addresses, rather than being mapped on a physical segment through the memory management system.
+
+      The physical address of the next instruction to be executed is found in the L register.
+
+      If the program memory management system is already turned off, control is transferred to the physical address specified by the L register and the instruction has no further effect.
+
+      **Trap conditions:** Illegal instruction code (IIC)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      PMOF
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

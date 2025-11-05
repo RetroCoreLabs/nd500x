@@ -65,3 +65,50 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Scopt
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.13"
+    title: "String compare translated with pad"
+    content: |
+      ### 14.13 String compare translated with pad
+
+      **Format:**
+
+      BY SCOPT `<source-1/r/BY/I1>`, `<source-2/r/BY/I2>`, `<trans table/aa/BY>`, `<pad/r/BY>`
+
+      | Assembly notation | Name                               | Hex   | Octal    |
+      |-------------------|------------------------------------|-------|----------|
+      | BY SCOPT          | string compare translated with pad | OFDBFH | 176677B  |
+
+      **Operation:**
+
+      while not end of strings
+      and tr(S(I1)) = tr(D(I2)) do
+      I1+1 -> I1, I2+1 -> I2 (see note below)
+      enddo
+
+      **Description:**
+
+      Translated bytes from the `<source-1>` string are compared with the corresponding translated bytes in the `<source-2>` string. The comparison continues until unequal bytes are found or the ends of both strings have been reached. If the lengths of the `<source-1>` and `<source-2>` strings are unequal, the shorter string is linked with a string of pad bytes. The length of the pad string is equal to the difference in length of the `<source-1>` and the `<source-2>` string. The pad byte is also translated.
+
+      An operand addressed outside the string is treated as consisting of pad bytes only. Two operands both addressed outside the strings are compared as an "exact match". The pointer registers are unmodified. In either case, a descriptor range trap condition arises. When unequal bytes are found, the status bits Z and S and the K flag indicate the termination condition. The byte elements are unsigned values.
+
+      **Note:** The index registers are not incremented when padding a string.
+
+      **Terminating conditions:**
+
+      exact match: K=0 Z=1 S=0 I1, I2 :- next el. or end of string
+      greater byte in source-1: K=1 Z=0 S=0 I1, I2 :- differing elements
+      smaller byte in source-1: K=1 Z=0 S=1 I1, I2 :- differing elements
+
+      **Example:**
+
+      Compare ITEM on the alternate domain from the 10th character to LIST from the 0th character, translating to uppercase. Pad byte is zero
+
+      W1 := 10; W2 CLR
+      BY SCOPT ALT(ITEM), LIST, UPPERCASE, 0
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

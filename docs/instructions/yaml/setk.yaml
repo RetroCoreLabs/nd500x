@@ -28,3 +28,32 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Setk
 # Total variants: 1
+
+
+  manual_reference:
+    section: "15.11"
+    title: "Set flag"
+    content: |
+      # 15.11 Set flag
+
+      **Format:** SETK
+
+      | Assembly notation | Name     | Hex code | Octal code |
+      |-------------------|----------|----------|------------|
+      | SETK              | set flag | 0FE02H   | 177002B    |
+
+      **Operation:** 1 -> K bit of status register
+
+      **Description:**
+
+      Set the flag bit of the status register
+
+      **Trap conditions:** None
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+          SETK
+
+      ---

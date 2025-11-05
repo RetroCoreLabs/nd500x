@@ -220,3 +220,42 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Alog10
 # Total variants: 8
+
+
+  manual_reference:
+    section: "12.15"
+    title: "Common logarithm"
+    content: |
+      ### 12.15 Common logarithm
+
+      **Format:** tn ALOG10 `<argument/r/t>`
+
+      | Assembly notation | Name                     | Hex code       | Octal code     |
+      |-------------------|--------------------------|----------------|----------------|
+      | Fn ALOG10         | float common logarithm   | OFF80H+(n-1)   | 177600B+(n-1)  |
+      | Dn ALOG10         | double float common log. | OFFACH+(n-1)   | 177654B+(n-1)  |
+
+      **Operation:**
+      log(`<argument>`) -> Rn
+
+      **Description:**
+
+      The base 10 logarithm of `<argument>` is loaded into the specified float or double float register. `<argument>` should be positive; zero or negative values will cause an invalid operation trap condition and a result of -5.8*10\*\*76.
+
+      **Trap conditions:**
+      Addressing traps, Invalid operation (IVO)
+
+      **Data status bits:**
+
+      result = 0 -> Z
+      result.signbit -> S
+
+      **Example:**
+
+      Load the common logarithm of BIGNUMB into F4
+
+          F4 ALOG10 BIGNUMB
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

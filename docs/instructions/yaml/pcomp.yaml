@@ -51,3 +51,46 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Pcomp
 # Total variants: 1
+
+
+  manual_reference:
+    section: "17.5"
+    title: "Packed Compare"
+    content: |
+      ### 17.5 Packed Compare
+
+      **Format:**
+      PCOMP `<=a/r/BCD=>`, `<=b/r/BCD=>`
+
+      **Assembly Notation**
+
+      | Name  | Hex Code | Octal Code |
+      |-------|----------|------------|
+      | PCOMP | OFEB3H   | 177263B    |
+
+      **Operation:**
+      `<a> - <b>`
+
+      **Description:**
+
+      The `<b>` operand is subtracted from the `<a>` operand and the status bits are set according to the result. The result is discarded.
+
+      Before the comparison is performed, the operands are automatically shifted to the same decimal point position (scale) and extended with zeros if necessary. An unsigned number is treated as positive, and positive and negative zero are equal.
+
+      **Trap Conditions:** Addressing traps, Invalid operation (IVO)
+
+      **Data Status Bits:**
+
+      - difference = 0 -> Z
+      - difference.signbit -> S
+      - IVO -> K
+
+      **Example:**
+
+      Compare TOTAL with MAX and set status bits
+
+          PCOMP TOTAL, MAX
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

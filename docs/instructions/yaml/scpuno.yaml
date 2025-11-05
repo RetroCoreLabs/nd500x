@@ -42,3 +42,32 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Scpuno
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.36"
+    title: "SCPUNO - Store CPU number ('87 extension)"
+    content: |
+      ### 16.36 SCPUNO - Store CPU number ('87 extension)
+
+      **Format:** SCPUNO <destination/w>
+
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | SCPUNO            | store CPU number| FF7CCH   | 177774B    |
+
+      **Operation:** `<CPUNO> -> <destination>`
+
+      **Description:**
+
+      Store CPU number in destination address.
+
+      **Data Status Bits:**
+
+      Status bit set according to CPU number.
+
+      ---
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

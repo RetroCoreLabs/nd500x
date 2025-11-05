@@ -190,3 +190,49 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Div2
 # Total variants: 5
+
+
+  manual_reference:
+    section: "11.8"
+    title: "Divide two operands"
+    content: |
+      # 11.8 Divide two operands
+
+      **Format:**
+      t DIV2 \<a/rw/t>,\<b/r/t>
+
+      | Assembly notation | Name                              | Hex code | Octal code |
+      |-------------------|-----------------------------------|----------|------------|
+      | BY DIV2           | byte divide two operands          | OFC62H   | 176142B    |
+      | H DIV2            | halfword divide two operands      | OFC63H   | 176143B    |
+      | W DIV2            | word divide two operands          | OFC64H   | 176144B    |
+      | F DIV2            | float divide two operands         | OFC65H   | 176145B    |
+      | D DIV2            | double float divide two operands  | OFC66H   | 176146B    |
+
+      **Operation:**
+      \<a> / \<b> -> \<a>
+
+      **Description:**
+
+      The \<a> operand is divided by the \<b> operand and the quotient is stored in the \<a> operand. In integer division the remainder (unless it is zero) has the same sign as the \<a> operand, i.e. the quotient is truncated towards zero. Integer overflow occurs if and only if the largest possible negative integer is divided by -1.
+
+      **Trap conditions:** Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU), Divide by zero (DZ)
+
+      **Data status bits:**
+
+      - quotient = 0 -> Z
+      - quotient.signbit -> S
+      - overflow -> O
+      - floating underflow -> FU
+      - floating overflow -> FO
+      - \<b> = 0 -> DZ
+
+      **Example:**
+
+      Divide the local float variable KVOT by the R1st element of the array on the alternative domain described by local descriptor LIST
+
+          F DIV2 B.KVOT, ALT(DESC(B.LIST)(R1))
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

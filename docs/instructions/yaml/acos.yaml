@@ -220,3 +220,42 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Acos
 # Total variants: 8
+
+
+  manual_reference:
+    section: "12.8"
+    title: "Arc cosine"
+    content: |
+      ### 12.8 Arc cosine
+
+      **Format:**
+      tn ACOS `<argument/r/t>`
+
+      | Assembly notation | Name                 | Hex code        | Octal code      |
+      |-------------------|----------------------|-----------------|-----------------|
+      | Fn ACOS           | float arc cosine     | OFF64H+(n-1)    | 177544B+(n-1)   |
+      | Dn ACOS           | double float arc cosine | OFF90H+(n-1) | 177620B+(n-1)   |
+
+      **Operation:**
+      arccosine(`\<argument\>`) -> Rn
+
+      **Description:**
+
+      The trigonometric arccosine of `<argument>` is loaded into the specified float or double float register. The result value gives the angle in radians in the range 0 to pi. `<argument>` should be in the range -1 to +1, otherwise an invalid operation trap condition will occur and the specified register is set to zero.
+
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - result = 0   -> Z
+      - result.signbit -> S
+
+      **Example:**
+
+      Load into F4 the arc cosine of the field FOO in the record pointed to by the R register
+
+          F4 ACOS R.FOO
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

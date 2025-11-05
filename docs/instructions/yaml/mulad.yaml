@@ -740,3 +740,54 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Mulad
 # Total variants: 20
+
+
+  manual_reference:
+    section: "11.19"
+    title: "Multiply and add"
+    content: |
+      ### 11.19 Multiply and add
+
+      **Format:**
+      tn MULAD `<x/r/t>,<y/r/t>`
+
+      | Assembly notation | Name                     | Hex code   | Octal code    |
+      |-------------------|--------------------------|------------|---------------|
+      | Byn               | MULAD byte multiply and add          | OFCEB#(n-1) | 176350B+(n-1) |
+      | Hn                | MULAD halfword multiply and add      | OFCECH#(n-1) | 176354B+(n-1) |
+      | Wn                | MULAD word multiply and add          | OA8H#(n-1)   | 250B+(n-1)    |
+      | Fn                | MULAD float multiply and add         | OFC0FH#(n-1) | 176360B+(n-1) |
+      | Dn                | MULAD double float multiply and add  | OFCF4H#(n-1) | 176364B+(n-1) |
+
+      **Operation:**
+      Rn * `<x>` + `<y>` -> Rn
+
+      **Description:**
+
+      The contents of the specified register is multiplied by the `<x>` operand, the `<y>` operand is added to the product and the result loaded into the register.
+
+      **Trap conditions:**
+      Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU)
+
+      **Data status bits:**
+
+      ```
+      result = 0                          -> Z
+      result.signbit                      -> S
+      carry from most significant bit     -> C (integer)
+      overflow                            -> O
+      floating underflow                  -> FU
+      floating overflow                   -> FO
+      ```
+
+      **Example:**
+
+      Multiply halfword register R2 by 60, forcing byte constant, and add MINUTES
+
+      ```
+      H2 MULAD 60:B, MINUTES
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

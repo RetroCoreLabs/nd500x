@@ -427,3 +427,46 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Ixi
 # Total variants: 12
+
+
+  manual_reference:
+    section: "12.2"
+    title: "I to the J'th power"
+    content: |
+      # 12.2 I to the J'th power
+
+      **Format:** tn IXI `<i/r/t>,<j/r/t>`
+
+      | Assembly notation | Name                   | Hex code    | Octal code     |
+      |-------------------|------------------------|-------------|----------------|
+      | BYn IXI           | byte I to the J'th power  | 0FCC8H+(n-1) | 176310B+(n-1)  |
+      | Hn IXI            | halfword I to the J'th power | 0FCCC H+(n-1) | 176314B+(n-1)  |
+      | Wn IXI            | word I to the J'th power   | 0FCD0H+(n-1) | 176320B+(n-1)  |
+
+      **Operation:** `<i>**<j> ->` datatype dependent part of register
+
+      **Description:**
+
+      The value of the `<i>` operand is raised to the power of the `<j>` operand. The result is loaded into the specified register. When the data type is BY or H, the result is loaded into the lower part of the specified register. A negative value of `<j>` and a value of `<i>` different from 1 or -1 will give zero. A negative value of `<j>` and a value of `<i>` equal to zero cause an illegal operand value trap condition and a zero result.
+
+      When an overflow occurs, the specified register will be loaded with the least significant part of the result from the calculation. The rest of the result is lost, while the status register flags an overflow.
+
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV), Integer overflow (0)
+
+      **Data status bits:**
+
+      - result = 0 -> Z
+      - result.signbit -> S
+      - overflow -> O
+
+      **Example:**
+
+      Load the byte register R1 with the cube of argument SIDE
+
+      ```
+      BY1 IXI IND(B.SIDE), 3
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

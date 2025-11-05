@@ -42,3 +42,38 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Clte
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.6"
+    title: "Clear bit in trap enable register"
+    content: |
+      # 16.6 Clear bit in trap enable register
+
+      **Format:** CLTE `<bit no/r/BY>`
+
+      | Assembly notation | Name                                  | Hex code | Octal code |
+      |-------------------|---------------------------------------|----------|------------|
+      | CLTE              | clear bit in own trap enable register | 0FD3AH   | 176472B    |
+
+      **Operation:** Clear bit `<bit no>` in own trap enable register
+
+      **Description:**
+
+      The specified bit in the Own Trap Enable register is cleared. An ignorable trap condition will be ignored and no trap handler invoked unless the corresponding MTE bit is set. A non-ignorable trap condition will be propagated to the mother domain.
+
+      The `<bit no>` operand is compared with a modify mask (TEMM) found in the domain description table. If a bit in this mask is set, the corresponding bit in the local trap-enable register is modifiable. An attempt to modify a non-modifiable bit will cause an illegal operand value trap condition.
+
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      Disable Single Instruction Trap
+
+          CLTE 17
+
+      *Norsk Data ND-05.009.4 EN*
+
+      ---

@@ -190,3 +190,54 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Add2
 # Total variants: 5
+
+
+  manual_reference:
+    section: "11.5"
+    title: "Add two operands"
+    content: |
+      ### 11.5 Add two operands
+
+      **Format:**
+      t ADD2 `<a/rw/t>,<b/r/t>`
+
+      **Assembly notation**
+      | Name   | Hex code | Octal code |
+      |--------|----------|------------|
+      | BY ADD2 | 0FC17H  | 176027B    |
+      | H ADD2  | 0FC54H  | 176124B    |
+      | W ADD2  | 053H    | 123B       |
+      | F ADD2  | 0FC56H  | 176126B    |
+      | D ADD2  | 0FC57H  | 176127B    |
+
+      **Operation:**
+      `<a> + <b> -> <a>`
+
+      **Description:**
+
+      The `<b>` operand is added to the `<a>` operand and the result is put in the `<a>` operand. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      **Trap conditions:**
+      - Addressing traps
+      - Integer overflow (O)
+      - Floating overflow (FO)
+      - Floating underflow (FU)
+
+      **Data status bits:**
+
+      - result = 0 -> Z
+      - result.signbit -> S
+      - overflow -> O
+      - carry from most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> FO
+
+      **Example:**
+
+      Add float argument X2 to argument X1
+
+          F ADD2 IND(B.X1), IND(B.X2)
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

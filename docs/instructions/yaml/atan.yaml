@@ -220,3 +220,40 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Atan
 # Total variants: 8
+
+
+  manual_reference:
+    section: "12.10"
+    title: "Arc tangent"
+    content: |
+      ### 12.10 Arc tangent
+
+      **Format:** tn ATAN ⟨argument/r/t⟩
+
+      | Assembly notation | Name                  | Hex code     | Octal code     |
+      |-------------------|-----------------------|--------------|----------------|
+      | Fn ATAN           | float arc tangent     | OFFC6H+(n-1) | 177554B+(n-1)  |
+      | Dn ATAN           | double float arc tangent | OFF98H+(n-1) | 177630B+(n-1)  |
+
+      **Operation:** arctangent(⟨argument⟩) -> Rn
+
+      **Description:**
+
+      The trigonometric arc tangent of ⟨argument⟩ is loaded into the specified float or double float register. The result value gives the angle in radians in the range -pi/2 to pi/2.
+
+      **Trap conditions:** Addressing traps
+
+      **Data status bits:**
+
+      result = 0 -> Z
+      result.signbit -> S
+
+      **Example:**
+
+      Load into F4 the arc tangent of RAY
+
+          F4 ATAN RAY
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

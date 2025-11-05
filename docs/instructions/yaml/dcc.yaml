@@ -28,3 +28,38 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Dcc
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.10"
+    title: "Data cache clear"
+    content: |
+      # 16.10 Data cache clear
+
+      **Format:** DCC
+
+      | Assembly notation | Name             | Hex code | Octal code  |
+      |-------------------|------------------|----------|-------------|
+      | DCC               | data cache clear | OFF15H   | 177425B     |
+
+      **Operation:** Clear data cache
+
+      **Description:**
+
+      Data in the data cache are marked as invalid. Data marked 'dirty' is dumped to memory. In connection with DMA transfers, the cache should be cleared to ensure that the cache contents are consistent with the main memory contents.
+
+      If no cache is present, the instruction has no effect.
+
+      **Trap conditions:** None
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      DCC
+
+      ---
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

@@ -428,3 +428,42 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Getbi
 # Total variants: 12
+
+
+  manual_reference:
+    section: "10.27"
+    title: "Get bit"
+    content: |
+      ### 10.27 Get bit
+
+      **Format:**
+      tn GETBI <operand/r/t>,<bit no/r/BY>
+
+      | Assembly notation | Name         | Hex code        | Octal code     |
+      |-------------------|--------------|-----------------|----------------|
+      | BYn GETBI         | byte get bit | 0FCB4H+(n-1)    | 176264B+(n-1)  |
+      | Hn GETBI          | halfword get bit | 0FCB8H+(n-1) | 176270B+(n-1)  |
+      | Wn GETBI          | word get bit | 0FDD0H+(n-1)    | 176720B+(n-1)  |
+
+      **Operation:**
+      bit <bit No.> of <operand> -> bit 0 of Rn
+
+      **Description:**
+
+      Bit zero of the specified register is loaded with bit <bit No.> of a BY, H, or W <operand>. A <bit No.> greater than or equal to the number of bits of the data type or a negative <bit No.> will cause an illegal operand value trap condition.
+
+      **Trap conditions:**
+      Addressing traps, Illegal operand value (IOV)
+
+      **Data status bits:**
+      transferred bit = 0 -> Z
+
+      **Example:**
+
+      Load R1 with the BITNO bit of word variable STATUS
+
+          W1 GETBI STATUS, BITNO
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -220,3 +220,40 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Alog2
 # Total variants: 8
+
+
+  manual_reference:
+    section: "12.14"
+    title: "Binary logarithm"
+    content: |
+      # 12.14 Binary logarithm
+
+      **Format:** tn ALOG2 `<argument/r/t>`
+
+      | Assembly notation | Name                    | Hex code    | Octal code     |
+      |-------------------|-------------------------|-------------|----------------|
+      | Fn ALOG2          | float binary logarithm  | OFF7CH+(n-1) | 177574B+(n-1)  |
+      | Dn ALOG2          | double float bin. logarithm | OFFA8H+(n-1) | 177650B+(n-1) |
+
+      **Operation:** log2(`<argument>`) -> Rn
+
+      **Description:**
+
+      The base 2 logarithm of `<argument>` is loaded into the specified float or double float register. `<argument>` should be positive; zero or negative values cause an invalid operation trap condition and a result of -5.8*10\*\*76.
+
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - result = 0 -> Z
+      - result.signbit -> S
+
+      **Example:**
+
+      Load the binary logarithm of local variable RANGE into F1
+
+          F1 ALOG2 B.RANGE
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -57,3 +57,32 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Lcntxt
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.27.4"
+    title: "LCNTXT - Load context block ('87 extension)"
+    content: |
+      # 16.27.4 LCNTXT - Load context block ('87 extension)
+
+      **Format:** LCNTXT `<mask/r/W>,<address/r/W>,<process number/r/W>`
+
+      | Assembly notation | Name         | Hex code | Octal code |
+      |-------------------|--------------|----------|------------|
+      | LCNTXT            | load context | FFF8H    | 177770B    |
+
+      **Operation:** Load context block registers from specified address according to mask.
+
+      ## Description:
+
+      Privileged instruction
+
+      Context block of 'process number' is loaded from **physical address** according to 'mask'. If address = 0, context save area of the current process is used. If process number is less than 0, current process number is maintained.
+
+      The registers specified in the mask are loaded from locations addressed by `<address>` plus register number*4. The register numbers are shown in chapter 2.
+
+      When context block save area is used, this is addressed by:
+
+          (process number+1)*400B + an operating system defined address.
+
+      ---

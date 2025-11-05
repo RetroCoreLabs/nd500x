@@ -28,3 +28,32 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Cpgu
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.22"
+    title: "Clear Page Used Table"
+    content: |
+      # 16.22 Clear Page Used Table
+
+      **Format:** CPGU
+
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | CPGU              | clear PGU table | 0FF1AH   | 177432B    |
+
+      **Operation:** 0 -> entire PGU table
+
+      **Description:**
+
+      Privileged instruction.
+
+      The entire page used table is cleared. This instruction is used by the swapper routines.
+
+      This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
+
+      **Trap conditions:** Illegal instruction code (IIC)
+
+      **Data status bits:** Unaffected
+
+      ---

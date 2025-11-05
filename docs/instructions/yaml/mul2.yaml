@@ -190,3 +190,48 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Mul2
 # Total variants: 5
+
+
+  manual_reference:
+    section: "11.7"
+    title: "Multiply two operands"
+    content: |
+      ### 11.7 Multiply two operands
+
+      **Format:**
+      t MUL2 `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      | Assembly notation | Name                          | Hex code | Octal code |
+      |-------------------|-------------------------------|----------|------------|
+      | BY MUL2           | byte multiply two operands    | OFC5DH   | 176135B    |
+      | H MUL2            | halfword multiply two operands| OFC5EH   | 176136B    |
+      | W MUL2            | word multiply two operands    | OFC5FH   | 176137B    |
+      | F MUL2            | float multiply two operands   | OFC60H   | 176140B    |
+      | D MUL2            | double float multiply two operands | OFC61H | 176141B    |
+
+      **Operation:**
+      `<a> * <b> -> <a>`
+
+      **Description:**
+
+      The `<a>` operand is multiplied by the `<b>` operand and the product is stored in the `<a>` operand. Integer overflow occurs if the upper half of the double length result is not equal to the sign extension of the lower half.
+
+      **Trap conditions:** Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU)
+
+      **Data status bits:**
+
+      - product = 0 -> Z
+      - product.signbit -> S
+      - overflow -> O
+      - floating underflow -> FU
+      - floating overflow -> FO
+
+      **Example:**
+
+      Multiply the argument double float PROD on the alternative domain with the contents of D4
+
+          D MUL2 ALT(B.PROD), D4
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

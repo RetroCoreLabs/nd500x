@@ -50,3 +50,46 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Ppack
 # Total variants: 1
+
+
+  manual_reference:
+    section: "17.7"
+    title: "Convert ASCII to packed"
+    content: |
+      ### 17.7 Convert ASCII to packed
+
+      **Format:** PPACK (<=source/r/ASCII=>), (<=dest/w/BCD=>)
+
+      | Assembly notation | Name                       | Hex code | Octal code |
+      |-------------------|----------------------------|----------|------------|
+      | PPACK             | convert ASCII to packed    | 0FE95H   | 177265B    |
+      | PPACKR            | convert ASCII to packed rounded | 0FE92H | 17722B     |
+
+      **Operation:** `<source> -> <dest>`
+
+      **Description:**
+
+      The content of the `<source>` operand in ASCII coded decimal is packed into the `<dest>` operand in packed format. If specified, the value is rounded before storing it in the `<dest>` operand.
+
+      If bit 26 in the descriptor of the `<dest>` operand is set, the value is stored with a sign code equal to 1111 (unsigned). Otherwise, `<dest>` will be given the sign of the `<source>` value. The `<source>` value consists of ASCII digits and a sign according to the SGN code in the `<source>` descriptor only.
+
+      **Trap conditions:** Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - value after rounding = 0 -> Z
+      - value.signbit -> S
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      **Example:**
+
+      Convert ASCII value IFIELD to packed VAR1
+
+      ```
+      PPACK IFIELD, VAR1
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -190,3 +190,49 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sub2
 # Total variants: 5
+
+
+  manual_reference:
+    section: "11.6"
+    title: "Subtract two operands"
+    content: |
+      ### 11.6 Subtract two operands
+
+      **Format:** t SUB2 `<a/w/t>,<b/r/t>`
+
+      | Assembly notation | Name                              | Hex code | Octal code |
+      |-------------------|-----------------------------------|----------|------------|
+      | BY SUB2           | byte subtract two operands        | 0FC5BH   | 176130B    |
+      | H SUB2            | halfword subtract two operands    | 0FC59H   | 176131B    |
+      | W SUB2            | word subtract two operands        | 0E0H     | 340B       |
+      | F SUB2            | float subtract two operands       | 0FC5BH   | 176133B    |
+      | D SUB2            | double float subtract two operands| 0FC5CH   | 176134B    |
+
+      #### Operation:
+      `<a> - <b> -> <a>`
+
+      #### Description:
+      The `<b>` operand is subtracted from the `<a>` operand and the result is put in the `<a>` operand. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      #### Trap conditions:
+      - Addressing traps
+      - Integer overflow (0)
+      - Floating overflow (F0)
+      - Floating underflow (FU)
+
+      #### Data status bits:
+      - difference = 0 -> Z
+      - difference.sigmbit -> S
+      - overflow -> O
+      - carry from most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> F0
+
+      #### Example:
+      Subtract 4 from the R3rd element of the byte array whose descriptor is the global VALUES
+
+          BY SUB2 DESC(VALUES) (R3), 4
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -51,3 +51,48 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Sspar
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.19"
+    title: "Set parity in string"
+    content: |
+      ### 14.19 Set parity in string
+
+      **Format:**
+      BY SSPAR `<string/rw/BY/I1>`, `<mode/r/BY>`
+
+      **Assembly Notation**
+
+      | Name     | Hex Code | Octal Code |
+      |----------|----------|------------|
+      | BY SSPAR | OFDB4H   | 176664B    |
+
+      **Operation:**
+      while not end of string do
+      &nbsp;&nbsp;&nbsp;&nbsp;parity according to `<mode>` -> bit 7 of S(I2)
+      &nbsp;&nbsp;&nbsp;&nbsp;I1 + 1 -> I1
+      enddo
+
+      **Description:**
+
+      The parity bit (bit 7) in every byte in `<string>` is set according to the following values of the `<mode>` operand:
+
+      0 clear parity
+      1 set parity
+      2 even parity
+      3 odd parity
+
+      Any other value will cause an illegal operand value trap condition.
+
+      **Terminating conditions:** K=1
+
+      **Example:**
+
+      Set even parity in local string OUTPUT
+
+      BY SSPAR B.OUTPUT, 2
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

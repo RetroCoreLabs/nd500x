@@ -244,3 +244,48 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Poly
 # Total variants: 8
+
+
+  manual_reference:
+    section: "12.3"
+    title: "Polynomial"
+    content: |
+      ### 12.3 Polynomial
+
+      **Format:**
+      tn POLY `<x/r/t>,<m/s/BY>,<cm/r/t>,...,<c1/r/t>,<cO/r/t>`
+
+      | Assembly notation | Name                    | Hex code     | Octal code     |
+      |-------------------|-------------------------|--------------|----------------|
+      | Fn                | POLY floating polynomial| OFCE0H+(n-1) | 176340B+(n-1)  |
+      | Dn                | POLY double float polynomial | OFCE4H+(n-1) | 176344B+(n-1)  |
+
+      **Operation:**
+
+      <m>*<x> + .... + <c2>*<x>^2 + <c1>*<x> + <cO> -> Rn
+
+      **Description:**
+
+      This instruction calculates a polynomial of degree <m>. The result is loaded into the specified float or double float register. The instruction requires <m>+1 coefficients. <m> must always be a positive constant less than 256, otherwise an illegal operand specifier trap condition occurs.
+
+      If floating overflow or underflow occurs, the trap will not have any effect until the instruction has completed execution, even if the trap condition occurred at an intermediate step. The Z and S bits reflect the final result.
+
+      **Trap conditions:**
+      Addressing traps, Floating overflow (FO), Floating underflow (FU), Illegal operand specifier (IOS)
+
+      **Data status bits:**
+
+      result = 0 -> Z
+      result.signbit -> S
+      floating underflow -> FU
+      floating overflow -> FO
+
+      **Example:**
+
+      Calculate the expression A * X**2 + B * X + C and leave the result in F3. A, B and C are constants
+
+          F3 POLY X, 2, A, B, C
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

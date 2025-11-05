@@ -41,3 +41,52 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: PsSet
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.7"
+    title: "Load special register"
+    content: |
+      ### 16.7 Load special register
+
+      **Format:**
+      special register := \<operand/r/W\>
+
+      | Assembly notation | Name                             | Hex code | Octal code  |
+      |-------------------|----------------------------------|----------|-------------|
+      | L:=               | load link register               | OFD3BH   | 176473B     |
+      | HL:=              | load upper limit register        | OFD7BH   | 176667B     |
+      | LL:=              | load lower limit register        | OFD8BH   | 176670B     |
+      | ST1:=             | load 1st status register         | OFD9BH   | 176671B     |
+      | OTE1:=            | load 1st own trap enable register| OFDBBH   | 176673B     |
+      | OTE2:=            | load 2nd own trap enable register| OFDBCH   | 176674B     |
+      | TOS:=             | load top of stack register       | OFDBDH   | 176675B     |
+      | THA:=             | load trap handler register       | OFDCAH   | 176712B     |
+
+      **Operation:**
+      \<operand\> -> special register
+
+      **Description:**
+
+      Special registers can be loaded with this group of instructions.
+
+      Some of the bits in the status register (listed in the Status bits survey section) are not modifiable. When loading the Own Trap Enable register, the operand is compared with a modify mask (TEMM) found in the domain description table. If a bit in this mask is set, the corresponding bit in the trap enable register is modifiable. An attempt to modify a non-modifiable bit in the Own Trap Enable register will cause an illegal operand value trap condition.
+
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+
+      **Data status bits:**
+
+      \<operand\> = 0 -> Z
+      \<operand\>.signbit -> S
+
+      The instruction ST1:= will load the data status bits from the operand. Setting status bits that are modified after each instruction is legal but meaningless, as they will be cleared before the next instruction. These include bits in the range 17 to 25, 27 and 28.
+
+      **Example:**
+
+      Restore the TOS register from the current top of stack after a call to a routine entered through ENTM
+
+          TOS:= B.SP
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

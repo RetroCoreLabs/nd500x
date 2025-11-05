@@ -29,3 +29,39 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Entd
 # Total variants: 1
+
+
+  manual_reference:
+    section: "13.10"
+    title: "Subroutine entry points"
+    content: |
+      # 13.10 Subroutine entry points
+
+      ### Formats:
+
+      | Entry Point | Description |
+      |-------------|-------------|
+      | ENTM | `<bottom of stack/r/W>,<stack demand of main program/r/W>,<total system stack demand/r/W>` |
+      | ENTD | `<stack demand/r/W>` |
+      | ENTS | `<stack demand/r/W>` |
+      | ENTSN | `<stack demand/r/W>,<max no. of arg./r/W>` |
+      | ENTF | `<address of local data area/r/W>` |
+      | ENTFN | `<address of local data area/r/W>,<max no. of arg./r/W>` |
+      | ENTT | `<trap handler main program stack demand/r/W>,<total trap handler stack demand/r/W>` |
+      | ENTB | `<log size/r/BY>` |
+
+      ### Operation:
+
+      Perform local data area initialization depending on the type of entry point.
+
+      ### Description:
+
+      The entry point instruction specifies the kind of local data area initialization performed on execution of a subroutine call instruction. This initialization includes transfer of the argument addresses to the new local data area at subroutine entry points, and saving of the current register block in the new local data area at the trap handler entry point.
+
+      Execution of an entry point instruction (except ENTT) not resulting from a subroutine call will cause an instruction sequence error trap condition. ENTT may only be executed as a result of a trap, and may not be used as an entry point by a CALL or CALLG.
+
+      The parameters to the subroutine entry point instructions may not be prefixed by the operand specifier prefix ALT.
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

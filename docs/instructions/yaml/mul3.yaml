@@ -230,3 +230,49 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Mul3
 # Total variants: 5
+
+
+  manual_reference:
+    section: "11.11"
+    title: "Multiply three operands"
+    content: |
+      ### 11.11 Multiply three operands
+
+      #### Format:
+      t MUL3 `<a/r/t>,<b/r/t>rw/t>,<b/r/t>`
+
+      | Assembly notation | Name                             | Hex code | Octal code |
+      |-------------------|----------------------------------|----------|------------|
+      | BY MUL3           | byte multiply three operands     | 0FC71H   | 176161B    |
+      | H MUL3            | halfword multiply three operands | 0FC72H   | 176162B    |
+      | W MUL3            | word multiply three operands     | 0FC73H   | 176163B    |
+      | F MUL3            | float multiply three operands    | 0FC74H   | 176164B    |
+      | D MUL3            | double float multiply three operands | 0FC75H | 176165B    |
+
+      #### Operation:
+      `<a> * <b> -> <c>`
+
+      #### Description:
+      The `<a>` operand is multiplied by the `<b>` operand and the product is stored in the `<c>` operand. Integer overflow occurs if the upper half of the double length result is not equal to the sign extension of the lower half. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      #### Trap conditions:
+      Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU)
+
+      #### Data status bits:
+
+      - product = 0 -> Z
+      - product.signbit -> S
+      - overflow -> O
+      - floating underflow -> FU
+      - floating overflow -> FO
+
+      #### Example:
+      Store the product of the second and third element of the word array pointed to by R2 in the first element of the word array pointed to by R2
+
+      ```
+      W MUL3 R2.2, R2.3, R2.1
+      ```
+
+      *Norsk Data ND-05.009.4 EN*
+
+      ---

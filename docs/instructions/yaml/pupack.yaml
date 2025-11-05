@@ -50,3 +50,47 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Pupack
 # Total variants: 1
+
+
+  manual_reference:
+    section: "17.8"
+    title: "Convert packed to ASCII"
+    content: |
+      # 17.8 Convert packed to ASCII
+
+      **Format:**
+      PUPACK (<source/r/BCD=>, <dest/r/w/ASCII=>)
+
+      | Assembly notation | Name                        | Hex code | Octal code |
+      |-------------------|-----------------------------|----------|------------|
+      | PUPACK            | convert packed to ASCII     | 0FBE6H   | 177266B    |
+      | PUPACKR           | convert packed to ASCII rounded | 0FE93H   | 177223B    |
+
+      **Operation:**
+      \<source> -> \<dest>
+
+      **Description:**
+
+      The content of the \<source> operand in packed decimal format is unpacked into the \<dest> operand in ASCII format. If specified, the value is rounded before storing it in the \<dest> operand. The sign representation is determined by the SGN field in the \<dest> descriptor.
+
+      The \<dest> string is extended with leading ASCII zeros if necessary, and the parity bit for all digits will be zero.
+
+      **Trap conditions:**
+      Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - value after rounding = 0 -> Z
+      - value.signbit -> S
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      **Example:**
+
+      Unpack VAR1 into IFIELD and round the value according to the IFIELD descriptor
+
+      ```
+      PUPACKR VAR1, IFIELD
+      ```
+
+      ---

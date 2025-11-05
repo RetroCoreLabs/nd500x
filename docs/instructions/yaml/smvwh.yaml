@@ -67,3 +67,47 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Smvwh
 # Total variants: 1
+
+
+  manual_reference:
+    section: "14.3"
+    title: "String move while"
+    content: |
+      ## 14.3 String move while
+
+      **Format:**
+      BY SMVWH `<source/r/BY/I1=>,<dest/w/BY/I2=>, <mask/r/BY>, <test/r/BY>`
+
+      | Assembly notation | Name                     | Hex code | Octal code |
+      |-------------------|--------------------------|----------|------------|
+      | BY SMVWH          | byte string move while   | OFD72H   | 176562B    |
+
+      **Operation:**
+      while not end of strings
+      and S(I1) AND `<mask>` = `<test>` do
+      S(I1) -> D(I2), I1+1 -> I1, I2+1 -> I2
+      enddo
+
+      **Description:**
+
+      Bytes are moved from the `<source>` operand to the `<dest>` operand. When the result of a logical AND between the moved byte and the `<mask>` operand is equal to the value of the `<test>` operand, the moving continues until the `<source>` operand is empty or the `<dest>` operand is full. Overlap is not taken care of.
+
+      **Terminating conditions:**
+
+      |                     | K=0 | Z=0          | I1, I2 unmodified, DR trap condition    |
+      |---------------------|-----|--------------|-----------------------------------------|
+      | outside source:     | K=1 | Z=0          | I1, I2 unmodified, DR trap condition    |
+      | outside dest:       | K=0 | Z=0          | I1, I2 :- differing bytes               |
+      | different bytes:    | K=0 | Z=1          | I1, I2 :- next element                  |
+      | source empty:       | K=1 | Z=1          | I1, I2 :- next element                  |
+      | dest full:          |     |              |                                         |
+
+      **Example:**
+
+      Copy characters from INPUT to BUFFER as long as the characters are in the range 100B to 200B, starting at current character positions in I1 and I2
+
+          BY SMVWH INPUT, BUFFER, 300B, 100B
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

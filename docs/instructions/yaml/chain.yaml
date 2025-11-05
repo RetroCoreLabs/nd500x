@@ -172,3 +172,48 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Chain
 # Total variants: 4
+
+
+  manual_reference:
+    section: "15.7"
+    title: "Load Address of Multilevel Chain"
+    content: |
+      # 15.7 Load Address of Multilevel Chain
+
+      **Format:**
+      Wn CHAIN `<address/aa/W>,<offset/r/W>,<no. of levels/r/W>`
+
+      | Assembly Notation | Name                                | Hex Code     | Octal Code    |
+      |-------------------|-------------------------------------|--------------|---------------|
+      | Wn CHAIN          | load address of multilevel chain to register | OFD6C+(n-1) | 176554B+(n-1) |
+
+      **Operation:**
+      `<address>` -> Wn
+      for i in (1..<no. of levels>) do
+      &nbsp;&nbsp;&nbsp;&nbsp;while ((Wn)+<offset>) >< 0
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;((Wn) + <offset>) -> Wn
+      enddo
+
+      **Description:**
+
+      Follow a link `<no. of levels>` steps and load the specified register with the base address of the next data element. This instruction is used by language processors for making references to variables declared in an outer procedure. `<offset>` will usually be the B relative address of the static link (the base address of the local variables of an enclosing procedure), `<address>` the current B register value, and `<no. of levels>` the difference between the current static level and the level where the variable was declared.
+
+      If the next link in the chain is zero, the operation is terminated, Wn will contain the last element in the link (pointing to a zero location) and the K flag is set. This will also cause an illegal operand value trap condition.
+
+      A negative `<no. of levels>` will cause an illegal operand value trap condition. `<no. of levels>` equal to zero will have the same effect as a LADDR instruction.
+
+      **Trap Conditions:**
+      Addressing traps, Illegal operand value (IOV)
+
+      **Data Status Bits:**
+      Last address.signbit -> S
+
+      **Example:**
+
+      Load W1 with stack base address of a procedure five static levels up, the static link is found in local variable STATLINK
+
+      W1 CHAIN B.STATLINK, STATLINK, 5
+
+      *Note: Norsk Data ND-05.009.4 EN*
+
+      ---

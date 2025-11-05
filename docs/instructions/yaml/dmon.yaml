@@ -28,3 +28,42 @@ instruction:
 # Generated from nd500-opcodes
 # Instruction group: Dmon
 # Total variants: 1
+
+
+  manual_reference:
+    section: "16.13"
+    title: "Data memory management on"
+    content: |
+      ### 16.13 Data memory management on
+
+      **Format:**
+      DMON
+
+      | Assembly notation | Name                          | Hex code | Octal code |
+      |-------------------|-------------------------------|----------|------------|
+      | DMON              | data memory management on     | OFF16H   | 177426B    |
+
+      **Operation:**
+      turn on data memory management system
+
+      **Description:**
+
+      Privileged instruction.
+
+      Following data accesses will be mapped on a physical segment through the memory management system, rather than being interpreted directly as physical addresses.
+
+      If the data memory management system is already turned on, the instruction has no effect.
+
+      **Trap conditions:**
+      Illegal instruction code (IIC)
+
+      **Data status bits:**
+      Unaffected
+
+      **Example:**
+
+      DMON
+
+      Norsk Data ND-05.009.4 EN
+
+      ---
