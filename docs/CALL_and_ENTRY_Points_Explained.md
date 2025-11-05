@@ -57,6 +57,183 @@ graph LR
 
 ---
 
+## Understanding IND() - Indirect Addressing
+
+**IND() is NOT an instruction** - it's an **addressing mode notation** that means "dereference" or "indirect addressing."
+
+### What is IND()?
+
+```mermaid
+graph TD
+    subgraph "📘 IND() Addressing Mode"
+        Start["IND(B.20)"] --> Step1["1. Calculate address:<br/>B + 20"]
+        Step1 --> Step2["2. Read word at that address<br/>This word contains another address"]
+        Step2 --> Step3["3. Use that address to access<br/>the actual operand"]
+    end
+
+    subgraph "💾 Memory Example"
+        M1["B register = 0x1000"] --> M2["Address 0x1000 + 20 = 0x1014<br/>Contains: 0x2000"]
+        M2 --> M3["Address 0x2000<br/>Contains: 42"]
+        M3 --> Result["Final result: 42"]
+    end
+
+    Step3 -.->|"accesses"| M3
+
+    style Start fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
+    style Step1 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style Step2 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style Step3 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style M1 fill:#ffd43b,stroke:#fab005,stroke-width:2px
+    style M2 fill:#ffd43b,stroke:#fab005,stroke-width:2px
+    style M3 fill:#ffd43b,stroke:#fab005,stroke-width:2px
+    style Result fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+```
+
+### Mathematical Formula
+
+**Effective Address Calculation:**
+```
+ea = ((B) + displacement)
+```
+
+This means:
+1. Take the value in B register
+2. Add the displacement
+3. **Read the word at that address** (this is the indirection!)
+4. The word you just read IS the effective address
+
+### Syntax Variants
+
+| Assembly Notation | Name | Hex Code | Displacement Size |
+|-------------------|------|----------|-------------------|
+| `IND(B.disp)` | Indirect | - | Auto-sized |
+| `IND(B.disp:B)` | Indirect, byte displacement | 0xC5 | 1 byte (0-255) |
+| `IND(B.disp:H)` | Indirect, halfword displacement | 0xC6 | 2 bytes (0-65535) |
+| `IND(B.disp:W)` | Indirect, word displacement | 0xC7 | 4 bytes (full 32-bit) |
+
+### Why Use IND()? Call-By-Reference!
+
+This is **exactly** why arguments work in ND-500:
+
+```mermaid
+flowchart TD
+    Caller["📞 Caller:<br/>CALLG FUNC, 1, MYVAR"] --> Store["CPU stores address of MYVAR<br/>into B.ARG1<br/><br/>B.ARG1 = 0x3000<br/>where MYVAR lives"]
+
+    Store --> Callee["🎯 Callee:<br/>W1 := IND(B.ARG1)"]
+
+    Callee --> Read1["Step 1: Read B.ARG1<br/>Gets value: 0x3000"]
+    Read1 --> Read2["Step 2: Read memory at 0x3000<br/>Gets MYVAR's value: 42"]
+    Read2 --> Result["W1 now contains 42!"]
+
+    style Caller fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
+    style Store fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style Callee fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Read1 fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style Read2 fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style Result fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+```
+
+### Concrete Example
+
+```asm
+; Setup
+MYVAR:  .WORD   42          ; MYVAR is at address 0x3000, contains 42
+
+; Caller
+CALLG FUNC, 1, MYVAR         ; Passes address 0x3000
+
+; Callee
+FUNC:
+    ENTSN 40, 1
+
+    ; B.ARG1 now contains 0x3000 (the address of MYVAR)
+
+    ; WITHOUT IND() - WRONG!
+    W1 := B.ARG1             ; W1 = 0x3000 (the address, not the value!)
+
+    ; WITH IND() - CORRECT!
+    W1 := IND(B.ARG1)        ; W1 = 42 (the actual value at 0x3000)
+
+    RET
+```
+
+### IND() is an Addressing Mode, Not an Opcode
+
+```mermaid
+graph LR
+    subgraph "🔵 How It Works"
+        Instr["Any instruction<br/>W1 := ___"] --> Mode["IND(B.20)<br/>is an addressing mode"]
+        Mode --> CPU["CPU uses opcode 0xC5<br/>plus displacement 20"]
+        CPU --> Exec["Executes: read from<br/>address at (B+20)"]
+    end
+
+    subgraph "📋 Comparison"
+        C1["W1 := B.20<br/>Direct addressing<br/>W1 = value at B+20"]
+        C2["W1 := IND(B.20)<br/>Indirect addressing<br/>W1 = value at address<br/>stored at B+20"]
+    end
+
+    style Instr fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
+    style Mode fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
+    style CPU fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+    style Exec fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px
+    style C1 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style C2 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+```
+
+**Key Points:**
+1. **IND() is assembly syntax** for indirect addressing mode
+2. **The CPU uses a special opcode** (0xC5, 0xC6, 0xC7) to encode it
+3. **It's a two-step memory access:**
+   - First read: get the address
+   - Second read: get the value at that address
+4. **Essential for call-by-reference** semantics
+
+### Other Addressing Modes with IND()
+
+IND() can be combined with post-indexing for array access through pointers:
+
+| Assembly Notation | Name | Formula |
+|-------------------|------|---------|
+| `IND(B.20)(R1)` | Indirect, post-indexed | `ea = ((B)+20) + scale*(R1)` |
+| `IND(B.20:B)(R1)` | Indirect, post-indexed, byte disp | `ea = ((B)+20) + scale*(R1)` |
+
+**Example:**
+```asm
+; B.ARG1 contains address of an array
+; R1 contains index
+W1 := IND(B.ARG1)(R1)        ; W1 = array[R1]
+```
+
+This does:
+1. Read address from B.ARG1 (let's say 0x5000)
+2. Calculate: 0x5000 + 4*R1 (assuming word-sized elements)
+3. Read value at that address
+
+### Summary
+
+```mermaid
+mindmap
+  root((IND<br/>Indirect))
+    Addressing Mode
+      Not an instruction
+      Uses opcodes 0xC5-0xC7
+      Two-step access
+    Syntax
+      IND B.offset
+      IND B.offset:B/H/W
+      With post-index
+    Purpose
+      Dereference pointers
+      Call by reference
+      Access through addresses
+    Critical for
+      Argument access
+      Pointer manipulation
+      Dynamic addressing
+```
+
+---
+
 ## CALL/CALLG Instructions (Caller Side)
 
 ### Format
