@@ -43,11 +43,11 @@ graph LR
         B2 -->|"Dereference<br/>IND(0x1000)"| C2[Get value: 42]
     end
 
-    style A1 fill:#ff6b6b,stroke:#c92a2a,stroke-width:3px,color:#fff
-    style B1 fill:#ff6b6b,stroke:#c92a2a,stroke-width:3px,color:#fff
-    style A2 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
-    style B2 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
-    style C2 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style A1 fill:#c92a2a,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style B1 fill:#c92a2a,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style A2 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style B2 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style C2 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
 ```
 
 **This is why:**
@@ -79,14 +79,14 @@ graph TD
 
     Step3 -.->|"accesses"| M3
 
-    style Start fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
-    style Step1 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style Step2 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style Step3 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style M1 fill:#ffd43b,stroke:#fab005,stroke-width:2px
-    style M2 fill:#ffd43b,stroke:#fab005,stroke-width:2px
-    style M3 fill:#ffd43b,stroke:#fab005,stroke-width:2px
-    style Result fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style Start fill:#1864ab,stroke:#1864ab,stroke-width:3px,color:#fff
+    style Step1 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style Step2 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style Step3 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style M1 fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style M2 fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style M3 fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style Result fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
 ```
 
 ### Mathematical Formula
@@ -125,12 +125,12 @@ flowchart TD
     Read1 --> Read2["Step 2: Read memory at 0x3000<br/>Gets MYVAR's value: 42"]
     Read2 --> Result["W1 now contains 42!"]
 
-    style Caller fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
-    style Store fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style Callee fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
-    style Read1 fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
-    style Read2 fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
-    style Result fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style Caller fill:#1864ab,stroke:#1864ab,stroke-width:3px,color:#fff
+    style Store fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style Callee fill:#6741d9,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Read1 fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
+    style Read2 fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
+    style Result fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
 ```
 
 ### Concrete Example
@@ -172,12 +172,12 @@ graph LR
         C2["W1 := IND(B.20)<br/>Indirect addressing<br/>W1 = value at address<br/>stored at B+20"]
     end
 
-    style Instr fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
-    style Mode fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style CPU fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
-    style Exec fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px
-    style C1 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style C2 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
+    style Instr fill:#1864ab,stroke:#1864ab,stroke-width:2px,color:#fff
+    style Mode fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style CPU fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style Exec fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
+    style C1 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style C2 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
 ```
 
 **Key Points:**
@@ -261,13 +261,13 @@ graph TD
     P2 --> A2["Operand count for CPU"]
     P3 --> A3["Address calculation<br/>&VAR1, &VAR2, &VAR3"]
 
-    style CALL fill:#4c6ef5,stroke:#364fc7,stroke-width:4px,color:#fff
-    style P1 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style P2 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style P3 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style A1 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px
-    style A2 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px
-    style A3 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px
+    style CALL fill:#1864ab,stroke:#1864ab,stroke-width:4px,color:#fff
+    style P1 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style P2 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style P3 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style A1 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
+    style A2 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
+    style A3 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
 ```
 
 **Parameter 1: `<subr_addr>`** - Subroutine Address
@@ -299,12 +299,12 @@ flowchart TD
     Step4[🎯 Jump to entry point<br/>instruction at subr_addr] --> Step5
     Step5[⚡ Entry instruction<br/>initializes stack frame]
 
-    style Start fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
-    style Step1 fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
-    style Step2 fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
-    style Step3 fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
-    style Step4 fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
-    style Step5 fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Start fill:#6741d9,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Step1 fill:#5f3dc4,stroke:#5f3dc4,stroke-width:2px,color:#fff
+    style Step2 fill:#5f3dc4,stroke:#5f3dc4,stroke-width:2px,color:#fff
+    style Step3 fill:#5f3dc4,stroke:#5f3dc4,stroke-width:2px,color:#fff
+    style Step4 fill:#5f3dc4,stroke:#5f3dc4,stroke-width:2px,color:#fff
+    style Step5 fill:#6741d9,stroke:#5f3dc4,stroke-width:3px,color:#fff
 ```
 
 ---
@@ -412,18 +412,18 @@ graph TD
         LOC --> SP["B.SP →<br/>First free location"]
     end
 
-    style B fill:#ff6b6b,stroke:#e03131,stroke-width:4px,color:#fff
-    style B0 fill:#ffc9c9,stroke:#ff8787,stroke-width:2px
-    style B4 fill:#ffc9c9,stroke:#ff8787,stroke-width:2px
-    style B8 fill:#ffc9c9,stroke:#ff8787,stroke-width:2px
-    style B12 fill:#ffc9c9,stroke:#ff8787,stroke-width:2px
-    style B16 fill:#a9e34b,stroke:#82c91e,stroke-width:3px,color:#000
-    style B20 fill:#69db7c,stroke:#51cf66,stroke-width:3px,color:#fff
-    style B24 fill:#69db7c,stroke:#51cf66,stroke-width:3px,color:#fff
-    style B28 fill:#69db7c,stroke:#51cf66,stroke-width:3px,color:#fff
-    style BN fill:#69db7c,stroke:#51cf66,stroke-width:3px,color:#fff
-    style LOC fill:#ffd43b,stroke:#fcc419,stroke-width:2px
-    style SP fill:#74c0fc,stroke:#339af0,stroke-width:3px,color:#fff
+    style B fill:#c92a2a,stroke:#a61e4d,stroke-width:4px,color:#fff
+    style B0 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
+    style B4 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
+    style B8 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
+    style B12 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
+    style B16 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:3px,color:#000
+    style B20 fill:#2f9e44,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style B24 fill:#2f9e44,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style B28 fill:#2f9e44,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style BN fill:#2f9e44,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style LOC fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style SP fill:#1971c2,stroke:#1864ab,stroke-width:3px,color:#fff
 ```
 
 **Key Point:** `B.ARG1`, `B.ARG2`, etc. contain the **addresses** that CALL calculated, NOT the values.
@@ -464,14 +464,14 @@ flowchart LR
     S5 --> S6[Set B.N = arg count]
     S6 --> Done([Ready])
 
-    style Start fill:#f783ac,stroke:#e64980,stroke-width:3px,color:#fff
-    style S1 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
-    style S2 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
-    style S3 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
-    style S4 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
-    style S5 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
-    style S6 fill:#faa2c1,stroke:#f06595,stroke-width:2px,color:#fff
-    style Done fill:#f783ac,stroke:#e64980,stroke-width:3px,color:#fff
+    style Start fill:#c2255c,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style S1 fill:#c2255c,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style S2 fill:#c2255c,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style S3 fill:#c2255c,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style S4 fill:#c2255c,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style S5 fill:#c2255c,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style S6 fill:#c2255c,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style Done fill:#c2255c,stroke:#a61e4d,stroke-width:3px,color:#fff
 ```
 
 **Use Case:** Functions with persistent state (e.g., random number generator with seed)
@@ -500,18 +500,18 @@ graph LR
     L9[log_size = 9] -->|2^9| B512[512 bytes]
     L10[log_size = 10] -->|2^10| B1024[1024 bytes]
 
-    style L5 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style L6 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style L7 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style L8 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style L9 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style L10 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style B32 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
-    style B64 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
-    style B128 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
-    style B256 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
-    style B512 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
-    style B1024 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
+    style L5 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style L6 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style L7 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style L8 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style L9 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style L10 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style B32 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style B64 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style B128 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style B256 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style B512 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style B1024 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
 ```
 
 ### What ENTB Does
@@ -547,13 +547,13 @@ graph TD
     No2[❌ No parameter transfer]
     No3[❌ Must be called with 0 args]
 
-    style ENTD fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
+    style ENTD fill:#ffe066,stroke:#fcc419,stroke-width:3px,color:#000
     style Only fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
     style Ret fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
-    style Done fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
-    style No1 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style No2 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style No3 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style Done fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style No1 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style No2 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style No3 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
 ```
 
 **MINIMAL SETUP:**
@@ -692,16 +692,16 @@ graph TD
     ARG2 -.->|"points to"| M2
     ARG3 -.->|"points to"| M3
 
-    style SF fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
-    style ARG1 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style ARG2 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style ARG3 fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style V1 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
-    style V2 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
-    style V3 fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
-    style M1 fill:#ffd43b,stroke:#fab005,stroke-width:2px
-    style M2 fill:#ffd43b,stroke:#fab005,stroke-width:2px
-    style M3 fill:#ffd43b,stroke:#fab005,stroke-width:2px
+    style SF fill:#1864ab,stroke:#1864ab,stroke-width:3px,color:#fff
+    style ARG1 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style ARG2 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style ARG3 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style V1 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style V2 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style V3 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style M1 fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style M2 fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style M3 fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
 ```
 
 ### Key Insight
@@ -742,15 +742,15 @@ flowchart TD
     T2 --> Result
     T3 --> Result
 
-    style Caller fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
-    style Entry fill:#7950f2,stroke:#6741d9,stroke-width:3px,color:#fff
-    style Transfer fill:#9775fa,stroke:#7950f2,stroke-width:2px,color:#fff
-    style T1 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style T2 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style T3 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style T4 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style T5 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style Result fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
+    style Caller fill:#6741d9,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Entry fill:#5f3dc4,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Transfer fill:#6741d9,stroke:#5f3dc4,stroke-width:2px,color:#fff
+    style T1 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style T2 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style T3 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style T4 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style T5 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style Result fill:#ffe066,stroke:#fcc419,stroke-width:3px,color:#000
 ```
 
 The `<max_no_of_args>` parameter on ENTSN/ENTFN allows the callee to limit how many arguments it accepts:
@@ -788,16 +788,16 @@ graph TD
         C3 --> C4["✅ Works!<br/>Memory has addresses"]
     end
 
-    style I1 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style I2 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style I3 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style E1 fill:#f03e3e,stroke:#c92a2a,stroke-width:3px,color:#fff
-    style E2 fill:#f03e3e,stroke:#c92a2a,stroke-width:3px,color:#fff
-    style E3 fill:#f03e3e,stroke:#c92a2a,stroke-width:3px,color:#fff
-    style C1 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style C2 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style C3 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style C4 fill:#37b24d,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style I1 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style I2 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style I3 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style E1 fill:#a61e4d,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style E2 fill:#a61e4d,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style E3 fill:#a61e4d,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style C1 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style C2 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style C3 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style C4 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
 ```
 
 ```asm
@@ -847,13 +847,13 @@ graph TD
     ArgCheck -->|Match| OK["✅ Proceed"]
     ArgCheck -->|Mismatch| ISE2["⚠️ TRAP!<br/>Instruction Sequence Error<br/>Wrong arg count"]
 
-    style Call fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
-    style CPU fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style Check fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
-    style ArgCheck fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
-    style ISE1 fill:#ff6b6b,stroke:#e03131,stroke-width:3px,color:#fff
-    style ISE2 fill:#ff6b6b,stroke:#e03131,stroke-width:3px,color:#fff
-    style OK fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+    style Call fill:#1864ab,stroke:#1864ab,stroke-width:3px,color:#fff
+    style CPU fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style Check fill:#ffe066,stroke:#fcc419,stroke-width:3px,color:#000
+    style ArgCheck fill:#ffe066,stroke:#fcc419,stroke-width:3px,color:#000
+    style ISE1 fill:#c92a2a,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style ISE2 fill:#c92a2a,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style OK fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
 ```
 
 ### What Happens If You Call The Wrong Entry Point?
@@ -923,17 +923,17 @@ graph TD
         M3C --> M3D["W2 = value"]
     end
 
-    style M1A fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
-    style M1C fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
-    style M1E fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
-    style M2A fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style M2B fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style M2C fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style M2D fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style M3A fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
-    style M3B fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
-    style M3C fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
-    style M3D fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style M1A fill:#1864ab,stroke:#1864ab,stroke-width:2px,color:#fff
+    style M1C fill:#1864ab,stroke:#1864ab,stroke-width:2px,color:#fff
+    style M1E fill:#1864ab,stroke:#1864ab,stroke-width:2px,color:#fff
+    style M2A fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style M2B fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style M2C fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style M2D fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style M3A fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
+    style M3B fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
+    style M3C fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
+    style M3D fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
 ```
 
 ### Method 1: Direct Indexed Access
@@ -1001,17 +1001,17 @@ flowchart TD
 
     Error --> Return
 
-    style Start fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
-    style Entry fill:#7950f2,stroke:#6741d9,stroke-width:2px,color:#fff
-    style Check fill:#ffd43b,stroke:#fab005,stroke-width:2px,color:#000
-    style Load fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
-    style Loop fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
-    style Store fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style Inc1 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
-    style Inc2 fill:#91a7ff,stroke:#748ffc,stroke-width:2px,color:#fff
-    style Test fill:#ffd43b,stroke:#fab005,stroke-width:2px,color:#000
-    style Return fill:#845ef7,stroke:#5f3dc4,stroke-width:3px,color:#fff
-    style Error fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
+    style Start fill:#6741d9,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Entry fill:#5f3dc4,stroke:#5f3dc4,stroke-width:2px,color:#fff
+    style Check fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style Load fill:#1864ab,stroke:#1864ab,stroke-width:2px,color:#fff
+    style Loop fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style Store fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style Inc1 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style Inc2 fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style Test fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style Return fill:#6741d9,stroke:#5f3dc4,stroke-width:3px,color:#fff
+    style Error fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
 ```
 
 ### Caller
@@ -1071,12 +1071,12 @@ graph LR
         C2 --> C3["Compares VALUES<br/>at those addresses"]
     end
 
-    style W1 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style W2 fill:#ff6b6b,stroke:#e03131,stroke-width:2px,color:#fff
-    style W3 fill:#f03e3e,stroke:#c92a2a,stroke-width:3px,color:#fff
-    style C1 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style C2 fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style C3 fill:#37b24d,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style W1 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style W2 fill:#c92a2a,stroke:#a61e4d,stroke-width:2px,color:#fff
+    style W3 fill:#a61e4d,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style C1 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style C2 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style C3 fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
 ```
 
 ```asm
@@ -1127,13 +1127,13 @@ graph TD
     Mod --> Ret["RET"]
     Ret --> Result["😱 Caller's VAR<br/>now = 999!"]
 
-    style Caller fill:#4c6ef5,stroke:#364fc7,stroke-width:2px,color:#fff
-    style Call fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style Func fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style Load fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style Mod fill:#ff9800,stroke:#f57c00,stroke-width:3px,color:#fff
-    style Ret fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style Result fill:#ff6b6b,stroke:#e03131,stroke-width:3px,color:#fff
+    style Caller fill:#1864ab,stroke:#1864ab,stroke-width:2px,color:#fff
+    style Call fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style Func fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style Load fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style Mod fill:#e8590c,stroke:#d9480f,stroke-width:3px,color:#fff
+    style Ret fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style Result fill:#c92a2a,stroke:#a61e4d,stroke-width:3px,color:#fff
 ```
 
 ```asm
@@ -1169,17 +1169,17 @@ graph TD
     Return --> Restore["Restore context:<br/>Domain A table<br/>→ TOS, LL, HL, THA"]
     Restore --> Back["Back to<br/>Domain A"]
 
-    style Start fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
-    style CallG fill:#748ffc,stroke:#5c7cfa,stroke-width:2px,color:#fff
-    style Switch fill:#ffd43b,stroke:#fab005,stroke-width:2px,color:#000
-    style OK fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
-    style ERR fill:#ff6b6b,stroke:#e03131,stroke-width:3px,color:#fff
-    style Save fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
-    style Load fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
-    style Exec fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style Return fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
-    style Restore fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
-    style Back fill:#4c6ef5,stroke:#364fc7,stroke-width:3px,color:#fff
+    style Start fill:#1864ab,stroke:#1864ab,stroke-width:3px,color:#fff
+    style CallG fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
+    style Switch fill:#ffe066,stroke:#fcc419,stroke-width:2px,color:#000
+    style OK fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style ERR fill:#c92a2a,stroke:#a61e4d,stroke-width:3px,color:#fff
+    style Save fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
+    style Load fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
+    style Exec fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style Return fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
+    style Restore fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
+    style Back fill:#1864ab,stroke:#1864ab,stroke-width:3px,color:#fff
 ```
 
 Only **ENTM** (enter module) can be called from another domain. All other entry points are intra-domain only.
@@ -1209,10 +1209,10 @@ graph LR
     ENTS --> ENTF
     ENTF --> ENTB
 
-    style ENTD fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
-    style ENTS fill:#a9e34b,stroke:#82c91e,stroke-width:3px,color:#000
-    style ENTF fill:#ffd43b,stroke:#fab005,stroke-width:3px,color:#000
-    style ENTB fill:#ff9800,stroke:#f57c00,stroke-width:3px,color:#fff
+    style ENTD fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
+    style ENTS fill:#b2f2bb,stroke:#2b8a3e,stroke-width:3px,color:#000
+    style ENTF fill:#ffe066,stroke:#fcc419,stroke-width:3px,color:#000
+    style ENTB fill:#e8590c,stroke:#d9480f,stroke-width:3px,color:#fff
 ```
 
 ### Fastest: ENTD ⚡⚡⚡⚡⚡
