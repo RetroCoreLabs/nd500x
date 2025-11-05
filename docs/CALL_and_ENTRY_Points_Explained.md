@@ -212,47 +212,24 @@ This does:
 ### Summary
 
 ```mermaid
-graph TD
-    IND["🎯 IND() - Indirect Addressing"]
-
-    IND --> AM["📘 Addressing Mode"]
-    IND --> SYN["💬 Syntax"]
-    IND --> PURP["🎯 Purpose"]
-    IND --> CRIT["⚡ Critical For"]
-
-    AM --> AM1["✓ Not an instruction"]
-    AM --> AM2["✓ Uses opcodes 0xC5-0xC7"]
-    AM --> AM3["✓ Two-step access"]
-
-    SYN --> SYN1["IND B.offset"]
-    SYN --> SYN2["IND B.offset:B/H/W"]
-    SYN --> SYN3["With post-index"]
-
-    PURP --> PURP1["→ Dereference pointers"]
-    PURP --> PURP2["→ Call by reference"]
-    PURP --> PURP3["→ Access through addresses"]
-
-    CRIT --> CRIT1["★ Argument access"]
-    CRIT --> CRIT2["★ Pointer manipulation"]
-    CRIT --> CRIT3["★ Dynamic addressing"]
-
-    style IND fill:#1864ab,stroke:#1864ab,stroke-width:4px,color:#fff
-    style AM fill:#1971c2,stroke:#1971c2,stroke-width:2px,color:#fff
-    style SYN fill:#6741d9,stroke:#5f3dc4,stroke-width:2px,color:#fff
-    style PURP fill:#2b8a3e,stroke:#2b8a3e,stroke-width:2px,color:#fff
-    style CRIT fill:#e8590c,stroke:#d9480f,stroke-width:2px,color:#fff
-    style AM1 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
-    style AM2 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
-    style AM3 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
-    style SYN1 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style SYN2 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style SYN3 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style PURP1 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style PURP2 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style PURP3 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style CRIT1 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style CRIT2 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style CRIT3 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
+mindmap
+  root((IND<br/>Indirect))
+    Addressing Mode
+      Not an instruction
+      Uses opcodes 0xC5-0xC7
+      Two-step access
+    Syntax
+      IND B.offset
+      IND B.offset:B/H/W
+      With post-index
+    Purpose
+      Dereference pointers
+      Call by reference
+      Access through addresses
+    Critical for
+      Argument access
+      Pointer manipulation
+      Dynamic addressing
 ```
 
 ---
@@ -337,83 +314,40 @@ flowchart TD
 There are multiple entry point types, each with different stack frame initialization:
 
 ```mermaid
-graph TD
-    ROOT["🎯 ENTR Entry Points<br/>8 Types"]
-
-    ROOT --> ENTS["ENTS<br/>Stack Subroutine"]
-    ROOT --> ENTSN["ENTSN<br/>Stack with Limit"]
-    ROOT --> ENTF["ENTF<br/>Fixed Data Area"]
-    ROOT --> ENTFN["ENTFN<br/>Fixed with Limit"]
-    ROOT --> ENTB["ENTB<br/>Heap Block"]
-    ROOT --> ENTD["ENTD<br/>Direct Entry"]
-    ROOT --> ENTM["ENTM<br/>Module Entry"]
-    ROOT --> ENTT["ENTT<br/>Trap Handler"]
-
-    ENTS --> ENTS1["✓ Stack allocation"]
-    ENTS --> ENTS2["✓ Full parameter transfer"]
-    ENTS --> ENTS3["✓ Reentrant"]
-
-    ENTSN --> ENTSN1["✓ Stack allocation"]
-    ENTSN --> ENTSN2["✓ Limited parameters"]
-    ENTSN --> ENTSN3["✓ Version compatible"]
-
-    ENTF --> ENTF1["→ Static data area"]
-    ENTF --> ENTF2["→ Persistent state"]
-    ENTF --> ENTF3["✗ Non-reentrant"]
-
-    ENTFN --> ENTFN1["→ Static + limited params"]
-    ENTFN --> ENTFN2["→ Persistent state"]
-    ENTFN --> ENTFN3["✓ Version compatible"]
-
-    ENTB --> ENTB1["⚡ Heap allocation"]
-    ENTB --> ENTB2["⚡ Dynamic sizing"]
-    ENTB --> ENTB3["⚡ Slow but flexible"]
-
-    ENTD --> ENTD1["★ No parameters"]
-    ENTD --> ENTD2["★ Minimal overhead"]
-    ENTD --> ENTD3["★ Leaf functions"]
-
-    ENTM --> ENTM1["🌐 Cross-domain calls"]
-    ENTM --> ENTM2["🌐 New stack init"]
-    ENTM --> ENTM3["🌐 Module entry"]
-
-    ENTT --> ENTT1["⚠️ Trap handler"]
-    ENTT --> ENTT2["⚠️ Register save"]
-    ENTT --> ENTT3["⚠️ Error handling"]
-
-    style ROOT fill:#1864ab,stroke:#1864ab,stroke-width:4px,color:#fff
-    style ENTS fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
-    style ENTSN fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
-    style ENTF fill:#e8590c,stroke:#d9480f,stroke-width:3px,color:#fff
-    style ENTFN fill:#e8590c,stroke:#d9480f,stroke-width:3px,color:#fff
-    style ENTB fill:#6741d9,stroke:#5f3dc4,stroke-width:3px,color:#fff
-    style ENTD fill:#1971c2,stroke:#1971c2,stroke-width:3px,color:#fff
-    style ENTM fill:#c2255c,stroke:#a61e4d,stroke-width:3px,color:#fff
-    style ENTT fill:#c92a2a,stroke:#a61e4d,stroke-width:3px,color:#fff
-    style ENTS1 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTS2 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTS3 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTSN1 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTSN2 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTSN3 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTF1 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style ENTF2 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style ENTF3 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
-    style ENTFN1 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style ENTFN2 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style ENTFN3 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style ENTB1 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style ENTB2 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style ENTB3 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style ENTD1 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
-    style ENTD2 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
-    style ENTD3 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
-    style ENTM1 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
-    style ENTM2 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
-    style ENTM3 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
-    style ENTT1 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
-    style ENTT2 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
-    style ENTT3 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
+mindmap
+  root((🎯 ENTR<br/>Entry Points))
+    ENTS
+      Stack allocation
+      Full parameter transfer
+      Reentrant ✓
+    ENTSN
+      Stack allocation
+      Limited parameters
+      Version compatible
+    ENTF
+      Static data area
+      Persistent state
+      Non-reentrant ✗
+    ENTFN
+      Static + limited params
+      Persistent state
+      Version compatible
+    ENTB
+      Heap allocation
+      Dynamic sizing
+      Slow but flexible
+    ENTD
+      No parameters
+      Minimal overhead
+      Leaf functions
+    ENTM
+      Cross-domain calls
+      New stack init
+      Module entry
+    ENTT
+      Trap handler
+      Register save
+      Error handling
 ```
 
 ### Entry Point Types
@@ -1306,66 +1240,33 @@ graph LR
 ## Conclusion
 
 ```mermaid
-graph TD
-    ROOT["🎯 ND-500 Calling Convention<br/>Complete Overview"]
-
-    ROOT --> CALL["📞 CALL/CALLG<br/>Caller Instruction"]
-    ROOT --> KEY["🔑 Key Concept<br/>Address-Based"]
-    ROOT --> ENTRY["🎯 Entry Points<br/>8 Types"]
-    ROOT --> FRAME["📚 Stack Frame<br/>Structure"]
-    ROOT --> BENEFITS["✨ Benefits<br/>Design Advantages"]
-
-    CALL --> CALL1["→ Calculates addresses"]
-    CALL --> CALL2["→ Saves return addr"]
-    CALL --> CALL3["→ Jumps to entry"]
-
-    KEY --> KEY1["📍 Pass ADDRESSES"]
-    KEY --> KEY2["📍 Not values"]
-    KEY --> KEY3["📍 Call by reference"]
-
-    ENTRY --> ENTRY1["ENTS: Stack"]
-    ENTRY --> ENTRY2["ENTSN: Limited args"]
-    ENTRY --> ENTRY3["ENTF: Static"]
-    ENTRY --> ENTRY4["ENTB: Heap"]
-    ENTRY --> ENTRY5["ENTD: Minimal"]
-
-    FRAME --> FRAME1["B.PREVB"]
-    FRAME --> FRAME2["B.RETA"]
-    FRAME --> FRAME3["B.N"]
-    FRAME --> FRAME4["B.ARG1+"]
-    FRAME --> FRAME5["Local vars"]
-
-    BENEFITS --> BEN1["✓ Efficient passing"]
-    BENEFITS --> BEN2["✓ Output parameters"]
-    BENEFITS --> BEN3["✓ Flexible memory"]
-    BENEFITS --> BEN4["✓ Version compatible"]
-
-    style ROOT fill:#1864ab,stroke:#1864ab,stroke-width:4px,color:#fff
-    style CALL fill:#1971c2,stroke:#1971c2,stroke-width:3px,color:#fff
-    style KEY fill:#c92a2a,stroke:#a61e4d,stroke-width:3px,color:#fff
-    style ENTRY fill:#2b8a3e,stroke:#2b8a3e,stroke-width:3px,color:#fff
-    style FRAME fill:#6741d9,stroke:#5f3dc4,stroke-width:3px,color:#fff
-    style BENEFITS fill:#e8590c,stroke:#d9480f,stroke-width:3px,color:#fff
-    style CALL1 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
-    style CALL2 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
-    style CALL3 fill:#a5d8ff,stroke:#74c0fc,stroke-width:2px,color:#000
-    style KEY1 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
-    style KEY2 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
-    style KEY3 fill:#ffc9c9,stroke:#ffa8a8,stroke-width:2px,color:#000
-    style ENTRY1 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTRY2 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTRY3 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTRY4 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style ENTRY5 fill:#b2f2bb,stroke:#2b8a3e,stroke-width:2px,color:#000
-    style FRAME1 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style FRAME2 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style FRAME3 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style FRAME4 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style FRAME5 fill:#d0bfff,stroke:#9775fa,stroke-width:2px,color:#000
-    style BEN1 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style BEN2 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style BEN3 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
-    style BEN4 fill:#ffe8cc,stroke:#fd7e14,stroke-width:2px,color:#000
+mindmap
+  root((🎯 ND-500<br/>Calling Convention))
+    📞 CALL/CALLG
+      Calculates addresses
+      Saves return addr
+      Jumps to entry
+    🔑 Key Concept
+      Pass ADDRESSES
+      Not values
+      Call by reference
+    🎯 Entry Points
+      ENTS: Stack
+      ENTSN: Limited args
+      ENTF: Static
+      ENTB: Heap
+      ENTD: Minimal
+    📚 Stack Frame
+      B.PREVB
+      B.RETA
+      B.N
+      B.ARG1+
+      Local vars
+    ✨ Benefits
+      Efficient passing
+      Output parameters
+      Flexible memory
+      Version compatible
 ```
 
 The ND-500 calling convention is sophisticated:
