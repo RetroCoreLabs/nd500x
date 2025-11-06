@@ -1,0 +1,434 @@
+instruction:
+  name: "clr"
+  function: "Clr"
+  mnemonic: "clr"
+  description: |
+    Clr
+    
+    
+    Operands: None (operates on implicit register)
+    Variants: 24 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/24
+      opcode: "0x0084"
+      opcode_binary: "0000_0000_1000_0100"
+      opcode_decimal: 132
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/24
+      opcode: "0x0085"
+      opcode_binary: "0000_0000_1000_0101"
+      opcode_decimal: 133
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/24
+      opcode: "0x0086"
+      opcode_binary: "0000_0000_1000_0110"
+      opcode_decimal: 134
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/24
+      opcode: "0x0087"
+      opcode_binary: "0000_0000_1000_0111"
+      opcode_decimal: 135
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/24
+      opcode: "0x0084"
+      opcode_binary: "0000_0000_1000_0100"
+      opcode_decimal: 132
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 6/24
+      opcode: "0x0085"
+      opcode_binary: "0000_0000_1000_0101"
+      opcode_decimal: 133
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 7/24
+      opcode: "0x0086"
+      opcode_binary: "0000_0000_1000_0110"
+      opcode_decimal: 134
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 8/24
+      opcode: "0x0087"
+      opcode_binary: "0000_0000_1000_0111"
+      opcode_decimal: 135
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 9/24
+      opcode: "0x0084"
+      opcode_binary: "0000_0000_1000_0100"
+      opcode_decimal: 132
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 10/24
+      opcode: "0x0085"
+      opcode_binary: "0000_0000_1000_0101"
+      opcode_decimal: 133
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 11/24
+      opcode: "0x0086"
+      opcode_binary: "0000_0000_1000_0110"
+      opcode_decimal: 134
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 12/24
+      opcode: "0x0087"
+      opcode_binary: "0000_0000_1000_0111"
+      opcode_decimal: 135
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 13/24
+      opcode: "0x0084"
+      opcode_binary: "0000_0000_1000_0100"
+      opcode_decimal: 132
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 14/24
+      opcode: "0x0085"
+      opcode_binary: "0000_0000_1000_0101"
+      opcode_decimal: 133
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 15/24
+      opcode: "0x0086"
+      opcode_binary: "0000_0000_1000_0110"
+      opcode_decimal: 134
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 16/24
+      opcode: "0x0087"
+      opcode_binary: "0000_0000_1000_0111"
+      opcode_decimal: 135
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 17/24
+      opcode: "0x0088"
+      opcode_binary: "0000_0000_1000_1000"
+      opcode_decimal: 136
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 18/24
+      opcode: "0x0089"
+      opcode_binary: "0000_0000_1000_1001"
+      opcode_decimal: 137
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 19/24
+      opcode: "0x008A"
+      opcode_binary: "0000_0000_1000_1010"
+      opcode_decimal: 138
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 20/24
+      opcode: "0x008B"
+      opcode_binary: "0000_0000_1000_1011"
+      opcode_decimal: 139
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 21/24
+      opcode: "0x008C"
+      opcode_binary: "0000_0000_1000_1100"
+      opcode_decimal: 140
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 22/24
+      opcode: "0x008D"
+      opcode_binary: "0000_0000_1000_1101"
+      opcode_decimal: 141
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 23/24
+      opcode: "0x008E"
+      opcode_binary: "0000_0000_1000_1110"
+      opcode_decimal: 142
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 24/24
+      opcode: "0x008F"
+      opcode_binary: "0000_0000_1000_1111"
+      opcode_decimal: 143
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+# Generated from nd500-opcodes
+# Instruction group: Clr
+# Total variants: 24
+
+
+  examples:
+    - description: |
+        Basic clr operation using word register
+      prefix: "W"
+      code: |
+        W1 CLR
+      explanation: |
+        Perform clr operation on word-sized data
+
+    - description: |
+        Clr with floating-point data
+      prefix: "F"
+      code: |
+        F1 CLR
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of clr instruction
+      code: |
+        Variant 1/24: BI1 CLR\nVariant 2/24: BI1 CLR\nVariant 3/24: BI1 CLR
+      explanation: |
+        The clr instruction has 24 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "15.18"
+    title: "CLREAD - Read local clock ('87 extension)"
+    content: |
+      ### 15.18 CLREAD - Read local clock ('87 extension)
+
+      | Assembly notation | Name              | Hex code | Octal code |
+      |-------------------|-------------------|----------|------------|
+      | CLREAD            | read CPU's clock | FF1FH    | 177437B    |
+
+      #### Operation:
+      `<clock> -> W1`
+
+      #### Description:
+      The clock value is read into register number 1. Time is an integer value giving the number of microseconds since the last CLINIT instruction.
+
+      Note that the clock counts for a period of 2**32 microseconds after which it starts from zero again.
+
+      #### Trap Conditions:
+      None
+
+      #### Data Status Bits:
+      - `<clock> = 0 -> Z`
+      - `<clock>.signbit -> S`
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,112 @@
+instruction:
+  name: "a2=:"
+  function: "A2Get"
+  mnemonic: "a2=:"
+  description: |
+    A2Get
+    
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE39"
+      opcode_binary: "1111_1110_0011_1001"
+      opcode_decimal: 65081
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: A2Get
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        A2=: with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 A2=: B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        A2=: with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 A2=: ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.9"
+    title: "Integer float register communication"
+    content: |
+      ### 16.9 Integer float register communication
+
+      #### Format:
+
+      - An:= \<operand/w/W\>
+      - En:= \<operand/w/W\>
+      - An:= \<operand/r/W\>
+      - En:= \<operand/r/W\>
+
+      | Assembly notation | Name | Hex code | Octal code |
+      |-------------------|------|----------|------------|
+      | An:= | load most significant part of double float register | 0FE30H+(n-1) | 177060B+(n-1) |
+      | En:= | load least significant part of double float register | 0FE34H+(n-1) | 177064B+(n-1) |
+      | An:= | store most significant part of double float register | 0FE38H+(n-1) | 177070B+(n-1) |
+      | En:= | store least significant part of double float register | 0FE3CH+(n-1) | 177074B+(n-1) |
+
+      #### Operation:
+
+      - An:= load most significant part of double float register
+      - En:= load least significant part of double float register
+      - An:= store most significant part of double float register
+      - En:= store least significant part of double float register
+
+      #### Description:
+
+      Load/store the most significant or least significant 32 bits of the double float registers. Note that a float register is equivalent to the most significant part of a double float register.
+
+      When a register is specified as an operand, the general integer registers are used. Thus, these instructions can transfer data between integer and float registers without performing any type conversion.
+
+      #### Trap conditions:
+
+      Addressing traps
+
+      #### Data status bits:
+
+      - source register = 0 -> Z
+      - source register.signbit -> S
+
+      #### Example:
+
+      Store least significant part of D3 in local variable LEAST
+
+      E3 =: B.LEAST
+
+      ---
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,298 @@
+instruction:
+  name: "sub2"
+  function: "Sub2"
+  mnemonic: "sub2"
+  description: |
+    Sub2
+    
+    Subtraction operation:
+    Result ← op1 - op2
+    
+    Operands: 2
+    Variants: 5 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFC58"
+      opcode_binary: "1111_1100_0101_1000"
+      opcode_decimal: 64600
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/5
+      opcode: "0xFC59"
+      opcode_binary: "1111_1100_0101_1001"
+      opcode_decimal: 64601
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/5
+      opcode: "0x00E0"
+      opcode_binary: "0000_0000_1110_0000"
+      opcode_decimal: 224
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/5
+      opcode: "0xFC5B"
+      opcode_binary: "1111_1100_0101_1011"
+      opcode_decimal: 64603
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/5
+      opcode: "0xFC5C"
+      opcode_binary: "1111_1100_0101_1100"
+      opcode_decimal: 64604
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sub2
+# Total variants: 5
+
+
+  examples:
+    - description: |
+        Basic sub2 operation using word register
+      prefix: "W"
+      code: |
+        W1 SUB2 W2, B.16
+      explanation: |
+        Perform sub2 operation on word-sized data
+
+    - description: |
+        Sub2 with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SUB2 B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sub2 with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SUB2 B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sub2 with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SUB2 ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Sub2 with floating-point data
+      prefix: "F"
+      code: |
+        F1 SUB2 F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of sub2 instruction
+      code: |
+        Variant 1/5: BY1 SUB2\nVariant 2/5: BY1 SUB2\nVariant 3/5: BY1 SUB2
+      explanation: |
+        The sub2 instruction has 5 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 SUB2 1\n; Result in W1
+      explanation: |
+        Common use case for sub2 in calculations
+
+  manual_reference:
+    section: "11.6"
+    title: "Subtract two operands"
+    content: |
+      ### 11.6 Subtract two operands
+
+      **Format:** t SUB2 `<a/w/t>,<b/r/t>`
+
+      | Assembly notation | Name                              | Hex code | Octal code |
+      |-------------------|-----------------------------------|----------|------------|
+      | BY SUB2           | byte subtract two operands        | 0FC5BH   | 176130B    |
+      | H SUB2            | halfword subtract two operands    | 0FC59H   | 176131B    |
+      | W SUB2            | word subtract two operands        | 0E0H     | 340B       |
+      | F SUB2            | float subtract two operands       | 0FC5BH   | 176133B    |
+      | D SUB2            | double float subtract two operands| 0FC5CH   | 176134B    |
+
+      #### Operation:
+      `<a> - <b> -> <a>`
+
+      #### Description:
+      The `<b>` operand is subtracted from the `<a>` operand and the result is put in the `<a>` operand. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      #### Trap conditions:
+      - Addressing traps
+      - Integer overflow (0)
+      - Floating overflow (F0)
+      - Floating underflow (FU)
+
+      #### Data status bits:
+      - difference = 0 -> Z
+      - difference.sigmbit -> S
+      - overflow -> O
+      - carry from most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> F0
+
+      #### Example:
+      Subtract 4 from the R3rd element of the byte array whose descriptor is the global VALUES
+
+          BY SUB2 DESC(VALUES) (R3), 4
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,121 @@
+instruction:
+  name: "pupackr"
+  function: "Pupackr"
+  mnemonic: "pupackr"
+  description: |
+    Pupackr
+    
+    Arithmetic operation
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE93"
+      opcode_binary: "1111_1110_1001_0011"
+      opcode_decimal: 65171
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Pupackr
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Pupackr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 PUPACKR B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Pupackr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 PUPACKR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 PUPACKR 1\n; Result in W1
+      explanation: |
+        Common use case for pupackr in calculations
+
+  manual_reference:
+    section: "17.8"
+    title: "Convert packed to ASCII"
+    content: |
+      # 17.8 Convert packed to ASCII
+
+      **Format:**
+      PUPACK (<source/r/BCD=>, <dest/r/w/ASCII=>)
+
+      | Assembly notation | Name                        | Hex code | Octal code |
+      |-------------------|-----------------------------|----------|------------|
+      | PUPACK            | convert packed to ASCII     | 0FBE6H   | 177266B    |
+      | PUPACKR           | convert packed to ASCII rounded | 0FE93H   | 177223B    |
+
+      **Operation:**
+      \<source> -> \<dest>
+
+      **Description:**
+
+      The content of the \<source> operand in packed decimal format is unpacked into the \<dest> operand in ASCII format. If specified, the value is rounded before storing it in the \<dest> operand. The sign representation is determined by the SGN field in the \<dest> descriptor.
+
+      The \<dest> string is extended with leading ASCII zeros if necessary, and the parity bit for all digits will be zero.
+
+      **Trap conditions:**
+      Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - value after rounding = 0 -> Z
+      - value.signbit -> S
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      **Example:**
+
+      Unpack VAR1 into IFIELD and round the value according to the IFIELD descriptor
+
+      ```
+      PUPACKR VAR1, IFIELD
+      ```
+
+      ---

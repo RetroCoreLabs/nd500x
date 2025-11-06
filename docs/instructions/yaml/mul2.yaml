@@ -1,0 +1,297 @@
+instruction:
+  name: "mul2"
+  function: "Mul2"
+  mnemonic: "mul2"
+  description: |
+    Mul2
+    
+    Multiplication operation:
+    Result ← op1 × op2
+    
+    Operands: 2
+    Variants: 5 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFC5D"
+      opcode_binary: "1111_1100_0101_1101"
+      opcode_decimal: 64605
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/5
+      opcode: "0xFC5E"
+      opcode_binary: "1111_1100_0101_1110"
+      opcode_decimal: 64606
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/5
+      opcode: "0xFC5F"
+      opcode_binary: "1111_1100_0101_1111"
+      opcode_decimal: 64607
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/5
+      opcode: "0xFC60"
+      opcode_binary: "1111_1100_0110_0000"
+      opcode_decimal: 64608
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/5
+      opcode: "0xFC61"
+      opcode_binary: "1111_1100_0110_0001"
+      opcode_decimal: 64609
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Mul2
+# Total variants: 5
+
+
+  examples:
+    - description: |
+        Basic mul2 operation using word register
+      prefix: "W"
+      code: |
+        W1 MUL2 W2, B.16
+      explanation: |
+        Perform mul2 operation on word-sized data
+
+    - description: |
+        Mul2 with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 MUL2 B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Mul2 with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 MUL2 B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Mul2 with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 MUL2 ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Mul2 with floating-point data
+      prefix: "F"
+      code: |
+        F1 MUL2 F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of mul2 instruction
+      code: |
+        Variant 1/5: BY1 MUL2\nVariant 2/5: BY1 MUL2\nVariant 3/5: BY1 MUL2
+      explanation: |
+        The mul2 instruction has 5 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 MUL2 1\n; Result in W1
+      explanation: |
+        Common use case for mul2 in calculations
+
+  manual_reference:
+    section: "11.7"
+    title: "Multiply two operands"
+    content: |
+      ### 11.7 Multiply two operands
+
+      **Format:**
+      t MUL2 `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      | Assembly notation | Name                          | Hex code | Octal code |
+      |-------------------|-------------------------------|----------|------------|
+      | BY MUL2           | byte multiply two operands    | OFC5DH   | 176135B    |
+      | H MUL2            | halfword multiply two operands| OFC5EH   | 176136B    |
+      | W MUL2            | word multiply two operands    | OFC5FH   | 176137B    |
+      | F MUL2            | float multiply two operands   | OFC60H   | 176140B    |
+      | D MUL2            | double float multiply two operands | OFC61H | 176141B    |
+
+      **Operation:**
+      `<a> * <b> -> <a>`
+
+      **Description:**
+
+      The `<a>` operand is multiplied by the `<b>` operand and the product is stored in the `<a>` operand. Integer overflow occurs if the upper half of the double length result is not equal to the sign extension of the lower half.
+
+      **Trap conditions:** Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU)
+
+      **Data status bits:**
+
+      - product = 0 -> Z
+      - product.signbit -> S
+      - overflow -> O
+      - floating underflow -> FU
+      - floating overflow -> FO
+
+      **Example:**
+
+      Multiply the argument double float PROD on the alternative domain with the contents of D4
+
+          D MUL2 ALT(B.PROD), D4
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,651 @@
+instruction:
+  name: "*"
+  function: "Multiply"
+  mnemonic: "*"
+  description: |
+    Multiply
+    
+    Multiplication operation:
+    Result ← op1 × op2
+    
+    Operands: 1
+    Variants: 20 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/20
+      opcode: "0xFC44"
+      opcode_binary: "1111_1100_0100_0100"
+      opcode_decimal: 64580
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/20
+      opcode: "0xFC45"
+      opcode_binary: "1111_1100_0100_0101"
+      opcode_decimal: 64581
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/20
+      opcode: "0xFC46"
+      opcode_binary: "1111_1100_0100_0110"
+      opcode_decimal: 64582
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/20
+      opcode: "0xFC47"
+      opcode_binary: "1111_1100_0100_0111"
+      opcode_decimal: 64583
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/20
+      opcode: "0xFC48"
+      opcode_binary: "1111_1100_0100_1000"
+      opcode_decimal: 64584
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/20
+      opcode: "0xFC49"
+      opcode_binary: "1111_1100_0100_1001"
+      opcode_decimal: 64585
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 7/20
+      opcode: "0xFC4A"
+      opcode_binary: "1111_1100_0100_1010"
+      opcode_decimal: 64586
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 8/20
+      opcode: "0xFC4B"
+      opcode_binary: "1111_1100_0100_1011"
+      opcode_decimal: 64587
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 9/20
+      opcode: "0x006C"
+      opcode_binary: "0000_0000_0110_1100"
+      opcode_decimal: 108
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 10/20
+      opcode: "0x006D"
+      opcode_binary: "0000_0000_0110_1101"
+      opcode_decimal: 109
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 11/20
+      opcode: "0x006E"
+      opcode_binary: "0000_0000_0110_1110"
+      opcode_decimal: 110
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 12/20
+      opcode: "0x006F"
+      opcode_binary: "0000_0000_0110_1111"
+      opcode_decimal: 111
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 13/20
+      opcode: "0x0070"
+      opcode_binary: "0000_0000_0111_0000"
+      opcode_decimal: 112
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 14/20
+      opcode: "0x0071"
+      opcode_binary: "0000_0000_0111_0001"
+      opcode_decimal: 113
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 15/20
+      opcode: "0x0072"
+      opcode_binary: "0000_0000_0111_0010"
+      opcode_decimal: 114
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 16/20
+      opcode: "0x0073"
+      opcode_binary: "0000_0000_0111_0011"
+      opcode_decimal: 115
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 17/20
+      opcode: "0x0074"
+      opcode_binary: "0000_0000_0111_0100"
+      opcode_decimal: 116
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 18/20
+      opcode: "0x0075"
+      opcode_binary: "0000_0000_0111_0101"
+      opcode_decimal: 117
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 19/20
+      opcode: "0x0076"
+      opcode_binary: "0000_0000_0111_0110"
+      opcode_decimal: 118
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 20/20
+      opcode: "0x0077"
+      opcode_binary: "0000_0000_0111_0111"
+      opcode_decimal: 119
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Multiply
+# Total variants: 20
+
+
+  examples:
+    - description: |
+        Basic * operation using word register
+      prefix: "W"
+      code: |
+        W1 * W2
+      explanation: |
+        Perform * operation on word-sized data
+
+    - description: |
+        * with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 * 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        * with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 * B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        * with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 * ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        * with floating-point data
+      prefix: "F"
+      code: |
+        F1 * F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of * instruction
+      code: |
+        Variant 1/20: BY1 *\nVariant 2/20: BY1 *\nVariant 3/20: BY1 *
+      explanation: |
+        The * instruction has 20 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 * 1\n; Result in W1
+      explanation: |
+        Common use case for * in calculations
+
+  manual_reference:
+    section: "14.7"
+    title: "String move *m* elements"
+    content: |
+      ## 14.7 String move *m* elements
+
+      **Format:**
+
+      t SMOVN ⟨=source/r/t/I1=⟩,⟨=dest/w/t/I2=⟩,⟨m/r/W⟩
+
+      **Assembly notation**
+
+      | Name     | Hex code | Octal code |
+      |----------|----------|------------|
+      | BI SMOVN | 0FD76H   | 176568B    |
+      | BY SMOVN | 0FD77H   | 176567B    |
+      | H SMOVN  | 0FD78H   | 176570B    |
+      | W SMOVN  | 0FD79H   | 176571B    |
+      | F SMOVN  | 0FD7AH   | 176572B    |
+      | D SMOVN  | 0FD7BH   | 176573B    |
+
+      **Operation:**
+
+      0 -> i
+      while not end of strings and i < m do
+      S(I1) -> D(I2)
+      I1 + 1 -> I1, I2 + 1 -> I2
+      i + 1 -> i
+      enddo
+
+      **Description:**
+
+      M items are moved from the ⟨source⟩ to the ⟨dest⟩ operand, unless the end of the ⟨source⟩ operand is reached or the ⟨dest⟩ operand full. Overlap is taken care of.
+
+      **Terminating conditions:**
+
+      - outside source: K=0 Z=0   I1, I2 unmodified, DR trap condition
+      - outside dest:   K=1 Z=0   I1, I2 unmodified, DR trap condition
+      - m items moved:  K=0 Z=1   I1, I2 :- next element
+      - source empty:   K=0 Z=0   I1, I2 :- next element
+      - dest full:      K=1 Z=0   I1, I2 :- next element
+
+      **Example:**
+
+      Copy next 64 bits from S1 to start of S2, both global descriptors
+
+          W2 CLR
+          BI SMOVN S1, S2, 64
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

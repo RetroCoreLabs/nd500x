@@ -1,0 +1,298 @@
+instruction:
+  name: "div2"
+  function: "Div2"
+  mnemonic: "div2"
+  description: |
+    Div2
+    
+    Division operation:
+    Result ← op1 ÷ op2
+    
+    Operands: 2
+    Variants: 5 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFC62"
+      opcode_binary: "1111_1100_0110_0010"
+      opcode_decimal: 64610
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/5
+      opcode: "0xFC63"
+      opcode_binary: "1111_1100_0110_0011"
+      opcode_decimal: 64611
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/5
+      opcode: "0xFC64"
+      opcode_binary: "1111_1100_0110_0100"
+      opcode_decimal: 64612
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/5
+      opcode: "0xFC65"
+      opcode_binary: "1111_1100_0110_0101"
+      opcode_decimal: 64613
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/5
+      opcode: "0xFC66"
+      opcode_binary: "1111_1100_0110_0110"
+      opcode_decimal: 64614
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Div2
+# Total variants: 5
+
+
+  examples:
+    - description: |
+        Basic div2 operation using word register
+      prefix: "W"
+      code: |
+        W1 DIV2 W2, B.16
+      explanation: |
+        Perform div2 operation on word-sized data
+
+    - description: |
+        Div2 with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 DIV2 B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Div2 with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 DIV2 B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Div2 with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 DIV2 ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Div2 with floating-point data
+      prefix: "F"
+      code: |
+        F1 DIV2 F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of div2 instruction
+      code: |
+        Variant 1/5: BY1 DIV2\nVariant 2/5: BY1 DIV2\nVariant 3/5: BY1 DIV2
+      explanation: |
+        The div2 instruction has 5 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 DIV2 1\n; Result in W1
+      explanation: |
+        Common use case for div2 in calculations
+
+  manual_reference:
+    section: "11.8"
+    title: "Divide two operands"
+    content: |
+      # 11.8 Divide two operands
+
+      **Format:**
+      t DIV2 \<a/rw/t>,\<b/r/t>
+
+      | Assembly notation | Name                              | Hex code | Octal code |
+      |-------------------|-----------------------------------|----------|------------|
+      | BY DIV2           | byte divide two operands          | OFC62H   | 176142B    |
+      | H DIV2            | halfword divide two operands      | OFC63H   | 176143B    |
+      | W DIV2            | word divide two operands          | OFC64H   | 176144B    |
+      | F DIV2            | float divide two operands         | OFC65H   | 176145B    |
+      | D DIV2            | double float divide two operands  | OFC66H   | 176146B    |
+
+      **Operation:**
+      \<a> / \<b> -> \<a>
+
+      **Description:**
+
+      The \<a> operand is divided by the \<b> operand and the quotient is stored in the \<a> operand. In integer division the remainder (unless it is zero) has the same sign as the \<a> operand, i.e. the quotient is truncated towards zero. Integer overflow occurs if and only if the largest possible negative integer is divided by -1.
+
+      **Trap conditions:** Addressing traps, Integer overflow (O), Floating overflow (FO), Floating underflow (FU), Divide by zero (DZ)
+
+      **Data status bits:**
+
+      - quotient = 0 -> Z
+      - quotient.signbit -> S
+      - overflow -> O
+      - floating underflow -> FU
+      - floating overflow -> FO
+      - \<b> = 0 -> DZ
+
+      **Example:**
+
+      Divide the local float variable KVOT by the R1st element of the array on the alternative domain described by local descriptor LIST
+
+          F DIV2 B.KVOT, ALT(DESC(B.LIST)(R1))
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

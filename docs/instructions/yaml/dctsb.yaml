@@ -1,0 +1,69 @@
+instruction:
+  name: "dctsb"
+  function: "Dctsb"
+  mnemonic: "dctsb"
+  description: |
+    Dctsb
+    
+    System operation (privileged)
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFF1D"
+      opcode_binary: "1111_1111_0001_1101"
+      opcode_decimal: 65309
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Dctsb
+# Total variants: 1
+
+
+  manual_reference:
+    section: "16.24"
+    title: "Clear translation speedup buffer"
+    content: |
+      # 16.24 Clear translation speedup buffer
+
+      **Format:**
+      PCTSB
+      DCTSB
+
+      | Assembly notation | Name                                      | Hex code | Octal code |
+      |-------------------|-------------------------------------------|----------|------------|
+      | PCTSB             | clear prog translation speedup buffer     | OFF1CH   | 177434B    |
+      | DCTSB             | clear data translation speedup buffer     | OFF1DH   | 177435B    |
+
+      **Operation:**
+      0 -> translation speedup buffer
+
+      **Description:**
+
+      Privileged instruction.
+
+      The entire program or data translation speedup buffer is cleared, forcing the following accesses to reinitialize the buffer from the capability table, segment table and page index table.
+
+      Depending on which TSB is cleared, the related cache is cleared. When the data cache is cleared, 'dirty' data is written to memory.
+
+      **Trap conditions:** Illegal instruction code (IIC)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      DCTSB
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,127 @@
+instruction:
+  name: "sskip"
+  function: "Sskip"
+  mnemonic: "sskip"
+  description: |
+    Sskip
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDAE"
+      opcode_binary: "1111_1101_1010_1110"
+      opcode_decimal: 64942
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sskip
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Sskip with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SSKIP 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sskip with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SSKIP B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sskip with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SSKIP ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "14.14"
+    title: "String skip elements"
+    content: |
+      # 14.14 String skip elements
+
+      **Format:**
+      BY SSKIP `<source/r/BY/I1>=,<test/r/BY>`
+
+      | Assembly notation | Name          | Hex code | Octal code |
+      |-------------------|---------------|----------|------------|
+      | BY SSKIP          | skip elements | OFDAEH   | 176656B    |
+
+      **Operation:**
+      while not end of string
+      and S(I1) = `<test>` do
+      I1 + 1 -> I1
+      enddo
+      if S(I1) > `<test>` then
+      0 -> S
+      else
+      1 -> S
+      endif
+
+      **Description:**
+
+      Bytes in the `<source>` operand are examined one by one until an examined byte is different from the `<test>` operand or until the end of the `<source>` operand is reached. A `<source>` operand addressed outside the string will cause immediate termination with I1 unmodified and cause a descriptor range trap condition.
+
+      The byte elements are considered to be unsigned values.
+
+      **Terminating conditions:**
+
+      - outside source: K=0 Z=1 S=0 I1 unmodified, DR trap condition
+      - byte > `<test>`: K=0 Z=0 S=0 I1 :- differing element
+      - byte < `<test>`: K=0 Z=0 S=1 I1 :- differing element
+      - source empty: K=0 Z=1 S=0 I1 :- next element
+
+      **Example:**
+
+      Skip ASCII spaces from the current character in the string described by record addressed LINE
+
+      BY SSKIP R.LINE, 32
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

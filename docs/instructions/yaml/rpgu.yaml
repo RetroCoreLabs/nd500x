@@ -1,0 +1,273 @@
+instruction:
+  name: "rpgu"
+  function: "Rpgu"
+  mnemonic: "rpgu"
+  description: |
+    Rpgu
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 8 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/8
+      opcode: "0xFE88"
+      opcode_binary: "1111_1110_1000_1000"
+      opcode_decimal: 65160
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 2/8
+      opcode: "0xFE89"
+      opcode_binary: "1111_1110_1000_1001"
+      opcode_decimal: 65161
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 3/8
+      opcode: "0xFE8A"
+      opcode_binary: "1111_1110_1000_1010"
+      opcode_decimal: 65162
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 4/8
+      opcode: "0xFE8B"
+      opcode_binary: "1111_1110_1000_1011"
+      opcode_decimal: 65163
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 5/8
+      opcode: "0xFE8C"
+      opcode_binary: "1111_1110_1000_1100"
+      opcode_decimal: 65164
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 6/8
+      opcode: "0xFE8D"
+      opcode_binary: "1111_1110_1000_1101"
+      opcode_decimal: 65165
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 7/8
+      opcode: "0xFE8E"
+      opcode_binary: "1111_1110_1000_1110"
+      opcode_decimal: 65166
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 8/8
+      opcode: "0xFE8F"
+      opcode_binary: "1111_1110_1000_1111"
+      opcode_decimal: 65167
+      prefix_mask: "0x45"
+
+      prefixes:
+        - BI
+        - H
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Rpgu
+# Total variants: 8
+
+
+  examples:
+    - description: |
+        Basic rpgu operation using word register
+      prefix: "W"
+      code: |
+        W1 RPGU W2
+      explanation: |
+        Perform rpgu operation on word-sized data
+
+    - description: |
+        Rpgu with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 RPGU B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Rpgu with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 RPGU ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of rpgu instruction
+      code: |
+        Variant 1/8: BI1 RPGU\nVariant 2/8: BI1 RPGU\nVariant 3/8: BI1 RPGU
+      explanation: |
+        The rpgu instruction has 8 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "16.20"
+    title: "Read Page Used Table"
+    content: |
+      # 16.20 Read Page Used Table
+
+      **Format:** tn RPGU <bit or group no./r/W>
+
+      | Assembly Notation | Name            | Hex Code    | Octal Code       |
+      |-------------------|-----------------|-------------|------------------|
+      | Bln RPGU          | read PGU bit    | 0FE88H+(n-1)| 177210B+(n-1)    |
+      | Hn RPGU           | read PGU group  | 0FE8CH+(n-1)| 177214B+(n-1)    |
+
+      **Operation:** specified PGU bit or group -> Rn
+
+      **Description:**
+
+      Privileged instruction.
+
+      A bit or 16-bit group is read from the Page Used table into the specified register. The operand specifies the physical memory page number (Bln RPGU) or physical page number/16 (Hn RPGU).
+
+      A bit set in this table indicates that the page has been used in some instruction since the last time the bit was cleared. The bit is automatically set by hardware, and is used by the swapping routines.
+
+      In hardware there are separate PGU tables for program and data. RPGU will return a logical OR of the two tables, making them appear as one. Consequently, an ND-500 system cannot have physically separate memory for program and data at the same physical addresses.
+
+      This instruction is installation dependent; using it requires knowledge of the physical memory configuration. Only the lower 25 bits of the bit number are significant. Reading bits representing non-existing memory will give a zero result.
+
+      **Trap Conditions:** Illegal instruction code (IIC), Illegal operand value (IOV)
+
+      **Data Status Bits:**
+
+      bit or bit group = 0 -> Z
+
+      ---

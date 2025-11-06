@@ -1,0 +1,92 @@
+instruction:
+  name: "zwip"
+  function: "Zwip"
+  mnemonic: "zwip"
+  description: |
+    Zwip
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE9C"
+      opcode_binary: "1111_1110_1001_1100"
+      opcode_decimal: 65180
+      prefix_mask: "0x01"
+
+      prefixes:
+        - BI
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Zwip
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Zwip with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ZWIP B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Zwip with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ZWIP ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.18"
+    title: "Clear Written In Page bit"
+    content: |
+      # 16.18 Clear Written In Page bit
+
+      **Format:** BI ZWIP `<bit no./r/W>`
+
+      | Assembly notation | Name         | Hex Code | Octal Code |
+      |-------------------|--------------|----------|------------|
+      | BI ZWIP           | clear WIP bit| 0FE9CH   | 177234B    |
+
+      **Operation:** 0 -> specified WIP bit
+
+      **Description:**
+
+      Privileged instruction.
+
+      The specified bit in the Written In Page table is cleared. This instruction is used by the swapper routines after a new page has been read from disk into physical memory.
+
+      In hardware there are separate WIP tables for program and data. ZWIP will clear both tables. Consequently, an ND-500 system cannot have physically separate memory for program and data at the same physical addresses.
+
+      This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
+
+      **Trap conditions:** Illegal instruction code (IIC), Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

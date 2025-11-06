@@ -1,0 +1,66 @@
+instruction:
+  name: "dmof"
+  function: "Dmof"
+  mnemonic: "dmof"
+  description: |
+    Dmof
+    
+    System operation (privileged)
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFF18"
+      opcode_binary: "1111_1111_0001_1000"
+      opcode_decimal: 65304
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Dmof
+# Total variants: 1
+
+
+  manual_reference:
+    section: "16.15"
+    title: "Data memory management off"
+    content: |
+      ### 16.15 Data memory management off
+
+      **Format:** DMOF
+
+      | Assembly notation | Name                         | Hex code | Octal code |
+      |-------------------|------------------------------|----------|------------|
+      | DMOF              | data memory management off   | OFF18H   | 177430B    |
+
+      **Operation:**
+      turn off data memory management system
+
+      **Description:**
+
+      Privileged instruction.
+
+      Following data accesses will be interpreted directly as physical addresses, rather than being mapped on a physical segment through the memory management system.
+
+      If the memory management system is already turned off, the instruction has no effect.
+
+      **Trap conditions:** Illegal instruction code (IIC)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      DMOF
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

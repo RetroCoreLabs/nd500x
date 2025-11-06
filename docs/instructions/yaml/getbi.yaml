@@ -1,0 +1,521 @@
+instruction:
+  name: "getbi"
+  function: "Getbi"
+  mnemonic: "getbi"
+  description: |
+    Getbi
+    
+    Bit field operation:
+    Manipulates bit fields within operands
+    
+    Operands: 2
+    Variants: 12 opcode(s)
+
+  category: "BITFIELD"
+  instruction_class: "bitfield"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/12
+      opcode: "0xFCB4"
+      opcode_binary: "1111_1100_1011_0100"
+      opcode_decimal: 64692
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/12
+      opcode: "0xFCB5"
+      opcode_binary: "1111_1100_1011_0101"
+      opcode_decimal: 64693
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/12
+      opcode: "0xFCB6"
+      opcode_binary: "1111_1100_1011_0110"
+      opcode_decimal: 64694
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/12
+      opcode: "0xFCB7"
+      opcode_binary: "1111_1100_1011_0111"
+      opcode_decimal: 64695
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/12
+      opcode: "0xFCB8"
+      opcode_binary: "1111_1100_1011_1000"
+      opcode_decimal: 64696
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/12
+      opcode: "0xFCB9"
+      opcode_binary: "1111_1100_1011_1001"
+      opcode_decimal: 64697
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 7/12
+      opcode: "0xFCBA"
+      opcode_binary: "1111_1100_1011_1010"
+      opcode_decimal: 64698
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 8/12
+      opcode: "0xFCBB"
+      opcode_binary: "1111_1100_1011_1011"
+      opcode_decimal: 64699
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 9/12
+      opcode: "0xFDD0"
+      opcode_binary: "1111_1101_1101_0000"
+      opcode_decimal: 64976
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 10/12
+      opcode: "0xFDD1"
+      opcode_binary: "1111_1101_1101_0001"
+      opcode_decimal: 64977
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 11/12
+      opcode: "0xFDD2"
+      opcode_binary: "1111_1101_1101_0010"
+      opcode_decimal: 64978
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 12/12
+      opcode: "0xFDD3"
+      opcode_binary: "1111_1101_1101_0011"
+      opcode_decimal: 64979
+      prefix_mask: "0x4E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Getbi
+# Total variants: 12
+
+
+  examples:
+    - description: |
+        Basic getbi operation using word register
+      prefix: "W"
+      code: |
+        W1 GETBI W2, B.16
+      explanation: |
+        Perform getbi operation on word-sized data
+
+    - description: |
+        Getbi with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 GETBI 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Getbi with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 GETBI B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Getbi with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 GETBI ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of getbi instruction
+      code: |
+        Variant 1/12: BY1 GETBI\nVariant 2/12: BY1 GETBI\nVariant 3/12: BY1 GETBI
+      explanation: |
+        The getbi instruction has 12 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "10.27"
+    title: "Get bit"
+    content: |
+      ### 10.27 Get bit
+
+      **Format:**
+      tn GETBI <operand/r/t>,<bit no/r/BY>
+
+      | Assembly notation | Name         | Hex code        | Octal code     |
+      |-------------------|--------------|-----------------|----------------|
+      | BYn GETBI         | byte get bit | 0FCB4H+(n-1)    | 176264B+(n-1)  |
+      | Hn GETBI          | halfword get bit | 0FCB8H+(n-1) | 176270B+(n-1)  |
+      | Wn GETBI          | word get bit | 0FDD0H+(n-1)    | 176720B+(n-1)  |
+
+      **Operation:**
+      bit <bit No.> of <operand> -> bit 0 of Rn
+
+      **Description:**
+
+      Bit zero of the specified register is loaded with bit <bit No.> of a BY, H, or W <operand>. A <bit No.> greater than or equal to the number of bits of the data type or a negative <bit No.> will cause an illegal operand value trap condition.
+
+      **Trap conditions:**
+      Addressing traps, Illegal operand value (IOV)
+
+      **Data status bits:**
+      transferred bit = 0 -> Z
+
+      **Example:**
+
+      Load R1 with the BITNO bit of word variable STATUS
+
+          W1 GETBI STATUS, BITNO
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

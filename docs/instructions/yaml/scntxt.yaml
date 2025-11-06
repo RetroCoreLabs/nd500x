@@ -1,0 +1,103 @@
+instruction:
+  name: "scntxt"
+  function: "Scntxt"
+  mnemonic: "scntxt"
+  description: |
+    Scntxt
+    
+    System operation (privileged)
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFFF9"
+      opcode_binary: "1111_1111_1111_1001"
+      opcode_decimal: 65529
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0003FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Scntxt
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Scntxt with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SCNTXT B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Scntxt with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SCNTXT ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.27.3"
+    title: "SCNTXT - Save context block ('87 extension)"
+    content: |
+      ### 16.27.3 SCNTXT - Save context block ('87 extension)
+
+      **Format:** SCNTXT `<mask/r/W>`, `<address/r/W>`
+
+      | Assembly notation | Name           | Hex code | Octal code |
+      |-------------------|----------------|----------|------------|
+      | SCNTXT            | save context   | FFF9H    | 177771B    |
+
+      **Operation:**
+      Store context block registers in specified address according to 'mask'.
+
+      **Description:**
+
+      Privileged instruction
+
+      Context block of current process number is saved in physical address according to 'mask'. If address = 0, context save area of the current process is used.
+
+      The registers specified in the mask are stored in locations addressed by `<address>` plus register number*4. The register numbers are shown in chapter 2.
+
+      When context save area is used, this is addressed by:
+
+      (process number+1)*400B + an operating system defined address.
+
+      ---
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

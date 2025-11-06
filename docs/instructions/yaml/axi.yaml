@@ -1,0 +1,381 @@
+instruction:
+  name: "axi"
+  function: "Axi"
+  mnemonic: "axi"
+  description: |
+    Axi
+    
+    Arithmetic operation
+    
+    Operands: 2
+    Variants: 8 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/8
+      opcode: "0xFCC0"
+      opcode_binary: "1111_1100_1100_0000"
+      opcode_decimal: 64704
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 2/8
+      opcode: "0xFCC1"
+      opcode_binary: "1111_1100_1100_0001"
+      opcode_decimal: 64705
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 3/8
+      opcode: "0xFCC2"
+      opcode_binary: "1111_1100_1100_0010"
+      opcode_decimal: 64706
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 4/8
+      opcode: "0xFCC3"
+      opcode_binary: "1111_1100_1100_0011"
+      opcode_decimal: 64707
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 5/8
+      opcode: "0xFCC4"
+      opcode_binary: "1111_1100_1100_0100"
+      opcode_decimal: 64708
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 6/8
+      opcode: "0xFCC5"
+      opcode_binary: "1111_1100_1100_0101"
+      opcode_decimal: 64709
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 7/8
+      opcode: "0xFCC6"
+      opcode_binary: "1111_1100_1100_0110"
+      opcode_decimal: 64710
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 8/8
+      opcode: "0xFCC7"
+      opcode_binary: "1111_1100_1100_0111"
+      opcode_decimal: 64711
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Axi
+# Total variants: 8
+
+
+  examples:
+    - description: |
+        Basic axi operation using word register
+      prefix: "W"
+      code: |
+        W1 AXI W2, B.16
+      explanation: |
+        Perform axi operation on word-sized data
+
+    - description: |
+        Axi with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 AXI B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Axi with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 AXI ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Axi with floating-point data
+      prefix: "F"
+      code: |
+        F1 AXI F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of axi instruction
+      code: |
+        Variant 1/8: F1 AXI\nVariant 2/8: F1 AXI\nVariant 3/8: F1 AXI
+      explanation: |
+        The axi instruction has 8 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 AXI 1\n; Result in W1
+      explanation: |
+        Common use case for axi in calculations
+
+  manual_reference:
+    section: "12.1"
+    title: "A to the I'th power"
+    content: |
+      #### 12.1 A to the I'th power
+
+      **Format:** tn AXI `<a/r/t>,<i/r/W>`
+
+      | Assembly notation | Name                     | Hex code        | Octal code       |
+      |-------------------|--------------------------|-----------------|------------------|
+      | Fn AXI            | float A to the I'th power | OFCC0H+(n-1)    | 176300B+(n-1)    |
+      | Dn AXI            | double float A to the I'th power | OFCC4H+(n-1) | 176304B+(n-1)   |
+
+      **Operation:** `<a>**<i> -> Rn`
+
+      #### Description:
+
+      The value of the `<a>` operand is raised to the power of the `<i>` operand. The result is loaded into the specified float or double float register. The `<a>` operand can be float or double float. The `<i>` operand is word integer. A negative value of `<i>` and the value of `<a>` equal to zero causes an illegal operand value trap condition and the result is set to the largest possible floating point number (approximately 5.8E+76). When `<i>` is zero, the result is one.
+
+      **Trap conditions:** Addressing traps, Floating overflow (FO), Floating underflow (FU), Illegal operand value (IOV)
+
+      #### Data status bits:
+
+      - result = 0 -> Z
+      - result.signbit -> S
+      - floating underflow -> FU
+      - floating overflow -> FO
+
+      #### Example:
+
+      Load 2.0 to the STATE'th power into F3
+
+      ```
+      F3 AXI 2.0, STATE
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

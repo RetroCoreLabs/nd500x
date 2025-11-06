@@ -1,0 +1,358 @@
+instruction:
+  name: "div3"
+  function: "Div3"
+  mnemonic: "div3"
+  description: |
+    Div3
+    
+    Division operation:
+    Result ← op1 ÷ op2
+    
+    Operands: 3
+    Variants: 5 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFC76"
+      opcode_binary: "1111_1100_0111_0110"
+      opcode_decimal: 64630
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/5
+      opcode: "0xFC77"
+      opcode_binary: "1111_1100_0111_0111"
+      opcode_decimal: 64631
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/5
+      opcode: "0xFC78"
+      opcode_binary: "1111_1100_0111_1000"
+      opcode_decimal: 64632
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/5
+      opcode: "0xFC79"
+      opcode_binary: "1111_1100_0111_1001"
+      opcode_decimal: 64633
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/5
+      opcode: "0xFC7A"
+      opcode_binary: "1111_1100_0111_1010"
+      opcode_decimal: 64634
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Div3
+# Total variants: 5
+
+
+  examples:
+    - description: |
+        Basic div3 operation using word register
+      prefix: "W"
+      code: |
+        W1 DIV3 W2, B.16, R.8
+      explanation: |
+        Perform div3 operation on word-sized data
+
+    - description: |
+        Div3 with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 DIV3 5, 6, B.8
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Div3 with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 DIV3 B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Div3 with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 DIV3 ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Div3 with floating-point data
+      prefix: "F"
+      code: |
+        F1 DIV3 F2, F3, F4
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of div3 instruction
+      code: |
+        Variant 1/5: BY1 DIV3\nVariant 2/5: BY1 DIV3\nVariant 3/5: BY1 DIV3
+      explanation: |
+        The div3 instruction has 5 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 DIV3 1\n; Result in W1
+      explanation: |
+        Common use case for div3 in calculations
+
+  manual_reference:
+    section: "11.12"
+    title: "Divide three operands"
+    content: |
+      # 11.12 Divide three operands
+
+      **Format:**
+      t DIV3 `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      | Assembly notation | Name                               | Hex code | Octal code |
+      |-------------------|------------------------------------|----------|------------|
+      | BY DIV3           | byte divide three operands         | 0FC76H   | 176166B    |
+      | H DIV3            | halfword divide three operands     | 0FC77H   | 176167B    |
+      | W DIV3            | word divide three operands         | 0FC78H   | 176170B    |
+      | F DIV3            | float divide three operands        | 0FC79H   | 176171B    |
+      | D DIV3            | double float divide three operands | 0FC7AH   | 176172B    |
+
+      **Operation:**
+      `<a> / <b> -> <c>`
+
+      **Description:**
+
+      The `<a>` operand is divided by the `<b>` operand and the quotient is stored in the `<c>` operand. In integer division the remainder (unless it is zero) has the same sign as the `<a>` operand, i.e., the quotient is truncated towards zero. Integer overflow occurs if and only if the largest possible negative integer is divided by -1. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      **Trap conditions:**
+      Addressing traps, Integer overflow (O), Floating overflow (F0), Floating underflow (FU), Divide by zero (DZ)
+
+      **Data status bits:**
+
+      ```
+      quotient > 0         -> Z
+      quotient>.signbit    -> S
+      overflow             -> O
+      floating underflow   -> FU
+      floating overflow    -> F0
+      <b> = 0              -> DZ
+      ```
+
+      **Example:**
+
+      Divide the float value whose address is in PTR by the contents of F1, and store the quotient in record variable Q (record base in R)
+
+      ```
+      F DIV3 IND(PTR), F1, R.Q
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

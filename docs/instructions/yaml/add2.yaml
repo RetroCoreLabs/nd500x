@@ -1,0 +1,303 @@
+instruction:
+  name: "add2"
+  function: "Add2"
+  mnemonic: "add2"
+  description: |
+    Add2
+    
+    Addition operation:
+    Result ← op1 + op2
+    
+    Operands: 2
+    Variants: 5 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFC17"
+      opcode_binary: "1111_1100_0001_0111"
+      opcode_decimal: 64535
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/5
+      opcode: "0xFC54"
+      opcode_binary: "1111_1100_0101_0100"
+      opcode_decimal: 64596
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/5
+      opcode: "0x0053"
+      opcode_binary: "0000_0000_0101_0011"
+      opcode_decimal: 83
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/5
+      opcode: "0xFC56"
+      opcode_binary: "1111_1100_0101_0110"
+      opcode_decimal: 64598
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/5
+      opcode: "0xFC57"
+      opcode_binary: "1111_1100_0101_0111"
+      opcode_decimal: 64599
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Add2
+# Total variants: 5
+
+
+  examples:
+    - description: |
+        Basic add2 operation using word register
+      prefix: "W"
+      code: |
+        W1 ADD2 W2, B.16
+      explanation: |
+        Perform add2 operation on word-sized data
+
+    - description: |
+        Add2 with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 ADD2 B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Add2 with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ADD2 B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Add2 with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ADD2 ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Add2 with floating-point data
+      prefix: "F"
+      code: |
+        F1 ADD2 F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of add2 instruction
+      code: |
+        Variant 1/5: BY1 ADD2\nVariant 2/5: BY1 ADD2\nVariant 3/5: BY1 ADD2
+      explanation: |
+        The add2 instruction has 5 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 ADD2 1\n; Result in W1
+      explanation: |
+        Common use case for add2 in calculations
+
+  manual_reference:
+    section: "11.5"
+    title: "Add two operands"
+    content: |
+      ### 11.5 Add two operands
+
+      **Format:**
+      t ADD2 `<a/rw/t>,<b/r/t>`
+
+      **Assembly notation**
+      | Name   | Hex code | Octal code |
+      |--------|----------|------------|
+      | BY ADD2 | 0FC17H  | 176027B    |
+      | H ADD2  | 0FC54H  | 176124B    |
+      | W ADD2  | 053H    | 123B       |
+      | F ADD2  | 0FC56H  | 176126B    |
+      | D ADD2  | 0FC57H  | 176127B    |
+
+      **Operation:**
+      `<a> + <b> -> <a>`
+
+      **Description:**
+
+      The `<b>` operand is added to the `<a>` operand and the result is put in the `<a>` operand. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      **Trap conditions:**
+      - Addressing traps
+      - Integer overflow (O)
+      - Floating overflow (FO)
+      - Floating underflow (FU)
+
+      **Data status bits:**
+
+      - result = 0 -> Z
+      - result.signbit -> S
+      - overflow -> O
+      - carry from most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> FO
+
+      **Example:**
+
+      Add float argument X2 to argument X1
+
+          F ADD2 IND(B.X1), IND(B.X2)
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

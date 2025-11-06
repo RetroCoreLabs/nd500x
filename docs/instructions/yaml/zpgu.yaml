@@ -1,0 +1,92 @@
+instruction:
+  name: "zpgu"
+  function: "Zpgu"
+  mnemonic: "zpgu"
+  description: |
+    Zpgu
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE90"
+      opcode_binary: "1111_1110_1001_0000"
+      opcode_decimal: 65168
+      prefix_mask: "0x01"
+
+      prefixes:
+        - BI
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Zpgu
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Zpgu with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ZPGU B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Zpgu with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ZPGU ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.21"
+    title: "Clear Page Used bit"
+    content: |
+      ### 16.21 Clear Page Used bit
+
+      **Format:** BI ZPGU \<bit no./r/W\>
+
+      | Assembly notation | Name          | Hex code | Octal code |
+      |-------------------|---------------|----------|------------|
+      | BI ZPGU           | clear PGU bit | 0FE90H   | 177220B    |
+
+      **Operation:** 0 -> specified PGU bit
+
+      **Description:**
+
+      Privileged instruction.
+
+      The specified bit in the page used table is cleared. This instruction is used by the swapper routines after a new page has been read from disk into physical memory.
+
+      In hardware there are separate PGU tables for program and data. ZPGU will clear the specified bit in both tables. Consequently, an ND-500 system cannot have physically separate memory for program and data at the same physical address.
+
+      This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
+
+      **Trap conditions:** Illegal instruction code (IIC), Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

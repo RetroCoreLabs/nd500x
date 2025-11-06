@@ -1,0 +1,128 @@
+instruction:
+  name: "sspan"
+  function: "Sspan"
+  mnemonic: "sspan"
+  description: |
+    Sspan
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDB2"
+      opcode_binary: "1111_1101_1011_0010"
+      opcode_decimal: 64946
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE3"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE3"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE3"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sspan
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Sspan with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SSPAN 5, 6, B.8
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sspan with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SSPAN B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sspan with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SSPAN ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "14.17"
+    title: "String span"
+    content: |
+      ## 14.17 String span
+
+      **Format:**
+      BY SSPAN (<source>/r/BY/I1=>,<mask>/r/BY>,
+            <trans table/aa/BY>)
+
+      | Assembly notation | Name      | Hex code | Octal code |
+      |-------------------|-----------|----------|------------|
+      | BY SSPAN          | string span | 0FDB2H   | 176662B    |
+
+      **Operation:**
+      while not end of string
+       and tr(S(I1)) AND <mask> >< zero do
+        I1 + 1 -> I1
+      enddo
+
+      **Description:**
+      The `<source>` operand is examined until the result of a logical AND between the examined byte translated and the `<mask>` is equal to zero, or until the end of `<source>` operand is reached.
+
+      **Terminating conditions:**
+
+      - outside source: K=0 Z=0 I1 unmodified, DR trap condition
+      - tr(byte) AND mask = zero: K=0 Z=1 I1 :- found element
+      - source empty: K=0 Z=0 I1 :- next element
+
+      **Example:**
+
+      Skip the rest of a string fragment DIRECTIVE which is terminated by a character translating to zero in the local table CODETABLE
+
+       BY SSPAN DIRECTIVE, OFFH, B.CODETABLE
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

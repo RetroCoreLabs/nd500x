@@ -1,0 +1,109 @@
+instruction:
+  name: "lcntxt"
+  function: "Lcntxt"
+  mnemonic: "lcntxt"
+  description: |
+    Lcntxt
+    
+    System operation (privileged)
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFFF8"
+      opcode_binary: "1111_1111_1111_1000"
+      opcode_decimal: 65528
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0003FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0003FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Lcntxt
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Lcntxt with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 LCNTXT B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Lcntxt with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 LCNTXT ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.27.4"
+    title: "LCNTXT - Load context block ('87 extension)"
+    content: |
+      # 16.27.4 LCNTXT - Load context block ('87 extension)
+
+      **Format:** LCNTXT `<mask/r/W>,<address/r/W>,<process number/r/W>`
+
+      | Assembly notation | Name         | Hex code | Octal code |
+      |-------------------|--------------|----------|------------|
+      | LCNTXT            | load context | FFF8H    | 177770B    |
+
+      **Operation:** Load context block registers from specified address according to mask.
+
+      ## Description:
+
+      Privileged instruction
+
+      Context block of 'process number' is loaded from **physical address** according to 'mask'. If address = 0, context save area of the current process is used. If process number is less than 0, current process number is maintained.
+
+      The registers specified in the mask are loaded from locations addressed by `<address>` plus register number*4. The register numbers are shown in chapter 2.
+
+      When context block save area is used, this is addressed by:
+
+          (process number+1)*400B + an operating system defined address.
+
+      ---

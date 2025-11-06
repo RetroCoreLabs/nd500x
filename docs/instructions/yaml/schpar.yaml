@@ -1,0 +1,138 @@
+instruction:
+  name: "schpar"
+  function: "Schpar"
+  mnemonic: "schpar"
+  description: |
+    Schpar
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDB5"
+      opcode_binary: "1111_1101_1011_0101"
+      opcode_decimal: 64949
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Schpar
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Schpar with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SCHPAR 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Schpar with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SCHPAR B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Schpar with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SCHPAR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "14.20"
+    title: "Check parity in string"
+    content: |
+      # 14.20 Check parity in string
+
+      **Format:**
+      BY SCHPAR `<string/r/BY/I1=>,<mode/r/BY>`
+
+      | Assembly notation | Name                  | Hex code | Octal code |
+      |-------------------|-----------------------|----------|------------|
+      | BY SCHPAR         | check parity in string | 0FDB5H   | 176665B    |
+
+      **Operation:**
+
+      ```
+      0 -> Z
+      while not end of string
+          and bit 7 of S(I1) = parity according to <mode> do
+              I1 + 1 -> I1
+          enddo
+      if bit 7 of S(I1) ≠ parity according to <mode> then
+          1 -> Z
+      endif
+      ```
+
+      **Description:**
+
+      The parity bit (bit 7) in every byte in `<string>` is checked according to the following values of the `<mode>` operand:
+
+      | Value | Description    |
+      |-------|----------------|
+      | 0     | clear parity   |
+      | 1     | set parity     |
+      | 2     | even parity    |
+      | 3     | odd parity     |
+
+      Any other value will cause an illegal operand value trap condition.
+
+      **Terminating conditions:**
+
+      - outside string: K=0 Z=0 I1 unmodified, DR trap condition
+      - string empty: K=0 Z=0 I1 :- next element
+      - parity error found: K=0 Z=1 I1 :- element with wrong parity
+
+      **Example:**
+
+      Check that parity is set according to argument MODE in all characters in record variable BUFFER
+
+      ```
+      W1 CLR
+      BY SCHPAR R.BUFFER, IND(B.MODE);
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

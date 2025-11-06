@@ -1,0 +1,116 @@
+instruction:
+  name: "pshift"
+  function: "Pshift"
+  mnemonic: "pshift"
+  description: |
+    Pshift
+    
+    Shift operation:
+    Shifts bits left or right
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "SHIFT"
+  instruction_class: "shift"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFEB2"
+      opcode_binary: "1111_1110_1011_0010"
+      opcode_decimal: 65202
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Pshift
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Pshift with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 PSHIFT B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Pshift with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 PSHIFT ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "17.6"
+    title: "Packed shift"
+    content: |
+      # 17.6 Packed shift
+
+      **Format:**
+
+      PSHIFT `<source/r/BCD=>`, `<dest/w/BCD=>`
+
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | PSHIFT            | packed shift           | 0FE82H   | 177262B    |
+      | PSHIFTR           | packed shift rounded   | 0FE87H   | 177207B    |
+
+      **Operation:** `<source> -> <dest>`
+
+      **Description:**
+
+      The content of the `<source>` operand is shifted to the scaling factor of the `<dest>` operand and, if specified, rounded before storing it in the `<dest>` operand. The destination string is extended with zeroes if necessary.
+
+      With the exception of rounding, the value is not modified, but the number of decimal positions may be changed. If the `<source>` and `<dest>` operands have the same scaling factor, a move is performed.
+
+      If bit 26 in the descriptor of the `<dest>` operand is set, the value is stored with a sign code equal to 1111 (unsigned). Otherwise, `<dest>` will be given the sign of the `<source>` value.
+
+      **Trap conditions:** Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - value after rounding = 0 -> Z
+      - value.signbit -> S
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      **Example:**
+
+      Copy SUBTOTAL to TOTAL
+
+      PSHIFT SUBTOTAL, TOTAL
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

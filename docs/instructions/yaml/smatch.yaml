@@ -1,0 +1,127 @@
+instruction:
+  name: "smatch"
+  function: "Smatch"
+  mnemonic: "smatch"
+  description: |
+    Smatch
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDB3"
+      opcode_binary: "1111_1101_1011_0011"
+      opcode_decimal: 64947
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE3"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE3"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Smatch
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Smatch with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SMATCH 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Smatch with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SMATCH B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Smatch with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SMATCH ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "14.18"
+    title: "String match"
+    content: |
+      # 14.18 String match
+
+      **Format:** BY SMATCH (<substring/r/BY/I1=>,<string/r/BY/I2=>)
+
+      | Assembly notation | Name        | Hex code | Octal code |
+      |-------------------|-------------|----------|------------|
+      | BY SMATCH         | string match| OFDB3H   | 176663B    |
+
+      ## Operation
+
+          while not end of (<string>)
+          and (<substring>) ≠ (<string>)(I2..I2 + substring.length-1) do
+              I2 + 1 -> I2
+          enddo
+          if (<substring>) = (<string>)(I2..I2 + substring.length-1) then
+              1 -> Z
+          else
+              0 -> Z
+          endif
+
+      ## Description
+
+      The (<string>) operand is examined until either a substring equal to (<substring>) is found or the end of (<string>) operand is reached. The I1 register is left unmodified.
+
+      A (<substring>) operand or both (<string>) and (<substring>) operands addressed outside the strings are treated as if the (<substring>) is immediately found (Z=1). A (<string>) operand addressed outside the string and a (<substring>) operand addressed within the string is treated as (<substring>) not found (Z=0). Both cases will cause a descriptor-range trap condition.
+
+      ## Terminating conditions
+
+      - outside substring: K=0 Z=1 I2 unmodified, DR trap condition
+      - outside string: K=0 Z=0 I2 unmodified, DR trap condition
+      - substring found: K=0 Z=1 I2 :- first matching byte
+      - source empty: K=0 Z=0 I2 :- next element
+
+      ## Example
+
+      Set I2 to point to the next occurrence of COMMA in PARAMETERS
+
+          BY SMATCH COMMA, PARAMETERS
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

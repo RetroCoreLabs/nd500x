@@ -1,0 +1,120 @@
+instruction:
+  name: "invc"
+  function: "Invc"
+  mnemonic: "invc"
+  description: |
+    Invc
+    
+    Invert/NOT operation:
+    Performs bitwise NOT (one's complement)
+    Result ← ~operand
+    
+    Operands: None (operates on implicit register)
+    Variants: 4 opcode(s)
+
+  category: "LOGICAL"
+  instruction_class: "logical"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/4
+      opcode: "0xFF10"
+      opcode_binary: "1111_1111_0001_0000"
+      opcode_decimal: 65296
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+    - variant: 2/4
+      opcode: "0xFF11"
+      opcode_binary: "1111_1111_0001_0001"
+      opcode_decimal: 65297
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+    - variant: 3/4
+      opcode: "0xFF12"
+      opcode_binary: "1111_1111_0001_0010"
+      opcode_decimal: 65298
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+    - variant: 4/4
+      opcode: "0xFF13"
+      opcode_binary: "1111_1111_0001_0011"
+      opcode_decimal: 65299
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+# Generated from nd500-opcodes
+# Instruction group: Invc
+# Total variants: 4
+
+
+  examples:
+    - description: |
+        Basic invc operation using word register
+      prefix: "W"
+      code: |
+        W1 INVC
+      explanation: |
+        Perform invc operation on word-sized data
+
+    - description: |
+        Different variants of invc instruction
+      code: |
+        Variant 1/4: W1 INVC\nVariant 2/4: W1 INVC\nVariant 3/4: W1 INVC
+      explanation: |
+        The invc instruction has 4 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "10.14"
+    title: "Invert with carry add"
+    content: |
+      # 10.14 Invert with carry add
+
+      **Format:**
+      Wn INVC
+
+      | Assembly notation | Name | Hex code      | Octal code     |
+      |-------------------|------|---------------|----------------|
+      | Wn INVC           | word invert register w/carry | OFF10B+(n-1) | 177420B+(n-1) |
+
+      **Operation:**
+      One's complement of Rn + C -> Rn
+
+      **Description:**
+
+      The one's complement of the contents of the specified word register is calculated. The carry is added and the result is loaded into the specified register. This instruction is used for multiple precision arithmetic.
+
+      **Trap conditions:**
+      Integer overflow (O)
+
+      **Data status bits:**
+
+      - result = 0 -> Z
+      - result.signbit -> S
+      - carry -> C
+      - overflow -> O
+
+      **Example:**
+
+      Invert W2 and add carry
+
+          W2 INVC
+
+      *Norsk Data ND-05.009.4 EN*
+
+      ---

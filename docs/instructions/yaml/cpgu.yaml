@@ -1,0 +1,59 @@
+instruction:
+  name: "cpgu"
+  function: "Cpgu"
+  mnemonic: "cpgu"
+  description: |
+    Cpgu
+    
+    System operation (privileged)
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFF1A"
+      opcode_binary: "1111_1111_0001_1010"
+      opcode_decimal: 65306
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Cpgu
+# Total variants: 1
+
+
+  manual_reference:
+    section: "16.22"
+    title: "Clear Page Used Table"
+    content: |
+      # 16.22 Clear Page Used Table
+
+      **Format:** CPGU
+
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | CPGU              | clear PGU table | 0FF1AH   | 177432B    |
+
+      **Operation:** 0 -> entire PGU table
+
+      **Description:**
+
+      Privileged instruction.
+
+      The entire page used table is cleared. This instruction is used by the swapper routines.
+
+      This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
+
+      **Trap conditions:** Illegal instruction code (IIC)
+
+      **Data status bits:** Unaffected
+
+      ---

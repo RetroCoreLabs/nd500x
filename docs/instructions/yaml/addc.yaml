@@ -1,0 +1,190 @@
+instruction:
+  name: "addc"
+  function: "Addc"
+  mnemonic: "addc"
+  description: |
+    Addc
+    
+    Addition operation:
+    Result ← op1 + op2
+    
+    Operands: 1
+    Variants: 4 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/4
+      opcode: "0xFE40"
+      opcode_binary: "1111_1110_0100_0000"
+      opcode_decimal: 65088
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/4
+      opcode: "0xFE41"
+      opcode_binary: "1111_1110_0100_0001"
+      opcode_decimal: 65089
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/4
+      opcode: "0xFE42"
+      opcode_binary: "1111_1110_0100_0010"
+      opcode_decimal: 65090
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/4
+      opcode: "0xFE43"
+      opcode_binary: "1111_1110_0100_0011"
+      opcode_decimal: 65091
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Addc
+# Total variants: 4
+
+
+  examples:
+    - description: |
+        Basic addc operation using word register
+      prefix: "W"
+      code: |
+        W1 ADDC W2
+      explanation: |
+        Perform addc operation on word-sized data
+
+    - description: |
+        Addc with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ADDC B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Addc with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ADDC ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of addc instruction
+      code: |
+        Variant 1/4: W1 ADDC\nVariant 2/4: W1 ADDC\nVariant 3/4: W1 ADDC
+      explanation: |
+        The addc instruction has 4 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 ADDC 1\n; Result in W1
+      explanation: |
+        Common use case for addc in calculations
+
+  manual_reference:
+    section: "11.17"
+    title: "Add with carry"
+    content: |
+      ### 11.17 Add with carry
+
+      **Format:**
+      Wn ADDC 〈addend/r/t〉
+
+      | Assembly notation | Name                | Hex code        | Octal code         |
+      |-------------------|---------------------|-----------------|--------------------|
+      | Wn ADDC           | word add with carry | OFE40H+(n-1)    | 177100B+(n-1)      |
+
+      **Operation:**
+      Rn + C + 〈addend〉 -> Rn
+
+      **Description:**
+
+      The 〈addend〉 operand, the carry bit in the status register (treated as 0 or 1) and the contents of the specified register are added and the result is stored in the specified register. This instruction is used for multiple precision arithmetic.
+
+      **Trap conditions:**
+      Addressing traps, Integer overflow (0)
+
+      **Data status bits:**
+
+      - sum = 0 -> Z
+      - sum.signbit -> S
+      - integer overflow -> O
+      - carry from most significant bit -> C
+
+      **Example:**
+
+      Add variable MOST to R2 with carry
+
+          W2 ADDC MOST
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

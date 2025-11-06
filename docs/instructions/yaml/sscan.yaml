@@ -1,0 +1,130 @@
+instruction:
+  name: "sscan"
+  function: "Sscan"
+  mnemonic: "sscan"
+  description: |
+    Sscan
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDB1"
+      opcode_binary: "1111_1101_1011_0001"
+      opcode_decimal: 64945
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE3"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE3"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE3"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sscan
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Sscan with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SSCAN 5, 6, B.8
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sscan with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SSCAN B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sscan with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SSCAN ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "14.16"
+    title: "String Scan"
+    content: |
+      # 14.16 String Scan
+
+      **Format:**
+      BY SSCAN `<source/r/BY/I1=>`, `<mask/r/BY>`, `<trans table/aa/BY>`
+
+      | Assembly notation | Name       | Hex code | Octal code |
+      |-------------------|------------|----------|------------|
+      | BY SSCAN          | string scan| OFDB1H   | 176661B    |
+
+      **Operation:**
+      while not end of string
+      and tr(S(I1)) AND `<mask>` = zero do
+      I1 + 1 -> I1
+      enddo
+
+      **Description:**
+
+      The `<source>` operand is scanned until the result of a logical AND between the current translated byte and `<mask>` is different from zero, or until the end of `<source>` operand is reached.
+
+      **Terminating conditions:**
+
+      |                       | K=0 | Z=1 | I1 unmodified, DR trap condition   |
+      |-----------------------|-----|-----|------------------------------------|
+      | outside source:       |     |     |                                    |
+      | byte AND mask\>zero:  | K=0 | Z=0 | I1 :- found element                |
+      | source empty:         | K=0 | Z=1 | I1 :- next element                 |
+
+      **Example:**
+
+      Skip through argument FUNCTION until a byte with one of the bits set in the mask ACTIVE, translated through the table FNTAB in the alternative domain, is encountered.
+
+      BY SSCAN IND(B.FUNCTION), ACTIVE, ALT(FNTAB)
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

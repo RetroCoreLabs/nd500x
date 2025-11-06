@@ -1,0 +1,85 @@
+instruction:
+  name: "svers"
+  function: "Svers"
+  mnemonic: "svers"
+  description: |
+    Svers
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFFFB"
+      opcode_binary: "1111_1111_1111_1011"
+      opcode_decimal: 65531
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Svers
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Svers with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SVERS B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Svers with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SVERS ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.35"
+    title: "SVERS - Store microprogram version ('87 extension)"
+    content: |
+      ### 16.35 SVERS - Store microprogram version ('87 extension)
+
+      **Format:** SVERS `<destination/w/w>`
+
+      | Assembly notation | Name          | Hex code | Octal code |
+      |-------------------|---------------|----------|------------|
+      | SVERS             | store version | FFFBH    | 177773B    |
+
+      **Operation:**
+      `<microprog.vers>` -> `<destination>`
+
+      **Description:**
+
+      Store microprogram version to destination address.
+
+      **Data Status Bits:**
+      Status bit set according to version.
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

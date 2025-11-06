@@ -1,0 +1,136 @@
+instruction:
+  name: "pmpy"
+  function: "Pmpy"
+  mnemonic: "pmpy"
+  description: |
+    Pmpy
+    
+    Arithmetic operation
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFEB4"
+      opcode_binary: "1111_1110_1011_0100"
+      opcode_decimal: 65204
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Pmpy
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Pmpy with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 PMPY B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Pmpy with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 PMPY ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 PMPY 1\n; Result in W1
+      explanation: |
+        Common use case for pmpy in calculations
+
+  manual_reference:
+    section: "17.4"
+    title: "Packed multiply"
+    content: |
+      # 17.4 Packed multiply
+
+      **Format:**
+      PMPY `<a/r/BCD>`, `<b/r/BCD>`, `<c/w/BCD>`
+
+      | Assembly notation | Name                  | Hex code | Octal code |
+      |-------------------|-----------------------|----------|------------|
+      | PMPY              | packed multiply       | 0FE34H   | 177264B    |
+      | PMPYR             | packed multiply rounded | 0FE91H | 177221B    |
+
+      **Operation:**
+      `<a> * <b> -> <c>`
+
+      **Description:**
+
+      The `<a>` operand is multiplied by the `<b>` operand and the product is stored in the `<c>` operand.
+
+      The result is scaled according to the scale factor in the `<c>` operand descriptor before storing.
+
+      For PMPY/PMPYR, an operand with invalid digit * ZRO gives the result 0, not IVO.
+
+      **Trap conditions:**
+      Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - product = 0 -> Z
+      - product.signbit -> C
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      **Example:**
+
+      Multiply local variable PRICE with DISCOUNT giving local NET. Round the resulting value before storing it
+
+      ```
+      PMPYR B.PRICE, DISCOUNT, B.NET
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

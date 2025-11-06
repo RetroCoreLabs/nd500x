@@ -1,0 +1,174 @@
+instruction:
+  name: "hconr"
+  function: "Hconr"
+  mnemonic: "hconr"
+  description: |
+    Hconr
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 2
+    Variants: 2 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/2
+      opcode: "0xFE72"
+      opcode_binary: "1111_1110_0111_0010"
+      opcode_decimal: 65138
+      prefix_mask: "0x30"
+
+      prefixes:
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE4"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFE73"
+      opcode_binary: "1111_1110_0111_0011"
+      opcode_decimal: 65139
+      prefix_mask: "0x30"
+
+      prefixes:
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE4"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Hconr
+# Total variants: 2
+
+
+  examples:
+    - description: |
+        Hconr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 HCONR B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Hconr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 HCONR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Hconr with floating-point data
+      prefix: "F"
+      code: |
+        F1 HCONR F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of hconr instruction
+      code: |
+        Variant 1/2: F1 HCONR\nVariant 2/2: F1 HCONR
+      explanation: |
+        The hconr instruction has 2 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "15.3"
+    title: "Data type conversion with rounding"
+    content: |
+      # 15.3 Data type conversion with rounding
+
+      **Format:**
+      `t1 t2CONR <source/r/t1>,<dest/w/t2>`
+
+      | Assembly notation | Name                              | Hex code | Octal code |
+      |-------------------|-----------------------------------|----------|------------|
+      | F BYCONR          | float to byte convert             | 0FE70H   | 177160B    |
+      |                   | with rounding                     |          |            |
+      | D BYCONR          | double float to byte convert      | 0FE71H   | 177161B    |
+      |                   | with rounding                     |          |            |
+      | F HCONR           | float to halfword convert         | 0FE72H   | 177162B    |
+      |                   | with rounding                     |          |            |
+      | D HCONR           | double float to halfword convert  | 0FE73H   | 177163B    |
+      |                   | with rounding                     |          |            |
+      | F WCONR           | float to word convert             | 0FE74H   | 177164B    |
+      |                   | with rounding                     |          |            |
+      | D WCONR           | double float to word convert      | 0FE75H   | 177165B    |
+      |                   | with rounding                     |          |            |
+      | W FCONR           | word to float convert             | 0FE83H   | 177203B    |
+      |                   | with rounding                     |          |            |
+      | D FCONR           | double float to float convert     | 0FE84H   | 177204B    |
+      |                   | with rounding                     |          |            |
+
+      **Operation:**
+      `<source>` converted from t1 to t2 with rounding -> `<dest>`
+
+      **Description:**
+
+      The `<source>` operand of type t1 is converted to data type t2 with the result stored in the `<dest>` operand. The result is rounded.
+
+      **Trap conditions:**
+      Addressing traps, Floating overflow (F0), Integer overflow (O)
+
+      **Data status bits:**
+
+      - result = 0       -> Z
+      - result.signbit   -> S
+
+      **Example:**
+
+      The R2nd value in the double-precision array described by RESULTS is rounded to the R2nd element of halfword argument ROUNDEDRESULT
+
+      ```
+      D HCONR DESC(RESULTS)(R2), IND(B.ROUNDEDRESULT)(R2)
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

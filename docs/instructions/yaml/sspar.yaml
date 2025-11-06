@@ -1,0 +1,124 @@
+instruction:
+  name: "sspar"
+  function: "Sspar"
+  mnemonic: "sspar"
+  description: |
+    Sspar
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDB4"
+      opcode_binary: "1111_1101_1011_0100"
+      opcode_decimal: 64948
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE3"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE3"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sspar
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Sspar with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SSPAR 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sspar with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SSPAR B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sspar with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SSPAR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "14.19"
+    title: "Set parity in string"
+    content: |
+      ### 14.19 Set parity in string
+
+      **Format:**
+      BY SSPAR `<string/rw/BY/I1>`, `<mode/r/BY>`
+
+      **Assembly Notation**
+
+      | Name     | Hex Code | Octal Code |
+      |----------|----------|------------|
+      | BY SSPAR | OFDB4H   | 176664B    |
+
+      **Operation:**
+      while not end of string do
+      &nbsp;&nbsp;&nbsp;&nbsp;parity according to `<mode>` -> bit 7 of S(I2)
+      &nbsp;&nbsp;&nbsp;&nbsp;I1 + 1 -> I1
+      enddo
+
+      **Description:**
+
+      The parity bit (bit 7) in every byte in `<string>` is set according to the following values of the `<mode>` operand:
+
+      0 clear parity
+      1 set parity
+      2 even parity
+      3 odd parity
+
+      Any other value will cause an illegal operand value trap condition.
+
+      **Terminating conditions:** K=1
+
+      **Example:**
+
+      Set even parity in local string OUTPUT
+
+      BY SSPAR B.OUTPUT, 2
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

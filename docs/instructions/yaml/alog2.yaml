@@ -1,0 +1,283 @@
+instruction:
+  name: "alog2"
+  function: "Alog2"
+  mnemonic: "alog2"
+  description: |
+    Alog2
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 1
+    Variants: 8 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/8
+      opcode: "0xFF7C"
+      opcode_binary: "1111_1111_0111_1100"
+      opcode_decimal: 65404
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/8
+      opcode: "0xFF7D"
+      opcode_binary: "1111_1111_0111_1101"
+      opcode_decimal: 65405
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/8
+      opcode: "0xFF7E"
+      opcode_binary: "1111_1111_0111_1110"
+      opcode_decimal: 65406
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/8
+      opcode: "0xFF7F"
+      opcode_binary: "1111_1111_0111_1111"
+      opcode_decimal: 65407
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/8
+      opcode: "0xFFA8"
+      opcode_binary: "1111_1111_1010_1000"
+      opcode_decimal: 65448
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/8
+      opcode: "0xFFA9"
+      opcode_binary: "1111_1111_1010_1001"
+      opcode_decimal: 65449
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 7/8
+      opcode: "0xFFAA"
+      opcode_binary: "1111_1111_1010_1010"
+      opcode_decimal: 65450
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 8/8
+      opcode: "0xFFAB"
+      opcode_binary: "1111_1111_1010_1011"
+      opcode_decimal: 65451
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Alog2
+# Total variants: 8
+
+
+  examples:
+    - description: |
+        Basic alog2 operation using word register
+      prefix: "W"
+      code: |
+        W1 ALOG2 W2
+      explanation: |
+        Perform alog2 operation on word-sized data
+
+    - description: |
+        Alog2 with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ALOG2 B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Alog2 with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ALOG2 ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Alog2 with floating-point data
+      prefix: "F"
+      code: |
+        F1 ALOG2 F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of alog2 instruction
+      code: |
+        Variant 1/8: F1 ALOG2\nVariant 2/8: F1 ALOG2\nVariant 3/8: F1 ALOG2
+      explanation: |
+        The alog2 instruction has 8 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "12.14"
+    title: "Binary logarithm"
+    content: |
+      # 12.14 Binary logarithm
+
+      **Format:** tn ALOG2 `<argument/r/t>`
+
+      | Assembly notation | Name                    | Hex code    | Octal code     |
+      |-------------------|-------------------------|-------------|----------------|
+      | Fn ALOG2          | float binary logarithm  | OFF7CH+(n-1) | 177574B+(n-1)  |
+      | Dn ALOG2          | double float bin. logarithm | OFFA8H+(n-1) | 177650B+(n-1) |
+
+      **Operation:** log2(`<argument>`) -> Rn
+
+      **Description:**
+
+      The base 2 logarithm of `<argument>` is loaded into the specified float or double float register. `<argument>` should be positive; zero or negative values cause an invalid operation trap condition and a result of -5.8*10\*\*76.
+
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - result = 0 -> Z
+      - result.signbit -> S
+
+      **Example:**
+
+      Load the binary logarithm of local variable RANGE into F1
+
+          F1 ALOG2 B.RANGE
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

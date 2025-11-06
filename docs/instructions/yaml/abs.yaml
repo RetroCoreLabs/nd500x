@@ -1,0 +1,373 @@
+instruction:
+  name: "abs"
+  function: "Abs"
+  mnemonic: "abs"
+  description: |
+    Abs
+    
+    Absolute value operation:
+    Result ← |operand|
+    
+    Operands: None (operates on implicit register)
+    Variants: 20 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/20
+      opcode: "0xFF00"
+      opcode_binary: "1111_1111_0000_0000"
+      opcode_decimal: 65280
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/20
+      opcode: "0xFF01"
+      opcode_binary: "1111_1111_0000_0001"
+      opcode_decimal: 65281
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/20
+      opcode: "0xFF02"
+      opcode_binary: "1111_1111_0000_0010"
+      opcode_decimal: 65282
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/20
+      opcode: "0xFF03"
+      opcode_binary: "1111_1111_0000_0011"
+      opcode_decimal: 65283
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/20
+      opcode: "0xFF04"
+      opcode_binary: "1111_1111_0000_0100"
+      opcode_decimal: 65284
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 6/20
+      opcode: "0xFF05"
+      opcode_binary: "1111_1111_0000_0101"
+      opcode_decimal: 65285
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 7/20
+      opcode: "0xFF06"
+      opcode_binary: "1111_1111_0000_0110"
+      opcode_decimal: 65286
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 8/20
+      opcode: "0xFF07"
+      opcode_binary: "1111_1111_0000_0111"
+      opcode_decimal: 65287
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 9/20
+      opcode: "0xFF08"
+      opcode_binary: "1111_1111_0000_1000"
+      opcode_decimal: 65288
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 10/20
+      opcode: "0xFF09"
+      opcode_binary: "1111_1111_0000_1001"
+      opcode_decimal: 65289
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 11/20
+      opcode: "0xFF0A"
+      opcode_binary: "1111_1111_0000_1010"
+      opcode_decimal: 65290
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 12/20
+      opcode: "0xFF0B"
+      opcode_binary: "1111_1111_0000_1011"
+      opcode_decimal: 65291
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 13/20
+      opcode: "0xFF0C"
+      opcode_binary: "1111_1111_0000_1100"
+      opcode_decimal: 65292
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 14/20
+      opcode: "0xFF0D"
+      opcode_binary: "1111_1111_0000_1101"
+      opcode_decimal: 65293
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 15/20
+      opcode: "0xFF0E"
+      opcode_binary: "1111_1111_0000_1110"
+      opcode_decimal: 65294
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 16/20
+      opcode: "0xFF0F"
+      opcode_binary: "1111_1111_0000_1111"
+      opcode_decimal: 65295
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 17/20
+      opcode: "0xFF0C"
+      opcode_binary: "1111_1111_0000_1100"
+      opcode_decimal: 65292
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 18/20
+      opcode: "0xFF0D"
+      opcode_binary: "1111_1111_0000_1101"
+      opcode_decimal: 65293
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 19/20
+      opcode: "0xFF0E"
+      opcode_binary: "1111_1111_0000_1110"
+      opcode_decimal: 65294
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 20/20
+      opcode: "0xFF0F"
+      opcode_binary: "1111_1111_0000_1111"
+      opcode_decimal: 65295
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+# Generated from nd500-opcodes
+# Instruction group: Abs
+# Total variants: 20
+
+
+  examples:
+    - description: |
+        Basic abs operation using word register
+      prefix: "W"
+      code: |
+        W1 ABS
+      explanation: |
+        Perform abs operation on word-sized data
+
+    - description: |
+        Abs with floating-point data
+      prefix: "F"
+      code: |
+        F1 ABS
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of abs instruction
+      code: |
+        Variant 1/20: BY1 ABS\nVariant 2/20: BY1 ABS\nVariant 3/20: BY1 ABS
+      explanation: |
+        The abs instruction has 20 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "13.8"
+    title: "Call subroutine absolute"
+    content: |
+      # 13.8 Call subroutine absolute
+
+      **Format:**
+      CALL <<subr. addr.>>,<<no of arg/s/BY>, <arg1/aa/W>,...,<argn/aa/W>
+
+      **Assembly notation**
+
+      | Name                        | Hex code | Octal code |
+      |-----------------------------|----------|------------|
+      | CALL call subroutine absolute | 0C3H     | 303B       |
+
+      ### Operation:
+
+      Calculate the effective addresses of the arguments and prepare for the entry point at <<subr. addr.>>.
+      Jump to the subroutine entry point found at that address.
+
+      ### Description:
+
+      Call the subroutine specified by <<subr. addr.>>. The subroutine address is a direct operand in the four bytes following the instruction code. It must refer to an entry point instruction, otherwise an instruction sequence error trap condition occurs.
+
+      The <<no of arg>> operand must be a constant byte integer, i.e. less than 256. Other data types which are not constants will cause an illegal operand specifier trap condition.
+
+      The effective addresses of the arguments in the instruction are calculated and stored for use by the entry point instruction. The arguments are always interpreted as word integer. The data-type-dependent addressing modes (post-indexed or descriptor address code format) should be used with care, as the result will be incorrect for data types other than word. <<argn>> operands of type register or constant will cause an illegal operand specifier trap condition, as neither registers nor constants have an address in data memory. The arguments may not be prefixed by the operand specifier prefix ALT.
+
+      ### Trap conditions:
+
+      Addressing traps, Call trap (CT), Illegal operand specifier (IOS), Instruction sequence error (ISE)
+
+      ### Data status bits:
+
+      Unaffected
+
+      ### Example:
+
+      Call SUBR with the value of local word variable READONLY. Value transfer should be used with word-size data items only
+
+      CALL SUBR, 1, IND(B.READONLY)
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

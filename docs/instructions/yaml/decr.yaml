@@ -1,0 +1,239 @@
+instruction:
+  name: "decr"
+  function: "Decr"
+  mnemonic: "decr"
+  description: |
+    Decr
+    
+    Arithmetic operation
+    
+    Operands: 1
+    Variants: 5 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFC8C"
+      opcode_binary: "1111_1100_1000_1100"
+      opcode_decimal: 64652
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/5
+      opcode: "0xFC8D"
+      opcode_binary: "1111_1100_1000_1101"
+      opcode_decimal: 64653
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/5
+      opcode: "0x0051"
+      opcode_binary: "0000_0000_0101_0001"
+      opcode_decimal: 81
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/5
+      opcode: "0xFC8E"
+      opcode_binary: "1111_1100_1000_1110"
+      opcode_decimal: 64654
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/5
+      opcode: "0xFC8F"
+      opcode_binary: "1111_1100_1000_1111"
+      opcode_decimal: 64655
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Decr
+# Total variants: 5
+
+
+  examples:
+    - description: |
+        Basic decr operation using word register
+      prefix: "W"
+      code: |
+        W1 DECR W2
+      explanation: |
+        Perform decr operation on word-sized data
+
+    - description: |
+        Decr with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 DECR B.0
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Decr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 DECR B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Decr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 DECR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Decr with floating-point data
+      prefix: "F"
+      code: |
+        F1 DECR F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of decr instruction
+      code: |
+        Variant 1/5: BY1 DECR\nVariant 2/5: BY1 DECR\nVariant 3/5: BY1 DECR
+      explanation: |
+        The decr instruction has 5 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 DECR 1\n; Result in W1
+      explanation: |
+        Common use case for decr in calculations
+
+  manual_reference:
+    section: "13.5"
+    title: "Loop with decrement"
+    content: |
+      ### 13.5 Loop with decrement
+
+      **Format:**
+      t LOOPD `<index/rw/t>,<limit/r/t>,<<displacement>>`
+
+      | Assembly notation | Name                        | Hex code | Octal code |
+      |-------------------|-----------------------------|----------|------------|
+      | BY LOOPD:B        | byte loop decrement         | OFD23H   | 176443B    |
+      | BY LOOPD:H        | byte loop decrement         | OFD28H   | 176450B    |
+      | H LOOPD:B         | halfword loop decrement     | OFD24H   | 176444B    |
+      | H LOOPD:H         | halfword loop decrement     | OFD29H   | 176451B    |
+      | W LOOPD:B         | word loop decrement         | OFD25H   | 176445B    |
+      | W LOOPD:H         | word loop decrement         | OFD2AH   | 176452B    |
+      | F LOOPD:B         | float loop decrement        | OFD26H   | 176446B    |
+      | F LOOPD:H         | float loop decrement        | OFD2BH   | 176453B    |
+      | D LOOPD:B         | double float loop decrement | OFD27H   | 176447B    |
+      | D LOOPD:H         | double float loop decrement | OFD2CH   | 176454B    |
+
+      **Operation:**
+      `<index>` - 1 -> `<index>`
+      if `<index>` - `<limit>` < 0 then
+      &nbsp;&nbsp;&nbsp;&nbsp;address of next instruction -> P
+      else
+      &nbsp;&nbsp;&nbsp;&nbsp;P + `<<displacement>>` -> P
+      endif
+
+      **Description:**
+
+      The `<index>` operand is decremented by one and compared with `<limit>`. If it is greater than or equal to `<limit>`, the signed `<<displacement>>` is added to the program counter; otherwise control goes to the next instruction.
+
+      Normally the LOOPD instruction will be placed at the end of the loop, with a negative `<<displacement>>`. `<<displacement>>` is the number of bytes from the first byte of the loop to the first byte of the LOOPD instruction.
+
+      The `<index>` and `<limit>` operands are of the same data type, which may be BY, H, W, F or D. `<<displacement>>` is a byte or halfword direct operand, depending on the instruction.
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

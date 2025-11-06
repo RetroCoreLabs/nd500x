@@ -1,0 +1,204 @@
+instruction:
+  name: "shr"
+  function: "Shr"
+  mnemonic: "shr"
+  description: |
+    Shr
+    
+    Shift operation:
+    Shifts bits left or right
+    
+    Operands: 2
+    Variants: 3 opcode(s)
+
+  category: "SHIFT"
+  instruction_class: "shift"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/3
+      opcode: "0xFCAE"
+      opcode_binary: "1111_1100_1010_1110"
+      opcode_decimal: 64686
+      prefix_mask: "0x0E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/3
+      opcode: "0xFCAF"
+      opcode_binary: "1111_1100_1010_1111"
+      opcode_decimal: 64687
+      prefix_mask: "0x0E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/3
+      opcode: "0xFCB0"
+      opcode_binary: "1111_1100_1011_0000"
+      opcode_decimal: 64688
+      prefix_mask: "0x0E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Shr
+# Total variants: 3
+
+
+  examples:
+    - description: |
+        Basic shr operation using word register
+      prefix: "W"
+      code: |
+        W1 SHR W2, B.16
+      explanation: |
+        Perform shr operation on word-sized data
+
+    - description: |
+        Shr with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SHR B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Shr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SHR B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Shr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SHR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of shr instruction
+      code: |
+        Variant 1/3: BY1 SHR\nVariant 2/3: BY1 SHR\nVariant 3/3: BY1 SHR
+      explanation: |
+        The shr instruction has 3 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "10.26"
+    title: "Rotational shift"
+    content: |
+      # 10.26 Rotational shift
+
+      **Format:**
+      t SHR ⟨operand/rw/t⟩,⟨shiftcount/r/BY⟩
+
+      **Assembly notation**
+
+      | Name                          | Hex code | Octal code |
+      |-------------------------------|----------|------------|
+      | BY SHR byte shift rotationally | OFCAEH   | 176256B    |
+      | H SHR halfword shift rotationally | OFCAFH | 176257B    |
+      | W SHR word shift rotationally  | OFCBOH   | 176260B    |
+
+      **Operation:**
+      rotationally shifted ⟨operand⟩ -> ⟨operand⟩
+
+      **Description:**
+
+      A rotational shift is performed on the byte, halfword or word operand. ⟨shiftcount⟩ is interpreted as a signed byte. Positive ⟨shiftcount⟩ implies left shift, negative ⟨shiftcount⟩ implies right shift. A shiftcount equal to or greater than the size of the operand will produce an illegal operand value trap condition. A shiftcount of zero is legal and leaves the operand unchanged.
+
+      **Trap conditions:**
+      Addressing traps, Illegal operand value (IOV)
+
+      **Data status bits:**
+
+      - shifted operand = 0 -> Z
+      - shifted operand.signbit -> S
+
+      **Example:**
+
+      Exchange nibbles (4 bit groups) of variable pointed at by R4
+
+          BY SHR R4.0, 4
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

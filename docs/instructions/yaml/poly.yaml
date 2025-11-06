@@ -1,0 +1,339 @@
+instruction:
+  name: "poly"
+  function: "Poly"
+  mnemonic: "poly"
+  description: |
+    Poly
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 2
+    Variants: 8 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/8
+      opcode: "0xFCE0"
+      opcode_binary: "1111_1100_1110_0000"
+      opcode_decimal: 64736
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - CONSTANT
+          template: "0x00002002"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/8
+      opcode: "0xFCE1"
+      opcode_binary: "1111_1100_1110_0001"
+      opcode_decimal: 64737
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - CONSTANT
+          template: "0x00002002"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/8
+      opcode: "0xFCE2"
+      opcode_binary: "1111_1100_1110_0010"
+      opcode_decimal: 64738
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - CONSTANT
+          template: "0x00002002"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/8
+      opcode: "0xFCE3"
+      opcode_binary: "1111_1100_1110_0011"
+      opcode_decimal: 64739
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - CONSTANT
+          template: "0x00002002"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/8
+      opcode: "0xFCE4"
+      opcode_binary: "1111_1100_1110_0100"
+      opcode_decimal: 64740
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - CONSTANT
+          template: "0x00002002"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/8
+      opcode: "0xFCE5"
+      opcode_binary: "1111_1100_1110_0101"
+      opcode_decimal: 64741
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - CONSTANT
+          template: "0x00002002"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 7/8
+      opcode: "0xFCE6"
+      opcode_binary: "1111_1100_1110_0110"
+      opcode_decimal: 64742
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - CONSTANT
+          template: "0x00002002"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 8/8
+      opcode: "0xFCE7"
+      opcode_binary: "1111_1100_1110_0111"
+      opcode_decimal: 64743
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - CONSTANT
+          template: "0x00002002"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Poly
+# Total variants: 8
+
+
+  examples:
+    - description: |
+        Basic poly operation using word register
+      prefix: "W"
+      code: |
+        W1 POLY W2, 20
+      explanation: |
+        Perform poly operation on word-sized data
+
+    - description: |
+        Poly with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 POLY B.16, 100
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Poly with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 POLY ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Poly with floating-point data
+      prefix: "F"
+      code: |
+        F1 POLY F2, 3.14
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of poly instruction
+      code: |
+        Variant 1/8: F1 POLY\nVariant 2/8: F1 POLY\nVariant 3/8: F1 POLY
+      explanation: |
+        The poly instruction has 8 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "12.3"
+    title: "Polynomial"
+    content: |
+      ### 12.3 Polynomial
+
+      **Format:**
+      tn POLY `<x/r/t>,<m/s/BY>,<cm/r/t>,...,<c1/r/t>,<cO/r/t>`
+
+      | Assembly notation | Name                    | Hex code     | Octal code     |
+      |-------------------|-------------------------|--------------|----------------|
+      | Fn                | POLY floating polynomial| OFCE0H+(n-1) | 176340B+(n-1)  |
+      | Dn                | POLY double float polynomial | OFCE4H+(n-1) | 176344B+(n-1)  |
+
+      **Operation:**
+
+      <m>*<x> + .... + <c2>*<x>^2 + <c1>*<x> + <cO> -> Rn
+
+      **Description:**
+
+      This instruction calculates a polynomial of degree <m>. The result is loaded into the specified float or double float register. The instruction requires <m>+1 coefficients. <m> must always be a positive constant less than 256, otherwise an illegal operand specifier trap condition occurs.
+
+      If floating overflow or underflow occurs, the trap will not have any effect until the instruction has completed execution, even if the trap condition occurred at an intermediate step. The Z and S bits reflect the final result.
+
+      **Trap conditions:**
+      Addressing traps, Floating overflow (FO), Floating underflow (FU), Illegal operand specifier (IOS)
+
+      **Data status bits:**
+
+      result = 0 -> Z
+      result.signbit -> S
+      floating underflow -> FU
+      floating overflow -> FO
+
+      **Example:**
+
+      Calculate the expression A * X**2 + B * X + C and leave the result in F3. A, B and C are constants
+
+          F3 POLY X, 2, A, B, C
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,283 @@
+instruction:
+  name: "asin"
+  function: "Asin"
+  mnemonic: "asin"
+  description: |
+    Asin
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 1
+    Variants: 8 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/8
+      opcode: "0xFF5C"
+      opcode_binary: "1111_1111_0101_1100"
+      opcode_decimal: 65372
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/8
+      opcode: "0xFF5D"
+      opcode_binary: "1111_1111_0101_1101"
+      opcode_decimal: 65373
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/8
+      opcode: "0xFF5E"
+      opcode_binary: "1111_1111_0101_1110"
+      opcode_decimal: 65374
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/8
+      opcode: "0xFF5F"
+      opcode_binary: "1111_1111_0101_1111"
+      opcode_decimal: 65375
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/8
+      opcode: "0xFF88"
+      opcode_binary: "1111_1111_1000_1000"
+      opcode_decimal: 65416
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/8
+      opcode: "0xFF89"
+      opcode_binary: "1111_1111_1000_1001"
+      opcode_decimal: 65417
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 7/8
+      opcode: "0xFF8A"
+      opcode_binary: "1111_1111_1000_1010"
+      opcode_decimal: 65418
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 8/8
+      opcode: "0xFF8B"
+      opcode_binary: "1111_1111_1000_1011"
+      opcode_decimal: 65419
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Asin
+# Total variants: 8
+
+
+  examples:
+    - description: |
+        Basic asin operation using word register
+      prefix: "W"
+      code: |
+        W1 ASIN W2
+      explanation: |
+        Perform asin operation on word-sized data
+
+    - description: |
+        Asin with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ASIN B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Asin with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ASIN ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Asin with floating-point data
+      prefix: "F"
+      code: |
+        F1 ASIN F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of asin instruction
+      code: |
+        Variant 1/8: F1 ASIN\nVariant 2/8: F1 ASIN\nVariant 3/8: F1 ASIN
+      explanation: |
+        The asin instruction has 8 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "12.6"
+    title: "Arc sine"
+    content: |
+      # 12.6 Arc sine
+
+      **Format:** tn ASIN ⟨argument/r/t⟩
+
+      | Assembly notation | Name            | Hex code     | Octal code      |
+      |-------------------|-----------------|--------------|-----------------|
+      | Fh ASIN           | float arcsine   | OFF5CH+(n-1) | 177534B+(n-1)   |
+      | Dn ASIN           | double float arcsine | OFF88H+(n-1) | 177610B+(n-1)   |
+
+      **Operation:** arcsine(⟨argument⟩) -> Rn
+
+      **Description:**
+
+      The trigonometric arcsine of ⟨argument⟩ is loaded into the specified float or double float register. The result value gives the angle in radians, in the range -pi/2 to pi/2. ⟨argument⟩ should be in the range -1 to +1, otherwise an invalid operation trap condition will occur and the specified register will be set to zero.
+
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
+
+      **Data status bits:**
+
+          result = 0  -> Z
+          result.signbit -> S
+
+      **Example:**
+
+      Replace the number in F2 with its arcsine
+
+          F2 ASIN F2
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

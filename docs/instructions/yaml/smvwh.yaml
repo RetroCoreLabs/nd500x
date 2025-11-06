@@ -1,0 +1,145 @@
+instruction:
+  name: "smvwh"
+  function: "Smvwh"
+  mnemonic: "smvwh"
+  description: |
+    Smvwh
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 4
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 4
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD72"
+      opcode_binary: "1111_1101_0111_0010"
+      opcode_decimal: 64882
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 4
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Smvwh
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Smvwh with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SMVWH 5, 6, 7, 8
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Smvwh with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SMVWH B.16, B.32, B.48, B.64
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Smvwh with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SMVWH ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "14.3"
+    title: "String move while"
+    content: |
+      ## 14.3 String move while
+
+      **Format:**
+      BY SMVWH `<source/r/BY/I1=>,<dest/w/BY/I2=>, <mask/r/BY>, <test/r/BY>`
+
+      | Assembly notation | Name                     | Hex code | Octal code |
+      |-------------------|--------------------------|----------|------------|
+      | BY SMVWH          | byte string move while   | OFD72H   | 176562B    |
+
+      **Operation:**
+      while not end of strings
+      and S(I1) AND `<mask>` = `<test>` do
+      S(I1) -> D(I2), I1+1 -> I1, I2+1 -> I2
+      enddo
+
+      **Description:**
+
+      Bytes are moved from the `<source>` operand to the `<dest>` operand. When the result of a logical AND between the moved byte and the `<mask>` operand is equal to the value of the `<test>` operand, the moving continues until the `<source>` operand is empty or the `<dest>` operand is full. Overlap is not taken care of.
+
+      **Terminating conditions:**
+
+      |                     | K=0 | Z=0          | I1, I2 unmodified, DR trap condition    |
+      |---------------------|-----|--------------|-----------------------------------------|
+      | outside source:     | K=1 | Z=0          | I1, I2 unmodified, DR trap condition    |
+      | outside dest:       | K=0 | Z=0          | I1, I2 :- differing bytes               |
+      | different bytes:    | K=0 | Z=1          | I1, I2 :- next element                  |
+      | source empty:       | K=1 | Z=1          | I1, I2 :- next element                  |
+      | dest full:          |     |              |                                         |
+
+      **Example:**
+
+      Copy characters from INPUT to BUFFER as long as the characters are in the range 100B to 200B, starting at current character positions in I1 and I2
+
+          BY SMVWH INPUT, BUFFER, 300B, 100B
+
+      Norsk Data ND-05.009.4 EN
+
+      ---
