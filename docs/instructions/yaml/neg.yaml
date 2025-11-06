@@ -1,0 +1,372 @@
+instruction:
+  name: "neg"
+  function: "Neg"
+  mnemonic: "neg"
+  description: |
+    Neg
+    
+    Negate operation:
+    Computes two's complement (negation) of operand
+    Result ← -operand
+    
+    Operands: None (operates on implicit register)
+    Variants: 20 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/20
+      opcode: "0xFE08"
+      opcode_binary: "1111_1110_0000_1000"
+      opcode_decimal: 65032
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 2/20
+      opcode: "0xFE09"
+      opcode_binary: "1111_1110_0000_1001"
+      opcode_decimal: 65033
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 3/20
+      opcode: "0xFE0A"
+      opcode_binary: "1111_1110_0000_1010"
+      opcode_decimal: 65034
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 4/20
+      opcode: "0xFE0B"
+      opcode_binary: "1111_1110_0000_1011"
+      opcode_decimal: 65035
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 5/20
+      opcode: "0xFE0C"
+      opcode_binary: "1111_1110_0000_1100"
+      opcode_decimal: 65036
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 6/20
+      opcode: "0xFE0D"
+      opcode_binary: "1111_1110_0000_1101"
+      opcode_decimal: 65037
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 7/20
+      opcode: "0xFE0E"
+      opcode_binary: "1111_1110_0000_1110"
+      opcode_decimal: 65038
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 8/20
+      opcode: "0xFE0F"
+      opcode_binary: "1111_1110_0000_1111"
+      opcode_decimal: 65039
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 9/20
+      opcode: "0x0090"
+      opcode_binary: "0000_0000_1001_0000"
+      opcode_decimal: 144
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 10/20
+      opcode: "0x0091"
+      opcode_binary: "0000_0000_1001_0001"
+      opcode_decimal: 145
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 11/20
+      opcode: "0x0092"
+      opcode_binary: "0000_0000_1001_0010"
+      opcode_decimal: 146
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 12/20
+      opcode: "0x0093"
+      opcode_binary: "0000_0000_1001_0011"
+      opcode_decimal: 147
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 13/20
+      opcode: "0x0094"
+      opcode_binary: "0000_0000_1001_0100"
+      opcode_decimal: 148
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 14/20
+      opcode: "0x0095"
+      opcode_binary: "0000_0000_1001_0101"
+      opcode_decimal: 149
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 15/20
+      opcode: "0x0096"
+      opcode_binary: "0000_0000_1001_0110"
+      opcode_decimal: 150
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 16/20
+      opcode: "0x0097"
+      opcode_binary: "0000_0000_1001_0111"
+      opcode_decimal: 151
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 17/20
+      opcode: "0x0094"
+      opcode_binary: "0000_0000_1001_0100"
+      opcode_decimal: 148
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 18/20
+      opcode: "0x0095"
+      opcode_binary: "0000_0000_1001_0101"
+      opcode_decimal: 149
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 19/20
+      opcode: "0x0096"
+      opcode_binary: "0000_0000_1001_0110"
+      opcode_decimal: 150
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+    - variant: 20/20
+      opcode: "0x0097"
+      opcode_binary: "0000_0000_1001_0111"
+      opcode_decimal: 151
+      prefix_mask: "0x7E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+# Generated from nd500-opcodes
+# Instruction group: Neg
+# Total variants: 20
+
+
+  examples:
+    - description: |
+        Basic neg operation using word register
+      prefix: "W"
+      code: |
+        W1 NEG
+      explanation: |
+        Perform neg operation on word-sized data
+
+    - description: |
+        Neg with floating-point data
+      prefix: "F"
+      code: |
+        F1 NEG
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of neg instruction
+      code: |
+        Variant 1/20: BY1 NEG\nVariant 2/20: BY1 NEG\nVariant 3/20: BY1 NEG
+      explanation: |
+        The neg instruction has 20 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "10.12"
+    title: "Negate"
+    content: |
+      # 10.12 Negate
+
+      **Format:** tn NEG
+
+      | Assembly notation | Name                               | Hex code       | Octal code       |
+      |-------------------|----------------------------------- |----------------|------------------|
+      | BYn NEG           | byte register negate               | 0FE08H+(n-1)   | 177010B+(n-1)    |
+      | Hn NEG            | halfword register negate           | 0FEOCH+(n-1)   | 177014B+(n-1)    |
+      | Wn NEG            | word register negate               | 090H+(n-1)     | 220B+(n-1)       |
+      | Fn NEG            | float register negate              | 094H+(n-1)     | 224B+(n-1)       |
+      | Dn NEG            | double float register negate       | 094H+(n-1)     | 224B+(n-1)       |
+
+      **Operation:**
+      -Rn -> Rn
+
+      **Description:**
+
+      The contents of the specified register are negated. An integer value is negated by taking the two's complement of its value. A floating point value is negated by inverting its sign bit. Byte and halfword negate will clear the upper part of the register.
+
+      Integer overflow occurs if and only if the greatest negative integer is negated. Carry is zero except when integer zero is negated.
+
+      **Trap conditions:** Integer overflow (0)
+
+      **Data status bits:**
+
+      negated register = 0 -> Z
+      negated register.signbit -> S
+      carry -> C
+      overflow -> O
+
+      **Example:**
+
+      Negate double precision register D3
+
+          D3 NEG
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

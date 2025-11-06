@@ -1,0 +1,280 @@
+instruction:
+  name: "umul"
+  function: "Umul"
+  mnemonic: "umul"
+  description: |
+    Umul
+    
+    Arithmetic operation
+    
+    Operands: 3
+    Variants: 4 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/4
+      opcode: "0xFC80"
+      opcode_binary: "1111_1100_1000_0000"
+      opcode_decimal: 64640
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/4
+      opcode: "0xFC81"
+      opcode_binary: "1111_1100_1000_0001"
+      opcode_decimal: 64641
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/4
+      opcode: "0xFC82"
+      opcode_binary: "1111_1100_1000_0010"
+      opcode_decimal: 64642
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/4
+      opcode: "0xFC83"
+      opcode_binary: "1111_1100_1000_0011"
+      opcode_decimal: 64643
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Umul
+# Total variants: 4
+
+
+  examples:
+    - description: |
+        Basic umul operation using word register
+      prefix: "W"
+      code: |
+        W1 UMUL W2, B.16, R.8
+      explanation: |
+        Perform umul operation on word-sized data
+
+    - description: |
+        Umul with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 UMUL B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Umul with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 UMUL ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of umul instruction
+      code: |
+        Variant 1/4: W1 UMUL\nVariant 2/4: W1 UMUL\nVariant 3/4: W1 UMUL
+      explanation: |
+        The umul instruction has 4 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 UMUL 1\n; Result in W1
+      explanation: |
+        Common use case for umul in calculations
+
+  manual_reference:
+    section: "11.15"
+    title: "Unsigned multiply with overflow to register"
+    content: |
+      ### 11.15 Unsigned multiply with overflow to register
+
+      **Format:**
+      Wn UMUL `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      | Assembly notation | Name                    | Hex code       | Octal code      |
+      |-------------------|-------------------------|----------------|-----------------|
+      | Wn                | UMUL word unsigned multiply | OFC80H+(n-1) | 176200B+(n-1)   |
+
+      #### Operation:
+
+      ```
+      word unsigned multiplication
+      <a> * <b> -> <c>
+      overflow part -> Rn
+      ```
+
+      #### Description:
+
+      The operands are treated as unsigned.
+
+      The `<a>` operand is multiplied by the `<b>` operand and the product is stored in the `<c>` operand. The upper half of the double length result is stored in the specified register. Byte and halfword integer constants are sign extended and the result of the sign extension is treated unsigned. Integer overflow occurs when the upper part is different from zero.
+
+      **Trap conditions:** Addressing traps, Integer overflow (O)
+
+      #### Data status bits:
+
+      - product = 0 -> Z
+      - product.signbit -> S
+      - overflow -> O
+
+      #### Example:
+
+      Multiply local variable LEASTX by local LEASTY storing the result in R2 with the upper half of the result in R1
+
+      ```
+      W1 UMUL B.LEASTX, B.LEASTY, R2
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

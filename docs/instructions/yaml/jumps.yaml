@@ -1,0 +1,91 @@
+instruction:
+  name: "jumps"
+  function: "Jumps"
+  mnemonic: "jumps"
+  description: |
+    Jumps
+    
+    Branch/Jump operation:
+    Conditional or unconditional program flow transfer
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "BRANCH"
+  instruction_class: "branch"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0x00B9"
+      opcode_binary: "0000_0000_1011_1001"
+      opcode_decimal: 185
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0000FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Jumps
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Jumps with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 JUMPS B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Jumps with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 JUMPS ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.34"
+    title: "JUMPS - Call supervisor ('87 extension)"
+    content: |
+      ### 16.34 JUMPS - Call supervisor ('87 extension)
+
+      **Format:** JUMPS `<address/r/W>`
+
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | JUMPS             | call supervisor | B9H      | 271B       |
+
+      **Operation:**
+      P -> context.P
+      B -> context.B
+      `<address>` -> P
+      `<cpuno>` -> W1
+
+      **Description:**
+
+      Save P and B register in context block. Execution is started in `<address>`. The instruction implies SOLO mode.
+
+      W1 returns the ND-500/ND-5000 CPU number.
+
+      **Trap Conditions:** None
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

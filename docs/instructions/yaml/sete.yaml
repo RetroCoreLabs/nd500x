@@ -1,0 +1,92 @@
+instruction:
+  name: "sete"
+  function: "Sete"
+  mnemonic: "sete"
+  description: |
+    Sete
+    
+    Control flow operation
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "CONTROL"
+  instruction_class: "control"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD39"
+      opcode_binary: "1111_1101_0011_1001"
+      opcode_decimal: 64825
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sete
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Sete with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SETE B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sete with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SETE ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.5"
+    title: "Set bit in trap enable register"
+    content: |
+      ### 16.5 Set bit in trap enable register
+
+      **Format:** SETE `<bit no/r/BY>`
+
+      | Assembly notation | Name                                 | Hex code | Octal code |
+      |-------------------|--------------------------------------|----------|------------|
+      | SETE              | set bit in own trap enable register  | 0FD39H   | 176471B    |
+
+      **Operation:** Set bit `<bit no>` in own trap enable register
+
+      **Description:**
+
+      The specified bit in the Own Trap Enable (OTE) register is set. The `<bit no>` operand is compared with a modify mask (TEMM) found in the domain description table. If a bit in this mask is set, the corresponding bit in the local trap enable register is modifiable. An attempt to modify a non-modifiable bit will cause an illegal operand value trap condition.
+
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      Enable the integer Overflow trap
+
+          SETE 9
+
+      *Norsk Data ND-05.009.4 EN*
+
+      ---

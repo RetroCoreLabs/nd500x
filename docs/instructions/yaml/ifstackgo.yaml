@@ -1,0 +1,142 @@
+instruction:
+  name: "if-stgo"
+  function: "IfStackGo"
+  mnemonic: "if-stgo"
+  description: |
+    IfStackGo
+    
+    Branch/Jump operation:
+    Conditional or unconditional program flow transfer
+    
+    Operands: 2
+    Variants: 2 opcode(s)
+
+  category: "BRANCH"
+  instruction_class: "branch"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/2
+      opcode: "0xFD65"
+      opcode_binary: "1111_1101_0110_0101"
+      opcode_decimal: 64869
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - NONE
+          template: "0x00060006"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFC84"
+      opcode_binary: "1111_1100_1000_0100"
+      opcode_decimal: 64644
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - NONE
+          template: "0x00060006"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: IfStackGo
+# Total variants: 2
+
+
+  examples:
+    - description: |
+        If-stgo with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 IF-STGO B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        If-stgo with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 IF-STGO ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of if-stgo instruction
+      code: |
+        Variant 1/2: NONE1 IF-STGO\nVariant 2/2: NONE1 IF-STGO
+      explanation: |
+        The if-stgo instruction has 2 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "13.3"
+    title: "Conditional Jump"
+    content: |
+      ### 13.3 Conditional Jump
+
+      **Formats:**
+
+      ```
+      IF <rel> GO <<displacement>>
+      ```
+      ```
+      IF <rel> GO <bit No./r/BY>, <<displacement>>
+      ```
+
+      **Operation:**
+
+      ```
+      if <rel> then
+          (P)+<<(displacement)>> -> P
+      endif
+      ```
+
+      **Description:**
+
+      A conditional jump will cause transfer of control if and only if a specified condition is true.
+
+      The condition is specified in terms of the status bits set by instructions operating on data values. If the condition indicated by the instruction is true, the sign-extended byte or halfword <<displacement>> is added to the program counter.
+
+      Conditional jump on specified bits in the status register is possible by the second format of the instruction. In this case, the `<rel>` operand may be ST or -ST, and the `<bit No.>` operand specifies which bit in the status register to test. `<bit No.>` has the range 0 to 29 inclusive. Other values for `<bit No.>` will cause an illegal operand value trap condition; no jump is performed if `<rel>` is ST, the jump is performed if `<rel>` is -ST.
+
+      Magnitude tests are only meaningful after compare and subtract instructions, as carry is reset in load instructions. IF )>= GO and IF << GO may be used as explicit tests on carry.
+
+      **Trap conditions:** Addressing traps, Branch trap (BT), Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      In the following table all conditional jump instructions are listed with operation code, assembly notation, data status test for jumping and name. They all have conditional jump as the first part of the name; alt. is an abbreviation for alternate.
+
+      ---

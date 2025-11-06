@@ -1,0 +1,132 @@
+instruction:
+  name: "padd"
+  function: "Padd"
+  mnemonic: "padd"
+  description: |
+    Padd
+    
+    Arithmetic operation
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFEB0"
+      opcode_binary: "1111_1110_1011_0000"
+      opcode_decimal: 65200
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Padd
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Padd with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 PADD B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Padd with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 PADD ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 PADD 1\n; Result in W1
+      explanation: |
+        Common use case for padd in calculations
+
+  manual_reference:
+    section: "17.2"
+    title: "Packed add"
+    content: |
+      ### 17.2 Packed add
+
+      **Format:**
+      PADD `<a=/r/BCD=>`, `<b=/r/BCD=>`, `<c=/w/BCD=>`
+
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | PADD              | packed add      | 0FE80H   | 177260B    |
+      | PADDR             | packed add rounded | 0FE85H | 177205B    |
+
+      **Operation:**
+      `<a> + <b> -> <c>`
+
+      **Description:**
+
+      The `<a>` operand is added to the `<b>` operand and the sum is stored in the `<c>` operand.
+
+      The result is scaled according to the scale factor in the `<c>` operand before storing.
+
+      **Trap conditions:**
+      Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - sum = 0 -> Z
+      - sum.signbit -> S
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      **Example:**
+
+      Add local variables PRICE and TAX to form global value TOTAL
+
+          PADD B.PRICE, B.TAX, TOTAL
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,71 @@
+instruction:
+  name: "solo"
+  function: "Solo"
+  mnemonic: "solo"
+  description: |
+    Solo
+    
+    Control flow operation
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "CONTROL"
+  instruction_class: "control"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE00"
+      opcode_binary: "1111_1110_0000_0000"
+      opcode_decimal: 65024
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Solo
+# Total variants: 1
+
+
+  manual_reference:
+    section: "16.1"
+    title: "Disable process switch"
+    content: |
+      ### 16.1 Disable process switch
+
+      **Format:** SOLO
+
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | SOLO              | disable process switch | 0FE00H   | 177000B    |
+
+      **Operation:** disables process switch for maximum 256 micro-cycles
+
+      **Description:**
+
+      Ensure that instructions up to the next TUTTI instruction are executed as an indivisible sequence of operations. SOLO is used for synchronizing purposes and implementation of protection mechanisms.
+
+      If the disable process switch is disabled for more than 256 micro-cycles, a disable process switch timeout occurs. Most simple instructions execute in one microcycle per operand specifier.
+
+      No enabled trap conditions may occur when the process switch is disabled, as any trap handling will take more than 256 micro-cycles and cause timeout. Non-ignorable and fatal traps cause a disable process switch error trap.
+
+      In privilege mode there is no limitation to the duration of a SOLO operation. Unprivileged users are not allowed to run in SOLO for more than 256 cycles. In the 500/2 implementation, these are microcycles. In the ND-5000 implementation they are macroinstruction cycles.
+
+      Disable process switch timeout occurs if unprivileged users attempt to repeat SOLO’s.
+
+      **Trap conditions:** Disable process switch timeout (DT), Disable process switch error (DE)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      ```
+      SOLO
+      ```
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

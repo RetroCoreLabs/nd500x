@@ -1,0 +1,69 @@
+instruction:
+  name: "pmon"
+  function: "Pmon"
+  mnemonic: "pmon"
+  description: |
+    Pmon
+    
+    System operation (privileged)
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFF17"
+      opcode_binary: "1111_1111_0001_0111"
+      opcode_decimal: 65303
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Pmon
+# Total variants: 1
+
+
+  manual_reference:
+    section: "16.14"
+    title: "Program Memory Management On"
+    content: |
+      # 16.14 Program Memory Management On
+
+      **Format:** PMON
+
+      | Assembly Notation | Name                        | Hex Code | Octal Code |
+      |-------------------|-----------------------------|----------|------------|
+      | PMON              | program memory management on | OFF17H   | 177427B    |
+
+      **Operation:**
+      turn on program memory management system
+      L -> P
+
+      **Description:**
+
+      Privileged instruction.
+
+      Following instruction accesses will be mapped on a physical segment through the memory management system, rather than being interpreted directly as physical addresses.
+
+      The virtual address of the next instruction to be executed is found in the L register.
+
+      If the program memory management system is already turned on, control is transferred to the instruction pointed to by the L register and the instruction has no further effect.
+
+      **Trap conditions:** Illegal instruction code (IIC)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      PMON
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

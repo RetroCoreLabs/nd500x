@@ -1,0 +1,121 @@
+instruction:
+  name: "pcomp"
+  function: "Pcomp"
+  mnemonic: "pcomp"
+  description: |
+    Pcomp
+    
+    Comparison operation
+    Sets Z (zero), N (negative), V (overflow), C (carry) flags
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "COMPARE"
+  instruction_class: "compare"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFEB3"
+      opcode_binary: "1111_1110_1011_0011"
+      opcode_decimal: 65203
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Pcomp
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Pcomp with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 PCOMP B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Pcomp with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 PCOMP ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Real-world use: bounds checking
+      code: |
+        ; Check if index < limit\nW1 PCOMP MAX_SIZE\n; Sets flags for conditional branch
+      explanation: |
+        Using pcomp for validation and conditional logic
+
+  manual_reference:
+    section: "17.5"
+    title: "Packed Compare"
+    content: |
+      ### 17.5 Packed Compare
+
+      **Format:**
+      PCOMP `<=a/r/BCD=>`, `<=b/r/BCD=>`
+
+      **Assembly Notation**
+
+      | Name  | Hex Code | Octal Code |
+      |-------|----------|------------|
+      | PCOMP | OFEB3H   | 177263B    |
+
+      **Operation:**
+      `<a> - <b>`
+
+      **Description:**
+
+      The `<b>` operand is subtracted from the `<a>` operand and the status bits are set according to the result. The result is discarded.
+
+      Before the comparison is performed, the operands are automatically shifted to the same decimal point position (scale) and extended with zeros if necessary. An unsigned number is treated as positive, and positive and negative zero are equal.
+
+      **Trap Conditions:** Addressing traps, Invalid operation (IVO)
+
+      **Data Status Bits:**
+
+      - difference = 0 -> Z
+      - difference.signbit -> S
+      - IVO -> K
+
+      **Example:**
+
+      Compare TOTAL with MAX and set status bits
+
+          PCOMP TOTAL, MAX
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

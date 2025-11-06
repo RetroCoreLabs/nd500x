@@ -1,0 +1,112 @@
+instruction:
+  name: "tset"
+  function: "Tset"
+  mnemonic: "tset"
+  description: |
+    Tset
+    
+    Control flow operation
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "CONTROL"
+  instruction_class: "control"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD40"
+      opcode_binary: "1111_1101_0100_0000"
+      opcode_decimal: 64832
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE2"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Tset
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Tset with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 TSET B.0
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Tset with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 TSET B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Tset with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 TSET ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.3"
+    title: "Test and set"
+    content: |
+      ### 16.3 Test and set
+
+      **Format:**
+      BY TSET <operand/rwl/BY>
+
+      | Assembly notation | Name        | Hex code | Octal code |
+      |-------------------|-------------|----------|------------|
+      | BY TSET           | test and set| 0FD40H   | 176500B    |
+
+      **Operation:**
+
+      - lock
+        - read operand and set status bits
+        - set operand to all ones
+      - unlock
+
+      **Description:**
+
+      The TSET instruction performs the two necessary memory accesses uninterruptible by other processors or by channels connected to the memory system. It may therefore be used to implement processor synchronization. The TSET instruction always reads the contents of main memory, even if the addressed data are present in cache memory. The cache is updated for later references by ordinary load instructions.
+
+      The TSET instruction is valid in the MPM-IV and later memory systems. In installations using MPM-III, it will work algorithmically as specified here but the memory operations are independent and other memory accesses may interfere.
+
+      Register and constant operands are illegal, and will cause an illegal operand specifier trap condition.
+
+      **Trap conditions:** Addressing traps, Illegal operand specifier (IOS)
+
+      **Data status bits:**
+
+      - operand was zero before store -> Z
+      - operand was negative before store -> S
+
+      **Example:**
+
+      Set byte variable RESERVE to all ones
+
+      BY4 TSET RESERVE
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

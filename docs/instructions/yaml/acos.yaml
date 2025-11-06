@@ -1,0 +1,285 @@
+instruction:
+  name: "acos"
+  function: "Acos"
+  mnemonic: "acos"
+  description: |
+    Acos
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 1
+    Variants: 8 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/8
+      opcode: "0xFF64"
+      opcode_binary: "1111_1111_0110_0100"
+      opcode_decimal: 65380
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/8
+      opcode: "0xFF65"
+      opcode_binary: "1111_1111_0110_0101"
+      opcode_decimal: 65381
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/8
+      opcode: "0xFF66"
+      opcode_binary: "1111_1111_0110_0110"
+      opcode_decimal: 65382
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/8
+      opcode: "0xFF67"
+      opcode_binary: "1111_1111_0110_0111"
+      opcode_decimal: 65383
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/8
+      opcode: "0xFF90"
+      opcode_binary: "1111_1111_1001_0000"
+      opcode_decimal: 65424
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/8
+      opcode: "0xFF91"
+      opcode_binary: "1111_1111_1001_0001"
+      opcode_decimal: 65425
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 7/8
+      opcode: "0xFF92"
+      opcode_binary: "1111_1111_1001_0010"
+      opcode_decimal: 65426
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 8/8
+      opcode: "0xFF93"
+      opcode_binary: "1111_1111_1001_0011"
+      opcode_decimal: 65427
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Acos
+# Total variants: 8
+
+
+  examples:
+    - description: |
+        Basic acos operation using word register
+      prefix: "W"
+      code: |
+        W1 ACOS W2
+      explanation: |
+        Perform acos operation on word-sized data
+
+    - description: |
+        Acos with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ACOS B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Acos with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ACOS ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Acos with floating-point data
+      prefix: "F"
+      code: |
+        F1 ACOS F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of acos instruction
+      code: |
+        Variant 1/8: F1 ACOS\nVariant 2/8: F1 ACOS\nVariant 3/8: F1 ACOS
+      explanation: |
+        The acos instruction has 8 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "12.8"
+    title: "Arc cosine"
+    content: |
+      ### 12.8 Arc cosine
+
+      **Format:**
+      tn ACOS `<argument/r/t>`
+
+      | Assembly notation | Name                 | Hex code        | Octal code      |
+      |-------------------|----------------------|-----------------|-----------------|
+      | Fn ACOS           | float arc cosine     | OFF64H+(n-1)    | 177544B+(n-1)   |
+      | Dn ACOS           | double float arc cosine | OFF90H+(n-1) | 177620B+(n-1)   |
+
+      **Operation:**
+      arccosine(`\<argument\>`) -> Rn
+
+      **Description:**
+
+      The trigonometric arccosine of `<argument>` is loaded into the specified float or double float register. The result value gives the angle in radians in the range 0 to pi. `<argument>` should be in the range -1 to +1, otherwise an invalid operation trap condition will occur and the specified register is set to zero.
+
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
+
+      **Data status bits:**
+
+      - result = 0   -> Z
+      - result.signbit -> S
+
+      **Example:**
+
+      Load into F4 the arc cosine of the field FOO in the record pointed to by the R register
+
+          F4 ACOS R.FOO
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,89 @@
+instruction:
+  name: "ents"
+  function: "Ents"
+  mnemonic: "ents"
+  description: |
+    Ents
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0x00B8"
+      opcode_binary: "0000_0000_1011_1000"
+      opcode_decimal: 184
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Ents
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Ents with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 ENTS B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Ents with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 ENTS ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "1.4"
+    title: "Domains, segments and processes"
+    content: |
+      ### 1.4 Domains, segments and processes
+
+      The memory in an ND-500 type system is logically structured into DOMAINS. A domain has one 32-bit address area (4 gigabytes) for executable code (the program domain) and another one for data (the data domain).
+
+      Each domain is divided into SEGMENTS, with up to 32 per domain. A segment can be up to 128 Mbytes, which is equivalent to 27 address bits. The smallest unit for access protection (write and parameter access protection) is a segment. An instruction segment may access any data segment in the domain.
+
+      Two (or more) domains may have segments in common in order to share code or data.
+
+      A sequence of operations requiring no parallel execution is called a PROCESS. A process is carried out sequentially in the CPU, but several processes started at different times may, in effect, run concurrently. The processes, however, are "time-sliced".
+
+      A process may refer to up to 256 domains of data and instructions. These are connected in a tree structure called a domain tree, specified by the process description kept by the memory management system. The links between the domains are determined at the creation of each domain. The domain closest above (that is, closer to the root) a domain D is the mother of D, and D is the child. D may itself be the mother of other child domains.
+
+      Control can be switched from one domain to another by calling a routine in the other domain, or by causing an error situation (trap condition) not taken care of by a routine in the current domain. A routine may access data in the domain from which it was called through an address prefix (ALT).
+
+      Within a domain, routines are called directly by address. Routines in other domains are called through their routine number, not by address.
+
+      Communication between processes is possible through monitor calls or through a shared data segment.
+
+      ---
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

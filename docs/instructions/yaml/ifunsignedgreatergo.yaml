@@ -1,0 +1,104 @@
+instruction:
+  name: "if>>go"
+  function: "IfUnsignedGreaterGo"
+  mnemonic: "if>>go"
+  description: |
+    IfUnsignedGreaterGo
+    
+    Branch/Jump operation:
+    Conditional or unconditional program flow transfer
+    
+    Operands: 1
+    Variants: 2 opcode(s)
+
+  category: "BRANCH"
+  instruction_class: "branch"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/2
+      opcode: "0x00D4"
+      opcode_binary: "0000_0000_1101_0100"
+      opcode_decimal: 212
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - NONE
+          template: "0x00060006"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0x00D5"
+      opcode_binary: "0000_0000_1101_0101"
+      opcode_decimal: 213
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - NONE
+          template: "0x00060006"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: IfUnsignedGreaterGo
+# Total variants: 2
+
+
+  examples:
+    - description: |
+        Different variants of if>>go instruction
+      code: |
+        Variant 1/2: NONE1 IF>>GO\nVariant 2/2: NONE1 IF>>GO
+      explanation: |
+        The if>>go instruction has 2 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "13.3"
+    title: "Conditional Jump"
+    content: |
+      ### 13.3 Conditional Jump
+
+      **Formats:**
+
+      ```
+      IF <rel> GO <<displacement>>
+      ```
+      ```
+      IF <rel> GO <bit No./r/BY>, <<displacement>>
+      ```
+
+      **Operation:**
+
+      ```
+      if <rel> then
+          (P)+<<(displacement)>> -> P
+      endif
+      ```
+
+      **Description:**
+
+      A conditional jump will cause transfer of control if and only if a specified condition is true.
+
+      The condition is specified in terms of the status bits set by instructions operating on data values. If the condition indicated by the instruction is true, the sign-extended byte or halfword <<displacement>> is added to the program counter.
+
+      Conditional jump on specified bits in the status register is possible by the second format of the instruction. In this case, the `<rel>` operand may be ST or -ST, and the `<bit No.>` operand specifies which bit in the status register to test. `<bit No.>` has the range 0 to 29 inclusive. Other values for `<bit No.>` will cause an illegal operand value trap condition; no jump is performed if `<rel>` is ST, the jump is performed if `<rel>` is -ST.
+
+      Magnitude tests are only meaningful after compare and subtract instructions, as carry is reset in load instructions. IF )>= GO and IF << GO may be used as explicit tests on carry.
+
+      **Trap conditions:** Addressing traps, Branch trap (BT), Illegal operand value (IOV)
+
+      **Data status bits:** Unaffected
+
+      In the following table all conditional jump instructions are listed with operation code, assembly notation, data status test for jumping and name. They all have conditional jump as the first part of the name; alt. is an abbreviation for alternate.
+
+      ---

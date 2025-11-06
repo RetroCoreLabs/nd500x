@@ -1,0 +1,142 @@
+instruction:
+  name: "smvtu"
+  function: "Smvtu"
+  mnemonic: "smvtu"
+  description: |
+    Smvtu
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD75"
+      opcode_binary: "1111_1101_0111_0101"
+      opcode_decimal: 64885
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE2"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Smvtu
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Smvtu with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SMVTU 5, 6, B.8
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Smvtu with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SMVTU B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Smvtu with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SMVTU ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "14.6"
+    title: "String move translated until"
+    content: |
+      # 14.6 String move translated until
+
+      **Format:**
+      BY SMVTU `<source/r/BY/I1=>,<dest/w/BY/I2=>,<trans table/aa/BY>`
+
+      | Assembly notation | Name                               | Hex code | Octal code |
+      |-------------------|------------------------------------|----------|------------|
+      | BY SMVTU          | byte string move translated until  | 0FD75H   | 176565B    |
+
+      **Operation:**
+
+      ```
+      while not end of strings
+        and tr(S(I1)) ≠ ASCII "escape" do
+          if tr(S(I1)) ≠ zero then
+            tr(S(I1)) -> D(I2), I2+1 -> I2
+          endif
+          I1+1 -> I1
+      enddo
+      ```
+
+      **Description:**
+
+      Bytes from the `<source=>` operand are translated via the translation table found at the address specified in the `<trans table>` operand. Translated bytes are moved from `<source=>` to `<dest=>` string if they are not zero. The move operation stops if the translated byte is equal to ASCII "escape" (01BH or 33B), the `<source=>` operand is empty, or the `<dest=>` operand full. Overlap is not taken care of.
+
+      The "escape" character is not moved.
+
+      **Terminating conditions:**
+
+      | Condition         | K=0/K=1 | Z=0/Z=1  | I1, I2                        |
+      |-------------------|---------|----------|--------------------------------|
+      | outside source    | K=0     | Z=0      | I1, I2 unmodified, DR trap condition |
+      | outside dest      | K=1     | Z=0      | I1, I2 unmodified, DR trap condition |
+      | "escape" found    | K=0     | Z=1      | I1, I2 :- position of "escape". |
+      | source empty      | K=0     | Z=0      | I1, I2 :- next element          |
+      | dest full         | K=1     | Z=0      | I1, I2 :- next element          |
+
+      **Example:**
+
+      Remove ASCII NULs and translate to uppercase the string described by record variable TEXT, copying it to the string described by TEXT2, starting at the current position
+
+      BY SMVTU R.TEXT, TEXT2, UPPERCASETABLE
+
+      ---
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

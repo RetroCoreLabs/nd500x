@@ -1,0 +1,338 @@
+instruction:
+  name: "bmove"
+  function: "Bmove"
+  mnemonic: "bmove"
+  description: |
+    Bmove
+    
+    
+    Operands: 3
+    Variants: 5 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFD20"
+      opcode_binary: "1111_1101_0010_0000"
+      opcode_decimal: 64800
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 2/5
+      opcode: "0xFE78"
+      opcode_binary: "1111_1110_0111_1000"
+      opcode_decimal: 65144
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 3/5
+      opcode: "0xFE79"
+      opcode_binary: "1111_1110_0111_1001"
+      opcode_decimal: 65145
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 4/5
+      opcode: "0xFE7A"
+      opcode_binary: "1111_1110_0111_1010"
+      opcode_decimal: 65146
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+    - variant: 5/5
+      opcode: "0xFE7B"
+      opcode_binary: "1111_1110_0111_1011"
+      opcode_decimal: 65147
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Bmove
+# Total variants: 5
+
+
+  examples:
+    - description: |
+        Basic bmove operation using word register
+      prefix: "W"
+      code: |
+        W1 BMOVE W2, B.16, R.8
+      explanation: |
+        Perform bmove operation on word-sized data
+
+    - description: |
+        Bmove with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 BMOVE 5, B.4, 7
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Bmove with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 BMOVE B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Bmove with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 BMOVE ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Bmove with floating-point data
+      prefix: "F"
+      code: |
+        F1 BMOVE F2, F4
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of bmove instruction
+      code: |
+        Variant 1/5: BY1 BMOVE\nVariant 2/5: BY1 BMOVE\nVariant 3/5: BY1 BMOVE
+      explanation: |
+        The bmove instruction has 5 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "15.1"
+    title: "Block Move and Fill"
+    content: |
+      #### 15.1 Block Move and Fill
+
+      **Format:**
+      t BMOVE `<source/r/t>,<dest/w/t>,<m/r/w>`
+
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | BY BMOVE          | byte block move        | 0FD20H   | 176440B    |
+      | H BMOVE           | halfword block move    | 0FE78H   | 177170B    |
+      | W BMOVE           | word block move        | 0FE79H   | 177171B    |
+      | F BMOVE           | float block move       | 0FE7AH   | 177172B    |
+      | D BMOVE           | double float block move| 0FE7BH   | 177173B    |
+
+      **Operation:**
+      0 -> i
+      while i < m do
+      &nbsp;&nbsp;&nbsp;&nbsp;source(i) -> dest(i); i + 1 -> i
+      enddo
+
+      **Description:**
+
+      `<m>` elements are moved from the `<source>` to the `<dest>` operand. The operands are pointers to the start of the blocks. Overlap is taken care of. Constants and registers are illegal as destination operands. When a register or a constant is specified as a source operand, the destination string is filled with `<m>` elements equal to the value of the `<source>` operand. `<m>` is unsigned.
+
+      **Trap conditions:** Addressing traps
+
+      **Data status bits:** All cleared
+
+      **Terminating conditions:** m elements moved
+
+      **Example:**
+
+      Fill local data area of routine (excluding header) with the largest negative word value (bit pattern equivalent to float minus zero) with the intention of facilitating detection of uninitialized variables
+
+      ```
+      W1 := 080000000H
+      W BMOVE W1, B.20, AREASIZE
+      ```
+
+      ---

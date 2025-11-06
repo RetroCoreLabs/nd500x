@@ -1,0 +1,260 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://nd500x.org/schemas/instruction.json",
+  "title": "ND-500 Instruction Definition",
+  "description": "Schema for ND-500 CPU instruction YAML files",
+  "type": "object",
+  "required": ["instruction"],
+  "properties": {
+    "instruction": {
+      "type": "object",
+      "required": [
+        "name",
+        "function",
+        "mnemonic",
+        "description",
+        "category",
+        "instruction_class",
+        "privilege",
+        "operand_count",
+        "variants",
+        "manual_reference"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Instruction name (lowercase)"
+        },
+        "function": {
+          "type": "string",
+          "description": "Function name (PascalCase)"
+        },
+        "mnemonic": {
+          "type": "string",
+          "description": "Assembly mnemonic"
+        },
+        "description": {
+          "type": "string",
+          "description": "Instruction description (multiline)"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "MOVE",
+            "ARITHMETIC",
+            "LOGICAL",
+            "COMPARE",
+            "SHIFT",
+            "BITFIELD",
+            "STRING",
+            "BRANCH",
+            "CALL",
+            "FLOAT_MATH",
+            "CONTROL",
+            "SYSTEM",
+            "IO"
+          ],
+          "description": "Instruction category"
+        },
+        "instruction_class": {
+          "type": "string",
+          "enum": [
+            "move",
+            "arithmetic",
+            "logical",
+            "compare",
+            "shift",
+            "bitfield",
+            "string",
+            "branch",
+            "call",
+            "float_math",
+            "control",
+            "system",
+            "io"
+          ],
+          "description": "Instruction class (lowercase)"
+        },
+        "privilege": {
+          "type": "string",
+          "enum": ["user", "supervisor"],
+          "description": "Required privilege level"
+        },
+        "operand_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "Number of operands (0-4)"
+        },
+        "variants": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Array of instruction variants",
+          "items": {
+            "type": "object",
+            "required": [
+              "variant",
+              "opcode",
+              "opcode_binary",
+              "opcode_decimal",
+              "prefix_mask",
+              "prefixes"
+            ],
+            "properties": {
+              "variant": {
+                "type": "string",
+                "pattern": "^\\d+/\\d+$",
+                "description": "Variant number (format: N/M)"
+              },
+              "opcode": {
+                "type": "string",
+                "pattern": "^0x[0-9A-F]{4}$",
+                "description": "Hexadecimal opcode"
+              },
+              "opcode_binary": {
+                "type": "string",
+                "pattern": "^[01]{4}_[01]{4}_[01]{4}_[01]{4}$",
+                "description": "Binary opcode with underscores"
+              },
+              "opcode_decimal": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "description": "Decimal opcode value"
+              },
+              "prefix_mask": {
+                "type": "string",
+                "pattern": "^0x[0-9A-F]{2}$",
+                "description": "Prefix mask (hex)"
+              },
+              "prefixes": {
+                "type": "array",
+                "minItems": 1,
+                "description": "Supported data type prefixes",
+                "items": {
+                  "type": "string",
+                  "enum": ["NONE", "BI", "BY", "H", "W", "F", "D", "R_N"]
+                }
+              },
+              "operands": {
+                "type": "array",
+                "description": "Operand definitions (if operand_count > 0)",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "operand",
+                    "addressing_modes",
+                    "template",
+                    "metadata"
+                  ],
+                  "properties": {
+                    "operand": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4,
+                      "description": "Operand number (1-4)"
+                    },
+                    "addressing_modes": {
+                      "type": "array",
+                      "minItems": 1,
+                      "description": "Supported addressing modes for this operand",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "NONE",
+                          "CONSTANT",
+                          "CONSTANT_SHORT",
+                          "REGISTER",
+                          "LOCAL",
+                          "LOCAL_SHORT",
+                          "LOCAL_INDIRECT",
+                          "RECORD",
+                          "RECORD_SHORT",
+                          "RECORD_INDIRECT",
+                          "ABSOLUTE",
+                          "ABSOLUTE_INDIRECT",
+                          "PRE_INDEXED",
+                          "POST_INDEXED",
+                          "DESCRIPTOR",
+                          "ALTERNATIVE_DOMAIN"
+                        ]
+                      }
+                    },
+                    "template": {
+                      "type": "string",
+                      "pattern": "^0x[0-9A-F]{8}$",
+                      "description": "Operand template (hex)"
+                    },
+                    "metadata": {
+                      "type": "string",
+                      "description": "Operand metadata string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "manual_reference": {
+          "type": "object",
+          "required": ["section", "title", "content"],
+          "description": "Reference manual documentation",
+          "properties": {
+            "section": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+(\\.\\d+)?$",
+              "description": "Manual section number (e.g., '10.12' or '15.9.1')"
+            },
+            "title": {
+              "type": "string",
+              "description": "Section title"
+            },
+            "content": {
+              "type": "string",
+              "description": "Manual content (markdown formatted)"
+            }
+          }
+        },
+        "examples": {
+          "type": "array",
+          "description": "Assembly code examples demonstrating instruction usage",
+          "items": {
+            "type": "object",
+            "required": ["description", "code"],
+            "properties": {
+              "description": {
+                "type": "string",
+                "description": "What this example demonstrates"
+              },
+              "variant": {
+                "type": "string",
+                "description": "Which variant(s) this example uses (optional)"
+              },
+              "prefix": {
+                "type": "string",
+                "enum": ["NONE", "BI", "BY", "H", "W", "F", "D", "R_N"],
+                "description": "Data type prefix used (optional)"
+              },
+              "addressing_mode": {
+                "type": "string",
+                "description": "Addressing mode(s) demonstrated (optional)"
+              },
+              "code": {
+                "type": "string",
+                "description": "Assembly code example"
+              },
+              "explanation": {
+                "type": "string",
+                "description": "Detailed explanation of what the code does (optional)"
+              },
+              "result": {
+                "type": "string",
+                "description": "Expected result or side effects (optional)"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

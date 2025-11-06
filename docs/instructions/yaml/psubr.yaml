@@ -1,0 +1,132 @@
+instruction:
+  name: "psubr"
+  function: "Psubr"
+  mnemonic: "psubr"
+  description: |
+    Psubr
+    
+    Arithmetic operation
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE86"
+      opcode_binary: "1111_1110_1000_0110"
+      opcode_decimal: 65158
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Psubr
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Psubr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 PSUBR B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Psubr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 PSUBR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 PSUBR 1\n; Result in W1
+      explanation: |
+        Common use case for psubr in calculations
+
+  manual_reference:
+    section: "17.3"
+    title: "Packed subtract"
+    content: |
+      ## 17.3 Packed subtract
+
+      **Format:**
+      PSUB \<=a/r/BCD=>, \<=b/r/BCD=>, \<=c/w/BCD=>
+
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | PSUB              | packed subtract        | 0FEB1H   | 177261B    |
+      | PSUBR             | packed subtract rounded | 0FE86H   | 177206B    |
+
+      ### Operation:
+      \<a> - \<b> -> \<c>
+
+      ### Description:
+
+      The \<b> operand is subtracted from the \<a> operand and the difference is stored in the \<c> operand.
+
+      The result is scaled according to the scale factor in the \<c> operand descriptor before storing.
+
+      ### Trap conditions:
+      Addressing traps, BCD overflow (BO), Invalid operation (IVO)
+
+      ### Data status bits:
+
+      - difference = 0 -> Z
+      - difference.signbit -> S
+      - BCD overflow -> BO
+      - BO or IVO -> K
+
+      ### Example:
+
+      Subtract local variable DISCOUNT from global variable TOTAL and round the resulting value before storing it
+
+          PSUBR TOTAL, B.DISCOUNT, TOTAL
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,472 @@
+instruction:
+  name: "rem"
+  function: "Rem"
+  mnemonic: "rem"
+  description: |
+    Rem
+    
+    Arithmetic operation
+    
+    Operands: 3
+    Variants: 8 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/8
+      opcode: "0xFE58"
+      opcode_binary: "1111_1110_0101_1000"
+      opcode_decimal: 65112
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/8
+      opcode: "0xFE59"
+      opcode_binary: "1111_1110_0101_1001"
+      opcode_decimal: 65113
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/8
+      opcode: "0xFE5A"
+      opcode_binary: "1111_1110_0101_1010"
+      opcode_decimal: 65114
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/8
+      opcode: "0xFE5B"
+      opcode_binary: "1111_1110_0101_1011"
+      opcode_decimal: 65115
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/8
+      opcode: "0xFE5C"
+      opcode_binary: "1111_1110_0101_1100"
+      opcode_decimal: 65116
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/8
+      opcode: "0xFE5D"
+      opcode_binary: "1111_1110_0101_1101"
+      opcode_decimal: 65117
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 7/8
+      opcode: "0xFE5E"
+      opcode_binary: "1111_1110_0101_1110"
+      opcode_decimal: 65118
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 8/8
+      opcode: "0xFE5F"
+      opcode_binary: "1111_1110_0101_1111"
+      opcode_decimal: 65119
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Rem
+# Total variants: 8
+
+
+  examples:
+    - description: |
+        Basic rem operation using word register
+      prefix: "W"
+      code: |
+        W1 REM W2, B.16, R.8
+      explanation: |
+        Perform rem operation on word-sized data
+
+    - description: |
+        Rem with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 REM B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Rem with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 REM ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Rem with floating-point data
+      prefix: "F"
+      code: |
+        F1 REM F2, F3, F4
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of rem instruction
+      code: |
+        Variant 1/8: F1 REM\nVariant 2/8: F1 REM\nVariant 3/8: F1 REM
+      explanation: |
+        The rem instruction has 8 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 REM 1\n; Result in W1
+      explanation: |
+        Common use case for rem in calculations
+
+  manual_reference:
+    section: "13.4"
+    title: "Loop with increment"
+    content: |
+      ## 13.4 Loop with increment
+
+      **Format:**
+      t LOOPI 〈index/rw/t〉,〈limit/r/t〉,〈〈displacement〉〉
+
+      | Assembly notation | Name                    | Hex code | Octal code |
+      |-------------------|-------------------------|----------|------------|
+      | BY LOOPI:B        | byte loop increment     | OFCDEH   | 176336B    |
+      | BY LOOPI:H        | byte loop increment     | OFD1EH   | 176436B    |
+      | H LOOPI:B         | halfword loop increment | OFCDFH   | 176337B    |
+      | H LOOPI:H         | halfword loop increment | OFD1FH   | 176437B    |
+      | W LOOPI:B         | word loop increment     | OFBFH    | 277B       |
+      | W LOOPI:H         | word loop increment     | OE1H     | 341B       |
+      | F LOOPI:B         | float loop increment    | OFD1CH   | 176434B    |
+      | F LOOPI:H         | float loop increment    | OFD21H   | 176441B    |
+      | D LOOPI:B         | double float loop increment | OFD1DH | 176435B    |
+      | D LOOPI:H         | double float loop increment | OFD22H | 176442B    |
+
+      **Operation:**
+      if 〈index + 1〉 - 〈limit〉 > 0 then
+      &nbsp;&nbsp;&nbsp;&nbsp;address of next instruction -> P
+      else
+      &nbsp;&nbsp;&nbsp;&nbsp;P+〈〈displacement〉〉 -> P
+      endif
+      〈index〉 + 1 -> 〈index〉
+
+      **Description:**
+
+      The 〈index〉 operand is incremented by one and compared with 〈limit〉.
+      If it is less than or equal to 〈limit〉, the signed 〈〈displacement〉〉 is
+      added to the program counter; otherwise control goes to the next instruction.
+
+      Normally the LOOPI instruction will be placed at the end of the loop,
+      with a negative 〈〈displacement〉〉. The 〈〈displacement〉〉 is the number
+      of bytes from the first byte of the loop to the first byte of the
+      LOOPI instruction.
+
+      The 〈index〉 and 〈limit〉 operands are of the same data type, which may
+      be BY, H, W, F or D. 〈〈displacement〉〉 is a byte or halfword direct
+      operand, depending on the instruction.
+
+      * * *
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

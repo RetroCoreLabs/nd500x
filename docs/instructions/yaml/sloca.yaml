@@ -1,0 +1,162 @@
+instruction:
+  name: "sloca"
+  function: "Sloca"
+  mnemonic: "sloca"
+  description: |
+    Sloca
+    
+    System operation (privileged)
+    
+    Operands: 2
+    Variants: 2 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 2
+
+  variants:
+    - variant: 1/2
+      opcode: "0xFDAF"
+      opcode_binary: "1111_1101_1010_1111"
+      opcode_decimal: 64943
+      prefix_mask: "0x03"
+
+      prefixes:
+        - BI
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/2
+      opcode: "0xFDB0"
+      opcode_binary: "1111_1101_1011_0000"
+      opcode_decimal: 64944
+      prefix_mask: "0x03"
+
+      prefixes:
+        - BI
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sloca
+# Total variants: 2
+
+
+  examples:
+    - description: |
+        Sloca with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SLOCA 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Sloca with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SLOCA B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sloca with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SLOCA ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of sloca instruction
+      code: |
+        Variant 1/2: BI1 SLOCA\nVariant 2/2: BI1 SLOCA
+      explanation: |
+        The sloca instruction has 2 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "14.15"
+    title: "String locate element"
+    content: |
+      ### 14.15 String locate element
+
+      **Format:**
+
+          t SLOCA (<source/r/t/I1=>,<test/r/BI,BY>)
+
+      | Assembly notation | Name                  | Hex code | Octal code |
+      |-------------------|-----------------------|----------|------------|
+      | BI SLOCA          | string locate bit     | 0FDAFH   | 176657B    |
+      | BY SLOCA          | string locate byte    | 0FDB0H   | 176660B    |
+
+      **Operation:**
+
+          while not end of string
+              and S(I1) >< <test> do
+                  I1 + 1 -> I1
+          enddo
+
+      **Description:**
+
+      The <source> operand is examined element by element until an examined element is equal to the <test> operand or until the end of <source> operand is reached.
+
+      **Terminating conditions:**
+
+      - outside source: K=0 Z=1 I1 unmodified, DR trap condition
+      - element = <test>: K=0 Z=1 I1 :- found element
+      - source empty: K=0 Z=0 I1 :- next element
+
+      **Example:**
+
+      Find the next reset bit in the bit string on the alternative domain described by the record variable RESERVED
+
+          BI SLOCA ALT(R.RESERVED), 0
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

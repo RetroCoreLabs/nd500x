@@ -1,0 +1,106 @@
+instruction:
+  name: "wphs"
+  function: "Wphs"
+  mnemonic: "wphs"
+  description: |
+    Wphs
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFFF4"
+      opcode_binary: "1111_1111_1111_0100"
+      opcode_decimal: 65524
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0003FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Wphs
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Wphs with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 WPHS B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Wphs with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 WPHS ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.32"
+    title: "WPHS - Write to physical segment ('87 extension)"
+    content: |
+      ### 16.32 WPHS - Write to physical segment ('87 extension)
+
+      **Format:** WPHS `<domain number/r/W>`
+
+      | Assembly notation | Name                       | Hex code | Octal code |
+      |-------------------|----------------------------|----------|------------|
+      | WPHS              | write to physical segment  | FFF4H    | 177764B    |
+
+      **Operation:**
+
+      while I1 > 0 do
+      &nbsp;&nbsp;&nbsp;&nbsp;S(`domain number`.I2) -> D(I4.I3)
+      &nbsp;&nbsp;&nbsp;&nbsp;I3 + 1 -> I3
+      &nbsp;&nbsp;&nbsp;&nbsp;I2 + 1 -> I2
+      &nbsp;&nbsp;&nbsp;&nbsp;I1 - 1 -> I1
+      enddo
+
+      **Description:**
+
+      Privileged instruction
+
+      Copy number of bytes from logical address on the domain to logical address on physical segment.
+
+      - I1 : Number of bytes to be moved.
+      - I2 : Logical address on the domain.
+      - I3 : Address on the physical segment.
+      - I4 : Physical segment number.
+      - Operand : domain number.
+
+      The copy operation is continued until the number of bytes left is equal to 0 (I1 = 0) or a page boundary is reached on the physical segment. Number of bytes to be moved is counted down and will be zero when the move operation is completed. The addresses are incremented during the copy operation.
+
+      The instruction is meant for use when copying data to a physical segment in one process from a domain in another. The physical segment number is used together with the physical segment table pointer to find the physical page number of the wanted data page or of the corresponding index page.
+
+      **Data Status Bits:**
+
+      no bytes left = 0 &nbsp;&nbsp;: 1 -> Z
+      page boundary and no bytes left < 0 : 0 -> Z
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

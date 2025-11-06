@@ -1,0 +1,259 @@
+instruction:
+  name: "set1"
+  function: "Set1"
+  mnemonic: "set1"
+  description: |
+    Set1
+    
+    Control flow operation
+    
+    Operands: 1
+    Variants: 6 opcode(s)
+
+  category: "CONTROL"
+  instruction_class: "control"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/6
+      opcode: "0xFC86"
+      opcode_binary: "1111_1100_1000_0110"
+      opcode_decimal: 64646
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/6
+      opcode: "0xFC87"
+      opcode_binary: "1111_1100_1000_0111"
+      opcode_decimal: 64647
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/6
+      opcode: "0xFC88"
+      opcode_binary: "1111_1100_1000_1000"
+      opcode_decimal: 64648
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/6
+      opcode: "0x004D"
+      opcode_binary: "0000_0000_0100_1101"
+      opcode_decimal: 77
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/6
+      opcode: "0x0047"
+      opcode_binary: "0000_0000_0100_0111"
+      opcode_decimal: 71
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/6
+      opcode: "0xFC89"
+      opcode_binary: "1111_1100_1000_1001"
+      opcode_decimal: 64649
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Set1
+# Total variants: 6
+
+
+  examples:
+    - description: |
+        Basic set1 operation using word register
+      prefix: "W"
+      code: |
+        W1 SET1 W2
+      explanation: |
+        Perform set1 operation on word-sized data
+
+    - description: |
+        Set1 with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SET1 B.0
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Set1 with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SET1 B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Set1 with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SET1 ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Set1 with floating-point data
+      prefix: "F"
+      code: |
+        F1 SET1 F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of set1 instruction
+      code: |
+        Variant 1/6: BI1 SET1\nVariant 2/6: BI1 SET1\nVariant 3/6: BI1 SET1
+      explanation: |
+        The set1 instruction has 6 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "10.18"
+    title: "Set to one"
+    content: |
+      # 10.18 Set to one
+
+      **Format:**
+      t SET1 <operand/w/t>
+
+      | Assembly notation | Name                  | Hex code | Octal code |
+      |-------------------|-----------------------|----------|------------|
+      | BI SET1           | bit set to one        | OFC86H   | 176206B    |
+      | BY SET1           | byte set to one       | OFC87H   | 176207B    |
+      | H SET1            | halfword set to one   | OFC88H   | 176210B    |
+      | W SET1            | word set to one       | 04DH     | 115B       |
+      | F SET1            | float set to one      | 047H     | 107B       |
+      | D SET1            | double float set to one | OFC89H | 176211B    |
+
+      **Operation:**
+      1 -> <operand>
+
+      **Description:**
+
+      The contents of the destination operand are replaced by one.
+
+      **Trap conditions:** Addressing traps
+
+      **Data status bits:** All cleared
+
+      **Example:**
+
+      Set float argument START to one
+
+          F SET1 IND(B.START)
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

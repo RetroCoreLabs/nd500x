@@ -1,0 +1,128 @@
+instruction:
+  name: "smvtr"
+  function: "Smvtr"
+  mnemonic: "smvtr"
+  description: |
+    Smvtr
+    
+    String operation:
+    Processes string/array data
+    
+    Operands: 3
+    Variants: 1 opcode(s)
+
+  category: "STRING"
+  instruction_class: "string"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFD74"
+      opcode_binary: "1111_1101_0111_0100"
+      opcode_decimal: 64884
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE2"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Smvtr
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Smvtr with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SMVTR 5, 6, B.8
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Smvtr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SMVTR B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Smvtr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SMVTR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "14.5"
+    title: "String move translated"
+    content: |
+      ### 14.5 String move translated
+
+      **Format:**
+      BY SMVTR `<source/r/BY/I1=>,<dest/w/BY/I2=>, <trans table/aa/BY>`
+
+      | Assembly notation | Name                     | Hex code | Octal code |
+      |-------------------|--------------------------|----------|------------|
+      | BY SMVTR          | byte string move translated | OFD74H   | 176564B    |
+
+      **Operation:**
+      while not end of strings do
+      tr(S(I1)) -> D(I2), I1+1 -> I1, I2+1 -> I2
+      enddo
+
+      **Description:**
+      Bytes from the `<source>` operand are translated via a translation table found at the address specified in the operand `<trans table>`. Translated bytes are moved from the `<source>` to the `<dest>` operand until the `<source>` is empty or the `<dest>` is full. Overlap is taken care of.
+
+      **Terminating conditions:**
+
+      - outside source: K=0  I1, I2 unmodified, DR trap condition
+      - outside dest: K=1  I1, I2 unmodified, DR trap condition
+      - source empty: K=0  I1, I2 :- next element
+      - dest full: K=1  I1, I2 :- next element
+
+      **Example:**
+
+      Convert the string CHARACTERS from EBCDIC to ASCII
+
+          W1 CLR; W2 CLR
+          BY SMVTR CHARACTERS, CHARACTERS, EBCDIC2ASCII
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

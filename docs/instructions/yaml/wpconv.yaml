@@ -1,0 +1,183 @@
+instruction:
+  name: "wpconv"
+  function: "Wpconv"
+  mnemonic: "wpconv"
+  description: |
+    Wpconv
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 1
+    Variants: 4 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/4
+      opcode: "0xFEB8"
+      opcode_binary: "1111_1110_1011_1000"
+      opcode_decimal: 65208
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/4
+      opcode: "0xFEB9"
+      opcode_binary: "1111_1110_1011_1001"
+      opcode_decimal: 65209
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/4
+      opcode: "0xFEBA"
+      opcode_binary: "1111_1110_1011_1010"
+      opcode_decimal: 65210
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/4
+      opcode: "0xFEBB"
+      opcode_binary: "1111_1110_1011_1011"
+      opcode_decimal: 65211
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Wpconv
+# Total variants: 4
+
+
+  examples:
+    - description: |
+        Basic wpconv operation using word register
+      prefix: "W"
+      code: |
+        W1 WPCONV W2
+      explanation: |
+        Perform wpconv operation on word-sized data
+
+    - description: |
+        Wpconv with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 WPCONV B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Wpconv with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 WPCONV ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of wpconv instruction
+      code: |
+        Variant 1/4: W1 WPCONV\nVariant 2/4: W1 WPCONV\nVariant 3/4: W1 WPCONV
+      explanation: |
+        The wpconv instruction has 4 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "17.10"
+    title: "Convert binary word to packed"
+    content: |
+      # 17.10 Convert binary word to packed
+
+      **Format:**
+      Wn WPCONV <dest/w/BCD=>
+
+      | Assembly notation | Name               | Hex code         | Octal code        |
+      |-------------------|--------------------|------------------|-------------------|
+      | Wn WPCONV         | convert binary to packed | OFEB8H+(n-1) | 177270B+(n-1) |
+
+      **Operation:**
+      Rn -> <dest>
+
+      **Description:**
+
+      The contents of the specified word register are converted to packed decimal and stored in the <dest> operand. If the scaling factor of <dest> is negative, the least significant digits are lost. <dest> is extended with low order or high order zeros as required by the scaling factor.
+
+      **Trap conditions:**
+      Addressing traps, BCD overflow (BO)
+
+      **Data status bits:**
+
+      value = 0 -> Z
+      value.signbit -> S
+      BCD overflow -> BO
+      BO -> K
+
+      **Example:**
+
+      Convert W1 to packed and store in IFIELD
+
+          W1 WPCONV IFIELD
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

@@ -1,0 +1,301 @@
+instruction:
+  name: "sin"
+  function: "Sin"
+  mnemonic: "sin"
+  description: |
+    Sin
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 1
+    Variants: 8 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/8
+      opcode: "0xFF58"
+      opcode_binary: "1111_1111_0101_1000"
+      opcode_decimal: 65368
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/8
+      opcode: "0xFF59"
+      opcode_binary: "1111_1111_0101_1001"
+      opcode_decimal: 65369
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/8
+      opcode: "0xFF5A"
+      opcode_binary: "1111_1111_0101_1010"
+      opcode_decimal: 65370
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/8
+      opcode: "0xFF5B"
+      opcode_binary: "1111_1111_0101_1011"
+      opcode_decimal: 65371
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/8
+      opcode: "0xFF84"
+      opcode_binary: "1111_1111_1000_0100"
+      opcode_decimal: 65412
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/8
+      opcode: "0xFF85"
+      opcode_binary: "1111_1111_1000_0101"
+      opcode_decimal: 65413
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 7/8
+      opcode: "0xFF86"
+      opcode_binary: "1111_1111_1000_0110"
+      opcode_decimal: 65414
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 8/8
+      opcode: "0xFF87"
+      opcode_binary: "1111_1111_1000_0111"
+      opcode_decimal: 65415
+      prefix_mask: "0x70"
+
+      prefixes:
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sin
+# Total variants: 8
+
+
+  examples:
+    - description: |
+        Basic sin operation using word register
+      prefix: "W"
+      code: |
+        W1 SIN W2
+      explanation: |
+        Perform sin operation on word-sized data
+
+    - description: |
+        Sin with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SIN B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sin with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SIN ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Sin with floating-point data
+      prefix: "F"
+      code: |
+        F1 SIN F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of sin instruction
+      code: |
+        Variant 1/8: F1 SIN\nVariant 2/8: F1 SIN\nVariant 3/8: F1 SIN
+      explanation: |
+        The sin instruction has 8 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "8.12"
+    title: "Constant Operand Addressing"
+    content: |
+      # 8.12 Constant Operand Addressing
+
+      ## Assembly Notation
+
+      | Assembly Notation  | Name                          | Hex Code | Octal Code |
+      |--------------------|-------------------------------|----------|------------|
+      | `<constant>`       | General Constant              |          |            |
+      | `<constant>:S`     | Short Constant                | 000H+xx  | 000B+xx    |
+      | `<constant>:B`     | Byte Constant                 | OCDH     | 315B       |
+      | `<constant>:H`     | Halfword Constant             | 0CEH     | 316B       |
+      | `<constant>:W`     | Word Constant                 | 0CFH     | 317B       |
+      | `<constant>:F`     | Floating-point Constant       | 0CFH     | 317B       |
+      | `<constant>:D`     | Double Floating-point Constant| OCCH     | 314B       |
+
+      op = data part of operand specifier
+
+      The data to be operated on is part of the operand specifier. It resides in the program memory and cannot be modified by any instruction. The value of the operand may have a length of six bits or one, two, four or eight bytes.
+
+      Constant operands are illegal for all write instructions, e.g. store, swap, or shift instructions. They are also illegal as destination operand(s) for multi-operand instructions, and in certain special instructions like TSET and RDUS. They are also illegal as subroutine arguments, as they have no address in data memory.
+
+      Note that word and floating-point constants have the same address code.
+
+      ## Assembly Notation
+
+      | Assembly Notation | Byte0 | Byte1 | Byte2 | Byte3 | Byte4 |
+      |-------------------|-------|-------|-------|-------|-------|
+      | 150B:B            |       |       |       |       |       |
+      | Octal: 315B       | 150B  |       |       |       |       |
+      | Hex:  OCDH        | 068H  |       |       |       |       |
+
+      | 1200000:W         |       |       |       |       |       |
+      | Octal: 317B       | 000B  | 022B  | 117B  | 200B  |       |
+      | Hex:  0CFH        | 000H  | 012H  | 04FH  | 080H  |       |
+
+      | 12B:S             |       |       |       |       |       |
+      | Octal: 012B       |       |       |       |       |       |
+      | Hex:  00AH        |       |       |       |       |       |
+
+      | 6400H:H           |       |       |       |       |       |
+      | Octal: 316B       | 144B  | 000B  |       |       |       |
+      | Hex:  0CEH        | 064H  | 000H  |       |       |       |
+
+      *Table 12. Example of constants*
+
+      The instruction code decides the interpretation of the operand addressed by the operand specifier. This may produce conflicts between the operand interpretation and the size of the data part of constant operands. These are solved by sign extension or data conversion if possible, done automatically by hardware. If no conversion is meaningful an illegal operand specifier trap condition occurs.
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

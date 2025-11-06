@@ -1,0 +1,183 @@
+instruction:
+  name: "getb"
+  function: "Getb"
+  mnemonic: "getb"
+  description: |
+    Getb
+    
+    Bit field operation:
+    Manipulates bit fields within operands
+    
+    Operands: 1
+    Variants: 4 opcode(s)
+
+  category: "BITFIELD"
+  instruction_class: "bitfield"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/4
+      opcode: "0xFE4C"
+      opcode_binary: "1111_1110_0100_1100"
+      opcode_decimal: 65100
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/4
+      opcode: "0xFE4D"
+      opcode_binary: "1111_1110_0100_1101"
+      opcode_decimal: 65101
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/4
+      opcode: "0xFE4E"
+      opcode_binary: "1111_1110_0100_1110"
+      opcode_decimal: 65102
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/4
+      opcode: "0xFE4F"
+      opcode_binary: "1111_1110_0100_1111"
+      opcode_decimal: 65103
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Getb
+# Total variants: 4
+
+
+  examples:
+    - description: |
+        Basic getb operation using word register
+      prefix: "W"
+      code: |
+        W1 GETB W2
+      explanation: |
+        Perform getb operation on word-sized data
+
+    - description: |
+        Getb with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 GETB B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Getb with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 GETB ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of getb instruction
+      code: |
+        Variant 1/4: W1 GETB\nVariant 2/4: W1 GETB\nVariant 3/4: W1 GETB
+      explanation: |
+        The getb instruction has 4 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "15.13"
+    title: "Get buddy element"
+    content: |
+      # 15.13 Get buddy element
+
+      **Format:**
+      Wn GETB `<log size/r/BY>`
+
+      | Assembly notation | Hex code         | Octal code            |
+      |-------------------|------------------|-----------------------|
+      | Name              |                  |                       |
+      | Wn GETB           | get buddy element from heap | 0FE4C+(n-1) | 177114B+(n-1) |
+
+      **Operation:**
+      Allocates element of size 2**`<log size>` words
+      Address of element -> Wn
+
+      **Description:**
+
+      Allocate an element of size 2**`<log size>` words from the heap.
+
+      If an element of the given size is available, it is removed from the freelist and its address is returned to the specified register. Otherwise the list is examined for larger elements. If none are available, a stack overflow trap condition occurs. If a larger element is found, it is removed from its freelist and chopped into halves until an element of the desired size can be allocated. The other half of the chopped element(s) will be added to the appropriate freelists.
+
+      The administration of the heap is described in section 3.3. When executing the GETB instruction, the TOS register must point to the variables describing the heap.
+
+      **Trap conditions:**
+      Addressing traps, Stack overflow (STO)
+
+      **Data status bits:**
+      Unaffected
+
+      **Example:**
+
+      Allocate a 64 word data block from the heap, leaving its address in W3
+
+          W3 GETB 6
+
+      ---

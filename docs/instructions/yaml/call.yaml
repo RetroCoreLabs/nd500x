@@ -1,0 +1,84 @@
+instruction:
+  name: "call"
+  function: "Call"
+  mnemonic: "call"
+  description: |
+    Call
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0x00C3"
+      opcode_binary: "0000_0000_1100_0011"
+      opcode_decimal: 195
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - NONE
+          template: "0x00020008"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+        - operand: 2
+          addressing_modes:
+            - CONSTANT
+          template: "0x00002002"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Call
+# Total variants: 1
+
+
+  manual_reference:
+    section: "13.7"
+    title: "Call subroutine general"
+    content: |
+      ### 13.7 Call subroutine general
+
+      **Format:** CALLG `<subr. addr/r/W>,<no of arg/s/BY>, <arg1/aa/W>,...,<argn/aa/W>`
+
+      | Assembly notation | Name                  | Hex code | Octal code |
+      |-------------------|-----------------------|----------|------------|
+      | CALLG             | call subroutine general | 0B5H     | 265B       |
+
+      **Operation:**
+
+      Calculate the effective addresses of the arguments and prepare for the entry point at `<subr. addr.>`.
+      Jump to the subroutine entry point found at that address.
+
+      **Description:**
+
+      Call the subroutine specified by `<subr. addr.>`. This is a general operand and it *must* refer to an entry point instruction. Otherwise an instruction-sequence error-trap condition occurs.
+
+      The `<no of arg>` operand must be a constant byte integer less than 256. Other data types which are not constants will cause an illegal operand specifier trap condition.
+
+      The effective addresses of the arguments in the instruction are calculated and stored for use by the entry point instruction. The arguments are always interpreted as word integers. The data-type-dependent addressing modes (post-indexed or descriptor address code format) should be used with care, as the result will be wrong for data types other than word. `<argn>` operands of type register or constant will cause an illegal operand specifier trap condition, as neither registers nor constants have an address in data memory. The arguments may not be prefixed by the operand specifier prefix ALT.
+
+      **Trap conditions:** Addressing traps, Call trap (CT), Illegal operand specifier (IOS), Instruction sequence error (ISE)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      Call PRINT with arguments UNIT, FORMAT and the local variable VALUE
+
+          CALLG PRINT, 3, UNIT, FORMAT, B.VALUE
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

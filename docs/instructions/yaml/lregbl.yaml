@@ -1,0 +1,97 @@
+instruction:
+  name: "lregbl"
+  function: "Lregbl"
+  mnemonic: "lregbl"
+  description: |
+    Lregbl
+    
+    System operation (privileged)
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFFF6"
+      opcode_binary: "1111_1111_1111_0110"
+      opcode_decimal: 65526
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0003FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Lregbl
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Lregbl with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 LREGBL B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Lregbl with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 LREGBL ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.27.2"
+    title: "LREGBL - Load register block ('87 extension)"
+    content: |
+      # 16.27.2 LREGBL - Load register block ('87 extension)
+
+      ### Format: LREGBL <mask/r/W>, <address/r/W>
+
+      | Assembly notation | Name                | Hex code | Octal code |
+      |-------------------|---------------------|----------|------------|
+      | LREGBL            | load register block | FFF6H    | 177766B    |
+
+      ### Operation
+
+      Load register block from logical address according to 'mask'.
+
+      ### Description
+
+      The registers specified in the mask are loaded from logical memory locations addressed by {address} plus register number\*4. The register numbers are shown in chapter 2.
+
+      When executed in non-privileged mode, the 'mask' will be reduced to include only registers that may be modified by assembly instructions in non privileged mode.
+
+      When included in the mask, registers residing in the domain information table are loaded from the logical address to the domain information table pointed out by PS and CED as result of the LREGBL instruction.
+
+      ---

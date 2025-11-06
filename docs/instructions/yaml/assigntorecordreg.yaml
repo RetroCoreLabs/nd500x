@@ -1,0 +1,98 @@
+instruction:
+  name: "r=:"
+  function: "AssignToRecordReg"
+  mnemonic: "r=:"
+  description: |
+    AssignToRecordReg
+    
+    Load/Assign operation:
+    Loads value into accumulator/register from operand
+    Syntax: r=: <source>
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFC09"
+      opcode_binary: "1111_1100_0000_1001"
+      opcode_decimal: 64521
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: AssignToRecordReg
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        R=: with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 R=: B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        R=: with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 R=: ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "10.6"
+    title: "Store record register"
+    content: |
+      ### 10.6 Store record register
+
+      **Format:**
+      R =: `<operand/w/W>`
+
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | R =:              | store record register  | OFC09H   | 176011B    |
+
+      **Operation:**
+      R -> `<operand>`
+
+      **Description:**
+
+      The contents of the record register are stored in the `<operand>`.
+
+      **Trap conditions:** Addressing traps
+
+      **Data status bits:**
+
+      - R register = 0  -> Z
+      - R register.signbit -> S
+
+      **Example:**
+
+      Store R in register R2
+
+          R =: R2
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

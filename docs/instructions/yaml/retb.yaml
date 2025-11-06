@@ -1,0 +1,95 @@
+instruction:
+  name: "retb"
+  function: "Retb"
+  mnemonic: "retb"
+  description: |
+    Retb
+    
+    Subroutine call:
+    Saves return address and transfers control to subroutine
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "CALL"
+  instruction_class: "call"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE1C"
+      opcode_binary: "1111_1110_0001_1100"
+      opcode_decimal: 65052
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Retb
+# Total variants: 1
+
+
+  manual_reference:
+    section: "13.11"
+    title: "Subroutine return"
+    content: |
+      # 13.11 Subroutine return
+
+      ## Assembly
+
+      | notation | Name                          | Hex code | Octal code |
+      |----------|-------------------------------|----------|------------|
+      | RET      | clear flag return from subroutine | 080H     | 200B       |
+      | RETK     | set flag return from subroutine | 081H     | 201B       |
+      | RETD     | return from direct subroutine  | 082H     | 202B       |
+      | RETT     | trap handler return            | 083H     | 203B       |
+      | IF K RET | if flag set subroutine return  | 09DH     | 235B       |
+      | RETB     | buddy subroutine return        | 0FE1CH   | 177034B    |
+      | RETBK    | set flag buddy subroutine return | 0FE1DH   | 177035B    |
+
+      ## Operation
+
+      **RET:**
+      0 -> STATUS.K B.RETA -> P -> L B.PREVB -> B
+
+      **RETK:**
+      1 -> STATUS.K B.RETA -> P -> L B.PREVB -> B
+
+      **RETD:**
+      L -> P
+
+      **RETT:**
+      The register block is loaded from B.arg2..B.arg40.
+
+      OTE, TEMM, CED and CAS are loaded from the domain information table.
+
+      The status register is loaded partly from B.arg18..B.arg19 and partly from the domain information table.
+
+      **IF K RET:**
+      If STATUS.K = 1 then
+      B.RETA -> P -> L B.PREVB -> B
+      endif
+
+      **RETB:**
+      Local data area released to heap
+      0 -> STATUS.K B.RETA -> P -> L B.PREVB -> B
+
+      **RETBK:**
+      Local data area released to heap
+      1 -> STATUS.K B.RETA -> P -> L B.PREVB -> B
+
+      ## Description
+
+      **RET, RETK**
+
+      Return from subroutine with local data area. The new base register and return address are taken from the current local data area. RETK will set the flag bit of the status register; RET will clear it.
+
+      **IF K RET**
+
+      If the flag bit K is set when the IF K RET instruction is executed, a subroutine return is performed with the flag bit remaining set. Otherwise, control goes to the next instruction.
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

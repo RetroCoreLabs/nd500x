@@ -1,0 +1,94 @@
+instruction:
+  name: "sregbl"
+  function: "Sregbl"
+  mnemonic: "sregbl"
+  description: |
+    Sregbl
+    
+    System operation (privileged)
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFFF7"
+      opcode_binary: "1111_1111_1111_0111"
+      opcode_decimal: 65527
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0003FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE8"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: Sregbl
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Sregbl with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SREGBL B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Sregbl with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SREGBL ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.27.1"
+    title: "SREGBL - Save register block ('87 extension)"
+    content: |
+      ### 16.27.1 SREGBL - Save register block ('87 extension)
+
+      **Format:** SREGBL {mask/r/W}, {address/r/W}
+
+      | Assembly notation | Name              | Hex code | Octal code |
+      |-------------------|-------------------|----------|------------|
+      | SREGBL            | save register block | FFF7H    | 177767B    |
+
+      **Operation:**
+      Save register block registers in specified address according to 'mask'.
+
+      **Description:**
+
+      The registers specified in the mask are stored in logical memory locations addressed by {address} plus register number*4. The register numbers are shown in chapter 2.
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

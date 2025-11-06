@@ -1,0 +1,711 @@
+instruction:
+  name: "laddr"
+  function: "Laddr"
+  mnemonic: "laddr"
+  description: |
+    Laddr
+    
+    System operation (privileged)
+    
+    Operands: 1
+    Variants: 24 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 1
+
+  variants:
+    - variant: 1/24
+      opcode: "0xFE20"
+      opcode_binary: "1111_1110_0010_0000"
+      opcode_decimal: 65056
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/24
+      opcode: "0xFE21"
+      opcode_binary: "1111_1110_0010_0001"
+      opcode_decimal: 65057
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/24
+      opcode: "0xFE22"
+      opcode_binary: "1111_1110_0010_0010"
+      opcode_decimal: 65058
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/24
+      opcode: "0xFE23"
+      opcode_binary: "1111_1110_0010_0011"
+      opcode_decimal: 65059
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/24
+      opcode: "0xFE24"
+      opcode_binary: "1111_1110_0010_0100"
+      opcode_decimal: 65060
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/24
+      opcode: "0xFE25"
+      opcode_binary: "1111_1110_0010_0101"
+      opcode_decimal: 65061
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 7/24
+      opcode: "0xFE26"
+      opcode_binary: "1111_1110_0010_0110"
+      opcode_decimal: 65062
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 8/24
+      opcode: "0xFE27"
+      opcode_binary: "1111_1110_0010_0111"
+      opcode_decimal: 65063
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 9/24
+      opcode: "0xFE28"
+      opcode_binary: "1111_1110_0010_1000"
+      opcode_decimal: 65064
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 10/24
+      opcode: "0xFE29"
+      opcode_binary: "1111_1110_0010_1001"
+      opcode_decimal: 65065
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 11/24
+      opcode: "0xFE2A"
+      opcode_binary: "1111_1110_0010_1010"
+      opcode_decimal: 65066
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 12/24
+      opcode: "0xFE2B"
+      opcode_binary: "1111_1110_0010_1011"
+      opcode_decimal: 65067
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 13/24
+      opcode: "0xFD3C"
+      opcode_binary: "1111_1101_0011_1100"
+      opcode_decimal: 64828
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 14/24
+      opcode: "0xFD3D"
+      opcode_binary: "1111_1101_0011_1101"
+      opcode_decimal: 64829
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 15/24
+      opcode: "0xFD3E"
+      opcode_binary: "1111_1101_0011_1110"
+      opcode_decimal: 64830
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 16/24
+      opcode: "0xFD3F"
+      opcode_binary: "1111_1101_0011_1111"
+      opcode_decimal: 64831
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 17/24
+      opcode: "0xFD3C"
+      opcode_binary: "1111_1101_0011_1100"
+      opcode_decimal: 64828
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 18/24
+      opcode: "0xFD3D"
+      opcode_binary: "1111_1101_0011_1101"
+      opcode_decimal: 64829
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 19/24
+      opcode: "0xFD3E"
+      opcode_binary: "1111_1101_0011_1110"
+      opcode_decimal: 64830
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 20/24
+      opcode: "0xFD3F"
+      opcode_binary: "1111_1101_0011_1111"
+      opcode_decimal: 64831
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 21/24
+      opcode: "0xFE2C"
+      opcode_binary: "1111_1110_0010_1100"
+      opcode_decimal: 65068
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 22/24
+      opcode: "0xFE2D"
+      opcode_binary: "1111_1110_0010_1101"
+      opcode_decimal: 65069
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 23/24
+      opcode: "0xFE2E"
+      opcode_binary: "1111_1110_0010_1110"
+      opcode_decimal: 65070
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 24/24
+      opcode: "0xFE2F"
+      opcode_binary: "1111_1110_0010_1111"
+      opcode_decimal: 65071
+      prefix_mask: "0x7F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00019FE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Laddr
+# Total variants: 24
+
+
+  examples:
+    - description: |
+        Basic laddr operation using word register
+      prefix: "W"
+      code: |
+        W1 LADDR B.8
+      explanation: |
+        Perform laddr operation on word-sized data
+
+    - description: |
+        Laddr with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 LADDR B.0
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Laddr with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 LADDR B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Laddr with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 LADDR ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Laddr with floating-point data
+      prefix: "F"
+      code: |
+        F1 LADDR
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of laddr instruction
+      code: |
+        Variant 1/24: BI1 LADDR\nVariant 2/24: BI1 LADDR\nVariant 3/24: BI1 LADDR
+      explanation: |
+        The laddr instruction has 24 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "15.4"
+    title: "Load address"
+    content: |
+      ### 15.4 Load address
+
+      **Format:**
+      tn LADDR \<operand/aa/t\>
+
+      | Assembly notation | Name                      | Hex code    | Octal code    |
+      |-------------------|---------------------------|-------------|---------------|
+      | BIn LADDR         | bit load address          | 0FE20H+(n-1) | 177040B+(n-1) |
+      | BYn LADDR         | byte load address         | 0FE24H+(n-1) | 177044B+(n-1) |
+      | Hn LADDR          | halfword load address     | 0FE28H+(n-1) | 177050B+(n-1) |
+      | Wn LADDR          | word load address         | 0FD3CH+(n-1) | 176474B+(n-1) |
+      | Fn LADDR          | float load address        | 0FD3CH+(n-1) | 176474B+(n-1) |
+      | Dn LADDR          | double float load address | 0FE2CH+(n-1) | 177054B+(n-1) |
+
+      **Operation:**
+      addr(\<operand\>) -> Rn
+
+      **Description:**
+
+      The address of the operand is loaded into the specified register. Registers and constants have no address in memory and are illegal as operands.
+
+      Formats other than Wn are used to give the correct scaling factor if \<operand\> is indexed. Fn is equivalent to Wn, but may improve readability.
+
+      **Trap conditions:** Addressing traps
+
+      **Data status bits:** address = 0 -> Z
+
+      **Example:**
+
+      Load the address of the R3rd element of the halfword array argument TABLE into R1
+
+          H1 LADDR B.TABLE(R3)
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

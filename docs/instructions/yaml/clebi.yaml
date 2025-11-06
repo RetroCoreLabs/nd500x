@@ -1,0 +1,198 @@
+instruction:
+  name: "clebi"
+  function: "Clebi"
+  mnemonic: "clebi"
+  description: |
+    Clebi
+    
+    Bit field operation:
+    Manipulates bit fields within operands
+    
+    Operands: 2
+    Variants: 3 opcode(s)
+
+  category: "BITFIELD"
+  instruction_class: "bitfield"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/3
+      opcode: "0xFE7D"
+      opcode_binary: "1111_1110_0111_1101"
+      opcode_decimal: 65149
+      prefix_mask: "0x0E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/3
+      opcode: "0xFE7E"
+      opcode_binary: "1111_1110_0111_1110"
+      opcode_decimal: 65150
+      prefix_mask: "0x0E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/3
+      opcode: "0xFE7F"
+      opcode_binary: "1111_1110_0111_1111"
+      opcode_decimal: 65151
+      prefix_mask: "0x0E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Clebi
+# Total variants: 3
+
+
+  examples:
+    - description: |
+        Basic clebi operation using word register
+      prefix: "W"
+      code: |
+        W1 CLEBI W2, B.16
+      explanation: |
+        Perform clebi operation on word-sized data
+
+    - description: |
+        Clebi with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 CLEBI B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Clebi with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 CLEBI B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Clebi with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 CLEBI ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of clebi instruction
+      code: |
+        Variant 1/3: BY1 CLEBI\nVariant 2/3: BY1 CLEBI\nVariant 3/3: BY1 CLEBI
+      explanation: |
+        The clebi instruction has 3 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "10.29"
+    title: "Clear bit"
+    content: |
+      ### 10.29 Clear bit
+
+      **Format:**
+      t CLEBI 〈operand/w/t〉,〈bit No./r/BY〉
+
+      | Assembly notation | Name             | Hex code | Octal code |
+      |-------------------|------------------|----------|------------|
+      | BY CLEBI          | byte clear bit   | 0FE7DH   | 177175B    |
+      | H CLEBI           | halfword clear bit | 0FE7EH   | 177176B    |
+      | W CLEBI           | word clear bit   | 0FE7FH   | 177177B    |
+
+      **Operation:**
+      0 -> bit 〈bit No.〉 of 〈operand〉
+
+      **Description:**
+
+      The specified bit of a BY, H, or W 〈operand〉 is cleared. A 〈bit No.〉 greater than or equal to the number of bits of the data type or a negative 〈bit No.〉 will cause an illegal operand value trap condition.
+
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+
+      **Data status bits:** 1 -> Z
+
+      **Example:**
+
+      Clear bit N of word register R1
+
+          W CLEBI R1, N
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

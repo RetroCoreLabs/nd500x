@@ -1,0 +1,61 @@
+instruction:
+  name: "bp"
+  function: "Bp"
+  mnemonic: "bp"
+  description: |
+    Bp
+    
+    Control flow operation
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "CONTROL"
+  instruction_class: "control"
+  privilege: "user"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0x0002"
+      opcode_binary: "0000_0000_0000_0010"
+      opcode_decimal: 2
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Bp
+# Total variants: 1
+
+
+  manual_reference:
+    section: "16.4"
+    title: "Break point"
+    content: |
+      # 16.4 Break point
+
+      **Format:** BP
+
+      | Assembly notation | Name                    | Hex code | Octal code |
+      |-------------------|-------------------------|----------|------------|
+      | BP                | break point instruction | 002H     | 002B       |
+
+      **Operation:** Cause a break point instruction trap condition
+
+      **Description:**
+
+      This instruction causes a break point instruction trap condition. If the break point trap is not enabled, it will cause an illegal instruction code trap condition.
+
+      The BP instruction is intended for program debugging and the trap handler will normally invoke a debug routine.
+
+      **Trap conditions:** Breakpoint instruction trap (BPT), Illegal instruction code (IIC)
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      BP
+
+      ---

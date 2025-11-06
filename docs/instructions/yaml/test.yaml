@@ -1,0 +1,280 @@
+instruction:
+  name: "test"
+  function: "Test"
+  mnemonic: "test"
+  description: |
+    Test
+    
+    Test against zero:
+    Tests operand and sets condition flags
+    Sets Z (zero), N (negative), V (overflow), C (carry) flags
+    
+    Operands: 1
+    Variants: 6 opcode(s)
+
+  category: "COMPARE"
+  instruction_class: "compare"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/6
+      opcode: "0x0041"
+      opcode_binary: "0000_0000_0100_0001"
+      opcode_decimal: 65
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/6
+      opcode: "0x0042"
+      opcode_binary: "0000_0000_0100_0010"
+      opcode_decimal: 66
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/6
+      opcode: "0x0043"
+      opcode_binary: "0000_0000_0100_0011"
+      opcode_decimal: 67
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/6
+      opcode: "0x0044"
+      opcode_binary: "0000_0000_0100_0100"
+      opcode_decimal: 68
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/6
+      opcode: "0x0045"
+      opcode_binary: "0000_0000_0100_0101"
+      opcode_decimal: 69
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/6
+      opcode: "0x0046"
+      opcode_binary: "0000_0000_0100_0110"
+      opcode_decimal: 70
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Test
+# Total variants: 6
+
+
+  examples:
+    - description: |
+        Basic test operation using word register
+      prefix: "W"
+      code: |
+        W1 TEST W2
+      explanation: |
+        Perform test operation on word-sized data
+
+    - description: |
+        Test with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 TEST 5
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Test with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 TEST B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Test with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 TEST ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Test with floating-point data
+      prefix: "F"
+      code: |
+        F1 TEST F2
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of test instruction
+      code: |
+        Variant 1/6: BI1 TEST\nVariant 2/6: BI1 TEST\nVariant 3/6: BI1 TEST
+      explanation: |
+        The test instruction has 6 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: bounds checking
+      code: |
+        ; Check if index < limit\nW1 TEST MAX_SIZE\n; Sets flags for conditional branch
+      explanation: |
+        Using test for validation and conditional logic
+
+  manual_reference:
+    section: "16.3"
+    title: "Test and set"
+    content: |
+      ### 16.3 Test and set
+
+      **Format:**
+      BY TSET <operand/rwl/BY>
+
+      | Assembly notation | Name        | Hex code | Octal code |
+      |-------------------|-------------|----------|------------|
+      | BY TSET           | test and set| 0FD40H   | 176500B    |
+
+      **Operation:**
+
+      - lock
+        - read operand and set status bits
+        - set operand to all ones
+      - unlock
+
+      **Description:**
+
+      The TSET instruction performs the two necessary memory accesses uninterruptible by other processors or by channels connected to the memory system. It may therefore be used to implement processor synchronization. The TSET instruction always reads the contents of main memory, even if the addressed data are present in cache memory. The cache is updated for later references by ordinary load instructions.
+
+      The TSET instruction is valid in the MPM-IV and later memory systems. In installations using MPM-III, it will work algorithmically as specified here but the memory operations are independent and other memory accesses may interfere.
+
+      Register and constant operands are illegal, and will cause an illegal operand specifier trap condition.
+
+      **Trap conditions:** Addressing traps, Illegal operand specifier (IOS)
+
+      **Data status bits:**
+
+      - operand was zero before store -> Z
+      - operand was negative before store -> S
+
+      **Example:**
+
+      Set byte variable RESERVE to all ones
+
+      BY4 TSET RESERVE
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

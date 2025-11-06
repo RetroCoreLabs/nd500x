@@ -1,0 +1,133 @@
+instruction:
+  name: "scomp"
+  function: "Scomp"
+  mnemonic: "scomp"
+  description: |
+    Scomp
+    
+    Comparison operation
+    Sets Z (zero), N (negative), V (overflow), C (carry) flags
+    
+    Operands: 2
+    Variants: 1 opcode(s)
+
+  category: "COMPARE"
+  instruction_class: "compare"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFDAC"
+      opcode_binary: "1111_1101_1010_1100"
+      opcode_decimal: 64940
+      prefix_mask: "0x02"
+
+      prefixes:
+        - BY
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x00017FE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Scomp
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        Scomp with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SCOMP 5, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Scomp with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SCOMP B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Scomp with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SCOMP ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Real-world use: bounds checking
+      code: |
+        ; Check if index < limit\nW1 SCOMP MAX_SIZE\n; Sets flags for conditional branch
+      explanation: |
+        Using scomp for validation and conditional logic
+
+  manual_reference:
+    section: "14.10"
+    title: "String compare"
+    content: |
+      # 14.10 String compare
+
+      **Format:** BY SCOMP (<source-1/r/BY/I1>=,<source-2/r/BY/I2>=)
+
+      | Assembly notation | Name | Hex code | Octal code |
+      |-------------------|------|----------|------------|
+      | BY SCOMP          | byte string compare | 0FDACH | 176654B |
+
+      ## Operation:
+
+          while not end of strings
+            and S(I1) = D(I2) do
+            I1+1 -> I1, I2+1 -> I2
+          enddo
+
+      ## Description:
+
+      Bytes from the `<source-1>` string are compared with the corresponding bytes in the `<source-2>` string until unequal bytes are found, or until the end of `<source-1>` or `<source-2>` string is reached. When unequal bytes are found, the status bits Z and S and the K flag will indicate the termination condition. The byte elements are considered to be unsigned values.
+
+      If both operands are addressed outside strings they will compare as "exact match". `<source-1>` addressed outside the string will compare as "<source-1> shorter than <source-2>". `<source-2>` addressed outside the string will compare as "<source-1> longer than <source-2>". In either case I1, I2 are unmodified and a descriptor range trap condition arises.
+
+      ## Terminating conditions:
+
+      | Condition                  | K | Z | S | Result                                  |
+      |----------------------------|---|---|---|-----------------------------------------|
+      | both operands outside string | 0 | 1 | 0 | I1, I2 unmodified, DR trap condition   |
+      | exact match                  | 0 | 1 | 0 | I1, I2 :-next element                  |
+      | source-1 longer              | 0 | 0 | 0 | I1, I2 :- next element                 |
+      | source-2 longer: greater byte | 0 | 0 | 1 | I1, I2 :- next element                 |
+      | in source-1: smaller byte    | 1 | 0 | 0 | I1, I2 :- differing elements           |
+      | in source-1:                 | 1 | 0 | 1 | I1, I2 :- differing elements           |
+
+      ## Example:
+
+      Scan INPUTLINE and local COMMAND from the current positions until different characters are found or end of string is reached
+
+          BY SCOMP INPUTLINE, B.COMMAND
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

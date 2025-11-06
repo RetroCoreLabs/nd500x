@@ -1,0 +1,323 @@
+instruction:
+  name: "swap"
+  function: "Swap"
+  mnemonic: "swap"
+  description: |
+    Swap
+    
+    Exchange/swap values:
+    <op1> ↔ <op2>
+    
+    Operands: 2
+    Variants: 6 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/6
+      opcode: "0xFCBD"
+      opcode_binary: "1111_1100_1011_1101"
+      opcode_decimal: 64701
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/6
+      opcode: "0xFCBE"
+      opcode_binary: "1111_1100_1011_1110"
+      opcode_decimal: 64702
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/6
+      opcode: "0xFCBF"
+      opcode_binary: "1111_1100_1011_1111"
+      opcode_decimal: 64703
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/6
+      opcode: "0x0052"
+      opcode_binary: "0000_0000_0101_0010"
+      opcode_decimal: 82
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/6
+      opcode: "0xFCDC"
+      opcode_binary: "1111_1100_1101_1100"
+      opcode_decimal: 64732
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 6/6
+      opcode: "0xFCDD"
+      opcode_binary: "1111_1100_1101_1101"
+      opcode_decimal: 64733
+      prefix_mask: "0x3F"
+
+      prefixes:
+        - BI
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Swap
+# Total variants: 6
+
+
+  examples:
+    - description: |
+        Basic swap operation using word register
+      prefix: "W"
+      code: |
+        W1 SWAP W2, B.16
+      explanation: |
+        Perform swap operation on word-sized data
+
+    - description: |
+        Swap with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SWAP B.0, B.4
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Swap with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SWAP B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Swap with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SWAP ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Swap with floating-point data
+      prefix: "F"
+      code: |
+        F1 SWAP F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of swap instruction
+      code: |
+        Variant 1/6: BI1 SWAP\nVariant 2/6: BI1 SWAP\nVariant 3/6: BI1 SWAP
+      explanation: |
+        The swap instruction has 6 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "10.8"
+    title: "Swap"
+    content: |
+      # 10.8 Swap
+
+      **Format:**
+      t SWAP <op1/rw/t>,<op2/rw/t>
+
+      | Assembly notation | Name            | Hex code | Octal code |
+      |-------------------|-----------------|----------|------------|
+      | BI SWAP           | bit swap        | 0FCBDH   | 176275B    |
+      | BY SWAP           | byte swap       | 0FCBEH   | 176276B    |
+      | H SWAP            | halfword swap   | 0FCBFH   | 176277B    |
+      | W SWAP            | word swap       | 052H     | 122B       |
+      | F SWAP            | float swap      | 0FCDCH   | 176334B    |
+      | D SWAP            | double float swap | 0FCDDH  | 176335B    |
+
+      **Operation:**
+      <op1> ::= <op2>
+
+      **Description:**
+
+      The contents of the first operand are stored in the second, and the original contents of the second operand are stored in the first. The operands are assumed to have the same data type (see section 7.3 on page 73).
+
+      **Trap conditions:** Addressing traps
+
+      **Data status bits:**
+
+      original contents of <op1> = 0  -> Z
+      original contents of <op1>.signbit -> S
+
+      **Example:**
+
+      Exchange contents of word variables EAST and WEST
+
+          W SWAP EAST, WEST
+
+      *Norsk Data ND-05.009.4 EN*
+
+      ---

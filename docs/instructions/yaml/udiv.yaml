@@ -1,0 +1,275 @@
+instruction:
+  name: "udiv"
+  function: "Udiv"
+  mnemonic: "udiv"
+  description: |
+    Udiv
+    
+    Arithmetic operation
+    
+    Operands: 3
+    Variants: 4 opcode(s)
+
+  category: "ARITHMETIC"
+  instruction_class: "arithmetic"
+  privilege: "user"
+  operand_count: 3
+
+  variants:
+    - variant: 1/4
+      opcode: "0xFE48"
+      opcode_binary: "1111_1110_0100_1000"
+      opcode_decimal: 65096
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/4
+      opcode: "0xFE49"
+      opcode_binary: "1111_1110_0100_1001"
+      opcode_decimal: 65097
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/4
+      opcode: "0xFE4A"
+      opcode_binary: "1111_1110_0100_1010"
+      opcode_decimal: 65098
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/4
+      opcode: "0xFE4B"
+      opcode_binary: "1111_1110_0100_1011"
+      opcode_decimal: 65099
+      prefix_mask: "0x48"
+
+      prefixes:
+        - W
+        - R_N
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 3
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Udiv
+# Total variants: 4
+
+
+  examples:
+    - description: |
+        Basic udiv operation using word register
+      prefix: "W"
+      code: |
+        W1 UDIV W2, B.16, R.8
+      explanation: |
+        Perform udiv operation on word-sized data
+
+    - description: |
+        Udiv with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 UDIV B.16, B.32, B.48
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Udiv with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 UDIV ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of udiv instruction
+      code: |
+        Variant 1/4: W1 UDIV\nVariant 2/4: W1 UDIV\nVariant 3/4: W1 UDIV
+      explanation: |
+        The udiv instruction has 4 variants for different addressing modes and prefixes
+
+    - description: |
+        Real-world use: calculations
+      code: |
+        ; Loop counter increment\nW1 UDIV 1\n; Result in W1
+      explanation: |
+        Common use case for udiv in calculations
+
+  manual_reference:
+    section: "11.16"
+    title: "Unsigned divide"
+    content: |
+      # 11.16 Unsigned divide
+
+      **Format:** Wn UDIV `<a/r/t>,<b/r/t>,<c/w/t>`
+
+      | Assembly notation | Name                  | Hex code       | Octal code        |
+      |-------------------|-----------------------|----------------|-------------------|
+      | Wn UDIV           | word unsigned divide  | OFE48H+(n-1)   | 177110B+(n-1)     |
+
+      ## Operation:
+
+      word unsigned division
+      `<a> / <b> -> <c>`
+      remainder -> Rn
+
+      ## Description:
+
+      The operands are treated as unsigned.
+
+      The `<a>` operand is divided by the `<b>` operand and the quotient is stored in the `<c>` operand. The remainder is stored in the specified register. Byte and halfword integer constants are sign extended and the result of the sign extension is treated as unsigned.
+
+      **Trap conditions:** Addressing traps, Divide by zero (DZ)
+
+      ## Data status bits:
+
+      quotient = 0 -> Z
+      quotient.signbit -> S
+      `<b> = 0` -> DZ
+
+      ## Example:
+
+      Divide the arguments LONG and FACT on the alternative domain (LONG/FACT) and leave the quotient in the address on the alternative domain contained in RES, and put the remainder in R3
+
+          W3 UDIV ALT(B.LONG), ALT(B.FACT), ALT(IND(RES))
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

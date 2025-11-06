@@ -1,0 +1,115 @@
+instruction:
+  name: "e2=:"
+  function: "E2Get"
+  mnemonic: "e2=:"
+  description: |
+    E2Get
+    
+    
+    Operands: 1
+    Variants: 1 opcode(s)
+
+  category: "MOVE"
+  instruction_class: "move"
+  privilege: "user"
+  operand_count: 1
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFE3D"
+      opcode_binary: "1111_1110_0011_1101"
+      opcode_decimal: 65085
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE8"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.WordOnly)"
+
+# Generated from nd500-opcodes
+# Instruction group: E2Get
+# Total variants: 1
+
+
+  examples:
+    - description: |
+        E2=: with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 E2=: B.16
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        E2=: with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 E2=: ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+  manual_reference:
+    section: "16.8"
+    title: "Store Special Register"
+    content: |
+      # 16.8 Store Special Register
+
+      **Format:**
+      special register =: ⟨operand/w/W⟩
+
+      ## Assembly Notation
+
+      | Notation | Name                                         | Hex Code | Octal Code |
+      |----------|----------------------------------------------|----------|------------|
+      | L=:      | store link register                          | 0FDC0D   | 176700D    |
+      | HL=:     | store high limit register                     | 0FDC1H   | 176701B    |
+      | LL=:     | store low limit register                      | 0FDC2H   | 176702B    |
+      | ST1=:    | store 1st status register                     | 0FDC3H   | 176703B    |
+      | OTE1=:   | store 1st own trap enable register            | 0FDC5H   | 176705B    |
+      | OTE2=:   | store 2nd own trap enable register            | 0FDC6H   | 176706B    |
+      | MTE1=:   | store 1st mother trap enable register         | 0FD71H   | 176560B    |
+      | MTE2=:   | store 2nd mother trap enable register         | 0FD71H   | 176561B    |
+      | CTE1=:   | store 1st child trap enable register          | 0FE50H   | 177120B    |
+      | CTE2=:   | store 2nd child trap enable register          | 0FE51H   | 177121B    |
+      | TEMM1=:  | store 1st trap enable modification mask       | 0FE52H   | 177122B    |
+      | TEMM2=:  | store 2nd trap enable modification mask       | 0FE53H   | 177123B    |
+      | CED=:    | store current executing domain                | 0FE54H   | 177124B    |
+      | CAD=:    | store current alternative domain              | 0FE55H   | 177125B    |
+      | PS=:     | store process segment                         | 0FE7CH   | 17714B     |
+      | TOS=:    | store top of stack register                   | 0FDC9H   | 176711B    |
+      | THA=:    | store trap handler register                   | 0FDCBH   | 176713B    |
+      | P=:      | store program counter                         | 0FD62H   | 176542B    |
+
+      ## Operation
+
+      special register -> ⟨operand⟩
+
+      ## Description
+
+      Store the contents of a special register into a specified operand.
+
+      When storing the program counter ( P=: ), the contents of the operand will be the address of the P=: instruction.
+
+      ## Trap Conditions
+
+      Addressing traps, illegal operand specifier
+
+      ## Data Status Bits
+
+          special register = 0  -> Z
+          special register.signbit -> S
+
+      The instruction ST1=: does not affect the data status bits.
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

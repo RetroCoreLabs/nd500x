@@ -1,0 +1,65 @@
+instruction:
+  name: "dcc"
+  function: "Dcc"
+  mnemonic: "dcc"
+  description: |
+    Dcc
+    
+    System operation (privileged)
+    
+    Operands: None (operates on implicit register)
+    Variants: 1 opcode(s)
+
+  category: "SYSTEM"
+  instruction_class: "system"
+  privilege: "supervisor"
+  operand_count: 0
+
+  variants:
+    - variant: 1/1
+      opcode: "0xFF15"
+      opcode_binary: "1111_1111_0001_0101"
+      opcode_decimal: 65301
+      prefix_mask: "0x00"
+
+      prefixes:
+        - NONE
+
+# Generated from nd500-opcodes
+# Instruction group: Dcc
+# Total variants: 1
+
+
+  manual_reference:
+    section: "16.10"
+    title: "Data cache clear"
+    content: |
+      # 16.10 Data cache clear
+
+      **Format:** DCC
+
+      | Assembly notation | Name             | Hex code | Octal code  |
+      |-------------------|------------------|----------|-------------|
+      | DCC               | data cache clear | OFF15H   | 177425B     |
+
+      **Operation:** Clear data cache
+
+      **Description:**
+
+      Data in the data cache are marked as invalid. Data marked 'dirty' is dumped to memory. In connection with DMA transfers, the cache should be cleared to ensure that the cache contents are consistent with the main memory contents.
+
+      If no cache is present, the instruction has no effect.
+
+      **Trap conditions:** None
+
+      **Data status bits:** Unaffected
+
+      **Example:**
+
+      DCC
+
+      ---
+
+      Norsk Data ND–05.009.4 EN
+
+      ---

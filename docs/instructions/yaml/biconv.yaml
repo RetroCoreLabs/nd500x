@@ -1,0 +1,291 @@
+instruction:
+  name: "biconv"
+  function: "Biconv"
+  mnemonic: "biconv"
+  description: |
+    Biconv
+    
+    Floating point operation:
+    Performs floating-point arithmetic
+    
+    Operands: 2
+    Variants: 5 opcode(s)
+
+  category: "FLOAT_MATH"
+  instruction_class: "float_math"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/5
+      opcode: "0xFD49"
+      opcode_binary: "1111_1101_0100_1001"
+      opcode_decimal: 64841
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/5
+      opcode: "0xFD4E"
+      opcode_binary: "1111_1101_0100_1110"
+      opcode_decimal: 64846
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/5
+      opcode: "0xFD53"
+      opcode_binary: "1111_1101_0101_0011"
+      opcode_decimal: 64851
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 4/5
+      opcode: "0xFD58"
+      opcode_binary: "1111_1101_0101_1000"
+      opcode_decimal: 64856
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 5/5
+      opcode: "0xFD5D"
+      opcode_binary: "1111_1101_0101_1101"
+      opcode_decimal: 64861
+      prefix_mask: "0x3E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+        - F
+        - D
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE0"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Biconv
+# Total variants: 5
+
+
+  examples:
+    - description: |
+        Basic biconv operation using word register
+      prefix: "W"
+      code: |
+        W1 BICONV W2, B.16
+      explanation: |
+        Perform biconv operation on word-sized data
+
+    - description: |
+        Biconv with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 BICONV 5, B.4
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Biconv with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 BICONV B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Biconv with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 BICONV ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Biconv with floating-point data
+      prefix: "F"
+      code: |
+        F1 BICONV F2, F3
+      explanation: |
+        Floating-point operation using F registers (32-bit IEEE 754)
+
+    - description: |
+        Different variants of biconv instruction
+      code: |
+        Variant 1/5: BY1 BICONV\nVariant 2/5: BY1 BICONV\nVariant 3/5: BY1 BICONV
+      explanation: |
+        The biconv instruction has 5 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "15.2"
+    title: "Data type conversion"
+    content: |
+      # 15.2 Data type conversion
+
+      **Format:** t1 t2CONV {source/r/t1}, {dest/w/t2}
+
+      | Assembly notation | Name                            | Hex code  | Octal code |
+      |------------------|---------------------------------|----------|-----------|
+      | BI BICONV        | bit to byte convert              | 0FD44H   | 176504B   |
+      | BI HCONV         | bit to halfword convert          | 0FD45H   | 176505B   |
+      | BI WCONV         | bit to word convert              | 0FD46H   | 176506B   |
+      | BI FCONV         | bit to float convert             | 0FD47H   | 176507B   |
+      | BI DCONV         | bit to double float convert      | 0FD48H   | 176510B   |
+      | BY BICONV        | byte to bit convert              | 0FD49H   | 176511B   |
+      | BY HCONV         | byte to halfword convert         | 0FD4AH   | 176512B   |
+      | BY WCONV         | byte to word convert             | 0FD4BH   | 176513B   |
+      | BY FCONV         | byte to float convert            | 0FD4CH   | 176514B   |
+      | BY DCONV         | byte to double float convert     | 0FD4DH   | 176515B   |
+      | H BICONV         | halfword to bit convert          | 0FD4EH   | 176516B   |
+      | H BYCONV         | halfword to byte convert         | 0FD4FH   | 176517B   |
+      | H WCONV          | halfword to word convert         | 0FD50H   | 176520B   |
+      | H FCONV          | halfword to float convert        | 0FD51H   | 176521B   |
+      | H DCONV          | halfword to double float convert | 0FD52H   | 176522B   |
+      | W BICONV         | word to bit convert              | 0FD53H   | 176523B   |
+      | W BYCONV         | word to byte convert             | 0FD54H   | 176524B   |
+      | W HCONV          | word to halfword convert         | 0FD55H   | 176525B   |
+      | W FCONV          | word to float convert            | 0FD56H   | 176526B   |
+      | W DCONV          | word to double float convert     | 0FD57H   | 176527B   |
+      | F BICONV         | float to bit convert             | 0FD58H   | 176530B   |
+      | F BYCONV         | float to byte convert            | 0FD59H   | 176531B   |
+      | F HCONV          | float to halfword convert        | 0FD5AH   | 176532B   |
+      | F WCONV          | float to word convert            | 0FD5BH   | 176533B   |
+      | F DCONV          | float to double float convert    | 0FD5CH   | 176534B   |
+      | D BICONV         | double float to bit convert      | 0FD5DH   | 176535B   |
+      | D BYCONV         | double float to byte convert     | 0FD5EH   | 176536B   |
+      | D HCONV          | double float to halfword convert | 0FD5FH   | 176537B   |
+      | D WCONV          | double float to word convert     | 0FD60H   | 176540B   |
+      | D FCONV          | double float to float convert    | 0FD61H   | 176541B   |
+
+      Norsk Data ND-05.009.4 EN
+
+      ---

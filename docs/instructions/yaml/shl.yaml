@@ -1,0 +1,202 @@
+instruction:
+  name: "shl"
+  function: "Shl"
+  mnemonic: "shl"
+  description: |
+    Shl
+    
+    Shift operation:
+    Shifts bits left or right
+    
+    Operands: 2
+    Variants: 3 opcode(s)
+
+  category: "SHIFT"
+  instruction_class: "shift"
+  privilege: "user"
+  operand_count: 2
+
+  variants:
+    - variant: 1/3
+      opcode: "0xFCA8"
+      opcode_binary: "1111_1100_1010_1000"
+      opcode_decimal: 64680
+      prefix_mask: "0x0E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 2/3
+      opcode: "0xFCA9"
+      opcode_binary: "1111_1100_1010_1001"
+      opcode_decimal: 64681
+      prefix_mask: "0x0E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+    - variant: 3/3
+      opcode: "0xFCAA"
+      opcode_binary: "1111_1100_1010_1010"
+      opcode_decimal: 64682
+      prefix_mask: "0x0E"
+
+      prefixes:
+        - BY
+        - H
+        - W
+
+      operands:
+        - operand: 1
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001DFE0"
+          metadata: "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)"
+
+        - operand: 2
+          addressing_modes:
+            - LOCAL
+            - RECORD
+            - CONSTANT
+            - REGISTER
+            - PRE_INDEXED
+            - ABSOLUTE
+          template: "0x0001FFE2"
+          metadata: "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"
+
+# Generated from nd500-opcodes
+# Instruction group: Shl
+# Total variants: 3
+
+
+  examples:
+    - description: |
+        Basic shl operation using word register
+      prefix: "W"
+      code: |
+        W1 SHL W2, B.16
+      explanation: |
+        Perform shl operation on word-sized data
+
+    - description: |
+        Shl with byte-sized operands
+      prefix: "BY"
+      code: |
+        BY1 SHL B.0, 6
+      explanation: |
+        Byte operation - processes 8-bit values
+
+    - description: |
+        Shl with local (stack) variables
+      addressing_mode: "LOCAL"
+      code: |
+        W1 SHL B.16, B.32
+      explanation: |
+        Access local variables using B register (stack frame pointer)
+
+    - description: |
+        Shl with array element access
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        W1 SHL ARRAY(W2)
+      explanation: |
+        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
+
+    - description: |
+        Different variants of shl instruction
+      code: |
+        Variant 1/3: BY1 SHL\nVariant 2/3: BY1 SHL\nVariant 3/3: BY1 SHL
+      explanation: |
+        The shl instruction has 3 variants for different addressing modes and prefixes
+
+  manual_reference:
+    section: "10.24"
+    title: "Logical shift"
+    content: |
+      # 10.24 Logical shift
+
+      **Format:**
+      t SHL <operand/rw/t>,<shiftcount/r/BY>
+
+      **Assembly notation**
+
+      | Name | Hex code | Octal code |
+      |------|----------|------------|
+      | BY SHL | byte shift logically | OFCA8H | 176250B |
+      | H SHL  | halfword shift logically | OFCA9H | 176251B |
+      | W SHL  | word shift logically | OFCAAH | 176252B |
+
+      **Operation:** logically shifted <operand> -> <operand>
+
+      **Description:**
+
+      A logical shift is performed on the byte, halfword or word operand. <shiftcount> is interpreted as a signed byte. Positive <shiftcount> implies left shift, negative <shiftcount> implies right shift. A shiftcount equal to or greater than the size of the operand will produce an illegal operand value trap condition. A shiftcount of zero is legal and leaves the operand unchanged.
+
+      **Trap conditions:** Addressing traps, Illegal operand value (IOV)
+
+      **Data status bits:**
+
+      shifted operand = 0 -> Z
+      shifted operand.signbit -> S
+
+      **Example:**
+
+      Shift local word COUNT TWOFACTORS places
+
+          W SHL B.COUNT, TWOFACTORS
+
+      Norsk Data ND-05.009.4 EN
+
+      ---
