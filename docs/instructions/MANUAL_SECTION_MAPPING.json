@@ -3,220 +3,1489 @@
   "source": "ND-05.009.4 EN ND-500 Reference Manual.md",
   "manual_version": "ND-05.009.4",
   "manual_date": "February 1988",
-  "mapping_status": "EXPANDED - Target 80% coverage achieved",
+  "mapping_status": "100% coverage (241/241) - 2 marked TBD",
   "total_instructions": 241,
-  "mapped_instructions": 195,
-  "coverage_percentage": 81,
+  "mapped_instructions": 241,
+  "coverage_percentage": 100,
   "mappings": [
-    {"mnemonic": ":=", "section": "10.1", "title": "Load", "category": "MOVE"},
-    {"mnemonic": "=:", "section": "10.4", "title": "Store", "category": "MOVE"},
-    {"mnemonic": "b:=", "section": "10.2", "title": "Load local base register", "category": "MOVE"},
-    {"mnemonic": "r:=", "section": "10.3", "title": "Load record register", "category": "MOVE"},
-    {"mnemonic": "b=:", "section": "10.5", "title": "Store local base register", "category": "MOVE"},
-    {"mnemonic": "r=:", "section": "10.6", "title": "Store record register", "category": "MOVE"},
-    {"mnemonic": "move", "section": "10.7", "title": "Move", "category": "MOVE"},
-    {"mnemonic": "swap", "section": "10.8", "title": "Swap", "category": "MOVE"},
-    {"mnemonic": "xchg", "section": "10.8", "title": "Swap", "category": "MOVE", "note": "Alternate mnemonic for swap"},
-    {"mnemonic": "comp", "section": "10.9", "title": "Compare", "category": "COMPARE"},
-    {"mnemonic": "cmp", "section": "10.10", "title": "Compare two operands", "category": "COMPARE"},
-    {"mnemonic": "test", "section": "10.11", "title": "Test against zero", "category": "COMPARE"},
-    {"mnemonic": "tst", "section": "10.11", "title": "Test against zero", "category": "COMPARE"},
-    {"mnemonic": "neg", "section": "10.12", "title": "Negate", "category": "ARITHMETIC"},
-    {"mnemonic": "inv", "section": "10.13", "title": "Invert", "category": "LOGICAL"},
-    {"mnemonic": "not", "section": "10.13", "title": "Invert", "category": "LOGICAL"},
-    {"mnemonic": "invc", "section": "10.14", "title": "Invert with carry add", "category": "LOGICAL"},
-    {"mnemonic": "abs", "section": "10.15", "title": "Absolute value", "category": "ARITHMETIC"},
-    {"mnemonic": "clr", "section": "10.16", "title": "Clear register", "category": "MOVE"},
-    {"mnemonic": "ston", "section": "10.18", "title": "Set to one", "category": "MOVE"},
-    {"mnemonic": "incr", "section": "10.19", "title": "Increment", "category": "ARITHMETIC"},
-    {"mnemonic": "decr", "section": "10.20", "title": "Decrement", "category": "ARITHMETIC"},
-    {"mnemonic": "and", "section": "10.21", "title": "And", "category": "LOGICAL"},
-    {"mnemonic": "or", "section": "10.22", "title": "Or", "category": "LOGICAL"},
-    {"mnemonic": "xor", "section": "10.23", "title": "Exclusive or", "category": "LOGICAL"},
-    {"mnemonic": "sll", "section": "10.24", "title": "Logical shift", "category": "SHIFT"},
-    {"mnemonic": "srl", "section": "10.24", "title": "Logical shift", "category": "SHIFT"},
-    {"mnemonic": "sla", "section": "10.25", "title": "Arithmetical shift", "category": "SHIFT"},
-    {"mnemonic": "sra", "section": "10.25", "title": "Arithmetical shift", "category": "SHIFT"},
-    {"mnemonic": "rol", "section": "10.26", "title": "Rotational shift", "category": "SHIFT"},
-    {"mnemonic": "ror", "section": "10.26", "title": "Rotational shift", "category": "SHIFT"},
-    {"mnemonic": "getb", "section": "10.27", "title": "Get bit", "category": "BITFIELD"},
-    {"mnemonic": "putb", "section": "10.28", "title": "Put bit", "category": "BITFIELD"},
-    {"mnemonic": "clebi", "section": "10.29", "title": "Clear bit", "category": "BITFIELD"},
-    {"mnemonic": "setbi", "section": "10.30", "title": "Set bit", "category": "BITFIELD"},
-    {"mnemonic": "getbf", "section": "10.31", "title": "Get bit field", "category": "BITFIELD"},
-    {"mnemonic": "putbf", "section": "10.32", "title": "Put bit field", "category": "BITFIELD"},
-    {"mnemonic": "frem", "section": "10.33", "title": "Floating point remainder", "category": "FLOAT_MATH"},
-    {"mnemonic": "int", "section": "10.34", "title": "Integer part", "category": "FLOAT_MATH"},
-    {"mnemonic": "intr", "section": "10.35", "title": "Integer part with rounding", "category": "FLOAT_MATH"},
-    {"mnemonic": "amodb", "section": "10.36", "title": "AMODB - Integer modulo ('87 extension)", "category": "ARITHMETIC"},
-    {"mnemonic": "entier", "section": "10.37", "title": "ENTIER - SIMULA Entier function ('87 extension)", "category": "FLOAT_MATH"},
-    {"mnemonic": "add", "section": "11.1", "title": "Add", "category": "ARITHMETIC"},
-    {"mnemonic": "sub", "section": "11.2", "title": "Subtract", "category": "ARITHMETIC"},
-    {"mnemonic": "mul", "section": "11.3", "title": "Multiply", "category": "ARITHMETIC"},
-    {"mnemonic": "div", "section": "11.4", "title": "Divide", "category": "ARITHMETIC"},
-    {"mnemonic": "+", "section": "11.5", "title": "Add two operands", "category": "ARITHMETIC"},
-    {"mnemonic": "-", "section": "11.6", "title": "Subtract two operands", "category": "ARITHMETIC"},
-    {"mnemonic": "*", "section": "11.7", "title": "Multiply two operands", "category": "ARITHMETIC"},
-    {"mnemonic": "/", "section": "11.8", "title": "Divide two operands", "category": "ARITHMETIC"},
-    {"mnemonic": "add2", "section": "11.5", "title": "Add two operands", "category": "ARITHMETIC"},
-    {"mnemonic": "sub2", "section": "11.6", "title": "Subtract two operands", "category": "ARITHMETIC"},
-    {"mnemonic": "mul2", "section": "11.7", "title": "Multiply two operands", "category": "ARITHMETIC"},
-    {"mnemonic": "div2", "section": "11.8", "title": "Divide two operands", "category": "ARITHMETIC"},
-    {"mnemonic": "add3", "section": "11.9", "title": "Add three operands", "category": "ARITHMETIC"},
-    {"mnemonic": "sub3", "section": "11.10", "title": "Subtract three operands", "category": "ARITHMETIC"},
-    {"mnemonic": "mul3", "section": "11.11", "title": "Multiply three operands", "category": "ARITHMETIC"},
-    {"mnemonic": "div3", "section": "11.12", "title": "Divide three operands", "category": "ARITHMETIC"},
-    {"mnemonic": "mul4", "section": "11.13", "title": "Multiply with overflow to register", "category": "ARITHMETIC"},
-    {"mnemonic": "div4", "section": "11.14", "title": "Divide with overflow to register", "category": "ARITHMETIC"},
-    {"mnemonic": "umul", "section": "11.15", "title": "Unsigned multiply with overflow to register", "category": "ARITHMETIC"},
-    {"mnemonic": "udiv", "section": "11.16", "title": "Unsigned divide with overflow to register", "category": "ARITHMETIC"},
-    {"mnemonic": "addc", "section": "11.17", "title": "Add with carry", "category": "ARITHMETIC"},
-    {"mnemonic": "subc", "section": "11.18", "title": "Subtract with carry", "category": "ARITHMETIC"},
-    {"mnemonic": "mulad", "section": "11.19", "title": "Multiply and add", "category": "ARITHMETIC"},
-    {"mnemonic": "rem", "section": "11.20", "title": "Remainder", "category": "ARITHMETIC"},
-    {"mnemonic": "axi", "section": "11.21", "title": "Algebraic multiply index", "category": "ARITHMETIC"},
-    {"mnemonic": "ixi", "section": "11.22", "title": "Integer multiply index", "category": "ARITHMETIC"},
-    {"mnemonic": "padd", "section": "17.2", "title": "Packed add", "category": "ARITHMETIC"},
-    {"mnemonic": "paddr", "section": "17.2", "title": "Packed add", "category": "ARITHMETIC"},
-    {"mnemonic": "psub", "section": "17.3", "title": "Packed subtract", "category": "ARITHMETIC"},
-    {"mnemonic": "psubr", "section": "17.3", "title": "Packed subtract", "category": "ARITHMETIC"},
-    {"mnemonic": "pmpy", "section": "17.4", "title": "Packed multiply", "category": "ARITHMETIC"},
-    {"mnemonic": "pmpyr", "section": "17.4", "title": "Packed multiply", "category": "ARITHMETIC"},
-    {"mnemonic": "pcomp", "section": "17.5", "title": "Packed Compare", "category": "COMPARE"},
-    {"mnemonic": "ppack", "section": "17.7", "title": "Convert ASCII to packed", "category": "ARITHMETIC"},
-    {"mnemonic": "ppackr", "section": "17.7", "title": "Convert ASCII to packed", "category": "ARITHMETIC"},
-    {"mnemonic": "pupack", "section": "17.9", "title": "Convert packed to binary word", "category": "ARITHMETIC"},
-    {"mnemonic": "pupackr", "section": "17.9", "title": "Convert packed to binary word", "category": "ARITHMETIC"},
-    {"mnemonic": "psum", "section": "17.8", "title": "Packed sum", "category": "ARITHMETIC"},
-    {"mnemonic": "poly", "section": "12.3", "title": "Polynomial", "category": "FLOAT_MATH"},
-    {"mnemonic": "sin", "section": "12.5", "title": "Sine", "category": "FLOAT_MATH"},
-    {"mnemonic": "cos", "section": "12.6", "title": "Cosine", "category": "FLOAT_MATH"},
-    {"mnemonic": "tan", "section": "12.9", "title": "Tangent", "category": "FLOAT_MATH"},
-    {"mnemonic": "asin", "section": "12.7", "title": "Arc sine", "category": "FLOAT_MATH"},
-    {"mnemonic": "acos", "section": "12.8", "title": "Arc cosine", "category": "FLOAT_MATH"},
-    {"mnemonic": "atan", "section": "12.10", "title": "Arc tangent", "category": "FLOAT_MATH"},
-    {"mnemonic": "atan2", "section": "12.11", "title": "Arc tangent two arguments", "category": "FLOAT_MATH"},
-    {"mnemonic": "sinh", "section": "12.12", "title": "Hyperbolic sine", "category": "FLOAT_MATH"},
-    {"mnemonic": "cosh", "section": "12.13", "title": "Hyperbolic cosine", "category": "FLOAT_MATH"},
-    {"mnemonic": "tanh", "section": "12.14", "title": "Hyperbolic tangent", "category": "FLOAT_MATH"},
-    {"mnemonic": "log", "section": "12.13", "title": "Natural logarithm", "category": "FLOAT_MATH"},
-    {"mnemonic": "ln", "section": "12.13", "title": "Natural logarithm", "category": "FLOAT_MATH"},
-    {"mnemonic": "log10", "section": "12.15", "title": "Common logarithm", "category": "FLOAT_MATH"},
-    {"mnemonic": "log2", "section": "12.16", "title": "Base-2 logarithm", "category": "FLOAT_MATH"},
-    {"mnemonic": "alog", "section": "12.17", "title": "Antilogarithm (e^x)", "category": "FLOAT_MATH"},
-    {"mnemonic": "alog10", "section": "12.18", "title": "Antilogarithm base 10 (10^x)", "category": "FLOAT_MATH"},
-    {"mnemonic": "alog2", "section": "12.19", "title": "Antilogarithm base 2 (2^x)", "category": "FLOAT_MATH"},
-    {"mnemonic": "exp", "section": "12.17", "title": "Exponential (e^x)", "category": "FLOAT_MATH"},
-    {"mnemonic": "sqrt", "section": "12.20", "title": "Square root", "category": "FLOAT_MATH"},
-    {"mnemonic": "power", "section": "12.21", "title": "Power (x^y)", "category": "FLOAT_MATH"},
-    {"mnemonic": "pow", "section": "12.21", "title": "Power (x^y)", "category": "FLOAT_MATH"},
-    {"mnemonic": "fabs", "section": "12.22", "title": "Floating absolute value", "category": "FLOAT_MATH"},
-    {"mnemonic": "fneg", "section": "12.23", "title": "Floating negate", "category": "FLOAT_MATH"},
-    {"mnemonic": "fint", "section": "10.34", "title": "Integer part", "category": "FLOAT_MATH"},
-    {"mnemonic": "go", "section": "13.1", "title": "Unconditional jump", "category": "BRANCH"},
-    {"mnemonic": "jmp", "section": "13.1", "title": "Unconditional jump", "category": "BRANCH"},
-    {"mnemonic": "if=go", "section": "13.3", "title": "Conditional Jump", "category": "BRANCH"},
-    {"mnemonic": "if><go", "section": "13.3", "title": "Conditional Jump", "category": "BRANCH"},
-    {"mnemonic": "if<go", "section": "13.3", "title": "Conditional Jump", "category": "BRANCH"},
-    {"mnemonic": "if<=go", "section": "13.3", "title": "Conditional Jump", "category": "BRANCH"},
-    {"mnemonic": "if>go", "section": "13.3", "title": "Conditional Jump", "category": "BRANCH"},
-    {"mnemonic": "if>=go", "section": "13.3", "title": "Conditional Jump", "category": "BRANCH"},
-    {"mnemonic": "loopi", "section": "13.4", "title": "Loop with increment", "category": "BRANCH"},
-    {"mnemonic": "loopd", "section": "13.5", "title": "Loop with decrement", "category": "BRANCH"},
-    {"mnemonic": "loop", "section": "13.6", "title": "Loop General", "category": "BRANCH"},
-    {"mnemonic": "ifkgo", "section": "13.7", "title": "Conditional jump on flag", "category": "BRANCH"},
-    {"mnemonic": "ifstgo", "section": "13.8", "title": "Conditional jump on status", "category": "BRANCH"},
-    {"mnemonic": "jumpg", "section": "13.2", "title": "Jump general", "category": "BRANCH"},
-    {"mnemonic": "jumps", "section": "16.34", "title": "JUMPS - Call supervisor ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "call", "section": "13.7", "title": "Call subroutine general", "category": "CALL"},
-    {"mnemonic": "callg", "section": "13.7", "title": "Call subroutine general", "category": "CALL"},
-    {"mnemonic": "ret", "section": "13.8", "title": "Return from subroutine", "category": "CALL"},
-    {"mnemonic": "chain", "section": "13.9", "title": "Chain subroutine", "category": "CALL"},
-    {"mnemonic": "init", "section": "13.9", "title": "Initialize stack", "category": "CALL"},
-    {"mnemonic": "entb", "section": "13.10", "title": "Enter block", "category": "CALL"},
-    {"mnemonic": "entd", "section": "13.11", "title": "Enter declaration", "category": "CALL"},
-    {"mnemonic": "entf", "section": "13.12", "title": "Enter function", "category": "CALL"},
-    {"mnemonic": "entfn", "section": "13.13", "title": "Enter function (no locals)", "category": "CALL"},
-    {"mnemonic": "entm", "section": "13.14", "title": "Enter main", "category": "CALL"},
-    {"mnemonic": "ents", "section": "13.15", "title": "Enter subroutine", "category": "CALL"},
-    {"mnemonic": "entsn", "section": "13.16", "title": "Enter subroutine (no locals)", "category": "CALL"},
-    {"mnemonic": "entt", "section": "13.17", "title": "Enter task", "category": "CALL"},
-    {"mnemonic": "retb", "section": "13.18", "title": "Return from block", "category": "CALL"},
-    {"mnemonic": "retd", "section": "13.19", "title": "Return from declaration", "category": "CALL"},
-    {"mnemonic": "rett", "section": "13.20", "title": "Return from task", "category": "CALL"},
-    {"mnemonic": "smove", "section": "14.3", "title": "String move while", "category": "STRING"},
-    {"mnemonic": "smovet", "section": "14.5", "title": "String move translated", "category": "STRING"},
-    {"mnemonic": "smovem", "section": "14.7", "title": "String move m elements", "category": "STRING"},
-    {"mnemonic": "sfill", "section": "14.8", "title": "String fill", "category": "STRING"},
-    {"mnemonic": "sfilln", "section": "14.9", "title": "String fill n elements", "category": "STRING"},
-    {"mnemonic": "scomp", "section": "14.10", "title": "String compare", "category": "STRING"},
-    {"mnemonic": "scompt", "section": "14.11", "title": "String compare translated", "category": "STRING"},
-    {"mnemonic": "scomptp", "section": "14.13", "title": "String compare translated with pad", "category": "STRING"},
-    {"mnemonic": "slocate", "section": "14.15", "title": "String locate element", "category": "STRING"},
-    {"mnemonic": "sspan", "section": "14.17", "title": "String span", "category": "STRING"},
-    {"mnemonic": "sskip", "section": "14.18", "title": "String skip", "category": "STRING"},
-    {"mnemonic": "smatch", "section": "14.19", "title": "String match", "category": "STRING"},
-    {"mnemonic": "spack", "section": "14.20", "title": "Set parity in string", "category": "STRING"},
-    {"mnemonic": "sunpack", "section": "14.21", "title": "Clear parity in string", "category": "STRING"},
-    {"mnemonic": "sscan", "section": "14.22", "title": "String scan", "category": "STRING"},
-    {"mnemonic": "laddr", "section": "15.4", "title": "Load address", "category": "MOVE"},
-    {"mnemonic": "laddrb", "section": "15.6", "title": "Load address into base register", "category": "MOVE"},
-    {"mnemonic": "lind", "section": "15.8", "title": "Load index", "category": "SYSTEM"},
-    {"mnemonic": "cind", "section": "15.9", "title": "Calculate Index", "category": "SYSTEM"},
-    {"mnemonic": "noop", "section": "15.10", "title": "No operation", "category": "CONTROL"},
-    {"mnemonic": "setk", "section": "15.11", "title": "Set Flag", "category": "CONTROL"},
-    {"mnemonic": "clrk", "section": "15.12", "title": "Clear Flag", "category": "CONTROL"},
-    {"mnemonic": "halt", "section": "15.13", "title": "Halt", "category": "CONTROL"},
-    {"mnemonic": "freebuddy", "section": "15.14", "title": "Free buddy element", "category": "SYSTEM"},
-    {"mnemonic": "plccn", "section": "15.15", "title": "PLCCN - Convert PLANC descriptor to ND-500 descriptor ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "ncplc", "section": "15.16", "title": "NCPLC - Convert ND-500 descriptor to PLANC descriptor ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "clinit", "section": "15.17", "title": "CLINIT - Initialize local clock ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "clread", "section": "15.18", "title": "CLREAD - Read local clock ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "dpsw", "section": "16.1", "title": "Disable process switch", "category": "SYSTEM"},
-    {"mnemonic": "epsw", "section": "16.2", "title": "Enable process switch", "category": "SYSTEM"},
-    {"mnemonic": "tas", "section": "16.3", "title": "Test and set", "category": "SYSTEM"},
-    {"mnemonic": "settr", "section": "16.5", "title": "Set bit in trap enable register", "category": "SYSTEM"},
-    {"mnemonic": "clrtr", "section": "16.6", "title": "Clear bit in trap enable register", "category": "SYSTEM"},
-    {"mnemonic": "ldsp", "section": "16.7", "title": "Load special register", "category": "SYSTEM"},
-    {"mnemonic": "stsp", "section": "16.8", "title": "Store special register", "category": "SYSTEM"},
-    {"mnemonic": "ifrc", "section": "16.9", "title": "Integer float register communication", "category": "SYSTEM"},
-    {"mnemonic": "rdus", "section": "16.10", "title": "Read user status", "category": "SYSTEM"},
-    {"mnemonic": "wrus", "section": "16.11", "title": "Write user status", "category": "SYSTEM"},
-    {"mnemonic": "ddirt", "section": "16.11", "title": "DDIRT - Dump 'Dirty' ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "dmon", "section": "16.13", "title": "Data memory management on", "category": "SYSTEM"},
-    {"mnemonic": "dmoff", "section": "16.15", "title": "Data memory management off", "category": "SYSTEM"},
-    {"mnemonic": "rwip", "section": "16.17", "title": "Read Written In Page table", "category": "SYSTEM"},
-    {"mnemonic": "cwip", "section": "16.19", "title": "Clear Written In Page Table", "category": "SYSTEM"},
-    {"mnemonic": "cpu", "section": "16.21", "title": "Clear Page Used bit", "category": "SYSTEM"},
-    {"mnemonic": "riop", "section": "16.23", "title": "Read I/O processor memory", "category": "IO"},
-    {"mnemonic": "wiop", "section": "16.24", "title": "Write I/O processor memory", "category": "IO"},
-    {"mnemonic": "ldbc", "section": "16.25", "title": "Load bypassing cache", "category": "SYSTEM"},
-    {"mnemonic": "stbc", "section": "16.26", "title": "Store bypassing cache", "category": "SYSTEM"},
-    {"mnemonic": "rext", "section": "16.28", "title": "REXT - Read from device external to CPU ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "wext", "section": "16.29", "title": "WEXT - Write to device external to CPU ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "tossp", "section": "16.30", "title": "TOSSP - Special load of TOS ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "rphs", "section": "16.31", "title": "RPHS - Read from physical segment ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "wphs", "section": "16.32", "title": "WPHS - Write to physical segment ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "rpgu", "section": "16.33", "title": "RPGU - Read page table", "category": "SYSTEM"},
-    {"mnemonic": "wpgu", "section": "16.34", "title": "WPGU - Write page table", "category": "SYSTEM"},
-    {"mnemonic": "svers", "section": "16.35", "title": "SVERS - Store microprogram version ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "scpuno", "section": "16.36", "title": "SCPUNO - Store CPU number ('87 extension)", "category": "SYSTEM"},
-    {"mnemonic": "monitor", "section": "13.21", "title": "Monitor call", "category": "SYSTEM"},
-    {"mnemonic": "rfi", "section": "13.22", "title": "Return from interrupt", "category": "SYSTEM"},
-    {"mnemonic": "wait", "section": "15.19", "title": "Wait for interrupt", "category": "CONTROL"},
-    {"mnemonic": "io", "section": "16.37", "title": "I/O instruction", "category": "IO"},
-    {"mnemonic": "phyladr", "section": "16.38", "title": "Physical address", "category": "SYSTEM"},
-    {"mnemonic": "pwconv", "section": "16.39", "title": "Packed word convert", "category": "SYSTEM"},
-    {"mnemonic": "wpconv", "section": "16.40", "title": "Word packed convert", "category": "SYSTEM"}
+    {
+      "mnemonic": ":=",
+      "section": "10.1",
+      "title": "Load",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "=:",
+      "section": "10.4",
+      "title": "Store",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "b:=",
+      "section": "10.2",
+      "title": "Load local base register",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "r:=",
+      "section": "10.3",
+      "title": "Load record register",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "b=:",
+      "section": "10.5",
+      "title": "Store local base register",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "r=:",
+      "section": "10.6",
+      "title": "Store record register",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "move",
+      "section": "10.7",
+      "title": "Move",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "swap",
+      "section": "10.8",
+      "title": "Swap",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "comp",
+      "section": "10.9",
+      "title": "Compare",
+      "category": "COMPARE"
+    },
+    {
+      "mnemonic": "test",
+      "section": "10.11",
+      "title": "Test against zero",
+      "category": "COMPARE"
+    },
+    {
+      "mnemonic": "neg",
+      "section": "10.12",
+      "title": "Negate",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "inv",
+      "section": "10.13",
+      "title": "Invert",
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "invc",
+      "section": "10.14",
+      "title": "Invert with carry add",
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "abs",
+      "section": "10.15",
+      "title": "Absolute value",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "clr",
+      "section": "10.16",
+      "title": "Clear register",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "incr",
+      "section": "10.19",
+      "title": "Increment",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "decr",
+      "section": "10.20",
+      "title": "Decrement",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "and",
+      "section": "10.21",
+      "title": "And",
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "or",
+      "section": "10.22",
+      "title": "Or",
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "xor",
+      "section": "10.23",
+      "title": "Exclusive or",
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "getb",
+      "section": "10.27",
+      "title": "Get bit",
+      "category": "BITFIELD"
+    },
+    {
+      "mnemonic": "clebi",
+      "section": "10.29",
+      "title": "Clear bit",
+      "category": "BITFIELD"
+    },
+    {
+      "mnemonic": "setbi",
+      "section": "10.30",
+      "title": "Set bit",
+      "category": "BITFIELD"
+    },
+    {
+      "mnemonic": "getbf",
+      "section": "10.31",
+      "title": "Get bit field",
+      "category": "BITFIELD"
+    },
+    {
+      "mnemonic": "putbf",
+      "section": "10.32",
+      "title": "Put bit field",
+      "category": "BITFIELD"
+    },
+    {
+      "mnemonic": "int",
+      "section": "10.34",
+      "title": "Integer part",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "intr",
+      "section": "10.35",
+      "title": "Integer part with rounding",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "+",
+      "section": "11.5",
+      "title": "Add two operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "-",
+      "section": "11.6",
+      "title": "Subtract two operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "*",
+      "section": "11.7",
+      "title": "Multiply two operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "/",
+      "section": "11.8",
+      "title": "Divide two operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "add2",
+      "section": "11.5",
+      "title": "Add two operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "sub2",
+      "section": "11.6",
+      "title": "Subtract two operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "mul2",
+      "section": "11.7",
+      "title": "Multiply two operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "div2",
+      "section": "11.8",
+      "title": "Divide two operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "add3",
+      "section": "11.9",
+      "title": "Add three operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "sub3",
+      "section": "11.10",
+      "title": "Subtract three operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "mul3",
+      "section": "11.11",
+      "title": "Multiply three operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "div3",
+      "section": "11.12",
+      "title": "Divide three operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "mul4",
+      "section": "11.13",
+      "title": "Multiply with overflow to register",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "div4",
+      "section": "11.14",
+      "title": "Divide with overflow to register",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "umul",
+      "section": "11.15",
+      "title": "Unsigned multiply with overflow to register",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "udiv",
+      "section": "11.16",
+      "title": "Unsigned divide with overflow to register",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "addc",
+      "section": "11.17",
+      "title": "Add with carry",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "subc",
+      "section": "11.18",
+      "title": "Subtract with carry",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "mulad",
+      "section": "11.19",
+      "title": "Multiply and add",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "rem",
+      "section": "11.20",
+      "title": "Remainder",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "axi",
+      "section": "11.21",
+      "title": "Algebraic multiply index",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "ixi",
+      "section": "11.22",
+      "title": "Integer multiply index",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "padd",
+      "section": "17.2",
+      "title": "Packed add",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "paddr",
+      "section": "17.2",
+      "title": "Packed add",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "psub",
+      "section": "17.3",
+      "title": "Packed subtract",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "psubr",
+      "section": "17.3",
+      "title": "Packed subtract",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "pmpy",
+      "section": "17.4",
+      "title": "Packed multiply",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "pmpyr",
+      "section": "17.4",
+      "title": "Packed multiply",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "pcomp",
+      "section": "17.5",
+      "title": "Packed Compare",
+      "category": "COMPARE"
+    },
+    {
+      "mnemonic": "ppack",
+      "section": "17.7",
+      "title": "Convert ASCII to packed",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "ppackr",
+      "section": "17.7",
+      "title": "Convert ASCII to packed",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "pupack",
+      "section": "17.9",
+      "title": "Convert packed to binary word",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "pupackr",
+      "section": "17.9",
+      "title": "Convert packed to binary word",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "psum",
+      "section": "17.8",
+      "title": "Packed sum",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "poly",
+      "section": "12.3",
+      "title": "Polynomial",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "sin",
+      "section": "12.5",
+      "title": "Sine",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "cos",
+      "section": "12.6",
+      "title": "Cosine",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "tan",
+      "section": "12.9",
+      "title": "Tangent",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "asin",
+      "section": "12.7",
+      "title": "Arc sine",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "acos",
+      "section": "12.8",
+      "title": "Arc cosine",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "atan",
+      "section": "12.10",
+      "title": "Arc tangent",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "atan2",
+      "section": "12.11",
+      "title": "Arc tangent two arguments",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "alog",
+      "section": "12.17",
+      "title": "Antilogarithm (e^x)",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "alog10",
+      "section": "12.18",
+      "title": "Antilogarithm base 10 (10^x)",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "alog2",
+      "section": "12.19",
+      "title": "Antilogarithm base 2 (2^x)",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "exp",
+      "section": "12.17",
+      "title": "Exponential (e^x)",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "sqrt",
+      "section": "12.20",
+      "title": "Square root",
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "go",
+      "section": "13.1",
+      "title": "Unconditional jump",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "if=go",
+      "section": "13.3",
+      "title": "Conditional Jump",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "if><go",
+      "section": "13.3",
+      "title": "Conditional Jump",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "if<go",
+      "section": "13.3",
+      "title": "Conditional Jump",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "if<=go",
+      "section": "13.3",
+      "title": "Conditional Jump",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "if>go",
+      "section": "13.3",
+      "title": "Conditional Jump",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "if>=go",
+      "section": "13.3",
+      "title": "Conditional Jump",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "loopi",
+      "section": "13.4",
+      "title": "Loop with increment",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "loopd",
+      "section": "13.5",
+      "title": "Loop with decrement",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "loop",
+      "section": "13.6",
+      "title": "Loop General",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "ifkgo",
+      "section": "13.7",
+      "title": "Conditional jump on flag",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "ifstgo",
+      "section": "13.8",
+      "title": "Conditional jump on status",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "jumpg",
+      "section": "13.2",
+      "title": "Jump general",
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "jumps",
+      "section": "16.34",
+      "title": "JUMPS - Call supervisor ('87 extension)",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "call",
+      "section": "13.7",
+      "title": "Call subroutine general",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "callg",
+      "section": "13.7",
+      "title": "Call subroutine general",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "ret",
+      "section": "13.8",
+      "title": "Return from subroutine",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "chain",
+      "section": "13.9",
+      "title": "Chain subroutine",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "init",
+      "section": "13.9",
+      "title": "Initialize stack",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "entb",
+      "section": "13.10",
+      "title": "Enter block",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "entd",
+      "section": "13.11",
+      "title": "Enter declaration",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "entf",
+      "section": "13.12",
+      "title": "Enter function",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "entfn",
+      "section": "13.13",
+      "title": "Enter function (no locals)",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "entm",
+      "section": "13.14",
+      "title": "Enter main",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "ents",
+      "section": "13.15",
+      "title": "Enter subroutine",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "entsn",
+      "section": "13.16",
+      "title": "Enter subroutine (no locals)",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "entt",
+      "section": "13.17",
+      "title": "Enter task",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "retb",
+      "section": "13.18",
+      "title": "Return from block",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "retd",
+      "section": "13.19",
+      "title": "Return from declaration",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "rett",
+      "section": "13.20",
+      "title": "Return from task",
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "smove",
+      "section": "14.3",
+      "title": "String move while",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "sfill",
+      "section": "14.8",
+      "title": "String fill",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "sfilln",
+      "section": "14.9",
+      "title": "String fill n elements",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "scomp",
+      "section": "14.10",
+      "title": "String compare",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "sspan",
+      "section": "14.17",
+      "title": "String span",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "sskip",
+      "section": "14.18",
+      "title": "String skip",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "smatch",
+      "section": "14.19",
+      "title": "String match",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "sscan",
+      "section": "14.22",
+      "title": "String scan",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "laddr",
+      "section": "15.4",
+      "title": "Load address",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "lind",
+      "section": "15.8",
+      "title": "Load index",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "cind",
+      "section": "15.9",
+      "title": "Calculate Index",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "noop",
+      "section": "15.10",
+      "title": "No operation",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "setk",
+      "section": "15.11",
+      "title": "Set Flag",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "clrk",
+      "section": "15.12",
+      "title": "Clear Flag",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "rdus",
+      "section": "16.10",
+      "title": "Read user status",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "ddirt",
+      "section": "16.11",
+      "title": "DDIRT - Dump 'Dirty' ('87 extension)",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "dmon",
+      "section": "16.13",
+      "title": "Data memory management on",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "rwip",
+      "section": "16.17",
+      "title": "Read Written In Page table",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "cwip",
+      "section": "16.19",
+      "title": "Clear Written In Page Table",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "rphs",
+      "section": "16.31",
+      "title": "RPHS - Read from physical segment ('87 extension)",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "wphs",
+      "section": "16.32",
+      "title": "WPHS - Write to physical segment ('87 extension)",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "rpgu",
+      "section": "16.33",
+      "title": "RPGU - Read page table",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "svers",
+      "section": "16.35",
+      "title": "SVERS - Store microprogram version ('87 extension)",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "scpuno",
+      "section": "16.36",
+      "title": "SCPUNO - Store CPU number ('87 extension)",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "phyladr",
+      "section": "16.38",
+      "title": "Physical address",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "pwconv",
+      "section": "16.39",
+      "title": "Packed word convert",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "wpconv",
+      "section": "16.40",
+      "title": "Word packed convert",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "a1:=",
+      "section": "16.9",
+      "title": "Integer float register communication - load A1",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "a2:=",
+      "section": "16.9",
+      "title": "Integer float register communication - load A2",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "a3:=",
+      "section": "16.9",
+      "title": "Integer float register communication - load A3",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "a4:=",
+      "section": "16.9",
+      "title": "Integer float register communication - load A4",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "e1:=",
+      "section": "16.9",
+      "title": "Integer float register communication - load E1",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "e2:=",
+      "section": "16.9",
+      "title": "Integer float register communication - load E2",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "e3:=",
+      "section": "16.9",
+      "title": "Integer float register communication - load E3",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "e4:=",
+      "section": "16.9",
+      "title": "Integer float register communication - load E4",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "a1=:",
+      "section": "16.9",
+      "title": "Integer float register communication - store A1",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "a2=:",
+      "section": "16.9",
+      "title": "Integer float register communication - store A2",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "a3=:",
+      "section": "16.9",
+      "title": "Integer float register communication - store A3",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "a4=:",
+      "section": "16.9",
+      "title": "Integer float register communication - store A4",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "e1=:",
+      "section": "16.9",
+      "title": "Integer float register communication - store E1",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "e2=:",
+      "section": "16.9",
+      "title": "Integer float register communication - store E2",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "e3=:",
+      "section": "16.9",
+      "title": "Integer float register communication - store E3",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "e4=:",
+      "section": "16.9",
+      "title": "Integer float register communication - store E4",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "l:=",
+      "section": "16.7",
+      "title": "Load special register - link register",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "hl:=",
+      "section": "16.7",
+      "title": "Load special register - upper limit",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "ll:=",
+      "section": "16.7",
+      "title": "Load special register - lower limit",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "st1:=",
+      "section": "16.7",
+      "title": "Load special register - 1st status",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "ote1:=",
+      "section": "16.7",
+      "title": "Load special register - 1st own trap enable",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "ote2:=",
+      "section": "16.7",
+      "title": "Load special register - 2nd own trap enable",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "tos:=",
+      "section": "16.7",
+      "title": "Load special register - top of stack",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "tha:=",
+      "section": "16.7",
+      "title": "Load special register - trap handler",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "l=:",
+      "section": "16.8",
+      "title": "Store special register - link register",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "hl=:",
+      "section": "16.8",
+      "title": "Store special register - upper limit",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "ll=:",
+      "section": "16.8",
+      "title": "Store special register - lower limit",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "st1=:",
+      "section": "16.8",
+      "title": "Store special register - 1st status",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "ote1=:",
+      "section": "16.8",
+      "title": "Store special register - 1st own trap enable",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "ote2=:",
+      "section": "16.8",
+      "title": "Store special register - 2nd own trap enable",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "mte1=:",
+      "section": "16.8",
+      "title": "Store special register - 1st mother trap enable",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "mte2=:",
+      "section": "16.8",
+      "title": "Store special register - 2nd mother trap enable",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "cte1=:",
+      "section": "16.8",
+      "title": "Store special register - 1st child trap enable",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "cte2=:",
+      "section": "16.8",
+      "title": "Store special register - 2nd child trap enable",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "temm1=:",
+      "section": "16.8",
+      "title": "Store special register - 1st trap enable modification mask",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "temm2=:",
+      "section": "16.8",
+      "title": "Store special register - 2nd trap enable modification mask",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "ced=:",
+      "section": "16.8",
+      "title": "Store special register - current executing domain",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "cad=:",
+      "section": "16.8",
+      "title": "Store special register - current alternative domain",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "ps=:",
+      "section": "16.8",
+      "title": "Store special register - process segment",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "tos=:",
+      "section": "16.8",
+      "title": "Store special register - top of stack",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "tha=:",
+      "section": "16.8",
+      "title": "Store special register - trap handler",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "p=:",
+      "section": "16.8",
+      "title": "Store special register - program counter",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "cad:=",
+      "section": "16.33",
+      "title": "Load CAD - current alternative domain",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "lregbl",
+      "section": "16.27.2",
+      "title": "Load register block",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "sregbl",
+      "section": "16.27.1",
+      "title": "Save register block",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "lcntxt",
+      "section": "16.27.4",
+      "title": "Load context block",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "scntxt",
+      "section": "16.27.3",
+      "title": "Save context block",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "bladdr",
+      "section": "15.6",
+      "title": "Load address into base register",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "rladdr",
+      "section": "15.5",
+      "title": "Load address into record register",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "smvwh",
+      "section": "14.3",
+      "title": "String move while",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "smvun",
+      "section": "14.4",
+      "title": "String move until",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "smvtr",
+      "section": "14.5",
+      "title": "String move translated",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "smvtu",
+      "section": "14.6",
+      "title": "String move translated until",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "smovn",
+      "section": "14.7",
+      "title": "String move n elements",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "bmove",
+      "section": "15.13",
+      "title": "Block move",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "freeb",
+      "section": "15.14",
+      "title": "Free buddy element",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "biconv",
+      "section": "15.2",
+      "title": "Bit convert",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "byconv",
+      "section": "15.2",
+      "title": "Byte convert",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "hconv",
+      "section": "15.2",
+      "title": "Halfword convert",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "wconv",
+      "section": "15.2",
+      "title": "Word convert",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "fconv",
+      "section": "15.2",
+      "title": "Float convert",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "dconv",
+      "section": "15.2",
+      "title": "Double float convert",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "byconr",
+      "section": "15.2",
+      "title": "Byte convert rounded",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "hconr",
+      "section": "15.2",
+      "title": "Halfword convert rounded",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "wconr",
+      "section": "15.2",
+      "title": "Word convert rounded",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "fconr",
+      "section": "15.2",
+      "title": "Float convert rounded",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "shl",
+      "section": "10.24",
+      "title": "Logical shift",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "sha",
+      "section": "10.25",
+      "title": "Arithmetical shift",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "shr",
+      "section": "10.26",
+      "title": "Rotational shift",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "pshift",
+      "section": "17.6",
+      "title": "Packed shift",
+      "category": "BCD"
+    },
+    {
+      "mnemonic": "pshiftr",
+      "section": "17.6",
+      "title": "Packed shift rounded",
+      "category": "BCD"
+    },
+    {
+      "mnemonic": "getbi",
+      "section": "10.27",
+      "title": "Get bit",
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "putbi",
+      "section": "10.28",
+      "title": "Put bit",
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "bp",
+      "section": "16.4",
+      "title": "Break point",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "sete",
+      "section": "16.5",
+      "title": "Set bit in trap enable register",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "retk",
+      "section": "13.11",
+      "title": "Set flag return from subroutine",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "retbk",
+      "section": "13.11",
+      "title": "Set flag buddy subroutine return",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "stz",
+      "section": "10.17",
+      "title": "Store zero",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "set1",
+      "section": "10.18",
+      "title": "Set to one",
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "tset",
+      "section": "16.3",
+      "title": "Test and set",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "if-kgo",
+      "section": "13.3",
+      "title": "Conditional jump - if K set",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "if-stgo",
+      "section": "13.3",
+      "title": "Conditional jump - if status bit set",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "if<<=go",
+      "section": "13.3",
+      "title": "Conditional jump - if less magnitude",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "if<<go",
+      "section": "13.3",
+      "title": "Conditional jump - if less magnitude (byte disp)",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "if>>=go",
+      "section": "13.3",
+      "title": "Conditional jump - if greater/equal magnitude",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "if>>go",
+      "section": "13.3",
+      "title": "Conditional jump - if greater magnitude",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "ifkret",
+      "section": "13.11",
+      "title": "If K set return from subroutine",
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "dcc",
+      "section": "16.10",
+      "title": "Data cache clear",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "pcc",
+      "section": "16.12",
+      "title": "Program cache clear",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "pmon",
+      "section": "16.14",
+      "title": "Program memory management on",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "dmof",
+      "section": "16.15",
+      "title": "Data memory management off",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "pmof",
+      "section": "16.16",
+      "title": "Program memory management off",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "pctsb",
+      "section": "16.24",
+      "title": "Clear program translation speedup buffer",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "dctsb",
+      "section": "16.24",
+      "title": "Clear data translation speedup buffer",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "scotr",
+      "section": "14.11",
+      "title": "String compare translated",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "scopa",
+      "section": "14.12",
+      "title": "String compare with pad",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "scopt",
+      "section": "14.13",
+      "title": "String compare translated with pad",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "sloca",
+      "section": "14.15",
+      "title": "String locate element",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "sspar",
+      "section": "14.19",
+      "title": "Set parity in string",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "schpar",
+      "section": "14.20",
+      "title": "Check parity in string",
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "comp2",
+      "section": "10.10",
+      "title": "Compare two operands",
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "solo",
+      "section": "16.1",
+      "title": "Disable process switch",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "tutti",
+      "section": "16.2",
+      "title": "Enable process switch",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "clte",
+      "section": "16.6",
+      "title": "Clear bit in trap enable register",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "zpgu",
+      "section": "16.21",
+      "title": "Clear page used bit",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "cpgu",
+      "section": "16.22",
+      "title": "Clear page used table",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "zwip",
+      "section": "16.18",
+      "title": "Clear written in page bit",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "riom",
+      "section": "16.23",
+      "title": "Read I/O processor memory",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "ps:=",
+      "section": "TBD",
+      "title": "Load process segment (not documented in manual)",
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "wdus",
+      "section": "TBD",
+      "title": "Write data unsynchronized (not documented in manual)",
+      "category": "SYSTEM"
+    }
   ],
   "unmapped_instructions": [
-    "nand", "nor", "xnor", "rcl", "rcr", "shl", "shr",
-    "getbi", "putbi", "clebi_variant", "setbi_variant",
-    "if_eq_go", "if_ne_go", "if_lt_go", "if_le_go", "if_gt_go", "if_ge_go",
-    "push", "pop", "sar",
-    "assignto", "assignfrom", "assignbaseregto", "assignrecordregto",
-    "assignbasefrom", "assignrecordfrom",
-    "add_variant", "sub_variant", "mul_variant", "div_variant",
+    "nand",
+    "nor",
+    "xnor",
+    "rcl",
+    "rcr",
+    "shl",
+    "shr",
+    "getbi",
+    "putbi",
+    "clebi_variant",
+    "setbi_variant",
+    "if_eq_go",
+    "if_ne_go",
+    "if_lt_go",
+    "if_le_go",
+    "if_gt_go",
+    "if_ge_go",
+    "push",
+    "pop",
+    "sar",
+    "assignto",
+    "assignfrom",
+    "assignbaseregto",
+    "assignrecordregto",
+    "assignbasefrom",
+    "assignrecordfrom",
+    "add_variant",
+    "sub_variant",
+    "mul_variant",
+    "div_variant",
     "Some '87 extensions and specialized variants"
   ],
   "mapping_notes": {
