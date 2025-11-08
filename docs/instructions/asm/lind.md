@@ -1,51 +1,43 @@
-# CIND - Cind
+# LIND - Lind
 
 ## Overview
 
-**Mnemonic:** `cind`
-**Function:** Cind
+**Mnemonic:** `lind`
+**Function:** Lind
 **Class:** SYSTEM
 **Privilege:** user
 
-**Format:** `{prefix}{register} CIND <operands>`
+**Format:** `{prefix}{register} LIND <operands>`
 
 ---
 
 ## Description
 
-[Description for CIND instruction to be written based on Reference Manual §15.9]
+[Description for LIND instruction to be written based on Reference Manual §15.8]
 
 **Operands:** 3
-**Variants:** 20 opcode(s)
+**Variants:** 12 opcode(s)
 
 ---
 
 ## Variants
 
-Total variants: 20
+Total variants: 12
 
 | Variant | Opcode | Prefix | Register | Addressing Modes |
 |---------|--------|--------|----------|------------------|
-| 1/20 | 0x00B0 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 2/20 | 0x00B1 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 3/20 | 0x00B2 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 4/20 | 0x00B3 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 5/20 | 0xFD14 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 6/20 | 0xFD15 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 7/20 | 0xFD16 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 8/20 | 0xFD17 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 9/20 | 0xFD18 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 10/20 | 0xFD19 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 11/20 | 0xFD1A | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 12/20 | 0xFD1B | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 13/20 | 0xFFD0 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 14/20 | 0xFFD1 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 15/20 | 0xFFD2 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 16/20 | 0xFFD3 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 17/20 | 0xFFD4 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 18/20 | 0xFFD5 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 19/20 | 0xFFD6 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 20/20 | 0xFFD7 | BY | 4 | LOCAL, RECORD, CONSTANT... |
+| 1/12 | 0x00AC | BY | 1 | LOCAL, RECORD, CONSTANT... |
+| 2/12 | 0x00AD | BY | 2 | LOCAL, RECORD, CONSTANT... |
+| 3/12 | 0x00AE | BY | 3 | LOCAL, RECORD, CONSTANT... |
+| 4/12 | 0x00AF | BY | 4 | LOCAL, RECORD, CONSTANT... |
+| 5/12 | 0xFD0C | BY | 1 | LOCAL, RECORD, CONSTANT... |
+| 6/12 | 0xFD0D | BY | 2 | LOCAL, RECORD, CONSTANT... |
+| 7/12 | 0xFD0E | BY | 3 | LOCAL, RECORD, CONSTANT... |
+| 8/12 | 0xFD0F | BY | 4 | LOCAL, RECORD, CONSTANT... |
+| 9/12 | 0xFD10 | BY | 1 | LOCAL, RECORD, CONSTANT... |
+| 10/12 | 0xFD11 | BY | 2 | LOCAL, RECORD, CONSTANT... |
+| 11/12 | 0xFD12 | BY | 3 | LOCAL, RECORD, CONSTANT... |
+| 12/12 | 0xFD13 | BY | 4 | LOCAL, RECORD, CONSTANT... |
 
 ---
 
@@ -111,7 +103,7 @@ Total variants: 20
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CIND
+        ; Example usage of LIND
         ; [To be written]
 ```
 
@@ -127,8 +119,8 @@ Total variants: 20
 
 ## Reference Manual
 
-**Section:** §15.9
-**Title:** Calculate Index
+**Section:** §15.8
+**Title:** Load index
 
 ---
 
