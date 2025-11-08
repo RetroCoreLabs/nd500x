@@ -1,95 +1,86 @@
-# MTE2=: - Mte2Get
+# MTE2=: - Store Mother trap enable 2
 
 ## Overview
 
-**Mnemonic:** `mte2=:`
-**Function:** Mte2Get
+**Mnemonic:** `mte2=`
+**Function:** Store Mother trap enable 2
 **Class:** MOVE
-**Privilege:** user
+**Privilege:** user/supervisor
 
-**Format:** `{prefix}{register} MTE2=: <operand>`
+**Format:** `MTE2=: <operand>`
 
 ---
 
 ## Description
 
-[Description for MTE2=: instruction to be written based on Reference Manual §TBD]
+Stores the Mother trap enable 2 to the specified operand. System register store operation.
+
+**Operation:** `<operand> = MTE2`
 
 **Operands:** 1
-**Variants:** 1 opcode(s)
+**Variants:** 1
 
 ---
 
 ## Variants
 
-Total variants: 1
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/1 | 0xFD71 | - | 1 | LOCAL, RECORD, REGISTER... |
+| Variant | Opcode | Description |
+|---------|--------|-------------|
+| 1/1 | (varies) | Store Mother trap enable 2 |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Destination)
 
-[Description for operand 1]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+Where to store Mother trap enable 2 value.
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps:** Invalid address
+- **Privilege violation:** If supervisor-only
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+Unaffected.
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Store to local variable
 
 ```assembly
-        ; Example usage of MTE2=:
-        ; [To be written]
+        MTE2=: B.SAVE_AREA
+```
+
+### Example 2: Store to register
+
+```assembly
+        MTE2=: I1
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Cycles:** 3-4
 
 ---
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.8
+**Title:** Store special register
 
 ---
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [MTE2:=](mte2_=.md) - Load Mother trap enable 2
+- [Context Switching](../ContextSwitching.md)

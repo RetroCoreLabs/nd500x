@@ -1,96 +1,86 @@
-# OTE2:= - Ote2Set
+# OTE2:= - Load Own trap enable 2
 
 ## Overview
 
-**Mnemonic:** `ote2:=`
-**Function:** Ote2Set
+**Mnemonic:** `ote2=`
+**Function:** Load Own trap enable 2
 **Class:** MOVE
-**Privilege:** user
+**Privilege:** user/supervisor
 
-**Format:** `{prefix}{register} OTE2:= <operand>`
+**Format:** `OTE2:= <operand>`
 
 ---
 
 ## Description
 
-[Description for OTE2:= instruction to be written based on Reference Manual §TBD]
+Loads the Own trap enable 2 from the specified operand. This is a system register used for trap enable bits 16-31.
+
+**Operation:** `OTE2 = <operand>`
 
 **Operands:** 1
-**Variants:** 1 opcode(s)
+**Variants:** 1
 
 ---
 
 ## Variants
 
-Total variants: 1
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/1 | 0xFDBC | - | 1 | LOCAL, RECORD, CONSTANT... |
+| Variant | Opcode | Description |
+|---------|--------|-------------|
+| 1/1 | (varies) | Load Own trap enable 2 |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Source)
 
-[Description for operand 1]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+Value to load into Own trap enable 2.
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps:** Invalid address
+- **Privilege violation:** If supervisor-only
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+Unaffected.
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Load from local variable
 
 ```assembly
-        ; Example usage of OTE2:=
-        ; [To be written]
+        OTE2:= B.SAVED_VALUE
+```
+
+### Example 2: Load from register
+
+```assembly
+        OTE2:= I1
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Cycles:** 3-4
 
 ---
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.7
+**Title:** Load special register
 
 ---
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [OTE2=:](ote2=_.md) - Store Own trap enable 2
+- [Context Switching](../ContextSwitching.md)

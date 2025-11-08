@@ -1,96 +1,86 @@
-# ST1:= - St1Set
+# ST1:= - Load First status register
 
 ## Overview
 
-**Mnemonic:** `st1:=`
-**Function:** St1Set
+**Mnemonic:** `st1=`
+**Function:** Load First status register
 **Class:** MOVE
-**Privilege:** user
+**Privilege:** user/supervisor
 
-**Format:** `{prefix}{register} ST1:= <operand>`
+**Format:** `ST1:= <operand>`
 
 ---
 
 ## Description
 
-[Description for ST1:= instruction to be written based on Reference Manual §TBD]
+Loads the First status register from the specified operand. This is a system register used for CPU status bits.
+
+**Operation:** `ST1 = <operand>`
 
 **Operands:** 1
-**Variants:** 1 opcode(s)
+**Variants:** 1
 
 ---
 
 ## Variants
 
-Total variants: 1
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/1 | 0xFDB9 | - | 1 | LOCAL, RECORD, CONSTANT... |
+| Variant | Opcode | Description |
+|---------|--------|-------------|
+| 1/1 | (varies) | Load First status register |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Source)
 
-[Description for operand 1]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+Value to load into First status register.
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps:** Invalid address
+- **Privilege violation:** If supervisor-only
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+Unaffected.
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Load from local variable
 
 ```assembly
-        ; Example usage of ST1:=
-        ; [To be written]
+        ST1:= B.SAVED_VALUE
+```
+
+### Example 2: Load from register
+
+```assembly
+        ST1:= I1
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Cycles:** 3-4
 
 ---
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.7
+**Title:** Load special register
 
 ---
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [ST1=:](st1=_.md) - Store First status register
+- [Context Switching](../ContextSwitching.md)
