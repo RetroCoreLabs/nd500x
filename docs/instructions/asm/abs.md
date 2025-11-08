@@ -1,19 +1,23 @@
-# ABS - Abs
+# ABS - Absolute Value
 
 ## Overview
 
 **Mnemonic:** `abs`
-**Function:** Abs
+**Function:** Absolute value
 **Class:** ARITHMETIC
 **Privilege:** user
 
-**Format:** `ABS`
+**Format:** `tn ABS`
 
 ---
 
 ## Description
 
-The absolute value of the contents of the specified register is calculated and stored in the same register. When the datatype is either BY or H, the result is stored in the least significant bits and the rest of the register is cleared. Overflow occurs if and only if the greatest negative integer is negated.
+Calculates the absolute value of the contents of the specified register and stores the result in the same register. The instruction operates on any of the four general registers (n=1 to 4) with various data types (BY, H, W, F, D).
+
+When the datatype is either BY (byte) or H (halfword), the result is stored in the least significant bits and the rest of the register is cleared.
+
+Overflow occurs if and only if the greatest negative integer is negated (e.g., for word integers, negating 80000000H causes overflow since +2147483648 cannot be represented in 32-bit two's complement).
 
 **Operands:** 0
 **Variants:** 20 opcode(s)
@@ -22,71 +26,96 @@ The absolute value of the contents of the specified register is calculated and s
 
 ## Variants
 
-Total variants: 20
+Total variants: 20 (5 data types × 4 registers)
 
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/20 | 0xFF00 | BY | 1 | ALL |
-| 2/20 | 0xFF01 | BY | 2 | ALL |
-| 3/20 | 0xFF02 | BY | 3 | ALL |
-| 4/20 | 0xFF03 | BY | 4 | ALL |
-| 5/20 | 0xFF04 | BY | 1 | ALL |
-| 6/20 | 0xFF05 | BY | 2 | ALL |
-| 7/20 | 0xFF06 | BY | 3 | ALL |
-| 8/20 | 0xFF07 | BY | 4 | ALL |
-| 9/20 | 0xFF08 | BY | 1 | ALL |
-| 10/20 | 0xFF09 | BY | 2 | ALL |
-| 11/20 | 0xFF0A | BY | 3 | ALL |
-| 12/20 | 0xFF0B | BY | 4 | ALL |
-| 13/20 | 0xFF0C | BY | 1 | ALL |
-| 14/20 | 0xFF0C | BY | 2 | ALL |
-| 15/20 | 0xFF0D | BY | 3 | ALL |
-| 16/20 | 0xFF0D | BY | 4 | ALL |
-| 17/20 | 0xFF0E | BY | 1 | ALL |
-| 18/20 | 0xFF0E | BY | 2 | ALL |
-| 19/20 | 0xFF0F | BY | 3 | ALL |
-| 20/20 | 0xFF0F | BY | 4 | ALL |
+| Variant | Opcode | Prefix | Register | Data Type |
+|---------|--------|--------|----------|-----------|
+| 1/20 | 0xFF00 | BY | 1 | Byte |
+| 2/20 | 0xFF01 | BY | 2 | Byte |
+| 3/20 | 0xFF02 | BY | 3 | Byte |
+| 4/20 | 0xFF03 | BY | 4 | Byte |
+| 5/20 | 0xFF04 | H | 1 | Halfword |
+| 6/20 | 0xFF05 | H | 2 | Halfword |
+| 7/20 | 0xFF06 | H | 3 | Halfword |
+| 8/20 | 0xFF07 | H | 4 | Halfword |
+| 9/20 | 0xFF08 | W | 1 | Word |
+| 10/20 | 0xFF09 | W | 2 | Word |
+| 11/20 | 0xFF0A | W | 3 | Word |
+| 12/20 | 0xFF0B | W | 4 | Word |
+| 13/20 | 0xFF0C | F | 1 | Float |
+| 14/20 | 0xFF0D | F | 2 | Float |
+| 15/20 | 0xFF0E | F | 3 | Float |
+| 16/20 | 0xFF0F | F | 4 | Float |
+| 17/20 | 0xFF0C | D | 1 | Double Float |
+| 18/20 | 0xFF0D | D | 2 | Double Float |
+| 19/20 | 0xFF0E | D | 3 | Double Float |
+| 20/20 | 0xFF0F | D | 4 | Double Float |
 
 ---
 
 ## Operands
 
-This instruction takes no operands.
+This instruction takes no operands. It operates directly on the specified register.
+
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Integer overflow (O):** Occurs when negating the greatest negative integer (e.g., -2147483648 for word integers)
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+- **Z (Zero):** Set if result = 0, cleared otherwise
+- **S (Sign):** Always cleared (0) - absolute value is always non-negative
+- **O (Overflow):** Set if integer overflow occurs, cleared otherwise (integer types only)
+- **K (Flag):** Unaffected
+- **C (Carry):** Unaffected
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Double float absolute value
 
 ```assembly
-        ; Example for abs
-        ; [Variant data not available]
+        % Take absolute value of double precision register D1
+        D1 ABS
+```
+
+### Example 2: Word absolute value
+
+```assembly
+        % Take absolute value of word register I2
+        W2 ABS
+```
+
+### Example 3: Byte absolute value with overflow check
+
+```assembly
+        % Take absolute value of byte in I3
+        BY3 ABS
+        IF-KGO OVERFLOW_HANDLER    % Branch if overflow occurred
+```
+
+### Example 4: Float absolute value in computation
+
+```assembly
+        % Compute absolute difference: |A - B|
+        F1 := B.VALUE_A
+        F1 - B.VALUE_B
+        F1 ABS                     % Get absolute value
+        F1 =: B.RESULT
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Typical cycles:** 2-3 cycles
+- **Best case:** 2 cycles (value already positive)
+- **Worst case:** 3 cycles (value negative, requires negation)
 
 ---
 
@@ -99,6 +128,7 @@ This instruction takes no operands.
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
+- [NEG](neg.md) - Negate (two's complement)
+- [INT](int.md) - Integer part (truncate floating point)
 - [Data Type Prefixes](../Prefixes.md)
 - [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)

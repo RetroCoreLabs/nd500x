@@ -1,19 +1,23 @@
-# ATAN2 - Atan2
+# ATAN2 - Arc Tangent Two Arguments
 
 ## Overview
 
 **Mnemonic:** `atan2`
-**Function:** Atan2
+**Function:** Arc tangent with quadrant information (inverse tangent of y/x)
 **Class:** FLOAT_MATH
 **Privilege:** user
 
-**Format:** `{prefix}{register} ATAN2 <op1>,<op2>`
+**Format:** `tn ATAN2 <num>,<den>`
 
 ---
 
 ## Description
 
-The trigonometric arc tangent of <num>/<den> is loaded into the specified float or double float register. The result value gives the angle in radians in the correct quadrant in the range -pi to pi. A zero value of both <num> and <den> will cause an invalid operation trap condition and the specified register will be set to zero.
+Calculates the trigonometric arctangent of `<num>/<den>` and loads the result into the specified float or double float register. The result value gives the angle in radians in the correct quadrant in the range -π to +π (-3.1416 to +3.1416).
+
+Unlike the single-argument ATAN instruction, ATAN2 takes both numerator and denominator separately, allowing it to determine the correct quadrant based on the signs of both arguments. This is essential for converting Cartesian coordinates (x, y) to polar coordinates (r, θ).
+
+If both `<num>` and `<den>` are zero, an invalid operation (IVO) trap condition occurs and the specified register is set to zero.
 
 **Operands:** 2
 **Variants:** 8 opcode(s)
@@ -22,82 +26,124 @@ The trigonometric arc tangent of <num>/<den> is loaded into the specified float 
 
 ## Variants
 
-Total variants: 8
+Total variants: 8 (2 data types × 4 registers)
 
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/8 | 0xFF70 | F | 1 | LOCAL, RECORD, CONSTANT... |
-| 2/8 | 0xFF71 | F | 2 | LOCAL, RECORD, CONSTANT... |
-| 3/8 | 0xFF72 | F | 3 | LOCAL, RECORD, CONSTANT... |
-| 4/8 | 0xFF73 | F | 4 | LOCAL, RECORD, CONSTANT... |
-| 5/8 | 0xFF9C | F | 1 | LOCAL, RECORD, CONSTANT... |
-| 6/8 | 0xFF9D | F | 2 | LOCAL, RECORD, CONSTANT... |
-| 7/8 | 0xFF9E | F | 3 | LOCAL, RECORD, CONSTANT... |
-| 8/8 | 0xFF9F | F | 4 | LOCAL, RECORD, CONSTANT... |
+| Variant | Opcode | Prefix | Register | Data Type |
+|---------|--------|--------|----------|-----------|
+| 1/8 | 0xFF70 | F | 1 | Float |
+| 2/8 | 0xFF71 | F | 2 | Float |
+| 3/8 | 0xFF72 | F | 3 | Float |
+| 4/8 | 0xFF73 | F | 4 | Float |
+| 5/8 | 0xFF9C | D | 1 | Double Float |
+| 6/8 | 0xFF9D | D | 2 | Double Float |
+| 7/8 | 0xFF9E | D | 3 | Double Float |
+| 8/8 | 0xFF9F | D | 4 | Double Float |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Numerator)
 
-[Description for operand 1]
+The numerator operand (typically y-coordinate or opposite side).
 
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
-
-### Operand 2
-
-[Description for operand 2]
+**Type:** Float or Double Float (matching register type)
+**Access:** Read
 
 **Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+- **LOCAL** - Local data area access (B.variable)
+- **RECORD** - Record-relative access (R.field)
+- **CONSTANT** - Immediate constant value
+- **REGISTER** - Float register (A1-A4 or D1-D4)
+- **PRE_INDEXED** - Indexed addressing with offset
+- **ABSOLUTE** - Absolute memory address
+
+### Operand 2 (Denominator)
+
+The denominator operand (typically x-coordinate or adjacent side).
+
+**Type:** Float or Double Float (matching register type)
+**Access:** Read
+
+**Supported modes:**
+- **LOCAL** - Local data area access (B.variable)
+- **RECORD** - Record-relative access (R.field)
+- **CONSTANT** - Immediate constant value
+- **REGISTER** - Float register (A1-A4 or D1-D4)
+- **PRE_INDEXED** - Indexed addressing with offset
+- **ABSOLUTE** - Absolute memory address
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps:** Invalid address, descriptor range violation, page fault, protection violation
+- **Invalid operation (IVO):** Both `<num>` and `<den>` are zero; result register set to zero
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+- **Z (Zero):** Set if result = 0, cleared otherwise
+- **S (Sign):** Set to sign bit of result (bit 31 for float, bit 63 for double)
+- **O (Overflow):** Unaffected
+- **K (Flag):** Unaffected
+- **C (Carry):** Unaffected
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Arc tangent from two variables
 
 ```assembly
-        ; Example for atan2
-        ; [Variant data not available]
+        % Load arc tangent of WIDTH/DIST
+        D3 ATAN2 WIDTH, DIST
+```
+
+### Example 2: Cartesian to polar conversion
+
+```assembly
+        % Convert (x, y) to angle θ
+        F1 ATAN2 B.Y_COORD, B.X_COORD
+        F1 =: B.THETA            % Angle in radians
+```
+
+### Example 3: Calculate bearing from two points
+
+```assembly
+        % Calculate bearing from point1 to point2
+        F2 := B.POINT2_Y
+        F2 - B.POINT1_Y          % dy
+        F3 := B.POINT2_X
+        F3 - B.POINT1_X          % dx
+        F1 ATAN2 F2, F3          % bearing in radians
+        F1 =: B.BEARING
+```
+
+### Example 4: Quadrant-aware angle calculation
+
+```assembly
+        % Calculate angle with correct quadrant
+        % ATAN2 handles all four quadrants correctly:
+        %   Quadrant I:   x > 0, y > 0  -> 0 to π/2
+        %   Quadrant II:  x < 0, y > 0  -> π/2 to π
+        %   Quadrant III: x < 0, y < 0  -> -π to -π/2
+        %   Quadrant IV:  x > 0, y < 0  -> -π/2 to 0
+
+        D1 ATAN2 B.NUMERATOR, B.DENOMINATOR
+        D1 =: B.FULL_ANGLE
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Typical cycles:** 180-220 cycles (complex transcendental function with quadrant logic)
+- **Best case:** ~180 cycles (simple argument values)
+- **Worst case:** ~220 cycles (complex argument values, table lookup + polynomial approximation + quadrant determination)
+
+**Note:** ATAN2 is slightly slower than ATAN due to additional quadrant determination logic.
 
 ---
 
@@ -110,6 +156,9 @@ Total variants: 8
 
 ## See Also
 
+- [ATAN](atan.md) - Arc tangent single argument
+- [ASIN](asin.md) - Arc sine
+- [ACOS](acos.md) - Arc cosine
+- [TAN](tan.md) - Tangent
 - [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
 - [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
