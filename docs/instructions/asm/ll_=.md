@@ -1,96 +1,86 @@
-# LL:= - LlSet
+# LL:= - Load Lower limit register
 
 ## Overview
 
-**Mnemonic:** `ll:=`
-**Function:** LlSet
+**Mnemonic:** `ll=`
+**Function:** Load Lower limit register
 **Class:** MOVE
-**Privilege:** user
+**Privilege:** user/supervisor
 
-**Format:** `{prefix}{register} LL:= <operand>`
+**Format:** `LL:= <operand>`
 
 ---
 
 ## Description
 
-[Description for LL:= instruction to be written based on Reference Manual §TBD]
+Loads the Lower limit register from the specified operand. This is a system register used for stack lower bound.
+
+**Operation:** `LL = <operand>`
 
 **Operands:** 1
-**Variants:** 1 opcode(s)
+**Variants:** 1
 
 ---
 
 ## Variants
 
-Total variants: 1
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/1 | 0xFDB8 | - | 1 | LOCAL, RECORD, CONSTANT... |
+| Variant | Opcode | Description |
+|---------|--------|-------------|
+| 1/1 | (varies) | Load Lower limit register |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Source)
 
-[Description for operand 1]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+Value to load into Lower limit register.
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps:** Invalid address
+- **Privilege violation:** If supervisor-only
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+Unaffected.
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Load from local variable
 
 ```assembly
-        ; Example usage of LL:=
-        ; [To be written]
+        LL:= B.SAVED_VALUE
+```
+
+### Example 2: Load from register
+
+```assembly
+        LL:= I1
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Cycles:** 3-4
 
 ---
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.7
+**Title:** Load special register
 
 ---
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [LL=:](ll=_.md) - Store Lower limit register
+- [Context Switching](../ContextSwitching.md)

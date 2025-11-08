@@ -1,19 +1,23 @@
-# IF=GO - IfEqualGo
+# IF=GO - Conditional Jump If Equal
 
 ## Overview
 
 **Mnemonic:** `if=go`
-**Function:** IfEqualGo
+**Function:** Conditional jump if zero flag set (equal)
 **Class:** BRANCH
 **Privilege:** user
 
-**Format:** `{prefix}{register} IF=GO <operand>`
+**Format:** `IF = GO <<displacement>>`
 
 ---
 
 ## Description
 
-[Description for IF=GO instruction to be written based on Reference Manual §13.3]
+Transfers control if Z=1 (zero flag set), indicating the last operation resulted in zero or that compared values were equal. The sign-extended displacement is added to PC when the condition is true.
+
+Commonly used after COMP or TEST to branch when values are equal.
+
+**Operation:** `if Z=1 then PC += displacement`
 
 **Operands:** 1
 **Variants:** 2 opcode(s)
@@ -22,56 +26,66 @@
 
 ## Variants
 
-Total variants: 2
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/2 | 0x00C4 | - | 1 | ALL |
-| 2/2 | 0x00C5 | - | 2 | ALL |
+| Variant | Opcode | Displacement |
+|---------|--------|--------------|
+| 1/2 | 0x00C4 | Byte |
+| 2/2 | 0x00C5 | Halfword |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Displacement)
 
-[Description for operand 1]
+Signed displacement (-128 to +127 byte, -32768 to +32767 halfword).
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Branch trap (BT):** If enabled
+- **Addressing traps:** Invalid displacement
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+All status bits unaffected.
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Compare and branch
 
 ```assembly
-        ; Example usage of IF=GO
-        ; [To be written]
+        W COMP B.A, B.B
+        IF = GO EQUAL
+```
+
+### Example 2: Test and branch
+
+```assembly
+        W TEST B.COUNTER
+        IF = GO ZERO
+```
+
+### Example 3: Loop exit
+
+```assembly
+LOOP:
+        W COMP B.ARRAY(I1), B.TARGET
+        IF = GO FOUND
+        W ADD2 I1, 4
+        GO LOOP
+FOUND:
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Cycles:** 2-3 (not taken), 3-4 (taken)
 
 ---
 
@@ -84,6 +98,7 @@ Total variants: 2
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [IF><GO](if><go.md) - Jump if not equal
+- [COMP](comp.md) - Compare
+- [TEST](test.md) - Test
+- [GO](go.md) - Unconditional jump

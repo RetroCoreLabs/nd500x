@@ -1,101 +1,89 @@
-# IF-STGO - IfStackGo
+# IF -ST GO - Conditional Jump Status Bit Clear
 
 ## Overview
 
 **Mnemonic:** `if-stgo`
-**Function:** IfStackGo
+**Function:** Conditional jump status bit clear
 **Class:** BRANCH
 **Privilege:** user
 
-**Format:** `{prefix}{register} IF-STGO <op1>,<op2>`
+**Format:** `IF -ST GO <<displacement>>`
 
 ---
 
 ## Description
 
-[Description for IF-STGO instruction to be written based on Reference Manual §TBD]
+Transfers control if bit=0. Used after comparison/test operations.
 
-**Operands:** 2
-**Variants:** 2 opcode(s)
+**Operation:** `if bit=0 then PC += displacement`
+
+**Operands:** 1
+**Variants:** 2
 
 ---
 
 ## Variants
 
-Total variants: 2
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/2 | 0xFC84 | - | 1 | LOCAL, RECORD, CONSTANT... |
-| 2/2 | 0xFD65 | - | 2 | LOCAL, RECORD, CONSTANT... |
+| Variant | Opcode | Displacement |
+|---------|--------|--------------|
+| 1/2 | 0xFD65 | Byte |
+| 2/2 | 0xFC84 | Halfword |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Displacement)
 
-[Description for operand 1]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
-
-### Operand 2
-
-[Description for operand 2]
+Signed displacement.
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Branch trap (BT):** If enabled
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+Unaffected.
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Basic usage
 
 ```assembly
-        ; Example usage of IF-STGO
-        ; [To be written]
+        IF -ST GO 5, HANDLER
+```
+
+### Example 2: Loop control
+
+```assembly
+LOOP:
+        % loop body
+        IF -ST GO:B LOOP
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Cycles:** 2-3 (not taken), 3-4 (taken)
 
 ---
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §13.3
+**Title:** Conditional Jump
 
 ---
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [IF=GO](if=go.md) - Jump if equal
+- [COMP](comp.md) - Compare
+- [GO](go.md) - Unconditional jump

@@ -1,89 +1,90 @@
-# IF<<GO - IfUnsignedLessGo
+# IF << GO - Conditional Jump Less Magnitude
 
 ## Overview
 
 **Mnemonic:** `if<<go`
-**Function:** IfUnsignedLessGo
+**Function:** Conditional jump less magnitude
 **Class:** BRANCH
 **Privilege:** user
 
-**Format:** `{prefix}{register} IF<<GO <operand>`
+**Format:** `IF << GO <<displacement>>`
 
 ---
 
 ## Description
 
-[Description for IF<<GO instruction to be written based on Reference Manual §TBD]
+Transfers control if C=0. Used after comparison/test operations.
+
+**Operation:** `if C=0 then PC += displacement`
 
 **Operands:** 1
-**Variants:** 2 opcode(s)
+**Variants:** 2
 
 ---
 
 ## Variants
 
-Total variants: 2
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/2 | 0x00D8 | - | 1 | ALL |
-| 2/2 | 0x00D9 | - | 2 | ALL |
+| Variant | Opcode | Displacement |
+|---------|--------|--------------|
+| 1/2 | 0x00D8 | Byte |
+| 2/2 | 0x00D9 | Halfword |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Displacement)
 
-[Description for operand 1]
+Signed displacement.
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Branch trap (BT):** If enabled
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+Unaffected.
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Basic usage
 
 ```assembly
-        ; Example usage of IF<<GO
-        ; [To be written]
+        W COMP B.A, B.B
+        IF << GO LESS_MAG
+```
+
+### Example 2: Loop control
+
+```assembly
+LOOP:
+        % loop body
+        IF << GO:B LOOP
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Cycles:** 2-3 (not taken), 3-4 (taken)
 
 ---
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §13.3
+**Title:** Conditional Jump
 
 ---
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [IF=GO](if=go.md) - Jump if equal
+- [COMP](comp.md) - Compare
+- [GO](go.md) - Unconditional jump

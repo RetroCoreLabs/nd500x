@@ -1,96 +1,90 @@
-# B:= - AssignBaseRegTo
+# B=: - Store local base
 
 ## Overview
 
-**Mnemonic:** `b:=`
-**Function:** AssignBaseRegTo
+**Mnemonic:** `bassignto`
+**Function:** Store local base
 **Class:** MOVE
 **Privilege:** user
 
-**Format:** `{prefix}{register} B:= <operand>`
+**Format:** `<dest> B=: <source>` or `<source> B=: <dest>`
 
 ---
 
 ## Description
 
-[Description for B:= instruction to be written based on Reference Manual §10.2]
+Store local base register. Fundamental data movement operation in ND-500 assembly.
 
-**Operands:** 1
-**Variants:** 1 opcode(s)
+**Operation:** Transfers data between operands.
+
+**Operands:** 2
+**Variants:** Multiple (all data types)
 
 ---
 
 ## Variants
 
-Total variants: 1
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/1 | 0xFC08 | - | 1 | LOCAL, RECORD, CONSTANT... |
+Supports all data types (BY, H, W, F, D) and addressing modes.
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operands
 
-[Description for operand 1]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+Source and destination as specified by operator direction.
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps:** Invalid address
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+Varies by data type.
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Basic usage
 
 ```assembly
-        ; Example usage of B:=
-        ; [To be written]
+        B=: B.SAVE
+```
+
+### Example 2: Array access
+
+```assembly
+        I1 := B.ARRAY(I2)
+```
+
+### Example 3: Record field
+
+```assembly
+        I1 := R.FIELD
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Cycles:** 2-4
 
 ---
 
 ## Reference Manual
 
-**Section:** §10.2
-**Title:** Load local base register
+**Section:** §10.5
+**Title:** Store local base
 
 ---
 
 ## See Also
 
+- [MOVE](move.md) - Move data
+- [SWAP](swap.md) - Swap operands
 - [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
