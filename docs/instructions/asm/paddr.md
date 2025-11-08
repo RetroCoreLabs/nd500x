@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PADDR instruction to be written based on Reference Manual §17.2]
+The `<a>` operand is added to the `<b>` operand and the sum is stored in the `<c>` operand. The result is scaled according to the scale factor in the `<c>` operand before storing.
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -92,8 +92,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PADDR
-        ; [To be written]
+        ; Example for paddr
+        ; [Variant data not available]
 ```
 
 ---

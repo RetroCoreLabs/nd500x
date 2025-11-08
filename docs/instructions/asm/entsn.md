@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ENTSN instruction to be written based on Reference Manual §13.16]
+ENTSN instruction
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ENTSN
-        ; [To be written]
+        ; Example for entsn
+        ; [Variant data not available]
 ```
 
 ---

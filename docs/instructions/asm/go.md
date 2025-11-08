@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for GO instruction to be written based on Reference Manual §13.1]
+Perform a jump relative to the current program counter value. GO uses a direct operand and has three formats, with a byte, halfword, or word displacement part. The displacement is signed and is found in the 1, 2 or 4 bytes following the instruction code.
 
 **Operands:** 1
 **Variants:** 3 opcode(s)
@@ -62,8 +62,8 @@ Total variants: 3
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of GO
-        ; [To be written]
+        ; Example for go
+        ; [Variant data not available]
 ```
 
 ---

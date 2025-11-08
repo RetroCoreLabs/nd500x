@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for MULAD instruction to be written based on Reference Manual §11.19]
+The contents of the specified register is multiplied by the `<x>` operand, the `<y>` operand is added to the product and the result loaded into the register.
 
 **Operands:** 2
 **Variants:** 20 opcode(s)
@@ -99,8 +99,8 @@ Total variants: 20
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of MULAD
-        ; [To be written]
+        ; Example for mulad
+        ; [Variant data not available]
 ```
 
 ---

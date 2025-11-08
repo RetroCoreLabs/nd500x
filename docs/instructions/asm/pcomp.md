@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PCOMP instruction to be written based on Reference Manual §17.5]
+The `<b>` operand is subtracted from the `<a>` operand and the status bits are set according to the result. The result is discarded. Before the comparison is performed, the operands are automatically shifted to the same decimal point position (scale) and extended with zeros if necessary. An unsigned number is treated as positive, and positive and negative zero are equal.
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PCOMP
-        ; [To be written]
+        ; Example for pcomp
+        ; [Variant data not available]
 ```
 
 ---

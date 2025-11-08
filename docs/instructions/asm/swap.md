@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SWAP instruction to be written based on Reference Manual §10.8]
+The contents of the first operand are stored in the second, and the original contents of the second operand are stored in the first. The operands are assumed to have the same data type (see section 7.3 on page 73).
 
 **Operands:** 2
 **Variants:** 6 opcode(s)
@@ -83,8 +83,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SWAP
-        ; [To be written]
+        ; Example for swap
+        ; [Variant data not available]
 ```
 
 ---

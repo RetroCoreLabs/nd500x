@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for RETK instruction to be written based on Reference Manual §TBD]
+RETK instruction
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of RETK
-        ; [To be written]
+        ; Example for retk
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §13.11
+**Title:** Set flag return from subroutine
 
 ---
 

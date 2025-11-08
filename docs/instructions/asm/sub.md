@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for - instruction to be written based on Reference Manual §11.6]
+- instruction
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
@@ -87,8 +87,8 @@ Total variants: 20
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of -
-        ; [To be written]
+        ; Example for -
+        ; [Variant data not available]
 ```
 
 ---

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for TEST instruction to be written based on Reference Manual §10.11]
+This instruction is similar to comparing two operands, except that the second operand is implicitly zero.
 
 **Operands:** 1
 **Variants:** 6 opcode(s)
@@ -73,8 +73,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of TEST
-        ; [To be written]
+        ; Example for test
+        ; [Variant data not available]
 ```
 
 ---

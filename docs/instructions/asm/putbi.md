@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PUTBI instruction to be written based on Reference Manual §TBD]
+Bit zero of the specified register is stored in bit `<bit No.>` of a BY, H, or W `<operand>`. The upper bits of the `<operand>` are unaffected, even when the destination is a word register. A `<bit No.>` greater than or equal to the number of bits of the data type or a negative `<bit No.>` will cause an illegal operand value trap condition.
 
 **Operands:** 2
 **Variants:** 12 opcode(s)
@@ -90,8 +90,8 @@ Total variants: 12
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PUTBI
-        ; [To be written]
+        ; Example for putbi
+        ; [Variant data not available]
 ```
 
 ---
@@ -106,8 +106,8 @@ Total variants: 12
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §10.28
+**Title:** Put bit
 
 ---
 

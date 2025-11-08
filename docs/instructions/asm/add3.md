@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ADD3 instruction to be written based on Reference Manual §11.9]
+ADD3 instruction
 
 **Operands:** 3
 **Variants:** 5 opcode(s)
@@ -95,8 +95,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ADD3
-        ; [To be written]
+        ; Example for add3
+        ; [Variant data not available]
 ```
 
 ---

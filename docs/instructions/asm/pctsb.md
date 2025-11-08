@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PCTSB instruction to be written based on Reference Manual §TBD]
+Privileged instruction. The entire program or data translation speedup buffer is cleared, forcing the following accesses to reinitialize the buffer from the capability table, segment table and page index table. Depending on which TSB is cleared, the related cache is cleared. When the data cache is cleared, 'dirty' data is written to memory.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PCTSB
-        ; [To be written]
+        ; Example for pctsb
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.24
+**Title:** Clear program translation speedup buffer
 
 ---
 

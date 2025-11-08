@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SCOMP instruction to be written based on Reference Manual §14.10]
+SCOMP instruction
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SCOMP
-        ; [To be written]
+        ; Example for scomp
+        ; [Variant data not available]
 ```
 
 ---

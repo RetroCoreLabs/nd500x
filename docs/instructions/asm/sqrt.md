@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SQRT instruction to be written based on Reference Manual §12.20]
+SQRT instruction
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SQRT
-        ; [To be written]
+        ; Example for sqrt
+        ; [Variant data not available]
 ```
 
 ---

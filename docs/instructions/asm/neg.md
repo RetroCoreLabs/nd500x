@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for NEG instruction to be written based on Reference Manual §10.12]
+The contents of the specified register are negated. An integer value is negated by taking the two's complement of its value. A floating point value is negated by inverting its sign bit. Byte and halfword negate will clear the upper part of the register. Integer overflow occurs if and only if the greatest negative integer is negated. Carry is zero except when integer zero is negated.
 
 **Operands:** 0
 **Variants:** 20 opcode(s)
@@ -76,8 +76,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of NEG
-        ; [To be written]
+        ; Example for neg
+        ; [Variant data not available]
 ```
 
 ---

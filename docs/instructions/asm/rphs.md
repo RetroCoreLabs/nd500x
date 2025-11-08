@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for RPHS instruction to be written based on Reference Manual §16.31]
+Privileged instruction Copy a number of bytes from logical address on physical segment to logical address on the domain. - I1 : Number of bytes to be moved. - I2 : Logical address on the domain. - I3 : Address on the physical segment. - I4 : Physical segment number. Operand : domain number. The copy operation is continued until the number of bytes left is equal to 0 (I1 = 0) or a page boundary is reached on the physical segment. Number of bytes to be moved is counted down and will be zero when t
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -68,8 +68,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of RPHS
-        ; [To be written]
+        ; Example for rphs
+        ; [Variant data not available]
 ```
 
 ---

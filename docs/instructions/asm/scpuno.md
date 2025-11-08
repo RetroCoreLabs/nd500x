@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SCPUNO instruction to be written based on Reference Manual §16.36]
+Store CPU number in destination address.
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -67,8 +67,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SCPUNO
-        ; [To be written]
+        ; Example for scpuno
+        ; [Variant data not available]
 ```
 
 ---

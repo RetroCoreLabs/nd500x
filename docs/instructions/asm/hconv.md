@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for HCONV instruction to be written based on Reference Manual §TBD]
+HCONV instruction
 
 **Operands:** 2
 **Variants:** 5 opcode(s)
@@ -83,8 +83,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of HCONV
-        ; [To be written]
+        ; Example for hconv
+        ; [Variant data not available]
 ```
 
 ---
@@ -99,8 +99,8 @@ Total variants: 5
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §15.2
+**Title:** Halfword convert
 
 ---
 

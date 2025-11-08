@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for MUL3 instruction to be written based on Reference Manual §11.11]
+MUL3 instruction
 
 **Operands:** 3
 **Variants:** 5 opcode(s)
@@ -95,8 +95,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of MUL3
-        ; [To be written]
+        ; Example for mul3
+        ; [Variant data not available]
 ```
 
 ---

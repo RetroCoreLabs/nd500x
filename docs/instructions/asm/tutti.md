@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for TUTTI instruction to be written based on Reference Manual §TBD]
+The complement of SOLO; allows normal interleaving of process execution in the system.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of TUTTI
-        ; [To be written]
+        ; Example for tutti
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.2
+**Title:** Enable process switch
 
 ---
 

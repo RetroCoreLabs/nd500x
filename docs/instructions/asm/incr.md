@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for INCR instruction to be written based on Reference Manual §10.19]
+The `<operand>` is incremented by one. The Carry bit is set if a carry occurs from the sign bit position of the adder, otherwise it is reset. Carry will occur when and only when integer -1 is incremented.
 
 **Operands:** 1
 **Variants:** 5 opcode(s)
@@ -71,8 +71,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of INCR
-        ; [To be written]
+        ; Example for incr
+        ; [Variant data not available]
 ```
 
 ---

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ALOG2 instruction to be written based on Reference Manual §12.19]
+ALOG2 instruction
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ALOG2
-        ; [To be written]
+        ; Example for alog2
+        ; [Variant data not available]
 ```
 
 ---

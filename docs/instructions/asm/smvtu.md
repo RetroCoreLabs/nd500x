@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SMVTU instruction to be written based on Reference Manual §TBD]
+Bytes from the `<source=>` operand are translated via the translation table found at the address specified in the `<trans table>` operand. Translated bytes are moved from `<source=>` to `<dest=>` string if they are not zero. The move operation stops if the translated byte is equal to ASCII "escape" (01BH or 33B), the `<source=>` operand is empty, or the `<dest=>` operand full. Overlap is not taken care of. The "escape" character is not moved.
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -90,8 +90,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SMVTU
-        ; [To be written]
+        ; Example for smvtu
+        ; [Variant data not available]
 ```
 
 ---
@@ -106,8 +106,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.6
+**Title:** String move translated until
 
 ---
 

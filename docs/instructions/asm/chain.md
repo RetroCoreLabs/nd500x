@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for CHAIN instruction to be written based on Reference Manual §13.9]
+The stack is initialized according to the instruction operands: The direct operand <<bottom of stack>> is a 4 byte absolute address, which is loaded into the B register. The B.SP location, the stack pointer, is loaded with the sum of <<bottom of stack>> and &lt;stack demand of main program>. <<bottom of stack>> and &lt;total system stack demand> are added and the result is loaded into the top of stack register, TOS. PREVB and RETA are cleared. A value of &lt;stack demand of main program> greater
 
 **Operands:** 3
 **Variants:** 4 opcode(s)
@@ -93,8 +93,8 @@ Total variants: 4
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CHAIN
-        ; [To be written]
+        ; Example for chain
+        ; [Variant data not available]
 ```
 
 ---

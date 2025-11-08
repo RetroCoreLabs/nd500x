@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for CWIP instruction to be written based on Reference Manual §16.19]
+Privileged instruction. The entire written in page table is cleared. This instruction is used by the swapper routines. This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CWIP
-        ; [To be written]
+        ; Example for cwip
+        ; [Variant data not available]
 ```
 
 ---

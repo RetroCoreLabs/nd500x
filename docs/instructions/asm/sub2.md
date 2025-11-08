@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SUB2 instruction to be written based on Reference Manual §11.6]
+SUB2 instruction
 
 **Operands:** 2
 **Variants:** 5 opcode(s)
@@ -83,8 +83,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SUB2
-        ; [To be written]
+        ; Example for sub2
+        ; [Variant data not available]
 ```
 
 ---

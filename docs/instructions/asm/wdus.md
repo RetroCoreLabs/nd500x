@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for WDUS instruction to be written based on Reference Manual §TBD]
+WDUS instruction
 
 **Operands:** 1
 **Variants:** 12 opcode(s)
@@ -79,8 +79,8 @@ Total variants: 12
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of WDUS
-        ; [To be written]
+        ; Example for wdus
+        ; [Variant data not available]
 ```
 
 ---
@@ -96,7 +96,7 @@ Total variants: 12
 ## Reference Manual
 
 **Section:** §TBD
-**Title:** TBD
+**Title:** Write data unsynchronized (not documented in manual)
 
 ---
 

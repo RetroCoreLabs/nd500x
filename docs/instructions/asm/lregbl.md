@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for LREGBL instruction to be written based on Reference Manual §TBD]
+LREGBL instruction
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of LREGBL
-        ; [To be written]
+        ; Example for lregbl
+        ; [Variant data not available]
 ```
 
 ---
@@ -96,8 +96,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.27.2
+**Title:** Load register block
 
 ---
 

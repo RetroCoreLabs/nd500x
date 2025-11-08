@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SMVUN instruction to be written based on Reference Manual §TBD]
+Bytes are moved from the `<source>` to the `<dest>` operand until the `<source>` is empty, the `<dest>` is full or the result of a logical AND between the next byte to be moved and the value of the `<mask>` operand is equal to the value of the `<test>` operand. Overlap is not taken care of. The byte satisfying the until-condition is not moved.
 
 **Operands:** 4
 **Variants:** 1 opcode(s)
@@ -104,8 +104,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SMVUN
-        ; [To be written]
+        ; Example for smvun
+        ; [Variant data not available]
 ```
 
 ---
@@ -120,8 +120,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.4
+**Title:** String move until
 
 ---
 

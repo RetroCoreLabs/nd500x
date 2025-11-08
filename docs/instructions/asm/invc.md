@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for INVC instruction to be written based on Reference Manual §10.14]
+The one's complement of the contents of the specified word register is calculated. The carry is added and the result is loaded into the specified register. This instruction is used for multiple precision arithmetic.
 
 **Operands:** 0
 **Variants:** 4 opcode(s)
@@ -60,8 +60,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of INVC
-        ; [To be written]
+        ; Example for invc
+        ; [Variant data not available]
 ```
 
 ---

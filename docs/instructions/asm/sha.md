@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SHA instruction to be written based on Reference Manual §TBD]
+An arithmetic shift is performed on the byte, halfword or word operand. `<shiftcount>` is interpreted as a signed byte. Positive `<shiftcount>` implies left shift, negative `<shiftcount>` implies right shift. A shiftcount equal to or greater than the size of the operand will produce an illegal operand value trap condition. A shiftcount of zero is legal and leaves the operand unchanged.
 
 **Operands:** 2
 **Variants:** 3 opcode(s)
@@ -81,8 +81,8 @@ Total variants: 3
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SHA
-        ; [To be written]
+        ; Example for sha
+        ; [Variant data not available]
 ```
 
 ---
@@ -97,8 +97,8 @@ Total variants: 3
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §10.25
+**Title:** Arithmetical shift
 
 ---
 

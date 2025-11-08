@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PSHIFTR instruction to be written based on Reference Manual §TBD]
+The content of the `<source>` operand is shifted to the scaling factor of the `<dest>` operand and, if specified, rounded before storing it in the `<dest>` operand. The destination string is extended with zeroes if necessary. With the exception of rounding, the value is not modified, but the number of decimal positions may be changed. If the `<source>` and `<dest>` operands have the same scaling factor, a move is performed. If bit 26 in the descriptor of the `<dest>` operand is set, the value is
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PSHIFTR
-        ; [To be written]
+        ; Example for pshiftr
+        ; [Variant data not available]
 ```
 
 ---
@@ -96,8 +96,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §17.6
+**Title:** Packed shift rounded
 
 ---
 

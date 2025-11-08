@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SSKIP instruction to be written based on Reference Manual §14.18]
+SSKIP instruction
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SSKIP
-        ; [To be written]
+        ; Example for sskip
+        ; [Variant data not available]
 ```
 
 ---

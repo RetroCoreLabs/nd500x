@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ADDC instruction to be written based on Reference Manual §11.17]
+The 〈addend〉 operand, the carry bit in the status register (treated as 0 or 1) and the contents of the specified register are added and the result is stored in the specified register. This instruction is used for multiple precision arithmetic.
 
 **Operands:** 1
 **Variants:** 4 opcode(s)
@@ -71,8 +71,8 @@ Total variants: 4
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ADDC
-        ; [To be written]
+        ; Example for addc
+        ; [Variant data not available]
 ```
 
 ---

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for FREEB instruction to be written based on Reference Manual §TBD]
+The specified `<element>` is appended to the appropriate freelist of the heap. Elements are not combined; this may be done by a trap handler for the stack overflow condition. The administration of the heap is described in section 3.3. When executing the FREEB instruction, the TOS register must point to the variables describing the heap. Write access to the `<element>` is required, but if `<element>` is addressed with a DESC prefix, the index register is not updated.
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of FREEB
-        ; [To be written]
+        ; Example for freeb
+        ; [Variant data not available]
 ```
 
 ---
@@ -96,8 +96,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §15.14
+**Title:** Free buddy element
 
 ---
 

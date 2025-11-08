@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for IFSTGO instruction to be written based on Reference Manual §13.8]
+IFSTGO instruction
 
 **Operands:** 2
 **Variants:** 2 opcode(s)
@@ -73,8 +73,8 @@ Total variants: 2
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of IFSTGO
-        ; [To be written]
+        ; Example for ifstgo
+        ; [Variant data not available]
 ```
 
 ---

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for CALL instruction to be written based on Reference Manual §13.7]
+Call the subroutine specified by `<subr. addr.>`. This is a general operand and it *must* refer to an entry point instruction. Otherwise an instruction-sequence error-trap condition occurs. The `<no of arg>` operand must be a constant byte integer less than 256. Other data types which are not constants will cause an illegal operand specifier trap condition. The effective addresses of the arguments in the instruction are calculated and stored for use by the entry point instruction. The arguments 
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -67,8 +67,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CALL
-        ; [To be written]
+        ; Example for call
+        ; [Variant data not available]
 ```
 
 ---

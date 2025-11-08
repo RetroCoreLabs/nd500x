@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SVERS instruction to be written based on Reference Manual §16.35]
+Store microprogram version to destination address.
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -67,8 +67,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SVERS
-        ; [To be written]
+        ; Example for svers
+        ; [Variant data not available]
 ```
 
 ---

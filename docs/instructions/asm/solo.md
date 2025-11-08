@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SOLO instruction to be written based on Reference Manual §TBD]
+Ensure that instructions up to the next TUTTI instruction are executed as an indivisible sequence of operations. SOLO is used for synchronizing purposes and implementation of protection mechanisms. If the disable process switch is disabled for more than 256 micro-cycles, a disable process switch timeout occurs. Most simple instructions execute in one microcycle per operand specifier. No enabled trap conditions may occur when the process switch is disabled, as any trap handling will take more tha
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SOLO
-        ; [To be written]
+        ; Example for solo
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.1
+**Title:** Disable process switch
 
 ---
 

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for RPGU instruction to be written based on Reference Manual §16.33]
+RPGU instruction
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of RPGU
-        ; [To be written]
+        ; Example for rpgu
+        ; [Variant data not available]
 ```
 
 ---

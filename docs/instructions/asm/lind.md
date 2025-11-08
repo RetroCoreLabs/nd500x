@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for LIND instruction to be written based on Reference Manual §15.8]
+An array index value is loaded into the specified register, checking the value against the `<lower>` and `<upper>` bounds. If the `<index>` operand is less than the `<lower>` operand or greater than the `<upper>` operand, the status flag bit (K) is set and an illegal index trap condition occurs. Otherwise the K flag is reset.
 
 **Operands:** 3
 **Variants:** 12 opcode(s)
@@ -103,8 +103,8 @@ Total variants: 12
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of LIND
-        ; [To be written]
+        ; Example for lind
+        ; [Variant data not available]
 ```
 
 ---

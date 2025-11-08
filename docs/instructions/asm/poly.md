@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for POLY instruction to be written based on Reference Manual §12.3]
+This instruction calculates a polynomial of degree <m>. The result is loaded into the specified float or double float register. The instruction requires <m>+1 coefficients. <m> must always be a positive constant less than 256, otherwise an illegal operand specifier trap condition occurs. If floating overflow or underflow occurs, the trap will not have any effect until the instruction has completed execution, even if the trap condition occurred at an intermediate step. The Z and S bits reflect th
 
 **Operands:** 2
 **Variants:** 8 opcode(s)
@@ -82,8 +82,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of POLY
-        ; [To be written]
+        ; Example for poly
+        ; [Variant data not available]
 ```
 
 ---

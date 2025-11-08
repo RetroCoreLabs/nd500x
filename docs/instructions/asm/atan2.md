@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ATAN2 instruction to be written based on Reference Manual §12.11]
+The trigonometric arc tangent of <num>/<den> is loaded into the specified float or double float register. The result value gives the angle in radians in the correct quadrant in the range -pi to pi. A zero value of both <num> and <den> will cause an invalid operation trap condition and the specified register will be set to zero.
 
 **Operands:** 2
 **Variants:** 8 opcode(s)
@@ -87,8 +87,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ATAN2
-        ; [To be written]
+        ; Example for atan2
+        ; [Variant data not available]
 ```
 
 ---

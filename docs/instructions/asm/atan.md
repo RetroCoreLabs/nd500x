@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ATAN instruction to be written based on Reference Manual §12.10]
+The trigonometric arc tangent of ⟨argument⟩ is loaded into the specified float or double float register. The result value gives the angle in radians in the range -pi/2 to pi/2.
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ATAN
-        ; [To be written]
+        ; Example for atan
+        ; [Variant data not available]
 ```
 
 ---

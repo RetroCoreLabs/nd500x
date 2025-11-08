@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SET1 instruction to be written based on Reference Manual §TBD]
+The contents of the destination operand are replaced by one.
 
 **Operands:** 1
 **Variants:** 6 opcode(s)
@@ -72,8 +72,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SET1
-        ; [To be written]
+        ; Example for set1
+        ; [Variant data not available]
 ```
 
 ---
@@ -88,8 +88,8 @@ Total variants: 6
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §10.18
+**Title:** Set to one
 
 ---
 

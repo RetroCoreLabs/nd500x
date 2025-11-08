@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for DECR instruction to be written based on Reference Manual §10.20]
+DECR instruction
 
 **Operands:** 1
 **Variants:** 5 opcode(s)
@@ -71,8 +71,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of DECR
-        ; [To be written]
+        ; Example for decr
+        ; [Variant data not available]
 ```
 
 ---

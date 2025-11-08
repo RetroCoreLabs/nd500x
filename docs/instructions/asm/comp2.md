@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for COMP2 instruction to be written based on Reference Manual §TBD]
+The compare two operands instruction subtracts the second operand from the first. The result sets the data status bits accordingly, but the result is otherwise discarded.
 
 **Operands:** 2
 **Variants:** 6 opcode(s)
@@ -85,8 +85,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of COMP2
-        ; [To be written]
+        ; Example for comp2
+        ; [Variant data not available]
 ```
 
 ---
@@ -101,8 +101,8 @@ Total variants: 6
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §10.10
+**Title:** Compare two operands
 
 ---
 

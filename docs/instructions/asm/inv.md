@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for INV instruction to be written based on Reference Manual §10.13]
+The one's complement of the contents of the specified register is calculated and stored in the same register. When the datatype is BI, BY, or H only the lower part of the register is complemented and the rest of the register is cleared.
 
 **Operands:** 0
 **Variants:** 16 opcode(s)
@@ -72,8 +72,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of INV
-        ; [To be written]
+        ; Example for inv
+        ; [Variant data not available]
 ```
 
 ---

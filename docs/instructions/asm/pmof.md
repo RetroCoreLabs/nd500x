@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PMOF instruction to be written based on Reference Manual §TBD]
+Privileged instruction. Following instruction accesses will be interpreted directly as physical addresses, rather than being mapped on a physical segment through the memory management system. The physical address of the next instruction to be executed is found in the L register. If the program memory management system is already turned off, control is transferred to the physical address specified by the L register and the instruction has no further effect.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PMOF
-        ; [To be written]
+        ; Example for pmof
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.16
+**Title:** Program memory management off
 
 ---
 

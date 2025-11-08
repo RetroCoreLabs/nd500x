@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for CLEBI instruction to be written based on Reference Manual §10.29]
+The specified bit of a BY, H, or W 〈operand〉 is cleared. A 〈bit No.〉 greater than or equal to the number of bits of the data type or a negative 〈bit No.〉 will cause an illegal operand value trap condition.
 
 **Operands:** 2
 **Variants:** 3 opcode(s)
@@ -81,8 +81,8 @@ Total variants: 3
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CLEBI
-        ; [To be written]
+        ; Example for clebi
+        ; [Variant data not available]
 ```
 
 ---

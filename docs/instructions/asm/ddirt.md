@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for DDIRT instruction to be written based on Reference Manual §16.11]
+Data marked 'dirty' in the data cache is written to the memory. If no cache is present, the instruction has no effect.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of DDIRT
-        ; [To be written]
+        ; Example for ddirt
+        ; [Variant data not available]
 ```
 
 ---

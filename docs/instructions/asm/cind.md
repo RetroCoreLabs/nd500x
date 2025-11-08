@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for CIND instruction to be written based on Reference Manual §15.9]
+The address of an element in a multi-dimensional array is calculated. The range of the dimension, `<upper>` - `<lower>` + 1, is multiplied by the contents of the specified register. `<index>` is added to the product and the result loaded into the specified register. If `<index>` is less than the `<lower>` operand or greater than the `<upper>` operand, the flag bit (K) is set and an illegal index trap condition occurs.
 
 **Operands:** 3
 **Variants:** 20 opcode(s)
@@ -111,8 +111,8 @@ Total variants: 20
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CIND
-        ; [To be written]
+        ; Example for cind
+        ; [Variant data not available]
 ```
 
 ---

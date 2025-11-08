@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SMOVE instruction to be written based on Reference Manual §14.3]
+Bytes are moved from the `<source>` operand to the `<dest>` operand. When the result of a logical AND between the moved byte and the `<mask>` operand is equal to the value of the `<test>` operand, the moving continues until the `<source>` operand is empty or the `<dest>` operand is full. Overlap is not taken care of.
 
 **Operands:** 2
 **Variants:** 6 opcode(s)
@@ -85,8 +85,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SMOVE
-        ; [To be written]
+        ; Example for smove
+        ; [Variant data not available]
 ```
 
 ---

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for JUMPG instruction to be written based on Reference Manual §13.2]
+Perform a jump to the absolute address given by the operand. JUMPG requires a general operand. The ⟨address⟩ operand may not be prefixed by the operand specifier prefix ALT. If a descriptor range trap occurs, the next instruction to be executed is the one following the JUMPG instruction ("fall through").
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -68,8 +68,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of JUMPG
-        ; [To be written]
+        ; Example for jumpg
+        ; [Variant data not available]
 ```
 
 ---

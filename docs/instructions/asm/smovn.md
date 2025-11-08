@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SMOVN instruction to be written based on Reference Manual §TBD]
+M items are moved from the ⟨source⟩ to the ⟨dest⟩ operand, unless the end of the ⟨source⟩ operand is reached or the ⟨dest⟩ operand full. Overlap is taken care of.
 
 **Operands:** 3
 **Variants:** 6 opcode(s)
@@ -97,8 +97,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SMOVN
-        ; [To be written]
+        ; Example for smovn
+        ; [Variant data not available]
 ```
 
 ---
@@ -113,8 +113,8 @@ Total variants: 6
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.7
+**Title:** String move n elements
 
 ---
 

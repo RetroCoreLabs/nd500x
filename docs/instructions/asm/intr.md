@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for INTR instruction to be written based on Reference Manual §10.35]
+The rounded integer part of the `<x>` operand is calculated and loaded into the specified floating point register in float format. The result is rounded.
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of INTR
-        ; [To be written]
+        ; Example for intr
+        ; [Variant data not available]
 ```
 
 ---

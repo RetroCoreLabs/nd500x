@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for IXI instruction to be written based on Reference Manual §11.22]
+IXI instruction
 
 **Operands:** 2
 **Variants:** 12 opcode(s)
@@ -91,8 +91,8 @@ Total variants: 12
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of IXI
-        ; [To be written]
+        ; Example for ixi
+        ; [Variant data not available]
 ```
 
 ---

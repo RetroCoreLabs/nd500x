@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for MUL4 instruction to be written based on Reference Manual §11.13]
+The `<a>` operand is multiplied by the `<b>` operand. The product is stored in the `<c>` operand. The upper half of the double length result is stored in the specified register. The operands are assumed to have the same data type (see section 7.3 on page 73).
 
 **Operands:** 3
 **Variants:** 12 opcode(s)
@@ -102,8 +102,8 @@ Total variants: 12
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of MUL4
-        ; [To be written]
+        ; Example for mul4
+        ; [Variant data not available]
 ```
 
 ---

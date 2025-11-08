@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SFILL instruction to be written based on Reference Manual §14.8]
+The contents of the specified register are put into every element of the `<-dest=>` string starting at the element specified by the I2 register.
 
 **Operands:** 1
 **Variants:** 24 opcode(s)
@@ -91,8 +91,8 @@ Total variants: 24
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SFILL
-        ; [To be written]
+        ; Example for sfill
+        ; [Variant data not available]
 ```
 
 ---

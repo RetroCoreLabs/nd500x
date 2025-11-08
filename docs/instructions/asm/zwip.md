@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ZWIP instruction to be written based on Reference Manual §TBD]
+Privileged instruction. The specified bit in the Written In Page table is cleared. This instruction is used by the swapper routines after a new page has been read from disk into physical memory. In hardware there are separate WIP tables for program and data. ZWIP will clear both tables. Consequently, an ND-500 system cannot have physically separate memory for program and data at the same physical addresses. This instruction is installation dependent; using it requires knowledge of the physical m
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -68,8 +68,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ZWIP
-        ; [To be written]
+        ; Example for zwip
+        ; [Variant data not available]
 ```
 
 ---
@@ -84,8 +84,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.18
+**Title:** Clear written in page bit
 
 ---
 

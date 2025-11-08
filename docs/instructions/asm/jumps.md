@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for JUMPS instruction to be written based on Reference Manual §16.34]
+Save P and B register in context block. Execution is started in `<address>`. The instruction implies SOLO mode. W1 returns the ND-500/ND-5000 CPU number.
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -68,8 +68,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of JUMPS
-        ; [To be written]
+        ; Example for jumps
+        ; [Variant data not available]
 ```
 
 ---

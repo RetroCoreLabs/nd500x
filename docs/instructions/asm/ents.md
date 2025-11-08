@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ENTS instruction to be written based on Reference Manual §13.15]
+ENTS instruction
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -68,8 +68,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ENTS
-        ; [To be written]
+        ; Example for ents
+        ; [Variant data not available]
 ```
 
 ---

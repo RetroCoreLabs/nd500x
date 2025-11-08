@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for UMUL instruction to be written based on Reference Manual §11.15]
+UMUL instruction
 
 **Operands:** 3
 **Variants:** 4 opcode(s)
@@ -94,8 +94,8 @@ Total variants: 4
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of UMUL
-        ; [To be written]
+        ; Example for umul
+        ; [Variant data not available]
 ```
 
 ---

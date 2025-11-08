@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SETE instruction to be written based on Reference Manual §TBD]
+The specified bit in the Own Trap Enable (OTE) register is set. The `<bit no>` operand is compared with a modify mask (TEMM) found in the domain description table. If a bit in this mask is set, the corresponding bit in the local trap enable register is modifiable. An attempt to modify a non-modifiable bit will cause an illegal operand value trap condition.
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -68,8 +68,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SETE
-        ; [To be written]
+        ; Example for sete
+        ; [Variant data not available]
 ```
 
 ---
@@ -84,8 +84,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.5
+**Title:** Set bit in trap enable register
 
 ---
 

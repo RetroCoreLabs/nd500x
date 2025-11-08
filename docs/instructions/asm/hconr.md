@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for HCONR instruction to be written based on Reference Manual §TBD]
+HCONR instruction
 
 **Operands:** 2
 **Variants:** 2 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 2
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of HCONR
-        ; [To be written]
+        ; Example for hconr
+        ; [Variant data not available]
 ```
 
 ---
@@ -96,8 +96,8 @@ Total variants: 2
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §15.2
+**Title:** Halfword convert rounded
 
 ---
 

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for RLADDR instruction to be written based on Reference Manual §TBD]
+The address of the operand is loaded into the record register. Registers and constants have no address in memory and are illegal as operands.
 
 **Operands:** 1
 **Variants:** 6 opcode(s)
@@ -71,8 +71,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of RLADDR
-        ; [To be written]
+        ; Example for rladdr
+        ; [Variant data not available]
 ```
 
 ---
@@ -87,8 +87,8 @@ Total variants: 6
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §15.5
+**Title:** Load address into record register
 
 ---
 

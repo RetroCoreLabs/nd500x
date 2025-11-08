@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ENTT instruction to be written based on Reference Manual §13.17]
+ENTT instruction
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ENTT
-        ; [To be written]
+        ; Example for entt
+        ; [Variant data not available]
 ```
 
 ---

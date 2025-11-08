@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PMON instruction to be written based on Reference Manual §TBD]
+Privileged instruction. Following instruction accesses will be mapped on a physical segment through the memory management system, rather than being interpreted directly as physical addresses. The virtual address of the next instruction to be executed is found in the L register. If the program memory management system is already turned on, control is transferred to the instruction pointed to by the L register and the instruction has no further effect.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PMON
-        ; [To be written]
+        ; Example for pmon
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.14
+**Title:** Program memory management on
 
 ---
 

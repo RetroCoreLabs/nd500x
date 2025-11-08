@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for WPCONV instruction to be written based on Reference Manual §16.40]
+WPCONV instruction
 
 **Operands:** 1
 **Variants:** 4 opcode(s)
@@ -71,8 +71,8 @@ Total variants: 4
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of WPCONV
-        ; [To be written]
+        ; Example for wpconv
+        ; [Variant data not available]
 ```
 
 ---

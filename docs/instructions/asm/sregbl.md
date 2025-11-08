@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SREGBL instruction to be written based on Reference Manual §TBD]
+The registers specified in the mask are stored in logical memory locations addressed by {address} plus register number*4. The register numbers are shown in chapter 2. Norsk Data ND-05.009.4 EN ---
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SREGBL
-        ; [To be written]
+        ; Example for sregbl
+        ; [Variant data not available]
 ```
 
 ---
@@ -96,8 +96,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.27.1
+**Title:** Save register block
 
 ---
 

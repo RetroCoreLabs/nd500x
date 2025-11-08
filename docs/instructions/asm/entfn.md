@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ENTFN instruction to be written based on Reference Manual §13.13]
+ENTFN instruction
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -72,8 +72,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ENTFN
-        ; [To be written]
+        ; Example for entfn
+        ; [Variant data not available]
 ```
 
 ---

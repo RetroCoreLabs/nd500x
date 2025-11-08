@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for FCONV instruction to be written based on Reference Manual §TBD]
+FCONV instruction
 
 **Operands:** 2
 **Variants:** 5 opcode(s)
@@ -83,8 +83,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of FCONV
-        ; [To be written]
+        ; Example for fconv
+        ; [Variant data not available]
 ```
 
 ---
@@ -99,8 +99,8 @@ Total variants: 5
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §15.2
+**Title:** Float convert
 
 ---
 

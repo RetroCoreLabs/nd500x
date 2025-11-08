@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for BMOVE instruction to be written based on Reference Manual §TBD]
+Allocate an element of size 2
 
 **Operands:** 3
 **Variants:** 5 opcode(s)
@@ -94,8 +94,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of BMOVE
-        ; [To be written]
+        ; Example for bmove
+        ; [Variant data not available]
 ```
 
 ---
@@ -110,8 +110,8 @@ Total variants: 5
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §15.13
+**Title:** Block move
 
 ---
 

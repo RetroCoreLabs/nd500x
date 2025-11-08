@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for LOOPD instruction to be written based on Reference Manual §13.5]
+The `<index>` operand is decremented by one and compared with `<limit>`. If it is greater than or equal to `<limit>`, the signed `<<displacement>>` is added to the program counter; otherwise control goes to the next instruction. Normally the LOOPD instruction will be placed at the end of the loop, with a negative `<<displacement>>`. `<<displacement>>` is the number of bytes from the first byte of the loop to the first byte of the LOOPD instruction. The `<index>` and `<limit>` operands are of the
 
 **Operands:** 3
 **Variants:** 10 opcode(s)
@@ -92,8 +92,8 @@ Total variants: 10
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of LOOPD
-        ; [To be written]
+        ; Example for loopd
+        ; [Variant data not available]
 ```
 
 ---

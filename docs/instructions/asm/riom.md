@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for RIOM instruction to be written based on Reference Manual §TBD]
+Privileged instruction. The I/O processor memory contents are copied to the ND-500 memory buffer through the ND-500 interface. The `<ND-100 addr>` specifies the physical ND-100 address and is usually private ND-100 memory, not directly addressable by the ND-500. `<buffer>` is a logical ND-500 address. The ND-100 memory is accessed by DMA, and does not interrupt the ND-100 program execution.
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -92,8 +92,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of RIOM
-        ; [To be written]
+        ; Example for riom
+        ; [Variant data not available]
 ```
 
 ---
@@ -108,8 +108,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.23
+**Title:** Read I/O processor memory
 
 ---
 

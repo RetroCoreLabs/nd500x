@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for CPGU instruction to be written based on Reference Manual §TBD]
+Privileged instruction. The entire page used table is cleared. This instruction is used by the swapper routines. This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CPGU
-        ; [To be written]
+        ; Example for cpgu
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.22
+**Title:** Clear page used table
 
 ---
 
