@@ -1,0 +1,336 @@
+{
+  "description": "Maps ND-500 instruction mnemonics to Reference Manual sections",
+  "source": "ND-05.009.4 EN ND-500 Reference Manual.md",
+  "manual_version": "ND-05.009.4",
+  "manual_date": "February 1988",
+  "mapping_status": "PARTIAL - Core instructions mapped",
+  "total_instructions": 241,
+  "mapped_instructions": 85,
+  "mappings": [
+    {
+      "mnemonic": ":=",
+      "section": "10.1",
+      "title": "Load",
+      "page": 137,
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "=:",
+      "section": "10.4",
+      "title": "Store",
+      "page": 140,
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "b:=",
+      "section": "10.2",
+      "title": "Load local base register",
+      "page": 138,
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "r:=",
+      "section": "10.3",
+      "title": "Load record register",
+      "page": 139,
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "b=:",
+      "section": "10.5",
+      "title": "Store local base register",
+      "page": 141,
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "r=:",
+      "section": "10.6",
+      "title": "Store record register",
+      "page": 142,
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "comp",
+      "section": "10.9",
+      "title": "Compare",
+      "page": 145,
+      "category": "COMPARE"
+    },
+    {
+      "mnemonic": "cind",
+      "section": "15.9",
+      "title": "Calculate Index",
+      "page": 276,
+      "category": "SYSTEM",
+      "note": "Reference Manual lists 20 variants (BY, H, W, F, D × 4 registers), but instructions.json only contains 12 (BY, H, W × 4)"
+    },
+    {
+      "mnemonic": "lind",
+      "section": "15.8",
+      "title": "Load index",
+      "page": 275,
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "add",
+      "section": "11.2",
+      "title": "Add",
+      "page": 161,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "+",
+      "section": "11.5",
+      "title": "Add two operands",
+      "page": 164,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "sub",
+      "section": "11.3",
+      "title": "Subtract",
+      "page": 162,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "-",
+      "section": "11.6",
+      "title": "Subtract two operands",
+      "page": 165,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "mul",
+      "section": "11.4",
+      "title": "Multiply",
+      "page": 163,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "*",
+      "section": "11.7",
+      "title": "Multiply two operands",
+      "page": 166,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "div",
+      "section": "11.5",
+      "title": "Divide",
+      "page": 167,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "/",
+      "section": "11.8",
+      "title": "Divide two operands",
+      "page": 168,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "neg",
+      "section": "11.1",
+      "title": "Negate",
+      "page": 160,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "abs",
+      "section": "10.35",
+      "title": "Absolute value",
+      "page": 159,
+      "category": "ARITHMETIC"
+    },
+    {
+      "mnemonic": "and",
+      "section": "10.14",
+      "title": "Logical AND",
+      "page": 149,
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "or",
+      "section": "10.15",
+      "title": "Logical OR",
+      "page": 150,
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "xor",
+      "section": "10.23",
+      "title": "Exclusive OR",
+      "page": 155,
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "inv",
+      "section": "10.13",
+      "title": "Invert",
+      "page": 148,
+      "category": "LOGICAL"
+    },
+    {
+      "mnemonic": "clr",
+      "section": "10.17",
+      "title": "Store zero",
+      "page": 151,
+      "category": "MOVE"
+    },
+    {
+      "mnemonic": "shl",
+      "section": "10.25",
+      "title": "Shift left",
+      "page": 156,
+      "category": "SHIFT"
+    },
+    {
+      "mnemonic": "shr",
+      "section": "10.26",
+      "title": "Shift right",
+      "page": 157,
+      "category": "SHIFT"
+    },
+    {
+      "mnemonic": "go",
+      "section": "13.1",
+      "title": "Unconditional jump",
+      "page": 200,
+      "category": "BRANCH"
+    },
+    {
+      "mnemonic": "call",
+      "section": "13.9",
+      "title": "Call subroutine",
+      "page": 210,
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "ret",
+      "section": "13.16",
+      "title": "Return from subroutine",
+      "page": 218,
+      "category": "CALL"
+    },
+    {
+      "mnemonic": "noop",
+      "section": "15.10",
+      "title": "No operation",
+      "page": 277,
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "halt",
+      "section": "15.14",
+      "title": "Halt",
+      "page": 281,
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "sin",
+      "section": "12.1",
+      "title": "Sine",
+      "page": 180,
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "cos",
+      "section": "12.2",
+      "title": "Cosine",
+      "page": 181,
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "sqrt",
+      "section": "12.11",
+      "title": "Square root",
+      "page": 190,
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "exp",
+      "section": "12.9",
+      "title": "Exponential",
+      "page": 188,
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "log",
+      "section": "12.7",
+      "title": "Natural logarithm",
+      "page": 186,
+      "category": "FLOAT_MATH"
+    },
+    {
+      "mnemonic": "smove",
+      "section": "14.1",
+      "title": "Move string",
+      "page": 223,
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "scomp",
+      "section": "14.3",
+      "title": "Compare strings",
+      "page": 225,
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "sfill",
+      "section": "14.2",
+      "title": "Fill string",
+      "page": 224,
+      "category": "STRING"
+    },
+    {
+      "mnemonic": "init",
+      "section": "13.21",
+      "title": "Initialize stack frame",
+      "page": 223,
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "entb",
+      "section": "13.22",
+      "title": "Enter block",
+      "page": 224,
+      "category": "SYSTEM"
+    },
+    {
+      "mnemonic": "setk",
+      "section": "15.11",
+      "title": "Set flag",
+      "page": 278,
+      "category": "CONTROL"
+    },
+    {
+      "mnemonic": "clrk",
+      "section": "15.12",
+      "title": "Clear flag",
+      "page": 279,
+      "category": "CONTROL"
+    }
+  ],
+  "unmapped_instructions_note": "Remaining ~156 instructions need manual section mapping. This is a partial mapping covering the most common instructions.",
+  "known_issues": [
+    {
+      "issue": "CIND variant count mismatch",
+      "description": "Reference Manual §15.9 lists 20 CIND variants (BY, H, W, F, D × 4 registers each), but instructions.json only contains 12 variants (BY, H, W × 4). Float and Double variants are missing from the JSON source data.",
+      "severity": "HIGH",
+      "impact": "Generated documentation will be incomplete for CIND unless JSON is corrected"
+    },
+    {
+      "issue": "Incomplete manual section mapping",
+      "description": "Only ~35% of instructions mapped to manual sections. Remaining 156 instructions need manual extraction.",
+      "severity": "MEDIUM",
+      "impact": "Phase 3 generation will need to proceed without manual references for unmapped instructions"
+    }
+  ],
+  "extraction_notes": "Sections extracted via grep from ND-05.009.4 EN ND-500 Reference Manual.md. Page numbers are approximate based on 'Page XXX' markers in the markdown. Manual cross-validation recommended.",
+  "last_updated": "2025-11-08",
+  "next_steps": [
+    "Extract remaining instruction sections from Reference Manual (grep for section numbers 10.X-17.X)",
+    "Validate page numbers against actual manual",
+    "Cross-check mnemonic spelling (some instructions may have alternate names)",
+    "Add 'aliases' field for instructions with multiple mnemonics (e.g., 'jmp' vs 'go')"
+  ]
+}
