@@ -4,11 +4,11 @@
 
 This file tracks progress for the ND-500 instruction documentation automation project.
 
-**Total Instructions to Document:** 241 unique instructions (1,078 variants)
+**Total Instructions to Document:** 241 unique instructions (1,086 variants)
 
 **Target Directory:** `/docs/instructions/asm/`
 
-**Generation Status:** Not started
+**Generation Status:** Phase 2.5 complete, ready for Phase 3 generation
 
 ---
 
@@ -16,31 +16,39 @@ This file tracks progress for the ND-500 instruction documentation automation pr
 
 | Category | Total | Completed | Remaining | Progress |
 |----------|-------|-----------|-----------|----------|
-| **Preparation** | 7 | 0 | 7 | 0% |
-| **Generation** | 241 | 0 | 241 | 0% |
+| **Preparation** | 10 | 10 | 0 | 100% |
+| **Generation** | 241 | 3 | 238 | 1% |
 | **Validation** | 241 | 0 | 241 | 0% |
 
 ---
 
 ## Phase Status
 
-- [x] **Phase 1: Analysis** - ✅ COMPLETED
-- [x] **Phase 1.5: Pre-Approval Fixes** - ✅ COMPLETED
-- [x] **Phase 2: Planning** - ✅ COMPLETED
-- [ ] **Phase 3: Generation** - ⏳ AWAITING APPROVAL
+- [x] **Phase 1: Analysis** - ✅ COMPLETED (2025-11-08)
+- [x] **Phase 1.5: Pre-Approval Fixes** - ✅ COMPLETED (2025-11-08)
+- [x] **Phase 2: Planning** - ✅ COMPLETED (2025-11-08)
+- [x] **Phase 2.5: Pre-Phase 3 Approval Fixes** - ✅ COMPLETED (2025-11-08)
+- [ ] **Phase 3: Generation** - ⏳ READY FOR APPROVAL
 
 ---
 
 ## Preparation Tasks
 
-### Repository Structure
+### Phase 1.5 Tasks (Pre-Approval)
 - [x] Create `/docs/instructions/asm/` directory
 - [x] Create `/docs/instructions/TODO.md` file
-- [x] Validate all YAML files against schema (sampled - structurally valid)
-- [x] Create instruction-to-manual-section mapping (43 instructions mapped)
 - [x] Fix ASSEMBLY_EXAMPLES_CIND.md (added F and D variants → 20 total)
 - [x] Normalize documentation standards (DOCUMENTATION_STANDARDS.md created)
-- [x] Verify UTF-8 encoding (all files UTF-8 or US-ASCII)
+- [x] Create instruction-to-manual-section mapping (43 instructions mapped → 18%)
+
+### Phase 2.5 Tasks (Pre-Phase 3 Approval)
+- [x] Fix CIND variants in instructions.json (added F1-F4, D1-D4 → 1,086 total variants)
+- [x] Implement variant count validation script (validate_variant_counts.py)
+- [x] Expand manual section mapping to 80% (195/241 = 81% coverage)
+- [x] Execute schema validation (241/241 YAML files valid, JSON valid)
+- [x] Implement quality metrics scoring system (quality_metrics.py)
+- [x] Test template with 3 sample instructions (cind.md, assignto.md, add.md)
+- [x] Verify UTF-8 encoding (all files UTF-8 compliant)
 
 ---
 
@@ -281,25 +289,37 @@ This file tracks progress for the ND-500 instruction documentation automation pr
 
 ## Outstanding Issues
 
-### From Phase 1 Analysis
+### From Phase 1 Analysis (All Resolved in Phase 2.5)
 
 1. **ASSEMBLY_EXAMPLES_CIND.md**
-   - Status: ⚠️ INCOMPLETE
+   - Status: ✅ RESOLVED
    - Issue: Missing F and D variants (8 variants)
-   - Action: Add Float and Double CIND variants
-   - Priority: HIGH
+   - Resolution: Added F1-F4, D1-D4 variants in Phase 1.5
+   - Verified: CIND example now shows all 20 variants
 
 2. **Manual Section Mapping**
-   - Status: ❌ MISSING
+   - Status: ✅ RESOLVED
    - Issue: No mnemonic → §X.Y mapping exists
-   - Action: Extract section numbers from Reference Manual
-   - Priority: MEDIUM
+   - Resolution: Created comprehensive mapping in Phase 2.5
+   - Coverage: 195/241 instructions (81%)
 
 3. **Documentation Style Inconsistencies**
-   - Status: ⚠️ MIXED
+   - Status: ✅ RESOLVED
    - Issue: Hex format (0xXXXX vs 0XXXXH), mnemonic format varies
-   - Action: Standardize to 0x prefix, consistent mnemonic format
-   - Priority: MEDIUM
+   - Resolution: Created DOCUMENTATION_STANDARDS.md in Phase 1.5
+   - Standard: 0x prefix, consistent mnemonic format
+
+### Low-Priority Items (Deferred to Phase 3)
+
+1. **Unmapped Instructions (46 remaining)**
+   - Specialized variants and '87 extensions
+   - Can be generated using JSON data alone
+   - Manual references will be marked "TBD"
+
+2. **YAML/JSON Naming Consistency**
+   - Minor casing differences
+   - Impact: Minimal (parsers handle both)
+   - Action: Document conventions during Phase 3
 
 ---
 
@@ -312,5 +332,46 @@ This file tracks progress for the ND-500 instruction documentation automation pr
 
 ---
 
+## Phase 2.5 Completion Summary
+
+**Date:** 2025-11-08
+**Status:** ✅ PHASE 2.5 COMPLETE
+
+### Critical Fixes Completed
+- ✅ CIND variants fixed (8 new variants added to instructions.json)
+- ✅ Variant count validation script implemented and operational
+
+### High-Priority Fixes Completed
+- ✅ Manual section mapping expanded to 81% (195/241 instructions)
+- ✅ Schema validation executed (100% pass rate)
+
+### Medium-Priority Fixes Completed
+- ✅ Quality metrics system implemented
+- ✅ Template tested with 3 sample instruction files
+- ✅ Documentation cross-links validated
+
+### Files Created in Phase 2.5
+1. `fix_cind_variants.py` - CIND variant addition script
+2. `validate_variant_counts.py` - Variant validation script
+3. `validate_schemas.py` - Schema validation script
+4. `quality_metrics.py` - Quality scoring system
+5. `VARIANT_COUNT_ANALYSIS.md` - Variant semantics documentation
+6. `PHASE_2_5_COMPLETION_REPORT.md` - Comprehensive completion report
+7. `asm/cind.md` - Sample SYSTEM instruction
+8. `asm/assignto.md` - Sample MOVE instruction
+9. `asm/add.md` - Sample ARITHMETIC instruction
+
+### Files Modified in Phase 2.5
+1. `instructions.json` - Added 8 CIND variants (1,078 → 1,086 total)
+2. `MANUAL_SECTION_MAPPING.json` - Expanded to 195 mappings (81% coverage)
+
+### Next Phase
+**Phase 3: Instruction Documentation Generation**
+- Generate 241 instruction documentation files
+- Run quality validation on all generated files
+- Create comprehensive index and cross-reference system
+
+---
+
 **Last Updated:** 2025-11-08
-**Status:** Phase 1.5 - Pre-Approval Fixes In Progress
+**Status:** Phase 2.5 Complete - Ready for Phase 3 Approval
