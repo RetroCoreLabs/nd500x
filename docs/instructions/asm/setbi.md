@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SETBI instruction to be written based on Reference Manual §10.30]
+The specified bit of a BY, H, or W \<operand> is set. A \<bit No.> greater than or equal to the number of bits of the data type or a negative \<bit No.> will cause an illegal operand value trap condition.
 
 **Operands:** 2
 **Variants:** 3 opcode(s)
@@ -81,8 +81,8 @@ Total variants: 3
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SETBI
-        ; [To be written]
+        ; Example for setbi
+        ; [Variant data not available]
 ```
 
 ---

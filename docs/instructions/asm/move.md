@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for MOVE instruction to be written based on Reference Manual §10.7]
+The number of bits needed to represent the data type are moved from source to destination. The source is unaffected, and a constant destination operand is illegal.
 
 **Operands:** 2
 **Variants:** 6 opcode(s)
@@ -84,8 +84,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of MOVE
-        ; [To be written]
+        ; Example for move
+        ; [Variant data not available]
 ```
 
 ---

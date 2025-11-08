@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SSPAN instruction to be written based on Reference Manual §14.17]
+The `<source>` operand is examined until the result of a logical AND between the examined byte translated and the `<mask>` is equal to zero, or until the end of `<source>` operand is reached.
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -90,8 +90,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SSPAN
-        ; [To be written]
+        ; Example for sspan
+        ; [Variant data not available]
 ```
 
 ---

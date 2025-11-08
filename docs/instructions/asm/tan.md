@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for TAN instruction to be written based on Reference Manual §12.9]
+The trigonometric tangent of ⟨argument⟩ is loaded into the specified float or double float register. The maximum absolute value of ⟨argument⟩ is 65536.0 radians; a larger value will cause an invalid operation trap condition and the specified register is set to zero.
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of TAN
-        ; [To be written]
+        ; Example for tan
+        ; [Variant data not available]
 ```
 
 ---

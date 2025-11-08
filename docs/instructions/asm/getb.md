@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for GETB instruction to be written based on Reference Manual §10.27]
+Bit zero of the specified register is loaded with bit <bit No.> of a BY, H, or W <operand>. A <bit No.> greater than or equal to the number of bits of the data type or a negative <bit No.> will cause an illegal operand value trap condition.
 
 **Operands:** 1
 **Variants:** 4 opcode(s)
@@ -71,8 +71,8 @@ Total variants: 4
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of GETB
-        ; [To be written]
+        ; Example for getb
+        ; [Variant data not available]
 ```
 
 ---

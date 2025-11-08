@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PHYLADR instruction to be written based on Reference Manual §16.38]
+PHYLADR instruction
 
 **Operands:** 1
 **Variants:** 4 opcode(s)
@@ -69,8 +69,8 @@ Total variants: 4
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PHYLADR
-        ; [To be written]
+        ; Example for phyladr
+        ; [Variant data not available]
 ```
 
 ---

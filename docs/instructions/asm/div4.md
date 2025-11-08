@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for DIV4 instruction to be written based on Reference Manual §11.14]
+DIV4 instruction
 
 **Operands:** 3
 **Variants:** 12 opcode(s)
@@ -102,8 +102,8 @@ Total variants: 12
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of DIV4
-        ; [To be written]
+        ; Example for div4
+        ; [Variant data not available]
 ```
 
 ---

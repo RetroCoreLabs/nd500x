@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PUPACKR instruction to be written based on Reference Manual §17.9]
+The contents of the \<source> operand in packed decimal format are converted to binary format and loaded into the specified register. The fractional part of \<source> is lost; no rounding is performed before the conversion. On integer overflow the result is the least significant 32 bits of the binary result.
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PUPACKR
-        ; [To be written]
+        ; Example for pupackr
+        ; [Variant data not available]
 ```
 
 ---

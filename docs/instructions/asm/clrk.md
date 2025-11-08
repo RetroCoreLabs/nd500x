@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for CLRK instruction to be written based on Reference Manual §15.12]
+Clear the flag bit of the status register
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CLRK
-        ; [To be written]
+        ; Example for clrk
+        ; [Variant data not available]
 ```
 
 ---

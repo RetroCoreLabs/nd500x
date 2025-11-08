@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for RETBK instruction to be written based on Reference Manual §TBD]
+RETBK instruction
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of RETBK
-        ; [To be written]
+        ; Example for retbk
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §13.11
+**Title:** Set flag buddy subroutine return
 
 ---
 

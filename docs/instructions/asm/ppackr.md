@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PPACKR instruction to be written based on Reference Manual §17.7]
+The content of the `<source>` operand in ASCII coded decimal is packed into the `<dest>` operand in packed format. If specified, the value is rounded before storing it in the `<dest>` operand. If bit 26 in the descriptor of the `<dest>` operand is set, the value is stored with a sign code equal to 1111 (unsigned). Otherwise, `<dest>` will be given the sign of the `<source>` value. The `<source>` value consists of ASCII digits and a sign according to the SGN code in the `<source>` descriptor only
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PPACKR
-        ; [To be written]
+        ; Example for ppackr
+        ; [Variant data not available]
 ```
 
 ---

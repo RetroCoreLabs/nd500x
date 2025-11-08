@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SSCAN instruction to be written based on Reference Manual §14.22]
+SSCAN instruction
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -90,8 +90,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SSCAN
-        ; [To be written]
+        ; Example for sscan
+        ; [Variant data not available]
 ```
 
 ---

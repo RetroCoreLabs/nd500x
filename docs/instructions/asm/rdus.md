@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for RDUS instruction to be written based on Reference Manual §16.10]
+Data in the data cache are marked as invalid. Data marked 'dirty' is dumped to memory. In connection with DMA transfers, the cache should be cleared to ensure that the cache contents are consistent with the main memory contents. If no cache is present, the instruction has no effect.
 
 **Operands:** 1
 **Variants:** 16 opcode(s)
@@ -83,8 +83,8 @@ Total variants: 16
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of RDUS
-        ; [To be written]
+        ; Example for rdus
+        ; [Variant data not available]
 ```
 
 ---

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SMVWH instruction to be written based on Reference Manual §TBD]
+Bytes are moved from the `<source>` operand to the `<dest>` operand. When the result of a logical AND between the moved byte and the `<mask>` operand is equal to the value of the `<test>` operand, the moving continues until the `<source>` operand is empty or the `<dest>` operand is full. Overlap is not taken care of.
 
 **Operands:** 4
 **Variants:** 1 opcode(s)
@@ -104,8 +104,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SMVWH
-        ; [To be written]
+        ; Example for smvwh
+        ; [Variant data not available]
 ```
 
 ---
@@ -120,8 +120,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.3
+**Title:** String move while
 
 ---
 

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PSUM instruction to be written based on Reference Manual §17.8]
+The content of the \<source> operand in packed decimal format is unpacked into the \<dest> operand in ASCII format. If specified, the value is rounded before storing it in the \<dest> operand. The sign representation is determined by the SGN field in the \<dest> descriptor. The \<dest> string is extended with leading ASCII zeros if necessary, and the parity bit for all digits will be zero.
 
 **Operands:** 2
 **Variants:** 20 opcode(s)
@@ -99,8 +99,8 @@ Total variants: 20
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PSUM
-        ; [To be written]
+        ; Example for psum
+        ; [Variant data not available]
 ```
 
 ---

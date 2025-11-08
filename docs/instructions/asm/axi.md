@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for AXI instruction to be written based on Reference Manual §11.21]
+AXI instruction
 
 **Operands:** 2
 **Variants:** 8 opcode(s)
@@ -87,8 +87,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of AXI
-        ; [To be written]
+        ; Example for axi
+        ; [Variant data not available]
 ```
 
 ---

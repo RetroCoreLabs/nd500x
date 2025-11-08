@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for GETBF instruction to be written based on Reference Manual §10.31]
+Bit 0 to <field size> - 1 of the specified register is loaded with the specified bit field. In the <operand>, the bit field is composed of the <bit No.> bit and as many higher numbered bits as necessary to obtain a field size of <field size> bits. (See the section on data types in memory for an explanation of bit numbers within data types.) The <operand> may have BY, H, or W as the data type. <bit No.> and <field size> are interpreted as signed byte integers. An illegal operand value trap condit
 
 **Operands:** 3
 **Variants:** 12 opcode(s)
@@ -103,8 +103,8 @@ Total variants: 12
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of GETBF
-        ; [To be written]
+        ; Example for getbf
+        ; [Variant data not available]
 ```
 
 ---

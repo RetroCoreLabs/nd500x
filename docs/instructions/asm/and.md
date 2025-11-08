@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for AND instruction to be written based on Reference Manual §10.21]
+A bitwise AND is performed between the contents of the specified register and the ⟨operand⟩ and the result is stored in the register. When the data type is BI, BY, or H, the upper part of the register is zero filled.
 
 **Operands:** 1
 **Variants:** 16 opcode(s)
@@ -83,8 +83,8 @@ Total variants: 16
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of AND
-        ; [To be written]
+        ; Example for and
+        ; [Variant data not available]
 ```
 
 ---

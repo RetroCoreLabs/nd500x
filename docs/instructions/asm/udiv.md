@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for UDIV instruction to be written based on Reference Manual §11.16]
+UDIV instruction
 
 **Operands:** 3
 **Variants:** 4 opcode(s)
@@ -94,8 +94,8 @@ Total variants: 4
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of UDIV
-        ; [To be written]
+        ; Example for udiv
+        ; [Variant data not available]
 ```
 
 ---

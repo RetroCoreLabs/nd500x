@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for XOR instruction to be written based on Reference Manual §10.23]
+XOR instruction
 
 **Operands:** 1
 **Variants:** 16 opcode(s)
@@ -83,8 +83,8 @@ Total variants: 16
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of XOR
-        ; [To be written]
+        ; Example for xor
+        ; [Variant data not available]
 ```
 
 ---

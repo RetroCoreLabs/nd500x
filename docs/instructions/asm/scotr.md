@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SCOTR instruction to be written based on Reference Manual §TBD]
+Translated bytes from the <source-1> string are compared with the corresponding translated bytes in the <source-2> string. This comparison continues until unequal bytes are found, or until the end of the <source-1> or <source-2> string is reached. The byte elements are considered to be unsigned values. If both operands are addressed outside strings they will compare as "exact match". <source-1> addressed outside the string will compare as "<source-1> shorter than <source-2>". <source-2> addresse
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -90,8 +90,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SCOTR
-        ; [To be written]
+        ; Example for scotr
+        ; [Variant data not available]
 ```
 
 ---
@@ -106,8 +106,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.11
+**Title:** String compare translated
 
 ---
 

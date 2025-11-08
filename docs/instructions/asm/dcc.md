@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for DCC instruction to be written based on Reference Manual §TBD]
+Data in the data cache are marked as invalid. Data marked 'dirty' is dumped to memory. In connection with DMA transfers, the cache should be cleared to ensure that the cache contents are consistent with the main memory contents. If no cache is present, the instruction has no effect.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of DCC
-        ; [To be written]
+        ; Example for dcc
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.10
+**Title:** Data cache clear
 
 ---
 

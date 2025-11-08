@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ADD2 instruction to be written based on Reference Manual §11.5]
+The `<b>` operand is added to the `<a>` operand and the result is put in the `<a>` operand. The operands are assumed to have the same data type (see section 7.3 on page 73).
 
 **Operands:** 2
 **Variants:** 5 opcode(s)
@@ -83,8 +83,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ADD2
-        ; [To be written]
+        ; Example for add2
+        ; [Variant data not available]
 ```
 
 ---

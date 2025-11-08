@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for STZ instruction to be written based on Reference Manual §TBD]
+The contents of the destination operand are replaced by zero.
 
 **Operands:** 1
 **Variants:** 6 opcode(s)
@@ -72,8 +72,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of STZ
-        ; [To be written]
+        ; Example for stz
+        ; [Variant data not available]
 ```
 
 ---
@@ -88,8 +88,8 @@ Total variants: 6
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §10.17
+**Title:** Store zero
 
 ---
 

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for COMP instruction to be written based on Reference Manual §10.9]
+The compare instruction subtracts the operand from the contents of the specified register. The result of the subtraction is not saved, but rather compared to zero, and this result is saved in the data status bits. The instruction is a true comparison, hence the sign bit is changed in case of integer overflow.
 
 **Operands:** 1
 **Variants:** 24 opcode(s)
@@ -91,8 +91,8 @@ Total variants: 24
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of COMP
-        ; [To be written]
+        ; Example for comp
+        ; [Variant data not available]
 ```
 
 ---

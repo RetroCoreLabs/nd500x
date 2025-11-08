@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ENTM instruction to be written based on Reference Manual §13.14]
+ENTM instruction
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -84,8 +84,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ENTM
-        ; [To be written]
+        ; Example for entm
+        ; [Variant data not available]
 ```
 
 ---

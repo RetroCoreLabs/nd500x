@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SMVTR instruction to be written based on Reference Manual §TBD]
+Bytes from the `<source>` operand are translated via a translation table found at the address specified in the operand `<trans table>`. Translated bytes are moved from the `<source>` to the `<dest>` operand until the `<source>` is empty or the `<dest>` is full. Overlap is taken care of.
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -90,8 +90,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SMVTR
-        ; [To be written]
+        ; Example for smvtr
+        ; [Variant data not available]
 ```
 
 ---
@@ -106,8 +106,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.5
+**Title:** String move translated
 
 ---
 

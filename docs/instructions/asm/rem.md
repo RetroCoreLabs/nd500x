@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for REM instruction to be written based on Reference Manual §11.20]
+The `<x>` operand is multiplied by the `<y>` operand and the product is added to the contents of the specified register.
 
 **Operands:** 3
 **Variants:** 8 opcode(s)
@@ -98,8 +98,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of REM
-        ; [To be written]
+        ; Example for rem
+        ; [Variant data not available]
 ```
 
 ---

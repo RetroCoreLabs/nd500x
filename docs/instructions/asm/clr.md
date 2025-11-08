@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for CLR instruction to be written based on Reference Manual §10.16]
+The register is set to all zeroes. For all integer data types, the entire register is cleared.
 
 **Operands:** 0
 **Variants:** 24 opcode(s)
@@ -80,8 +80,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CLR
-        ; [To be written]
+        ; Example for clr
+        ; [Variant data not available]
 ```
 
 ---

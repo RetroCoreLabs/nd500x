@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for BLADDR instruction to be written based on Reference Manual §TBD]
+The address of the operand is loaded into the local base register. Registers and constants have no address in memory and are illegal as operands.
 
 **Operands:** 1
 **Variants:** 6 opcode(s)
@@ -71,8 +71,8 @@ Total variants: 6
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of BLADDR
-        ; [To be written]
+        ; Example for bladdr
+        ; [Variant data not available]
 ```
 
 ---
@@ -87,8 +87,8 @@ Total variants: 6
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §15.6
+**Title:** Load address into base register
 
 ---
 

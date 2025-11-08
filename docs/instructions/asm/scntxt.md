@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SCNTXT instruction to be written based on Reference Manual §TBD]
+Privileged instruction Context block of current process number is saved in physical address according to 'mask'. If address = 0, context save area of the current process is used. The registers specified in the mask are stored in locations addressed by `<address>` plus register number*4. The register numbers are shown in chapter 2. When context save area is used, this is addressed by: (process number+1)*400B + an operating system defined address. --- Norsk Data ND-05.009.4 EN ---
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -79,8 +79,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SCNTXT
-        ; [To be written]
+        ; Example for scntxt
+        ; [Variant data not available]
 ```
 
 ---
@@ -95,8 +95,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.27.3
+**Title:** Save context block
 
 ---
 

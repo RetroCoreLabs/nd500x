@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ENTD instruction to be written based on Reference Manual §13.11]
+ENTD instruction
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ENTD
-        ; [To be written]
+        ; Example for entd
+        ; [Variant data not available]
 ```
 
 ---

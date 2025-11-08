@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for + instruction to be written based on Reference Manual §11.5]
+The `<b>` operand is added to the `<a>` operand and the result is put in the `<a>` operand. The operands are assumed to have the same data type (see section 7.3 on page 73).
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
@@ -87,8 +87,8 @@ Total variants: 20
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of +
-        ; [To be written]
+        ; Example for +
+        ; [Variant data not available]
 ```
 
 ---

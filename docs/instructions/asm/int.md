@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for INT instruction to be written based on Reference Manual §10.34]
+INT instruction
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of INT
-        ; [To be written]
+        ; Example for int
+        ; [Variant data not available]
 ```
 
 ---

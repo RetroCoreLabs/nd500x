@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ABS instruction to be written based on Reference Manual §10.15]
+The absolute value of the contents of the specified register is calculated and stored in the same register. When the datatype is either BY or H, the result is stored in the least significant bits and the rest of the register is cleared. Overflow occurs if and only if the greatest negative integer is negated.
 
 **Operands:** 0
 **Variants:** 20 opcode(s)
@@ -76,8 +76,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ABS
-        ; [To be written]
+        ; Example for abs
+        ; [Variant data not available]
 ```
 
 ---

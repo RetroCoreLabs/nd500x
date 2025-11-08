@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for LOOP instruction to be written based on Reference Manual §13.6]
+The value of the `<step>` operand is added to the `<index>` operand. If the sign of `<index>` - `<limit>` is equal to the sign of the `<step>` operand, the control goes to the next instruction. Otherwise the signed `<displacement>` is added to the program counter. Normally the LOOP instruction will be placed at the end of the loop, and given a negative `<displacement>`. The `<displacement>` is the number of bytes from the first byte of the loop to the first byte of the LOOP instruction. The `<in
 
 **Operands:** 4
 **Variants:** 10 opcode(s)
@@ -104,8 +104,8 @@ Total variants: 10
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of LOOP
-        ; [To be written]
+        ; Example for loop
+        ; [Variant data not available]
 ```
 
 ---

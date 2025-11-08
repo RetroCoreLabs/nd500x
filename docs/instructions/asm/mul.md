@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for * instruction to be written based on Reference Manual §11.7]
+The `<a>` operand is multiplied by the `<b>` operand and the product is stored in the `<a>` operand. Integer overflow occurs if the upper half of the double length result is not equal to the sign extension of the lower half.
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
@@ -87,8 +87,8 @@ Total variants: 20
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of *
-        ; [To be written]
+        ; Example for *
+        ; [Variant data not available]
 ```
 
 ---

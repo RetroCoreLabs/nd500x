@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for CLTE instruction to be written based on Reference Manual §TBD]
+The specified bit in the Own Trap Enable register is cleared. An ignorable trap condition will be ignored and no trap handler invoked unless the corresponding MTE bit is set. A non-ignorable trap condition will be propagated to the mother domain. The `<bit no>` operand is compared with a modify mask (TEMM) found in the domain description table. If a bit in this mask is set, the corresponding bit in the local trap-enable register is modifiable. An attempt to modify a non-modifiable bit will cause
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -68,8 +68,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of CLTE
-        ; [To be written]
+        ; Example for clte
+        ; [Variant data not available]
 ```
 
 ---
@@ -84,8 +84,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.6
+**Title:** Clear bit in trap enable register
 
 ---
 

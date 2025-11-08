@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SSPAR instruction to be written based on Reference Manual §TBD]
+The parity bit (bit 7) in every byte in `<string>` is set according to the following values of the `<mode>` operand: 0 clear parity 1 set parity 2 even parity 3 odd parity Any other value will cause an illegal operand value trap condition.
 
 **Operands:** 2
 **Variants:** 1 opcode(s)
@@ -80,8 +80,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SSPAR
-        ; [To be written]
+        ; Example for sspar
+        ; [Variant data not available]
 ```
 
 ---
@@ -96,8 +96,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.19
+**Title:** Set parity in string
 
 ---
 

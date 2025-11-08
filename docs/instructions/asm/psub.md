@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PSUB instruction to be written based on Reference Manual §17.3]
+PSUB instruction
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -92,8 +92,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PSUB
-        ; [To be written]
+        ; Example for psub
+        ; [Variant data not available]
 ```
 
 ---

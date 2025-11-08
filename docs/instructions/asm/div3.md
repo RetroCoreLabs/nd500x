@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for DIV3 instruction to be written based on Reference Manual §11.12]
+The `<a>` operand is divided by the `<b>` operand and the quotient is stored in the `<c>` operand. In integer division the remainder (unless it is zero) has the same sign as the `<a>` operand, i.e., the quotient is truncated towards zero. Integer overflow occurs if and only if the largest possible negative integer is divided by -1. The operands are assumed to have the same data type (see section 7.3 on page 73).
 
 **Operands:** 3
 **Variants:** 5 opcode(s)
@@ -95,8 +95,8 @@ Total variants: 5
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of DIV3
-        ; [To be written]
+        ; Example for div3
+        ; [Variant data not available]
 ```
 
 ---

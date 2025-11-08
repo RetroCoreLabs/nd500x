@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SLOCA instruction to be written based on Reference Manual §TBD]
+The <source> operand is examined element by element until an examined element is equal to the <test> operand or until the end of <source> operand is reached.
 
 **Operands:** 2
 **Variants:** 2 opcode(s)
@@ -81,8 +81,8 @@ Total variants: 2
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SLOCA
-        ; [To be written]
+        ; Example for sloca
+        ; [Variant data not available]
 ```
 
 ---
@@ -97,8 +97,8 @@ Total variants: 2
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.15
+**Title:** String locate element
 
 ---
 

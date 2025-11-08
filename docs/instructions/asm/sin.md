@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SIN instruction to be written based on Reference Manual §12.5]
+The trigonometric sine of ⟨argument⟩ is loaded into the specified float or double float register. The maximum absolute value of ⟨argument⟩ is 65536.0 radians; a larger value will cause an invalid operation trap condition and the specified register will be set to zero.
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SIN
-        ; [To be written]
+        ; Example for sin
+        ; [Variant data not available]
 ```
 
 ---

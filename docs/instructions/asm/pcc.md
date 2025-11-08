@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PCC instruction to be written based on Reference Manual §TBD]
+Data in the program cache are marked as invalid. If no cache is present, the instruction has no effect.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PCC
-        ; [To be written]
+        ; Example for pcc
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.12
+**Title:** Program cache clear
 
 ---
 

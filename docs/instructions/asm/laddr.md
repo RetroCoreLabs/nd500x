@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for LADDR instruction to be written based on Reference Manual §15.4]
+The address of the operand is loaded into the specified register. Registers and constants have no address in memory and are illegal as operands. Formats other than Wn are used to give the correct scaling factor if \<operand\> is indexed. Fn is equivalent to Wn, but may improve readability.
 
 **Operands:** 1
 **Variants:** 24 opcode(s)
@@ -89,8 +89,8 @@ Total variants: 24
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of LADDR
-        ; [To be written]
+        ; Example for laddr
+        ; [Variant data not available]
 ```
 
 ---

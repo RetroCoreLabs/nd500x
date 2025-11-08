@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for PUTBF instruction to be written based on Reference Manual §10.32]
+PUTBF instruction
 
 **Operands:** 3
 **Variants:** 12 opcode(s)
@@ -102,8 +102,8 @@ Total variants: 12
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of PUTBF
-        ; [To be written]
+        ; Example for putbf
+        ; [Variant data not available]
 ```
 
 ---

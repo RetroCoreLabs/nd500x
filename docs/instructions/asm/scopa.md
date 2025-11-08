@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SCOPA instruction to be written based on Reference Manual §TBD]
+Bytes from the `<source-1>` string are compared with the corresponding bytes in the `<source-2>` string until unequal bytes are found, or until the end of both strings has been reached. If the lengths of the `<source-1>` and `<source-2>` strings are not equal, the shorter string is linked with a string of pad bytes. The length of the pad string is equal to the difference in length of the `<source-1>` and the `<source-2>` string. An operand addressed outside the string is treated as consisting of
 
 **Operands:** 3
 **Variants:** 1 opcode(s)
@@ -92,8 +92,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SCOPA
-        ; [To be written]
+        ; Example for scopa
+        ; [Variant data not available]
 ```
 
 ---
@@ -108,8 +108,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.12
+**Title:** String compare with pad
 
 ---
 

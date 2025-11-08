@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for DMON instruction to be written based on Reference Manual §16.13]
+Privileged instruction. Following data accesses will be mapped on a physical segment through the memory management system, rather than being interpreted directly as physical addresses. If the data memory management system is already turned on, the instruction has no effect.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of DMON
-        ; [To be written]
+        ; Example for dmon
+        ; [Variant data not available]
 ```
 
 ---

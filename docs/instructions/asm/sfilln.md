@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SFILLN instruction to be written based on Reference Manual §14.9]
+If the number of elements in the `<dest>` string, starting at the element indicated by I2, is greater than m, the contents of the specified register are stored in the m first elements of the `<dest>` string, starting at element I2. Otherwise all elements of the `<dest>` string from I2 to the end are filled with the contents of the register. m is unsigned.
 
 **Operands:** 2
 **Variants:** 24 opcode(s)
@@ -103,8 +103,8 @@ Total variants: 24
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SFILLN
-        ; [To be written]
+        ; Example for sfilln
+        ; [Variant data not available]
 ```
 
 ---

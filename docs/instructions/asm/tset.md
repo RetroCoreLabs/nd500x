@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for TSET instruction to be written based on Reference Manual §TBD]
+The TSET instruction performs the two necessary memory accesses uninterruptible by other processors or by channels connected to the memory system. It may therefore be used to implement processor synchronization. The TSET instruction always reads the contents of main memory, even if the addressed data are present in cache memory. The cache is updated for later references by ordinary load instructions. The TSET instruction is valid in the MPM-IV and later memory systems. In installations using MPM
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -67,8 +67,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of TSET
-        ; [To be written]
+        ; Example for tset
+        ; [Variant data not available]
 ```
 
 ---
@@ -83,8 +83,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.3
+**Title:** Test and set
 
 ---
 

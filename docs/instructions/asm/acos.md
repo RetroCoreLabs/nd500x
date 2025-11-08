@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ACOS instruction to be written based on Reference Manual §12.8]
+The trigonometric arccosine of `<argument>` is loaded into the specified float or double float register. The result value gives the angle in radians in the range 0 to pi. `<argument>` should be in the range -1 to +1, otherwise an invalid operation trap condition will occur and the specified register is set to zero.
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ACOS
-        ; [To be written]
+        ; Example for acos
+        ; [Variant data not available]
 ```
 
 ---

@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for BP instruction to be written based on Reference Manual §TBD]
+This instruction causes a break point instruction trap condition. If the break point trap is not enabled, it will cause an illegal instruction code trap condition. The BP instruction is intended for program debugging and the trap handler will normally invoke a debug routine.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of BP
-        ; [To be written]
+        ; Example for bp
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.4
+**Title:** Break point
 
 ---
 

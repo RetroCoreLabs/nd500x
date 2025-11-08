@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for RWIP instruction to be written based on Reference Manual §16.17]
+Privileged instruction. A bit or 16 bit group is read from the Written In Page table into the specified register. The operand specifies the physical memory page number (BIn RWIP) or physical page number/16 (Hn RWIP). A bit set in this table indicates that the page has been written into and must be written back to disk before being replaced with another one. The bit is automatically set by hardware and is used by the swapper routines. In hardware there are separate WIP tables for program and data
 
 **Operands:** 1
 **Variants:** 8 opcode(s)
@@ -75,8 +75,8 @@ Total variants: 8
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of RWIP
-        ; [To be written]
+        ; Example for rwip
+        ; [Variant data not available]
 ```
 
 ---

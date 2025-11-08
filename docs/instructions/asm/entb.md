@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ENTB instruction to be written based on Reference Manual §13.10]
+When the ENTM entry point is used, a new stack is initialized. A value of <stack demand of main program> greater than or equal to <total system stack demand> will cause a stack overflow trap condition. If ENTM is entered from another domain, TOS is not saved on the old stack, but is stored in the domain information table. Also THA, LL and HL are stored and new contents for these registers are fetched from the new domain information table. ENTM is the only entry point that may be called from anot
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -68,8 +68,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ENTB
-        ; [To be written]
+        ; Example for entb
+        ; [Variant data not available]
 ```
 
 ---

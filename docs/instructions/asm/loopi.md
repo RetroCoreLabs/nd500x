@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for LOOPI instruction to be written based on Reference Manual §13.4]
+The 〈index〉 operand is incremented by one and compared with 〈limit〉. If it is less than or equal to 〈limit〉, the signed 〈〈displacement〉〉 is added to the program counter; otherwise control goes to the next instruction. Normally the LOOPI instruction will be placed at the end of the loop, with a negative 〈〈displacement〉〉. The 〈〈displacement〉〉 is the number of bytes from the first byte of the loop to the first byte of the LOOPI instruction. The 〈index〉 and 〈limit〉 operands are of the same data type
 
 **Operands:** 3
 **Variants:** 10 opcode(s)
@@ -92,8 +92,8 @@ Total variants: 10
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of LOOPI
-        ; [To be written]
+        ; Example for loopi
+        ; [Variant data not available]
 ```
 
 ---

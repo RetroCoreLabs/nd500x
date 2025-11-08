@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for / instruction to be written based on Reference Manual §11.8]
+The \<a> operand is divided by the \<b> operand and the quotient is stored in the \<a> operand. In integer division the remainder (unless it is zero) has the same sign as the \<a> operand, i.e. the quotient is truncated towards zero. Integer overflow occurs if and only if the largest possible negative integer is divided by -1.
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
@@ -87,8 +87,8 @@ Total variants: 20
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of /
-        ; [To be written]
+        ; Example for /
+        ; [Variant data not available]
 ```
 
 ---

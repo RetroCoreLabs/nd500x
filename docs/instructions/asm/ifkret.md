@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for IFKRET instruction to be written based on Reference Manual §TBD]
+IFKRET instruction
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of IFKRET
-        ; [To be written]
+        ; Example for ifkret
+        ; [Variant data not available]
 ```
 
 ---
@@ -73,8 +73,8 @@ This instruction takes no operands.
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §13.11
+**Title:** If K set return from subroutine
 
 ---
 

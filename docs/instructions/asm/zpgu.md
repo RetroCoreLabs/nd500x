@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for ZPGU instruction to be written based on Reference Manual §TBD]
+Privileged instruction. The specified bit in the page used table is cleared. This instruction is used by the swapper routines after a new page has been read from disk into physical memory. In hardware there are separate PGU tables for program and data. ZPGU will clear the specified bit in both tables. Consequently, an ND-500 system cannot have physically separate memory for program and data at the same physical address. This instruction is installation dependent; using it requires knowledge of t
 
 **Operands:** 1
 **Variants:** 1 opcode(s)
@@ -68,8 +68,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of ZPGU
-        ; [To be written]
+        ; Example for zpgu
+        ; [Variant data not available]
 ```
 
 ---
@@ -84,8 +84,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §16.21
+**Title:** Clear page used bit
 
 ---
 

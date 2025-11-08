@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SCOPT instruction to be written based on Reference Manual §TBD]
+Translated bytes from the `<source-1>` string are compared with the corresponding translated bytes in the `<source-2>` string. The comparison continues until unequal bytes are found or the ends of both strings have been reached. If the lengths of the `<source-1>` and `<source-2>` strings are unequal, the shorter string is linked with a string of pad bytes. The length of the pad string is equal to the difference in length of the `<source-1>` and the `<source-2>` string. The pad byte is also trans
 
 **Operands:** 4
 **Variants:** 1 opcode(s)
@@ -102,8 +102,8 @@ Total variants: 1
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SCOPT
-        ; [To be written]
+        ; Example for scopt
+        ; [Variant data not available]
 ```
 
 ---
@@ -118,8 +118,8 @@ Total variants: 1
 
 ## Reference Manual
 
-**Section:** §TBD
-**Title:** TBD
+**Section:** §14.13
+**Title:** String compare translated with pad
 
 ---
 

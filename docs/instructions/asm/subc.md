@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for SUBC instruction to be written based on Reference Manual §11.18]
+The carry bit in the status register (treated as 0 or 1) and the one's complement of \<subtrahend\> are added to the contents of the specified register. The result is then stored in the specified register. This instruction is used for multiple precision arithmetic.
 
 **Operands:** 1
 **Variants:** 4 opcode(s)
@@ -71,8 +71,8 @@ Total variants: 4
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of SUBC
-        ; [To be written]
+        ; Example for subc
+        ; [Variant data not available]
 ```
 
 ---

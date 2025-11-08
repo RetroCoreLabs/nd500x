@@ -13,7 +13,7 @@
 
 ## Description
 
-[Description for NOOP instruction to be written based on Reference Manual §15.10]
+The no operation instruction may be used for deleting code from a program or to leave open space for later modifications.
 
 **Operands:** 0
 **Variants:** 1 opcode(s)
@@ -57,8 +57,8 @@ This instruction takes no operands.
 ### Example 1: Basic Usage
 
 ```assembly
-        ; Example usage of NOOP
-        ; [To be written]
+        ; Example for noop
+        ; [Variant data not available]
 ```
 
 ---
