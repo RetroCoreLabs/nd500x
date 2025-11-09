@@ -1,18 +1,59 @@
-# RETK - Return K
+# RETK - Simple Return (Keep Frame)
 
-**Mnemonic:** `retk`  
-**Function:** Return with K flag  
-**Class:** CONTROL  
-**Format:** See manual
+## Overview
 
-**Description:** Return with K flag
+**Mnemonic:** `retk`
+**Function:** Return without deallocating frame
+**Class:** CALL
+**Privilege:** user
 
-**Examples:**
+**Format:** `RETK`
+
+---
+
+## Description
+
+Returns to caller without deallocating the stack frame. Used with ENTF/ENTFN where locals are static (not on stack).
+
+RETK simply:
+1. Pops return address
+2. Jumps to caller
+3. Does NOT modify frame pointer or deallocate stack
+
+**Operands:** 0
+**Variants:** 1 opcode(s)
+
+---
+
+## Variants
+
+| Variant | Opcode | Assembly Notation |
+|---------|--------|-------------------|
+| 1/1 | 0xFDB2 | RETK |
+
+---
+
+## Examples
+
+### Example 1: Return from Fortran subroutine
 
 ```assembly
-% Return K operation
-RETK
+FSUB:   ENTF LOCALS
+        % Body
+        RETK                % Return, keep static frame
 ```
 
-**Reference:** §13.11  
-**See Also:** Related instructions
+---
+
+## Reference Manual
+
+**Section:** §13.11
+**Title:** Return instructions
+
+---
+
+## See Also
+
+- [ENTF](entf.md) - Fortran entry
+- [ENTFN](entfn.md) - Fortran entry with args
+- [RET](ret.md) - Simple return
