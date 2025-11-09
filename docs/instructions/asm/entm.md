@@ -1,18 +1,103 @@
-# ENTM - Enter Main
+# ENTM - Enter Main Program
 
-**Mnemonic:** `entm`  
-**Function:** Enter main program  
-**Class:** CONTROL  
-**Format:** See manual
+## Overview
 
-**Description:** Enter main program
+**Mnemonic:** `entm`
+**Function:** Initialize main program stack and system
+**Class:** CALL
+**Privilege:** user
 
-**Examples:**
+**Format:** `ENTM <bottom of stack/r/W>,<stack demand/r/W>,<total system stack demand/r/W>`
+
+---
+
+## Description
+
+Initializes the runtime system for a main program. Sets up the stack base, allocates the main program's stack frame, and reserves total system stack space.
+
+ENTM is typically the first instruction executed when a program starts. It:
+1. Establishes the stack base pointer at `<bottom of stack>`
+2. Allocates `<stack demand>` words for main program locals
+3. Reserves `<total system stack demand>` words for the entire execution
+
+This ensures the runtime has enough stack space for the main program plus all called subroutines.
+
+**Operands:** 3
+**Variants:** 1 opcode(s)
+
+---
+
+## Variants
+
+| Variant | Opcode | Assembly Notation |
+|---------|--------|-------------------|
+| 1/1 | 0xFD70 | ENTM |
+
+---
+
+## Operands
+
+### Operand 1 (Bottom of Stack)
+
+Base address where stack begins.
+
+**Type:** Word
+**Access:** Read
+
+**Supported modes:** LOCAL, RECORD, CONSTANT, REGISTER, PRE_INDEXED, ABSOLUTE
+
+### Operand 2 (Stack Demand)
+
+Stack space needed for main program locals (words).
+
+**Type:** Word
+**Access:** Read
+
+**Supported modes:** LOCAL, RECORD, CONSTANT, REGISTER, PRE_INDEXED, ABSOLUTE
+
+### Operand 3 (Total System Stack Demand)
+
+Total stack space reserved for entire program (words).
+
+**Type:** Word
+**Access:** Read
+
+**Supported modes:** LOCAL, RECORD, CONSTANT, REGISTER, PRE_INDEXED, ABSOLUTE
+
+---
+
+## Trap Conditions
+
+- **Addressing traps:** Invalid address, page fault, protection violation
+- **Stack overflow (STO):** Insufficient memory for requested stack
+
+---
+
+## Examples
+
+### Example 1: Program initialization
 
 ```assembly
-% Enter Main operation
-ENTM
+START:  ENTM STACK_BASE, 100, 4096
+        % Main program body
+        % ...
+        STOP
+
+STACK_BASE:
+        % 4096 words reserved for stack
 ```
 
-**Reference:** §13.10  
-**See Also:** Related instructions
+---
+
+## Reference Manual
+
+**Section:** §13.10
+**Title:** Subroutine entry points
+
+---
+
+## See Also
+
+- [ENTS](ents.md) - Simple entry
+- [ENTD](entd.md) - Enter with display
+- [ENTT](entt.md) - Enter trap handler
