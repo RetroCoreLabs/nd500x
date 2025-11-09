@@ -1,111 +1,27 @@
-# SWAP - Swap
+# SWAP - Swap Two Operands
 
-## Overview
+**Mnemonic:** `swap`  
+**Function:** Exchange contents of two operands  
+**Class:** MOVE  
+**Format:** `t SWAP <op1>,<op2>`
 
-**Mnemonic:** `swap`
-**Function:** Swap
-**Class:** MOVE
-**Privilege:** user
+**Description:** Exchanges contents of first and second operands. Both operands must be same data type.
 
-**Format:** `{prefix}{register} SWAP <op1>,<op2>`
+**Operands:** 2  
+**Variants:** 6
 
----
-
-## Description
-
-The contents of the first operand are stored in the second, and the original contents of the second operand are stored in the first. The operands are assumed to have the same data type (see section 7.3 on page 73).
-
-**Operands:** 2
-**Variants:** 6 opcode(s)
-
----
-
-## Variants
-
-Total variants: 6
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/6 | 0x0052 | BI | 1 | LOCAL, RECORD, REGISTER... |
-| 2/6 | 0xFCBD | BI | 2 | LOCAL, RECORD, REGISTER... |
-| 3/6 | 0xFCBE | BI | 3 | LOCAL, RECORD, REGISTER... |
-| 4/6 | 0xFCBF | BI | 4 | LOCAL, RECORD, REGISTER... |
-| 5/6 | 0xFCDC | BI | 1 | LOCAL, RECORD, REGISTER... |
-| 6/6 | 0xFCDD | BI | 2 | LOCAL, RECORD, REGISTER... |
-
----
-
-## Operands
-
-### Operand 1
-
-[Description for operand 1]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
-
-### Operand 2
-
-[Description for operand 2]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
-
----
-
-## Trap Conditions
-
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
-
----
-
-## Data Status Bits
-
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
-
----
-
-## Examples
-
-### Example 1: Basic Usage
+**Examples:**
 
 ```assembly
-        ; Example for swap
-        ; [Variant data not available]
+% Swap two variables
+W SWAP B.A, B.B
+
+% Swap register with memory
+W SWAP I1, B.TEMP
+
+% Exchange record fields
+W SWAP R.X, R.Y
 ```
 
----
-
-## Performance Notes
-
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
-
----
-
-## Reference Manual
-
-**Section:** §10.8
-**Title:** Swap
-
----
-
-## See Also
-
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+**Reference:** §10.8 Swap  
+**See Also:** [MOVE](move.md)
