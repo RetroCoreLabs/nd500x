@@ -1,85 +1,18 @@
-# CWIP - Cwip
+# CWIP - Copy Words in Page
 
-## Overview
+**Mnemonic:** `cwip`  
+**Function:** Copy words within page  
+**Class:** MEM  
+**Format:** See manual
 
-**Mnemonic:** `cwip`
-**Function:** Cwip
-**Class:** SYSTEM
-**Privilege:** user
+**Description:** Copy words within page
 
-**Format:** `CWIP`
-
----
-
-## Description
-
-Privileged instruction. The entire written in page table is cleared. This instruction is used by the swapper routines. This instruction is installation dependent; using it requires knowledge of the physical memory configuration.
-
-**Operands:** 0
-**Variants:** 1 opcode(s)
-
----
-
-## Variants
-
-Total variants: 1
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/1 | 0xFF1B | - | 1 | ALL |
-
----
-
-## Operands
-
-This instruction takes no operands.
----
-
-## Trap Conditions
-
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
-
----
-
-## Data Status Bits
-
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
-
----
-
-## Examples
-
-### Example 1: Basic Usage
+**Examples:**
 
 ```assembly
-        ; Example for cwip
-        ; [Variant data not available]
+% Copy Words in Page operation
+CWIP
 ```
 
----
-
-## Performance Notes
-
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
-
----
-
-## Reference Manual
-
-**Section:** §16.19
-**Title:** Clear Written In Page Table
-
----
-
-## See Also
-
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+**Reference:** §15  
+**See Also:** Related instructions

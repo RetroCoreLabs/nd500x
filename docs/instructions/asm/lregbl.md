@@ -1,108 +1,18 @@
-# LREGBL - Lregbl
+# LREGBL - Load Register Block
 
-## Overview
+**Mnemonic:** `lregbl`  
+**Function:** Load register block  
+**Class:** MOVE  
+**Format:** See manual
 
-**Mnemonic:** `lregbl`
-**Function:** Lregbl
-**Class:** SYSTEM
-**Privilege:** user
+**Description:** Load register block
 
-**Format:** `{prefix}{register} LREGBL <op1>,<op2>`
-
----
-
-## Description
-
-LREGBL instruction
-
-**Operands:** 2
-**Variants:** 1 opcode(s)
-
----
-
-## Variants
-
-Total variants: 1
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/1 | 0xFFF6 | - | 1 | LOCAL, RECORD, CONSTANT... |
-
----
-
-## Operands
-
-### Operand 1
-
-[Description for operand 1]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
-
-### Operand 2
-
-[Description for operand 2]
-
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
-
----
-
-## Trap Conditions
-
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
-
----
-
-## Data Status Bits
-
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
-
----
-
-## Examples
-
-### Example 1: Basic Usage
+**Examples:**
 
 ```assembly
-        ; Example for lregbl
-        ; [Variant data not available]
+% Load Register Block operation
+LREGBL
 ```
 
----
-
-## Performance Notes
-
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
-
----
-
-## Reference Manual
-
-**Section:** §16.27.2
-**Title:** Load register block
-
----
-
-## See Also
-
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+**Reference:** §15  
+**See Also:** Related instructions

@@ -1,88 +1,18 @@
-# ENTF - Entf
+# ENTF - Enter Fortran
 
-## Overview
+**Mnemonic:** `entf`  
+**Function:** Enter Fortran subroutine  
+**Class:** CONTROL  
+**Format:** See manual
 
-**Mnemonic:** `entf`
-**Function:** Entf
-**Class:** CALL
-**Privilege:** user
+**Description:** Enter Fortran subroutine
 
-**Format:** `{prefix}{register} ENTF <operand>`
-
----
-
-## Description
-
-ENTF instruction
-
-**Operands:** 1
-**Variants:** 1 opcode(s)
-
----
-
-## Variants
-
-Total variants: 1
-
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/1 | 0x00DD | - | 1 | ALL |
-
----
-
-## Operands
-
-### Operand 1
-
-[Description for operand 1]
-
----
-
-## Trap Conditions
-
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
-
----
-
-## Data Status Bits
-
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
-
----
-
-## Examples
-
-### Example 1: Basic Usage
+**Examples:**
 
 ```assembly
-        ; Example for entf
-        ; [Variant data not available]
+% Enter Fortran operation
+ENTF
 ```
 
----
-
-## Performance Notes
-
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
-
----
-
-## Reference Manual
-
-**Section:** §13.12
-**Title:** Enter function
-
----
-
-## See Also
-
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+**Reference:** §13.10  
+**See Also:** Related instructions
