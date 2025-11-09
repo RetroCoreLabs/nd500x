@@ -1,19 +1,21 @@
-# - - Subtract
+# - - Subtract (Operator Syntax)
 
 ## Overview
 
 **Mnemonic:** `-`
-**Function:** Subtract
+**Function:** Subtract (operator syntax for register-based subtraction)
 **Class:** ARITHMETIC
 **Privilege:** user
 
-**Format:** `{prefix}{register} - <operand>`
+**Format:** `tn - <operand>`
 
 ---
 
 ## Description
 
-- instruction
+Subtracts the `<operand>` from the specified register and stores the result in that register. Operator syntax equivalent of SUB2.
+
+Operation: `Rn = Rn - <operand>`
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
@@ -22,82 +24,73 @@
 
 ## Variants
 
-Total variants: 20
+Total variants: 20 (5 data types × 4 registers)
 
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/20 | 0x0060 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 2/20 | 0x0061 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 3/20 | 0x0062 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 4/20 | 0x0063 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 5/20 | 0x0064 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 6/20 | 0x0065 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 7/20 | 0x0066 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 8/20 | 0x0067 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 9/20 | 0x0068 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 10/20 | 0x0069 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 11/20 | 0x006A | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 12/20 | 0x006B | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 13/20 | 0xFC3C | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 14/20 | 0xFC3D | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 15/20 | 0xFC3E | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 16/20 | 0xFC3F | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 17/20 | 0xFC40 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 18/20 | 0xFC41 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 19/20 | 0xFC42 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 20/20 | 0xFC43 | BY | 4 | LOCAL, RECORD, CONSTANT... |
+| Data Type | Registers | Opcodes |
+|-----------|-----------|---------|
+| BY | 1-4 | 0x0060-0x0063 |
+| H | 1-4 | 0x0064-0x0067 |
+| W | 1-4 | 0x0068-0x006B |
+| F | 1-4 | 0xFC3C-0xFC3F |
+| D | 1-4 | 0xFC40-0xFC43 |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Subtrahend)
 
-[Description for operand 1]
+The operand to subtract from the specified register.
+
+**Type:** Byte, Halfword, Word, Float, or Double Float
+**Access:** Read
 
 **Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+- **LOCAL**, **RECORD**, **CONSTANT**, **REGISTER**, **PRE_INDEXED**, **ABSOLUTE**
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps**, **Integer overflow (O)**, **Floating overflow/underflow (FO/FU)**
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+- **Z, S, O, C** (integers), **FO, FU** (floats)
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Subtract constant
 
 ```assembly
-        ; Example for -
-        ; [Variant data not available]
+        % Decrement register by 1
+        W1 - 1
+```
+
+### Example 2: Subtract variable
+
+```assembly
+        % Subtract offset from register
+        W2 - B.OFFSET
+```
+
+### Example 3: Float subtraction
+
+```assembly
+        % Subtract delta from float register
+        F3 - B.DELTA
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Typical:** 3-6 cycles
+- **Note:** Same as SUB2
 
 ---
 
@@ -110,6 +103,4 @@ Total variants: 20
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [SUB2](sub2.md), [SUB3](sub3.md), [+](add.md)
