@@ -1,19 +1,23 @@
-# MUL4 - Mul4
+# MUL4 - Multiply with Overflow to Register
 
 ## Overview
 
 **Mnemonic:** `mul4`
-**Function:** Mul4
+**Function:** Multiply with overflow to register (full double-length product)
 **Class:** ARITHMETIC
 **Privilege:** user
 
-**Format:** `{prefix}{register} MUL4 <operands>`
+**Format:** `tn MUL4 <a>,<b>,<c>`
 
 ---
 
 ## Description
 
-The `<a>` operand is multiplied by the `<b>` operand. The product is stored in the `<c>` operand. The upper half of the double length result is stored in the specified register. The operands are assumed to have the same data type (see section 7.3 on page 73).
+Multiplies the `<a>` operand by the `<b>` operand and stores the lower half of the product in the `<c>` operand (destination). The upper half of the double-length result is stored in the specified register Rn.
+
+This instruction provides access to the full double-length product of a multiplication, which is essential for multi-precision arithmetic and overflow detection. Integer overflow occurs if the upper half is not equal to the sign extension of the lower half.
+
+The operands are assumed to have the same data type (BY, H, or W). Only integer types are supported - no floating point variants.
 
 **Operands:** 3
 **Variants:** 12 opcode(s)
@@ -22,97 +26,133 @@ The `<a>` operand is multiplied by the `<b>` operand. The product is stored in t
 
 ## Variants
 
-Total variants: 12
+Total variants: 12 (3 data types × 4 registers)
 
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/12 | 0xFC20 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 2/12 | 0xFC21 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 3/12 | 0xFC22 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 4/12 | 0xFC23 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 5/12 | 0xFC24 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 6/12 | 0xFC25 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 7/12 | 0xFC26 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 8/12 | 0xFC27 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 9/12 | 0xFC28 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 10/12 | 0xFC29 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 11/12 | 0xFC2A | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 12/12 | 0xFC2B | BY | 4 | LOCAL, RECORD, CONSTANT... |
+| Variant | Opcode | Data Type | Register | Assembly Notation |
+|---------|--------|-----------|----------|-------------------|
+| 1/12 | 0xFC20 | BY | 1 | BY1 MUL4 |
+| 2/12 | 0xFC21 | BY | 2 | BY2 MUL4 |
+| 3/12 | 0xFC22 | BY | 3 | BY3 MUL4 |
+| 4/12 | 0xFC23 | BY | 4 | BY4 MUL4 |
+| 5/12 | 0xFC24 | H | 1 | H1 MUL4 |
+| 6/12 | 0xFC25 | H | 2 | H2 MUL4 |
+| 7/12 | 0xFC26 | H | 3 | H3 MUL4 |
+| 8/12 | 0xFC27 | H | 4 | H4 MUL4 |
+| 9/12 | 0xFC28 | W | 1 | W1 MUL4 |
+| 10/12 | 0xFC29 | W | 2 | W2 MUL4 |
+| 11/12 | 0xFC2A | W | 3 | W3 MUL4 |
+| 12/12 | 0xFC2B | W | 4 | W4 MUL4 |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Multiplicand)
 
-[Description for operand 1]
+The first source operand (multiplicand). This operand is not modified.
 
-**Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
-
-### Operand 2
-
-[Description for operand 2]
+**Type:** Byte, Halfword, or Word
+**Access:** Read
 
 **Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+- **LOCAL** - Local data area access (B.variable)
+- **RECORD** - Record-relative access (R.field)
+- **CONSTANT** - Immediate constant value
+- **REGISTER** - Integer register (I1-I4)
+- **PRE_INDEXED** - Indexed addressing with offset
+- **ABSOLUTE** - Absolute memory address
 
-### Operand 3
+### Operand 2 (Multiplier)
 
-[Description for operand 3]
+The second source operand (multiplier). This operand is not modified.
+
+**Type:** Same data type as operand 1
+**Access:** Read
 
 **Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+- **LOCAL** - Local data area access (B.variable)
+- **RECORD** - Record-relative access (R.field)
+- **CONSTANT** - Immediate constant value
+- **REGISTER** - Integer register
+- **PRE_INDEXED** - Indexed addressing with offset
+- **ABSOLUTE** - Absolute memory address
+
+### Operand 3 (Product Lower Half/Destination)
+
+The destination operand where the lower half of the product is stored. The upper half goes to register Rn.
+
+**Type:** Same data type as operands 1 and 2
+**Access:** Write
+
+**Supported modes:**
+- **LOCAL** - Local data area access (B.variable)
+- **RECORD** - Record-relative access (R.field)
+- **REGISTER** - Integer register
+- **PRE_INDEXED** - Indexed addressing with offset
+- **ABSOLUTE** - Absolute memory address
+
+**Note:** CONSTANT mode not allowed for destination operands.
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps:** Invalid address, descriptor range violation, page fault, protection violation
+- **Integer overflow (O):** Upper half ≠ sign extension of lower half
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+- **Z (Zero):** Set if lower part of result = 0, cleared otherwise
+- **S (Sign):** Set to sign bit of lower part of result
+- **O (Overflow):** Set if integer overflow
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Multiply word arguments
 
 ```assembly
-        ; Example for mul4
-        ; [Variant data not available]
+        % Multiply M and N, store product in TEMP, overflow in R1
+        W1 MUL4 IND(B.M), IND(B.N), B.TEMP
+```
+
+### Example 2: Double-precision multiplication
+
+```assembly
+        % Multiply two words, get full 64-bit result
+        % Lower 32 bits in PROD_LO, upper 32 bits in R2
+        W2 MUL4 B.FACTOR_A, B.FACTOR_B, B.PROD_LO
+```
+
+### Example 3: Overflow detection
+
+```assembly
+        % Multiply with overflow check
+        W1 MUL4 B.A, B.B, B.RESULT
+        % R1 now contains upper half
+        % If R1 = 0 (or -1 for negative), no overflow occurred
+```
+
+### Example 4: Multi-precision arithmetic
+
+```assembly
+        % First part of multi-precision multiply
+        W3 MUL4 B.LOW_A, B.LOW_B, B.LOW_RESULT
+        % R3 contains partial carry
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Typical cycles:** 6-9 cycles depending on addressing modes
+- **Best case:** 6 cycles (register to register)
+- **Worst case:** 9+ cycles (memory to memory with page fault)
+
+**Note:** MUL4 is slightly slower than MUL3 due to the extra register store operation.
 
 ---
 
@@ -125,6 +165,9 @@ Total variants: 12
 
 ## See Also
 
+- [MUL2](mul2.md) - Multiply two operands (destructive)
+- [MUL3](mul3.md) - Multiply three operands (non-destructive)
+- [UMUL](umul.md) - Unsigned multiply with overflow
+- [DIV4](div4.md) - Divide with remainder to register
 - [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
 - [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
