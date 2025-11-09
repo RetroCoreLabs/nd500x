@@ -1,19 +1,21 @@
-# / - Divide
+# / - Divide (Operator Syntax)
 
 ## Overview
 
 **Mnemonic:** `/`
-**Function:** Divide
+**Function:** Divide (operator syntax for register-based division)
 **Class:** ARITHMETIC
 **Privilege:** user
 
-**Format:** `{prefix}{register} / <operand>`
+**Format:** `tn / <operand>`
 
 ---
 
 ## Description
 
-The \<a> operand is divided by the \<b> operand and the quotient is stored in the \<a> operand. In integer division the remainder (unless it is zero) has the same sign as the \<a> operand, i.e. the quotient is truncated towards zero. Integer overflow occurs if and only if the largest possible negative integer is divided by -1.
+Divides the specified register by `<operand>` and stores quotient in that register. Operator syntax equivalent of DIV2.
+
+Operation: `Rn = Rn / <operand>`
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
@@ -22,82 +24,73 @@ The \<a> operand is divided by the \<b> operand and the quotient is stored in th
 
 ## Variants
 
-Total variants: 20
+Total variants: 20 (5 data types × 4 registers)
 
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/20 | 0x0078 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 2/20 | 0x0079 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 3/20 | 0x007A | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 4/20 | 0x007B | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 5/20 | 0x007C | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 6/20 | 0x007D | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 7/20 | 0x007E | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 8/20 | 0x007F | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 9/20 | 0x00E8 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 10/20 | 0x00E9 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 11/20 | 0x00EA | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 12/20 | 0x00EB | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 13/20 | 0xFC4C | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 14/20 | 0xFC4D | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 15/20 | 0xFC4E | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 16/20 | 0xFC4F | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 17/20 | 0xFC50 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 18/20 | 0xFC51 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 19/20 | 0xFC52 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 20/20 | 0xFC53 | BY | 4 | LOCAL, RECORD, CONSTANT... |
+| Data Type | Registers | Opcodes |
+|-----------|-----------|---------|
+| BY | 1-4 | 0x0078-0x007B |
+| H | 1-4 | 0x007C-0x007F |
+| W | 1-4 | 0x00E8-0x00EB |
+| F | 1-4 | 0xFC4C-0xFC4F |
+| D | 1-4 | 0xFC50-0xFC53 |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Divisor)
 
-[Description for operand 1]
+The operand to divide the specified register by.
+
+**Type:** Byte, Halfword, Word, Float, or Double Float
+**Access:** Read
 
 **Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+- **LOCAL**, **RECORD**, **CONSTANT**, **REGISTER**, **PRE_INDEXED**, **ABSOLUTE**
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps**, **Integer overflow (O)**, **Floating overflow/underflow (FO/FU)**, **Divide by zero (DZ)**
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+- **Z, S, O, DZ** (integers), **FO, FU, DZ** (floats)
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Divide by constant
 
 ```assembly
-        ; Example for /
-        ; [Variant data not available]
+        % Halve register value
+        W1 / 2
+```
+
+### Example 2: Divide by variable
+
+```assembly
+        % Divide by divisor
+        W2 / B.DIVISOR
+```
+
+### Example 3: Float division
+
+```assembly
+        % Normalize by total
+        F3 / B.TOTAL
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Typical:** 12-20 cycles
+- **Note:** Same as DIV2
 
 ---
 
@@ -110,6 +103,4 @@ Total variants: 20
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [DIV2](div2.md), [DIV3](div3.md), [DIV4](div4.md)

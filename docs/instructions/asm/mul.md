@@ -1,19 +1,21 @@
-# * - Multiply
+# * - Multiply (Operator Syntax)
 
 ## Overview
 
 **Mnemonic:** `*`
-**Function:** Multiply
+**Function:** Multiply (operator syntax for register-based multiplication)
 **Class:** ARITHMETIC
 **Privilege:** user
 
-**Format:** `{prefix}{register} * <operand>`
+**Format:** `tn * <operand>`
 
 ---
 
 ## Description
 
-The `<a>` operand is multiplied by the `<b>` operand and the product is stored in the `<a>` operand. Integer overflow occurs if the upper half of the double length result is not equal to the sign extension of the lower half.
+Multiplies the specified register by `<operand>` and stores product in that register. Operator syntax equivalent of MUL2.
+
+Operation: `Rn = Rn * <operand>`
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
@@ -22,82 +24,73 @@ The `<a>` operand is multiplied by the `<b>` operand and the product is stored i
 
 ## Variants
 
-Total variants: 20
+Total variants: 20 (5 data types × 4 registers)
 
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/20 | 0x006C | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 2/20 | 0x006D | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 3/20 | 0x006E | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 4/20 | 0x006F | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 5/20 | 0x0070 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 6/20 | 0x0071 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 7/20 | 0x0072 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 8/20 | 0x0073 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 9/20 | 0x0074 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 10/20 | 0x0075 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 11/20 | 0x0076 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 12/20 | 0x0077 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 13/20 | 0xFC44 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 14/20 | 0xFC45 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 15/20 | 0xFC46 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 16/20 | 0xFC47 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 17/20 | 0xFC48 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 18/20 | 0xFC49 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 19/20 | 0xFC4A | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 20/20 | 0xFC4B | BY | 4 | LOCAL, RECORD, CONSTANT... |
+| Data Type | Registers | Opcodes |
+|-----------|-----------|---------|
+| BY | 1-4 | 0x006C-0x006F |
+| H | 1-4 | 0x0070-0x0073 |
+| W | 1-4 | 0x0074-0x0077 |
+| F | 1-4 | 0xFC44-0xFC47 |
+| D | 1-4 | 0xFC48-0xFC4B |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Multiplier)
 
-[Description for operand 1]
+The operand to multiply the specified register by.
+
+**Type:** Byte, Halfword, Word, Float, or Double Float
+**Access:** Read
 
 **Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+- **LOCAL**, **RECORD**, **CONSTANT**, **REGISTER**, **PRE_INDEXED**, **ABSOLUTE**
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps**, **Integer overflow (O)**, **Floating overflow/underflow (FO/FU)**
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+- **Z, S, O** (integers), **FO, FU** (floats)
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Multiply by constant
 
 ```assembly
-        ; Example for *
-        ; [Variant data not available]
+        % Double register value
+        W1 * 2
+```
+
+### Example 2: Scale by variable
+
+```assembly
+        % Multiply by scaling factor
+        W2 * B.SCALE
+```
+
+### Example 3: Float multiplication
+
+```assembly
+        % Multiply by coefficient
+        F3 * B.COEFFICIENT
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Typical:** 4-7 cycles
+- **Note:** Same as MUL2
 
 ---
 
@@ -110,6 +103,4 @@ Total variants: 20
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [MUL2](mul2.md), [MUL3](mul3.md), [MUL4](mul4.md)

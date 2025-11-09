@@ -1,19 +1,21 @@
-# DECR - Decr
+# DECR - Decrement
 
 ## Overview
 
 **Mnemonic:** `decr`
-**Function:** Decr
+**Function:** Decrement by one
 **Class:** ARITHMETIC
 **Privilege:** user
 
-**Format:** `{prefix}{register} DECR <operand>`
+**Format:** `t DECR <operand>`
 
 ---
 
 ## Description
 
-DECR instruction
+Decrements the `<operand>` by one. The Carry bit is set appropriately for borrow conditions.
+
+Operation: `operand = operand - 1`
 
 **Operands:** 1
 **Variants:** 5 opcode(s)
@@ -24,64 +26,74 @@ DECR instruction
 
 Total variants: 5
 
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/5 | 0x0051 | BY | 1 | LOCAL, RECORD, REGISTER... |
-| 2/5 | 0xFC8C | BY | 2 | LOCAL, RECORD, REGISTER... |
-| 3/5 | 0xFC8D | BY | 3 | LOCAL, RECORD, REGISTER... |
-| 4/5 | 0xFC8E | BY | 4 | LOCAL, RECORD, REGISTER... |
-| 5/5 | 0xFC8F | BY | 1 | LOCAL, RECORD, REGISTER... |
+| Data Type | Opcode |
+|-----------|--------|
+| BY | 0x0051 |
+| H | 0xFC8C |
+| W | 0xFC8D |
+| F | 0xFC8E |
+| D | 0xFC8F |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Destination)
 
-[Description for operand 1]
+The operand to decrement.
+
+**Type:** Byte, Halfword, or Word
+**Access:** Read/Write
 
 **Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+- **LOCAL**, **RECORD**, **REGISTER**, **PRE_INDEXED**, **ABSOLUTE**
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps**, **Integer overflow (O)**
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+- **Z, S, O, C**
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Decrement counter
 
 ```assembly
-        ; Example for decr
-        ; [Variant data not available]
+        % Decrement loop counter
+        W DECR B.COUNT
+```
+
+### Example 2: Countdown loop
+
+```assembly
+        W1 := B.SIZE
+LOOP:
+        % Process element
+        W DECR I1
+        IF>=GO LOOP
+```
+
+### Example 3: Decrement pointer
+
+```assembly
+        % Move backwards through array
+        W DECR B.PTR
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Typical:** 3-5 cycles
+- **Faster than:** SUB with constant 1
 
 ---
 
@@ -94,6 +106,4 @@ Total variants: 5
 
 ## See Also
 
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [INCR](incr.md), [SUB2](sub2.md)
