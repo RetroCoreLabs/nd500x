@@ -1,19 +1,23 @@
-# + - Add
+# + - Add (Operator Syntax)
 
 ## Overview
 
 **Mnemonic:** `+`
-**Function:** Add
+**Function:** Add (operator syntax for register-based addition)
 **Class:** ARITHMETIC
 **Privilege:** user
 
-**Format:** `{prefix}{register} + <operand>`
+**Format:** `tn + <operand>`
 
 ---
 
 ## Description
 
-The `<b>` operand is added to the `<a>` operand and the result is put in the `<a>` operand. The operands are assumed to have the same data type (see section 7.3 on page 73).
+Adds the `<operand>` to the specified register and stores the result in that register. This is the operator syntax equivalent of ADD2, providing a more natural mathematical notation for register-based arithmetic.
+
+Operation: `Rn = Rn + <operand>`
+
+For integer types (BY, H, W), carry and overflow flags are set appropriately. For floating point types (F, D), overflow and underflow traps may occur.
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
@@ -22,82 +26,101 @@ The `<b>` operand is added to the `<a>` operand and the result is put in the `<a
 
 ## Variants
 
-Total variants: 20
+Total variants: 20 (5 data types × 4 registers)
 
-| Variant | Opcode | Prefix | Register | Addressing Modes |
-|---------|--------|--------|----------|------------------|
-| 1/20 | 0x0054 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 2/20 | 0x0055 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 3/20 | 0x0056 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 4/20 | 0x0057 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 5/20 | 0x0058 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 6/20 | 0x0059 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 7/20 | 0x005A | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 8/20 | 0x005B | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 9/20 | 0x005C | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 10/20 | 0x005D | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 11/20 | 0x005E | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 12/20 | 0x005F | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 13/20 | 0xFC34 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 14/20 | 0xFC35 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 15/20 | 0xFC36 | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 16/20 | 0xFC37 | BY | 4 | LOCAL, RECORD, CONSTANT... |
-| 17/20 | 0xFC38 | BY | 1 | LOCAL, RECORD, CONSTANT... |
-| 18/20 | 0xFC39 | BY | 2 | LOCAL, RECORD, CONSTANT... |
-| 19/20 | 0xFC3A | BY | 3 | LOCAL, RECORD, CONSTANT... |
-| 20/20 | 0xFC3B | BY | 4 | LOCAL, RECORD, CONSTANT... |
+| Data Type | Registers | Opcodes |
+|-----------|-----------|---------|
+| BY | 1-4 | 0x0054-0x0057 |
+| H | 1-4 | 0x0058-0x005B |
+| W | 1-4 | 0x005C-0x005F |
+| F | 1-4 | 0xFC34-0xFC37 |
+| D | 1-4 | 0xFC38-0xFC3B |
 
 ---
 
 ## Operands
 
-### Operand 1
+### Operand 1 (Addend)
 
-[Description for operand 1]
+The operand to add to the specified register.
+
+**Type:** Byte, Halfword, Word, Float, or Double Float (matching register type)
+**Access:** Read
 
 **Supported modes:**
-- **LOCAL**
-- **RECORD**
-- **CONSTANT**
-- **REGISTER**
-- **PRE_INDEXED**
-- **ABSOLUTE**
+- **LOCAL** - Local data area access (B.variable)
+- **RECORD** - Record-relative access (R.field)
+- **CONSTANT** - Immediate constant value
+- **REGISTER** - Integer or float register
+- **PRE_INDEXED** - Indexed addressing with offset
+- **ABSOLUTE** - Absolute memory address
 
 ---
 
 ## Trap Conditions
 
-- **OPERAND_ERROR (Bit 5):** Invalid addressing mode or alignment
-
-[Additional trap conditions based on instruction type]
+- **Addressing traps:** Invalid address, descriptor range violation, page fault, protection violation
+- **Integer overflow (O):** Signed integer addition overflow (for BY, H, W types)
+- **Floating overflow (FO):** Result too large to represent (for F, D types)
+- **Floating underflow (FU):** Result too small to represent (for F, D types)
 
 ---
 
 ## Data Status Bits
 
-- **Z (Zero):** [Effect on zero flag]
-- **S (Sign):** [Effect on sign flag]
-- **O (Overflow):** [Effect on overflow flag]
-- **K (Flag):** [Effect on K flag]
+- **Z (Zero):** Set if result = 0, cleared otherwise
+- **S (Sign):** Set to sign bit of result
+- **O (Overflow):** Set if integer overflow (BY, H, W types)
+- **C (Carry):** Set if carry from most significant bit (integer types only)
+- **FO (Floating Overflow):** Set if floating overflow (F, D types)
+- **FU (Floating Underflow):** Set if floating underflow (F, D types)
 
 ---
 
 ## Examples
 
-### Example 1: Basic Usage
+### Example 1: Add constant to register
 
 ```assembly
-        ; Example for +
-        ; [Variant data not available]
+        % Add 10 to word register R1
+        W1 + 10
+```
+
+### Example 2: Add memory value
+
+```assembly
+        % Add local variable to register
+        W2 + B.INCREMENT
+```
+
+### Example 3: Float addition
+
+```assembly
+        % Add float value to register
+        F3 + B.DELTA
+```
+
+### Example 4: Accumulate in loop
+
+```assembly
+        % Sum array elements
+        W1 := 0
+LOOP:
+        W1 + B.ARRAY(I2)
+        I2 + 1
+        W COMP I2, B.SIZE
+        IF<GO LOOP
 ```
 
 ---
 
 ## Performance Notes
 
-- **Typical cycles:** [To be determined]
-- **Best case:** [To be determined]
-- **Worst case:** [To be determined]
+- **Typical cycles:** 3-6 cycles
+- **Best case:** 3 cycles (immediate)
+- **Worst case:** 6+ cycles (memory with page fault)
+
+**Note:** Operator syntax compiles to same code as ADD2.
 
 ---
 
@@ -110,6 +133,9 @@ Total variants: 20
 
 ## See Also
 
+- [ADD2](add2.md) - Add two operands (explicit mnemonic)
+- [ADD3](add3.md) - Add three operands
+- [ADDC](addc.md) - Add with carry
+- [-](-.md) - Subtract operator
 - [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
 - [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
