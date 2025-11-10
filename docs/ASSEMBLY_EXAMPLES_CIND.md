@@ -27,56 +27,90 @@ The prefix determines the data type and which register is used:
 | **F** | Float | 32 bits | Fn (F1-F4) | 0xFFD0-0xFFD3 |
 | **D** | Double | 64 bits | Dn (D1-D4) | 0xFFD4-0xFFD7 |
 
+**Note:** CIND supports all 5 data type prefixes (BY, H, W, F, D) with 4 register variants each, totaling 20 instruction variants.
+
 ---
 
-## Part 2: All 12 Variants with Specific Opcodes
+## Part 2: All 20 Variants with Specific Opcodes
 
 ### Byte Variants (BY1-BY4) - Opcodes 0xFD14 to 0xFD17
 
 ```assembly
-; Variant 1/12: BY1 CIND (opcode 0xFD14)
+; Variant 1/20: BY1 CIND (opcode 0xFD14)
 BY1 CIND B.INDEX, B.LOWER, B.UPPER
 
-; Variant 2/12: BY2 CIND (opcode 0xFD15)
+; Variant 2/20: BY2 CIND (opcode 0xFD15)
 BY2 CIND B.INDEX, B.LOWER, B.UPPER
 
-; Variant 3/12: BY3 CIND (opcode 0xFD16)
+; Variant 3/20: BY3 CIND (opcode 0xFD16)
 BY3 CIND B.INDEX, B.LOWER, B.UPPER
 
-; Variant 4/12: BY4 CIND (opcode 0xFD17)
+; Variant 4/20: BY4 CIND (opcode 0xFD17)
 BY4 CIND B.INDEX, B.LOWER, B.UPPER
 ```
 
 ### Halfword Variants (H1-H4) - Opcodes 0xFD18 to 0xFD1B
 
 ```assembly
-; Variant 5/12: H1 CIND (opcode 0xFD18)
+; Variant 5/20: H1 CIND (opcode 0xFD18)
 H1 CIND B.INDEX, B.LOWER, B.UPPER
 
-; Variant 6/12: H2 CIND (opcode 0xFD19)
+; Variant 6/20: H2 CIND (opcode 0xFD19)
 H2 CIND B.INDEX, B.LOWER, B.UPPER
 
-; Variant 7/12: H3 CIND (opcode 0xFD1A)
+; Variant 7/20: H3 CIND (opcode 0xFD1A)
 H3 CIND B.INDEX, B.LOWER, B.UPPER
 
-; Variant 8/12: H4 CIND (opcode 0xFD1B)
+; Variant 8/20: H4 CIND (opcode 0xFD1B)
 H4 CIND B.INDEX, B.LOWER, B.UPPER
 ```
 
 ### Word Variants (W1-W4) - Opcodes 0x00B0 to 0x00B3
 
 ```assembly
-; Variant 9/12: W1 CIND (opcode 0x00B0)
+; Variant 9/20: W1 CIND (opcode 0x00B0)
 W1 CIND B.INDEX, B.LOWER, B.UPPER
 
-; Variant 10/12: W2 CIND (opcode 0x00B1)
+; Variant 10/20: W2 CIND (opcode 0x00B1)
 W2 CIND B.INDEX, B.LOWER, B.UPPER
 
-; Variant 11/12: W3 CIND (opcode 0x00B2)
+; Variant 11/20: W3 CIND (opcode 0x00B2)
 W3 CIND B.INDEX, B.LOWER, B.UPPER
 
-; Variant 12/12: W4 CIND (opcode 0x00B3)
+; Variant 12/20: W4 CIND (opcode 0x00B3)
 W4 CIND B.INDEX, B.LOWER, B.UPPER
+```
+
+### Float Variants (F1-F4) - Opcodes 0xFFD0 to 0xFFD3
+
+```assembly
+; Variant 13/20: F1 CIND (opcode 0xFFD0)
+F1 CIND B.INDEX, B.LOWER, B.UPPER
+
+; Variant 14/20: F2 CIND (opcode 0xFFD1)
+F2 CIND B.INDEX, B.LOWER, B.UPPER
+
+; Variant 15/20: F3 CIND (opcode 0xFFD2)
+F3 CIND B.INDEX, B.LOWER, B.UPPER
+
+; Variant 16/20: F4 CIND (opcode 0xFFD3)
+F4 CIND B.INDEX, B.LOWER, B.UPPER
+```
+
+### Double Variants (D1-D4) - Opcodes 0xFFD4 to 0xFFD7
+
+```assembly
+; Variant 17/20: D1 CIND (opcode 0xFFD4)
+D1 CIND B.INDEX, B.LOWER, B.UPPER
+
+; Variant 18/20: D2 CIND (opcode 0xFFD5)
+D2 CIND B.INDEX, B.LOWER, B.UPPER
+
+; Variant 19/20: D3 CIND (opcode 0xFFD6)
+D3 CIND B.INDEX, B.LOWER, B.UPPER
+
+; Variant 20/20: D4 CIND (opcode 0xFFD7)
+D4 CIND B.INDEX, B.LOWER, B.UPPER
 ```
 
 ---
@@ -321,10 +355,12 @@ W1 CIND 100, 0, 0x7FFFFFFF  ; Might overflow if W1 is large
 
 ## Summary
 
-**12 Variants:**
+**20 Variants:**
 - 4 Byte variants (BY1-BY4): opcodes 0xFD14-0xFD17
 - 4 Halfword variants (H1-H4): opcodes 0xFD18-0xFD1B
 - 4 Word variants (W1-W4): opcodes 0x00B0-0x00B3
+- 4 Float variants (F1-F4): opcodes 0xFFD0-0xFFD3
+- 4 Double variants (D1-D4): opcodes 0xFFD4-0xFFD7
 
 **6 Addressing Modes per Operand:**
 - LOCAL: B.<displ>
@@ -339,4 +375,4 @@ W1 CIND 100, 0, 0x7FFFFFFF  ; Might overflow if W1 is large
 - Operand 2: lower bound
 - Operand 3: upper bound
 
-**Total possible combinations: 12 × 6³ = 2,592 possible instruction forms!**
+**Total possible combinations: 20 × 6³ = 4,320 possible instruction forms!**
