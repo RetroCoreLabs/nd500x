@@ -1,18 +1,29 @@
-# PUPACKR - Packed Unpack Reverse
+# PUPACKR - Convert Packed to ASCII Rounded
 
-**Mnemonic:** `pupackr`  
-**Function:** Unpack reverse  
-**Class:** PACK  
-**Format:** See manual
+## Overview
+**Mnemonic:** `pupackr` | **Function:** Unpack BCD to ASCII with rounding | **Class:** ARITHMETIC | **Privilege:** user | **Format:** `PUPACKR <source/BCD>, <dest/ASCII>`
 
-**Description:** Unpack reverse
+## Description
+Converts packed BCD to ASCII with rounding. Identical to PUPACK but rounds before conversion.
 
-**Examples:**
+## Variants
+| Variant | Opcode | Assembly |
+|---------|--------|----------|
+| 1/1 | 0xFE93 | PUPACKR |
 
+## Examples
 ```assembly
-% Packed Unpack Reverse operation
-PUPACKR
+PUPACKR VAR1, IFIELD           % Rounded unpack
+PUPACKR PRECISE_VAL, DISPLAY   % Display with rounding
+PUPACKR AMOUNT, TEXT_FIELD     % Currency rounded
+PUPACKR CALC, OUTPUT           % Calculation result
+PUPACKR BALANCE, SCREEN        % Screen display
+PUPACKR TOTAL, REPORT          % Report with rounding
+PUPACKR VALUES(W1), TEXTS(W1)  % Batch processing
 ```
 
-**Reference:** §15  
-**See Also:** Related instructions
+## Reference Manual
+**Section:** §17.8
+
+## See Also
+- [PUPACK](pupack.md)
