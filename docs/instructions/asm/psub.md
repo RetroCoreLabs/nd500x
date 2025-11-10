@@ -6,17 +6,38 @@
 **Function:** Subtract packed BCD numbers
 **Class:** ARITHMETIC
 **Privilege:** user
+
 **Format:** `PSUB <a>, <b>, <c>`
 
 ---
 
 ## Description
 
-Subtracts packed BCD operand b from a, storing result in c with automatic scaling.
+Subtracts packed BCD operand b from a, storing the result in c with automatic scaling adjustment. The operation respects the scale factors defined in each operand's descriptor and handles sign representation according to the destination descriptor (bit 26).
 
-**Operation:** `a - b → c`
+**Operation:**
+```
+<a> - <b> → <c> (with scale adjustment)
+```
 
-**Operands:** 3 | **Variants:** 1
+**Key Characteristics:**
+- Three-operand BCD subtraction
+- Automatic scale factor adjustment
+- Descriptor-based precision control
+- Sign handling via destination descriptor bit 26
+- No rounding (use PSUBR for rounding)
+- Result zero-extended if necessary
+
+**Common Use Cases:**
+- Financial calculations (discounts, balances)
+- Inventory management (stock deductions)
+- Tax and fee calculations
+- Payment processing
+- Budget tracking
+- Account reconciliation
+
+**Operands:** 3 (minuend, subtrahend, difference)
+**Variants:** 1 opcode
 
 ---
 
