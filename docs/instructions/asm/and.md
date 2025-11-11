@@ -15,7 +15,21 @@
 
 Performs a bitwise AND operation between the contents of the specified register and the operand, storing the result back in the register.
 
-The operation is: `Rn = Rn AND <operand>`
+**Operation:**
+```
+Rn = Rn AND <operand>
+Result bit = 1 only if both input bits are 1
+```
+
+**Key Characteristics:**
+- Bitwise AND (logical intersection)
+- Register-based operation (implicit destination in Rn)
+- Supports 4 data types (BI, BY, H, W - no float/double)
+- Works with 4 index registers (I1-I4)
+- Upper bits zero-filled for BI/BY/H types
+- Sets Z and S flags based on result
+- Essential for bit masking and field extraction
+- Common in flag testing and bit manipulation
 
 Each bit in the result is set to 1 only if the corresponding bits in both the register and operand are 1. This operation is commonly used for:
 - Masking bits (clearing specific bits while preserving others)

@@ -15,7 +15,20 @@
 
 Subtracts the `<operand>` from the specified register and stores the result in that register. Operator syntax equivalent of SUB2.
 
-Operation: `Rn = Rn - <operand>`
+**Operation:**
+```
+Rn = Rn - <operand>
+```
+
+**Key Characteristics:**
+- Register-based subtraction (implicit destination in Rn)
+- Operator syntax (`-`) for natural mathematical notation
+- Supports 5 data types (BY, H, W, F, D)
+- Works with 4 index registers (I1-I4)
+- Sets borrow/carry (C) and overflow (V) flags for integers
+- Floating-point overflow/underflow traps for F/D types
+- More concise than SUB2 instruction for register operations
+- Common in loop decrements and difference calculations
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
