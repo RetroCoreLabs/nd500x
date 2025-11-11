@@ -13,11 +13,28 @@
 
 ## Description
 
-Loads the Current alternative domain from the specified operand. This is a system register used for domain register.
+Loads the CAD (Current Alternative Domain) register from the specified operand. The CAD register determines the alternate domain for memory access and protection.
 
-**Operation:** `CAD = <operand>`
+**Operation:**
+```
+<operand> → CAD
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Loads alternative domain identifier
+- Controls alternate memory mapping
+- Used in domain switching
+- Supervisor-level register
+- Part of protection mechanism
+
+**Common Use Cases:**
+- Domain context switching
+- Process state restoration
+- Memory protection setup
+- OS initialization
+- Multi-domain access control
+
+**Operands:** 1 (source)
 **Variants:** 1
 
 ---

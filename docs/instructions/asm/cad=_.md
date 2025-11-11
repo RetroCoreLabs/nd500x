@@ -13,11 +13,28 @@
 
 ## Description
 
-Stores the Current alternative domain to the specified operand. System register store operation.
+Stores the CAD (Current Alternative Domain) register to the specified operand. The CAD register contains the domain number for alternate memory mappings and protection contexts.
 
-**Operation:** `<operand> = CAD`
+**Operation:**
+```
+CAD → <operand>
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Stores alternative domain identifier
+- Part of domain-based protection system
+- Used in context switching
+- Supervisor-level register
+- Multi-domain memory management
+
+**Common Use Cases:**
+- Process context switching
+- Domain state preservation
+- Memory protection management
+- Debugging domain issues
+- OS state capture
+
+**Operands:** 1 (destination)
 **Variants:** 1
 
 ---

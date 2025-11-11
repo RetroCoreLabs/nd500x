@@ -13,11 +13,28 @@
 
 ## Description
 
-Stores the Current executing domain to the specified operand. System register store operation.
+Stores the CED (Current Executing Domain) register to the specified operand. The CED register contains the active domain number, controlling memory access permissions and resource isolation.
 
-**Operation:** `<operand> = CED`
+**Operation:**
+```
+CED → <operand>
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Stores current domain identifier
+- Controls active memory protection context
+- Essential for context switching
+- Supervisor-level register
+- Domain-based isolation
+
+**Common Use Cases:**
+- Process context saving
+- Domain state inspection
+- Security auditing
+- Debugging protection issues
+- OS state management
+
+**Operands:** 1 (destination)
 **Variants:** 1
 
 ---

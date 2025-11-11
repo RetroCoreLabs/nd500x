@@ -13,11 +13,28 @@
 
 ## Description
 
-Stores the Child trap enable 2 to the specified operand. System register store operation.
+Stores the CTE2 (Child Trap Enable 2) register to the specified operand. The CTE2 register provides additional trap enable bits for child processes, extending the trap control mask beyond CTE1.
 
-**Operation:** `<operand> = CTE2`
+**Operation:**
+```
+CTE2 → <operand>
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Stores extended child trap enable mask
+- Complements CTE1 register
+- Hierarchical trap control
+- Supervisor-level register
+- Extended trap coverage
+
+**Common Use Cases:**
+- Process context switching
+- Extended trap configuration
+- Complete trap state preservation
+- Security policy management
+- OS trap system administration
+
+**Operands:** 1 (destination)
 **Variants:** 1
 
 ---
