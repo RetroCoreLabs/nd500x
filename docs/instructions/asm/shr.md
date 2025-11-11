@@ -33,6 +33,16 @@ result = 0 → Z flag
 result.signbit → S flag
 ```
 
+**Key Characteristics:**
+- Rotational shift (circular, no bits lost)
+- Bidirectional: positive count = left, negative count = right
+- Bits wrap around from one end to the other
+- Preserves all bits (lossless operation)
+- Supports byte, halfword, and word types (no bit/float/double)
+- Sets Z and S flags based on result
+- Variable rotate count (runtime-determined via signed byte)
+- Common in cryptography, checksums, and bit manipulation
+
 **Common Use Cases:**
 - Bit permutation and rearrangement
 - Circular buffer operations
