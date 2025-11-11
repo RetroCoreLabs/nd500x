@@ -16,9 +16,21 @@
 Calls a subroutine by pushing the return address onto the stack and jumping to the target address. This is the fundamental subroutine call mechanism in the ND-500 architecture, enabling modular programming and code reuse.
 
 **Operation:**
+```
 1. Push current PC (return address) → stack
 2. Load target address → PC
 3. Execution continues at subroutine
+```
+
+**Key Characteristics:**
+- Hardware stack-based call mechanism
+- Automatic return address management (32-bit word)
+- Stack pointer automatically decremented
+- Stack overflow protection (STO trap)
+- Supports unlimited nesting depth (within stack limits)
+- Paired with RET instruction for return
+- Essential for modular programming and recursion
+- Single-level call (use CHAIN for multi-level)
 
 The return address (address of instruction following CALL) is saved on the hardware stack, allowing the called subroutine to return using RET instruction. This implements standard call/return semantics found in most architectures.
 

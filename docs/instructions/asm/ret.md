@@ -16,10 +16,22 @@
 Returns from a subroutine by restoring the return address and base register from the current stack frame, then transferring control back to the caller. The K flag is cleared as a side effect, allowing the caller to test whether the subroutine succeeded (RETK sets K=1 for success).
 
 **Operation:**
+```
 1. Clear K flag → 0
 2. Load return address: B.RETA → PC
 3. Save return address: PC → L
 4. Restore base register: B.PREVB → B
+```
+
+**Key Characteristics:**
+- Stack frame-based return mechanism
+- Automatic restoration of return address and base pointer
+- Clears K flag (indicates failure/false condition)
+- Paired with RETK for success indication (K=1)
+- Works with CALL, ENTB calling conventions
+- Cannot trap (always succeeds)
+- Restores caller's stack frame automatically
+- Essential for structured programming and modularity
 
 This is the standard return mechanism for subroutines called with CALL or ENTB. The return address was previously saved in the stack frame by the caller, and PREVB points to the caller's stack frame.
 
