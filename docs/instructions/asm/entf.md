@@ -13,17 +13,34 @@
 
 ## Description
 
-Enters a Fortran-style subroutine where local variables are allocated in a fixed data area rather than on the stack. This matches Fortran's static local variable semantics.
+Enters a Fortran-style subroutine where local variables are allocated in a fixed data area rather than on the stack. This matches Fortran's static local variable semantics where locals retain values between calls.
 
-ENTF:
-1. Saves return address
-2. Sets up frame pointer to point to the fixed data area
-3. Does NOT allocate stack space for locals (locals are static)
+**Operation:**
+```
+Save return address
+Set frame pointer to <address>
+No stack allocation (locals are static)
+```
 
-This is used for compiled Fortran code where local variables retain their values between calls (static storage class in C terms).
+**Key Characteristics:**
+- Static (non-stack) local variables
+- Fixed data area per subroutine
+- Locals persist between calls
+- No stack frame allocation
+- Paired with RETK instruction
+- Fortran calling convention
+- C "static" storage class equivalent
 
-**Operands:** 1
-**Variants:** 1 opcode(s)
+**Common Use Cases:**
+- Fortran subroutine compilation
+- Functions needing persistent state
+- Legacy code integration
+- Pre-allocated data areas
+- Stateful procedures
+- Globals-alternative for encapsulation
+
+**Operands:** 1 (address of static data area)
+**Variants:** 1 opcode
 
 ---
 
