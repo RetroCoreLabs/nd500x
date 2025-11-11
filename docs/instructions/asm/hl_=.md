@@ -13,9 +13,20 @@
 
 ## Description
 
-Loads the Upper limit register from the specified operand. This is a system register used for stack upper bound.
+Loads the HL (High/Upper Limit) register from the specified operand. HL contains the upper stack boundary address, used for stack overflow detection and protection.
 
-**Operation:** `HL = <operand>`
+**Operation:**
+```
+<operand> → HL
+```
+
+**Key Characteristics:**
+- Loads upper stack boundary address
+- Prevents stack overflow
+- Essential for stack protection restoration
+- Paired with LL for full stack bounds
+- Used in context restoration
+- Critical for runtime stack validation
 
 **Operands:** 1
 **Variants:** 1

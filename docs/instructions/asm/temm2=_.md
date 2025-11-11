@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the Trap enable modification mask 2 to the specified operand. System register store operation.
+Stores the TEMM2 (Trap Enable Modification Mask 2) register to the specified operand. TEMM2 controls which bits of OTE2 (bits 16-31) can be modified by user-level code versus supervisor-only operations.
 
-**Operation:** `<operand> = TEMM2`
+**Operation:**
+```
+TEMM2 → <operand>
+```
+
+**Key Characteristics:**
+- Controls modification permissions for OTE2 bits 16-31
+- Security mechanism for trap enable control
+- Essential for privilege separation
+- Paired with TEMM1 for full 32-bit mask
+- Supervisor-level register
+- Prevents user code from disabling critical traps
 
 **Operands:** 1
 **Variants:** 1

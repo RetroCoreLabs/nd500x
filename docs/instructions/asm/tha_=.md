@@ -13,9 +13,20 @@
 
 ## Description
 
-Loads the Trap handler address from the specified operand. This is a system register used for trap vector address.
+Loads the THA (Trap Handler Address) register from the specified operand. THA contains the address of the trap vector table, used for exception and interrupt handling.
 
-**Operation:** `THA = <operand>`
+**Operation:**
+```
+<operand> → THA
+```
+
+**Key Characteristics:**
+- Loads trap vector table address
+- Points to exception handler entry point
+- Essential for interrupt handling restoration
+- Supervisor-level register
+- Used in OS initialization and context switching
+- Critical for exception dispatch mechanism
 
 **Operands:** 1
 **Variants:** 1
