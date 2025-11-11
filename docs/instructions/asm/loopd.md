@@ -29,6 +29,16 @@ else:
 - Continue loop while: index ≥ limit
 - Exit loop when: index < limit
 
+**Key Characteristics:**
+- Fixed decrement step (-1) for optimized reverse iteration
+- Single-instruction loop control (test-and-branch combined)
+- Supports 5 data types (BY, H, W, F, D) with automatic scaling
+- Two displacement sizes (byte: ±127, halfword: ±32767)
+- Atomic index decrement and comparison (no race conditions)
+- 3-5 cycle execution depending on branch taken
+- More efficient than LOOP instruction when step is -1
+- Common in reverse array traversal and countdown scenarios
+
 **Common Use Cases:**
 - Reverse array/buffer traversal
 - Countdown loops
