@@ -13,11 +13,28 @@
 
 ## Description
 
-Stores the Trap handler address to the specified operand. System register store operation.
+Stores the THA (Trap Handler Address) register to the specified operand. The THA register contains the base address of the trap handler table used for exception and interrupt processing.
 
-**Operation:** `<operand> = THA`
+**Operation:**
+```
+THA → <operand>
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Stores trap handler table base address
+- Used in exception processing
+- Part of trap mechanism
+- System-level register
+- Critical for interrupt handling
+
+**Common Use Cases:**
+- Context switch save/restore
+- Trap table inspection
+- System debugging
+- OS initialization verification
+- Exception handler analysis
+
+**Operands:** 1 (destination)
 **Variants:** 1
 
 ---

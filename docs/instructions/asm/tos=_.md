@@ -13,11 +13,28 @@
 
 ## Description
 
-Stores the Top of stack to the specified operand. System register store operation.
+Stores the TOS (Top Of Stack) register to the specified operand. The TOS register contains the current stack pointer position. Essential for stack management and context switching.
 
-**Operation:** `<operand> = TOS`
+**Operation:**
+```
+TOS → <operand>
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Stores current stack pointer value
+- Essential for context switching
+- Used in stack unwinding
+- Part of process state
+- System register access
+
+**Common Use Cases:**
+- Context switch save/restore
+- Stack frame inspection
+- Exception handling
+- Process switching
+- Stack overflow detection
+
+**Operands:** 1 (destination)
 **Variants:** 1
 
 ---
