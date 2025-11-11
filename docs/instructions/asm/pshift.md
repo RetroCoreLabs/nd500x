@@ -3,18 +3,41 @@
 ## Overview
 
 **Mnemonic:** `pshift`
-**Function:** Shift packed BCD decimal point
+**Function:** Shift packed BCD decimal point (rescale)
 **Class:** SHIFT
 **Privilege:** user
+
 **Format:** `PSHIFT <source/BCD>, <dest/BCD>`
 
 ---
 
 ## Description
 
-Shifts packed BCD value to match destination's scaling factor. Changes decimal position without modifying value (except for scaling). If scales match, performs a move.
+Shifts the source BCD value to match the destination's scaling factor, effectively changing the decimal point position. The value itself remains unchanged except for the scale adjustment. If source and destination have identical scales, performs a simple move operation. Destination is extended with leading zeros if necessary. No rounding is performed (use PSHIFTR for rounding).
 
-**Operands:** 2 | **Variants:** 1
+**Operation:**
+```
+<source> → <dest> (rescaled to dest scale)
+```
+
+**Key Characteristics:**
+- Rescales BCD value to match destination precision
+- No rounding (truncates if necessary)
+- If same scale: simple move operation
+- Destination padded with leading zeros if needed
+- Sign control via descriptor bit 26
+- Value unchanged except for scale adjustment
+
+**Common Use Cases:**
+- Currency precision conversions
+- Database field formatting
+- Display formatting (internal → external precision)
+- Multi-scale arithmetic preparation
+- Report generation with specific precision
+- Financial system integration
+
+**Operands:** 2 (BCD source, BCD destination)
+**Variants:** 1 opcode
 
 ---
 
