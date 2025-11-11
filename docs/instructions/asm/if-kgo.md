@@ -13,9 +13,20 @@
 
 ## Description
 
-Transfers control if K=0. Used after comparison/test operations.
+Transfers control if K=0 (K flag clear). The K flag is a user-controlled flag that can be set with SETK and cleared with CLRK, providing a flexible condition for control flow.
 
-**Operation:** `if K=0 then PC += displacement`
+**Operation:**
+```
+if K=0 then PC += displacement
+```
+
+**Key Characteristics:**
+- Tests K flag (user-controlled flag bit)
+- Independent of arithmetic operations (unlike Z, C, S)
+- Set with SETK, cleared with CLRK
+- Two displacement ranges (byte: ±127, halfword: ±32767)
+- Useful for custom state tracking in algorithms
+- Common in multi-phase algorithms and state machines
 
 **Operands:** 1
 **Variants:** 2
