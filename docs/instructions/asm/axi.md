@@ -11,13 +11,32 @@
 
 ## Description
 
-Performs arithmetic operation combining operand with index register. This instruction provides indexed arithmetic capabilities for array processing and pointer manipulation. Supports floating-point (F), double (D), and register (R) data types.
+Performs arithmetic operation combining operand with index register. This instruction provides indexed arithmetic capabilities for array processing and pointer manipulation, enabling efficient address calculations in loops and data structure traversal.
+
+**Operation:**
+```
+<operand1> + (<operand2> * element_size) → result
+- Load base address/value from operand1
+- Scale index (operand2) by element size
+- Perform addition
+- Store result or use for addressing
+```
+
+**Key Characteristics:**
+- Single-instruction indexed arithmetic
+- Automatic scaling by data type size (F/D/R)
+- Eliminates separate multiply-add sequences
+- Optimized for array and pointer calculations
+- Supports floating-point, double, and register types
+- 2-3 cycle execution (faster than separate operations)
+- Common in loop-based array processing
 
 **Common Use Cases:**
-- Array element calculations
-- Pointer arithmetic
-- Index-based computations
-- Loop variable updates
+- Array element calculations with typed access
+- Pointer arithmetic with automatic scaling
+- Index-based computations in data structures
+- Loop variable updates for multi-dimensional arrays
+- Efficient address generation for typed data
 
 **Operands:** 2
 **Variants:** 8 opcodes
