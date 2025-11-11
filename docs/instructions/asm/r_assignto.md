@@ -13,9 +13,20 @@
 
 ## Description
 
-Store record register. Fundamental data movement operation in ND-500 assembly.
+The record base store operator (`R=:`) stores the R (record) register to memory. The R register typically points to the current record structure or object, enabling efficient field access in structured data.
 
-**Operation:** Transfers data between operands.
+**Operation:**
+```
+R → <destination>
+```
+
+**Key Characteristics:**
+- Stores current record base pointer
+- Essential for nested record access
+- Used in object-oriented patterns
+- Enables efficient structure manipulation
+- Critical for record-based addressing
+- Common in data structure traversal and debugging
 
 **Operands:** 2
 **Variants:** Multiple (all data types)

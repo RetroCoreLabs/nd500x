@@ -13,9 +13,20 @@
 
 ## Description
 
-Load operand into register. Fundamental data movement operation in ND-500 assembly.
+The load operator (`:=`) transfers data from memory or a register into a register. This is the fundamental data movement operation in ND-500 assembly, with the colon indicating data flow direction (from right to left).
 
-**Operation:** Transfers data between operands.
+**Operation:**
+```
+<source> → <destination>
+```
+
+**Key Characteristics:**
+- Bidirectional syntax: `dst := src` or `src := dst` (colon shows flow)
+- Supports all data types (BY, H, W, F, D)
+- All addressing modes supported
+- Most common instruction in typical code
+- Sets flags based on data type (Z, S, C)
+- 2-4 cycles depending on addressing complexity
 
 **Operands:** 2
 **Variants:** Multiple (all data types)
