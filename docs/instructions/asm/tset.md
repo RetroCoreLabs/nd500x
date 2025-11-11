@@ -31,6 +31,17 @@ operand = 0xFF          % Set all bits to 1
 UNLOCK memory bus
 ```
 
+**Key Characteristics:**
+- Hardware-level atomic read-modify-write operation
+- Bus-level locking guarantees atomicity across all processors/DMA
+- Essential for multiprocessor synchronization primitives
+- Byte-only operation (no word/halfword variants)
+- Returns previous value via status flags (Z=1 if was unlocked)
+- Unconditionally sets operand to 0xFF (all bits 1)
+- Cannot use register or constant addressing (requires memory)
+- Foundation for implementing mutexes, semaphores, and spinlocks
+- Common in operating system and multithreading implementations
+
 **Common Use Cases:**
 - Implementing mutex locks
 - Process/thread synchronization

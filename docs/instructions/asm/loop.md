@@ -32,6 +32,17 @@ else:
 - **Negative step** (counting down): Exit when index < limit
 - **Zero step**: Trap (infinite loop prevention)
 
+**Key Characteristics:**
+- Four-operand general-purpose loop control
+- Variable step value (positive, negative, or arbitrary)
+- Single-instruction loop operation (atomic index update and test)
+- Supports 5 data types (BY, H, W, F, D) for index and step
+- Two displacement sizes (byte: ±127, halfword: ±32767)
+- Automatic direction detection (step sign determines comparison)
+- Infinite loop prevention (zero step causes trap)
+- 4-6 cycle execution depending on branch taken
+- Most flexible loop instruction (LOOPI/LOOPD are optimized variants)
+
 **Common Use Cases:**
 - Counted loops with arbitrary step values
 - Array/buffer iteration with stride
