@@ -13,9 +13,20 @@
 
 ## Description
 
-Load record register. Fundamental data movement operation in ND-500 assembly.
+The record base load operator (`R:=`) loads a value into the R (record) register from memory. The R register typically points to the current record structure or object, enabling efficient field access in structured data.
 
-**Operation:** Transfers data between operands.
+**Operation:**
+```
+<source> → R
+```
+
+**Key Characteristics:**
+- Loads new record base pointer
+- Essential for record context switching
+- Used in object-oriented patterns
+- Enables efficient structure manipulation
+- Critical for record-based addressing
+- Common in data structure traversal and field access
 
 **Operands:** 2
 **Variants:** Multiple (all data types)

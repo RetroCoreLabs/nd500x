@@ -13,9 +13,20 @@
 
 ## Description
 
-Load local base register. Fundamental data movement operation in ND-500 assembly.
+The local base load operator (`B:=`) loads a value into the B (local/base) register from memory. The B register typically points to the current stack frame or data segment, and loading it is essential for context restoration and frame switching.
 
-**Operation:** Transfers data between operands.
+**Operation:**
+```
+<source> → B
+```
+
+**Key Characteristics:**
+- Loads new local base frame pointer
+- Essential for context restoration
+- Used in function returns and context switches
+- Enables dynamic frame switching
+- Critical for stack frame management
+- Common in function epilogues and exception handlers
 
 **Operands:** 2
 **Variants:** Multiple (all data types)
