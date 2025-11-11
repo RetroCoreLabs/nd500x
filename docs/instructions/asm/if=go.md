@@ -13,14 +13,29 @@
 
 ## Description
 
-Transfers control if Z=1 (zero flag set), indicating the last operation resulted in zero or that compared values were equal. The sign-extended displacement is added to PC when the condition is true.
+Transfers control if Z=1 (zero flag set), indicating the last operation resulted in zero or that compared values were equal. The sign-extended displacement is added to PC when the condition is true. Most commonly used after COMP or TEST instructions.
 
-Commonly used after COMP or TEST to branch when values are equal.
+**Operation:**
+```
+if Z=1 then PC += displacement
+```
 
-**Operation:** `if Z=1 then PC += displacement`
+**Key Characteristics:**
+- Tests Zero flag (Z=1)
+- Sign-extended displacement
+- Two variants: byte (-128 to +127) and halfword (-32768 to +32767)
+- Follows comparison/test operations
+- Branch prediction available on some implementations
 
-**Operands:** 1
-**Variants:** 2 opcode(s)
+**Common Use Cases:**
+- Equality testing after COMP
+- Loop termination on zero
+- Null pointer checks
+- Error code checking
+- Switch/case implementations
+
+**Operands:** 1 (signed displacement)
+**Variants:** 2 opcodes (byte and halfword displacement)
 
 ---
 

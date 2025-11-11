@@ -13,12 +13,29 @@
 
 ## Description
 
-Transfers control if S=0. Used after comparison/test operations.
+Transfers control if S=0 (sign flag clear), indicating a non-negative result from signed comparison. Used after COMP operations to branch when first operand is greater than or equal to second operand in signed comparison.
 
-**Operation:** `if S=0 then PC += displacement`
+**Operation:**
+```
+if S=0 then PC += displacement
+```
 
-**Operands:** 1
-**Variants:** 2
+**Key Characteristics:**
+- Tests for non-negative (S=0)
+- Signed comparison semantics
+- Two variants: byte and halfword displacement
+- Common after COMP for >= tests
+- Sign-extended displacement
+
+**Common Use Cases:**
+- Signed integer comparisons (a >= b)
+- Non-negative value checks
+- Loop continuation
+- Boundary validation
+- Minimum threshold testing
+
+**Operands:** 1 (signed displacement)
+**Variants:** 2 opcodes
 
 ---
 
