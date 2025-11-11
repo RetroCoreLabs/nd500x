@@ -17,9 +17,20 @@ Performs a bitwise logical OR operation between the contents of a specified regi
 **Operation:**
 ```
 Rn = Rn | operand
+Result bit = 1 if either input bit is 1
 result = 0 → Z flag
 result.signbit → S flag
 ```
+
+**Key Characteristics:**
+- Bitwise OR (logical union)
+- Register-based operation (implicit destination in Rn)
+- Supports 4 data types (BI, BY, H, W - no float/double)
+- Works with 4 index registers (I1-I4)
+- Upper bits zero-filled for BI/BY/H types
+- Sets Z and S flags based on result
+- Essential for bit setting and flag combination
+- Common in control register manipulation
 
 **Common Use Cases:**
 - Setting specific bits in a register or variable (bit masking)

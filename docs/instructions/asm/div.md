@@ -15,7 +15,20 @@
 
 Divides the specified register by `<operand>` and stores quotient in that register. Operator syntax equivalent of DIV2.
 
-Operation: `Rn = Rn / <operand>`
+**Operation:**
+```
+Rn = Rn / <operand>
+```
+
+**Key Characteristics:**
+- Register-based division (implicit destination in Rn)
+- Operator syntax (`/`) for natural mathematical notation
+- Supports 5 data types (BY, H, W, F, D)
+- Works with 4 index registers (I1-I4)
+- Divide-by-zero trap (DZ) for all types
+- Integer overflow (V) flag set for certain division results
+- Floating-point overflow/underflow traps for F/D types
+- More concise than DIV2 instruction for register operations
 
 **Operands:** 1
 **Variants:** 20 opcode(s)
