@@ -13,9 +13,20 @@
 
 ## Description
 
-Loads the Link register from the specified operand. This is a system register used for return address/stack frame link.
+Loads the L (Link) register from the specified operand. L contains the return address and stack frame link, used by subroutine call and return mechanisms.
 
-**Operation:** `L = <operand>`
+**Operation:**
+```
+<operand> → L
+```
+
+**Key Characteristics:**
+- Loads return address and frame link
+- Used in subroutine return mechanisms
+- Essential for context restoration
+- Contains caller's frame pointer
+- Enables non-standard call patterns
+- Critical for stack unwinding and debugging
 
 **Operands:** 1
 **Variants:** 1

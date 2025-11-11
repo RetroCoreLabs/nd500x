@@ -13,9 +13,20 @@
 
 ## Description
 
-Loads the First status register from the specified operand. This is a system register used for CPU status bits.
+Loads the ST1 (First Status Register) from the specified operand. ST1 contains various CPU status and control bits including interrupt enables, privilege level, and system modes.
 
-**Operation:** `ST1 = <operand>`
+**Operation:**
+```
+<operand> → ST1
+```
+
+**Key Characteristics:**
+- Loads CPU status and control bits
+- Contains interrupt enable flags
+- Includes privilege level indicators
+- Essential for context restoration
+- Supervisor-level register
+- Used in exception handlers and OS context restoration
 
 **Operands:** 1
 **Variants:** 1

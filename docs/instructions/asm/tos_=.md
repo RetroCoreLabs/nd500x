@@ -13,9 +13,20 @@
 
 ## Description
 
-Loads the Top of stack from the specified operand. This is a system register used for stack pointer.
+Loads the TOS (Top Of Stack) register from the specified operand. TOS contains the current stack pointer address, pointing to the top of the active stack frame.
 
-**Operation:** `TOS = <operand>`
+**Operation:**
+```
+<operand> → TOS
+```
+
+**Key Characteristics:**
+- Loads current stack pointer address
+- Points to top of active stack frame
+- Essential for context restoration
+- Used in exception handling and returns
+- Supervisor or user privilege depending on mode
+- Critical for stack management and unwinding
 
 **Operands:** 1
 **Variants:** 1
