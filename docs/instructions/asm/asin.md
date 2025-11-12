@@ -15,6 +15,16 @@
 
 Calculates the trigonometric arcsine (inverse sine) of the argument and loads the result into the specified float or double float register. The result value gives the angle in radians in the range -π/2 to +π/2 (-1.5708 to +1.5708).
 
+**Key Characteristics:**
+- Hardware-accelerated inverse sine computation
+- Restricted domain: argument must be [-1, +1]
+- Bounded range: result in [-π/2, +π/2] radians
+- Traps on out-of-range arguments (IVO trap)
+- Essential for angle recovery from sine values
+- Supports float (F) and double (D) precision
+- 8 register variants (F1-F4, D1-D4) for flexible allocation
+- Slower than forward trigonometric functions (150-200 cycles)
+
 The argument must be in the range -1 to +1. If the argument is outside this range, an invalid operation (IVO) trap condition will occur and the specified register is set to zero.
 
 This instruction is commonly used to find an angle when the sine value is known, such as in solving right triangles, wave analysis, or physics calculations involving projectile motion.
