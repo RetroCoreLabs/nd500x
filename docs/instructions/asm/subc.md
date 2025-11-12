@@ -15,6 +15,24 @@
 
 Adds the carry bit in the status register (treated as 0 or 1) and the one's complement of `<subtrahend>` to the contents of the specified register Rn. The result is then stored in the specified register.
 
+**Operation:**
+```
+Rn = Rn + C + ~<subtrahend>
+```
+
+**Key Characteristics:**
+- Multi-precision subtraction with carry propagation
+- Only word (W) type supported (4 register variants)
+- Essential for 64-bit, 96-bit, 128-bit arithmetic
+- Carry flag propagates borrow across word boundaries
+- Follows initial SUB2 for low-order word
+- 4-6 cycles execution time
+- Sets Z, S, C, O flags for chaining
+- Common in bignum and cryptographic operations
+- Similar performance to SUB2
+
+Adds the carry bit in the status register (treated as 0 or 1) and the one's complement of `<subtrahend>` to the contents of the specified register Rn. The result is then stored in the specified register.
+
 Operation: `Rn = Rn + C + ~<subtrahend>` (where ~ is one's complement)
 
 This instruction is specifically designed for multi-precision (extended precision) subtraction operations. It allows chaining multiple subtract operations to handle numbers larger than 32 bits.
