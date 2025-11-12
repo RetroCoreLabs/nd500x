@@ -22,6 +22,16 @@ The instruction loads the program counter (PC) with the effective address of the
 PC = effective_address(operand)
 ```
 
+**Key Characteristics:**
+- Absolute (computed) address jump (not PC-relative)
+- Dynamic target determination at runtime
+- Essential for jump tables and switch statements
+- Enables function pointers and virtual dispatch
+- Descriptor range trap causes fall-through (safety feature)
+- Slightly slower than GO (address calculation overhead)
+- More flexible than GO for multi-way branches
+- Common in interpreters and dynamic dispatchers
+
 **Common Use Cases:**
 - **Jump Tables**: Switch/case statement implementation using indexed tables
 - **Function Pointers**: Indirect function calls via address tables

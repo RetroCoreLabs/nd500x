@@ -15,6 +15,21 @@
 
 Subtracts the `<b>` operand from the `<a>` operand and stores the difference in the `<c>` operand (destination). This is a non-destructive three-operand subtract - neither source operand is modified.
 
+**Operation:**
+```
+<c> = <a> - <b>
+```
+
+**Key Characteristics:**
+- Non-destructive three-operand subtraction (sources preserved)
+- Supports 5 data types (BY, H, W, F, D)
+- Essential for distance/delta calculations
+- More flexible than SUB2 (explicit destination)
+- Enables efficient difference computations
+- Sets Z, S, C, V flags for conditionals
+- Slightly slower than SUB2 (extra operand encoding)
+- Common in mathematical and scientific code
+
 For integer types (BY, H, W), carry and overflow flags are set appropriately. For floating point types (F, D), overflow and underflow traps may occur.
 
 The operands are assumed to have the same data type. This instruction is commonly used when you need to preserve both minuend and subtrahend while computing their difference.
