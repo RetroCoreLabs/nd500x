@@ -14,8 +14,6 @@
 
 Performs a bitwise NOT operation on the contents of a specified word register, then adds the carry flag to the result. This instruction is specifically designed for multi-precision arithmetic operations, particularly for negating multi-word values.
 
-The operation is essential for propagating carries when performing two's complement negation on values larger than 32 bits.
-
 **Operation:**
 ```
 Rn = ~Rn + C
@@ -24,6 +22,18 @@ result.signbit → S flag
 carry from addition → C flag
 overflow from addition → O flag
 ```
+
+**Key Characteristics:**
+- Multi-precision negation (one's complement + carry)
+- Two-step operation: bitwise NOT then add carry
+- Essential for extended-precision two's complement
+- Word-only instruction (operates on I1-I4 registers)
+- Paired with NEG for multi-word negation chains
+- Carry propagation for 64-bit, 128-bit negations
+- Single-cycle execution (very fast)
+- Common in bignum arithmetic libraries
+
+The operation is essential for propagating carries when performing two's complement negation on values larger than 32 bits.
 
 **Common Use Cases:**
 - Multi-precision negation (64-bit, 128-bit, etc.)
