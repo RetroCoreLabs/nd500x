@@ -15,6 +15,22 @@
 
 Calculates the base 10 logarithm (common logarithm) of the argument and loads the result into the specified float or double float register.
 
+**Operation:**
+```
+Fn/Dn = log₁₀(<argument>)
+```
+
+**Key Characteristics:**
+- Hardware-accelerated common logarithm (base 10)
+- Argument must be positive (> 0)
+- IVO trap on non-positive argument (result = -5.8×10⁷⁶)
+- Essential for pH, decibels, Richter scale
+- 8 register variants (F1-F4, D1-D4)
+- 180-220 cycles (complex transcendental function)
+- Common in scientific and engineering calculations
+- Z flag set when result = 0 (e.g., log₁₀(1) = 0)
+- Result loaded into specified float/double register
+
 The argument must be positive (> 0). Zero or negative values cause an invalid operation (IVO) trap condition and the result is set to -5.8×10⁷⁶ (largest negative floating point number).
 
 The common logarithm is widely used in science and engineering for pH calculations, decibel measurements, Richter scale (earthquakes), sound intensity, and scientific notation. If y = log₁₀(x), then x = 10ʸ.

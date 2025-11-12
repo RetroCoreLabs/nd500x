@@ -15,6 +15,22 @@
 
 Converts a source operand of any supported type (BI, BY, H, W, D) to 32-bit IEEE 754 single-precision floating-point format and stores the result in the destination.
 
+**Operation:**
+```
+<dest> = (float)<source>
+```
+
+**Key Characteristics:**
+- Type converter to IEEE 754 single-precision float
+- 5 source types supported (BI, BY, H, W, D)
+- Exact conversion for integers ≤ 2²⁴
+- Precision loss for large integers and double downcasts
+- Rounding to nearest representable float value
+- IOV trap when double outside float range
+- Essential for mixed precision arithmetic
+- 7-12 cycles (integer 7-9, double 10-12)
+- Interface with 32-bit float APIs
+
 The conversion handles:
 - **Integer to float:** Exact conversion for values within float precision
 - **Double to float:** Rounding to nearest representable float value
