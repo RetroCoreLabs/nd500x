@@ -14,8 +14,6 @@
 
 Calculates the address of an element in a multi-dimensional array with bounds checking. The instruction multiplies the specified register by the dimension range (upper - lower + 1), adds the index value, and stores the result back in the register. If the index is outside the specified bounds, the K flag is set and an Illegal Index trap occurs.
 
-This privileged instruction is used for safe array indexing in system code and compilers. It combines index calculation with automatic bounds validation, eliminating the need for separate range checks. The instruction supports byte, halfword, word, float, and double data types.
-
 **Operation:**
 ```
 Rn = Rn * (upper - lower + 1) + index
@@ -25,6 +23,19 @@ if (index < lower) or (index > upper):
 else:
     K = 0
 ```
+
+**Key Characteristics:**
+- Supervisor-only multi-dimensional array indexing
+- Hardware bounds checking (automatic range validation)
+- Combined multiply-add with bounds test
+- Illegal Index trap when out of range
+- K flag set/cleared based on bounds check
+- 12 variants (BY1-BY4, H1-H4, W1-W4)
+- Essential for compiler-generated array access
+- 4-6 cycles (faster than separate checks)
+- Supports nested array calculations
+
+This privileged instruction is used for safe array indexing in system code and compilers. It combines index calculation with automatic bounds validation, eliminating the need for separate range checks. The instruction supports byte, halfword, word, float, and double data types.
 
 **Common Use Cases:**
 - Multi-dimensional array address calculation
