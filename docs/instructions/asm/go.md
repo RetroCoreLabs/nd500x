@@ -20,6 +20,16 @@ Performs an unconditional jump to a target address computed by adding a signed d
 PC = PC + sign_extend(displacement)
 ```
 
+**Key Characteristics:**
+- Unconditional PC-relative jump (always branches)
+- Three displacement sizes: 4-bit (-8 to +7), byte (-128 to +127), halfword (-32768 to +32767)
+- Assembler auto-selects smallest displacement (code optimization)
+- Sign-extended displacement for backward/forward jumps
+- Pipeline flush on jump (3-4 cycles typical)
+- Essential for loops, forward jumps, and unconditional control flow
+- No flag modification (unlike conditional branches)
+- Cannot be predicted (unconditional, always taken)
+
 The displacement is PC-relative, meaning the target is specified as an offset from the current instruction. The assembler typically calculates this displacement from symbolic labels, allowing programmers to write `GO LABEL` instead of computing byte offsets manually.
 
 **Displacement Variants:**
