@@ -15,6 +15,16 @@
 
 Treats operands as unsigned and divides the `<a>` operand by the `<b>` operand, storing the quotient in the `<c>` operand (destination). The remainder is stored in the specified register Rn.
 
+**Key Characteristics:**
+- Unsigned 32-bit division with remainder
+- Both quotient and remainder in single operation
+- Word-only instruction (no BY, H, F, D variants)
+- Essential for hash functions and modulo arithmetic
+- Divide-by-zero trap (DZ) when divisor = 0
+- 4 register variants (W1-W4)
+- Treats all operands as unsigned (0 to 4,294,967,295)
+- Common in bit shifting and unsigned modulo
+
 This instruction is specifically designed for unsigned arithmetic. Byte and halfword integer constants are sign extended, and the result of the sign extension is treated as unsigned.
 
 Division by zero triggers a divide-by-zero (DZ) trap. Only word (W) type is supported - no byte, halfword, or floating point variants. This instruction is essential for unsigned division and modulo operations.

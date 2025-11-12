@@ -15,6 +15,16 @@
 
 Treats operands as unsigned and multiplies the `<a>` operand by the `<b>` operand, storing the lower half of the product in the `<c>` operand (destination). The upper half of the double-length result is stored in the specified register Rn.
 
+**Key Characteristics:**
+- Unsigned 32-bit multiplication with 64-bit result
+- Full double-length product access (no overflow loss)
+- Word-only instruction (no BY, H, F, D variants)
+- Essential for cryptography and bignum arithmetic
+- Overflow when upper half ≠ 0
+- 4 register variants (W1-W4)
+- Treats all operands as unsigned (0 to 4,294,967,295)
+- Critical for multi-precision unsigned operations
+
 This instruction is specifically designed for unsigned arithmetic. Byte and halfword integer constants are sign extended, and the result of the sign extension is treated as unsigned. Integer overflow occurs when the upper part is different from zero.
 
 Only word (W) type is supported - no byte, halfword, or floating point variants. This instruction is essential for multi-precision unsigned arithmetic and cryptographic operations.
