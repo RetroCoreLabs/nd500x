@@ -15,6 +15,16 @@
 
 Adds two packed Binary Coded Decimal (BCD) numbers with automatic scaling but without rounding. This instruction provides exact decimal addition for applications that require full precision or implement custom rounding strategies.
 
+**Key Characteristics:**
+- Packed BCD addition (exact decimal arithmetic)
+- Truncation without rounding (preserves precision)
+- Automatic decimal point alignment
+- Essential for financial and accounting systems
+- Eliminates floating-point rounding errors
+- Supports different scale factors per operand
+- Common in multi-step calculations
+- Sets BO flag on overflow
+
 PADD performs the same decimal addition as PADDR but does not apply rounding to the final result. When the sum has more decimal places than the destination can hold, the excess digits are truncated (not rounded). This behavior is useful when maximum precision must be preserved or when rounding will be applied separately as part of a larger computation.
 
 Like all BCD arithmetic instructions, PADD automatically aligns operands with different scale factors (decimal point positions) before performing the addition. The result is then scaled to match the destination's scale factor through truncation.
