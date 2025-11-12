@@ -14,13 +14,24 @@
 
 Loads multiple CPU registers from logical memory according to a bitmask. This privileged instruction is part of the '87 architecture extension and efficiently restores register state from memory. The mask specifies which registers to load, and registers are loaded from consecutive memory locations starting at the specified address plus the register number times 4.
 
-When executed in non-privileged mode, the mask is automatically reduced to include only registers modifiable by non-privileged code. Registers residing in the domain information table are loaded to the logical addresses pointed to by PS (Process Status) and CED (Current Execution Domain) registers.
-
 **Operation:**
 ```
 For each bit set in mask:
     memory[address + register_number * 4] → register
 ```
+
+**Key Characteristics:**
+- Supervisor-mode bulk register loading ('87 extension)
+- Selective register restoration via bitmask
+- Logical memory access (uses MMU)
+- Mask reduction in user mode (safety)
+- Faster than individual register loads (2-4 cycles per reg)
+- Essential for context switching and exception handling
+- Addresses based on register number (addr + reg# * 4)
+- 2 operands (mask, address)
+- Domain registers loaded via PS/CED pointers
+
+When executed in non-privileged mode, the mask is automatically reduced to include only registers modifiable by non-privileged code. Registers residing in the domain information table are loaded to the logical addresses pointed to by PS (Process Status) and CED (Current Execution Domain) registers.
 
 **Common Use Cases:**
 - Fast context restoration
