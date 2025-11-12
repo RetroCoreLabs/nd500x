@@ -15,6 +15,16 @@
 
 Loads the address of the operand into the specified register. This instruction computes the effective address of an operand without accessing the value at that address.
 
+**Key Characteristics:**
+- Computes effective address without memory access
+- 24 variants (6 types × 4 registers) for proper scaling
+- Essential for pointer manipulation and indirection
+- Faster than load (no memory value fetch)
+- Register/constant operands illegal (no memory address)
+- Type prefix provides automatic index scaling
+- Common in parameter passing and address arithmetic
+- Sets Z flag if computed address is zero
+
 The address is loaded into the specified register Rn. Registers and constants have no address in memory and are illegal as operands.
 
 Different data type prefixes (BIn, BYn, Hn, Wn, Fn, Dn) are used to provide the correct scaling factor when the operand is indexed. The Fn variant is functionally equivalent to Wn but may improve code readability when working with float arrays.
