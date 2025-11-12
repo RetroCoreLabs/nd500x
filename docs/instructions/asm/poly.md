@@ -24,6 +24,16 @@ for i = m-1 down to 0:
 Rn = result
 ```
 
+**Key Characteristics:**
+- Hardware-accelerated Horner's method (optimal evaluation)
+- Variable operand instruction (m+3 operands total)
+- Degree m must be constant 0-255 at assembly time
+- Supports float (F) and double (D) precision
+- More efficient than manual multiply-add loop
+- Single instruction evaluates entire polynomial
+- Common in scientific computing and function approximation
+- Essential for Taylor series and numerical methods
+
 **Common Use Cases:**
 - Mathematical function approximation
 - Taylor series evaluation
