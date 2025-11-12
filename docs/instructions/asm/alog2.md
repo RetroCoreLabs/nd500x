@@ -15,6 +15,22 @@
 
 Calculates the base 2 logarithm of the argument and loads the result into the specified float or double float register.
 
+**Operation:**
+```
+Fn/Dn = log₂(<argument>)
+```
+
+**Key Characteristics:**
+- Hardware-accelerated binary logarithm (base 2)
+- Argument must be positive (> 0)
+- IVO trap on non-positive argument (result = -5.8×10⁷⁶)
+- Essential for bit requirements and complexity analysis
+- 8 register variants (F1-F4, D1-D4)
+- 180-220 cycles (complex transcendental function)
+- Common in information theory (bits of information)
+- Z flag set when result = 0 (e.g., log₂(1) = 0)
+- Result loaded into specified float/double register
+
 The argument must be positive (> 0). Zero or negative values cause an invalid operation (IVO) trap condition and the result is set to -5.8×10⁷⁶ (largest negative floating point number).
 
 The binary logarithm is particularly useful in computer science and information theory for calculating bit requirements, analyzing algorithm complexity (O(log n)), and information content. If y = log₂(x), then x = 2ʸ.

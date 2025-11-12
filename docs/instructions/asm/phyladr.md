@@ -14,12 +14,23 @@
 
 Translates a logical (virtual) address to its corresponding physical ND-500/ND-5000 address and loads the result into a specified index register. This privileged instruction is part of the '87 architecture extension and is used by operating systems and memory management routines to obtain physical addresses for DMA operations, debugging, and low-level memory management.
 
-The instruction takes the logical address of the operand, performs MMU translation, and stores the resulting physical address in the specified index register (I1-I4).
-
 **Operation:**
 ```
 translate(address_of_operand) → In
 ```
+
+**Key Characteristics:**
+- Supervisor-only address translation ('87 extension)
+- Converts logical (virtual) to physical address
+- Result loaded into index register (I1-I4)
+- Essential for DMA controller programming
+- Performs MMU translation internally
+- No memory access (only address translation)
+- 3-5 cycles execution time
+- 4 register variants (I1-I4)
+- Common in low-level memory management
+
+The instruction takes the logical address of the operand, performs MMU translation, and stores the resulting physical address in the specified index register (I1-I4).
 
 **Common Use Cases:**
 - DMA controller programming
