@@ -15,6 +15,26 @@
 
 Converts a floating-point number (single-precision or double-precision) to a signed halfword (16-bit) integer value with rounding, storing the result in the destination operand. This instruction performs controlled precision reduction from floating-point to 16-bit integer representation with proper rounding according to the current rounding mode.
 
+**Operation:**
+```
+rounded_value = round(<source>)
+if (rounded_value < -32768 or rounded_value > 32767):
+    trap (Integer Overflow)
+<dest> = (halfword)rounded_value
+```
+
+**Key Characteristics:**
+- Float/double to signed halfword (16-bit) conversion with rounding
+- 2 source types supported (F=32-bit, D=64-bit)
+- IEEE 754 rounding semantics (typically round-to-nearest)
+- IOV trap when result exceeds -32,768 to +32,767 range
+- FO trap on NaN or infinity source
+- Sets Z and S flags based on converted result
+- Essential for compact storage and sensor data conversion
+- Memory efficient (50% space vs word integers)
+- Used for audio samples, control values, fixed-point arithmetic
+- More accurate than truncation (vs HCON)
+
 The source operand contains a floating-point value that is:
 1. Rounded to the nearest integer value
 2. Range-checked to ensure it fits in signed halfword range (-32,768 to +32,767)
