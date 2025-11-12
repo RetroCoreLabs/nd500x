@@ -15,6 +15,16 @@
 
 Calculates the trigonometric arctangent (inverse tangent) of the argument and loads the result into the specified float or double float register. The result value gives the angle in radians in the range -π/2 to +π/2 (-1.5708 to +1.5708).
 
+**Key Characteristics:**
+- Hardware-accelerated inverse tangent computation
+- Unrestricted domain: accepts any value (no range trap)
+- Bounded range: result in [-π/2, +π/2] radians
+- Cannot determine quadrant (use ATAN2 for full 2π range)
+- Essential for slope-to-angle conversions
+- Supports float (F) and double (D) precision
+- 8 register variants (F1-F4, D1-D4) for flexible allocation
+- Slower than forward trigonometric functions (150-200 cycles)
+
 Unlike ATAN2, this single-argument version cannot determine the quadrant of the angle, as it only receives the ratio (opposite/adjacent) without knowing the signs of the individual components. For full quadrant information, use ATAN2.
 
 This instruction is commonly used in coordinate conversions, angle calculations, and solving mathematical problems involving slopes and tangent ratios.
