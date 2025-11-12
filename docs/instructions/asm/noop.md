@@ -15,6 +15,16 @@
 
 Executes a complete instruction cycle without performing any operation or modifying any processor state. The instruction fetches, decodes, and executes normally, advancing the program counter (PC) to the next instruction, but makes no changes to registers, memory, or status flags.
 
+**Key Characteristics:**
+- Smallest instruction: 1 word (2 bytes), opcode 0x0003
+- Fastest execution: typically 1 cycle
+- Zero side effects (no registers, memory, or flags modified)
+- Cannot trap (except instruction fetch failure)
+- Essential for code patching without address changes
+- Critical for timing loops and alignment padding
+- Guaranteed safe operation (never causes state changes)
+- Common in debugging and pipeline control
+
 NOOP is the smallest instruction in the ND-500 architecture at just one word (2 bytes), with opcode 0x0003. Despite doing nothing functionally, NOOP serves several critical purposes in assembly programming:
 
 **Primary Use Cases:**
