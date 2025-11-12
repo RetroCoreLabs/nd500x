@@ -14,13 +14,24 @@
 
 Replaces the contents of the destination operand with zero. This instruction provides an efficient way to clear variables, array elements, or registers without requiring a separate zero constant. The zero flag (Z) is always set to 1 after execution.
 
-STZ is commonly used for initialization, clearing accumulators, and resetting state variables. It is more efficient than loading zero into a register and then storing it.
-
 **Operation:**
 ```
 0 → operand
 1 → Z flag
 ```
+
+**Key Characteristics:**
+- Efficient zero-store instruction (no constant operand needed)
+- 6 data type variants (BI, BY, H, W, F, D)
+- Z flag always set to 1 after execution
+- Faster than MOVE 0, dest (2-3 cycles vs 3-4)
+- More compact encoding (3 bytes vs 5-7)
+- Essential for initialization and clearing
+- Write-only operation (no source read)
+- Common in loops and state reset
+- Single-element clearing (use BMOVE for bulk)
+
+STZ is commonly used for initialization, clearing accumulators, and resetting state variables. It is more efficient than loading zero into a register and then storing it.
 
 **Common Use Cases:**
 - Variable initialization
