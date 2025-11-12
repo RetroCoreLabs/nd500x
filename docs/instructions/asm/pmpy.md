@@ -14,12 +14,23 @@
 
 Multiplies two packed BCD (Binary Coded Decimal) numbers and stores the result in a third operand. The result is automatically scaled according to the scale factor in the destination operand's descriptor before storing. This instruction is designed for decimal arithmetic in financial and business applications where exact decimal representation is required.
 
-Special handling: When an operand with invalid digits is multiplied by zero, the result is zero (not an Invalid Operation trap). The K flag is set on BCD overflow or invalid operation conditions.
-
 **Operation:**
 ```
 a * b → c (with scaling)
 ```
+
+**Key Characteristics:**
+- Packed BCD multiplication for exact decimal arithmetic
+- Three-operand non-destructive multiplication
+- Automatic scaling based on destination descriptor
+- Special case: 0 × invalid = 0 (no IVO trap)
+- Essential for financial and currency calculations
+- K flag set on overflow or invalid operation
+- 8-15 cycles (slower than binary but exact)
+- Hardware BCD support where available
+- Common in accounting and percentage computations
+
+Special handling: When an operand with invalid digits is multiplied by zero, the result is zero (not an Invalid Operation trap). The K flag is set on BCD overflow or invalid operation conditions.
 
 **Common Use Cases:**
 - Financial calculations (price * quantity)
