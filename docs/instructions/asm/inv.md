@@ -14,6 +14,16 @@
 
 Performs a bitwise NOT operation on the contents of a specified register, storing the result back in the register. This is the one's complement operation where each bit is inverted (0 becomes 1, 1 becomes 0).
 
+**Key Characteristics:**
+- One's complement (bitwise NOT) operation
+- Single-cycle execution (fastest logic operation)
+- 16 variants (BI, BY, H, W × 4 registers)
+- Upper bits cleared for sub-word types
+- Essential for bit masks and logical NOT
+- Two INV operations restore original value
+- Paired with INC for two's complement negation
+- Common in bit manipulation and pattern generation
+
 For sub-word data types (BI, BY, H), only the lower part of the register is complemented and the upper bits are cleared to zero.
 
 **Operation:**
