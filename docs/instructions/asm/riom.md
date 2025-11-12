@@ -22,6 +22,17 @@ Copy <count> halfwords from ND-100 address to ND-500 buffer
 ND-100 memory[nd100-addr..<nd100-addr+count>] → ND-500 memory[buffer..<buffer+count>]
 ```
 
+**Key Characteristics:**
+- Supervisor-only DMA transfer from I/O processor to ND-500 memory
+- Accesses ND-100 private memory not directly addressable by ND-500
+- Halfword (16-bit) transfers only
+- IIC trap if not in supervisor mode
+- IOV trap on invalid address or count
+- DMA does not interrupt ND-100 execution
+- ~(10 + 2×count) cycle execution time
+- Essential for inter-processor communication
+- Paired with WIOM for bidirectional data transfer
+
 **Common Use Cases:**
 - Accessing I/O processor private memory
 - Inter-processor data transfer

@@ -15,6 +15,23 @@
 
 Extracts a bit field from an operand and loads it into the lower bits of the specified register. The upper bits of the destination register are zero-filled.
 
+**Operation:**
+```
+field = (operand >> bit_no) & ((1 << field_size) - 1)
+register = field  // Upper bits zero-filled
+```
+
+**Key Characteristics:**
+- Extract bit field into register with zero-extension
+- 12 variants (3 data types: BY/H/W × 4 registers)
+- Bit 0 = LSB (rightmost), little-endian bit numbering
+- IOV trap if bit_no < 0 or field_size ≤ 0
+- IOV trap if (bit_no + field_size) exceeds data type width
+- Sets Z flag if extracted field = 0
+- Sets S flag to leftmost bit of extracted field
+- Essential for packed structures and hardware registers
+- 5-8 cycles depending on addressing modes
+
 The bit field is specified by a starting bit number and a field size. Bit numbering follows the ND-500 convention where bit 0 is the rightmost (least significant) bit. The field extraction starts at `<bit No.>` and extends to higher-numbered bits for `<field size>` bits.
 
 The operand can be a byte (BY), halfword (H), or word (W) data type. The bit number and field size parameters are interpreted as signed byte integers.
