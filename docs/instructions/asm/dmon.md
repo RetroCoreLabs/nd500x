@@ -15,6 +15,16 @@
 
 Enables the data memory management system, causing subsequent data memory accesses to be translated through the memory management unit (MMU) rather than being interpreted as direct physical addresses. This privileged instruction activates virtual addressing, memory protection, and capability-based security for data operations.
 
+**Key Characteristics:**
+- Supervisor-only MMU control (privilege required)
+- Enables data memory virtual addressing
+- Activates three-level address translation
+- Essential for memory protection and isolation
+- Idempotent (safe to execute when already on)
+- Independent of program MMU (PMON)
+- Critical for multi-user operating systems
+- Does not affect instruction pointer
+
 When DMON executes, the data MMU is enabled for all load and store operations. This provides:
 - Virtual-to-physical address translation via page tables for data
 - Segment descriptor validation for data accesses

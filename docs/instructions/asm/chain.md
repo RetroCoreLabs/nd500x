@@ -15,6 +15,16 @@
 
 Follows a linked chain of pointers for a specified number of levels and loads the final address into the specified register. This instruction is designed for implementing nested procedure scopes in block-structured languages.
 
+**Key Characteristics:**
+- Multilevel pointer chain traversal (static link following)
+- Essential for block-structured languages (Pascal, Ada)
+- Automatic zero-pointer detection (K flag + trap)
+- Performance scales with nesting depth
+- 4 register variants (W1-W4)
+- Each level adds 2-3 cycles overhead
+- Common in lexical scoping implementations
+- Replaces hand-coded pointer-following loops
+
 The instruction starts at `<address>` and repeatedly follows pointers found at `<offset>` for `<levels>` iterations. Each iteration dereferences the pointer at (current_address + offset) to get the next address in the chain.
 
 If a zero pointer is encountered during traversal, the operation terminates early, sets the K flag, and triggers an illegal operand value trap. The register contains the address of the location containing the zero pointer.
