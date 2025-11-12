@@ -15,7 +15,20 @@
 
 Adds the `<addend>` operand, the carry bit from the status register (treated as 0 or 1), and the contents of the specified word register, storing the result back in the register.
 
-The operation is: `Rn = Rn + C + <addend>`
+**Operation:**
+```
+Rn = Rn + C + <addend>
+```
+
+**Key Characteristics:**
+- Multi-precision arithmetic (extends beyond 32-bit)
+- Three-input addition: register + operand + carry bit
+- Automatic carry propagation between chained operations
+- Word-only instruction (operates on I1-I4 registers)
+- Essential for 64-bit, 128-bit, bignum arithmetic
+- Used in cryptographic and scientific computations
+- Sets both Z, S, C, V flags for next operation
+- Carry bit is both input and output
 
 This instruction is specifically designed for multi-precision arithmetic, allowing addition of numbers larger than 32 bits by chaining multiple ADDC operations together. The carry bit from one operation automatically propagates to the next, enabling addition of 64-bit, 128-bit, or larger integers.
 
