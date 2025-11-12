@@ -15,6 +15,16 @@
 
 Releases a previously allocated memory block back to the heap's buddy system freelist. The block is appended to the appropriate freelist based on its size (2^`<log size>` words).
 
+**Key Characteristics:**
+- Buddy system deallocation (power-of-2 size classes)
+- No automatic coalescing (deferred to trap handlers)
+- Supervisor privilege required (OS-level operation)
+- Faster than GETB (simple freelist append)
+- TOS register must point to heap structure
+- Log size must match original allocation
+- DESC prefix prevents index register update
+- Essential for OS memory management
+
 FREEB does not perform buddy coalescing automatically - blocks are simply returned to their size-specific freelist. Coalescing of adjacent free blocks into larger blocks may be performed by trap handlers (typically during stack overflow conditions when the heap needs to be compacted).
 
 The heap administration is described in §3.3 of the Reference Manual. When executing FREEB, the TOS register must point to the variables describing the heap structure (same as GETB).
