@@ -15,6 +15,22 @@
 
 Divides the `<a>` operand by the `<b>` operand and stores the quotient in the `<c>` operand (destination). The remainder is stored in the specified register Rn.
 
+**Operation:**
+```
+<c> = <a> / <b>  (quotient)
+Rn = <a> % <b>   (remainder)
+```
+
+**Key Characteristics:**
+- Four-operand division (includes implicit register)
+- Both quotient and remainder in single operation
+- Integer-only (BY, H, W - no float/double support)
+- Essential for modulo and time conversions
+- ADA/SIMULA remainder semantics compliance
+- 12 variants (3 types × 4 registers)
+- Divide-by-zero trap (DZ) when divisor = 0
+- Common in digit extraction and hash functions
+
 This instruction provides both quotient and remainder in a single operation, essential for modulo operations and division with remainder. The register content is in compliance with ADA and SIMULA remainder semantics. Separate testing must be done to obtain status.
 
 Division by zero triggers a divide-by-zero (DZ) trap. Integer overflow occurs if and only if the largest possible negative integer is divided by -1.
