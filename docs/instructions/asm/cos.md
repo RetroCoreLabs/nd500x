@@ -17,6 +17,16 @@ Calculates the trigonometric cosine of an angle specified in radians and loads t
 
 The instruction reads the angle argument θ (in radians) from memory or a register, computes cos(θ) using hardware-implemented algorithms (typically range reduction combined with polynomial approximation or CORDIC), and stores the result in the destination register specified by the register number suffix (n = 1-4).
 
+**Key Characteristics:**
+- Hardware-accelerated trigonometric cosine computation
+- Bounded range: [-1, +1] (never overflows)
+- Periodic with period 2π (automatic range reduction)
+- Even function: cos(-θ) = cos(θ)
+- Phase relationship: cos(θ) = sin(θ + π/2)
+- Supports float (F) and double (D) precision
+- 8 register variants (F1-F4, D1-D4) for flexible allocation
+- Essential for rotations, projections, lighting, power factor
+
 Mathematical properties:
 - cos(0) = 1
 - cos(π/2) = 0

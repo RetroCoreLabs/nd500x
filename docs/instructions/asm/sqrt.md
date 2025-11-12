@@ -17,6 +17,16 @@ Calculates the square root of a floating-point argument and loads the result int
 
 The instruction reads the argument from memory or a register, computes its square root using hardware-implemented algorithms (typically polynomial approximation or Newton-Raphson iteration), and stores the result in the destination register specified by the register number suffix (n = 1-4).
 
+**Key Characteristics:**
+- Hardware-accelerated square root computation
+- Principal (positive) root only: √x ≥ 0
+- Domain restricted: argument must be non-negative
+- Traps on negative arguments (IVO trap)
+- S flag always 0 (result never negative)
+- Essential for distances, magnitudes, RMS, std deviation
+- Supports float (F) and double (D) precision
+- 8 register variants (F1-F4, D1-D4) for flexible allocation
+
 Mathematical properties:
 - √(x²) = |x| (absolute value)
 - √(xy) = √x · √y for non-negative x, y

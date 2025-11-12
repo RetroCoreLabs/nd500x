@@ -17,6 +17,16 @@ Calculates the trigonometric sine of an angle specified in radians and loads the
 
 The instruction reads the angle argument θ (in radians) from memory or a register, computes sin(θ) using hardware-implemented algorithms (typically range reduction combined with polynomial approximation or CORDIC), and stores the result in the destination register specified by the register number suffix (n = 1-4).
 
+**Key Characteristics:**
+- Hardware-accelerated trigonometric sine computation
+- Bounded range: [-1, +1] (never overflows)
+- Periodic with period 2π (automatic range reduction)
+- Odd function: sin(-θ) = -sin(θ)
+- Supports float (F) and double (D) precision
+- 8 register variants (F1-F4, D1-D4) for flexible allocation
+- Essential for rotations, waves, oscillations, signals
+- IEEE 754 correctly rounded results
+
 Mathematical properties:
 - sin(0) = 0
 - sin(π/2) = 1
