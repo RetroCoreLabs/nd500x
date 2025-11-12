@@ -15,6 +15,28 @@
 
 Copies bytes from a source string to a destination string with character translation, stopping when an escape character (ASCII ESC = 0x1B = 27 decimal) is encountered in the translated output. Zero bytes in the translated output are skipped (not copied) but do not terminate the operation.
 
+**Operation:**
+```
+for each byte in source[I1..end]:
+    translated = trans_table[byte]
+    if (translated == 0x1B): Z=1, stop  // ESC found
+    if (translated == 0x00): I1++, continue  // Skip zero
+    dest[I2] = translated
+    I1++, I2++
+K = (dest full) ? 1 : 0
+```
+
+**Key Characteristics:**
+- String copy with translation, ESC termination, and null filtering
+- Uses 256-byte translation table
+- Stops when translated byte = ESC (0x1B), sets Z=1
+- Skips when translated byte = 0x00 (advance I1 only)
+- K=1 if destination full, K=0 otherwise
+- ESC character not copied to destination
+- Zero translations allow character deletion
+- Does NOT handle overlap (requires separate buffers)
+- Essential for escape-delimited record parsing
+
 SMVTU combines translation, filtering, and termination detection in a single operation, making it ideal for processing escaped strings, removing null characters, and performing conditional character transformations.
 
 The operation proceeds as follows for each source byte:
