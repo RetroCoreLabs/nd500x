@@ -25,6 +25,17 @@ while (not end of source) and (not end of dest):
     I2 + 1 → I2
 ```
 
+**Key Characteristics:**
+- Descriptor-aware string copy with automatic bounds checking
+- 6 data types supported (BI, BY, H, W, F, D)
+- Uses I1/I2 as implicit index registers
+- K flag indicates termination reason (0=source empty, 1=dest full)
+- Safer than BMOVE (bounds checking vs explicit count)
+- Handles overlapping regions correctly
+- DR trap on descriptor range violation
+- Essential for safe dynamic string operations
+- Variable execution time based on string length
+
 **Termination Conditions:**
 - Source empty: K=0, I1/I2 point to next element
 - Dest full: K=1, I1/I2 point to next element
