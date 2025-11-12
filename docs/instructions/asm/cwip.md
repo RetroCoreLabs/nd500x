@@ -14,12 +14,23 @@
 
 Clears the entire Written In Page (WIP) table to zero. This privileged instruction is used by memory management and swapper routines to reset write-tracking for memory pages. The WIP table tracks which pages have been modified since they were loaded into physical memory, enabling efficient page swapping by identifying which pages need to be written back to disk.
 
-This is an installation-dependent instruction requiring detailed knowledge of the physical memory configuration. It is typically used during system initialization, swapper operations, and when resetting memory management state. The WIP table is critical for demand paging systems.
-
 **Operation:**
 ```
 0 → entire WIP table
 ```
+
+**Key Characteristics:**
+- Supervisor-only memory management instruction
+- Clears entire Written In Page tracking table
+- Resets dirty page tracking for all physical memory
+- Essential for swapper initialization and checkpoints
+- Installation-dependent (varies with memory size)
+- 10-20 cycles (depends on physical memory configuration)
+- No operands required (implicit table operation)
+- Critical for demand paging systems
+- Paired with CPGU for complete tracking reset
+
+This is an installation-dependent instruction requiring detailed knowledge of the physical memory configuration. It is typically used during system initialization, swapper operations, and when resetting memory management state. The WIP table is critical for demand paging systems.
 
 **Common Use Cases:**
 - Memory swapper initialization
