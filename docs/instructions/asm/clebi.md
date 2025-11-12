@@ -15,6 +15,16 @@
 
 Clears a specified bit in an operand to 0, regardless of its previous value. Only the specified bit is affected; all other bits in the operand remain unchanged.
 
+**Key Characteristics:**
+- Unconditional bit clear operation (always sets to 0)
+- Single-instruction bit manipulation (no register required)
+- Supports 3 data types: BY (8-bit), H (16-bit), W (32-bit)
+- More efficient than PUTBI for known bit clears
+- Z flag always set to 1 (distinguishes from PUTBI)
+- Essential for flag clearing and hardware control
+- Not atomic (requires synchronization in multiprocessor systems)
+- Traps on out-of-range bit numbers
+
 The bit number specifies which bit to clear, with bit numbering following the ND-500 convention where bit 0 is the rightmost (least significant) bit. The operand can be a byte (BY), halfword (H), or word (W) data type.
 
 Unlike PUTBI which stores a register bit value, CLEBI unconditionally clears the target bit to 0. This makes it more efficient when you know you want to clear a bit without first loading a register.

@@ -17,6 +17,16 @@ Calculates the exponential function e^x (e raised to the power of the argument) 
 
 The instruction reads the argument x from memory or a register, computes e^x using hardware-implemented algorithms (typically polynomial approximation or range reduction with table lookup), and stores the result in the destination register specified by the register number suffix (n = 1-4).
 
+**Key Characteristics:**
+- Hardware-accelerated exponential (e^x) computation
+- Result always positive (S flag always 0)
+- Limited argument range: ±176.75 (255·ln(2))
+- Overflow trap (IVO) for large positive arguments
+- Underflow to zero (no trap) for large negative arguments
+- Essential for growth/decay, statistics, probability
+- Supports float (F) and double (D) precision
+- 8 register variants (F1-F4, D1-D4) for flexible allocation
+
 The exponential function has specific range limitations:
 - **Maximum argument**: 255·ln(2) ≈ 176.75
   - Arguments exceeding this cause invalid operation trap (IVO)

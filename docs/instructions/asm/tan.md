@@ -17,6 +17,16 @@ Calculates the trigonometric tangent of an angle specified in radians and loads 
 
 The instruction reads the angle argument θ (in radians) from memory or a register, computes tan(θ) using hardware-implemented algorithms (typically range reduction combined with polynomial approximation or ratio of sin/cos tables), and stores the result in the destination register specified by the register number suffix (n = 1-4).
 
+**Key Characteristics:**
+- Hardware-accelerated trigonometric tangent (sin/cos ratio)
+- Unbounded range: (-∞, +∞) unlike sin/cos
+- Vertical asymptotes at odd multiples of π/2
+- Period π (not 2π like sin/cos)
+- Supports float (F) and double (D) precision
+- 8 register variants (F1-F4, D1-D4) for flexible allocation
+- Essential for slopes, projections, phase angles
+- Overflow risk near asymptotes (±π/2, ±3π/2, ...)
+
 Mathematical properties:
 - tan(0) = 0
 - tan(π/4) = 1

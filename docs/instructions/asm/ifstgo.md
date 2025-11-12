@@ -24,6 +24,16 @@ else
 endif
 ```
 
+**Key Characteristics:**
+- Tests arbitrary status register bits (0-29)
+- Two displacement sizes: byte (±127), halfword (±32767)
+- Enables fine-grained processor state checking
+- Essential for system-level programming
+- Tests interrupt masks, privilege modes, custom flags
+- More flexible than standard flag-based branches
+- Slower than dedicated flag branches (IF=GO, IFKGO)
+- Bits 30-31 reserved (trap if accessed)
+
 The bit number operand specifies which bit (0-29) in the status register to test. Different bits represent different processor states including flags, interrupt masks, privilege levels, and other architectural state.
 
 **Status Register Bits (typical):**
