@@ -13,6 +13,22 @@
 
 Performs integer register operations at system level. Similar to INT but specifically operates on register values with privileged access. Used for system-level register manipulation and integer operations requiring supervisor mode.
 
+**Operation:**
+```
+result = integer_register_operation(<operand>)
+```
+
+**Key Characteristics:**
+- Supervisor-only integer register operation
+- 8 variants (multiple data type prefixes)
+- Register-based operations (faster than INT)
+- System-level register manipulation
+- 2-4 cycles (faster due to register access)
+- Sets Z, S, C, V flags based on result
+- Essential for OS-level register operations
+- Requires supervisor mode (privilege violation trap in user mode)
+- Similar to INT but optimized for registers
+
 **Common Use Cases:**
 - Register-based type conversions
 - System register operations

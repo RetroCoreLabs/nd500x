@@ -15,6 +15,24 @@
 
 Initializes the runtime system for a main program. Sets up the stack base, allocates the main program's stack frame, and reserves total system stack space.
 
+**Operation:**
+```
+1. Set stack base = <bottom of stack>
+2. Allocate <stack demand> words for main locals
+3. Reserve <total system stack demand> words total
+```
+
+**Key Characteristics:**
+- Main program entry point initialization
+- Three-operand stack setup (base, demand, total)
+- Typically first instruction in program
+- Allocates main program stack frame
+- Reserves total system stack space
+- STO trap on insufficient memory
+- Essential for runtime system initialization
+- 3-5 cycles execution time
+- Sets up both local and total stack allocation
+
 ENTM is typically the first instruction executed when a program starts. It:
 1. Establishes the stack base pointer at `<bottom of stack>`
 2. Allocates `<stack demand>` words for main program locals
