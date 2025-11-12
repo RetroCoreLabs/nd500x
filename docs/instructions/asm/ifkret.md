@@ -14,6 +14,25 @@
 
 Conditionally returns from a subroutine if the K flag (user flag) is set. This instruction combines a flag test with a return operation, providing an efficient way to exit subroutines early based on status conditions. If K is set, the return address is popped from the stack and loaded into the program counter. If K is clear, execution continues with the next instruction.
 
+**Operation:**
+```
+if (K == 1) {
+    PC = pop_stack()
+    return to caller
+}
+```
+
+**Key Characteristics:**
+- Conditional return based on K flag state
+- Single-instruction test-and-return (no separate branch)
+- K flag not modified (only tested)
+- 1-2 cycles if not taken, 3-4 cycles if taken
+- Essential for early exit from validation routines
+- K flag set by string operations and SETK instruction
+- Faster than separate test + conditional jump + return
+- Common in error checking and termination detection
+- No operands required (implicit K flag test)
+
 This instruction is commonly used in routines that perform validation or error checking, allowing early return when a condition is met. The K flag is typically set by string operations (when destination full or source empty), arithmetic operations that detect special conditions, or explicitly via SETK.
 
 **Common Use Cases:**
