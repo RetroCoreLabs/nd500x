@@ -15,6 +15,22 @@
 
 Compares two packed Binary Coded Decimal (BCD) numbers by subtracting the second operand from the first and setting status flags based on the result. The result of the subtraction is discarded - only the flags are affected.
 
+**Operation:**
+```
+flags = <a> - <b>  (result discarded, only flags set)
+```
+
+**Key Characteristics:**
+- Packed BCD comparison for financial calculations
+- Automatic scale factor alignment (handles different decimal points)
+- Result discarded (non-destructive, only flags affected)
+- Essential for decimal conditional branching
+- Zero normalization (+0 equals -0)
+- Unsigned values treated as positive
+- IVO trap on invalid BCD digit encoding
+- Sets Z (equal), S (less than), K (invalid operation)
+- Common in range checks, validation, sorting
+
 PCOMP automatically handles operands with different scale factors (decimal point positions) by aligning them before comparison. This allows direct comparison of values like 123.45 and 123.450 as equal, or 99.9 and 100.0 with proper magnitude ordering.
 
 The instruction treats unsigned numbers as positive, and positive zero equals negative zero. This normalization ensures consistent comparison behavior across different BCD representations.

@@ -15,6 +15,22 @@
 
 Subtracts the `<b>` operand from the `<a>` operand and stores the difference in the `<a>` operand (destination). This is a destructive operation - the original value of `<a>` is overwritten.
 
+**Operation:**
+```
+<a> = <a> - <b>
+```
+
+**Key Characteristics:**
+- Destructive two-operand subtraction (first operand overwritten)
+- 5 data types supported (BY, H, W, F, D)
+- Integer types set Z, S, O, C flags
+- Float types may trap on overflow/underflow
+- Essential for in-place decrement and accumulation
+- Faster than SUB3 (fewer operand encodings, 4-7 cycles)
+- Common in loop counters and running totals
+- Carry flag set for borrow (multi-precision subtraction)
+- First operand must be writeable (not constant)
+
 For integer types (BY, H, W), carry and overflow flags are set appropriately. For floating point types (F, D), overflow and underflow traps may occur.
 
 The operands are assumed to have the same data type. This instruction is commonly used for in-place subtraction operations where the minuend can be modified.
