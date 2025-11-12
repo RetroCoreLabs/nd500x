@@ -15,6 +15,21 @@
 
 Divides the `<a>` operand by the `<b>` operand and stores the quotient in the `<c>` operand (destination). This is a non-destructive three-operand divide - neither source operand is modified.
 
+**Operation:**
+```
+<c> = <a> / <b>
+```
+
+**Key Characteristics:**
+- Non-destructive three-operand division (sources preserved)
+- Supports 5 data types (BY, H, W, F, D)
+- Truncates toward zero (integer division)
+- Remainder has same sign as dividend
+- Divide-by-zero trap (DZ) when divisor = 0
+- Overflow only when MIN_INT / -1
+- Slowest arithmetic operation (13-21 cycles)
+- Essential for rate and ratio calculations
+
 For integer types (BY, H, W), the remainder (unless it is zero) has the same sign as the `<a>` operand - the quotient is truncated towards zero. Integer overflow occurs if and only if the largest possible negative integer is divided by -1.
 
 Division by zero triggers a divide-by-zero (DZ) trap. For floating point types (F, D), overflow and underflow traps may also occur.
