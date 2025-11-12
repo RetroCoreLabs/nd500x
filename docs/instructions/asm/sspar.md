@@ -15,6 +15,28 @@
 
 Sets the parity bit (bit 7, the high-order bit) in every byte of a string according to a specified parity mode. The operation modifies the string in place, processing all bytes from the current I1 position to the end of the string.
 
+**Operation:**
+```
+for each byte in string[I1..end]:
+    if (mode == 0): byte = byte & 0x7F  // Clear bit 7
+    if (mode == 1): byte = byte | 0x80  // Set bit 7
+    if (mode == 2): byte = set_even_parity(byte)
+    if (mode == 3): byte = set_odd_parity(byte)
+    I1 = I1 + 1
+K = 1
+```
+
+**Key Characteristics:**
+- In-place parity bit modification for entire string
+- 4 parity modes: Clear (0), Set (1), Even (2), Odd (3)
+- Uses I1 as implicit index register (auto-incremented)
+- K flag set to 1 upon successful completion
+- IOV trap if mode not in range 0-3
+- Essential for serial communication protocol preparation
+- Modifies string directly (read-write operation)
+- O(n) complexity where n = string length
+- Used for 7-bit/8-bit ASCII conversion and error detection
+
 SSPAR supports four parity modes controlled by the `<mode>` operand:
 - **Mode 0 (Clear)**: Sets bit 7 to 0 in all bytes
 - **Mode 1 (Set)**: Sets bit 7 to 1 in all bytes
