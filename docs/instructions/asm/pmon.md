@@ -14,13 +14,24 @@
 
 Enables the program memory management system, activating virtual-to-physical address translation for instruction fetches. After this instruction executes, all subsequent instruction accesses are mapped through the MMU rather than being interpreted as direct physical addresses. The virtual address of the next instruction is loaded from the L register into the program counter.
 
-If the MMU is already enabled, this instruction transfers control to the address in the L register without further effect. This allows safe enabling of memory management or controlled program counter updates within an MMU-enabled environment.
-
 **Operation:**
 ```
 enable MMU
 L → P
 ```
+
+**Key Characteristics:**
+- Supervisor-only MMU control instruction
+- Enables virtual-to-physical address translation
+- Loads PC from L register (virtual address jump)
+- Idempotent (safe to execute when already enabled)
+- Affects instruction fetches only (not data access)
+- Independent of data MMU (DMON)
+- Essential for OS virtual memory initialization
+- 4-6 cycles execution time
+- No operands required (uses L register implicitly)
+
+If the MMU is already enabled, this instruction transfers control to the address in the L register without further effect. This allows safe enabling of memory management or controlled program counter updates within an MMU-enabled environment.
 
 **Common Use Cases:**
 - OS kernel MMU initialization
