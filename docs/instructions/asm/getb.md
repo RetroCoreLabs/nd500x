@@ -15,6 +15,16 @@
 
 Allocates an element of size 2^`<log size>` words from the heap using the buddy system memory allocator. Returns the address of the allocated element in the specified word register.
 
+**Key Characteristics:**
+- Buddy system dynamic memory allocation
+- Power-of-2 block sizes (2^N words)
+- Automatic block splitting when needed
+- Stack overflow trap (STO) when heap exhausted
+- TOS register must point to heap descriptor
+- Essential for high-level language runtimes
+- 4 register variants (W1-W4)
+- Slower when fragmented (10-50+ cycles)
+
 The buddy system maintains freelists of memory blocks organized by size (powers of 2). When a block of the requested size is not available, GETB splits larger blocks until a suitable block can be allocated. The unused halves from splitting are added to their respective freelists.
 
 If no block of the requested size or larger is available on the heap, a stack overflow trap (STO) is triggered. This allows trap handlers to implement heap expansion or garbage collection strategies.

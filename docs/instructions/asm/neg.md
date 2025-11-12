@@ -15,7 +15,20 @@
 
 Negates the contents of the specified register. Integer values are negated using two's complement. Floating point values are negated by inverting the sign bit.
 
-Operation: `Rn = -Rn`
+**Operation:**
+```
+Rn = -Rn
+```
+
+**Key Characteristics:**
+- In-place negation (register modified directly)
+- Two's complement for integers (0 - Rn)
+- Sign bit flip for floats (very fast, 2 cycles)
+- Supports 5 data types (BY, H, W, F, D)
+- Works with 4 index registers (I1-I4)
+- Overflow only when negating MIN_INT (e.g., -32768 for H)
+- Upper bits cleared for BY/H types
+- Essential for sign inversion and absolute value calculations
 
 Byte and halfword negate clear the upper part of the register. Integer overflow occurs only when negating the largest negative integer. Carry is zero except when integer zero is negated.
 

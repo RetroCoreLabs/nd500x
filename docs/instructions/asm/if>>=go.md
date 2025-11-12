@@ -13,9 +13,20 @@
 
 ## Description
 
-Transfers control if C=1. Used after comparison/test operations.
+Transfers control if C=1 (greater or equal magnitude), typically following a magnitude comparison. Tests carry flag set, indicating the first operand has greater than or equal absolute value to the second.
 
-**Operation:** `if C=1 then PC += displacement`
+**Operation:**
+```
+if C=1 then PC += displacement
+```
+
+**Key Characteristics:**
+- Tests magnitude comparison (unsigned/absolute value)
+- Only requires C=1 (carry set)
+- Follows COMP or TEST instructions
+- Two displacement ranges (byte: ±127, halfword: ±32767)
+- Pipeline flush on taken branch
+- Common in unsigned arithmetic and range checking
 
 **Operands:** 1
 **Variants:** 2

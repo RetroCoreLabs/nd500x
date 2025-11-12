@@ -33,6 +33,16 @@ result = 0 → Z flag
 result.signbit → S flag
 ```
 
+**Key Characteristics:**
+- Sign-preserving arithmetic shift (maintains signedness)
+- Bidirectional: positive count = left, negative count = right
+- Sign extension on right shifts (sign bit replicated)
+- Equivalent to signed division/multiplication by powers of 2
+- Supports byte, halfword, and word types (no bit/float/double)
+- Sets Z and S flags based on result
+- Variable shift count (runtime-determined via signed byte)
+- Essential for fixed-point and DSP arithmetic
+
 **Common Use Cases:**
 - Signed integer division by powers of 2
 - Signed number scaling

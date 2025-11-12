@@ -14,6 +14,16 @@
 
 Loads an array index value into a specified register while validating it against lower and upper bounds. This privileged instruction provides automatic range checking for array access. If the index is outside the specified bounds, the K flag is set and an Illegal Index trap occurs. Otherwise, the K flag is cleared and the index is loaded into the register.
 
+**Key Characteristics:**
+- Supervisor-only bounds-checked index load
+- Automatic range validation (lower ≤ index ≤ upper)
+- K flag indicates out-of-bounds condition
+- Illegal index trap (IX) on range violation
+- Essential for safe array access
+- 12 variants (BY, H, W types × 4 registers)
+- Faster than separate load + compare
+- Common in compiler-generated array code
+
 This instruction is commonly used by compilers for safe array indexing and by system routines that require validated index operations. It supports byte, halfword, word, float, and double data types through different variants.
 
 **Operation:**

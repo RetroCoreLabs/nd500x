@@ -15,6 +15,30 @@
 
 Copies bytes from source to destination until a byte satisfying a masked test condition is encountered, or until the source is exhausted or destination is full. The condition is evaluated as: `(source_byte AND mask) == test`.
 
+**Operation:**
+```
+while (source not empty and dest not full):
+    if ((source[I1] AND mask) == test):
+        K=0, Z=1, break  // Terminating byte found
+    dest[I2] = source[I1]
+    I1++, I2++
+K=1 if dest full, K=0 otherwise
+Z=0 if source empty or dest full
+```
+
+**Key Characteristics:**
+- String copy until masked condition met
+- 4 operands: source, dest, mask, test value
+- Uses I1 (source index) and I2 (dest index) implicitly
+- K=0, Z=1 if terminating byte found (condition satisfied)
+- K=1, Z=0 if destination full
+- K=0, Z=0 if source empty
+- Terminating byte NOT copied to destination
+- Does NOT handle overlap (requires separate buffers)
+- Complement of SMVWH (until vs while)
+- Essential for delimiter parsing and field extraction
+- O(n) complexity where n = bytes copied
+
 SMVUN provides flexible conditional copying with bitwise masking, enabling character class detection, range checking, and selective termination. The mask and test operands allow detection of specific characters, character ranges, or bit patterns without requiring translation tables.
 
 The operation proceeds byte by byte:

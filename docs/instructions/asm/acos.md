@@ -15,6 +15,16 @@
 
 Calculates the trigonometric arccosine (inverse cosine) of the argument and loads the result into the specified float or double float register. The result value gives the angle in radians in the range 0 to π (pi).
 
+**Key Characteristics:**
+- Hardware-accelerated inverse cosine computation
+- Restricted domain: argument must be [-1, +1]
+- Bounded range: result in [0, π] radians (always positive)
+- Traps on out-of-range arguments (IVO trap)
+- Essential for angle recovery and dot product inversions
+- Supports float (F) and double (D) precision
+- 8 register variants (F1-F4, D1-D4) for flexible allocation
+- Slower than forward trigonometric functions (150-200 cycles)
+
 The argument must be in the range -1 to +1. If the argument is outside this range, an invalid operation (IVO) trap condition will occur and the specified register is set to zero.
 
 This instruction is commonly used to find an angle when the cosine value is known, such as in vector mathematics, 3D graphics, or solving triangulation problems.

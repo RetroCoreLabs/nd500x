@@ -13,9 +13,20 @@
 
 ## Description
 
-Transfers control if C=0. Used after comparison/test operations.
+Transfers control if C=0 (less magnitude), typically following a magnitude comparison. Tests carry flag clear, indicating the first operand has lesser absolute value than the second.
 
-**Operation:** `if C=0 then PC += displacement`
+**Operation:**
+```
+if C=0 then PC += displacement
+```
+
+**Key Characteristics:**
+- Tests magnitude comparison (unsigned/absolute value)
+- Requires C=0 (carry clear)
+- Opposite of IF>>GO (which tests C=1)
+- Follows COMP or TEST instructions
+- Two displacement ranges (byte: ±127, halfword: ±32767)
+- Common in unsigned arithmetic and bounds checking
 
 **Operands:** 1
 **Variants:** 2

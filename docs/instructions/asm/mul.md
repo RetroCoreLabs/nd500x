@@ -15,7 +15,20 @@
 
 Multiplies the specified register by `<operand>` and stores product in that register. Operator syntax equivalent of MUL2.
 
-Operation: `Rn = Rn * <operand>`
+**Operation:**
+```
+Rn = Rn * <operand>
+```
+
+**Key Characteristics:**
+- Register-based multiplication (implicit destination in Rn)
+- Operator syntax (`*`) for natural mathematical notation
+- Supports 5 data types (BY, H, W, F, D)
+- Works with 4 index registers (I1-I4)
+- Integer overflow (V) flag set if product exceeds register size
+- Floating-point overflow/underflow traps for F/D types
+- More concise than MUL2 instruction for register operations
+- Common in scaling, array indexing, and mathematical computations
 
 **Operands:** 1
 **Variants:** 20 opcode(s)

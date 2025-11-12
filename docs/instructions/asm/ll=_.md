@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the Lower limit register to the specified operand. System register store operation.
+Stores the LL (Lower Limit) register to the specified operand. LL contains the lower stack boundary address, used for stack overflow detection and protection.
 
-**Operation:** `<operand> = LL`
+**Operation:**
+```
+LL → <operand>
+```
+
+**Key Characteristics:**
+- Stores lower stack boundary address
+- Prevents stack underflow
+- Essential for stack protection
+- Paired with HL for full stack bounds
+- Used in context switching
+- Critical for detecting stack corruption
 
 **Operands:** 1
 **Variants:** 1

@@ -17,9 +17,20 @@ Performs a bitwise logical XOR (exclusive OR) operation between the contents of 
 **Operation:**
 ```
 Rn = Rn ^ operand
+Result bit = 1 if input bits differ (exclusive)
 result = 0 → Z flag
 result.signbit → S flag
 ```
+
+**Key Characteristics:**
+- Bitwise XOR (exclusive OR, difference detection)
+- Register-based operation (implicit destination in Rn)
+- Supports 4 data types (BI, BY, H, W - no float/double)
+- Works with 4 index registers (I1-I4)
+- Upper bits zero-filled for BI/BY/H types
+- Sets Z and S flags based on result
+- Essential for bit toggling and encryption
+- Self-XOR zeros register (Rn XOR Rn = 0)
 
 **Common Use Cases:**
 - Toggle specific bits in a register or variable

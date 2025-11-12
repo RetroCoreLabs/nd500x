@@ -13,9 +13,20 @@
 
 ## Description
 
-Loads the Own trap enable 1 from the specified operand. This is a system register used for trap enable bits 0-15.
+Loads the OTE1 (Own Trap Enable 1) register from the specified operand. OTE1 contains trap enable bits 0-15, controlling which trap conditions are enabled for the current process.
 
-**Operation:** `OTE1 = <operand>`
+**Operation:**
+```
+<operand> → OTE1
+```
+
+**Key Characteristics:**
+- Loads trap enable bits 0-15
+- Controls process-specific trap behavior
+- Essential for context restoration
+- Paired with OTE2 for full 32-bit trap mask
+- Supervisor or user privilege depending on mode
+- Used in exception handler state restoration
 
 **Operands:** 1
 **Variants:** 1

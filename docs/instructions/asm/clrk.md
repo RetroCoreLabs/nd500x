@@ -15,6 +15,21 @@
 
 Clears the K (user flag) bit in the CPU status register to 0. The K flag is a general-purpose user flag under complete software control, complementing SETK which sets it to 1. This instruction is used to reset the K flag after it has been set or to ensure a known initial state.
 
+**Operation:**
+```
+K flag = 0
+```
+
+**Key Characteristics:**
+- User-controlled flag (not cleared by arithmetic operations)
+- Single-cycle execution (very fast)
+- Cannot trap (always succeeds)
+- Independent of other flags (Z, S, C, V unchanged)
+- Paired with SETK (set) and IFKGO/IF-KGO (test)
+- Essential for resetting custom control flow states
+- Common in subroutine return status (RET uses K=0 for failure)
+- Useful for initialization and state reset
+
 **K Flag Uses:**
 - **Reset Condition Flags**: Clear custom boolean states
 - **Release Semaphores**: Clear lock indicators

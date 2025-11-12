@@ -15,7 +15,21 @@
 
 Increments the `<operand>` by one. The Carry bit is set if a carry occurs from the sign bit position, otherwise reset. Carry occurs when and only when integer -1 is incremented.
 
-Operation: `operand = operand + 1`
+**Operation:**
+```
+<operand> = <operand> + 1
+```
+
+**Key Characteristics:**
+- Single-operand increment (add 1)
+- 5 data types supported (BY, H, W, F, D)
+- Faster than ADD with constant 1
+- Essential for loop counters and forward iteration
+- 3-5 cycles execution time
+- Sets Z, S, O, C flags (carry when -1 incremented)
+- Most common loop increment operation
+- Read-modify-write operation
+- Destructive (operand overwritten)
 
 **Operands:** 1
 **Variants:** 5 opcode(s)

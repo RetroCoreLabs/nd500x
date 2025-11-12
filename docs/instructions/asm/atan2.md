@@ -15,6 +15,22 @@
 
 Calculates the trigonometric arctangent of `<num>/<den>` and loads the result into the specified float or double float register. The result value gives the angle in radians in the correct quadrant in the range -π to +π (-3.1416 to +3.1416).
 
+**Operation:**
+```
+Fn/Dn = atan2(<num>, <den>)
+```
+
+**Key Characteristics:**
+- Quadrant-aware arctangent (full -π to +π range)
+- Two-argument version of ATAN (numerator and denominator separate)
+- Essential for Cartesian to polar coordinate conversion
+- Returns correct angle for all four quadrants
+- IVO trap when both arguments are zero
+- 8 register variants (F1-F4, D1-D4)
+- Slower than ATAN (180-220 cycles vs 150-180)
+- Hardware-accelerated transcendental function
+- Result loaded into specified float/double register
+
 Unlike the single-argument ATAN instruction, ATAN2 takes both numerator and denominator separately, allowing it to determine the correct quadrant based on the signs of both arguments. This is essential for converting Cartesian coordinates (x, y) to polar coordinates (r, θ).
 
 If both `<num>` and `<den>` are zero, an invalid operation (IVO) trap condition occurs and the specified register is set to zero.

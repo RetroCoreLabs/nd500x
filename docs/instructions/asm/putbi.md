@@ -15,6 +15,16 @@
 
 Stores bit 0 of the specified register into a single bit of the operand. Only the specified bit in the operand is modified; other bits remain unchanged.
 
+**Key Characteristics:**
+- Single-bit storage from register bit 0
+- Read-modify-write operation (preserves other bits)
+- Supports 3 data types: BY (8-bit), H (16-bit), W (32-bit)
+- 12 variants (3 types × 4 registers) for flexible allocation
+- Z flag reflects stored bit value (0 or 1)
+- Essential for flag setting and hardware control
+- Not atomic (requires synchronization in multiprocessor systems)
+- Traps on out-of-range bit numbers
+
 The bit number specifies which bit to modify, with bit numbering following the ND-500 convention where bit 0 is the rightmost (least significant) bit. The operand can be a byte (BY), halfword (H), or word (W) data type.
 
 Even when the operand is a word register, only the specified bit is affected - the upper bits of the destination register remain unchanged. This makes PUTBI ideal for manipulating individual flag bits without affecting neighboring bits.

@@ -13,12 +13,29 @@
 
 ## Description
 
-Transfers control if S=1. Used after comparison/test operations.
+Transfers control if S=1 (sign flag set), indicating a negative result from signed comparison. Used after COMP or arithmetic operations to branch when first operand is less than second operand in signed comparison.
 
-**Operation:** `if S=1 then PC += displacement`
+**Operation:**
+```
+if S=1 then PC += displacement
+```
 
-**Operands:** 1
-**Variants:** 2
+**Key Characteristics:**
+- Tests Sign flag (S=1) for negative result
+- Signed comparison semantics
+- Two variants: byte and halfword displacement
+- Common after COMP for less-than tests
+- Sign-extended displacement
+
+**Common Use Cases:**
+- Signed integer comparisons (a < b)
+- Loop bounds checking
+- Range validation
+- Sorting algorithms
+- Conditional execution
+
+**Operands:** 1 (signed displacement)
+**Variants:** 2 opcodes
 
 ---
 

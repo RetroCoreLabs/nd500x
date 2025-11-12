@@ -15,6 +15,22 @@
 
 Converts a source operand of any supported type (BI, BY, H, F, D) to 32-bit word (integer) format and stores the result in the destination.
 
+**Operation:**
+```
+<dest> = (word)<source>
+```
+
+**Key Characteristics:**
+- Universal type converter to 32-bit signed integer
+- 5 source types supported (BI, BY, H, F, D)
+- Integer conversions use sign extension
+- Float conversions use truncation (round toward zero)
+- IOV trap when float/double out of range (-2³¹ to 2³¹-1)
+- Essential for type casting in high-level languages
+- Integer conversions fast (5-7 cycles), float slower (8-10 cycles)
+- Interface between integer and floating-point code
+- Preserves sign for negative values
+
 The conversion handles:
 - **Smaller integers to word:** Sign extension (BI, BY, H → W)
 - **Float/double to word:** Rounding toward zero (truncation)

@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the Own trap enable 1 to the specified operand. System register store operation.
+Stores the OTE1 (Own Trap Enable 1) register to the specified operand. OTE1 contains trap enable bits 0-15, controlling which trap conditions are enabled for the current process.
 
-**Operation:** `<operand> = OTE1`
+**Operation:**
+```
+OTE1 → <operand>
+```
+
+**Key Characteristics:**
+- Stores trap enable bits 0-15
+- Controls process-specific trap behavior
+- Essential for context switching
+- Paired with OTE2 for full 32-bit trap mask
+- Supervisor or user privilege depending on mode
+- Used in exception handler state management
 
 **Operands:** 1
 **Variants:** 1

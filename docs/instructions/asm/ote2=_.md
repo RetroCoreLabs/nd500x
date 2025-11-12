@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the Own trap enable 2 to the specified operand. System register store operation.
+Stores the OTE2 (Own Trap Enable 2) register to the specified operand. OTE2 contains trap enable bits 16-31, controlling which trap conditions are enabled for the current process.
 
-**Operation:** `<operand> = OTE2`
+**Operation:**
+```
+OTE2 → <operand>
+```
+
+**Key Characteristics:**
+- Stores trap enable bits 16-31
+- Controls process-specific trap behavior
+- Essential for context switching
+- Paired with OTE1 for full 32-bit trap mask
+- Supervisor or user privilege depending on mode
+- Used in exception handler state management
 
 **Operands:** 1
 **Variants:** 1

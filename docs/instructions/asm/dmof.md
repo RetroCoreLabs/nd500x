@@ -15,6 +15,16 @@
 
 Disables the data memory management system, causing subsequent data memory accesses to be interpreted as direct physical addresses rather than virtual addresses requiring translation. This privileged instruction is essential for low-level system initialization, debugging, and direct hardware access.
 
+**Key Characteristics:**
+- Supervisor-only MMU control (privilege required)
+- Disables data memory virtual addressing
+- Enables direct physical memory access
+- Essential for boot and hardware diagnostics
+- Idempotent (safe to execute when already off)
+- Independent of program MMU (PMOF)
+- Does not affect instruction pointer
+- Critical for I/O device register access
+
 When DMOF executes, the data memory management unit (MMU) is disabled for all load and store operations. This means:
 - No page table translation for data accesses
 - No segment descriptor checking for data

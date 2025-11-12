@@ -13,11 +13,28 @@
 
 ## Description
 
-Stores the Child trap enable 1 to the specified operand. System register store operation.
+Stores the CTE1 (Child Trap Enable 1) register to the specified operand. The CTE1 register controls which traps are enabled for child processes/domains, providing hierarchical trap control.
 
-**Operation:** `<operand> = CTE1`
+**Operation:**
+```
+CTE1 → <operand>
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Stores child process trap enable mask
+- Hierarchical trap control
+- Part of trap management system
+- Supervisor-level register
+- Process isolation mechanism
+
+**Common Use Cases:**
+- Process context switching
+- Trap configuration management
+- Parent/child isolation setup
+- Security policy enforcement
+- OS trap administration
+
+**Operands:** 1 (destination)
 **Variants:** 1
 
 ---

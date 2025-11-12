@@ -15,6 +15,22 @@
 
 Adds the `<b>` operand to the `<a>` operand and stores the result in the `<a>` operand (destination). This is a destructive operation - the original value of `<a>` is overwritten.
 
+**Operation:**
+```
+<a> = <a> + <b>
+```
+
+**Key Characteristics:**
+- Destructive two-operand addition (first operand overwritten)
+- 5 data types supported (BY, H, W, F, D)
+- Integer types set Z, S, O, C flags
+- Float types may trap on overflow/underflow
+- Essential for accumulators and counters
+- Faster than ADD3 (fewer operand encodings, 3-5 cycles)
+- Common in loop iteration and running totals
+- Carry flag set for multi-precision arithmetic
+- First operand must be writeable (not constant)
+
 The operands are assumed to have the same data type (BY, H, W, F, or D). For integer types, carry and overflow flags are set appropriately. For floating point types, overflow and underflow traps may occur.
 
 This instruction is commonly used for accumulation operations, counters, and general arithmetic where the destination operand can be modified.

@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the Program counter to the specified operand. System register store operation.
+Stores the P (Program Counter) register to the specified operand. P contains the address of the next instruction to be executed, critical for control flow and debugging.
 
-**Operation:** `<operand> = P`
+**Operation:**
+```
+P → <operand>
+```
+
+**Key Characteristics:**
+- Stores next instruction address
+- Essential for position-independent code
+- Used in debugging and profiling
+- Enables computed jumps and dispatch tables
+- Critical for exception handling
+- Required for context switching and snapshots
 
 **Operands:** 1
 **Variants:** 1

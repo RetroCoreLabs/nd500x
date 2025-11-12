@@ -13,6 +13,22 @@
 
 Extends index calculations for array and pointer operations. Provides enhanced indexing capabilities beyond basic addressing modes. Supports floating-point, double, and register-based index computations for complex data structure access.
 
+**Operation:**
+```
+result = index_extend(<op1>, <op2>)
+```
+
+**Key Characteristics:**
+- Index extension for complex addressing
+- 12 variants (F, D, R data types)
+- Enhanced multi-dimensional array support
+- Beyond basic addressing mode capabilities
+- 2-3 cycles with hardware acceleration
+- Sets Z, S, C, V flags based on result
+- Essential for complex pointer arithmetic
+- Supports scaled index calculations
+- Common in dynamic array access
+
 **Common Use Cases:**
 - Multi-dimensional array indexing
 - Complex pointer arithmetic

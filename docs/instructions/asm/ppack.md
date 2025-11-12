@@ -12,7 +12,25 @@
 
 ## Description
 
-Converts ASCII coded decimal to packed BCD format. Source contains ASCII digits, destination receives packed BCD with automatic sign handling and scaling.
+Converts ASCII coded decimal string to packed BCD format. Source contains ASCII digits ('0'-'9'), destination receives packed BCD with automatic sign handling and scaling based on descriptor.
+
+**Operation:**
+```
+ASCII digits → Packed BCD
+- Parse ASCII string (supports signs: '+', '-', space)
+- Pack two decimal digits per byte
+- Apply destination scale factor
+- Handle sign according to descriptor bit 26
+```
+
+**Key Characteristics:**
+- Converts human-readable ASCII to efficient BCD storage
+- Automatic sign detection and handling ('+', '-', space)
+- Descriptor-based precision control
+- Two digits packed per byte (4-bit per digit)
+- Essential for user input processing
+- Validates ASCII digit format (traps on invalid)
+- Common in financial and data entry applications
 
 **Operands:** 2 | **Variants:** 1
 

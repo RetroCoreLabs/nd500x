@@ -35,6 +35,16 @@ result = 0 → Z flag
 result.signbit → S flag
 ```
 
+**Key Characteristics:**
+- Logical shift (zeros fill from opposite end)
+- Bidirectional: positive count = left, negative count = right
+- Last bit shifted out captured in carry flag
+- Fast multiplication/division by powers of 2
+- Supports byte, halfword, and word types (no bit/float/double)
+- Sets Z and S flags based on result
+- Variable shift count (runtime-determined via signed byte)
+- More efficient than repeated add/subtract for powers of 2
+
 **Common Use Cases:**
 - Multiplication/division by powers of 2
 - Bit field alignment

@@ -15,6 +15,28 @@
 
 Advances through a string, skipping all bytes equal to a test value, until a different byte is encountered or the end of the string is reached. When a differing byte is found, it is compared against the test value with results reflected in the Z and S flags.
 
+**Operation:**
+```
+while (source[I1] == test_value):
+    I1 = I1 + 1
+if (I1 at end of string):
+    Z = 1, S = 0
+else:
+    Z = 0
+    S = (source[I1] < test_value) ? 1 : 0
+```
+
+**Key Characteristics:**
+- Skip-while-equal with unsigned byte comparison
+- Uses I1 as implicit index register (auto-incremented)
+- Z=1 if all bytes matched (string exhausted)
+- Z=0 if differing byte found, S indicates comparison result
+- K flag always cleared to 0
+- Unsigned comparison (bytes treated as 0-255)
+- DR trap on descriptor range violation
+- Essential for whitespace trimming and delimiter skipping
+- O(n) complexity where n = number of matching bytes
+
 SSKIP combines skip-while-equal functionality with unsigned comparison, making it ideal for skipping runs of identical characters (like leading spaces) while simultaneously determining whether the first differing character is greater than or less than the test value.
 
 The operation proceeds as follows:

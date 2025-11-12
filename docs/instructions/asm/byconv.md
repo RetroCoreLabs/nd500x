@@ -15,6 +15,22 @@
 
 Converts a source operand of any supported type (BI, H, W, F, D) to 8-bit byte (integer) format and stores the result in the destination.
 
+**Operation:**
+```
+<dest> = (byte)<source>
+```
+
+**Key Characteristics:**
+- Type converter to 8-bit signed integer
+- 5 source types supported (BI, H, W, F, D)
+- Zero extension for bit (BI)
+- Truncation with overflow check for larger integers
+- Float conversions use truncation (round toward zero)
+- IOV trap when value outside range (-128 to 127)
+- Essential for character and string processing
+- Integer conversions fast (5-7 cycles), float slower (8-10 cycles)
+- Narrowest integer conversion (high overflow risk)
+
 The conversion handles:
 - **Bit to byte:** Zero extension (BI → BY)
 - **Larger integers to byte:** Truncation with overflow check (H/W → BY)

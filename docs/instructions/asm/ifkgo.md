@@ -26,6 +26,16 @@ else
 endif
 ```
 
+**Key Characteristics:**
+- Tests user-controlled K flag (not arithmetic flags)
+- Two displacement sizes: byte (±127), halfword (±32767)
+- Paired with SETK/CLRK for custom control flow
+- Independent of Z, S, C, V flags (orthogonal branching)
+- Essential for semaphores, state machines, error flags
+- Fast conditional branch (1-2 cycles)
+- Assembler auto-selects displacement size for optimal code
+- Common in event handling and feature toggles
+
 **Displacement Encoding:**
 - **Byte displacement** (0x00D0): -128 to +127 bytes (short jumps)
 - **Halfword displacement** (0x00D1): -32768 to +32767 bytes (long jumps)

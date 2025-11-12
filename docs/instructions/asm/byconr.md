@@ -15,6 +15,25 @@
 
 Converts a floating-point number (single-precision or double-precision) to a signed byte integer value with rounding, storing the result in the destination operand. This instruction performs controlled precision reduction from floating-point to 8-bit integer representation with proper rounding according to the current rounding mode.
 
+**Operation:**
+```
+rounded_value = round(<source>)
+if (rounded_value < -128 or rounded_value > 127):
+    trap (Integer Overflow)
+<dest> = (byte)rounded_value
+```
+
+**Key Characteristics:**
+- Float/double to signed byte conversion with rounding
+- 2 source types supported (F=32-bit, D=64-bit)
+- IEEE 754 rounding semantics (typically round-to-nearest)
+- IOV trap when result exceeds -128 to +127 range
+- FO trap on NaN or infinity source
+- Sets Z and S flags based on converted result
+- Essential for quantization and compact storage
+- Used in sensor data, image processing, signal processing
+- More accurate than truncation (vs BYCON)
+
 The source operand contains a floating-point value that is:
 1. Rounded to the nearest integer value
 2. Range-checked to ensure it fits in signed byte range (-128 to +127)

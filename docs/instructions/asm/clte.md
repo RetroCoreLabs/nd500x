@@ -14,6 +14,22 @@
 
 Clears a specified bit in the Own Trap Enable (OTE) register. This instruction controls which trap conditions are handled locally versus propagated to the mother domain. When a bit is cleared, an ignorable trap will be ignored and no local trap handler is invoked unless the corresponding Mother Trap Enable (MTE) bit is set. Non-ignorable traps are always propagated to the mother domain.
 
+**Operation:**
+```
+OTE[bit_no] = 0  (if TEMM[bit_no] = 1)
+```
+
+**Key Characteristics:**
+- Clears bit in Own Trap Enable register
+- Controls local vs. mother domain trap handling
+- TEMM mask protects non-modifiable bits
+- IOV trap if bit not modifiable per TEMM
+- Essential for selective trap masking
+- 2-3 cycles execution time
+- Used in critical sections and trap initialization
+- Byte operand (bit number 0-255)
+- Paired with SETE for trap control
+
 The bit number operand is compared against a trap enable modify mask (TEMM) stored in the domain description table. Only bits with their corresponding TEMM bit set can be modified. Attempting to modify a non-modifiable bit causes an Illegal Operand Value trap.
 
 **Common Use Cases:**

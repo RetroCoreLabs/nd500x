@@ -1,62 +1,118 @@
-# RETBK - Return Block (Keep)
+# RETBK - Buddy Subroutine Return with K Set
 
 ## Overview
 
 **Mnemonic:** `retbk`
-**Function:** Return from buddy block without freeing
+**Function:** Return from buddy subroutine (K flag set)
 **Class:** CALL
 **Privilege:** user
 
-**Format:** `RETBK <log size/r/BY>`
+**Format:** `RETBK`
 
 ---
 
 ## Description
 
-Returns from ENTB but does NOT free the buddy block. The block remains allocated. Used when the block needs to persist after return.
+Returns from a buddy subroutine, releasing the local data area to the heap. Sets the K flag bit in the status register to 1. Restores the base register and return address from the current local data area. Used to indicate error or special return condition.
 
-RETBK:
-1. Validates log size parameter
-2. Restores frame pointer (without freeing block)
-3. Returns to caller
+**Operation:**
+```
+Local data area released to heap
+1 → STATUS.K
+B.RETA → PC → L
+B.PREVB → B
+```
 
-The caller or another routine must later explicitly free the block using FREEB.
+**Key Characteristics:**
+- Releases buddy-allocated local area to heap
+- Sets K flag (K=1)
+- Restores previous base register
+- Restores return address to link register
+- Paired with ENTB instruction
+- Used for error/status indication
 
-**Operands:** 1
-**Variants:** 1 opcode(s)
+**Common Use Cases:**
+- Error returns from buddy procedures
+- Status indication with automatic cleanup
+- Conditional return with heap deallocation
+- Memory management with error signaling
 
----
-
-## Variants
-
-| Variant | Opcode | Assembly Notation |
-|---------|--------|-------------------|
-| 1/1 | 0xFDB5 | RETBK |
+**Operands:** None
+**Variants:** 1 opcode
 
 ---
 
 ## Examples
 
-### Example 1: Return keeping block allocated
+### Example 1: Error return with cleanup
 
 ```assembly
-ALLOC:  ENTB 6
-        % Initialize data in block
-        W MOVE I1, B.DATA
-        RETBK 6             % Return but keep block
+ALLOC:  ENTB 7
+        % Try allocation
+        W1 COMP SIZE, MAX_SIZE
+        IF>GO TOO_LARGE
+        % Success
+        RETB                % Normal return (K=0)
+TOO_LARGE:
+        RETBK               % Error return (K=1)
 ```
+
+**Explanation:** Return with error indication while freeing buddy block.
+
+### Example 2: Validation function
+
+```assembly
+VALIDATE: ENTB 6
+        % Validate data in buddy frame
+        W1 COMP DATA, THRESHOLD
+        IF<GO INVALID
+        % Valid
+        RETB                % K=0 (valid)
+INVALID: RETBK              % K=1 (invalid)
+```
+
+**Explanation:** Boolean result via K flag with automatic cleanup.
+
+### Example 3: Caller checks status
+
+```assembly
+        % Call buddy procedure
+        CALL BUDDY_FUNC
+        IF K GO ERROR_HANDLER
+        % Success path
+        GO CONTINUE
+ERROR_HANDLER:
+        % Handle error (buddy block already freed)
+CONTINUE:
+```
+
+**Explanation:** Caller tests K flag after buddy return.
+
+---
+
+## Trap Conditions
+
+None
+
+---
+
+## Data Status Bits
+
+- **K (Flag)**: Set to 1
+- **Other flags**: Unaffected
 
 ---
 
 ## Reference Manual
 
 **Section:** §13.11
-**Title:** Return instructions
+**Title:** Subroutine return
 
 ---
 
 ## See Also
 
-- [ENTB](entb.md) - Enter block
-- [RETB](retb.md) - Return block (freeing)
-- [FREEB](freeb.md) - Free buddy element
+- [RETB](retb.md) - Buddy return with K flag cleared
+- [ENTB](entb.md) - Enter buddy subroutine
+- [RETK](retk.md) - Regular return with K set
+- [FREEB](freeb.md) - Free buddy block

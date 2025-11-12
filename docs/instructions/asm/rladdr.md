@@ -15,6 +15,22 @@
 
 Loads the address of the operand into the record register R. This instruction computes the effective address of an operand without accessing the value at that address.
 
+**Operation:**
+```
+address(<operand>) → R
+```
+
+**Key Characteristics:**
+- Loads effective address into R (record) register
+- Changes base for all R-relative addressing
+- No memory value access (address computation only)
+- 6 data type variants (BI, BY, H, W, F, D)
+- Registers and constants illegal (no memory address)
+- Essential for structure navigation and pointer access
+- 3-5 cycles depending on addressing complexity
+- Sets Z flag if computed address = 0
+- Common in stack frame traversal and record switching
+
 The address is loaded into the record register (R register), which is used for record-relative addressing. Registers and constants have no address in memory and are illegal as operands.
 
 Different data type prefixes (BI, BY, H, W, F, D) are used to provide the correct scaling factor when the operand is indexed. The F variant is functionally equivalent to W but may improve code readability when working with float data.

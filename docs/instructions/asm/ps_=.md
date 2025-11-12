@@ -13,11 +13,28 @@
 
 ## Description
 
-Loads the Process segment from the specified operand. This is a system register used for process control block.
+Loads the PS (Process Segment) register from the specified operand. The PS register points to the current process control block (PCB), which contains process state and control information. Used for process switching and system initialization.
 
-**Operation:** `PS = <operand>`
+**Operation:**
+```
+<operand> → PS
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Loads process control block pointer
+- Critical for process switching
+- Points to PCB in physical memory
+- System-level register
+- Used by operating system
+
+**Common Use Cases:**
+- Process context switching
+- OS initialization
+- Process creation/termination
+- Domain switching
+- System call handling
+
+**Operands:** 1 (source)
 **Variants:** 1
 
 ---

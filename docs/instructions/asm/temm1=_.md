@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the Trap enable modification mask 1 to the specified operand. System register store operation.
+Stores the TEMM1 (Trap Enable Modification Mask 1) register to the specified operand. TEMM1 controls which bits of OTE1 (bits 0-15) can be modified by user-level code versus supervisor-only operations.
 
-**Operation:** `<operand> = TEMM1`
+**Operation:**
+```
+TEMM1 → <operand>
+```
+
+**Key Characteristics:**
+- Controls modification permissions for OTE1 bits 0-15
+- Security mechanism for trap enable control
+- Essential for privilege separation
+- Paired with TEMM2 for full 32-bit mask
+- Supervisor-level register
+- Prevents user code from disabling critical traps
 
 **Operands:** 1
 **Variants:** 1

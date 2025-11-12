@@ -16,10 +16,22 @@
 Calls a subroutine at a computed address (from register or memory), passing a list of argument addresses. This is the general-purpose call instruction supporting variable-length argument lists, enabling Pascal-like parameter passing by reference.
 
 **Operation:**
+```
 1. Calculate effective addresses of all arguments
 2. Store argument addresses for entry point instruction
 3. Jump to subroutine entry point
 4. Entry point instruction (ENTB/ENTBB) processes arguments
+```
+
+**Key Characteristics:**
+- Variable-length argument list (0-255 arguments)
+- Computed entry point (register/memory, not immediate address)
+- All arguments passed by reference (addresses, not values)
+- Requires ENTB/ENTBB entry point (traps if not)
+- Essential for high-level language implementations
+- Arguments cannot be constants or registers (must have addresses)
+- Supports dynamic dispatch and function pointers
+- More flexible but slower than simple CALL instruction
 
 CALLG differs from CALL in two critical ways:
 1. **Computed Address**: Target from general operand (register/memory), not immediate

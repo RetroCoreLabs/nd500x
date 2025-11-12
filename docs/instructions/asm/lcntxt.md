@@ -14,13 +14,24 @@
 
 Loads processor context block registers from a specified physical address according to a register mask. This privileged instruction is part of the '87 architecture extension and is used for process context switching and state restoration. The mask specifies which CPU registers to load, the address points to the source memory location, and the process number identifies the target process context.
 
-If the address is 0, the context save area of the current process is used. If the process number is negative, the current process number is maintained. Registers are loaded from memory locations at `address + (register_number * 4)`.
-
 **Operation:**
 ```
 For each bit set in mask:
     memory[address + register_number * 4] → register
 ```
+
+**Key Characteristics:**
+- Supervisor-only context management ('87 extension)
+- Selective register loading via bitmask
+- Physical memory access (no MMU translation)
+- Address 0 uses current process save area
+- Negative process number maintains current process
+- Variable execution time (depends on mask popcount)
+- Essential for fast context switching
+- Each register load adds 2-3 cycles
+- 3 operands (mask, address, process number)
+
+If the address is 0, the context save area of the current process is used. If the process number is negative, the current process number is maintained. Registers are loaded from memory locations at `address + (register_number * 4)`.
 
 **Common Use Cases:**
 - Process context switching

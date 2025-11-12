@@ -15,7 +15,21 @@
 
 Decrements the `<operand>` by one. The Carry bit is set appropriately for borrow conditions.
 
-Operation: `operand = operand - 1`
+**Operation:**
+```
+<operand> = <operand> - 1
+```
+
+**Key Characteristics:**
+- Single-operand decrement (subtract 1)
+- 5 data types supported (BY, H, W, F, D)
+- Faster than SUB with constant 1
+- Essential for loop counters and backwards iteration
+- 3-5 cycles execution time
+- Sets Z, S, O, C flags (carry on borrow)
+- Common in countdown loops and pointer decrement
+- Read-modify-write operation
+- Destructive (operand overwritten)
 
 **Operands:** 1
 **Variants:** 5 opcode(s)

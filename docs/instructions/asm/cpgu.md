@@ -14,12 +14,23 @@
 
 Clears the entire Page Used (PGU) table to zero. This privileged instruction is used by memory management and swapper routines to reset page usage tracking. The PGU table tracks which physical memory pages are currently in use, supporting demand paging and virtual memory management.
 
-This is an installation-dependent instruction that requires detailed knowledge of the physical memory configuration. It is typically used during system initialization, swapper operations, and memory reclamation. Improper use can corrupt memory management state.
-
 **Operation:**
 ```
 0 → entire PGU table
 ```
+
+**Key Characteristics:**
+- Supervisor-only memory management instruction
+- Clears entire Page Used tracking table
+- Resets page usage tracking for all physical memory
+- Essential for swapper initialization and context switch
+- Installation-dependent (varies with memory size)
+- 10-20 cycles (depends on physical memory configuration)
+- No operands required (implicit table operation)
+- Critical for virtual memory management
+- Paired with CWIP for complete tracking reset
+
+This is an installation-dependent instruction that requires detailed knowledge of the physical memory configuration. It is typically used during system initialization, swapper operations, and memory reclamation. Improper use can corrupt memory management state.
 
 **Common Use Cases:**
 - Memory swapper initialization

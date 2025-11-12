@@ -15,6 +15,22 @@
 
 Multiplies the `<a>` operand by the `<b>` operand and stores the lower half of the product in the `<c>` operand (destination). The upper half of the double-length result is stored in the specified register Rn.
 
+**Operation:**
+```
+<c> = lower_half(<a> * <b>)
+Rn = upper_half(<a> * <b>)
+```
+
+**Key Characteristics:**
+- Four-operand multiplication (includes implicit register)
+- Full double-length product access (no precision loss)
+- Integer-only (BY, H, W - no float/double support)
+- Essential for multi-precision arithmetic
+- Upper half enables overflow detection
+- 12 variants (3 types × 4 registers)
+- Slightly slower than MUL3 (extra register store)
+- Critical for cryptography and bignum operations
+
 This instruction provides access to the full double-length product of a multiplication, which is essential for multi-precision arithmetic and overflow detection. Integer overflow occurs if the upper half is not equal to the sign extension of the lower half.
 
 The operands are assumed to have the same data type (BY, H, or W). Only integer types are supported - no floating point variants.

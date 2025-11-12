@@ -13,9 +13,20 @@
 
 ## Description
 
-Transfers control if Z=0 (zero flag clear), indicating values are not equal. Used after COMP or TEST.
+Transfers control if Z=0 (zero flag clear), indicating values are not equal. Used after COMP or TEST to branch when operands differ.
 
-**Operation:** `if Z=0 then PC += displacement`
+**Operation:**
+```
+if Z=0 then PC += displacement
+```
+
+**Key Characteristics:**
+- Tests not-equal condition (Z=0)
+- Opposite of IF=GO (which tests Z=1)
+- Follows COMP, TEST, or arithmetic operations
+- Two displacement ranges (byte: ±127, halfword: ±32767)
+- Pipeline flush on taken branch
+- Most common conditional branch in loops and comparisons
 
 **Operands:** 1
 **Variants:** 2 opcode(s)

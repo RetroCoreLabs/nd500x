@@ -13,13 +13,34 @@
 
 ## Description
 
-Enters a subroutine and allocates a stack frame of the specified size. Sets up display registers for block-structured language support (Pascal, Algol style).
+Enters a subroutine and allocates a stack frame of the specified size, setting up display registers for block-structured language support (Pascal, Algol-68, Ada style).
 
-The display mechanism maintains pointers to stack frames at each static nesting level, enabling efficient access to variables in enclosing scopes. ENTD:
-1. Allocates `<stack demand>` words on the stack
-2. Saves return address and frame pointer
-3. Updates display register for current nesting level
-4. Sets up new frame pointer
+The display mechanism maintains pointers to stack frames at each static nesting level, enabling efficient access to variables in enclosing scopes without chain walking.
+
+**Operation:**
+```
+1. Check stack bounds (LL/HL)
+2. Allocate <stack demand> words on stack
+3. Save return address and current frame pointer
+4. Update display register for current nesting level
+5. Set up new frame pointer (B register)
+6. Update TOS register
+```
+
+**Key Characteristics:**
+- Display-based lexical scoping (O(1) outer scope access)
+- Eliminates static chain traversal overhead
+- Block-structured language support (Pascal, Algol-68)
+- Paired with RETD for proper cleanup
+- Stack overflow detection via LL/HL bounds
+- Efficient nested procedure calls
+
+**Common Use Cases:**
+- Pascal procedure entry with nested scopes
+- Algol-68 block structure implementation
+- Ada nested procedure compilation
+- Any language with static lexical nesting
+- Compiler-generated code for block scoping
 
 This is essential for compiled code from block-structured languages with nested procedures.
 

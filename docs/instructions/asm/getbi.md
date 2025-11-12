@@ -15,6 +15,16 @@
 
 Extracts a single bit from an operand and loads it into bit 0 of the specified register. The upper bits of the register are unaffected - only bit 0 is modified.
 
+**Key Characteristics:**
+- Single-bit extraction to register bit 0
+- Upper register bits preserved (non-destructive partial write)
+- Supports 3 data types: BY (8-bit), H (16-bit), W (32-bit)
+- 12 variants (3 types × 4 registers) for flexible allocation
+- Z flag reflects extracted bit value (0 or 1)
+- Essential for flag testing and boolean operations
+- Efficient bit-level access without masks
+- Traps on out-of-range bit numbers
+
 The bit number specifies which bit to extract, with bit numbering following the ND-500 convention where bit 0 is the rightmost (least significant) bit. The operand can be a byte (BY), halfword (H), or word (W) data type.
 
 An illegal operand value trap (IOV) is triggered if:

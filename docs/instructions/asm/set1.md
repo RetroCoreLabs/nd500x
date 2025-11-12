@@ -1,35 +1,125 @@
-# SET1 - Set Bit Field (Single Operand)
+# SET1 - Set to One
 
 ## Overview
-**Mnemonic:** `set1` | **Function:** Set bits in field | **Class:** BIT | **Privilege:** user | **Format:** `t SET1 <operand>`
+
+**Mnemonic:** `set1`
+**Function:** Set operand to constant value 1
+**Class:** CONTROL
+**Privilege:** user
+
+**Format:** `t SET1 <operand>`
+
+---
 
 ## Description
-Sets (ORs with 1) bits in specified field. Single-operand bit manipulation instruction for setting multiple bits simultaneously.
 
-## Variants
-| Variant | Opcode | Type | Assembly |
-|---------|--------|------|----------|
-| 1-6 | 0xFDA8-0xFDAD | BY/H/W | t SET1 |
+Replaces the contents of the destination operand with the value one (1). This instruction provides a convenient shorthand for initialization and counter setup. All data status bits are cleared after execution.
 
-## Examples
-```assembly
-BY SET1 FLAGS                  % Set byte flags
-W SET1 STATUS_WORD             % Set word bits
-H SET1 CONTROL_REG             % Set halfword
-W SET1 B.BIT_FIELD             % Set local bits
-BY SET1 MASK_VAL               % Set mask bits
-W SET1 CONFIG(W1)              % Indexed set
-H SET1 STATE_FLAGS             % Set state
+**Operation:**
+```
+1 → <operand>
 ```
 
+**Key Characteristics:**
+- Sets operand to exactly 1
+- Works with all data types: BI, BY, H, W, F, D
+- All status flags cleared
+- Single operand instruction
+- Efficient for loop counter initialization
+- Float/double get 1.0 value
+
+**Common Use Cases:**
+- Loop counter initialization
+- Boolean flag setting
+- Reset counters to 1
+- Initialize accumulators
+- Set iteration start value
+
+**Operands:** 1 (destination, write-only)
+**Variants:** 6 opcodes (one per data type)
+
+---
+
+## Examples
+
+### Example 1: Initialize loop counter
+
+```assembly
+        % Start loop at 1
+        W1 SET1 B.COUNTER
+LOOP:   % Loop body
+        W1 ADD 1, B.COUNTER
+        W1 COMP 10, B.COUNTER
+        IF<=GO LOOP
+```
+
+**Explanation:** Initialize loop counter to 1 instead of 0.
+
+### Example 2: Set float to 1.0
+
+```assembly
+        % Initialize float multiplier
+        F SET1 IND(B.START)
+        % F register indirectly sets value to 1.0
+```
+
+**Explanation:** Set floating-point argument to 1.0.
+
+### Example 3: Boolean flag
+
+```assembly
+        % Mark as active/true
+        BY SET1 ACTIVE_FLAG
+        % Check later
+        BY COMP 1, ACTIVE_FLAG
+        IF=GO IS_ACTIVE
+```
+
+**Explanation:** Use 1 as true value for boolean flag.
+
+### Example 4: Reset counter
+
+```assembly
+        % Reset iteration counter
+        W SET1 RETRY_COUNT
+        % Start retry loop
+```
+
+**Explanation:** Reset counter to initial value of 1.
+
+### Example 5: Initialize array element
+
+```assembly
+        % Set array entry to 1
+        W2 MOVE INDEX
+        H SET1 ARRAY(W2)
+```
+
+**Explanation:** Initialize indexed array element to 1.
+
+---
+
 ## Trap Conditions
-- **Addressing traps**
+
+- **Addressing traps**: Invalid operand address
+
+---
 
 ## Data Status Bits
-- **Z,S**: Set based on result
+
+- **All cleared**: Z=0, S=0, C=0, V=0, all flags cleared
+
+---
 
 ## Reference Manual
-**Section:** §10.x
+
+**Section:** §10.18
+**Title:** Set to one
+
+---
 
 ## See Also
-- [CLR](clr.md), [TEST](test.md), [OR](or.md)
+
+- [CLR](clr.md) - Clear to zero
+- [MOVE](move.md) - Move data
+- [LOAD](load.md) - Load constant
