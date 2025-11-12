@@ -15,6 +15,22 @@
 
 Converts a source operand of any supported type (BI, BY, W, F, D) to 16-bit halfword (integer) format and stores the result in the destination.
 
+**Operation:**
+```
+<dest> = (halfword)<source>
+```
+
+**Key Characteristics:**
+- Type converter to 16-bit signed integer
+- 5 source types supported (BI, BY, W, F, D)
+- Sign extension for smaller integers (BI, BY)
+- Truncation with overflow check for word (W)
+- Float conversions use truncation (round toward zero)
+- IOV trap when value outside range (-32768 to 32767)
+- Essential for 16-bit data packing
+- Integer conversions fast (5-7 cycles), float slower (8-10 cycles)
+- Preserves sign for negative values
+
 The conversion handles:
 - **Smaller integers to halfword:** Sign extension (BI, BY → H)
 - **Larger integers to halfword:** Truncation with overflow check (W → H)
