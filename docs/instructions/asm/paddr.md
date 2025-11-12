@@ -15,6 +15,16 @@
 
 Adds two packed Binary Coded Decimal (BCD) numbers with automatic rounding applied to the result. This instruction is essential for financial calculations, monetary arithmetic, and any application requiring exact decimal representation without floating-point rounding errors.
 
+**Key Characteristics:**
+- Packed BCD addition with commercial rounding
+- Automatic round-half-up (banker's rounding)
+- Exact decimal representation (no float errors)
+- Automatic decimal point alignment
+- Essential for currency and financial calculations
+- Eliminates 0.1 + 0.2 ≠ 0.3 problems
+- Supports different scale factors per operand
+- Common in accounting and banking systems
+
 PADDR performs decimal addition on BCD-encoded numbers, where each 4-bit nibble represents a decimal digit (0-9). The result is automatically scaled according to the destination operand's scale factor (decimal point position) and rounded to fit the destination precision.
 
 The rounding behavior follows commercial rounding rules (round half up), making PADDR ideal for currency calculations where fractional cents must be properly rounded. The instruction handles numbers with different scale factors by automatically aligning decimal points before addition.
