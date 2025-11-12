@@ -22,6 +22,16 @@ This is the general-purpose comparison instruction for symmetric comparisons whe
 FLAGS = (op1 - op2)  // Result discarded, only flags set
 ```
 
+**Key Characteristics:**
+- Symmetric two-operand comparison (neither privileged)
+- Non-destructive (result discarded, only flags set)
+- Supports all 6 data types (BI, BY, H, W, F, D)
+- More flexible than COMP (explicit operands vs accumulator)
+- Essential for sorting, range checking, validation
+- Sets Z, S, C, V flags for conditional branching
+- Slightly slower than COMP (2 operand encodings)
+- Common in comparison-heavy algorithms
+
 **Flag Interpretation:**
 - **Equal**: Z=1 (op1 == op2)
 - **Not Equal**: Z=0 (op1 != op2)
