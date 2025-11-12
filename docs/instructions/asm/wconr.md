@@ -15,6 +15,26 @@
 
 Converts a floating-point number (single-precision or double-precision) to a signed word (32-bit) integer value with rounding, storing the result in the destination operand. This instruction performs controlled precision reduction from floating-point to 32-bit integer representation with proper rounding according to the current rounding mode.
 
+**Operation:**
+```
+rounded_value = round(<source>)
+if (rounded_value < -2147483648 or rounded_value > 2147483647):
+    trap (Integer Overflow)
+<dest> = (word)rounded_value
+```
+
+**Key Characteristics:**
+- Float/double to signed word (32-bit) conversion with rounding
+- 2 source types supported (F=32-bit, D=64-bit)
+- IEEE 754 rounding semantics (typically round-to-nearest)
+- IOV trap when result exceeds ±2,147,483,647 range
+- FO trap on NaN or infinity source
+- Sets Z and S flags based on converted result
+- Most common float-to-int conversion instruction
+- All single-precision floats fit in word range
+- Essential for general-purpose floating-point to integer conversion
+- More accurate than truncation (vs WCON)
+
 The source operand contains a floating-point value that is:
 1. Rounded to the nearest integer value
 2. Range-checked to ensure it fits in signed word range (-2,147,483,648 to +2,147,483,647)
