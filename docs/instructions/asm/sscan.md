@@ -15,6 +15,28 @@
 
 Scans through a string, translating each byte via a translation table and testing the result against a bit mask, searching for the first byte where `(translated_byte AND mask) != 0`. The source string is examined byte by byte until the masked condition is satisfied or the end of the string is reached.
 
+**Operation:**
+```
+for each byte in source[I1..end]:
+    translated = trans_table[byte]
+    if (translated AND mask) != 0:
+        Z = 0, I1 = position
+        return
+I1 = end of string
+Z = 1
+```
+
+**Key Characteristics:**
+- String scan with translation and mask test
+- Uses 256-byte translation table for character mapping
+- Uses I1 as implicit index register (auto-incremented)
+- Z=0 if match found (translated & mask ≠ 0)
+- Z=1 if string exhausted without match
+- K flag always cleared to 0
+- DR trap on descriptor range violation
+- Essential for character class search and property detection
+- O(n) complexity where n = bytes scanned
+
 SSCAN combines character translation with conditional searching, enabling efficient searches based on character classes, properties, or categories defined in the translation table. The translation step allows mapping characters to property values (e.g., character class codes) before testing.
 
 The operation proceeds as follows for each byte:
