@@ -15,6 +15,25 @@
 
 Stores a bit field from the lower bits of the specified register into a memory operand. Only the specified bit field in the operand is modified; other bits remain unchanged.
 
+**Operation:**
+```
+mask = ((1 << field_size) - 1) << bit_no
+field_value = register & ((1 << field_size) - 1)
+operand = (operand & ~mask) | (field_value << bit_no)
+```
+
+**Key Characteristics:**
+- Store register bit field into operand (read-modify-write)
+- 12 variants (3 data types: BY/H/W × 4 registers)
+- Bit 0 = LSB (rightmost), little-endian bit numbering
+- Only specified field modified, other bits preserved
+- IOV trap if bit_no < 0 or field_size ≤ 0
+- IOV trap if (bit_no + field_size) exceeds data type width
+- Sets Z flag if stored field = 0
+- Sets S flag to leftmost bit of stored field
+- Essential for packed structures and hardware registers
+- 5-10 cycles (read-modify-write operation)
+
 The bit field is specified by a starting bit number and a field size. Bit numbering follows the ND-500 convention where bit 0 is the rightmost (least significant) bit. The field storage starts at `<bit No.>` and extends to higher-numbered bits for `<field size>` bits.
 
 The lower `<field size>` bits of the register (bits 0 to `<field size>-1`) are stored into the operand's bit field. The operand can be a byte (BY), halfword (H), or word (W) data type. The bit number and field size parameters are interpreted as signed byte integers.
