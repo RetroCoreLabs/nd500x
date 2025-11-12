@@ -15,6 +15,23 @@
 
 Clears (invalidates) the data cache and writes back all dirty (modified) cache lines to main memory. This privileged instruction ensures cache coherence between the cache and main memory, critical for DMA operations, multiprocessor synchronization, and memory-mapped I/O access.
 
+**Operation:**
+```
+1. Write back all dirty cache lines to memory
+2. Mark all cache entries as invalid
+```
+
+**Key Characteristics:**
+- Supervisor-only cache management instruction
+- Two-phase operation: flush dirty + invalidate all
+- Ensures cache coherence for DMA and I/O
+- No-op if no data cache present
+- Essential before DMA reads from memory
+- Critical for multiprocessor data sharing
+- Subsequent accesses slower until cache reloads
+- No operands required (implicit cache operation)
+- Often paired with DCTSB for complete flush
+
 DCC performs two operations:
 1. Writes all modified (dirty) data from cache back to main memory
 2. Marks all cache entries as invalid

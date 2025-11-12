@@ -15,6 +15,23 @@
 
 Clears the entire data translation speedup buffer (TSB), forcing subsequent data memory accesses to reinitialize address translations from the capability table, segment table, and page index table. This privileged instruction maintains address translation coherence after changes to data memory management structures.
 
+**Operation:**
+```
+1. Invalidate all data TSB entries
+2. Automatically clear data cache and flush dirty data
+```
+
+**Key Characteristics:**
+- Supervisor-only TLB invalidation instruction
+- Clears data virtual-to-physical translation cache
+- Automatically flushes data cache (implicit DCC)
+- Essential after page table modifications
+- Forces page table walk on next data access
+- Similar to TLB flush in modern architectures
+- No operands required (implicit TSB operation)
+- Often paired with PCTSB for complete flush
+- Critical for context switching and protection changes
+
 The data TSB caches virtual-to-physical address mappings for data accesses, dramatically improving performance by avoiding repeated page table walks. DCTSB invalidates all cached translations, ensuring that modifications to page tables, segment descriptors, or capability entries are immediately reflected in data memory access.
 
 When the data TSB is cleared, the associated data cache is also automatically cleared and dirty data is written back to memory, since cached data may have been accessed using now-invalid address translations.
