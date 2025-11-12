@@ -15,6 +15,23 @@
 
 Clears the entire program translation speedup buffer (TSB), forcing subsequent program memory accesses to reinitialize address translations from the capability table, segment table, and page index table. This privileged instruction maintains address translation coherence after changes to memory management structures.
 
+**Operation:**
+```
+1. Invalidate all program TSB entries
+2. Automatically clear program cache
+```
+
+**Key Characteristics:**
+- Supervisor-only TLB invalidation instruction
+- Clears program virtual-to-physical translation cache
+- Automatically flushes program cache (implicit PCC)
+- Essential after page table modifications
+- Forces page table walk on next instruction fetch
+- Similar to TLB flush in modern architectures
+- No operands required (implicit TSB operation)
+- Often paired with DCTSB for complete flush
+- Critical for context switching and protection changes
+
 The program TSB caches virtual-to-physical address mappings for instruction fetches, dramatically improving performance by avoiding repeated page table walks. PCTSB invalidates all cached translations, ensuring that modifications to page tables, segment descriptors, or capability entries are immediately reflected in program memory access.
 
 When the program TSB is cleared, the associated program cache is also automatically cleared, since cached instructions may have been fetched using now-invalid address translations.

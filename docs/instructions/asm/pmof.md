@@ -15,6 +15,23 @@
 
 Disables the program memory management system, causing subsequent instruction fetches to be interpreted as direct physical addresses rather than virtual addresses requiring translation. This privileged instruction is essential for low-level system initialization, debugging, and firmware operation.
 
+**Operation:**
+```
+disable program MMU
+L → PC  (jump to physical address)
+```
+
+**Key Characteristics:**
+- Supervisor-only MMU control instruction
+- Disables virtual-to-physical address translation
+- Loads PC from L register (physical address jump)
+- Atomic mode change and control transfer
+- Idempotent (safe to execute when already off)
+- No protection or translation for instruction fetches
+- Essential for boot, firmware, and diagnostics
+- 4-6 cycles execution time
+- Can be used as indirect jump when already physical
+
 When PMOF executes, control transfers to the physical address contained in the L register. This allows atomic transition from virtual to physical addressing mode while simultaneously positioning program execution at a known physical location.
 
 If program memory management is already off when PMOF executes, control simply transfers to the L register address without additional side effects, allowing PMOF to be used as an indirect jump to physical address.
