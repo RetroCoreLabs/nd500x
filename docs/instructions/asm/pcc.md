@@ -15,6 +15,23 @@
 
 Clears (invalidates) the program instruction cache, forcing subsequent instruction fetches to reload from main memory. This privileged instruction is essential for maintaining cache coherence after code modification, dynamic loading, or self-modifying code execution.
 
+**Operation:**
+```
+Mark all program cache entries as invalid
+(no writeback needed - read-only cache)
+```
+
+**Key Characteristics:**
+- Supervisor-only cache management instruction
+- Invalidates all program instruction cache entries
+- No writeback (instruction caches are read-only)
+- No-op if no program cache present
+- Essential after code modification or dynamic loading
+- Critical for debugger breakpoint insertion
+- Common in JIT compilers and self-modifying code
+- No operands required (implicit cache operation)
+- Fast execution (only invalidation, no flush)
+
 PCC marks all entries in the program cache as invalid without writing back any data (instruction caches are read-only). Following the PCC instruction, the next instruction fetch will reload from memory, ensuring that any modifications to program code are reflected in execution.
 
 On systems without an instruction cache, PCC executes as a no-op, allowing code portability across different ND-500 configurations.
