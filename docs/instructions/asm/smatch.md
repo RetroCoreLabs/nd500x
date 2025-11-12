@@ -15,6 +15,28 @@
 
 Searches for the first occurrence of a substring within a string. The instruction scans through the `<string>` operand byte by byte, comparing each position against the `<substring>` pattern, until a match is found or the end of the string is reached.
 
+**Operation:**
+```
+for each position in string:
+    if (substring matches at position):
+        I2 = position
+        Z = 1
+        return
+I2 = end of string
+Z = 0
+```
+
+**Key Characteristics:**
+- Substring search within string (byte-by-byte comparison)
+- Uses I1 (substring index) and I2 (string index) implicitly
+- Z=1 when substring found, Z=0 when not found
+- I2 points to match position or end of string
+- K flag always cleared to 0
+- DR trap on descriptor range violation
+- O(n×m) worst-case complexity
+- Essential for text parsing and pattern matching
+- Used for delimiter searching and token recognition
+
 SMATCH is designed for efficient text processing and pattern searching tasks common in string manipulation, parsing, and data validation. The instruction uses the I1 and I2 registers as implicit index pointers, with I1 indexing the substring and I2 indexing the string being searched.
 
 The substring comparison is performed sequentially starting from the current I2 position. If a match is found, the Z flag is set to 1 and I2 points to the first matching byte position. If no match is found before the end of the string, Z is cleared to 0 and I2 points to the next element position (end of string).

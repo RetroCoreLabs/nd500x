@@ -15,6 +15,25 @@
 
 Converts an integer word or double-precision floating-point number to a single-precision (32-bit) float value with rounding, storing the result in the destination operand. This instruction performs controlled precision conversion to 32-bit IEEE 754 floating-point format with proper rounding according to the current rounding mode.
 
+**Operation:**
+```
+rounded_value = round(<source>)
+if (D FCONR and |rounded_value| > float_max):
+    trap (Floating Overflow)
+<dest> = (float)rounded_value
+```
+
+**Key Characteristics:**
+- Integer/double to single-precision float with rounding
+- 2 source types supported (W=32-bit int, D=64-bit double)
+- IEEE 754 rounding semantics (typically round-to-nearest)
+- W FCONR: Exact for integers ±16,777,216, no overflow possible
+- D FCONR: Precision reduction (52-bit to 23-bit mantissa)
+- FO trap when double exceeds float range (±3.4×10³⁸)
+- Sets Z and S flags based on converted result
+- Essential for mixed-precision arithmetic and storage optimization
+- More accurate than truncation (vs FCON)
+
 The instruction has two distinct conversion modes:
 
 **W FCONR (Word to Float)**:

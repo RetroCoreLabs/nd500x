@@ -15,6 +15,28 @@
 
 Copies bytes from source to destination while each byte satisfies a masked test condition: `(source_byte AND mask) == test`. Copying continues as long as the condition holds true, and terminates when a byte fails the condition, or when source is exhausted or destination is full.
 
+**Operation:**
+```
+while (source not empty and dest not full):
+    if ((source[I1] AND mask) != test):
+        K=0, Z=0, break  // Differing byte
+    dest[I2] = source[I1]
+    I1++, I2++
+K=1, Z=1 if source empty or dest full
+```
+
+**Key Characteristics:**
+- String copy while masked condition holds
+- 4 operands: source, dest, mask, test value
+- Uses I1 (source index) and I2 (dest index) implicitly
+- K=0, Z=0 if differing byte found (condition fails)
+- K=1, Z=1 if source empty or dest full
+- Differing byte NOT copied to destination
+- Does NOT handle overlap (requires separate buffers)
+- Complement of SMVUN (while vs until)
+- Essential for character class extraction and range validation
+- O(n) complexity where n = bytes copied
+
 SMVWH is the complement of SMVUN - while SMVUN copies UNTIL a condition is met, SMVWH copies WHILE a condition holds. This makes it ideal for extracting characters within a specific range, copying character classes (digits, letters, etc.), or processing runs of similar characters.
 
 The operation proceeds byte by byte:

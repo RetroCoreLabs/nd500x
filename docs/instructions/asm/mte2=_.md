@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the Mother trap enable 2 to the specified operand. System register store operation.
+Stores the MTE2 (Mother Trap Enable 2) register to the specified operand. MTE2 contains parent process trap enable bits 16-31, controlling which traps are enabled for the parent process context.
 
-**Operation:** `<operand> = MTE2`
+**Operation:**
+```
+MTE2 → <operand>
+```
+
+**Key Characteristics:**
+- Stores parent process trap enable bits 16-31
+- Hierarchical trap control (parent vs child)
+- Essential for process isolation
+- Paired with MTE1 for full 32-bit trap mask
+- Supervisor-level register
+- Used in process context switching and spawning
 
 **Operands:** 1
 **Variants:** 1

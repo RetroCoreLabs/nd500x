@@ -13,9 +13,20 @@
 
 ## Description
 
-Store register to operand. Fundamental data movement operation in ND-500 assembly.
+The store operator (`=:`) transfers data from a register to memory or another register. This is the fundamental data movement operation in ND-500 assembly, with the colon indicating data flow direction (from left to right).
 
-**Operation:** Transfers data between operands.
+**Operation:**
+```
+<source> → <destination>
+```
+
+**Key Characteristics:**
+- Bidirectional syntax: `src =: dst` or `dst =: src` (colon shows flow)
+- Supports all data types (BY, H, W, F, D)
+- All addressing modes supported
+- Most common instruction in typical code
+- Sets flags based on data type (Z, S, C)
+- 2-4 cycles depending on addressing complexity
 
 **Operands:** 2
 **Variants:** Multiple (all data types)

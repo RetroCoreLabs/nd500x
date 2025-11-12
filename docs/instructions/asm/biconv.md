@@ -15,6 +15,22 @@
 
 Converts a source operand of any supported type (BY, H, W, F, D) to a single bit value (0 or 1) and stores the result in the destination.
 
+**Operation:**
+```
+<dest> = (<source> != 0) ? 1 : 0
+```
+
+**Key Characteristics:**
+- Boolean converter (C-style zero/non-zero test)
+- 5 source types supported (BY, H, W, F, D)
+- Zero → 0, non-zero → 1 (C semantics)
+- Float: ±0.0 → 0, all others → 1 (including NaN/infinity)
+- Never traps on IOV (all values map to 0 or 1)
+- Essential for boolean logic and conditional flags
+- Integer conversion fast (5-6 cycles), float slower (7-8 cycles)
+- Z flag set when result = 0, cleared when result = 1
+- S and O flags always cleared
+
 The conversion follows C semantics:
 - **Zero value → 0 (false)**
 - **Non-zero value → 1 (true)**

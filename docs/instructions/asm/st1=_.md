@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the First status register to the specified operand. System register store operation.
+Stores the ST1 (First Status Register) to the specified operand. ST1 contains various CPU status and control bits including interrupt enables, privilege level, and system modes.
 
-**Operation:** `<operand> = ST1`
+**Operation:**
+```
+ST1 → <operand>
+```
+
+**Key Characteristics:**
+- Stores CPU status and control bits
+- Contains interrupt enable flags
+- Includes privilege level indicators
+- Essential for context switching
+- Supervisor-level register
+- Used in exception handlers and OS context management
 
 **Operands:** 1
 **Variants:** 1

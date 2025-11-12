@@ -12,12 +12,25 @@
 
 ## Description
 
-Multiplies two packed BCD numbers and stores the rounded result. Identical to PMPY except the product is rounded before storing according to the destination's scale factor. Used for financial calculations requiring rounding.
+Multiplies two packed BCD numbers and stores the rounded result. Identical to PMPY except the product is rounded before storing according to the destination's scale factor. Essential for financial calculations requiring proper rounding to avoid cumulative errors.
 
 **Operation:**
 ```
-a * b → c (with scaling and rounding)
+a * b → c (with automatic scaling and rounding)
+- Multiply BCD operands
+- Adjust scale to match destination descriptor
+- Round to destination precision (banker's rounding)
+- Store result with sign handling
 ```
+
+**Key Characteristics:**
+- Three-operand BCD multiplication with rounding
+- Banker's rounding (round-to-even) for financial accuracy
+- Automatic scale factor adjustment
+- Descriptor-based precision control
+- Prevents cumulative rounding errors in financial calculations
+- Sign handling via descriptor bit 26
+- Common in currency conversion, tax, discount, and interest calculations
 
 **Operands:** 3
 **Variants:** 1 opcode

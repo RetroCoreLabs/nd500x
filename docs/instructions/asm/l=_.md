@@ -13,11 +13,28 @@
 
 ## Description
 
-Stores the Link register to the specified operand. System register store operation.
+Stores the Link register (return address) to the specified operand. Used for saving return addresses during context switches, debugging, or non-standard call patterns.
 
-**Operation:** `<operand> = L`
+**Operation:**
+```
+L → <operand>
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Stores return address from Link register
+- Used in context switching and debugging
+- Enables non-standard call patterns
+- Required for coroutine implementations
+- Part of system register access suite
+
+**Common Use Cases:**
+- Context switch save/restore
+- Debugger breakpoint handling
+- Return address inspection
+- Coroutine implementation
+- Manual call stack management
+
+**Operands:** 1 (destination)
 **Variants:** 1
 
 ---

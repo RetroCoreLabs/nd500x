@@ -15,6 +15,21 @@
 
 Sets the K (user flag) bit in the CPU status register to 1. The K flag is a general-purpose user flag that can be set, cleared, and tested by software for application-specific purposes. Unlike other status bits (Z, S, C, V) which are set automatically by arithmetic/logical operations, the K bit is entirely under software control.
 
+**Operation:**
+```
+K flag = 1
+```
+
+**Key Characteristics:**
+- User-controlled flag (not set by arithmetic operations)
+- Single-cycle execution (very fast)
+- Cannot trap (always succeeds)
+- Independent of other flags (Z, S, C, V unchanged)
+- Paired with CLRK (clear) and IFKGO/IF-KGO (test)
+- Essential for custom control flow and state tracking
+- Common in subroutine return status (RETK uses K=1 for success)
+- Useful for boolean state across operations
+
 **K Flag Uses:**
 - **Custom Condition Flags**: Storing boolean state across operations
 - **Semaphores/Locks**: Simple synchronization primitive

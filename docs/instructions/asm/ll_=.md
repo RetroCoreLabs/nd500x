@@ -13,9 +13,20 @@
 
 ## Description
 
-Loads the Lower limit register from the specified operand. This is a system register used for stack lower bound.
+Loads the LL (Lower Limit) register from the specified operand. LL contains the lower stack boundary address, used for stack overflow detection and protection.
 
-**Operation:** `LL = <operand>`
+**Operation:**
+```
+<operand> → LL
+```
+
+**Key Characteristics:**
+- Loads lower stack boundary address
+- Prevents stack underflow
+- Essential for stack protection restoration
+- Paired with HL for full stack bounds
+- Used in context restoration
+- Critical for runtime stack validation
 
 **Operands:** 1
 **Variants:** 1

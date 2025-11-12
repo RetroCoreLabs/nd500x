@@ -13,11 +13,28 @@
 
 ## Description
 
-Stores the Upper limit register to the specified operand. System register store operation.
+Stores the HL (High Limit) register to the specified operand. The HL register contains the upper address limit for stack bounds checking. Used in context switching and stack management operations.
 
-**Operation:** `<operand> = HL`
+**Operation:**
+```
+HL → <operand>
+```
 
-**Operands:** 1
+**Key Characteristics:**
+- Stores stack upper limit boundary
+- Part of stack bounds checking mechanism
+- Used in context switching
+- Works with LL (Low Limit) register
+- System register access
+
+**Common Use Cases:**
+- Context switch save/restore
+- Stack bounds inspection
+- Memory protection setup
+- Process switching
+- Debugging stack issues
+
+**Operands:** 1 (destination)
 **Variants:** 1
 
 ---

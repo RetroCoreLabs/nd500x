@@ -13,9 +13,20 @@
 
 ## Description
 
-Transfers control if bit=0. Used after comparison/test operations.
+Transfers control if the specified status bit is clear (bit=0). Used to test individual bits in status registers or flags after bit manipulation operations.
 
-**Operation:** `if bit=0 then PC += displacement`
+**Operation:**
+```
+if bit=0 then PC += displacement
+```
+
+**Key Characteristics:**
+- Tests individual status bit (not flag register)
+- Requires bit position as additional operand
+- Useful for testing specific hardware status conditions
+- Two displacement ranges (byte: ±127, halfword: ±32767)
+- Pipeline flush on taken branch
+- Common in I/O polling and hardware status checking
 
 **Operands:** 1
 **Variants:** 2

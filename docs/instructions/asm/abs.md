@@ -15,6 +15,22 @@
 
 Calculates the absolute value of the contents of the specified register and stores the result in the same register. The instruction operates on any of the four general registers (n=1 to 4) with various data types (BY, H, W, F, D).
 
+**Operation:**
+```
+if Rn < 0 then Rn = -Rn
+else Rn = Rn (unchanged)
+```
+
+**Key Characteristics:**
+- In-place absolute value (register modified directly)
+- Conditional negation (only negative values changed)
+- Supports 5 data types (BY, H, W, F, D)
+- Works with 4 index registers (I1-I4)
+- Overflow only when ABS(MIN_INT) exceeds range (e.g., -32768 for H)
+- Upper bits cleared for BY/H types
+- Common in distance calculations and magnitude operations
+- More efficient than conditional NEG sequence
+
 When the datatype is either BY (byte) or H (halfword), the result is stored in the least significant bits and the rest of the register is cleared.
 
 Overflow occurs if and only if the greatest negative integer is negated (e.g., for word integers, negating 80000000H causes overflow since +2147483648 cannot be represented in 32-bit two's complement).

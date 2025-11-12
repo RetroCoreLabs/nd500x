@@ -15,6 +15,21 @@
 
 Adds the `<a>` operand to the `<b>` operand and stores the result in the `<c>` operand (destination). This is a non-destructive operation - the original values of `<a>` and `<b>` are preserved.
 
+**Operation:**
+```
+<c> = <a> + <b>
+```
+
+**Key Characteristics:**
+- Non-destructive three-operand addition (sources preserved)
+- Supports 5 data types (BY, H, W, F, D)
+- Essential for complex expressions without temporaries
+- More flexible than ADD2 (explicit destination)
+- Enables efficient vector/array operations
+- Sets Z, S, C, V flags for conditionals
+- Slightly slower than ADD2 (extra operand encoding)
+- Common in compilers and optimized code
+
 The operands are assumed to have the same data type (BY, H, W, F, or D). For integer types, carry and overflow flags are set appropriately. For floating point types, overflow and underflow traps may occur.
 
 This three-operand form is useful when you need to preserve the original values of both source operands, such as in complex mathematical expressions or when implementing algorithms that require non-destructive arithmetic.

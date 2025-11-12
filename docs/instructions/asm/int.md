@@ -13,6 +13,22 @@
 
 Performs integer conversion or operation as system-level instruction. This privileged instruction is used for type conversions and integer operations that require supervisor mode access. Supports multiple data type prefixes for flexible type handling.
 
+**Operation:**
+```
+result = integer_operation(<operand>)
+```
+
+**Key Characteristics:**
+- Supervisor-only integer operation
+- 8 variants (multiple data type prefixes)
+- System-level type conversions
+- Privileged arithmetic operations
+- Type-dependent performance (3-5 cycles)
+- Sets Z, S, C, V flags based on result
+- Essential for OS-level data manipulation
+- Requires supervisor mode (privilege violation trap in user mode)
+- Supports all standard addressing modes
+
 **Common Use Cases:**
 - Type conversion in system code
 - Integer format transformations

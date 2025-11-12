@@ -27,6 +27,16 @@ original op1 = 0 → Z flag
 original op1.signbit → S flag
 ```
 
+**Key Characteristics:**
+- Atomic two-operand exchange (single instruction)
+- No temporary storage required (hardware-managed)
+- Supports all 6 data types (BI, BY, H, W, F, D)
+- Both operands must be read-modify-write capable
+- Cannot use CONSTANT addressing (immutable)
+- Sets flags based on original op1 value
+- More efficient than three-instruction swap sequence
+- Common in sorting algorithms and data structure manipulation
+
 **Common Use Cases:**
 - Swapping variables without temporary storage
 - Register exchange operations

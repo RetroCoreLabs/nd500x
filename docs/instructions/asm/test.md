@@ -21,7 +21,19 @@ TEST is frequently used before conditional branches to check if a value is zero,
 operand - 0  (result discarded, only flags set)
 operand = 0 → Z flag
 operand < 0 → S flag
+C flag cleared
+V flag cleared
 ```
+
+**Key Characteristics:**
+- Non-destructive zero comparison (operand unchanged)
+- Sets flags without modifying source
+- Supports all 6 data types (BI, BY, H, W, F, D)
+- More efficient than COMP for zero testing
+- Clears C and V flags explicitly
+- Essential for NULL checks and sign testing
+- Common before conditional branches
+- Faster than explicit comparison with zero constant
 
 **Common Use Cases:**
 - Check if register or variable is zero

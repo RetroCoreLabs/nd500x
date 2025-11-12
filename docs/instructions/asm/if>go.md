@@ -13,12 +13,29 @@
 
 ## Description
 
-Transfers control if S=0 and Z=0. Used after comparison/test operations.
+Transfers control if S=0 and Z=0, indicating a positive non-zero result from signed comparison. Used after COMP operations to branch when first operand is greater than second operand in signed comparison.
 
-**Operation:** `if S=0 and Z=0 then PC += displacement`
+**Operation:**
+```
+if S=0 and Z=0 then PC += displacement
+```
 
-**Operands:** 1
-**Variants:** 2
+**Key Characteristics:**
+- Tests for positive non-zero (S=0 and Z=0)
+- Signed comparison semantics
+- Two variants: byte and halfword displacement
+- Common after COMP for greater-than tests
+- Sign-extended displacement
+
+**Common Use Cases:**
+- Signed integer comparisons (a > b)
+- Maximum value selection
+- Descending loop control
+- Threshold testing
+- Range validation
+
+**Operands:** 1 (signed displacement)
+**Variants:** 2 opcodes
 
 ---
 

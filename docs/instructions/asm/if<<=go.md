@@ -13,9 +13,20 @@
 
 ## Description
 
-Transfers control if C=0 or Z=1. Used after comparison/test operations.
+Transfers control if C=0 or Z=1 (less than or equal magnitude), typically following a magnitude comparison. Tests that carry flag is clear OR zero flag is set, indicating the first operand has less than or equal absolute value to the second.
 
-**Operation:** `if C=0 or Z=1 then PC += displacement`
+**Operation:**
+```
+if C=0 or Z=1 then PC += displacement
+```
+
+**Key Characteristics:**
+- Tests magnitude comparison (unsigned/absolute value)
+- Requires C=0 (carry clear) OR Z=1 (equal)
+- Opposite of IF>>GO (which tests C=1 and Z=0)
+- Follows COMP or TEST instructions
+- Two displacement ranges (byte: ±127, halfword: ±32767)
+- Common in unsigned range validation and array bounds checking
 
 **Operands:** 1
 **Variants:** 2

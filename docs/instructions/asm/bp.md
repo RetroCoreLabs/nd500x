@@ -15,11 +15,22 @@
 
 Causes a breakpoint trap, transferring control to a debug handler. This instruction is inserted by debuggers to halt program execution at specific points for inspection and debugging. When executed, it triggers a breakpoint trap if enabled, or an illegal instruction trap if disabled.
 
-The BP instruction is the primary mechanism for interactive debugging on the ND-500. Debuggers replace target instructions with BP, catch the resulting trap, and provide inspection/control facilities. After debugging, the original instruction is restored.
-
 **Operation:**
 - If breakpoint trap enabled → Breakpoint trap (BPT)
 - If breakpoint trap disabled → Illegal instruction code trap (IIC)
+
+**Key Characteristics:**
+- Primary debugging mechanism for ND-500
+- 2-byte instruction (easily overwrites most instructions)
+- Triggers BPT trap if enabled, IIC trap if disabled
+- Debuggers replace code temporarily with BP
+- No operands required (implicit trap trigger)
+- All flags unaffected
+- Essential for interactive debugging
+- Used for assertions, profiling, code coverage
+- Never appears in production code (debug-only)
+
+The BP instruction is the primary mechanism for interactive debugging on the ND-500. Debuggers replace target instructions with BP, catch the resulting trap, and provide inspection/control facilities. After debugging, the original instruction is restored.
 
 **Common Use Cases:**
 - Interactive debugging breakpoints

@@ -1,61 +1,111 @@
-# RETB - Return from Block Subroutine
+# RETB - Buddy Subroutine Return
 
 ## Overview
 
 **Mnemonic:** `retb`
-**Function:** Return from ENTB and free buddy block
+**Function:** Return from buddy subroutine (K flag cleared)
 **Class:** CALL
 **Privilege:** user
 
-**Format:** `RETB <log size/r/BY>`
+**Format:** `RETB`
 
 ---
 
 ## Description
 
-Returns from a subroutine entered with ENTB. Frees the buddy-allocated stack frame back to the heap and returns to caller.
+Returns from a buddy subroutine, releasing the local data area to the heap. Clears the K flag bit in the status register. Restores the base register and return address from the current local data area.
 
-RETB:
-1. Frees buddy block of size 2^`<log size>` words
-2. Restores previous frame pointer
-3. Returns to caller address
+**Operation:**
+```
+Local data area released to heap
+0 → STATUS.K
+B.RETA → PC → L
+B.PREVB → B
+```
 
-The `<log size>` must match the value used in the corresponding ENTB.
+**Key Characteristics:**
+- Releases buddy-allocated local area to heap
+- Clears K flag (K=0)
+- Restores previous base register
+- Restores return address to link register
+- Paired with ENTB instruction
+- Memory is freed automatically
 
-**Operands:** 1
-**Variants:** 1 opcode(s)
+**Common Use Cases:**
+- Dynamic memory allocation procedures
+- Procedures with variable-sized local data
+- Buddy system memory management
+- Heap-based stack frames
 
----
-
-## Variants
-
-| Variant | Opcode | Assembly Notation |
-|---------|--------|-------------------|
-| 1/1 | 0xFDB4 | RETB |
+**Operands:** None
+**Variants:** 1 opcode
 
 ---
 
 ## Examples
 
-### Example 1: Return from block
+### Example 1: Simple buddy return
 
 ```assembly
 PROC:   ENTB 6
-        % Subroutine body
-        RETB 6              % Free 64-word block
+        % Allocate 2^6 = 64-word buddy block
+        % Procedure body
+        RETB                % Free block and return (K=0)
 ```
+
+**Explanation:** Return and free buddy-allocated local area.
+
+### Example 2: Multiple return points
+
+```assembly
+FUNC:   ENTB 7
+        % Try operation
+        W1 COMP STATUS, 0
+        IF<GO ERROR
+        % Success path
+        RETB                % Normal return (K=0)
+ERROR:  RETBK               % Error return (K=1)
+```
+
+**Explanation:** Different return paths with different K flag states.
+
+### Example 3: Heap management
+
+```assembly
+ALLOCATOR: ENTB 8
+        % Allocate 256-word buddy block
+        % Initialize data structures
+        W1 := BLOCK_ADDR
+        RETB                % Free and return
+```
+
+**Explanation:** Procedure using buddy allocation for temporary work area.
+
+---
+
+## Trap Conditions
+
+None
+
+---
+
+## Data Status Bits
+
+- **K (Flag)**: Cleared to 0
+- **Other flags**: Unaffected
 
 ---
 
 ## Reference Manual
 
 **Section:** §13.11
-**Title:** Return instructions
+**Title:** Subroutine return
 
 ---
 
 ## See Also
 
-- [ENTB](entb.md) - Enter block
-- [FREEB](freeb.md) - Free buddy element
+- [RETBK](retbk.md) - Buddy return with K flag set
+- [ENTB](entb.md) - Enter buddy subroutine
 - [RET](ret.md) - Simple return
+- [FREEB](freeb.md) - Free buddy block

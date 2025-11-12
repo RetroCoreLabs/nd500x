@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the Mother trap enable 1 to the specified operand. System register store operation.
+Stores the MTE1 (Mother Trap Enable 1) register to the specified operand. MTE1 contains parent process trap enable bits 0-15, controlling which traps are enabled for the parent process context.
 
-**Operation:** `<operand> = MTE1`
+**Operation:**
+```
+MTE1 → <operand>
+```
+
+**Key Characteristics:**
+- Stores parent process trap enable bits 0-15
+- Hierarchical trap control (parent vs child)
+- Essential for process isolation
+- Paired with MTE2 for full 32-bit trap mask
+- Supervisor-level register
+- Used in process context switching and spawning
 
 **Operands:** 1
 **Variants:** 1

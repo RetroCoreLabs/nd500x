@@ -13,9 +13,20 @@
 
 ## Description
 
-Store local base register. Fundamental data movement operation in ND-500 assembly.
+The local base store operator (`B=:`) stores the B (local/base) register to memory. The B register typically points to the current stack frame or data segment, and storing it is essential for context switching and debugging.
 
-**Operation:** Transfers data between operands.
+**Operation:**
+```
+B → <destination>
+```
+
+**Key Characteristics:**
+- Stores current local base frame pointer
+- Essential for context switching and unwinding
+- Used in debugging and profiling
+- Enables nested function calls
+- Critical for stack frame management
+- Common in function prologues and exception handlers
 
 **Operands:** 2
 **Variants:** Multiple (all data types)

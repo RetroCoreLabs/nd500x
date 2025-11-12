@@ -15,6 +15,16 @@
 
 Sets a specified bit in an operand to 1, regardless of its previous value. Only the specified bit is affected; all other bits in the operand remain unchanged.
 
+**Key Characteristics:**
+- Unconditional bit set operation (always sets to 1)
+- Single-instruction bit manipulation (no register required)
+- Supports 3 data types: BY (8-bit), H (16-bit), W (32-bit)
+- More efficient than PUTBI for known bit sets
+- All status flags cleared (Z, S, O, C all 0)
+- Essential for flag enabling and hardware control
+- Not atomic (requires synchronization in multiprocessor systems)
+- Traps on out-of-range bit numbers
+
 The bit number specifies which bit to set, with bit numbering following the ND-500 convention where bit 0 is the rightmost (least significant) bit. The operand can be a byte (BY), halfword (H), or word (W) data type.
 
 Unlike PUTBI which stores a register bit value, SETBI unconditionally sets the target bit to 1. This makes it more efficient when you know you want to set a bit without first loading a register.

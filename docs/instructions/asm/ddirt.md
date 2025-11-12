@@ -14,8 +14,6 @@
 
 Writes all data marked as 'dirty' in the data cache back to main memory. This privileged instruction ensures memory consistency by flushing modified cache lines. Data becomes dirty when it is written to the cache but not yet written back to memory. If no data cache is present in the system, the instruction executes as a no-operation.
 
-This instruction is critical for maintaining memory coherence in systems with write-back caches. It is used before context switches, I/O operations, and when memory consistency must be guaranteed. The instruction is part of the '87 architecture extension.
-
 **Operation:**
 ```
 For each cache line:
@@ -23,6 +21,19 @@ For each cache line:
         write cache_line → memory
         clear dirty_bit
 ```
+
+**Key Characteristics:**
+- Supervisor-only cache management instruction
+- Flushes all dirty cache lines to memory
+- Ensures memory consistency for write-back caches
+- No-op if no data cache present
+- Part of '87 architecture extension
+- 5-50 cycles (depends on number of dirty lines)
+- Critical for I/O and context switch coherence
+- No operands required (implicit cache operation)
+- May cause memory bus contention during flush
+
+This instruction is critical for maintaining memory coherence in systems with write-back caches. It is used before context switches, I/O operations, and when memory consistency must be guaranteed. The instruction is part of the '87 architecture extension.
 
 **Common Use Cases:**
 - Cache flush before context switch

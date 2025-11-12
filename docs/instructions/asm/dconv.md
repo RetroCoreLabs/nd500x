@@ -15,6 +15,22 @@
 
 Converts a source operand of any supported type (BI, BY, H, W, F) to 64-bit IEEE 754 double-precision floating-point format and stores the result in the destination.
 
+**Operation:**
+```
+<dest> = (double)<source>
+```
+
+**Key Characteristics:**
+- Lossless type converter to IEEE 754 double-precision
+- 5 source types supported (BI, BY, H, W, F)
+- All 32-bit integers represented exactly (2⁵³ > 2³²)
+- Float to double exact (no precision loss)
+- Never traps on IOV (all sources fit in double range)
+- Safest numeric conversion instruction
+- Essential for high-precision arithmetic
+- 7-12 cycles (integer 7-9, float 10-12)
+- Never sets overflow flag
+
 The conversion handles:
 - **Integer to double:** Exact conversion (doubles can represent all 32-bit integers exactly)
 - **Float to double:** Exact widening conversion without loss

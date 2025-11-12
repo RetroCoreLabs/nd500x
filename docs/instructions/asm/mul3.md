@@ -15,6 +15,21 @@
 
 Multiplies the `<a>` operand by the `<b>` operand and stores the product in the `<c>` operand (destination). This is a non-destructive three-operand multiply - neither source operand is modified.
 
+**Operation:**
+```
+<c> = <a> * <b>
+```
+
+**Key Characteristics:**
+- Non-destructive three-operand multiplication (sources preserved)
+- Supports 5 data types (BY, H, W, F, D)
+- Essential for scaling and area calculations
+- More flexible than MUL2 (explicit destination)
+- Integer overflow when upper half ≠ sign extension
+- Sets Z, S, O flags for overflow detection
+- Slightly slower than MUL2 (extra operand encoding)
+- Common in physics and graphics calculations
+
 For integer types (BY, H, W), integer overflow occurs if the upper half of the double-length result is not equal to the sign extension of the lower half. For floating point types (F, D), overflow and underflow traps may occur.
 
 The operands are assumed to have the same data type. This instruction is commonly used when you need to preserve both multiplicands while computing their product.

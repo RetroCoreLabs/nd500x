@@ -15,6 +15,25 @@
 
 Enters a simple subroutine by allocating the specified amount of stack space for local variables. This is the most common subroutine entry mechanism.
 
+**Operation:**
+```
+1. Save return address on stack
+2. Save previous frame pointer
+3. Allocate <stack demand> words for locals
+4. Set up new frame pointer
+```
+
+**Key Characteristics:**
+- Most common subroutine entry mechanism
+- Single operand (stack demand in words)
+- Standard C-style function prologue
+- Allocates local variable space on stack
+- STO trap on insufficient stack
+- Paired with RET for function exit
+- 3-5 cycles execution time
+- No nested scope support (see ENTD for that)
+- Essential for standard function calls
+
 ENTS:
 1. Saves return address on stack
 2. Saves previous frame pointer

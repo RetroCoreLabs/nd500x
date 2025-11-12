@@ -15,6 +15,16 @@
 
 Initializes the system stack by setting up the base register (B), stack pointer (SP), and top-of-stack register (TOS) according to the three operands. This instruction is typically executed once at program startup to establish the stack environment for the main program.
 
+**Key Characteristics:**
+- Single-instruction stack initialization (replaces ~6 operations)
+- Sets B, TOS, L registers and stack frame fields
+- Automatic overflow detection (trap if main_demand >= total_demand)
+- Essential for program startup and context creation
+- Initializes both main and system stack spaces
+- Clears linkage fields (PREVB, RETA) for clean startup
+- Prevents stack corruption via demand validation
+- Typically first instruction in main program
+
 The instruction performs the following operations:
 1. Loads B register with bottom-of-stack address
 2. Sets TOS = bottom_of_stack + total_system_demand

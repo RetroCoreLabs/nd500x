@@ -22,6 +22,16 @@ Transfers control to supervisor mode code at the specified address, saving the c
 4. Enter SOLO mode (single-CPU execution)
 5. Return CPU number → W1
 
+**Key Characteristics:**
+- User-to-supervisor mode transition mechanism
+- Automatic context save (PC and B register)
+- Enters SOLO mode (exclusive CPU access)
+- Returns CPU number in W1
+- Essential for system calls and OS services
+- ND-500/'87 extension instruction
+- Cannot trap (guaranteed execution)
+- Similar to syscall/trap on other architectures
+
 This is an ND-500/'87 extension instruction that implements the user-to-supervisor transition mechanism. It's conceptually similar to system calls (syscall/trap) on other architectures, providing controlled entry into privileged code for OS services like I/O, memory management, and process control.
 
 **Common Use Cases:**

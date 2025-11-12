@@ -13,9 +13,20 @@
 
 ## Description
 
-Stores the Process segment to the specified operand. System register store operation.
+Stores the PS (Process Segment) register to the specified operand. PS contains the segment number of the current process's data segment, used in memory segmentation and addressing.
 
-**Operation:** `<operand> = PS`
+**Operation:**
+```
+PS → <operand>
+```
+
+**Key Characteristics:**
+- Stores process data segment identifier
+- Essential for memory segmentation
+- Used in context switching and debugging
+- Controls process memory space
+- Supervisor or user privilege depending on mode
+- Part of process state management
 
 **Operands:** 1
 **Variants:** 1

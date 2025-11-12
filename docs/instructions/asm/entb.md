@@ -13,17 +13,32 @@
 
 ## Description
 
-Enters a block-structured subroutine by allocating a stack frame from the buddy system heap. The frame size is 2^`<log size>` words.
+Enters a block-structured subroutine by allocating a stack frame from the buddy system heap. The frame size is 2^`<log size>` words (e.g., log size 6 allocates 64 words).
 
-ENTB is used for subroutines that need dynamically-sized stack frames allocated from the heap rather than the contiguous stack. This is typically used in:
+**Operation:**
+```
+Allocate 2^<log size> words from buddy heap
+Save return address and frame pointer
+Set up new frame pointer to allocated block
+```
+
+**Key Characteristics:**
+- Heap-based stack frames (not contiguous stack)
+- Power-of-2 block sizes via buddy allocator
+- Dynamic allocation at call time
+- Paired with RETB or RETBK (automatic deallocation)
+- Supports deep/unpredictable recursion
+- Isolated from stack overflow
+
+**Common Use Cases:**
 - Recursive algorithms with unpredictable depth
 - Subroutines requiring large local variable space
 - Dynamic memory management routines
+- Procedures needing isolated stack frames
+- Algorithms with variable memory needs
 
-The instruction allocates a block using the buddy system (similar to GETB), saves the return address, and sets up the new stack frame pointer.
-
-**Operands:** 1
-**Variants:** 1 opcode(s)
+**Operands:** 1 (log2 of frame size)
+**Variants:** 1 opcode
 
 ---
 

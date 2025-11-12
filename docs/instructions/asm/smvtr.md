@@ -15,6 +15,28 @@
 
 Copies bytes from a source string to a destination string while translating each byte through a 256-byte translation table. This instruction is essential for character set conversions (e.g., EBCDIC to ASCII), case conversions, and character mapping operations.
 
+**Operation:**
+```
+while (source not empty and dest not full):
+    src_byte = source[I1]
+    translated = trans_table[src_byte]
+    dest[I2] = translated
+    I1 = I1 + 1
+    I2 = I2 + 1
+K = (dest full) ? 1 : 0
+```
+
+**Key Characteristics:**
+- String copy with character-by-character translation
+- Uses 256-byte translation table (one entry per byte value)
+- Uses I1 (source index) and I2 (dest index) implicitly
+- K=1 if destination full, K=0 if source empty
+- Handles overlapping source/dest correctly
+- DR trap on descriptor range violation
+- Essential for character set conversion (EBCDIC↔ASCII)
+- Used for case conversion, cipher, character filtering
+- O(n) complexity where n = bytes transferred
+
 SMVTR reads bytes sequentially from the `<source>` operand using I1 as the index pointer. Each source byte value is used as an index into the translation table to retrieve the translated byte value. The translated value is then written to the `<dest>` operand at the position indicated by I2. Both I1 and I2 are automatically incremented after each byte transfer.
 
 The operation continues until either the source string is exhausted or the destination buffer becomes full. The instruction handles overlapping source and destination regions correctly, ensuring data integrity during in-place transformations.

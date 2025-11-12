@@ -15,6 +15,16 @@
 
 Copies a block of elements from source to destination, or fills destination with a constant value. This is the fundamental bulk memory operation in the ND-500 architecture, optimized for efficient data transfer and initialization.
 
+**Key Characteristics:**
+- Hardware-accelerated bulk memory operation
+- Dual mode: copy (memory→memory) or fill (value→memory)
+- Automatic overlap handling (safe for same buffer)
+- 5 data types (BY, H, W, F, D) supported
+- 10-100x faster than manual loops
+- Essential for memcpy/memset functionality
+- All status flags cleared after execution
+- Optimized for word-aligned transfers
+
 **Two Operating Modes:**
 
 1. **Block Copy** (source is memory): Copies `count` elements from source array to destination array

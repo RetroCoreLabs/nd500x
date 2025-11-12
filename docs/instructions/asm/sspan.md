@@ -15,6 +15,30 @@
 
 Scans through a string, translating each byte via a translation table and testing the result against a bit mask, advancing while `(translated_byte AND mask) != 0`. The scan continues as long as the masked condition holds true, and terminates when a byte fails the condition or the end of the string is reached.
 
+**Operation:**
+```
+while (source[I1] not at end):
+    translated = trans_table[byte]
+    if ((translated AND mask) == 0):
+        Z=1, I1 = position
+        return
+    I1++
+I1 = end of string
+Z = 0
+```
+
+**Key Characteristics:**
+- String span (skip while) with translation and mask test
+- Uses 256-byte translation table
+- Uses I1 as implicit index register (auto-incremented)
+- Z=1 if terminating byte found (translated & mask = 0)
+- Z=0 if source exhausted (all bytes passed condition)
+- K flag always cleared to 0
+- Complement of SSCAN (span while vs find first where)
+- DR trap on descriptor range violation
+- Essential for token scanning and property-based skipping
+- O(n) complexity where n = bytes spanned
+
 SSPAN is the "span while" complement to SSCAN's "find first where" operation. While SSCAN searches for the first byte where the masked translation is non-zero, SSPAN skips over all such bytes and stops at the first byte where the masked translation equals zero.
 
 The operation proceeds as follows for each byte:

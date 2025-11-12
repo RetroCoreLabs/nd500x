@@ -15,7 +15,20 @@
 
 Adds the `<operand>` to the specified register and stores the result in that register. This is the operator syntax equivalent of ADD2, providing a more natural mathematical notation for register-based arithmetic.
 
-Operation: `Rn = Rn + <operand>`
+**Operation:**
+```
+Rn = Rn + <operand>
+```
+
+**Key Characteristics:**
+- Register-based addition (implicit destination in Rn)
+- Operator syntax (`+`) for natural mathematical notation
+- Supports 5 data types (BY, H, W, F, D)
+- Works with 4 index registers (I1-I4)
+- Sets carry (C) and overflow (V) flags for integers
+- Floating-point overflow/underflow traps for F/D types
+- More concise than ADD2 instruction for register operations
+- Common in loop counters and accumulator patterns
 
 For integer types (BY, H, W), carry and overflow flags are set appropriately. For floating point types (F, D), overflow and underflow traps may occur.
 

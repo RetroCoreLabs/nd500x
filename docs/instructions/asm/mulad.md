@@ -21,6 +21,16 @@ result = 0 → Z flag
 result.signbit → S flag
 ```
 
+**Key Characteristics:**
+- Fused multiply-add (FMA) in single instruction
+- Three-operand operation (Rn implicit, x and y explicit)
+- Register-based destination (I1-I4 only)
+- Supports 5 data types (BY, H, W, F, D)
+- More efficient than separate MUL + ADD (fewer cycles, better precision)
+- Atomic operation (no intermediate rounding for float/double)
+- Essential for DSP, matrix operations, and polynomial evaluation
+- Common in time/unit conversions and linear interpolation
+
 **Common Use Cases:**
 - Time calculations (hours × 60 + minutes)
 - Unit conversions with offsets

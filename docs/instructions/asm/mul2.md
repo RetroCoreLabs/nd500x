@@ -15,6 +15,22 @@
 
 Multiplies the `<a>` operand by the `<b>` operand and stores the product in the `<a>` operand (destination). This is a destructive operation - the original value of `<a>` is overwritten.
 
+**Operation:**
+```
+<a> = <a> * <b>
+```
+
+**Key Characteristics:**
+- Destructive two-operand multiplication (first operand overwritten)
+- 5 data types supported (BY, H, W, F, D)
+- Integer overflow when upper half ≠ sign extension
+- Float types may trap on overflow/underflow
+- Essential for in-place scaling and accumulation
+- Faster than MUL3 (fewer operand encodings, 4-7 cycles)
+- Common in array indexing and coefficient scaling
+- Overflow detection via O flag (integer) or trap (float)
+- First operand must be writeable (not constant)
+
 For integer types (BY, H, W), integer overflow occurs if the upper half of the double-length result is not equal to the sign extension of the lower half. For floating point types (F, D), overflow and underflow traps may occur.
 
 The operands are assumed to have the same data type. This instruction is commonly used for in-place multiplication operations where the first operand can be modified.

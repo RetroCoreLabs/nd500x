@@ -13,9 +13,20 @@
 
 ## Description
 
-Transfers control if S=1 or Z=1. Used after comparison/test operations.
+Transfers control if S=1 or Z=1 (less than or equal, signed comparison). Tests that sign flag is set OR zero flag is set, indicating the first operand is less than or equal to the second in signed arithmetic.
 
-**Operation:** `if S=1 or Z=1 then PC += displacement`
+**Operation:**
+```
+if S=1 or Z=1 then PC += displacement
+```
+
+**Key Characteristics:**
+- Tests signed comparison (two's complement)
+- Requires S=1 (sign set) OR Z=1 (equal)
+- Follows COMP or TEST with signed operands
+- Two displacement ranges (byte: ±127, halfword: ±32767)
+- Pipeline flush on taken branch
+- Common in loop bounds and signed range checking
 
 **Operands:** 1
 **Variants:** 2
