@@ -15,6 +15,22 @@
 
 Calculates the natural logarithm (base e = 2.718281828459045...) of the argument and loads the result into the specified float or double float register.
 
+**Operation:**
+```
+Fn/Dn = ln(<argument>)
+```
+
+**Key Characteristics:**
+- Hardware-accelerated natural logarithm (base e)
+- Argument must be positive (> 0)
+- IVO trap on non-positive argument (result = -5.8×10⁷⁶)
+- Inverse of exponential function (ln(eˣ) = x)
+- 8 register variants (F1-F4, D1-D4)
+- 180-220 cycles (complex transcendental function)
+- Essential for entropy, growth/decay, statistics
+- Z flag set when result = 0 (e.g., ln(1) = 0)
+- Result loaded into specified float/double register
+
 The argument must be positive (> 0). Zero or negative values cause an invalid operation (IVO) trap condition and the result is set to -5.8×10⁷⁶ (largest negative floating point number).
 
 The natural logarithm is the inverse of the exponential function: if y = ln(x), then x = eʸ. It's commonly used in mathematics, physics, engineering, and data analysis for growth/decay calculations, entropy, information theory, and statistical distributions.
