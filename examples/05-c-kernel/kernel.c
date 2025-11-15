@@ -120,6 +120,12 @@ int hz = 100;           /* Clock frequency (ticks per second) */
 char version[] = "NDIX-C Simulated Kernel v1.0 for ND-500\n";
 
 /*
+ * Stack area for kernel (64KB)
+ * Must be allocated before kernel initialization
+ */
+char stack_area[65536];     /* 64KB stack space */
+
+/*
  * Kernel initialization data at fixed addresses
  * These simulate the shared memory region at 0x30000000
  */
@@ -150,6 +156,10 @@ void trap_handler();        /* Trap/exception handler */
  */
 void start()
 {
+    /* Initialize stack before any function calls */
+    /* INIT instruction sets up B, TOS, and creates initial stack frame */
+    asm("init _stack_area,$4096,$65536");
+
     /* Initialize kernel subsystems */
     init_kernel();
 
