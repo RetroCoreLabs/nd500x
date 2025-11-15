@@ -1,41 +1,74 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Clr instruction - MOVE class
- * 
+ *
+ * Clear Register to Zero: 0 → Rn
+ *
  * Variants: 6
- * Mnemonics: clr clr clr clr clr clr
- * Operands: 0
- * 
+ * Mnemonics: clr
+ * Operands: 0 (no operands)
+ *
  * Opcodes:
- *   0x0084 (clr)
- *   0x0084 (clr)
- *   0x0084 (clr)
- *   0x0084 (clr)
- *   0x0088 (clr)
- *   0x008C (clr)
+ *   0x0084 (BIn clr) bit register clear
+ *   0x0084 (BYn clr) byte register clear
+ *   0x0084 (Hn clr)  halfword register clear
+ *   0x0084 (Wn clr)  word register clear
+ *   0x0088 (Fn clr)  float register clear
+ *   0x008C (Dn clr)  double float register clear
+ *
+ * Operation: 0 → Rn
+ *
+ * Description:
+ *   The register is set to all zeroes. For all integer data types,
+ *   the entire register is cleared.
+ *
+ *   Register selection is encoded in opcode bits 1-0:
+ *   - 00 → register 1 (I1, A1)
+ *   - 01 → register 2 (I2, A2)
+ *   - 10 → register 3 (I3, A3)
+ *   - 11 → register 4 (I4, A4)
+ *
+ *   For integer variants: Uses I1-I4 registers
+ *   For float/double: Uses A1-A4 (float) or D1-D4 (A+E pairs, double)
+ *
+ * Flags: Z (zero), S (sign)
+ *   Z = 1 (always, result is zero)
+ *   S = 0 (always, result is positive zero)
+ *
+ * Trap conditions:
+ *   - None
+ *
+ * Reference: ND-500 Reference Manual, Chapter 10.16
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Clr.cs
  */
 void nd500_instr_Clr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Clr instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 0
-     * - Access operands via: fi->operands[0..-1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Clr instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    if (fi->target_register < 1 || fi->target_register > 4) {
+        printf("[ERROR] Clr at PC=0x%08X: Invalid target register %u\n",
+               fi->address, fi->target_register);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    // Clear target register to zero
+    if (fi->uses_float_registers) {
+        // Float/double: Write zero to A or D register
+        nd500_write_float_register(cpu, fi->target_register, 0);
+        if (fi->data_type == ND500_DTYPE_DOUBLEWORD) {
+            // For double, also clear E register
+            nd500_write_double_register(cpu, fi->target_register, 0);
+        }
+    } else {
+        // Integer: Write zero to I register
+        nd500_write_integer_register(cpu, fi->target_register, 0);
+    }
+
+    // Set Z flag to 1 (result is always zero)
+    cpu->ST1 |= ND500_FLAG_Z;
+
+    // Clear S flag (result is always positive zero)
+    cpu->ST1 &= ~ND500_FLAG_S;
 }

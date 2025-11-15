@@ -1,40 +1,125 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Add3 instruction - ARITHMETIC class
- * 
- * Variants: 5
- * Mnemonics: add3 add3 add3 add3 add3
- * Operands: 3
- * 
+ *
+ * Extended Add (Three Operands): <a> + <b> → <c>
+ *
+ * Variants: 5 (by data type and register)
+ * Mnemonics: BYn ADD3, Hn ADD3, Wn ADD3, Fn ADD3, Dn ADD3 (n=1..4)
+ * Operands: 3 (<a/r/t>, <b/r/t>, <c/w/t>)
+ *
  * Opcodes:
- *   0xFC67 (add3)
- *   0xFC68 (add3)
- *   0xFC69 (add3)
- *   0xFC6A (add3)
- *   0xFC6B (add3)
+ *   0xFC44-0xFC47 (BY1 ADD3 through BY4 ADD3) - Byte extended add
+ *   0xFC48-0xFC4B (H1 ADD3 through H4 ADD3) - Halfword extended add
+ *   0x006C-0x006F (W1 ADD3 through W4 ADD3) - Word extended add
+ *   0x0070-0x0073 (F1 ADD3 through F4 ADD3) - Float extended add
+ *   0x0074-0x0077 (D1 ADD3 through D4 ADD3) - Double extended add
+ *
+ * Operation: <a> + <b> → <c>
+ *
+ * Description:
+ *   The <a> operand is added to the <b> operand and the result is stored
+ *   in the <c> operand location. This is a three-operand version that allows
+ *   addition without affecting any register contents.
+ *
+ * Flags: Z (zero), S (sign), C (carry), O (overflow)
+ *   Z = 1 if result is zero
+ *   S = 1 if result sign bit is set
+ *   C = 1 if carry from most significant bit (integer only)
+ *   O = 1 if overflow
+ *
+ * Trap conditions:
+ *   - Addressing traps
+ *   - Integer overflow (O)
+ *   - Floating overflow (FO)
+ *   - Floating underflow (FU)
+ *
+ * Reference: ND-500 Reference Manual, Chapter 11 (Extended Arithmetic)
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Add3.cs
  */
 void nd500_instr_Add3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Add3 instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 3
-     * - Access operands via: fi->operands[0..2]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Add3 instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    /* Validate operand count (like C# lines 54-58) */
+    if (fi->operand_count != 3) {
+        printf("[ERROR] ADD3 at PC=0x%08X: Expected 3 operands, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Handle float/double types - DEFERRED */
+    if (fi->uses_float_registers) {
+        printf("[DEFERRED] ADD3 at PC=0x%08X: Float/Double operations not yet implemented\n",
+               fi->address);
+        /* For now, just skip - will implement when float conversion helpers are ready */
+        return;
+    }
+
+    uint64_t aValue, bValue, result;
+    bool overflow = false;
+    bool carry = false;
+
+    /* Read operand a value (like C# line 61) */
+    aValue = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+
+    /* Read operand b value (like C# line 64) */
+    bValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+
+    /* Perform addition: a + b (like C# lines 66-103) */
+    switch (fi->data_type) {
+        case ND500_DTYPE_BYTE: {
+            /* Signed byte addition (like C# lines 73-81) */
+            int8_t aByte = (int8_t)(aValue & 0xFF);
+            int8_t bByte = (int8_t)(bValue & 0xFF);
+            int32_t sum = (int32_t)aByte + (int32_t)bByte;
+            result = (uint64_t)(uint8_t)(sum & 0xFF);
+            overflow = (sum < -128 || sum > 127);
+            carry = ((sum & 0x100) != 0);
+            break;
+        }
+
+        case ND500_DTYPE_HALFWORD: {
+            /* Signed halfword addition (like C# lines 84-92) */
+            int16_t aHalf = (int16_t)(aValue & 0xFFFF);
+            int16_t bHalf = (int16_t)(bValue & 0xFFFF);
+            int32_t sum = (int32_t)aHalf + (int32_t)bHalf;
+            result = (uint64_t)(uint16_t)(sum & 0xFFFF);
+            overflow = (sum < -32768 || sum > 32767);
+            carry = ((sum & 0x10000) != 0);
+            break;
+        }
+
+        case ND500_DTYPE_WORD: {
+            /* Signed word addition (like C# lines 95-103) */
+            int32_t aWord = (int32_t)(aValue & 0xFFFFFFFF);
+            int32_t bWord = (int32_t)(bValue & 0xFFFFFFFF);
+            int64_t sum = (int64_t)aWord + (int64_t)bWord;
+            result = (uint64_t)(uint32_t)(sum & 0xFFFFFFFF);
+            overflow = (sum < INT32_MIN || sum > INT32_MAX);
+            carry = ((sum & 0x100000000LL) != 0);
+            break;
+        }
+
+        default:
+            printf("[ERROR] ADD3 at PC=0x%08X: Unsupported data type %d\n",
+                   fi->address, fi->data_type);
+            trap_illegal_operand(cpu, fi->address);
+            return;
+    }
+
+    /* Write result to operand c location (like C# line 144) */
+    nd500_write_operand_value(cpu, &fi->operands[2], result, fi->data_type);
+
+    /* Update status flags based on result (like C# lines 146-150) */
+    nd500_set_flags_zsco(cpu, result, fi->data_type, carry, overflow);
+
+    /* Handle trap conditions (like C# lines 152-164) */
+    if (overflow) {
+        printf("[TRAP] ADD3 at PC=0x%08X: Integer overflow\n", fi->address);
+        trap_invalid_operation(cpu, fi->address);
+        return;
+    }
 }

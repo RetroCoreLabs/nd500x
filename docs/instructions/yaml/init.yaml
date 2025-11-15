@@ -104,9 +104,9 @@ instruction:
 
       **Example:**
 
-      Initialize a new stack at FRAME, requiring 010000H stack locations for the system, 01000H for the main program
+      Initialize a new stack at FRAME, requiring 01000H for the main program, 010000H total system stack demand
 
-          INIT FRAME, 010000H, 01000H
+          INIT FRAME, 01000H, 010000H
 
       Norsk Data ND-05.009.4 EN
 

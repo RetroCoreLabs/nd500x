@@ -1,33 +1,35 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Retd instruction - CALL class
- * 
- * Mnemonic: retd
+ *
+ * Return Direct - Return from ENTD subroutine.
+ * Simplest return instruction with no stack frame to unwind.
+ *
+ * Mnemonic: RETD
  * Operands: 0
  * Opcode: 0x0082
+ *
+ * Operation:
+ *   PC ← L (restore program counter from link register)
+ *
+ * This instruction is paired with ENTD. Since ENTD doesn't create a stack
+ * frame, RETD simply restores PC from the L register which contains the
+ * return address.
+ *
+ * No stack frame operations are performed.
+ * B register remains unchanged (still points to caller's frame).
+ *
+ * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Retd.cs
  */
 void nd500_instr_Retd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Retd instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 0
-     * - Access operands via: fi->operands[0..-1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Retd instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
-    }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+    /* Simply restore PC from L register */
+    cpu->PC = cpu->L;
+
+    /* No stack frame to unwind */
+    /* B register unchanged */
+    /* L register unchanged (still contains return address) */
 }

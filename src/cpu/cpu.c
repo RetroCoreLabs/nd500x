@@ -42,6 +42,11 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	/* Initialize MMU registers */
 	cpu->PSTP = cpu->DITBASE = cpu->CED = cpu->CAD = cpu->PS = 0;
 
+	/* Clear CALL/ENT handshake state */
+	cpu->pending_call_return_address = 0;
+	cpu->pending_call_arg_count = 0;
+	memset(cpu->pending_call_arg_addresses, 0, sizeof(cpu->pending_call_arg_addresses));
+
 	/* Clear any pending traps */
 	nd500_trap_clear();
 }

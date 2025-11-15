@@ -294,3 +294,5 @@ When running `./build/bin/nd500x --debug`, the REPL supports:
 - Pre-generated dispatch table files (`nd500_instructions.{c,h}`) are committed to repository
 - Instruction stubs organized in `src/cpu/instructions/<CLASS>/<FunctionName>.c` (241 functions across 13 classes)
 - Use snake_case for function names, UPPER_CASE for macros/constants
+- MAKE SURE the ported instructions looks like the c# code a smuch as possible. If we are missing decoding or helper
+functions then we make it. ASK ME if you are unsure. ANalyse, and do not duplicate code

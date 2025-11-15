@@ -1,41 +1,125 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Comp2 instruction - COMPARE class
- * 
- * Variants: 6
- * Mnemonics: comp2 comp2 comp2 comp2 comp2 comp2
- * Operands: 2
- * 
+ *
+ * Compare two operands (subtract second from first, discard result).
+ * op1 - op2 (result discarded, flags updated)
+ *
+ * Variants: 6 (by data type)
+ * Mnemonics: BI COMP2, BY COMP2, H COMP2, W COMP2, F COMP2, D COMP2
+ * Operands: 2 (operand1, operand2)
+ *
  * Opcodes:
- *   0xFC15 (comp2)
- *   0x002D (comp2)
- *   0xFC16 (comp2)
- *   0x002E (comp2)
- *   0x002F (comp2)
- *   0x0040 (comp2)
+ *   0xFC15 (BI COMP2) - Bit compare
+ *   0x002D (BY COMP2) - Byte compare
+ *   0xFC16 (H COMP2) - Halfword compare
+ *   0x002E (W COMP2) - Word compare
+ *   0x002F (F COMP2) - Float compare (NOT IMPLEMENTED)
+ *   0x0040 (D COMP2) - Double compare (NOT IMPLEMENTED)
+ *
+ * Operation: op1 - op2 (result not stored)
+ *
+ * Description:
+ *   The compare two operands instruction subtracts the second operand
+ *   from the first. The result sets the data status bits accordingly,
+ *   but the result is otherwise discarded.
+ *
+ * Flags: Z (zero), S (sign XOR overflow), C (carry/borrow)
+ *   Z = 1 if result is zero (operands are equal)
+ *   S = sign_bit XOR overflow (true comparison)
+ *   C = 1 if borrow occurred (op1 < op2 for unsigned)
+ *
+ * Trap conditions: Addressing traps, Floating underflow (FU), Floating overflow (FO)
+ *
+ * Reference: ND-500 Reference Manual, Chapter 10.10
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/COMPARE/Comp2.cs
  */
 void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Comp2 instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 2
-     * - Access operands via: fi->operands[0..1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Comp2 instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    /* Validate operand count */
+    if (fi->operand_count != 2) {
+        printf("[ERROR] COMP2 at PC=0x%08X: Expected 2 operands, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Read both operands (like C# lines 49-50) */
+    uint64_t op1 = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    uint64_t op2 = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+
+    /* Perform subtraction (result not stored) (like C# line 53) */
+    uint64_t result = op1 - op2;
+
+    /* Detect carry (borrow) (like C# line 56) */
+    bool carry = (op1 < op2);
+
+    /* Detect overflow (like C# line 57) */
+    /* For subtraction overflow: overflow occurs when:
+     * - Subtracting positive from negative gives positive (sign flip)
+     * - Subtracting negative from positive gives negative (sign flip) */
+    bool overflow = false;
+    switch (fi->data_type) {
+        case ND500_DTYPE_BYTE: {
+            int8_t s_op1 = (int8_t)op1;
+            int8_t s_op2 = (int8_t)op2;
+            int8_t s_result = (int8_t)result;
+            overflow = ((s_op1 >= 0 && s_op2 < 0 && s_result < 0) ||
+                       (s_op1 < 0 && s_op2 >= 0 && s_result >= 0));
+            break;
+        }
+        case ND500_DTYPE_HALFWORD: {
+            int16_t s_op1 = (int16_t)op1;
+            int16_t s_op2 = (int16_t)op2;
+            int16_t s_result = (int16_t)result;
+            overflow = ((s_op1 >= 0 && s_op2 < 0 && s_result < 0) ||
+                       (s_op1 < 0 && s_op2 >= 0 && s_result >= 0));
+            break;
+        }
+        case ND500_DTYPE_WORD: {
+            int32_t s_op1 = (int32_t)op1;
+            int32_t s_op2 = (int32_t)op2;
+            int32_t s_result = (int32_t)result;
+            overflow = ((s_op1 >= 0 && s_op2 < 0 && s_result < 0) ||
+                       (s_op1 < 0 && s_op2 >= 0 && s_result >= 0));
+            break;
+        }
+        default:
+            overflow = false;
+            break;
+    }
+
+    /* Update Z flag (like C# line 60) */
+    if (result == 0) {
+        cpu->FLAGS |= ND500_FLAG_Z;
+    } else {
+        cpu->FLAGS &= ~ND500_FLAG_Z;
+    }
+
+    /* Update C flag (like C# line 61) */
+    if (carry) {
+        cpu->FLAGS |= ND500_FLAG_C;
+    } else {
+        cpu->FLAGS &= ~ND500_FLAG_C;
+    }
+
+    /* Get sign bit (like C# lines 64-73) */
+    bool sign_bit = false;
+    switch (fi->data_type) {
+        case ND500_DTYPE_BYTE:      sign_bit = (result & 0x80) != 0; break;
+        case ND500_DTYPE_HALFWORD:  sign_bit = (result & 0x8000) != 0; break;
+        case ND500_DTYPE_WORD:      sign_bit = (result & 0x80000000ULL) != 0; break;
+        case ND500_DTYPE_DOUBLEWORD: sign_bit = (result & 0x8000000000000000ULL) != 0; break;
+    }
+
+    /* S = sign_bit XOR overflow (like C# line 74) */
+    bool s_flag = sign_bit ^ overflow;
+    if (s_flag) {
+        cpu->FLAGS |= ND500_FLAG_S;
+    } else {
+        cpu->FLAGS &= ~ND500_FLAG_S;
+    }
 }

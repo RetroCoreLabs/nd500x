@@ -315,7 +315,7 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
 	out->opcode = opcode;
 	out->opcode_len = (uint8_t)oplen;
 	out->mnemonic = nd500_instr_mnemonic(opcode);
-    
+
     /* Capture bytes as we read them */
     out->bytes[0] = b0;
     if (oplen == 2) out->bytes[1] = b1;
@@ -325,6 +325,34 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     if (opcode == 0 || !out->mnemonic || strcmp(out->mnemonic, "???") == 0) {
         out->total_len = out->opcode_len;
         return 0;
+    }
+
+    /* Extract metadata from InstrMeta table (like C# FetchedInstruction) */
+    const InstrMeta* instr_meta = lookup(opcode);
+    if (instr_meta) {
+        /* Extract target register from opcode low bits (I1-I4, A1-A4, etc.) */
+        /* Registers are numbered 1-4 (I1=1, I2=2, I3=3, I4=4) to match C# */
+        out->target_register = ((opcode & 0x03) + 1);
+
+        /* Extract data type from variant number: 0=BI, 1=BY, 2=H, 3=W, 4=F, 5=D */
+        uint8_t variant = instr_meta->variant;
+        switch (variant) {
+            case 0: out->data_type = ND500_DTYPE_BYTE; break;       /* BI */
+            case 1: out->data_type = ND500_DTYPE_BYTE; break;       /* BY */
+            case 2: out->data_type = ND500_DTYPE_HALFWORD; break;   /* H */
+            case 3: out->data_type = ND500_DTYPE_WORD; break;       /* W */
+            case 4: out->data_type = ND500_DTYPE_WORD; break;       /* F (float - stored as word) */
+            case 5: out->data_type = ND500_DTYPE_DOUBLEWORD; break; /* D (double) */
+            default: out->data_type = ND500_DTYPE_WORD; break;
+        }
+
+        /* Determine if this uses float registers (F or D variants) */
+        out->uses_float_registers = (variant == 4 || variant == 5);
+    } else {
+        /* No metadata - defaults */
+        out->target_register = 0;
+        out->data_type = ND500_DTYPE_WORD;
+        out->uses_float_registers = false;
     }
     uint32_t cursor = pc + out->opcode_len;
     
