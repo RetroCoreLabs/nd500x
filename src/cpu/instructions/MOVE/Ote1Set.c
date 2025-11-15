@@ -1,33 +1,59 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Ote1Set instruction - MOVE class
- * 
- * Mnemonic: ote1:=
- * Operands: 1
+ *
+ * Load OTE1 Register: <source> → OTE1
+ *
+ * Variants: 1
+ * Mnemonics: ote1:=
+ * Operands: 1 (<source/r/t>)
+ *
  * Opcode: 0xFDBB
+ *
+ * Operation: <source> → regs.OTE1
+ *
+ * Description:
+ *   Reads the source operand as a word (32-bit) and stores it to the OTE1
+ *   (Object Table Entry 1) register. Updates Z and S flags based on the value.
+ *
+ *   The OTE registers contain object table entry information used for
+ *   object-oriented programming support and descriptor management.
+ *
+ * Flags: Z (zero), S (sign)
+ *   Z = 1 if value is zero
+ *   S = 1 if bit 31 is set (word sign bit)
+ *
+ * Trap conditions:
+ *   - Addressing traps
+ *
+ * Reference: ND-500 Reference Manual, Chapter 10
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Ote1Set.cs
  */
 void nd500_instr_Ote1Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Ote1Set instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 1
-     * - Access operands via: fi->operands[0..0]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Ote1Set instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    if (fi->operand_count != 1) {
+        printf("[ERROR] Ote1Set at PC=0x%08X: Expected 1 operand, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    uint32_t value = nd500_read_operand_word(cpu, &fi->operands[0]);
+    cpu->OTE1 = value;
+
+    // Set Z and S flags based on the value
+    if (value == 0) {
+        cpu->ST1 |= ND500_FLAG_Z;
+    } else {
+        cpu->ST1 &= ~ND500_FLAG_Z;
+    }
+
+    if ((value & 0x80000000) != 0) {
+        cpu->ST1 |= ND500_FLAG_S;
+    } else {
+        cpu->ST1 &= ~ND500_FLAG_S;
+    }
 }

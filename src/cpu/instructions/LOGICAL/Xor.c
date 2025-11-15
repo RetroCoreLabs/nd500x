@@ -1,39 +1,60 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Xor instruction - LOGICAL class
- * 
- * Variants: 4
- * Mnemonics: xor xor xor xor
- * Operands: 1
- * 
+ *
+ * Bitwise XOR of register with operand. Rn = Rn XOR operand
+ *
+ * Variants: 4 (by data type and register)
+ * Mnemonics: BIn XOR, BYn XOR, Hn XOR, Wn XOR (n=1..4)
+ * Operands: 1 (value to XOR)
+ *
  * Opcodes:
- *   0xFDFC (xor)
- *   0xFCA0 (xor)
- *   0xFCA4 (xor)
- *   0x00A4 (xor)
+ *   0xFDF0-0xFDF3 (BI1 XOR through BI4 XOR) - Bit XOR
+ *   0xFCA0-0xFCA3 (BY1 XOR through BY4 XOR) - Byte XOR
+ *   0xFCA4-0xFCA7 (H1 XOR through H4 XOR) - Halfword XOR
+ *   0x00A4-0x00A7 (W1 XOR through W4 XOR) - Word XOR
+ *
+ * Operation: Rn ← Rn XOR operand
+ *
+ * Description:
+ *   A bitwise exclusive OR is performed between the contents of the specified
+ *   register and the operand. The result is stored in the register. For BI, BY,
+ *   and H data types, the upper part of the register is zero-filled.
+ *
+ * Flags: Z (zero), S (sign)
+ *   Z = 1 if result is zero
+ *   S = 1 if result sign bit is set
+ *
+ * Traps: Addressing traps only
+ *
+ * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/LOGICAL/Xor.cs
  */
 void nd500_instr_Xor(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Xor instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 1
-     * - Access operands via: fi->operands[0..0]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Xor instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    /* Validate operand count */
+    if (fi->operand_count != 1) {
+        printf("[ERROR] XOR at PC=0x%08X: Expected 1 operand, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Read register and operand (like C# ReadIntegerRegister + ReadOperandValue) */
+    uint32_t reg_value = nd500_read_integer_register(cpu, fi->target_register);
+    uint64_t operand = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+
+    /* Perform XOR operation */
+    uint32_t result = (uint32_t)(reg_value ^ operand);
+
+    /* Mask to data type (clears upper bits for BI, BY, H - like C# MaskToDataType) */
+    result = nd500_mask_to_datatype(result, fi->data_type);
+
+    /* Write back to register */
+    nd500_write_integer_register(cpu, fi->target_register, result);
+
+    /* Update status flags */
+    nd500_set_flags_zs(cpu, result, fi->data_type);
 }

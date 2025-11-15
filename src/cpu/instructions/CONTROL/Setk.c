@@ -1,33 +1,43 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Setk instruction - CONTROL class
- * 
- * Mnemonic: setk
- * Operands: 0
+ *
+ * Set K Flag: 1 → K
+ *
+ * Variants: 1
+ * Mnemonics: setk
+ * Operands: 0 (no operands)
+ *
  * Opcode: 0xFE02
+ *
+ * Operation: 1 → ST.K
+ *
+ * Description:
+ *   Sets the K (Destination Full) bit of the status register to 1.
+ *
+ *   The K flag is used for:
+ *   - Signaling between subroutines (RETK returns with K=1)
+ *   - Boolean results (found/not found, success/failure)
+ *   - Conditional returns (IF K RET)
+ *   - Synchronization
+ *   - General-purpose flag
+ *
+ * Flags: K (Destination Full)
+ *   K = 1 (always set)
+ *
+ * Trap conditions:
+ *   - None
+ *
+ * Reference: ND-500 Reference Manual, Chapter 15.11
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CONTROL/Setk.cs
  */
 void nd500_instr_Setk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Setk instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 0
-     * - Access operands via: fi->operands[0..-1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Setk instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
-    }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+    (void)fi;  // Suppress unused parameter warning
+
+    // Set K flag in status register
+    cpu->ST1 |= ND500_FLAG_K;
 }

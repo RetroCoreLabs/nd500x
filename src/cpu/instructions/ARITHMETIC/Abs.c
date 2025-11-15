@@ -1,40 +1,117 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Abs instruction - ARITHMETIC class
- * 
- * Variants: 5
- * Mnemonics: abs abs abs abs abs
- * Operands: 0
- * 
+ *
+ * Absolute value operation: |Rn| → Rn
+ *
+ * Variants: 5 (by data type and register)
+ * Mnemonics: BYn ABS, Hn ABS, Wn ABS, Fn ABS, Dn ABS (n=1..4)
+ * Operands: 0 (register-only operation)
+ *
  * Opcodes:
- *   0xFF00 (abs)
- *   0xFF04 (abs)
- *   0xFF08 (abs)
- *   0xFF0C (abs)
- *   0xFF0C (abs)
+ *   0xFE10-0xFE13 (BY1 ABS through BY4 ABS) - Byte absolute value
+ *   0xFE14-0xFE17 (H1 ABS through H4 ABS) - Halfword absolute value
+ *   0x0098-0x009B (W1 ABS through W4 ABS) - Word absolute value
+ *   0x009C-0x009F (F1 ABS through F4 ABS) - Float absolute value
+ *   0x00A0-0x00A3 (D1 ABS through D4 ABS) - Double absolute value
+ *
+ * Operation: |Rn| → Rn
+ *
+ * Description:
+ *   The absolute value of the contents of the specified register is
+ *   computed and stored back in the register. For integer types, this
+ *   is done by taking the two's complement if the value is negative.
+ *   For floating point types, this is done by clearing the sign bit.
+ *   Byte and halfword absolute value will clear the upper part of the register.
+ *
+ * Flags: Z (zero), S (sign)
+ *   Z = 1 if result is zero
+ *   S = 0 (always - absolute value is never negative)
+ *   C and O are not affected
+ *
+ * Trap conditions: None
+ *
+ * Reference: ND-500 Reference Manual, Chapter 10.15
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Abs.cs
  */
 void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Abs instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 0
-     * - Access operands via: fi->operands[0..-1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Abs instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    /* Validate operand count */
+    if (fi->operand_count != 0) {
+        printf("[ERROR] ABS at PC=0x%08X: Expected 0 operands, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    uint64_t value, result;
+
+    /* Read current register value (like C# lines 48-51) */
+    if (fi->uses_float_registers) {
+        if (fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
+            value = nd500_read_float_register(cpu, fi->target_register);
+        } else { /* Double (D) */
+            value = nd500_read_double_register(cpu, fi->target_register);
+        }
+    } else {
+        value = nd500_read_integer_register(cpu, fi->target_register);
+    }
+
+    result = value;
+
+    /* Perform absolute value operation (like C# lines 55-88) */
+    if (!fi->uses_float_registers) {
+        /* Integer types: negate if negative (two's complement) (like C# lines 55-73) */
+        bool isNegative = false;
+
+        /* Check if value is negative by examining sign bit (like C# lines 58-64) */
+        switch (fi->data_type) {
+            case ND500_DTYPE_BYTE:
+                isNegative = ((value & 0x80) != 0);
+                break;
+            case ND500_DTYPE_HALFWORD:
+                isNegative = ((value & 0x8000) != 0);
+                break;
+            case ND500_DTYPE_WORD:
+                isNegative = ((value & 0x80000000) != 0);
+                break;
+            default:
+                isNegative = false;
+                break;
+        }
+
+        /* If negative, negate using two's complement (like C# lines 66-71) */
+        if (isNegative) {
+            result = (~value + 1);
+            /* Mask to data type and clear upper bits for BY/H (like C# line 70) */
+            result = nd500_mask_to_datatype(result, fi->data_type);
+        }
+
+        /* Write back to register (like C# line 73) */
+        nd500_write_integer_register(cpu, fi->target_register, (uint32_t)result);
+    } else {
+        /* Floating point: clear sign bit (like C# lines 75-88) */
+        if (fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
+            result = value & 0x7FFFFFFF;  /* Clear sign bit (like C# line 80) */
+            nd500_write_float_register(cpu, fi->target_register, (uint32_t)result);
+        } else { /* Double (D) */
+            result = value & 0x7FFFFFFFFFFFFFFFull;  /* Clear sign bit (like C# line 85) */
+            nd500_write_double_register(cpu, fi->target_register, result);
+        }
+    }
+
+    /* Update status flags (like C# lines 90-92) */
+    /* Clear Z and S flags first */
+    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S);
+
+    /* Set Z flag if result is zero */
+    if (result == 0) {
+        cpu->ST1 |= ND500_FLAG_Z;
+    }
+
+    /* S flag remains cleared (absolute value is never negative) */
+    /* C and O flags are not affected */
 }

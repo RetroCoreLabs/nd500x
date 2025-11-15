@@ -1,39 +1,60 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * And instruction - LOGICAL class
- * 
- * Variants: 4
- * Mnemonics: and and and and
- * Operands: 1
- * 
+ *
+ * Bitwise AND of register with operand. Rn = Rn AND operand
+ *
+ * Variants: 4 (by data type and register)
+ * Mnemonics: BIn AND, BYn AND, Hn AND, Wn AND (n=1..4)
+ * Operands: 1 (value to AND)
+ *
  * Opcodes:
- *   0xFDCC (and)
- *   0xFC90 (and)
- *   0xFC94 (and)
- *   0x00E4 (and)
+ *   0xFDCC-0xFDCF (BI1 AND through BI4 AND) - Bit AND
+ *   0xFC90-0xFC93 (BY1 AND through BY4 AND) - Byte AND
+ *   0xFC94-0xFC97 (H1 AND through H4 AND) - Halfword AND
+ *   0x00E4-0x00E7 (W1 AND through W4 AND) - Word AND
+ *
+ * Operation: Rn ← Rn AND operand
+ *
+ * Description:
+ *   A bitwise AND is performed between the contents of the specified register
+ *   and the operand. The result is stored in the register. For BI, BY, and H
+ *   data types, the upper part of the register is zero-filled.
+ *
+ * Flags: Z (zero), S (sign)
+ *   Z = 1 if result is zero
+ *   S = 1 if result sign bit is set
+ *
+ * Traps: Addressing traps only
+ *
+ * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/LOGICAL/And.cs
  */
 void nd500_instr_And(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement And instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 1
-     * - Access operands via: fi->operands[0..0]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] And instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    /* Validate operand count */
+    if (fi->operand_count != 1) {
+        printf("[ERROR] AND at PC=0x%08X: Expected 1 operand, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Read register and operand (like C# ReadIntegerRegister + ReadOperandValue) */
+    uint32_t reg_value = nd500_read_integer_register(cpu, fi->target_register);
+    uint64_t operand = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+
+    /* Perform AND operation */
+    uint32_t result = (uint32_t)(reg_value & operand);
+
+    /* Mask to data type (clears upper bits for BI, BY, H - like C# MaskToDataType) */
+    result = nd500_mask_to_datatype(result, fi->data_type);
+
+    /* Write back to register */
+    nd500_write_integer_register(cpu, fi->target_register, result);
+
+    /* Update status flags */
+    nd500_set_flags_zs(cpu, result, fi->data_type);
 }

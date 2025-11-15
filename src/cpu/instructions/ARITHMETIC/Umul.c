@@ -1,33 +1,98 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Umul instruction - ARITHMETIC class
- * 
- * Mnemonic: umul
- * Operands: 3
- * Opcode: 0xFC80
+ *
+ * Unsigned Multiply with Overflow to Register: <a> * <b> → <c>, overflow → Rn
+ *
+ * Variants: 1 (word-only)
+ * Mnemonics: Wn UMUL (n=1..4)
+ * Operands: 3 (<a/r/t>, <b/r/t>, <c/w/t>)
+ *
+ * Opcodes:
+ *   0xFC80-0xFC83 (W1 UMUL through W4 UMUL) - Word unsigned multiply
+ *
+ * Operation: <a> * <b> → <c>, overflow part → Rn
+ *
+ * Description:
+ *   The operands are treated as unsigned. The <a> operand is multiplied
+ *   by the <b> operand, and the product is stored in <c>. The upper half
+ *   of the double-length result is stored in the specified register. Byte
+ *   and halfword constants are sign-extended and treated as unsigned.
+ *   Integer overflow occurs when the upper part differs from zero.
+ *
+ * Flags: Z (zero), S (sign), O (overflow)
+ *   Z = 1 if product (lower 32 bits) is zero
+ *   S = 1 if product sign bit is set
+ *   O = 1 if overflow (upper 32 bits non-zero)
+ *
+ * Trap conditions:
+ *   - Addressing traps
+ *   - Integer overflow (O)
+ *
+ * Reference: ND-500 Reference Manual, Chapter 11.15
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Umul.cs
  */
 void nd500_instr_Umul(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Umul instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 3
-     * - Access operands via: fi->operands[0..2]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Umul instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    /* Validate operand count (like C# lines 48-52) */
+    if (fi->operand_count != 3) {
+        printf("[ERROR] UMUL at PC=0x%08X: Expected 3 operands, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Read operands as unsigned (like C# lines 55-56) */
+    /* UMUL is always word-sized regardless of fi->data_type */
+    uint32_t a = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+    uint32_t b = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
+
+    /* Perform unsigned multiplication (64-bit result) (like C# line 59) */
+    uint64_t product = (uint64_t)a * (uint64_t)b;
+
+    /* Lower 32 bits go to destination (like C# line 62) */
+    uint32_t lowerHalf = (uint32_t)(product & 0xFFFFFFFF);
+
+    /* Upper 32 bits go to register (like C# line 65) */
+    uint32_t upperHalf = (uint32_t)(product >> 32);
+
+    /* Write results (like C# lines 68-69) */
+    nd500_write_operand_value(cpu, &fi->operands[2], (uint64_t)lowerHalf, ND500_DTYPE_WORD);
+    nd500_write_integer_register(cpu, fi->target_register, upperHalf);
+
+    /* Update status flags (like C# lines 72-74) */
+    /* Set Z flag based on lower half */
+    if (lowerHalf == 0) {
+        cpu->ST1 |= ND500_FLAG_Z;
+    } else {
+        cpu->ST1 &= ~ND500_FLAG_Z;
+    }
+
+    /* Set S flag based on lower half sign bit */
+    if ((lowerHalf & 0x80000000) != 0) {
+        cpu->ST1 |= ND500_FLAG_S;
+    } else {
+        cpu->ST1 &= ~ND500_FLAG_S;
+    }
+
+    /* Set O flag based on upper half (overflow if upper half is non-zero) */
+    bool overflow = (upperHalf != 0);
+    if (overflow) {
+        cpu->ST1 |= ND500_FLAG_O;
+    } else {
+        cpu->ST1 &= ~ND500_FLAG_O;
+    }
+
+    /* Clear carry flag - unsigned multiplication doesn't set carry */
+    cpu->ST1 &= ~ND500_FLAG_C;
+
+    /* Handle trap on overflow */
+    if (overflow) {
+        printf("[TRAP] UMUL at PC=0x%08X: Integer overflow\n", fi->address);
+        trap_invalid_operation(cpu, fi->address);
+        return;
+    }
 }
