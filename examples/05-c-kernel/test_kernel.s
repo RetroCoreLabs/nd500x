@@ -106,6 +106,7 @@ _version:
 	.comm	_console_out,4
 	.stabs	"start:F11",0x24,0,0,_start
 	.text
+	.file	"kernel.c"
 _start:
 	ents	$LFU1
 	.stabd	0104,0,0230
@@ -129,6 +130,7 @@ L37:
 	ret
 	.set LFU1, 20
 	.stabs	"init_kernel:F11",0x24,0,0,_init_kernel
+	.file	"kernel.c"
 _init_kernel:
 	ents	$LFU2
 	.stabd	0104,0,0250
@@ -189,6 +191,7 @@ L40:
 	ret
 	.set LFU2, 24
 	.stabs	"init_proctab:F11",0x24,0,0,_init_proctab
+	.file	"kernel.c"
 _init_proctab:
 	ents	$LFU3
 	.stabd	0104,0,0306
@@ -264,6 +267,7 @@ L44:
 	ret
 	.set LFU3, 24
 	.stabs	"init_filetab:F11",0x24,0,0,_init_filetab
+	.file	"kernel.c"
 _init_filetab:
 	ents	$LFU4
 	.stabd	0104,0,0337
@@ -314,6 +318,7 @@ L48:
 	ret
 	.set LFU4, 24
 	.stabs	"init_inodetab:F11",0x24,0,0,_init_inodetab
+	.file	"kernel.c"
 _init_inodetab:
 	ents	$LFU5
 	.stabd	0104,0,0357
@@ -387,6 +392,7 @@ L52:
 	.stabs	"fd:p1",0xa0,0,4,20
 	.stabs	"buf:p14",0xa0,0,1,24
 	.stabs	"count:p1",0xa0,0,4,28
+	.file	"kernel.c"
 _sys_read:
 	ents	$LFU6
 	.stabd	0104,0,0406
@@ -403,6 +409,7 @@ L56:
 	.stabs	"fd:p1",0xa0,0,4,20
 	.stabs	"buf:p14",0xa0,0,1,24
 	.stabs	"count:p1",0xa0,0,4,28
+	.file	"kernel.c"
 _sys_write:
 	ents	$LFU7
 	.stabd	0104,0,0422
@@ -417,6 +424,7 @@ L57:
 	.set LFU7, 32
 	.stabs	"sys_exit:F1",0x24,0,4,_sys_exit
 	.stabs	"status:p1",0xa0,0,4,20
+	.file	"kernel.c"
 _sys_exit:
 	ents	$LFU8
 	.stabd	0104,0,0434
@@ -437,6 +445,7 @@ L58:
 	ret
 	.set LFU8, 24
 	.stabs	"scheduler:F11",0x24,0,0,_scheduler
+	.file	"kernel.c"
 _scheduler:
 	ents	$LFU9
 	.stabd	0104,0,0451
@@ -498,6 +507,7 @@ L60:
 	.set LFU9, 28
 	.stabs	"trap_handler:F11",0x24,0,0,_trap_handler
 	.stabs	"trapno:p1",0xa0,0,4,20
+	.file	"kernel.c"
 _trap_handler:
 	ents	$LFU10
 	.stabd	0104,0,0506
@@ -510,6 +520,7 @@ L67:
 	ret
 	.set LFU10, 24
 	.stabs	"main:F1",0x24,0,4,_main
+	.file	"kernel.c"
 _main:
 	ents	$LFU11
 	.stabd	0104,0,0520
