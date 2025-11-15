@@ -71,12 +71,56 @@ show trap-status            # Show current trap status
 clear-traps                 # Clear any pending traps
 ```
 
+### MMU Control (Separate I&D)
+```bash
+mmu                         # Show Program and Data MMU status
+mmu on                      # Enable both Program and Data MMU
+mmu off                     # Disable both Program and Data MMU
+mmu on program              # Enable Program MMU only (PMON)
+mmu off program             # Disable Program MMU only (PMOF)
+mmu on data                 # Enable Data MMU only (DMON)
+mmu off data                # Disable Data MMU only (DMOF)
+showmmu                     # Show detailed MMU status and configuration
+mmusetup                    # Setup demo MMU configuration (3 domains)
+listpst                     # List all configured PST entries
+showpst <psn>               # Show specific PST entry details
+listpcb                     # List all configured PCB domains
+showpcb <domain> [seg]      # Show PCB capabilities for domain/segment
+phyladr <vaddr>             # Translate virtual to physical address
+```
+
 ## 🎯 Conditional Breakpoint Examples
 
 ```bash
 bp cond 0x100 "I1 == 0x42"     # Break when I1 equals 0x42
 bp cond 0x200 "PC > 0x1000"    # Break when PC > 0x1000
 bp cond 0x300 "L != 0"         # Break when L register not zero
+```
+
+## 🗺️ MMU Configuration Example
+
+```bash
+# Setup MMU with 3 domains
+mmusetup                       # Creates kernel + 2 user domains
+
+# Check MMU status
+mmu                            # Shows: Program MMU: enabled, Data MMU: enabled
+showmmu                        # Detailed status with PST/PCB counts
+
+# Selective MMU control
+mmu off program                # Disable program MMU, keep data MMU
+mmu                            # Shows: Program MMU: disabled, Data MMU: enabled
+mmu on program                 # Re-enable program MMU
+
+# Address translation
+phyladr 0x00000000            # Translate virtual address to physical
+phyladr 0x08000000 write      # Check data write translation
+
+# Inspect MMU tables
+listpst                        # See all 768 configured PST entries
+listpcb                        # See all configured domains (0, 1, 2)
+showpcb 0 31                   # Show segment 31 (special: ND-100 interface)
+showpst 100                    # Show PST entry details
 ```
 
 ## 📊 Profiling Output Example

@@ -1,33 +1,42 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Noop instruction - CONTROL class
- * 
- * Mnemonic: noop
- * Operands: 0
+ *
+ * No Operation: Does Nothing
+ *
+ * Variants: 1
+ * Mnemonics: noop
+ * Operands: 0 (no operands)
+ *
  * Opcode: 0x0003
+ *
+ * Operation: None
+ *
+ * Description:
+ *   Does absolutely nothing. Useful for:
+ *   - Deleting code without removing space
+ *   - Leaving space for future modifications
+ *   - Padding/alignment
+ *   - Timing delays
+ *   - Breakpoints in debugging
+ *
+ *   The PC will be advanced automatically by cpu_step() after execution.
+ *
+ * Flags: None affected
+ *
+ * Trap conditions:
+ *   - None
+ *
+ * Reference: ND-500 Reference Manual, Chapter 15.10
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CONTROL/Noop.cs
  */
 void nd500_instr_Noop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Noop instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 0
-     * - Access operands via: fi->operands[0..-1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Noop instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
-    }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+    // Do absolutely nothing - that's the point!
+    // PC is advanced automatically by cpu_step()
+    (void)cpu;  // Suppress unused parameter warning
+    (void)fi;   // Suppress unused parameter warning
 }

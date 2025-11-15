@@ -628,4 +628,224 @@ uint32_t nd500_packed_sub(uint32_t a, uint32_t b, Nd500DataType element_type);
  */
 uint32_t nd500_packed_mul(uint32_t a, uint32_t b, Nd500DataType element_type);
 
+/* ============================================================================
+ * STATUS REGISTER AND PRIVILEGE CHECKING
+ * ============================================================================
+ * ND-500 Status Register (ST) is a 64-bit register split into ST1 (low 32)
+ * and ST2 (high 32). Contains flags, trap status bits, and control bits.
+ *
+ * Key Status Bits (Reference: ND-500 Reference Manual Chapter 6.5):
+ *   Bit 0: Reserved
+ *   Bit 1: PIA (Privileged Instructions Allowed) - privilege mode flag
+ *   Bit 2: PD (Part Done)
+ *   Bit 3: M (Monitor Call)
+ *   Bit 4: T (Test)
+ *   Bit 5: Z (Zero)
+ *   Bit 6: C (Carry)
+ *   Bit 7: S (Sign)
+ *   Bit 8: K (Flag - signaling/sync)
+ *   Bit 9: O (Overflow)
+ *   Bit 10: Reserved
+ *   Bits 11-63: Trap status bits (IVO, DZ, FU, FO, BO, IOV, SIT, etc.)
+ */
+
+/**
+ * Check if CPU is in privileged mode (PIA bit set in status register)
+ * Privileged mode allows execution of system instructions (PMON, DMON, etc.)
+ *
+ * @param cpu CPU state
+ * @return true if privileged mode, false if user mode
+ */
+bool nd500_is_privileged(Nd500Cpu* cpu);
+
+/**
+ * Get status register bit value
+ * Reads a specific bit from the 64-bit status register (ST1 + ST2)
+ *
+ * @param cpu CPU state
+ * @param bit_number Bit number (0-63, 0-31 from ST1, 32-63 from ST2)
+ * @return true if bit is set, false otherwise
+ */
+bool nd500_get_status_bit(Nd500Cpu* cpu, uint8_t bit_number);
+
+/**
+ * Set status register bit
+ * Sets a specific bit in the 64-bit status register (ST1 + ST2)
+ *
+ * @param cpu CPU state
+ * @param bit_number Bit number (0-63, 0-31 from ST1, 32-63 from ST2)
+ */
+void nd500_set_status_bit(Nd500Cpu* cpu, uint8_t bit_number);
+
+/**
+ * Clear status register bit
+ * Clears a specific bit in the 64-bit status register (ST1 + ST2)
+ *
+ * @param cpu CPU state
+ * @param bit_number Bit number (0-63, 0-31 from ST1, 32-63 from ST2)
+ */
+void nd500_clear_status_bit(Nd500Cpu* cpu, uint8_t bit_number);
+
+/**
+ * Check privilege and trap if not privileged
+ * Helper for privileged instructions - checks PIA bit and raises IIC trap if not set
+ *
+ * @param cpu CPU state
+ * @param pc PC where instruction is executing
+ * @return true if privileged (safe to continue), false if trapped
+ */
+bool nd500_require_privilege(Nd500Cpu* cpu, uint32_t pc);
+
+/* Status Register Bit Definitions */
+#define ND500_ST_BIT_PIA  1   /* Privileged Instructions Allowed (bit 1) */
+#define ND500_ST_BIT_PD   2   /* Part Done (bit 2) */
+#define ND500_ST_BIT_M    3   /* Monitor Call (bit 3) */
+#define ND500_ST_BIT_T    4   /* Test (bit 4) */
+#define ND500_ST_BIT_Z    5   /* Zero (bit 5) */
+#define ND500_ST_BIT_C    6   /* Carry (bit 6) */
+#define ND500_ST_BIT_S    7   /* Sign (bit 7) */
+#define ND500_ST_BIT_K    8   /* K Flag (bit 8) */
+#define ND500_ST_BIT_O    9   /* Overflow (bit 9) */
+
+/* ============================================================================
+ * STRING DESCRIPTOR SUPPORT
+ * ============================================================================
+ * ND-500 string descriptors for BCD/ASCII operations (based on StringDescriptor.cs)
+ */
+
+/**
+ * Sign representation for BCD/ASCII values
+ */
+typedef enum {
+    ND500_SIGN_TRAILING_SEPARATE = 0,  // Sign in separate trailing byte
+    ND500_SIGN_LEADING_SEPARATE = 1,   // Sign in separate leading byte
+    ND500_SIGN_TRAILING_OVERPUNCH = 2, // Sign overpunched in trailing digit
+    ND500_SIGN_LEADING_OVERPUNCH = 3,  // Sign overpunched in leading digit
+    ND500_SIGN_UNSIGNED = 4,            // Unsigned value
+    ND500_SIGN_RESERVED_5 = 5,          // Reserved
+    ND500_SIGN_RESERVED_6 = 6,          // Reserved
+    ND500_SIGN_RESERVED_7 = 7           // Reserved
+} Nd500SignRepresentation;
+
+/**
+ * String descriptor structure (8 bytes in memory)
+ *
+ * Format:
+ * - Bytes 0-3: Element count (N) with embedded flags for BCD/ASCII
+ * - Bytes 4-7: Base address (A)
+ *
+ * For BCD/ASCII operations, element count word contains:
+ * - Bits 26-24: Sign representation (3 bits)
+ * - Bits 23-18: Scaling factor (6 bits, signed -32..+31)
+ * - Bits 17-13: Field width (5 bits, 0..31)
+ * - Bits 12-0: Actual element count (13 bits)
+ */
+typedef struct {
+    uint32_t element_count;              // Number of elements
+    uint32_t base_address;               // Address of element 0
+    Nd500SignRepresentation sign_repr;   // Sign representation (BCD/ASCII only)
+    int8_t scaling_factor;               // Scaling factor -32..+31 (BCD/ASCII only)
+    uint8_t field_width;                 // Field width in nibbles/bytes (BCD/ASCII only)
+    bool is_bcd_packed;                  // True if BCD packed descriptor
+    bool is_ascii;                       // True if ASCII descriptor
+} Nd500StringDescriptor;
+
+/**
+ * Load string descriptor from memory
+ * @param cpu CPU state
+ * @param desc_addr Address where 8-byte descriptor is stored
+ * @param is_bcd_packed True for BCD packed operations
+ * @param is_ascii True for ASCII operations
+ * @param desc Output descriptor structure
+ * @return true if successful, false on error
+ */
+bool nd500_load_string_descriptor(Nd500Cpu* cpu, uint32_t desc_addr,
+                                   bool is_bcd_packed, bool is_ascii,
+                                   Nd500StringDescriptor* desc);
+
+/**
+ * Get element address from descriptor
+ * @param desc String descriptor
+ * @param index Element index
+ * @return Element address, or 0 if index out of range
+ */
+uint32_t nd500_string_get_element_address(const Nd500StringDescriptor* desc, uint32_t index);
+
+/**
+ * Read element value from string (generic)
+ * @param cpu CPU state
+ * @param desc String descriptor
+ * @param index Element index
+ * @param dtype Data type for element
+ * @return Element value
+ */
+uint64_t nd500_string_read_element(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
+                                    uint32_t index, Nd500DataType dtype);
+
+/**
+ * Validate string descriptor
+ * @param desc String descriptor
+ * @return true if valid, false otherwise
+ */
+bool nd500_string_descriptor_is_valid(const Nd500StringDescriptor* desc);
+
+/* ============================================================================
+ * BCD (Binary Coded Decimal) SUPPORT
+ * ============================================================================
+ * BCD value reading/writing for PCOMP and arithmetic operations
+ */
+
+/**
+ * Read packed BCD value from memory using descriptor
+ * @param cpu CPU state
+ * @param desc String descriptor (must be BCD packed)
+ * @return BCD value as int64_t (sign-extended)
+ */
+int64_t nd500_read_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc);
+
+/**
+ * Write packed BCD value to memory using descriptor
+ * @param cpu CPU state
+ * @param desc String descriptor (must be BCD packed)
+ * @param value Value to write
+ */
+void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc, int64_t value);
+
+/* ============================================================================
+ * FLOATING-POINT CONVERSION (ND-500 ↔ IEEE 754 ↔ Integer)
+ * ============================================================================
+ *
+ * ND-500 Float Format (32-bit):
+ *   - 1 bit sign (bit 31)
+ *   - 9 bits exponent (bits 30-22), bias 256
+ *   - 22+1 bits mantissa (bits 21-0), implicit leading 1
+ *   - Exponent = 0 means exactly zero (no denormalized numbers)
+ *
+ * ND-500 Double Format (64-bit):
+ *   - 1 bit sign (bit 63)
+ *   - 9 bits exponent (bits 62-54), bias 256
+ *   - 54+1 bits mantissa (bits 53-0), implicit leading 1
+ *   - Exponent = 0 means exactly zero (no denormalized numbers)
+ */
+
+// Single precision conversions
+uint32_t nd500_float_from_int32(int32_t value);
+int32_t nd500_float_to_int32(uint32_t nd500_bits);
+float nd500_float_to_ieee754(uint32_t nd500_bits);
+uint32_t nd500_float_from_ieee754(float ieee_value);
+bool nd500_float_is_zero(uint32_t nd500_bits);
+bool nd500_float_is_negative(uint32_t nd500_bits);
+
+// Double precision conversions
+uint64_t nd500_double_from_int64(int64_t value);
+int64_t nd500_double_to_int64(uint64_t nd500_bits);
+double nd500_double_to_ieee754(uint64_t nd500_bits);
+uint64_t nd500_double_from_ieee754(double ieee_value);
+bool nd500_double_is_zero(uint64_t nd500_bits);
+bool nd500_double_is_negative(uint64_t nd500_bits);
+
+// Precision conversion
+uint32_t nd500_double_to_single(uint64_t nd500_double_bits);
+uint64_t nd500_single_to_double(uint32_t nd500_float_bits);
+
 #endif /* ND500_INSTRUCTION_HELPERS_H */

@@ -1,41 +1,95 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Comp instruction - COMPARE class
- * 
- * Variants: 6
- * Mnemonics: comp comp comp comp comp comp
- * Operands: 1
- * 
+ *
+ * Compare register with operand (subtract without storing result).
+ * Rn - operand (result discarded, flags updated)
+ *
+ * Variants: 6 (by data type and register)
+ * Mnemonics: BIn COMP, BYn COMP, Hn COMP, Wn COMP, Fn COMP, Dn COMP (n=1..4)
+ * Operands: 1 (value to compare)
+ *
  * Opcodes:
- *   0xFC18 (comp)
- *   0x0030 (comp)
- *   0xFC1C (comp)
- *   0x0034 (comp)
- *   0x0038 (comp)
- *   0x003C (comp)
+ *   0xFC18-0xFC1B (BI1 COMP through BI4 COMP) - Bit compare
+ *   0x0030-0x0033 (BY1 COMP through BY4 COMP) - Byte compare
+ *   0xFC1C-0xFC1F (H1 COMP through H4 COMP) - Halfword compare
+ *   0x0034-0x0037 (W1 COMP through W4 COMP) - Word compare
+ *   0x0038-0x003B (F1 COMP through F4 COMP) - Float compare (NOT IMPLEMENTED)
+ *   0x003C-0x003F (D1 COMP through D4 COMP) - Double compare (NOT IMPLEMENTED)
+ *
+ * Operation: Rn - operand (result not stored)
+ *
+ * Description:
+ *   The compare instruction subtracts the operand from the contents of the
+ *   specified register. The result of the subtraction is not saved, but
+ *   rather compared to zero, and this result is saved in the data status bits.
+ *   The instruction is a true comparison, hence the sign bit is changed in
+ *   case of integer overflow (S = sign XOR overflow).
+ *
+ * Flags: Z (zero), S (sign XOR overflow), C (carry/borrow)
+ *   Z = 1 if result is zero (registers are equal)
+ *   S = sign_bit XOR overflow (true comparison)
+ *   C = 1 if borrow occurred (reg < operand for unsigned)
+ *
+ * Traps: Addressing traps only (integer), Floating overflow/underflow (float)
+ *
+ * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/COMPARE/Comp.cs
  */
 void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Comp instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 1
-     * - Access operands via: fi->operands[0..0]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Comp instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    /* Validate operand count */
+    if (fi->operand_count != 1) {
+        printf("[ERROR] COMP at PC=0x%08X: Expected 1 operand, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Check for float/double variants (not yet implemented) */
+    if (fi->uses_float_registers) {
+        printf("[STUB] COMP at PC=0x%08X: Float/double comparison not yet implemented (opcode 0x%04X)\n",
+               fi->address, fi->opcode);
+        return;
+    }
+
+    /* Read register and operand (like C# ReadIntegerRegister + ReadOperandValue) */
+    uint64_t reg_value = nd500_read_integer_register(cpu, fi->target_register);
+    uint64_t operand = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+
+    /* Perform subtraction (result not stored, only flags updated) */
+    uint64_t result = reg_value - operand;
+
+    /* Detect carry/borrow and overflow */
+    bool carry = (reg_value < operand);
+    bool overflow = nd500_detect_sub_overflow(reg_value, operand, result, fi->data_type);
+
+    /* Mask to data type for flag calculations */
+    uint32_t masked_result = nd500_mask_to_datatype(result, fi->data_type);
+
+    /* Determine sign bit from masked result */
+    bool sign_bit = nd500_is_negative(masked_result, fi->data_type);
+
+    /* Update status flags: Z, S (XOR overflow for true comparison), C */
+    /* Note: Result is NOT written back to register */
+    if (masked_result == 0) {
+        nd500_set_flag(cpu, ND500_FLAG_Z);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+    }
+
+    if (carry) {
+        nd500_set_flag(cpu, ND500_FLAG_C);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_C);
+    }
+
+    /* S = sign_bit XOR overflow for true comparison */
+    if (sign_bit ^ overflow) {
+        nd500_set_flag(cpu, ND500_FLAG_S);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_S);
+    }
 }

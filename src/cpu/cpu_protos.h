@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 #include <setjmp.h>
 #include "../machine/machine_types.h"
 
@@ -29,6 +30,11 @@ typedef struct Nd500Cpu {
 	uint32_t CED;       /* Current Executing Domain */
 	uint32_t CAD;       /* Current Alternative Domain */
 	uint32_t PS;        /* Process Segment */
+
+	/* CALL/ENT handshake state (internal CPU state not visible to programs) */
+	uint32_t pending_call_return_address;  /* Return address from CALL to pass to ENT */
+	uint32_t pending_call_arg_count;       /* Number of arguments from CALL */
+	uint32_t pending_call_arg_addresses[256]; /* Effective addresses of arguments */
 
 	Nd500Machine* machine;
 } Nd500Cpu;
@@ -185,6 +191,16 @@ typedef struct Nd500OperandDecoded {
     uint32_t effective_address;  /* Computed effective address for memory operands */
 } Nd500OperandDecoded;
 
+/**
+ * Data type enumeration for instruction operands
+ */
+typedef enum {
+    ND500_DTYPE_BYTE = 0,       // 8-bit (BY)
+    ND500_DTYPE_HALFWORD = 1,   // 16-bit (H)
+    ND500_DTYPE_WORD = 2,       // 32-bit (W/F)
+    ND500_DTYPE_DOUBLEWORD = 3  // 64-bit (D)
+} Nd500DataType;
+
 typedef struct Nd500FetchedInstruction {
     uint32_t address;
     uint16_t opcode;
@@ -194,6 +210,11 @@ typedef struct Nd500FetchedInstruction {
     Nd500OperandDecoded operands[4];
     uint32_t total_len;
     uint8_t bytes[32];  /* All bytes consumed by this instruction */
+
+    /* Pre-decoded metadata (like C# FetchedInstruction) */
+    uint8_t target_register;      /* 0=none, 1-4 for register variants (I1-I4, A1-A4, etc.) */
+    Nd500DataType data_type;       /* Data type: BYTE, HALFWORD, WORD, DOUBLEWORD */
+    bool uses_float_registers;     /* true for Fn/Dn float variants */
 } Nd500FetchedInstruction;
 
 int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out);
