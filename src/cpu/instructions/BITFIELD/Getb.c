@@ -50,10 +50,19 @@
  *
  * Heap Variables (pointed to by TOS register):
  * The TOS register points to a heap variable structure containing:
- * - Offset +0: MAXL (byte) - Maximum logarithmic size (e.g., 15 for 32K word blocks)
- * - Offset +1: Freelist heads for each size class (MAXL+1 entries)
+ * - Offset +0: MAXL (word, 4 bytes) - Maximum logarithmic size (e.g., 15 for 32K word blocks)
+ * - Offset +4: STAH (word, 4 bytes) - Start of heap address (unused by GETB, for trap handlers)
+ * - Offset +8: ENDH (word, 4 bytes) - End of heap address (unused by GETB, for trap handlers)
+ * - Offset +12: FLOG[0] - Freelist head for 2^0 word blocks (word, 4 bytes)
+ * - Offset +16: FLOG[1] - Freelist head for 2^1 word blocks (word, 4 bytes)
+ * - Offset +20: FLOG[2] - Freelist head for 2^2 word blocks (word, 4 bytes)
+ * - ...
+ * - Offset +12+(k*4): FLOG[k] - Freelist head for 2^k word blocks
  *   Each freelist entry is a word containing address of first free block
  * - Free blocks are linked lists: first word of block = address of next free block
+ *
+ * This structure matches ND-500 Reference Manual §3.3 and §15.13-15.14.
+ * STAH and ENDH are documented but not used by heap instructions (available for trap handlers).
  *
  * Buddy System Algorithm:
  *
@@ -176,8 +185,8 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Read MAXL (maximum logarithmic size) from heap variables */
-    uint8_t max_log = nd500_read_memory_8(cpu, heap_vars_addr);
+    /* Read MAXL (maximum logarithmic size) from heap variables (word at offset +0) */
+    uint32_t max_log = nd500_read_memory_32(cpu, heap_vars_addr + 0);
 
     /* Check if requested size exceeds maximum */
     if (log_size > max_log) {
@@ -192,8 +201,8 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint8_t found_size = 0;
 
     for (uint8_t k = log_size; k <= max_log; k++) {
-        /* Calculate freelist head address for size class k */
-        uint32_t freelist_addr = heap_vars_addr + 1 + (k * 4);
+        /* Calculate freelist head address for size class k (FLOG starts at offset +12) */
+        uint32_t freelist_addr = heap_vars_addr + 12 + (k * 4);
         uint32_t head = nd500_read_memory_32(cpu, freelist_addr);
 
         if (head != 0) {
@@ -226,8 +235,8 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint32_t block_size_words = (1U << found_size);
         uint32_t buddy_addr = block_addr + (block_size_words * 4);  /* Words to bytes */
 
-        /* Add buddy to freelist[found_size] */
-        uint32_t buddy_list_addr = heap_vars_addr + 1 + (found_size * 4);
+        /* Add buddy to freelist[found_size] (FLOG starts at offset +12) */
+        uint32_t buddy_list_addr = heap_vars_addr + 12 + (found_size * 4);
         uint32_t buddy_list_head = nd500_read_memory_32(cpu, buddy_list_addr);
 
         /* Link buddy into freelist */
@@ -244,22 +253,8 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     printf("[GETB] Block 0x%08X (size=2^%u words) allocated → I%u\n",
            block_addr, log_size, fi->target_register);
 
-    /* Update status flags */
-    /* Z = 1 if address is zero (should not happen after successful allocation) */
-    if (block_addr == 0) {
-        nd500_set_flag(cpu, ND500_FLAG_Z);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_Z);
-    }
-
-    /* S = 1 if address has sign bit set */
-    if ((block_addr & 0x80000000) != 0) {
-        nd500_set_flag(cpu, ND500_FLAG_S);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_S);
-    }
-
-    /* Other flags unaffected */
+    /* Data status bits are unaffected per ND-500 Reference Manual §15.13 */
+    /* NOTE: All flags (Z, S, C, K, O) remain unchanged */
 
     /* PC will be advanced automatically by cpu_step() */
 }
