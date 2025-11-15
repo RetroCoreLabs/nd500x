@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "nd500_mmu.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
@@ -25,6 +26,11 @@
  */
 void nd500_instr_Dmof(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     (void)fi;  /* Unused parameter */
+
+    /* Check privilege - DMOF requires supervisor mode */
+    if (!nd500_require_privilege(cpu, fi->address)) {
+        return;  /* Trapped - not privileged */
+    }
 
     /* Disable data MMU (data accesses will now use physical addresses) */
     nd500_mmu_disable_data(cpu);
