@@ -1,0 +1,360 @@
+; Map file for test.o
+; Format: filename:line -> address (octal)
+;
+kernel.s:1 (T) -> 000000  # TEXT - # pcc2 
+kernel.s:6 (T) -> 000000  # TEXT - .stabs	"int
+kernel.s:7 (T) -> 000000  # TEXT - .stabs	"char
+kernel.s:8 (T) -> 000000  # TEXT - .stabs	"long
+kernel.s:9 (T) -> 000000  # TEXT - .stabs	"short
+kernel.s:10 (T) -> 000000  # TEXT - .stabs	"unsigned char
+kernel.s:11 (T) -> 000000  # TEXT - .stabs	"unsigned short
+kernel.s:12 (T) -> 000000  # TEXT - .stabs	"unsigned long
+kernel.s:13 (T) -> 000000  # TEXT - .stabs	"unsigned int
+kernel.s:14 (T) -> 000000  # TEXT - .stabs	"float
+kernel.s:15 (T) -> 000000  # TEXT - .stabs	"double
+kernel.s:16 (T) -> 000000  # TEXT - .stabs	"void
+kernel.s:17 (T) -> 000000  # TEXT - .stabs	"???
+kernel.s:18 (T) -> 000000  # TEXT - .stabs	"proc
+kernel.s:19 (T) -> 000000  # TEXT - .stabs	"file
+kernel.s:20 (T) -> 000000  # TEXT - .stabs	"inode
+kernel.s:21 (T) -> 000000  # TEXT - .stabs	"buf
+kernel.s:22 (T) -> 000000  # TEXT - .stabs	"proctab
+kernel.s:24 (T) -> 000000  # TEXT - .stabs	"filetab
+kernel.s:26 (T) -> 000000  # TEXT - .stabs	"inodetab
+kernel.s:28 (T) -> 000000  # TEXT - .stabs	"buftab
+kernel.s:30 (T) -> 000000  # TEXT - .stabs	"nproc
+kernel.s:110 (T) -> 000006  # TEXT - _start
+kernel.c:152 (T) -> 000006  # TEXT - _start
+kernel.s:112 (T) -> 000010  # TEXT - _start
+kernel.c:154 (T) -> 000010  # TEXT - _start
+kernel.s:115 (T) -> 000016  # TEXT - _start
+kernel.c:157 (T) -> 000016  # TEXT - _start
+kernel.s:119 (T) -> 000024  # TEXT - _start
+kernel.c:161 (T) -> 000024  # TEXT - _start
+kernel.s:125 (T) -> 000026  # TEXT - L38
+kernel.c:162 (T) -> 000026  # TEXT - L38
+kernel.s:129 (T) -> 000027  # TEXT - L37
+kernel.s:130 (T) -> 000027  # TEXT - L37
+kernel.s:131 (T) -> 000027  # TEXT - .stabs	"init_kernel
+kernel.s:133 (T) -> 000035  # TEXT - _init_kernel
+kernel.c:168 (T) -> 000035  # TEXT - _init_kernel
+kernel.s:135 (T) -> 000037  # TEXT - _init_kernel
+kernel.c:172 (T) -> 000037  # TEXT - _init_kernel
+kernel.s:137 (T) -> 000037  # TEXT - .stabs	"i
+kernel.c:172 (T) -> 000037  # TEXT - .stabs	"i
+kernel.s:142 (T) -> 000045  # TEXT - .stabs	"i
+kernel.c:173 (T) -> 000045  # TEXT - .stabs	"i
+kernel.s:144 (T) -> 000053  # TEXT - .stabs	"i
+kernel.c:174 (T) -> 000053  # TEXT - .stabs	"i
+kernel.s:146 (T) -> 000061  # TEXT - .stabs	"i
+kernel.c:175 (T) -> 000061  # TEXT - .stabs	"i
+kernel.s:148 (T) -> 000067  # TEXT - .stabs	"i
+kernel.c:178 (T) -> 000067  # TEXT - .stabs	"i
+kernel.s:152 (T) -> 000075  # TEXT - .stabs	"i
+kernel.c:179 (T) -> 000075  # TEXT - .stabs	"i
+kernel.s:154 (T) -> 000103  # TEXT - .stabs	"i
+kernel.c:180 (T) -> 000103  # TEXT - .stabs	"i
+kernel.s:156 (T) -> 000111  # TEXT - .stabs	"i
+kernel.c:183 (T) -> 000111  # TEXT - .stabs	"i
+kernel.s:160 (T) -> 000113  # TEXT - .stabs	"i
+kernel.s:162 (T) -> 000120  # TEXT - L43
+kernel.s:163 (T) -> 000123  # TEXT - if >= go	L42
+kernel.c:184 (T) -> 000123  # TEXT - if >= go	L42
+kernel.s:165 (T) -> 000125  # TEXT - w1 
+kernel.s:166 (T) -> 000133  # TEXT - w1 
+kernel.s:167 (T) -> 000136  # TEXT - w1 
+kernel.c:185 (T) -> 000136  # TEXT - w1 
+kernel.s:169 (T) -> 000140  # TEXT - w1 
+kernel.s:170 (T) -> 000146  # TEXT - w1 
+kernel.s:171 (T) -> 000151  # TEXT - w1 
+kernel.c:186 (T) -> 000151  # TEXT - w1 
+kernel.s:174 (T) -> 000151  # TEXT - # opleaf 
+kernel.c:186 (T) -> 000151  # TEXT - # opleaf 
+kernel.s:175 (T) -> 000153  # TEXT - # opleaf 
+kernel.s:176 (T) -> 000155  # TEXT - # opleaf 
+kernel.c:189 (T) -> 000155  # TEXT - # opleaf 
+kernel.s:181 (T) -> 000163  # TEXT - L42
+kernel.c:190 (T) -> 000163  # TEXT - L42
+kernel.s:183 (T) -> 000171  # TEXT - L42
+kernel.c:191 (T) -> 000171  # TEXT - L42
+kernel.s:185 (T) -> 000177  # TEXT - L42
+kernel.c:192 (T) -> 000177  # TEXT - L42
+kernel.s:189 (T) -> 000200  # TEXT - L40
+kernel.s:190 (T) -> 000200  # TEXT - L40
+kernel.s:191 (T) -> 000200  # TEXT - .stabs	"init_proctab
+kernel.s:193 (T) -> 000206  # TEXT - _init_proctab
+kernel.c:198 (T) -> 000206  # TEXT - _init_proctab
+kernel.s:195 (T) -> 000210  # TEXT - _init_proctab
+kernel.c:201 (T) -> 000210  # TEXT - _init_proctab
+kernel.s:197 (T) -> 000210  # TEXT - .stabs	"i
+kernel.c:201 (T) -> 000210  # TEXT - .stabs	"i
+kernel.s:201 (T) -> 000212  # TEXT - .stabs	"i
+kernel.s:203 (T) -> 000216  # TEXT - L47
+kernel.s:204 (T) -> 000221  # TEXT - if >= go	L46
+kernel.c:202 (T) -> 000221  # TEXT - if >= go	L46
+kernel.s:206 (T) -> 000223  # TEXT - w1 
+kernel.s:207 (T) -> 000226  # TEXT - w1 
+kernel.s:208 (T) -> 000234  # TEXT - w1 
+kernel.s:209 (T) -> 000237  # TEXT - w1 
+kernel.c:203 (T) -> 000237  # TEXT - w1 
+kernel.s:211 (T) -> 000241  # TEXT - w1 
+kernel.s:212 (T) -> 000244  # TEXT - w1 
+kernel.s:213 (T) -> 000252  # TEXT - w1 
+kernel.s:214 (T) -> 000255  # TEXT - w1 
+kernel.c:204 (T) -> 000255  # TEXT - w1 
+kernel.s:216 (T) -> 000257  # TEXT - w1 
+kernel.s:217 (T) -> 000262  # TEXT - w1 
+kernel.s:218 (T) -> 000270  # TEXT - w1 
+kernel.s:219 (T) -> 000273  # TEXT - w1 
+kernel.c:205 (T) -> 000273  # TEXT - w1 
+kernel.s:221 (T) -> 000275  # TEXT - w1 
+kernel.s:222 (T) -> 000300  # TEXT - w1 
+kernel.s:223 (T) -> 000306  # TEXT - w1 
+kernel.s:224 (T) -> 000311  # TEXT - w1 
+kernel.c:206 (T) -> 000311  # TEXT - w1 
+kernel.s:226 (T) -> 000313  # TEXT - w1 
+kernel.s:227 (T) -> 000316  # TEXT - w1 
+kernel.s:228 (T) -> 000324  # TEXT - w1 
+kernel.s:229 (T) -> 000327  # TEXT - w1 
+kernel.c:207 (T) -> 000327  # TEXT - w1 
+kernel.s:231 (T) -> 000331  # TEXT - w1 
+kernel.s:232 (T) -> 000334  # TEXT - w1 
+kernel.s:233 (T) -> 000342  # TEXT - w1 
+kernel.s:234 (T) -> 000345  # TEXT - w1 
+kernel.c:208 (T) -> 000345  # TEXT - w1 
+kernel.s:236 (T) -> 000347  # TEXT - w1 
+kernel.s:237 (T) -> 000352  # TEXT - w1 
+kernel.s:238 (T) -> 000360  # TEXT - w1 
+kernel.s:239 (T) -> 000363  # TEXT - w1 
+kernel.c:209 (T) -> 000363  # TEXT - w1 
+kernel.s:241 (T) -> 000365  # TEXT - w1 
+kernel.s:242 (T) -> 000370  # TEXT - w1 
+kernel.s:243 (T) -> 000376  # TEXT - w1 
+kernel.s:244 (T) -> 000401  # TEXT - w1 
+kernel.c:210 (T) -> 000401  # TEXT - w1 
+kernel.s:247 (T) -> 000401  # TEXT - # opleaf 
+kernel.c:210 (T) -> 000401  # TEXT - # opleaf 
+kernel.s:248 (T) -> 000403  # TEXT - # opleaf 
+kernel.s:249 (T) -> 000405  # TEXT - # opleaf 
+kernel.c:213 (T) -> 000405  # TEXT - # opleaf 
+kernel.s:254 (T) -> 000414  # TEXT - L46
+kernel.c:214 (T) -> 000414  # TEXT - L46
+kernel.s:256 (T) -> 000422  # TEXT - L46
+kernel.c:215 (T) -> 000422  # TEXT - L46
+kernel.s:258 (T) -> 000430  # TEXT - L46
+kernel.c:216 (T) -> 000430  # TEXT - L46
+kernel.s:260 (T) -> 000436  # TEXT - L46
+kernel.c:217 (T) -> 000436  # TEXT - L46
+kernel.s:264 (T) -> 000437  # TEXT - L44
+kernel.s:265 (T) -> 000437  # TEXT - L44
+kernel.s:266 (T) -> 000437  # TEXT - .stabs	"init_filetab
+kernel.s:268 (T) -> 000445  # TEXT - _init_filetab
+kernel.c:223 (T) -> 000445  # TEXT - _init_filetab
+kernel.s:270 (T) -> 000447  # TEXT - _init_filetab
+kernel.c:226 (T) -> 000447  # TEXT - _init_filetab
+kernel.s:272 (T) -> 000447  # TEXT - .stabs	"i
+kernel.c:226 (T) -> 000447  # TEXT - .stabs	"i
+kernel.s:276 (T) -> 000451  # TEXT - .stabs	"i
+kernel.s:278 (T) -> 000456  # TEXT - L51
+kernel.s:279 (T) -> 000461  # TEXT - if >= go	L50
+kernel.c:227 (T) -> 000461  # TEXT - if >= go	L50
+kernel.s:281 (T) -> 000463  # TEXT - w1 
+kernel.s:282 (T) -> 000465  # TEXT - w1 
+kernel.s:283 (T) -> 000473  # TEXT - w1 
+kernel.s:284 (T) -> 000476  # TEXT - w1 
+kernel.c:228 (T) -> 000476  # TEXT - w1 
+kernel.s:286 (T) -> 000500  # TEXT - w1 
+kernel.s:287 (T) -> 000502  # TEXT - w1 
+kernel.s:288 (T) -> 000510  # TEXT - w1 
+kernel.s:289 (T) -> 000513  # TEXT - w1 
+kernel.c:229 (T) -> 000513  # TEXT - w1 
+kernel.s:291 (T) -> 000515  # TEXT - w1 
+kernel.s:292 (T) -> 000517  # TEXT - w1 
+kernel.s:293 (T) -> 000525  # TEXT - w1 
+kernel.s:294 (T) -> 000530  # TEXT - w1 
+kernel.c:230 (T) -> 000530  # TEXT - w1 
+kernel.s:296 (T) -> 000532  # TEXT - w1 
+kernel.s:297 (T) -> 000534  # TEXT - w1 
+kernel.s:298 (T) -> 000542  # TEXT - w1 
+kernel.s:299 (T) -> 000545  # TEXT - w1 
+kernel.c:231 (T) -> 000545  # TEXT - w1 
+kernel.s:301 (T) -> 000547  # TEXT - w1 
+kernel.s:302 (T) -> 000551  # TEXT - w1 
+kernel.s:303 (T) -> 000557  # TEXT - w1 
+kernel.s:304 (T) -> 000562  # TEXT - w1 
+kernel.c:232 (T) -> 000562  # TEXT - w1 
+kernel.s:307 (T) -> 000562  # TEXT - # opleaf 
+kernel.c:232 (T) -> 000562  # TEXT - # opleaf 
+kernel.s:308 (T) -> 000564  # TEXT - # opleaf 
+kernel.s:309 (T) -> 000566  # TEXT - # opleaf 
+kernel.c:233 (T) -> 000566  # TEXT - # opleaf 
+kernel.s:314 (T) -> 000567  # TEXT - L48
+kernel.s:315 (T) -> 000567  # TEXT - L48
+kernel.s:316 (T) -> 000567  # TEXT - .stabs	"init_inodetab
+kernel.s:318 (T) -> 000575  # TEXT - _init_inodetab
+kernel.c:239 (T) -> 000575  # TEXT - _init_inodetab
+kernel.s:320 (T) -> 000577  # TEXT - _init_inodetab
+kernel.c:242 (T) -> 000577  # TEXT - _init_inodetab
+kernel.s:322 (T) -> 000577  # TEXT - .stabs	"i
+kernel.c:242 (T) -> 000577  # TEXT - .stabs	"i
+kernel.s:326 (T) -> 000601  # TEXT - .stabs	"i
+kernel.s:328 (T) -> 000605  # TEXT - L55
+kernel.s:329 (T) -> 000610  # TEXT - if >= go	L54
+kernel.c:243 (T) -> 000610  # TEXT - if >= go	L54
+kernel.s:331 (T) -> 000612  # TEXT - w1 
+kernel.s:332 (T) -> 000615  # TEXT - w1 
+kernel.s:333 (T) -> 000623  # TEXT - w1 
+kernel.s:334 (T) -> 000626  # TEXT - w1 
+kernel.c:244 (T) -> 000626  # TEXT - w1 
+kernel.s:336 (T) -> 000630  # TEXT - w1 
+kernel.s:337 (T) -> 000633  # TEXT - w1 
+kernel.s:338 (T) -> 000641  # TEXT - w1 
+kernel.s:339 (T) -> 000644  # TEXT - w1 
+kernel.c:245 (T) -> 000644  # TEXT - w1 
+kernel.s:341 (T) -> 000646  # TEXT - w1 
+kernel.s:342 (T) -> 000651  # TEXT - w1 
+kernel.s:343 (T) -> 000657  # TEXT - w1 
+kernel.s:344 (T) -> 000662  # TEXT - w1 
+kernel.c:246 (T) -> 000662  # TEXT - w1 
+kernel.s:346 (T) -> 000664  # TEXT - w1 
+kernel.s:347 (T) -> 000667  # TEXT - w1 
+kernel.s:348 (T) -> 000675  # TEXT - w1 
+kernel.s:349 (T) -> 000700  # TEXT - w1 
+kernel.c:247 (T) -> 000700  # TEXT - w1 
+kernel.s:351 (T) -> 000702  # TEXT - w1 
+kernel.s:352 (T) -> 000705  # TEXT - w1 
+kernel.s:353 (T) -> 000713  # TEXT - w1 
+kernel.s:354 (T) -> 000716  # TEXT - w1 
+kernel.c:248 (T) -> 000716  # TEXT - w1 
+kernel.s:356 (T) -> 000720  # TEXT - w1 
+kernel.s:357 (T) -> 000723  # TEXT - w1 
+kernel.s:358 (T) -> 000731  # TEXT - w1 
+kernel.s:359 (T) -> 000734  # TEXT - w1 
+kernel.c:249 (T) -> 000734  # TEXT - w1 
+kernel.s:361 (T) -> 000736  # TEXT - w1 
+kernel.s:362 (T) -> 000741  # TEXT - w1 
+kernel.s:363 (T) -> 000747  # TEXT - w1 
+kernel.s:364 (T) -> 000752  # TEXT - w1 
+kernel.c:250 (T) -> 000752  # TEXT - w1 
+kernel.s:366 (T) -> 000754  # TEXT - w1 
+kernel.s:367 (T) -> 000757  # TEXT - w1 
+kernel.s:368 (T) -> 000765  # TEXT - w1 
+kernel.s:369 (T) -> 000770  # TEXT - w1 
+kernel.c:251 (T) -> 000770  # TEXT - w1 
+kernel.s:371 (T) -> 000772  # TEXT - w1 
+kernel.s:372 (T) -> 000775  # TEXT - w1 
+kernel.s:373 (T) -> 001003  # TEXT - w1 
+kernel.s:374 (T) -> 001006  # TEXT - w1 
+kernel.c:252 (T) -> 001006  # TEXT - w1 
+kernel.s:377 (T) -> 001006  # TEXT - # opleaf 
+kernel.c:252 (T) -> 001006  # TEXT - # opleaf 
+kernel.s:378 (T) -> 001010  # TEXT - # opleaf 
+kernel.s:379 (T) -> 001013  # TEXT - # opleaf 
+kernel.c:253 (T) -> 001013  # TEXT - # opleaf 
+kernel.s:384 (T) -> 001014  # TEXT - L52
+kernel.s:385 (T) -> 001014  # TEXT - L52
+kernel.s:386 (T) -> 001014  # TEXT - .stabs	"sys_read
+kernel.s:387 (T) -> 001014  # TEXT - .stabs	"fd
+kernel.s:388 (T) -> 001014  # TEXT - .stabs	"buf
+kernel.s:389 (T) -> 001014  # TEXT - .stabs	"count
+kernel.s:391 (T) -> 001022  # TEXT - _sys_read
+kernel.c:262 (T) -> 001022  # TEXT - _sys_read
+kernel.s:393 (T) -> 001025  # TEXT - _sys_read
+kernel.c:264 (T) -> 001025  # TEXT - _sys_read
+kernel.s:396 (T) -> 001027  # TEXT - _sys_read
+kernel.s:397 (T) -> 001034  # TEXT - _sys_read
+kernel.c:265 (T) -> 001034  # TEXT - _sys_read
+kernel.s:400 (T) -> 001035  # TEXT - L56
+kernel.s:401 (T) -> 001035  # TEXT - L56
+kernel.s:402 (T) -> 001035  # TEXT - .stabs	"sys_write
+kernel.s:403 (T) -> 001035  # TEXT - .stabs	"fd
+kernel.s:404 (T) -> 001035  # TEXT - .stabs	"buf
+kernel.s:405 (T) -> 001035  # TEXT - .stabs	"count
+kernel.s:407 (T) -> 001043  # TEXT - _sys_write
+kernel.c:274 (T) -> 001043  # TEXT - _sys_write
+kernel.s:409 (T) -> 001046  # TEXT - _sys_write
+kernel.c:276 (T) -> 001046  # TEXT - _sys_write
+kernel.s:412 (T) -> 001050  # TEXT - w1 
+kernel.s:413 (T) -> 001055  # TEXT - w1 
+kernel.c:277 (T) -> 001055  # TEXT - w1 
+kernel.s:416 (T) -> 001056  # TEXT - L57
+kernel.s:417 (T) -> 001056  # TEXT - L57
+kernel.s:418 (T) -> 001056  # TEXT - .stabs	"sys_exit
+kernel.s:419 (T) -> 001056  # TEXT - .stabs	"status
+kernel.s:421 (T) -> 001064  # TEXT - _sys_exit
+kernel.c:284 (T) -> 001064  # TEXT - _sys_exit
+kernel.s:423 (T) -> 001067  # TEXT - _sys_exit
+kernel.c:286 (T) -> 001067  # TEXT - _sys_exit
+kernel.s:426 (T) -> 001075  # TEXT - _sys_exit
+kernel.s:427 (T) -> 001100  # TEXT - if <= go	L59
+kernel.c:287 (T) -> 001100  # TEXT - if <= go	L59
+kernel.s:429 (T) -> 001107  # TEXT - if <= go	L59
+kernel.c:289 (T) -> 001107  # TEXT - if <= go	L59
+kernel.s:433 (T) -> 001111  # TEXT - L59
+kernel.s:434 (T) -> 001116  # TEXT - L59
+kernel.c:290 (T) -> 001116  # TEXT - L59
+kernel.s:437 (T) -> 001117  # TEXT - L58
+kernel.s:438 (T) -> 001117  # TEXT - L58
+kernel.s:439 (T) -> 001117  # TEXT - .stabs	"scheduler
+kernel.s:441 (T) -> 001125  # TEXT - _scheduler
+kernel.c:297 (T) -> 001125  # TEXT - _scheduler
+kernel.s:443 (T) -> 001127  # TEXT - _scheduler
+kernel.c:301 (T) -> 001127  # TEXT - _scheduler
+kernel.s:445 (T) -> 001127  # TEXT - .stabs	"i
+kernel.c:301 (T) -> 001127  # TEXT - .stabs	"i
+kernel.s:447 (T) -> 001127  # TEXT - .stabs	"current
+kernel.c:301 (T) -> 001127  # TEXT - .stabs	"current
+kernel.s:451 (T) -> 001131  # TEXT - .stabs	"current
+kernel.c:306 (T) -> 001131  # TEXT - .stabs	"current
+kernel.s:458 (T) -> 001133  # TEXT - L61
+kernel.s:460 (T) -> 001137  # TEXT - L65
+kernel.s:461 (T) -> 001142  # TEXT - if >= go	L64
+kernel.c:307 (T) -> 001142  # TEXT - if >= go	L64
+kernel.s:463 (T) -> 001144  # TEXT - w1 
+kernel.s:464 (T) -> 001146  # TEXT - w1 
+kernel.s:465 (T) -> 001154  # TEXT - w1 
+kernel.s:466 (T) -> 001156  # TEXT - w2 =
+kernel.c:309 (T) -> 001156  # TEXT - w2 =
+kernel.s:469 (T) -> 001160  # TEXT - w1 
+kernel.s:470 (T) -> 001163  # TEXT - w1 
+kernel.s:471 (T) -> 001171  # TEXT - w1 
+kernel.s:472 (T) -> 001175  # TEXT - w1 
+kernel.s:473 (T) -> 001200  # TEXT - if >< go	L66
+kernel.c:312 (T) -> 001200  # TEXT - if >< go	L66
+kernel.s:477 (T) -> 001205  # TEXT - if >< go	L66
+kernel.c:314 (T) -> 001205  # TEXT - if >< go	L66
+kernel.s:482 (T) -> 001205  # TEXT - # opleaf 
+kernel.c:314 (T) -> 001205  # TEXT - # opleaf 
+kernel.s:483 (T) -> 001207  # TEXT - # opleaf 
+kernel.s:484 (T) -> 001211  # TEXT - # opleaf 
+kernel.c:317 (T) -> 001211  # TEXT - # opleaf 
+kernel.s:489 (T) -> 001211  # TEXT - # opleaf 
+kernel.c:317 (T) -> 001211  # TEXT - # opleaf 
+kernel.s:490 (T) -> 001217  # TEXT - # opleaf 
+kernel.c:318 (T) -> 001217  # TEXT - # opleaf 
+kernel.s:492 (T) -> 001221  # TEXT - # opleaf 
+kernel.c:319 (T) -> 001221  # TEXT - # opleaf 
+kernel.s:497 (T) -> 001222  # TEXT - L60
+kernel.s:498 (T) -> 001222  # TEXT - L60
+kernel.s:499 (T) -> 001222  # TEXT - .stabs	"trap_handler
+kernel.s:500 (T) -> 001222  # TEXT - .stabs	"trapno
+kernel.s:502 (T) -> 001230  # TEXT - _trap_handler
+kernel.c:326 (T) -> 001230  # TEXT - _trap_handler
+kernel.s:504 (T) -> 001233  # TEXT - _trap_handler
+kernel.c:328 (T) -> 001233  # TEXT - _trap_handler
+kernel.s:507 (T) -> 001240  # TEXT - _trap_handler
+kernel.c:329 (T) -> 001240  # TEXT - _trap_handler
+kernel.s:510 (T) -> 001241  # TEXT - L67
+kernel.s:511 (T) -> 001241  # TEXT - L67
+kernel.s:512 (T) -> 001241  # TEXT - .stabs	"main
+kernel.s:514 (T) -> 001247  # TEXT - _main
+kernel.c:336 (T) -> 001247  # TEXT - _main
+kernel.s:516 (T) -> 001251  # TEXT - _main
+kernel.c:338 (T) -> 001251  # TEXT - _main
+kernel.s:519 (T) -> 001257  # TEXT - _main
+kernel.c:340 (T) -> 001257  # TEXT - _main
+kernel.s:522 (T) -> 001261  # TEXT - _main
+kernel.s:523 (T) -> 001266  # TEXT - _main
+kernel.c:341 (T) -> 001266  # TEXT - _main
+kernel.s:526 (T) -> 001267  # TEXT - L69
+kernel.s:527 (T) -> 001267  # TEXT - L69

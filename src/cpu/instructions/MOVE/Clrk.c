@@ -1,33 +1,36 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Clrk instruction - MOVE class
- * 
- * Mnemonic: clrk
- * Operands: 0
+ *
+ * Clear K Flag: 0 → K
+ *
+ * Variants: 1
+ * Mnemonics: clrk
+ * Operands: 0 (no operands)
+ *
  * Opcode: 0xFE03
+ *
+ * Operation: 0 → ST.K
+ *
+ * Description:
+ *   Clears the K (Destination Full) status bit in the status register.
+ *   The K flag is used for signaling and synchronization purposes, typically
+ *   to indicate when a destination buffer or register is full.
+ *
+ * Flags: K (Destination Full)
+ *   K = 0 (always cleared)
+ *
+ * Trap conditions:
+ *   - None
+ *
+ * Reference: ND-500 Reference Manual
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Clrk.cs
  */
 void nd500_instr_Clrk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Clrk instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 0
-     * - Access operands via: fi->operands[0..-1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Clrk instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
-    }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+    // Clear K flag in status register
+    cpu->ST1 &= ~ND500_FLAG_K;
 }
