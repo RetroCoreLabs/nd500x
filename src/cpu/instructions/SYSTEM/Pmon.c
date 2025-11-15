@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "nd500_mmu.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
@@ -27,6 +28,11 @@
  */
 void nd500_instr_Pmon(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     (void)fi;  /* Unused parameter */
+
+    /* Check privilege - PMON requires supervisor mode */
+    if (!nd500_require_privilege(cpu, fi->address)) {
+        return;  /* Trapped - not privileged */
+    }
 
     /* Enable program MMU (for instruction fetches only, not data accesses) */
     nd500_mmu_enable_program(cpu);
