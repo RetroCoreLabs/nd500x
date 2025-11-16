@@ -1,5 +1,6 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
@@ -134,16 +135,12 @@ void nd500_instr_Pctsb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Check privileged mode - PCTSB requires PIA bit set
-     * TODO: Implement PIA bit checking when status register is fully implemented
-     * For now, we allow the instruction to execute */
-    /*
-    if (!(cpu->ST1 & ST_PIA_BIT)) {
+    /* Check privileged mode - PCTSB requires PIA bit set */
+    if (!(cpu->ST1 & (1u << ND500_ST_BIT_PIA))) {
         printf("[ERROR] PCTSB requires privileged mode at PC=0x%08X\n", fi->address);
         trap_illegal_instruction(cpu, fi->address, fi->opcode);
         return;
     }
-    */
 
     /* EMULATOR NO-OP: Clear program translation speedup buffer
      *
