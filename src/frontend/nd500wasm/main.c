@@ -212,8 +212,14 @@ int nd500_dbg_load_aout_js(const uint8_t* data, uint32_t size) {
 /* Load via path on MEMFS (browser) or node FS (ENVIRONMENT=node) */
 int nd500_dbg_load_aout_path_js(const char* path) {
     if (!path) return -1;
+    uint32_t entry = 0, pc = 0;
     /* Use unified loading function (no auto-map - handled by JS) */
-    return ndlib_load_aout_with_debug(&g_machine, path, 0, NULL, NULL);
+    int rc = ndlib_load_aout_with_debug(&g_machine, path, 0, &entry, &pc);
+    if (rc == 0) {
+        printf("[nd500_dbg_load_aout_path_js] Loaded %s: entry=0x%x, PC set to=0x%x\n",
+               path, entry, pc);
+    }
+    return rc;
 }
 
 /* Breakpoint API functions */
