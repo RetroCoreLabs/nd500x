@@ -19,6 +19,9 @@ void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
 	cpu->machine = machine;
 	if (machine) machine->cpu = cpu;
 
+	/* Initialize ND-100 I/O Processor Bridge */
+	cpu->nd100_memory_offset = 0x40000;  /* Default: ND-100 memory at physical offset 0x40000 */
+
 	/* Initialize MMU structures (PST, PCB tables) */
 	nd500_mmu_init(cpu);
 
@@ -372,6 +375,128 @@ int nd500_cpu_run(Nd500Cpu* cpu, int steps) {
 	}
 	
 	return steps;
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* ND-100 I/O PROCESSOR BRIDGE IMPLEMENTATION */
+/* ═══════════════════════════════════════════════════════ */
+
+/**
+ * Read a word from ND-100 I/O processor memory space via RIOM/DMA
+ *
+ * @param cpu        CPU structure containing bridge configuration
+ * @param nd100_addr ND-100 physical word address (24-bit, 0x000000-0x3FFFFF)
+ * @return           Halfword value read from ND-100 memory
+ *
+ * ND-100 Physical Memory Architecture:
+ *
+ * ND-100 uses 24-bit word addressing (22-bit physical addresses):
+ *   0x000000 - 0x00FFFF (64K words, 128KB)  : Low RAM (boot, kernel, RT programs)
+ *   0x010000 - 0x03FFFF (192K words, 384KB) : Extended RAM (programs, buffers)
+ *   0x040000 - 0x05FFFF (128K words, 256KB) : 5MPM (shared multiport memory)
+ *   0x060000 - 0x3FFFFF (remaining space)   : Additional RAM (system dependent)
+ *
+ * Address Translation:
+ * - ND-100 uses word addressing (address × 2 = byte offset)
+ * - ND-500 uses byte addressing (32-bit)
+ * - Translation: physical_addr = nd100_memory_offset + (nd100_addr × 2)
+ * - Default offset: 0x40000 (maps ND-100 space into ND-500 physical RAM)
+ *
+ * RIOM Access Scope:
+ * - RIOM can access ANY ND-100 physical memory (not limited to 5MPM)
+ * - Used to read kernel structures, RT program data, and I/O buffers
+ * - Access via DMA through 3022/5015 interface hardware
+ * - Does NOT interrupt ND-100 program execution
+ *
+ * Memory Model:
+ * In emulator, ND-100 memory is mapped at nd100_memory_offset:
+ *   ND-100 Address    Physical Address    Region
+ *   0x000000          0x40000             ND-100 RAM start
+ *   0x000001          0x40002             Second word
+ *   0x040000          0xC0000             5MPM region start
+ *   0x05FFFF          0xFFFFE             5MPM region end
+ *
+ * Reference: E:\Dev\Ronny\NDInsight\SINTRAN\Emulator\ND100Bridge.md
+ *            Lines 130-173 (Memory Map), 484-545 (RIOM Implementation)
+ *
+ * Note: Both ND-100 and ND-500 use BIG-ENDIAN byte order (no swapping needed)
+ */
+uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr) {
+	if (!cpu || !cpu->machine) {
+		printf("[ERROR] ND-100 Bridge: Invalid CPU/machine pointer\n");
+		return 0;
+	}
+
+	/* Validate ND-100 address range (22-bit physical: 0x000000-0x3FFFFF)
+	 * This is 4M words = 8MB byte addressing */
+	if (nd100_addr > 0x3FFFFF) {
+		printf("[ERROR] ND-100 Bridge: Address 0x%08X exceeds ND-100 physical range (max 0x3FFFFF)\n",
+		       nd100_addr);
+		return 0;
+	}
+
+	/* Translate ND-100 word address to ND-500 byte address
+	 * Formula: physical_addr = base_offset + (word_addr × 2)
+	 *
+	 * This maps the entire ND-100 address space into ND-500 physical RAM:
+	 * - ND-100 Low RAM (0x000000) → Physical 0x40000
+	 * - ND-100 5MPM (0x040000) → Physical 0xC0000
+	 */
+	uint32_t physical_addr = cpu->nd100_memory_offset + (nd100_addr * 2);
+
+	/* Read halfword from physical memory using existing memory access API
+	 * Big-endian byte order (same for both ND-100 and ND-500) */
+	uint16_t value = nd500_read_memory_16(cpu, physical_addr);
+
+	return value;
+}
+
+/**
+ * Write a word to ND-100 I/O processor memory space
+ *
+ * @param cpu        CPU structure containing bridge configuration
+ * @param nd100_addr ND-100 physical word address (24-bit, 0x000000-0x3FFFFF)
+ * @param data       Halfword value to write to ND-100 memory
+ *
+ * Address Translation:
+ * - ND-100 uses word addressing (address × 2 = byte offset)
+ * - ND-500 uses byte addressing (32-bit)
+ * - Translation: physical_addr = nd100_memory_offset + (nd100_addr × 2)
+ * - Default offset: 0x40000 (maps ND-100 space into ND-500 physical RAM)
+ *
+ * Write Operation:
+ * - Translates ND-100 word address to physical byte address
+ * - Writes 16-bit value to physical memory
+ * - Big-endian byte order (same for both ND-100 and ND-500)
+ *
+ * Important Notes:
+ * - **NO WIOM INSTRUCTION EXISTS** in ND-500 architecture
+ * - Writing from ND-500 to ND-100 is done via 5MPM shared memory only
+ * - This function is for emulator internal use (e.g., test fixtures)
+ * - In real hardware, ND-500 → ND-100 communication uses 5MPM at 0x80000000
+ *
+ * Reference: E:\Dev\Ronny\NDInsight\SINTRAN\Emulator\ND100Bridge.md
+ *            Line 570: "NO WIOM instruction documented in ND-500 Reference Manual"
+ */
+void nd500_write_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr, uint16_t data) {
+	if (!cpu || !cpu->machine) {
+		printf("[ERROR] ND-100 Bridge: Invalid CPU/machine pointer\n");
+		return;
+	}
+
+	/* Validate ND-100 address range (22-bit physical: 0x000000-0x3FFFFF) */
+	if (nd100_addr > 0x3FFFFF) {
+		printf("[ERROR] ND-100 Bridge: Address 0x%08X exceeds ND-100 physical range (max 0x3FFFFF)\n",
+		       nd100_addr);
+		return;
+	}
+
+	/* Translate ND-100 word address to ND-500 byte address */
+	uint32_t physical_addr = cpu->nd100_memory_offset + (nd100_addr * 2);
+
+	/* Write halfword to physical memory using existing memory access API
+	 * Big-endian byte order (same for both ND-100 and ND-500) */
+	nd500_write_memory_16(cpu, physical_addr, data);
 }
 
 
