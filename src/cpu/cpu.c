@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <setjmp.h>
 #include "cpu_protos.h"
+#include "instruction_helpers.h"
 #include "nd500_mmu.h"
 #include "nd500_domain.h"
 #include "../machine/machine_protos.h"
