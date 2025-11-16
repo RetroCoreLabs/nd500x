@@ -1940,6 +1940,7 @@ class ND500Debugger {
                 await this.handleZipUpload(zipFile);
                 this.updateStatus('Demo kernel loaded with source files - NDIX-C Simulated Kernel v1.0');
                 this.updateUI();
+                console.log(`[loadDemoKernel] After ZIP load and updateUI: currentPC=0x${this.currentPC.toString(16)}`);
 
                 // Automatically run mmusetup to configure MMU tables, but keep MMU disabled
                 try {
@@ -3335,14 +3336,16 @@ class ND500Debugger {
         this.module.FS.writeFile(`/${filename}`, bytes);
 
         // Load via WASM
+        console.log(`[loadAoutFromBuffer] Before load: currentPC=0x${this.currentPC.toString(16)}`);
         const result = this.module.ccall('nd500_dbg_load_aout_path_js', 'number', ['string'], [`/${filename}`]);
         if (result !== 0) {
             console.warn(`Failed to load executable: ${filename}`);
             this.updateStatus(`Failed to load executable: ${filename}`);
         } else {
-            console.log(`Loaded executable: ${filename}`);
+            console.log(`[loadAoutFromBuffer] Loaded executable: ${filename}, calling updateUI()`);
             this.updateStatus(`Loaded executable: ${filename}`);
             this.updateUI();
+            console.log(`[loadAoutFromBuffer] After updateUI: currentPC=0x${this.currentPC.toString(16)}`);
         }
     }
 
