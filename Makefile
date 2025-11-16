@@ -57,6 +57,8 @@ wasm-clean:
 	@rm -rf $(WASM_DIR)
 
 wasm-serve: wasm
+	@echo "Copying kernel.zip to WASM build directory..."
+	@cp examples/05-c-kernel/kernel.zip $(WASM_DIR)/bin/kernel.zip
 	@echo "Starting web server on http://localhost:8000"
 	@echo "Open http://localhost:8000 in your browser to use the ND500X Web Debugger"
 	@cd $(WASM_DIR)/bin && python3 -m http.server 8000

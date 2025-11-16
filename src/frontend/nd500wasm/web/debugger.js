@@ -1932,7 +1932,7 @@ class ND500Debugger {
 
             // Load kernel.zip with source files
             console.log('Fetching kernel.zip...');
-            const zipResponse = await fetch('kernel.zip');
+            const zipResponse = await fetch('kernel.zip?v=' + Date.now());
             if (zipResponse.ok) {
                 console.log('kernel.zip found, loading with source files...');
                 const zipBlob = await zipResponse.blob();
