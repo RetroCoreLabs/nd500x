@@ -159,5 +159,106 @@ void nd500_instr_Pctsb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     printf("[PCTSB] Program TLB clear (emulator no-op) at PC=0x%08X\n", fi->address);
 
+    /* ========================================================================
+     * WHY IS TLB CLEARING A NO-OP IN THE EMULATOR?
+     * ========================================================================
+     *
+     * This is a common question! Here's the detailed explanation:
+     *
+     * 1. WHAT IS A TLB AND WHY DOES REAL HARDWARE NEED IT?
+     * -------------------------------------------------------
+     * On real ND-500 hardware, every memory access requires address translation
+     * through the MMU (Memory Management Unit):
+     *
+     *   Step 1: Read capability table entry     (1 memory access)
+     *   Step 2: Read PST (Physical Segment)     (1 memory access)
+     *   Step 3: Read page table (if paged)      (1-2 memory accesses)
+     *   Step 4: Finally access the actual data  (1 memory access)
+     *   --------------------------------------------------------
+     *   TOTAL: 3-5 memory accesses PER instruction fetch = EXTREMELY SLOW!
+     *
+     * Without a TLB, every instruction fetch would require 3-5 memory lookups
+     * just to find where the instruction is! The ND-500 would be unusably slow.
+     *
+     * The TLB (Translation Lookaside Buffer) is a HARDWARE CACHE that stores
+     * recent address translations:
+     *   - Maps: (virtual_page) → (physical_page, permissions)
+     *   - Hardware lookup in ~1 CPU cycle (associative memory)
+     *   - Typical hit rate: 95-99%
+     *   - When TLB hits: Skip all table lookups, use cached translation
+     *   - When TLB misses: Do full table lookup, then cache the result
+     *
+     * This is why DCTSB/PCTSB exist - to invalidate stale TLB entries when
+     * page tables or capabilities change (process switch, page table update, etc.)
+     *
+     * 2. WHY DOESN'T THE EMULATOR IMPLEMENT A TLB?
+     * ----------------------------------------------
+     * Reason A: The HOST CPU already has a TLB!
+     *
+     *   The emulator runs on a modern x86/ARM CPU that ALREADY HAS its own TLB
+     *   for host memory. When the emulator's TranslateVirtualAddress() function
+     *   accesses the capability tables, PST, and page tables in the emulated
+     *   memory array, the HOST CPU's TLB is already caching those accesses!
+     *
+     *   Emulated ND-500 Memory → Host RAM → Host CPU TLB (already optimizing!)
+     *
+     * Reason B: Emulation is already slow - MMU overhead is negligible
+     *
+     *   The emulator is interpreting ND-500 instructions in software. Each
+     *   ND-500 instruction might execute 100+ host CPU instructions. The MMU
+     *   translation overhead is negligible compared to interpretation overhead.
+     *
+     * Reason C: Adding an emulated TLB would provide minimal benefit
+     *
+     *   - Would add complex cache coherency logic
+     *   - Would add invalidation tracking code
+     *   - Would add TLB entry management
+     *   - Would make debugging harder (cache-related bugs are nasty!)
+     *   - Would provide maybe 2-5% speedup at best
+     *   - NOT WORTH THE COMPLEXITY
+     *
+     * 3. WHY CORRECTNESS > PERFORMANCE FOR EMULATION
+     * ------------------------------------------------
+     * The emulator's goal is ACCURATE ND-500 BEHAVIOR, not speed.
+     *
+     * Doing full table lookup every time:
+     *   ✓ Ensures we catch bugs in page table setup
+     *   ✓ Makes memory access behavior deterministic
+     *   ✓ Simplifies debugging (no cache-related heisenbugs)
+     *   ✓ Matches hardware behavior functionally (just slower)
+     *
+     * 4. WHY PRIVILEGE CHECKING IS STILL CRITICAL
+     * ---------------------------------------------
+     * Even though TLB clearing is a no-op, the privilege check is ESSENTIAL:
+     *
+     *   a) OS Code Testing: If OS code calls PCTSB without setting PIA first,
+     *      it's a BUG that would fail on real hardware. The emulator MUST catch this!
+     *
+     *   b) Security Testing: If unprivileged code tries to execute PCTSB, it
+     *      MUST trap. This validates security assumptions in the OS.
+     *
+     *   c) Behavioral Compatibility: Software running on the emulator should
+     *      behave IDENTICALLY to real hardware, just slower. All traps must
+     *      occur at the same points.
+     *
+     * SUMMARY
+     * -------
+     * The emulator models BEHAVIOR, not PERFORMANCE CHARACTERISTICS.
+     *
+     * TLB clearing is a no-op because:
+     *   - Emulator has no TLB to clear (always does full translation)
+     *   - Host CPU already optimizes the memory accesses with its own TLB
+     *   - Performance isn't critical for emulation
+     *   - Correctness and simplicity are more important
+     *
+     * But privilege checking is NOT a no-op because:
+     *   - OS code must be tested for correct privilege handling
+     *   - Security validation requires proper traps
+     *   - Behavioral compatibility with real hardware is essential
+     *
+     * The emulator is functionally correct - it just doesn't optimize what
+     * the hardware optimizes.
+     * ======================================================================== */
+
     /* No status bits affected */
 }
