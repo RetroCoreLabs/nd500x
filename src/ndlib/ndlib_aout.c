@@ -439,12 +439,12 @@ int ndlib_load_aout_with_debug(Nd500Machine* m, const char* aout_path,
 
     /* Step 4: Set PC correctly for object files vs executables */
     uint32_t pc = 0;
-    if (entry == 0 || entry == 4) {
-        /* Object file - use first instruction from map */
+    if (entry == 0) {
+        /* Object file (no entry point) - use first instruction from map */
         uint32_t first_instr = ndlib_symbols_first_instruction_addr();
         pc = (first_instr > 0) ? first_instr : 0;
     } else {
-        /* Executable - use entry point */
+        /* Executable - use entry point (even if it's 4) */
         pc = entry;
     }
 

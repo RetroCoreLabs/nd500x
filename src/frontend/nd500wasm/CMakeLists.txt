@@ -15,10 +15,10 @@ add_custom_command(TARGET nd500wasm POST_BUILD
         ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/debugger.js
         ${CMAKE_BINARY_DIR}/bin/debugger.js
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/demo/kernel
+        ${CMAKE_SOURCE_DIR}/examples/05-c-kernel/kernel
         ${CMAKE_BINARY_DIR}/bin/kernel
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/demo/kernel.zip
+    COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/examples/05-c-kernel/kernel.zip
         ${CMAKE_BINARY_DIR}/bin/kernel.zip
     COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_SOURCE_DIR}/src/frontend/nd500wasm/web/test_source_loading.html

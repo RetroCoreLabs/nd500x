@@ -151,15 +151,11 @@ void scheduler();           /* Process scheduler */
 void trap_handler();        /* Trap/exception handler */
 
 /*
- * Kernel entry point (start symbol)
- * This is the first code executed after the ND-500 boots
+ * Kernel main entry point (called from locore.c bootstrap)
+ * Stack is already initialized by locore.c INIT instruction
  */
-void start()
+void kernel_main()
 {
-    /* Initialize stack before any function calls */
-    /* INIT instruction sets up B, TOS, and creates initial stack frame */
-    asm("init _stack_area,$4096,$65536");
-
     /* Initialize kernel subsystems */
     init_kernel();
 
@@ -340,12 +336,12 @@ int trapno;
 
 /*
  * Main function (for testing without kernel entry point)
- * This won't be used when linked with start as entry point
+ * This won't be used when linked with locore.c bootstrap
  */
 int main()
 {
     /* Call kernel initialization */
-    start();
+    kernel_main();
 
     return 0;
 }
