@@ -36,6 +36,9 @@ typedef struct Nd500Cpu {
 	uint32_t pending_call_arg_count;       /* Number of arguments from CALL */
 	uint32_t pending_call_arg_addresses[256]; /* Effective addresses of arguments */
 
+	/* ND-100 I/O Processor Bridge Configuration */
+	uint32_t nd100_memory_offset;  /* Physical memory offset for ND-100 memory (default: 0x40000) */
+
 	Nd500Machine* machine;
 } Nd500Cpu;
 
@@ -225,5 +228,9 @@ void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 /* Operand access helpers for instruction implementations */
 uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op);
 void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32_t value);
+
+/* ND-100 I/O Processor Bridge Helper Functions */
+uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr);
+void nd500_write_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr, uint16_t data);
 
 
