@@ -179,7 +179,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
     /* Check if capability is valid (non-zero) */
     if (capability == 0) {
         trap_protect_violation(cpu, cpu->PC, virtual_addr);
-        return 0;  /* No access rights to this segment */
+        return virtual_addr;  /* Return virtual address, trap will stop execution */
     }
 
     /* ─────────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
     if (psn >= MAX_PST) {
         trap_protect_violation(cpu, cpu->PC, virtual_addr);
-        return 0;  /* Invalid PSN */
+        return virtual_addr;  /* Invalid PSN - return virtual address, trap will stop execution */
     }
 
     /* Check write permission (for data writes only) */
@@ -199,7 +199,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
         /* Check DC_WRP flag: 0=writable, 1=read-only */
         if (capability & DC_WRP) {
             trap_protect_violation(cpu, cpu->PC, virtual_addr);
-            return 0;  /* Write to read-only segment */
+            return virtual_addr;  /* Write to read-only segment - return virtual address, trap will stop execution */
         }
     }
 
@@ -233,13 +233,13 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             /* Check if page is present */
             if (pte.physical_pfn == 0) {
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
-                return 0;  /* Page not mapped */
+                return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
             }
 
             /* Check write permission */
             if (is_write && pte.protection != 0) {
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
-                return 0;  /* Write to read-only page */
+                return virtual_addr;  /* Write to read-only page - return virtual address, trap will stop execution */
             }
 
             physical_pfn = pte.physical_pfn;
@@ -261,7 +261,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
             if (l1_pte.physical_pfn == 0) {
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
-                return 0;  /* L1 page table not present */
+                return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
             }
 
             /* L1 PTE points to L2 page table */
@@ -273,13 +273,13 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
             if (l2_pte.physical_pfn == 0) {
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
-                return 0;  /* L2 page not mapped */
+                return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }
 
             /* Check write permission */
             if (is_write && (l1_pte.protection != 0 || l2_pte.protection != 0)) {
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
-                return 0;  /* Write to read-only page */
+                return virtual_addr;  /* Write to read-only page - return virtual address, trap will stop execution */
             }
 
             physical_pfn = l2_pte.physical_pfn;
@@ -289,7 +289,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
         default:
             /* Invalid index mode */
             trap_illegal_operand(cpu, cpu->PC);
-            return 0;
+            return virtual_addr;  /* Invalid index mode - return virtual address, trap will stop execution */
     }
 
     /* ─────────────────────────────────────────────────────────

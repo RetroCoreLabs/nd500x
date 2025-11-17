@@ -49,3 +49,10 @@ const char** nd500_cmd_get_command_list(void);
  * @return         NULL-terminated array of subcommand strings, or NULL if none
  */
 const char** nd500_cmd_get_subcommands(const char* command);
+
+/* Execute init script from file
+ * @param m            Machine instance
+ * @param script_path  Path to .init script file
+ * @return             0 on success, -1 on error
+ */
+int nd500_execute_init_script(Nd500Machine* m, const char* script_path);

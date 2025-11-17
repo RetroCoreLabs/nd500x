@@ -61,6 +61,9 @@ static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args);
 
+/* Forward declaration for init script execution (defined at end of file) */
+int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
+
 /* Command table */
 static const CmdEntry g_commands[] = {
 	{"help",        cmd_help,         "Show help message"},
@@ -1340,11 +1343,6 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 		char* end_str = strtok(NULL, " \t\r\n");
 		char* flags_str = strtok(NULL, " \t\r\n");
 
-		printf("[DEBUG cmd_mmu] identity: start_str=%s end_str=%s flags_str=%s\n",
-		       start_str ? start_str : "NULL",
-		       end_str ? end_str : "NULL",
-		       flags_str ? flags_str : "NULL");
-
 		if (!start_str || !end_str || !flags_str) {
 			error(ctx, "usage: mmu identity <start> <end> <flags>");
 			error(ctx, "  example: mmu identity 0x00000000 0x00FFFFFF rwx");
@@ -1382,7 +1380,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 		/* Page table allocation base (1MB physical address, well past kernel) */
 		uint32_t page_table_base = 0x00100000;  /* 1MB */
-		uint32_t next_psn = 0;  /* Next available PSN */
+		uint32_t next_psn = 1;  /* Next available PSN (start from 1, PSN 0 reserved for "no capability") */
 
 		/* Create one PST entry per segment using PS_ASI (single-level paging) */
 		for (uint32_t seg = start_seg; seg <= end_seg && seg < MAXSEG; seg++) {
@@ -1411,27 +1409,11 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 				uint8_t protection = (has_write) ? 0 : 1;  /* 0=writable, 1=read-only */
 				uint32_t pte_value = (page_num << 2) | (1 << 1) | protection;  /* Set valid bit */
 
-				/* Debug: log first few PTEs */
-				if (i < 4 && seg == 0) {
-					printf("[DEBUG mmu identity] Writing PTE[%u] at 0x%08X: value=0x%08X (pfn=%u, valid=%u, prot=%u)\n",
-					       i, pte_addr, pte_value, page_num, 1, protection);
-				}
-
 				/* Write PTE to physical memory */
 				nd500_bus_write8(m, pte_addr + 0, (pte_value >> 0) & 0xFF);
 				nd500_bus_write8(m, pte_addr + 1, (pte_value >> 8) & 0xFF);
 				nd500_bus_write8(m, pte_addr + 2, (pte_value >> 16) & 0xFF);
 				nd500_bus_write8(m, pte_addr + 3, (pte_value >> 24) & 0xFF);
-
-				/* Debug: verify what was written */
-				if (i < 4 && seg == 0) {
-					uint32_t verify = nd500_bus_read8(m, pte_addr + 0) |
-					                  (nd500_bus_read8(m, pte_addr + 1) << 8) |
-					                  (nd500_bus_read8(m, pte_addr + 2) << 16) |
-					                  (nd500_bus_read8(m, pte_addr + 3) << 24);
-					printf("[DEBUG mmu identity] Verified PTE[%u] at 0x%08X: value=0x%08X\n",
-					       i, pte_addr, verify);
-				}
 			}
 
 			/* Create PST entry pointing to page table (PS_ASI mode) */
@@ -1545,7 +1527,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 				nd500_bus_write8(m, pte_addr + 0, (pte_value >> 0) & 0xFF);
 				nd500_bus_write8(m, pte_addr + 1, (pte_value >> 8) & 0xFF);
 				nd500_bus_write8(m, pte_addr + 2, (pte_value >> 16) & 0xFF);
-				nd500_bus_write8(m, pte_addr + 3, (pte_value >> 24) & 0xFF);
+				nd500_bus_write8(m, pte_addr + 3, (pte_value >> 24) & 0xFF);;
 			}
 
 			/* Create PST entry pointing to page table (PS_ASI mode) */

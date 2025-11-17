@@ -62,12 +62,13 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 
 void nd500_cpu_step(Nd500Cpu* cpu) {
 	if (!cpu || !cpu->machine) return;
-	
+
 	/* Check for pending traps before executing instruction */
 	if (nd500_trap_occurred()) {
 		const Nd500TrapState* trap = nd500_trap_get_state();
-		printf("[CPU] Trap detected before instruction execution: %s\n", trap->trap_description);
+		/* Trap detected - stop execution and clear trap state */
 		cpu->machine->run_flag = 0; /* Stop execution */
+		nd500_trap_clear(); /* Clear trap so debugger can inspect memory */
 		return;
 	}
 	
@@ -89,7 +90,7 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
 			opcode_byte = nd500_bus_read8(cpu->machine, cpu->PC);
 		}
 		if (opcode_byte == 0x00) {
-			printf("\n[TRAP] Invalid instruction 0x00 at PC=0x%08X (uninitialized memory)\n", cpu->PC);
+			/* Invalid instruction 0x00 detected (uninitialized memory) */
 			nd500_trap_set_state(TRAP_IIC, cpu->PC, 0, "Invalid instruction 0x00 (uninitialized memory)");
 			cpu->machine->run_flag = 0; /* Stop execution */
 			return;
@@ -153,9 +154,6 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
 	if (!cpu) return;
 
-	printf("\n[TRAP] Trap 0x%016llx at PC=0x%08X Data=0x%08X\n",
-	       (unsigned long long)trapBit, trapPC, dataAddr);
-
 	/* Set the corresponding bit in ST1/ST2 status registers */
 	if (trapBit & 0xFFFFFFFF) {
 		cpu->ST1 |= (uint32_t)(trapBit & 0xFFFFFFFF);
@@ -169,18 +167,14 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 
 	/* Check if this is a non-ignorable trap (bits 0-10) */
 	if (trapBit & TRAP_INTERRUPT_MASK) {
-		printf("[TRAP] Non-ignorable trap - interrupting instruction execution\n");
-		printf("[TRAP] Stopping execution\n");
+		/* Non-ignorable trap - stop execution */
 		return;
 	}
 
 	/* Ignorable trap (bits 11-29): check if enabled in OTE mask */
 	uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
-	if (trapBit & ote) {
-		printf("[TRAP] Ignorable trap enabled in OTE - will be checked at end of instruction\n");
-	} else {
-		printf("[TRAP] Ignorable trap NOT enabled in OTE - suppressed\n");
-	}
+	/* If enabled in OTE, trap will be checked at end of instruction */
+	/* If not enabled, trap is suppressed */
 }
 
 /**
@@ -223,10 +217,7 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 			break;
 		}
 	}
-	
-	printf("[TRAP] Invoking trap handler for trap %d @PC=0x%08X\n",
-	       trapNumber, trappingP);
-	
+
 	/* THA points to start address vector (64 words = 256 bytes) */
 	/* Handler address = THA + (trapNumber * 4) in byte-addressed memory */
 	uint32_t handlerPointer = cpu->THA + (trapNumber * 4);
@@ -251,77 +242,62 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 /* ═══════════════════════════════════════════════════════ */
 
 void trap_illegal_instruction(Nd500Cpu* cpu, uint32_t pc, uint32_t opcode) {
-	printf("[TRAP] Illegal instruction 0x%04X at PC=0x%08X\n", opcode, pc);
 	raise_trap(cpu, TRAP_IIC, pc, opcode);
 }
 
 void trap_illegal_operand(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Illegal operand at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_IOS, pc, 0);
 }
 
 void trap_instruction_sequence_error(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Instruction sequence error at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_ISE, pc, 0);
 }
 
 void trap_protect_violation(Nd500Cpu* cpu, uint32_t pc, uint32_t address) {
-	printf("[TRAP] Protect violation at PC=0x%08X address=0x%08X\n", pc, address);
 	raise_trap(cpu, TRAP_PV, pc, address);
 }
 
 void trap_page_fault(Nd500Cpu* cpu, uint32_t pc, uint32_t address) {
-	printf("[TRAP] Page fault at PC=0x%08X address=0x%08X\n", pc, address);
 	raise_trap(cpu, TRAP_PGF, pc, address);
 }
 
 void trap_divide_by_zero(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Divide by zero at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_DZ, pc, 0);
 }
 
 void trap_floating_overflow(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Floating overflow at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_FO, pc, 0);
 }
 
 void trap_floating_underflow(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Floating underflow at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_FU, pc, 0);
 }
 
 void trap_invalid_operation(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Invalid operation at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_IVO, pc, 0);
 }
 
 void trap_stack_overflow(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Stack overflow at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_STO, pc, 0);
 }
 
 void trap_stack_underflow(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Stack underflow at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_STU, pc, 0);
 }
 
 void trap_breakpoint(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Breakpoint at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_BPT, pc, 0);
 }
 
 void trap_single_instruction(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Single instruction trap at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_SIT, pc, 0);
 }
 
 void trap_branch(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Branch trap at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_BT, pc, 0);
 }
 
 void trap_call(Nd500Cpu* cpu, uint32_t pc) {
-	printf("[TRAP] Call trap at PC=0x%08X\n", pc);
 	raise_trap(cpu, TRAP_CT, pc, 0);
 }
 
