@@ -33,13 +33,6 @@ static inline uint8_t mmu_read8(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int
 
 	/* Access physical memory via bus (no further translation) */
 	uint8_t byte = nd500_bus_read8(cpu->machine, paddr);
-
-	/* Debug: log reads from virtual address 0-15 */
-	if (is_instruction && vaddr <= 0x0F) {
-		printf("[DEBUG mmu_read8] vaddr=0x%08X → paddr=0x%08X, byte=0x%02X, mmu_enabled=%d\n",
-		       vaddr, paddr, byte, cpu->machine->mmu_enabled);
-	}
-
 	return byte;
 }
 
@@ -52,18 +45,6 @@ static inline void mmu_write8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t val) {
 	uint32_t paddr = vaddr;
 	if (cpu->machine->mmu_enabled) {
 		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); /* is_write=1, is_instruction=0 */
-
-		/* Check if MMU raised a trap (protect violation, page fault, etc.) */
-		if (nd500_trap_occurred()) {
-			printf("[DEBUG] mmu_write8 aborted due to trap at vaddr=0x%08X\n", vaddr);
-			return; /* Abort write operation */
-		}
-	}
-
-	/* Debug: log writes to low memory */
-	if (paddr <= 0xFF) {
-		printf("[DEBUG mmu_write8] vaddr=0x%08X → paddr=0x%08X, val=0x%02X, PC=0x%08X\n",
-		       vaddr, paddr, val, cpu ? cpu->PC : 0);
 	}
 
 	nd500_bus_write8(cpu->machine, paddr, val);
@@ -92,18 +73,6 @@ static inline void mmu_write16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) {
 	uint32_t paddr = vaddr;
 	if (cpu->machine->mmu_enabled) {
 		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
-
-		/* Check if MMU raised a trap (protect violation, page fault, etc.) */
-		if (nd500_trap_occurred()) {
-			printf("[DEBUG] mmu_write16 aborted due to trap at vaddr=0x%08X\n", vaddr);
-			return; /* Abort write operation */
-		}
-	}
-
-	/* Debug: log writes to low memory */
-	if (paddr <= 0xFF) {
-		printf("[DEBUG mmu_write16] vaddr=0x%08X → paddr=0x%08X, val=0x%04X, PC=0x%08X\n",
-		       vaddr, paddr, val, cpu ? cpu->PC : 0);
 	}
 
 	nd500_bus_write16(cpu->machine, paddr, val);
@@ -132,18 +101,6 @@ static inline void mmu_write32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t val) {
 	uint32_t paddr = vaddr;
 	if (cpu->machine->mmu_enabled) {
 		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
-
-		/* Check if MMU raised a trap (protect violation, page fault, etc.) */
-		if (nd500_trap_occurred()) {
-			printf("[DEBUG] mmu_write32 aborted due to trap at vaddr=0x%08X\n", vaddr);
-			return; /* Abort write operation */
-		}
-	}
-
-	/* Debug: log writes to low memory */
-	if (paddr <= 0xFF) {
-		printf("[DEBUG mmu_write32] vaddr=0x%08X → paddr=0x%08X, val=0x%08X, PC=0x%08X\n",
-		       vaddr, paddr, val, cpu ? cpu->PC : 0);
 	}
 
 	nd500_bus_write32(cpu->machine, paddr, val);

@@ -46,12 +46,6 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
-
-        // Check if MMU raised a trap (page fault, etc.)
-        if (nd500_trap_occurred()) {
-            printf("[DEBUG] Read aborted due to trap at vaddr=0x%08X\n", vaddr);
-            return 0; // Abort read operation
-        }
     }
 
     // Read four bytes little-endian from physical address
@@ -70,12 +64,6 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
-
-        // Check if MMU raised a trap (protect violation, page fault, etc.)
-        if (nd500_trap_occurred()) {
-            printf("[DEBUG] Write aborted due to trap at vaddr=0x%08X\n", vaddr);
-            return; // Abort write operation
-        }
     }
 
     // Write four bytes little-endian to physical address
