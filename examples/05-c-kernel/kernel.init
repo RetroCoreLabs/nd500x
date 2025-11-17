@@ -1,0 +1,23 @@
+# kernel.init - ND-500 Kernel Bootstrap Configuration
+# This script configures MMU and system state for kernel boot
+# Executed automatically before kernel starts
+
+# ===== MMU Setup =====
+# Enable MMU address translation
+mmu enable
+
+# Identity map low memory (0-16MB) for kernel code/data
+# Virtual 0x00000000-0x00FFFFFF → Physical 0x00000000-0x00FFFFFF
+mmu identity 0x00000000 0x00FFFFFF rwx
+
+# Map U-area/kernel stack (high virtual) to physical memory
+# Virtual 0xE8000000-0xE8FFFFFF → Physical 0x00000000-0x00FFFFFF (wraparound)
+mmu map 0xE8000000 0xE8FFFFFF 0x00000000 rw
+
+# ===== CPU Initialization =====
+# CPU starts in privileged mode (PIA bit set)
+reg ST1 0x00000002
+
+# ===== Ready to Execute =====
+# Kernel will now boot with MMU enabled
+# Entry point: 0x00000004 (from a.out header)
