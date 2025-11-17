@@ -1,5 +1,6 @@
 #include "instruction_helpers.h"
 #include "cpu_protos.h"
+#include "nd500_mmu.h"
 #include "../machine/machine_protos.h"
 #include <stdio.h>
 #include <math.h>
@@ -39,21 +40,49 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
 }
 
 uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
-    // Read four bytes little-endian
-    uint8_t b0 = nd500_bus_read8(cpu->machine, vaddr);
-    uint8_t b1 = nd500_bus_read8(cpu->machine, vaddr + 1);
-    uint8_t b2 = nd500_bus_read8(cpu->machine, vaddr + 2);
-    uint8_t b3 = nd500_bus_read8(cpu->machine, vaddr + 3);
+    if (!cpu || !cpu->machine) return 0;
+
+    // Translate virtual to physical address if MMU is enabled
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
+
+        // Check if MMU raised a trap (page fault, etc.)
+        if (nd500_trap_occurred()) {
+            printf("[DEBUG] Read aborted due to trap at vaddr=0x%08X\n", vaddr);
+            return 0; // Abort read operation
+        }
+    }
+
+    // Read four bytes little-endian from physical address
+    uint8_t b0 = nd500_bus_read8(cpu->machine, paddr);
+    uint8_t b1 = nd500_bus_read8(cpu->machine, paddr + 1);
+    uint8_t b2 = nd500_bus_read8(cpu->machine, paddr + 2);
+    uint8_t b3 = nd500_bus_read8(cpu->machine, paddr + 3);
     return (uint32_t)b0 | ((uint32_t)b1 << 8) |
            ((uint32_t)b2 << 16) | ((uint32_t)b3 << 24);
 }
 
 void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
-    // Write four bytes little-endian
-    nd500_bus_write8(cpu->machine, vaddr,     (uint8_t)(value & 0xFF));
-    nd500_bus_write8(cpu->machine, vaddr + 1, (uint8_t)((value >> 8) & 0xFF));
-    nd500_bus_write8(cpu->machine, vaddr + 2, (uint8_t)((value >> 16) & 0xFF));
-    nd500_bus_write8(cpu->machine, vaddr + 3, (uint8_t)((value >> 24) & 0xFF));
+    if (!cpu || !cpu->machine) return;
+
+    // Translate virtual to physical address if MMU is enabled
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
+
+        // Check if MMU raised a trap (protect violation, page fault, etc.)
+        if (nd500_trap_occurred()) {
+            printf("[DEBUG] Write aborted due to trap at vaddr=0x%08X\n", vaddr);
+            return; // Abort write operation
+        }
+    }
+
+    // Write four bytes little-endian to physical address
+    nd500_bus_write8(cpu->machine, paddr,     (uint8_t)(value & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)((value >> 8) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 2, (uint8_t)((value >> 16) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 3, (uint8_t)((value >> 24) & 0xFF));
 }
 
 uint64_t nd500_read_memory_64(Nd500Cpu* cpu, uint32_t vaddr) {
@@ -76,9 +105,13 @@ void nd500_write_memory_64(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value) {
  */
 
 uint8_t nd500_read_operand_byte(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle constants (no memory access needed)
-    if (operand->mode == ND500_ADDR_CONSTANT ||
-        operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+    // Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
+    if (operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+        return (uint8_t)(operand->address_code & 0x3F);
+    }
+
+    // Handle CONSTANT - value in data array
+    if (operand->mode == ND500_ADDR_CONSTANT) {
         return operand->data[0];  // First byte of data array
     }
 
@@ -93,9 +126,13 @@ uint8_t nd500_read_operand_byte(Nd500Cpu* cpu, const Nd500OperandDecoded* operan
 }
 
 uint16_t nd500_read_operand_halfword(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle constants (little-endian from data array)
-    if (operand->mode == ND500_ADDR_CONSTANT ||
-        operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+    // Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
+    if (operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+        return (uint16_t)(operand->address_code & 0x3F);
+    }
+
+    // Handle CONSTANT - value in data array (little-endian)
+    if (operand->mode == ND500_ADDR_CONSTANT) {
         return (uint16_t)operand->data[0] | ((uint16_t)operand->data[1] << 8);
     }
 
@@ -110,9 +147,13 @@ uint16_t nd500_read_operand_halfword(Nd500Cpu* cpu, const Nd500OperandDecoded* o
 }
 
 uint32_t nd500_read_operand_word(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle constants (little-endian from data array)
-    if (operand->mode == ND500_ADDR_CONSTANT ||
-        operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+    // Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
+    if (operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+        return (uint32_t)(operand->address_code & 0x3F);
+    }
+
+    // Handle CONSTANT - value in data array (little-endian)
+    if (operand->mode == ND500_ADDR_CONSTANT) {
         return (uint32_t)operand->data[0] | ((uint32_t)operand->data[1] << 8) |
                ((uint32_t)operand->data[2] << 16) | ((uint32_t)operand->data[3] << 24);
     }
