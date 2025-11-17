@@ -79,7 +79,15 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
 	
 	/* Trap on invalid instruction 0x00 (uninitialized memory) */
 	if (nd500_dbg_get_trap_invalid()) {
-		uint8_t opcode_byte = nd500_bus_read8(cpu->machine, cpu->PC);
+		/* Use MMU-aware read for instruction fetch */
+		uint8_t opcode_byte;
+		if (cpu->machine->mmu_enabled) {
+			/* Translate virtual → physical address */
+			uint32_t paddr = nd500_mmu_translate(cpu, cpu->PC, 0, 1); /* is_write=0, is_instruction=1 */
+			opcode_byte = nd500_bus_read8(cpu->machine, paddr);
+		} else {
+			opcode_byte = nd500_bus_read8(cpu->machine, cpu->PC);
+		}
 		if (opcode_byte == 0x00) {
 			printf("\n[TRAP] Invalid instruction 0x00 at PC=0x%08X (uninitialized memory)\n", cpu->PC);
 			nd500_trap_set_state(TRAP_IIC, cpu->PC, 0, "Invalid instruction 0x00 (uninitialized memory)");

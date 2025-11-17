@@ -36,6 +36,9 @@ unsigned int nd500_dbg_instr_count_js(void) { return g_nd500_instrs_count; }
 const char* nd500_dbg_mnemonic_js(unsigned int opcode) { return nd500_instr_mnemonic((uint16_t)opcode); }
 
 void nd500wasm_init(void) {
+	printf("========================================\n");
+	printf("ND-500X WASM BUILD: %s %s\n", __DATE__, __TIME__);
+	printf("========================================\n");
 	nd500_machine_init(&g_machine, 16 * 1024 * 1024);
 	nd500_cpu_init(&g_cpu, &g_machine);
 	nd500_cpu_reset(&g_cpu);
@@ -212,6 +215,8 @@ int nd500_dbg_load_aout_js(const uint8_t* data, uint32_t size) {
 /* Load via path on MEMFS (browser) or node FS (ENVIRONMENT=node) */
 int nd500_dbg_load_aout_path_js(const char* path) {
     if (!path) return -1;
+
+    /* Now load the aout file */
     uint32_t entry = 0, pc = 0;
     /* Use unified loading function (no auto-map - handled by JS) */
     int rc = ndlib_load_aout_with_debug(&g_machine, path, 0, &entry, &pc);
@@ -219,6 +224,26 @@ int nd500_dbg_load_aout_path_js(const char* path) {
         printf("[nd500_dbg_load_aout_path_js] Loaded %s: entry=0x%x, PC set to=0x%x\n",
                path, entry, pc);
     }
+
+    /* Look for initialization script AFTER loading the aout file
+     * This allows the script to configure MMU after data is in physical memory */
+    char init_path[512];
+    strncpy(init_path, path, sizeof(init_path) - 1);
+    init_path[sizeof(init_path) - 1] = '\0';
+
+    /* Find extension or end of string */
+    char* ext = strrchr(init_path, '.');
+    if (ext && (strcmp(ext, ".o") == 0 || strcmp(ext, ".out") == 0)) {
+        /* Replace .o or .out with .init */
+        strcpy(ext, ".init");
+    } else {
+        /* No extension - append .init to basename (e.g., kernel → kernel.init) */
+        strncat(init_path, ".init", sizeof(init_path) - strlen(init_path) - 1);
+    }
+
+    /* Execute init script AFTER loading aout (ignore errors - script is optional) */
+    nd500_execute_init_script(&g_machine, init_path);
+
     return rc;
 }
 
