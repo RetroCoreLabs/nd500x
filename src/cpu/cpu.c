@@ -41,7 +41,12 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	cpu->TOS = cpu->LL = cpu->HL = cpu->THA = 0;
 	cpu->OTE1 = cpu->OTE2 = cpu->CTE1 = cpu->CTE2 = 0;
 	cpu->MTE1 = cpu->MTE2 = cpu->TEMM1 = cpu->TEMM2 = 0;
-	cpu->ST1 = cpu->ST2 = 0;  /* Initialize status registers */
+	/* Initialize status registers - CPU boots in PRIVILEGED mode (PIA=1)
+	 * This allows the OS kernel to execute privileged instructions during boot
+	 * (DCTSB, PCTSB, INIT, etc.) before user mode is established.
+	 * User programs must explicitly set PIA=0 before returning to user space. */
+	cpu->ST1 = (1u << ND500_ST_BIT_PIA);  /* Set PIA bit - privileged mode */
+	cpu->ST2 = 0;
 
 	/* Initialize MMU registers */
 	cpu->PSTP = cpu->DITBASE = cpu->CED = cpu->CAD = cpu->PS = 0;
