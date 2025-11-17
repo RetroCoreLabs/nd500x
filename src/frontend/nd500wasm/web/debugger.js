@@ -5,8 +5,11 @@ class ND500Debugger {
         this.breakpoints = [];
         this.isRunning = false;
         this.runInterval = null;
-        this.VERSION = '20251021e'; // Update this with each change
+        this.VERSION = '20251117a'; // Register change highlighting added
         this.memoryMapDomainFilter = 'all'; // Default to showing all domains
+
+        // Register change tracking for UI highlighting
+        this.previousRegisters = null;
 
         // Source-level debugging state
         this.sourceFiles = new Map(); // filename -> content
@@ -1942,19 +1945,9 @@ class ND500Debugger {
                 this.updateUI();
                 console.log(`[loadDemoKernel] After ZIP load and updateUI: currentPC=0x${this.currentPC.toString(16)}`);
 
-                // Automatically run mmusetup to configure MMU tables, but keep MMU disabled
-                try {
-                    console.log('Running automatic mmusetup...');
-                    const output = this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmusetup']);
-                    console.log('mmusetup completed:', output);
-                    // Disable MMU so code runs at physical addresses initially
-                    console.log('Disabling MMU to run at physical addresses...');
-                    this.module.ccall('nd500_cmd_exec_js', 'string', ['string'], ['mmu off']);
-                    this.updateStatus('Demo kernel loaded - MMU configured but disabled');
-                    this.updateMmuPanel();
-                } catch (mmuError) {
-                    console.warn('Could not run automatic mmusetup:', mmuError);
-                }
+                // MMU configuration is now handled by init scripts (e.g., kernel.init)
+                // Update MMU panel to reflect current state
+                this.updateMmuPanel();
 
                 // Source files loaded - they're available in Assembly/C tabs
                 // (Keep disassembly tab active by default)
@@ -2148,51 +2141,88 @@ class ND500Debugger {
             const regs = JSON.parse(json);
             this.currentPC = regs.PC;
 
+            console.log('[updateRegisters] Current regs:', regs);
+            console.log('[updateRegisters] Previous regs:', this.previousRegisters);
+
+            // Helper function to check if a register changed and build the class string
+            const getRegClass = (regName, currentValue) => {
+                if (!this.previousRegisters) {
+                    console.log(`[getRegClass] ${regName}: No previous value, returning 'reg-item'`);
+                    return 'reg-item';
+                }
+
+                let prevValue;
+                if (regName.startsWith('I')) {
+                    const idx = parseInt(regName.substring(1)) - 1;
+                    prevValue = this.previousRegisters.I?.[idx];
+                } else if (regName.startsWith('A')) {
+                    const idx = parseInt(regName.substring(1)) - 1;
+                    prevValue = this.previousRegisters.A?.[idx];
+                } else if (regName.startsWith('E')) {
+                    const idx = parseInt(regName.substring(1)) - 1;
+                    prevValue = this.previousRegisters.E?.[idx];
+                } else {
+                    prevValue = this.previousRegisters[regName];
+                }
+
+                const changed = prevValue !== undefined && prevValue !== currentValue;
+                const className = changed ? 'reg-item changed' : 'reg-item';
+
+                if (changed) {
+                    console.log(`[RegChange] ${regName}: 0x${prevValue.toString(16)} → 0x${currentValue.toString(16)}, class="${className}"`);
+                }
+
+                return className;
+            };
+
             // Build CPU registers section (general purpose registers only)
             let html = `
                 <div class="reg-section-title">CPU Registers</div>
-                <div class="reg-item" data-reg="PC" data-value="${regs.PC}" title="Program Counter">PC: 0x${regs.PC.toString(16).padStart(8,'0')}</div>
-                ${regs.I.map((v,i) => `<div class="reg-item" data-reg="I${i+1}" data-value="${v}" title="Index Register ${i+1}">I${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
-                ${regs.A.map((v,i) => `<div class="reg-item" data-reg="A${i+1}" data-value="${v}" title="Address Register ${i+1}">A${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
-                ${regs.E.map((v,i) => `<div class="reg-item" data-reg="E${i+1}" data-value="${v}" title="Extension Register ${i+1}">E${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
-                <div class="reg-item" data-reg="L" data-value="${regs.L}" title="Level Register">L: 0x${regs.L.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="B" data-value="${regs.B}" title="Base Register">B: 0x${regs.B.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="R" data-value="${regs.R}" title="Return Address">R: 0x${regs.R.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="TOS" data-value="${regs.TOS}" title="Top of Stack">TOS: 0x${regs.TOS.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="LL" data-value="${regs.LL}" title="Lower Limit">LL: 0x${regs.LL.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="HL" data-value="${regs.HL}" title="Higher Limit">HL: 0x${regs.HL.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="THA" data-value="${regs.THA}" title="Trap Handler Address">THA: 0x${regs.THA.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('PC', regs.PC)}" data-reg="PC" data-value="${regs.PC}" title="Program Counter">PC: 0x${regs.PC.toString(16).padStart(8,'0')}</div>
+                ${regs.I.map((v,i) => `<div class="${getRegClass('I'+(i+1), v)}" data-reg="I${i+1}" data-value="${v}" title="Index Register ${i+1}">I${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
+                ${regs.A.map((v,i) => `<div class="${getRegClass('A'+(i+1), v)}" data-reg="A${i+1}" data-value="${v}" title="Address Register ${i+1}">A${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
+                ${regs.E.map((v,i) => `<div class="${getRegClass('E'+(i+1), v)}" data-reg="E${i+1}" data-value="${v}" title="Extension Register ${i+1}">E${i+1}: 0x${v.toString(16).padStart(8,'0')}</div>`).join('')}
+                <div class="${getRegClass('L', regs.L)}" data-reg="L" data-value="${regs.L}" title="Level Register">L: 0x${regs.L.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('B', regs.B)}" data-reg="B" data-value="${regs.B}" title="Base Register">B: 0x${regs.B.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('R', regs.R)}" data-reg="R" data-value="${regs.R}" title="Return Address">R: 0x${regs.R.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('TOS', regs.TOS)}" data-reg="TOS" data-value="${regs.TOS}" title="Top of Stack">TOS: 0x${regs.TOS.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('LL', regs.LL)}" data-reg="LL" data-value="${regs.LL}" title="Lower Limit">LL: 0x${regs.LL.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('HL', regs.HL)}" data-reg="HL" data-value="${regs.HL}" title="Higher Limit">HL: 0x${regs.HL.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('THA', regs.THA)}" data-reg="THA" data-value="${regs.THA}" title="Trap Handler Address">THA: 0x${regs.THA.toString(16).padStart(8,'0')}</div>
             `;
 
             // Add Flag registers section
             html += `
                 <div class="reg-section-title">Flag Registers</div>
-                <div class="reg-item" data-reg="FLAGS" data-value="${regs.FLAGS}" title="CPU Status Flags">FLAGS: 0x${regs.FLAGS.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="ST1" data-value="${regs.ST1}" title="Status Register 1 (Trap Bits 11-31)">ST1: 0x${regs.ST1.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="ST2" data-value="${regs.ST2}" title="Status Register 2 (Trap Bits 0-10)">ST2: 0x${regs.ST2.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="OTE1" data-value="${regs.OTE1}" title="Own Trap Enable 1 (Bits 11-31)">OTE1: 0x${regs.OTE1.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="OTE2" data-value="${regs.OTE2}" title="Own Trap Enable 2 (Bits 0-10)">OTE2: 0x${regs.OTE2.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="CTE1" data-value="${regs.CTE1}" title="Child Trap Enable 1 (Bits 11-31)">CTE1: 0x${regs.CTE1.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="CTE2" data-value="${regs.CTE2}" title="Child Trap Enable 2 (Bits 0-10)">CTE2: 0x${regs.CTE2.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="MTE1" data-value="${regs.MTE1}" title="Mother Trap Enable 1 (Bits 11-31)">MTE1: 0x${regs.MTE1.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="MTE2" data-value="${regs.MTE2}" title="Mother Trap Enable 2 (Bits 0-10)">MTE2: 0x${regs.MTE2.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="TEMM1" data-value="${regs.TEMM1}" title="Trap Enable Mod Mask 1 (Bits 11-31)">TEMM1: 0x${regs.TEMM1.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item" data-reg="TEMM2" data-value="${regs.TEMM2}" title="Trap Enable Mod Mask 2 (Bits 0-10)">TEMM2: 0x${regs.TEMM2.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('FLAGS', regs.FLAGS)}" data-reg="FLAGS" data-value="${regs.FLAGS}" title="CPU Status Flags">FLAGS: 0x${regs.FLAGS.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('ST1', regs.ST1)}" data-reg="ST1" data-value="${regs.ST1}" title="Status Register 1 (Trap Bits 11-31)">ST1: 0x${regs.ST1.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('ST2', regs.ST2)}" data-reg="ST2" data-value="${regs.ST2}" title="Status Register 2 (Trap Bits 0-10)">ST2: 0x${regs.ST2.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('OTE1', regs.OTE1)}" data-reg="OTE1" data-value="${regs.OTE1}" title="Own Trap Enable 1 (Bits 11-31)">OTE1: 0x${regs.OTE1.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('OTE2', regs.OTE2)}" data-reg="OTE2" data-value="${regs.OTE2}" title="Own Trap Enable 2 (Bits 0-10)">OTE2: 0x${regs.OTE2.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('CTE1', regs.CTE1)}" data-reg="CTE1" data-value="${regs.CTE1}" title="Child Trap Enable 1 (Bits 11-31)">CTE1: 0x${regs.CTE1.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('CTE2', regs.CTE2)}" data-reg="CTE2" data-value="${regs.CTE2}" title="Child Trap Enable 2 (Bits 0-10)">CTE2: 0x${regs.CTE2.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('MTE1', regs.MTE1)}" data-reg="MTE1" data-value="${regs.MTE1}" title="Mother Trap Enable 1 (Bits 11-31)">MTE1: 0x${regs.MTE1.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('MTE2', regs.MTE2)}" data-reg="MTE2" data-value="${regs.MTE2}" title="Mother Trap Enable 2 (Bits 0-10)">MTE2: 0x${regs.MTE2.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('TEMM1', regs.TEMM1)}" data-reg="TEMM1" data-value="${regs.TEMM1}" title="Trap Enable Mod Mask 1 (Bits 11-31)">TEMM1: 0x${regs.TEMM1.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('TEMM2', regs.TEMM2)}" data-reg="TEMM2" data-value="${regs.TEMM2}" title="Trap Enable Mod Mask 2 (Bits 0-10)">TEMM2: 0x${regs.TEMM2.toString(16).padStart(8,'0')}</div>
             `;
 
             // Add MMU registers section if available
             if (regs.PSTP !== undefined) {
                 html += `
                 <div class="reg-section-title mmu-section">MMU Registers</div>
-                <div class="reg-item mmu-reg" data-reg="PSTP" data-value="${regs.PSTP}" title="Physical Segment Table Pointer">PSTP: 0x${regs.PSTP.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item mmu-reg" data-reg="DITBASE" data-value="${regs.DITBASE}" title="Domain Information Table Base">DITBASE: 0x${regs.DITBASE.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item mmu-reg" data-reg="CED" data-value="${regs.CED}" title="Current Executing Domain">CED: 0x${regs.CED.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item mmu-reg" data-reg="CAD" data-value="${regs.CAD}" title="Current Alternative Domain">CAD: 0x${regs.CAD.toString(16).padStart(8,'0')}</div>
-                <div class="reg-item mmu-reg" data-reg="PS" data-value="${regs.PS}" title="Process Segment">PS: 0x${regs.PS.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('PSTP', regs.PSTP)} mmu-reg" data-reg="PSTP" data-value="${regs.PSTP}" title="Physical Segment Table Pointer">PSTP: 0x${regs.PSTP.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('DITBASE', regs.DITBASE)} mmu-reg" data-reg="DITBASE" data-value="${regs.DITBASE}" title="Domain Information Table Base">DITBASE: 0x${regs.DITBASE.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('CED', regs.CED)} mmu-reg" data-reg="CED" data-value="${regs.CED}" title="Current Executing Domain">CED: 0x${regs.CED.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('CAD', regs.CAD)} mmu-reg" data-reg="CAD" data-value="${regs.CAD}" title="Current Alternative Domain">CAD: 0x${regs.CAD.toString(16).padStart(8,'0')}</div>
+                <div class="${getRegClass('PS', regs.PS)} mmu-reg" data-reg="PS" data-value="${regs.PS}" title="Process Segment">PS: 0x${regs.PS.toString(16).padStart(8,'0')}</div>
                 `;
             }
 
             document.getElementById('regs-content').innerHTML = html;
+
+            // Store current register values for next comparison
+            this.previousRegisters = regs;
         } catch (error) {
             console.error('Error updating registers:', error);
         }
@@ -3269,7 +3299,24 @@ class ND500Debugger {
 
         let counts = { source: 0, map: 0, executable: 0, skipped: 0 };
 
-        // Process files in ZIP
+        // PASS 1: Process init scripts FIRST (before loading executables)
+        // This ensures init scripts are in MEMFS when C code looks for them
+        console.log(`[handleZipUpload] PASS 1: Processing init scripts...`);
+        for (const [filename, zipEntry] of Object.entries(zip.files)) {
+            if (zipEntry.dir) continue;
+            const basename = filename.split('/').pop();
+
+            if (filename.endsWith('.init')) {
+                console.log(`[handleZipUpload] Detected as INIT SCRIPT file: ${basename}`);
+                const content = await zipEntry.async('string');
+                this.module.FS.writeFile(`/${basename}`, content);
+                console.log(`[handleZipUpload] Written init script to MEMFS: /${basename}`);
+                counts.init = (counts.init || 0) + 1;
+            }
+        }
+
+        // PASS 2: Process all other files (executables, source, map)
+        console.log(`[handleZipUpload] PASS 2: Processing other files...`);
         for (const [filename, zipEntry] of Object.entries(zip.files)) {
             if (zipEntry.dir) {
                 console.log(`[handleZipUpload] Skipping directory: ${filename}`);
@@ -3293,6 +3340,9 @@ class ND500Debugger {
                 const content = await zipEntry.async('string');
                 await this.handleMapUpload(new File([content], basename));
                 counts.map++;
+            } else if (filename.endsWith('.init')) {
+                // Already processed in PASS 1 - skip
+                console.log(`[handleZipUpload] INIT SCRIPT already processed: ${basename}`);
             } else if (filename.endsWith('.o') || filename.endsWith('.out') ||
                        (!filename.includes('.') && basename !== '__MACOSX' && !basename.startsWith('.'))) {
                 // Binary executable file:
@@ -3321,6 +3371,7 @@ class ND500Debugger {
         if (counts.executable > 0) parts.push(`${counts.executable} executable(s)`);
         if (counts.source > 0) parts.push(`${counts.source} source file(s)`);
         if (counts.map > 0) parts.push(`${counts.map} map file(s)`);
+        if (counts.init > 0) parts.push(`${counts.init} init script(s)`);
         const summary = parts.length > 0 ? parts.join(', ') : 'no recognized files';
         console.log(`[handleZipUpload] Final summary: ${summary}`);
         this.updateStatus(`ZIP loaded: ${summary}`);

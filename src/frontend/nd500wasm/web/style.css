@@ -230,6 +230,13 @@ body {
     border-color: #adb5bd;
 }
 
+.reg-item.changed {
+    font-weight: bold;
+    color: #0066cc;
+    background: #e3f2fd;
+    border-color: #0066cc;
+}
+
 .reg-item:active {
     background: #dee2e6;
     border-color: #6c757d;
