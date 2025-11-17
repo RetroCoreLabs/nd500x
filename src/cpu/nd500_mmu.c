@@ -230,8 +230,8 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             /* Read PTE from memory */
             PageTableEntry pte = nd500_mmu_read_pte(cpu, pte_addr);
 
-            /* Check if page is present */
-            if (pte.physical_pfn == 0) {
+            /* Check if page is present (valid bit must be set) */
+            if (!pte.valid) {
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
             }
@@ -259,7 +259,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             uint32_t l1_pte_addr = l1_table_base + (l1_index * 4);
             PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
 
-            if (l1_pte.physical_pfn == 0) {
+            if (!l1_pte.valid) {
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
             }
@@ -271,7 +271,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             /* Read L2 PTE */
             PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
 
-            if (l2_pte.physical_pfn == 0) {
+            if (!l2_pte.valid) {
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }
@@ -383,10 +383,10 @@ void nd500_mmu_set_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment, u
 
 /**
  * Read a Page Table Entry from physical memory
- * PTE is 4 bytes: [31:2]=PFN, [1]=unused, [0]=protection
+ * PTE is 4 bytes: [31:2]=PFN, [1]=valid/present, [0]=protection
  */
 PageTableEntry nd500_mmu_read_pte(Nd500Cpu* cpu, uint32_t physical_addr) {
-    PageTableEntry pte = {0, 0};
+    PageTableEntry pte = {0, 0, 0};
 
     if (!cpu || !cpu->machine) {
         return pte;
@@ -401,6 +401,7 @@ PageTableEntry nd500_mmu_read_pte(Nd500Cpu* cpu, uint32_t physical_addr) {
     uint32_t pte_value = (uint32_t)(b0 | (b1 << 8) | (b2 << 16) | (b3 << 24));
 
     pte.protection = (uint8_t)(pte_value & 0x1);
+    pte.valid = (uint8_t)((pte_value >> 1) & 0x1);
     pte.physical_pfn = (pte_value >> 2) & 0x3FFFFFFF;
 
     return pte;
@@ -408,13 +409,16 @@ PageTableEntry nd500_mmu_read_pte(Nd500Cpu* cpu, uint32_t physical_addr) {
 
 /**
  * Write a Page Table Entry to physical memory
+ * Format: [31:2]=PFN, [1]=valid, [0]=protection
  */
 void nd500_mmu_write_pte(Nd500Cpu* cpu, uint32_t physical_addr, PageTableEntry pte) {
     if (!cpu || !cpu->machine) {
         return;
     }
 
-    uint32_t pte_value = ((pte.physical_pfn & 0x3FFFFFFF) << 2) | (uint32_t)pte.protection;
+    uint32_t pte_value = ((pte.physical_pfn & 0x3FFFFFFF) << 2) |
+                         ((uint32_t)pte.valid << 1) |
+                         (uint32_t)pte.protection;
 
     nd500_bus_write8(cpu->machine, physical_addr, (uint8_t)(pte_value & 0xFF));
     nd500_bus_write8(cpu->machine, physical_addr + 1, (uint8_t)((pte_value >> 8) & 0xFF));

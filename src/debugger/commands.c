@@ -553,6 +553,7 @@ static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "TOS=%08X LL=%08X HL=%08X THA=%08X", r.TOS, r.LL, r.HL, r.THA);
 	output(ctx, "OTE1=%08X OTE2=%08X CTE1=%08X CTE2=%08X", r.OTE1, r.OTE2, r.CTE1, r.CTE2);
 	output(ctx, "MTE1=%08X MTE2=%08X TEMM1=%08X TEMM2=%08X", r.MTE1, r.MTE2, r.TEMM1, r.TEMM2);
+	output(ctx, "ST1=%08X ST2=%08X", r.ST1, r.ST2);
 	output(ctx, "PSTP=%08X DITBASE=%08X PS=%08X", r.PSTP, r.DITBASE, r.PS);
 	output(ctx, "CED=%08X CAD=%08X", r.CED, r.CAD);
 	return 0;
