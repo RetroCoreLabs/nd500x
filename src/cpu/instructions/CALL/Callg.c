@@ -234,16 +234,19 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * - Argument addresses (array of effective addresses)
      * ======================================================================== */
 
+    /* Calculate return address: address after this CALLG instruction */
+    uint32_t return_address = fi->address + fi->total_len;
+
     /* Store call information in CPU-internal state */
     cpu->pending_call_arg_count = arg_count;
-    cpu->pending_call_return_address = cpu->PC;  /* Current PC (after CALLG) is return address */
+    cpu->pending_call_return_address = return_address;
 
     /* ========================================================================
      * STEP 7-8: SAVE RETURN ADDRESS AND JUMP TO SUBROUTINE
      * ======================================================================== */
 
     /* Save return address in L register (standard ND-500 calling convention) */
-    cpu->L = cpu->PC;
+    cpu->L = return_address;
 
     /* Jump to subroutine entry point */
     cpu->PC = subroutine_addr;

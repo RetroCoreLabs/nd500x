@@ -74,12 +74,15 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         cpu->pending_call_arg_addresses[i] = arg_operand->effective_address;
     }
 
+    /* Calculate return address: address after this CALL instruction */
+    uint32_t return_address = fi->address + fi->total_len;
+
     /* Store call information in CPU-internal state */
     cpu->pending_call_arg_count = arg_count;
-    cpu->pending_call_return_address = cpu->PC;  /* Current PC (after this instruction) */
+    cpu->pending_call_return_address = return_address;
 
     /* Save return address in L register as well */
-    cpu->L = cpu->PC;
+    cpu->L = return_address;
 
     /* TODO (optional): Validate target address is an entry point instruction
      * Valid entry opcodes: ENTD (0x9C), ENTS (0xB8), ENTF (0xDE), etc.

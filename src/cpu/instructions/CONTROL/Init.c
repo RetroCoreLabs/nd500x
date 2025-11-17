@@ -64,6 +64,7 @@ void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t stack_demand_main = nd500_read_operand_word(cpu, &fi->operands[1]);
     uint32_t total_stack_demand = nd500_read_operand_word(cpu, &fi->operands[2]);
 
+
     /* Check for stack overflow in specification (like C#) */
     if (stack_demand_main >= total_stack_demand) {
         printf("[TRAP] INIT at PC=0x%08X: Stack overflow - main demand 0x%08X >= total 0x%08X\n",

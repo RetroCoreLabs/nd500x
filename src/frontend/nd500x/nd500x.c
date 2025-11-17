@@ -87,7 +87,12 @@ int main(int argc, char** argv) {
     ndlib_color_init(ansi_flag);
 
     Nd500Machine machine;
-    nd500_machine_init(&machine, 16 * 1024 * 1024);
+    /* Initialize with memory up to 0xE9000000 to support kernel stack at 0xE8xxxxxx
+     * The kernel uses address 0xE8000000+ for the U-area/stack
+     * This is a workaround - proper solution is to enable MMU translation
+     * Note: On modern systems, malloc() uses virtual memory so this won't
+     * actually consume 3.6GB RAM unless those pages are accessed */
+    nd500_machine_init(&machine, 0xE9000000);  /* ~3.6GB virtual address space */
 	Nd500Cpu cpu;
 	nd500_cpu_init(&cpu, &machine);
 	nd500_cpu_reset(&cpu);
