@@ -1,5 +1,6 @@
 #include "instruction_helpers.h"
 #include "cpu_protos.h"
+#include "nd500_mmu.h"
 #include "../machine/machine_protos.h"
 #include <stdio.h>
 #include <math.h>
@@ -26,47 +27,63 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
 }
 
 uint16_t nd500_read_memory_16(Nd500Cpu* cpu, uint32_t vaddr) {
-    // Read two bytes little-endian
+    // Read two bytes BIG-ENDIAN (ND-500 spec)
     uint8_t b0 = nd500_bus_read8(cpu->machine, vaddr);
     uint8_t b1 = nd500_bus_read8(cpu->machine, vaddr + 1);
-    return (uint16_t)b0 | ((uint16_t)b1 << 8);
+    return ((uint16_t)b0 << 8) | (uint16_t)b1;
 }
 
 void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
-    // Write two bytes little-endian
-    nd500_bus_write8(cpu->machine, vaddr,     (uint8_t)(value & 0xFF));
-    nd500_bus_write8(cpu->machine, vaddr + 1, (uint8_t)((value >> 8) & 0xFF));
+    // Write two bytes BIG-ENDIAN (ND-500 spec)
+    nd500_bus_write8(cpu->machine, vaddr,     (uint8_t)((value >> 8) & 0xFF));
+    nd500_bus_write8(cpu->machine, vaddr + 1, (uint8_t)(value & 0xFF));
 }
 
 uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
-    // Read four bytes little-endian
-    uint8_t b0 = nd500_bus_read8(cpu->machine, vaddr);
-    uint8_t b1 = nd500_bus_read8(cpu->machine, vaddr + 1);
-    uint8_t b2 = nd500_bus_read8(cpu->machine, vaddr + 2);
-    uint8_t b3 = nd500_bus_read8(cpu->machine, vaddr + 3);
-    return (uint32_t)b0 | ((uint32_t)b1 << 8) |
-           ((uint32_t)b2 << 16) | ((uint32_t)b3 << 24);
+    if (!cpu || !cpu->machine) return 0;
+
+    // Translate virtual to physical address if MMU is enabled
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
+    }
+
+    // Read four bytes BIG-ENDIAN from physical address (ND-500 spec)
+    uint8_t b0 = nd500_bus_read8(cpu->machine, paddr);
+    uint8_t b1 = nd500_bus_read8(cpu->machine, paddr + 1);
+    uint8_t b2 = nd500_bus_read8(cpu->machine, paddr + 2);
+    uint8_t b3 = nd500_bus_read8(cpu->machine, paddr + 3);
+    return ((uint32_t)b0 << 24) | ((uint32_t)b1 << 16) |
+           ((uint32_t)b2 << 8) | (uint32_t)b3;
 }
 
 void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
-    // Write four bytes little-endian
-    nd500_bus_write8(cpu->machine, vaddr,     (uint8_t)(value & 0xFF));
-    nd500_bus_write8(cpu->machine, vaddr + 1, (uint8_t)((value >> 8) & 0xFF));
-    nd500_bus_write8(cpu->machine, vaddr + 2, (uint8_t)((value >> 16) & 0xFF));
-    nd500_bus_write8(cpu->machine, vaddr + 3, (uint8_t)((value >> 24) & 0xFF));
+    if (!cpu || !cpu->machine) return;
+
+    // Translate virtual to physical address if MMU is enabled
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
+    }
+
+    // Write four bytes BIG-ENDIAN to physical address (ND-500 spec)
+    nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 24) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)((value >> 16) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 2, (uint8_t)((value >> 8) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 3, (uint8_t)(value & 0xFF));
 }
 
 uint64_t nd500_read_memory_64(Nd500Cpu* cpu, uint32_t vaddr) {
-    // Read eight bytes little-endian
-    uint32_t low  = nd500_read_memory_32(cpu, vaddr);
-    uint32_t high = nd500_read_memory_32(cpu, vaddr + 4);
-    return (uint64_t)low | ((uint64_t)high << 32);
+    // Read eight bytes BIG-ENDIAN (ND-500 spec)
+    uint32_t high = nd500_read_memory_32(cpu, vaddr);
+    uint32_t low  = nd500_read_memory_32(cpu, vaddr + 4);
+    return ((uint64_t)high << 32) | (uint64_t)low;
 }
 
 void nd500_write_memory_64(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value) {
-    // Write eight bytes little-endian
-    nd500_write_memory_32(cpu, vaddr,     (uint32_t)(value & 0xFFFFFFFF));
-    nd500_write_memory_32(cpu, vaddr + 4, (uint32_t)((value >> 32) & 0xFFFFFFFF));
+    // Write eight bytes BIG-ENDIAN (ND-500 spec)
+    nd500_write_memory_32(cpu, vaddr,     (uint32_t)((value >> 32) & 0xFFFFFFFF));
+    nd500_write_memory_32(cpu, vaddr + 4, (uint32_t)(value & 0xFFFFFFFF));
 }
 
 
@@ -76,9 +93,13 @@ void nd500_write_memory_64(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value) {
  */
 
 uint8_t nd500_read_operand_byte(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle constants (no memory access needed)
-    if (operand->mode == ND500_ADDR_CONSTANT ||
-        operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+    // Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
+    if (operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+        return (uint8_t)(operand->address_code & 0x3F);
+    }
+
+    // Handle CONSTANT - value in data array
+    if (operand->mode == ND500_ADDR_CONSTANT) {
         return operand->data[0];  // First byte of data array
     }
 
@@ -93,10 +114,14 @@ uint8_t nd500_read_operand_byte(Nd500Cpu* cpu, const Nd500OperandDecoded* operan
 }
 
 uint16_t nd500_read_operand_halfword(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle constants (little-endian from data array)
-    if (operand->mode == ND500_ADDR_CONSTANT ||
-        operand->mode == ND500_ADDR_CONSTANT_SHORT) {
-        return (uint16_t)operand->data[0] | ((uint16_t)operand->data[1] << 8);
+    // Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
+    if (operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+        return (uint16_t)(operand->address_code & 0x3F);
+    }
+
+    // Handle CONSTANT - value in data array (BIG-ENDIAN per ND-500 spec)
+    if (operand->mode == ND500_ADDR_CONSTANT) {
+        return ((uint16_t)operand->data[0] << 8) | (uint16_t)operand->data[1];
     }
 
     // Handle register direct
@@ -110,11 +135,15 @@ uint16_t nd500_read_operand_halfword(Nd500Cpu* cpu, const Nd500OperandDecoded* o
 }
 
 uint32_t nd500_read_operand_word(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle constants (little-endian from data array)
-    if (operand->mode == ND500_ADDR_CONSTANT ||
-        operand->mode == ND500_ADDR_CONSTANT_SHORT) {
-        return (uint32_t)operand->data[0] | ((uint32_t)operand->data[1] << 8) |
-               ((uint32_t)operand->data[2] << 16) | ((uint32_t)operand->data[3] << 24);
+    // Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
+    if (operand->mode == ND500_ADDR_CONSTANT_SHORT) {
+        return (uint32_t)(operand->address_code & 0x3F);
+    }
+
+    // Handle CONSTANT - value in data array (BIG-ENDIAN per ND-500 spec)
+    if (operand->mode == ND500_ADDR_CONSTANT) {
+        return ((uint32_t)operand->data[0] << 24) | ((uint32_t)operand->data[1] << 16) |
+               ((uint32_t)operand->data[2] << 8) | (uint32_t)operand->data[3];
     }
 
     // Handle register direct

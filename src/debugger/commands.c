@@ -61,6 +61,9 @@ static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args);
 
+/* Forward declaration for init script execution (defined at end of file) */
+int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
+
 /* Command table */
 static const CmdEntry g_commands[] = {
 	{"help",        cmd_help,         "Show help message"},
@@ -74,6 +77,7 @@ static const CmdEntry g_commands[] = {
 	{"s",           cmd_step,         "Execute one or more instructions"},
 	{"regs",        cmd_regs,         "Display CPU registers"},
 	{"set",         cmd_set,          "Set register value"},
+	{"reg",         cmd_set,          "Set register value (alias for set)"},
 	{"load",        cmd_load,         "Load binary file"},
 	{"loadmap",     cmd_loadmap,      "Load additional map file"},
 	{"loadsrc",     cmd_loadsrc,      "Load additional source file"},
@@ -549,6 +553,7 @@ static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "TOS=%08X LL=%08X HL=%08X THA=%08X", r.TOS, r.LL, r.HL, r.THA);
 	output(ctx, "OTE1=%08X OTE2=%08X CTE1=%08X CTE2=%08X", r.OTE1, r.OTE2, r.CTE1, r.CTE2);
 	output(ctx, "MTE1=%08X MTE2=%08X TEMM1=%08X TEMM2=%08X", r.MTE1, r.MTE2, r.TEMM1, r.TEMM2);
+	output(ctx, "ST1=%08X ST2=%08X", r.ST1, r.ST2);
 	output(ctx, "PSTP=%08X DITBASE=%08X PS=%08X", r.PSTP, r.DITBASE, r.PS);
 	output(ctx, "CED=%08X CAD=%08X", r.CED, r.CAD);
 	return 0;
@@ -689,6 +694,24 @@ static int cmd_load(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 	/* Report results */
 	output(ctx, "loaded: %s", filepath);
+
+	/* Look for initialization script AFTER loading the aout file
+	 * This allows the script to configure MMU after data is in physical memory */
+	char init_path[512];
+	strncpy(init_path, filepath, sizeof(init_path) - 1);
+	init_path[sizeof(init_path) - 1] = '\0';
+
+	char* init_ext = strrchr(init_path, '.');
+	if (init_ext && *init_ext) {
+		/* Replace extension with .init (e.g., kernel.o → kernel.init) */
+		strcpy(init_ext, ".init");
+	} else {
+		/* No extension - append .init to basename (e.g., kernel → kernel.init) */
+		strncat(init_path, ".init", sizeof(init_path) - strlen(init_path) - 1);
+	}
+
+	/* Execute init script AFTER loading aout (ignore errors - script is optional) */
+	nd500_execute_init_script(m, init_path);
 
 	/* Check if .map, .s, and .c files were also loaded */
 	char alt_path[512];
@@ -1285,7 +1308,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 	/* Parse type argument (optional) */
 	char* type = strtok(NULL, " \t\r\n");
 
-	if (strcasecmp(subcmd, "on") == 0) {
+	if (strcasecmp(subcmd, "on") == 0 || strcasecmp(subcmd, "enable") == 0) {
 		if (!type) {
 			/* Enable both */
 			nd500_machine_enable_mmu(m);
@@ -1297,10 +1320,10 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 			nd500_mmu_enable_data(m->cpu);
 			output(ctx, "Data MMU enabled (DMON)");
 		} else {
-			error(ctx, "usage: mmu on [program|data]");
+			error(ctx, "usage: mmu on|enable [program|data]");
 			return -1;
 		}
-	} else if (strcasecmp(subcmd, "off") == 0) {
+	} else if (strcasecmp(subcmd, "off") == 0 || strcasecmp(subcmd, "disable") == 0) {
 		if (!type) {
 			/* Disable both */
 			nd500_machine_disable_mmu(m);
@@ -1312,11 +1335,234 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 			nd500_mmu_disable_data(m->cpu);
 			output(ctx, "Data MMU disabled (DMOF)");
 		} else {
-			error(ctx, "usage: mmu off [program|data]");
+			error(ctx, "usage: mmu off|disable [program|data]");
 			return -1;
 		}
+	} else if (strcasecmp(subcmd, "identity") == 0) {
+		/* mmu identity <start> <end> <flags> */
+		char* start_str = type;  /* type was consumed as first token */
+		char* end_str = strtok(NULL, " \t\r\n");
+		char* flags_str = strtok(NULL, " \t\r\n");
+
+		if (!start_str || !end_str || !flags_str) {
+			error(ctx, "usage: mmu identity <start> <end> <flags>");
+			error(ctx, "  example: mmu identity 0x00000000 0x00FFFFFF rwx");
+			return -1;
+		}
+
+		uint32_t start_addr = nd500_cmd_parse_u32(start_str, 0);
+		uint32_t end_addr = nd500_cmd_parse_u32(end_str, 0);
+
+		if (end_addr < start_addr) {
+			error(ctx, "end address must be >= start address");
+			return -1;
+		}
+
+		/* Parse flags */
+		int has_read = strchr(flags_str, 'r') || strchr(flags_str, 'R');
+		int has_write = strchr(flags_str, 'w') || strchr(flags_str, 'W');
+		int has_exec = strchr(flags_str, 'x') || strchr(flags_str, 'X');
+
+		/* Calculate number of pages needed (each page is 2KB) */
+		uint32_t size = end_addr - start_addr + 1;
+		uint32_t num_pages = (size + NBPG - 1) / NBPG;  /* Round up */
+		uint32_t start_pfn = start_addr >> PGSHIFT;
+
+		output(ctx, "Identity mapping 0x%08X-0x%08X (%s%s%s)",
+			start_addr, end_addr,
+			has_read ? "r" : "-",
+			has_write ? "w" : "-",
+			has_exec ? "x" : "-");
+		output(ctx, "  Requires %u pages (2KB each)", num_pages);
+
+		/* Calculate segment range (each segment is 128MB) */
+		uint32_t start_seg = start_addr >> SGSHIFT;
+		uint32_t end_seg = end_addr >> SGSHIFT;
+
+		/* Page table allocation base (1MB physical address, well past kernel) */
+		uint32_t page_table_base = 0x00100000;  /* 1MB */
+		uint32_t next_psn = 1;  /* Next available PSN (start from 1, PSN 0 reserved for "no capability") */
+
+		/* Create one PST entry per segment using PS_ASI (single-level paging) */
+		for (uint32_t seg = start_seg; seg <= end_seg && seg < MAXSEG; seg++) {
+			/* Calculate page range for this segment */
+			uint32_t seg_start_addr = seg << SGSHIFT;
+			uint32_t seg_end_addr = ((seg + 1) << SGSHIFT) - 1;
+
+			/* Clip to requested range */
+			if (seg_start_addr < start_addr) seg_start_addr = start_addr;
+			if (seg_end_addr > end_addr) seg_end_addr = end_addr;
+
+			uint32_t seg_start_page = seg_start_addr >> PGSHIFT;
+			uint32_t seg_end_page = seg_end_addr >> PGSHIFT;
+			uint32_t seg_num_pages = seg_end_page - seg_start_page + 1;
+
+			/* Allocate page table for this segment */
+			uint32_t page_table_addr = page_table_base;
+			page_table_base += seg_num_pages * 4;  /* 4 bytes per PTE */
+
+			/* Create PTEs in the page table (identity mapping: page i → PFN i) */
+			for (uint32_t i = 0; i < seg_num_pages; i++) {
+				uint32_t page_num = seg_start_page + i;
+				uint32_t pte_addr = page_table_addr + (i * 4);
+
+				/* PTE format: [31:2]=PFN, [1]=valid/present, [0]=protection */
+				uint8_t protection = (has_write) ? 0 : 1;  /* 0=writable, 1=read-only */
+				uint32_t pte_value = (page_num << 2) | (1 << 1) | protection;  /* Set valid bit */
+
+				/* Write PTE to physical memory */
+				nd500_bus_write8(m, pte_addr + 0, (pte_value >> 0) & 0xFF);
+				nd500_bus_write8(m, pte_addr + 1, (pte_value >> 8) & 0xFF);
+				nd500_bus_write8(m, pte_addr + 2, (pte_value >> 16) & 0xFF);
+				nd500_bus_write8(m, pte_addr + 3, (pte_value >> 24) & 0xFF);
+			}
+
+			/* Create PST entry pointing to page table (PS_ASI mode) */
+			uint32_t page_table_pfn = page_table_addr >> PGSHIFT;
+			nd500_mmu_set_pst_entry(m->cpu, next_psn, PS_ASI, page_table_pfn);
+
+			output(ctx, "  Segment %u: PST[%u] → page table at 0x%08X (%u pages)",
+				seg, next_psn, page_table_addr, seg_num_pages);
+
+			/* Set capabilities for this segment */
+			if (has_exec) {
+				uint16_t pc = next_psn | PC_DIR;
+				nd500_mmu_set_program_capability(m->cpu, 0, seg, pc);
+				output(ctx, "    Prog capability: PSN %u", next_psn);
+			}
+
+			if (has_read || has_write) {
+				uint16_t dc = next_psn;
+				if (!has_write) {  /* DC_WRP=1 means write-protected (read-only) */
+					dc |= DC_WRP;
+				}
+				nd500_mmu_set_data_capability(m->cpu, 0, seg, dc);
+				output(ctx, "    Data capability: PSN %u %s", next_psn,
+					has_write ? "(writable)" : "(read-only)");
+			}
+
+			next_psn++;
+		}
+
+		output(ctx, "  Identity mapping complete: segments %u-%u, %u PST entries used",
+			start_seg, end_seg, next_psn);
+
+	} else if (strcasecmp(subcmd, "map") == 0) {
+		/* mmu map <vstart> <vend> <pstart> <flags> */
+		char* vstart_str = type;  /* type was consumed as first token */
+		char* vend_str = strtok(NULL, " \t\r\n");
+		char* pstart_str = strtok(NULL, " \t\r\n");
+		char* flags_str = strtok(NULL, " \t\r\n");
+
+		if (!vstart_str || !vend_str || !pstart_str || !flags_str) {
+			error(ctx, "usage: mmu map <vstart> <vend> <pstart> <flags>");
+			error(ctx, "  example: mmu map 0xE8000000 0xE8FFFFFF 0x00000000 rw");
+			return -1;
+		}
+
+		uint32_t vstart_addr = nd500_cmd_parse_u32(vstart_str, 0);
+		uint32_t vend_addr = nd500_cmd_parse_u32(vend_str, 0);
+		uint32_t pstart_addr = nd500_cmd_parse_u32(pstart_str, 0);
+
+		if (vend_addr < vstart_addr) {
+			error(ctx, "virtual end address must be >= virtual start address");
+			return -1;
+		}
+
+		/* Parse flags */
+		int has_read = strchr(flags_str, 'r') || strchr(flags_str, 'R');
+		int has_write = strchr(flags_str, 'w') || strchr(flags_str, 'W');
+		int has_exec = strchr(flags_str, 'x') || strchr(flags_str, 'X');
+
+		/* Calculate number of pages needed */
+		uint32_t vsize = vend_addr - vstart_addr + 1;
+		uint32_t num_pages = (vsize + NBPG - 1) / NBPG;  /* Round up */
+
+		output(ctx, "Mapping virtual 0x%08X-0x%08X → physical 0x%08X (%s%s%s)",
+			vstart_addr, vend_addr, pstart_addr,
+			has_read ? "r" : "-",
+			has_write ? "w" : "-",
+			has_exec ? "x" : "-");
+		output(ctx, "  Requires %u pages (2KB each)", num_pages);
+
+		/* Calculate segment range */
+		uint32_t start_vseg = vstart_addr >> SGSHIFT;
+		uint32_t end_vseg = vend_addr >> SGSHIFT;
+
+		/* Page table allocation base (start after identity mapping tables) */
+		uint32_t page_table_base = 0x00200000;  /* 2MB physical address */
+		uint32_t next_psn = 10;  /* Start at PSN 10 to avoid conflict with identity mapping */
+
+		/* Create one PST entry per segment using PS_ASI (single-level paging) */
+		for (uint32_t seg = start_vseg; seg <= end_vseg && seg < MAXSEG; seg++) {
+			/* Calculate page range for this segment */
+			uint32_t seg_start_vaddr = seg << SGSHIFT;
+			uint32_t seg_end_vaddr = ((seg + 1) << SGSHIFT) - 1;
+
+			/* Clip to requested range */
+			if (seg_start_vaddr < vstart_addr) seg_start_vaddr = vstart_addr;
+			if (seg_end_vaddr > vend_addr) seg_end_vaddr = vend_addr;
+
+			uint32_t seg_start_vpage = seg_start_vaddr >> PGSHIFT;
+			uint32_t seg_end_vpage = seg_end_vaddr >> PGSHIFT;
+			uint32_t seg_num_pages = seg_end_vpage - seg_start_vpage + 1;
+
+			/* Calculate corresponding physical pages */
+			uint32_t offset_in_mapping = seg_start_vaddr - vstart_addr;
+			uint32_t seg_start_ppage = (pstart_addr + offset_in_mapping) >> PGSHIFT;
+
+			/* Allocate page table for this segment */
+			uint32_t page_table_addr = page_table_base;
+			page_table_base += seg_num_pages * 4;  /* 4 bytes per PTE */
+
+			/* Create PTEs in the page table */
+			for (uint32_t i = 0; i < seg_num_pages; i++) {
+				uint32_t phys_page_num = seg_start_ppage + i;
+				uint32_t pte_addr = page_table_addr + (i * 4);
+
+				/* PTE format: [31:2]=PFN, [1]=valid/present, [0]=protection */
+				uint8_t protection = (has_write) ? 0 : 1;  /* 0=writable, 1=read-only */
+				uint32_t pte_value = (phys_page_num << 2) | (1 << 1) | protection;  /* Set valid bit */
+
+				/* Write PTE to physical memory */
+				nd500_bus_write8(m, pte_addr + 0, (pte_value >> 0) & 0xFF);
+				nd500_bus_write8(m, pte_addr + 1, (pte_value >> 8) & 0xFF);
+				nd500_bus_write8(m, pte_addr + 2, (pte_value >> 16) & 0xFF);
+				nd500_bus_write8(m, pte_addr + 3, (pte_value >> 24) & 0xFF);;
+			}
+
+			/* Create PST entry pointing to page table (PS_ASI mode) */
+			uint32_t page_table_pfn = page_table_addr >> PGSHIFT;
+			nd500_mmu_set_pst_entry(m->cpu, next_psn, PS_ASI, page_table_pfn);
+
+			output(ctx, "  Segment %u: PST[%u] → page table at 0x%08X (%u pages)",
+				seg, next_psn, page_table_addr, seg_num_pages);
+
+			/* Set capabilities for this segment */
+			if (has_exec) {
+				uint16_t pc = next_psn | PC_DIR;
+				nd500_mmu_set_program_capability(m->cpu, 0, seg, pc);
+				output(ctx, "    Prog capability: PSN %u", next_psn);
+			}
+
+			if (has_read || has_write) {
+				uint16_t dc = next_psn;
+				if (!has_write) {  /* DC_WRP=1 means write-protected (read-only) */
+					dc |= DC_WRP;
+				}
+				nd500_mmu_set_data_capability(m->cpu, 0, seg, dc);
+				output(ctx, "    Data capability: PSN %u %s", next_psn,
+					has_write ? "(writable)" : "(read-only)");
+			}
+
+			next_psn++;
+		}
+
+		output(ctx, "  Mapping complete: segments %u-%u, %u PST entries used",
+			start_vseg, end_vseg, next_psn - 10);
+
 	} else {
-		error(ctx, "usage: mmu [on|off] [program|data]");
+		error(ctx, "usage: mmu [on|off|enable|disable|identity|map] ...");
 		return -1;
 	}
 
@@ -1815,4 +2061,67 @@ static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "quitting...");
 	return 1; /* Return 1 to signal quit */
+}
+
+/**
+ * Execute an initialization script from a file
+ * Reads the file line by line and executes each line as a debugger command
+ * @param m          Machine instance
+ * @param script_path Path to the init script file
+ * @return          0 on success, -1 on error (file not found or command failures)
+ */
+int nd500_execute_init_script(Nd500Machine* m, const char* script_path) {
+	if (!m || !script_path) return -1;
+
+	FILE* f = fopen(script_path, "r");
+	if (!f) {
+		return -1;  /* Script not found - not an error, just skip */
+	}
+
+	printf("[init] Executing initialization script: %s\n", script_path);
+
+	/* Set up command context with stdout/stderr callbacks */
+	CmdContext ctx;
+	ctx.output = NULL;  /* Use default printf behavior */
+	ctx.error = NULL;   /* Use default fprintf(stderr) behavior */
+	ctx.context = NULL;
+
+	char line[512];
+	int line_num = 0;
+	int error_count = 0;
+
+	while (fgets(line, sizeof(line), f)) {
+		line_num++;
+
+		/* Remove trailing newline */
+		size_t len = strlen(line);
+		if (len > 0 && line[len - 1] == '\n') {
+			line[len - 1] = '\0';
+		}
+
+		/* Skip empty lines and comments */
+		const char* p = line;
+		while (*p && (*p == ' ' || *p == '\t')) p++;  /* Skip leading whitespace */
+		if (*p == '\0' || *p == '#') {
+			continue;  /* Empty or comment line */
+		}
+
+		/* Execute the command */
+		printf("[init:%d] %s\n", line_num, line);
+		int result = nd500_cmd_execute(m, line, &ctx);
+		if (result < 0) {
+			fprintf(stderr, "[init:%d] Command failed: %s\n", line_num, line);
+			error_count++;
+		}
+	}
+
+	fclose(f);
+
+	if (error_count > 0) {
+		fprintf(stderr, "[init] Script completed with %d errors\n", error_count);
+		return -1;
+	}
+
+	printf("[init] Script completed successfully\n");
+	return 0;
 }

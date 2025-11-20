@@ -52,15 +52,14 @@ static int g_source_file_count = 0;
 struct nd500_exec {
     unsigned int a_magic, a_text, a_data, a_bss, a_syms, a_entry, a_trsize, a_drsize;
 };
+/* On-disk symbol table format - 12 bytes */
 struct nd500_nlist {
-    unsigned int n_strx;
-    unsigned int _pad1;
-    unsigned char n_type;
-    unsigned char n_other;
-    unsigned short n_desc;
-    unsigned int n_value;
-    unsigned int _pad2, _pad3;
-};
+    int32_t n_strx;         /* String table index (4 bytes) */
+    unsigned char n_type;   /* Type flag (1 byte) */
+    unsigned char n_other;  /* Unused (1 byte) */
+    int16_t n_desc;         /* Description (2 bytes) */
+    uint32_t n_value;       /* Value/address (4 bytes) */
+} __attribute__((packed));
 
 #define OMAGIC 0407
 #define NMAGIC 0410
@@ -166,8 +165,12 @@ int ndlib_symbols_load(const char* aout_path) {
     int idx = 0;
     for (int i = 0; i < nsyms; i++) {
         if (symbols[i].n_strx == 0 || symbols[i].n_strx >= strsize) continue;
-        
+
         const char* name = strings + symbols[i].n_strx;
+        if (i < 3) {  /* Debug first 3 symbols */
+            fprintf(stderr, "[DEBUG] Symbol %d: n_strx=%d n_type=0x%02x n_value=0x%08x name='%s'\n",
+                    i, symbols[i].n_strx, symbols[i].n_type, symbols[i].n_value, name);
+        }
         g_symbols[idx].name = strdup(name);
         g_symbols[idx].addr = symbols[i].n_value;
         g_symbols[idx].type = symbols[i].n_type;

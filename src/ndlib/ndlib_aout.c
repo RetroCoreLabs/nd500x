@@ -29,17 +29,16 @@ struct nd500_exec {
 	uint32_t   a_drsize;    /* Data relocation size (4 bytes) - offset 28 */
 } __attribute__((packed));
 
-/* On-disk symbol table entry format (24 bytes with padding) */
+/* On-disk symbol table entry - 12 bytes, matches file format exactly */
 struct nd500_nlist {
-	unsigned int n_strx;    /* String table index (4 bytes) */
-	unsigned int _pad1;     /* Padding to match 64-bit pointer size */
-	unsigned char n_type;   /* Symbol type (offset 8) */
-	unsigned char n_other;  /* Unused */
-	unsigned short n_desc;  /* Descriptor */
-	unsigned int n_value;   /* Symbol value (offset 12) */
-	unsigned int _pad2;     /* Padding */
-	unsigned int _pad3;     /* Padding */
-};
+	int32_t n_strx;         /* String table index (4 bytes) */
+	uint8_t n_type;         /* Symbol type (1 byte) */
+	uint8_t n_other;        /* Unused (1 byte) */
+	int16_t n_desc;         /* Descriptor (2 bytes) */
+	uint32_t n_value;       /* Symbol value (4 bytes) */
+} __attribute__((packed));
+
+#define NLIST_SIZE 12  /* On-disk symbol table entry size */
 
 #define OMAGIC  0407
 #define NMAGIC  0410
@@ -84,9 +83,11 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
 			for (int i = 0; i < nsyms; i++) {
 				struct nd500_nlist sym;
 				if (fread(&sym, 1, sizeof(sym), f) != sizeof(sym)) break;
+				/* Skip symbols with no name (n_strx == 0) - these include STAB debug symbols */
+				if (sym.n_strx == 0) continue;
 				unsigned char base_type = (unsigned char)(sym.n_type & 0x0E); /* N_TYPE mask */
 				int ext = (sym.n_type & 0x01) ? 1 : 0; /* N_EXT */
-				if (base_type == 0x00 && ext) { has_unresolved = 1; break; } /* N_UNDF|EXT */
+				if (base_type == 0x00 && ext) { has_unresolved = 1; break; } /* N_UNDF|EXT with actual name */
 			}
 		}
 		/* Position will be reset before actual segment reads */
@@ -111,6 +112,7 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
 		entry_point = hdr.a_entry;
 		printf("File Type:      EXECUTABLE (ready to run)\n");
 		printf("Entry point:    0x%08X\n", entry_point);
+		printf("[DEBUG ndlib_loadaout_file_ex] hdr.a_entry=0x%x, setting entry_point=0x%x\n", hdr.a_entry, entry_point);
 	}
 	
 	/* Text immediately after header, per nd500 a.out */
@@ -138,7 +140,10 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
 	for (unsigned int i = 0; i < hdr.a_bss; ++i) {
 		nd500_bus_write8(m, hdr.a_text + hdr.a_data + i, 0);
 	}
-	if (out_entry) *out_entry = entry_point;
+	if (out_entry) {
+		*out_entry = entry_point;
+		printf("[DEBUG ndlib_loadaout_file_ex] Setting *out_entry = 0x%x\n", entry_point);
+	}
 	if (out_text_size) *out_text_size = hdr.a_text;
 	fclose(f);
 
@@ -439,18 +444,24 @@ int ndlib_load_aout_with_debug(Nd500Machine* m, const char* aout_path,
 
     /* Step 4: Set PC correctly for object files vs executables */
     uint32_t pc = 0;
-    if (entry == 0 || entry == 4) {
-        /* Object file - use first instruction from map */
+    if (entry == 0) {
+        /* Object file (no entry point) - use first instruction from map */
         uint32_t first_instr = ndlib_symbols_first_instruction_addr();
         pc = (first_instr > 0) ? first_instr : 0;
+        printf("[ndlib_load_aout_with_debug] Object file: entry=0, using first_instr=0x%x as PC\n", pc);
     } else {
-        /* Executable - use entry point */
+        /* Executable - use entry point (even if it's 4) */
         pc = entry;
+        printf("[ndlib_load_aout_with_debug] Executable: entry=0x%x, setting PC=0x%x\n", entry, pc);
     }
 
     /* Set PC on machine's CPU */
     if (m->cpu) {
+        printf("[ndlib_load_aout_with_debug] Setting m->cpu->PC = 0x%x (was 0x%x)\n", pc, m->cpu->PC);
         m->cpu->PC = pc;
+        printf("[ndlib_load_aout_with_debug] After set: m->cpu->PC = 0x%x\n", m->cpu->PC);
+    } else {
+        printf("[ndlib_load_aout_with_debug] WARNING: m->cpu is NULL, cannot set PC!\n");
     }
 
     /* Return values */

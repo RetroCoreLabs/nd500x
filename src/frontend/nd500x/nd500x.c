@@ -5,6 +5,7 @@
 #include "../../machine/machine_protos.h"
 #include "../../cpu/cpu_protos.h"
 #include "../../debugger/debugger.h"
+#include "../../debugger/commands.h"
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
 
@@ -87,6 +88,8 @@ int main(int argc, char** argv) {
     ndlib_color_init(ansi_flag);
 
     Nd500Machine machine;
+    /* Initialize with 16MB of physical memory
+     * Virtual memory is handled by the MMU */
     nd500_machine_init(&machine, 16 * 1024 * 1024);
 	Nd500Cpu cpu;
 	nd500_cpu_init(&cpu, &machine);
@@ -105,6 +108,26 @@ int main(int argc, char** argv) {
 	}
 
     if (aout_path) {
+        /* Look for initialization script BEFORE loading the aout file
+         * This allows the script to configure MMU before data is loaded */
+        char init_path[512];
+        strncpy(init_path, aout_path, sizeof(init_path) - 1);
+        init_path[sizeof(init_path) - 1] = '\0';
+
+        /* Find extension or end of string */
+        char* ext = strrchr(init_path, '.');
+        if (ext && (strcmp(ext, ".o") == 0 || strcmp(ext, ".out") == 0)) {
+            /* Replace .o or .out with .init */
+            strcpy(ext, ".init");
+        } else {
+            /* No extension - append .init to basename (e.g., kernel → kernel.init) */
+            strncat(init_path, ".init", sizeof(init_path) - strlen(init_path) - 1);
+        }
+
+        /* Execute init script BEFORE loading aout (ignore errors - script is optional) */
+        nd500_execute_init_script(&machine, init_path);
+
+        /* Now load the aout file with MMU potentially configured */
         uint32_t entry = 0, pc = 0;
 		/* Use unified loading (auto-loads .map and .s files) */
         if (ndlib_load_aout_with_debug(&machine, aout_path, 1, &entry, &pc) == 0) {

@@ -118,8 +118,10 @@ typedef struct {
 /**
  * Page Table Entry (PTE) - 4 bytes
  * Used in single-level and two-level page tables
+ * Format: [31:2]=PFN, [1]=valid/present, [0]=protection
  */
 typedef struct {
+    uint8_t valid;              /* 0=not present (page fault), 1=present */
     uint8_t protection;         /* PG_W (0) or PG_R (1) */
     uint32_t physical_pfn;      /* Physical page frame number (30 bits) */
 } PageTableEntry;
