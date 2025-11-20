@@ -12,8 +12,8 @@ static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op) 
     char* p = dst; char* e = dst + cap;
     uint32_t val = 0; int32_t sval = 0;
     if (op->data_len == 1) { val = op->data[0]; sval = (int8_t)op->data[0]; }
-    else if (op->data_len == 2) { val = (uint32_t)op->data[0] | ((uint32_t)op->data[1] << 8); sval = (int16_t)val; }
-    else if (op->data_len >= 4) { val = (uint32_t)op->data[0] | ((uint32_t)op->data[1] << 8) | ((uint32_t)op->data[2] << 16) | ((uint32_t)op->data[3] << 24); sval = (int32_t)val; }
+    else if (op->data_len == 2) { val = ((uint32_t)op->data[0] << 8) | (uint32_t)op->data[1]; sval = (int16_t)val; }
+    else if (op->data_len >= 4) { val = ((uint32_t)op->data[0] << 24) | ((uint32_t)op->data[1] << 16) | ((uint32_t)op->data[2] << 8) | (uint32_t)op->data[3]; sval = (int32_t)val; }
 
     /* Inline/direct markers from decoder: 0xFE/0xFF */
     if (op->address_code == 0xFE || op->address_code == 0xFF) {
