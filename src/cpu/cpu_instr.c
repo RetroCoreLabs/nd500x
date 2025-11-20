@@ -32,7 +32,8 @@ static inline uint8_t mmu_read8(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int
 	}
 
 	/* Access physical memory via bus (no further translation) */
-	return nd500_bus_read8(cpu->machine, paddr);
+	uint8_t byte = nd500_bus_read8(cpu->machine, paddr);
+	return byte;
 }
 
 /**
@@ -280,10 +281,11 @@ static uint8_t data_part_size(uint8_t ac) {
 static uint8_t read_data_part(Nd500Machine* m, uint32_t base, uint8_t addr_code, uint8_t* out, uint8_t out_cap) {
     uint8_t len = data_part_size(addr_code);
     if (len > out_cap) len = out_cap;
-    /* Instruction fetch: use MMU-aware reads if CPU available */
+    /* Operand data: NOT instruction bytes, use data access for MMU */
     if (m->cpu) {
         for (uint8_t i = 0; i < len; ++i) {
-            out[i] = mmu_read8(m->cpu, base + i, 0, 1); /* is_write=0, is_instruction=1 */
+            /* Operand data is DATA, not instruction - use is_instruction=0 for correct MMU translation */
+            out[i] = mmu_read8(m->cpu, base + i, 0, 0); /* is_write=0, is_instruction=0 */
         }
     } else {
         /* Debugger/disassembler: direct physical access */

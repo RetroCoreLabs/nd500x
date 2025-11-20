@@ -120,6 +120,12 @@ int hz = 100;           /* Clock frequency (ticks per second) */
 char version[] = "NDIX-C Simulated Kernel v1.0 for ND-500\n";
 
 /*
+ * Stack area for kernel (64KB)
+ * Must be allocated before kernel initialization
+ */
+char stack_area[65536];     /* 64KB stack space */
+
+/*
  * Kernel initialization data at fixed addresses
  * These simulate the shared memory region at 0x30000000
  */
@@ -145,10 +151,10 @@ void scheduler();           /* Process scheduler */
 void trap_handler();        /* Trap/exception handler */
 
 /*
- * Kernel entry point (start symbol)
- * This is the first code executed after the ND-500 boots
+ * Kernel main entry point (called from locore.c bootstrap)
+ * Stack is already initialized by locore.c INIT instruction
  */
-void start()
+void kernel_main()
 {
     /* Initialize kernel subsystems */
     init_kernel();
@@ -330,12 +336,12 @@ int trapno;
 
 /*
  * Main function (for testing without kernel entry point)
- * This won't be used when linked with start as entry point
+ * This won't be used when linked with locore.c bootstrap
  */
 int main()
 {
     /* Call kernel initialization */
-    start();
+    kernel_main();
 
     return 0;
 }
