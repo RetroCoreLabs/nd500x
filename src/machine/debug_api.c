@@ -26,6 +26,8 @@ size_t nd500_dbg_mem_dump(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t*
 }
 
 static int g_show_ea = -1;       /* -1: uninitialized, 0: off, 1: on */
+static int g_show_hex = -1;      /* -1: uninitialized (default on), 0: off, 1: on */
+static int g_radix = 0;          /* 0=decimal, 1=hex, 2=octal */
 static int g_demangle = -1;      /* demangle C-style symbols (strip leading _) */
 static int g_trace_mode = -1;   /* instruction trace mode */
 static int g_profiling = -1;    /* instruction profiling mode */
@@ -68,6 +70,39 @@ int nd500_dbg_get_show_ea(void) {
     return g_show_ea;
 }
 
+int nd500_dbg_set_show_hex(int onoff) {
+    g_show_hex = onoff ? 1 : 0;
+    return g_show_hex;
+}
+
+int nd500_dbg_get_show_hex(void) {
+    if (g_show_hex < 0) {
+        const char* env = getenv("ND500X_SHOW_HEX");
+        /* Default to ON if not set */
+        g_show_hex = (env && *env == '0') ? 0 : 1;
+    }
+    return g_show_hex;
+}
+
+int nd500_dbg_set_radix(int mode) {
+    if (mode < 0 || mode > 2) return g_radix;
+    g_radix = mode;
+    return g_radix;
+}
+
+int nd500_dbg_get_radix(void) {
+    return g_radix;
+}
+
+/* Get base value for strtoul: 10, 16, or 8 */
+int nd500_dbg_get_radix_base(void) {
+    switch (g_radix) {
+        case 1: return 16;  /* hex */
+        case 2: return 8;   /* octal */
+        default: return 10; /* decimal */
+    }
+}
+
 static const char* maybe_demangle(const char* sym) {
     if (!sym) return NULL;
     if (g_demangle < 0) {
@@ -103,114 +138,193 @@ int nd500_dbg_get_show_source(void) {
     return g_show_source;
 }
 
+/* Helper: format signed value based on current radix */
+static int fmt_signed(char* buf, size_t cap, int32_t val) {
+    switch (g_radix) {
+        case 1: /* hex */
+            if (val < 0)
+                return snprintf(buf, cap, "-0x%X", (unsigned)(-val));
+            else
+                return snprintf(buf, cap, "0x%X", (unsigned)val);
+        case 2: /* octal */
+            if (val < 0)
+                return snprintf(buf, cap, "-0%o", (unsigned)(-val));
+            else
+                return snprintf(buf, cap, "0%o", (unsigned)val);
+        default: /* decimal */
+            return snprintf(buf, cap, "%d", val);
+    }
+}
+
+/* Helper: format unsigned value based on current radix */
+static int fmt_unsigned(char* buf, size_t cap, uint32_t val) {
+    switch (g_radix) {
+        case 1: return snprintf(buf, cap, "0x%X", val);  /* hex */
+        case 2: return snprintf(buf, cap, "0%o", val);   /* octal */
+        default: return snprintf(buf, cap, "%u", val);   /* decimal */
+    }
+}
+
 static size_t format_operand_impl(char* dst, size_t cap, const Nd500OperandDecoded* op) {
     if (!dst || cap == 0) return (size_t)0;
+
+    /* Extract value from data bytes (BIG-ENDIAN - ND-500 native byte order) */
     uint32_t val = 0;
     int32_t sval = 0;
-    if (op->data_len == 1) { val = op->data[0]; sval = (int8_t)op->data[0]; }
-    else if (op->data_len == 2) { 
-        val = (uint32_t)op->data[0] | ((uint32_t)op->data[1] << 8);
+    if (op->data_len == 1) {
+        val = op->data[0];
+        sval = (int8_t)op->data[0];
+    }
+    else if (op->data_len == 2) {
+        val = ((uint32_t)op->data[0] << 8) | (uint32_t)op->data[1];
         sval = (int16_t)val;
     }
     else if (op->data_len >= 4) {
-        val = (uint32_t)op->data[0] | ((uint32_t)op->data[1] << 8) | ((uint32_t)op->data[2] << 16) | ((uint32_t)op->data[3] << 24);
+        val = ((uint32_t)op->data[0] << 24) | ((uint32_t)op->data[1] << 16) |
+              ((uint32_t)op->data[2] << 8) | (uint32_t)op->data[3];
         sval = (int32_t)val;
     }
-    uint8_t low6 = op->address_code & 0x3F;
+
     char* p = dst; char* e = dst + cap;
+
+    /* Handle prefix bytes */
     if (op->has_alt_prefix && p < e) { int n = snprintf(p, (size_t)(e-p), "ALT "); if (n>0) p+= (n < (e-p) ? n : (int)(e-p)); }
     if (op->has_desc_prefix && p < e) { int n = snprintf(p, (size_t)(e-p), "DESC%d ", (int)op->reg+1); if (n>0) p+= (n < (e-p) ? n : (int)(e-p)); }
-    
+
     /* Special handling for inline operands (AC=0xFF for branch disp, AC=0xFE for call nargs) */
     if (op->address_code == 0xFE || op->address_code == 0xFF) {
-        /* Branch displacements (0xFF) should be signed, call args (0xFE) are unsigned */
+        if (p < e) *p++ = '$';
         if (op->address_code == 0xFF && op->data_len <= 2) {
             /* Signed displacement for branches */
-            int n = snprintf(p, (size_t)(e-p), "$%d", sval);
+            int n = fmt_signed(p, (size_t)(e-p), sval);
             p += (n>0 && n < (e-p)? n : (e-p));
         } else {
-            /* Unsigned for call args */
-            int n = snprintf(p, (size_t)(e-p), "$%u", val);
+            /* Unsigned for call address/args */
+            int n = fmt_unsigned(p, (size_t)(e-p), val);
             p += (n>0 && n < (e-p)? n : (e-p));
         }
         if (p < e) *p = '\0';
         return (size_t)(p - dst);
     }
-    
-    /* Standard addressing modes */
-    switch (low6) {
-        case 0x00: /* Short immediate */
-            if (op->data_len == 1) {
-                int n = snprintf(p, (size_t)(e-p), "$%d", sval);
+
+    /* Format based on addressing MODE (not raw address_code bits) */
+    /* This matches nd500-dis behavior */
+    switch (op->mode) {
+        case ND500_ADDR_CONSTANT_SHORT: {
+            /* 0x00-0x3F: value is address_code itself (lower 6 bits) */
+            int32_t short_val = (int32_t)(op->address_code & 0x3F);
+            if (p < e) *p++ = '$';
+            int n = fmt_signed(p, (size_t)(e-p), short_val);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_LOCAL_SHORT: {
+            /* 0x40-0x7F: offset = (address_code & 0x3F) * 4 */
+            int32_t off = (int32_t)(op->address_code & 0x3F) * 4;
+            char vbuf[32];
+            fmt_unsigned(vbuf, sizeof(vbuf), (uint32_t)off);
+            int n = snprintf(p, (size_t)(e-p), "b.%s", vbuf);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_RECORD_SHORT: {
+            /* 0x80-0xBF: offset = (address_code & 0x3F) * 4 */
+            int32_t off = (int32_t)(op->address_code & 0x3F) * 4;
+            char vbuf[32];
+            fmt_unsigned(vbuf, sizeof(vbuf), (uint32_t)off);
+            int n = snprintf(p, (size_t)(e-p), "r.%s", vbuf);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_LOCAL: {
+            /* Local with data part: b.offset */
+            char vbuf[32];
+            fmt_signed(vbuf, sizeof(vbuf), sval);
+            int n = snprintf(p, (size_t)(e-p), "b.%s", vbuf);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_LOCAL_PI: {
+            /* Local post-indexed: b.offset+ */
+            char vbuf[32];
+            fmt_signed(vbuf, sizeof(vbuf), sval);
+            int n = snprintf(p, (size_t)(e-p), "b.%s+", vbuf);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_LOCAL_IND: {
+            /* Local indirect: @b.offset */
+            char vbuf[32];
+            fmt_signed(vbuf, sizeof(vbuf), sval);
+            int n = snprintf(p, (size_t)(e-p), "@b.%s", vbuf);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_LOCAL_IND_PI: {
+            /* Local indirect post-indexed: @b.offset+ */
+            char vbuf[32];
+            fmt_signed(vbuf, sizeof(vbuf), sval);
+            int n = snprintf(p, (size_t)(e-p), "@b.%s+", vbuf);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_RECORD: {
+            /* Record with data part: r.offset */
+            char vbuf[32];
+            fmt_signed(vbuf, sizeof(vbuf), sval);
+            int n = snprintf(p, (size_t)(e-p), "r.%s", vbuf);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_ABSOLUTE: {
+            /* Absolute: $address */
+            if (p < e) *p++ = '$';
+            int n = fmt_unsigned(p, (size_t)(e-p), val);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_ABSOLUTE_PI: {
+            /* Absolute post-indexed: $address+ */
+            if (p < e) *p++ = '$';
+            int n = fmt_unsigned(p, (size_t)(e-p), val);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            if (p < e) *p++ = '+';
+            break;
+        }
+        case ND500_ADDR_CONSTANT: {
+            /* Extended constant: $value */
+            if (p < e) *p++ = '$';
+            int n = fmt_signed(p, (size_t)(e-p), sval);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_REGISTER: {
+            /* Register: r1-r4 (reg is 0-3) */
+            int n = snprintf(p, (size_t)(e-p), "r%d", (int)op->reg + 1);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        case ND500_ADDR_PREINDEXED: {
+            /* Pre-indexed: offset(In) */
+            char vbuf[32];
+            fmt_signed(vbuf, sizeof(vbuf), sval);
+            int n = snprintf(p, (size_t)(e-p), "%s(I%d)", vbuf, (int)op->reg + 1);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            break;
+        }
+        default: {
+            /* Unknown mode - show raw address code and any data */
+            int n = snprintf(p, (size_t)(e-p), "?AC%02X", op->address_code);
+            p += (n>0 && n < (e-p)? n : (e-p));
+            if (op->data_len > 0) {
+                n = snprintf(p, (size_t)(e-p), "($");
                 p += (n>0 && n < (e-p)? n : (e-p));
-            } else {
-                int n = snprintf(p, (size_t)(e-p), "$%u", val);
+                n = fmt_unsigned(p, (size_t)(e-p), val);
                 p += (n>0 && n < (e-p)? n : (e-p));
+                if (p < e) *p++ = ')';
             }
             break;
-        case 0x01: /* Extended immediate */
-            if (op->data_len <= 2) {
-                int n = snprintf(p, (size_t)(e-p), "$%d", sval);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            } else {
-                int n = snprintf(p, (size_t)(e-p), "$%u", val);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
-        case 0x02: /* Indirect */
-            if (op->reg < 4) {
-                int n = snprintf(p, (size_t)(e-p), "(%s)", reg_names[op->reg]);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
-        case 0x03: /* Pre-indexed */
-            if (op->reg < 4) {
-                int n = snprintf(p, (size_t)(e-p), "%d(%s)", sval, reg_names[op->reg]);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
-        case 0x04: /* Post-indexed */
-            if (op->reg < 4) {
-                int n = snprintf(p, (size_t)(e-p), "(%s)+", reg_names[op->reg]);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
-        case 0x05: /* Absolute */
-            {
-                int n = snprintf(p, (size_t)(e-p), "$%u", val);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
-        case 0x06: /* Constant */
-            {
-                int n = snprintf(p, (size_t)(e-p), "#%u", val);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
-        case 0x07: /* Register */
-            if (op->reg < 4) {
-                int n = snprintf(p, (size_t)(e-p), "%s", reg_names[op->reg]);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
-        case 0x08: /* Descriptor */
-            if (op->reg < 4) {
-                int n = snprintf(p, (size_t)(e-p), "desc%d", (int)op->reg+1);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
-        case 0x09: /* Alternative */
-            if (op->reg < 4) {
-                int n = snprintf(p, (size_t)(e-p), "alt%d", (int)op->reg+1);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
-        default:
-            if (op->reg < 4) {
-                int n = snprintf(p, (size_t)(e-p), "%d(%s)", sval, reg_names[op->reg]);
-                p += (n>0 && n < (e-p)? n : (e-p));
-            }
-            break;
+        }
     }
     if (p < e) *p = '\0';
     return (size_t)(p - dst);
@@ -296,15 +410,17 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
                 printf("  ");  /* Two spaces for alignment */
             }
 
-            /* Show hex bytes for unknown opcodes too */
+            /* Show hex bytes for unknown opcodes (if enabled) */
             printf("%s%08X:%s ", color_address(), a, color_reset());
             uint32_t unk_len = fi.total_len > 0 ? fi.total_len : 1;
-            printf("%s", color_bytes());
-            for (uint32_t b = 0; b < unk_len && b < 8; b++) {
-                printf("%02X ", fi.bytes[b]);
+            if (nd500_dbg_get_show_hex()) {
+                printf("%s", color_bytes());
+                for (uint32_t b = 0; b < unk_len && b < 8; b++) {
+                    printf("%02X ", fi.bytes[b]);
+                }
+                printf("%s%-*s", color_reset(), (int)(24 - unk_len * 3), "");
             }
-            printf("%s%-*s %s???%s %s; opcode 0x%04X%s\n",
-                   color_reset(), (int)(24 - unk_len * 3), "",
+            printf("%s???%s %s; opcode 0x%04X%s\n",
                    color_instr(), color_reset(),
                    color_comment(), fi.opcode, color_reset());
             a += unk_len;
@@ -347,14 +463,16 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
 
         /* Print address in gray */
         printf("%s%08X:%s ", color_address(), fi.address, color_reset());
-        
-        /* Print hex bytes in yellow */
-        printf("%s", color_bytes());
-        for (uint32_t b = 0; b < fi.total_len && b < 16; b++) {
-            printf("%02X ", fi.bytes[b]);
+
+        /* Print hex bytes in yellow (if enabled) */
+        if (nd500_dbg_get_show_hex()) {
+            printf("%s", color_bytes());
+            for (uint32_t b = 0; b < fi.total_len && b < 16; b++) {
+                printf("%02X ", fi.bytes[b]);
+            }
+            printf("%s%-*s", color_reset(), (int)(24 - fi.total_len * 3), "");
         }
-        printf("%s%-*s", color_reset(), (int)(24 - fi.total_len * 3), "");
-        
+
         /* Print symbol in cyan and mnemonic with appropriate color */
         if (sy && *sy) {
             printf("%s<%s>%s ", color_label(), sy, color_reset());

@@ -204,15 +204,18 @@ typedef enum {
     ND500_DTYPE_DOUBLEWORD = 3  // 64-bit (D)
 } Nd500DataType;
 
+/* Maximum operands for variable-length instructions like CALL (2 + up to 14 args) */
+#define ND500_MAX_OPERANDS 16
+
 typedef struct Nd500FetchedInstruction {
     uint32_t address;
     uint16_t opcode;
     uint8_t opcode_len;
     const char* mnemonic;
     uint8_t operand_count;
-    Nd500OperandDecoded operands[4];
+    Nd500OperandDecoded operands[ND500_MAX_OPERANDS];
     uint32_t total_len;
-    uint8_t bytes[32];  /* All bytes consumed by this instruction */
+    uint8_t bytes[128];  /* All bytes consumed by this instruction (increased for CALL) */
 
     /* Pre-decoded metadata (like C# FetchedInstruction) */
     uint8_t target_register;      /* 0=none, 1-4 for register variants (I1-I4, A1-A4, etc.) */

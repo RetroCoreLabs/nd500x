@@ -35,6 +35,8 @@ static int cmd_step(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_set(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_load(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_load_pseg(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_load_dseg(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_loadmap(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_loadsrc(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_run(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -79,6 +81,8 @@ static const CmdEntry g_commands[] = {
 	{"set",         cmd_set,          "Set register value"},
 	{"reg",         cmd_set,          "Set register value (alias for set)"},
 	{"load",        cmd_load,         "Load binary file"},
+	{"load-pseg",   cmd_load_pseg,    "Load PSEG binary file"},
+	{"load-dseg",   cmd_load_dseg,    "Load DSEG binary file"},
 	{"loadmap",     cmd_loadmap,      "Load additional map file"},
 	{"loadsrc",     cmd_loadsrc,      "Load additional source file"},
 	{"run",         cmd_run,          "Start execution"},
@@ -122,7 +126,7 @@ static const int g_command_count = sizeof(g_commands) / sizeof(g_commands[0]);
 
 /* Subcommand lists for autocomplete */
 static const char* g_show_subcommands[] = {
-	"ea", "demangle", "source", "trace", "profile", "trap", "traps", "trap-status", NULL
+	"ea", "hex", "demangle", "source", "trace", "profile", "trap", "traps", "trap-status", NULL
 };
 
 static const char* g_bp_subcommands[] = {
@@ -140,7 +144,7 @@ static const char* g_profile_subcommands[] = {
 static const char* g_set_subcommands[] = {
 	"PC", "I1", "I2", "I3", "I4", "A1", "A2", "A3", "A4", "E1", "E2", "E3", "E4",
 	"L", "B", "R", "FLAGS", "TOS", "LL", "HL", "THA", "ST1", "ST2",
-	"PSTP", "DITBASE", "CED", "CAD", "PS", NULL
+	"PSTP", "DITBASE", "CED", "CAD", "PS", "radix", NULL
 };
 
 /* Helper: output a line via callback */
@@ -169,16 +173,35 @@ static void error(CmdContext* ctx, const char* fmt, ...) {
 	}
 }
 
-/* Parse uint32 from string (hex with 0x or decimal) */
+/* Parse uint32 from string with radix-aware parsing and override prefixes:
+ *   $10   = decimal 10 (always)
+ *   0x10  = hex 16 (always)
+ *   010   = octal 8 (always, leading zero followed by digit)
+ *   10    = depends on current radix setting
+ */
 uint32_t nd500_cmd_parse_u32(const char* s, uint32_t defv) {
 	if (!s || !*s) return defv;
 	char* end = NULL;
 	unsigned long v = 0;
+
+	/* Override prefix: $ = decimal */
+	if (s[0] == '$') {
+		v = strtoul(s + 1, &end, 10);
+		return (uint32_t)v;
+	}
+	/* Override prefix: 0x = hex */
 	if (strncasecmp(s, "0x", 2) == 0) {
 		v = strtoul(s + 2, &end, 16);
-	} else {
-		v = strtoul(s, &end, 10);
+		return (uint32_t)v;
 	}
+	/* Override prefix: leading 0 followed by digit = octal */
+	if (s[0] == '0' && s[1] >= '0' && s[1] <= '7') {
+		v = strtoul(s, &end, 8);
+		return (uint32_t)v;
+	}
+	/* No override prefix: use current radix */
+	int base = nd500_dbg_get_radix_base();
+	v = strtoul(s, &end, base);
 	return (uint32_t)v;
 }
 
@@ -264,6 +287,7 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  m [addr [len]]              Hex dump memory (default addr=PC, len=100)");
 	output(ctx, "  d [addr [len]]              Disassemble bytes (default addr=PC, len=100)");
 	output(ctx, "  show ea [on|off]            Toggle/show effective-address breakdown in disassembly");
+	output(ctx, "  show hex [on|off]           Toggle hex bytes in disassembly (default: on)");
 	output(ctx, "  show demangle [on|off]      Toggle C-symbol demangling (strip leading _)");
 	output(ctx, "  show source [off|asm|c|both] Set source annotations in disassembly");
 	output(ctx, "  show trace [on|off]         Toggle instruction execution tracing");
@@ -273,10 +297,10 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  step [n] (s [n])            Execute n instructions (default 1)");
 	output(ctx, "  regs                        Show CPU registers");
 	output(ctx, "  set <register> <value>      Set register value");
+	output(ctx, "  set radix [decimal|hex|octal] Set numeric format for disasm and input");
 	output(ctx, "  load <path>                 Load ND-500 a.out into memory");
-	output(ctx, "  load pseg <path> [mode] [addr]  Load PSEG binary (auto-detect mode from filename)");
-	output(ctx, "  load dseg <path> [mode] [addr]  Load DSEG binary (auto-detect mode from filename)");
-	output(ctx, "                              mode: kernel (0x08000000) | user (0xD0000000)");
+	output(ctx, "  load-pseg <path> [addr]     Load PSEG binary (addr: kernel|user|hex, default: kernel)");
+	output(ctx, "  load-dseg <path> [addr]     Load DSEG binary (addr: kernel|user|hex, default: kernel)");
 	output(ctx, "  loadmap <path>              Load additional map file (for multi-file programs)");
 	output(ctx, "  loadsrc <path>              Load additional source file (.c or .s)");
 	output(ctx, "  run                         Start execution (background)");
@@ -409,6 +433,22 @@ static int cmd_show(Nd500Machine* m, CmdContext* ctx, char* args) {
 		}
 		nd500_dbg_set_show_ea(newv);
 		output(ctx, "show ea: %s", newv ? "on" : "off");
+	} else if (strcmp(sub, "hex") == 0) {
+		char* val = strtok(NULL, " \t\r\n");
+		int newv;
+		if (!val) {
+			int cur = nd500_dbg_get_show_hex();
+			newv = !cur;
+		} else if (strcasecmp(val, "on") == 0) {
+			newv = 1;
+		} else if (strcasecmp(val, "off") == 0) {
+			newv = 0;
+		} else {
+			error(ctx, "usage: show hex [on|off]");
+			return -1;
+		}
+		nd500_dbg_set_show_hex(newv);
+		output(ctx, "show hex: %s", newv ? "on" : "off");
 	} else if (strcmp(sub, "demangle") == 0) {
 		char* val = strtok(NULL, " \t\r\n");
 		int newv;
@@ -568,8 +608,34 @@ static int cmd_set(Nd500Machine* m, CmdContext* ctx, char* args) {
 	char* reg_name = args ? strtok(args, " \t\r\n") : NULL;
 	char* value_str = reg_name ? strtok(NULL, " \t\r\n") : NULL;
 
+	/* Special case: set radix */
+	if (reg_name && strcasecmp(reg_name, "radix") == 0) {
+		if (!value_str) {
+			/* Show current radix and options */
+			int cur = nd500_dbg_get_radix();
+			const char* name = (cur == 1) ? "hex" : (cur == 2) ? "octal" : "decimal";
+			output(ctx, "radix: %s (options: decimal, hex, octal)", name);
+			return 0;
+		}
+		if (strcasecmp(value_str, "decimal") == 0 || strcasecmp(value_str, "dec") == 0) {
+			nd500_dbg_set_radix(0);
+			output(ctx, "radix: decimal");
+		} else if (strcasecmp(value_str, "hex") == 0) {
+			nd500_dbg_set_radix(1);
+			output(ctx, "radix: hex");
+		} else if (strcasecmp(value_str, "octal") == 0 || strcasecmp(value_str, "oct") == 0) {
+			nd500_dbg_set_radix(2);
+			output(ctx, "radix: octal");
+		} else {
+			error(ctx, "invalid radix: %s (options: decimal, hex, octal)", value_str);
+			return -1;
+		}
+		return 0;
+	}
+
 	if (!reg_name || !value_str) {
 		error(ctx, "usage: set <register> <value>");
+		error(ctx, "       set radix [decimal|hex|octal]");
 		error(ctx, "registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2");
 		error(ctx, "           PSTP, DITBASE, CED, CAD, PS");
 		return -1;
@@ -755,6 +821,96 @@ static int cmd_load(Nd500Machine* m, CmdContext* ctx, char* args) {
 		output(ctx, "PC set to entry point: 0x%08X", pc);
 	}
 
+	return 0;
+}
+
+/* Default base addresses for PSEG/DSEG loading */
+#define PSEG_KERNEL_BASE 0x08000000
+#define PSEG_USER_BASE   0xD0000000
+#define DSEG_KERNEL_BASE 0x08000000
+#define DSEG_USER_BASE   0xD0000000
+
+static int cmd_load_pseg(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no machine or cpu");
+		return -1;
+	}
+
+	/* Parse arguments: <path> [addr] */
+	char* filepath = args ? strtok(args, " \t\r\n") : NULL;
+	if (!filepath) {
+		error(ctx, "usage: load-pseg <path> [addr]");
+		error(ctx, "       addr: kernel (0x%08X) | user (0x%08X) | <hex-addr>",
+		      PSEG_KERNEL_BASE, PSEG_USER_BASE);
+		error(ctx, "       default: kernel");
+		return -1;
+	}
+
+	char* addr_arg = strtok(NULL, " \t\r\n");
+
+	/* Determine base address from mode name or explicit address */
+	uint32_t base_addr = PSEG_KERNEL_BASE;
+	if (addr_arg) {
+		if (strcmp(addr_arg, "user") == 0) {
+			base_addr = PSEG_USER_BASE;
+		} else if (strcmp(addr_arg, "kernel") == 0) {
+			base_addr = PSEG_KERNEL_BASE;
+		} else {
+			base_addr = nd500_cmd_parse_u32(addr_arg, PSEG_KERNEL_BASE);
+		}
+	}
+
+	/* Load the PSEG file */
+	int rc = nd500_load_pseg_file(m, filepath, base_addr);
+	if (rc != 0) {
+		const char* errmsg = nd500_load_strerror(rc, base_addr, m->memory_size);
+		error(ctx, "failed to load PSEG '%s': %s", filepath, errmsg);
+		return -1;
+	}
+
+	output(ctx, "loaded PSEG: %s at 0x%08X", filepath, base_addr);
+	return 0;
+}
+
+static int cmd_load_dseg(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no machine or cpu");
+		return -1;
+	}
+
+	/* Parse arguments: <path> [addr] */
+	char* filepath = args ? strtok(args, " \t\r\n") : NULL;
+	if (!filepath) {
+		error(ctx, "usage: load-dseg <path> [addr]");
+		error(ctx, "       addr: kernel (0x%08X) | user (0x%08X) | <hex-addr>",
+		      DSEG_KERNEL_BASE, DSEG_USER_BASE);
+		error(ctx, "       default: kernel");
+		return -1;
+	}
+
+	char* addr_arg = strtok(NULL, " \t\r\n");
+
+	/* Determine base address from mode name or explicit address */
+	uint32_t base_addr = DSEG_KERNEL_BASE;
+	if (addr_arg) {
+		if (strcmp(addr_arg, "user") == 0) {
+			base_addr = DSEG_USER_BASE;
+		} else if (strcmp(addr_arg, "kernel") == 0) {
+			base_addr = DSEG_KERNEL_BASE;
+		} else {
+			base_addr = nd500_cmd_parse_u32(addr_arg, DSEG_KERNEL_BASE);
+		}
+	}
+
+	/* Load the DSEG file */
+	int rc = nd500_load_dseg_file(m, filepath, base_addr);
+	if (rc != 0) {
+		const char* errmsg = nd500_load_strerror(rc, base_addr, m->memory_size);
+		error(ctx, "failed to load DSEG '%s': %s", filepath, errmsg);
+		return -1;
+	}
+
+	output(ctx, "loaded DSEG: %s at 0x%08X", filepath, base_addr);
 	return 0;
 }
 

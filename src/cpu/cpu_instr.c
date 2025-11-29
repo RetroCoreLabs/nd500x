@@ -311,9 +311,9 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
 		b0 = nd500_bus_read8(m, pc);
 		b1 = nd500_bus_read8(m, pc+1);
 	}
-    /* For little-endian, check HIGH byte (b1) for long opcode marker 0xFC-0xFF */
-    int oplen = (b1 >= 0xFC) ? 2 : 1;
-    uint16_t opcode = (oplen == 2) ? (uint16_t)b0 | ((uint16_t)b1 << 8) : (uint16_t)b0;
+    /* Check FIRST byte (b0) for 2-byte opcode prefix 0xFC-0xFF */
+    int oplen = (b0 >= 0xFC) ? 2 : 1;
+    uint16_t opcode = (oplen == 2) ? ((uint16_t)b0 << 8) | (uint16_t)b1 : (uint16_t)b0;
 	out->opcode = opcode;
 	out->opcode_len = (uint8_t)oplen;
 	out->mnemonic = nd500_instr_mnemonic(opcode);
@@ -360,9 +360,9 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     
     /* Special handling for instructions with direct operands (no address code) */
     /* Decode ALL direct operands first (those with O_DIR bit set) */
-    for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+    for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
         if (!nd500_instr_operand_is_direct(opcode, i)) continue;
-        
+
         /* This operand is direct - read inline bytes without address code */
         Nd500OperandDecoded *op = &out->operands[i];
         op->has_alt_prefix = 0;
@@ -370,15 +370,15 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         op->address_code = 0xFE + i; /* Special marker 0xFE/0xFF for direct operands */
         op->mode = ND500_ADDR_CONSTANT;
         op->reg = 0;
-        
+
         /* Determine size from template bits or variant */
-        uint32_t tmpl = lookup(opcode)->op_templates[i];
+        uint32_t tmpl = lookup(opcode)->op_templates[i < 4 ? i : 3];
         uint8_t disp_len;
-        
+
         /* For single-operand direct (PC-relative branches), use variant for size */
         /* For multi-operand with direct (call), use template bits for size */
         int is_single_operand_direct = (out->operand_count == 1);
-        
+
         if (is_single_operand_direct) {
             /* PC-relative branches: variant determines size: 0=byte, 1=halfword, 2=word */
             uint8_t variant = nd500_instr_variant(opcode);
@@ -394,7 +394,7 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
             else if (tmpl & 0x02) disp_len = 1; /* O_BS - byte */
             else disp_len = 4;                  /* Default word */
         }
-        
+
         op->data_len = disp_len;
         for (uint8_t j = 0; j < disp_len; j++) {
             if (m->cpu) {
@@ -402,14 +402,14 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
             } else {
                 op->data[j] = nd500_bus_read8(m, cursor + j);
             }
-            if (oplen + j < 32) out->bytes[oplen + j] = op->data[j];
+            if (oplen + j < sizeof(out->bytes)) out->bytes[oplen + j] = op->data[j];
         }
         cursor += disp_len;
     }
-    
+
     /* If all operands were direct, we're done */
     int all_direct = 1;
-    for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+    for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
         if (!nd500_instr_operand_is_direct(opcode, i)) {
             all_direct = 0;
             break;
@@ -419,82 +419,114 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         out->total_len = (uint32_t)(cursor - pc);
         return 0;
     }
-    
+
     /* Decode remaining operands with standard addressing (those without O_DIR) */
     uint32_t byte_idx = (uint32_t)(cursor - pc); /* Start from current cursor position */
-    for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+
+    /* Helper function to decode a single general operand at cursor position */
+    /* Returns cursor advancement */
+    #define DECODE_GENERAL_OPERAND(op_ptr, cursor_ptr, byte_idx_ptr) do { \
+        Nd500OperandDecoded *_op = (op_ptr); \
+        uint8_t _ac; \
+        if (m->cpu) { \
+            _ac = mmu_read8(m->cpu, *(cursor_ptr), 0, 1); \
+        } else { \
+            _ac = nd500_bus_read8(m, *(cursor_ptr)); \
+        } \
+        _op->has_alt_prefix = 0; \
+        _op->has_desc_prefix = 0; \
+        while (_ac == 0xC8 || (_ac >= 0xF0 && _ac <= 0xF3)) { \
+            if (*(byte_idx_ptr) < sizeof(out->bytes)) out->bytes[(*byte_idx_ptr)++] = _ac; \
+            if (_ac == 0xC8) { \
+                _op->has_alt_prefix = 1; \
+                (*(cursor_ptr)) += 1; \
+            } else { \
+                _op->has_desc_prefix = 1; \
+                _op->reg = _ac & 0x03; \
+                (*(cursor_ptr)) += 1; \
+            } \
+            if (m->cpu) { \
+                _ac = mmu_read8(m->cpu, *(cursor_ptr), 0, 1); \
+            } else { \
+                _ac = nd500_bus_read8(m, *(cursor_ptr)); \
+            } \
+        } \
+        _op->address_code = _ac; \
+        if (*(byte_idx_ptr) < sizeof(out->bytes)) out->bytes[(*byte_idx_ptr)++] = _ac; \
+        _op->mode = classify_mode(_ac); \
+        if (!_op->has_desc_prefix && (_op->mode == ND500_ADDR_REGISTER || _op->mode == ND500_ADDR_PREINDEXED)) { \
+            _op->reg = _ac & 0x03; \
+        } \
+        (*(cursor_ptr)) += 1; \
+        if (_op->mode == ND500_ADDR_CONSTANT_SHORT || \
+            _op->mode == ND500_ADDR_LOCAL_SHORT || \
+            _op->mode == ND500_ADDR_RECORD_SHORT || \
+            _op->mode == ND500_ADDR_REGISTER) { \
+            _op->data_len = 0; \
+        } else if (_op->mode == ND500_ADDR_LOCAL || _op->mode == ND500_ADDR_RECORD || \
+                   _op->mode == ND500_ADDR_ABSOLUTE || _op->mode == ND500_ADDR_PREINDEXED || \
+                   _op->mode == ND500_ADDR_CONSTANT || _op->mode == ND500_ADDR_LOCAL_IND || \
+                   _op->mode == ND500_ADDR_LOCAL_PI || _op->mode == ND500_ADDR_ABSOLUTE_PI || \
+                   _op->mode == ND500_ADDR_LOCAL_IND_PI) { \
+            _op->data_len = read_data_part(m, *(cursor_ptr), _ac, _op->data, sizeof(_op->data)); \
+            for (uint8_t _j = 0; _j < _op->data_len && *(byte_idx_ptr) < sizeof(out->bytes); _j++) { \
+                out->bytes[(*byte_idx_ptr)++] = _op->data[_j]; \
+            } \
+            (*(cursor_ptr)) += _op->data_len; \
+        } else { \
+            _op->data_len = 0; \
+        } \
+    } while(0)
+
+    /* Check if this is CALL or CALLG (variable operand instructions) */
+    int is_call = (opcode == 0x00C3 || opcode == 0x00B5);  /* call=0xC3, callg=0xB5 */
+    uint8_t arg_count = 0;
+
+    /* Decode the fixed operands from table (operand 0 and 1 for CALL/CALLG) */
+    for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
         /* Skip operands that were already decoded as direct */
         if (nd500_instr_operand_is_direct(opcode, i)) continue;
-        
-        Nd500OperandDecoded *op = &out->operands[i];
-        /* Handle optional ALT/DESC prefixes */
-        uint8_t ac;
-        if (m->cpu) {
-            ac = mmu_read8(m->cpu, cursor, 0, 1); /* Instruction fetch */
-        } else {
-            ac = nd500_bus_read8(m, cursor);
-        }
-        op->has_alt_prefix = 0;
-        op->has_desc_prefix = 0;
-        while (ac == 0xC8 || (ac >= 0xF0 && ac <= 0xF3)) {
-            if (byte_idx < 32) out->bytes[byte_idx++] = ac;
-            if (ac == 0xC8) {
-                op->has_alt_prefix = 1;
-                cursor += 1;
-            } else {
-                op->has_desc_prefix = 1;
-                op->reg = ac & 0x03;
-                cursor += 1;
+
+        DECODE_GENERAL_OPERAND(&out->operands[i], &cursor, &byte_idx);
+
+        /* For CALL/CALLG, extract arg count from operand 1 */
+        if (is_call && i == 1) {
+            Nd500OperandDecoded *arg_count_op = &out->operands[1];
+            if (arg_count_op->mode == ND500_ADDR_CONSTANT_SHORT) {
+                /* Short constant: value is in address_code lower 6 bits */
+                arg_count = arg_count_op->address_code & 0x3F;
+            } else if (arg_count_op->mode == ND500_ADDR_CONSTANT && arg_count_op->data_len == 1) {
+                /* Extended constant byte */
+                arg_count = arg_count_op->data[0];
             }
-            if (m->cpu) {
-                ac = mmu_read8(m->cpu, cursor, 0, 1);
-            } else {
-                ac = nd500_bus_read8(m, cursor);
+            /* Limit to what we can handle */
+            if (arg_count > ND500_MAX_OPERANDS - 2) {
+                arg_count = ND500_MAX_OPERANDS - 2;
             }
         }
-        op->address_code = ac;
-        if (byte_idx < 32) out->bytes[byte_idx++] = ac;
-        op->mode = classify_mode(ac);
-        /* Only set reg from AC when mode uses AC low bits for register and no DESC prefix was present */
-        if (!op->has_desc_prefix && (op->mode == ND500_ADDR_REGISTER || op->mode == ND500_ADDR_PREINDEXED)) {
-            op->reg = ac & 0x03;
-        }
-        cursor += 1;
-        /* Read a data part based on addressing mode */
-        /* SHORT forms (CONSTANT_SHORT, LOCAL_SHORT, RECORD_SHORT) encode value in AC, no data bytes */
-        if (op->mode == ND500_ADDR_CONSTANT_SHORT || 
-            op->mode == ND500_ADDR_LOCAL_SHORT || 
-            op->mode == ND500_ADDR_RECORD_SHORT ||
-            op->mode == ND500_ADDR_REGISTER) {
-            /* No data part - value encoded in address code */
-            op->data_len = 0;
-        } else if (op->mode == ND500_ADDR_LOCAL || op->mode == ND500_ADDR_RECORD || 
-                   op->mode == ND500_ADDR_ABSOLUTE || op->mode == ND500_ADDR_PREINDEXED || 
-                   op->mode == ND500_ADDR_CONSTANT || op->mode == ND500_ADDR_LOCAL_IND || 
-                   op->mode == ND500_ADDR_LOCAL_PI || op->mode == ND500_ADDR_ABSOLUTE_PI || 
-                   op->mode == ND500_ADDR_LOCAL_IND_PI) {
-            /* Read data part */
-            op->data_len = read_data_part(m, cursor, ac, op->data, sizeof(op->data));
-            for (uint8_t j = 0; j < op->data_len && byte_idx < 32; j++) {
-                out->bytes[byte_idx++] = op->data[j];
-            }
-            cursor += op->data_len;
-        } else {
-            op->data_len = 0;
-        }
-        /* Do not override operand decoding for R_N; destination register is encoded in opcode, not operands */
     }
-    
+
+    /* For CALL/CALLG: decode additional argument operands */
+    if (is_call && arg_count > 0) {
+        for (uint8_t i = 0; i < arg_count && (out->operand_count + i) < ND500_MAX_OPERANDS; ++i) {
+            uint8_t arg_idx = out->operand_count + i;
+            DECODE_GENERAL_OPERAND(&out->operands[arg_idx], &cursor, &byte_idx);
+        }
+        out->operand_count += arg_count;
+    }
+
+    #undef DECODE_GENERAL_OPERAND
+
     /* === Compute effective addresses for all operands === */
     /* This computes final memory addresses where operand data resides */
     /* Must be done AFTER all operands are decoded and requires CPU register state */
     if (m->cpu) {
-        for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+        for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
             out->operands[i].effective_address = compute_effective_address(m->cpu, &out->operands[i]);
         }
     } else {
         /* No CPU linked yet - zero the addresses */
-        for (uint8_t i = 0; i < out->operand_count && i < 4; ++i) {
+        for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
             out->operands[i].effective_address = 0;
         }
     }

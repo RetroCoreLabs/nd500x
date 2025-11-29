@@ -95,8 +95,8 @@ const char* nd500_load_strerror(int error_code, uint32_t attempted_addr, uint32_
                 "                   1. Run 'mmusetup' to configure virtual memory\n"
                 "                   2. Then load files at virtual addresses (0x08000000 for kernel)\n"
                 "                 Or load at physical addresses:\n"
-                "                   load pseg <file> kernel 0x00000000\n"
-                "                   load dseg <file> kernel 0x00400000",
+                "                   load-pseg <file> 0x00000000\n"
+                "                   load-dseg <file> 0x00400000",
                 attempted_addr, mem_mb, mem_size - 1);
             return error_buffer;
         }

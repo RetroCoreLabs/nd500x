@@ -1,0 +1,17 @@
+; Map file for locore.o
+; Format: filename:line -> address (octal)
+;
+locore.s:25 (T) -> 000000  # TEXT
+locore.s:26 (T) -> 000000  # TEXT
+locore.s:27 (T) -> 000000  # TEXT
+locore.s:28 (T) -> 000000  # TEXT
+locore.s:34 (T) -> 000000  # TEXT
+locore.s:39 (T) -> 000000  # TEXT
+locore.s:40 (T) -> 000000  # TEXT
+locore.s:55 (T) -> 000004  # TEXT - start
+locore.s:65 (T) -> 000004  # TEXT - start
+locore.s:75 (T) -> 000015  # TEXT - start
+locore.s:76 (T) -> 000017  # TEXT - start
+locore.s:88 (T) -> 000021  # TEXT - start
+locore.s:93 (T) -> 000027  # TEXT - halt_loop
+locore.s:94 (T) -> 000027  # TEXT - halt_loop

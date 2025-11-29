@@ -35,6 +35,11 @@ const char* nd500_load_strerror(int error_code, uint32_t attempted_addr, uint32_
 /* Disassembly configuration */
 int    nd500_dbg_set_show_ea(int onoff);
 int    nd500_dbg_get_show_ea(void);
+int    nd500_dbg_set_show_hex(int onoff);
+int    nd500_dbg_get_show_hex(void);
+int    nd500_dbg_set_radix(int mode);   /* 0=decimal, 1=hex, 2=octal */
+int    nd500_dbg_get_radix(void);
+int    nd500_dbg_get_radix_base(void);  /* returns 10, 16, or 8 */
 int    nd500_dbg_set_demangle(int onoff);
 int    nd500_dbg_get_demangle(void);
 int    nd500_dbg_set_show_source(int mode);  /* 0=off, 1=asm, 2=c, 3=both */
