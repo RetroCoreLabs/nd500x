@@ -13,21 +13,24 @@
 ## Description
 
 Performs a rotational shift (rotate) operation on a byte, halfword, or word operand. Unlike logical shifts, bits that are shifted out from one end wrap around and re-enter from the other end. The shift count is interpreted as a signed byte value:
-- **Positive count**: Rotate left (bits move toward MSB, wrap to LSB)
-- **Negative count**: Rotate right (bits move toward LSB, wrap to MSB)
+- **Positive count**: Rotate RIGHT (bits move toward LSB, wrap to MSB)
+- **Negative count**: Rotate LEFT (bits move toward MSB, wrap to LSB)
 - **Zero count**: No operation (operand unchanged)
 
 This is a circular shift where no bits are lost - they wrap around to the opposite end.
 
+> **Note:** The ND-500 Reference Manual §10.26 states "Positive shiftcount implies left shift". However, empirical testing against nd500-as and validated test cases shows that positive count actually performs RIGHT rotation. This discrepancy is documented but the emulator matches verified behavior.
+
 **Operation:**
 ```
-For positive count (rotate left):
-  operand rotated left by count positions
-  Bits shifted out from MSB re-enter at LSB
-
-For negative count (rotate right):
-  operand rotated right by |count| positions
+For positive count (rotate right):
+  operand rotated right by count positions
   Bits shifted out from LSB re-enter at MSB
+  Example: SHR(0x80000001, 1) = 0xC0000000
+
+For negative count (rotate left):
+  operand rotated left by |count| positions
+  Bits shifted out from MSB re-enter at LSB
 
 result = 0 → Z flag
 result.signbit → S flag
@@ -35,7 +38,7 @@ result.signbit → S flag
 
 **Key Characteristics:**
 - Rotational shift (circular, no bits lost)
-- Bidirectional: positive count = left, negative count = right
+- Bidirectional: positive count = RIGHT, negative count = LEFT (opposite of SHL convention)
 - Bits wrap around from one end to the other
 - Preserves all bits (lossless operation)
 - Supports byte, halfword, and word types (no bit/float/double)
@@ -109,31 +112,31 @@ result.signbit → S flag
 
 ### Example 1: Rotate right by 1
 ```assembly
-        % Unsigned divide by 2 with remainder preservation
-        W1 SHR -1           % Rotate right 1 position
+        % Rotate right by 1 (positive count = right)
+        W1 SHR 1            % Rotate right 1 position
 ```
 
 ### Example 2: Exchange nibbles (swap 4-bit groups)
 ```assembly
         % Exchange nibbles of variable pointed at by R4
-        BY SHR R4.0, 4      % Rotate byte by 4 bits
+        BY SHR R4.0, 4      % Rotate byte by 4 bits (either direction swaps)
 ```
 
-### Example 3: Rotate left by 8
+### Example 3: Rotate right by 8
 ```assembly
-        % Extract high byte to low byte position
-        W2 SHR 8            % Rotate left 8 bits
+        % Extract high byte to low byte position (rotate right)
+        W2 SHR 8            % Rotate right 8 bits
 ```
 
 ### Example 4: Swap bytes in halfword
 ```assembly
         % Byte swap for endian conversion
-        H1 SHR 8            % Rotate 8 bits (swaps bytes)
+        H1 SHR 8            % Rotate 8 bits (swaps bytes, either direction works)
 ```
 
-### Example 5: Rotate word right
+### Example 5: Rotate word left
 ```assembly
-        % Rotate word right by 4 bits
+        % Rotate word left by 4 bits (negative count = left)
         W3 SHR -4
 ```
 

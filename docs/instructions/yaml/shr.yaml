@@ -3,11 +3,17 @@ instruction:
   function: "Shr"
   mnemonic: "shr"
   description: |
-    Shr
-    
-    Shift operation:
-    Shifts bits left or right
-    
+    SHR - Rotational Shift
+
+    Performs CIRCULAR (rotational) shift where bits wrap around.
+    Unlike SHL (logical shift), no bits are lost.
+
+    IMPORTANT: Positive count = rotate RIGHT, Negative count = rotate LEFT
+    (This is OPPOSITE to the manual text which says "positive = left",
+    but matches verified emulator behavior and nd500-as output)
+
+    Example: SHR(0x80000001, 1) = 0xC0000000 (bit 0 wraps to MSB)
+
     Operands: 2
     Variants: 3 opcode(s)
 

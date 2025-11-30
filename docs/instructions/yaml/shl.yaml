@@ -3,11 +3,14 @@ instruction:
   function: "Shl"
   mnemonic: "shl"
   description: |
-    Shl
-    
-    Shift operation:
-    Shifts bits left or right
-    
+    SHL - Logical Shift
+
+    Performs LOGICAL shift where zeros fill from opposite end.
+    Positive count = left shift (multiply by 2^n, zeros fill from right)
+    Negative count = right shift (divide by 2^n, zeros fill from left)
+
+    Bits shifted out are discarded. For signed division, use SHA instead.
+
     Operands: 2
     Variants: 3 opcode(s)
 

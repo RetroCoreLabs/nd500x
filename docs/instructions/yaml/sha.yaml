@@ -3,11 +3,15 @@ instruction:
   function: "Sha"
   mnemonic: "sha"
   description: |
-    Sha
-    
-    Shift operation:
-    Shifts bits left or right
-    
+    SHA - Arithmetic Shift
+
+    Performs ARITHMETIC shift with sign-bit preservation on right shifts.
+    Positive count = left shift (zeros fill from right, same as SHL)
+    Negative count = right shift (sign bit replicates to fill from left)
+
+    Key difference from SHL: On right shifts, sign bit is preserved
+    (useful for signed integer division by powers of 2)
+
     Operands: 2
     Variants: 3 opcode(s)
 
