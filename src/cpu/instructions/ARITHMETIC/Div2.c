@@ -62,11 +62,12 @@ void nd500_instr_Div2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t aValue, registerValue, result;
     bool overflow = false;
 
-    /* Read operand a value (dividend) (like C# line 62) */
+    /* Read dividend from destination operand (operands[0]) */
+    /* Note: Assembly format is "DIV2 <b>, <a>" where operands[0]=dest/dividend, operands[1]=divisor */
     aValue = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
-    /* Read register value (Rn) - divisor (like C# line 65) */
-    registerValue = nd500_read_integer_register(cpu, fi->target_register);
+    /* Read divisor from source operand (operands[1]) */
+    registerValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
     /* Check for divide by zero (like C# lines 67-73) */
     if (registerValue == 0) {
@@ -114,8 +115,8 @@ void nd500_instr_Div2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
     }
 
-    /* Write quotient to operand b location (like C# line 159) */
-    nd500_write_operand_value(cpu, &fi->operands[1], result, fi->data_type);
+    /* Write quotient to destination operand (operands[0]) */
+    nd500_write_operand_value(cpu, &fi->operands[0], result, fi->data_type);
 
     /* Update status flags based on result (like C# lines 161-165) */
     /* Set Z and S flags */

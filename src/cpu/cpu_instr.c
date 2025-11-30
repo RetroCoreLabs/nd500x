@@ -336,20 +336,89 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         /* Registers are numbered 1-4 (I1=1, I2=2, I3=3, I4=4) to match C# */
         out->target_register = ((opcode & 0x03) + 1);
 
-        /* Extract data type from variant number: 0=BI, 1=BY, 2=H, 3=W, 4=F, 5=D */
+        /* Use variant field from dispatch table - this is authoritative for data type */
+        /* Variant: 0=BYTE, 1=HALFWORD, 2=WORD, 3=FLOAT, 4=DOUBLE */
         uint8_t variant = instr_meta->variant;
+        out->uses_float_registers = false;
         switch (variant) {
-            case 0: out->data_type = ND500_DTYPE_BYTE; break;       /* BI */
-            case 1: out->data_type = ND500_DTYPE_BYTE; break;       /* BY */
-            case 2: out->data_type = ND500_DTYPE_HALFWORD; break;   /* H */
-            case 3: out->data_type = ND500_DTYPE_WORD; break;       /* W */
-            case 4: out->data_type = ND500_DTYPE_WORD; break;       /* F (float - stored as word) */
-            case 5: out->data_type = ND500_DTYPE_DOUBLEWORD; break; /* D (double) */
+            case 0: out->data_type = ND500_DTYPE_BYTE; break;
+            case 1: out->data_type = ND500_DTYPE_HALFWORD; break;
+            case 2: out->data_type = ND500_DTYPE_WORD; break;
+            case 3: out->data_type = ND500_DTYPE_WORD; out->uses_float_registers = true; break;       /* Float */
+            case 4: out->data_type = ND500_DTYPE_DOUBLEWORD; out->uses_float_registers = true; break; /* Double */
             default: out->data_type = ND500_DTYPE_WORD; break;
         }
 
-        /* Determine if this uses float registers (F or D variants) */
-        out->uses_float_registers = (variant == 4 || variant == 5);
+        /* Special overrides for specific opcode patterns */
+        if ((opcode & 0xFF00) == 0xFD00) {
+            out->data_type = ND500_DTYPE_BYTE;  /* BI (bit) variants are byte-level */
+        }
+
+        /* AssignTo/AssignFrom (0x0004-0x001B) use 6-variant pattern:
+         * BY=0x04-07, H=0x08-0B, W=0x0C-0F, F=0x10-13, D=0x14-17
+         * Then AssignFrom continues: BY=0x18-1B with 4 registers each
+         */
+        if (opcode >= 0x0004 && opcode <= 0x0017) {
+            uint8_t type_offset = ((opcode - 0x0004) >> 2);  /* Offset from 0x04 */
+            out->uses_float_registers = false;
+            switch (type_offset) {
+                case 0:  /* 0x04-07: BY */
+                    out->data_type = ND500_DTYPE_BYTE;
+                    break;
+                case 1:  /* 0x08-0B: H */
+                    out->data_type = ND500_DTYPE_HALFWORD;
+                    break;
+                case 2:  /* 0x0C-0F: W */
+                    out->data_type = ND500_DTYPE_WORD;
+                    break;
+                case 3:  /* 0x10-13: F */
+                    out->data_type = ND500_DTYPE_WORD;
+                    out->uses_float_registers = true;
+                    break;
+                case 4:  /* 0x14-17: D */
+                    out->data_type = ND500_DTYPE_DOUBLEWORD;
+                    out->uses_float_registers = true;
+                    break;
+            }
+        }
+        /* AssignFrom (0x0018-0x002B) same pattern, offset by 0x14 */
+        else if (opcode >= 0x0018 && opcode <= 0x002B) {
+            uint8_t type_offset = ((opcode - 0x0018) >> 2);
+            out->uses_float_registers = false;
+            switch (type_offset) {
+                case 0:  /* 0x18-1B: BY */
+                    out->data_type = ND500_DTYPE_BYTE;
+                    break;
+                case 1:  /* 0x1C-1F: H */
+                    out->data_type = ND500_DTYPE_HALFWORD;
+                    break;
+                case 2:  /* 0x20-23: W */
+                    out->data_type = ND500_DTYPE_WORD;
+                    break;
+                case 3:  /* 0x24-27: F */
+                    out->data_type = ND500_DTYPE_WORD;
+                    out->uses_float_registers = true;
+                    break;
+                case 4:  /* 0x28-2B: D */
+                    out->data_type = ND500_DTYPE_DOUBLEWORD;
+                    out->uses_float_registers = true;
+                    break;
+            }
+        }
+
+        if (opcode >= 0x60 && opcode <= 0x7F) {
+            /* Word/Float/Double arithmetic range */
+            uint8_t subop = (opcode - 0x60) >> 2;
+            if (subop == 0) out->data_type = ND500_DTYPE_WORD;        /* 0x60-63: W- */
+            else if (subop == 1) out->uses_float_registers = true;    /* 0x64-67: F- */
+            else if (subop == 2) { out->data_type = ND500_DTYPE_DOUBLEWORD; out->uses_float_registers = true; }
+            else if (subop == 3) out->data_type = ND500_DTYPE_WORD;   /* 0x6C-6F: W* */
+            else if (subop == 4) out->uses_float_registers = true;    /* 0x70-73: F* */
+            else if (subop == 5) { out->data_type = ND500_DTYPE_DOUBLEWORD; out->uses_float_registers = true; }
+        } else if (opcode >= 0xE4 && opcode <= 0xEF) {
+            /* Word logical range (AND, OR, XOR) */
+            out->data_type = ND500_DTYPE_WORD;
+        }
     } else {
         /* No metadata - defaults */
         out->target_register = 0;
@@ -455,7 +524,7 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         if (*(byte_idx_ptr) < sizeof(out->bytes)) out->bytes[(*byte_idx_ptr)++] = _ac; \
         _op->mode = classify_mode(_ac); \
         if (!_op->has_desc_prefix && (_op->mode == ND500_ADDR_REGISTER || _op->mode == ND500_ADDR_PREINDEXED)) { \
-            _op->reg = _ac & 0x03; \
+            _op->reg = (_ac & 0x03) + 1; /* 0xD0-D3 -> registers 1-4 (I1-I4) */ \
         } \
         (*(cursor_ptr)) += 1; \
         if (_op->mode == ND500_ADDR_CONSTANT_SHORT || \

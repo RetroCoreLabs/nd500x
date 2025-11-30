@@ -308,6 +308,14 @@ bool nd500_test_flag(Nd500Cpu* cpu, uint32_t flag_mask);
  */
 
 /**
+ * Sign-extend 6-bit CONSTANT_SHORT value to 32-bit
+ * Bit 5 is the sign bit: values 0x20-0x3F represent -32 to -1
+ * @param value 6-bit value (0x00-0x3F)
+ * @return Sign-extended 32-bit value
+ */
+int32_t nd500_sign_extend_6bit(uint8_t value);
+
+/**
  * Sign-extend byte to 32-bit
  * @param value 8-bit value
  * @return Sign-extended 32-bit value

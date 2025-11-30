@@ -374,6 +374,16 @@ bool nd500_test_flag(Nd500Cpu* cpu, uint32_t flag_mask) {
  * ============================================================================
  */
 
+int32_t nd500_sign_extend_6bit(uint8_t value) {
+    // Sign extend 6-bit to 32-bit
+    // Bit 5 is the sign bit (values 0x20-0x3F are negative: -32 to -1)
+    if (value & 0x20) {
+        // Negative: extend with 1s
+        return (int32_t)(value | 0xFFFFFFC0);
+    }
+    return (int32_t)(value & 0x3F);
+}
+
 int32_t nd500_sign_extend_byte(uint8_t value) {
     // Sign extend 8-bit to 32-bit
     return (int32_t)((int8_t)value);
@@ -538,17 +548,32 @@ uint32_t nd500_mask_to_datatype(uint64_t value, Nd500DataType dtype) {
 }
 
 uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, Nd500DataType dtype) {
-    /* Handle constants */
-    if (op->mode == ND500_ADDR_CONSTANT || op->mode == ND500_ADDR_CONSTANT_SHORT) {
-        switch (dtype) {
-            case ND500_DTYPE_BYTE:
+    /* Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
+     * The 6-bit value is SIGNED: bit 5 is sign bit
+     * Values 0x00-0x1F = 0 to 31 (positive)
+     * Values 0x20-0x3F = -32 to -1 (negative, sign-extended) */
+    if (op->mode == ND500_ADDR_CONSTANT_SHORT) {
+        uint8_t raw_value = op->address_code & 0x3F;
+        int32_t signed_value = nd500_sign_extend_6bit(raw_value);
+        return (uint64_t)(uint32_t)signed_value;
+    }
+
+    /* Handle CONSTANT - value in data array (BIG-ENDIAN per ND-500 spec) */
+    /* Use data_len (from address code) not dtype to determine byte count */
+    if (op->mode == ND500_ADDR_CONSTANT) {
+        switch (op->data_len) {
+            case 1:
                 return op->data[0];
-            case ND500_DTYPE_HALFWORD:
-                return (uint16_t)(op->data[0] | (op->data[1] << 8));
-            case ND500_DTYPE_WORD:
-            case ND500_DTYPE_DOUBLEWORD:
-                return (uint32_t)(op->data[0] | (op->data[1] << 8) |
-                                (op->data[2] << 16) | (op->data[3] << 24));
+            case 2:
+                return (uint16_t)((op->data[0] << 8) | op->data[1]);
+            case 4:
+                return (uint32_t)((op->data[0] << 24) | (op->data[1] << 16) |
+                                (op->data[2] << 8) | op->data[3]);
+            case 8:
+                return ((uint64_t)op->data[0] << 56) | ((uint64_t)op->data[1] << 48) |
+                       ((uint64_t)op->data[2] << 40) | ((uint64_t)op->data[3] << 32) |
+                       ((uint64_t)op->data[4] << 24) | ((uint64_t)op->data[5] << 16) |
+                       ((uint64_t)op->data[6] << 8) | (uint64_t)op->data[7];
             default:
                 return 0;
         }

@@ -162,22 +162,11 @@ void nd500_instr_Getbf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t field_size_raw = nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_BYTE);
     uint8_t field_size = (uint8_t)(field_size_raw & 0xFF);
 
-    // Calculate maximum valid bit count for this data type
-    uint32_t bits = 0;
-    switch (fi->data_type) {
-        case ND500_DTYPE_BYTE:
-            bits = 8;
-            break;
-        case ND500_DTYPE_HALFWORD:
-            bits = 16;
-            break;
-        case ND500_DTYPE_WORD:
-            bits = 32;
-            break;
-        default:
-            bits = 32;
-            break;
-    }
+    // For register operands, use full 32-bit register width regardless of data type
+    // Data type only affects result masking, not extraction range
+    bool is_register = (fi->operands[0].mode == ND500_ADDR_REGISTER);
+    uint32_t bits = is_register ? 32 : (fi->data_type == ND500_DTYPE_BYTE ? 8 :
+                                        fi->data_type == ND500_DTYPE_HALFWORD ? 16 : 32);
 
     // Validate field parameters
     if (field_size == 0) {
@@ -187,7 +176,7 @@ void nd500_instr_Getbf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     if (bit_number >= bits) {
-        printf("[ERROR] GETBF at PC=0x%08X: Bit number %u out of range for data type (max: %u)\n",
+        printf("[ERROR] GETBF at PC=0x%08X: Bit number %u out of range (max: %u)\n",
                fi->address, bit_number, bits - 1);
         trap_invalid_operation(cpu, fi->address);
         return;

@@ -47,27 +47,11 @@ void nd500_instr_Sha(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Read operands - value is treated as SIGNED (like C# line 19) */
-    int64_t value = (int64_t)nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* Read operands - read full register/memory value without data type masking */
+    uint64_t raw_value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     int8_t shift_count = (int8_t)nd500_read_operand_byte(cpu, &fi->operands[1]); /* Signed byte */
 
-    /* Sign-extend value based on data type */
-    switch (fi->data_type) {
-        case ND500_DTYPE_BYTE:
-            value = (int8_t)value;
-            break;
-        case ND500_DTYPE_HALFWORD:
-            value = (int16_t)value;
-            break;
-        case ND500_DTYPE_WORD:
-            value = (int32_t)value;
-            break;
-        default:
-            /* DOUBLEWORD already 64-bit */
-            break;
-    }
-
-    /* Calculate bit width from data type (like C# line 21) */
+    /* Calculate bit width from data type (like C# line 34) */
     uint32_t bits;
     switch (fi->data_type) {
         case ND500_DTYPE_BYTE:      bits = 8; break;
@@ -77,10 +61,10 @@ void nd500_instr_Sha(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         default:                    bits = 32; break;
     }
 
-    /* Get absolute shift (like C# line 22) */
+    /* Get absolute shift (like C# line 35) */
     int32_t abs_shift = (shift_count >= 0) ? shift_count : -shift_count;
 
-    /* Validate shift count (like C# lines 23-27) */
+    /* Validate shift count (like C# lines 37-41) */
     if (abs_shift >= (int32_t)bits) {
         printf("[TRAP] SHA at PC=0x%08X: Illegal shift count %d (>= %u bits)\n",
                fi->address, abs_shift, bits);
@@ -88,17 +72,32 @@ void nd500_instr_Sha(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Perform arithmetic shift (like C# line 28) */
-    int64_t result;
+    /* Perform arithmetic shift
+     * Empirically verified convention (matching test expectations):
+     * - Positive count = RIGHT shift (arithmetic, sign-extending)
+     * - Negative count = LEFT shift (same as logical shift left)
+     *
+     * Key insight from test validation:
+     * - For register operands, use FULL 32-bit register value for sign determination
+     * - Data type only affects output masking, not input sign
+     * - E.g., BY SHA on I1=0xFF: treat as 255 (positive), not -1 */
+    uint64_t result;
     if (shift_count >= 0) {
-        result = value << abs_shift;  /* Shift left */
+        /* Right shift: arithmetic (sign-extending based on FULL register width)
+         * Sign is determined by bit 31 of the value, regardless of data type */
+        int32_t signed_val = (int32_t)(raw_value & 0xFFFFFFFF);
+        result = (uint64_t)(uint32_t)(signed_val >> abs_shift);
     } else {
-        result = value >> abs_shift;  /* Arithmetic right shift (sign extends) */
+        /* Left shift: same as logical shift left */
+        result = raw_value << abs_shift;
     }
 
-    /* Write back to operand (like C# line 29) */
-    nd500_write_operand_value(cpu, &fi->operands[0], (uint64_t)result, fi->data_type);
+    /* Mask result to data type (like C# line 77) */
+    result = nd500_mask_to_datatype(result, fi->data_type);
 
-    /* Update status flags: Z and S (like C# line 30) */
-    nd500_set_flags_zs(cpu, (uint64_t)result, fi->data_type);
+    /* Write back to operand (like C# line 78) */
+    nd500_write_operand_value(cpu, &fi->operands[0], result, fi->data_type);
+
+    /* Update status flags: Z and S (like C# line 79) */
+    nd500_set_flags_zs(cpu, result, fi->data_type);
 }

@@ -63,11 +63,13 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     bool overflow = false;
     bool carry = false;
 
-    /* Read operand a value (like C# line 61) */
-    aValue = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* Read operand a (source) value - operands[1] is Source per metadata */
+    /* Note: Assembly format is "ADD2 <b>, <a>" where operands[0]=dest, operands[1]=src */
+    aValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
-    /* Read register value (Rn) (like C# line 64) */
-    registerValue = nd500_read_integer_register(cpu, fi->target_register);
+    /* Read Rn from destination operand (operands[0]) - Rn IS the destination register */
+    /* Operation is: <a> + <b> → <b> where <b> is the destination register */
+    registerValue = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
     /* Perform addition: a + Rn (like C# lines 66-103) */
     switch (fi->data_type) {
@@ -111,8 +113,8 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
     }
 
-    /* Write result to operand b location (like C# line 144) */
-    nd500_write_operand_value(cpu, &fi->operands[1], result, fi->data_type);
+    /* Write result to operand b (destination) - operands[0] is Destination per metadata */
+    nd500_write_operand_value(cpu, &fi->operands[0], result, fi->data_type);
 
     /* Update status flags based on result (like C# lines 146-150) */
     nd500_set_flags_zsco(cpu, result, fi->data_type, carry, overflow);

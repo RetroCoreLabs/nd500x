@@ -61,11 +61,12 @@ void nd500_instr_Mul2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t aValue, registerValue, result;
     bool overflow = false;
 
-    /* Read operand a value (like C# line 61) */
+    /* Read first multiplicand from destination operand (operands[0]) */
+    /* Note: Assembly format is "MUL2 <b>, <a>" where operands[0]=dest, operands[1]=src */
     aValue = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
-    /* Read register value (Rn) (like C# line 64) */
-    registerValue = nd500_read_integer_register(cpu, fi->target_register);
+    /* Read second multiplicand from source operand (operands[1]) */
+    registerValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
     /* Perform multiplication: a * Rn (like C# lines 66-99) */
     switch (fi->data_type) {
@@ -107,7 +108,8 @@ void nd500_instr_Mul2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* Write result to operand b location (like C# line 150) */
-    nd500_write_operand_value(cpu, &fi->operands[1], result, fi->data_type);
+    /* Write result to destination operand (operands[0]) */
+    nd500_write_operand_value(cpu, &fi->operands[0], result, fi->data_type);
 
     /* Update status flags based on result (like C# lines 152-156) */
     /* Set Z and S flags */
