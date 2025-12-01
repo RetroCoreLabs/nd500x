@@ -6,7 +6,7 @@ This document describes corrections and changes made to the nd500x CPU emulator 
 
 - **Tests Passed**: 20,902 of 20,902 (100.0%)
 - **Test Framework**: `test/test_instruction_validation.c` using `test/nd500_tests.json`
-- **Status Register**: Validation disabled pending variant-to-datatype mapping fixes
+- **Status Register**: Full validation enabled (fixed in Sections 20-23)
 
 ---
 
@@ -616,7 +616,7 @@ The test framework:
 1. Loads `nd500_tests.json` (20,902 test cases)
 2. For each test: sets up CPU/memory state, executes instruction, validates results
 3. Supports both stop-on-fail and continue modes
-4. Skips status register validation (pending variant mapping fixes)
+4. Full status register (ST1) validation enabled
 5. Shows failure summary by instruction type when using `--continue`
 
 ### Current Results (2025-12-01)
@@ -625,8 +625,7 @@ The test framework:
 Results: 20,902 passed, 0 failed, 0 skipped (100.0% pass rate)
 ALL TESTS PASSED
 
-Note: Status register (st) validation is disabled pending investigation
-of variant-to-datatype mapping inconsistencies across instruction classes.
+Status register (ST1) validation: ENABLED (see Sections 20-23)
 ```
 
 ---
@@ -642,3 +641,458 @@ The following fixes have implications for how the assembler generates code:
 | 12 | Branch displacement | Relative to instruction END, not start |
 | 18 | Big-endian 2-byte displacement | 2-byte address displacements must be big-endian |
 | 19 | Variant inconsistencies | Data type prefixes may map to different variant values per instruction class |
+
+---
+
+## 20. Unified Variant-to-Datatype Algorithm
+
+### File: `src/cpu/cpu_instr.c`
+
+**Problem**: The variant field in the dispatch table had different meanings for different instruction classes (see Section 19). This caused incorrect data type detection and subsequently wrong status flag calculations (Z and S flags depend on data type for sign bit position).
+
+**Root Cause**: The dispatch table stores a `prefixes_mask` field that indicates which data type prefixes (BI, BY, H, W, F, D) are valid for each instruction. The variant number is an index into this prefix list, not a direct data type mapping.
+
+**Solution**: Implemented unified algorithm that builds a type list from the prefixes_mask and indexes into it:
+
+```c
+/* Prefix mask constants (matching C# InstructionPrefixes enum) */
+#define ND500_PREFIX_BI   0x01   /* Bit field */
+#define ND500_PREFIX_BY   0x02   /* Byte (8-bit) */
+#define ND500_PREFIX_H    0x04   /* Halfword (16-bit) */
+#define ND500_PREFIX_W    0x08   /* Word (32-bit) */
+#define ND500_PREFIX_F    0x10   /* Float (32-bit) */
+#define ND500_PREFIX_D    0x20   /* Double (64-bit) */
+
+static Nd500DataType determine_datatype_from_prefixes(
+    uint8_t prefixes_mask, uint8_t variant, bool *uses_float) {
+    Nd500DataType types[6];
+    int count = 0;
+
+    /* Build ordered type list: BI, BY, H, W, F, D */
+    if (prefixes_mask & ND500_PREFIX_BI) types[count++] = ND500_DTYPE_BYTE;
+    if (prefixes_mask & ND500_PREFIX_BY) types[count++] = ND500_DTYPE_BYTE;
+    if (prefixes_mask & ND500_PREFIX_H)  types[count++] = ND500_DTYPE_HALFWORD;
+    if (prefixes_mask & ND500_PREFIX_W)  types[count++] = ND500_DTYPE_WORD;
+    if (prefixes_mask & ND500_PREFIX_F)  types[count++] = ND500_DTYPE_WORD;
+    if (prefixes_mask & ND500_PREFIX_D)  types[count++] = ND500_DTYPE_DOUBLEWORD;
+
+    if (count == 0) { *uses_float = false; return ND500_DTYPE_WORD; }
+
+    int idx = variant % count;
+    /* Determine if this is a float type (F or D) */
+    int int_count = __builtin_popcount(prefixes_mask & 0x0F);
+    *uses_float = (idx >= int_count) && (prefixes_mask & 0x30);
+
+    return types[idx];
+}
+```
+
+**Example mappings**:
+
+| Instruction | Prefixes | Variant | Data Type |
+|-------------|----------|---------|-----------|
+| AND (0xFC90) | BI\|BY\|H\|W | 1 | BYTE (BY) |
+| SHL (0xFCA8) | BY\|H\|W | 0 | BYTE (BY) |
+| SHL (0xFCA9) | BY\|H\|W | 1 | HALFWORD (H) |
+
+**Assembly Test Cases**:
+
+```asm
+; test_variant_mapping.asm - Validate data type detection
+; Assemble: nd500-as test_variant_mapping.asm -o test_variant.bin
+
+        .org    $1000
+
+; Test AND variants (BI|BY|H|W prefixes)
+        w1 := $FF           ; I1 = 0xFF
+        w2 := $80           ; I2 = 0x80
+        by i1 and i2        ; Byte AND: 0xFF & 0x80 = 0x80
+        ; Expected: I1=0x80, ST1.S=1 (sign bit 7 set)
+
+        w1 := $FFFF         ; I1 = 0xFFFF
+        w2 := $8000         ; I2 = 0x8000
+        h i1 and i2         ; Halfword AND: 0xFFFF & 0x8000 = 0x8000
+        ; Expected: I1=0x8000, ST1.S=1 (sign bit 15 set)
+
+; Test SHL variants (BY|H|W prefixes)
+        w1 := $40           ; I1 = 0x40
+        by shl i1,$1        ; Byte shift left: 0x40 << 1 = 0x80
+        ; Expected: I1=0x80, ST1.S=1 (sign bit 7 set)
+
+        w1 := $4000         ; I1 = 0x4000
+        h shl i1,$1         ; Halfword shift left: 0x4000 << 1 = 0x8000
+        ; Expected: I1=0x8000, ST1.S=1 (sign bit 15 set)
+
+        bp                  ; Stop
+```
+
+---
+
+## 21. MUL (Multiply) Carry Flag Fix
+
+### File: `src/cpu/instructions/ARITHMETIC/Multiply.c`
+
+**Problem**: The MUL instruction was setting the carry flag on overflow, but per ND-500 Reference Manual section 11.7, MUL should NOT set the carry flag.
+
+**Test Case**:
+- Instruction: `h1 * $4096` (halfword multiply)
+- I1 initial value: 0x1000 (4096)
+- Operation: 4096 * 4096 = 16,777,216 (overflows 16-bit)
+- Expected ST1: 0x0220 (Z=1, O=1) - result truncated to 0x0000
+- Actual ST1 before fix: 0x0260 (Z=1, O=1, C=1)
+- Difference: 0x40 = Carry flag incorrectly set
+
+**Solution**:
+
+```c
+/* Before (incorrect): */
+nd500_set_flags_zsco(cpu, masked_result, fi->data_type, carry, overflow);
+
+/* After (correct - MUL clears carry per ND-500 Manual 11.7): */
+nd500_set_flags_zsco(cpu, masked_result, fi->data_type, false, overflow);
+```
+
+**Assembly Test Cases**:
+
+```asm
+; test_mul_flags.asm - Validate MUL does NOT set carry flag
+; Assemble: nd500-as test_mul_flags.asm -o test_mul.bin
+
+        .org    $1000
+
+; Test 1: Byte multiply with overflow
+        w1 := $10           ; I1 = 16
+        by1 * $10           ; 16 * 16 = 256, overflows byte (result 0x00)
+        ; Expected: I1=0x00, ST1: Z=1, S=0, C=0, O=1 (0x0220)
+
+; Test 2: Halfword multiply with overflow
+        w1 := $1000         ; I1 = 4096
+        h1 * $4096          ; 4096 * 4096 = 16777216, overflows halfword
+        ; Expected: I1=0x0000, ST1: Z=1, S=0, C=0, O=1 (0x0220)
+
+; Test 3: Word multiply without overflow
+        w1 := $100          ; I1 = 256
+        w1 * $100           ; 256 * 256 = 65536 (fits in word)
+        ; Expected: I1=0x00010000, ST1: Z=0, S=0, C=0, O=0 (0x0000)
+
+; Test 4: Multiply resulting in zero (no overflow)
+        w1 := $0            ; I1 = 0
+        w1 * $1234          ; 0 * anything = 0
+        ; Expected: I1=0, ST1: Z=1, S=0, C=0, O=0 (0x0020)
+
+        bp                  ; Stop
+```
+
+---
+
+## 22. ABS (Absolute Value) Overflow Detection Fix
+
+### File: `src/cpu/instructions/ARITHMETIC/Abs.c`
+
+**Problem**: The ABS instruction was missing overflow detection for "most negative" values. In two's complement, the most negative value (e.g., -128 for byte, -32768 for halfword) cannot be negated because there is no positive representation. When negated, the result stays the same negative value, which is an overflow condition.
+
+**Most negative values by data type**:
+- BYTE: 0x80 (-128)
+- HALFWORD: 0x8000 (-32768)
+- WORD: 0x80000000 (-2147483648)
+
+**Test Case**:
+- Instruction: `BY1 ABS` (byte absolute value)
+- I1 initial value: 0x80 (-128 as signed byte)
+- Expected result: 0x80 (unchanged - cannot negate)
+- Expected ST1: 0x0280 (S=1, O=1) - overflow with sign bit still set
+- Actual ST1 before fix: 0x0000 (no flags set)
+
+**Solution**:
+
+```c
+bool isMinNegative = false;
+
+switch (fi->data_type) {
+    case ND500_DTYPE_BYTE:
+        isMinNegative = ((value & 0xFF) == 0x80);
+        break;
+    case ND500_DTYPE_HALFWORD:
+        isMinNegative = ((value & 0xFFFF) == 0x8000);
+        break;
+    case ND500_DTYPE_WORD:
+        isMinNegative = ((value & 0xFFFFFFFF) == 0x80000000);
+        break;
+}
+
+/* After negation, update flags for overflow case */
+cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O);
+if (result == 0) cpu->ST1 |= ND500_FLAG_Z;
+if (isMinNegative) {
+    cpu->ST1 |= ND500_FLAG_S;  /* Sign flag set - result still negative */
+    cpu->ST1 |= ND500_FLAG_O;  /* Overflow flag set */
+}
+```
+
+**Assembly Test Cases**:
+
+```asm
+; test_abs_overflow.asm - Validate ABS overflow detection
+; Assemble: nd500-as test_abs_overflow.asm -o test_abs.bin
+
+        .org    $1000
+
+; Test 1: Byte ABS with most negative value (overflow)
+        w1 := $80           ; I1 = 0x80 (-128 as signed byte)
+        by1 abs             ; Cannot negate -128
+        ; Expected: I1=0x80, ST1: Z=0, S=1, O=1 (0x0280)
+
+; Test 2: Halfword ABS with most negative value (overflow)
+        w1 := $8000         ; I1 = 0x8000 (-32768 as signed halfword)
+        h1 abs              ; Cannot negate -32768
+        ; Expected: I1=0x8000, ST1: Z=0, S=1, O=1 (0x0280)
+
+; Test 3: Word ABS with most negative value (overflow)
+        w1 := $80000000     ; I1 = 0x80000000 (-2147483648)
+        w1 abs              ; Cannot negate -2147483648
+        ; Expected: I1=0x80000000, ST1: Z=0, S=1, O=1 (0x0280)
+
+; Test 4: Byte ABS with normal negative value (no overflow)
+        w1 := $FF           ; I1 = 0xFF (-1 as signed byte)
+        by1 abs             ; |-1| = 1
+        ; Expected: I1=0x01, ST1: Z=0, S=0, O=0 (0x0000)
+
+; Test 5: ABS of positive value (no change)
+        w1 := $7F           ; I1 = 0x7F (127)
+        by1 abs             ; |127| = 127
+        ; Expected: I1=0x7F, ST1: Z=0, S=0, O=0 (0x0000)
+
+; Test 6: ABS of zero
+        w1 := $0            ; I1 = 0
+        by1 abs             ; |0| = 0
+        ; Expected: I1=0x00, ST1: Z=1, S=0, O=0 (0x0020)
+
+        bp                  ; Stop
+```
+
+---
+
+## 23. GETBF (Get Bit Field) Sign Flag Fix
+
+### File: `src/cpu/instructions/BITFIELD/Getbf.c`
+
+**Problem**: The GETBF instruction was setting the S (sign) flag based on the MSB of the extracted bit field (using field_size), but should set it based on the MSB of the data type (byte=bit 7, halfword=bit 15, word=bit 31).
+
+**Test Case**:
+- Instruction: `BY GETBF I1,$0,$4` (byte, extract 4 bits starting at bit 0)
+- I1 initial value: 0x78
+- Extracted field: 0x08 (bits 3-0 of 0x78)
+- Expected ST1: 0x0000 (Z=0, S=0 - byte bit 7 of 0x08 is 0)
+- Actual ST1 before fix: 0x0080 (S=1 - field MSB bit 3 of 0x08 is 1)
+
+**Why it was wrong**:
+- Old code checked: `bit_field & (1 << (field_size-1))` = `0x08 & 0x08` = 1 (field MSB)
+- Should check: `bit_field & 0x80` = `0x08 & 0x80` = 0 (byte MSB)
+
+**Solution**:
+
+```c
+/* Before (incorrect - uses field MSB): */
+if (field_size > 0 && (bit_field & (1U << (field_size - 1)))) {
+    cpu->ST1 |= ND500_FLAG_S;
+} else {
+    cpu->ST1 &= ~ND500_FLAG_S;
+}
+
+/* After (correct - uses data_type MSB via helper): */
+nd500_set_flags_zs(cpu, (uint64_t)bit_field, fi->data_type);
+```
+
+**Assembly Test Cases**:
+
+```asm
+; test_getbf_flags.asm - Validate GETBF S flag uses data type MSB
+; Assemble: nd500-as test_getbf_flags.asm -o test_getbf.bin
+
+        .org    $1000
+
+; Test 1: Byte GETBF, field MSB=1 but byte MSB=0
+        w1 := $78           ; I1 = 0x78 = 0111_1000
+        by getbf i1,$0,$4   ; Extract bits 3-0: 0x08 = 0000_1000
+        ; Field MSB (bit 3) = 1, but Byte MSB (bit 7) = 0
+        ; Expected: I1=0x08, ST1: Z=0, S=0 (0x0000)
+
+; Test 2: Byte GETBF, both MSBs set
+        w1 := $F8           ; I1 = 0xF8 = 1111_1000
+        by getbf i1,$0,$4   ; Extract bits 3-0: 0x08 = 0000_1000
+        ; Field MSB (bit 3) = 1, Byte MSB (bit 7) = 0
+        ; Expected: I1=0x08, ST1: Z=0, S=0 (0x0000)
+
+; Test 3: Byte GETBF, byte result with byte MSB set
+        w1 := $FF           ; I1 = 0xFF
+        by getbf i1,$0,$8   ; Extract all 8 bits: 0xFF
+        ; Byte MSB (bit 7) = 1
+        ; Expected: I1=0xFF, ST1: Z=0, S=1 (0x0080)
+
+; Test 4: Halfword GETBF, field MSB set but halfword MSB not
+        w1 := $0800         ; I1 = 0x0800 = bit 11 set
+        h getbf i1,$8,$4    ; Extract bits 11-8: 0x08
+        ; Field MSB (bit 3) = 1, Halfword MSB (bit 15) = 0
+        ; Expected: I1=0x08, ST1: Z=0, S=0 (0x0000)
+
+; Test 5: Word GETBF, result zero
+        w1 := $00           ; I1 = 0x00
+        w getbf i1,$0,$4    ; Extract bits 3-0: 0x00
+        ; Expected: I1=0x00, ST1: Z=1, S=0 (0x0020)
+
+        bp                  ; Stop
+```
+
+---
+
+## Status Flag Summary
+
+After fixes in Sections 20-23, status register validation is now fully enabled:
+
+| Instruction | Flag | Behavior |
+|-------------|------|----------|
+| **MUL** | C (Carry) | Always cleared (not set on overflow) |
+| **MUL** | O (Overflow) | Set if result exceeds data type range |
+| **MUL** | Z, S | Based on masked result and data type |
+| **ABS** | O (Overflow) | Set for most negative values (0x80, 0x8000, etc.) |
+| **ABS** | S (Sign) | Set if overflow (result unchanged, still negative) |
+| **ABS** | Z | Set if result is zero |
+| **GETBF** | S (Sign) | Based on data type MSB, NOT field MSB |
+| **GETBF** | Z | Based on extracted field value |
+
+### Current Test Results (2025-12-01)
+
+```
+Results: 20,902 passed, 0 failed, 0 skipped (100.0% pass rate)
+ALL TESTS PASSED
+
+Status register (ST1) validation: ENABLED
+```
+
+---
+
+## 24. Disassembler (nd500-dis) Verification
+
+### Analysis Date: 2025-12-01
+
+**Question**: Do the bugs fixed in Sections 20-23 affect the disassembler (nd500-dis)?
+
+**Answer**: No. The disassembler already uses the correct unified algorithm via `nd500_instr_dtype_prefix()`.
+
+### Disassembler Architecture
+
+The nd500x disassembler uses the same infrastructure as the CPU decoder:
+
+1. **Dispatch Table Lookup**: `nd500_instr_lookup()` returns instruction metadata
+2. **Data Type Detection**: `nd500_instr_dtype_prefix()` in `src/cpu/cpu_instr.c`
+3. **Mnemonic Generation**: `nd500_disasm_instruction()` in `src/disasm/nd500_disasm.c`
+
+The key function `nd500_instr_dtype_prefix()` already uses the `prefixes_mask` field:
+
+```c
+/* From src/cpu/cpu_instr.c, lines 263-281 */
+const char* nd500_instr_dtype_prefix(const Nd500InstructionMeta* instr) {
+    static const char* prefixes[] = {"bi", "by", "h", "w", "f", "d"};
+    static const uint8_t bits[] = {
+        ND500_PREFIX_BI, ND500_PREFIX_BY, ND500_PREFIX_H,
+        ND500_PREFIX_W, ND500_PREFIX_F, ND500_PREFIX_D
+    };
+
+    int target = instr->variant;
+    int count = 0;
+
+    for (int i = 0; i < 6; i++) {
+        if (instr->prefixes_mask & bits[i]) {
+            if (count == target) return prefixes[i];
+            count++;
+        }
+    }
+    return "";  /* No prefix */
+}
+```
+
+This correctly indexes through the available prefixes for each instruction class.
+
+### Verification Test
+
+Created test file `/home/ronny/repos/nd500x/test/disasm_mul_abs_test.s`:
+
+```asm
+.text
+.org	4096
+
+# Test MUL instruction data type prefixes
+_test_mul:
+	by1 := $10
+	by1 * $2
+	h1 := $100
+	h1 * $3
+	w1 := $1000
+	w1 * $4
+
+# Test ABS instruction data type prefixes
+_test_abs:
+	by1 := $80
+	by1 abs
+	h1 := $8000
+	h1 abs
+	w1 := $80000000
+	w1 abs
+
+_end:
+	ret
+```
+
+### Assemble and Disassemble
+
+```bash
+$ nd500-as disasm_mul_abs_test.s -o disasm_mul_abs_test.bin
+$ echo -e "load disasm_mul_abs_test.bin\nd 0x1000 50\nq" | nd500x --debug
+```
+
+### Disassembly Output (Verified Correct)
+
+```
+00001000:                                   _test_mul:
+  00001000: 04 0A                   by1 :=       $10
+  00001002: FC 44 02                by1 *        $2
+  00001005: 08 CD 64                h1 :=        $100
+  00001008: FC 48 03                h1 *         $3
+  0000100B: 0C CE 03 E8             w1 :=        $1000
+  0000100F: 6C 04                   w1 *         $4
+00001011:                                   _test_abs:
+  00001011: 04 CD 50                by1 :=       $80
+  00001014: FF 00                   by1 abs
+  00001016: 08 CE 1F 40             h1 :=        $8000
+  0000101A: FF 04                   h1 abs
+  0000101C: 0C CF 04 C4 B4 00       w1 :=        $80000000
+  00001022: FF 08                   w1 abs
+00001024:                                   _end:
+  00001024: 80                      ret
+```
+
+All data type prefixes display correctly:
+- **MUL**: `by1 *`, `h1 *`, `w1 *`
+- **ABS**: `by1 abs`, `h1 abs`, `w1 abs`
+
+### nd500-as Assembler Limitations
+
+During testing, the following nd500-as bugs were identified:
+
+1. **Shift instructions crash**: SHL, SHA, SHR cause assembler segfaults
+2. **Bitfield instructions crash**: GETBI, PUTBI, CLEBI, SETBI, GETBF, PUTBF all segfault
+
+These bugs are documented in `/home/ronny/repos/ragge/pcc-nd500/tests/asm_generated/phase2_intermediate/`.
+
+Because of these assembler limitations, full verification of shift and bitfield instruction disassembly requires:
+- Using the nd500x debug mode to manually enter opcodes, OR
+- Creating raw binary test files with known byte sequences
+
+### Conclusion
+
+**No fixes required for nd500-dis**. The disassembler uses `nd500_instr_dtype_prefix()` which correctly implements the unified variant-to-datatype algorithm via the `prefixes_mask` field.
+
+### Test Files Created
+
+- `/home/ronny/repos/nd500x/test/disasm_mul_abs_test.s` - MUL and ABS data type prefix test
+- `/home/ronny/repos/nd500x/test/disasm_mul_abs_test.bin` - Assembled binary
