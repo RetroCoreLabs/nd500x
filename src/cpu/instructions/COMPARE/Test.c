@@ -56,6 +56,6 @@ void nd500_instr_Test(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* For integer types, C is always 1 (like C# lines 54-55) */
     /* Check uses_float_registers to distinguish integer from float */
     if (!fi->uses_float_registers) {
-        cpu->FLAGS |= ND500_FLAG_C;
+        nd500_set_flag(cpu, ND500_FLAG_C);
     }
 }

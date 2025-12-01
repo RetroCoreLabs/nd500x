@@ -518,7 +518,6 @@ static uint32_t get_register(Nd500Cpu* cpu, const char* name) {
  * Validate CPU registers against expected values
  * Returns 0 on success, non-zero on failure
  * If print_details is true, prints mismatch details
- * NOTE: Status register (st) validation is temporarily disabled pending updated test data
  */
 static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_details) {
     int failures = 0;
@@ -528,7 +527,7 @@ static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_detail
 
         const char* reg_name = reg->string;
 
-        /* Skip status register validation - test data flags being updated */
+        /* Skip status register validation - needs variant mapping fixes */
         if (strcmp(reg_name, "st") == 0) continue;
 
         uint32_t expected = (uint32_t)reg->valuedouble;

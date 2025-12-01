@@ -336,8 +336,11 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         /* Registers are numbered 1-4 (I1=1, I2=2, I3=3, I4=4) to match C# */
         out->target_register = ((opcode & 0x03) + 1);
 
-        /* Use variant field from dispatch table - this is authoritative for data type */
-        /* Variant: 0=BYTE, 1=HALFWORD, 2=WORD, 3=FLOAT, 4=DOUBLE */
+        /* Use variant field from dispatch table
+         * NOTE: The variant field meaning varies by instruction class.
+         * Default mapping: 0=BYTE, 1=HALFWORD, 2=WORD, 3=FLOAT, 4=DOUBLE
+         * Some 0xFC/0xFD prefix instructions use different schemes - see specific handlers
+         */
         uint8_t variant = instr_meta->variant;
         out->uses_float_registers = false;
         switch (variant) {

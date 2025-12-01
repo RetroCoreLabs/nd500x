@@ -94,16 +94,16 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Update Z flag (like C# line 60) */
     if (result == 0) {
-        cpu->FLAGS |= ND500_FLAG_Z;
+        nd500_set_flag(cpu, ND500_FLAG_Z);
     } else {
-        cpu->FLAGS &= ~ND500_FLAG_Z;
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
     }
 
     /* Update C flag (like C# line 61) */
     if (carry) {
-        cpu->FLAGS |= ND500_FLAG_C;
+        nd500_set_flag(cpu, ND500_FLAG_C);
     } else {
-        cpu->FLAGS &= ~ND500_FLAG_C;
+        nd500_clear_flag(cpu, ND500_FLAG_C);
     }
 
     /* Get sign bit (like C# lines 64-73) */
@@ -118,8 +118,8 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* S = sign_bit XOR overflow (like C# line 74) */
     bool s_flag = sign_bit ^ overflow;
     if (s_flag) {
-        cpu->FLAGS |= ND500_FLAG_S;
+        nd500_set_flag(cpu, ND500_FLAG_S);
     } else {
-        cpu->FLAGS &= ~ND500_FLAG_S;
+        nd500_clear_flag(cpu, ND500_FLAG_S);
     }
 }

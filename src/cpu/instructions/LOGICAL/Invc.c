@@ -48,7 +48,7 @@ void nd500_instr_Invc(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t value = nd500_read_integer_register(cpu, fi->target_register);
 
     /* Read carry flag (like C# line 20) */
-    uint32_t carry = (cpu->FLAGS & ND500_FLAG_C) ? 1 : 0;
+    uint32_t carry = nd500_test_flag(cpu, ND500_FLAG_C) ? 1 : 0;
 
     /* One's complement + carry (like C# line 21) */
     uint64_t result64 = ((uint64_t)~value) + carry;
