@@ -527,9 +527,6 @@ static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_detail
 
         const char* reg_name = reg->string;
 
-        /* Skip status register validation - needs variant mapping fixes */
-        if (strcmp(reg_name, "st") == 0) continue;
-
         uint32_t expected = (uint32_t)reg->valuedouble;
         uint32_t actual = get_register(cpu, reg_name);
 

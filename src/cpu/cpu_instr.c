@@ -8,6 +8,20 @@
 #include "nd500_mmu.h"
 
 /* ═══════════════════════════════════════════════════════
+ * INSTRUCTION PREFIX FLAGS
+ * ═══════════════════════════════════════════════════════
+ * Matches C# InstructionPrefixes enum in Enums.cs
+ * Used to determine which data types an instruction supports
+ */
+#define ND500_PREFIX_BI   0x01   /* Bit field */
+#define ND500_PREFIX_BY   0x02   /* Byte (8-bit) */
+#define ND500_PREFIX_H    0x04   /* Halfword (16-bit) */
+#define ND500_PREFIX_W    0x08   /* Word (32-bit) */
+#define ND500_PREFIX_F    0x10   /* Float (32-bit) */
+#define ND500_PREFIX_D    0x20   /* Double (64-bit) */
+#define ND500_PREFIX_R_N  0x40   /* Register number in opcode */
+
+/* ═══════════════════════════════════════════════════════
  * MMU-AWARE MEMORY ACCESS HELPERS
  * ═══════════════════════════════════════════════════════
  * These functions handle MMU translation automatically when enabled.
@@ -119,6 +133,50 @@ typedef struct InstrMeta {
 
 static InstrMeta* g_table = NULL;
 static size_t g_table_count = 0;
+
+/**
+ * Determine data type from prefixes_mask and variant number.
+ * Matches C# DetermineDataType() algorithm exactly.
+ *
+ * The algorithm builds a list of supported data types from the prefix bits,
+ * then indexes into that list using (variant % count).
+ *
+ * @param prefixes_mask  Bitmask of supported data types (BI|BY|H|W|F|D)
+ * @param variant        Variant number from dispatch table
+ * @param uses_float     Output: true if this is a float/double type (uses A/E registers)
+ * @return The data type enum value
+ */
+static Nd500DataType determine_datatype_from_prefixes(uint8_t prefixes_mask, uint8_t variant, bool *uses_float) {
+    Nd500DataType types[6];
+    int count = 0;
+
+    /* Build type list in order: BI, BY, H, W, F, D */
+    if (prefixes_mask & ND500_PREFIX_BI) types[count++] = ND500_DTYPE_BYTE;       /* BI uses BYTE width */
+    if (prefixes_mask & ND500_PREFIX_BY) types[count++] = ND500_DTYPE_BYTE;
+    if (prefixes_mask & ND500_PREFIX_H)  types[count++] = ND500_DTYPE_HALFWORD;
+    if (prefixes_mask & ND500_PREFIX_W)  types[count++] = ND500_DTYPE_WORD;
+    if (prefixes_mask & ND500_PREFIX_F)  types[count++] = ND500_DTYPE_WORD;       /* Float is 32-bit */
+    if (prefixes_mask & ND500_PREFIX_D)  types[count++] = ND500_DTYPE_DOUBLEWORD;
+
+    if (count == 0) {
+        *uses_float = false;
+        return ND500_DTYPE_WORD;  /* Default */
+    }
+
+    int idx = variant % count;
+
+    /* Determine if this is a float type */
+    /* Float is present when F bit is set, and we've cycled past integer types */
+    int int_count = 0;
+    if (prefixes_mask & ND500_PREFIX_BI) int_count++;
+    if (prefixes_mask & ND500_PREFIX_BY) int_count++;
+    if (prefixes_mask & ND500_PREFIX_H)  int_count++;
+    if (prefixes_mask & ND500_PREFIX_W)  int_count++;
+
+    *uses_float = (idx >= int_count) && (prefixes_mask & (ND500_PREFIX_F | ND500_PREFIX_D));
+
+    return types[idx];
+}
 
 int nd500_instr_load_default(void) {
 	/* Minimal seed: unknown */
@@ -336,90 +394,18 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         /* Registers are numbered 1-4 (I1=1, I2=2, I3=3, I4=4) to match C# */
         out->target_register = ((opcode & 0x03) + 1);
 
-        /* Use variant field from dispatch table
-         * NOTE: The variant field meaning varies by instruction class.
-         * Default mapping: 0=BYTE, 1=HALFWORD, 2=WORD, 3=FLOAT, 4=DOUBLE
-         * Some 0xFC/0xFD prefix instructions use different schemes - see specific handlers
+        /* Determine data type using unified algorithm (matches C# DetermineDataType)
+         * The prefixes_mask tells us which data types are supported (BI|BY|H|W|F|D),
+         * and the variant tells us which one to use (variant % type_count).
+         * This unified algorithm handles ALL instruction classes correctly.
          */
-        uint8_t variant = instr_meta->variant;
-        out->uses_float_registers = false;
-        switch (variant) {
-            case 0: out->data_type = ND500_DTYPE_BYTE; break;
-            case 1: out->data_type = ND500_DTYPE_HALFWORD; break;
-            case 2: out->data_type = ND500_DTYPE_WORD; break;
-            case 3: out->data_type = ND500_DTYPE_WORD; out->uses_float_registers = true; break;       /* Float */
-            case 4: out->data_type = ND500_DTYPE_DOUBLEWORD; out->uses_float_registers = true; break; /* Double */
-            default: out->data_type = ND500_DTYPE_WORD; break;
-        }
-
-        /* NOTE: Removed 0xFD00 BYTE override - it incorrectly affected GETBI WORD variants.
-         * The variant field from the dispatch table correctly indicates data type. */
-
-        /* AssignTo/AssignFrom (0x0004-0x001B) use 6-variant pattern:
-         * BY=0x04-07, H=0x08-0B, W=0x0C-0F, F=0x10-13, D=0x14-17
-         * Then AssignFrom continues: BY=0x18-1B with 4 registers each
-         */
-        if (opcode >= 0x0004 && opcode <= 0x0017) {
-            uint8_t type_offset = ((opcode - 0x0004) >> 2);  /* Offset from 0x04 */
-            out->uses_float_registers = false;
-            switch (type_offset) {
-                case 0:  /* 0x04-07: BY */
-                    out->data_type = ND500_DTYPE_BYTE;
-                    break;
-                case 1:  /* 0x08-0B: H */
-                    out->data_type = ND500_DTYPE_HALFWORD;
-                    break;
-                case 2:  /* 0x0C-0F: W */
-                    out->data_type = ND500_DTYPE_WORD;
-                    break;
-                case 3:  /* 0x10-13: F */
-                    out->data_type = ND500_DTYPE_WORD;
-                    out->uses_float_registers = true;
-                    break;
-                case 4:  /* 0x14-17: D */
-                    out->data_type = ND500_DTYPE_DOUBLEWORD;
-                    out->uses_float_registers = true;
-                    break;
-            }
-        }
-        /* AssignFrom (0x0018-0x002B) same pattern, offset by 0x14 */
-        else if (opcode >= 0x0018 && opcode <= 0x002B) {
-            uint8_t type_offset = ((opcode - 0x0018) >> 2);
-            out->uses_float_registers = false;
-            switch (type_offset) {
-                case 0:  /* 0x18-1B: BY */
-                    out->data_type = ND500_DTYPE_BYTE;
-                    break;
-                case 1:  /* 0x1C-1F: H */
-                    out->data_type = ND500_DTYPE_HALFWORD;
-                    break;
-                case 2:  /* 0x20-23: W */
-                    out->data_type = ND500_DTYPE_WORD;
-                    break;
-                case 3:  /* 0x24-27: F */
-                    out->data_type = ND500_DTYPE_WORD;
-                    out->uses_float_registers = true;
-                    break;
-                case 4:  /* 0x28-2B: D */
-                    out->data_type = ND500_DTYPE_DOUBLEWORD;
-                    out->uses_float_registers = true;
-                    break;
-            }
-        }
-
-        if (opcode >= 0x60 && opcode <= 0x7F) {
-            /* Word/Float/Double arithmetic range */
-            uint8_t subop = (opcode - 0x60) >> 2;
-            if (subop == 0) out->data_type = ND500_DTYPE_WORD;        /* 0x60-63: W- */
-            else if (subop == 1) out->uses_float_registers = true;    /* 0x64-67: F- */
-            else if (subop == 2) { out->data_type = ND500_DTYPE_DOUBLEWORD; out->uses_float_registers = true; }
-            else if (subop == 3) out->data_type = ND500_DTYPE_WORD;   /* 0x6C-6F: W* */
-            else if (subop == 4) out->uses_float_registers = true;    /* 0x70-73: F* */
-            else if (subop == 5) { out->data_type = ND500_DTYPE_DOUBLEWORD; out->uses_float_registers = true; }
-        } else if (opcode >= 0xE4 && opcode <= 0xEF) {
-            /* Word logical range (AND, OR, XOR) */
-            out->data_type = ND500_DTYPE_WORD;
-        }
+        bool uses_float = false;
+        out->data_type = determine_datatype_from_prefixes(
+            instr_meta->prefixes_mask,
+            instr_meta->variant,
+            &uses_float
+        );
+        out->uses_float_registers = uses_float;
     } else {
         /* No metadata - defaults */
         out->target_register = 0;
