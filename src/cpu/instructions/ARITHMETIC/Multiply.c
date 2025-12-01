@@ -126,6 +126,6 @@ void nd500_instr_Multiply(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Write back to register */
     nd500_write_integer_register(cpu, fi->target_register, masked_result);
 
-    /* Update status flags: Z, S, C, O */
-    nd500_set_flags_zsco(cpu, masked_result, fi->data_type, carry, overflow);
+    /* Update status flags: Z, S, O (MUL clears carry per ND-500 Manual 11.7) */
+    nd500_set_flags_zsco(cpu, masked_result, fi->data_type, false, overflow);
 }

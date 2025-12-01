@@ -196,17 +196,7 @@ void nd500_instr_Getbf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Write bit field value to target register
     nd500_write_integer_register(cpu, fi->target_register, bit_field);
 
-    // Update status flags: Z and S based on extracted field value
-    if (bit_field == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;   // Set Z if field is 0
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;  // Clear Z if field is non-zero
-    }
-
-    // S flag: MSB of extracted field (considering field size)
-    if (field_size > 0 && (bit_field & (1U << (field_size - 1)))) {
-        cpu->ST1 |= ND500_FLAG_S;   // Set S if MSB of field is 1
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_S;  // Clear S if MSB of field is 0
-    }
+    // Update status flags: Z and S based on result and data_type (not field_size)
+    // Matches C# SetStatusZS - S flag uses data_type MSB, not field MSB
+    nd500_set_flags_zs(cpu, (uint64_t)bit_field, fi->data_type);
 }

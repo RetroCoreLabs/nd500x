@@ -66,20 +66,26 @@ void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (!fi->uses_float_registers) {
         /* Integer types: negate if negative (two's complement) (like C# lines 55-73) */
         bool isNegative = false;
+        bool isMinNegative = false;
 
         /* Check if value is negative by examining sign bit (like C# lines 58-64) */
+        /* Also check for "most negative" values that overflow when negated */
         switch (fi->data_type) {
             case ND500_DTYPE_BYTE:
                 isNegative = ((value & 0x80) != 0);
+                isMinNegative = ((value & 0xFF) == 0x80);
                 break;
             case ND500_DTYPE_HALFWORD:
                 isNegative = ((value & 0x8000) != 0);
+                isMinNegative = ((value & 0xFFFF) == 0x8000);
                 break;
             case ND500_DTYPE_WORD:
                 isNegative = ((value & 0x80000000) != 0);
+                isMinNegative = ((value & 0xFFFFFFFF) == 0x80000000);
                 break;
             default:
                 isNegative = false;
+                isMinNegative = false;
                 break;
         }
 
@@ -92,6 +98,21 @@ void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
         /* Write back to register (like C# line 73) */
         nd500_write_integer_register(cpu, fi->target_register, (uint32_t)result);
+
+        /* Update status flags for integer (handle overflow case) */
+        cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O);
+
+        if (result == 0) {
+            cpu->ST1 |= ND500_FLAG_Z;
+        }
+
+        if (isMinNegative) {
+            /* Most negative value overflows: result stays negative, set S and O */
+            cpu->ST1 |= ND500_FLAG_S;
+            cpu->ST1 |= ND500_FLAG_O;
+        }
+
+        return;
     } else {
         /* Floating point: clear sign bit (like C# lines 75-88) */
         if (fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
