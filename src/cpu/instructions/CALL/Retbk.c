@@ -146,53 +146,37 @@ void nd500_instr_Retbk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* STEP 5: Free block back to heap using buddy system */
-
-    /* Read heap variables from TOS register */
+    /* STEP 5: Free block back to heap using buddy system (if heap is initialized) */
     uint32_t heap_vars_addr = cpu->TOS;
-    if (heap_vars_addr == 0) {
-        printf("[ERROR] RETBK at PC=0x%08X: TOS register is zero (heap not initialized)\n",
-               fi->address);
-        trap_stack_overflow(cpu, fi->address);
-        return;
+    if (heap_vars_addr != 0) {
+        /* Read MAXL (maximum logarithmic size) from heap variables (word at offset +0) */
+        uint32_t max_log = nd500_read_memory_32(cpu, heap_vars_addr + 0);
+
+        /* Validate log size against maximum */
+        if (log_size <= max_log) {
+            /* Calculate freelist head address for size class log_size (FLOG starts at offset +12) */
+            uint32_t freelist_addr = heap_vars_addr + 12 + (log_size * 4);
+
+            /* Read current head of free list */
+            uint32_t current_head = nd500_read_memory_32(cpu, freelist_addr);
+
+            /* Link block to head of free list */
+            /* block.NEXT = old head */
+            nd500_write_memory_32(cpu, block_addr, current_head);
+
+            /* FLOG[log_size] = block */
+            nd500_write_memory_32(cpu, freelist_addr, block_addr);
+        }
     }
-
-    /* Read MAXL (maximum logarithmic size) from heap variables (word at offset +0) */
-    uint32_t max_log = nd500_read_memory_32(cpu, heap_vars_addr + 0);
-
-    /* Validate log size against maximum */
-    if (log_size > max_log) {
-        printf("[ERROR] RETBK at PC=0x%08X: Log size %u exceeds MAXL %u\n",
-               fi->address, log_size, max_log);
-        trap_stack_overflow(cpu, fi->address);
-        return;
-    }
-
-    /* Calculate freelist head address for size class log_size (FLOG starts at offset +12) */
-    uint32_t freelist_addr = heap_vars_addr + 12 + (log_size * 4);
-
-    /* Read current head of free list */
-    uint32_t current_head = nd500_read_memory_32(cpu, freelist_addr);
-
-    /* Link block to head of free list */
-    /* block.NEXT = old head */
-    nd500_write_memory_32(cpu, block_addr, current_head);
-
-    /* FLOG[log_size] = block */
-    nd500_write_memory_32(cpu, freelist_addr, block_addr);
-
-    printf("[RETBK] Freed block at 0x%08X (log size %u, 2^%u=%u words) to freelist[%u]\n",
-           block_addr, log_size, log_size, (1U << log_size), log_size);
+    /* Note: If TOS=0 (heap not initialized), we still perform the return but skip heap operations */
 
     /* STEP 6: Restore CPU registers */
-    cpu->B = prev_b;         /* Restore previous stack frame (B.PREVB → B) */
-    cpu->PC = ret_addr;      /* Jump to return address (B.RETA → P) */
-    cpu->L = ret_addr;       /* Update link register (B.RETA → L) */
+    cpu->B = prev_b;         /* Restore previous stack frame (B.PREVB -> B) */
+    cpu->PC = ret_addr;      /* Jump to return address (B.RETA -> P) */
+    cpu->L = ret_addr;       /* Update link register (B.RETA -> L) */
 
     /* STEP 7: SET K flag (RETBK sets, RETB clears) */
     nd500_set_flag(cpu, ND500_FLAG_K);
-
-    printf("[RETBK] Returned to 0x%08X, restored B=0x%08X, K=1\n", ret_addr, prev_b);
 
     /* Data status bits: K flag set, all others unaffected */
 }

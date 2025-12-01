@@ -113,10 +113,11 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
         nd500_dbg_profile_instruction(fi.mnemonic);
     }
     
+    /* Advance PC BEFORE execution (like C# implementation)
+     * Branch/jump instructions will overwrite PC as needed */
+    cpu->PC = old_pc + (fi.total_len ? fi.total_len : fi.opcode_len);
+
     nd500_execute_decoded(cpu, &fi);
-    if (cpu->PC == old_pc) {
-        cpu->PC += fi.total_len ? fi.total_len : fi.opcode_len;
-    }
     
     /* Check for pending ignorable traps at end of instruction */
     check_pending_traps(cpu);

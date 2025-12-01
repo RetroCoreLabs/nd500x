@@ -46,6 +46,6 @@ void nd500_instr_IfLessEqualGo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi)
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
         /* Update PC (relative branch) */
-        cpu->PC = (uint32_t)((int64_t)cpu->PC + displacement);
+        cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
     }
 }

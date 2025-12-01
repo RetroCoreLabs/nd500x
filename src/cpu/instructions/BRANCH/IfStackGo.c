@@ -6,7 +6,7 @@
 /**
  * IfStackGo instruction - BRANCH class
  *
- * IF ST GO - If Status Bit Set, Go (Conditional branch on status register bit)
+ * IF -ST GO - If Status Bit NOT Set, Go (Conditional branch on status bit clear)
  *
  * Mnemonic: IF ST GO
  * Format: IF ST GO <bit_number>, <<displacement>>
@@ -146,18 +146,21 @@ void nd500_instr_IfStackGo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // Test if specified bit in status register (ST1) is set
+    // Test if specified bit in status register (ST1) is NOT set
     bool bit_is_set = (cpu->ST1 & (1U << bit_number)) != 0;
 
-    if (bit_is_set) {
+    if (!bit_is_set) {
         // Read displacement value and sign-extend based on data type
         uint64_t value = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
-        // Update PC (relative branch to target address)
-        cpu->PC = (uint32_t)((int64_t)cpu->PC + displacement);
+        // Update PC: branch relative to END of this instruction
+        cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
+
+        // Set Branch Trap (BT) bit in status register when branch is taken
+        cpu->ST1 |= 0x40000;  // BT bit = bit 18
     }
-    // else: bit not set, branch not taken, PC already points to next instruction
+    // else: bit is set, branch not taken, PC already points to next instruction
 
     // No status flags are modified by this instruction
 }

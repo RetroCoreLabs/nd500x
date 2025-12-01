@@ -124,19 +124,19 @@ void nd500_instr_IfUnsignedLessEqualGo(Nd500Cpu* cpu, const Nd500FetchedInstruct
     }
 
     // Test C and Z flags for unsigned less-than-or-equal condition
-    // C=1 means borrow occurred (operand1 < operand2, unsigned)
-    // Z=1 means zero result (operand1 == operand2)
-    // Combined: C=1 OR Z=1 means operand1 <= operand2 (unsigned)
-    bool carry_set = nd500_test_flag(cpu, ND500_FLAG_C);
+    // C=0 means less than (ND-500: carry clear indicates less)
+    // Z=1 means equal (zero result)
+    // Combined: C=0 OR Z=1 means operand1 <= operand2 (unsigned)
+    bool carry_clear = !nd500_test_flag(cpu, ND500_FLAG_C);
     bool zero_set = nd500_test_flag(cpu, ND500_FLAG_Z);
 
-    if (carry_set || zero_set) {
+    if (carry_clear || zero_set) {
         // Read displacement value and sign-extend based on data type
         uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
-        // Update PC (relative branch to target address)
-        cpu->PC = (uint32_t)((int64_t)cpu->PC + displacement);
+        // Update PC: branch relative to END of this instruction
+        cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
     }
     // else: C=0 AND Z=0, branch not taken, PC already points to next instruction
 

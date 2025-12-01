@@ -6,7 +6,7 @@
 /**
  * Ifstgo instruction - BRANCH class
  *
- * IF -ST GO - If Status Bit NOT Set, Go (Conditional branch on status bit clear)
+ * IF ST GO - If Status Bit Set, Go (Conditional branch on status bit set)
  *
  * Mnemonic: IF -ST GO
  * Format: IF -ST GO <bit_number>, <<displacement>>
@@ -148,7 +148,7 @@
 void nd500_instr_Ifstgo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Validate operand count
     if (fi->operand_count != 2) {
-        printf("[ERROR] IF -ST GO at PC=0x%08X: Expected 2 operands, got %u\n",
+        printf("[ERROR] IF ST GO at PC=0x%08X: Expected 2 operands, got %u\n",
                fi->address, fi->operand_count);
         trap_illegal_operand(cpu, fi->address);
         return;
@@ -160,24 +160,27 @@ void nd500_instr_Ifstgo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     // Validate bit number range (0-29 inclusive)
     if (bit_number > 29) {
-        printf("[ERROR] IF -ST GO at PC=0x%08X: Bit number %u out of range (must be 0-29)\n",
+        printf("[ERROR] IF ST GO at PC=0x%08X: Bit number %u out of range (must be 0-29)\n",
                fi->address, bit_number);
         trap_invalid_operation(cpu, fi->address);
         return;
     }
 
-    // Test if specified bit in status register (ST1) is NOT set
+    // Test if specified bit in status register (ST1) IS set
     bool bit_is_set = (cpu->ST1 & (1U << bit_number)) != 0;
 
-    if (!bit_is_set) {
+    if (bit_is_set) {
         // Read displacement value and sign-extend based on data type
         uint64_t value = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
-        // Update PC (relative branch to target address)
-        cpu->PC = (uint32_t)((int64_t)cpu->PC + displacement);
+        // Update PC: branch relative to END of this instruction
+        cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
+
+        // Set Branch Trap (BT) bit in status register when branch is taken
+        cpu->ST1 |= 0x40000;  // BT bit = bit 18
     }
-    // else: bit is set, branch not taken, PC already points to next instruction
+    // else: bit is not set, branch not taken, PC already points to next instruction
 
     // No status flags are modified by this instruction
 }

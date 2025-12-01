@@ -125,14 +125,14 @@ void nd500_instr_IfUnsignedGreaterEqualGo(Nd500Cpu* cpu, const Nd500FetchedInstr
     }
 
     // Test C (carry/borrow) flag for unsigned greater-or-equal condition
-    // C=0 means no borrow (first operand >= second operand, unsigned)
-    if (!nd500_test_flag(cpu, ND500_FLAG_C)) {
+    // C=1 means greater or equal (ND-500: carry set indicates >=)
+    if (nd500_test_flag(cpu, ND500_FLAG_C)) {
         // Read displacement value and sign-extend based on data type
         uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
-        // Update PC (relative branch to target address)
-        cpu->PC = (uint32_t)((int64_t)cpu->PC + displacement);
+        // Update PC: branch relative to END of this instruction
+        cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
     }
     // else: C=1, branch not taken, PC already points to next instruction
 

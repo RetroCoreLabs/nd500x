@@ -72,24 +72,34 @@ void nd500_instr_Sha(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Perform arithmetic shift
-     * Empirically verified convention (matching test expectations):
-     * - Positive count = RIGHT shift (arithmetic, sign-extending)
-     * - Negative count = LEFT shift (same as logical shift left)
-     *
-     * Key insight from test validation:
-     * - For register operands, use FULL 32-bit register value for sign determination
-     * - Data type only affects output masking, not input sign
-     * - E.g., BY SHA on I1=0xFF: treat as 255 (positive), not -1 */
+    /* Perform arithmetic shift (matching C# implementation):
+     * - Positive count = LEFT shift (same as logical shift left)
+     * - Negative count = RIGHT shift (arithmetic, sign-extending)
+     */
     uint64_t result;
     if (shift_count >= 0) {
-        /* Right shift: arithmetic (sign-extending based on FULL register width)
-         * Sign is determined by bit 31 of the value, regardless of data type */
-        int32_t signed_val = (int32_t)(raw_value & 0xFFFFFFFF);
-        result = (uint64_t)(uint32_t)(signed_val >> abs_shift);
-    } else {
         /* Left shift: same as logical shift left */
         result = raw_value << abs_shift;
+    } else {
+        /* Right shift: arithmetic (sign-extending based on data type width) */
+        switch (fi->data_type) {
+            case ND500_DTYPE_BYTE: {
+                int8_t signed_val = (int8_t)(raw_value & 0xFF);
+                result = (uint64_t)(uint8_t)(signed_val >> abs_shift);
+                break;
+            }
+            case ND500_DTYPE_HALFWORD: {
+                int16_t signed_val = (int16_t)(raw_value & 0xFFFF);
+                result = (uint64_t)(uint16_t)(signed_val >> abs_shift);
+                break;
+            }
+            case ND500_DTYPE_WORD:
+            default: {
+                int32_t signed_val = (int32_t)(raw_value & 0xFFFFFFFF);
+                result = (uint64_t)(uint32_t)(signed_val >> abs_shift);
+                break;
+            }
+        }
     }
 
     /* Mask result to data type (like C# line 77) */
