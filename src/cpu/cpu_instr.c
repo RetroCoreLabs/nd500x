@@ -481,14 +481,26 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         /* Determine size from template bits or variant */ \
         uint32_t _tmpl = lookup(opcode)->op_templates[(op_idx) < 4 ? (op_idx) : 3]; \
         uint8_t _disp_len; \
-        /* Use variant to determine direct operand size (matches C# DirectOperandSizes logic) */ \
-        /* variant: 0=byte, 1=halfword, 2=word, 3=float, 4=double */ \
-        uint8_t _variant = nd500_instr_variant(opcode); \
-        if (_variant == 0) _disp_len = 1; \
-        else if (_variant == 1) _disp_len = 2; \
-        else if (_variant == 4) _disp_len = 8; \
-        else _disp_len = 4; \
-        (void)_tmpl; /* suppress unused warning */ \
+        /* Determine size from template bits or variant */ \
+        /* If exactly ONE size bit is set in template, use that fixed size */ \
+        /* If multiple or zero size bits, use variant for size (variable-sized operand) */ \
+        uint8_t _size_bits = (_tmpl & 0x1E); /* O_BS=0x02, O_HS=0x04, O_WS=0x08, O_DS=0x10 */ \
+        int _popcount = ((_size_bits & 0x02) ? 1 : 0) + ((_size_bits & 0x04) ? 1 : 0) + \
+                        ((_size_bits & 0x08) ? 1 : 0) + ((_size_bits & 0x10) ? 1 : 0); \
+        if (_popcount == 1) { \
+            /* Exactly one size bit - use that fixed size (call/init/entm/entf operand 0) */ \
+            if (_size_bits & 0x10) _disp_len = 8;      /* O_DS - double */ \
+            else if (_size_bits & 0x08) _disp_len = 4; /* O_WS - word */ \
+            else if (_size_bits & 0x04) _disp_len = 2; /* O_HS - halfword */ \
+            else _disp_len = 1;                        /* O_BS - byte */ \
+        } else { \
+            /* Multiple or zero size bits - use variant: 0=byte, 1=half, 2+=word, 4=double */ \
+            uint8_t _variant = nd500_instr_variant(opcode); \
+            if (_variant == 0) _disp_len = 1; \
+            else if (_variant == 1) _disp_len = 2; \
+            else if (_variant == 4) _disp_len = 8; \
+            else _disp_len = 4; \
+        } \
         _op->data_len = _disp_len; \
         for (uint8_t _j = 0; _j < _disp_len; _j++) { \
             if (m->cpu) { \
