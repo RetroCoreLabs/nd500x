@@ -10,6 +10,7 @@
 #include "../cpu/cpu_protos.h"
 #include "../cpu/nd500_mmu.h"
 #include "../cpu/nd500_domain.h"
+#include "nd500_dom.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,6 +40,7 @@ static int cmd_load_pseg(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_load_dseg(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_loadmap(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_loadsrc(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_run(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_stop(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_continue(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -85,6 +87,7 @@ static const CmdEntry g_commands[] = {
 	{"load-dseg",   cmd_load_dseg,    "Load DSEG binary file"},
 	{"loadmap",     cmd_loadmap,      "Load additional map file"},
 	{"loadsrc",     cmd_loadsrc,      "Load additional source file"},
+	{"loaddom",     cmd_loaddom,      "Load DOM/SEG file header"},
 	{"run",         cmd_run,          "Start execution"},
 	{"stop",        cmd_stop,         "Stop execution"},
 	{"continue",    cmd_continue,     "Continue execution"},
@@ -303,6 +306,7 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  load-dseg <path> [addr]     Load DSEG binary (addr: kernel|user|hex, default: kernel)");
 	output(ctx, "  loadmap <path>              Load additional map file (for multi-file programs)");
 	output(ctx, "  loadsrc <path>              Load additional source file (.c or .s)");
+	output(ctx, "  loaddom <path>              Load DOM/SEG file header");
 	output(ctx, "  run                         Start execution (background)");
 	output(ctx, "  stop                        Stop execution");
 	output(ctx, "  continue (c/cont)           Continue execution after breakpoint");
@@ -995,6 +999,93 @@ static int cmd_loadsrc(Nd500Machine* m, CmdContext* ctx, char* args) {
 	}
 
 	output(ctx, "loaded source: %s (stored as %s)", filepath, basename);
+	return 0;
+}
+
+static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args) {
+	(void)m;  /* DOM loading doesn't require machine state */
+
+	/* Parse file path argument */
+	char* filepath = args ? strtok(args, " \t\r\n") : NULL;
+	if (!filepath) {
+		error(ctx, "usage: loaddom <path-to-dom-or-seg-file>");
+		return -1;
+	}
+
+	/* Load DOM/SEG header */
+	int rc = ndlib_load_dom_header(filepath);
+	if (rc != 0) {
+		if (rc == -1) {
+			error(ctx, "failed to open: %s", filepath);
+		} else if (rc == -2) {
+			error(ctx, "failed to read header from: %s (file too small?)", filepath);
+		} else {
+			error(ctx, "failed to load DOM '%s' (error %d)", filepath, rc);
+		}
+		return -1;
+	}
+
+	/* Get header and display basic info */
+	const nd500_header_t* hdr = ndlib_get_dom_header();
+	if (!hdr) {
+		error(ctx, "internal error: header not available after load");
+		return -1;
+	}
+
+	/* Check if DOM or SEG file */
+	int is_dom = ndlib_dom_is_dom_file();
+
+	output(ctx, "Loaded %s: %s", is_dom ? "DOM" : "SEG", filepath);
+	output(ctx, "  Linker version: %d.%d", hdr->raw[4], hdr->raw[5]);
+	output(ctx, "  Flags: 0x%02X", hdr->raw[6]);
+	output(ctx, "  Machine: 0x%02X", hdr->raw[7]);
+	output(ctx, "  OS ID: 0x%02X", hdr->raw[8]);
+	output(ctx, "  Start addr: 0x%08X", nd500_read32(&hdr->raw[0xD8]));
+	output(ctx, "  Restart addr: 0x%08X", nd500_read32(&hdr->raw[0xDC]));
+
+	/* Load segments */
+	rc = ndlib_load_dom_segments();
+	if (rc != 0) {
+		error(ctx, "warning: failed to load segments");
+	}
+
+	/* Display segment info */
+	output(ctx, "");
+	output(ctx, "Segments:");
+	int max_segs = is_dom ? 32 : 1;
+	int found = 0;
+
+	for (int i = 0; i < max_segs; i++) {
+		uint32_t prog_size, prog_addr, data_size, data_addr;
+		int is_linked, is_used;
+
+		if (ndlib_dom_get_segment_info(i, &prog_size, &prog_addr,
+		                               &data_size, &data_addr,
+		                               &is_linked, &is_used) != 0) {
+			continue;
+		}
+
+		if (!is_used && !is_linked) continue;  /* Skip empty slots */
+
+		found++;
+
+		if (is_linked) {
+			output(ctx, "  [%2d] LINKED (external .SEG file)", i);
+		} else {
+			if (prog_size > 0 || data_size > 0) {
+				output(ctx, "  [%2d] PROG: %6u bytes @ 0x%08X  DATA: %6u bytes @ 0x%08X",
+				       i, prog_size, prog_addr, data_size, data_addr);
+			}
+		}
+	}
+
+	if (found == 0) {
+		output(ctx, "  (no segments found)");
+	}
+
+	output(ctx, "");
+	output(ctx, "%d segment(s) loaded into memory", ndlib_dom_get_segment_count());
+
 	return 0;
 }
 

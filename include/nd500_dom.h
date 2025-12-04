@@ -15,9 +15,15 @@
 extern "C" {
 #endif
 
-/* Byte swap macros for big-endian to little-endian conversion */
-#define SWAP16(x) (((x) >> 8) | ((x) << 8))
-#define SWAP32(x) (((x) >> 24) | (((x) >> 8) & 0xFF00) | (((x) << 8) & 0xFF0000) | ((x) << 24))
+/* Read big-endian values from byte pointer */
+static inline uint16_t nd500_read16(const uint8_t* p) {
+    return ((uint16_t)p[0] << 8) | p[1];
+}
+
+static inline uint32_t nd500_read32(const uint8_t* p) {
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8) | p[3];
+}
 
 /* Header size constants */
 #define ND500_HEADER_SIZE       4096    /* 2 pages x 2048 bytes */
@@ -202,8 +208,8 @@ typedef struct {
     uint8_t  prog_logseg;           /* 0x70: Program logical segment number */
     uint8_t  data_logseg;           /* 0x71: Data logical segment number */
     uint16_t n100_count;            /* 0x72: Number of ND-100 RT segments */
-    nd500_n100_rt_seg_t n100_segs[ND500_MAX_N100_SEGS];  /* 0x74: 10 x 12 bytes */
-    uint8_t  _pad_to_common[0xC6 - (0x74 + 10*12)];      /* Padding to CommonPart */
+    nd500_n100_rt_seg_t n100_segs[ND500_MAX_N100_SEGS];  /* 0x74: 10 x 12 bytes, ends at 0xEC */
+    /* Note: SEG-specific data extends past common part start (0xC6) - no padding needed */
 } nd500_seg_specific_t;
 
 /*============================================================================
@@ -241,7 +247,7 @@ typedef struct {
 /*============================================================================
  * Union for DOM or SEG header
  *============================================================================*/
-typedef union {
+typedef union nd500_header {
     nd500_dom_header_t dom;
     nd500_seg_header_t seg;
     uint8_t raw[ND500_HEADER_SIZE];
@@ -263,21 +269,23 @@ static inline nd500_segment_desc_t* nd500_dom_get_segment(nd500_header_t *hdr, i
     return &hdr->dom.segments[seg_num];
 }
 
-/* Check if segment is linked (ATT.LINKED bit set) */
-static inline int nd500_seg_is_linked(uint32_t att) {
-    return (SWAP32(att) & ND500_SEG_ATT_LINKED_SEGMENT) != 0;
+/* Check if segment is linked (ATT.LINKED bit set) - pass pointer to att field */
+static inline int nd500_seg_is_linked(const uint8_t* att_ptr) {
+    return (nd500_read32(att_ptr) & ND500_SEG_ATT_LINKED_SEGMENT) != 0;
 }
 
-/* Check if segment slot is used (ATT.SEGMENTUSED bit set) */
-static inline int nd500_seg_is_used(uint32_t att) {
-    return (SWAP32(att) & ND500_SEG_ATT_SEGMENT_USED) != 0;
+/* Check if segment slot is used (ATT.SEGMENTUSED bit set) - pass pointer to att field */
+static inline int nd500_seg_is_used(const uint8_t* att_ptr) {
+    return (nd500_read32(att_ptr) & ND500_SEG_ATT_SEGMENT_USED) != 0;
 }
 
 /* Resolve name from name pool (returns pointer into pool, not copied) */
-static inline const char* nd500_resolve_name(const uint8_t *header, uint16_t min_idx, uint16_t max_idx, int is_seg) {
+static inline const char* nd500_resolve_name(const uint8_t *header, const uint8_t* min_idx_ptr, const uint8_t* max_idx_ptr, int is_seg) {
     uint16_t pool_start = is_seg ? ND500_NAMEPOOL_START_SEG : ND500_NAMEPOOL_START_DOM;
+    uint16_t min_idx = nd500_read16(min_idx_ptr);
+    uint16_t max_idx = nd500_read16(max_idx_ptr);
     if (min_idx == 0 || max_idx == 0 || min_idx >= max_idx) return NULL;
-    return (const char*)(header + pool_start + SWAP16(min_idx));
+    return (const char*)(header + pool_start + min_idx);
 }
 
 #ifdef __cplusplus

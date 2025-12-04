@@ -18,6 +18,7 @@ static void print_usage(const char* prog) {
     printf("  --aout <path>            Load a.out file\n");
     printf("  --pseg <path>            Load PSEG binary (auto-detects kernel/user mode)\n");
     printf("  --dseg <path>            Load DSEG binary (auto-detects kernel/user mode)\n");
+    printf("  --dom <path>             Load DOM/SEG file header\n");
     printf("  --mode <mode>            Override mode: kernel | user | auto\n");
     printf("                           (kernel: PSEG=0x08000000, DSEG=0x00000000)\n");
     printf("                           (user:   PSEG=0xD0000000, DSEG=0xF0000000)\n");
@@ -44,6 +45,7 @@ int main(int argc, char** argv) {
     const char* aout_path = NULL;
     const char* pseg_path = NULL;
     const char* dseg_path = NULL;
+    const char* dom_path = NULL;
     const char* mode_str = NULL; /* "kernel" or "user" */
     uint32_t start_pc = 0;
     int has_start_pc = 0;
@@ -66,6 +68,8 @@ int main(int argc, char** argv) {
             pseg_path = argv[++i];
         } else if (strcmp(argv[i], "--dseg") == 0 && i + 1 < argc) {
             dseg_path = argv[++i];
+        } else if (strcmp(argv[i], "--dom") == 0 && i + 1 < argc) {
+            dom_path = argv[++i];
         } else if (strcmp(argv[i], "--mode") == 0 && i + 1 < argc) {
             mode_str = argv[++i];
         } else if (strcmp(argv[i], "--pc") == 0 && i + 1 < argc) {
@@ -190,6 +194,19 @@ int main(int argc, char** argv) {
             }
         }
         if (has_start_pc) cpu.PC = start_pc; else if (pseg_path) cpu.PC = pseg_base;
+    }
+
+    if (dom_path) {
+        int rc = ndlib_load_dom_header(dom_path);
+        if (rc == 0) {
+            printf("DOM loaded: %s (file kept open for segment loading)\n", dom_path);
+        } else if (rc == -1) {
+            printf("DOM load failed: %s (file not found)\n", dom_path);
+        } else if (rc == -2) {
+            printf("DOM load failed: %s (file too small?)\n", dom_path);
+        } else {
+            printf("DOM load failed: %s (error %d)\n", dom_path, rc);
+        }
     }
 
 	if (debug) {

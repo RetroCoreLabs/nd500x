@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 add_library(nd500_debugger commands.c debugger.c dap_adapter.c)
-target_include_directories(nd500_debugger PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_SOURCE_DIR}/src/machine ${CMAKE_SOURCE_DIR}/src/cpu)
+target_include_directories(nd500_debugger PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_SOURCE_DIR}/src/machine ${CMAKE_SOURCE_DIR}/src/cpu ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(nd500_debugger PUBLIC nd500_machine nd500_cpu nd500_ndlib)
 
 # Link readline if available

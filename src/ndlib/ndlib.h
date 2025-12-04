@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stdio.h>
 #include "../machine/machine_types.h"
 
 void nd500_log(const char* fmt, ...);
@@ -68,4 +69,55 @@ int ndlib_source_count_lines(const char* filename);
 int ndlib_load_aout_with_debug(Nd500Machine* m, const char* aout_path,
                                 int auto_map, uint32_t* out_entry, uint32_t* out_pc);
 
+
+/* ═══════════════════════════════════════════════════════════════════
+ * DOM/SEG FILE LOADING
+ * ═══════════════════════════════════════════════════════════════════
+ */
+
+/* Forward declaration - full type in nd500_dom.h */
+typedef union nd500_header nd500_header_t;
+
+/* Load DOM/SEG file header (4096 bytes). File stays open for segment loading.
+ * Returns: 0 on success, -1 file not found, -2 read error */
+int ndlib_load_dom_header(const char* path);
+
+/* Load all segments from DOM/SEG file into memory.
+ * Must call ndlib_load_dom_header() first.
+ * Returns: 0 on success, -1 on error */
+int ndlib_load_dom_segments(void);
+
+/* Close DOM file, free segment data, and clear state */
+void ndlib_close_dom(void);
+
+/* Get loaded header (NULL if not loaded) */
+const nd500_header_t* ndlib_get_dom_header(void);
+
+/* Get file handle for reading segment data */
+FILE* ndlib_get_dom_file(void);
+
+/* Check if DOM is loaded */
+int ndlib_dom_is_loaded(void);
+
+/* Check if loaded file is DOM (1) or SEG (0) */
+int ndlib_dom_is_dom_file(void);
+
+/* Get path of loaded DOM file */
+const char* ndlib_get_dom_filepath(void);
+
+/* Get number of loaded segments (with data) */
+int ndlib_dom_get_segment_count(void);
+
+/* Get segment program data (call after ndlib_load_dom_segments)
+ * Returns pointer to data, or NULL if not loaded */
+const uint8_t* ndlib_dom_get_segment_data(int index, uint32_t* out_size, uint32_t* out_load_addr);
+
+/* Get segment data section (call after ndlib_load_dom_segments) */
+const uint8_t* ndlib_dom_get_data_section(int index, uint32_t* out_size, uint32_t* out_load_addr);
+
+/* Get segment info from header (does not require loading segment data)
+ * Returns: 0 on success, -1 on error */
+int ndlib_dom_get_segment_info(int index, uint32_t* prog_size, uint32_t* prog_addr,
+                               uint32_t* data_size, uint32_t* data_addr,
+                               int* is_linked, int* is_used);
 
