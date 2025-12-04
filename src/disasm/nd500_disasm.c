@@ -6,6 +6,26 @@
 #include "../machine/machine_protos.h"
 #include "../ndlib/ndlib.h"
 
+/* Format unsigned value with prefix based on radix: $decimal, $0xHEX, $octal */
+static int fmt_unsigned(char* buf, size_t cap, const char* prefix, uint32_t val) {
+    int radix = nd500_dbg_get_radix();
+    switch (radix) {
+        case 1:  return snprintf(buf, cap, "%s0x%X", prefix, val);      /* hex */
+        case 2:  return snprintf(buf, cap, "%s%o", prefix, val);        /* octal */
+        default: return snprintf(buf, cap, "%s%u", prefix, val);        /* decimal */
+    }
+}
+
+/* Format signed value with prefix based on radix */
+static int fmt_signed(char* buf, size_t cap, const char* prefix, int32_t val) {
+    int radix = nd500_dbg_get_radix();
+    switch (radix) {
+        case 1:  return snprintf(buf, cap, "%s0x%X", prefix, (uint32_t)val);  /* hex */
+        case 2:  return snprintf(buf, cap, "%s%o", prefix, (uint32_t)val);    /* octal */
+        default: return snprintf(buf, cap, "%s%d", prefix, val);              /* decimal */
+    }
+}
+
 /* Minimal operand formatter for plain-text disassembly (no colors) */
 static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op) {
     if (!dst || cap == 0 || !op) return 0;
@@ -17,7 +37,9 @@ static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op) 
 
     /* Inline/direct markers from decoder: 0xFE/0xFF */
     if (op->address_code == 0xFE || op->address_code == 0xFF) {
-        int n = snprintf(p, (size_t)(e-p), (op->address_code == 0xFF && op->data_len <= 2) ? "$%d" : "$%u", (op->address_code == 0xFF ? sval : (int)val));
+        int n = (op->address_code == 0xFF && op->data_len <= 2)
+            ? fmt_signed(p, (size_t)(e-p), "$", sval)
+            : fmt_unsigned(p, (size_t)(e-p), "$", val);
         if (n > 0) p += (n < (e-p) ? n : (int)(e-p));
         if (p < e) *p = '\0';
         return (size_t)(p - dst);
@@ -27,17 +49,17 @@ static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op) 
     uint8_t low6 = op->address_code & 0x3F;
     switch (op->mode) {
         case ND500_ADDR_CONSTANT_SHORT: {
-            int n = snprintf(p, (size_t)(e-p), "$%u", (unsigned)low6);
+            int n = fmt_unsigned(p, (size_t)(e-p), "$", (unsigned)low6);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
         case ND500_ADDR_LOCAL_SHORT: {
-            int n = snprintf(p, (size_t)(e-p), "b.%u", (unsigned)(low6 * 4u));
+            int n = fmt_unsigned(p, (size_t)(e-p), "b.", (unsigned)(low6 * 4u));
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
         case ND500_ADDR_RECORD_SHORT: {
-            int n = snprintf(p, (size_t)(e-p), "r.%u", (unsigned)(low6 * 4u));
+            int n = fmt_unsigned(p, (size_t)(e-p), "r.", (unsigned)(low6 * 4u));
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
@@ -51,37 +73,39 @@ static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op) 
         }
         case ND500_ADDR_ABSOLUTE:
         case ND500_ADDR_ABSOLUTE_PI: {
-            int n = snprintf(p, (size_t)(e-p), "$%u", (unsigned)val);
+            int n = fmt_unsigned(p, (size_t)(e-p), "$", (unsigned)val);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
         case ND500_ADDR_CONSTANT: {
-            int n = snprintf(p, (size_t)(e-p), "#%u", (unsigned)val);
+            int n = fmt_unsigned(p, (size_t)(e-p), "#", (unsigned)val);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
         case ND500_ADDR_LOCAL: {
-            int n = snprintf(p, (size_t)(e-p), "b.%d", sval);
+            int n = fmt_signed(p, (size_t)(e-p), "b.", sval);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
         case ND500_ADDR_RECORD: {
-            int n = snprintf(p, (size_t)(e-p), "r.%d", sval);
+            int n = fmt_signed(p, (size_t)(e-p), "r.", sval);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
         case ND500_ADDR_PREINDEXED: {
             static const char* regs[] = {"r1","r2","r3","r4"};
             if (op->reg < 4) {
-                int n = snprintf(p, (size_t)(e-p), "%d(%s)", sval, regs[op->reg]);
+                int n = fmt_signed(p, (size_t)(e-p), "", sval);
                 if (n>0) p += (n < (e-p)? n : (int)(e-p));
+                int n2 = snprintf(p, (size_t)(e-p), "(%s)", regs[op->reg]);
+                if (n2>0) p += (n2 < (e-p)? n2 : (int)(e-p));
             }
             break;
         }
         default: {
             /* Fallback to showing immediate value if present */
             if (op->data_len > 0) {
-                int n = snprintf(p, (size_t)(e-p), "$%u", (unsigned)val);
+                int n = fmt_unsigned(p, (size_t)(e-p), "$", (unsigned)val);
                 if (n>0) p += (n < (e-p)? n : (int)(e-p));
             }
             break;
@@ -121,9 +145,15 @@ size_t nd500_disasm_format_range(struct Nd500Machine* m,
         if (rc != 0 || fi.total_len == 0) {
             /* Fallback: show single byte unknown */
             uint8_t b = nd500_bus_read8(m, a);
-            pos = buf_append(out, out_cap, pos, "%08X: %02X                       ??? ; opcode 0x%04X\n", a, b, (unsigned)b);
+            pos = buf_append(out, out_cap, pos, "%08X: %02X            ???\n", a, b);
             a += 1;
             continue;
+        }
+
+        /* Check for symbol at this address and print label */
+        const char* symbol_at_addr = ndlib_symbols_name_for_addr(fi.address);
+        if (symbol_at_addr && *symbol_at_addr) {
+            pos = buf_append(out, out_cap, pos, "%08X:                  %s:\n", fi.address, symbol_at_addr);
         }
 
         /* Address */
@@ -164,10 +194,52 @@ size_t nd500_disasm_format_range(struct Nd500Machine* m,
                     pos = buf_append(out, out_cap, pos, "%s%s", (oi > 0) ? "," : "", obuf);
                 }
             }
-            pos = buf_append(out, out_cap, pos, "\n");
         } else {
-            pos = buf_append(out, out_cap, pos, "%s%s\n", regprefix, mnem);
+            pos = buf_append(out, out_cap, pos, "%s%s", regprefix, mnem);
         }
+
+        /* Check for call/branch target symbols */
+        if (nd500_instr_is_branch(fi.opcode) && fi.operand_count > 0) {
+            uint32_t target = 0;
+            int found_target = 0;
+
+            if (fi.operands[0].address_code == 0xFF || fi.operands[0].address_code == 0xFE) {
+                int is_pc_relative = (fi.operand_count == 1);
+
+                if (is_pc_relative) {
+                    /* PC-relative branch: target = PC + length + displacement (big-endian) */
+                    int32_t displacement = 0;
+                    if (fi.operands[0].data_len == 1) {
+                        displacement = (int8_t)fi.operands[0].data[0];
+                    } else if (fi.operands[0].data_len == 2) {
+                        uint16_t raw = ((uint16_t)fi.operands[0].data[0] << 8) | (uint16_t)fi.operands[0].data[1];
+                        displacement = (int16_t)raw;
+                    } else if (fi.operands[0].data_len == 4) {
+                        uint32_t raw = ((uint32_t)fi.operands[0].data[0] << 24) | ((uint32_t)fi.operands[0].data[1] << 16) |
+                                       ((uint32_t)fi.operands[0].data[2] << 8) | (uint32_t)fi.operands[0].data[3];
+                        displacement = (int32_t)raw;
+                    }
+                    target = (uint32_t)((int32_t)fi.address + (int32_t)fi.total_len + displacement);
+                    found_target = 1;
+                } else {
+                    /* Absolute call: target is first operand value (big-endian) */
+                    if (fi.operands[0].data_len >= 4) {
+                        target = ((uint32_t)fi.operands[0].data[0] << 24) | ((uint32_t)fi.operands[0].data[1] << 16) |
+                                 ((uint32_t)fi.operands[0].data[2] << 8) | (uint32_t)fi.operands[0].data[3];
+                        found_target = 1;
+                    }
+                }
+            }
+
+            if (found_target) {
+                const char* target_sym = ndlib_symbols_name_for_addr(target);
+                if (target_sym && *target_sym) {
+                    pos = buf_append(out, out_cap, pos, "  ; -> <%s>", target_sym);
+                }
+            }
+        }
+
+        pos = buf_append(out, out_cap, pos, "\n");
 
         a += (uint32_t)fi.total_len;
     }

@@ -543,31 +543,31 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
             /* Show target symbols for branch/call instructions using effective addresses */
             uint32_t target = 0;
             int found_target = 0;
-            
+
             /* For direct operands (branches/calls), calculate the target address */
             if (fi.operands[0].address_code == 0xFF || fi.operands[0].address_code == 0xFE) {
                 int is_pc_relative = (fi.operand_count == 1);  /* Single operand = PC-relative branch */
-                
+
                 if (is_pc_relative) {
-                    /* PC-relative branch: target = PC + length + displacement */
+                    /* PC-relative branch: target = PC + length + displacement (BIG-ENDIAN) */
                     int32_t displacement = 0;
                     if (fi.operands[0].data_len == 1) {
                         displacement = (int8_t)fi.operands[0].data[0];
                     } else if (fi.operands[0].data_len == 2) {
-                        uint16_t raw = (uint16_t)fi.operands[0].data[0] | ((uint16_t)fi.operands[0].data[1] << 8);
+                        uint16_t raw = ((uint16_t)fi.operands[0].data[0] << 8) | (uint16_t)fi.operands[0].data[1];
                         displacement = (int16_t)raw;
                     } else if (fi.operands[0].data_len == 4) {
-                        uint32_t raw = (uint32_t)fi.operands[0].data[0] | ((uint32_t)fi.operands[0].data[1] << 8) |
-                                       ((uint32_t)fi.operands[0].data[2] << 16) | ((uint32_t)fi.operands[0].data[3] << 24);
+                        uint32_t raw = ((uint32_t)fi.operands[0].data[0] << 24) | ((uint32_t)fi.operands[0].data[1] << 16) |
+                                       ((uint32_t)fi.operands[0].data[2] << 8) | (uint32_t)fi.operands[0].data[3];
                         displacement = (int32_t)raw;
                     }
                     target = (uint32_t)((int32_t)fi.address + (int32_t)fi.total_len + displacement);
                     found_target = 1;
                 } else {
-                    /* Absolute call: target is first operand value */
+                    /* Absolute call: target is first operand value (BIG-ENDIAN) */
                     if (fi.operands[0].data_len >= 4) {
-                        target = (uint32_t)fi.operands[0].data[0] | ((uint32_t)fi.operands[0].data[1] << 8) |
-                                 ((uint32_t)fi.operands[0].data[2] << 16) | ((uint32_t)fi.operands[0].data[3] << 24);
+                        target = ((uint32_t)fi.operands[0].data[0] << 24) | ((uint32_t)fi.operands[0].data[1] << 16) |
+                                 ((uint32_t)fi.operands[0].data[2] << 8) | (uint32_t)fi.operands[0].data[3];
                         found_target = 1;
                     }
                 }

@@ -2,6 +2,9 @@
 # This script configures MMU and system state for kernel boot
 # Executed automatically before kernel starts
 
+# ===== Debugger Settings =====
+set radix hex
+
 # ===== MMU Setup =====
 # Enable MMU address translation
 mmu enable
