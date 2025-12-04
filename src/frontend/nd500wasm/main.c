@@ -21,7 +21,7 @@ static Nd500Cpu g_cpu;
 
 /* Anchor the generated instruction table in WASM to prevent dead-stripping */
 extern const unsigned int g_nd500_instrs_count;
-extern const struct Nd500InstrDef { unsigned short opcode; const char* mnemonic; unsigned char operands; unsigned char prefixes_mask; unsigned char variant; unsigned int op_templates[4]; } g_nd500_instrs[];
+extern const struct Nd500InstrDef { unsigned short opcode; const char* mnemonic; unsigned char operands; unsigned char prefixes_mask; unsigned char variant; unsigned char has_variable_operands; unsigned int op_templates[4]; } g_nd500_instrs[];
 static unsigned int anchor_instr_table(void) {
     /* Read a couple of fields so the linker keeps the table */
     unsigned int n = g_nd500_instrs_count;

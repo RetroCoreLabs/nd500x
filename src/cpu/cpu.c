@@ -56,6 +56,10 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	cpu->pending_call_arg_count = 0;
 	memset(cpu->pending_call_arg_addresses, 0, sizeof(cpu->pending_call_arg_addresses));
 
+	/* Clear variable operand buffer */
+	cpu->extra_operand_count = 0;
+	memset(cpu->extra_operands, 0, sizeof(cpu->extra_operands));
+
 	/* Clear any pending traps */
 	nd500_trap_clear();
 }

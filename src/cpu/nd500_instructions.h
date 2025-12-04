@@ -6,7 +6,15 @@
 #pragma once
 #include <stdint.h>
 
-typedef struct { uint16_t opcode; const char* mnemonic; uint8_t operands; uint8_t prefixes_mask; uint8_t variant; uint32_t op_templates[4]; } Nd500Instr;
+typedef struct {
+    uint16_t opcode;
+    const char* mnemonic;
+    uint8_t operands;
+    uint8_t prefixes_mask;
+    uint8_t variant;
+    uint8_t has_variable_operands;  /* 1 if instruction accepts variable operands (CALL, CALLG, POLY) */
+    uint32_t op_templates[4];
+} Nd500Instr;
 extern const Nd500Instr g_nd500_instrs[];
 extern const unsigned g_nd500_instrs_count;
 

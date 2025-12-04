@@ -48,17 +48,17 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read argument count (operand 1 - byte) */
     uint8_t arg_count = nd500_read_operand_byte(cpu, &fi->operands[1]);
 
-    /* Validate operand count matches (2 + arg_count) */
-    if (fi->operand_count != (2 + arg_count)) {
-        printf("[ERROR] CALL at PC=0x%08X: Expected %u operands (2 + %u args), got %u\n",
-               fi->address, 2 + arg_count, arg_count, fi->operand_count);
+    /* Validate extra operand count matches arg_count */
+    if (cpu->extra_operand_count != arg_count) {
+        printf("[ERROR] CALL at PC=0x%08X: Expected %u extra operands, got %u\n",
+               fi->address, arg_count, cpu->extra_operand_count);
         trap_illegal_operand(cpu, fi->address);
         return;
     }
 
-    /* Calculate effective addresses of all arguments */
-    for (uint32_t i = 0; i < arg_count && i < 256; i++) {
-        const Nd500OperandDecoded* arg_operand = &fi->operands[2 + i];
+    /* Process arguments from cpu->extra_operands (decoded by cpu_instr.c) */
+    for (uint16_t i = 0; i < arg_count && i < 256; i++) {
+        const Nd500OperandDecoded* arg_operand = &cpu->extra_operands[i];
 
         /* CALL arguments MUST be memory operands (not constants or registers) */
         /* We pass the ADDRESS of the argument, not the VALUE */

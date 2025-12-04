@@ -128,6 +128,7 @@ typedef struct InstrMeta {
 	uint8_t operands;
     uint8_t prefixes_mask;
     uint8_t variant;
+    uint8_t has_variable_operands;  /* 1 if instruction accepts variable operands (CALL, CALLG, POLY) */
     uint32_t op_templates[4];
 } InstrMeta;
 
@@ -207,6 +208,7 @@ static const InstrMeta* lookup(uint16_t opcode) {
             g_table[i].operands = g_nd500_instrs[i].operands;
             g_table[i].prefixes_mask = g_nd500_instrs[i].prefixes_mask;
             g_table[i].variant = g_nd500_instrs[i].variant;
+            g_table[i].has_variable_operands = g_nd500_instrs[i].has_variable_operands;
             for (int j = 0; j < 4; j++) g_table[i].op_templates[j] = g_nd500_instrs[i].op_templates[j];
         }
     }
@@ -513,8 +515,8 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         *(cursor_ptr) += _disp_len; \
     } while(0)
 
-    /* Check if this is CALL or CALLG (variable operand instructions) */
-    int is_call = (opcode == 0x00C3 || opcode == 0x00B5);  /* call=0xC3, callg=0xB5 */
+    /* Check if this is a variable operand instruction (CALL, CALLG, POLY) using metadata */
+    int is_var_op_instr = lookup(opcode)->has_variable_operands;
     uint8_t arg_count = 0;
 
     /* Decode all operands IN ORDER - handle both direct and non-direct */
@@ -527,8 +529,8 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
             DECODE_GENERAL_OPERAND(&out->operands[i], &cursor, &byte_idx);
         }
 
-        /* For CALL/CALLG, extract arg count from operand 1 */
-        if (is_call && i == 1) {
+        /* For variable operand instructions, extract arg count from operand 1 */
+        if (is_var_op_instr && i == 1) {
             Nd500OperandDecoded *arg_count_op = &out->operands[1];
             if (arg_count_op->mode == ND500_ADDR_CONSTANT_SHORT) {
                 /* Short constant: value is in address_code lower 6 bits */
@@ -537,20 +539,17 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
                 /* Extended constant byte */
                 arg_count = arg_count_op->data[0];
             }
-            /* Limit to what we can handle */
-            if (arg_count > ND500_MAX_OPERANDS - 2) {
-                arg_count = ND500_MAX_OPERANDS - 2;
-            }
+            /* arg_count can be 0-255, no truncation needed */
         }
     }
 
-    /* For CALL/CALLG: decode additional argument operands */
-    if (is_call && arg_count > 0) {
-        for (uint8_t i = 0; i < arg_count && (out->operand_count + i) < ND500_MAX_OPERANDS; ++i) {
-            uint8_t arg_idx = out->operand_count + i;
-            DECODE_GENERAL_OPERAND(&out->operands[arg_idx], &cursor, &byte_idx);
+    /* For variable operand instructions (CALL/CALLG/POLY): decode additional argument operands into CPU buffer */
+    if (is_var_op_instr && arg_count > 0 && m->cpu) {
+        m->cpu->extra_operand_count = 0;
+        for (uint16_t i = 0; i < arg_count && i < 256; ++i) {
+            DECODE_GENERAL_OPERAND(&m->cpu->extra_operands[i], &cursor, &byte_idx);
+            m->cpu->extra_operand_count++;
         }
-        out->operand_count += arg_count;
     }
 
     #undef DECODE_GENERAL_OPERAND
@@ -563,13 +562,18 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
             out->operands[i].effective_address = compute_effective_address(m->cpu, &out->operands[i]);
         }
+        /* Compute effective addresses for extra operands (CALL/CALLG/POLY arguments) */
+        for (uint16_t i = 0; i < m->cpu->extra_operand_count && i < 256; ++i) {
+            m->cpu->extra_operands[i].effective_address =
+                compute_effective_address(m->cpu, &m->cpu->extra_operands[i]);
+        }
     } else {
         /* No CPU linked yet - zero the addresses */
         for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
             out->operands[i].effective_address = 0;
         }
     }
-    
+
     out->total_len = (uint32_t)(cursor - pc);
 	return 0;
 }

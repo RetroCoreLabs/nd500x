@@ -174,20 +174,18 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
            subroutine_addr, arg_count, fi->address);
 
     /* ========================================================================
-     * STEP 4: VALIDATE TOTAL OPERAND COUNT
+     * STEP 4: VALIDATE EXTRA OPERAND COUNT
      * ======================================================================== */
-    /* Total operands must be: 2 fixed (address + count) + arg_count arguments */
-    uint32_t expected_operands = 2 + arg_count;
-
-    if (fi->operand_count != expected_operands) {
-        printf("[ERROR] CALLG operand count mismatch: expected %u (2 + %u args), got %u at PC=0x%08X\n",
-               expected_operands, arg_count, fi->operand_count, fi->address);
+    /* Extra operands (arguments) are stored in cpu->extra_operands by decoder */
+    if (cpu->extra_operand_count != arg_count) {
+        printf("[ERROR] CALLG operand count mismatch: expected %u extra operands, got %u at PC=0x%08X\n",
+               arg_count, cpu->extra_operand_count, fi->address);
         trap_illegal_operand(cpu, fi->address);
         return;
     }
 
     /* ========================================================================
-     * STEP 5: CALCULATE EFFECTIVE ADDRESSES OF ALL ARGUMENTS
+     * STEP 5: PROCESS ARGUMENTS FROM CPU EXTRA OPERANDS BUFFER
      * ========================================================================
      *
      * IMPORTANT: We pass ADDRESSES of arguments, not VALUES!
@@ -199,8 +197,8 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * address, so they cannot be passed to subroutines.
      * ======================================================================== */
 
-    for (uint32_t i = 0; i < arg_count && i < 256; i++) {
-        const Nd500OperandDecoded* arg_operand = &fi->operands[2 + i];
+    for (uint16_t i = 0; i < arg_count && i < 256; i++) {
+        const Nd500OperandDecoded* arg_operand = &cpu->extra_operands[i];
 
         /* Validate: Arguments MUST be memory operands, not constants */
         if (arg_operand->mode == ND500_ADDR_CONSTANT ||

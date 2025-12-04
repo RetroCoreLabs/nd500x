@@ -4,6 +4,37 @@
 #include <setjmp.h>
 #include "../machine/machine_types.h"
 
+/* Forward declarations for Nd500Cpu dependencies */
+typedef enum Nd500AddrMode {
+    ND500_ADDR_UNKNOWN = 0,
+    ND500_ADDR_CONSTANT_SHORT,
+    ND500_ADDR_LOCAL_SHORT,
+    ND500_ADDR_RECORD_SHORT,
+    ND500_ADDR_LOCAL,
+    ND500_ADDR_LOCAL_PI,
+    ND500_ADDR_LOCAL_IND,
+    ND500_ADDR_LOCAL_IND_PI,
+    ND500_ADDR_RECORD,
+    ND500_ADDR_PREINDEXED,
+    ND500_ADDR_ABSOLUTE,
+    ND500_ADDR_ABSOLUTE_PI,
+    ND500_ADDR_CONSTANT,
+    ND500_ADDR_REGISTER,
+    ND500_ADDR_DESCRIPTOR,
+    ND500_ADDR_ALTERNATIVE
+} Nd500AddrMode;
+
+typedef struct Nd500OperandDecoded {
+    uint8_t address_code;
+    uint8_t has_alt_prefix;
+    uint8_t has_desc_prefix;
+    uint8_t reg;
+    Nd500AddrMode mode;
+    uint8_t data_len;
+    uint8_t data[8];
+    uint32_t effective_address;  /* Computed effective address for memory operands */
+} Nd500OperandDecoded;
+
 typedef struct Nd500Cpu {
 	/* Core registers */
 	uint32_t PC;
@@ -35,6 +66,10 @@ typedef struct Nd500Cpu {
 	uint32_t pending_call_return_address;  /* Return address from CALL to pass to ENT */
 	uint32_t pending_call_arg_count;       /* Number of arguments from CALL */
 	uint32_t pending_call_arg_addresses[256]; /* Effective addresses of arguments */
+
+	/* Variable operand buffer for CALL/CALLG/POLY (decoded operands beyond first 2) */
+	Nd500OperandDecoded extra_operands[256];
+	uint16_t extra_operand_count;
 
 	/* ND-100 I/O Processor Bridge Configuration */
 	uint32_t nd100_memory_offset;  /* Physical memory offset for ND-100 memory (default: 0x40000) */
@@ -164,35 +199,7 @@ int nd500_instr_is_branch(uint16_t opcode);
 int nd500_instr_operand_is_direct(uint16_t opcode, uint8_t operand_idx);
 
 /* Decoded instruction model */
-typedef enum Nd500AddrMode {
-    ND500_ADDR_UNKNOWN = 0,
-    ND500_ADDR_CONSTANT_SHORT,
-    ND500_ADDR_LOCAL_SHORT,
-    ND500_ADDR_RECORD_SHORT,
-    ND500_ADDR_LOCAL,
-    ND500_ADDR_LOCAL_PI,
-    ND500_ADDR_LOCAL_IND,
-    ND500_ADDR_LOCAL_IND_PI,
-    ND500_ADDR_RECORD,
-    ND500_ADDR_PREINDEXED,
-    ND500_ADDR_ABSOLUTE,
-    ND500_ADDR_ABSOLUTE_PI,
-    ND500_ADDR_CONSTANT,
-    ND500_ADDR_REGISTER,
-    ND500_ADDR_DESCRIPTOR,
-    ND500_ADDR_ALTERNATIVE
-} Nd500AddrMode;
-
-typedef struct Nd500OperandDecoded {
-    uint8_t address_code;
-    uint8_t has_alt_prefix;
-    uint8_t has_desc_prefix;
-    uint8_t reg;
-    Nd500AddrMode mode;
-    uint8_t data_len;
-    uint8_t data[8];
-    uint32_t effective_address;  /* Computed effective address for memory operands */
-} Nd500OperandDecoded;
+/* Note: Nd500AddrMode and Nd500OperandDecoded defined at top of file (needed by Nd500Cpu) */
 
 /**
  * Data type enumeration for instruction operands
@@ -204,7 +211,8 @@ typedef enum {
     ND500_DTYPE_DOUBLEWORD = 3  // 64-bit (D)
 } Nd500DataType;
 
-/* Maximum operands for variable-length instructions like CALL (2 + up to 14 args) */
+/* Maximum operands in decoded instruction struct (fixed operands only).
+ * Variable-operand instructions (CALL/CALLG/POLY) store extra operands in cpu->extra_operands */
 #define ND500_MAX_OPERANDS 16
 
 typedef struct Nd500FetchedInstruction {
