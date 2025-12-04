@@ -4,10 +4,12 @@
 #include <stdlib.h>
 #include "../../machine/machine_protos.h"
 #include "../../cpu/cpu_protos.h"
+#include "../../cpu/nd500_mmu.h"
 #include "../../debugger/debugger.h"
 #include "../../debugger/commands.h"
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
+#include "nd500_dom.h"
 
 static void print_usage(const char* prog) {
     printf("ND-500 Emulator - nd500x\n\n");
@@ -93,7 +95,7 @@ int main(int argc, char** argv) {
 
     Nd500Machine machine;
     /* Initialize with 16MB of physical memory
-     * Virtual memory is handled by the MMU */
+     * Virtual addresses are mapped to physical via MMU */
     nd500_machine_init(&machine, 16 * 1024 * 1024);
 	Nd500Cpu cpu;
 	nd500_cpu_init(&cpu, &machine);
@@ -198,14 +200,111 @@ int main(int argc, char** argv) {
 
     if (dom_path) {
         int rc = ndlib_load_dom_header(dom_path);
-        if (rc == 0) {
-            printf("DOM loaded: %s (file kept open for segment loading)\n", dom_path);
-        } else if (rc == -1) {
-            printf("DOM load failed: %s (file not found)\n", dom_path);
-        } else if (rc == -2) {
-            printf("DOM load failed: %s (file too small?)\n", dom_path);
+        if (rc != 0) {
+            if (rc == -1) {
+                printf("DOM load failed: %s (file not found)\n", dom_path);
+            } else if (rc == -2) {
+                printf("DOM load failed: %s (file too small?)\n", dom_path);
+            } else {
+                printf("DOM load failed: %s (error %d)\n", dom_path, rc);
+            }
         } else {
-            printf("DOM load failed: %s (error %d)\n", dom_path, rc);
+            /* Load segments into memory */
+            rc = ndlib_load_dom_segments();
+            if (rc != 0) {
+                printf("DOM segment load failed: %s\n", dom_path);
+            } else {
+                const nd500_header_t* hdr = ndlib_get_dom_header();
+                int is_dom = ndlib_dom_is_dom_file();
+                uint32_t start_addr = nd500_read32(&hdr->raw[0xD8]);
+
+                /* Physical memory layout:
+                 *   0x00000000: DATA segment (kernel data, segment 0)
+                 *   After DATA:  PROG segment (kernel text, segment 1)
+                 *
+                 * Virtual addresses:
+                 *   0x00000000: Kernel data (segment 0)
+                 *   0x08000000: Kernel text (segment 1)
+                 *
+                 * MMU mapping: virtual segment -> PSN -> physical PFN
+                 */
+
+                uint32_t phys_data_base = 0x00000000;  /* Physical address for DATA */
+                uint32_t phys_prog_base = 0x00000000;  /* Will be set after DATA */
+                uint32_t total_data_size = 0;
+                uint32_t total_prog_size = 0;
+
+                /* First pass: calculate total sizes and load to physical memory */
+                int max_segs = is_dom ? 32 : 1;
+                for (int i = 0; i < max_segs; i++) {
+                    uint32_t data_size, data_addr;
+                    const uint8_t* data_data = ndlib_dom_get_data_section(i, &data_size, &data_addr);
+                    if (data_data && data_size > 0) {
+                        /* Load DATA to physical memory starting at 0 */
+                        uint32_t phys_addr = phys_data_base + total_data_size;
+                        for (uint32_t j = 0; j < data_size; j++) {
+                            nd500_bus_write8(&machine, phys_addr + j, data_data[j]);
+                        }
+                        printf("Segment %d DATA: %u bytes -> phys 0x%08X (virt 0x%08X)\n",
+                               i, data_size, phys_addr, data_addr);
+                        total_data_size += data_size;
+                    }
+                }
+
+                /* Align PROG to page boundary (2KB) after DATA */
+                phys_prog_base = (phys_data_base + total_data_size + 0x7FF) & ~0x7FF;
+
+                for (int i = 0; i < max_segs; i++) {
+                    uint32_t seg_size, seg_addr;
+                    const uint8_t* seg_data = ndlib_dom_get_segment_data(i, &seg_size, &seg_addr);
+                    if (seg_data && seg_size > 0) {
+                        /* Load PROG to physical memory after DATA */
+                        uint32_t phys_addr = phys_prog_base + total_prog_size;
+                        for (uint32_t j = 0; j < seg_size; j++) {
+                            nd500_bus_write8(&machine, phys_addr + j, seg_data[j]);
+                        }
+                        printf("Segment %d PROG: %u bytes -> phys 0x%08X (virt 0x%08X)\n",
+                               i, seg_size, phys_addr, seg_addr);
+                        total_prog_size += seg_size;
+                    }
+                }
+
+                /* Set up MMU: Map virtual addresses to physical memory */
+                /* PST entry: PSN -> Physical PFN (page frame number, 2KB pages) */
+                /* PCB capability: Segment -> PSN */
+
+                /* Use PSN 100 for kernel data, PSN 101 for kernel text */
+                int psn_data = 100;
+                int psn_prog = 101;
+                uint32_t pfn_data = phys_data_base >> 11;  /* PFN = phys_addr / 2048 */
+                uint32_t pfn_prog = phys_prog_base >> 11;
+
+                /* Set up PST entries (direct mapping, PS_AZI) */
+                nd500_mmu_set_pst_entry(&cpu, psn_data, PS_AZI, pfn_data);
+                nd500_mmu_set_pst_entry(&cpu, psn_prog, PS_AZI, pfn_prog);
+
+                /* Set up Domain 0 PCB capabilities */
+                /* Virtual 0x08000000 = segment 1 (bits 31:27 = 1) -> PSN for PROG */
+                /* Virtual 0x00000000 = segment 0 (bits 31:27 = 0) -> PSN for DATA */
+                nd500_mmu_set_program_capability(&cpu, 0, 1, psn_prog | PC_DIR);  /* Segment 1 -> PROG */
+                nd500_mmu_set_program_capability(&cpu, 0, 0, psn_data | PC_DIR);  /* Segment 0 -> DATA (for reads) */
+                nd500_mmu_set_data_capability(&cpu, 0, 0, psn_data | DC_WRP);     /* Segment 0 -> DATA (r/w) */
+                nd500_mmu_set_data_capability(&cpu, 0, 1, psn_prog);              /* Segment 1 -> PROG (r/o) */
+
+                /* Enable program MMU so PC translation works */
+                nd500_mmu_enable_program(&cpu);
+                nd500_mmu_enable_data(&cpu);
+
+                printf("MMU configured: DATA PSN=%d->PFN=%u, PROG PSN=%d->PFN=%u\n",
+                       psn_data, pfn_data, psn_prog, pfn_prog);
+
+                /* Set PC to virtual start address (MMU will translate) */
+                if (!has_start_pc) {
+                    cpu.PC = start_addr;
+                }
+
+                printf("DOM loaded: %s (start=0x%08X, MMU enabled)\n", dom_path, start_addr);
+            }
         }
     }
 

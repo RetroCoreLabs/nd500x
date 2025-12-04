@@ -63,12 +63,16 @@ void nd500_mmu_init(Nd500Cpu* cpu) {
 void nd500_mmu_enable_data(Nd500Cpu* cpu) {
     if (!cpu) return;
     g_mmu_data_enabled = 1;
+    /* Also set machine->mmu_enabled so data access uses MMU translation */
+    if (cpu->machine) cpu->machine->mmu_enabled = 1;
     printf("ND-500: Data MMU enabled (DMON)\n");
 }
 
 void nd500_mmu_disable_data(Nd500Cpu* cpu) {
     if (!cpu) return;
     g_mmu_data_enabled = 0;
+    /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
+    if (cpu->machine && !g_mmu_program_enabled) cpu->machine->mmu_enabled = 0;
     printf("ND-500: Data MMU disabled (DMOF)\n");
 }
 
@@ -83,12 +87,16 @@ int nd500_mmu_is_data_enabled(Nd500Cpu* cpu) {
 void nd500_mmu_enable_program(Nd500Cpu* cpu) {
     if (!cpu) return;
     g_mmu_program_enabled = 1;
+    /* Also set machine->mmu_enabled so instruction decode uses MMU translation */
+    if (cpu->machine) cpu->machine->mmu_enabled = 1;
     printf("ND-500: Program MMU enabled (PMON)\n");
 }
 
 void nd500_mmu_disable_program(Nd500Cpu* cpu) {
     if (!cpu) return;
     g_mmu_program_enabled = 0;
+    /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
+    if (cpu->machine && !g_mmu_data_enabled) cpu->machine->mmu_enabled = 0;
     printf("ND-500: Program MMU disabled (PMOF)\n");
 }
 
