@@ -7,13 +7,21 @@ Generated from nd500_tests.json and instructions_gen.c
 | Category | Count |
 |----------|-------|
 | Total unique mnemonics | 175 |
-| Tested | 39 (22%) |
-| Untested | 136 (77%) |
-| Total test cases | 20902 |
+| Tested | 80 (46%) |
+| Untested | 95 (54%) |
+| Total test cases | 21,545 |
+
+## Test Results (Latest Run)
+
+| Metric | Value |
+|--------|-------|
+| Passed | 21,545 |
+| Failed | 0 |
+| Pass Rate | 100% |
 
 ## Untested Instructions by Class
 
-### ARITHMETIC (21 instructions)
+### ARITHMETIC (20 instructions)
 
 | Instruction | Opcode Variants |
 |-------------|-----------------|
@@ -31,7 +39,6 @@ Generated from nd500_tests.json and instructions_gen.c
 | ppackr | 1 |
 | psub | 1 |
 | psubr | 1 |
-| psum | 20 |
 | pupack | 1 |
 | pupackr | 1 |
 | rem | 8 |
@@ -257,3 +264,4 @@ Generated from nd500_tests.json and instructions_gen.c
 | swap | 72 | 6 |
 | test | 312 | 6 |
 | xor | 1392 | 16 |
+| psum | 240 | 20 |
