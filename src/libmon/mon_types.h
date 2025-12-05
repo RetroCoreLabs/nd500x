@@ -87,6 +87,10 @@ typedef struct MonContext {
     int break_requested;        /* Request debugger break */
     const char* halt_reason;    /* Human-readable halt reason */
 
+    /* Error reporting (set by handlers via mon_set_error) */
+    int32_t error_code;         /* Error code from last MON call (CPU-agnostic) */
+    int error_flag;             /* 1 if error occurred (maps to K flag) */
+
 } MonContext;
 
 /* =========================================================================
@@ -109,6 +113,7 @@ typedef struct {
     const char* name;           /* Short name (e.g., "TIME") */
     const char* long_name;      /* Long name (e.g., "GetBasicTime") */
     const char* description;    /* Description from YAML */
+    const char* params_desc;    /* Parameter description (e.g., "[O] BasicTime (LONGINT)") */
     MonHandler handler;         /* Handler function pointer */
     MonImplStatus status;       /* Implementation status */
     uint8_t param_count;        /* Expected parameter count */
