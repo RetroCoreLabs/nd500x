@@ -44,7 +44,7 @@ void nd500_instr_IfGreaterThanGo(Nd500Cpu* cpu, const Nd500FetchedInstruction* f
         /* Sign-extend based on data type (using helper to avoid duplication) */
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
-        /* Update PC (relative branch) */
-        cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
+        /* Update PC (relative branch from instruction start) */
+        cpu->PC = (uint32_t)(fi->address + displacement);
     }
 }
