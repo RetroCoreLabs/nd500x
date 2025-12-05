@@ -65,6 +65,21 @@ void mon_register(
     MonImplStatus status,
     uint8_t param_count)
 {
+    mon_register_ex(mon_number, octal_str, name, long_name, description, NULL,
+                    handler, status, param_count);
+}
+
+void mon_register_ex(
+    uint32_t mon_number,
+    const char* octal_str,
+    const char* name,
+    const char* long_name,
+    const char* description,
+    const char* params_desc,
+    MonHandler handler,
+    MonImplStatus status,
+    uint8_t param_count)
+{
     if (mon_number >= MON_REGISTRY_SIZE) {
         mon_log(MON_LOG_ERROR, "MON %u (%s) exceeds registry size", mon_number, octal_str);
         return;
@@ -82,6 +97,7 @@ void mon_register(
     entry->name = name;
     entry->long_name = long_name;
     entry->description = description;
+    entry->params_desc = params_desc;
     entry->handler = handler;
     entry->status = status;
     entry->param_count = param_count;
