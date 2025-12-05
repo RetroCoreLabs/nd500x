@@ -404,7 +404,7 @@ void mon_register_all_handlers(void) {
         "Gets the time you have used the CPU since you logged in. In batch jobs, you get the time since you entered the job. CPU time is in basic time units (1/50th second). Can also be used from RT-programs.",  /* Description */
         "[O] TimeUsed (LONGINT): CPU time used in basic time units (1/50s). Output returned in W1 register.",  /* Parameter details */
         mon_114B_GetTimeUsed,  /* Handler */
-        MON_STATUS_VALIDATED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -677,7 +677,7 @@ void mon_register_all_handlers(void) {
         "Outputs a user-defined, real-time error. The error message is output on the error device, i.e. norma",  /* Description */
         "[I] ErrorNumber (INTEGER): Error number (50-69). This number is output following ERROR.\\n[I] SubErrorNumber (INTEGER): Suberror number.",  /* Parameter details */
         mon_142B_ToErrorDevice,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -688,7 +688,7 @@ void mon_register_all_handlers(void) {
         "Gets information about the execution of the calling program. You are told whether the program execut",  /* Description */
         "[O] ExecutionMode (INTEGER): Execution mode:\n0 = interactive program\n1 = batch job\n2 = mode job\n3 = RT program\\n[O] InputDev (INTEGER): Logical device number for command input. Terminal number for interactive, file number for batch/mode.\\n[O] OutputDev (INTEGER): Logical device number for command output. Terminal number for interactive, file number for batch/mode.\\n[O] UserIndex (INTEGER): Directory and user index of program's owner. Bits 8-15=directory index, bits 0-7=user index.",  /* Parameter details */
         mon_143B_ExecutionInfo,  /* Handler */
-        MON_STATUS_VALIDATED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         4             /* Param count */
     );
     mon_register_ex(
@@ -1840,7 +1840,7 @@ void mon_register_all_handlers(void) {
         "Writes a message to the user's terminal. This is convenient for error messages in background program",  /* Description */
         "[I] Message (STRING): String message to write to user's terminal (max 512 characters).",  /* Parameter details */
         mon_32B_OutMessage,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -2222,7 +2222,7 @@ void mon_register_all_handlers(void) {
         "Connects an empty data segment to the user's domain and reserves space for it on the swap file. The ",  /* Description */
         "[I] SizeInBytes (INTEGER): Segment size in bytes.\\n[I] LogSegmentNo (INTEGER): Logical segment number to use. Use 0 for system to select first available free segment.\\n[O] RetLogSegmentNo (INTEGER): Returns the logical segment number actually selected.",  /* Parameter details */
         mon_422B_GetScratchSegment,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         3             /* Param count */
     );
     mon_register_ex(
@@ -2595,7 +2595,7 @@ void mon_register_all_handlers(void) {
         "Outputs a file system error message. Appendix A shows the messages connected to each error code. The",  /* Description */
         "[I] ErrCode (INTEGER): Error code number. Error code 0 is illegal. See appendix A.",  /* Parameter details */
         mon_64B_WarningMessage,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
