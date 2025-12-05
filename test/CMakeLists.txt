@@ -20,6 +20,11 @@ add_executable(test_source_mapping
 )
 target_link_libraries(test_source_mapping PRIVATE nd500_ndlib nd500_machine)
 
+add_executable(test_lget_instruction
+    test_lget_instruction.c
+)
+target_link_libraries(test_lget_instruction PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # Instruction validation tests (requires cJSON)
 # Find cJSON independently to ensure it's available in this scope
 find_package(PkgConfig QUIET)
