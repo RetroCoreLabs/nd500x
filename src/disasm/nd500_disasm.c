@@ -207,7 +207,7 @@ size_t nd500_disasm_format_range(struct Nd500Machine* m,
                 int is_pc_relative = (fi.operand_count == 1);
 
                 if (is_pc_relative) {
-                    /* PC-relative branch: target = PC + length + displacement (big-endian) */
+                    /* PC-relative branch: target = PC + displacement (big-endian) */
                     int32_t displacement = 0;
                     if (fi.operands[0].data_len == 1) {
                         displacement = (int8_t)fi.operands[0].data[0];
@@ -219,7 +219,7 @@ size_t nd500_disasm_format_range(struct Nd500Machine* m,
                                        ((uint32_t)fi.operands[0].data[2] << 8) | (uint32_t)fi.operands[0].data[3];
                         displacement = (int32_t)raw;
                     }
-                    target = (uint32_t)((int32_t)fi.address + (int32_t)fi.total_len + displacement);
+                    target = (uint32_t)((int32_t)fi.address + displacement);
                     found_target = 1;
                 } else {
                     /* Absolute call: target is first operand value (big-endian) */
@@ -360,7 +360,7 @@ size_t nd500_disasm_format_range_json(struct Nd500Machine* m,
                 int is_pc_relative = (fi.operand_count == 1);
 
                 if (is_pc_relative) {
-                    /* PC-relative branch: target = PC + length + displacement (big-endian) */
+                    /* PC-relative branch: target = PC + displacement (big-endian) */
                     int32_t displacement = 0;
                     if (fi.operands[0].data_len == 1) {
                         displacement = (int8_t)fi.operands[0].data[0];
@@ -372,7 +372,7 @@ size_t nd500_disasm_format_range_json(struct Nd500Machine* m,
                                        ((uint32_t)fi.operands[0].data[2] << 8) | (uint32_t)fi.operands[0].data[3];
                         displacement = (int32_t)raw;
                     }
-                    target = (uint32_t)((int32_t)fi.address + (int32_t)fi.total_len + displacement);
+                    target = (uint32_t)((int32_t)fi.address + displacement);
                     found_target = 1;
                 } else {
                     /* Absolute call: target is first operand value (big-endian) */
