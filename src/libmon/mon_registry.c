@@ -1,10 +1,11 @@
 /*
  * MON Handler Registry
  *
- * AUTO-GENERATED - DO NOT EDIT
- *
- * This file registers all MON call handlers.
- * Run tools/generate_mon_handlers.py to regenerate.
+ * Initially auto-generated, now MANUALLY MAINTAINED.
+ * Update status field when implementing MON calls:
+ *   MON_STATUS_NOT_IMPLEMENTED - stub only
+ *   MON_STATUS_IN_PROGRESS     - partially implemented
+ *   MON_STATUS_VALIDATED       - fully tested and working
  */
 
 #include "mon.h"
@@ -249,7 +250,7 @@ void mon_register_all_handlers(void) {
         "ExitFromProgram",          /* Long name */
         "Terminates the program. Returns to SINTRAN III. Batch jobs continues with the next command.\n\n- Backg",  /* Description */
         mon_0B_ExitFromProgram,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         0             /* Param count */
     );
     mon_register_ex(
@@ -447,7 +448,7 @@ void mon_register_all_handlers(void) {
         "**Time**\n\nGets the current internal time. The internal time is specified in basic time units. There ",  /* Description */
         "[O] BasicTime (LONGINT): Internal time in basic time units (output). 50 units per second.",  /* Parameter details */
         mon_11B_GetBasicTime,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -1600,7 +1601,7 @@ void mon_register_all_handlers(void) {
         "Writes one byte to a character device, e.g. a terminal or an opened file. If the device is a word-or",  /* Description */
         "[I] DeviceNumber (INTEGER): Logical device number. See appendix B. Use 1 for your own terminal.\\n[I] OutputValue (INTEGER): The byte to write.",  /* Parameter details */
         mon_2B_OutByte,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
