@@ -188,9 +188,11 @@ int ndlib_dom_load_to_machine(
     nd500_mmu_set_program_capability(cpu, 0, 0, psn_data | PC_DIR);
     nd500_mmu_set_data_capability(cpu, 0, 0, psn_data | DC_WRP);
 
-    /* Segment 1: PROG area (0x08xxxxxx) - writable for data access */
+    /* Segment 1: PROG area (0x08xxxxxx)
+     * - Program capability -> PSN 101 (code pages)
+     * - Data capability -> PSN 100 (data pages) for reading string literals etc. */
     nd500_mmu_set_program_capability(cpu, 0, 1, psn_prog | PC_DIR);
-    nd500_mmu_set_data_capability(cpu, 0, 1, psn_prog | DC_WRP);
+    nd500_mmu_set_data_capability(cpu, 0, 1, psn_data | DC_WRP);
 
     /* ========================================================================
      * SEGMENT 31: SINTRAN III Monitor Call Interception
