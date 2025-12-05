@@ -32,6 +32,7 @@ typedef struct {
 static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mem(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mem_prog(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_mem_phys(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_dis(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_show(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_step(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -78,6 +79,7 @@ static const CmdEntry g_commands[] = {
 	{"?",           cmd_help,         "Show help message"},
 	{"m",           cmd_mem,          "Display memory hex dump (data space)"},
 	{"mp",          cmd_mem_prog,     "Display memory hex dump (program space)"},
+	{"m!",          cmd_mem_phys,     "Display physical memory (bypass MMU)"},
 	{"d",           cmd_dis,          "Disassemble instructions"},
 	{"dis",         cmd_dis,          "Disassemble instructions"},
 	{"disasm",      cmd_dis,          "Disassemble instructions"},
@@ -312,7 +314,9 @@ int nd500_cmd_execute(Nd500Machine* m, const char* cmdline, CmdContext* ctx) {
 static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "Commands:");
 	output(ctx, "  help                        Show this help");
-	output(ctx, "  m [addr [len]]              Hex dump memory (default addr=PC, len=100)");
+	output(ctx, "  m [addr [len]]              Hex dump memory - data space (default addr=PC, len=100)");
+	output(ctx, "  mp [addr [len]]             Hex dump memory - program space");
+	output(ctx, "  m! [addr [len]]             Hex dump physical memory (bypass MMU)");
 	output(ctx, "  d [addr [len]]              Disassemble bytes (default addr=PC, len=100)");
 	output(ctx, "  show ea [on|off]            Toggle/show effective-address breakdown in disassembly");
 	output(ctx, "  show hex [on|off]           Toggle hex bytes in disassembly (default: on)");
@@ -467,6 +471,44 @@ static int cmd_mem_prog(Nd500Machine* m, CmdContext* ctx, char* args) {
 				if (m->mmu_enabled && m->cpu) {
 					paddr = nd500_mmu_translate(m->cpu, vaddr, 0, 1);
 				}
+				uint8_t b = nd500_bus_read8(m, paddr);
+				hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "%02X ", b);
+				ascii_part[j] = isprint(b) ? (char)b : '.';
+				if (j == 7) hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, " ");
+			} else {
+				hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "   ");
+				ascii_part[j] = ' ';
+			}
+		}
+		ascii_part[16] = '\0';
+
+		snprintf(line, sizeof(line), "%08X: %-50s |%s|", line_addr, hex_part, ascii_part);
+		output(ctx, "%s", line);
+	}
+	return 0;
+}
+
+/* Physical memory dump - bypasses MMU translation entirely */
+static int cmd_mem_phys(Nd500Machine* m, CmdContext* ctx, char* args) {
+	uint32_t pc = m && m->cpu ? m->cpu->PC : 0;
+	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
+	char* a2 = a1 ? strtok(NULL, " \t\r\n") : NULL;
+
+	uint32_t addr = nd500_cmd_parse_u32(a1, pc);
+	uint32_t len = nd500_cmd_parse_u32(a2, 100);
+
+	char line[256];
+	for (uint32_t i = 0; i < len; i += 16) {
+		uint32_t line_addr = addr + i;
+		char hex_part[64];
+		char ascii_part[20];
+		int hex_pos = 0;
+
+		/* Build hex and ASCII parts - direct physical access, no MMU */
+		for (uint32_t j = 0; j < 16; ++j) {
+			uint32_t idx = i + j;
+			if (idx < len) {
+				uint32_t paddr = line_addr + j;
 				uint8_t b = nd500_bus_read8(m, paddr);
 				hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "%02X ", b);
 				ascii_part[j] = isprint(b) ? (char)b : '.';
@@ -714,9 +756,9 @@ static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args) {
 	nd500_dbg_regs(m->cpu, &r);
 
 	output(ctx, "PC=%08X FLAGS=%08X", r.PC, r.FLAGS);
-	output(ctx, "I: %08X %08X %08X %08X", r.I[0], r.I[1], r.I[2], r.I[3]);
-	output(ctx, "A: %08X %08X %08X %08X", r.A[0], r.A[1], r.A[2], r.A[3]);
-	output(ctx, "E: %08X %08X %08X %08X", r.E[0], r.E[1], r.E[2], r.E[3]);
+	output(ctx, "I1/W1=%08X I2/W2=%08X I3/W3=%08X I4/W4=%08X", r.I[0], r.I[1], r.I[2], r.I[3]);
+	output(ctx, "A1/F1=%08X A2/F2=%08X A3/F3=%08X A4/F4=%08X", r.A[0], r.A[1], r.A[2], r.A[3]);
+	output(ctx, "E1=%08X E2=%08X E3=%08X E4=%08X  (D1-D4 high)", r.E[0], r.E[1], r.E[2], r.E[3]);
 	output(ctx, "L=%08X B=%08X R=%08X", r.L, r.B, r.R);
 	output(ctx, "TOS=%08X LL=%08X HL=%08X THA=%08X", r.TOS, r.LL, r.HL, r.THA);
 	output(ctx, "OTE1=%08X OTE2=%08X CTE1=%08X CTE2=%08X", r.OTE1, r.OTE2, r.CTE1, r.CTE2);
@@ -2147,12 +2189,22 @@ static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args) {
 	/* Perform translation */
 	uint32_t paddr = nd500_mmu_translate(m->cpu, vaddr, is_write, is_instruction);
 
-	if (paddr == 0 && vaddr != 0) {
-		output(ctx, "Translation FAILED (trap would occur)");
+	/* Detect translation failure:
+	 * - paddr == 0 when vaddr != 0 is an obvious failure
+	 * - paddr == vaddr when MMU is enabled strongly suggests failure (trap was raised)
+	 *   because with separate I/D spaces, virtual shouldn't equal physical
+	 */
+	int translation_failed = (paddr == 0 && vaddr != 0) ||
+	                         (paddr == vaddr && nd500_machine_mmu_is_enabled(m));
+
+	if (translation_failed) {
+		output(ctx, "Translation FAILED (trap raised)");
+		output(ctx, "  Returned address: 0x%08X (virtual address unchanged)", paddr);
 		output(ctx, "  Possible causes:");
 		output(ctx, "  - Invalid capability (null)");
-		output(ctx, "  - Protection violation");
-		output(ctx, "  - Page fault (PFN=0)");
+		output(ctx, "  - Protection violation (write to read-only)");
+		output(ctx, "  - Page fault (page not present)");
+		output(ctx, "  - Invalid PSN in capability");
 	} else {
 		output(ctx, "Physical Address: 0x%08X", paddr);
 		output(ctx, "  PFN:    0x%04X", paddr >> PGSHIFT);
