@@ -209,7 +209,7 @@ void mon_register_all_handlers(void) {
 
     # Registration calls
     for h in handlers:
-        desc = escape_c_string(h.get('description', '')[:100])
+        desc = escape_c_string(h.get('description', ''))
         params_desc = h.get('params_desc')
         if params_desc:
             params_desc_escaped = escape_c_string(params_desc)
