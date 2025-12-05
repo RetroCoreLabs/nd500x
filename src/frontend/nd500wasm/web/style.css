@@ -3480,3 +3480,100 @@ input[readonly] {
 #sourceModal.hidden {
     display: none;
 }
+
+/* MMU Documentation Section */
+.mmu-section.mmu-docs {
+    background: #fff;
+    border: 1px solid #dee2e6;
+}
+
+.address-format-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 15px 0;
+    font-family: 'Courier New', monospace;
+}
+
+.addr-bits {
+    display: flex;
+    justify-content: space-around;
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.addr-bits .bit-range {
+    text-align: center;
+    flex: 1;
+}
+
+.addr-fields {
+    display: flex;
+    border: 2px solid #495057;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.addr-field {
+    padding: 10px 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 12px;
+    border-right: 1px solid #495057;
+}
+
+.addr-field:last-child {
+    border-right: none;
+}
+
+.addr-field.segment {
+    flex: 5;
+    background: #E3F2FD;
+    color: #0D47A1;
+}
+
+.addr-field.l1 {
+    flex: 7;
+    background: #E0F7FA;
+    color: #00838F;
+}
+
+.addr-field.l2 {
+    flex: 9;
+    background: #E8F5E9;
+    color: #2E7D32;
+}
+
+.addr-field.offset {
+    flex: 11;
+    background: #FFF3E0;
+    color: #E65100;
+}
+
+.pst-mode-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    font-size: 13px;
+}
+
+.pst-mode-table th,
+.pst-mode-table td {
+    padding: 8px 10px;
+    border: 1px solid #dee2e6;
+    text-align: left;
+}
+
+.pst-mode-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+}
+
+.pst-mode-table tbody tr:nth-child(odd) {
+    background: #fdfdfd;
+}
+
+.pst-mode-table tbody tr:hover {
+    background: #f5f5f5;
+}

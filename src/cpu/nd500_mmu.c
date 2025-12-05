@@ -179,10 +179,12 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
      * LEVEL 1: Virtual Address → Capability
      * ───────────────────────────────────────────────────────── */
 
-    /* Extract address components: [Segment(5) | Page(16) | Offset(11)] */
-    int segment = (virtual_addr >> 27) & 0x1F;         /* Bits 31-27 */
-    int page = (virtual_addr >> PGSHIFT) & 0xFFFF;     /* Bits 26-11 */
-    int offset = virtual_addr & (NBPG - 1);            /* Bits 10-0 */
+    /* Extract address components per ND-500 architecture (ND-05.009.4, p53-54):
+     * [Segment(5) | L1 Index(7) | L2 Index(9) | Offset(11)] */
+    int segment  = (virtual_addr >> SGSHIFT) & 0x1F;                      /* Bits 31-27 */
+    int l1_index = (virtual_addr >> L1_INDEX_SHIFT) & L1_INDEX_MASK;      /* Bits 26-20 */
+    int l2_index = (virtual_addr >> L2_INDEX_SHIFT) & L2_INDEX_MASK;      /* Bits 19-11 */
+    int offset   = virtual_addr & (NBPG - 1);                             /* Bits 10-0 */
 
     /* Get current domain (CAD = Current Alternative Domain) */
     uint8_t domain = (uint8_t)cpu->CAD;
@@ -242,17 +244,31 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
     switch (pst_entry.index_mode) {
         case PS_AZI: {
-            /* Mode 0: Direct Addressing (no paging) */
+            /* Mode 0: Direct Addressing (no paging) - single 2KB page only */
+            /* For PS_AZI, both L1 and L2 indices must be 0 */
+            if (l1_index != 0 || l2_index != 0) {
+                fprintf(stderr, "[MMU] PS_AZI: L1=%d L2=%d must be 0! vaddr=0x%08X\n",
+                        l1_index, l2_index, virtual_addr);
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                return virtual_addr;
+            }
             /* Physical PFN comes directly from PST entry */
             physical_pfn = pst_entry.physical_pfn;
             break;
         }
 
         case PS_ASI: {
-            /* Mode 1: Single-Level Paging */
+            /* Mode 1: Single-Level Paging (up to 512 pages = 1MB) */
+            /* For PS_ASI, L1 must be 0; L2 selects page table entry */
+            if (l1_index != 0) {
+                fprintf(stderr, "[MMU] PS_ASI: L1=%d must be 0! vaddr=0x%08X\n",
+                        l1_index, virtual_addr);
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                return virtual_addr;
+            }
             /* PST entry points to a page table */
             uint32_t page_table_base = pst_entry.physical_pfn << PGSHIFT;
-            uint32_t pte_addr = page_table_base + (page * 4);  /* 4 bytes per PTE */
+            uint32_t pte_addr = page_table_base + (l2_index * 4);  /* Use L2 index */
 
             /* Read PTE from memory */
             PageTableEntry pte = nd500_mmu_read_pte(cpu, pte_addr);
@@ -279,15 +295,12 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
         }
 
         case PS_ADI: {
-            /* Mode 2: Two-Level Paging */
-            /* PST entry points to L1 page table */
+            /* Mode 2: Two-Level Paging (up to 128*512 = 65536 pages = 128MB) */
+            /* L1 selects L2 page table (0-127), L2 selects entry (0-511) */
+            /* l1_index and l2_index already extracted correctly at top of function */
             uint32_t l1_table_base = pst_entry.physical_pfn << PGSHIFT;
 
-            /* Extract L1 and L2 indices from page number */
-            int l1_index = (page >> 8) & 0xFF;   /* Upper 8 bits of page */
-            int l2_index = page & 0xFF;          /* Lower 8 bits of page */
-
-            /* Read L1 PTE */
+            /* Read L1 PTE using l1_index */
             uint32_t l1_pte_addr = l1_table_base + (l1_index * 4);
             PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
 
@@ -332,8 +345,8 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
     /* Debug: always show translation for high addresses on write */
     if (virtual_addr >= 0x08000000) {
-        fprintf(stderr, "[MMU] vaddr=0x%08X -> paddr=0x%08X (seg=%d page=0x%X cap=0x%04X psn=%d mode=%d pfn=0x%X)\n",
-                virtual_addr, physical_addr, segment, page, capability, psn, pst_entry.index_mode, physical_pfn);
+        fprintf(stderr, "[MMU] vaddr=0x%08X -> paddr=0x%08X (seg=%d L1=%d L2=%d cap=0x%04X psn=%d mode=%d pfn=0x%X)\n",
+                virtual_addr, physical_addr, segment, l1_index, l2_index, capability, psn, pst_entry.index_mode, physical_pfn);
     }
 
     return physical_addr;

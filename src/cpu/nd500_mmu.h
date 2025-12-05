@@ -5,7 +5,7 @@
  * ND-500 Memory Management Unit (MMU) - Three-Level Address Translation
  *
  * Architecture:
- * - Segmented addressing: 32-bit virtual addresses (5-bit segment, 16-bit page, 11-bit offset)
+ * - Segmented addressing: 32-bit virtual addresses (5-bit segment, 7-bit L1, 9-bit L2, 11-bit offset)
  * - Process Control Blocks (PCB): Per-domain capability tables (256 domains)
  * - Physical Segment Table (PST): Maps segments to physical memory (8192 entries)
  * - Two-level page tables: First and second level indirection
@@ -29,6 +29,14 @@
 #define PGSHIFT         11          /* LOG2(NBPG) */
 #define NBSG            0x8000000   /* Bytes per segment (128MB) */
 #define SGSHIFT         27          /* LOG2(NBSG) */
+
+/* ND-500 Address Decomposition (per ND-05.009.4 Reference Manual, p53-54)
+ * Virtual address format: [Segment(5) | L1 Index(7) | L2 Index(9) | Offset(11)]
+ */
+#define L1_INDEX_SHIFT  20          /* Shift to get L1 index (bits 26-20) */
+#define L1_INDEX_MASK   0x7F        /* 7 bits for L1 (128 entries max) */
+#define L2_INDEX_SHIFT  11          /* Shift to get L2 index (bits 19-11) */
+#define L2_INDEX_MASK   0x1FF       /* 9 bits for L2 (512 entries max) */
 #define NPTEPG          512         /* Page table entries per page (2048/4) */
 #define MAXSEG          32          /* Segments per domain */
 #define MAXDOM          256         /* Domains per process */

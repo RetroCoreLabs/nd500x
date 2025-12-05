@@ -261,6 +261,59 @@
                         <button id="mmuTranslateBtn" class="mmu-action-btn">🔍 Translate Address</button>
                     </div>
                 </div>
+
+                <!-- Address Format Documentation -->
+                <div class="mmu-section mmu-docs">
+                    <h4>Virtual Address Format (ND-05.009.4)</h4>
+                    <div class="address-format-diagram">
+                        <div class="addr-bits">
+                            <span class="bit-range">31-27</span>
+                            <span class="bit-range">26-20</span>
+                            <span class="bit-range">19-11</span>
+                            <span class="bit-range">10-0</span>
+                        </div>
+                        <div class="addr-fields">
+                            <span class="addr-field segment">SEG (5)</span>
+                            <span class="addr-field l1">L1 (7)</span>
+                            <span class="addr-field l2">L2 (9)</span>
+                            <span class="addr-field offset">OFFSET (11)</span>
+                        </div>
+                    </div>
+                    <table class="pst-mode-table">
+                        <thead>
+                            <tr>
+                                <th>Mode</th>
+                                <th>Description</th>
+                                <th>Max Pages</th>
+                                <th>Max Size</th>
+                                <th>Constraints</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="pst-mode-badge azi">AZI</span></td>
+                                <td>Direct addressing</td>
+                                <td>1</td>
+                                <td>2 KB</td>
+                                <td>L1=0, L2=0</td>
+                            </tr>
+                            <tr>
+                                <td><span class="pst-mode-badge asi">ASI</span></td>
+                                <td>Single-level paging</td>
+                                <td>512</td>
+                                <td>1 MB</td>
+                                <td>L1=0</td>
+                            </tr>
+                            <tr>
+                                <td><span class="pst-mode-badge adi">ADI</span></td>
+                                <td>Two-level paging</td>
+                                <td>65,536</td>
+                                <td>128 MB</td>
+                                <td>None</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- Tab Content: PST Inspector -->
@@ -294,6 +347,7 @@
                                 <th>Mode</th>
                                 <th>PFN</th>
                                 <th>Physical Address</th>
+                                <th>Max Size</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>

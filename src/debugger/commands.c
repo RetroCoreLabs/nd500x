@@ -65,6 +65,7 @@ static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_dumppt(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args);
 
@@ -124,6 +125,7 @@ static const CmdEntry g_commands[] = {
 	{"mmusetup",    cmd_mmusetup,     "Setup demo MMU configuration"},
 	{"listpst",     cmd_listpst,      "List configured PST entries"},
 	{"listpcb",     cmd_listpcb,      "List configured PCB domains"},
+	{"dumppt",      cmd_dumppt,       "Dump page table entries for PSN"},
 	{"mon",         cmd_mon,          "SINTRAN MON call settings"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
@@ -183,6 +185,18 @@ static void error(CmdContext* ctx, const char* fmt, ...) {
 	} else if (ctx->output) {
 		ctx->output(buf, ctx->context);
 	}
+}
+
+/* Log callback wrapper for ndlib_dom_load_to_machine */
+static void dom_log_callback(void* ctx, const char* fmt, ...) {
+	CmdContext* cmd_ctx = (CmdContext*)ctx;
+	if (!cmd_ctx || !cmd_ctx->output) return;
+	char buf[1024];
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, args);
+	va_end(args);
+	cmd_ctx->output(buf, cmd_ctx->context);
 }
 
 /* Parse uint32 from string with radix-aware parsing and override prefixes:
@@ -370,6 +384,7 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  showpcb <domain> [seg]      Show PCB capabilities for domain");
 	output(ctx, "  phyladr <vaddr> [rw] [id]   Translate virtual to physical address");
 	output(ctx, "                              rw: 0=read 1=write, id: 0=data 1=instruction");
+	output(ctx, "  dumppt <psn> [start] [cnt]  Dump page table entries for PSN");
 	output(ctx, "");
 	output(ctx, "  q (quit/exit)               Quit debugger");
 	return 0;
@@ -1113,134 +1128,14 @@ static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args) {
 		error(ctx, "warning: failed to load segments");
 	}
 
-	/* ========================================================================
-	 * Physical Memory Layout (matches nd500x.c main() behavior):
-	 *   0x00000000: DATA segment (segment 0)
-	 *   After DATA: PROG segment (segment 1), page-aligned
-	 *
-	 * Virtual addresses (with MMU):
-	 *   0x00000000: Kernel data (segment 0)
-	 *   0x08000000: Kernel text (segment 1)
-	 * ======================================================================== */
+	/* Load segments to memory, configure MMU and domain system */
 	output(ctx, "");
 	output(ctx, "Physical Memory Layout:");
 
-	int max_segs = is_dom ? 32 : 1;
-	int found = 0;
-	uint32_t phys_data_base = 0x00000000;
-	uint32_t total_data_size = 0;
-	uint32_t total_prog_size = 0;
-
-	/* First pass: Load all DATA sections to physical memory starting at 0 */
-	for (int i = 0; i < max_segs; i++) {
-		uint32_t dat_size, dat_addr;
-		const uint8_t* dat_data = ndlib_dom_get_data_section(i, &dat_size, &dat_addr);
-		if (dat_data && dat_size > 0) {
-			uint32_t phys_addr = phys_data_base + total_data_size;
-			for (uint32_t j = 0; j < dat_size; j++) {
-				nd500_bus_write8(m, phys_addr + j, dat_data[j]);
-			}
-			output(ctx, "  Segment %d DATA: %u bytes -> phys 0x%08X (virt 0x%08X)",
-			       i, dat_size, phys_addr, dat_addr);
-			total_data_size += dat_size;
-			found++;
-		}
-	}
-
-	/* Align PROG to page boundary (2KB) after DATA */
-	uint32_t phys_prog_base = (phys_data_base + total_data_size + 0x7FF) & ~0x7FFu;
-
-	/* Second pass: Load all PROG sections to physical memory after DATA */
-	for (int i = 0; i < max_segs; i++) {
-		uint32_t seg_size, seg_addr;
-		const uint8_t* seg_data = ndlib_dom_get_segment_data(i, &seg_size, &seg_addr);
-		if (seg_data && seg_size > 0) {
-			uint32_t phys_addr = phys_prog_base + total_prog_size;
-			for (uint32_t j = 0; j < seg_size; j++) {
-				nd500_bus_write8(m, phys_addr + j, seg_data[j]);
-			}
-			output(ctx, "  Segment %d PROG: %u bytes -> phys 0x%08X (virt 0x%08X)",
-			       i, seg_size, phys_addr, seg_addr);
-			total_prog_size += seg_size;
-			found++;
-		}
-	}
-
-	if (found == 0) {
-		output(ctx, "  (no segments found)");
-		return 0;
-	}
-
-	/* ========================================================================
-	 * Set up MMU page tables using PS_ASI (single-level paging)
-	 * ======================================================================== */
-	output(ctx, "");
-	output(ctx, "MMU Configuration:");
-
-	uint32_t data_pages = (total_data_size + 2047) / 2048;
-	uint32_t prog_pages = (total_prog_size + 2047) / 2048;
-	if (data_pages == 0) data_pages = 1;
-	if (prog_pages == 0) prog_pages = 1;
-
-	/* Allocate page tables in physical memory after the segments */
-	uint32_t pt_base_data = (phys_prog_base + total_prog_size + 2047) & ~2047u;
-	uint32_t pt_base_prog = (pt_base_data + data_pages * 4 + 2047) & ~2047u;
-
-	/* Fill DATA page table - PTEs map virtual pages to physical pages */
-	for (uint32_t i = 0; i < data_pages; i++) {
-		uint32_t pte_addr = pt_base_data + i * 4;
-		uint32_t pfn = (phys_data_base >> 11) + i;
-		uint32_t pte = (pfn << 2) | 0;  /* RW */
-		nd500_bus_write32(m, pte_addr, pte);
-	}
-
-	/* Fill PROG page table */
-	for (uint32_t i = 0; i < prog_pages; i++) {
-		uint32_t pte_addr = pt_base_prog + i * 4;
-		uint32_t pfn = (phys_prog_base >> 11) + i;
-		uint32_t pte = (pfn << 2) | 1;  /* protection=1 */
-		nd500_bus_write32(m, pte_addr, pte);
-	}
-
-	/* PSN assignments: PSN 100 = DATA, PSN 101 = PROG */
-	int psn_data = 100;
-	int psn_prog = 101;
-
-	/* Set up PST entries with PS_ASI mode, pointing to page tables */
-	nd500_mmu_set_pst_entry(m->cpu, psn_data, PS_ASI, pt_base_data >> 11);
-	nd500_mmu_set_pst_entry(m->cpu, psn_prog, PS_ASI, pt_base_prog >> 11);
-
-	/* Set up Domain 0 PCB capabilities */
-	/* Segment 0: DATA area (0x00xxxxxx) - writable */
-	nd500_mmu_set_program_capability(m->cpu, 0, 0, psn_data | PC_DIR);
-	nd500_mmu_set_data_capability(m->cpu, 0, 0, psn_data | DC_WRP);
-
-	/* Segment 1: PROG area (0x08xxxxxx) - writable for data access */
-	nd500_mmu_set_program_capability(m->cpu, 0, 1, psn_prog | PC_DIR);
-	nd500_mmu_set_data_capability(m->cpu, 0, 1, psn_prog | DC_WRP);
-
-	/* Segment 31: SINTRAN MON calls (0xF8xxxxxx) - indirect call interception */
-	/* PC_IND flag causes CALL instructions to trigger indirect call handling */
-	/* which intercepts segment 31 calls as SINTRAN MON calls */
-	uint16_t pc31 = PC_IND | (0 << 5) | 31;  /* 0x801F: indirect to domain 0 segment 31 */
-	nd500_mmu_set_program_capability(m->cpu, 0, 31, pc31);
-
-	/* Enable MMU */
-	nd500_mmu_enable_program(m->cpu);
-	nd500_mmu_enable_data(m->cpu);
-
-	output(ctx, "  DATA: %u pages @ PT 0x%08X (PSN %d)", data_pages, pt_base_data, psn_data);
-	output(ctx, "  PROG: %u pages @ PT 0x%08X (PSN %d)", prog_pages, pt_base_prog, psn_prog);
-	output(ctx, "  MMU enabled (Program and Data)");
-
-	output(ctx, "");
-	output(ctx, "Total: %u bytes DATA + %u bytes PROG = %u bytes",
-	       total_data_size, total_prog_size, total_data_size + total_prog_size);
-
-	/* Set PC to start address */
-	if (start_addr != 0) {
-		m->cpu->PC = start_addr;
-		output(ctx, "PC set to start address: 0x%08X", start_addr);
+	rc = ndlib_dom_load_to_machine(m, m->cpu, dom_log_callback, ctx, NULL);
+	if (rc != 0) {
+		error(ctx, "failed to configure machine for DOM execution");
+		return -1;
 	}
 
 	return 0;
@@ -2019,8 +1914,20 @@ static int cmd_showmmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "PCB: %d domains with %d segments (of %d domains max)", domain_count, segment_count, MAXDOM);
 	output(ctx, "Page size: %d bytes", NBPG);
 	output(ctx, "");
+	output(ctx, "Virtual Address Format (ND-05.009.4 Reference Manual, p53-54):");
+	output(ctx, "  [31-27] Segment  (5 bits)  - 32 segments max");
+	output(ctx, "  [26-20] L1 Index (7 bits)  - 128 L1 entries (PS_ADI only)");
+	output(ctx, "  [19-11] L2 Index (9 bits)  - 512 L2 entries (PS_ASI/PS_ADI)");
+	output(ctx, "  [10-0]  Offset   (11 bits) - 2048 bytes per page");
+	output(ctx, "");
+	output(ctx, "PST Index Modes:");
+	output(ctx, "  PS_AZI (0): Direct - 1 page max (2KB)");
+	output(ctx, "  PS_ASI (1): Single-level - 512 pages max (1MB)");
+	output(ctx, "  PS_ADI (2): Two-level - 65536 pages max (128MB)");
+	output(ctx, "");
 	output(ctx, "Use 'listpst' to see all configured PST entries");
 	output(ctx, "Use 'listpcb' to see all configured domains and segments");
+	output(ctx, "Use 'dumppt <psn>' to view page table entries");
 
 	return 0;
 }
@@ -2054,11 +1961,27 @@ static int cmd_showpst(Nd500Machine* m, CmdContext* ctx, char* args) {
 		pst.physical_pfn, pst.physical_pfn << PGSHIFT);
 
 	if (pst.index_mode == PS_AZI) {
-		output(ctx, "Direct mapping: segment maps to physical frame 0x%04X", pst.physical_pfn);
+		output(ctx, "");
+		output(ctx, "Direct Mapping (PS_AZI):");
+		output(ctx, "  Physical frame: 0x%04X -> 0x%08X", pst.physical_pfn, pst.physical_pfn << PGSHIFT);
+		output(ctx, "  Max size: 1 page (2KB)");
+		output(ctx, "  Requires: L1=0, L2=0 in virtual address");
 	} else if (pst.index_mode == PS_ASI) {
-		output(ctx, "Page table at: 0x%08X (single-level)", pst.physical_pfn << PGSHIFT);
+		output(ctx, "");
+		output(ctx, "Single-Level Paging (PS_ASI):");
+		output(ctx, "  Page table at: 0x%08X", pst.physical_pfn << PGSHIFT);
+		output(ctx, "  Max size: 512 pages (1MB)");
+		output(ctx, "  L2 index range: 0-511 (9 bits)");
+		output(ctx, "  Requires: L1=0 in virtual address");
+		output(ctx, "  Use 'dumppt %u' to view page table entries", psn);
 	} else if (pst.index_mode == PS_ADI) {
-		output(ctx, "L1 page table at: 0x%08X (two-level)", pst.physical_pfn << PGSHIFT);
+		output(ctx, "");
+		output(ctx, "Two-Level Paging (PS_ADI):");
+		output(ctx, "  L1 page table at: 0x%08X", pst.physical_pfn << PGSHIFT);
+		output(ctx, "  Max size: 65536 pages (128MB)");
+		output(ctx, "  L1 index range: 0-127 (7 bits)");
+		output(ctx, "  L2 index range: 0-511 (9 bits)");
+		output(ctx, "  Use 'dumppt %u' to view L1 page table entries", psn);
 	}
 
 	return 0;
@@ -2150,16 +2073,18 @@ static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args) {
 	int is_write = rw_str ? (int)nd500_cmd_parse_u32(rw_str, 0) : 0;
 	int is_instruction = id_str ? (int)nd500_cmd_parse_u32(id_str, 0) : 0;
 
-	/* Extract address components */
-	int segment = (vaddr >> 27) & 0x1F;
-	int page = (vaddr >> PGSHIFT) & 0xFFFF;
-	int offset = vaddr & (NBPG - 1);
+	/* Extract address components per ND-500 architecture */
+	int segment  = (vaddr >> SGSHIFT) & 0x1F;
+	int l1_index = (vaddr >> L1_INDEX_SHIFT) & L1_INDEX_MASK;
+	int l2_index = (vaddr >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
+	int offset   = vaddr & (NBPG - 1);
 
 	output(ctx, "=== Virtual Address Translation ===");
 	output(ctx, "Virtual Address: 0x%08X", vaddr);
-	output(ctx, "  Segment: %d (0x%02X)", segment, segment);
-	output(ctx, "  Page:    %d (0x%04X)", page, page);
-	output(ctx, "  Offset:  %d (0x%03X)", offset, offset);
+	output(ctx, "  Segment:  %d (0x%02X)", segment, segment);
+	output(ctx, "  L1 Index: %d (0x%02X)  [for PS_ADI]", l1_index, l1_index);
+	output(ctx, "  L2 Index: %d (0x%03X)  [for PS_ASI/PS_ADI]", l2_index, l2_index);
+	output(ctx, "  Offset:   %d (0x%03X)", offset, offset);
 	output(ctx, "");
 	output(ctx, "Access Type:");
 	output(ctx, "  %s access", is_write ? "Write" : "Read");
@@ -2355,8 +2280,8 @@ static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args) {
 	}
 
 	output(ctx, "=== Configured PST Entries ===");
-	output(ctx, "PSN   Mode  PFN     Physical Address");
-	output(ctx, "----  ----  ------  ----------------");
+	output(ctx, "PSN   Mode  PFN     Physical Address  Max Size");
+	output(ctx, "----  ----  ------  ----------------  --------");
 
 	int count = 0;
 	for (uint32_t psn = 0; psn < MAX_PST; psn++) {
@@ -2365,15 +2290,16 @@ static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args) {
 		/* Only show non-zero entries */
 		if (pst.index_mode != 0 || pst.physical_pfn != 0) {
 			const char* mode_str;
+			const char* size_str;
 			switch (pst.index_mode) {
-				case PS_AZI: mode_str = "AZI "; break;
-				case PS_ASI: mode_str = "ASI "; break;
-				case PS_ADI: mode_str = "ADI "; break;
-				default: mode_str = "??? "; break;
+				case PS_AZI: mode_str = "AZI "; size_str = "2KB"; break;
+				case PS_ASI: mode_str = "ASI "; size_str = "1MB"; break;
+				case PS_ADI: mode_str = "ADI "; size_str = "128MB"; break;
+				default: mode_str = "??? "; size_str = "?"; break;
 			}
 
-			output(ctx, "%4u  %s  0x%04X  0x%08X",
-				psn, mode_str, pst.physical_pfn, pst.physical_pfn << PGSHIFT);
+			output(ctx, "%4u  %s  0x%04X  0x%08X        %s",
+				psn, mode_str, pst.physical_pfn, pst.physical_pfn << PGSHIFT, size_str);
 			count++;
 		}
 	}
@@ -2385,6 +2311,8 @@ static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args) {
 	} else {
 		output(ctx, "");
 		output(ctx, "Total: %d configured entries (of %d max)", count, MAX_PST);
+		output(ctx, "");
+		output(ctx, "Index Modes: AZI=Direct(2KB), ASI=Single-level(1MB), ADI=Two-level(128MB)");
 	}
 
 	return 0;
@@ -2451,6 +2379,107 @@ static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
 		output(ctx, "");
 		output(ctx, "Total: %d domains with %d configured segments", total_domains, total_segments);
 		output(ctx, "(Maximum: %d domains × 32 segments)", MAXDOM);
+	}
+
+	return 0;
+}
+
+/* Dump page table entries for a PST segment */
+static int cmd_dumppt(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	char* psn_str = args ? strtok(args, " \t\r\n") : NULL;
+	char* start_str = psn_str ? strtok(NULL, " \t\r\n") : NULL;
+	char* count_str = start_str ? strtok(NULL, " \t\r\n") : NULL;
+
+	if (!psn_str) {
+		error(ctx, "usage: dumppt <psn> [start] [count]");
+		error(ctx, "  psn:   Physical Segment Number");
+		error(ctx, "  start: Starting index (default 0)");
+		error(ctx, "  count: Number of entries (default: all valid, max 64)");
+		return -1;
+	}
+
+	uint32_t psn = nd500_cmd_parse_u32(psn_str, 0);
+	if (psn >= MAX_PST) {
+		error(ctx, "PSN out of range (0-%d)", MAX_PST - 1);
+		return -1;
+	}
+
+	PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(m->cpu, psn);
+
+	if (pst.index_mode == PS_AZI) {
+		output(ctx, "PSN %u uses PS_AZI (direct mapping) - no page table", psn);
+		output(ctx, "Physical frame: 0x%04X -> 0x%08X", pst.physical_pfn, pst.physical_pfn << PGSHIFT);
+		return 0;
+	}
+
+	/* Determine max entries based on mode */
+	int max_entries = (pst.index_mode == PS_ASI) ? 512 : 128;
+	const char* index_name = (pst.index_mode == PS_ASI) ? "L2" : "L1";
+
+	int start = start_str ? (int)nd500_cmd_parse_u32(start_str, 0) : 0;
+	int count = count_str ? (int)nd500_cmd_parse_u32(count_str, 64) : 64;
+
+	if (start >= max_entries) {
+		error(ctx, "Start index %d out of range (0-%d)", start, max_entries - 1);
+		return -1;
+	}
+
+	/* Clamp count */
+	if (count > 64) count = 64;
+	if (start + count > max_entries) count = max_entries - start;
+
+	uint32_t pt_base = pst.physical_pfn << PGSHIFT;
+
+	if (pst.index_mode == PS_ASI) {
+		output(ctx, "=== Page Table for PSN %u (PS_ASI - Single Level) ===", psn);
+		output(ctx, "Page table at: 0x%08X", pt_base);
+		output(ctx, "Max entries: 512 (L2 index 0-511)");
+	} else {
+		output(ctx, "=== L1 Page Table for PSN %u (PS_ADI - Two Level) ===", psn);
+		output(ctx, "L1 table at: 0x%08X", pt_base);
+		output(ctx, "Max L1 entries: 128 (L1 index 0-127)");
+		output(ctx, "Each L1 entry points to an L2 table with 512 entries");
+	}
+
+	output(ctx, "");
+	output(ctx, "%s Idx  PTE Addr    Raw PTE     PFN     Physical    Prot  Valid", index_name);
+	output(ctx, "------  ----------  ----------  ------  ----------  ----  -----");
+
+	int valid_count = 0;
+	for (int i = start; i < start + count; i++) {
+		uint32_t pte_addr = pt_base + (i * 4);
+		PageTableEntry pte = nd500_mmu_read_pte(m->cpu, pte_addr);
+
+		/* Read raw PTE value for display */
+		uint32_t raw = (uint32_t)nd500_bus_read8(m, pte_addr) << 24;
+		raw |= (uint32_t)nd500_bus_read8(m, pte_addr + 1) << 16;
+		raw |= (uint32_t)nd500_bus_read8(m, pte_addr + 2) << 8;
+		raw |= (uint32_t)nd500_bus_read8(m, pte_addr + 3);
+
+		const char* prot_str = pte.protection ? "RO" : "RW";
+		const char* valid_str = pte.valid ? "Yes" : "No";
+
+		/* Only show if valid, or if explicitly requested range */
+		if (pte.valid || count_str) {
+			output(ctx, "%6d  0x%08X  0x%08X  0x%04X  0x%08X  %s    %s",
+				i, pte_addr, raw, pte.physical_pfn,
+				pte.physical_pfn << PGSHIFT, prot_str, valid_str);
+			if (pte.valid) valid_count++;
+		}
+	}
+
+	output(ctx, "");
+	output(ctx, "Showing entries %d-%d, %d valid", start, start + count - 1, valid_count);
+
+	if (pst.index_mode == PS_ADI) {
+		output(ctx, "");
+		output(ctx, "Note: For PS_ADI, each valid L1 entry points to an L2 page table.");
+		output(ctx, "To view L2 entries, read the PFN and use: m <paddr> 2048");
 	}
 
 	return 0;

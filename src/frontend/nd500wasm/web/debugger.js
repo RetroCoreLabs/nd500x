@@ -946,14 +946,15 @@ class ND500Debugger {
             const lines = output.split('\n');
 
             for (const line of lines) {
-                // Match lines like: " 100  AZI   0x1000  0x00800000"
-                const match = line.match(/^\s*(\d+)\s+(AZI|ASI|ADI)\s+0x([0-9A-Fa-f]+)\s+0x([0-9A-Fa-f]+)/);
+                // Match lines like: " 100  AZI   0x1000  0x00800000        2KB"
+                const match = line.match(/^\s*(\d+)\s+(AZI|ASI|ADI)\s+0x([0-9A-Fa-f]+)\s+0x([0-9A-Fa-f]+)\s+(\d+(?:KB|MB))/);
                 if (match) {
                     entries.push({
                         psn: parseInt(match[1]),
                         mode: match[2],
                         pfn: parseInt(match[3], 16),
-                        physAddr: parseInt(match[4], 16)
+                        physAddr: parseInt(match[4], 16),
+                        maxSize: match[5]
                     });
                 }
             }
@@ -982,7 +983,7 @@ class ND500Debugger {
             const tbody = document.getElementById('pst-table-body');
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="pst-table-empty">No PST entries found. Use 'mmusetup' to create a demo configuration.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="pst-table-empty">No PST entries found. Use 'mmusetup' to create a demo configuration.</td></tr>`;
             } else {
                 let html = '';
                 filtered.forEach(entry => {
@@ -992,6 +993,7 @@ class ND500Debugger {
                         <td><span class="pst-mode-badge ${modeClass}">${entry.mode}</span></td>
                         <td>0x${entry.pfn.toString(16).padStart(4,'0').toUpperCase()}</td>
                         <td>0x${entry.physAddr.toString(16).padStart(8,'0').toUpperCase()}</td>
+                        <td>${entry.maxSize}</td>
                         <td><button class="pst-action-btn" onclick="event.stopPropagation(); nd500Debugger.openPstEditModal(${entry.psn}, '${entry.mode}', ${entry.pfn});">Edit</button></td>
                     </tr>`;
                 });
@@ -1000,7 +1002,7 @@ class ND500Debugger {
         } catch (error) {
             console.error('Error updating PST table:', error);
             const tbody = document.getElementById('pst-table-body');
-            tbody.innerHTML = `<tr><td colspan="5" class="pst-table-empty">Error loading PST entries</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="pst-table-empty">Error loading PST entries</td></tr>`;
         }
     }
 
