@@ -126,7 +126,7 @@ static const CmdEntry g_commands[] = {
 	{"listpst",     cmd_listpst,      "List configured PST entries"},
 	{"listpcb",     cmd_listpcb,      "List configured PCB domains"},
 	{"dumppt",      cmd_dumppt,       "Dump page table entries for PSN"},
-	{"mon",         cmd_mon,          "SINTRAN MON call settings"},
+	{"mon",         cmd_mon,          "MON call settings (log/status/list/info/break)"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
 	{"exit",        cmd_quit,         "Quit debugger"},
@@ -385,6 +385,14 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  phyladr <vaddr> [rw] [id]   Translate virtual to physical address");
 	output(ctx, "                              rw: 0=read 1=write, id: 0=data 1=instruction");
 	output(ctx, "  dumppt <psn> [start] [cnt]  Dump page table entries for PSN");
+	output(ctx, "");
+	output(ctx, "SINTRAN MON Call Emulation:");
+	output(ctx, "  mon                         Show MON subcommands");
+	output(ctx, "  mon log [off|error|warn|info|debug|trace]  Set/show MON logging level");
+	output(ctx, "  mon status                  Show MON implementation statistics");
+	output(ctx, "  mon list [status]           List MON calls (validated|inprogress|notimpl)");
+	output(ctx, "  mon info <number>           Show details for specific MON call");
+	output(ctx, "  mon break [unimpl|inprog|off]  Break on unimplemented MON calls");
 	output(ctx, "");
 	output(ctx, "  q (quit/exit)               Quit debugger");
 	return 0;
@@ -2682,6 +2690,30 @@ static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args) {
 		output(ctx, "  Long name:   %s", entry->long_name ? entry->long_name : "(unknown)");
 		output(ctx, "  Description: %s", entry->description ? entry->description : "(none)");
 		output(ctx, "  Parameters:  %u", entry->param_count);
+
+		/* Show parameter details if available */
+		if (entry->params_desc && entry->params_desc[0] != '\0') {
+			output(ctx, "");
+			output(ctx, "  Parameter details:");
+			/* params_desc contains escaped \n sequences, split on them */
+			const char* p = entry->params_desc;
+			while (*p) {
+				const char* line_end = p;
+				/* Look for literal backslash-n sequence or actual newline */
+				while (*line_end && !(*line_end == '\\' && *(line_end+1) == 'n') && *line_end != '\n') {
+					line_end++;
+				}
+				int line_len = (int)(line_end - p);
+				if (line_len > 0) {
+					output(ctx, "    %.*s", line_len, p);
+				}
+				p = line_end;
+				if (*p == '\\' && *(p+1) == 'n') p += 2;  /* Skip \n sequence */
+				else if (*p == '\n') p++;  /* Skip actual newline */
+			}
+			output(ctx, "");
+		}
+
 		output(ctx, "  Status:      %s", status_str);
 		output(ctx, "  ND-100:      %s", entry->nd100_compat ? "Yes" : "No");
 		output(ctx, "  ND-500:      %s", entry->nd500_compat ? "Yes" : "No");
