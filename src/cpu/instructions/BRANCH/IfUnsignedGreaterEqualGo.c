@@ -131,8 +131,8 @@ void nd500_instr_IfUnsignedGreaterEqualGo(Nd500Cpu* cpu, const Nd500FetchedInstr
         uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
-        // Update PC: branch relative to END of this instruction
-        cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
+        // Update PC (relative branch from instruction start)
+        cpu->PC = (uint32_t)(fi->address + displacement);
     }
     // else: C=1, branch not taken, PC already points to next instruction
 
