@@ -250,7 +250,7 @@ void mon_register_all_handlers(void) {
         "ExitFromProgram",          /* Long name */
         "Terminates the program. Returns to SINTRAN III. Batch jobs continues with the next command.\n\n- Backg",  /* Description */
         mon_0B_ExitFromProgram,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         0             /* Param count */
     );
     mon_register_ex(
@@ -448,7 +448,7 @@ void mon_register_all_handlers(void) {
         "**Time**\n\nGets the current internal time. The internal time is specified in basic time units. There ",  /* Description */
         "[O] BasicTime (LONGINT): Internal time in basic time units (output). 50 units per second.",  /* Parameter details */
         mon_11B_GetBasicTime,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
