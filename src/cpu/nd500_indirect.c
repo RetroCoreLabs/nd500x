@@ -236,8 +236,8 @@ int nd500_check_indirect_call(
                    ctx.arg_count);
             for (uint32_t i = 0; i < ctx.arg_count && i < MON_MAX_ARGS; i++) {
                 uint16_t val = ctx.read_word ? ctx.read_word(ctx.cpu, ctx.arg_addresses[i]) : 0;
-                printf("  Arg[%u] @ 0x%08X = 0x%04X (%d)\n",
-                       i, ctx.arg_addresses[i], val, (int16_t)val);
+                printf("  Arg[%u] @ 0x%08X = 0x%04X (%u)\n",
+                       i, ctx.arg_addresses[i], val, val);
             }
             *out_resolved = ctx.return_address;
             return INDIRECT_BREAK;
