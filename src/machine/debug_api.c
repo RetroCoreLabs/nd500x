@@ -223,10 +223,11 @@ static size_t format_operand_impl(char* dst, size_t cap, const Nd500OperandDecod
     /* This matches nd500-dis behavior */
     switch (op->mode) {
         case ND500_ADDR_CONSTANT_SHORT: {
-            /* 0x00-0x3F: value is address_code itself (lower 6 bits) */
-            int32_t short_val = (int32_t)(op->address_code & 0x3F);
+            /* 6-bit signed constant sign-extended to 32-bit, displayed as unsigned */
+            uint8_t low6 = op->address_code & 0x3F;
+            uint32_t val32 = (low6 & 0x20) ? (uint32_t)(low6 | 0xFFFFFFC0) : (uint32_t)low6;
             if (p < e) *p++ = '$';
-            int n = fmt_signed(p, (size_t)(e-p), short_val);
+            int n = fmt_unsigned(p, (size_t)(e-p), val32);
             p += (n>0 && n < (e-p)? n : (e-p));
             break;
         }
@@ -538,8 +539,15 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
                 }
             }
         }
+        /* Also show extra operands for variable-operand instructions (CALL/CALLG/POLY) */
+        /* Show effective addresses for CALL arguments (what actually gets passed) */
+        if (m->cpu && m->cpu->extra_operand_count > 0) {
+            for (uint16_t ei = 0; ei < m->cpu->extra_operand_count; ++ei) {
+                printf(",0x%X", m->cpu->extra_operands[ei].effective_address);
+            }
+        }
         printf("%s", color_reset());
-        
+
         /* === Check for relocations/unresolved externals in this instruction === */
         uint8_t is_undefined = 0;
         const char* reloc_symbol = ndlib_symbols_reloc_for_range(fi.address, fi.address + fi.total_len, &is_undefined);
@@ -633,6 +641,10 @@ void nd500_dbg_step(Nd500Machine* m, uint32_t count) {
 	if (!m || !m->cpu) return;
 	for (uint32_t i = 0; i < count; ++i) {
 		nd500_cpu_step(m->cpu);
+		/* Stop stepping if CPU was halted (e.g., MON 0B LEAVE) */
+		if (m->run_flag == 0 && m->stop_reason != NULL) {
+			break;
+		}
 	}
 }
 
