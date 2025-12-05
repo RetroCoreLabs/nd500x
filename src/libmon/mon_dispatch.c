@@ -303,6 +303,23 @@ const MonRegistryEntry* mon_get_entry(uint32_t mon_number) {
     return NULL;
 }
 
+const MonRegistryEntry* mon_get_entry_by_name(const char* name) {
+    if (!name) return NULL;
+    for (int i = 0; i < MON_REGISTRY_SIZE; i++) {
+        if (g_registry[i]) {
+            /* Check short name (case-insensitive) */
+            if (g_registry[i]->name && strcasecmp(g_registry[i]->name, name) == 0) {
+                return g_registry[i];
+            }
+            /* Check long name (case-insensitive) */
+            if (g_registry[i]->long_name && strcasecmp(g_registry[i]->long_name, name) == 0) {
+                return g_registry[i];
+            }
+        }
+    }
+    return NULL;
+}
+
 /* =========================================================================
  * STATUS ENUMERATION
  * ========================================================================= */
