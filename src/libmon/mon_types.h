@@ -62,6 +62,7 @@ typedef struct MonContext {
 
     /* MON call identification */
     uint32_t mon_number;        /* MON number (decimal form of octal) */
+    uint32_t instruction_address; /* PC of the CALL instruction (for logging) */
     uint32_t return_address;    /* PC to return to after MON call */
 
     /* Arguments from CALL/CALLG instruction */

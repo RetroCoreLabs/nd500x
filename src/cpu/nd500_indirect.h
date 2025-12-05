@@ -40,6 +40,7 @@ typedef enum {
  * @param target_addr   Virtual address from CALL/CALLG instruction
  * @param arg_count     Number of arguments passed
  * @param arg_addresses Array of argument effective addresses
+ * @param instruction_addr PC of the CALL instruction (for logging)
  * @param out_resolved  Output: resolved address to jump to (or return addr for MON)
  *
  * @return  INDIRECT_DIRECT (0): Direct call, jump to target_addr
@@ -53,6 +54,7 @@ int nd500_check_indirect_call(
     uint32_t target_addr,
     uint32_t arg_count,
     const uint32_t* arg_addresses,
+    uint32_t instruction_addr,
     uint32_t* out_resolved
 );
 

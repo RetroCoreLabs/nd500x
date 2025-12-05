@@ -132,6 +132,7 @@ int nd500_check_indirect_call(
     uint32_t target_addr,
     uint32_t arg_count,
     const uint32_t* arg_addresses,
+    uint32_t instruction_addr,
     uint32_t* out_resolved)
 {
     if (!cpu || !out_resolved) {
@@ -183,6 +184,7 @@ int nd500_check_indirect_call(
         ctx.cpu = cpu;
         ctx.machine = cpu->machine;
         ctx.mon_number = mon_number;
+        ctx.instruction_address = instruction_addr;
         ctx.return_address = cpu->pending_call_return_address;
         ctx.arg_count = arg_count;
 

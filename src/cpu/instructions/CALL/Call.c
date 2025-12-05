@@ -107,7 +107,7 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t resolved_addr;
     int indirect_result = nd500_check_indirect_call(
         cpu, subroutine_addr, arg_count,
-        cpu->pending_call_arg_addresses, &resolved_addr);
+        cpu->pending_call_arg_addresses, fi->address, &resolved_addr);
 
     if (indirect_result == INDIRECT_ERROR || indirect_result == INDIRECT_BREAK) {
         /* Error, halt, or break requested - PC set to return address */

@@ -120,10 +120,10 @@ void mon_log_entry(MonContext* ctx, const char* name) {
     snprintf(octal, sizeof(octal), "%oB", ctx->mon_number);
 
     snprintf(g_log_buffer, LOG_BUFFER_SIZE,
-             "CALL %s %s (%u args) from PC=0x%08X",
+             "CALL %s %s (%u args) at PC=0x%08X",
              octal, name ? name : "???",
              ctx->arg_count,
-             ctx->return_address);
+             ctx->instruction_address);
     emit_log(MON_LOG_INFO, g_log_buffer);
 
     /* At DEBUG level, also log argument addresses */
