@@ -121,3 +121,28 @@ int ndlib_dom_get_segment_info(int index, uint32_t* prog_size, uint32_t* prog_ad
                                uint32_t* data_size, uint32_t* data_addr,
                                int* is_linked, int* is_used);
 
+/* Forward declaration for CPU type */
+typedef struct Nd500Cpu Nd500Cpu;
+
+/* Load DOM/SEG into machine with full MMU and domain setup.
+ * Must call ndlib_load_dom_header() and ndlib_load_dom_segments() first.
+ *
+ * Parameters:
+ *   m              - Machine to load into
+ *   cpu            - CPU to configure (domain and MMU)
+ *   log_callback   - Optional callback for progress messages (NULL to suppress)
+ *   log_context    - Context passed to log_callback
+ *   out_start_addr - Returns start address from header (may be NULL)
+ *
+ * Returns: 0 on success, -1 on error
+ */
+int ndlib_dom_load_to_machine(
+    Nd500Machine* m,
+    Nd500Cpu* cpu,
+    void (*log_callback)(void* ctx, const char* fmt, ...),
+    void* log_context,
+    uint32_t* out_start_addr);
+
+/* Simple printf-based log callback for command line use */
+void ndlib_dom_log_printf(void* ctx, const char* fmt, ...);
+
