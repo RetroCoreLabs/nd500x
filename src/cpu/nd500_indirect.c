@@ -228,7 +228,17 @@ int nd500_check_indirect_call(
         /* Check for break request (unimplemented MON with BREAK behavior) */
         if (ctx.break_requested) {
             cpu->machine->run_flag = 0;
-            printf("[MON] Break requested - unimplemented MON call\n");
+            const char* mon_name = mon_get_name(ctx.mon_number);
+            const char* mon_octal = mon_get_octal(ctx.mon_number);
+            printf("[MON] Break: unimplemented MON %s (%s) with %u args\n",
+                   mon_octal ? mon_octal : "?",
+                   mon_name ? mon_name : "UNKNOWN",
+                   ctx.arg_count);
+            for (uint32_t i = 0; i < ctx.arg_count && i < MON_MAX_ARGS; i++) {
+                uint16_t val = ctx.read_word ? ctx.read_word(ctx.cpu, ctx.arg_addresses[i]) : 0;
+                printf("  Arg[%u] @ 0x%08X = 0x%04X (%d)\n",
+                       i, ctx.arg_addresses[i], val, (int16_t)val);
+            }
             *out_resolved = ctx.return_address;
             return INDIRECT_BREAK;
         }
