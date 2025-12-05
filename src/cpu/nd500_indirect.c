@@ -217,6 +217,7 @@ int nd500_check_indirect_call(
         /* Check for halt request (MON 0B LEAVE or unimplemented) */
         if (ctx.halt_requested) {
             cpu->machine->run_flag = 0;
+            cpu->machine->stop_reason = ctx.halt_reason ? ctx.halt_reason : "MON halt";
             if (ctx.halt_reason) {
                 /* Store halt reason for debugger display */
                 printf("[MON] CPU halted: %s\n", ctx.halt_reason);
@@ -228,6 +229,7 @@ int nd500_check_indirect_call(
         /* Check for break request (unimplemented MON with BREAK behavior) */
         if (ctx.break_requested) {
             cpu->machine->run_flag = 0;
+            cpu->machine->stop_reason = "Unimplemented MON call";
             const char* mon_name = mon_get_name(ctx.mon_number);
             const char* mon_octal = mon_get_octal(ctx.mon_number);
             printf("[MON] Break: unimplemented MON %s (%s) with %u args\n",
