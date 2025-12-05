@@ -31,6 +31,7 @@ static void print_usage(const char* prog) {
     printf("  --disasm <len>           Disassemble <len> bytes and exit\n");
     printf("  --addr <addr>            Start address for disassembly (default: 0)\n");
     printf("  --hexdump <len>          Hex dump <len> bytes and exit\n");
+    printf("  --radix <mode>           Set numeric radix: decimal | hex | octal\n");
     printf("  -ansi                    Force enable ANSI colors\n");
     printf("  -noansi                  Force disable ANSI colors\n");
     printf("  --help                   Show this help message\n");
@@ -57,7 +58,8 @@ int main(int argc, char** argv) {
     uint32_t dis_addr = 0;
     uint32_t hex_len = 0;
     int ansi_flag = 0; /* 0=auto, 1=force-enable, -1=force-disable */
-    
+    const char* radix_str = NULL;
+
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_usage(argv[0]);
@@ -85,6 +87,8 @@ int main(int argc, char** argv) {
             dis_addr = (uint32_t)strtoul(argv[++i], NULL, 0);
         } else if (strcmp(argv[i], "--hexdump") == 0 && i + 1 < argc) {
             hex_len = (uint32_t)strtoul(argv[++i], NULL, 0);
+        } else if (strcmp(argv[i], "--radix") == 0 && i + 1 < argc) {
+            radix_str = argv[++i];
         } else if (strcmp(argv[i], "-ansi") == 0) {
             ansi_flag = 1;
         } else if (strcmp(argv[i], "-noansi") == 0) {
@@ -94,6 +98,20 @@ int main(int argc, char** argv) {
     
     /* Initialize color system based on flags */
     ndlib_color_init(ansi_flag);
+
+    /* Set radix if specified */
+    if (radix_str) {
+        if (strcasecmp(radix_str, "decimal") == 0 || strcasecmp(radix_str, "dec") == 0) {
+            nd500_dbg_set_radix(0);
+        } else if (strcasecmp(radix_str, "hex") == 0) {
+            nd500_dbg_set_radix(1);
+        } else if (strcasecmp(radix_str, "octal") == 0 || strcasecmp(radix_str, "oct") == 0) {
+            nd500_dbg_set_radix(2);
+        } else {
+            printf("Invalid radix: %s (use: decimal, hex, octal)\n", radix_str);
+            return 1;
+        }
+    }
 
     Nd500Machine machine;
     /* Initialize with 16MB of physical memory
