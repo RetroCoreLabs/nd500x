@@ -320,6 +320,7 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  show source [off|asm|c|both] Set source annotations in disassembly");
 	output(ctx, "  show trace [on|off]         Toggle instruction execution tracing");
 	output(ctx, "  show profile [on|off]      Toggle instruction execution profiling");
+	output(ctx, "  show mmu [level]           Set MMU logging (off|errors|trace|all)");
 	output(ctx, "  profile [show|reset]       Show profiling statistics or reset data");
 	output(ctx, "  backtrace (bt)             Show call stack backtrace");
 	output(ctx, "  step [n] (s [n])            Execute n instructions (default 1)");
@@ -646,6 +647,37 @@ static int cmd_show(Nd500Machine* m, CmdContext* ctx, char* args) {
 		} else {
 			output(ctx, "No traps pending");
 		}
+	} else if (strcmp(sub, "mmu") == 0) {
+		char* val = strtok(NULL, " \t\r\n");
+		if (!val) {
+			/* No arg: show current status and usage help */
+			int cur = nd500_dbg_get_mmu_log_level();
+			const char* level_str[] = {"off", "errors", "trace", "all"};
+			output(ctx, "MMU logging level: %s", level_str[cur]);
+			output(ctx, "");
+			output(ctx, "Usage: show mmu [off|errors|trace|all]");
+			output(ctx, "  off    - No MMU logging");
+			output(ctx, "  errors - Only error messages (default)");
+			output(ctx, "  trace  - Translation trace + errors");
+			output(ctx, "  all    - All MMU output including successful translations");
+			return 0;
+		}
+		int newv;
+		if (strcasecmp(val, "off") == 0) {
+			newv = MMU_LOG_OFF;
+		} else if (strcasecmp(val, "errors") == 0) {
+			newv = MMU_LOG_ERRORS;
+		} else if (strcasecmp(val, "trace") == 0) {
+			newv = MMU_LOG_TRACE;
+		} else if (strcasecmp(val, "all") == 0) {
+			newv = MMU_LOG_ALL;
+		} else {
+			error(ctx, "usage: show mmu [off|errors|trace|all]");
+			return -1;
+		}
+		nd500_dbg_set_mmu_log_level(newv);
+		const char* level_str[] = {"off", "errors", "trace", "all"};
+		output(ctx, "show mmu: %s", level_str[newv]);
 	} else {
 		error(ctx, "unknown show option");
 		return -1;
@@ -2509,19 +2541,10 @@ static void mon_list_callback(const MonRegistryEntry* entry, void* user_data) {
 	CmdContext* ctx = (CmdContext*)user_data;
 	if (!entry || !ctx) return;
 
-	const char* status_str;
-	switch (entry->status) {
-		case MON_STATUS_VALIDATED:       status_str = "VALIDATED"; break;
-		case MON_STATUS_IN_PROGRESS:     status_str = "IN_PROGRESS"; break;
-		case MON_STATUS_NOT_IMPLEMENTED:
-		default:                         status_str = "NOT_IMPL"; break;
-	}
-
-	output(ctx, "  %-5s %-12s %-10s %s",
+	output(ctx, "  %-5s %-8s %s",
 		entry->octal_str ? entry->octal_str : "?",
 		entry->name ? entry->name : "?",
-		status_str,
-		entry->description ? entry->description : "");
+		entry->long_name ? entry->long_name : "");
 }
 
 static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args) {
