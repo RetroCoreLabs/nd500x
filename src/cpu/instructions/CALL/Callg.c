@@ -215,8 +215,15 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             /* The subroutine will use this address to access the argument */
             cpu->pending_call_arg_addresses[i] = arg_operand->effective_address;
 
-            printf("  CALLG arg[%u]: addr=0x%08X (mode=%u)\n",
-                   i, arg_operand->effective_address, arg_operand->mode);
+            /* Check if this is a MON call (segment 31) */
+            if ((subroutine_addr >> 27) == 31) {
+                printf("[CALLG MON] arg[%u]: mode=%d, addr_code=0x%02X, ea=0x%08X, B=0x%08X, R=0x%08X\n",
+                       i, arg_operand->mode, arg_operand->address_code,
+                       arg_operand->effective_address, cpu->B, cpu->R);
+            } else {
+                printf("  CALLG arg[%u]: addr=0x%08X (mode=%u)\n",
+                       i, arg_operand->effective_address, arg_operand->mode);
+            }
         }
     }
 
