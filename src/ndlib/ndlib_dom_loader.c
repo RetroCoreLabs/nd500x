@@ -1,0 +1,267 @@
+/*
+ * ND-500 DOM/SEG File Loading - Unified Implementation
+ *
+ * This module provides a single function for loading DOM/SEG files into
+ * the emulator. After loading segments into physical memory, it performs
+ * the complete MMU and domain system initialization required for execution:
+ *
+ *   1. Copy DATA/PROG segments to physical memory
+ *   2. Initialize domain system (CED=0, CAD=0 for kernel domain)
+ *   3. Create page tables for virtual-to-physical translation
+ *   4. Configure segment capabilities in the PCB (Process Control Block)
+ *   5. Set up segment 31 with PC_IND flag for SINTRAN MON call interception
+ *   6. Enable program and data MMU
+ *
+ * IMPORTANT: Segment 31 setup happens DURING this DOM loading process,
+ * not before. The PC_IND capability flag must be configured before any
+ * code attempts to execute MON calls, otherwise CALL to 0xF8xxxxxx will
+ * cause an MMU fault instead of being intercepted.
+ *
+ * Used by both:
+ *   - debugger commands.c (loaddom command)
+ *   - frontend nd500x.c (--dom flag)
+ */
+
+#include "ndlib.h"
+#include "nd500_dom.h"
+#include "../cpu/nd500_mmu.h"
+#include "../cpu/nd500_domain.h"
+#include "../machine/machine_protos.h"
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+
+/*
+ * Load DOM/SEG file into machine and configure MMU for execution.
+ *
+ * This function:
+ *   1. Assumes ndlib_load_dom_header() and ndlib_load_dom_segments() already called
+ *   2. Copies DATA segments to physical memory at 0x00000000
+ *   3. Copies PROG segments to physical memory (page-aligned after DATA)
+ *   4. Initializes domain system (CED, CAD)
+ *   5. Sets up MMU page tables using PS_ASI (single-level paging)
+ *   6. Configures segment 31 for SINTRAN MON call interception
+ *   7. Enables MMU
+ *   8. Sets PC to start address from header
+ *
+ * Parameters:
+ *   m              - Machine to load into
+ *   cpu            - CPU to configure (domain and MMU)
+ *   log_callback   - Optional callback for progress messages (NULL to suppress)
+ *   log_context    - Context passed to log_callback
+ *   out_start_addr - Returns start address from header (may be NULL)
+ *
+ * Returns: 0 on success, -1 on error
+ */
+int ndlib_dom_load_to_machine(
+    Nd500Machine* m,
+    Nd500Cpu* cpu,
+    void (*log_callback)(void* ctx, const char* fmt, ...),
+    void* log_context,
+    uint32_t* out_start_addr)
+{
+    if (!m || !cpu) {
+        return -1;
+    }
+
+    /* Get header - must have been loaded already */
+    const nd500_header_t* hdr = ndlib_get_dom_header();
+    if (!hdr || !ndlib_dom_is_loaded()) {
+        return -1;
+    }
+
+    int is_dom = ndlib_dom_is_dom_file();
+    uint32_t start_addr = nd500_read32(&hdr->raw[0xD8]);
+
+    if (out_start_addr) {
+        *out_start_addr = start_addr;
+    }
+
+    /* ========================================================================
+     * Physical Memory Layout:
+     *   0x00000000: DATA segment (segment 0)
+     *   After DATA: PROG segment (segment 1), page-aligned
+     *
+     * Virtual addresses (with MMU):
+     *   0x00000000: Kernel data (segment 0)
+     *   0x08000000: Kernel text (segment 1)
+     * ======================================================================== */
+
+    int max_segs = is_dom ? 32 : 1;
+    int found = 0;
+    uint32_t phys_data_base = 0x00000000;
+    uint32_t total_data_size = 0;
+    uint32_t total_prog_size = 0;
+
+    /* First pass: Load all DATA sections to physical memory starting at 0 */
+    for (int i = 0; i < max_segs; i++) {
+        uint32_t dat_size, dat_addr;
+        const uint8_t* dat_data = ndlib_dom_get_data_section(i, &dat_size, &dat_addr);
+        if (dat_data && dat_size > 0) {
+            uint32_t phys_addr = phys_data_base + total_data_size;
+            for (uint32_t j = 0; j < dat_size; j++) {
+                nd500_bus_write8(m, phys_addr + j, dat_data[j]);
+            }
+            if (log_callback) {
+                log_callback(log_context, "  Segment %d DATA: %u bytes -> phys 0x%08X (virt 0x%08X)",
+                             i, dat_size, phys_addr, dat_addr);
+            }
+            total_data_size += dat_size;
+            found++;
+        }
+    }
+
+    /* Align PROG to page boundary (2KB) after DATA */
+    uint32_t phys_prog_base = (phys_data_base + total_data_size + 0x7FF) & ~0x7FFu;
+
+    /* Second pass: Load all PROG sections to physical memory after DATA */
+    for (int i = 0; i < max_segs; i++) {
+        uint32_t seg_size, seg_addr;
+        const uint8_t* seg_data = ndlib_dom_get_segment_data(i, &seg_size, &seg_addr);
+        if (seg_data && seg_size > 0) {
+            uint32_t phys_addr = phys_prog_base + total_prog_size;
+            for (uint32_t j = 0; j < seg_size; j++) {
+                nd500_bus_write8(m, phys_addr + j, seg_data[j]);
+            }
+            if (log_callback) {
+                log_callback(log_context, "  Segment %d PROG: %u bytes -> phys 0x%08X (virt 0x%08X)",
+                             i, seg_size, phys_addr, seg_addr);
+            }
+            total_prog_size += seg_size;
+            found++;
+        }
+    }
+
+    if (found == 0) {
+        if (log_callback) {
+            log_callback(log_context, "  (no segments found)");
+        }
+        return 0;
+    }
+
+    /* ========================================================================
+     * Initialize domain system (required for MMU and MON calls)
+     * ======================================================================== */
+    nd500_domain_init(cpu);
+
+    /* ========================================================================
+     * Set up MMU page tables using PS_ASI (single-level paging)
+     * ======================================================================== */
+
+    uint32_t data_pages = (total_data_size + 2047) / 2048;
+    uint32_t prog_pages = (total_prog_size + 2047) / 2048;
+    if (data_pages == 0) data_pages = 1;
+    if (prog_pages == 0) prog_pages = 1;
+
+    /* Allocate page tables in physical memory after the segments */
+    uint32_t pt_base_data = (phys_prog_base + total_prog_size + 2047) & ~2047u;
+    uint32_t pt_base_prog = (pt_base_data + data_pages * 4 + 2047) & ~2047u;
+
+    /* Fill DATA page table - PTEs map virtual pages to physical pages */
+    /* PTE format: [31:2]=PFN, [1]=unused, [0]=protection (0=RW, 1=RO) */
+    for (uint32_t i = 0; i < data_pages; i++) {
+        uint32_t pte_addr = pt_base_data + i * 4;
+        uint32_t pfn = (phys_data_base >> 11) + i;
+        uint32_t pte = (pfn << 2) | 0;  /* RW */
+        nd500_bus_write32(m, pte_addr, pte);
+    }
+
+    /* Fill PROG page table (PTEs with protection=1, like C# reference) */
+    /* Write permission for data access is controlled by DC_WRP capability, not PTE */
+    for (uint32_t i = 0; i < prog_pages; i++) {
+        uint32_t pte_addr = pt_base_prog + i * 4;
+        uint32_t pfn = (phys_prog_base >> 11) + i;
+        uint32_t pte = (pfn << 2) | 1;  /* protection=1 */
+        nd500_bus_write32(m, pte_addr, pte);
+    }
+
+    /* PSN assignments: PSN 100 = DATA, PSN 101 = PROG */
+    int psn_data = 100;
+    int psn_prog = 101;
+
+    /* Set up PST entries with PS_ASI mode, pointing to page tables */
+    nd500_mmu_set_pst_entry(cpu, psn_data, PS_ASI, pt_base_data >> 11);
+    nd500_mmu_set_pst_entry(cpu, psn_prog, PS_ASI, pt_base_prog >> 11);
+
+    /* Set up Domain 0 PCB capabilities */
+    /* Segment 0: DATA area (0x00xxxxxx) - writable */
+    nd500_mmu_set_program_capability(cpu, 0, 0, psn_data | PC_DIR);
+    nd500_mmu_set_data_capability(cpu, 0, 0, psn_data | DC_WRP);
+
+    /* Segment 1: PROG area (0x08xxxxxx) - writable for data access */
+    nd500_mmu_set_program_capability(cpu, 0, 1, psn_prog | PC_DIR);
+    nd500_mmu_set_data_capability(cpu, 0, 1, psn_prog | DC_WRP);
+
+    /* ========================================================================
+     * SEGMENT 31: SINTRAN III Monitor Call Interception
+     * ========================================================================
+     *
+     * Segment 31 is reserved by SINTRAN III for MON (monitor) calls. When a
+     * program executes CALL or CALLG to an address in segment 31 (0xF8xxxxxx),
+     * the CPU should trap to the operating system to handle the request.
+     *
+     * In the emulator, we intercept these calls using the PC_IND (indirect
+     * segment) capability flag. When PC_IND is set in a segment's program
+     * capability, the CALL instruction does NOT jump to the target address.
+     * Instead, nd500_check_indirect_call() in nd500_indirect.c intercepts
+     * the call and dispatches it to the libmon MON call handler.
+     *
+     * Capability format for segment 31: 0x801F
+     *   - Bit 15 (PC_IND = 0x8000): Indirect segment flag - triggers interception
+     *   - Bits 13-5: Target domain (0 = kernel domain)
+     *   - Bits 4-0: Target segment (31 = SINTRAN segment)
+     *
+     * When a program calls MON 11B (GetBasicTime), for example:
+     *   1. Program executes: CALL 0xF8000009  (segment 31, offset 9 = MON 11B)
+     *   2. CPU checks PC[31] capability, sees PC_IND flag is set
+     *   3. nd500_check_indirect_call() intercepts the call
+     *   4. MON number extracted from offset (9 = 0x09 = 11 octal)
+     *   5. libmon dispatches to mon_11B_GetBasicTime() handler
+     *   6. Handler executes, sets output parameters
+     *   7. Control returns to instruction after CALL
+     *
+     * Without this setup, CALL to segment 31 would cause an MMU fault because
+     * there is no physical memory mapped to segment 31.
+     * ======================================================================== */
+    uint16_t pc31 = PC_IND | (0 << 5) | 31;  /* 0x801F: indirect to domain 0 segment 31 */
+    nd500_mmu_set_program_capability(cpu, 0, 31, pc31);
+
+    /* Enable MMU */
+    nd500_mmu_enable_program(cpu);
+    nd500_mmu_enable_data(cpu);
+
+    if (log_callback) {
+        log_callback(log_context, "");
+        log_callback(log_context, "MMU Configuration:");
+        log_callback(log_context, "  DATA: %u pages @ PT 0x%08X (PSN %d)", data_pages, pt_base_data, psn_data);
+        log_callback(log_context, "  PROG: %u pages @ PT 0x%08X (PSN %d)", prog_pages, pt_base_prog, psn_prog);
+        log_callback(log_context, "  Segment 31: SINTRAN MON calls (indirect)");
+        log_callback(log_context, "  MMU enabled (Program and Data)");
+        log_callback(log_context, "");
+        log_callback(log_context, "Total: %u bytes DATA + %u bytes PROG = %u bytes",
+                     total_data_size, total_prog_size, total_data_size + total_prog_size);
+    }
+
+    /* Set PC to start address */
+    if (start_addr != 0) {
+        cpu->PC = start_addr;
+        if (log_callback) {
+            log_callback(log_context, "PC set to start address: 0x%08X", start_addr);
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * Simple printf-based log callback for command line use.
+ * Ignores context, just prints to stdout.
+ */
+void ndlib_dom_log_printf(void* ctx, const char* fmt, ...) {
+    (void)ctx;
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    printf("\n");
+}
