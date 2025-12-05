@@ -164,6 +164,24 @@ MonResult mon_{octal_str}_{name}(MonContext* ctx) {{
     return filename, name, short_name
 
 
+def format_params_desc(parameters):
+    """Generate parameter description string from parameters list."""
+    if not parameters:
+        return None
+    lines = []
+    for p in parameters:
+        io = p.get('io', '?')
+        name = p.get('name', 'param')
+        ptype = p.get('type', '?')
+        desc = p.get('description', '')
+        # Format: [I/O] Name (Type): Description
+        line = f"[{io}] {name} ({ptype})"
+        if desc:
+            line += f": {desc}"
+        lines.append(line)
+    return "\\n".join(lines)
+
+
 def generate_registry_file(handlers, output_dir):
     """Generate the mon_registry.c file that registers all handlers."""
     content = '''/*
@@ -192,7 +210,23 @@ void mon_register_all_handlers(void) {
     # Registration calls
     for h in handlers:
         desc = escape_c_string(h.get('description', '')[:100])
-        content += f'''    mon_register(
+        params_desc = h.get('params_desc')
+        if params_desc:
+            params_desc_escaped = escape_c_string(params_desc)
+            content += f'''    mon_register_ex(
+        {h["number"]},           /* MON number (decimal) */
+        "{h["octal"]}",         /* Octal string */
+        "{h["short_name"]}",    /* Short name */
+        "{h["name"]}",          /* Long name */
+        "{desc}",  /* Description */
+        "{params_desc_escaped}",  /* Parameter details */
+        mon_{h["octal"]}_{h["name"]},  /* Handler */
+        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        {h["param_count"]}             /* Param count */
+    );
+'''
+        else:
+            content += f'''    mon_register(
         {h["number"]},           /* MON number (decimal) */
         "{h["octal"]}",         /* Octal string */
         "{h["short_name"]}",    /* Short name */
@@ -258,13 +292,18 @@ def main():
 
         filename, name, short_name = generate_handler_file(mon_number, octal_str, data, output_dir)
 
+        # Generate parameter description string
+        parameters = data.get('parameters', [])
+        params_desc = format_params_desc(parameters)
+
         handlers.append({
             'number': mon_number,
             'octal': octal_str,
             'name': name,
             'short_name': short_name,
             'description': data.get('description', ''),
-            'param_count': len(data.get('parameters', []))
+            'param_count': len(parameters),
+            'params_desc': params_desc
         })
 
         print(f"  Generated {filename}")
