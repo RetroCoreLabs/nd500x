@@ -688,10 +688,19 @@ static int cmd_show(Nd500Machine* m, CmdContext* ctx, char* args) {
 static int cmd_step(Nd500Machine* m, CmdContext* ctx, char* args) {
 	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
 	uint32_t n = nd500_cmd_parse_u32(a1, 1);
+	m->stop_reason = NULL; /* Clear before stepping */
+	uint32_t executed = 0;
 	for (uint32_t i = 0; i < n; ++i) {
 		nd500_dbg_step(m, 1);
+		executed++;
+		if (m->stop_reason) break; /* Stop early if reason set */
 	}
-	output(ctx, "ok");
+	if (m->stop_reason) {
+		output(ctx, "Stopped: %s (after %u instruction%s)",
+		       m->stop_reason, executed, executed == 1 ? "" : "s");
+	} else {
+		output(ctx, "Stepped %u instruction%s", executed, executed == 1 ? "" : "s");
+	}
 	return 0;
 }
 
