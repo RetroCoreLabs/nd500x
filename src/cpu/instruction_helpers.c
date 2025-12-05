@@ -185,10 +185,9 @@ uint64_t nd500_read_operand_doubleword(Nd500Cpu* cpu, const Nd500OperandDecoded*
 void nd500_write_operand_byte(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint8_t value) {
     // Handle register direct
     if (operand->mode == ND500_ADDR_REGISTER) {
-        // Read-modify-write: preserve upper 24 bits
-        uint32_t reg_value = nd500_read_integer_register(cpu, operand->reg);
-        reg_value = (reg_value & 0xFFFFFF00) | value;
-        nd500_write_integer_register(cpu, operand->reg, reg_value);
+        // ND-500 Reference Manual: "When using the integer registers for BIt, BYte
+        // and Halfword, the unused upper part of the register is always zero-filled"
+        nd500_write_integer_register(cpu, operand->reg, (uint32_t)value);
         return;
     }
 
@@ -199,10 +198,9 @@ void nd500_write_operand_byte(Nd500Cpu* cpu, const Nd500OperandDecoded* operand,
 void nd500_write_operand_halfword(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint16_t value) {
     // Handle register direct
     if (operand->mode == ND500_ADDR_REGISTER) {
-        // Read-modify-write: preserve upper 16 bits
-        uint32_t reg_value = nd500_read_integer_register(cpu, operand->reg);
-        reg_value = (reg_value & 0xFFFF0000) | value;
-        nd500_write_integer_register(cpu, operand->reg, reg_value);
+        // ND-500 Reference Manual: "When using the integer registers for BIt, BYte
+        // and Halfword, the unused upper part of the register is always zero-filled"
+        nd500_write_integer_register(cpu, operand->reg, (uint32_t)value);
         return;
     }
 
@@ -612,9 +610,23 @@ void nd500_write_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uin
         return;
     }
 
-    /* Handle registers */
+    /* Handle registers - ND-500 Reference Manual: "When using the integer registers
+     * for BIt, BYte and Halfword, the unused upper part of the register is always
+     * zero-filled rather than sign-extended when data is loaded to the register." */
     if (op->mode == ND500_ADDR_REGISTER) {
-        nd500_write_integer_register(cpu, op->reg, (uint32_t)value);
+        uint32_t masked_value;
+        switch (dtype) {
+            case ND500_DTYPE_BYTE:
+                masked_value = (uint32_t)(value & 0xFF);
+                break;
+            case ND500_DTYPE_HALFWORD:
+                masked_value = (uint32_t)(value & 0xFFFF);
+                break;
+            default:
+                masked_value = (uint32_t)value;
+                break;
+        }
+        nd500_write_integer_register(cpu, op->reg, masked_value);
         return;
     }
 
