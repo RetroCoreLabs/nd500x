@@ -392,7 +392,7 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  mon log [off|error|warn|info|debug|trace]  Set/show MON logging level");
 	output(ctx, "  mon status                  Show MON implementation statistics");
 	output(ctx, "  mon list [status]           List MON calls (validated|inprogress|notimpl)");
-	output(ctx, "  mon info <number>           Show details for specific MON call");
+	output(ctx, "  mon info <number|name>      Show details for specific MON call");
 	output(ctx, "  mon break [unimpl|inprog|off]  Break on unimplemented MON calls");
 	output(ctx, "");
 	output(ctx, "  q (quit/exit)               Quit debugger");
@@ -2670,33 +2670,44 @@ static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return 0;
 	}
 
-	/* mon info <number> */
+	/* mon info <number|name> */
 	if (strcmp(sub, "info") == 0) {
-		char* num_str = strtok(NULL, " \t\r\n");
-		if (!num_str) {
-			error(ctx, "usage: mon info <number>");
+		char* arg_str = strtok(NULL, " \t\r\n");
+		if (!arg_str) {
+			error(ctx, "usage: mon info <number|name>");
 			return -1;
 		}
 
-		/* Parse MON number (support both decimal and octal with B suffix) */
-		uint32_t mon_num;
-		char* endptr;
-		size_t len = strlen(num_str);
+		const MonRegistryEntry* entry = NULL;
+		size_t len = strlen(arg_str);
 
-		if (len > 1 && (num_str[len-1] == 'B' || num_str[len-1] == 'b')) {
+		/* Try parsing as number first */
+		if (len > 1 && (arg_str[len-1] == 'B' || arg_str[len-1] == 'b')) {
 			/* Octal format like "11B" */
 			char octal_buf[32];
-			strncpy(octal_buf, num_str, len - 1);
+			strncpy(octal_buf, arg_str, len - 1);
 			octal_buf[len - 1] = '\0';
-			mon_num = (uint32_t)strtoul(octal_buf, &endptr, 8);
-		} else {
-			/* Decimal or hex */
-			mon_num = (uint32_t)strtoul(num_str, &endptr, 0);
+			char* endptr;
+			uint32_t mon_num = (uint32_t)strtoul(octal_buf, &endptr, 8);
+			if (*endptr == '\0') {
+				entry = mon_get_entry(mon_num);
+			}
+		} else if (arg_str[0] >= '0' && arg_str[0] <= '9') {
+			/* Starts with digit - try decimal or hex */
+			char* endptr;
+			uint32_t mon_num = (uint32_t)strtoul(arg_str, &endptr, 0);
+			if (*endptr == '\0') {
+				entry = mon_get_entry(mon_num);
+			}
 		}
 
-		const MonRegistryEntry* entry = mon_get_entry(mon_num);
+		/* If not found by number, try by name */
 		if (!entry) {
-			error(ctx, "MON %u not found in registry", mon_num);
+			entry = mon_get_entry_by_name(arg_str);
+		}
+
+		if (!entry) {
+			error(ctx, "MON '%s' not found in registry", arg_str);
 			return -1;
 		}
 
