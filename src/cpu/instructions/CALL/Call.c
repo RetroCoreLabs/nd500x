@@ -61,6 +61,13 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     for (uint16_t i = 0; i < arg_count && i < 256; i++) {
         const Nd500OperandDecoded* arg_operand = &cpu->extra_operands[i];
 
+        /* Debug: trace argument operands for MON calls */
+        if ((subroutine_addr >> 27) == 31) {
+            printf("[CALL MON] arg[%u]: mode=%d, addr_code=0x%02X, ea=0x%08X, B=0x%08X, R=0x%08X\n",
+                   i, arg_operand->mode, arg_operand->address_code,
+                   arg_operand->effective_address, cpu->B, cpu->R);
+        }
+
         /* CALL arguments MUST be memory operands (not constants or registers) */
         /* We pass the ADDRESS of the argument, not the VALUE */
         if (arg_operand->mode == ND500_ADDR_CONSTANT ||
