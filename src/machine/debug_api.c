@@ -33,6 +33,7 @@ static int g_trace_mode = -1;   /* instruction trace mode */
 static int g_profiling = -1;    /* instruction profiling mode */
 static int g_trap_invalid = -1; /* trap on invalid instruction 0x00 */
 static int g_show_source = 0;   /* 0: off, 1: asm only, 2: c only, 3: both */
+static int g_mmu_log_level = MMU_LOG_ERRORS;  /* MMU logging: 0=off, 1=errors, 2=trace, 3=all */
 
 /* Profiling data structures */
 #define MAX_PROFILE_ENTRIES 256
@@ -136,6 +137,17 @@ int nd500_dbg_set_show_source(int mode) {
 
 int nd500_dbg_get_show_source(void) {
     return g_show_source;
+}
+
+int nd500_dbg_set_mmu_log_level(int level) {
+    if (level < MMU_LOG_OFF) level = MMU_LOG_OFF;
+    if (level > MMU_LOG_ALL) level = MMU_LOG_ALL;
+    g_mmu_log_level = level;
+    return g_mmu_log_level;
+}
+
+int nd500_dbg_get_mmu_log_level(void) {
+    return g_mmu_log_level;
 }
 
 /* Helper: format signed value based on current radix */
