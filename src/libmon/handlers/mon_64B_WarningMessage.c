@@ -32,13 +32,13 @@ MonResult mon_64B_WarningMessage(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Output the error message to console
+    /* Output the error message to console in octal format per SINTRAN convention
      * TODO: Add actual SINTRAN III error message lookup table later
      */
-    fprintf(stderr, "[SINTRAN ERROR %d]\n", error_code);
+    fprintf(stderr, "[SINTRAN ERROR %oB]\n", (unsigned int)error_code);
 
     /* Log the call */
-    mon_log(MON_LOG_INFO, "MON 64B ERMSG: Error code %d", error_code);
+    mon_log(MON_LOG_INFO, "MON 64B ERMSG: Error code %oB", (unsigned int)error_code);
 
     /* Set success - program continues */
     mon_set_success(ctx);

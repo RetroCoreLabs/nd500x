@@ -37,14 +37,15 @@ MonResult mon_142B_ToErrorDevice(MonContext* ctx) {
 
     /* Output error message to stderr (error device/console)
      * Format similar to SINTRAN: "HH.MM.SS ERROR nn, USER ERROR, SUBERROR m"
+     * Numbers in octal format per SINTRAN convention
      */
-    fprintf(stderr, "%02d.%02d.%02d ERROR %d, USER ERROR, SUBERROR %d\n",
+    fprintf(stderr, "%02d.%02d.%02d ERROR %oB, USER ERROR, SUBERROR %oB\n",
             tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec,
-            error_number, suberror_number);
+            (unsigned int)error_number, (unsigned int)suberror_number);
 
     /* Log the call */
-    mon_log(MON_LOG_INFO, "MON 142B ERMON: ErrorNumber=%d, SubErrorNumber=%d",
-            error_number, suberror_number);
+    mon_log(MON_LOG_INFO, "MON 142B ERMON: ErrorNumber=%oB, SubErrorNumber=%oB",
+            (unsigned int)error_number, (unsigned int)suberror_number);
 
     /* Set success - program continues */
     mon_set_success(ctx);
