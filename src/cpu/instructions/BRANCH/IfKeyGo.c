@@ -129,11 +129,8 @@ void nd500_instr_IfKeyGo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Sign-extend based on data type */
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
-        /* Update PC (relative branch) */
-        cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
-
-        printf("[BRANCH] IF K GO at PC=0x%08X: K flag set, branching to PC=0x%08X (displacement=%lld)\n",
-               fi->address, cpu->PC, (long long)displacement);
+        /* Update PC (relative branch from instruction start) */
+        cpu->PC = (uint32_t)(fi->address + displacement);
     }
     /* else: K flag clear, fall through to next instruction */
 
