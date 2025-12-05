@@ -174,8 +174,8 @@ void nd500_instr_Ifstgo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint64_t value = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
-        // Update PC: branch relative to END of this instruction
-        cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
+        // Update PC (relative branch from instruction start)
+        cpu->PC = (uint32_t)(fi->address + displacement);
 
         // Set Branch Trap (BT) bit in status register when branch is taken
         cpu->ST1 |= 0x40000;  // BT bit = bit 18
