@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include "nd500_indirect.h"
+#include "mon.h"
 #include <stdio.h>
 
 /**
@@ -57,15 +58,20 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
+    /* For MON calls, log argument details at DEBUG level */
+    int is_mon_call = ((subroutine_addr >> 27) == 31);
+    uint32_t mon_number = is_mon_call ? (subroutine_addr & 0x1FF) : 0;
+
     /* Process arguments from cpu->extra_operands (decoded by cpu_instr.c) */
     for (uint16_t i = 0; i < arg_count && i < 256; i++) {
         const Nd500OperandDecoded* arg_operand = &cpu->extra_operands[i];
 
         /* Debug: trace argument operands for MON calls */
-        if ((subroutine_addr >> 27) == 31) {
-            printf("[CALL MON] arg[%u]: mode=%d, addr_code=0x%02X, ea=0x%08X, B=0x%08X, R=0x%08X\n",
-                   i, arg_operand->mode, arg_operand->address_code,
-                   arg_operand->effective_address, cpu->B, cpu->R);
+        if (is_mon_call) {
+            const char* mon_name = mon_get_name(mon_number);
+            mon_log(MON_LOG_DEBUG, "MON %oB (%s) arg[%u]: mode=%d, ea=0x%08X",
+                    mon_number, mon_name ? mon_name : "?",
+                    i, arg_operand->mode, arg_operand->effective_address);
         }
 
         /* CALL arguments MUST be memory operands (not constants or registers) */
