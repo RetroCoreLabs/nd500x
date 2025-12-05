@@ -42,6 +42,14 @@ void nd500_instr_LGet(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     uint32_t value = cpu->L;
+
+    /* Debug: trace L=: writes to help diagnose MMU issues */
+    if (nd500_dbg_get_trace_mode()) {
+        printf("[TRACE] LGet: L=0x%08X -> addr=0x%08X, mode=%d, MMU=%s\n",
+               value, fi->operands[0].effective_address, fi->operands[0].mode,
+               (cpu->machine && cpu->machine->mmu_enabled) ? "ON" : "OFF");
+    }
+
     nd500_write_operand_word(cpu, &fi->operands[0], value);
 
     // Set Z and S flags based on the value
