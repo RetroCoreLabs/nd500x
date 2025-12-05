@@ -8,8 +8,10 @@
  * - Error code 0 is illegal.
  * - The program continues after the message is output.
  *
- * Parameters:
- *   [I] ErrCode (INTEGER): Error code number. See SINTRAN III appendix A.
+ * Parameters (all are 32-bit WORD on ND-500):
+ *   [I] ErrCode (W INTEGER): Error code number. See SINTRAN III appendix A.
+ *
+ * Note: On ND-500, INTEGER = 32-bit Word (W type).
  *
  * Reference: ND-860228.2 EN (SINTRAN III Monitor Calls)
  */
@@ -18,10 +20,10 @@
 #include <stdio.h>
 
 MonResult mon_64B_WarningMessage(MonContext* ctx) {
-    int16_t error_code;
+    int32_t error_code;
 
-    /* Read the error code parameter */
-    error_code = (int16_t)mon_read_param_halfword(ctx, 0);
+    /* Read the error code parameter as 32-bit word (ND-500 INTEGER = W) */
+    error_code = (int32_t)mon_read_param_word(ctx, 0);
 
     /* Error code 0 is illegal per documentation */
     if (error_code == 0) {
