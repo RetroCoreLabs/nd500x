@@ -121,8 +121,14 @@ uint64_t mon_read_param_dword(MonContext* ctx, int idx);
 /* Read a byte from parameter at index */
 uint8_t mon_read_param_byte(MonContext* ctx, int idx);
 
+/* Read a 16-bit halfword from parameter at index */
+uint16_t mon_read_param_halfword(MonContext* ctx, int idx);
+
 /* Write a 32-bit word to parameter at index */
 void mon_write_param_word(MonContext* ctx, int idx, uint32_t value);
+
+/* Write a 16-bit halfword to parameter at index */
+void mon_write_param_halfword(MonContext* ctx, int idx, uint16_t value);
 
 /* Write a 64-bit double-word to parameter at index */
 void mon_write_param_dword(MonContext* ctx, int idx, uint64_t value);
@@ -190,6 +196,25 @@ void mon_register(
     const char* name,
     const char* long_name,
     const char* description,
+    MonHandler handler,
+    MonImplStatus status,
+    uint8_t param_count
+);
+
+/**
+ * Register a MON handler with parameter description.
+ *
+ * Same as mon_register but includes params_desc for detailed parameter info.
+ *
+ * @param params_desc  Parameter description (e.g., "[O] Result (INTEGER): ...")
+ */
+void mon_register_ex(
+    uint32_t mon_number,
+    const char* octal_str,
+    const char* name,
+    const char* long_name,
+    const char* description,
+    const char* params_desc,
     MonHandler handler,
     MonImplStatus status,
     uint8_t param_count
