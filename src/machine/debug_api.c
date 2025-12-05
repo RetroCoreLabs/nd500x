@@ -730,17 +730,17 @@ int nd500_dbg_get_trace_mode(void) {
     return g_trace_mode;
 }
 
-void nd500_dbg_trace_instruction(uint32_t pc, const char* mnemonic, uint32_t* registers) {
+void nd500_dbg_trace_instruction(uint32_t pc, const char* disasm, uint32_t* registers) {
     if (!nd500_dbg_get_trace_mode()) return;
-    
-    printf("%s[TRACE]%s PC=0x%08X %s", 
-           color_meta(), color_reset(), pc, mnemonic ? mnemonic : "unknown");
-    
+
+    printf("%s[TRACE]%s ", color_meta(), color_reset());
+
     if (registers) {
-        printf(" I1=0x%08X I2=0x%08X I3=0x%08X I4=0x%08X", 
+        printf("I1=%08X I2=%08X I3=%08X I4=%08X  ",
                registers[1], registers[2], registers[3], registers[4]);
     }
-    printf("\n");
+
+    printf("%s\n", disasm ? disasm : "?");
 }
 
 /* Profiling functions */
