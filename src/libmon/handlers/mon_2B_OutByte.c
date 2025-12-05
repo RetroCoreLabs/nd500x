@@ -1,74 +1,34 @@
 /*
  * MON 2B (2 decimal): OutByte (OUTBT)
  *
- * Writes one byte to a character device, e.g. a terminal or an opened file.
+ * Writes one byte to a character device, e.g. a terminal or an opened file. If the device is a word-oriented device, one word is written.
+ * 
+ * - The program waits if the output buffer of the device is full. You can change this with NoWaitSwitch or TerminalNoWait.
+ * - The pointer to the next byte is incremented when you write to a mass-storage file.
+ * - Output from card readers are converted to ASCII characters. Use DeviceControl to write the 12-bit card columns.
+ * - You are advised to use the faster OutputString on the ND-500.
+ * - Appendix F contains an ASCII table.
  *
  * Parameters:
- *   [I] DeviceNumber (INTEGER): Logical device number (1=stdout, 2=stderr)
- *   [I] OutputValue (INTEGER): The byte to write (low 8 bits)
+ *   [I] DeviceNumber (INTEGER): input
+ *   [I] OutputValue (INTEGER): input
  *
- * Device numbers:
- *   1 = Terminal output (stdout)
- *   2 = Error output (stderr)
- *   Others = File handles
- *
- * K flag: Set on error (device not ready)
- *
- * IMPLEMENTATION STATUS: VALIDATED (terminal output only)
+ * AUTO-GENERATED STUB - Implementation required
  */
 
 #include "../mon.h"
-#include <stdio.h>
 
 MonResult mon_2B_OutByte(MonContext* ctx) {
-    /* Validate parameters */
-    if (ctx->arg_count < 2) {
-        mon_log(MON_LOG_ERROR, "OUTBT: Expected 2 parameters, got %u", ctx->arg_count);
-        mon_set_error(ctx, -1);
-        return MON_ERROR;
-    }
-
-    /* Read parameters */
-    uint32_t device = mon_read_param_word(ctx, 0);
-    uint32_t value = mon_read_param_word(ctx, 1);
-    uint8_t byte = (uint8_t)(value & 0xFF);
+    /* TODO: Implement OutByte (OUTBT) */
 
     /* Log input parameters */
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
     MON_LOG_IN_WORD(ctx, 1, "OutputValue");
 
-    /* Handle device 1 = terminal stdout */
-    if (device == 1) {
-        int result = putchar((int)byte);
-        fflush(stdout);
+    /* Implementation goes here */
 
-        if (result == EOF) {
-            mon_log(MON_LOG_ERROR, "OUTBT: Failed to write to stdout");
-            mon_set_error(ctx, -2);
-            return MON_ERROR;
-        }
+    /* Set error - not yet implemented */
+    mon_set_error(ctx, -1);
 
-        mon_set_success(ctx);
-        return MON_SUCCESS;
-    }
-
-    /* Handle device 2 = stderr */
-    if (device == 2) {
-        int result = fputc((int)byte, stderr);
-        fflush(stderr);
-
-        if (result == EOF) {
-            mon_log(MON_LOG_ERROR, "OUTBT: Failed to write to stderr");
-            mon_set_error(ctx, -2);
-            return MON_ERROR;
-        }
-
-        mon_set_success(ctx);
-        return MON_SUCCESS;
-    }
-
-    /* TODO: Handle file handles */
-    mon_log(MON_LOG_ERROR, "OUTBT: Unsupported device %u", device);
-    mon_set_error(ctx, -3);  /* Invalid device */
     return MON_ERROR;
 }
