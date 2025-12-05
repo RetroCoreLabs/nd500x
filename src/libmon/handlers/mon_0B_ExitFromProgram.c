@@ -2,24 +2,22 @@
  * MON 0B (0 decimal): ExitFromProgram (LEAVE)
  *
  * Terminates the program. Returns to SINTRAN III. Batch jobs continues with the next command.
- * 
+ *
  * - Background programs close all files not set permanently open. RT programs do not close any files.
  * - RT programs release all reserved devices.
  *
- * AUTO-GENERATED STUB - Implementation required
+ * Implementation:
+ *   Requests CPU halt to stop execution. In emulator context, this ends the program.
  */
 
 #include "../mon.h"
 
 MonResult mon_0B_ExitFromProgram(MonContext* ctx) {
-    /* TODO: Implement ExitFromProgram (LEAVE) */
+    /* Request CPU halt - program is exiting */
+    mon_request_halt(ctx, "Program exit (MON 0B LEAVE)");
 
-    /* Log input parameters */
+    mon_log(MON_LOG_INFO, "MON 0B LEAVE: Program terminated");
 
-    /* Implementation goes here */
-
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
-
-    return MON_ERROR;
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }
