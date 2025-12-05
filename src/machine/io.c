@@ -9,6 +9,7 @@ void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
 	m->memory_size = mem_size;
 	m->memory = (uint8_t*)calloc(1, mem_size);
 	m->run_flag = 0;
+	m->stop_reason = NULL;
 	m->mmu_enabled = 0;  /* MMU starts disabled */
 
 	/* Initialize breakpoint manager */
@@ -51,6 +52,7 @@ uint8_t nd500_bus_read8(Nd500Machine* m, uint32_t addr) {
 	/* Check watchpoints on read */
 	if (m->bp_mgr && wp_should_break_on_read(m->bp_mgr, addr)) {
 		m->run_flag = 0; /* Stop execution */
+		m->stop_reason = "Watchpoint: read access";
 	}
 
 	return m->memory[addr];
@@ -71,6 +73,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	/* Check watchpoints on write */
 	if (m->bp_mgr && wp_should_break_on_write(m->bp_mgr, addr, val)) {
 		m->run_flag = 0; /* Stop execution */
+		m->stop_reason = "Watchpoint: write access";
 	}
 
 	m->memory[addr] = val;
