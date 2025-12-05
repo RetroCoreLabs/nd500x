@@ -68,8 +68,12 @@ void mon_write_param_halfword(MonContext* ctx, int idx, uint16_t value) {
     }
     uint32_t addr = ctx->arg_addresses[idx];
     /* Write 16-bit value in big-endian order */
-    ctx->write_byte(ctx->cpu, addr, (uint8_t)(value >> 8));
-    ctx->write_byte(ctx->cpu, addr + 1, (uint8_t)(value & 0xFF));
+    uint8_t hi = (uint8_t)(value >> 8);
+    uint8_t lo = (uint8_t)(value & 0xFF);
+    mon_log(MON_LOG_DEBUG, "mon_write_param_halfword: idx=%d addr=0x%08X value=0x%04X -> [0x%02X, 0x%02X]",
+            idx, addr, value, hi, lo);
+    ctx->write_byte(ctx->cpu, addr, hi);
+    ctx->write_byte(ctx->cpu, addr + 1, lo);
 }
 
 uint16_t mon_read_param_halfword(MonContext* ctx, int idx) {
@@ -128,8 +132,8 @@ int mon_read_string(MonContext* ctx, int idx, char* buf, int max) {
 
     for (i = 0; i < max - 1; i++) {
         uint8_t ch = ctx->read_byte(ctx->cpu, addr + i);
-        /* SINTRAN string terminators: 0x00 or 0xFF */
-        if (ch == 0x00 || ch == 0xFF) {
+        /* SINTRAN string terminators: 0x00, 0x27 (apostrophe), or 0xFF */
+        if (ch == 0x00 || ch == 0x27 || ch == 0xFF) {
             break;
         }
         buf[i] = (char)ch;
