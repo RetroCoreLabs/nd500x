@@ -341,11 +341,10 @@ static uint8_t data_part_size(uint8_t ac) {
 static uint8_t read_data_part(Nd500Machine* m, uint32_t base, uint8_t addr_code, uint8_t* out, uint8_t out_cap) {
     uint8_t len = data_part_size(addr_code);
     if (len > out_cap) len = out_cap;
-    /* Operand data: NOT instruction bytes, use data access for MMU */
+    /* Operand data bytes are part of the instruction stream - use program memory access */
     if (m->cpu) {
         for (uint8_t i = 0; i < len; ++i) {
-            /* Operand data is DATA, not instruction - use is_instruction=0 for correct MMU translation */
-            out[i] = mmu_read8(m->cpu, base + i, 0, 0); /* is_write=0, is_instruction=0 */
+            out[i] = mmu_read8(m->cpu, base + i, 0, 1); /* is_write=0, is_instruction=1 */
         }
     } else {
         /* Debugger/disassembler: direct physical access */
@@ -544,7 +543,8 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     }
 
     /* For variable operand instructions (CALL/CALLG/POLY): decode additional argument operands into CPU buffer */
-    if (is_var_op_instr && arg_count > 0 && m->cpu) {
+    /* Always reset extra_operand_count for variable operand instructions, even when arg_count is 0 */
+    if (is_var_op_instr && m->cpu) {
         m->cpu->extra_operand_count = 0;
         for (uint16_t i = 0; i < arg_count && i < 256; ++i) {
             DECODE_GENERAL_OPERAND(&m->cpu->extra_operands[i], &cursor, &byte_idx);

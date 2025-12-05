@@ -350,8 +350,11 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
     /* Print each instruction immediately - no buffer needed */
 	if (!m) return;
     uint32_t end_addr = addr + len;
-    /* Clamp to actual text loaded if available */
-    if (m->memory_size > 0 && end_addr > m->memory_size) end_addr = m->memory_size;
+    /* Only clamp to physical memory size when NOT using MMU.
+     * With MMU enabled, virtual addresses can exceed physical memory size. */
+    if (!m->mmu_enabled && m->memory_size > 0 && end_addr > m->memory_size) {
+        end_addr = m->memory_size;
+    }
     size_t (*format_operand)(char*, size_t, const Nd500OperandDecoded*) = &format_operand_impl;
 
     for (uint32_t a = addr; a < end_addr;) {

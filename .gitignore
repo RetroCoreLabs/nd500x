@@ -52,3 +52,4 @@ node_modules/
 # History files
 .nd500x_history
 
+build-wasm/

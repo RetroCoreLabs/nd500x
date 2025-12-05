@@ -23,11 +23,9 @@ void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
 	/* Initialize ND-100 I/O Processor Bridge */
 	cpu->nd100_memory_offset = 0x40000;  /* Default: ND-100 memory at physical offset 0x40000 */
 
-	/* Initialize MMU structures (PST, PCB tables) */
-	nd500_mmu_init(cpu);
-
-	/* Initialize domain system (CED=0, CAD=0) */
-	nd500_domain_init(cpu);
+	/* MMU and domain tables are NOT pre-allocated.
+	 * User must configure MMU via init script commands before 'mmu enable'.
+	 * Tables are allocated on first use (lazy initialization). */
 }
 
 void nd500_cpu_reset(Nd500Cpu* cpu) {

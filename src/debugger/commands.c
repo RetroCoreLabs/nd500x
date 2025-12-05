@@ -30,6 +30,7 @@ typedef struct {
 /* Forward declarations of command handlers */
 static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mem(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_mem_prog(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_dis(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_show(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_step(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -72,7 +73,8 @@ int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
 static const CmdEntry g_commands[] = {
 	{"help",        cmd_help,         "Show help message"},
 	{"?",           cmd_help,         "Show help message"},
-	{"m",           cmd_mem,          "Display memory hex dump"},
+	{"m",           cmd_mem,          "Display memory hex dump (data space)"},
+	{"mp",          cmd_mem_prog,     "Display memory hex dump (program space)"},
 	{"d",           cmd_dis,          "Disassemble instructions"},
 	{"dis",         cmd_dis,          "Disassemble instructions"},
 	{"disasm",      cmd_dis,          "Disassemble instructions"},
@@ -383,7 +385,56 @@ static int cmd_mem(Nd500Machine* m, CmdContext* ctx, char* args) {
 		for (uint32_t j = 0; j < 16; ++j) {
 			uint32_t idx = i + j;
 			if (idx < len) {
-				uint8_t b = nd500_bus_read8(m, line_addr + j);
+				uint32_t vaddr = line_addr + j;
+				uint32_t paddr = vaddr;
+				/* Use MMU translation if enabled */
+				if (m->mmu_enabled && m->cpu) {
+					paddr = nd500_mmu_translate(m->cpu, vaddr, 0, 0);
+				}
+				uint8_t b = nd500_bus_read8(m, paddr);
+				hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "%02X ", b);
+				ascii_part[j] = isprint(b) ? (char)b : '.';
+				if (j == 7) hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, " ");
+			} else {
+				hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "   ");
+				ascii_part[j] = ' ';
+			}
+		}
+		ascii_part[16] = '\0';
+
+		snprintf(line, sizeof(line), "%08X: %-50s |%s|", line_addr, hex_part, ascii_part);
+		output(ctx, "%s", line);
+	}
+	return 0;
+}
+
+/* Memory dump for PROGRAM space (uses instruction MMU path) */
+static int cmd_mem_prog(Nd500Machine* m, CmdContext* ctx, char* args) {
+	uint32_t pc = m && m->cpu ? m->cpu->PC : 0;
+	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
+	char* a2 = a1 ? strtok(NULL, " \t\r\n") : NULL;
+
+	uint32_t addr = nd500_cmd_parse_u32(a1, pc);
+	uint32_t len = nd500_cmd_parse_u32(a2, 100);
+
+	char line[256];
+	for (uint32_t i = 0; i < len; i += 16) {
+		uint32_t line_addr = addr + i;
+		char hex_part[64];
+		char ascii_part[20];
+		int hex_pos = 0;
+
+		/* Build hex and ASCII parts */
+		for (uint32_t j = 0; j < 16; ++j) {
+			uint32_t idx = i + j;
+			if (idx < len) {
+				uint32_t vaddr = line_addr + j;
+				uint32_t paddr = vaddr;
+				/* Use MMU translation with is_instruction=1 for program space */
+				if (m->mmu_enabled && m->cpu) {
+					paddr = nd500_mmu_translate(m->cpu, vaddr, 0, 1);
+				}
+				uint8_t b = nd500_bus_read8(m, paddr);
 				hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "%02X ", b);
 				ascii_part[j] = isprint(b) ? (char)b : '.';
 				if (j == 7) hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, " ");

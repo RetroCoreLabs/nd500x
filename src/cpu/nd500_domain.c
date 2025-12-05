@@ -27,8 +27,6 @@ void nd500_domain_init(Nd500Cpu* cpu) {
     /* Start in domain 0 (kernel) */
     cpu->CED = KERNEL_DOMAIN;  /* Current Executing Domain */
     cpu->CAD = KERNEL_DOMAIN;  /* Current Alternative Domain */
-
-    printf("ND-500: Domain system initialized - CED=0, CAD=0\n");
 }
 
 /**

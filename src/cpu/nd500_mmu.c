@@ -28,9 +28,8 @@ static int g_mmu_program_enabled = 0;  // Controlled by PMON/PMOF instructions
 // MMU INITIALIZATION
 // ═══════════════════════════════════════════════════════
 
-void nd500_mmu_init(Nd500Cpu* cpu) {
-    if (!cpu) return;
-
+/* Ensure MMU tables are allocated (lazy initialization) */
+static void ensure_mmu_tables(void) {
     /* Allocate PST (8192 entries * 8 bytes each) */
     if (!g_pst) {
         g_pst = (PhysicalSegmentTableEntry*)calloc(MAX_PST, sizeof(PhysicalSegmentTableEntry));
@@ -48,12 +47,16 @@ void nd500_mmu_init(Nd500Cpu* cpu) {
             return;
         }
     }
+}
+
+void nd500_mmu_init(Nd500Cpu* cpu) {
+    if (!cpu) return;
+
+    ensure_mmu_tables();
 
     /* MMU starts disabled (both data and program) */
     g_mmu_data_enabled = 0;
     g_mmu_program_enabled = 0;
-
-    printf("ND-500: MMU initialized - PST: %d entries, PCB: %d domains\n", MAX_PST, MAXDOM);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -325,6 +328,7 @@ uint32_t nd500_mmu_phyladr(Nd500Cpu* cpu, uint32_t virtual_addr) {
 PhysicalSegmentTableEntry nd500_mmu_get_pst_entry(Nd500Cpu* cpu, int psn) {
     PhysicalSegmentTableEntry empty = {0, 0};
 
+    ensure_mmu_tables();
     if (!g_pst || psn < 0 || psn >= MAX_PST) {
         return empty;
     }
@@ -333,6 +337,7 @@ PhysicalSegmentTableEntry nd500_mmu_get_pst_entry(Nd500Cpu* cpu, int psn) {
 }
 
 void nd500_mmu_set_pst_entry(Nd500Cpu* cpu, int psn, uint8_t index_mode, uint32_t pfn) {
+    ensure_mmu_tables();
     if (!g_pst || psn < 0 || psn >= MAX_PST) {
         return;
     }
@@ -346,6 +351,7 @@ void nd500_mmu_set_pst_entry(Nd500Cpu* cpu, int psn, uint8_t index_mode, uint32_
 // ═══════════════════════════════════════════════════════
 
 ProcessControlBlock* nd500_mmu_get_pcb(Nd500Cpu* cpu, uint8_t domain) {
+    ensure_mmu_tables();
     if (!g_pcb_table) {
         return NULL;
     }
@@ -354,6 +360,7 @@ ProcessControlBlock* nd500_mmu_get_pcb(Nd500Cpu* cpu, uint8_t domain) {
 }
 
 uint16_t nd500_mmu_get_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
+    ensure_mmu_tables();
     if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
         return 0;
     }
@@ -362,6 +369,7 @@ uint16_t nd500_mmu_get_program_capability(Nd500Cpu* cpu, uint8_t domain, int seg
 }
 
 uint16_t nd500_mmu_get_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
+    ensure_mmu_tables();
     if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
         return 0;
     }
@@ -400,24 +408,34 @@ PageTableEntry nd500_mmu_read_pte(Nd500Cpu* cpu, uint32_t physical_addr) {
         return pte;
     }
 
-    /* Read 4 bytes from physical memory (little endian) */
+    /* Read 4 bytes from physical memory (big endian - ND-500 is big endian) */
     uint8_t b0 = nd500_bus_read8(cpu->machine, physical_addr);
     uint8_t b1 = nd500_bus_read8(cpu->machine, physical_addr + 1);
     uint8_t b2 = nd500_bus_read8(cpu->machine, physical_addr + 2);
     uint8_t b3 = nd500_bus_read8(cpu->machine, physical_addr + 3);
 
-    uint32_t pte_value = (uint32_t)(b0 | (b1 << 8) | (b2 << 16) | (b3 << 24));
+    uint32_t pte_value = (uint32_t)((b0 << 24) | (b1 << 16) | (b2 << 8) | b3);
 
+    /* PTE format (matches C# CpuND500.MMU.cs):
+     * [31:2] = Physical Page Frame Number (30 bits)
+     * [1]    = unused
+     * [0]    = Protection (0=RW, 1=RO)
+     * Valid = (PFN != 0) - there is no separate valid bit
+     */
     pte.protection = (uint8_t)(pte_value & 0x1);
-    pte.valid = (uint8_t)((pte_value >> 1) & 0x1);
     pte.physical_pfn = (pte_value >> 2) & 0x3FFFFFFF;
+    pte.valid = (pte.physical_pfn != 0) ? 1 : 0;  /* Valid if PFN is non-zero */
 
     return pte;
 }
 
 /**
  * Write a Page Table Entry to physical memory
- * Format: [31:2]=PFN, [1]=valid, [0]=protection
+ * Format (matches C# CpuND500.MMU.cs):
+ *   [31:2] = PFN (30 bits)
+ *   [1]    = unused
+ *   [0]    = protection (0=RW, 1=RO)
+ * Written in big-endian (ND-500 native byte order)
  */
 void nd500_mmu_write_pte(Nd500Cpu* cpu, uint32_t physical_addr, PageTableEntry pte) {
     if (!cpu || !cpu->machine) {
@@ -425,13 +443,13 @@ void nd500_mmu_write_pte(Nd500Cpu* cpu, uint32_t physical_addr, PageTableEntry p
     }
 
     uint32_t pte_value = ((pte.physical_pfn & 0x3FFFFFFF) << 2) |
-                         ((uint32_t)pte.valid << 1) |
                          (uint32_t)pte.protection;
 
-    nd500_bus_write8(cpu->machine, physical_addr, (uint8_t)(pte_value & 0xFF));
-    nd500_bus_write8(cpu->machine, physical_addr + 1, (uint8_t)((pte_value >> 8) & 0xFF));
-    nd500_bus_write8(cpu->machine, physical_addr + 2, (uint8_t)((pte_value >> 16) & 0xFF));
-    nd500_bus_write8(cpu->machine, physical_addr + 3, (uint8_t)((pte_value >> 24) & 0xFF));
+    /* Write big-endian */
+    nd500_bus_write8(cpu->machine, physical_addr, (uint8_t)((pte_value >> 24) & 0xFF));
+    nd500_bus_write8(cpu->machine, physical_addr + 1, (uint8_t)((pte_value >> 16) & 0xFF));
+    nd500_bus_write8(cpu->machine, physical_addr + 2, (uint8_t)((pte_value >> 8) & 0xFF));
+    nd500_bus_write8(cpu->machine, physical_addr + 3, (uint8_t)(pte_value & 0xFF));
 }
 
 // ═══════════════════════════════════════════════════════

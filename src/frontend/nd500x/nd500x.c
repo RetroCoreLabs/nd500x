@@ -270,18 +270,44 @@ int main(int argc, char** argv) {
                 }
 
                 /* Set up MMU: Map virtual addresses to physical memory */
-                /* PST entry: PSN -> Physical PFN (page frame number, 2KB pages) */
-                /* PCB capability: Segment -> PSN */
+                /* PS_AZI only maps ONE 2KB page - we need PS_ASI with page tables */
+                /* for segments larger than 2KB */
+
+                /* Calculate number of pages needed for each segment */
+                uint32_t data_pages = (total_data_size + 2047) / 2048;
+                uint32_t prog_pages = (total_prog_size + 2047) / 2048;
+                if (data_pages == 0) data_pages = 1;
+                if (prog_pages == 0) prog_pages = 1;
+
+                /* Allocate page tables in physical memory after the segments */
+                /* Each PTE is 4 bytes, page-align the tables */
+                uint32_t pt_base_data = (phys_prog_base + total_prog_size + 2047) & ~2047u;
+                uint32_t pt_base_prog = (pt_base_data + data_pages * 4 + 2047) & ~2047u;
+
+                /* Fill DATA page table - PTEs map virtual pages to physical pages */
+                /* PTE format: [31:2]=PFN, [1]=unused, [0]=protection (0=RW, 1=RO) */
+                for (uint32_t i = 0; i < data_pages; i++) {
+                    uint32_t pte_addr = pt_base_data + i * 4;
+                    uint32_t pfn = (phys_data_base >> 11) + i;
+                    uint32_t pte = (pfn << 2) | 0;  /* RW */
+                    nd500_bus_write32(&machine, pte_addr, pte);
+                }
+
+                /* Fill PROG page table */
+                for (uint32_t i = 0; i < prog_pages; i++) {
+                    uint32_t pte_addr = pt_base_prog + i * 4;
+                    uint32_t pfn = (phys_prog_base >> 11) + i;
+                    uint32_t pte = (pfn << 2) | 1;  /* RO */
+                    nd500_bus_write32(&machine, pte_addr, pte);
+                }
 
                 /* Use PSN 100 for kernel data, PSN 101 for kernel text */
                 int psn_data = 100;
                 int psn_prog = 101;
-                uint32_t pfn_data = phys_data_base >> 11;  /* PFN = phys_addr / 2048 */
-                uint32_t pfn_prog = phys_prog_base >> 11;
 
-                /* Set up PST entries (direct mapping, PS_AZI) */
-                nd500_mmu_set_pst_entry(&cpu, psn_data, PS_AZI, pfn_data);
-                nd500_mmu_set_pst_entry(&cpu, psn_prog, PS_AZI, pfn_prog);
+                /* Set up PST entries with PS_ASI mode, pointing to page tables */
+                nd500_mmu_set_pst_entry(&cpu, psn_data, PS_ASI, pt_base_data >> 11);
+                nd500_mmu_set_pst_entry(&cpu, psn_prog, PS_ASI, pt_base_prog >> 11);
 
                 /* Set up Domain 0 PCB capabilities */
                 /* Virtual 0x08000000 = segment 1 (bits 31:27 = 1) -> PSN for PROG */
@@ -295,8 +321,8 @@ int main(int argc, char** argv) {
                 nd500_mmu_enable_program(&cpu);
                 nd500_mmu_enable_data(&cpu);
 
-                printf("MMU configured: DATA PSN=%d->PFN=%u, PROG PSN=%d->PFN=%u\n",
-                       psn_data, pfn_data, psn_prog, pfn_prog);
+                printf("MMU configured (PS_ASI): DATA %u pages @ PT 0x%08X, PROG %u pages @ PT 0x%08X\n",
+                       data_pages, pt_base_data, prog_pages, pt_base_prog);
 
                 /* Set PC to virtual start address (MMU will translate) */
                 if (!has_start_pc) {
