@@ -37,10 +37,9 @@ void nd500_instr_Go(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Sign-extend based on data type (using helper to avoid duplication) */
     int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
-    /* Update PC: branch relative to END of this instruction
-     * Formula from C#: expectedPC = DefaultPC + SIZE_BRANCH + offset
-     * Where DefaultPC is instruction start address, SIZE_BRANCH is instruction length */
-    cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
+    /* Update PC: branch relative to START of this instruction
+     * Formula from C#: regs.P = regs.P + displacement */
+    cpu->PC = (uint32_t)(fi->address + displacement);
 
     /* Branch trap (BT) would be checked by trap system if enabled */
     /* Note: This is an ignorable trap that doesn't stop execution */
