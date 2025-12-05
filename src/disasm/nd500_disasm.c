@@ -49,7 +49,9 @@ static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op) 
     uint8_t low6 = op->address_code & 0x3F;
     switch (op->mode) {
         case ND500_ADDR_CONSTANT_SHORT: {
-            int n = fmt_unsigned(p, (size_t)(e-p), "$", (unsigned)low6);
+            /* 6-bit signed constant sign-extended to 32-bit, displayed as unsigned */
+            uint32_t val32 = (low6 & 0x20) ? (uint32_t)(low6 | 0xFFFFFFC0) : (uint32_t)low6;
+            int n = fmt_unsigned(p, (size_t)(e-p), "$", val32);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
@@ -192,6 +194,14 @@ size_t nd500_disasm_format_range(struct Nd500Machine* m,
                 size_t ol = fmt_operand(obuf, sizeof(obuf), &fi.operands[oi]);
                 if (ol > 0) {
                     pos = buf_append(out, out_cap, pos, "%s%s", (oi > 0) ? "," : "", obuf);
+                }
+            }
+            /* Also show extra operands for variable-operand instructions (CALL/CALLG/POLY) */
+            /* Show effective addresses for CALL arguments (what actually gets passed) */
+            if (m->cpu && m->cpu->extra_operand_count > 0) {
+                for (uint16_t ei = 0; ei < m->cpu->extra_operand_count; ++ei) {
+                    pos = buf_append(out, out_cap, pos, ",0x%X",
+                                     m->cpu->extra_operands[ei].effective_address);
                 }
             }
         } else {
