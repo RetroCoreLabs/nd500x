@@ -401,10 +401,10 @@ void mon_register_all_handlers(void) {
         "114B",         /* Octal string */
         "TUSED",    /* Short name */
         "GetTimeUsed",          /* Long name */
-        "Gets the time you have used the CPU since you logged in. In batch jobs, you get the time since you e",  /* Description */
+        "Gets the time you have used the CPU since you logged in. In batch jobs, you get the time since you entered the job. CPU time is in basic time units (1/50th second). Can also be used from RT-programs.",  /* Description */
         "[O] TimeUsed (LONGINT): CPU time used in basic time units (1/50s). Output returned in W1 register.",  /* Parameter details */
         mon_114B_GetTimeUsed,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -688,7 +688,7 @@ void mon_register_all_handlers(void) {
         "Gets information about the execution of the calling program. You are told whether the program execut",  /* Description */
         "[O] ExecutionMode (INTEGER): Execution mode:\n0 = interactive program\n1 = batch job\n2 = mode job\n3 = RT program\\n[O] InputDev (INTEGER): Logical device number for command input. Terminal number for interactive, file number for batch/mode.\\n[O] OutputDev (INTEGER): Logical device number for command output. Terminal number for interactive, file number for batch/mode.\\n[O] UserIndex (INTEGER): Directory and user index of program's owner. Bits 8-15=directory index, bits 0-7=user index.",  /* Parameter details */
         mon_143B_ExecutionInfo,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         4             /* Param count */
     );
     mon_register_ex(
