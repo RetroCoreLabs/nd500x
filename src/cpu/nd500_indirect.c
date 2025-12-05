@@ -207,6 +207,13 @@ int nd500_check_indirect_call(
         MonResult result = mon_dispatch(&ctx);
         (void)result; /* Result is informational - check flags instead */
 
+        /* ND-500 specific: Place error code in W1 if error occurred
+         * This is redundant with the set_error_code callback, but ensures
+         * the error code is always placed in W1 for ND-500 */
+        if (ctx.error_flag && ctx.error_code != 0) {
+            cpu->I[0] = (uint32_t)ctx.error_code;  /* W1 = I[0] on ND-500 */
+        }
+
         /* Check for halt request (MON 0B LEAVE or unimplemented) */
         if (ctx.halt_requested) {
             cpu->machine->run_flag = 0;
