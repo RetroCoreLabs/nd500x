@@ -7,6 +7,7 @@
 #include "nd500_domain.h"
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
+#include "../disasm/nd500_disasm.h"
 
 /* Global jump buffer for trap handling */
 jmp_buf cpu_jmp_buf;
@@ -70,13 +71,15 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
 		const Nd500TrapState* trap = nd500_trap_get_state();
 		/* Trap detected - stop execution and clear trap state */
 		cpu->machine->run_flag = 0; /* Stop execution */
+		cpu->machine->stop_reason = trap ? trap->trap_description : "Trap occurred";
 		nd500_trap_clear(); /* Clear trap so debugger can inspect memory */
 		return;
 	}
-	
+
 	/* Check breakpoints before executing instruction */
 	if (cpu->machine->bp_mgr && bp_should_break_at(cpu->machine->bp_mgr, cpu->PC)) {
 		cpu->machine->run_flag = 0; /* Stop execution */
+		cpu->machine->stop_reason = "Breakpoint hit";
 		return; /* Don't execute this instruction yet */
 	}
 	
@@ -95,6 +98,7 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
 			/* Invalid instruction 0x00 detected (uninitialized memory) */
 			nd500_trap_set_state(TRAP_IIC, cpu->PC, 0, "Invalid instruction 0x00 (uninitialized memory)");
 			cpu->machine->run_flag = 0; /* Stop execution */
+			cpu->machine->stop_reason = "Invalid instruction 0x00";
 			return;
 		}
 	}
@@ -107,7 +111,13 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
     /* Trace instruction execution if enabled */
     if (nd500_dbg_get_trace_mode()) {
         uint32_t regs[8] = {cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3], cpu->L, cpu->B, cpu->R};
-        nd500_dbg_trace_instruction(old_pc, fi.mnemonic, regs);
+        /* Get full disassembly for trace output */
+        char disasm_buf[256];
+        nd500_disasm_format_range(cpu->machine, old_pc, fi.total_len ? fi.total_len : fi.opcode_len, disasm_buf, sizeof(disasm_buf));
+        /* Remove trailing newline if present */
+        size_t len = strlen(disasm_buf);
+        if (len > 0 && disasm_buf[len-1] == '\n') disasm_buf[len-1] = '\0';
+        nd500_dbg_trace_instruction(old_pc, disasm_buf, regs);
     }
     
     /* Profile instruction execution if enabled */
