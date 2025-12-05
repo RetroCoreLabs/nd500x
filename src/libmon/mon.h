@@ -77,6 +77,9 @@ int mon_is_validated(uint32_t mon_number);
 /* Get registry entry for a MON call (NULL if not found) */
 const MonRegistryEntry* mon_get_entry(uint32_t mon_number);
 
+/* Get registry entry by short name or long name (case-insensitive, NULL if not found) */
+const MonRegistryEntry* mon_get_entry_by_name(const char* name);
+
 /* =========================================================================
  * IMPLEMENTATION STATUS QUERIES
  * ========================================================================= */
