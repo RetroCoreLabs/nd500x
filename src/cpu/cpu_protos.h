@@ -74,6 +74,9 @@ typedef struct Nd500Cpu {
 	/* ND-100 I/O Processor Bridge Configuration */
 	uint32_t nd100_memory_offset;  /* Physical memory offset for ND-100 memory (default: 0x40000) */
 
+	/* Instruction counter for TIME MON call (MON 11B) */
+	uint64_t instruction_count;  /* Total instructions executed since startup */
+
 	Nd500Machine* machine;
 } Nd500Cpu;
 

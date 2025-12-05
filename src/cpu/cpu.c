@@ -130,7 +130,10 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
     cpu->PC = old_pc + (fi.total_len ? fi.total_len : fi.opcode_len);
 
     nd500_execute_decoded(cpu, &fi);
-    
+
+    /* Increment instruction counter (used by MON 11B TIME) */
+    cpu->instruction_count++;
+
     /* Check for pending ignorable traps at end of instruction */
     check_pending_traps(cpu);
 }
