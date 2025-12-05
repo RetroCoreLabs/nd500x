@@ -199,13 +199,14 @@ typedef struct {
 
 /*============================================================================
  * SEG-specific part (from 0x10 to CommonPart)
+ * Reference: ND-860289-2-EN page 250, C# SEGHeader.cs
  *============================================================================*/
 typedef struct {
-    nd500_segment_part_t program;   /* 0x10: Program segment (28 bytes) */
-    uint8_t _pad1[0x38 - 0x2C];     /* Padding */
-    nd500_segment_part_t data;      /* 0x38: Data segment (28 bytes) */
-    uint8_t _pad2[0x70 - 0x54];     /* Padding */
-    uint8_t  prog_logseg;           /* 0x70: Program logical segment number */
+    uint8_t _pad0[0x14 - 0x10];     /* 4 bytes padding after file header */
+    nd500_segment_part_t program;   /* 0x14: Program segment (28 bytes), ends at 0x30 */
+    nd500_segment_part_t data;      /* 0x30: Data segment (28 bytes), ends at 0x4C */
+    uint8_t _pad1[0x70 - 0x4C];     /* Padding to logical segment numbers */
+    uint8_t  prog_logseg;           /* 0x70: Program logical segment number (C# reference) */
     uint8_t  data_logseg;           /* 0x71: Data logical segment number */
     uint16_t n100_count;            /* 0x72: Number of ND-100 RT segments */
     nd500_n100_rt_seg_t n100_segs[ND500_MAX_N100_SEGS];  /* 0x74: 10 x 12 bytes, ends at 0xEC */

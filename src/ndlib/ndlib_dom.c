@@ -181,9 +181,10 @@ static int load_dom_segments(void) {
  * Load SEG file segments (single segment in SEG-specific area)
  *============================================================================*/
 
-/* SEG-specific offsets */
-#define OFF_SEG_PROGRAM 0x10    /* Program part at 0x10 */
-#define OFF_SEG_DATA    0x38    /* Data part at 0x38 */
+/* SEG-specific offsets (per ND-860289-2-EN page 250)
+ * Reference: C# SEGHeader.cs uses progOffset: 0x14, dataOffset: 0x30 */
+#define OFF_SEG_PROGRAM 0x14    /* Program part at 0024 octal = 0x14 */
+#define OFF_SEG_DATA    0x30    /* Data part at 0060 octal = 0x30 */
 
 static int load_seg_segments(void) {
     FILE* f = g_dom_file.file;
