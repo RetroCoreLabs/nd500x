@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "nd500_indirect.h"
 #include <stdio.h>
 
 /**
@@ -89,12 +90,26 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * For now, we skip this validation for simplicity.
      */
 
-    /* TODO (Phase 4): Check for indirect segment call and domain switching
-     * This requires domain system integration (deferred).
-     */
+    /* Check for indirect segment call (including SINTRAN MON calls) */
+    uint32_t resolved_addr;
+    int indirect_result = nd500_check_indirect_call(
+        cpu, subroutine_addr, arg_count,
+        cpu->pending_call_arg_addresses, &resolved_addr);
 
-    /* Jump to subroutine */
-    cpu->PC = subroutine_addr;
+    if (indirect_result == INDIRECT_ERROR || indirect_result == INDIRECT_BREAK) {
+        /* Error, halt, or break requested - PC set to return address */
+        cpu->PC = resolved_addr;
+        return;
+    }
+
+    if (indirect_result == INDIRECT_HANDLED) {
+        /* SINTRAN MON call completed - return to caller, don't jump to entry */
+        cpu->PC = resolved_addr;  /* = return_address */
+        return;
+    }
+
+    /* INDIRECT_DIRECT or INDIRECT_DOMAIN_SWITCH: Jump to resolved address */
+    cpu->PC = resolved_addr;
 
     /* Call trap (CT) would be checked by trap system if enabled */
     /* Note: This is an ignorable trap that doesn't stop execution */

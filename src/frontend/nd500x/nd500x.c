@@ -9,6 +9,7 @@
 #include "../../debugger/commands.h"
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
+#include "../../libmon/mon.h"
 #include "nd500_dom.h"
 
 static void print_usage(const char* prog) {
@@ -100,6 +101,9 @@ int main(int argc, char** argv) {
 	Nd500Cpu cpu;
 	nd500_cpu_init(&cpu, &machine);
 	nd500_cpu_reset(&cpu);
+
+	/* Initialize SINTRAN MON call emulation */
+	mon_init();
 
 	uint32_t text_size = 0;
     if (input_path) {
@@ -293,15 +297,20 @@ int main(int argc, char** argv) {
                     nd500_bus_write32(&machine, pte_addr, pte);
                 }
 
-                /* Fill PROG page table */
+                /* Fill PROG page table (PTEs with protection=1, like C# reference) */
+                /* Write permission for data access is controlled by DC_WRP capability, not PTE */
                 for (uint32_t i = 0; i < prog_pages; i++) {
                     uint32_t pte_addr = pt_base_prog + i * 4;
                     uint32_t pfn = (phys_prog_base >> 11) + i;
-                    uint32_t pte = (pfn << 2) | 1;  /* RO */
+                    uint32_t pte = (pfn << 2) | 1;  /* protection=1 (C# does this too) */
                     nd500_bus_write32(&machine, pte_addr, pte);
                 }
 
-                /* Use PSN 100 for kernel data, PSN 101 for kernel text */
+                /* PSN assignments (single PST entry per segment, like C# reference):
+                 * PSN 100 = Segment 0 (DATA area)
+                 * PSN 101 = Segment 1 (PROG area)
+                 * Both PROG and DATA capabilities use same PSN, DC_WRP controls write permission
+                 */
                 int psn_data = 100;
                 int psn_prog = 101;
 
@@ -310,14 +319,15 @@ int main(int argc, char** argv) {
                 nd500_mmu_set_pst_entry(&cpu, psn_prog, PS_ASI, pt_base_prog >> 11);
 
                 /* Set up Domain 0 PCB capabilities */
-                /* Virtual 0x08000000 = segment 1 (bits 31:27 = 1) -> PSN for PROG */
-                /* Virtual 0x00000000 = segment 0 (bits 31:27 = 0) -> PSN for DATA */
-                nd500_mmu_set_program_capability(&cpu, 0, 1, psn_prog | PC_DIR);  /* Segment 1 -> PROG */
-                nd500_mmu_set_program_capability(&cpu, 0, 0, psn_data | PC_DIR);  /* Segment 0 -> DATA (for reads) */
-                nd500_mmu_set_data_capability(&cpu, 0, 0, psn_data | DC_WRP);     /* Segment 0 -> DATA (r/w) */
-                nd500_mmu_set_data_capability(&cpu, 0, 1, psn_prog);              /* Segment 1 -> PROG (r/o) */
+                /* Segment 0: DATA area (0x00xxxxxx) - writable */
+                nd500_mmu_set_program_capability(&cpu, 0, 0, psn_data | PC_DIR);
+                nd500_mmu_set_data_capability(&cpu, 0, 0, psn_data | DC_WRP);  /* DC_WRP = write permitted */
 
-                /* Enable program MMU so PC translation works */
+                /* Segment 1: PROG area (0x08xxxxxx) - also writable for data (stack, globals) */
+                nd500_mmu_set_program_capability(&cpu, 0, 1, psn_prog | PC_DIR);
+                nd500_mmu_set_data_capability(&cpu, 0, 1, psn_prog | DC_WRP);  /* DC_WRP = write permitted */
+
+                /* Enable MMU */
                 nd500_mmu_enable_program(&cpu);
                 nd500_mmu_enable_data(&cpu);
 

@@ -10,6 +10,7 @@
 #include "../cpu/cpu_protos.h"
 #include "../cpu/nd500_mmu.h"
 #include "../cpu/nd500_domain.h"
+#include "../libmon/mon.h"
 #include "nd500_dom.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,6 +65,7 @@ static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Forward declaration for init script execution (defined at end of file) */
@@ -122,6 +124,7 @@ static const CmdEntry g_commands[] = {
 	{"mmusetup",    cmd_mmusetup,     "Setup demo MMU configuration"},
 	{"listpst",     cmd_listpst,      "List configured PST entries"},
 	{"listpcb",     cmd_listpcb,      "List configured PCB domains"},
+	{"mon",         cmd_mon,          "SINTRAN MON call settings"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
 	{"exit",        cmd_quit,         "Quit debugger"},
@@ -144,6 +147,10 @@ static const char* g_wp_subcommands[] = {
 
 static const char* g_profile_subcommands[] = {
 	"show", "reset", NULL
+};
+
+static const char* g_mon_subcommands[] = {
+	"log", "status", "list", "info", "break", NULL
 };
 
 static const char* g_set_subcommands[] = {
@@ -251,6 +258,8 @@ const char** nd500_cmd_get_subcommands(const char* command) {
 		return g_profile_subcommands;
 	} else if (strcmp(command, "set") == 0) {
 		return g_set_subcommands;
+	} else if (strcmp(command, "mon") == 0) {
+		return g_mon_subcommands;
 	}
 
 	return NULL;
@@ -1054,7 +1063,10 @@ static int cmd_loadsrc(Nd500Machine* m, CmdContext* ctx, char* args) {
 }
 
 static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args) {
-	(void)m;  /* DOM loading doesn't require machine state */
+	if (!m || !m->cpu) {
+		error(ctx, "no machine or cpu available");
+		return -1;
+	}
 
 	/* Parse file path argument */
 	char* filepath = args ? strtok(args, " \t\r\n") : NULL;
@@ -1085,57 +1097,151 @@ static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 	/* Check if DOM or SEG file */
 	int is_dom = ndlib_dom_is_dom_file();
+	uint32_t start_addr = nd500_read32(&hdr->raw[0xD8]);
 
 	output(ctx, "Loaded %s: %s", is_dom ? "DOM" : "SEG", filepath);
 	output(ctx, "  Linker version: %d.%d", hdr->raw[4], hdr->raw[5]);
 	output(ctx, "  Flags: 0x%02X", hdr->raw[6]);
 	output(ctx, "  Machine: 0x%02X", hdr->raw[7]);
 	output(ctx, "  OS ID: 0x%02X", hdr->raw[8]);
-	output(ctx, "  Start addr: 0x%08X", nd500_read32(&hdr->raw[0xD8]));
+	output(ctx, "  Start addr: 0x%08X", start_addr);
 	output(ctx, "  Restart addr: 0x%08X", nd500_read32(&hdr->raw[0xDC]));
 
-	/* Load segments */
+	/* Load segments into internal buffers */
 	rc = ndlib_load_dom_segments();
 	if (rc != 0) {
 		error(ctx, "warning: failed to load segments");
 	}
 
-	/* Display segment info */
+	/* ========================================================================
+	 * Physical Memory Layout (matches nd500x.c main() behavior):
+	 *   0x00000000: DATA segment (segment 0)
+	 *   After DATA: PROG segment (segment 1), page-aligned
+	 *
+	 * Virtual addresses (with MMU):
+	 *   0x00000000: Kernel data (segment 0)
+	 *   0x08000000: Kernel text (segment 1)
+	 * ======================================================================== */
 	output(ctx, "");
-	output(ctx, "Segments:");
+	output(ctx, "Physical Memory Layout:");
+
 	int max_segs = is_dom ? 32 : 1;
 	int found = 0;
+	uint32_t phys_data_base = 0x00000000;
+	uint32_t total_data_size = 0;
+	uint32_t total_prog_size = 0;
 
+	/* First pass: Load all DATA sections to physical memory starting at 0 */
 	for (int i = 0; i < max_segs; i++) {
-		uint32_t prog_size, prog_addr, data_size, data_addr;
-		int is_linked, is_used;
-
-		if (ndlib_dom_get_segment_info(i, &prog_size, &prog_addr,
-		                               &data_size, &data_addr,
-		                               &is_linked, &is_used) != 0) {
-			continue;
-		}
-
-		if (!is_used && !is_linked) continue;  /* Skip empty slots */
-
-		found++;
-
-		if (is_linked) {
-			output(ctx, "  [%2d] LINKED (external .SEG file)", i);
-		} else {
-			if (prog_size > 0 || data_size > 0) {
-				output(ctx, "  [%2d] PROG: %6u bytes @ 0x%08X  DATA: %6u bytes @ 0x%08X",
-				       i, prog_size, prog_addr, data_size, data_addr);
+		uint32_t dat_size, dat_addr;
+		const uint8_t* dat_data = ndlib_dom_get_data_section(i, &dat_size, &dat_addr);
+		if (dat_data && dat_size > 0) {
+			uint32_t phys_addr = phys_data_base + total_data_size;
+			for (uint32_t j = 0; j < dat_size; j++) {
+				nd500_bus_write8(m, phys_addr + j, dat_data[j]);
 			}
+			output(ctx, "  Segment %d DATA: %u bytes -> phys 0x%08X (virt 0x%08X)",
+			       i, dat_size, phys_addr, dat_addr);
+			total_data_size += dat_size;
+			found++;
+		}
+	}
+
+	/* Align PROG to page boundary (2KB) after DATA */
+	uint32_t phys_prog_base = (phys_data_base + total_data_size + 0x7FF) & ~0x7FFu;
+
+	/* Second pass: Load all PROG sections to physical memory after DATA */
+	for (int i = 0; i < max_segs; i++) {
+		uint32_t seg_size, seg_addr;
+		const uint8_t* seg_data = ndlib_dom_get_segment_data(i, &seg_size, &seg_addr);
+		if (seg_data && seg_size > 0) {
+			uint32_t phys_addr = phys_prog_base + total_prog_size;
+			for (uint32_t j = 0; j < seg_size; j++) {
+				nd500_bus_write8(m, phys_addr + j, seg_data[j]);
+			}
+			output(ctx, "  Segment %d PROG: %u bytes -> phys 0x%08X (virt 0x%08X)",
+			       i, seg_size, phys_addr, seg_addr);
+			total_prog_size += seg_size;
+			found++;
 		}
 	}
 
 	if (found == 0) {
 		output(ctx, "  (no segments found)");
+		return 0;
 	}
 
+	/* ========================================================================
+	 * Set up MMU page tables using PS_ASI (single-level paging)
+	 * ======================================================================== */
 	output(ctx, "");
-	output(ctx, "%d segment(s) loaded into memory", ndlib_dom_get_segment_count());
+	output(ctx, "MMU Configuration:");
+
+	uint32_t data_pages = (total_data_size + 2047) / 2048;
+	uint32_t prog_pages = (total_prog_size + 2047) / 2048;
+	if (data_pages == 0) data_pages = 1;
+	if (prog_pages == 0) prog_pages = 1;
+
+	/* Allocate page tables in physical memory after the segments */
+	uint32_t pt_base_data = (phys_prog_base + total_prog_size + 2047) & ~2047u;
+	uint32_t pt_base_prog = (pt_base_data + data_pages * 4 + 2047) & ~2047u;
+
+	/* Fill DATA page table - PTEs map virtual pages to physical pages */
+	for (uint32_t i = 0; i < data_pages; i++) {
+		uint32_t pte_addr = pt_base_data + i * 4;
+		uint32_t pfn = (phys_data_base >> 11) + i;
+		uint32_t pte = (pfn << 2) | 0;  /* RW */
+		nd500_bus_write32(m, pte_addr, pte);
+	}
+
+	/* Fill PROG page table */
+	for (uint32_t i = 0; i < prog_pages; i++) {
+		uint32_t pte_addr = pt_base_prog + i * 4;
+		uint32_t pfn = (phys_prog_base >> 11) + i;
+		uint32_t pte = (pfn << 2) | 1;  /* protection=1 */
+		nd500_bus_write32(m, pte_addr, pte);
+	}
+
+	/* PSN assignments: PSN 100 = DATA, PSN 101 = PROG */
+	int psn_data = 100;
+	int psn_prog = 101;
+
+	/* Set up PST entries with PS_ASI mode, pointing to page tables */
+	nd500_mmu_set_pst_entry(m->cpu, psn_data, PS_ASI, pt_base_data >> 11);
+	nd500_mmu_set_pst_entry(m->cpu, psn_prog, PS_ASI, pt_base_prog >> 11);
+
+	/* Set up Domain 0 PCB capabilities */
+	/* Segment 0: DATA area (0x00xxxxxx) - writable */
+	nd500_mmu_set_program_capability(m->cpu, 0, 0, psn_data | PC_DIR);
+	nd500_mmu_set_data_capability(m->cpu, 0, 0, psn_data | DC_WRP);
+
+	/* Segment 1: PROG area (0x08xxxxxx) - writable for data access */
+	nd500_mmu_set_program_capability(m->cpu, 0, 1, psn_prog | PC_DIR);
+	nd500_mmu_set_data_capability(m->cpu, 0, 1, psn_prog | DC_WRP);
+
+	/* Segment 31: SINTRAN MON calls (0xF8xxxxxx) - indirect call interception */
+	/* PC_IND flag causes CALL instructions to trigger indirect call handling */
+	/* which intercepts segment 31 calls as SINTRAN MON calls */
+	uint16_t pc31 = PC_IND | (0 << 5) | 31;  /* 0x801F: indirect to domain 0 segment 31 */
+	nd500_mmu_set_program_capability(m->cpu, 0, 31, pc31);
+
+	/* Enable MMU */
+	nd500_mmu_enable_program(m->cpu);
+	nd500_mmu_enable_data(m->cpu);
+
+	output(ctx, "  DATA: %u pages @ PT 0x%08X (PSN %d)", data_pages, pt_base_data, psn_data);
+	output(ctx, "  PROG: %u pages @ PT 0x%08X (PSN %d)", prog_pages, pt_base_prog, psn_prog);
+	output(ctx, "  MMU enabled (Program and Data)");
+
+	output(ctx, "");
+	output(ctx, "Total: %u bytes DATA + %u bytes PROG = %u bytes",
+	       total_data_size, total_prog_size, total_data_size + total_prog_size);
+
+	/* Set PC to start address */
+	if (start_addr != 0) {
+		m->cpu->PC = start_addr;
+		output(ctx, "PC set to start address: 0x%08X", start_addr);
+	}
 
 	return 0;
 }
@@ -1708,18 +1814,15 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 				uint8_t protection = (has_write) ? 0 : 1;  /* 0=writable, 1=read-only */
 				uint32_t pte_value = (page_num << 2) | (1 << 1) | protection;  /* Set valid bit */
 
-				/* Write PTE to physical memory */
-				nd500_bus_write8(m, pte_addr + 0, (pte_value >> 0) & 0xFF);
-				nd500_bus_write8(m, pte_addr + 1, (pte_value >> 8) & 0xFF);
-				nd500_bus_write8(m, pte_addr + 2, (pte_value >> 16) & 0xFF);
-				nd500_bus_write8(m, pte_addr + 3, (pte_value >> 24) & 0xFF);
+				/* Write PTE to physical memory (big-endian via bus_write32) */
+				nd500_bus_write32(m, pte_addr, pte_value);
 			}
 
 			/* Create PST entry pointing to page table (PS_ASI mode) */
 			uint32_t page_table_pfn = page_table_addr >> PGSHIFT;
 			nd500_mmu_set_pst_entry(m->cpu, next_psn, PS_ASI, page_table_pfn);
 
-			output(ctx, "  Segment %u: PST[%u] → page table at 0x%08X (%u pages)",
+			output(ctx, "  Segment %u: PST[%u] -> page table at 0x%08X (%u pages)",
 				seg, next_psn, page_table_addr, seg_num_pages);
 
 			/* Set capabilities for this segment */
@@ -1731,7 +1834,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 			if (has_read || has_write) {
 				uint16_t dc = next_psn;
-				if (!has_write) {  /* DC_WRP=1 means write-protected (read-only) */
+				if (has_write) {  /* DC_WRP = Write Permitted */
 					dc |= DC_WRP;
 				}
 				nd500_mmu_set_data_capability(m->cpu, 0, seg, dc);
@@ -1822,11 +1925,8 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 				uint8_t protection = (has_write) ? 0 : 1;  /* 0=writable, 1=read-only */
 				uint32_t pte_value = (phys_page_num << 2) | (1 << 1) | protection;  /* Set valid bit */
 
-				/* Write PTE to physical memory */
-				nd500_bus_write8(m, pte_addr + 0, (pte_value >> 0) & 0xFF);
-				nd500_bus_write8(m, pte_addr + 1, (pte_value >> 8) & 0xFF);
-				nd500_bus_write8(m, pte_addr + 2, (pte_value >> 16) & 0xFF);
-				nd500_bus_write8(m, pte_addr + 3, (pte_value >> 24) & 0xFF);;
+				/* Write PTE to physical memory (big-endian via bus_write32) */
+				nd500_bus_write32(m, pte_addr, pte_value);
 			}
 
 			/* Create PST entry pointing to page table (PS_ASI mode) */
@@ -1845,7 +1945,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 			if (has_read || has_write) {
 				uint16_t dc = next_psn;
-				if (!has_write) {  /* DC_WRP=1 means write-protected (read-only) */
+				if (has_write) {  /* DC_WRP = Write Permitted */
 					dc |= DC_WRP;
 				}
 				nd500_mmu_set_data_capability(m->cpu, 0, seg, dc);
@@ -2354,6 +2454,253 @@ static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
 	}
 
 	return 0;
+}
+
+/* ========================================================================
+ * MON CALL DEBUGGER COMMANDS
+ *
+ * Commands for controlling SINTRAN MON call emulation:
+ *   mon log [off|error|warn|info|debug|trace]  - Set logging level
+ *   mon status                                  - Show implementation status
+ *   mon list [validated|inprogress|notimpl]    - List MON calls by status
+ *   mon info <number>                           - Show MON call details
+ *   mon break [unimpl|inprog|off]               - Set break behavior
+ * ======================================================================== */
+
+/* Callback to print MON entries during enumeration */
+static void mon_list_callback(const MonRegistryEntry* entry, void* user_data) {
+	CmdContext* ctx = (CmdContext*)user_data;
+	if (!entry || !ctx) return;
+
+	const char* status_str;
+	switch (entry->status) {
+		case MON_STATUS_VALIDATED:       status_str = "VALIDATED"; break;
+		case MON_STATUS_IN_PROGRESS:     status_str = "IN_PROGRESS"; break;
+		case MON_STATUS_NOT_IMPLEMENTED:
+		default:                         status_str = "NOT_IMPL"; break;
+	}
+
+	output(ctx, "  %-5s %-12s %-10s %s",
+		entry->octal_str ? entry->octal_str : "?",
+		entry->name ? entry->name : "?",
+		status_str,
+		entry->description ? entry->description : "");
+}
+
+static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args) {
+	char* sub = args ? strtok(args, " \t\r\n") : NULL;
+
+	if (!sub) {
+		/* No subcommand - show help */
+		output(ctx, "MON call emulation commands:");
+		output(ctx, "  mon log [off|error|warn|info|debug|trace] - Set/show logging level");
+		output(ctx, "  mon status                                 - Show implementation status");
+		output(ctx, "  mon list [validated|inprogress|notimpl]    - List MON calls by status");
+		output(ctx, "  mon info <number>                          - Show MON call details");
+		output(ctx, "  mon break [unimpl|inprog|off]              - Set/show break behavior");
+		return 0;
+	}
+
+	/* mon log [level] */
+	if (strcmp(sub, "log") == 0) {
+		char* level_str = strtok(NULL, " \t\r\n");
+		if (!level_str) {
+			/* Show current level */
+			MonLogLevel cur = mon_log_get_level();
+			const char* level_names[] = {"off", "error", "warn", "info", "debug", "trace"};
+			int enabled = mon_log_is_enabled();
+			output(ctx, "MON logging: %s (level=%s)",
+				enabled ? "enabled" : "disabled",
+				level_names[cur < 6 ? cur : 0]);
+			return 0;
+		}
+
+		/* Parse and set level */
+		MonLogLevel new_level;
+		if (strcasecmp(level_str, "off") == 0) {
+			mon_log_enable(0);
+			output(ctx, "MON logging disabled");
+			return 0;
+		} else if (strcasecmp(level_str, "error") == 0) {
+			new_level = MON_LOG_ERROR;
+		} else if (strcasecmp(level_str, "warn") == 0) {
+			new_level = MON_LOG_WARN;
+		} else if (strcasecmp(level_str, "info") == 0) {
+			new_level = MON_LOG_INFO;
+		} else if (strcasecmp(level_str, "debug") == 0) {
+			new_level = MON_LOG_DEBUG;
+		} else if (strcasecmp(level_str, "trace") == 0) {
+			new_level = MON_LOG_TRACE;
+		} else {
+			error(ctx, "usage: mon log [off|error|warn|info|debug|trace]");
+			return -1;
+		}
+
+		mon_log_enable(1);
+		mon_log_set_level(new_level);
+		output(ctx, "MON logging set to %s", level_str);
+		return 0;
+	}
+
+	/* mon status */
+	if (strcmp(sub, "status") == 0) {
+		int validated = mon_count_by_status(MON_STATUS_VALIDATED);
+		int in_progress = mon_count_by_status(MON_STATUS_IN_PROGRESS);
+		int not_impl = mon_count_by_status(MON_STATUS_NOT_IMPLEMENTED);
+		int total = mon_get_total_count();
+
+		output(ctx, "MON Implementation Status:");
+		output(ctx, "  VALIDATED:       %3d calls", validated);
+		output(ctx, "  IN_PROGRESS:     %3d calls", in_progress);
+		output(ctx, "  NOT_IMPLEMENTED: %3d calls", not_impl);
+		output(ctx, "  Total:           %3d calls", total);
+
+		/* Show current behavior settings */
+		MonUnimplBehavior unimpl_beh = mon_get_unimpl_behavior();
+		MonUnimplBehavior inprog_beh = mon_get_inprogress_behavior();
+		const char* beh_names[] = {"continue", "break", "halt"};
+
+		output(ctx, "");
+		output(ctx, "Behavior on unimplemented: %s", beh_names[unimpl_beh]);
+		output(ctx, "Behavior on in-progress:   %s", beh_names[inprog_beh]);
+
+		/* Show logging status */
+		int log_enabled = mon_log_is_enabled();
+		MonLogLevel log_level = mon_log_get_level();
+		const char* level_names[] = {"off", "error", "warn", "info", "debug", "trace"};
+		output(ctx, "Logging: %s (level=%s)",
+			log_enabled ? "enabled" : "disabled",
+			level_names[log_level < 6 ? log_level : 0]);
+
+		return 0;
+	}
+
+	/* mon list [status] */
+	if (strcmp(sub, "list") == 0) {
+		char* status_str = strtok(NULL, " \t\r\n");
+		MonImplStatus filter_status;
+		const char* status_name;
+
+		if (!status_str || strcasecmp(status_str, "all") == 0) {
+			/* List all - show validated first, then in_progress */
+			output(ctx, "VALIDATED MON calls:");
+			mon_enumerate_by_status(MON_STATUS_VALIDATED, mon_list_callback, ctx);
+
+			output(ctx, "");
+			output(ctx, "IN_PROGRESS MON calls:");
+			mon_enumerate_by_status(MON_STATUS_IN_PROGRESS, mon_list_callback, ctx);
+			return 0;
+		} else if (strcasecmp(status_str, "validated") == 0) {
+			filter_status = MON_STATUS_VALIDATED;
+			status_name = "VALIDATED";
+		} else if (strcasecmp(status_str, "inprogress") == 0 || strcasecmp(status_str, "in_progress") == 0) {
+			filter_status = MON_STATUS_IN_PROGRESS;
+			status_name = "IN_PROGRESS";
+		} else if (strcasecmp(status_str, "notimpl") == 0 || strcasecmp(status_str, "not_implemented") == 0) {
+			filter_status = MON_STATUS_NOT_IMPLEMENTED;
+			status_name = "NOT_IMPLEMENTED";
+		} else {
+			error(ctx, "usage: mon list [all|validated|inprogress|notimpl]");
+			return -1;
+		}
+
+		int count = mon_count_by_status(filter_status);
+		output(ctx, "%s MON calls (%d):", status_name, count);
+		mon_enumerate_by_status(filter_status, mon_list_callback, ctx);
+		return 0;
+	}
+
+	/* mon info <number> */
+	if (strcmp(sub, "info") == 0) {
+		char* num_str = strtok(NULL, " \t\r\n");
+		if (!num_str) {
+			error(ctx, "usage: mon info <number>");
+			return -1;
+		}
+
+		/* Parse MON number (support both decimal and octal with B suffix) */
+		uint32_t mon_num;
+		char* endptr;
+		size_t len = strlen(num_str);
+
+		if (len > 1 && (num_str[len-1] == 'B' || num_str[len-1] == 'b')) {
+			/* Octal format like "11B" */
+			char octal_buf[32];
+			strncpy(octal_buf, num_str, len - 1);
+			octal_buf[len - 1] = '\0';
+			mon_num = (uint32_t)strtoul(octal_buf, &endptr, 8);
+		} else {
+			/* Decimal or hex */
+			mon_num = (uint32_t)strtoul(num_str, &endptr, 0);
+		}
+
+		const MonRegistryEntry* entry = mon_get_entry(mon_num);
+		if (!entry) {
+			error(ctx, "MON %u not found in registry", mon_num);
+			return -1;
+		}
+
+		const char* status_str;
+		switch (entry->status) {
+			case MON_STATUS_VALIDATED:       status_str = "VALIDATED"; break;
+			case MON_STATUS_IN_PROGRESS:     status_str = "IN_PROGRESS"; break;
+			case MON_STATUS_NOT_IMPLEMENTED:
+			default:                         status_str = "NOT_IMPLEMENTED"; break;
+		}
+
+		output(ctx, "MON %s (%u decimal):", entry->octal_str, entry->mon_number);
+		output(ctx, "  Name:        %s", entry->name ? entry->name : "(unknown)");
+		output(ctx, "  Long name:   %s", entry->long_name ? entry->long_name : "(unknown)");
+		output(ctx, "  Description: %s", entry->description ? entry->description : "(none)");
+		output(ctx, "  Parameters:  %u", entry->param_count);
+		output(ctx, "  Status:      %s", status_str);
+		output(ctx, "  ND-100:      %s", entry->nd100_compat ? "Yes" : "No");
+		output(ctx, "  ND-500:      %s", entry->nd500_compat ? "Yes" : "No");
+		return 0;
+	}
+
+	/* mon break [behavior] */
+	if (strcmp(sub, "break") == 0) {
+		char* beh_str = strtok(NULL, " \t\r\n");
+		if (!beh_str) {
+			/* Show current behavior */
+			MonUnimplBehavior unimpl_beh = mon_get_unimpl_behavior();
+			MonUnimplBehavior inprog_beh = mon_get_inprogress_behavior();
+			const char* beh_names[] = {"continue", "break", "halt"};
+			output(ctx, "Break behavior:");
+			output(ctx, "  On unimplemented: %s", beh_names[unimpl_beh]);
+			output(ctx, "  On in-progress:   %s", beh_names[inprog_beh]);
+			return 0;
+		}
+
+		/* Set behavior */
+		if (strcasecmp(beh_str, "off") == 0 || strcasecmp(beh_str, "continue") == 0) {
+			mon_set_unimpl_behavior(MON_UNIMPL_CONTINUE);
+			mon_set_inprogress_behavior(MON_UNIMPL_CONTINUE);
+			output(ctx, "MON break behavior: continue (no breaks)");
+		} else if (strcasecmp(beh_str, "unimpl") == 0) {
+			mon_set_unimpl_behavior(MON_UNIMPL_BREAK);
+			mon_set_inprogress_behavior(MON_UNIMPL_CONTINUE);
+			output(ctx, "MON break behavior: break on unimplemented only");
+		} else if (strcasecmp(beh_str, "inprog") == 0) {
+			mon_set_unimpl_behavior(MON_UNIMPL_BREAK);
+			mon_set_inprogress_behavior(MON_UNIMPL_BREAK);
+			output(ctx, "MON break behavior: break on unimplemented and in-progress");
+		} else if (strcasecmp(beh_str, "halt") == 0) {
+			mon_set_unimpl_behavior(MON_UNIMPL_HALT);
+			mon_set_inprogress_behavior(MON_UNIMPL_HALT);
+			output(ctx, "MON break behavior: halt on unimplemented and in-progress");
+		} else {
+			error(ctx, "usage: mon break [off|continue|unimpl|inprog|halt]");
+			return -1;
+		}
+		return 0;
+	}
+
+	/* Unknown subcommand */
+	error(ctx, "unknown mon subcommand: %s", sub);
+	error(ctx, "use 'mon' without arguments to see available commands");
+	return -1;
 }
 
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args) {

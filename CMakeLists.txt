@@ -86,6 +86,7 @@ add_subdirectory(src/ndlib)
 add_subdirectory(src/disasm)
 add_subdirectory(src/machine)
 add_subdirectory(src/cpu)
+add_subdirectory(src/libmon)
 add_subdirectory(src/debugger)
 
 if(BUILD_WASM)

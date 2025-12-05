@@ -66,6 +66,13 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
     }
 
+    // Debug: warn if writing to address beyond physical memory
+    if (paddr >= cpu->machine->memory_size) {
+        fprintf(stderr, "[WARN] nd500_write_memory_32: write to 0x%08X (vaddr=0x%08X) beyond memory_size=0x%X, MMU=%s\n",
+                paddr, vaddr, cpu->machine->memory_size,
+                cpu->machine->mmu_enabled ? "ON" : "OFF");
+    }
+
     // Write four bytes BIG-ENDIAN to physical address (ND-500 spec)
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 24) & 0xFF));
     nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)((value >> 16) & 0xFF));

@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "nd500_indirect.h"
 #include <stdio.h>
 
 /**
@@ -246,11 +247,30 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Save return address in L register (standard ND-500 calling convention) */
     cpu->L = return_address;
 
-    /* Jump to subroutine entry point */
-    cpu->PC = subroutine_addr;
+    /* Check for indirect segment call (including SINTRAN MON calls) */
+    uint32_t resolved_addr;
+    int indirect_result = nd500_check_indirect_call(
+        cpu, subroutine_addr, arg_count,
+        cpu->pending_call_arg_addresses, &resolved_addr);
+
+    if (indirect_result == INDIRECT_ERROR || indirect_result == INDIRECT_BREAK) {
+        /* Error, halt, or break requested - PC set to return address */
+        cpu->PC = resolved_addr;
+        return;
+    }
+
+    if (indirect_result == INDIRECT_HANDLED) {
+        /* SINTRAN MON call completed - return to caller, don't jump to entry */
+        cpu->PC = resolved_addr;  /* = return_address */
+        printf("[CALLG] MON call completed, returning to 0x%08X\n", resolved_addr);
+        return;
+    }
+
+    /* INDIRECT_DIRECT or INDIRECT_DOMAIN_SWITCH: Jump to resolved address */
+    cpu->PC = resolved_addr;
 
     printf("[CALLG] Jumping to 0x%08X, return=0x%08X, args=%u\n",
-           subroutine_addr, cpu->L, arg_count);
+           resolved_addr, cpu->L, arg_count);
 
     /* ========================================================================
      * NOTES ON ENTRY POINT VALIDATION (optional, not implemented here)
