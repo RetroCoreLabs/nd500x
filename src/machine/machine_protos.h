@@ -82,6 +82,15 @@ void nd500_machine_enable_mmu(Nd500Machine* m);
 void nd500_machine_disable_mmu(Nd500Machine* m);
 int nd500_machine_mmu_is_enabled(Nd500Machine* m);
 
+/* MMU logging levels */
+#define MMU_LOG_OFF    0
+#define MMU_LOG_ERRORS 1
+#define MMU_LOG_TRACE  2
+#define MMU_LOG_ALL    3
+
+int nd500_dbg_set_mmu_log_level(int level);
+int nd500_dbg_get_mmu_log_level(void);
+
 /* Memory Map Visualization */
 const char* nd500_dbg_memory_map_json(Nd500Machine* m);
 const char* nd500_dbg_memory_map_for_domain_json(Nd500Machine* m, int domain);
