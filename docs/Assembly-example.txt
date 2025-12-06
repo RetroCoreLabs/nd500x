@@ -1,0 +1,125 @@
+--- SOURCE CODE FOR EXPROG ----
+
+MODULE ExProg        %Module name.
+MAIN Start           %Declaration of the main entry point.
+%Declaration of constants and parameters.
+OutMessage : EQU 37B9 + 32B   %Constant for monitor call number 32B.
+Prompt  : STRINGDATA 'File name: '   %Input parameter to OutMessage.
+InString : EQU 37B9 + 161B     %Constant for monitor call number 161B.
+Terminal : W DATA 54           %Logical device number of a terminal.
+AbrevName : STRING 60          %Output parameter from InString.
+Max : W DATA 64                %Maximum string length.
+CR  : W DATA 141               %Carriage return with parity, 128 + 13.
+LF  : W DATA 10                %Line feed.
+Zero : W DATA 0                %Utility parameter.
+OutStat : W DATA 0             %Output parameter from InString.
+OutByte : EQU 37B9 + 2B        %Constant for monitor call number 2B.
+FullFileName : EQU 37B9 + 256B %Monitor call number 256B.
+FileType : STRINGDATA 'SYMB'   %Input parameter to FullFileName.
+FullName : STRING 100          %Output parameter for FullFileName.
+OutString : EQU 37B9 + 162B    %Monitor call number 162B.
+CreateFile : EQU 37B9 + 221B   %Monitor call 221B.
+ErrorMessage : EQU 37B9 + 65B  %Monitor call number 65B.
+ExitFromProgram : EQU 37B9 + 0B %Monitor call number 0B.
+ErrCode : W BLOCK 1            %Declare ErrCode as a variable.
+         %The program starts here.
+START:   CALLG OutMessage,1,Prompt   %Monitor call OutMessage.
+         %The 1 means that OutMessage has 1 parameter.
+         CALLG InString,4,Terminal,AbrevName,Max,CR   %Status in W1.
+         %The 5 means that InString has 5 parameters.
+         W1 =: OutStat               %Store the OutStatus
+         CALLG OutByte,2,Terminal,CR %Carriage return, i.e., 13.
+         CALLG OutByte,2,Terminal,LF %Line feed, i.e., 10.
+         CALLG FullFileName,2,AbrevName,FullName
+         IF K GO ERROR               %Monitor call errors set the K-register.
+CONTI:   CALLG OutString,2,Terminal,FullName     %Status in W1.
+         CALLG ExitFromProgram,0                %Monitor call without parameters.
+ERROR:   W1 =: ErrCode            %Register W1 contains error codes.
+         W1 COMP 46               %ErrCode 46 = NO SUCH FILE NAME.
+         IF >< GO EXIT
+         CALLG CreateFile,3,AbrevName,Zero,Zero %Create the file.
+         %Below is an alternative way of calling FullFileName.
+         CALLG (37B9 + 256B),2,AbrevName,FullName
+         GO CONTI
+EXIT:    CALLG ErrorMessage,1,ErrCode  %Output error message.
+ENDMODULE
+
+--- LISTING FOR EXPROG ----
+
+NORD-500 ASSEMBLER 2.13     TUESDAY   2 DECEMBER 1997   2116:48     PAGE 1
+MODULE EXPROG.
+
+   1               MODULE EXPROG        %MODULE NAME.
+   2               MAIN START           %DECLARATION OF THE MAIN ENTRY POINT.
+   3               %DECLARATION OF CONSTANTS AND PARAMETERS.
+   4               OUTMESSAGE : EQU 37B9 + 32B   %CONSTANT FOR MONITOR CALL NUMBER 32B.
+   5 D 00000000000 PROMPT  : STRINGDATA 'FILE NAME: '   %INPUT PARAMETER TO OUTMESSAGE.
+   6               INSTRING : EQU 37B9 + 161B     %CONSTANT FOR MONITOR CALL NUMBER 161B.
+   7 D 00000000024 TERMINAL : W DATA 54           %LOGICAL DEVICE NUMBER OF A TERMINAL.
+   8 D 00000000030 ABREVNAME : STRING 60          %OUTPUT PARAMETER FROM INSTRING.
+   9 D 00000000134 MAX : W DATA 64                %MAXIMUM STRING LENGTH.
+  10 D 00000000140 CR  : W DATA 141               %CARRIAGE RETURN WITH PARITY, 128 + 13.
+  11 D 00000000144 LF  : W DATA 10                %LINE FEED.
+  12 D 00000000150 ZERO : W DATA 0                %UTILITY PARAMETER.
+  13 D 00000000154 OUTSTAT : W DATA 0             %OUTPUT PARAMETER FROM INSTRING.
+  14               OUTBYTE : EQU 37B9 + 2B        %CONSTANT FOR MONITOR CALL NUMBER 2B.
+  15               FULLFILENAME : EQU 37B9 + 256B %MONITOR CALL NUMBER 256B.
+  16 D 00000000160 FILETYPE : STRINGDATA 'SYMB'   %INPUT PARAMETER TO FULLFILENAME.
+  17 D 00000000174 FULLNAME : STRING 100          %OUTPUT PARAMETER FOR FULLFILENAME.
+  18               OUTSTRING : EQU 37B9 + 162B    %MONITOR CALL NUMBER 162B.
+  19               CREATEFILE : EQU 37B9 + 221B   %MONITOR CALL 221B.
+  20               ERRORMESSAGE : EQU 37B9 + 65B  %MONITOR CALL NUMBER 65B.
+  21               EXITFROMPROGRAM : EQU 37B9 + 0B %MONITOR CALL NUMBER 0B.
+  22 D 00000000350 ERRCODE : W BLOCK 1            %DECLARE ERRCODE AS A VARIABLE.
+  23                        %THE PROGRAM STARTS HERE.
+  24 P 00000000000 START:   CALLG OUTMESSAGE,1,PROMPT   %MONITOR CALL OUTMESSAGE.
+  25                        %THE 1 MEANS THAT OUTMESSAGE HAS 1 PARAMETER.
+  26 P 00000000014          CALLG INSTRING,4,TERMINAL,ABREVNAME,MAX,CR   %STATUS IN W1.
+  27                        %THE 5 MEANS THAT INSTRING HAS 5 PARAMETERS.
+  28 P 00000000047          W1 =: OUTSTAT               %STORE THE OUTSTATUS
+  29 P 00000000055          CALLG OUTBYTE,2,TERMINAL,CR %CARRIAGE RETURN, I.E., 13.
+  30 P 00000000076          CALLG OUTBYTE,2,TERMINAL,LF %LINE FEED, I.E., 10.
+  31 P 00000000117          CALLG FULLFILENAME,2,ABREVNAME,FULLNAME
+  32 P 00000000140          IF K GO ERROR               %MONITOR CALL ERRORS SET THE K-REGISTER.
+  33 P 00000000142 CONTI:   CALLG OUTSTRING,2,TERMINAL,FULLNAME     %STATUS IN W1.
+  34 P 00000000163          CALLG EXITFROMPROGRAM,0                %MONITOR CALL WITHOUT PARAMETERS
+  35 P 00000000172 ERROR:   W1 =: ERRCODE            %REGISTER W1 CONTAINS ERROR CODES.
+  36 P 00000000200          W1 COMP 46               %ERRCODE 46 = NO SUCH FILE NAME.
+  37 P 00000000203          IF >< GO EXIT
+  38 P 00000000205          CALLG CREATEFILE,3,ABREVNAME,ZERO,ZERO %CREATE THE FILE.
+  39                        %BELOW IS AN ALTERNATIVE WAY OF CALLING FULLFILENAME.
+  40 P 00000000233          CALLG (37B9 + 256B),2,ABREVNAME,FULLNAME
+  41 P 00000000254          GO CONTI
+  42 P 00000000256 EXIT:    CALLG ERRORMESSAGE,1,ERRCODE  %OUTPUT ERROR MESSAGE.
+  43 P 00000000272 ENDMODULE
+
+NORD-500 ASSEMBLER 2.13     TUESDAY   2 DECEMBER 1997   2116:48     PAGE 2
+SYMBOL TABLE
+
+GLOBAL SYMBOLS
+
+ABREVNAME         W    D      00000000030
+CONTI             W   P       00000000142
+CR                W    D      00000000140
+CREATEFILE        W  A        37000000221
+ERRCODE           W    D      00000000350
+ERROR             W   P       00000000172
+ERRORMESSAGE      W  A        37000000065
+EXIT              W   P       00000000256
+EXITFROMPROGRAM   W  A        37000000000
+FILETYPE          W    D      00000000160
+FULLFILENAME      W  A        37000000256
+FULLNAME          W    D      00000000174
+INSTRING          W  A        37000000161
+LF                W    D      00000000144
+MAX               W    D      00000000134
+OUTBYTE           W  A        37000000002
+OUTMESSAGE        W  A        37000000032
+OUTSTAT           W    D      00000000154
+OUTSTRING         W  A        37000000162
+PROMPT            W    D      00000000000
+START             W   P M     00000000000
+TERMINAL          W    D      00000000024
+ZERO              W    D      00000000150
+
+NORD-500 ASSEMBLER 2.13     TUESDAY   2 DECEMBER 1997   2116:49     PAGE 3
