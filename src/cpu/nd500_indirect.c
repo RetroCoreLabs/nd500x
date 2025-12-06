@@ -96,11 +96,14 @@ static void mon_set_k_flag_cb(void* cpu_ptr, int value) {
     Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
     if (!cpu) return;
 
+    uint32_t old_st1 = cpu->ST1;
     if (value) {
         cpu->ST1 |= (1u << ND500_ST_BIT_K);  /* Set K flag */
     } else {
         cpu->ST1 &= ~(1u << ND500_ST_BIT_K); /* Clear K flag */
     }
+    nd500_log("MON K flag: %d -> %d (ST1: 0x%08X -> 0x%08X)",
+              (old_st1 >> ND500_ST_BIT_K) & 1, value, old_st1, cpu->ST1);
 }
 
 static void mon_set_error_code_cb(void* cpu_ptr, int32_t code) {

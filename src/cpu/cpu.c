@@ -110,7 +110,7 @@ void nd500_cpu_step(Nd500Cpu* cpu) {
     
     /* Trace instruction execution if enabled */
     if (nd500_dbg_get_trace_mode()) {
-        uint32_t regs[8] = {cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3], cpu->L, cpu->B, cpu->R};
+        uint32_t regs[9] = {cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3], cpu->L, cpu->B, cpu->R, cpu->ST1};
         /* Get full disassembly for trace output */
         char disasm_buf[256];
         nd500_disasm_format_range(cpu->machine, old_pc, fi.total_len ? fi.total_len : fi.opcode_len, disasm_buf, sizeof(disasm_buf));
