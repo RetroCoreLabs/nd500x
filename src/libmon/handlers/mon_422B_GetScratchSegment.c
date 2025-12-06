@@ -6,7 +6,7 @@
  * "SCRATCH-SEGMENT:DSEG".
  *
  * Parameters (all are pointers to 32-bit WORD on ND-500):
- *   [I] WorkspaceSize (W INTEGER ptr): Requested workspace size in bytes.
+ *   [I] SegmentSize (W INTEGER ptr): Segment size in bytes.
  *   [I] LogSegmentNo (W INTEGER ptr): Logical segment number to use.
  *       Use 0 for system to select first available free segment.
  *   [O] RetLogSegmentNo (W INTEGER ptr): Returns the logical segment number
@@ -21,12 +21,12 @@
 static uint32_t g_next_scratch_segment = 16;
 
 MonResult mon_422B_GetScratchSegment(MonContext* ctx) {
-    uint32_t requested_size;
+    uint32_t segment_size;
     uint32_t requested_segment;
     uint32_t assigned_segment;
 
     /* Read input parameters */
-    requested_size = mon_read_param_word(ctx, 0);      /* arg0: requested workspace size */
+    segment_size = mon_read_param_word(ctx, 0);        /* arg0: segment size in bytes */
     requested_segment = mon_read_param_word(ctx, 1);   /* arg1: requested segment number */
 
     /* Determine segment number to use */
@@ -49,8 +49,8 @@ MonResult mon_422B_GetScratchSegment(MonContext* ctx) {
     }
 
     /* Log the call */
-    mon_log(MON_LOG_INFO, "MON 422B GSWSP: requested_size=%u bytes, requested_seg=%u, assigned_seg=%u",
-            requested_size, requested_segment, assigned_segment);
+    mon_log(MON_LOG_INFO, "MON 422B GSWSP: segment_size=%u bytes, requested_seg=%u, assigned_seg=%u",
+            segment_size, requested_segment, assigned_segment);
 
     /* Set success (K=0) */
     mon_set_success(ctx);
