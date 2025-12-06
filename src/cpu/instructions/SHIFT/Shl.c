@@ -62,11 +62,13 @@ void nd500_instr_Shl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Get absolute shift count (like C# line 23) */
     int32_t abs_shift = (raw_shift >= 0) ? raw_shift : -raw_shift;
 
-    /* Validate shift count (like C# lines 24-28) */
+    /* Validate shift count - IOV is an IGNORABLE trap per ND-500 Reference Manual 6.5.3.1
+     * "If the IOV trap condition is ignored the instruction will be terminated (act as a NOOP)"
+     * "On the IOV trap condition the destination field is not changed" */
     if (abs_shift >= (int32_t)bits) {
-        printf("[TRAP] SHL at PC=0x%08X: Illegal shift count %d (>= %u bits)\n",
+        printf("[IOV] SHL at PC=0x%08X: Shift count %d >= %u bits (treating as NOOP)\n",
                fi->address, abs_shift, bits);
-        trap_invalid_operation(cpu, fi->address);  /* IOV trap */
+        /* Don't modify destination, just return (act as NOOP) */
         return;
     }
 
