@@ -13,6 +13,7 @@
 #include "instruction_helpers.h"
 #include "../machine/machine_protos.h"
 #include "../libmon/mon.h"
+#include "../ndlib/ndlib.h"
 #include <stdio.h>
 #include <string.h>
 
