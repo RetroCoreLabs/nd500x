@@ -69,6 +69,7 @@ static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_dumppt(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_domverify(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Forward declaration for init script execution (defined at end of file) */
 int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
@@ -128,6 +129,7 @@ static const CmdEntry g_commands[] = {
 	{"listpst",     cmd_listpst,      "List configured PST entries"},
 	{"listpcb",     cmd_listpcb,      "List configured PCB domains"},
 	{"dumppt",      cmd_dumppt,       "Dump page table entries for PSN"},
+	{"domverify",   cmd_domverify,    "Verify DOM data in memory matches disk file"},
 	{"mon",         cmd_mon,          "MON call settings (log/status/list/info/break)"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
@@ -2584,6 +2586,156 @@ static int cmd_dumppt(Nd500Machine* m, CmdContext* ctx, char* args) {
 	}
 
 	return 0;
+}
+
+/* ========================================================================
+ * DOM VERIFICATION COMMAND
+ *
+ * Verifies that DOM file data in memory matches the original disk file.
+ * Compares both physical memory and virtual memory (through MMU).
+ * ======================================================================== */
+static int cmd_domverify(Nd500Machine* m, CmdContext* ctx, char* args) {
+	(void)args;
+
+	if (!ndlib_dom_is_loaded()) {
+		error(ctx, "No DOM file loaded. Use --dom <path> to load one.");
+		return -1;
+	}
+
+	int is_dom = ndlib_dom_is_dom_file();
+	int max_segs = is_dom ? 32 : 1;
+	const char* filepath = ndlib_get_dom_filepath();
+
+	output(ctx, "=== DOM File Verification ===");
+	output(ctx, "File: %s", filepath ? filepath : "(unknown)");
+	output(ctx, "Type: %s", is_dom ? "DOM (Domain)" : "SEG (Segment)");
+	output(ctx, "");
+
+	/* Calculate physical layout same as loader does */
+	uint32_t phys_data_base = 0x00000000;
+	uint32_t total_data_size = 0;
+	uint32_t total_prog_size = 0;
+
+	/* First pass: measure DATA sections */
+	for (int i = 0; i < max_segs; i++) {
+		uint32_t dat_size, dat_addr;
+		const uint8_t* dat_data = ndlib_dom_get_data_section(i, &dat_size, &dat_addr);
+		if (dat_data && dat_size > 0) {
+			total_data_size += dat_size;
+		}
+	}
+
+	/* Calculate PROG base (page-aligned after DATA) */
+	uint32_t phys_prog_base = (phys_data_base + total_data_size + 0x7FF) & ~0x7FFu;
+
+	/* Reset for actual verification */
+	total_data_size = 0;
+	total_prog_size = 0;
+
+	int total_errors = 0;
+	int segments_checked = 0;
+
+	/* Verify DATA sections */
+	output(ctx, "--- DATA Sections ---");
+	for (int i = 0; i < max_segs; i++) {
+		uint32_t dat_size, dat_addr;
+		const uint8_t* dat_data = ndlib_dom_get_data_section(i, &dat_size, &dat_addr);
+		if (dat_data && dat_size > 0) {
+			uint32_t phys_addr = phys_data_base + total_data_size;
+			int errors = 0;
+			int first_error_offset = -1;
+			uint8_t first_expected = 0, first_actual = 0;
+
+			/* Compare against physical memory */
+			for (uint32_t j = 0; j < dat_size; j++) {
+				uint8_t expected = dat_data[j];
+				uint8_t actual = nd500_bus_read8(m, phys_addr + j);
+				if (expected != actual) {
+					if (first_error_offset < 0) {
+						first_error_offset = (int)j;
+						first_expected = expected;
+						first_actual = actual;
+					}
+					errors++;
+				}
+			}
+
+			if (errors == 0) {
+				output(ctx, "Seg[%d] DATA: %u bytes @ phys 0x%08X - OK (FLA=0x%08X)",
+				       i, dat_size, phys_addr, dat_addr);
+			} else {
+				output(ctx, "Seg[%d] DATA: %u bytes @ phys 0x%08X - FAILED: %d mismatches",
+				       i, dat_size, phys_addr, errors);
+				output(ctx, "         First error at offset %d: expected 0x%02X, got 0x%02X",
+				       first_error_offset, first_expected, first_actual);
+				total_errors += errors;
+			}
+
+			total_data_size += dat_size;
+			segments_checked++;
+		}
+	}
+
+	/* Verify PROG sections */
+	output(ctx, "");
+	output(ctx, "--- PROG Sections ---");
+	for (int i = 0; i < max_segs; i++) {
+		uint32_t seg_size, seg_addr;
+		const uint8_t* seg_data = ndlib_dom_get_segment_data(i, &seg_size, &seg_addr);
+		if (seg_data && seg_size > 0) {
+			uint32_t phys_addr = phys_prog_base + total_prog_size;
+			int errors = 0;
+			int first_error_offset = -1;
+			uint8_t first_expected = 0, first_actual = 0;
+
+			/* Compare against physical memory */
+			for (uint32_t j = 0; j < seg_size; j++) {
+				uint8_t expected = seg_data[j];
+				uint8_t actual = nd500_bus_read8(m, phys_addr + j);
+				if (expected != actual) {
+					if (first_error_offset < 0) {
+						first_error_offset = (int)j;
+						first_expected = expected;
+						first_actual = actual;
+					}
+					errors++;
+				}
+			}
+
+			if (errors == 0) {
+				output(ctx, "Seg[%d] PROG: %u bytes @ phys 0x%08X - OK (FLA=0x%08X)",
+				       i, seg_size, phys_addr, seg_addr);
+			} else {
+				output(ctx, "Seg[%d] PROG: %u bytes @ phys 0x%08X - FAILED: %d mismatches",
+				       i, seg_size, phys_addr, errors);
+				output(ctx, "         First error at offset %d: expected 0x%02X, got 0x%02X",
+				       first_error_offset, first_expected, first_actual);
+				total_errors += errors;
+			}
+
+			total_prog_size += seg_size;
+			segments_checked++;
+		}
+	}
+
+	/* Summary */
+	output(ctx, "");
+	output(ctx, "=== Summary ===");
+	output(ctx, "Segments checked: %d", segments_checked);
+	output(ctx, "Total DATA: %u bytes @ phys 0x%08X..0x%08X",
+	       total_data_size, phys_data_base,
+	       total_data_size > 0 ? phys_data_base + total_data_size - 1 : 0);
+	output(ctx, "Total PROG: %u bytes @ phys 0x%08X..0x%08X",
+	       total_prog_size, phys_prog_base,
+	       total_prog_size > 0 ? phys_prog_base + total_prog_size - 1 : 0);
+
+	if (total_errors == 0) {
+		output(ctx, "Result: ALL OK - Memory matches disk file");
+	} else {
+		output(ctx, "Result: FAILED - %d byte mismatches found", total_errors);
+	}
+
+	return total_errors > 0 ? -1 : 0;
 }
 
 /* ========================================================================
