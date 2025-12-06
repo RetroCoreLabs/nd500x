@@ -175,3 +175,41 @@ When implementing ND-500 instructions:
 - If missing helper functions or decoding logic, create them rather than duplicating code
 - Ask if unsure about implementation approach
 - Each instruction file includes documentation, operand helpers, and implementation notes
+- 0x27 ' is end of string in sintran
+- From the ND-60.113.02 Assembler Reference Manual (lines 730-741):
+
+  Data type specifiers:
+  | Specifier | Meaning                        |
+  |-----------|--------------------------------|
+  | BI        | Bit                            |
+  | BY        | Byte (8 bits)                  |
+  | H         | Half-word (16 bits)            |
+  | W         | Word (32-bit integer)          |
+  | F         | Single precision real (32-bit) |
+  | D         | Double precision real (64-bit) |
+
+- MON Call INTEGER parameter sizes:
+  | Architecture | INTEGER Size | C Type    | Function                    |
+  |--------------|--------------|-----------|----------------------------|
+  | ND-100       | 16-bit       | uint16_t  | mon_read/write_param_halfword |
+  | ND-500       | 32-bit       | uint32_t  | mon_read/write_param_word     |
+
+  **Important**: On ND-500, all INTEGER parameters in MON calls use 32-bit words (W type).
+  Assembly code declares them as `W BLOCK` not `H BLOCK`.
+
+- Register aliases on ND-500:
+  | Full Name | Aliases (context-based)     | Size    |
+  |-----------|----------------------------|---------|
+  | I1        | W1, H1, BY1, BI1           | 32-bit  |
+  | I2        | W2, H2, BY2, BI2           | 32-bit  |
+  | I3        | W3, H3, BY3, BI3           | 32-bit  |
+  | I4        | W4, H4, BY4, BI4           | 32-bit  |
+  | A1        | F1, D1 (low 32-bit)        | 32-bit  |
+  | A2        | F2, D2 (low 32-bit)        | 32-bit  |
+  | A3        | F3, D3 (low 32-bit)        | 32-bit  |
+  | A4        | F4, D4 (low 32-bit)        | 32-bit  |
+  | E1        | D1 (high 32-bit)           | 32-bit  |
+  | E2        | D2 (high 32-bit)           | 32-bit  |
+  | E3        | D3 (high 32-bit)           | 32-bit  |
+  | E4        | D4 (high 32-bit)           | 32-bit  |
+- all cpu instructions are defined with examples in the folder ~/repos/nd500x/docs/instructions/asm
