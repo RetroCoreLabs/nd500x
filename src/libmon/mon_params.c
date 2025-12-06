@@ -50,12 +50,21 @@ uint8_t mon_read_param_byte(MonContext* ctx, int idx) {
  * ========================================================================= */
 
 void mon_write_param_word(MonContext* ctx, int idx, uint32_t value) {
-    if (!ctx || idx < 0 || (uint32_t)idx >= ctx->arg_count) {
+    if (!ctx) {
+        mon_log(MON_LOG_ERROR, "mon_write_param_word: ctx is NULL");
+        return;
+    }
+    if (idx < 0 || (uint32_t)idx >= ctx->arg_count) {
+        mon_log(MON_LOG_ERROR, "mon_write_param_word: idx %d out of range (arg_count=%u)",
+                idx, ctx->arg_count);
         return;
     }
     if (!ctx->write_word) {
+        mon_log(MON_LOG_ERROR, "mon_write_param_word: write_word callback is NULL");
         return;
     }
+    mon_log(MON_LOG_DEBUG, "mon_write_param_word: writing 0x%08X to addr 0x%08X (idx=%d)",
+            value, ctx->arg_addresses[idx], idx);
     ctx->write_word(ctx->cpu, ctx->arg_addresses[idx], value);
 }
 
@@ -195,7 +204,10 @@ void mon_set_error(MonContext* ctx, int32_t error_code) {
 }
 
 void mon_set_success(MonContext* ctx) {
-    if (!ctx) return;
+    if (!ctx) {
+        mon_log(MON_LOG_ERROR, "mon_set_success: ctx is NULL");
+        return;
+    }
 
     /* Clear error flag and code */
     ctx->error_flag = 0;
@@ -203,7 +215,10 @@ void mon_set_success(MonContext* ctx) {
 
     /* Call CPU-specific callback if provided */
     if (ctx->set_k_flag) {
+        mon_log(MON_LOG_DEBUG, "mon_set_success: clearing K flag (K=0)");
         ctx->set_k_flag(ctx->cpu, 0);
+    } else {
+        mon_log(MON_LOG_ERROR, "mon_set_success: set_k_flag callback is NULL!");
     }
 }
 
