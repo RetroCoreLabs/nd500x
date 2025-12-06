@@ -305,23 +305,25 @@ static size_t format_operand_impl(char* dst, size_t cap, const Nd500OperandDecod
             break;
         }
         case ND500_ADDR_CONSTANT: {
-            /* Extended constant: $value */
+            /* Extended constant: $value (same as nd500-dis uses) */
             if (p < e) *p++ = '$';
-            int n = fmt_signed(p, (size_t)(e-p), sval);
+            int n = fmt_unsigned(p, (size_t)(e-p), val);
             p += (n>0 && n < (e-p)? n : (e-p));
             break;
         }
         case ND500_ADDR_REGISTER: {
-            /* Register: r1-r4 (reg is 0-3) */
-            int n = snprintf(p, (size_t)(e-p), "r%d", (int)op->reg + 1);
+            /* Register: r1-r4 derived from address_code 0xD0-0xD3 */
+            int regnum = (op->address_code & 0x03) + 1;  /* 0xD0=r1, 0xD1=r2, 0xD2=r3, 0xD3=r4 */
+            int n = snprintf(p, (size_t)(e-p), "r%d", regnum);
             p += (n>0 && n < (e-p)? n : (e-p));
             break;
         }
         case ND500_ADDR_PREINDEXED: {
-            /* Pre-indexed: offset(In) */
+            /* Pre-indexed: rN.(disp) - matches nd500-dis/nd500-as syntax */
+            int regnum = (op->address_code & 0x03) + 1;  /* low 2 bits = register 1-4 */
             char vbuf[32];
             fmt_signed(vbuf, sizeof(vbuf), sval);
-            int n = snprintf(p, (size_t)(e-p), "%s(I%d)", vbuf, (int)op->reg + 1);
+            int n = snprintf(p, (size_t)(e-p), "r%d.(%s)", regnum, vbuf);
             p += (n>0 && n < (e-p)? n : (e-p));
             break;
         }
@@ -745,14 +747,62 @@ int nd500_dbg_get_trace_mode(void) {
 void nd500_dbg_trace_instruction(uint32_t pc, const char* disasm, uint32_t* registers) {
     if (!nd500_dbg_get_trace_mode()) return;
 
+    /* Calculate prefix length for aligning continuation lines:
+     * "[TRACE] " = 8, "I1=XXXXXXXX " * 4 = 48, "[.....] " = 8, total = 64 */
+    static const int TRACE_PREFIX_LEN = 64;
+
     printf("%s[TRACE]%s ", color_meta(), color_reset());
 
     if (registers) {
-        printf("I1=%08X I2=%08X I3=%08X I4=%08X  ",
-               registers[1], registers[2], registers[3], registers[4]);
+        /* Format FLAGS as string: K O DZ FO FU . . S C Z . . . . . */
+        /* regs[8] = FLAGS, bits: 5=Z, 6=C, 7=S, 8=K, 9=O, 12=DZ, 13=FU, 14=FO */
+        uint32_t flags = registers[8];
+        char flag_str[16];
+        flag_str[0] = (flags & (1u << 8))  ? 'K' : '.';  /* K - Destination full */
+        flag_str[1] = (flags & (1u << 9))  ? 'O' : '.';  /* O - Overflow */
+        flag_str[2] = (flags & (1u << 7))  ? 'S' : '.';  /* S - Sign */
+        flag_str[3] = (flags & (1u << 6))  ? 'C' : '.';  /* C - Carry */
+        flag_str[4] = (flags & (1u << 5))  ? 'Z' : '.';  /* Z - Zero */
+        flag_str[5] = '\0';
+
+        printf("I1=%08X I2=%08X I3=%08X I4=%08X [%s] ",
+               registers[1], registers[2], registers[3], registers[4], flag_str);
     }
 
-    printf("%s\n", disasm ? disasm : "?");
+    /* Handle multi-line disasm: print first line normally, indent continuation lines */
+    if (!disasm || !*disasm) {
+        printf("?\n");
+        return;
+    }
+
+    const char* line_start = disasm;
+    const char* p = disasm;
+    int first_line = 1;
+
+    while (*p) {
+        if (*p == '\n') {
+            /* Print this line */
+            int line_len = (int)(p - line_start);
+            if (first_line) {
+                printf("%.*s\n", line_len, line_start);
+                first_line = 0;
+            } else {
+                /* Continuation line: add prefix-width spaces to align with main line */
+                printf("%*s%.*s\n", TRACE_PREFIX_LEN, "", line_len, line_start);
+            }
+            line_start = p + 1;
+        }
+        p++;
+    }
+
+    /* Print any remaining content (line without trailing newline) */
+    if (line_start < p) {
+        if (first_line) {
+            printf("%s\n", line_start);
+        } else {
+            printf("%*s%s\n", TRACE_PREFIX_LEN, "", line_start);
+        }
+    }
 }
 
 /* Profiling functions */
