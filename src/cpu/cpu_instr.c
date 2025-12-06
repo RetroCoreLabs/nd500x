@@ -360,6 +360,11 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
 	memset(out, 0, sizeof(*out));
 	out->address = pc;
 
+	/* Always reset extra_operand_count - prevents stale operands from previous CALL/CALLG */
+	if (m->cpu) {
+		m->cpu->extra_operand_count = 0;
+	}
+
 	/* Fetch opcode with MMU translation if CPU available */
 	uint8_t b0, b1;
 	if (m->cpu) {
@@ -640,8 +645,9 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecod
             
         case ND500_ADDR_PREINDEXED:
             /* Pre-indexed - I[n] + displacement */
-            if (op->reg < 4) {
-                address = (uint32_t)((int32_t)cpu->I[op->reg] + displacement);
+            /* op->reg is 1-4, cpu->I[] is 0-indexed (I[0]=I1, I[1]=I2, etc.) */
+            if (op->reg >= 1 && op->reg <= 4) {
+                address = (uint32_t)((int32_t)cpu->I[op->reg - 1] + displacement);
             } else {
                 address = (uint32_t)displacement;
             }
@@ -671,15 +677,17 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecod
     
     /* STEP 3: Handle post-indexing (b.xxx+, @b.xxx+) */
     /* Add index register AFTER base+displacement (and after indirection) */
+    /* Note: For post-indexed modes, reg is derived from address_code bits 0-1 */
     switch (op->mode) {
         case ND500_ADDR_LOCAL_PI:
         case ND500_ADDR_LOCAL_IND_PI:
-        case ND500_ADDR_ABSOLUTE_PI:
+        case ND500_ADDR_ABSOLUTE_PI: {
             /* Post-indexed - add I[reg] value */
-            if (op->reg < 4) {
-                address = (uint32_t)((int32_t)address + (int32_t)cpu->I[op->reg]);
-            }
+            /* reg from address_code: bits 0-1 give 0-3, maps to I1-I4 */
+            uint8_t pi_reg = op->address_code & 0x03;
+            address = (uint32_t)((int32_t)address + (int32_t)cpu->I[pi_reg]);
             break;
+        }
         default:
             break;
     }
@@ -694,7 +702,8 @@ uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
         case ND500_ADDR_CONSTANT_SHORT:
             return get_short_embedded(op);
         case ND500_ADDR_REGISTER:
-            if (op->reg < 4) return cpu->I[op->reg];
+            /* op->reg is 1-4, cpu->I[] is 0-indexed */
+            if (op->reg >= 1 && op->reg <= 4) return cpu->I[op->reg - 1];
             return 0;
         case ND500_ADDR_ABSOLUTE:
         case ND500_ADDR_ABSOLUTE_PI:
@@ -717,7 +726,8 @@ uint32_t read_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
 void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32_t value) {
     switch (op->mode) {
         case ND500_ADDR_REGISTER:
-            if (op->reg < 4) cpu->I[op->reg] = value;
+            /* op->reg is 1-4, cpu->I[] is 0-indexed */
+            if (op->reg >= 1 && op->reg <= 4) cpu->I[op->reg - 1] = value;
             break;
         case ND500_ADDR_ABSOLUTE:
         case ND500_ADDR_ABSOLUTE_PI:
