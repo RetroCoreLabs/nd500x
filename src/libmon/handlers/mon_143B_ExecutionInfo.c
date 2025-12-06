@@ -30,7 +30,8 @@
 
 /* Default execution environment settings */
 #define DEFAULT_EXEC_MODE       0       /* Interactive program */
-#define DEFAULT_TERMINAL        1       /* Terminal 1 */
+#define DEFAULT_INPUT_DEV       0       /* Input device 0 */
+#define DEFAULT_OUTPUT_DEV      1       /* Output device 1 */
 #define DEFAULT_DIRECTORY_INDEX 1       /* Default directory */
 #define DEFAULT_USER_INDEX      1       /* Default user (SYSTEM or RT) */
 
@@ -41,11 +42,11 @@ MonResult mon_143B_ExecutionInfo(MonContext* ctx) {
     uint32_t user_index;
 
     /* Set up execution environment values
-     * For the emulator, we simulate an interactive terminal session.
+     * For the emulator, we simulate an RT program environment.
      */
-    exec_mode = DEFAULT_EXEC_MODE;          /* Interactive program */
-    input_dev = DEFAULT_TERMINAL;           /* Terminal 1 for input */
-    output_dev = DEFAULT_TERMINAL;          /* Terminal 1 for output */
+    exec_mode = DEFAULT_EXEC_MODE;          /* RT program */
+    input_dev = DEFAULT_INPUT_DEV;          /* Input device 0 */
+    output_dev = DEFAULT_OUTPUT_DEV;        /* Output device 1 */
     user_index = (DEFAULT_DIRECTORY_INDEX << 8) | DEFAULT_USER_INDEX;
 
     /* Write output parameters as 32-bit words (ND-500 INTEGER = W) */
