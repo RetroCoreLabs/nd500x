@@ -6,21 +6,21 @@
 /**
  * IfKeyGo instruction - BRANCH class
  *
- * Conditional jump if K flag (Key/Invalid/Destination Full) set.
+ * Conditional jump if K flag (Key/Invalid/Destination Full) is NOT set.
  *
  * Variants: 2 (by displacement size)
- * Mnemonics: IF K GO:B, IF K GO:H
+ * Mnemonics: IF -K GO:B, IF -K GO:H
  * Operands: 1 (signed displacement)
  *
  * Opcodes:
- *   0x00D2 (IF K GO:B) - Byte displacement
- *   0x00D3 (IF K GO:H) - Halfword displacement
+ *   0x00D2 (IF -K GO:B) - Byte displacement
+ *   0x00D3 (IF -K GO:H) - Halfword displacement
  *
- * Operation: if K = 1 then PC ← PC + displacement
+ * Operation: if K = 0 then PC <- PC + displacement
  *
  * Description:
  *   A conditional jump causes transfer of control if and only if the K
- *   (Key/Invalid/Destination Full) flag is set. The sign-extended byte
+ *   (Key/Invalid/Destination Full) flag is CLEAR (K=0). The sign-extended byte
  *   or halfword displacement is added to the program counter.
  *
  *   The K flag has multiple uses in the ND-500 architecture:
@@ -29,7 +29,7 @@
  *   - Key Match: Set by some search/comparison operations
  *   - BCD Invalid: Set by packed decimal operations on malformed BCD data
  *
- *   This instruction allows conditional branching based on any of these conditions.
+ *   This instruction branches when K is NOT set, typically to skip error handling.
  *
  * Displacement Encoding:
  *   - BY variant (0x00D2): 8-bit signed displacement (-128 to +127 bytes)
@@ -44,11 +44,11 @@
  *
  * Operation Steps:
  *   1. Read K flag from CPU status register
- *   2. If K flag is set (K = 1):
+ *   2. If K flag is clear (K = 0):
  *      a. Read displacement from operand[0]
  *      b. Sign-extend displacement based on data type
  *      c. Add displacement to PC
- *   3. If K flag is clear (K = 0):
+ *   3. If K flag is set (K = 1):
  *      a. Fall through to next instruction (no branch)
  *
  * Flag Behavior:
@@ -56,20 +56,20 @@
  *
  * Branch Examples:
  *
- *   Example 1: Forward branch if K set
- *     Address 0x1000: IF K GO:B #20    ; Jump forward 20 bytes if K=1
- *     K=1 → PC becomes 0x1000 + 20 = 0x1014
- *     K=0 → PC advances normally to next instruction
+ *   Example 1: Forward branch if K clear
+ *     Address 0x1000: IF -K GO:B #20   ; Jump forward 20 bytes if K=0
+ *     K=0 -> PC becomes 0x1000 + 20 = 0x1014
+ *     K=1 -> PC advances normally to next instruction
  *
- *   Example 2: Backward branch if K set
- *     Address 0x2000: IF K GO:B #-50   ; Jump backward 50 bytes if K=1
- *     K=1 → PC becomes 0x2000 + (-50) = 0x1FCE
- *     K=0 → PC advances normally to next instruction
+ *   Example 2: Backward branch if K clear
+ *     Address 0x2000: IF -K GO:B #-50  ; Jump backward 50 bytes if K=0
+ *     K=0 -> PC becomes 0x2000 + (-50) = 0x1FCE
+ *     K=1 -> PC advances normally to next instruction
  *
  *   Example 3: Large displacement with halfword variant
- *     Address 0x3000: IF K GO:H #1000  ; Jump forward 1000 bytes if K=1
- *     K=1 → PC becomes 0x3000 + 1000 = 0x33E8
- *     K=0 → PC advances normally to next instruction
+ *     Address 0x3000: IF -K GO:H #1000 ; Jump forward 1000 bytes if K=0
+ *     K=0 -> PC becomes 0x3000 + 1000 = 0x33E8
+ *     K=1 -> PC advances normally to next instruction
  *
  * Trap Conditions:
  *   - Addressing traps if displacement calculation results in invalid address
@@ -77,17 +77,19 @@
  *   - Illegal Operand if operand count is not exactly 1
  *
  * Typical Usage:
- *   ; Check BCD validity and branch on error
- *   PADD DESC1, DESC2        ; Packed decimal add (sets K if invalid BCD)
- *   IF K GO:B BCD_ERROR      ; Branch to error handler if K set
+ *   ; Skip error handler after successful MON call (K=0 on success)
+ *   MON GSWSP                ; Get scratch workspace (K=0 if success)
+ *   IF -K GO:B CONTINUE      ; Branch past error handler if K clear
+ *   ; error handling code
+ *   CONTINUE:
  *
- *   ; Check queue full condition
- *   PUSH QUEUE, VALUE        ; Push to queue (sets K if full)
- *   IF K GO:H QUEUE_FULL     ; Branch to overflow handler
+ *   ; Skip error path on successful operation
+ *   CALL OPERATION           ; Operation that sets K=0 on success
+ *   IF -K GO:H SUCCESS       ; Branch to success path if K clear
  *
- *   ; Search operation with key match
- *   SSCAN DESC, PATTERN      ; String scan (sets K on match)
- *   IF K GO:B FOUND          ; Branch if pattern found
+ *   ; Conditional execution when flag is NOT set
+ *   TST CONDITION            ; Test condition (may clear K)
+ *   IF -K GO:B CLEARED       ; Branch if K was cleared
  *
  * Notes:
  *   - This is a conditional relative branch (PC-relative addressing)
@@ -99,8 +101,8 @@
  *   - Useful for error handling, queue overflow detection, search results
  *
  * Comparison with Other Instructions:
- *   - IF K GO: Branch if K flag set (this instruction)
- *   - IF NK GO: Branch if K flag clear (opposite condition)
+ *   - IF -K GO: Branch if K flag clear (this instruction, opcodes 0xD2/0xD3)
+ *   - IF K GO: Branch if K flag set (opposite condition, opcodes 0xD0/0xD1)
  *   - IF = GO: Branch if Z flag set (zero/equal)
  *   - GO: Unconditional branch (always jumps)
  *
@@ -121,8 +123,8 @@ void nd500_instr_IfKeyGo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Check K flag condition */
-    if (nd500_test_flag(cpu, ND500_FLAG_K)) {
+    /* Check K flag condition - IF -K GO branches when K is NOT set */
+    if (!nd500_test_flag(cpu, ND500_FLAG_K)) {
         /* Read displacement value */
         uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
@@ -132,7 +134,7 @@ void nd500_instr_IfKeyGo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Update PC (relative branch from instruction start) */
         cpu->PC = (uint32_t)(fi->address + displacement);
     }
-    /* else: K flag clear, fall through to next instruction */
+    /* else: K flag SET, fall through to next instruction (no branch) */
 
     /* Flags unaffected */
 }
