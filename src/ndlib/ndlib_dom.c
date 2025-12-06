@@ -126,6 +126,10 @@ static int load_dom_segments(void) {
         const uint8_t* prog_ptr = &raw[seg_offset];
         const uint8_t* data_ptr = &raw[seg_offset + SEG_PART_SIZE];
 
+        /* Track loaded ranges for overlap detection */
+        uint32_t prog_lb = 0, prog_sz = 0, data_lb = 0, data_sz = 0;
+        int prog_loaded = 0, data_loaded = 0;
+
         /* Check PROGRAM part */
         const uint8_t* prog_att = &prog_ptr[SEG_OFF_ATT];
         if (should_load_segment(prog_att)) {
@@ -142,6 +146,10 @@ static int load_dom_segments(void) {
                         g_dom_file.segment_size[i] = sz;
                         /* FLA (Fixed Lower Address) is the load address */
                         g_dom_file.segment_load_addr[i] = nd500_read32(&prog_ptr[SEG_OFF_FLA]);
+                        /* Track for overlap detection */
+                        prog_lb = lb; prog_sz = sz; prog_loaded = 1;
+                        nd500_log("DOM Load: Seg[%d] PROG: file=0x%08X..0x%08X size=%u load_addr=0x%08X",
+                                  i, lb, lb + sz - 1, sz, g_dom_file.segment_load_addr[i]);
                     } else {
                         free(g_dom_file.segment_data[i]);
                         g_dom_file.segment_data[i] = NULL;
@@ -165,11 +173,25 @@ static int load_dom_segments(void) {
                     if (read == sz) {
                         g_dom_file.data_size[i] = sz;
                         g_dom_file.data_load_addr[i] = nd500_read32(&data_ptr[SEG_OFF_FLA]);
+                        /* Track for overlap detection */
+                        data_lb = lb; data_sz = sz; data_loaded = 1;
+                        nd500_log("DOM Load: Seg[%d] DATA: file=0x%08X..0x%08X size=%u load_addr=0x%08X",
+                                  i, lb, lb + sz - 1, sz, g_dom_file.data_load_addr[i]);
                     } else {
                         free(g_dom_file.data_data[i]);
                         g_dom_file.data_data[i] = NULL;
                     }
                 }
+            }
+        }
+
+        /* Check for overlap between PROG and DATA file regions */
+        if (prog_loaded && data_loaded) {
+            uint32_t prog_end = prog_lb + prog_sz;
+            uint32_t data_end = data_lb + data_sz;
+            if (prog_lb < data_end && data_lb < prog_end) {
+                nd500_log("DOM Load: WARNING Seg[%d] OVERLAP! PROG=[0x%X..0x%X] DATA=[0x%X..0x%X]",
+                          i, prog_lb, prog_end - 1, data_lb, data_end - 1);
             }
         }
     }
