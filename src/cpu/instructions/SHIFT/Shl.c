@@ -66,9 +66,9 @@ void nd500_instr_Shl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * "If the IOV trap condition is ignored the instruction will be terminated (act as a NOOP)"
      * "On the IOV trap condition the destination field is not changed" */
     if (abs_shift >= (int32_t)bits) {
-        printf("[IOV] SHL at PC=0x%08X: Shift count %d >= %u bits (treating as NOOP)\n",
-               fi->address, abs_shift, bits);
-        /* Don't modify destination, just return (act as NOOP) */
+        /* Raise IOV trap - handler will execute if trap is enabled */
+        trap_invalid_operation(cpu, fi->address);
+        /* Don't modify destination, return (act as NOOP if trap is ignored) */
         return;
     }
 
