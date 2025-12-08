@@ -5,6 +5,7 @@
 #include "debugger.h"
 #include "../machine/machine_protos.h"
 #include "../cpu/cpu_protos.h"
+#include "../disasm/nd500_disasm.h"
 #include "../ndlib/ndlib.h"
 #include "../../external/libdap/libdap/include/dap_server.h"
 
@@ -66,18 +67,78 @@ static int cmd_write_memory_cb(DAPServer *server) {
 static int cmd_disassemble_cb(DAPServer *server) {
 	DisassembleCommandContext *ctx = &server->current_command.context.disassemble;
 	if (!g_machine) return -1;
-	/* Minimal: fill instruction strings from hex dump until real disasm ready */
-	int n = ctx->instruction_count > 0 ? ctx->instruction_count : 10;
-	ctx->instructions = (DisassembleInstruction*)calloc((size_t)n, sizeof(DisassembleInstruction));
-	ctx->actual_instruction_count = n;
-	for (int i = 0; i < n; ++i) {
-		uint32_t a = ctx->memory_reference + (uint32_t)(i * 1);
-		char *addr = (char*)malloc(16); snprintf(addr, 16, "%08X", a);
-		char *inst = strdup("NOP");
-		ctx->instructions[i].address = addr;
-		ctx->instructions[i].instruction = inst;
-		ctx->instructions[i].symbol = NULL;
+	
+	int requested_count = ctx->instruction_count > 0 ? ctx->instruction_count : 10;
+	ctx->instructions = (DisassembleInstruction*)calloc((size_t)requested_count, sizeof(DisassembleInstruction));
+	if (!ctx->instructions) return -1;
+	
+	uint32_t addr = ctx->memory_reference;
+	int count = 0;
+	
+	for (int i = 0; i < requested_count && addr < g_machine->memory_size; ++i) {
+		Nd500FetchedInstruction fi;
+		memset(&fi, 0, sizeof(fi));
+		int rc = nd500_decode_at(g_machine, addr, &fi);
+		
+		/* Format address */
+		char *addr_str = (char*)malloc(16);
+		if (!addr_str) break;
+		snprintf(addr_str, 16, "0x%08X", addr);
+		
+		/* Format instruction */
+		char inst_buf[128];
+		if (rc != 0 || fi.total_len == 0) {
+			/* Unknown opcode - show hex */
+			uint8_t b = nd500_bus_read8(g_machine, addr);
+			snprintf(inst_buf, sizeof(inst_buf), "??? ; 0x%02X", b);
+			fi.total_len = 1;
+		} else {
+			/* Build instruction string: mnemonic + operands */
+			char* p = inst_buf;
+			char* end = inst_buf + sizeof(inst_buf);
+			const char* mnem = fi.mnemonic ? fi.mnemonic : "???";
+			
+			/* Add dtype prefix if present */
+			if (nd500_instr_has_rn(fi.opcode)) {
+				int dreg = nd500_instr_dest_reg(fi.opcode);
+				if (dreg >= 0 && dreg < 4) {
+					const char* dts = nd500_instr_dtype_prefix(fi.opcode);
+					int n = snprintf(p, (size_t)(end-p), "%s%d ", dts, dreg + 1);
+					if (n > 0) p += n;
+				}
+			}
+			
+			/* Add mnemonic */
+			int n = snprintf(p, (size_t)(end-p), "%s", mnem);
+			if (n > 0) p += n;
+			
+			/* Add operands */
+			for (uint8_t oi = 0; oi < fi.operand_count && p < end; ++oi) {
+				char obuf[64];
+				int ol = nd500_format_operand(obuf, sizeof(obuf), &fi.operands[oi], false);
+				if (ol > 0) {
+					n = snprintf(p, (size_t)(end-p), "%s%s", (oi > 0) ? ", " : " ", obuf);
+					if (n > 0) p += n;
+				}
+			}
+		}
+		
+		char *inst_str = strdup(inst_buf);
+		if (!inst_str) { free(addr_str); break; }
+		
+		/* Look up symbol at this address */
+		const char* sym = ndlib_symbols_name_for_addr(addr);
+		char *sym_str = (sym && *sym) ? strdup(sym) : NULL;
+		
+		ctx->instructions[count].address = addr_str;
+		ctx->instructions[count].instruction = inst_str;
+		ctx->instructions[count].symbol = sym_str;
+		count++;
+		
+		addr += fi.total_len > 0 ? fi.total_len : 1;
 	}
+	
+	ctx->actual_instruction_count = count;
 	return 0;
 }
 

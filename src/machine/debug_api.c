@@ -10,8 +10,6 @@
 #include "../ndlib/ndlib.h"
 #include "../ndlib/ndlib_color.h"
 
-#include "../cpu/cpu_protos.h"
-
 static const char* reg_names[] = {"r1", "r2", "r3", "r4"};
 
 size_t nd500_dbg_mem_dump(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t* out, size_t out_cap) {
@@ -150,200 +148,8 @@ int nd500_dbg_get_mmu_log_level(void) {
     return g_mmu_log_level;
 }
 
-/* Helper: format signed value based on current radix */
-static int fmt_signed(char* buf, size_t cap, int32_t val) {
-    switch (g_radix) {
-        case 1: /* hex */
-            if (val < 0)
-                return snprintf(buf, cap, "-0x%X", (unsigned)(-val));
-            else
-                return snprintf(buf, cap, "0x%X", (unsigned)val);
-        case 2: /* octal */
-            if (val < 0)
-                return snprintf(buf, cap, "-0%o", (unsigned)(-val));
-            else
-                return snprintf(buf, cap, "0%o", (unsigned)val);
-        default: /* decimal */
-            return snprintf(buf, cap, "%d", val);
-    }
-}
-
-/* Helper: format unsigned value based on current radix */
-static int fmt_unsigned(char* buf, size_t cap, uint32_t val) {
-    switch (g_radix) {
-        case 1: return snprintf(buf, cap, "0x%X", val);  /* hex */
-        case 2: return snprintf(buf, cap, "0%o", val);   /* octal */
-        default: return snprintf(buf, cap, "%u", val);   /* decimal */
-    }
-}
-
-static size_t format_operand_impl(char* dst, size_t cap, const Nd500OperandDecoded* op) {
-    if (!dst || cap == 0) return (size_t)0;
-
-    /* Extract value from data bytes (BIG-ENDIAN - ND-500 native byte order) */
-    uint32_t val = 0;
-    int32_t sval = 0;
-    if (op->data_len == 1) {
-        val = op->data[0];
-        sval = (int8_t)op->data[0];
-    }
-    else if (op->data_len == 2) {
-        val = ((uint32_t)op->data[0] << 8) | (uint32_t)op->data[1];
-        sval = (int16_t)val;
-    }
-    else if (op->data_len >= 4) {
-        val = ((uint32_t)op->data[0] << 24) | ((uint32_t)op->data[1] << 16) |
-              ((uint32_t)op->data[2] << 8) | (uint32_t)op->data[3];
-        sval = (int32_t)val;
-    }
-
-    char* p = dst; char* e = dst + cap;
-
-    /* Handle prefix bytes */
-    if (op->has_alt_prefix && p < e) { int n = snprintf(p, (size_t)(e-p), "ALT "); if (n>0) p+= (n < (e-p) ? n : (int)(e-p)); }
-    if (op->has_desc_prefix && p < e) { int n = snprintf(p, (size_t)(e-p), "DESC%d ", (int)op->reg+1); if (n>0) p+= (n < (e-p) ? n : (int)(e-p)); }
-
-    /* Special handling for inline operands (AC=0xFF for branch disp, AC=0xFE for call nargs) */
-    if (op->address_code == 0xFE || op->address_code == 0xFF) {
-        if (p < e) *p++ = '$';
-        if (op->address_code == 0xFF && op->data_len <= 2) {
-            /* Signed displacement for branches */
-            int n = fmt_signed(p, (size_t)(e-p), sval);
-            p += (n>0 && n < (e-p)? n : (e-p));
-        } else {
-            /* Unsigned for call address/args */
-            int n = fmt_unsigned(p, (size_t)(e-p), val);
-            p += (n>0 && n < (e-p)? n : (e-p));
-        }
-        if (p < e) *p = '\0';
-        return (size_t)(p - dst);
-    }
-
-    /* Format based on addressing MODE (not raw address_code bits) */
-    /* This matches nd500-dis behavior */
-    switch (op->mode) {
-        case ND500_ADDR_CONSTANT_SHORT: {
-            /* 6-bit signed constant sign-extended to 32-bit, displayed as unsigned */
-            uint8_t low6 = op->address_code & 0x3F;
-            uint32_t val32 = (low6 & 0x20) ? (uint32_t)(low6 | 0xFFFFFFC0) : (uint32_t)low6;
-            if (p < e) *p++ = '$';
-            int n = fmt_unsigned(p, (size_t)(e-p), val32);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_LOCAL_SHORT: {
-            /* 0x40-0x7F: offset = (address_code & 0x3F) * 4 */
-            int32_t off = (int32_t)(op->address_code & 0x3F) * 4;
-            char vbuf[32];
-            fmt_unsigned(vbuf, sizeof(vbuf), (uint32_t)off);
-            int n = snprintf(p, (size_t)(e-p), "b.%s", vbuf);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_RECORD_SHORT: {
-            /* 0x80-0xBF: offset = (address_code & 0x3F) * 4 */
-            int32_t off = (int32_t)(op->address_code & 0x3F) * 4;
-            char vbuf[32];
-            fmt_unsigned(vbuf, sizeof(vbuf), (uint32_t)off);
-            int n = snprintf(p, (size_t)(e-p), "r.%s", vbuf);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_LOCAL: {
-            /* Local with data part: b.offset */
-            char vbuf[32];
-            fmt_signed(vbuf, sizeof(vbuf), sval);
-            int n = snprintf(p, (size_t)(e-p), "b.%s", vbuf);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_LOCAL_PI: {
-            /* Local post-indexed: b.offset+ */
-            char vbuf[32];
-            fmt_signed(vbuf, sizeof(vbuf), sval);
-            int n = snprintf(p, (size_t)(e-p), "b.%s+", vbuf);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_LOCAL_IND: {
-            /* Local indirect: @b.offset */
-            char vbuf[32];
-            fmt_signed(vbuf, sizeof(vbuf), sval);
-            int n = snprintf(p, (size_t)(e-p), "@b.%s", vbuf);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_LOCAL_IND_PI: {
-            /* Local indirect post-indexed: @b.offset+ */
-            char vbuf[32];
-            fmt_signed(vbuf, sizeof(vbuf), sval);
-            int n = snprintf(p, (size_t)(e-p), "@b.%s+", vbuf);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_RECORD: {
-            /* Record with data part: r.offset */
-            char vbuf[32];
-            fmt_signed(vbuf, sizeof(vbuf), sval);
-            int n = snprintf(p, (size_t)(e-p), "r.%s", vbuf);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_ABSOLUTE: {
-            /* Absolute: $address */
-            if (p < e) *p++ = '$';
-            int n = fmt_unsigned(p, (size_t)(e-p), val);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_ABSOLUTE_PI: {
-            /* Absolute post-indexed: $address+ */
-            if (p < e) *p++ = '$';
-            int n = fmt_unsigned(p, (size_t)(e-p), val);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            if (p < e) *p++ = '+';
-            break;
-        }
-        case ND500_ADDR_CONSTANT: {
-            /* Extended constant: $value (same as nd500-dis uses) */
-            if (p < e) *p++ = '$';
-            int n = fmt_unsigned(p, (size_t)(e-p), val);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_REGISTER: {
-            /* Register: r1-r4 derived from address_code 0xD0-0xD3 */
-            int regnum = (op->address_code & 0x03) + 1;  /* 0xD0=r1, 0xD1=r2, 0xD2=r3, 0xD3=r4 */
-            int n = snprintf(p, (size_t)(e-p), "r%d", regnum);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        case ND500_ADDR_PREINDEXED: {
-            /* Pre-indexed: rN.(disp) - matches nd500-dis/nd500-as syntax */
-            int regnum = (op->address_code & 0x03) + 1;  /* low 2 bits = register 1-4 */
-            char vbuf[32];
-            fmt_signed(vbuf, sizeof(vbuf), sval);
-            int n = snprintf(p, (size_t)(e-p), "r%d.(%s)", regnum, vbuf);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            break;
-        }
-        default: {
-            /* Unknown mode - show raw address code and any data */
-            int n = snprintf(p, (size_t)(e-p), "?AC%02X", op->address_code);
-            p += (n>0 && n < (e-p)? n : (e-p));
-            if (op->data_len > 0) {
-                n = snprintf(p, (size_t)(e-p), "($");
-                p += (n>0 && n < (e-p)? n : (e-p));
-                n = fmt_unsigned(p, (size_t)(e-p), val);
-                p += (n>0 && n < (e-p)? n : (e-p));
-                if (p < e) *p++ = ')';
-            }
-            break;
-        }
-    }
-    if (p < e) *p = '\0';
-    return (size_t)(p - dst);
-}
+/* REMOVED: duplicate format_operand_impl() and helpers (fmt_signed/fmt_unsigned).
+ * Now using the authoritative nd500_format_operand() from nd500_disasm.h */
 
 static const char* map_mnemonic_symbol(const char* mnem) {
     if (!mnem) return "???";
@@ -370,7 +176,6 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
     if (!m->mmu_enabled && m->memory_size > 0 && end_addr > m->memory_size) {
         end_addr = m->memory_size;
     }
-    size_t (*format_operand)(char*, size_t, const Nd500OperandDecoded*) = &format_operand_impl;
 
     for (uint32_t a = addr; a < end_addr;) {
         Nd500FetchedInstruction fi;
@@ -505,7 +310,7 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
         printf("%s", color_oper());
         for (uint8_t oi = 0; oi < fi.operand_count; ++oi) {
             char obuf[64];
-            size_t ol = format_operand(obuf, sizeof(obuf), &fi.operands[oi]);
+            int ol = nd500_format_operand(obuf, sizeof(obuf), &fi.operands[oi], false);
             if (ol > 0) {
                 printf("%s%s", (oi > 0) ? "," : "", obuf);
                 /* EA breakdown when enabled and EA present */
@@ -574,19 +379,9 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
                 int is_pc_relative = (fi.operand_count == 1);  /* Single operand = PC-relative branch */
 
                 if (is_pc_relative) {
-                    /* PC-relative branch: target = PC + length + displacement (BIG-ENDIAN) */
-                    int32_t displacement = 0;
-                    if (fi.operands[0].data_len == 1) {
-                        displacement = (int8_t)fi.operands[0].data[0];
-                    } else if (fi.operands[0].data_len == 2) {
-                        uint16_t raw = ((uint16_t)fi.operands[0].data[0] << 8) | (uint16_t)fi.operands[0].data[1];
-                        displacement = (int16_t)raw;
-                    } else if (fi.operands[0].data_len == 4) {
-                        uint32_t raw = ((uint32_t)fi.operands[0].data[0] << 24) | ((uint32_t)fi.operands[0].data[1] << 16) |
-                                       ((uint32_t)fi.operands[0].data[2] << 8) | (uint32_t)fi.operands[0].data[3];
-                        displacement = (int32_t)raw;
-                    }
-                    target = (uint32_t)((int32_t)fi.address + (int32_t)fi.total_len + displacement);
+                    /* PC-relative branch: target = PC + length + displacement */
+                    int32_t displacement = nd500_get_operand_displacement(&fi.operands[0]);
+                    target = nd500_calc_branch_target(fi.address + fi.total_len, displacement);
                     found_target = 1;
                 } else {
                     /* Absolute call: target is first operand value (BIG-ENDIAN) */

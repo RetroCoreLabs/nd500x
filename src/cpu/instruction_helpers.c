@@ -132,86 +132,19 @@ void nd500_write_memory_64(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value) {
  */
 
 uint8_t nd500_read_operand_byte(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
-    if (operand->mode == ND500_ADDR_CONSTANT_SHORT) {
-        return (uint8_t)(operand->address_code & 0x3F);
-    }
-
-    // Handle CONSTANT - value in data array
-    if (operand->mode == ND500_ADDR_CONSTANT) {
-        return operand->data[0];  // First byte of data array
-    }
-
-    // Handle register direct
-    if (operand->mode == ND500_ADDR_REGISTER) {
-        uint32_t reg_value = nd500_read_integer_register(cpu, operand->reg);
-        return (uint8_t)(reg_value & 0xFF);
-    }
-
-    // Memory operand - use effective address
-    return nd500_bus_read8(cpu->machine, operand->effective_address);
+    return (uint8_t)nd500_read_operand_value(cpu, operand, ND500_DTYPE_BYTE);
 }
 
 uint16_t nd500_read_operand_halfword(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
-    if (operand->mode == ND500_ADDR_CONSTANT_SHORT) {
-        return (uint16_t)(operand->address_code & 0x3F);
-    }
-
-    // Handle CONSTANT - value in data array (BIG-ENDIAN per ND-500 spec)
-    if (operand->mode == ND500_ADDR_CONSTANT) {
-        return ((uint16_t)operand->data[0] << 8) | (uint16_t)operand->data[1];
-    }
-
-    // Handle register direct
-    if (operand->mode == ND500_ADDR_REGISTER) {
-        uint32_t reg_value = nd500_read_integer_register(cpu, operand->reg);
-        return (uint16_t)(reg_value & 0xFFFF);
-    }
-
-    // Memory operand
-    return nd500_read_memory_16(cpu, operand->effective_address);
+    return (uint16_t)nd500_read_operand_value(cpu, operand, ND500_DTYPE_HALFWORD);
 }
 
 uint32_t nd500_read_operand_word(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
-    if (operand->mode == ND500_ADDR_CONSTANT_SHORT) {
-        return (uint32_t)(operand->address_code & 0x3F);
-    }
-
-    // Handle CONSTANT - value in data array (BIG-ENDIAN per ND-500 spec)
-    if (operand->mode == ND500_ADDR_CONSTANT) {
-        return ((uint32_t)operand->data[0] << 24) | ((uint32_t)operand->data[1] << 16) |
-               ((uint32_t)operand->data[2] << 8) | (uint32_t)operand->data[3];
-    }
-
-    // Handle register direct
-    if (operand->mode == ND500_ADDR_REGISTER) {
-        return nd500_read_integer_register(cpu, operand->reg);
-    }
-
-    // Memory operand
-    return nd500_read_memory_32(cpu, operand->effective_address);
+    return (uint32_t)nd500_read_operand_value(cpu, operand, ND500_DTYPE_WORD);
 }
 
 uint64_t nd500_read_operand_doubleword(Nd500Cpu* cpu, const Nd500OperandDecoded* operand) {
-    // Handle constants (little-endian from data array - 64-bit)
-    if (operand->mode == ND500_ADDR_CONSTANT ||
-        operand->mode == ND500_ADDR_CONSTANT_SHORT) {
-        uint64_t low = (uint32_t)operand->data[0] | ((uint32_t)operand->data[1] << 8) |
-                       ((uint32_t)operand->data[2] << 16) | ((uint32_t)operand->data[3] << 24);
-        uint64_t high = (uint32_t)operand->data[4] | ((uint32_t)operand->data[5] << 8) |
-                        ((uint32_t)operand->data[6] << 16) | ((uint32_t)operand->data[7] << 24);
-        return low | (high << 32);
-    }
-
-    // Handle register direct (double register D1-D4)
-    if (operand->mode == ND500_ADDR_REGISTER) {
-        return nd500_read_double_register(cpu, operand->reg);
-    }
-
-    // Memory operand
-    return nd500_read_memory_64(cpu, operand->effective_address);
+    return nd500_read_operand_value(cpu, operand, ND500_DTYPE_DOUBLEWORD);
 }
 
 void nd500_write_operand_byte(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint8_t value) {

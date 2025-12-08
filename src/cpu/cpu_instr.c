@@ -296,7 +296,7 @@ int nd500_instr_operand_is_direct(uint16_t opcode, uint8_t operand_idx) {
 }
 
 /* Forward declarations */
-static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecoded* op);
+static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecoded* op, Nd500DataType dtype);
 static uint32_t get_operand_value32(const Nd500OperandDecoded* op);
 static uint32_t get_short_embedded(const Nd500OperandDecoded* op);
 
@@ -563,14 +563,15 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     /* === Compute effective addresses for all operands === */
     /* This computes final memory addresses where operand data resides */
     /* Must be done AFTER all operands are decoded and requires CPU register state */
+    /* data_type is used for post-index scaling in PI modes */
     if (m->cpu) {
         for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
-            out->operands[i].effective_address = compute_effective_address(m->cpu, &out->operands[i]);
+            out->operands[i].effective_address = compute_effective_address(m->cpu, &out->operands[i], out->data_type);
         }
         /* Compute effective addresses for extra operands (CALL/CALLG/POLY arguments) */
         for (uint16_t i = 0; i < m->cpu->extra_operand_count && i < 256; ++i) {
             m->cpu->extra_operands[i].effective_address =
-                compute_effective_address(m->cpu, &m->cpu->extra_operands[i]);
+                compute_effective_address(m->cpu, &m->cpu->extra_operands[i], out->data_type);
         }
     } else {
         /* No CPU linked yet - zero the addresses */
@@ -596,8 +597,14 @@ static uint32_t get_short_embedded(const Nd500OperandDecoded* op) {
     return (uint32_t)(op->address_code & 0x3F);
 }
 
-/* Enhanced compute_effective_address matching C# implementation */
-static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecoded* op) {
+/* Enhanced compute_effective_address matching C# implementation
+ * dtype parameter is used for post-index scaling factor:
+ * - BYTE: scale = 1
+ * - HALFWORD: scale = 2  
+ * - WORD: scale = 4
+ * - DOUBLEWORD: scale = 8
+ */
+static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecoded* op, Nd500DataType dtype) {
     uint32_t address = 0;
     int32_t displacement = 0;
     
@@ -675,17 +682,30 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecod
             break;
     }
     
-    /* STEP 3: Handle post-indexing (b.xxx+, @b.xxx+) */
-    /* Add index register AFTER base+displacement (and after indirection) */
+    /* STEP 3: Handle post-indexing (b.xxx(rN), IND(b.xxx)(rN), $xxx(rN)) */
+    /* Add scaled index register AFTER base+displacement (and after indirection) */
+    /* CRITICAL: Index register value is multiplied by data type size (scale factor) */
     /* Note: For post-indexed modes, reg is derived from address_code bits 0-1 */
     switch (op->mode) {
         case ND500_ADDR_LOCAL_PI:
         case ND500_ADDR_LOCAL_IND_PI:
         case ND500_ADDR_ABSOLUTE_PI: {
-            /* Post-indexed - add I[reg] value */
+            /* Post-indexed - add I[reg] * scale */
             /* reg from address_code: bits 0-1 give 0-3, maps to I1-I4 */
             uint8_t pi_reg = op->address_code & 0x03;
-            address = (uint32_t)((int32_t)address + (int32_t)cpu->I[pi_reg]);
+            int32_t index_value = (int32_t)cpu->I[pi_reg];
+            
+            /* Determine scale factor based on data type */
+            int scale;
+            switch (dtype) {
+                case ND500_DTYPE_BYTE:       scale = 1; break;
+                case ND500_DTYPE_HALFWORD:   scale = 2; break;
+                case ND500_DTYPE_WORD:       scale = 4; break;
+                case ND500_DTYPE_DOUBLEWORD: scale = 8; break;
+                default:                     scale = 1; break;
+            }
+            
+            address = (uint32_t)((int32_t)address + scale * index_value);
             break;
         }
         default:
