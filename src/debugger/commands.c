@@ -1263,11 +1263,127 @@ static int cmd_symb(Nd500Machine* m, CmdContext* ctx, char* args) {
 	return 0;
 }
 
-static int cmd_segments(Nd500Machine* m, CmdContext* ctx, char* args) {
-	uint32_t text_base, text_size, data_base, data_size, bss_base, bss_size;
-	ndlib_aout_get_segment_info(&text_base, &text_size, &data_base, &data_size, &bss_base, &bss_size);
+/* Helper: Calculate segment size from PST entry */
+static uint32_t calculate_segment_size(Nd500Machine* m, Nd500Cpu* cpu, uint16_t capability) {
+	if (!m || !cpu) return 0;
+	
+	/* Extract PSN from capability */
+	uint16_t psn = capability & PC_PSN;
+	if (psn == 0) return 0;
+	
+	/* Get PST entry */
+	PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(cpu, psn);
+	
+	/* Check if capability is direct (not indirect) */
+	/* PC_DIR is 0x0000, PC_IND is 0x8000 - direct means PC_IND bit is clear */
+	if ((capability & PC_IND) == 0) {
+		/* Direct mapping: 1 page (2KB) */
+		return NBPG;
+	}
+	
+	/* Check PST index mode */
+	if (pst.index_mode == PS_AZI) {
+		/* Direct addressed page: 1 page (2KB) */
+		return NBPG;
+	} else if (pst.index_mode == PS_ASI) {
+		/* Single-level paging: count valid PTEs in page table */
+		uint32_t page_table_base = pst.physical_pfn << PGSHIFT;
+		uint32_t page_count = 0;
+		
+		/* Scan page table entries (up to 512 entries per page table) */
+		for (uint32_t i = 0; i < NPTEPG; i++) {
+			uint32_t pte_addr = page_table_base + (i * 4);
+			uint32_t pte_value = nd500_bus_read32(m, pte_addr);
+			
+			/* Extract PFN from PTE (bits 31:2) */
+			uint32_t pte_pfn = (pte_value >> 2) & 0x3FFFFFFF;
+			
+			/* Valid if PFN != 0 */
+			if (pte_pfn != 0) {
+				page_count++;
+			} else {
+				/* Stop at first zero entry (page tables are contiguous) */
+				break;
+			}
+		}
+		
+		return page_count * NBPG;
+	} else if (pst.index_mode == PS_ADI) {
+		/* Two-level paging: count valid L1 PTEs, then count L2 PTEs */
+		uint32_t l1_table_base = pst.physical_pfn << PGSHIFT;
+		uint32_t total_pages = 0;
+		
+		/* Scan L1 page table entries (up to 128 entries) */
+		for (uint32_t l1_idx = 0; l1_idx < 128; l1_idx++) {
+			uint32_t l1_pte_addr = l1_table_base + (l1_idx * 4);
+			uint32_t l1_pte_value = nd500_bus_read32(m, l1_pte_addr);
+			uint32_t l1_pte_pfn = (l1_pte_value >> 2) & 0x3FFFFFFF;
+			
+			if (l1_pte_pfn == 0) break; /* Stop at first zero L1 entry */
+			
+			/* Scan L2 page table */
+			uint32_t l2_table_base = l1_pte_pfn << PGSHIFT;
+			for (uint32_t l2_idx = 0; l2_idx < NPTEPG; l2_idx++) {
+				uint32_t l2_pte_addr = l2_table_base + (l2_idx * 4);
+				uint32_t l2_pte_value = nd500_bus_read32(m, l2_pte_addr);
+				uint32_t l2_pte_pfn = (l2_pte_value >> 2) & 0x3FFFFFFF;
+				
+				if (l2_pte_pfn != 0) {
+					total_pages++;
+				} else {
+					break; /* Stop at first zero L2 entry */
+				}
+			}
+		}
+		
+		return total_pages * NBPG;
+	}
+	
+	return 0;
+}
 
-	output(ctx, "=== SEGMENT LAYOUT ===");
+static int cmd_segments(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+	
+	/* Segments only exist when MMU is enabled (segments are part of virtual address space) */
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		error(ctx, "MMU is disabled - segments only exist when MMU is enabled");
+		error(ctx, "When MMU is disabled, addresses are physical (no virtual segments)");
+		return -1;
+	}
+	
+	/* MMU enabled: Get segment info from PCB capabilities */
+	uint8_t domain = m->cpu->CED; /* Current executing domain */
+	
+	uint32_t text_base = 0, text_size = 0;
+	uint32_t data_base = 0, data_size = 0;
+	uint32_t bss_base = 0, bss_size = 0;
+	
+	/* Segment 0: DATA (virtual address 0x00000000) */
+	uint16_t data_cap = nd500_mmu_get_data_capability(m->cpu, domain, 0);
+	if (data_cap != 0) {
+		data_base = 0x00000000; /* Segment 0 */
+		data_size = calculate_segment_size(m, m->cpu, data_cap);
+	}
+	
+	/* Segment 1: PROG/TEXT (virtual address 0x08000000) */
+	uint16_t prog_cap = nd500_mmu_get_program_capability(m->cpu, domain, 1);
+	if (prog_cap != 0) {
+		text_base = 0x08000000; /* Segment 1 */
+		text_size = calculate_segment_size(m, m->cpu, prog_cap);
+	}
+	
+	/* BSS is typically part of DATA segment, but we don't have separate tracking */
+	/* For now, set BSS to 0 */
+	bss_base = 0;
+	bss_size = 0;
+
+	output(ctx, "=== SEGMENT LAYOUT (Virtual Address Space) ===");
+	output(ctx, "Domain: %u (CED)", domain);
+	output(ctx, "");
 	output(ctx, "TEXT: 0x%08X - 0x%08X (%u bytes)", text_base, text_base + text_size, text_size);
 	output(ctx, "DATA: 0x%08X - 0x%08X (%u bytes)", data_base, data_base + data_size, data_size);
 	output(ctx, "BSS:  0x%08X - 0x%08X (%u bytes)", bss_base, bss_base + bss_size, bss_size);
@@ -1815,7 +1931,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 			/* Set capabilities for this segment */
 			if (has_exec) {
-				uint16_t pc = next_psn | PC_DIR;
+				uint16_t pc = next_psn;
 				nd500_mmu_set_program_capability(m->cpu, 0, seg, pc);
 				output(ctx, "    Prog capability: PSN %u", next_psn);
 			}
@@ -1926,7 +2042,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 			/* Set capabilities for this segment */
 			if (has_exec) {
-				uint16_t pc = next_psn | PC_DIR;
+				uint16_t pc = next_psn;
 				nd500_mmu_set_program_capability(m->cpu, 0, seg, pc);
 				output(ctx, "    Prog capability: PSN %u", next_psn);
 			}
@@ -1947,8 +2063,42 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 		output(ctx, "  Mapping complete: segments %u-%u, %u PST entries used",
 			start_vseg, end_vseg, next_psn - 10);
 
+	} else if (strcmp(subcmd, "acronyms") == 0 || strcmp(subcmd, "help") == 0) {
+		output(ctx, "=== MMU Acronyms and Abbreviations ===");
+		output(ctx, "");
+		output(ctx, "Address Translation:");
+		output(ctx, "  PSN     Physical Segment Number (index into PST)");
+		output(ctx, "  PFN     Page Frame Number (physical memory page)");
+		output(ctx, "  PST     Physical Segment Table (maps PSN to physical pages)");
+		output(ctx, "  PCB     Process Control Block (per-process capabilities)");
+		output(ctx, "  PTE     Page Table Entry (individual page mapping)");
+		output(ctx, "");
+		output(ctx, "Capability Flags (16-bit capability word):");
+		output(ctx, "  PC_IND  0x8000  Program Capability Indirect (use descriptor)");
+		output(ctx, "  DC_WRP  0x0080  Data Capability Write Permitted");
+		output(ctx, "  DC_IND  0x8000  Data Capability Indirect");
+		output(ctx, "");
+		output(ctx, "PST Entry Flags:");
+		output(ctx, "  PS_ASI  0x80    Address Space Identifier present");
+		output(ctx, "  PS_WRP  0x40    Write Protect");
+		output(ctx, "  PS_REF  0x20    Referenced");
+		output(ctx, "  PS_MOD  0x10    Modified");
+		output(ctx, "");
+		output(ctx, "MMU Control Instructions:");
+		output(ctx, "  PMON    Program MMU ON");
+		output(ctx, "  PMOF    Program MMU OFF");
+		output(ctx, "  DMON    Data MMU ON");
+		output(ctx, "  DMOF    Data MMU OFF");
+		output(ctx, "");
+		output(ctx, "Registers:");
+		output(ctx, "  PSTP    Physical Segment Table Pointer");
+		output(ctx, "  DITBASE Domain Information Table Base");
+		output(ctx, "  CED     Current Executing Domain");
+		output(ctx, "  CAD     Current Alternative Domain");
+		output(ctx, "  PS      Process Segment");
+
 	} else {
-		error(ctx, "usage: mmu [on|off|enable|disable|identity|map] ...");
+		error(ctx, "usage: mmu [on|off|enable|disable|identity|map|acronyms] ...");
 		return -1;
 	}
 
@@ -2006,6 +2156,13 @@ static int cmd_showmmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "PST: %d configured entries (of %d max)", pst_count, MAX_PST);
 	output(ctx, "PCB: %d domains with %d segments (of %d domains max)", domain_count, segment_count, MAXDOM);
 	output(ctx, "Page size: %d bytes", NBPG);
+
+	if (!prog_enabled && !data_enabled) {
+		output(ctx, "");
+		output(ctx, "NOTE: MMU is disabled - PST and PCB entries exist but are not active");
+		output(ctx, "      Address translation is not performed when MMU is disabled");
+	}
+
 	output(ctx, "");
 	output(ctx, "Virtual Address Format (ND-05.009.4 Reference Manual, p53-54):");
 	output(ctx, "  [31-27] Segment  (5 bits)  - 32 segments max");
@@ -2046,6 +2203,10 @@ static int cmd_showpst(Nd500Machine* m, CmdContext* ctx, char* args) {
 	PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(m->cpu, psn);
 
 	output(ctx, "=== PST Entry %u ===", psn);
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		output(ctx, "NOTE: MMU is disabled - this entry exists but is not active");
+		output(ctx, "");
+	}
 	output(ctx, "Index Mode:    %u (%s)", pst.index_mode,
 		pst.index_mode == PS_AZI ? "PS_AZI - Direct" :
 		pst.index_mode == PS_ASI ? "PS_ASI - Single-level paging" :
@@ -2086,6 +2247,12 @@ static int cmd_showpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return -1;
 	}
 
+	/* PCB capabilities only exist when MMU is enabled */
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		error(ctx, "MMU is disabled - PCB capabilities only exist when MMU is enabled");
+		return -1;
+	}
+
 	char* domain_str = args ? strtok(args, " \t\r\n") : NULL;
 	char* seg_str = domain_str ? strtok(NULL, " \t\r\n") : NULL;
 
@@ -2113,19 +2280,41 @@ static int cmd_showpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 		output(ctx, "=== PCB Domain %u Segment %u ===", domain, seg);
 		output(ctx, "Program Capability: 0x%04X", pc);
-		output(ctx, "  PSN:     %u (0x%03X)", pc & PC_PSN, pc & PC_PSN);
-		output(ctx, "  DIR bit: %u (%s)", (pc & PC_DIR) ? 1 : 0, (pc & PC_DIR) ? "Direct mapped" : "Not direct");
+		if (pc != 0) {
+			output(ctx, "  PSN:     %u (0x%03X)", pc & PC_PSN, pc & PC_PSN);
+			/* PC_DIR is 0x0000, PC_IND is 0x8000 - check PC_IND bit instead */
+			int is_indirect = (pc & PC_IND) != 0;
+			output(ctx, "  Type:    %s", is_indirect ? "Indirect (PC_IND set)" : "Direct (PC_IND clear)");
+			if (is_indirect) {
+				uint32_t target_domain = (pc & PC_DOM) >> 5;
+				uint32_t target_segment = pc & PC_SEG;
+				output(ctx, "  Target:  Domain %u, Segment %u", target_domain, target_segment);
+			}
+			if (pc & PC_OMC) {
+				output(ctx, "  OMC:     Other Machine Call");
+			}
+		} else {
+			output(ctx, "  (not configured)");
+		}
 		output(ctx, "");
 		output(ctx, "Data Capability:    0x%04X", dc);
-		output(ctx, "  PSN:     %u (0x%03X)", dc & DC_PSN, dc & DC_PSN);
-		output(ctx, "  WRP bit: %u (%s)", (dc & DC_WRP) ? 1 : 0, (dc & DC_WRP) ? "Write-protected" : "Writable");
-		output(ctx, "  PAC bit: %u (%s)", (dc & DC_PAC) ? 1 : 0, (dc & DC_PAC) ? "User accessible" : "Kernel only");
+		if (dc != 0) {
+			output(ctx, "  PSN:     %u (0x%03X)", dc & DC_PSN, dc & DC_PSN);
+			output(ctx, "  WRP:     %u (%s)", (dc & DC_WRP) ? 1 : 0, (dc & DC_WRP) ? "Write permitted" : "Read-only");
+			output(ctx, "  PAC:     %u (%s)", (dc & DC_PAC) ? 1 : 0, (dc & DC_PAC) ? "User accessible" : "Kernel only");
+			if (dc & DC_SHS) {
+				output(ctx, "  SHS:     Shared segment (cache disabled)");
+			}
+		} else {
+			output(ctx, "  (not configured)");
+		}
 	} else {
 		/* Show all segments for domain */
 		output(ctx, "=== PCB Domain %u ===", domain);
 		output(ctx, "Seg  Prog Cap  Data Cap");
 		output(ctx, "---  --------  --------");
 
+		int found_any = 0;
 		for (int seg = 0; seg < 32; seg++) {
 			uint16_t pc = nd500_mmu_get_program_capability(m->cpu, domain, seg);
 			uint16_t dc = nd500_mmu_get_data_capability(m->cpu, domain, seg);
@@ -2133,7 +2322,12 @@ static int cmd_showpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
 			/* Only show non-zero entries */
 			if (pc != 0 || dc != 0) {
 				output(ctx, "%3d  %04X      %04X", seg, pc, dc);
+				found_any = 1;
 			}
+		}
+		
+		if (!found_any) {
+			output(ctx, "(no configured segments)");
 		}
 	}
 
@@ -2288,7 +2482,8 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "Domain 0 (Kernel):");
 	/* Code segments 0-127: Each segment i maps to PSN i (phys 0x00000000+) */
 	for (uint32_t seg = 0; seg < 128; seg++) {
-		nd500_mmu_set_program_capability(m->cpu, 0, seg, seg | PC_DIR);
+		/* PC_DIR is 0x0000 - direct is absence of PC_IND flag, not a flag to set */
+		nd500_mmu_set_program_capability(m->cpu, 0, seg, seg);
 	}
 	output(ctx, "  Prog segments [0-127]   → PSN [0-127]   (virtual 0x00000000-0x3F800000)");
 
@@ -2307,7 +2502,8 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "Domain 1 (User1):");
 	/* Code segments 0-127: Each segment i maps to PSN 256+i (phys 0x00080000+) */
 	for (uint32_t seg = 0; seg < 128; seg++) {
-		nd500_mmu_set_program_capability(m->cpu, 1, seg, (256 + seg) | PC_DIR);
+		/* PC_DIR is 0x0000 - direct is absence of PC_IND flag */
+		nd500_mmu_set_program_capability(m->cpu, 1, seg, (256 + seg));
 	}
 	output(ctx, "  Prog segments [0-127]   → PSN [256-383] (virtual 0x00000000-0x3F800000)");
 
@@ -2326,7 +2522,8 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "Domain 2 (User2):");
 	/* Code segments 0-127: Each segment i maps to PSN 512+i (phys 0x00100000+) */
 	for (uint32_t seg = 0; seg < 128; seg++) {
-		nd500_mmu_set_program_capability(m->cpu, 2, seg, (512 + seg) | PC_DIR);
+		/* PC_DIR is 0x0000 - direct is absence of PC_IND flag */
+		nd500_mmu_set_program_capability(m->cpu, 2, seg, (512 + seg));
 	}
 	output(ctx, "  Prog segments [0-127]   → PSN [512-639] (virtual 0x00100000-0x0013FFFF)");
 
@@ -2383,6 +2580,10 @@ static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args) {
 	}
 
 	output(ctx, "=== Configured PST Entries ===");
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		output(ctx, "NOTE: MMU is disabled - PST entries exist but are not active");
+		output(ctx, "");
+	}
 	output(ctx, "PSN   Mode  PFN     Physical Address  Max Size");
 	output(ctx, "----  ----  ------  ----------------  --------");
 
@@ -2427,6 +2628,12 @@ static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return -1;
 	}
 
+	/* PCB capabilities only meaningful when MMU is enabled */
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		error(ctx, "MMU is disabled - PCB capabilities only exist when MMU is enabled");
+		return -1;
+	}
+
 	output(ctx, "=== Configured PCB Domains ===");
 
 	int total_domains = 0;
@@ -2456,7 +2663,11 @@ static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
 				if (pc != 0) {
 					uint16_t psn = pc & PC_PSN;
 					snprintf(desc, sizeof(desc), "P:PSN=%u", psn);
-					if (pc & PC_DIR) strcat(desc, ",DIR");
+					/* PC_DIR is 0x0000, check PC_IND instead */
+					if ((pc & PC_IND) == 0) 
+						strcat(desc, ",DIR");
+					else 
+						strcat(desc, ",IND");
 				}
 				if (dc != 0) {
 					uint16_t psn = dc & DC_PSN;
@@ -2491,6 +2702,12 @@ static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
 static int cmd_dumppt(Nd500Machine* m, CmdContext* ctx, char* args) {
 	if (!m || !m->cpu) {
 		error(ctx, "no cpu linked");
+		return -1;
+	}
+
+	/* Page tables only meaningful when MMU is enabled */
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		error(ctx, "MMU is disabled - page tables only meaningful when MMU is enabled");
 		return -1;
 	}
 
