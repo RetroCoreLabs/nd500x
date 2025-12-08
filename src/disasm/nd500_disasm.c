@@ -17,13 +17,22 @@ static int fmt_unsigned(char* buf, size_t cap, uint32_t val) {
     }
 }
 
-/* Format signed value based on radix */
+/* Format signed value based on radix - preserves sign for negative values */
 static int fmt_signed(char* buf, size_t cap, int32_t val) {
     int radix = nd500_dbg_get_radix();
     switch (radix) {
-        case 1:  return snprintf(buf, cap, "0x%X", (uint32_t)val);  /* hex */
-        case 2:  return snprintf(buf, cap, "%o", (uint32_t)val);    /* octal */
-        default: return snprintf(buf, cap, "%d", val);              /* decimal */
+        case 1:  /* hex */
+            if (val < 0)
+                return snprintf(buf, cap, "-0x%X", (unsigned)(-val));
+            else
+                return snprintf(buf, cap, "0x%X", (unsigned)val);
+        case 2:  /* octal */
+            if (val < 0)
+                return snprintf(buf, cap, "-%o", (unsigned)(-val));
+            else
+                return snprintf(buf, cap, "%o", (unsigned)val);
+        default: /* decimal */
+            return snprintf(buf, cap, "%d", val);
     }
 }
 
