@@ -19,24 +19,56 @@
  */
 
 uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
-    return nd500_bus_read8(cpu->machine, vaddr);
+    if (!cpu || !cpu->machine) return 0;
+
+    // Translate virtual to physical address if MMU is enabled
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
+    }
+
+    return nd500_bus_read8(cpu->machine, paddr);
 }
 
 void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
-    nd500_bus_write8(cpu->machine, vaddr, value);
+    if (!cpu || !cpu->machine) return;
+
+    // Translate virtual to physical address if MMU is enabled
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
+    }
+
+    nd500_bus_write8(cpu->machine, paddr, value);
 }
 
 uint16_t nd500_read_memory_16(Nd500Cpu* cpu, uint32_t vaddr) {
-    // Read two bytes BIG-ENDIAN (ND-500 spec)
-    uint8_t b0 = nd500_bus_read8(cpu->machine, vaddr);
-    uint8_t b1 = nd500_bus_read8(cpu->machine, vaddr + 1);
+    if (!cpu || !cpu->machine) return 0;
+
+    // Translate virtual to physical address if MMU is enabled
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
+    }
+
+    // Read two bytes BIG-ENDIAN from physical address (ND-500 spec)
+    uint8_t b0 = nd500_bus_read8(cpu->machine, paddr);
+    uint8_t b1 = nd500_bus_read8(cpu->machine, paddr + 1);
     return ((uint16_t)b0 << 8) | (uint16_t)b1;
 }
 
 void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
-    // Write two bytes BIG-ENDIAN (ND-500 spec)
-    nd500_bus_write8(cpu->machine, vaddr,     (uint8_t)((value >> 8) & 0xFF));
-    nd500_bus_write8(cpu->machine, vaddr + 1, (uint8_t)(value & 0xFF));
+    if (!cpu || !cpu->machine) return;
+
+    // Translate virtual to physical address if MMU is enabled
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
+    }
+
+    // Write two bytes BIG-ENDIAN to physical address (ND-500 spec)
+    nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 8) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)(value & 0xFF));
 }
 
 uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
