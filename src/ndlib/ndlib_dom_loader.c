@@ -73,6 +73,17 @@ int ndlib_dom_load_to_machine(
     int is_dom = ndlib_dom_is_dom_file();
     uint32_t start_addr = nd500_read32(&hdr->raw[0xD8]);
 
+    /* Read trap registers from DOM header */
+    uint32_t tha    = nd500_read32(&hdr->raw[0xE0]);
+    uint32_t mte2   = nd500_read32(&hdr->raw[0xE4]);
+    uint32_t mte1   = nd500_read32(&hdr->raw[0xE8]);
+    uint32_t ote2   = nd500_read32(&hdr->raw[0xEC]);
+    uint32_t ote1   = nd500_read32(&hdr->raw[0xF0]);
+    uint32_t cte2   = nd500_read32(&hdr->raw[0xF4]);
+    uint32_t cte1   = nd500_read32(&hdr->raw[0xF8]);
+    uint32_t temm2  = nd500_read32(&hdr->raw[0xFC]);
+    uint32_t temm1  = nd500_read32(&hdr->raw[0x100]);
+
     if (out_start_addr) {
         *out_start_addr = start_addr;
     }
@@ -143,6 +154,13 @@ int ndlib_dom_load_to_machine(
      * Initialize domain system (required for MMU and MON calls)
      * ======================================================================== */
     nd500_domain_init(cpu);
+
+    /* Initialize trap registers from DOM header */
+    cpu->THA   = tha;
+    cpu->MTE1  = mte1;  cpu->MTE2  = mte2;
+    cpu->OTE1  = ote1;  cpu->OTE2  = ote2;
+    cpu->CTE1  = cte1;  cpu->CTE2  = cte2;
+    cpu->TEMM1 = temm1; cpu->TEMM2 = temm2;
 
     /* ========================================================================
      * Set up MMU page tables using PS_ASI (single-level paging)
@@ -239,6 +257,9 @@ int ndlib_dom_load_to_machine(
         log_callback(log_context, "  PROG: %u pages @ PT 0x%08X (PSN %d)", prog_pages, pt_base_prog, psn_prog);
         log_callback(log_context, "  Segment 31: SINTRAN MON calls (indirect)");
         log_callback(log_context, "  MMU enabled (Program and Data)");
+        if (tha != 0) {
+            log_callback(log_context, "  THA: 0x%08X", tha);
+        }
         log_callback(log_context, "");
         log_callback(log_context, "Total: %u bytes DATA + %u bytes PROG = %u bytes",
                      total_data_size, total_prog_size, total_data_size + total_prog_size);
