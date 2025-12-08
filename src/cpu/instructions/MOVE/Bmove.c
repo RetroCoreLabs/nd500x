@@ -97,6 +97,11 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                     value = 0;
                     break;
             }
+            
+            /* Check for trap after read (e.g., MMU page fault) */
+            if (cpu->machine && !cpu->machine->run_flag) {
+                break;  /* Trap occurred - stop iteration */
+            }
         }
 
         /* Write to destination */
@@ -113,6 +118,11 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             case ND500_DTYPE_DOUBLEWORD:
                 nd500_write_memory_64(cpu, dst_addr, value);
                 break;
+        }
+        
+        /* Check for trap after write (e.g., MMU page fault, protection violation) */
+        if (cpu->machine && !cpu->machine->run_flag) {
+            break;  /* Trap occurred - stop iteration */
         }
     }
 
