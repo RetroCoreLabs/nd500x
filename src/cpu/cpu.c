@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stdio.h>
-#include <setjmp.h>
+#include <stdbool.h>
 #include "cpu_protos.h"
 #include "instruction_helpers.h"
 #include "nd500_mmu.h"
@@ -9,11 +9,27 @@
 #include "../machine/breakpoints.h"
 #include "../disasm/nd500_disasm.h"
 
-/* Global jump buffer for trap handling */
-jmp_buf cpu_jmp_buf;
+/* TRACE macro: only outputs if trace mode is enabled (matches nd500_dbg_trace_instruction pattern) */
+#define TRACE(...) do { if (nd500_dbg_get_trace_mode()) printf(__VA_ARGS__); } while(0)
 
 /* Global trap state */
 Nd500TrapState g_trap_state = {0};
+
+/* Convert trap condition to StopReason enum */
+static StopReason trap_to_stop_reason(uint64_t trap_condition) {
+	if (trap_condition & TRAP_PGF)  return STOP_TRAP_PAGE_FAULT;
+	if (trap_condition & TRAP_PV)   return STOP_TRAP_PROTECTION_VIOLATION;
+	if (trap_condition & TRAP_IIC)  return STOP_TRAP_ILLEGAL_INSTRUCTION;
+	if (trap_condition & TRAP_IOS)  return STOP_TRAP_ILLEGAL_OPERAND;
+	if (trap_condition & TRAP_DZ)   return STOP_TRAP_DIVIDE_BY_ZERO;
+	if (trap_condition & TRAP_FO)   return STOP_TRAP_FLOATING_OVERFLOW;
+	if (trap_condition & TRAP_FU)   return STOP_TRAP_FLOATING_UNDERFLOW;
+	if (trap_condition & TRAP_IVO)  return STOP_TRAP_INVALID_OPERATION;
+	if (trap_condition & TRAP_STO)  return STOP_TRAP_STACK_OVERFLOW;
+	if (trap_condition & TRAP_STU)  return STOP_TRAP_STACK_UNDERFLOW;
+	if (trap_condition & TRAP_IOV)  return STOP_TRAP_INTEGER_OVERFLOW;
+	return STOP_TRAP_OTHER;
+}
 
 void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
 	if (!cpu) return;
@@ -63,79 +79,102 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	nd500_trap_clear();
 }
 
-void nd500_cpu_step(Nd500Cpu* cpu) {
-	if (!cpu || !cpu->machine) return;
+bool nd500_cpu_step(Nd500Cpu* cpu) {
+	if (!cpu || !cpu->machine) return false;
 
 	/* Check for pending traps before executing instruction */
 	if (nd500_trap_occurred()) {
 		const Nd500TrapState* trap = nd500_trap_get_state();
-		/* Trap detected - stop execution and clear trap state */
-		cpu->machine->run_flag = 0; /* Stop execution */
-		cpu->machine->stop_reason = trap ? trap->trap_description : "Trap occurred";
-		nd500_trap_clear(); /* Clear trap so debugger can inspect memory */
-		return;
+		cpu->machine->run_flag = 0;
+		cpu->machine->stop_addr = trap ? trap->trap_pc : cpu->PC;
+		cpu->machine->stop_data = trap ? trap->trap_data_addr : 0;
+		cpu->machine->stop_reason = trap ? trap_to_stop_reason(trap->trap_condition) : STOP_TRAP_OTHER;
+		printf("[STOP] %s at PC=0x%08X data=0x%08X\n",
+		       nd500_stop_reason_str(cpu->machine->stop_reason),
+		       cpu->machine->stop_addr, cpu->machine->stop_data);
+		nd500_trap_clear();
+		return false;
 	}
 
 	/* Check breakpoints before executing instruction */
 	if (cpu->machine->bp_mgr && bp_should_break_at(cpu->machine->bp_mgr, cpu->PC)) {
-		cpu->machine->run_flag = 0; /* Stop execution */
-		cpu->machine->stop_reason = "Breakpoint hit";
-		return; /* Don't execute this instruction yet */
+		cpu->machine->run_flag = 0;
+		cpu->machine->stop_reason = STOP_BREAKPOINT;
+		cpu->machine->stop_addr = cpu->PC;
+		printf("[STOP] Breakpoint at PC=0x%08X\n", cpu->PC);
+		return false;
 	}
-	
+
 	/* Trap on invalid instruction 0x00 (uninitialized memory) */
 	if (nd500_dbg_get_trap_invalid()) {
 		/* Use MMU-aware read for instruction fetch */
 		uint8_t opcode_byte;
 		if (cpu->machine->mmu_enabled) {
-			/* Translate virtual → physical address */
+			/* Translate virtual -> physical address */
 			uint32_t paddr = nd500_mmu_translate(cpu, cpu->PC, 0, 1); /* is_write=0, is_instruction=1 */
 			opcode_byte = nd500_bus_read8(cpu->machine, paddr);
 		} else {
 			opcode_byte = nd500_bus_read8(cpu->machine, cpu->PC);
 		}
 		if (opcode_byte == 0x00) {
-			/* Invalid instruction 0x00 detected (uninitialized memory) */
-			nd500_trap_set_state(TRAP_IIC, cpu->PC, 0, "Invalid instruction 0x00 (uninitialized memory)");
-			cpu->machine->run_flag = 0; /* Stop execution */
-			cpu->machine->stop_reason = "Invalid instruction 0x00";
-			return;
+			cpu->machine->run_flag = 0;
+			cpu->machine->stop_reason = STOP_INVALID_INSTRUCTION_00;
+			cpu->machine->stop_addr = cpu->PC;
+			printf("[STOP] Invalid instruction 0x00 at PC=0x%08X (uninitialized memory)\n", cpu->PC);
+			return false;
 		}
 	}
-	
-    /* Decode, execute, then advance PC by decoded length */
-    Nd500FetchedInstruction fi;
-    uint32_t old_pc = cpu->PC;
-    if (nd500_decode_at(cpu->machine, old_pc, &fi) != 0) return;
-    
-    /* Trace instruction execution if enabled */
-    if (nd500_dbg_get_trace_mode()) {
-        uint32_t regs[9] = {cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3], cpu->L, cpu->B, cpu->R, cpu->ST1};
-        /* Get full disassembly for trace output */
-        char disasm_buf[256];
-        nd500_disasm_format_range(cpu->machine, old_pc, fi.total_len ? fi.total_len : fi.opcode_len, disasm_buf, sizeof(disasm_buf));
-        /* Remove trailing newline if present */
-        size_t len = strlen(disasm_buf);
-        if (len > 0 && disasm_buf[len-1] == '\n') disasm_buf[len-1] = '\0';
-        nd500_dbg_trace_instruction(old_pc, disasm_buf, regs);
-    }
-    
-    /* Profile instruction execution if enabled */
-    if (nd500_dbg_get_profiling()) {
-        nd500_dbg_profile_instruction(fi.mnemonic);
-    }
-    
-    /* Advance PC BEFORE execution (like C# implementation)
-     * Branch/jump instructions will overwrite PC as needed */
-    cpu->PC = old_pc + (fi.total_len ? fi.total_len : fi.opcode_len);
 
-    nd500_execute_decoded(cpu, &fi);
+	/* Decode, execute, then advance PC by decoded length */
+	Nd500FetchedInstruction fi;
+	uint32_t old_pc = cpu->PC;
+	if (nd500_decode_at(cpu->machine, old_pc, &fi) != 0) return false;
 
-    /* Increment instruction counter (used by MON 11B TIME) */
-    cpu->instruction_count++;
+	/* Trace instruction execution if enabled */
+	if (nd500_dbg_get_trace_mode()) {
+		uint32_t regs[9] = {cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3], cpu->L, cpu->B, cpu->R, cpu->ST1};
+		/* Get full disassembly for trace output */
+		char disasm_buf[256];
+		nd500_disasm_format_range(cpu->machine, old_pc, fi.total_len ? fi.total_len : fi.opcode_len, disasm_buf, sizeof(disasm_buf));
+		/* Remove trailing newline if present */
+		size_t len = strlen(disasm_buf);
+		if (len > 0 && disasm_buf[len-1] == '\n') disasm_buf[len-1] = '\0';
+		nd500_dbg_trace_instruction(old_pc, disasm_buf, regs);
+	}
 
-    /* Check for pending ignorable traps at end of instruction */
-    check_pending_traps(cpu);
+	/* Profile instruction execution if enabled */
+	if (nd500_dbg_get_profiling()) {
+		nd500_dbg_profile_instruction(fi.mnemonic);
+	}
+
+	/* Advance PC BEFORE execution (like C# implementation)
+	 * Branch/jump instructions will overwrite PC as needed */
+	cpu->PC = old_pc + (fi.total_len ? fi.total_len : fi.opcode_len);
+
+	nd500_execute_decoded(cpu, &fi);
+
+	/* Increment instruction counter (used by MON 11B TIME) */
+	cpu->instruction_count++;
+
+	/* Check for pending ignorable traps at end of instruction */
+	check_pending_traps(cpu);
+
+	/* Check if a non-ignorable trap occurred during execution */
+	if (nd500_trap_occurred()) {
+		const Nd500TrapState* trap = nd500_trap_get_state();
+		if (trap && (trap->trap_condition & TRAP_INTERRUPT_MASK)) {
+			cpu->machine->run_flag = 0;
+			cpu->machine->stop_reason = trap_to_stop_reason(trap->trap_condition);
+			cpu->machine->stop_addr = trap->trap_pc;
+			cpu->machine->stop_data = trap->trap_data_addr;
+			printf("[STOP] %s at PC=0x%08X data=0x%08X\n",
+			       nd500_stop_reason_str(cpu->machine->stop_reason),
+			       trap->trap_pc, trap->trap_data_addr);
+			return false;
+		}
+	}
+
+	return true;
 }
 
 void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {
@@ -179,18 +218,25 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	}
 
 	/* Set trap state for the runner to check */
-	nd500_trap_set_state(trapBit, trapPC, dataAddr, "Trap occurred during instruction execution");
+	nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
 
-	/* Check if this is a non-ignorable trap (bits 0-10) */
+	/* Check if this is a non-ignorable trap */
 	if (trapBit & TRAP_INTERRUPT_MASK) {
-		/* Non-ignorable trap - stop execution */
-		return;
+		TRACE("[TRAP] %s at PC=0x%08X data=0x%08X\n",
+		      nd500_stop_reason_str(trap_to_stop_reason(trapBit)), trapPC, dataAddr);
+		if (cpu->machine) {
+			cpu->machine->run_flag = 0;
+			if (cpu->machine->stop_reason == STOP_NONE) {
+				cpu->machine->stop_reason = trap_to_stop_reason(trapBit);
+				cpu->machine->stop_addr = trapPC;
+				cpu->machine->stop_data = dataAddr;
+			}
+		}
 	}
 
 	/* Ignorable trap (bits 11-29): check if enabled in OTE mask */
 	uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
-	/* If enabled in OTE, trap will be checked at end of instruction */
-	/* If not enabled, trap is suppressed */
+	(void)ote; /* Will be checked at end of instruction by check_pending_traps() */
 }
 
 /**
@@ -355,31 +401,20 @@ void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, c
  */
 int nd500_cpu_run(Nd500Cpu* cpu, int steps) {
 	if (!cpu || !cpu->machine) return steps;
-	
-	/* Set up longjmp target for trap handling */
-	/* Returns 0 on initial call, non-zero when longjmp is called */
-	int trap_occurred = setjmp(cpu_jmp_buf);
-	
-	if (trap_occurred != 0) {
-		/* We arrived here via longjmp from a trap! */
-		/* The instruction was interrupted mid-execution */
-		printf("[CPU] Trap handler returned, PC=0x%08X\n", cpu->PC);
-		
-		/* Stop execution when trap occurs */
-		cpu->machine->run_flag = 0;
-		return steps;
-	}
-	
+
 	/* Main execution loop */
 	while (steps != 0 && cpu->machine->run_flag) {
-		/* Execute one instruction */
-		nd500_cpu_step(cpu);
-		
+		/* Execute one instruction - returns false if trap occurred */
+		if (!nd500_cpu_step(cpu)) {
+			/* Trap occurred - stop execution */
+			break;
+		}
+
 		/* Decrement step counter */
 		if (steps > 0)
 			steps--;
 	}
-	
+
 	return steps;
 }
 
