@@ -173,8 +173,8 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Read log_size operand (byte value) */
-    uint8_t log_size = nd500_read_memory_8(cpu, fi->operands[0].effective_address);
+    /* Read log_size operand (byte value) - handles both register and memory modes */
+    uint8_t log_size = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
 
     /* Read heap variables from TOS register */
     uint32_t heap_vars_addr = cpu->TOS;
@@ -196,54 +196,66 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Search freelists for available block, starting from requested size */
-    uint32_t block_addr = 0;
-    uint8_t found_size = 0;
+    /* STEP 1: Check if exact size is available in FLOG[log_size] */
+    uint32_t freelist_addr = heap_vars_addr + 12 + (log_size * 4);
+    uint32_t block_addr = nd500_read_memory_32(cpu, freelist_addr);
 
-    for (uint8_t k = log_size; k <= max_log; k++) {
-        /* Calculate freelist head address for size class k (FLOG starts at offset +12) */
-        uint32_t freelist_addr = heap_vars_addr + 12 + (k * 4);
-        uint32_t head = nd500_read_memory_32(cpu, freelist_addr);
+    if (block_addr != 0) {
+        /* Exact size available - unlink from free list */
+        uint32_t next_block = nd500_read_memory_32(cpu, block_addr);
+        nd500_write_memory_32(cpu, freelist_addr, next_block);
+        printf("[GETB] Allocated exact block at 0x%08X from freelist[%u]\n", block_addr, log_size);
+    } else {
+        /* STEP 2: No exact size - search for larger blocks */
+        uint8_t found_size = 0;
+        for (uint8_t k = log_size + 1; k <= max_log; k++) {
+            freelist_addr = heap_vars_addr + 12 + (k * 4);
+            block_addr = nd500_read_memory_32(cpu, freelist_addr);
 
-        if (head != 0) {
-            /* Found block in freelist[k] */
-            block_addr = head;
-            found_size = k;
+            if (block_addr != 0) {
+                /* Found larger block - unlink it */
+                uint32_t next_block = nd500_read_memory_32(cpu, block_addr);
+                nd500_write_memory_32(cpu, freelist_addr, next_block);
+                found_size = k;
+                printf("[GETB] Found larger block at 0x%08X in freelist[%u], will split\n", block_addr, k);
 
-            /* Unlink block from freelist */
-            uint32_t next = nd500_read_memory_32(cpu, head);
-            nd500_write_memory_32(cpu, freelist_addr, next);
+                /* STEP 3: Split block repeatedly until we get requested size */
+                while (found_size > log_size) {
+                    found_size--;
 
-            printf("[GETB] Allocated block at 0x%08X from freelist[%u]\n", block_addr, k);
-            break;
+                    /* Calculate size of half-block in words */
+                    uint32_t half_block_size_words = (1U << found_size);
+                    uint32_t half_block_size_bytes = half_block_size_words * 4;  /* Words to bytes */
+
+                    /* Calculate address of second half (buddy) */
+                    uint32_t buddy_addr = block_addr + half_block_size_bytes;
+
+                    /* Link second half (buddy) to free list for this size */
+                    uint32_t buddy_list_addr = heap_vars_addr + 12 + (found_size * 4);
+                    uint32_t old_head = nd500_read_memory_32(cpu, buddy_list_addr);
+
+                    /* Set buddy's next pointer to old head */
+                    nd500_write_memory_32(cpu, buddy_addr, old_head);
+
+                    /* Update FLOG[found_size] to point to buddy */
+                    nd500_write_memory_32(cpu, buddy_list_addr, buddy_addr);
+
+                    printf("[GETB] Split: kept 0x%08X, returned buddy 0x%08X to freelist[%u]\n",
+                           block_addr, buddy_addr, found_size);
+                }
+                break;  /* Found and split block, exit loop */
+            }
         }
-    }
 
-    /* Check if allocation failed (no blocks available) */
-    if (block_addr == 0) {
-        printf("[TRAP] GETB at PC=0x%08X: No blocks available for log_size=%u\n",
-               fi->address, log_size);
-        trap_stack_overflow(cpu, fi->address);
-        return;
-    }
-
-    /* Split larger block down to requested size (buddy system splitting) */
-    while (found_size > log_size) {
-        found_size--;
-
-        /* Calculate buddy address (second half of split block) */
-        uint32_t block_size_words = (1U << found_size);
-        uint32_t buddy_addr = block_addr + (block_size_words * 4);  /* Words to bytes */
-
-        /* Add buddy to freelist[found_size] (FLOG starts at offset +12) */
-        uint32_t buddy_list_addr = heap_vars_addr + 12 + (found_size * 4);
-        uint32_t buddy_list_head = nd500_read_memory_32(cpu, buddy_list_addr);
-
-        /* Link buddy into freelist */
-        nd500_write_memory_32(cpu, buddy_addr, buddy_list_head);
-        nd500_write_memory_32(cpu, buddy_list_addr, buddy_addr);
-
-        printf("[GETB] Split: Added buddy 0x%08X to freelist[%u]\n", buddy_addr, found_size);
+        /* STEP 4: Check if allocation failed (no blocks available) */
+        if (block_addr == 0) {
+            /* No blocks available - trap STO */
+            /* Note: STAH/ENDH are NOT used for allocation - they're only for initialization/trap handlers */
+            printf("[TRAP] GETB at PC=0x%08X: No blocks available for log_size=%u\n",
+                   fi->address, log_size);
+            trap_stack_overflow(cpu, fi->address);
+            return;
+        }
     }
 
     /* Write allocated address to target register (I1-I4) */
