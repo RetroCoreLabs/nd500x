@@ -33,6 +33,9 @@ MonResult mon_422B_GetScratchSegment(MonContext* ctx) {
     segment_size = mon_read_param_word(ctx, 0);        /* arg0: segment size in bytes */
     requested_segment = mon_read_param_word(ctx, 1);   /* arg1: requested segment number */
 
+    mon_log(MON_LOG_DEBUG, "MON 422B: arg0_addr=0x%08X, size=%u, arg1_addr=0x%08X, req_seg=%u",
+            ctx->arg_addresses[0], segment_size, ctx->arg_addresses[1], requested_segment);
+
     /* Call allocation callback - pass 0xFF as sentinel to indicate "use current domain" */
     /* The callback will get the domain from cpu->CED internally */
     int rc = ctx->allocate_segment(ctx->cpu, ctx->machine, 0xFF,
