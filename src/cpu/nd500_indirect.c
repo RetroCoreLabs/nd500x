@@ -13,9 +13,16 @@
 #include "instruction_helpers.h"
 #include "../machine/machine_protos.h"
 #include "../libmon/mon.h"
-#include "../ndlib/ndlib.h"
 #include <stdio.h>
 #include <string.h>
+
+/* TRACE macro: only outputs if trace mode is enabled */
+#define TRACE(...) do { if (nd500_dbg_get_trace_mode()) printf(__VA_ARGS__); } while(0)
+
+/* Forward declaration for segment allocation callback */
+extern int nd500_mon_allocate_segment(void* cpu, void* machine, uint8_t domain,
+    uint32_t requested_segment, uint32_t segment_size_bytes,
+    uint32_t* out_assigned_segment);
 
 /* =========================================================================
  * INTERNAL CONSTANTS
@@ -103,8 +110,8 @@ static void mon_set_k_flag_cb(void* cpu_ptr, int value) {
     } else {
         cpu->ST1 &= ~(1u << ND500_ST_BIT_K); /* Clear K flag */
     }
-    nd500_log("MON K flag: %d -> %d (ST1: 0x%08X -> 0x%08X)",
-              (old_st1 >> ND500_ST_BIT_K) & 1, value, old_st1, cpu->ST1);
+    TRACE("[MON] K flag: %d -> %d (ST1: 0x%08X -> 0x%08X)\n",
+          (old_st1 >> ND500_ST_BIT_K) & 1, value, old_st1, cpu->ST1);
 }
 
 static void mon_set_error_code_cb(void* cpu_ptr, int32_t code) {
@@ -209,6 +216,9 @@ int nd500_check_indirect_call(
         ctx.set_i1 = mon_set_i1_cb;
         ctx.get_i1 = mon_get_i1_cb;
 
+        /* Setup segment allocation callback */
+        ctx.allocate_segment = nd500_mon_allocate_segment;
+
         /* Dispatch MON call */
         MonResult result = mon_dispatch(&ctx);
         (void)result; /* Result is informational - check flags instead */
@@ -223,11 +233,11 @@ int nd500_check_indirect_call(
         /* Check for halt request (MON 0B LEAVE or unimplemented) */
         if (ctx.halt_requested) {
             cpu->machine->run_flag = 0;
-            cpu->machine->stop_reason = ctx.halt_reason ? ctx.halt_reason : "MON halt";
-            if (ctx.halt_reason) {
-                /* Store halt reason for debugger display */
-                printf("[MON] CPU halted: %s\n", ctx.halt_reason);
-            }
+            cpu->machine->stop_reason = STOP_MON_HALT;
+            cpu->machine->stop_addr = cpu->PC;
+            cpu->machine->stop_data = ctx.mon_number;
+            printf("[STOP] MON halt: %s\n",
+                   ctx.halt_reason ? ctx.halt_reason : "unknown reason");
             *out_resolved = ctx.return_address;
             return INDIRECT_ERROR;
         }
@@ -235,10 +245,12 @@ int nd500_check_indirect_call(
         /* Check for break request (unimplemented MON with BREAK behavior) */
         if (ctx.break_requested) {
             cpu->machine->run_flag = 0;
-            cpu->machine->stop_reason = "Unimplemented MON call";
+            cpu->machine->stop_reason = STOP_MON_UNIMPLEMENTED;
+            cpu->machine->stop_addr = cpu->PC;
+            cpu->machine->stop_data = ctx.mon_number;
             const char* mon_name = mon_get_name(ctx.mon_number);
             const char* mon_octal = mon_get_octal(ctx.mon_number);
-            printf("[MON] Break: unimplemented MON %s (%s) with %u args\n",
+            printf("[STOP] Unimplemented MON %s (%s) with %u args\n",
                    mon_octal ? mon_octal : "?",
                    mon_name ? mon_name : "UNKNOWN",
                    ctx.arg_count);
