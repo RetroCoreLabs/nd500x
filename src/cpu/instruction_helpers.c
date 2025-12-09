@@ -1316,7 +1316,7 @@ void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* de
 // Format: sign(1) | exponent(9) | mantissa(54)
 // Mantissa range: 0.5 <= M < 1.0 (implicit 0.1 binary prefix)
 #define ND500_DOUBLE_SIGN_MASK      0x8000000000000000ull  // Bit 63
-#define ND500_DOUBLE_EXPONENT_MASK  0x7F80000000000000ull  // Bits 62-54 (9 bits)
+#define ND500_DOUBLE_EXPONENT_MASK  0x7FC0000000000000ull  // Bits 62-54 (9 bits)
 #define ND500_DOUBLE_MANTISSA_MASK  0x003FFFFFFFFFFFFFull  // Bits 53-0 (54 bits)
 #define ND500_DOUBLE_EXPONENT_BIAS  256
 #define ND500_DOUBLE_EXPONENT_SHIFT 54
@@ -1336,6 +1336,13 @@ static inline int count_leading_zeros_64(uint64_t x) {
 /**
  * Convert int32 to ND-500 single precision float
  * Based on ND500Float.FromInt32 from C#
+ *
+ * Per ND-500 Reference Manual 7.2.5:
+ * - Format: sign(1) | exponent(9) | mantissa(22)
+ * - Value = 2^(exp - 256) * M, where M = 0.5 + mantissa/2^23
+ * - M range: 0.5 <= M < 1.0 (implicit 0.1 binary prefix)
+ * - Since M is in [0.5, 1.0), we need exp - 256 = highestBit + 1
+ * - Therefore: exp = highestBit + 256 + 1 = highestBit + 257
  */
 uint32_t nd500_float_from_int32(int32_t value) {
     if (value == 0) return 0;
@@ -1344,14 +1351,28 @@ uint32_t nd500_float_from_int32(int32_t value) {
     bool sign = (value < 0);
     uint32_t abs_value = (uint32_t)(sign ? -value : value);
 
-    // Find highest set bit (normalize)
+    // Find highest set bit position (0-31)
     int highest_bit = 31 - count_leading_zeros_32(abs_value);
 
     // Calculate exponent (bias 256)
-    int exponent = highest_bit + ND500_FLOAT_EXPONENT_BIAS;
+    // For ND-500: value = 2^(exp - 256) * M, where M = 0.5 + mantissa/2^23
+    // Since M is in [0.5, 1.0), we need exp - 256 = highestBit + 1
+    // Therefore: exp = highestBit + 256 + 1 = highestBit + 257
+    int exponent = highest_bit + ND500_FLOAT_EXPONENT_BIAS + 1;
 
-    // Calculate mantissa (remove implicit leading 1)
-    uint32_t mantissa = (abs_value << (31 - highest_bit)) & ND500_FLOAT_MANTISSA_MASK;
+    // Calculate mantissa: extract bits below the implicit leading 1
+    // and shift them to fill the 22-bit mantissa field from the top
+    // For value with highest bit at position h, the lower h bits (0 to h-1)
+    // need to be placed starting at bit 21 (top of mantissa field)
+    // Shift amount: 21 - (highestBit - 1) = 22 - highestBit
+    uint32_t mantissa;
+    if (highest_bit <= ND500_FLOAT_MANTISSA_BITS) {
+        // Value fits - shift left to align lower bits with top of mantissa
+        mantissa = (abs_value << (ND500_FLOAT_MANTISSA_BITS - highest_bit)) & ND500_FLOAT_MANTISSA_MASK;
+    } else {
+        // Value larger than mantissa - shift right and lose precision
+        mantissa = (abs_value >> (highest_bit - ND500_FLOAT_MANTISSA_BITS)) & ND500_FLOAT_MANTISSA_MASK;
+    }
 
     // Combine sign, exponent, mantissa
     uint32_t result = 0;
@@ -1546,6 +1567,13 @@ bool nd500_float_is_negative(uint32_t nd500_bits) {
 /**
  * Convert int64 to ND-500 double precision float
  * Based on ND500Double.FromInt64 from C#
+ *
+ * Per ND-500 Reference Manual 7.2.6:
+ * - Format: sign(1) | exponent(9) | mantissa(54)
+ * - Value = 2^(exp - 256) * M, where M = 0.5 + mantissa/2^55
+ * - M range: 0.5 <= M < 1.0 (implicit 0.1 binary prefix)
+ * - Since M is in [0.5, 1.0), we need exp - 256 = highestBit + 1
+ * - Therefore: exp = highestBit + 256 + 1 = highestBit + 257
  */
 uint64_t nd500_double_from_int64(int64_t value) {
     if (value == 0) return 0;
@@ -1554,14 +1582,28 @@ uint64_t nd500_double_from_int64(int64_t value) {
     bool sign = (value < 0);
     uint64_t abs_value = (uint64_t)(sign ? -value : value);
 
-    // Find highest set bit (normalize)
+    // Find highest set bit position (0-63)
     int highest_bit = 63 - count_leading_zeros_64(abs_value);
 
     // Calculate exponent (bias 256)
-    int exponent = highest_bit + ND500_DOUBLE_EXPONENT_BIAS;
+    // For ND-500: value = 2^(exp - 256) * M, where M = 0.5 + mantissa/2^55
+    // Since M is in [0.5, 1.0), we need exp - 256 = highestBit + 1
+    // Therefore: exp = highestBit + 256 + 1 = highestBit + 257
+    int exponent = highest_bit + ND500_DOUBLE_EXPONENT_BIAS + 1;
 
-    // Calculate mantissa (remove implicit leading 1)
-    uint64_t mantissa = (abs_value << (63 - highest_bit)) & ND500_DOUBLE_MANTISSA_MASK;
+    // Calculate mantissa: extract bits below the implicit leading 1
+    // and shift them to fill the 54-bit mantissa field from the top
+    // For value with highest bit at position h, the lower h bits (0 to h-1)
+    // need to be placed starting at bit 53 (top of mantissa field)
+    // Shift amount: 53 - (highestBit - 1) = 54 - highestBit
+    uint64_t mantissa;
+    if (highest_bit <= ND500_DOUBLE_MANTISSA_BITS) {
+        // Value fits - shift left to align lower bits with top of mantissa
+        mantissa = (abs_value << (ND500_DOUBLE_MANTISSA_BITS - highest_bit)) & ND500_DOUBLE_MANTISSA_MASK;
+    } else {
+        // Value larger than mantissa - shift right and lose precision
+        mantissa = (abs_value >> (highest_bit - ND500_DOUBLE_MANTISSA_BITS)) & ND500_DOUBLE_MANTISSA_MASK;
+    }
 
     // Combine sign, exponent, mantissa
     uint64_t result = 0;

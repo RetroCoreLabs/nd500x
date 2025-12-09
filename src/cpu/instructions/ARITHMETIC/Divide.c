@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <math.h>
 
 /**
  * Divide instruction - ARITHMETIC class
@@ -66,11 +67,84 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // TODO: Float/Double division requires ND500Float/ND500Double conversion
-    // For now, only implement integer division
+    /* Handle float/double variants */
     if (fi->uses_float_registers) {
-        printf("[STUB] Divide at PC=0x%08X: Float/Double not yet implemented\n",
-               fi->address);
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+        uint8_t reg_num = fi->target_register;
+
+        /* Read register and operand */
+        double reg_value = 0.0;
+        double operand_value = 0.0;
+
+        if (is_double) {
+            uint64_t reg_bits = nd500_read_double_register(cpu, reg_num);
+            reg_value = nd500_double_to_ieee754(reg_bits);
+            uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+            operand_value = nd500_double_to_ieee754(op_bits);
+        } else {
+            uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
+            reg_value = (double)nd500_float_to_ieee754(reg_bits);
+            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            operand_value = (double)nd500_float_to_ieee754(op_bits);
+        }
+
+        /* Check for divide by zero */
+        if (operand_value == 0.0) {
+            cpu->ST1 |= ND500_FLAG_DZ;
+            trap_divide_by_zero(cpu, fi->address);
+            return;
+        }
+        cpu->ST1 &= ~ND500_FLAG_DZ;
+
+        /* Perform division */
+        double result = reg_value / operand_value;
+
+        /* Check for overflow/underflow */
+        if (isinf(result) || isnan(result)) {
+            trap_floating_overflow(cpu, fi->address);
+        } else if (result != 0.0 && fabs(result) < 1e-38) {
+            /* Underflow - result too small */
+            trap_floating_underflow(cpu, fi->address);
+        }
+
+        /* Convert result back to ND-500 format */
+        uint64_t result_bits = 0;
+        if (is_double) {
+            result_bits = nd500_double_from_ieee754(result);
+            nd500_write_double_register(cpu, reg_num, result_bits);
+        } else {
+            result_bits = nd500_float_from_ieee754((float)result);
+            nd500_write_float_register(cpu, reg_num, (uint32_t)result_bits);
+        }
+
+        /* Update flags: Z (zero), S (sign) */
+        if (is_double) {
+            if (nd500_double_is_zero(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_Z);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_Z);
+            }
+            if (nd500_double_is_negative(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_S);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_S);
+            }
+        } else {
+            uint32_t float_bits = (uint32_t)result_bits;
+            if (nd500_float_is_zero(float_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_Z);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_Z);
+            }
+            if (nd500_float_is_negative(float_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_S);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_S);
+            }
+        }
+
+        /* C flag unaffected for float operations */
+        /* O flag unaffected (overflow handled by FO trap) */
         return;
     }
 

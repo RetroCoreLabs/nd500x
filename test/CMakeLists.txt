@@ -59,3 +59,9 @@ else()
     message(STATUS "Skipping test_instruction_validation (cJSON not found)")
 endif()
 
+# Float arithmetic tests
+add_executable(test_float_arithmetic
+    test_float_arithmetic.c
+)
+target_link_libraries(test_float_arithmetic PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+target_link_libraries(test_float_arithmetic PRIVATE m)  # Link math library
