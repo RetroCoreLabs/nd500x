@@ -9,9 +9,6 @@
 #include "../machine/breakpoints.h"
 #include "../disasm/nd500_disasm.h"
 
-/* TRACE macro: only outputs if trace mode is enabled (matches nd500_dbg_trace_instruction pattern) */
-#define TRACE(...) do { if (nd500_dbg_get_trace_mode()) printf(__VA_ARGS__); } while(0)
-
 /* Global trap state */
 Nd500TrapState g_trap_state = {0};
 
