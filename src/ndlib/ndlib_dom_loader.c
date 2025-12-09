@@ -17,6 +17,11 @@
  * code attempts to execute MON calls, otherwise CALL to 0xF8xxxxxx will
  * cause an MMU fault instead of being intercepted.
  *
+ * MMU SETUP: For ProgramAndData segments (segments with both PROG and DATA),
+ * we create SEPARATE PST entries for program and data access. This allows
+ * instruction fetches to read from PROG pages while data accesses read from
+ * DATA pages - even though both use the same virtual segment number.
+ *
  * Used by both:
  *   - debugger commands.c (loaddom command)
  *   - frontend nd500x.c (--dom flag)
@@ -30,6 +35,25 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+
+/* Segment type enum - matches C# SegmentType */
+#define SEG_TYPE_UNUSED         0
+#define SEG_TYPE_PROG_ONLY      1
+#define SEG_TYPE_DATA_ONLY      2
+#define SEG_TYPE_PROG_AND_DATA  3
+
+/* Per-segment tracking during DOM load */
+typedef struct {
+    int has_prog;
+    int has_data;
+    uint32_t prog_phys_base;   /* Physical address where PROG was loaded */
+    uint32_t prog_size;
+    uint32_t data_phys_base;   /* Physical address where DATA was loaded */
+    uint32_t data_size;
+    int seg_type;              /* SEG_TYPE_* */
+    int psn_prog;              /* PST number for PROG (if allocated) */
+    int psn_data;              /* PST number for DATA (if allocated) */
+} SegmentInfo;
 
 /*
  * Load DOM/SEG file into machine and configure MMU for execution.
@@ -89,58 +113,108 @@ int ndlib_dom_load_to_machine(
     }
 
     /* ========================================================================
-     * Physical Memory Layout:
-     *   0x00000000: DATA segment (segment 0)
-     *   After DATA: PROG segment (segment 1), page-aligned
+     * Physical Memory Layout (matching C# RetroCore):
+     *   For each segment: [PROGRAM bytes][DATA bytes] contiguous
+     *   PROGRAM is loaded first, DATA immediately after
      *
-     * Virtual addresses (with MMU):
-     *   0x00000000: Kernel data (segment 0)
-     *   0x08000000: Kernel text (segment 1)
+     * This matches CpuND500.Loader.cs lines 2134-2150:
+     *   physAddr = PFNToPhysical(basePFN)
+     *   CopyToPhysicalMemory(physAddr, ProgramData)         // PROGRAM first
+     *   CopyToPhysicalMemory(physAddr + programSize, DataData)  // DATA after
      * ======================================================================== */
 
     int max_segs = is_dom ? 32 : 1;
     int found = 0;
-    uint32_t phys_data_base = 0x00000000;
-    uint32_t total_data_size = 0;
-    uint32_t total_prog_size = 0;
+    /* Start at page 1 (0x800) to avoid PFN 0 which is used as "invalid PTE" marker */
+    uint32_t phys_base = 0x00000800;  /* Page 1 = physical address 0x800 (2KB) */
+    uint32_t total_loaded = 0;
 
-    /* First pass: Load all DATA sections to physical memory starting at 0 */
+    /* Per-segment tracking array */
+    SegmentInfo seg_info[32];
+    memset(seg_info, 0, sizeof(seg_info));
+
+    /* Load each segment: PROGRAM first, then DATA immediately after
+     *
+     * Matching C# RetroCore behavior (CpuND500.Loader.cs lines 2134-2150):
+     * - PROGRAM is loaded at page-aligned base
+     * - DATA is loaded immediately after PROGRAM (at base + programSize bytes)
+     *
+     * The page table for DATA points to (basePFN + programPages), which is
+     * page-aligned. This means there's an offset between where DATA is copied
+     * and where the page table thinks it is. This matches C# behavior.
+     */
     for (int i = 0; i < max_segs; i++) {
-        uint32_t dat_size, dat_addr;
-        const uint8_t* dat_data = ndlib_dom_get_data_section(i, &dat_size, &dat_addr);
-        if (dat_data && dat_size > 0) {
-            uint32_t phys_addr = phys_data_base + total_data_size;
-            for (uint32_t j = 0; j < dat_size; j++) {
-                nd500_bus_write8(m, phys_addr + j, dat_data[j]);
+        uint32_t prog_size = 0, prog_addr = 0;
+        uint32_t data_size = 0, data_addr = 0;
+        const uint8_t* prog_data = ndlib_dom_get_segment_data(i, &prog_size, &prog_addr);
+        const uint8_t* dat_data = ndlib_dom_get_data_section(i, &data_size, &data_addr);
+
+        if ((!prog_data || prog_size == 0) && (!dat_data || data_size == 0)) {
+            continue;  /* Skip empty segments */
+        }
+
+        /* Calculate base physical address for this segment (page-aligned) */
+        uint32_t seg_phys_base = (phys_base + total_loaded + 0x7FF) & ~0x7FFu;
+        uint32_t prog_pages = 0;
+        uint32_t byte_offset = 0;
+
+        /* Copy PROGRAM first (if present) */
+        if (prog_data && prog_size > 0) {
+            seg_info[i].has_prog = 1;
+            seg_info[i].prog_phys_base = seg_phys_base;  /* Page-aligned */
+            seg_info[i].prog_size = prog_size;
+            prog_pages = (prog_size + 2047) / 2048;
+
+            for (uint32_t j = 0; j < prog_size; j++) {
+                nd500_bus_write8(m, seg_info[i].prog_phys_base + j, prog_data[j]);
             }
             if (log_callback) {
-                log_callback(log_context, "  Segment %d DATA: %u bytes -> phys 0x%08X (virt 0x%08X)",
-                             i, dat_size, phys_addr, dat_addr);
+                log_callback(log_context, "  Segment %d PROG: %u bytes (%u pages) -> phys 0x%08X",
+                             i, prog_size, prog_pages, seg_info[i].prog_phys_base);
             }
-            total_data_size += dat_size;
+            byte_offset = prog_size;  /* DATA follows immediately after PROG bytes */
             found++;
         }
+
+        /* Copy DATA at page-aligned address after PROGRAM
+         * The page tables use PFN which assumes page alignment.
+         * If DATA isn't page-aligned, the page table PTEs will point to wrong offsets.
+         */
+        if (dat_data && data_size > 0) {
+            seg_info[i].has_data = 1;
+            /* Round byte_offset up to page boundary for DATA placement */
+            uint32_t aligned_offset = (byte_offset + 2047) & ~2047u;
+            seg_info[i].data_phys_base = seg_phys_base + aligned_offset;
+            seg_info[i].data_size = data_size;
+            /* Store prog_pages for page table setup */
+            seg_info[i].prog_size = prog_size;  /* Need this for page table offset calc */
+
+            for (uint32_t j = 0; j < data_size; j++) {
+                nd500_bus_write8(m, seg_info[i].data_phys_base + j, dat_data[j]);
+            }
+            if (log_callback) {
+                uint32_t data_pages = (data_size + 2047) / 2048;
+                log_callback(log_context, "  Segment %d DATA: %u bytes (%u pages) -> phys 0x%08X",
+                             i, data_size, data_pages, seg_info[i].data_phys_base);
+            }
+            byte_offset = aligned_offset + data_size;
+            found++;
+        }
+
+        /* Update total loaded: round up to page boundary for next segment */
+        total_loaded = (seg_phys_base - phys_base) + ((byte_offset + 2047) & ~2047u);
     }
 
-    /* Align PROG to page boundary (2KB) after DATA */
-    uint32_t phys_prog_base = (phys_data_base + total_data_size + 0x7FF) & ~0x7FFu;
-
-    /* Second pass: Load all PROG sections to physical memory after DATA */
+    /* Determine segment types */
     for (int i = 0; i < max_segs; i++) {
-        uint32_t seg_size, seg_addr;
-        const uint8_t* seg_data = ndlib_dom_get_segment_data(i, &seg_size, &seg_addr);
-        if (seg_data && seg_size > 0) {
-            uint32_t phys_addr = phys_prog_base + total_prog_size;
-            for (uint32_t j = 0; j < seg_size; j++) {
-                nd500_bus_write8(m, phys_addr + j, seg_data[j]);
-            }
-            if (log_callback) {
-                log_callback(log_context, "  Segment %d PROG: %u bytes -> phys 0x%08X (virt 0x%08X)",
-                             i, seg_size, phys_addr, seg_addr);
-            }
-            total_prog_size += seg_size;
-            found++;
+        if (seg_info[i].has_prog && seg_info[i].has_data) {
+            seg_info[i].seg_type = SEG_TYPE_PROG_AND_DATA;
+        } else if (seg_info[i].has_prog) {
+            seg_info[i].seg_type = SEG_TYPE_PROG_ONLY;
+        } else if (seg_info[i].has_data) {
+            seg_info[i].seg_type = SEG_TYPE_DATA_ONLY;
         }
+        /* else SEG_TYPE_UNUSED (0) - default */
     }
 
     if (found == 0) {
@@ -164,53 +238,106 @@ int ndlib_dom_load_to_machine(
 
     /* ========================================================================
      * Set up MMU page tables using PS_ASI (single-level paging)
+     *
+     * For each segment with content, create a separate PST entry and page table.
+     * ProgramAndData segments get TWO PST entries: one for PROG, one for DATA.
+     * This matches the C# RetroCore implementation.
      * ======================================================================== */
 
-    uint32_t data_pages = (total_data_size + 2047) / 2048;
-    uint32_t prog_pages = (total_prog_size + 2047) / 2048;
-    if (data_pages == 0) data_pages = 1;
-    if (prog_pages == 0) prog_pages = 1;
+    /* Track where to allocate page tables (after all segment data) */
+    uint32_t pt_alloc_base = (phys_base + total_loaded + 2047) & ~2047u;
+    int next_psn = 100;  /* Start allocating PST entries from 100 */
 
-    /* Allocate page tables in physical memory after the segments */
-    uint32_t pt_base_data = (phys_prog_base + total_prog_size + 2047) & ~2047u;
-    uint32_t pt_base_prog = (pt_base_data + data_pages * 4 + 2047) & ~2047u;
+    /* Process each segment - create page tables and PST entries */
+    for (int i = 0; i < max_segs; i++) {
+        if (seg_info[i].seg_type == SEG_TYPE_UNUSED) {
+            continue;
+        }
 
-    /* Fill DATA page table - PTEs map virtual pages to physical pages */
-    /* PTE format: [31:2]=PFN, [1]=unused, [0]=protection (0=RW, 1=RO) */
-    for (uint32_t i = 0; i < data_pages; i++) {
-        uint32_t pte_addr = pt_base_data + i * 4;
-        uint32_t pfn = (phys_data_base >> 11) + i;
-        uint32_t pte = (pfn << 2) | 0;  /* RW */
-        nd500_bus_write32(m, pte_addr, pte);
+        /* Create page table and PST entry for PROG (if segment has program) */
+        if (seg_info[i].has_prog) {
+            uint32_t prog_pages = (seg_info[i].prog_size + 2047) / 2048;
+            if (prog_pages == 0) prog_pages = 1;
+
+            /* Allocate page table */
+            uint32_t pt_base = pt_alloc_base;
+            pt_alloc_base = (pt_alloc_base + prog_pages * 4 + 2047) & ~2047u;
+
+            /* Fill page table - PTEs for PROG pages */
+            /* PTE format: [31:2]=PFN, [1]=unused, [0]=protection (0=RW, 1=RO) */
+            for (uint32_t p = 0; p < prog_pages; p++) {
+                uint32_t pte_addr = pt_base + p * 4;
+                uint32_t pfn = (seg_info[i].prog_phys_base >> 11) + p;
+                uint32_t pte = (pfn << 2) | 1;  /* protection=1 for code */
+                nd500_bus_write32(m, pte_addr, pte);
+            }
+
+            /* Allocate PST entry and set up */
+            seg_info[i].psn_prog = next_psn++;
+            nd500_mmu_set_pst_entry(cpu, seg_info[i].psn_prog, PS_ASI, pt_base >> 11);
+
+            /* Set program capability for this segment */
+            nd500_mmu_set_program_capability(cpu, 0, i, seg_info[i].psn_prog | PC_DIR);
+
+            if (log_callback) {
+                log_callback(log_context, "  Seg %d PROG: %u pages, PT @ 0x%08X, PSN %d",
+                             i, prog_pages, pt_base, seg_info[i].psn_prog);
+            }
+        }
+
+        /* Create SEPARATE page table and PST entry for DATA (if segment has data) */
+        if (seg_info[i].has_data) {
+            uint32_t data_pages = (seg_info[i].data_size + 2047) / 2048;
+            if (data_pages == 0) data_pages = 1;
+
+            /* Allocate page table */
+            uint32_t pt_base = pt_alloc_base;
+            pt_alloc_base = (pt_alloc_base + data_pages * 4 + 2047) & ~2047u;
+
+            /* Fill page table - PTEs for DATA pages
+             * Page table maps to where DATA was actually copied (data_phys_base)
+             */
+            uint32_t data_base_pfn = seg_info[i].data_phys_base >> 11;
+
+            for (uint32_t p = 0; p < data_pages; p++) {
+                uint32_t pte_addr = pt_base + p * 4;
+                uint32_t pfn = data_base_pfn + p;
+                uint32_t pte = (pfn << 2) | 0;  /* protection=0 for RW data */
+                nd500_bus_write32(m, pte_addr, pte);
+            }
+
+            /* Allocate PST entry and set up */
+            seg_info[i].psn_data = next_psn++;
+            nd500_mmu_set_pst_entry(cpu, seg_info[i].psn_data, PS_ASI, pt_base >> 11);
+
+            /* Set data capability for this segment */
+            nd500_mmu_set_data_capability(cpu, 0, i, seg_info[i].psn_data | DC_WRP);
+
+            if (log_callback) {
+                log_callback(log_context, "  Seg %d DATA: %u pages, PT @ 0x%08X, PSN %d",
+                             i, data_pages, pt_base, seg_info[i].psn_data);
+            }
+        }
+
+        /* ProgramOnly segments: set DC to same as PC for read-only data access */
+        if (seg_info[i].seg_type == SEG_TYPE_PROG_ONLY) {
+            nd500_mmu_set_data_capability(cpu, 0, i, seg_info[i].psn_prog);
+            if (log_callback) {
+                log_callback(log_context, "  Seg %d DC -> PSN %d (read-only, same as PC)",
+                             i, seg_info[i].psn_prog);
+            }
+        }
     }
 
-    /* Fill PROG page table (PTEs with protection=1, like C# reference) */
-    /* Write permission for data access is controlled by DC_WRP capability, not PTE */
-    for (uint32_t i = 0; i < prog_pages; i++) {
-        uint32_t pte_addr = pt_base_prog + i * 4;
-        uint32_t pfn = (phys_prog_base >> 11) + i;
-        uint32_t pte = (pfn << 2) | 1;  /* protection=1 */
-        nd500_bus_write32(m, pte_addr, pte);
+    /* FORTRAN-500 compatibility: if segment 0 is empty and segment 1 has data,
+     * alias DC[0] to segment 1's data for programs that access data via 0x00xxxxxx */
+    if (seg_info[0].seg_type == SEG_TYPE_UNUSED && seg_info[1].has_data) {
+        nd500_mmu_set_data_capability(cpu, 0, 0, seg_info[1].psn_data | DC_WRP);
+        if (log_callback) {
+            log_callback(log_context, "  DC[0] aliased to Seg 1 DATA (PSN %d) - FORTRAN compatibility",
+                         seg_info[1].psn_data);
+        }
     }
-
-    /* PSN assignments: PSN 100 = DATA, PSN 101 = PROG */
-    int psn_data = 100;
-    int psn_prog = 101;
-
-    /* Set up PST entries with PS_ASI mode, pointing to page tables */
-    nd500_mmu_set_pst_entry(cpu, psn_data, PS_ASI, pt_base_data >> 11);
-    nd500_mmu_set_pst_entry(cpu, psn_prog, PS_ASI, pt_base_prog >> 11);
-
-    /* Set up Domain 0 PCB capabilities */
-    /* Segment 0: DATA area (0x00xxxxxx) - writable */
-    nd500_mmu_set_program_capability(cpu, 0, 0, psn_data | PC_DIR);
-    nd500_mmu_set_data_capability(cpu, 0, 0, psn_data | DC_WRP);
-
-    /* Segment 1: PROG area (0x08xxxxxx)
-     * - Program capability -> PSN 101 (code pages)
-     * - Data capability -> PSN 100 (data pages) for reading string literals etc. */
-    nd500_mmu_set_program_capability(cpu, 0, 1, psn_prog | PC_DIR);
-    nd500_mmu_set_data_capability(cpu, 0, 1, psn_data | DC_WRP);
 
     /* ========================================================================
      * SEGMENT 31: SINTRAN III Monitor Call Interception
@@ -253,16 +380,14 @@ int ndlib_dom_load_to_machine(
     if (log_callback) {
         log_callback(log_context, "");
         log_callback(log_context, "MMU Configuration:");
-        log_callback(log_context, "  DATA: %u pages @ PT 0x%08X (PSN %d)", data_pages, pt_base_data, psn_data);
-        log_callback(log_context, "  PROG: %u pages @ PT 0x%08X (PSN %d)", prog_pages, pt_base_prog, psn_prog);
+        log_callback(log_context, "  PSN range: 100-%d", next_psn - 1);
         log_callback(log_context, "  Segment 31: SINTRAN MON calls (indirect)");
         log_callback(log_context, "  MMU enabled (Program and Data)");
         if (tha != 0) {
             log_callback(log_context, "  THA: 0x%08X", tha);
         }
         log_callback(log_context, "");
-        log_callback(log_context, "Total: %u bytes DATA + %u bytes PROG = %u bytes",
-                     total_data_size, total_prog_size, total_data_size + total_prog_size);
+        log_callback(log_context, "Total loaded: %u bytes", total_loaded);
     }
 
     /* Set PC to start address */
