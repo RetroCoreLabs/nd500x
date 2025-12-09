@@ -50,6 +50,9 @@ int    nd500_dbg_set_trace_mode(int onoff);
 int    nd500_dbg_get_trace_mode(void);
 void   nd500_dbg_trace_instruction(uint32_t pc, const char* mnemonic, uint32_t* registers);
 
+/* TRACE macro: only outputs if trace mode is enabled */
+#define TRACE(...) do { if (nd500_dbg_get_trace_mode()) printf(__VA_ARGS__); } while(0)
+
 /* Profiling configuration */
 int    nd500_dbg_set_profiling(int onoff);
 int    nd500_dbg_get_profiling(void);
