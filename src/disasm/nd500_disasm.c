@@ -37,16 +37,76 @@ static int fmt_signed(char* buf, size_t cap, int32_t val) {
 }
 
 /**
+ * Get the fixed destination data type for conversion instructions.
+ * Uses PURELY NUMERIC checks - no string comparison.
+ *
+ * CONV instructions occupy opcodes 0xFD44-0xFD61 (30 opcodes).
+ * Each CONV instruction's prefixes_mask is missing exactly one bit - the destination type.
+ *
+ * | Instruction | prefixes_mask | Missing Bit | Destination Type |
+ * |-------------|---------------|-------------|------------------|
+ * | BICONV      | 0x3E          | 0x01 (BI)   | BYTE             |
+ * | BYCONV      | 0x3D          | 0x02 (BY)   | BYTE             |
+ * | HCONV       | 0x3B          | 0x04 (H)    | HALFWORD         |
+ * | WCONV       | 0x37          | 0x08 (W)    | WORD             |
+ * | FCONV       | 0x2F          | 0x10 (F)    | FLOAT            |
+ * | DCONV       | 0x1F          | 0x20 (D)    | DOUBLEWORD       |
+ *
+ * Formula: missing_bit = 0x3F ^ prefixes_mask
+ *
+ * @param opcode    The instruction opcode
+ * @param out_dtype Output: the fixed destination data type
+ * @return 1 if this is a CONV instruction, 0 otherwise
+ */
+static int get_conv_dest_dtype(uint16_t opcode, Nd500DataType* out_dtype) {
+    if (!out_dtype) return 0;
+
+    /* CONV instructions are in range 0xFD44-0xFD61 (purely numeric check) */
+    if (opcode < 0xFD44 || opcode > 0xFD61) return 0;
+
+    /* Inverse prefix mask: missing bit = destination type */
+    uint8_t prefixes = nd500_instr_prefixes_mask(opcode);
+    uint8_t missing = 0x3F ^ prefixes;
+
+    switch (missing) {
+        case 0x01: /* BI missing -> BICONV */
+        case 0x02: /* BY missing -> BYCONV */
+            *out_dtype = ND500_DTYPE_BYTE;
+            return 1;
+        case 0x04: /* H missing -> HCONV */
+            *out_dtype = ND500_DTYPE_HALFWORD;
+            return 1;
+        case 0x08: /* W missing -> WCONV */
+            *out_dtype = ND500_DTYPE_WORD;
+            return 1;
+        case 0x10: /* F missing -> FCONV */
+            *out_dtype = ND500_DTYPE_FLOAT;
+            return 1;
+        case 0x20: /* D missing -> DCONV */
+            *out_dtype = ND500_DTYPE_DOUBLEWORD;
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+/**
  * Authoritative operand formatter for disassembly output.
  * Handles all 15 ND-500 addressing modes with correct syntax.
- * 
- * @param buf     Output buffer
- * @param cap     Buffer capacity
- * @param op      Decoded operand
- * @param use_color  Whether to include ANSI color codes (not yet implemented)
+ *
+ * For REGISTER mode, shows correct register bank based on data type:
+ * - BYTE/HALFWORD/WORD: W1-W4 (integer registers I1-I4)
+ * - FLOAT: F1-F4 (float registers A1-A4)
+ * - DOUBLEWORD: D1-D4 (double registers, A+E pairs)
+ *
+ * @param buf       Output buffer
+ * @param cap       Buffer capacity
+ * @param op        Decoded operand
+ * @param dtype     Data type (determines register bank for REGISTER mode)
+ * @param use_color Whether to include ANSI color codes (not yet implemented)
  * @return Number of characters written (excluding NUL terminator)
  */
-int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, bool use_color) {
+int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, Nd500DataType dtype, bool use_color) {
     (void)use_color; /* Reserved for future use */
     if (!buf || cap == 0 || !op) return 0;
     char* p = buf; char* e = buf + cap;
@@ -109,9 +169,19 @@ int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, b
             break;
         }
         case ND500_ADDR_REGISTER: {
-            /* F1. REGISTER: use address_code bits 0-1 to get register 1-4 */
+            /* F1. REGISTER: use address_code bits 0-1 to get register 1-4
+             * Show correct register name based on data type:
+             * - FLOAT: F1-F4 (A registers)
+             * - DOUBLEWORD: D1-D4 (A+E pairs)
+             * - Otherwise: W1-W4 (I registers) */
             int regnum = (op->address_code & 0x03) + 1;
-            int n = snprintf(p, (size_t)(e-p), "r%d", regnum);
+            const char* prefix;
+            switch (dtype) {
+                case ND500_DTYPE_FLOAT:      prefix = "F"; break;
+                case ND500_DTYPE_DOUBLEWORD: prefix = "D"; break;
+                default:                     prefix = "W"; break;
+            }
+            int n = snprintf(p, (size_t)(e-p), "%s%d", prefix, regnum);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
@@ -221,9 +291,9 @@ close_wrappers:
     return (int)(p - buf);
 }
 
-/* Legacy wrapper for internal use - calls nd500_format_operand without color */
-static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op) {
-    int ret = nd500_format_operand(dst, cap, op, false);
+/* Internal wrapper - calls nd500_format_operand with dtype and no color */
+static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op, Nd500DataType dtype) {
+    int ret = nd500_format_operand(dst, cap, op, dtype, false);
     return ret > 0 ? (size_t)ret : 0;
 }
 
@@ -332,9 +402,23 @@ size_t nd500_disasm_format_range(struct Nd500Machine* m,
         /* Print mnemonic (with prefix) and operands */
         if (fi.operand_count > 0) {
             pos = buf_append(out, out_cap, pos, "%s%-12s ", regprefix, mnem);
+
+            /* Check if this is a conversion instruction (BICONV, BYCONV, HCONV, etc.)
+             * Conversion instructions have fixed destination type different from source.
+             * Format: t1 t2CONV {source/t1}, {dest/t2}
+             * - Operand[0] (source): uses fi.data_type (from prefix)
+             * - Operand[1] (dest): uses fixed type based on instruction name */
+            Nd500DataType conv_dest_dtype;
+            int is_conv = get_conv_dest_dtype(fi.opcode, &conv_dest_dtype);
+
             for (uint8_t oi = 0; oi < fi.operand_count; ++oi) {
                 char obuf[64];
-                size_t ol = fmt_operand(obuf, sizeof(obuf), &fi.operands[oi]);
+                /* Use correct dtype: source uses instruction prefix, dest uses fixed type */
+                Nd500DataType op_dtype = fi.data_type;
+                if (is_conv && oi == 1) {
+                    op_dtype = conv_dest_dtype;
+                }
+                size_t ol = fmt_operand(obuf, sizeof(obuf), &fi.operands[oi], op_dtype);
                 if (ol > 0) {
                     pos = buf_append(out, out_cap, pos, "%s%s", (oi > 0) ? "," : "", obuf);
                 }
@@ -455,9 +539,17 @@ size_t nd500_disasm_format_range_json(struct Nd500Machine* m,
         /* Build operands */
         pos = buf_append(out, out_cap, pos, "\"operands\":\"");
         if (fi.operand_count > 0) {
+            /* Check if this is a conversion instruction */
+            Nd500DataType conv_dest_dtype;
+            int is_conv = get_conv_dest_dtype(fi.opcode, &conv_dest_dtype);
+
             for (uint8_t oi = 0; oi < fi.operand_count; ++oi) {
                 char obuf[64];
-                size_t ol = fmt_operand(obuf, sizeof(obuf), &fi.operands[oi]);
+                Nd500DataType op_dtype = fi.data_type;
+                if (is_conv && oi == 1) {
+                    op_dtype = conv_dest_dtype;
+                }
+                size_t ol = fmt_operand(obuf, sizeof(obuf), &fi.operands[oi], op_dtype);
                 if (ol > 0) {
                     pos = buf_append(out, out_cap, pos, "%s%s", (oi > 0) ? "," : "", obuf);
                 }
