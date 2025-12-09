@@ -310,7 +310,7 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
         printf("%s", color_oper());
         for (uint8_t oi = 0; oi < fi.operand_count; ++oi) {
             char obuf[64];
-            int ol = nd500_format_operand(obuf, sizeof(obuf), &fi.operands[oi], false);
+            int ol = nd500_format_operand(obuf, sizeof(obuf), &fi.operands[oi], fi.data_type, false);
             if (ol > 0) {
                 printf("%s%s", (oi > 0) ? "," : "", obuf);
                 /* EA breakdown when enabled and EA present */
@@ -328,7 +328,7 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
                         case ND500_ADDR_RECORD_SHORT:
                             base = "R"; break;
                         case ND500_ADDR_PREINDEXED:
-                            snprintf(basebuf, sizeof(basebuf), "I%d", (int)fi.operands[oi].reg+1); base = basebuf; break;
+                            snprintf(basebuf, sizeof(basebuf), "I%d", (int)fi.operands[oi].reg); base = basebuf; break;
                         case ND500_ADDR_ABSOLUTE:
                         case ND500_ADDR_ABSOLUTE_PI:
                             base = "$"; break;
@@ -439,7 +439,7 @@ void nd500_dbg_step(Nd500Machine* m, uint32_t count) {
 	for (uint32_t i = 0; i < count; ++i) {
 		nd500_cpu_step(m->cpu);
 		/* Stop stepping if CPU was halted (e.g., MON 0B LEAVE) */
-		if (m->run_flag == 0 && m->stop_reason != NULL) {
+		if (m->run_flag == 0 && m->stop_reason != STOP_NONE) {
 			break;
 		}
 	}
