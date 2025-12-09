@@ -204,10 +204,8 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
     /* Check if capability is valid (non-zero) */
     if (capability == 0) {
-        if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) {
-            fprintf(stderr, "[MMU] No data capability for domain=%d segment=%d (vaddr=0x%08X)\n",
-                    domain, segment, virtual_addr);
-        }
+        TRACE("[MMU] TRAP: No %s capability! domain=%d segment=%d vaddr=0x%08X\n",
+              is_instruction ? "program" : "data", domain, segment, virtual_addr);
         trap_protect_violation(cpu, cpu->PC, virtual_addr);
         return virtual_addr;  /* Return virtual address, trap will stop execution */
     }
@@ -220,9 +218,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
     int psn = capability & PC_PSN;  /* Lower 13 bits */
 
     if (psn >= MAX_PST) {
-        if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) {
-            fprintf(stderr, "[MMU] PSN %d >= MAX_PST %d! vaddr=0x%08X\n", psn, MAX_PST, virtual_addr);
-        }
+        TRACE("[MMU] TRAP: PSN %d >= MAX_PST %d! vaddr=0x%08X\n", psn, MAX_PST, virtual_addr);
         trap_protect_violation(cpu, cpu->PC, virtual_addr);
         return virtual_addr;  /* Invalid PSN - return virtual address, trap will stop execution */
     }
@@ -231,10 +227,8 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
     if (!is_instruction && is_write) {
         /* Check DC_WRP flag: DC_WRP SET = Write Permitted, DC_WRP CLEAR = Read-only */
         if (!(capability & DC_WRP)) {
-            if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) {
-                fprintf(stderr, "[MMU] WRITE DENIED! segment=%d missing DC_WRP (write-permit) flag! capability=0x%04X vaddr=0x%08X\n",
-                        segment, capability, virtual_addr);
-            }
+            TRACE("[MMU] TRAP: WRITE DENIED! segment=%d missing DC_WRP flag! cap=0x%04X vaddr=0x%08X\n",
+                  segment, capability, virtual_addr);
             trap_protect_violation(cpu, cpu->PC, virtual_addr);
             return virtual_addr;  /* Write to read-only segment - return virtual address, trap will stop execution */
         }
@@ -255,10 +249,8 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             /* Mode 0: Direct Addressing (no paging) - single 2KB page only */
             /* For PS_AZI, both L1 and L2 indices must be 0 */
             if (l1_index != 0 || l2_index != 0) {
-                if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) {
-                    fprintf(stderr, "[MMU] PS_AZI: L1=%d L2=%d must be 0! vaddr=0x%08X\n",
-                            l1_index, l2_index, virtual_addr);
-                }
+                TRACE("[MMU] TRAP: PS_AZI page fault! L1=%d L2=%d must be 0! vaddr=0x%08X\n",
+                      l1_index, l2_index, virtual_addr);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;
             }
@@ -271,10 +263,8 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             /* Mode 1: Single-Level Paging (up to 512 pages = 1MB) */
             /* For PS_ASI, L1 must be 0; L2 selects page table entry */
             if (l1_index != 0) {
-                if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) {
-                    fprintf(stderr, "[MMU] PS_ASI: L1=%d must be 0! vaddr=0x%08X\n",
-                            l1_index, virtual_addr);
-                }
+                TRACE("[MMU] TRAP: PS_ASI page fault! L1=%d must be 0! vaddr=0x%08X\n",
+                      l1_index, virtual_addr);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;
             }
@@ -287,9 +277,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
             /* Check if page is present (valid bit must be set) */
             if (!pte.valid) {
-                if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) {
-                    fprintf(stderr, "[MMU] PS_ASI: PTE not valid! vaddr=0x%08X pte_addr=0x%08X\n", virtual_addr, pte_addr);
-                }
+                TRACE("[MMU] TRAP: PS_ASI page not valid! vaddr=0x%08X pte_addr=0x%08X\n", virtual_addr, pte_addr);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
             }
@@ -298,10 +286,8 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
              * For data writes, permission is controlled by DC_WRP capability flag (already checked above).
              * C# reference creates all PTEs with protection=1, data writes work via DC_WRP. */
             if (is_instruction && is_write && pte.protection != 0) {
-                if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) {
-                    fprintf(stderr, "[MMU] PS_ASI: Instruction write to read-only page! vaddr=0x%08X pte_addr=0x%08X prot=%d\n",
-                            virtual_addr, pte_addr, pte.protection);
-                }
+                TRACE("[MMU] TRAP: Instruction write to read-only page! vaddr=0x%08X pte_addr=0x%08X prot=%d\n",
+                      virtual_addr, pte_addr, pte.protection);
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;
             }
@@ -321,6 +307,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
 
             if (!l1_pte.valid) {
+                TRACE("[MMU] TRAP: PS_ADI L1 page not valid! vaddr=0x%08X l1_pte_addr=0x%08X\n", virtual_addr, l1_pte_addr);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
             }
@@ -333,12 +320,15 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
             PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
 
             if (!l2_pte.valid) {
+                TRACE("[MMU] TRAP: PS_ADI L2 page not valid! vaddr=0x%08X l2_pte_addr=0x%08X\n", virtual_addr, l2_pte_addr);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }
 
             /* Check write permission */
             if (is_write && (l1_pte.protection != 0 || l2_pte.protection != 0)) {
+                TRACE("[MMU] TRAP: PS_ADI write to read-only page! vaddr=0x%08X l1_prot=%d l2_prot=%d\n",
+                      virtual_addr, l1_pte.protection, l2_pte.protection);
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* Write to read-only page - return virtual address, trap will stop execution */
             }
@@ -349,6 +339,8 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
 
         default:
             /* Invalid index mode */
+            TRACE("[MMU] TRAP: Invalid PST index mode %d! vaddr=0x%08X psn=%d\n",
+                  pst_entry.index_mode, virtual_addr, psn);
             trap_illegal_operand(cpu, cpu->PC);
             return virtual_addr;  /* Invalid index mode - return virtual address, trap will stop execution */
     }
