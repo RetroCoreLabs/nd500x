@@ -83,6 +83,11 @@ typedef struct MonContext {
     void (*set_i1)(void* cpu, uint32_t value);  /* I1/W1 register */
     uint32_t (*get_i1)(void* cpu);
 
+    /* Segment allocation callback (set by host emulator) */
+    int (*allocate_segment)(void* cpu, void* machine, uint8_t domain,
+        uint32_t requested_segment, uint32_t segment_size_bytes,
+        uint32_t* out_assigned_segment);
+
     /* Control flow signals (set by handler or dispatcher) */
     int halt_requested;         /* Request CPU halt (MON 0B LEAVE) */
     int break_requested;        /* Request debugger break */
