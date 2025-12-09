@@ -47,22 +47,29 @@ static uint32_t find_highest_used_pfn(Nd500Cpu* cpu) {
         /* If this is PS_ASI, scan the page table for actual page PFNs */
         if (pst.index_mode == PS_ASI) {
             uint32_t page_table_base = pst.physical_pfn << PGSHIFT;
-            
-            /* Scan page table entries (up to 512 entries per page table) */
+
+            /* Scan page table entries - stop at first invalid (zero) entry.
+             * Valid PTEs are contiguous from start; unused slots are zero.
+             * In ND-500 PTE format, PFN=0 indicates invalid/unmapped page. */
             for (uint32_t i = 0; i < NPTEPG; i++) {
                 uint32_t pte_addr = page_table_base + (i * 4);
-                
+
                 /* Read PTE */
                 uint8_t b0 = nd500_bus_read8(cpu->machine, pte_addr);
                 uint8_t b1 = nd500_bus_read8(cpu->machine, pte_addr + 1);
                 uint8_t b2 = nd500_bus_read8(cpu->machine, pte_addr + 2);
                 uint8_t b3 = nd500_bus_read8(cpu->machine, pte_addr + 3);
                 uint32_t pte_value = (uint32_t)((b0 << 24) | (b1 << 16) | (b2 << 8) | b3);
-                
+
                 /* Extract PFN from PTE (bits 31:2) */
                 uint32_t pte_pfn = (pte_value >> 2) & 0x3FFFFFFF;
-                
-                if (pte_pfn > 0 && pte_pfn > highest_pfn) {
+
+                /* Stop at first invalid entry - prevents reading garbage */
+                if (pte_pfn == 0) {
+                    break;
+                }
+
+                if (pte_pfn > highest_pfn) {
                     highest_pfn = pte_pfn;
                 }
             }
@@ -106,6 +113,9 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
     uint32_t requested_segment, uint32_t segment_size_bytes,
     uint32_t* out_assigned_segment)
 {
+    TRACE("[TRACE] ALLOC: ENTER domain=%u, req_seg=%u, size=%u\n",
+          domain, requested_segment, segment_size_bytes);
+
     if (!cpu_ptr || !machine_ptr || !out_assigned_segment) {
         return ERR_ILLEGAL_ADDRESS;
     }
@@ -115,6 +125,7 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
 
     /* Validate segment number */
     if (requested_segment > 31) {
+        TRACE("[TRACE] ALLOC: ERROR req_seg %u > 31\n", requested_segment);
         return ERR_ILLEGAL_SEGMENT;
     }
 
@@ -129,8 +140,10 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
         /* Auto-assign: find first free segment */
         /* Start from segment 2 (after segments 0 and 1 used by DOM loader) */
         int found = 0;
+        TRACE("[TRACE] ALLOC: Searching for free segment in domain %u\n", domain);
         for (uint32_t seg = 2; seg < MAXSEG; seg++) {
             uint16_t dc = nd500_mmu_get_data_capability(cpu, domain, seg);
+            TRACE("[TRACE] ALLOC: DC[%u] = 0x%04X\n", seg, dc);
             if (dc == 0) {
                 assigned_segment = seg;
                 found = 1;
@@ -138,6 +151,7 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
             }
         }
         if (!found) {
+            TRACE("[TRACE] ALLOC: No free segments found!\n");
             return ERR_ILLEGAL_SEGMENT;  /* No free segments */
         }
     } else {
@@ -164,19 +178,27 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
 
     /* Find free physical memory */
     uint32_t highest_pfn = find_highest_used_pfn(cpu);
-    
+
     /* Calculate next free physical address */
     /* Start from highest used PFN + 1, or use a safe starting point */
     uint32_t start_pfn = highest_pfn + 1;
     if (start_pfn < 1000) {  /* Ensure we're past DOM loader allocations */
         start_pfn = 1000;  /* Start after known allocations */
     }
-    
+
     uint32_t phys_segment_base = start_pfn << PGSHIFT;
     uint32_t phys_segment_end = phys_segment_base + rounded_size;
-    
+
+    TRACE("[TRACE] ALLOC: segment=%u, size=%u bytes (%u pages)\n",
+          assigned_segment, segment_size_bytes, num_pages);
+    TRACE("[TRACE] ALLOC: highest_pfn=%u, start_pfn=%u\n", highest_pfn, start_pfn);
+    TRACE("[TRACE] ALLOC: phys_base=0x%08X, phys_end=0x%08X, mem_size=0x%08X\n",
+          phys_segment_base, phys_segment_end, m->memory_size);
+
     /* Check bounds against machine memory size */
     if (phys_segment_end > m->memory_size) {
+        TRACE("[TRACE] ALLOC: FAILED - need 0x%X bytes but only 0x%X available\n",
+              phys_segment_end, m->memory_size);
         return ERR_NO_PHYS_MEM;
     }
 
