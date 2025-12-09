@@ -25,6 +25,7 @@ uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
+        if (!cpu->machine->run_flag) return 0;  // Trap occurred during translation
     }
 
     return nd500_bus_read8(cpu->machine, paddr);
@@ -37,6 +38,7 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
+        if (!cpu->machine->run_flag) return;  // Trap occurred during translation
     }
 
     nd500_bus_write8(cpu->machine, paddr, value);
@@ -49,6 +51,7 @@ uint16_t nd500_read_memory_16(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
+        if (!cpu->machine->run_flag) return 0;  // Trap occurred during translation
     }
 
     // Read two bytes BIG-ENDIAN from physical address (ND-500 spec)
@@ -64,6 +67,7 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
+        if (!cpu->machine->run_flag) return;  // Trap occurred during translation
     }
 
     // Write two bytes BIG-ENDIAN to physical address (ND-500 spec)
@@ -78,6 +82,7 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
+        if (!cpu->machine->run_flag) return 0;  // Trap occurred during translation
     }
 
     // Read four bytes BIG-ENDIAN from physical address (ND-500 spec)
@@ -96,6 +101,7 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
+        if (!cpu->machine->run_flag) return;  // Trap occurred during translation
     }
 
     // Debug: warn if writing to address beyond physical memory
@@ -569,9 +575,22 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
         }
     }
 
-    /* Handle registers */
+    /* Handle registers - dispatch to correct register bank based on data type
+     * Per ND-500 Reference Manual:
+     * - Integer types (BI, BY, H, W) use I1-I4 registers
+     * - Float type (F) uses A1-A4 registers
+     * - Double type (D) uses D1-D4 registers (A+E pairs)
+     */
     if (op->mode == ND500_ADDR_REGISTER) {
-        return nd500_read_integer_register(cpu, op->reg);
+        switch (dtype) {
+            case ND500_DTYPE_FLOAT:
+                return nd500_read_float_register(cpu, op->reg);
+            case ND500_DTYPE_DOUBLEWORD:
+                return nd500_read_double_register(cpu, op->reg);
+            default:
+                /* BYTE, HALFWORD, WORD -> integer registers */
+                return nd500_read_integer_register(cpu, op->reg);
+        }
     }
 
     /* Handle memory operands */
@@ -581,6 +600,7 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
         case ND500_DTYPE_HALFWORD:
             return nd500_read_memory_16(cpu, op->effective_address);
         case ND500_DTYPE_WORD:
+        case ND500_DTYPE_FLOAT:
             return nd500_read_memory_32(cpu, op->effective_address);
         case ND500_DTYPE_DOUBLEWORD:
             return nd500_read_memory_64(cpu, op->effective_address);
@@ -595,24 +615,38 @@ void nd500_write_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uin
         return;
     }
 
-    /* Handle registers - ND-500 Reference Manual: "When using the integer registers
-     * for BIt, BYte and Halfword, the unused upper part of the register is always
-     * zero-filled rather than sign-extended when data is loaded to the register." */
+    /* Handle registers - dispatch to correct register bank based on data type
+     * Per ND-500 Reference Manual (page 901):
+     * - I1-I4: "32-bit general registers for word and partial word operations"
+     * - A1-A4: "32-bit floating-point accumulators for real number arithmetic"
+     * - D1-D4 (A+E): "64-bit floating point accumulators for double precision"
+     *
+     * Also: "When using the integer registers for BIt, BYte and Halfword, the
+     * unused upper part of the register is always zero-filled rather than
+     * sign-extended when data is loaded to the register." */
     if (op->mode == ND500_ADDR_REGISTER) {
-        uint32_t masked_value;
         switch (dtype) {
+            case ND500_DTYPE_FLOAT:
+                /* Float -> A1-A4 registers */
+                nd500_write_float_register(cpu, op->reg, (uint32_t)value);
+                return;
+            case ND500_DTYPE_DOUBLEWORD:
+                /* Double -> D1-D4 registers (A+E pairs) */
+                nd500_write_double_register(cpu, op->reg, value);
+                return;
             case ND500_DTYPE_BYTE:
-                masked_value = (uint32_t)(value & 0xFF);
-                break;
+                /* Byte -> I registers, zero-fill upper bits */
+                nd500_write_integer_register(cpu, op->reg, (uint32_t)(value & 0xFF));
+                return;
             case ND500_DTYPE_HALFWORD:
-                masked_value = (uint32_t)(value & 0xFFFF);
-                break;
+                /* Halfword -> I registers, zero-fill upper bits */
+                nd500_write_integer_register(cpu, op->reg, (uint32_t)(value & 0xFFFF));
+                return;
             default:
-                masked_value = (uint32_t)value;
-                break;
+                /* Word -> I registers */
+                nd500_write_integer_register(cpu, op->reg, (uint32_t)value);
+                return;
         }
-        nd500_write_integer_register(cpu, op->reg, masked_value);
-        return;
     }
 
     /* Handle memory operands */
@@ -624,6 +658,7 @@ void nd500_write_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uin
             nd500_write_memory_16(cpu, op->effective_address, (uint16_t)value);
             break;
         case ND500_DTYPE_WORD:
+        case ND500_DTYPE_FLOAT:
             nd500_write_memory_32(cpu, op->effective_address, (uint32_t)value);
             break;
         case ND500_DTYPE_DOUBLEWORD:
@@ -1449,7 +1484,7 @@ uint64_t nd500_double_from_int64(int64_t value) {
     // Combine sign, exponent, mantissa
     uint64_t result = 0;
     if (sign) result |= ND500_DOUBLE_SIGN_MASK;
-    result |= (uint64_t)(exponent << ND500_DOUBLE_EXPONENT_SHIFT);
+    result |= ((uint64_t)exponent << ND500_DOUBLE_EXPONENT_SHIFT);
     result |= mantissa;
 
     return result;
