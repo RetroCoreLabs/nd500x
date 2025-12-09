@@ -115,7 +115,7 @@ static int cmd_disassemble_cb(DAPServer *server) {
 			/* Add operands */
 			for (uint8_t oi = 0; oi < fi.operand_count && p < end; ++oi) {
 				char obuf[64];
-				int ol = nd500_format_operand(obuf, sizeof(obuf), &fi.operands[oi], false);
+				int ol = nd500_format_operand(obuf, sizeof(obuf), &fi.operands[oi], fi.data_type, false);
 				if (ol > 0) {
 					n = snprintf(p, (size_t)(end-p), "%s%s", (oi > 0) ? ", " : " ", obuf);
 					if (n > 0) p += n;
