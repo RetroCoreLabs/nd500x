@@ -16,9 +16,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* TRACE macro: only outputs if trace mode is enabled */
-#define TRACE(...) do { if (nd500_dbg_get_trace_mode()) printf(__VA_ARGS__); } while(0)
-
 /* Forward declaration for segment allocation callback */
 extern int nd500_mon_allocate_segment(void* cpu, void* machine, uint8_t domain,
     uint32_t requested_segment, uint32_t segment_size_bytes,
