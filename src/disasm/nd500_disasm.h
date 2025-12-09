@@ -3,10 +3,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "../cpu/cpu_protos.h"
 
-/* Forward decl to avoid heavy deps */
+/* Forward decl */
 struct Nd500Machine;
-struct Nd500OperandDecoded;
 
 /*
  * Format disassembly for [addr, addr+len) into out buffer.
@@ -29,15 +29,22 @@ size_t nd500_disasm_format_range_json(struct Nd500Machine* m,
 /**
  * Authoritative operand formatter for disassembly output.
  * Handles all 15 ND-500 addressing modes with correct syntax.
- * 
+ *
+ * For REGISTER mode, shows correct register bank based on data type:
+ * - BYTE/HALFWORD/WORD: W1-W4 (integer registers I1-I4)
+ * - FLOAT: F1-F4 (float registers A1-A4)
+ * - DOUBLEWORD: D1-D4 (double registers, A+E pairs)
+ *
  * @param buf       Output buffer
  * @param cap       Buffer capacity
  * @param op        Decoded operand
+ * @param dtype     Data type (determines register bank for REGISTER mode)
  * @param use_color Whether to include ANSI color codes (reserved for future use)
  * @return Number of characters written (excluding NUL terminator)
  */
-int nd500_format_operand(char* buf, size_t cap, 
-                         const struct Nd500OperandDecoded* op,
+int nd500_format_operand(char* buf, size_t cap,
+                         const Nd500OperandDecoded* op,
+                         Nd500DataType dtype,
                          bool use_color);
 
 /**
