@@ -1,15 +1,45 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "machine_protos.h"
 #include "breakpoints.h"
 #include "../cpu/nd500_mmu.h"
+
+/* Convert stop reason enum to string */
+const char* nd500_stop_reason_str(StopReason reason) {
+	switch (reason) {
+		case STOP_NONE:                     return "none";
+		case STOP_USER_REQUESTED:           return "user requested";
+		case STOP_BREAKPOINT:               return "breakpoint";
+		case STOP_WATCHPOINT_READ:          return "watchpoint (read)";
+		case STOP_WATCHPOINT_WRITE:         return "watchpoint (write)";
+		case STOP_TRAP_PAGE_FAULT:          return "page fault";
+		case STOP_TRAP_PROTECTION_VIOLATION: return "protection violation";
+		case STOP_TRAP_ILLEGAL_INSTRUCTION: return "illegal instruction";
+		case STOP_TRAP_ILLEGAL_OPERAND:     return "illegal operand";
+		case STOP_TRAP_DIVIDE_BY_ZERO:      return "divide by zero";
+		case STOP_TRAP_FLOATING_OVERFLOW:   return "floating overflow";
+		case STOP_TRAP_FLOATING_UNDERFLOW:  return "floating underflow";
+		case STOP_TRAP_INVALID_OPERATION:   return "invalid floating operation";
+		case STOP_TRAP_STACK_OVERFLOW:      return "stack overflow";
+		case STOP_TRAP_STACK_UNDERFLOW:     return "stack underflow";
+		case STOP_TRAP_INTEGER_OVERFLOW:    return "integer overflow";
+		case STOP_TRAP_OTHER:               return "trap";
+		case STOP_INVALID_INSTRUCTION_00:   return "invalid instruction 0x00";
+		case STOP_MON_HALT:                 return "MON halt";
+		case STOP_MON_UNIMPLEMENTED:        return "unimplemented MON";
+		default:                            return "unknown";
+	}
+}
 
 void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
 	if (!m) return;
 	m->memory_size = mem_size;
 	m->memory = (uint8_t*)calloc(1, mem_size);
 	m->run_flag = 0;
-	m->stop_reason = NULL;
+	m->stop_reason = STOP_NONE;
+	m->stop_addr = 0;
+	m->stop_data = 0;
 	m->mmu_enabled = 0;  /* MMU starts disabled */
 
 	/* Initialize breakpoint manager */
@@ -51,8 +81,10 @@ uint8_t nd500_bus_read8(Nd500Machine* m, uint32_t addr) {
 
 	/* Check watchpoints on read */
 	if (m->bp_mgr && wp_should_break_on_read(m->bp_mgr, addr)) {
-		m->run_flag = 0; /* Stop execution */
-		m->stop_reason = "Watchpoint: read access";
+		m->run_flag = 0;
+		m->stop_reason = STOP_WATCHPOINT_READ;
+		m->stop_addr = addr;
+		printf("[STOP] Watchpoint read at 0x%08X\n", addr);
 	}
 
 	return m->memory[addr];
@@ -72,8 +104,11 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 
 	/* Check watchpoints on write */
 	if (m->bp_mgr && wp_should_break_on_write(m->bp_mgr, addr, val)) {
-		m->run_flag = 0; /* Stop execution */
-		m->stop_reason = "Watchpoint: write access";
+		m->run_flag = 0;
+		m->stop_reason = STOP_WATCHPOINT_WRITE;
+		m->stop_addr = addr;
+		m->stop_data = val;
+		printf("[STOP] Watchpoint write at 0x%08X (val=0x%02X)\n", addr, val);
 	}
 
 	m->memory[addr] = val;
