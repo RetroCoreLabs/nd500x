@@ -281,6 +281,7 @@ static int handle_special_commands(Nd500Machine* m, const char* line) {
 /* Main debugger REPL */
 int nd500_debugger_repl(Nd500Machine* m) {
 	char line[256];
+	int was_running = 0;  /* Track if we were running to detect stops */
 	printf("nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, show, bp, wp, continue, help, q\n");
 
 #ifdef HAVE_READLINE
@@ -312,16 +313,32 @@ int nd500_debugger_repl(Nd500Machine* m) {
 
 	/* Main REPL loop */
 	while (read_line_with_completion(line, sizeof(line), m && m->cpu ? m->cpu->PC : 0)) {
+		/* Check if execution stopped since last prompt */
+		if (was_running && m && !m->run_flag) {
+			if (m->stop_reason != STOP_NONE) {
+				printf("\x1b[33mStopped:\x1b[0m %s at 0x%08X\n",
+				       nd500_stop_reason_str(m->stop_reason), m->stop_addr);
+			} else {
+				printf("\x1b[33mStopped\x1b[0m at PC=0x%08X\n",
+				       m->cpu ? m->cpu->PC : 0);
+			}
+			was_running = 0;
+		}
+
 		/* Skip empty lines */
 		if (strlen(line) == 0) continue;
 
 		/* Check for special commands that need native handling */
 		if (handle_special_commands(m, line)) {
+			was_running = m ? m->run_flag : 0;
 			continue;
 		}
 
 		/* Execute command via shared library */
 		int result = nd500_cmd_execute(m, line, &ctx);
+
+		/* Update running state after command (might have started/stopped) */
+		was_running = m ? m->run_flag : 0;
 
 		/* Handle quit command */
 		if (result == 1) {
