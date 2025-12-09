@@ -47,6 +47,7 @@ static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_run(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_stop(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_continue(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_status(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_symb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_segments(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_goto(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -98,6 +99,7 @@ static const CmdEntry g_commands[] = {
 	{"loaddom",     cmd_loaddom,      "Load DOM/SEG file header"},
 	{"run",         cmd_run,          "Start execution"},
 	{"stop",        cmd_stop,         "Stop execution"},
+	{"status",      cmd_status,       "Show execution status"},
 	{"continue",    cmd_continue,     "Continue execution"},
 	{"c",           cmd_continue,     "Continue execution"},
 	{"cont",        cmd_continue,     "Continue execution"},
@@ -732,16 +734,17 @@ static int cmd_show(Nd500Machine* m, CmdContext* ctx, char* args) {
 static int cmd_step(Nd500Machine* m, CmdContext* ctx, char* args) {
 	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
 	uint32_t n = nd500_cmd_parse_u32(a1, 1);
-	m->stop_reason = NULL; /* Clear before stepping */
+	m->stop_reason = STOP_NONE;
 	uint32_t executed = 0;
 	for (uint32_t i = 0; i < n; ++i) {
 		nd500_dbg_step(m, 1);
 		executed++;
-		if (m->stop_reason) break; /* Stop early if reason set */
+		if (m->stop_reason != STOP_NONE) break;
 	}
-	if (m->stop_reason) {
-		output(ctx, "Stopped: %s (after %u instruction%s)",
-		       m->stop_reason, executed, executed == 1 ? "" : "s");
+	if (m->stop_reason != STOP_NONE) {
+		output(ctx, "Stopped: %s at 0x%08X (after %u instruction%s)",
+		       nd500_stop_reason_str(m->stop_reason), m->stop_addr,
+		       executed, executed == 1 ? "" : "s");
 	} else {
 		output(ctx, "Stepped %u instruction%s", executed, executed == 1 ? "" : "s");
 	}
@@ -1241,8 +1244,16 @@ static int cmd_run(Nd500Machine* m, CmdContext* ctx, char* args) {
 }
 
 static int cmd_stop(Nd500Machine* m, CmdContext* ctx, char* args) {
+	(void)args;
 	nd500_dbg_stop(m);
-	output(ctx, "stopped");
+	if (m->stop_reason != STOP_NONE) {
+		output(ctx, "Stopped: %s at 0x%08X",
+		       nd500_stop_reason_str(m->stop_reason), m->stop_addr);
+	} else {
+		m->stop_reason = STOP_USER_REQUESTED;
+		m->stop_addr = m->cpu ? m->cpu->PC : 0;
+		output(ctx, "Stopped at PC=0x%08X", m->stop_addr);
+	}
 	return 0;
 }
 
@@ -1254,6 +1265,21 @@ static int cmd_continue(Nd500Machine* m, CmdContext* ctx, char* args) {
 	nd500_dbg_clear_traps();
 	nd500_dbg_run(m);
 	output(ctx, "continuing...");
+	return 0;
+}
+
+static int cmd_status(Nd500Machine* m, CmdContext* ctx, char* args) {
+	(void)args;
+	if (m->run_flag) {
+		output(ctx, "Status: running at PC=0x%08X", m->cpu ? m->cpu->PC : 0);
+	} else {
+		if (m->stop_reason != STOP_NONE) {
+			output(ctx, "Status: stopped - %s at 0x%08X",
+			       nd500_stop_reason_str(m->stop_reason), m->stop_addr);
+		} else {
+			output(ctx, "Status: stopped at PC=0x%08X", m->cpu ? m->cpu->PC : 0);
+		}
+	}
 	return 0;
 }
 
