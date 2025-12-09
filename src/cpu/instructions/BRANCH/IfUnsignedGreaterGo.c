@@ -117,13 +117,13 @@ void nd500_instr_IfUnsignedGreaterGo(Nd500Cpu* cpu, const Nd500FetchedInstructio
     }
 
     // Test C and Z flags for unsigned greater-than condition
-    // C=1 means greater or equal (ND-500: carry set indicates >=)
+    // After COMP A, B: C=1 means borrow (A < B), C=0 means no borrow (A >= B)
     // Z=0 means non-zero result (operand1 != operand2)
-    // Combined: C=1 AND Z=0 means operand1 > operand2 (unsigned)
-    bool carry_set = nd500_test_flag(cpu, ND500_FLAG_C);
+    // Combined: C=0 AND Z=0 means operand1 > operand2 (unsigned)
+    bool carry_clear = !nd500_test_flag(cpu, ND500_FLAG_C);
     bool zero_clear = !nd500_test_flag(cpu, ND500_FLAG_Z);
 
-    if (carry_set && zero_clear) {
+    if (carry_clear && zero_clear) {
         // Read displacement value and sign-extend based on data type
         uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
@@ -131,7 +131,7 @@ void nd500_instr_IfUnsignedGreaterGo(Nd500Cpu* cpu, const Nd500FetchedInstructio
         // Update PC (relative branch from instruction start)
         cpu->PC = (uint32_t)(fi->address + displacement);
     }
-    // else: C=1 OR Z=1, branch not taken, PC already points to next instruction
+    // else: C=1 OR Z=1 (A < B or A == B), branch not taken
 
     // No status flags are modified by this instruction
 }
