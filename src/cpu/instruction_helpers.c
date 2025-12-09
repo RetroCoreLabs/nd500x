@@ -25,7 +25,7 @@ uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
-        if (!cpu->machine->run_flag) return 0;  // Trap occurred during translation
+        if (nd500_trap_occurred()) return 0;  // Trap occurred during translation
     }
 
     return nd500_bus_read8(cpu->machine, paddr);
@@ -38,7 +38,7 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
-        if (!cpu->machine->run_flag) return;  // Trap occurred during translation
+        if (nd500_trap_occurred()) return;  // Trap occurred during translation
     }
 
     nd500_bus_write8(cpu->machine, paddr, value);
@@ -51,7 +51,7 @@ uint16_t nd500_read_memory_16(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
-        if (!cpu->machine->run_flag) return 0;  // Trap occurred during translation
+        if (nd500_trap_occurred()) return 0;  // Trap occurred during translation
     }
 
     // Read two bytes BIG-ENDIAN from physical address (ND-500 spec)
@@ -67,7 +67,7 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
-        if (!cpu->machine->run_flag) return;  // Trap occurred during translation
+        if (nd500_trap_occurred()) return;  // Trap occurred during translation
     }
 
     // Write two bytes BIG-ENDIAN to physical address (ND-500 spec)
@@ -82,7 +82,7 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
-        if (!cpu->machine->run_flag) return 0;  // Trap occurred during translation
+        if (nd500_trap_occurred()) return 0;  // Trap occurred during translation
     }
 
     // Read four bytes BIG-ENDIAN from physical address (ND-500 spec)
@@ -101,15 +101,20 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
-        if (!cpu->machine->run_flag) return;  // Trap occurred during translation
+        if (nd500_trap_occurred()) {
+            TRACE("[TRACE] write_memory_32: MMU trap! vaddr=0x%08X value=0x%08X\n", vaddr, value);
+            return;  // Trap occurred during translation
+        }
     }
 
     // Debug: warn if writing to address beyond physical memory
     if (paddr >= cpu->machine->memory_size) {
-        fprintf(stderr, "[WARN] nd500_write_memory_32: write to 0x%08X (vaddr=0x%08X) beyond memory_size=0x%X, MMU=%s\n",
-                paddr, vaddr, cpu->machine->memory_size,
-                cpu->machine->mmu_enabled ? "ON" : "OFF");
+        TRACE("[TRACE] write_memory_32: BEYOND MEMORY! vaddr=0x%08X paddr=0x%08X value=0x%08X mem_size=0x%X\n",
+              vaddr, paddr, value, cpu->machine->memory_size);
+        return;  // Don't write beyond memory!
     }
+
+    TRACE("[TRACE] write_memory_32: vaddr=0x%08X paddr=0x%08X value=0x%08X\n", vaddr, paddr, value);
 
     // Write four bytes BIG-ENDIAN to physical address (ND-500 spec)
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 24) & 0xFF));
@@ -1297,19 +1302,25 @@ void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* de
  * ============================================================================
  */
 
-// ND-500 Float constants
-#define ND500_FLOAT_SIGN_MASK      0x80000000u
-#define ND500_FLOAT_EXPONENT_MASK  0x7FE00000u
-#define ND500_FLOAT_MANTISSA_MASK  0x001FFFFFu
+// ND-500 Float constants (per Reference Manual 7.2.5)
+// Format: sign(1) | exponent(9) | mantissa(22)
+// Mantissa range: 0.5 <= M < 1.0 (implicit 0.1 binary prefix)
+#define ND500_FLOAT_SIGN_MASK      0x80000000u           // Bit 31
+#define ND500_FLOAT_EXPONENT_MASK  0x7FC00000u           // Bits 30-22 (9 bits)
+#define ND500_FLOAT_MANTISSA_MASK  0x003FFFFFu           // Bits 21-0 (22 bits)
 #define ND500_FLOAT_EXPONENT_BIAS  256
 #define ND500_FLOAT_EXPONENT_SHIFT 22
+#define ND500_FLOAT_MANTISSA_BITS  22
 
-// ND-500 Double constants  
-#define ND500_DOUBLE_SIGN_MASK      0x8000000000000000ull
-#define ND500_DOUBLE_EXPONENT_MASK  0x7FE0000000000000ull
-#define ND500_DOUBLE_MANTISSA_MASK  0x001FFFFFFFFFFFFFull
+// ND-500 Double constants (per Reference Manual 7.2.6)
+// Format: sign(1) | exponent(9) | mantissa(54)
+// Mantissa range: 0.5 <= M < 1.0 (implicit 0.1 binary prefix)
+#define ND500_DOUBLE_SIGN_MASK      0x8000000000000000ull  // Bit 63
+#define ND500_DOUBLE_EXPONENT_MASK  0x7F80000000000000ull  // Bits 62-54 (9 bits)
+#define ND500_DOUBLE_MANTISSA_MASK  0x003FFFFFFFFFFFFFull  // Bits 53-0 (54 bits)
 #define ND500_DOUBLE_EXPONENT_BIAS  256
 #define ND500_DOUBLE_EXPONENT_SHIFT 54
+#define ND500_DOUBLE_MANTISSA_BITS  54
 
 // Helper: Count leading zeros (for normalization)
 static inline int count_leading_zeros_32(uint32_t x) {
@@ -1352,11 +1363,17 @@ uint32_t nd500_float_from_int32(int32_t value) {
 }
 
 /**
- * Convert ND-500 single precision float to int32 (truncated)
- * Based on ND500Float.ToInt32 from C#
+ * Convert ND-500 single precision float to int32 (truncated toward zero)
+ *
+ * Per ND-500 Reference Manual 7.2.5:
+ * - Format: sign(1) | exponent(9) | mantissa(22)
+ * - Value = sign * 2^(exponent - 256) * M
+ * - M = 0.1mmmmm... (binary) where mantissa bits follow implicit 0.1
+ * - M range: 0.5 <= M < 1.0
+ * - If exponent = 0, value is exactly zero
  */
 int32_t nd500_float_to_int32(uint32_t nd500_bits) {
-    // Check for zero (exponent = 0)
+    // Check for zero (exponent = 0 means exactly zero)
     uint32_t exponent = (nd500_bits & ND500_FLOAT_EXPONENT_MASK) >> ND500_FLOAT_EXPONENT_SHIFT;
     if (exponent == 0) return 0;
 
@@ -1364,32 +1381,54 @@ int32_t nd500_float_to_int32(uint32_t nd500_bits) {
     bool sign = (nd500_bits & ND500_FLOAT_SIGN_MASK) != 0;
     uint32_t mantissa = nd500_bits & ND500_FLOAT_MANTISSA_MASK;
 
-    // Calculate actual exponent
-    int actual_exponent = (int)exponent - ND500_FLOAT_EXPONENT_BIAS;
+    // Calculate actual exponent (e = exponent - 256)
+    int actual_exp = (int)exponent - ND500_FLOAT_EXPONENT_BIAS;
 
-    // Reconstruct integer value (add implicit leading 1)
-    uint32_t value = 0x80000000u | (mantissa >> (ND500_FLOAT_EXPONENT_SHIFT - 1));
+    // Build significand with implicit bit at position 22
+    // M = 0.1mmmmm... = (1 << 22 | mantissa) / 2^23
+    // The implicit 1 is at bit position 22, mantissa fills bits 21-0
+    uint32_t significand = (1U << ND500_FLOAT_MANTISSA_BITS) | mantissa;
 
-    // Shift based on exponent
-    if (actual_exponent < 0) {
-        value >>= -actual_exponent;
-    } else if (actual_exponent > 0) {
-        if (actual_exponent >= 32)
-            value = 0xFFFFFFFFu; // Overflow
-        else
-            value <<= actual_exponent;
+    // For integer conversion:
+    // value = 2^actual_exp * M = significand * 2^(actual_exp - 23)
+    // We need floor(value) for truncation toward zero
+    //
+    // Shift amount to move binary point to position 0:
+    // Significand is 23 bits (implicit 1 at bit 22 + 22 mantissa bits)
+    // So shift = 23 - actual_exp to get integer part
+    int shift = (ND500_FLOAT_MANTISSA_BITS + 1) - actual_exp;
+
+    uint32_t int_value;
+    if (shift >= 32) {
+        // Value < 1, truncates to 0
+        return 0;
+    } else if (shift > 0) {
+        // Normal case: shift right to get integer part
+        int_value = significand >> shift;
+    } else if (shift > -32) {
+        // Large number: shift left
+        int_value = significand << (-shift);
+    } else {
+        // Overflow - value too large for int32
+        int_value = 0x7FFFFFFFu;
     }
 
-    // Apply sign
-    return sign ? -(int32_t)value : (int32_t)value;
+    return sign ? -(int32_t)int_value : (int32_t)int_value;
 }
 
 /**
  * Convert ND-500 float to IEEE 754 single precision
- * Based on ND500Float.ToIeee754Single from C#
+ *
+ * ND-500: value = 2^(exp - 256) * M, where M = 0.5 + mantissa/2^23, M in [0.5, 1.0)
+ * IEEE:   value = 2^(exp - 127) * M, where M = 1 + mantissa/2^23, M in [1.0, 2.0)
+ *
+ * Since M_ieee = 2 * M_nd (both normalized), the exponent adjusts by -1:
+ *   ieee_exp = nd_exp - 256 + 127 - 1 = nd_exp - 130
+ * And mantissa shifts left (22 bits -> 23 bits):
+ *   ieee_mantissa = nd_mantissa << 1
  */
 float nd500_float_to_ieee754(uint32_t nd500_bits) {
-    // Check for zero
+    // Check for zero (exponent = 0 means exactly zero)
     uint32_t exponent = (nd500_bits & ND500_FLOAT_EXPONENT_MASK) >> ND500_FLOAT_EXPONENT_SHIFT;
     if (exponent == 0) return 0.0f;
 
@@ -1397,17 +1436,29 @@ float nd500_float_to_ieee754(uint32_t nd500_bits) {
     bool sign = (nd500_bits & ND500_FLOAT_SIGN_MASK) != 0;
     uint32_t mantissa = nd500_bits & ND500_FLOAT_MANTISSA_MASK;
 
-    // Convert to IEEE 754 format
+    // Convert exponent: ieee_exp = nd_exp - 130
+    // (accounts for bias change 256->127 and mantissa range 0.5-1 -> 1-2)
+    int ieee_exponent = (int)exponent - 130;
+
+    // Check for underflow/overflow
+    if (ieee_exponent <= 0) {
+        // Underflow to zero
+        return sign ? -0.0f : 0.0f;
+    }
+    if (ieee_exponent >= 255) {
+        // Overflow to infinity
+        union { uint32_t u; float f; } conv;
+        conv.u = sign ? 0xFF800000u : 0x7F800000u;
+        return conv.f;
+    }
+
+    // Build IEEE bits
     uint32_t ieee_bits = 0;
     if (sign) ieee_bits |= 0x80000000u;
+    ieee_bits |= ((uint32_t)ieee_exponent << 23);
 
-    // Adjust exponent from ND-500 bias (256) to IEEE 754 bias (127)
-    int actual_exponent = (int)exponent - ND500_FLOAT_EXPONENT_BIAS;
-    uint32_t ieee_exponent = (uint32_t)(actual_exponent + 127);
-    ieee_bits |= (ieee_exponent << 23);
-
-    // Adjust mantissa from 22+1 bits to 23 bits (IEEE 754)
-    ieee_bits |= (mantissa >> 1);
+    // Convert mantissa: 22 bits -> 23 bits (shift left by 1)
+    ieee_bits |= (mantissa << 1);
 
     // Convert bits to float
     union { uint32_t u; float f; } conv;
@@ -1417,7 +1468,14 @@ float nd500_float_to_ieee754(uint32_t nd500_bits) {
 
 /**
  * Convert IEEE 754 float to ND-500 single precision
- * Based on ND500Float.FromIeee754Single from C#
+ *
+ * IEEE:   value = 2^(exp - 127) * M, where M = 1 + mantissa/2^23, M in [1.0, 2.0)
+ * ND-500: value = 2^(exp - 256) * M, where M = 0.5 + mantissa/2^23, M in [0.5, 1.0)
+ *
+ * Since M_nd = M_ieee / 2, the exponent adjusts by +1:
+ *   nd_exp = ieee_exp + 256 - 127 + 1 = ieee_exp + 130
+ * And mantissa shifts right (23 bits -> 22 bits):
+ *   nd_mantissa = ieee_mantissa >> 1
  */
 uint32_t nd500_float_from_ieee754(float ieee_value) {
     if (ieee_value == 0.0f) return 0;
@@ -1432,17 +1490,41 @@ uint32_t nd500_float_from_ieee754(float ieee_value) {
     uint32_t ieee_exponent = (ieee_bits >> 23) & 0xFF;
     uint32_t ieee_mantissa = ieee_bits & 0x7FFFFF;
 
-    // Convert to ND-500 format
+    // Handle special cases
+    if (ieee_exponent == 0) {
+        // Denormalized number or zero - treat as zero for ND-500
+        return 0;
+    }
+    if (ieee_exponent == 255) {
+        // Infinity or NaN - return max/min ND-500 value
+        uint32_t max_exp = 511;  // Max 9-bit exponent
+        uint32_t nd500_bits = (max_exp << ND500_FLOAT_EXPONENT_SHIFT) | ND500_FLOAT_MANTISSA_MASK;
+        if (sign) nd500_bits |= ND500_FLOAT_SIGN_MASK;
+        return nd500_bits;
+    }
+
+    // Convert exponent: nd_exp = ieee_exp + 130
+    int nd_exponent = (int)ieee_exponent + 130;
+
+    // Check for ND-500 exponent overflow/underflow (9-bit range: 0-511)
+    if (nd_exponent <= 0) {
+        // Underflow to zero
+        return 0;
+    }
+    if (nd_exponent > 511) {
+        // Overflow - return max ND-500 value
+        uint32_t nd500_bits = (511U << ND500_FLOAT_EXPONENT_SHIFT) | ND500_FLOAT_MANTISSA_MASK;
+        if (sign) nd500_bits |= ND500_FLOAT_SIGN_MASK;
+        return nd500_bits;
+    }
+
+    // Build ND-500 bits
     uint32_t nd500_bits = 0;
     if (sign) nd500_bits |= ND500_FLOAT_SIGN_MASK;
+    nd500_bits |= ((uint32_t)nd_exponent << ND500_FLOAT_EXPONENT_SHIFT);
 
-    // Adjust exponent from IEEE 754 bias (127) to ND-500 bias (256)
-    int actual_exponent = (int)ieee_exponent - 127;
-    uint32_t nd500_exponent = (uint32_t)(actual_exponent + ND500_FLOAT_EXPONENT_BIAS);
-    nd500_bits |= (nd500_exponent << ND500_FLOAT_EXPONENT_SHIFT);
-
-    // Adjust mantissa from 23 bits to 22+1 bits (ND-500)
-    nd500_bits |= (ieee_mantissa << 1);
+    // Convert mantissa: 23 bits -> 22 bits (shift right by 1)
+    nd500_bits |= (ieee_mantissa >> 1);
 
     return nd500_bits;
 }
@@ -1491,11 +1573,17 @@ uint64_t nd500_double_from_int64(int64_t value) {
 }
 
 /**
- * Convert ND-500 double precision float to int64 (truncated)
- * Based on ND500Double.ToInt64 from C#
+ * Convert ND-500 double precision float to int64 (truncated toward zero)
+ *
+ * Per ND-500 Reference Manual 7.2.6:
+ * - Format: sign(1) | exponent(9) | mantissa(54)
+ * - Value = sign * 2^(exponent - 256) * M
+ * - M = 0.1mmmmm... (binary) where mantissa bits follow implicit 0.1
+ * - M range: 0.5 <= M < 1.0
+ * - If exponent = 0, value is exactly zero
  */
 int64_t nd500_double_to_int64(uint64_t nd500_bits) {
-    // Check for zero (exponent = 0)
+    // Check for zero (exponent = 0 means exactly zero)
     uint32_t exponent = (uint32_t)((nd500_bits & ND500_DOUBLE_EXPONENT_MASK) >> ND500_DOUBLE_EXPONENT_SHIFT);
     if (exponent == 0) return 0;
 
@@ -1503,32 +1591,54 @@ int64_t nd500_double_to_int64(uint64_t nd500_bits) {
     bool sign = (nd500_bits & ND500_DOUBLE_SIGN_MASK) != 0;
     uint64_t mantissa = nd500_bits & ND500_DOUBLE_MANTISSA_MASK;
 
-    // Calculate actual exponent
-    int actual_exponent = (int)exponent - ND500_DOUBLE_EXPONENT_BIAS;
+    // Calculate actual exponent (e = exponent - 256)
+    int actual_exp = (int)exponent - ND500_DOUBLE_EXPONENT_BIAS;
 
-    // Reconstruct integer value (add implicit leading 1)
-    uint64_t value = 0x8000000000000000ull | (mantissa >> (ND500_DOUBLE_EXPONENT_SHIFT - 1));
+    // Build significand with implicit bit at position 54
+    // M = 0.1mmmmm... = (1 << 54 | mantissa) / 2^55
+    // The implicit 1 is at bit position 54, mantissa fills bits 53-0
+    uint64_t significand = (1ULL << ND500_DOUBLE_MANTISSA_BITS) | mantissa;
 
-    // Shift based on exponent
-    if (actual_exponent < 0) {
-        value >>= -actual_exponent;
-    } else if (actual_exponent > 0) {
-        if (actual_exponent >= 64)
-            value = 0xFFFFFFFFFFFFFFFFull; // Overflow
-        else
-            value <<= actual_exponent;
+    // For integer conversion:
+    // value = 2^actual_exp * M = significand * 2^(actual_exp - 55)
+    // We need floor(value) for truncation toward zero
+    //
+    // Shift amount to move binary point to position 0:
+    // Significand is 55 bits (implicit 1 at bit 54 + 54 mantissa bits)
+    // So shift = 55 - actual_exp to get integer part
+    int shift = (ND500_DOUBLE_MANTISSA_BITS + 1) - actual_exp;
+
+    uint64_t int_value;
+    if (shift >= 64) {
+        // Value < 1, truncates to 0
+        return 0;
+    } else if (shift > 0) {
+        // Normal case: shift right to get integer part
+        int_value = significand >> shift;
+    } else if (shift > -64) {
+        // Large number: shift left
+        int_value = significand << (-shift);
+    } else {
+        // Overflow - value too large for int64
+        int_value = 0x7FFFFFFFFFFFFFFFull;
     }
 
-    // Apply sign
-    return sign ? -(int64_t)value : (int64_t)value;
+    return sign ? -(int64_t)int_value : (int64_t)int_value;
 }
 
 /**
  * Convert ND-500 double to IEEE 754 double precision
- * Based on ND500Double.ToIeee754Double from C#
+ *
+ * ND-500: value = 2^(exp - 256) * M, where M = 0.5 + mantissa/2^55, M in [0.5, 1.0)
+ * IEEE:   value = 2^(exp - 1023) * M, where M = 1 + mantissa/2^52, M in [1.0, 2.0)
+ *
+ * Since M_ieee = 2 * M_nd (both normalized), the exponent adjusts by -1:
+ *   ieee_exp = nd_exp - 256 + 1023 - 1 = nd_exp + 766
+ * And mantissa shifts right (54 bits -> 52 bits):
+ *   ieee_mantissa = nd_mantissa >> 2
  */
 double nd500_double_to_ieee754(uint64_t nd500_bits) {
-    // Check for zero
+    // Check for zero (exponent = 0 means exactly zero)
     uint32_t exponent = (uint32_t)((nd500_bits & ND500_DOUBLE_EXPONENT_MASK) >> ND500_DOUBLE_EXPONENT_SHIFT);
     if (exponent == 0) return 0.0;
 
@@ -1536,16 +1646,28 @@ double nd500_double_to_ieee754(uint64_t nd500_bits) {
     bool sign = (nd500_bits & ND500_DOUBLE_SIGN_MASK) != 0;
     uint64_t mantissa = nd500_bits & ND500_DOUBLE_MANTISSA_MASK;
 
-    // Convert to IEEE 754 format
+    // Convert exponent: ieee_exp = nd_exp + 766
+    // (accounts for bias change 256->1023 and mantissa range 0.5-1 -> 1-2)
+    int ieee_exponent = (int)exponent + 766;
+
+    // Check for underflow/overflow
+    if (ieee_exponent <= 0) {
+        // Underflow to zero
+        return sign ? -0.0 : 0.0;
+    }
+    if (ieee_exponent >= 2047) {
+        // Overflow to infinity
+        union { uint64_t u; double d; } conv;
+        conv.u = sign ? 0xFFF0000000000000ull : 0x7FF0000000000000ull;
+        return conv.d;
+    }
+
+    // Build IEEE bits
     uint64_t ieee_bits = 0;
     if (sign) ieee_bits |= 0x8000000000000000ull;
+    ieee_bits |= ((uint64_t)ieee_exponent << 52);
 
-    // Adjust exponent from ND-500 bias (256) to IEEE 754 bias (1023)
-    int actual_exponent = (int)exponent - ND500_DOUBLE_EXPONENT_BIAS;
-    uint64_t ieee_exponent = (uint64_t)(actual_exponent + 1023);
-    ieee_bits |= (ieee_exponent << 52);
-
-    // Adjust mantissa from 54+1 bits to 52 bits (IEEE 754)
+    // Convert mantissa: 54 bits -> 52 bits (shift right by 2)
     ieee_bits |= (mantissa >> 2);
 
     // Convert bits to double
@@ -1556,7 +1678,14 @@ double nd500_double_to_ieee754(uint64_t nd500_bits) {
 
 /**
  * Convert IEEE 754 double to ND-500 double precision
- * Based on ND500Double.FromIeee754Double from C#
+ *
+ * IEEE:   value = 2^(exp - 1023) * M, where M = 1 + mantissa/2^52, M in [1.0, 2.0)
+ * ND-500: value = 2^(exp - 256) * M, where M = 0.5 + mantissa/2^55, M in [0.5, 1.0)
+ *
+ * Since M_nd = M_ieee / 2, the exponent adjusts by +1:
+ *   nd_exp = ieee_exp - 1023 + 256 + 1 = ieee_exp - 766
+ * And mantissa shifts left (52 bits -> 54 bits):
+ *   nd_mantissa = ieee_mantissa << 2
  */
 uint64_t nd500_double_from_ieee754(double ieee_value) {
     if (ieee_value == 0.0) return 0;
@@ -1571,16 +1700,40 @@ uint64_t nd500_double_from_ieee754(double ieee_value) {
     uint64_t ieee_exponent = (ieee_bits >> 52) & 0x7FF;
     uint64_t ieee_mantissa = ieee_bits & 0xFFFFFFFFFFFFFull;
 
-    // Convert to ND-500 format
+    // Handle special cases
+    if (ieee_exponent == 0) {
+        // Denormalized number or zero - treat as zero for ND-500
+        return 0;
+    }
+    if (ieee_exponent == 2047) {
+        // Infinity or NaN - return max/min ND-500 value
+        uint64_t max_exp = 511;  // Max 9-bit exponent
+        uint64_t nd500_bits = (max_exp << ND500_DOUBLE_EXPONENT_SHIFT) | ND500_DOUBLE_MANTISSA_MASK;
+        if (sign) nd500_bits |= ND500_DOUBLE_SIGN_MASK;
+        return nd500_bits;
+    }
+
+    // Convert exponent: nd_exp = ieee_exp - 766
+    int nd_exponent = (int)ieee_exponent - 766;
+
+    // Check for ND-500 exponent overflow/underflow (9-bit range: 0-511)
+    if (nd_exponent <= 0) {
+        // Underflow to zero
+        return 0;
+    }
+    if (nd_exponent > 511) {
+        // Overflow - return max ND-500 value
+        uint64_t nd500_bits = (511ULL << ND500_DOUBLE_EXPONENT_SHIFT) | ND500_DOUBLE_MANTISSA_MASK;
+        if (sign) nd500_bits |= ND500_DOUBLE_SIGN_MASK;
+        return nd500_bits;
+    }
+
+    // Build ND-500 bits
     uint64_t nd500_bits = 0;
     if (sign) nd500_bits |= ND500_DOUBLE_SIGN_MASK;
+    nd500_bits |= ((uint64_t)nd_exponent << ND500_DOUBLE_EXPONENT_SHIFT);
 
-    // Adjust exponent from IEEE 754 bias (1023) to ND-500 bias (256)
-    int actual_exponent = (int)ieee_exponent - 1023;
-    uint64_t nd500_exponent = (uint64_t)(actual_exponent + ND500_DOUBLE_EXPONENT_BIAS);
-    nd500_bits |= (nd500_exponent << ND500_DOUBLE_EXPONENT_SHIFT);
-
-    // Adjust mantissa from 52 bits to 54+1 bits (ND-500)
+    // Convert mantissa: 52 bits -> 54 bits (shift left by 2)
     nd500_bits |= (ieee_mantissa << 2);
 
     return nd500_bits;
