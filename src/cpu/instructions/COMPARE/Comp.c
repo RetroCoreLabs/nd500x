@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <math.h>
 
 /**
  * Comp instruction - COMPARE class
@@ -48,10 +49,52 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Check for float/double variants (not yet implemented) */
+    /* Handle float/double variants */
     if (fi->uses_float_registers) {
-        printf("[STUB] COMP at PC=0x%08X: Float/double comparison not yet implemented (opcode 0x%04X)\n",
-               fi->address, fi->opcode);
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+        uint8_t reg_num = fi->target_register;
+        
+        if (reg_num < 1 || reg_num > 4) {
+            printf("[ERROR] COMP at PC=0x%08X: Invalid register %u\n",
+                   fi->address, reg_num);
+            trap_illegal_operand(cpu, fi->address);
+            return;
+        }
+
+        /* Read register and operand */
+        double reg_value = 0.0;
+        double operand_value = 0.0;
+        
+        if (is_double) {
+            uint64_t reg_bits = nd500_read_double_register(cpu, reg_num);
+            reg_value = nd500_double_to_ieee754(reg_bits);
+            uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+            operand_value = nd500_double_to_ieee754(op_bits);
+        } else {
+            uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
+            reg_value = (double)nd500_float_to_ieee754(reg_bits);
+            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            operand_value = (double)nd500_float_to_ieee754(op_bits);
+        }
+
+        /* Perform subtraction (result not stored) */
+        double result = reg_value - operand_value;
+
+        /* Update flags: Z (zero), S (sign) */
+        if (result == 0.0) {
+            nd500_set_flag(cpu, ND500_FLAG_Z);
+        } else {
+            nd500_clear_flag(cpu, ND500_FLAG_Z);
+        }
+
+        if (result < 0.0) {
+            nd500_set_flag(cpu, ND500_FLAG_S);
+        } else {
+            nd500_clear_flag(cpu, ND500_FLAG_S);
+        }
+
+        /* C flag unaffected for float comparison */
+        /* O flag unaffected (overflow handled by FO/FU traps) */
         return;
     }
 
