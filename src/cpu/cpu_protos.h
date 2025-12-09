@@ -1,7 +1,6 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
-#include <setjmp.h>
 #include "../machine/machine_types.h"
 
 /* Forward declarations for Nd500Cpu dependencies */
@@ -126,9 +125,6 @@ typedef struct Nd500Cpu {
 /* Mask for ignorable traps only (bits 11-29) */
 #define TRAP_IGNORABLE_MASK 0x3FFFF800ULL
 
-/* Global jump buffer for trap handling */
-extern jmp_buf cpu_jmp_buf;
-
 /* Trap system state */
 typedef struct {
     int trap_occurred;           /* Flag indicating if a trap occurred */
@@ -155,7 +151,7 @@ typedef struct Nd500Regs {
 
 void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine);
 void nd500_cpu_reset(Nd500Cpu* cpu);
-void nd500_cpu_step(Nd500Cpu* cpu);
+bool nd500_cpu_step(Nd500Cpu* cpu);  /* Returns false if trap occurred */
 void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out);
 int nd500_cpu_run(Nd500Cpu* cpu, int steps);
 
@@ -206,12 +202,18 @@ int nd500_instr_operand_is_direct(uint16_t opcode, uint8_t operand_idx);
 
 /**
  * Data type enumeration for instruction operands
+ *
+ * Register bank selection for REGISTER addressing mode:
+ * - BYTE, HALFWORD, WORD -> Integer registers I1-I4
+ * - FLOAT -> Float registers A1-A4
+ * - DOUBLEWORD -> Double registers D1-D4 (A+E pairs)
  */
 typedef enum {
-    ND500_DTYPE_BYTE = 0,       // 8-bit (BY)
-    ND500_DTYPE_HALFWORD = 1,   // 16-bit (H)
-    ND500_DTYPE_WORD = 2,       // 32-bit (W/F)
-    ND500_DTYPE_DOUBLEWORD = 3  // 64-bit (D)
+    ND500_DTYPE_BYTE = 0,       // 8-bit (BY) -> I registers
+    ND500_DTYPE_HALFWORD = 1,   // 16-bit (H) -> I registers
+    ND500_DTYPE_WORD = 2,       // 32-bit integer (W) -> I registers
+    ND500_DTYPE_DOUBLEWORD = 3, // 64-bit (D) -> D registers (A+E pairs)
+    ND500_DTYPE_FLOAT = 4       // 32-bit float (F) -> A registers
 } Nd500DataType;
 
 /* Maximum operands in decoded instruction struct (fixed operands only).
