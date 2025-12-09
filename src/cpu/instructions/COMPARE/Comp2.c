@@ -31,7 +31,7 @@
  * Flags: Z (zero), S (sign XOR overflow), C (carry/borrow)
  *   Z = 1 if result is zero (operands are equal)
  *   S = sign_bit XOR overflow (true comparison)
- *   C = 1 if NO borrow (op1 >= op2 for unsigned) - ND-500 uses ARM/6502 convention
+ *   C = 1 if borrow occurred (op1 < op2 for unsigned) - Intel convention
  *
  * Trap conditions: Addressing traps, Floating underflow (FU), Floating overflow (FO)
  *
@@ -51,11 +51,14 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t op1 = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     uint64_t op2 = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
+    /* DEBUG: trace comparison values */
+    TRACE("[COMP2] op1=0x%llX op2=0x%llX\n", (unsigned long long)op1, (unsigned long long)op2);
+
     /* Perform subtraction (result not stored) (like C# line 53) */
     uint64_t result = op1 - op2;
 
-    /* Detect carry - ND-500 uses ARM/6502 convention: C=1 means NO borrow (op1 >= op2) */
-    bool carry = (op1 >= op2);
+    /* Detect carry - Intel convention: C=1 means borrow occurred (op1 < op2) */
+    bool carry = (op1 < op2);
 
     /* Detect overflow (like C# line 57) */
     /* For subtraction overflow: overflow occurs when:
@@ -117,6 +120,8 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* S = sign_bit XOR overflow (like C# line 74) */
     bool s_flag = sign_bit ^ overflow;
+    TRACE("[COMP2] result=0x%llX sign=%d ovf=%d S=%d C=%d\n",
+          (unsigned long long)result, sign_bit, overflow, s_flag, carry);
     if (s_flag) {
         nd500_set_flag(cpu, ND500_FLAG_S);
     } else {
