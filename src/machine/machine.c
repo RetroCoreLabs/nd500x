@@ -13,7 +13,11 @@
 static void* run_thread(void* arg) {
 	Nd500Machine* m = (Nd500Machine*)arg;
 	while (m->run_flag) {
-		if (m->cpu) nd500_cpu_step(m->cpu);
+		/* Execute one instruction - returns false if trap occurred */
+		if (m->cpu && !nd500_cpu_step(m->cpu)) {
+			/* Trap occurred - stop execution */
+			break;
+		}
 		/* Simple throttle to avoid busy looping */
 		struct timespec ts = {0, 1000000}; /* 1ms */
 		nanosleep(&ts, NULL);
