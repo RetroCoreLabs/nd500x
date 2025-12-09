@@ -132,37 +132,12 @@ uint32_t nd500_read_operand_word(Nd500Cpu* cpu, const Nd500OperandDecoded* opera
 uint64_t nd500_read_operand_doubleword(Nd500Cpu* cpu, const Nd500OperandDecoded* operand);
 
 /**
- * Write byte (8-bit) to operand
- * Handles register and memory operands
- * @param cpu CPU state
- * @param operand Decoded operand
- * @param value 8-bit value to write
- */
-void nd500_write_operand_byte(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint8_t value);
-
-/**
- * Write halfword (16-bit) to operand
- * @param cpu CPU state
- * @param operand Decoded operand
- * @param value 16-bit value to write
- */
-void nd500_write_operand_halfword(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint16_t value);
-
-/**
  * Write word (32-bit) to operand
  * @param cpu CPU state
  * @param operand Decoded operand
  * @param value 32-bit value to write
  */
 void nd500_write_operand_word(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint32_t value);
-
-/**
- * Write doubleword (64-bit) to operand
- * @param cpu CPU state
- * @param operand Decoded operand
- * @param value 64-bit value to write
- */
-void nd500_write_operand_doubleword(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint64_t value);
 
 
 /* ============================================================================
