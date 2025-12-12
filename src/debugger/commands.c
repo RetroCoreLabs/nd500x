@@ -120,6 +120,9 @@ static int cmd_dumppt(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_quit(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_domverify(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_domain(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_heap(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_stackframe(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Forward declaration for init script execution (defined at end of file) */
 int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
@@ -181,6 +184,10 @@ static const CmdEntry g_commands[] = {
 	{"listpcb",     cmd_listpcb,      "List configured PCB domains"},
 	{"dumppt",      cmd_dumppt,       "Dump page table entries for PSN"},
 	{"domverify",   cmd_domverify,    "Verify DOM data in memory matches disk file"},
+	{"domain",      cmd_domain,       "Domain management (switch/symbols)"},
+	{"heap",        cmd_heap,         "Dump heap variables at TOS"},
+	{"stackframe",  cmd_stackframe,   "Dump stack frame at B register"},
+	{"sf",          cmd_stackframe,   "Dump stack frame at B register"},
 	{"mon",         cmd_mon,          "MON call settings (log/status/list/info/break)"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
@@ -3608,5 +3615,273 @@ int nd500_execute_init_script(Nd500Machine* m, const char* script_path) {
 	}
 
 	printf("[init] Script completed successfully\n");
+	return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * DOMAIN COMMAND - Unified domain management
+ * Usage:
+ *   domain              - Show current context + list loaded domains
+ *   domain <n>          - Show details for domain n
+ *   domain switch <n>   - Switch execution to domain n
+ *   domain symbols <n>  - Set symbol lookup domain to n
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static int cmd_domain(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "DOMAIN: ND-500 CPU required");
+		return -1;
+	}
+	Nd500Cpu* cpu = m->cpu;
+
+	/* Parse arguments */
+	char* arg1 = args ? strtok(args, " \t\r\n") : NULL;
+	char* arg2 = arg1 ? strtok(NULL, " \t\r\n") : NULL;
+
+	/* Check for subcommands */
+	if (arg1 && strcasecmp(arg1, "switch") == 0) {
+		/* domain switch <n> */
+		if (!arg2) {
+			error(ctx, "usage: domain switch <n>");
+			return -1;
+		}
+		uint32_t domain = nd500_cmd_parse_u32(arg2, 0);
+		if (domain > 255) {
+			error(ctx, "invalid domain: %s (must be 0-255)", arg2);
+			return -1;
+		}
+
+		/* Check if domain is loaded */
+		if (!g_loaded_domains[domain].is_loaded) {
+			error(ctx, "domain %u not loaded", domain);
+			return -1;
+		}
+
+		/* Switch to domain: set CED, CAD, and PC */
+		cpu->CED = (uint8_t)domain;
+		cpu->CAD = (uint8_t)domain;
+		cpu->PC = g_loaded_domains[domain].entry_point;
+		cpu->THA = g_loaded_domains[domain].trap_handler;
+
+		output(ctx, "Switched to domain %u (%s)", domain, g_loaded_domains[domain].domain_name);
+		output(ctx, "  PC = 0x%08X, THA = 0x%08X", cpu->PC, cpu->THA);
+		return 0;
+	}
+
+	if (arg1 && strcasecmp(arg1, "symbols") == 0) {
+		/* domain symbols <n> - set symbol lookup domain */
+		if (!arg2) {
+			/* Show current symbol domain */
+			output(ctx, "Symbol lookup domain: %u", cpu->symbol_domain);
+			output(ctx, "Usage: domain symbols <n>");
+			return 0;
+		}
+		uint32_t domain = nd500_cmd_parse_u32(arg2, 0);
+		if (domain > 255) {
+			error(ctx, "invalid domain: %s (must be 0-255)", arg2);
+			return -1;
+		}
+		cpu->symbol_domain = (uint8_t)domain;
+		output(ctx, "Symbol lookup now uses domain %u", domain);
+		return 0;
+	}
+
+	/* Check if argument is a number: domain <n> - show details */
+	if (arg1) {
+		char* endptr;
+		unsigned long domain = strtoul(arg1, &endptr, 0);
+		if (*endptr == '\0' && domain <= 255) {
+			if (!g_loaded_domains[domain].is_loaded) {
+				error(ctx, "domain %lu not loaded", domain);
+				return -1;
+			}
+
+			LoadedDomainInfo* info = &g_loaded_domains[domain];
+			const char* status = (domain == cpu->CED) ? "executing" : "loaded";
+			output(ctx, "Domain %lu: %s", domain, info->domain_name);
+			output(ctx, "  Entry:      0x%08X", info->entry_point);
+			output(ctx, "  THA:        0x%08X", info->trap_handler);
+			output(ctx, "  Segments:   %d", info->segment_count);
+			output(ctx, "  Status:     %s", status);
+			return 0;
+		}
+
+		error(ctx, "unknown: %s. Use: domain [n|switch n|symbols n]", arg1);
+		return -1;
+	}
+
+	/* No arguments: show current context + list all loaded domains */
+	output(ctx, "============================================================");
+	output(ctx, "  Domain Status");
+	output(ctx, "============================================================");
+	output(ctx, "");
+	output(ctx, "  Current Context");
+	output(ctx, "  ---------------");
+	output(ctx, "  CED (executing): %u    CAD (alternative): %u    Symbols: %u",
+	       cpu->CED, cpu->CAD, cpu->symbol_domain);
+	output(ctx, "");
+
+	/* List loaded domains */
+	output(ctx, "  Loaded Domains");
+	output(ctx, "  --------------");
+
+	int any_loaded = 0;
+	for (int i = 0; i < MAX_DOMAINS; i++) {
+		if (!g_loaded_domains[i].is_loaded) continue;
+		any_loaded = 1;
+
+		const char* status = "";
+		if (i == cpu->CED) status = " [executing]";
+		else if (i == cpu->CAD && cpu->CAD != cpu->CED) status = " [alt]";
+
+		output(ctx, "  %3d  %-16s  Entry: 0x%08X  Segs: %d%s",
+		       i, g_loaded_domains[i].domain_name,
+		       g_loaded_domains[i].entry_point,
+		       g_loaded_domains[i].segment_count, status);
+	}
+
+	if (!any_loaded) {
+		output(ctx, "  (none)");
+	}
+
+	output(ctx, "");
+	output(ctx, "  Commands: domain <n>, domain switch <n>, domain symbols <n>");
+	output(ctx, "============================================================");
+	return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HEAP COMMAND - Dump heap variables at TOS
+ * Heap Variables layout (ND-500 buddy system):
+ *   TOS+0   MAXL      Max log2 size of allocatable blocks
+ *   TOS+4   STAH      Start address of heap pool
+ *   TOS+8   ENDH      End address of heap pool
+ *   TOS+12  FLOG[0]   Freelist head for 2^0 = 1 word blocks
+ *   TOS+16  FLOG[1]   Freelist head for 2^1 = 2 word blocks
+ *   ...
+ *   TOS+12+n*4  FLOG[n]  Freelist head for 2^n word blocks
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static uint32_t read_virtual_word(Nd500Machine* m, uint32_t vaddr) {
+	/* Read a 32-bit word via data MMU */
+	uint32_t paddr;
+	if (nd500_mmu_is_data_enabled(m->cpu)) {
+		paddr = nd500_mmu_translate(m->cpu, vaddr, 0, 0);  /* data read */
+	} else {
+		paddr = vaddr;
+	}
+	return nd500_bus_read32(m, paddr);
+}
+
+static int cmd_heap(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "HEAP: ND-500 CPU required");
+		return -1;
+	}
+	Nd500Cpu* cpu = m->cpu;
+
+	uint32_t tos = cpu->TOS;
+	if (tos == 0) {
+		output(ctx, "No heap (TOS=0x00000000)");
+		return 0;
+	}
+
+	/* Read heap header fields using data MMU */
+	uint32_t maxl = read_virtual_word(m, tos + 0);
+	uint32_t stah = read_virtual_word(m, tos + 4);
+	uint32_t endh = read_virtual_word(m, tos + 8);
+
+	/* Limit maxl to reasonable value */
+	uint32_t maxl_display = (maxl > 31) ? 31 : maxl;
+	uint32_t max_block_words = (maxl <= 31) ? (1u << maxl) : 0;
+
+	output(ctx, "Heap Variables at TOS=0x%08X:", tos);
+	output(ctx, "  +0  MAXL  = 0x%08X    (max log2 size: %u, max block = 2^%u = %u words)",
+	       maxl, maxl, maxl, max_block_words);
+	output(ctx, "  +4  STAH  = 0x%08X    (heap start)", stah);
+	output(ctx, "  +8  ENDH  = 0x%08X    (heap end)", endh);
+	if (endh > stah) {
+		output(ctx, "       Heap size: %u bytes (%u words)", endh - stah, (endh - stah) / 4);
+	}
+	output(ctx, "");
+	output(ctx, "Free Lists:");
+
+	int any_free = 0;
+	for (uint32_t i = 0; i <= maxl_display; i++) {
+		uint32_t flog_offset = 12 + (i * 4);
+		uint32_t flog_val = read_virtual_word(m, tos + flog_offset);
+
+		/* Calculate block size for this freelist */
+		uint32_t block_words = (1u << i);
+		uint32_t block_bytes = block_words * 4;
+
+		if (flog_val != 0) {
+			/* Count blocks in this freelist (limit to avoid infinite loops) */
+			int count = 0;
+			uint32_t ptr = flog_val;
+			while (ptr != 0 && count < 100) {
+				count++;
+				ptr = read_virtual_word(m, ptr);
+			}
+			output(ctx, "  +%u FLOG[%2u] = 0x%08X  (2^%u = %5u words = %6u bytes, %d block%s)",
+			       flog_offset, i, flog_val, i, block_words, block_bytes,
+			       count, (count == 1) ? "" : "s");
+			any_free = 1;
+		}
+	}
+
+	if (!any_free) {
+		output(ctx, "  (all freelists empty)");
+	}
+
+	return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * STACKFRAME / SF COMMAND - Dump current stack frame structure at B register
+ * Stack frame layout (ND-500):
+ *   B+0   PREVB   Previous B register value
+ *   B+4   RETA    Return address
+ *   B+8   SP      Stack pointer (next free location)
+ *   B+12  AUX     Auxiliary field
+ *   B+16  N       Number of arguments
+ *   B+20+ ARGn    Argument addresses
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static int cmd_stackframe(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "STACKFRAME: ND-500 CPU required");
+		return -1;
+	}
+	Nd500Cpu* cpu = m->cpu;
+
+	uint32_t b = cpu->B;
+	if (b == 0) {
+		output(ctx, "No stack frame (B=0x00000000)");
+		return 0;
+	}
+
+	/* Read stack frame fields using data MMU */
+	uint32_t prevb = read_virtual_word(m, b + 0);
+	uint32_t reta = read_virtual_word(m, b + 4);
+	uint32_t sp = read_virtual_word(m, b + 8);
+	uint32_t aux = read_virtual_word(m, b + 12);
+	uint32_t n = read_virtual_word(m, b + 16);
+
+	output(ctx, "Stack Frame at B=0x%08X:", b);
+	output(ctx, "  +0  PREVB = 0x%08X    (previous frame)", prevb);
+	output(ctx, "  +4  RETA  = 0x%08X    (return address)", reta);
+	output(ctx, "  +8  SP    = 0x%08X    (next free)", sp);
+	output(ctx, "  +12 AUX   = 0x%08X    (auxiliary)", aux);
+	output(ctx, "  +16 N     = 0x%08X    (arg count: %u)", n, n);
+
+	/* Display arguments (limit to reasonable number) */
+	uint32_t max_args = (n > 32) ? 32 : n;
+	for (uint32_t i = 0; i < max_args; i++) {
+		uint32_t arg_offset = 20 + (i * 4);
+		uint32_t arg_val = read_virtual_word(m, b + arg_offset);
+		output(ctx, "  +%u ARG%u  = 0x%08X", arg_offset, i + 1, arg_val);
+	}
+	if (n > 32) {
+		output(ctx, "  ... (%u more arguments)", n - 32);
+	}
+
 	return 0;
 }

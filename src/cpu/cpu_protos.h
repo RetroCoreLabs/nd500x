@@ -64,6 +64,9 @@ typedef struct Nd500Cpu {
 	/* Domain allocation tracking (like C# domainsInUse[]) */
 	uint8_t domains_in_use[256];  /* 0=free, 1=allocated. Domain 0 always in use (kernel) */
 
+	/* Symbol domain (for debugger symbol lookup - separate from CED/CAD) */
+	uint8_t symbol_domain;
+
 	/* CALL/ENT handshake state (internal CPU state not visible to programs) */
 	uint32_t pending_call_return_address;  /* Return address from CALL to pass to ENT */
 	uint32_t pending_call_arg_count;       /* Number of arguments from CALL */
