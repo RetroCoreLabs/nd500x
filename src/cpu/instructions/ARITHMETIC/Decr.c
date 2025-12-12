@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <math.h>
 
 /**
  * Decr instruction - ARITHMETIC class
@@ -16,10 +17,10 @@
  *   0xFC86 (BY DECR) - Byte decrement
  *   0xFC87 (H DECR) - Halfword decrement
  *   0x0051 (W DECR) - Word decrement
- *   0xFC88 (F DECR) - Float decrement (NOT IMPLEMENTED)
- *   0xFC89 (D DECR) - Double decrement (NOT IMPLEMENTED)
+ *   0xFC88 (F DECR) - Float decrement
+ *   0xFC89 (D DECR) - Double decrement
  *
- * Operation: operand ← operand - 1
+ * Operation: operand <- operand - 1
  *
  * Description:
  *   The operand is decremented by one. The Carry bit is set if a borrow
@@ -44,10 +45,63 @@ void nd500_instr_Decr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Check for float/double variants (not yet implemented) */
+    /* Handle float/double variants */
     if (fi->uses_float_registers) {
-        printf("[STUB] DECR at PC=0x%08X: Float/double decrement not yet implemented (opcode 0x%04X)\n",
-               fi->address, fi->opcode);
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+
+        /* Read operand value */
+        double value = 0.0;
+        if (is_double) {
+            uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+            value = nd500_double_to_ieee754(op_bits);
+        } else {
+            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            value = (double)nd500_float_to_ieee754(op_bits);
+        }
+
+        /* Perform decrement by 1.0 */
+        double result = value - 1.0;
+
+        /* Check for overflow/underflow */
+        if (isinf(result) || isnan(result)) {
+            trap_floating_overflow(cpu, fi->address);
+        }
+
+        /* Convert result back to ND-500 format and write back */
+        uint64_t result_bits = 0;
+        if (is_double) {
+            result_bits = nd500_double_from_ieee754(result);
+            nd500_write_operand_value(cpu, &fi->operands[0], result_bits, ND500_DTYPE_DOUBLEWORD);
+        } else {
+            result_bits = nd500_float_from_ieee754((float)result);
+            nd500_write_operand_value(cpu, &fi->operands[0], (uint32_t)result_bits, ND500_DTYPE_WORD);
+        }
+
+        /* Update flags: Z (zero), S (sign) */
+        if (is_double) {
+            if (nd500_double_is_zero(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_Z);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_Z);
+            }
+            if (nd500_double_is_negative(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_S);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_S);
+            }
+        } else {
+            uint32_t float_bits = (uint32_t)result_bits;
+            if (nd500_float_is_zero(float_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_Z);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_Z);
+            }
+            if (nd500_float_is_negative(float_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_S);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_S);
+            }
+        }
         return;
     }
 
