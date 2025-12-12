@@ -243,16 +243,6 @@ void nd500_instr_Putbf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t inserted_value = reg_value & (uint32_t)mask;
 
     // Update status flags: Z and S based on inserted field value
-    if (inserted_value == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;   // Set Z if inserted field is 0
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;  // Clear Z if inserted field is non-zero
-    }
-
-    // S flag: MSB of inserted field value (considering field size)
-    if (field_size > 0 && (inserted_value & (1U << (field_size - 1)))) {
-        cpu->ST1 |= ND500_FLAG_S;   // Set S if MSB of inserted field is 1
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_S;  // Clear S if MSB of inserted field is 0
-    }
+    // Use nd500_set_flags_zs which checks sign based on datatype, not field size
+    nd500_set_flags_zs(cpu, inserted_value, fi->data_type);
 }
