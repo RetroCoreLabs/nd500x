@@ -32,6 +32,7 @@ static int g_profiling = -1;    /* instruction profiling mode */
 static int g_trap_invalid = -1; /* trap on invalid instruction 0x00 */
 static int g_show_source = 0;   /* 0: off, 1: asm only, 2: c only, 3: both */
 static int g_mmu_log_level = MMU_LOG_ERRORS;  /* MMU logging: 0=off, 1=errors, 2=trace, 3=all */
+static int g_memtrace_flags = 0;  /* memory access trace flags (bitmask) */
 
 /* Profiling data structures */
 #define MAX_PROFILE_ENTRIES 256
@@ -539,64 +540,156 @@ int nd500_dbg_get_trace_mode(void) {
     return g_trace_mode;
 }
 
-void nd500_dbg_trace_instruction(uint32_t pc, const char* disasm, uint32_t* registers) {
+/* Memory trace mode functions */
+int nd500_dbg_set_memtrace(int flags) {
+    g_memtrace_flags = flags;
+    return g_memtrace_flags;
+}
+
+int nd500_dbg_get_memtrace(void) {
+    return g_memtrace_flags;
+}
+
+/* Layout constants for trace output (matching C# implementation) */
+#define TRACE_BYTES_PER_LINE 6
+#define TRACE_PC_WIDTH       10   /* "0x0802D467" */
+#define TRACE_BYTES_WIDTH    18   /* 6 bytes * 3 chars */
+#define TRACE_DISASM_WIDTH   40   /* fixed width for disassembly */
+
+/* Format flags as string: ZSCKO (uppercase=set, lowercase=clear) */
+static void format_flags(uint32_t st1, char* out) {
+    /* Flag bit positions in ST1 */
+    out[0] = (st1 & (1u << 5)) ? 'Z' : 'z';  /* Zero */
+    out[1] = (st1 & (1u << 7)) ? 'S' : 's';  /* Sign */
+    out[2] = (st1 & (1u << 6)) ? 'C' : 'c';  /* Carry */
+    out[3] = (st1 & (1u << 8)) ? 'K' : 'k';  /* K (destination full) */
+    out[4] = (st1 & (1u << 9)) ? 'O' : 'o';  /* Overflow */
+    out[5] = '\0';
+}
+
+/*
+ * Two-phase trace: before execution
+ * Format: PC BYTES(max 6) MNEMONIC(40 wide) | I1[x] I2[x] I3[x] I4[x] [flags] B[x] L[x] R[x] TOS[x]
+ *         (continuation bytes if >6)
+ */
+void nd500_dbg_trace_before(uint32_t pc, const char* mnemonic,
+                            const uint8_t* instr_bytes, int instr_len,
+                            uint32_t* before_regs) {
     if (!nd500_dbg_get_trace_mode()) return;
 
-    /* Calculate prefix length for aligning continuation lines:
-     * "[TRACE] " = 8, "I1=XXXXXXXX " * 4 = 48, "[.....] " = 8, total = 64 */
-    static const int TRACE_PREFIX_LEN = 64;
+    int nbytes = (instr_len > 32) ? 32 : instr_len;
 
-    printf("%s[TRACE]%s ", color_meta(), color_reset());
+    /* Format flags string */
+    char flag_str[8];
+    format_flags(before_regs[8], flag_str);
 
-    if (registers) {
-        /* Format FLAGS as string: K O DZ FO FU . . S C Z . . . . . */
-        /* regs[8] = FLAGS, bits: 5=Z, 6=C, 7=S, 8=K, 9=O, 12=DZ, 13=FU, 14=FO */
-        uint32_t flags = registers[8];
-        char flag_str[16];
-        flag_str[0] = (flags & (1u << 8))  ? 'K' : '.';  /* K - Destination full */
-        flag_str[1] = (flags & (1u << 9))  ? 'O' : '.';  /* O - Overflow */
-        flag_str[2] = (flags & (1u << 7))  ? 'S' : '.';  /* S - Sign */
-        flag_str[3] = (flags & (1u << 6))  ? 'C' : '.';  /* C - Carry */
-        flag_str[4] = (flags & (1u << 5))  ? 'Z' : '.';  /* Z - Zero */
-        flag_str[5] = '\0';
+    /* Build register state string */
+    char regs_str[256];
+    snprintf(regs_str, sizeof(regs_str),
+             "I1[%08X] I2[%08X] I3[%08X] I4[%08X] [%s] B[%08X] L[%08X] R[%08X] TOS[%08X]",
+             before_regs[1], before_regs[2], before_regs[3], before_regs[4],
+             flag_str,
+             before_regs[6], before_regs[5], before_regs[7], before_regs[9]);
 
-        printf("I1=%08X I2=%08X I3=%08X I4=%08X [%s] ",
-               registers[1], registers[2], registers[3], registers[4], flag_str);
+    /* Format first 6 bytes */
+    char bytes_str[64];
+    int bytes_pos = 0;
+    int first_chunk = (nbytes > TRACE_BYTES_PER_LINE) ? TRACE_BYTES_PER_LINE : nbytes;
+    for (int i = 0; i < first_chunk; i++) {
+        if (i > 0) bytes_str[bytes_pos++] = ' ';
+        bytes_pos += snprintf(bytes_str + bytes_pos, sizeof(bytes_str) - bytes_pos, "%02X", instr_bytes[i]);
     }
+    bytes_str[bytes_pos] = '\0';
 
-    /* Handle multi-line disasm: print first line normally, indent continuation lines */
-    if (!disasm || !*disasm) {
-        printf("?\n");
-        return;
-    }
+    /* Use mnemonic directly */
+    const char* mnem = mnemonic ? mnemonic : "???";
 
-    const char* line_start = disasm;
-    const char* p = disasm;
-    int first_line = 1;
+    /* Print first line: PC + bytes + mnemonic + registers */
+    printf("0x%08X %-*s %-*s | %s\n",
+           pc,
+           TRACE_BYTES_WIDTH, bytes_str,
+           TRACE_DISASM_WIDTH, mnem,
+           regs_str);
 
-    while (*p) {
-        if (*p == '\n') {
-            /* Print this line */
-            int line_len = (int)(p - line_start);
-            if (first_line) {
-                printf("%.*s\n", line_len, line_start);
-                first_line = 0;
-            } else {
-                /* Continuation line: add prefix-width spaces to align with main line */
-                printf("%*s%.*s\n", TRACE_PREFIX_LEN, "", line_len, line_start);
-            }
-            line_start = p + 1;
+    /* Print continuation lines for remaining bytes (>6) */
+    int offset = TRACE_BYTES_PER_LINE;
+    while (offset < nbytes) {
+        int chunk = (nbytes - offset > TRACE_BYTES_PER_LINE) ? TRACE_BYTES_PER_LINE : (nbytes - offset);
+        bytes_pos = 0;
+        for (int i = 0; i < chunk; i++) {
+            if (i > 0) bytes_str[bytes_pos++] = ' ';
+            bytes_pos += snprintf(bytes_str + bytes_pos, sizeof(bytes_str) - bytes_pos, "%02X", instr_bytes[offset + i]);
         }
-        p++;
+        bytes_str[bytes_pos] = '\0';
+        /* Indent continuation: PC_WIDTH + 1 space */
+        printf("%*s%s\n", TRACE_PC_WIDTH + 1, "", bytes_str);
+        offset += TRACE_BYTES_PER_LINE;
+    }
+}
+
+/*
+ * Two-phase trace: after execution
+ * Prints register changes: "  -> I1=xxx B=xxx L=xxx ..."
+ */
+void nd500_dbg_trace_after(uint32_t* before_regs, uint32_t* after_regs) {
+    if (!nd500_dbg_get_trace_mode()) return;
+
+    int any_changed = 0;
+    char changes[512];
+    int pos = 0;
+
+    /* Start with arrow prefix */
+    pos += snprintf(changes + pos, sizeof(changes) - pos, "  -> ");
+
+    /* Check I1-I4 */
+    if (after_regs[1] != before_regs[1]) {
+        pos += snprintf(changes + pos, sizeof(changes) - pos, "I1=%08X ", after_regs[1]);
+        any_changed = 1;
+    }
+    if (after_regs[2] != before_regs[2]) {
+        pos += snprintf(changes + pos, sizeof(changes) - pos, "I2=%08X ", after_regs[2]);
+        any_changed = 1;
+    }
+    if (after_regs[3] != before_regs[3]) {
+        pos += snprintf(changes + pos, sizeof(changes) - pos, "I3=%08X ", after_regs[3]);
+        any_changed = 1;
+    }
+    if (after_regs[4] != before_regs[4]) {
+        pos += snprintf(changes + pos, sizeof(changes) - pos, "I4=%08X ", after_regs[4]);
+        any_changed = 1;
     }
 
-    /* Print any remaining content (line without trailing newline) */
-    if (line_start < p) {
-        if (first_line) {
-            printf("%s\n", line_start);
-        } else {
-            printf("%*s%s\n", TRACE_PREFIX_LEN, "", line_start);
-        }
+    /* Check flags (ST1) */
+    if (after_regs[8] != before_regs[8]) {
+        char flag_str[8];
+        format_flags(after_regs[8], flag_str);
+        pos += snprintf(changes + pos, sizeof(changes) - pos, "[%s] ", flag_str);
+        any_changed = 1;
+    }
+
+    /* Check B, L, R, TOS */
+    if (after_regs[6] != before_regs[6]) {
+        pos += snprintf(changes + pos, sizeof(changes) - pos, "B=%08X ", after_regs[6]);
+        any_changed = 1;
+    }
+    if (after_regs[5] != before_regs[5]) {
+        pos += snprintf(changes + pos, sizeof(changes) - pos, "L=%08X ", after_regs[5]);
+        any_changed = 1;
+    }
+    if (after_regs[7] != before_regs[7]) {
+        pos += snprintf(changes + pos, sizeof(changes) - pos, "R=%08X ", after_regs[7]);
+        any_changed = 1;
+    }
+    if (after_regs[9] != before_regs[9]) {
+        pos += snprintf(changes + pos, sizeof(changes) - pos, "TOS=%08X ", after_regs[9]);
+        any_changed = 1;
+    }
+
+    /* Only print if something changed */
+    if (any_changed) {
+        /* Remove trailing space */
+        if (pos > 0 && changes[pos-1] == ' ') changes[pos-1] = '\0';
+        printf("%s\n", changes);
     }
 }
 
