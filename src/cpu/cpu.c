@@ -127,16 +127,21 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 	uint32_t old_pc = cpu->PC;
 	if (nd500_decode_at(cpu->machine, old_pc, &fi) != 0) return false;
 
-	/* Trace instruction execution if enabled */
-	if (nd500_dbg_get_trace_mode()) {
-		uint32_t regs[9] = {cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3], cpu->L, cpu->B, cpu->R, cpu->ST1};
-		/* Get full disassembly for trace output */
-		char disasm_buf[256];
-		nd500_disasm_format_range(cpu->machine, old_pc, fi.total_len ? fi.total_len : fi.opcode_len, disasm_buf, sizeof(disasm_buf));
-		/* Remove trailing newline if present */
-		size_t len = strlen(disasm_buf);
-		if (len > 0 && disasm_buf[len-1] == '\n') disasm_buf[len-1] = '\0';
-		nd500_dbg_trace_instruction(old_pc, disasm_buf, regs);
+	/* Trace instruction execution if enabled - save state before execution */
+	static uint32_t saved_regs[10];
+	int do_trace = nd500_dbg_get_trace_mode();
+	if (do_trace) {
+		saved_regs[0] = cpu->PC;
+		saved_regs[1] = cpu->I[0]; saved_regs[2] = cpu->I[1];
+		saved_regs[3] = cpu->I[2]; saved_regs[4] = cpu->I[3];
+		saved_regs[5] = cpu->L;    saved_regs[6] = cpu->B;
+		saved_regs[7] = cpu->R;    saved_regs[8] = cpu->ST1;
+		saved_regs[9] = cpu->TOS;
+		/* Format instruction with operands and output trace */
+		char instr_str[128];
+		nd500_format_instruction(instr_str, sizeof(instr_str), &fi);
+		int instr_len = fi.total_len ? fi.total_len : fi.opcode_len;
+		nd500_dbg_trace_before(old_pc, instr_str, fi.bytes, instr_len, saved_regs);
 	}
 
 	/* Profile instruction execution if enabled */
@@ -149,6 +154,13 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 	cpu->PC = old_pc + (fi.total_len ? fi.total_len : fi.opcode_len);
 
 	nd500_execute_decoded(cpu, &fi);
+
+	/* Trace register changes after execution */
+	if (do_trace) {
+		uint32_t after_regs[10] = {cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3],
+		                           cpu->L, cpu->B, cpu->R, cpu->ST1, cpu->TOS};
+		nd500_dbg_trace_after(saved_regs, after_regs);
+	}
 
 	/* Increment instruction counter (used by MON 11B TIME) */
 	cpu->instruction_count++;
@@ -197,11 +209,14 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {
  *
  * @param cpu       CPU structure to modify
  * @param trapBit   The trap bit(s) to set (use TRAP_xxx defines)
- * @param trapPC    PC where trap occurred
+ * @param trapPC    PC where trap occurred (the trapping instruction, NOT the next one)
  * @param dataAddr  Related memory address (if applicable)
  *
- * For non-ignorable/fatal traps: Sets status bit and longjmps back to cpu_run()
- * For ignorable traps: Sets status bit only if enabled in OTE mask
+ * For non-ignorable/fatal traps: Sets status bit and stops execution
+ * For ignorable traps:
+ *   - If enabled in OTE and handler exists: invoke handler immediately
+ *   - If enabled in OTE but no handler: stop execution
+ *   - If not enabled in OTE: just set status bit, continue execution
  */
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
 	if (!cpu) return;
@@ -214,11 +229,10 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		cpu->ST2 |= (uint32_t)(trapBit >> 32);
 	}
 
-	/* Set trap state for the runner to check */
-	nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
-
-	/* Check if this is a non-ignorable trap */
+	/* Check if this is a non-ignorable/fatal trap (bits 32+) */
 	if (trapBit & TRAP_INTERRUPT_MASK) {
+		/* Set trap state - this WILL stop execution */
+		nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
 		TRACE("[TRAP] %s at PC=0x%08X data=0x%08X\n",
 		      nd500_stop_reason_str(trap_to_stop_reason(trapBit)), trapPC, dataAddr);
 		if (cpu->machine) {
@@ -229,11 +243,19 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 				cpu->machine->stop_data = dataAddr;
 			}
 		}
+		return;
 	}
 
 	/* Ignorable trap (bits 11-29): check if enabled in OTE mask */
 	uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
-	(void)ote; /* Will be checked at end of instruction by check_pending_traps() */
+	if (trapBit & ote & TRAP_IGNORABLE_MASK) {
+		/* Trap is enabled - invoke handler immediately */
+		/* Pass trapPC (the trapping instruction's address) so RETT can retry it */
+		invoke_trap_handler(cpu, trapBit, trapPC);
+		/* If invoke_trap_handler succeeded, execution continues in handler */
+		/* If no handler was found, it will have stopped execution */
+	}
+	/* If trap is not enabled in OTE, just continue (status bit is set, no stop) */
 }
 
 /**
@@ -264,10 +286,21 @@ void check_pending_traps(Nd500Cpu* cpu) {
 
 /**
  * Invoke trap handler for a specific trap
+ *
+ * This function implements the ND-500 trap dispatch mechanism:
+ * 1. Calculate trap number from bit position
+ * 2. Read handler address from THA vector
+ * 3. Verify ENTT instruction at handler address
+ * 4. Save state for RETT to restore
+ * 5. Clear OTE to prevent recursive traps
+ * 6. Jump to handler by setting PC
+ *
+ * The trap handler must start with ENTT and end with RETT.
+ * RETT will return to the trapping instruction (trappingP) to retry it.
  */
 void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 	if (!cpu) return;
-	
+
 	/* Calculate trap number (bit position) */
 	int trapNumber = 0;
 	for (int i = 0; i < 64; i++) {
@@ -280,20 +313,56 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 	/* THA points to start address vector (64 words = 256 bytes) */
 	/* Handler address = THA + (trapNumber * 4) in byte-addressed memory */
 	uint32_t handlerPointer = cpu->THA + (trapNumber * 4);
-	
-	/* TODO: Full implementation requires:
-	 * 1. Save context (registers, status) to trap handler data field
-	 * 2. Clear OTE to prevent recursive traps
-	 * 3. Read handler address from memory[handlerPointer]
-	 * 4. Jump to handler (set PC)
-	 * 5. On RETT instruction, restore context
-	 */
-	
-	/* For now: just clear the trap bit */
-	if (trapBit & 0xFFFFFFFF)
-		cpu->ST1 &= ~(uint32_t)(trapBit & 0xFFFFFFFF);
-	if (trapBit >> 32)
-		cpu->ST2 &= ~(uint32_t)(trapBit >> 32);
+
+	/* Read handler address from DATA space (use MMU translation) */
+	uint32_t paddr_tha = nd500_mmu_translate(cpu, handlerPointer, 0, 0); /* read, data */
+	uint32_t handlerAddr = nd500_bus_read32(cpu->machine, paddr_tha);
+
+	if (handlerAddr == 0) {
+		printf("[TRAP] No trap handler at THA[%d] (THA=0x%08X, ptr=0x%08X)\n",
+		       trapNumber, cpu->THA, handlerPointer);
+		/* Clear trap bit since we can't handle it */
+		if (trapBit & 0xFFFFFFFF)
+			cpu->ST1 &= ~(uint32_t)(trapBit & 0xFFFFFFFF);
+		if (trapBit >> 32)
+			cpu->ST2 &= ~(uint32_t)(trapBit >> 32);
+		return;
+	}
+
+	/* Verify ENTT instruction at handler address (PROG space) */
+	/* ENTT opcode is 0xBC (single-byte opcode in the 0x00BC table entry) */
+	uint32_t paddr_handler = nd500_mmu_translate(cpu, handlerAddr, 0, 1); /* read, instruction */
+	uint8_t byte0 = nd500_bus_read8(cpu->machine, paddr_handler);
+	if (byte0 != 0xBC) {
+		printf("[TRAP] No ENTT instruction at trap handler 0x%08X (found 0x%02X, expected 0xBC)\n",
+		       handlerAddr, byte0);
+		/* Clear trap bit since handler is invalid */
+		if (trapBit & 0xFFFFFFFF)
+			cpu->ST1 &= ~(uint32_t)(trapBit & 0xFFFFFFFF);
+		if (trapBit >> 32)
+			cpu->ST2 &= ~(uint32_t)(trapBit >> 32);
+		return;
+	}
+
+	/* Save state for RETT to restore */
+	cpu->trap_saved_PC = trappingP;      /* Return to trapping instruction */
+	cpu->trap_saved_OTE1 = cpu->OTE1;    /* Save trap enable state */
+	cpu->trap_saved_OTE2 = cpu->OTE2;
+	cpu->trap_number = trapNumber;
+	cpu->in_trap_handler = true;
+
+	/* Clear OTE to prevent recursive traps during handler execution */
+	cpu->OTE1 = 0;
+	cpu->OTE2 = 0;
+
+	/* Jump to handler - set PC to handler address */
+	cpu->PC = handlerAddr;
+
+	/* Clear global trap state since we're handling it */
+	nd500_trap_clear();
+
+	printf("[TRAP] Trap %d: jumping to handler at 0x%08X, will return to 0x%08X\n",
+	       trapNumber, handlerAddr, trappingP);
 }
 
 /* ═══════════════════════════════════════════════════════ */
