@@ -59,10 +59,21 @@ uint32_t nd500_calc_branch_target(uint32_t pc, int32_t displacement);
 
 /**
  * Extract displacement from operand data bytes (big-endian).
- * 
+ *
  * @param op  Decoded operand
  * @return Signed displacement value
  */
 int32_t nd500_get_operand_displacement(const struct Nd500OperandDecoded* op);
 
+/**
+ * Format instruction mnemonic with operands (no address/bytes).
+ * Output format: "[dtype][reg] mnemonic operand1,operand2,..."
+ * Example: "w1 :=           B.0x00" or "call         $134403143,$0"
+ *
+ * @param buf  Output buffer
+ * @param cap  Buffer capacity
+ * @param fi   Decoded instruction
+ * @return Number of characters written (excluding NUL)
+ */
+size_t nd500_format_instruction(char* buf, size_t cap, const Nd500FetchedInstruction* fi);
 
