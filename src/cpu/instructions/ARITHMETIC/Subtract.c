@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <math.h>
 
 /**
  * Subtract instruction - ARITHMETIC class
@@ -53,7 +54,81 @@ void nd500_instr_Subtract(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Validate operand count and target register using helper functions
     if (!nd500_validate_operand_count(cpu, fi, 1, INSTR_SUBTRACT)) return;
     if (!nd500_validate_target_register(cpu, fi, INSTR_SUBTRACT)) return;
-    if (nd500_check_float_stub(fi, INSTR_SUBTRACT)) return;
+
+    /* Handle float/double variants */
+    if (fi->uses_float_registers) {
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+        uint8_t reg_num = fi->target_register;
+
+        if (reg_num < 1 || reg_num > 4) {
+            printf("[ERROR] SUBTRACT at PC=0x%08X: Invalid register %u\n",
+                   fi->address, reg_num);
+            trap_illegal_operand(cpu, fi->address);
+            return;
+        }
+
+        /* Read register value */
+        double reg_value = 0.0;
+        if (is_double) {
+            uint64_t reg_bits = nd500_read_double_register(cpu, reg_num);
+            reg_value = nd500_double_to_ieee754(reg_bits);
+        } else {
+            uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
+            reg_value = (double)nd500_float_to_ieee754(reg_bits);
+        }
+
+        /* Read operand value */
+        double operand_value = 0.0;
+        if (is_double) {
+            uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+            operand_value = nd500_double_to_ieee754(op_bits);
+        } else {
+            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            operand_value = (double)nd500_float_to_ieee754(op_bits);
+        }
+
+        /* Perform subtraction */
+        double result = reg_value - operand_value;
+
+        /* Check for overflow/underflow */
+        if (isinf(result)) {
+            trap_floating_overflow(cpu, fi->address);
+        }
+
+        /* Convert result back to ND-500 format and write to register */
+        if (is_double) {
+            uint64_t result_bits = nd500_double_from_ieee754(result);
+            nd500_write_double_register(cpu, reg_num, result_bits);
+
+            /* Update flags: Z (zero), S (sign) */
+            if (nd500_double_is_zero(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_Z);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_Z);
+            }
+            if (nd500_double_is_negative(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_S);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_S);
+            }
+        } else {
+            uint32_t result_bits = nd500_float_from_ieee754((float)result);
+            nd500_write_float_register(cpu, reg_num, result_bits);
+
+            /* Update flags: Z (zero), S (sign) */
+            if (nd500_float_is_zero(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_Z);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_Z);
+            }
+            if (nd500_float_is_negative(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_S);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_S);
+            }
+        }
+        return;
+    }
 
     // Integer subtraction
     uint32_t reg_value = nd500_read_integer_register(cpu, fi->target_register);
