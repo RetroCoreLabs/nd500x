@@ -253,16 +253,76 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             }
         }
 
-        /* STEP 4: Check if allocation failed (no blocks available) */
+        /* STEP 4: Check if allocation failed - try auto-initialization from STAH/ENDH */
         if (block_addr == 0) {
-            /* No blocks available - trap STO */
-            /* Note: STAH/ENDH are NOT used for allocation - they're only for initialization/trap handlers */
-            TRACE("[TRACE] GETB: FAILED - searched freelist[%u..%u], all empty\n",
-                  log_size, max_log);
-            printf("[TRAP] GETB at PC=0x%08X: No blocks available for log_size=%u\n",
-                   fi->address, log_size);
-            trap_stack_overflow(cpu, fi->address);
-            return;
+            /* Read STAH and ENDH from heap variables */
+            uint32_t stah = nd500_read_memory_32(cpu, heap_vars_addr + 4);
+            uint32_t endh = nd500_read_memory_32(cpu, heap_vars_addr + 8);
+
+            TRACE("[TRACE] GETB: All FLOGs empty, checking STAH=0x%08X ENDH=0x%08X\n", stah, endh);
+
+            /* If STAH/ENDH define a valid range, auto-initialize the heap */
+            if (stah != 0 && endh > stah) {
+                uint32_t heap_size_bytes = endh - stah;
+                uint32_t heap_size_words = heap_size_bytes / 4;
+
+                /* Calculate largest power-of-2 block that fits */
+                uint8_t init_log = 0;
+                uint32_t test_size = 1;
+                while (test_size * 2 <= heap_size_words && init_log < max_log) {
+                    test_size *= 2;
+                    init_log++;
+                }
+
+                if (init_log >= log_size) {
+                    /* Add initial block to freelist */
+                    uint32_t init_freelist_addr = heap_vars_addr + 12 + (init_log * 4);
+                    nd500_write_memory_32(cpu, stah, 0);  /* block.next = NULL */
+                    nd500_write_memory_32(cpu, init_freelist_addr, stah);
+
+                    TRACE("[TRACE] GETB: Auto-init heap: added 0x%08X (2^%u words) to FLOG[%u]\n",
+                          stah, init_log, init_log);
+
+                    /* Now allocate from the newly initialized heap */
+                    if (init_log == log_size) {
+                        /* Exact size - just use it */
+                        block_addr = stah;
+                        nd500_write_memory_32(cpu, init_freelist_addr, 0);  /* Remove from list */
+                    } else {
+                        /* Need to split - get block and split down */
+                        block_addr = stah;
+                        nd500_write_memory_32(cpu, init_freelist_addr, 0);  /* Remove from list */
+                        found_size = init_log;
+
+                        while (found_size > log_size) {
+                            found_size--;
+
+                            uint32_t half_block_size_words = (1U << found_size);
+                            uint32_t half_block_size_bytes = half_block_size_words * 4;
+                            uint32_t buddy_addr = block_addr + half_block_size_bytes;
+
+                            uint32_t buddy_list_addr = heap_vars_addr + 12 + (found_size * 4);
+                            uint32_t old_head = nd500_read_memory_32(cpu, buddy_list_addr);
+
+                            nd500_write_memory_32(cpu, buddy_addr, old_head);
+                            nd500_write_memory_32(cpu, buddy_list_addr, buddy_addr);
+
+                            TRACE("[TRACE] GETB: Auto-init split: kept 0x%08X, buddy 0x%08X -> freelist[%u]\n",
+                                  block_addr, buddy_addr, found_size);
+                        }
+                    }
+                }
+            }
+
+            /* If still no block, trap */
+            if (block_addr == 0) {
+                TRACE("[TRACE] GETB: FAILED - searched freelist[%u..%u], all empty, STAH/ENDH invalid\n",
+                      log_size, max_log);
+                printf("[TRAP] GETB at PC=0x%08X: No blocks available for log_size=%u\n",
+                       fi->address, log_size);
+                trap_stack_overflow(cpu, fi->address);
+                return;
+            }
         }
     }
 
