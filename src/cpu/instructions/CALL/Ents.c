@@ -10,7 +10,7 @@
  * Creates a new stack frame linked to the previous frame.
  *
  * Mnemonic: ENTS
- * Operands: 1 (stack demand in words)
+ * Operands: 1 (stack demand in BYTES - per ND-05.009.4 Section 13.10)
  * Opcode: 0x00B8
  *
  * Stack Frame Layout (offsets from B):
@@ -63,9 +63,8 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Read stack demand operand (in words, multiply by 4 for bytes) */
-    uint32_t stack_demand_words = nd500_read_operand_word(cpu, &fi->operands[0]);
-    uint32_t stack_demand = stack_demand_words * 4;  /* Convert words to bytes */
+    /* Read stack demand operand (already in bytes per ND-05.009.4 Section 13.10) */
+    uint32_t stack_demand = nd500_read_operand_word(cpu, &fi->operands[0]);
 
     /* Read old B.SP to get new B */
     uint32_t old_b = cpu->B;
