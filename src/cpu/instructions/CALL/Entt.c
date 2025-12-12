@@ -176,99 +176,248 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ========================================================================
      * STEP 1: VALIDATE OPERAND COUNT
      * ======================================================================== */
-    if (fi->operand_count != 0) {
-        printf("[ERROR] ENTT expects 0 operands, got %u at PC=0x%08X\n",
+    if (fi->operand_count != 2) {
+        printf("[ERROR] ENTT expects 2 operands, got %u at PC=0x%08X\n",
                fi->operand_count, fi->address);
         trap_illegal_operand(cpu, fi->address);
         return;
     }
 
     /* ========================================================================
-     * STUB IMPLEMENTATION
+     * ENTT - Enter Trap Handler
      * ========================================================================
      *
-     * ENTT requires extensive trap system infrastructure that is not yet
-     * implemented in the C emulator:
+     * ENTT is the first instruction in every trap handler routine.
+     * It sets up the trap handler's local data field and saves the complete
+     * register block so RETT can restore it later.
      *
-     * Missing Infrastructure:
-     * 1. PCB (Process Control Block) structure per domain
-     *    - Stores saved CPU context
-     *    - Tracks pending trap information
-     *    - Manages trap enable states
-     *
-     * 2. DomainContext structure
-     *    - Full register set save/restore
-     *    - Trap condition tracking
-     *    - Mother domain linkage
-     *
-     * 3. Trap enable registers
-     *    - OTE1, OTE2 (Open Trap Enable)
-     *    - MTE1, MTE2 (Masked Trap Enable)
-     *
-     * 4. Domain management
-     *    - Current Active Domain (CAD) register
-     *    - Domain switching logic
-     *    - Domain information table (DIT)
-     *
-     * 5. Pending trap state
-     *    - Trap number
-     *    - Trap bit
-     *    - Trapping PC
-     *
-     * What ENTT Should Do (when fully implemented):
-     * 1. Get current domain's PCB
-     * 2. Retrieve pending trap info set by InvokeTrapHandler:
-     *    - Trap number
-     *    - Trap bit
-     *    - Trapping PC
-     * 3. Save full CPU context to PCB:
-     *    - PC, B, I1-I4, A1-A4
-     *    - Status register (ST)
-     *    - Trap enable registers (OTE1, OTE2, MTE1, MTE2)
-     * 4. Save OTE before clearing (for RETT to restore)
-     * 5. Clear OTE (prevent recursive traps)
-     * 6. Mark domain as "inside trap handler"
-     * 7. Continue to trap handler body
-     *
-     * Current Behavior:
-     * - Logs trap handler entry
-     * - Returns immediately
-     * - No context save (PCB doesn't exist)
-     * - No OTE clearing (OTE registers don't exist)
-     *
+     * Trap Handler Data Field Layout (at THA + 256):
+     *   B+0    PREVB    Previous base (set to 0 for trap frame bottom)
+     *   B+4    RETA     Return address (set to 0 for trap frame)
+     *   B+8    SP       Stack pointer (B + stack demand)
+     *   B+12   AUX      Auxiliary (protect violation info)
+     *   B+16   N        Argument count = 50 (decimal)
+     *   B+20   arg1     Trapping P (PC of trapped instruction)
+     *   B+24   arg2     P register (return PC)
+     *   B+28   arg3     L register
+     *   B+32   arg4     B register (pre-trap value)
+     *   B+36   arg5     R register
+     *   B+40   arg6     I1
+     *   B+44   arg7     I2
+     *   B+48   arg8     I3
+     *   B+52   arg9     I4
+     *   B+56   arg10    A1
+     *   B+60   arg11    A2
+     *   B+64   arg12    A3
+     *   B+68   arg13    A4
+     *   B+72   arg14    E1
+     *   B+76   arg15    E2
+     *   B+80   arg16    E3
+     *   B+84   arg17    E4
+     *   B+88   arg18    ST1
+     *   B+92   arg19    ST2
+     *   B+96   arg20    PS
+     *   B+100  arg21    TOS
+     *   B+104  arg22    LL
+     *   B+108  arg23    HL
+     *   B+112  arg24    THA
+     *   B+116  arg25    CED
+     *   B+120  arg26    CAD
+     *   B+124  arg27-30 mic (microcode scratch) - 4 words
+     *   B+140  arg31    OTE1
+     *   B+144  arg32    OTE2
+     *   B+148  arg33    CTE1
+     *   B+152  arg34    CTE2
+     *   B+156  arg35    MTE1
+     *   B+160  arg36    MTE2
+     *   B+164  arg37    TEMM1
+     *   B+168  arg38    TEMM2
+     *   B+172  arg39-40 mic (microcode scratch) - 2 words
+     *   B+180+ Local data area for handler
      * ======================================================================== */
 
-    printf("[ENTT] Trap handler entry at PC=0x%08X (STUB: no context save)\n",
-           fi->address);
+    /* Verify we're in trap handler context (set by invoke_trap_handler) */
+    if (!cpu->in_trap_handler) {
+        printf("[ERROR] ENTT at PC=0x%08X: Not in trap handler context\n",
+               fi->address);
+        trap_instruction_sequence_error(cpu, fi->address);
+        return;
+    }
 
-    /* TODO: When trap system is implemented:
-     *
-     * uint8_t current_domain = cpu->CAD;
-     * Nd500PCB* pcb = nd500_get_pcb(cpu, current_domain);
-     *
-     * // Get pending trap info
-     * uint32_t trap_number = pcb->pending_trap_number;
-     * uint64_t trap_bit = pcb->pending_trap_bit;
-     * uint32_t trapping_pc = pcb->trapping_pc;
-     *
-     * // Save full context
-     * pcb->saved_context.pc = cpu->PC;
-     * pcb->saved_context.b = cpu->B;
-     * pcb->saved_context.i1 = cpu->I[0];
-     * pcb->saved_context.i2 = cpu->I[1];
-     * pcb->saved_context.i3 = cpu->I[2];
-     * pcb->saved_context.i4 = cpu->I[3];
-     * // ... save all registers ...
-     *
-     * // Save and clear OTE
-     * pcb->saved_ote1 = cpu->OTE1;
-     * pcb->saved_ote2 = cpu->OTE2;
-     * cpu->OTE1 = 0;
-     * cpu->OTE2 = 0;
-     *
-     * // Mark in trap handler
-     * pcb->inside_trap_handler = 1;
-     */
+    /* Read operands */
+    /* Operand 0: Local data field size (in bytes or halfwords) */
+    /* Operand 1: Stack demand (total trap handler stack demand) */
+    uint32_t local_data_size = read_operand_w(cpu, &fi->operands[0]);
+    uint32_t stack_demand = read_operand_w(cpu, &fi->operands[1]);
 
-    /* No status bits affected */
+    /* Save pre-trap register values before we modify B */
+    uint32_t saved_B = cpu->B;
+    uint32_t saved_L = cpu->L;
+    uint32_t saved_TOS = cpu->TOS;
+
+    /* Calculate trap handler local data field address: THA + 256 bytes */
+    /* The THA register points to the start address vector (64 words = 256 bytes) */
+    /* The local data field follows immediately after the vector table */
+    uint32_t trap_frame_base = cpu->THA + 256;
+
+    printf("[ENTT] Trap %d: Setting up trap frame at 0x%08X (THA=0x%08X)\n",
+           cpu->trap_number, trap_frame_base, cpu->THA);
+    printf("[ENTT]   Pre-trap: B=0x%08X L=0x%08X TOS=0x%08X\n",
+           saved_B, saved_L, saved_TOS);
+    printf("[ENTT]   Return to: 0x%08X\n", cpu->trap_saved_PC);
+
+    /* ========================================================================
+     * Set up new B register to point to trap handler local data field
+     * ======================================================================== */
+    cpu->B = trap_frame_base;
+
+    /* ========================================================================
+     * Write trap handler data field header (5 words at B+0..B+19)
+     * ======================================================================== */
+
+    /* B+0: PREVB = 0 (marks bottom of trap handler stack) */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 0, 1, 0), 0);
+
+    /* B+4: RETA = 0 (no return address for trap frame) */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 4, 1, 0), 0);
+
+    /* B+8: SP = B + local_data_size (stack pointer for handler's local data area) */
+    /* Per ND-500 manual Step 2: B.SP := B + operand1 (main program stack demand) */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 8, 1, 0),
+                      trap_frame_base + local_data_size);
+
+    /* B+12: AUX = 0 (auxiliary, used for protect violation info) */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 12, 1, 0), 0);
+
+    /* B+16: N = 50 (argument count - matches register block layout) */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 16, 1, 0), 50);
+
+    /* ========================================================================
+     * Write register block (args 1-40 at B+20..B+179)
+     * ======================================================================== */
+
+    /* arg1 (B+20): Trapping P - PC of instruction that caused trap */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 20, 1, 0),
+                      cpu->trap_saved_PC);
+
+    /* arg2 (B+24): P register - return PC (same as trapping P for retry) */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 24, 1, 0),
+                      cpu->trap_saved_PC);
+
+    /* arg3 (B+28): L register (link/return address) - CRITICAL for subroutine returns */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 28, 1, 0), saved_L);
+
+    /* arg4 (B+32): B register (pre-trap base) */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 32, 1, 0), saved_B);
+
+    /* arg5 (B+36): R register */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 36, 1, 0), cpu->R);
+
+    /* arg6-9 (B+40..B+52): I1-I4 */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 40, 1, 0), cpu->I[0]);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 44, 1, 0), cpu->I[1]);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 48, 1, 0), cpu->I[2]);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 52, 1, 0), cpu->I[3]);
+
+    /* arg10-13 (B+56..B+68): A1-A4 */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 56, 1, 0), cpu->A[0]);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 60, 1, 0), cpu->A[1]);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 64, 1, 0), cpu->A[2]);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 68, 1, 0), cpu->A[3]);
+
+    /* arg14-17 (B+72..B+84): E1-E4 */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 72, 1, 0), cpu->E[0]);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 76, 1, 0), cpu->E[1]);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 80, 1, 0), cpu->E[2]);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 84, 1, 0), cpu->E[3]);
+
+    /* arg18-19 (B+88..B+92): ST1, ST2 */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 88, 1, 0), cpu->ST1);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 92, 1, 0), cpu->ST2);
+
+    /* arg20 (B+96): PS */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 96, 1, 0), cpu->PS);
+
+    /* arg21-23 (B+100..B+108): TOS, LL, HL */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 100, 1, 0), saved_TOS);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 104, 1, 0), cpu->LL);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 108, 1, 0), cpu->HL);
+
+    /* arg24 (B+112): THA */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 112, 1, 0), cpu->THA);
+
+    /* arg25-26 (B+116..B+120): CED, CAD */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 116, 1, 0), cpu->CED);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 120, 1, 0), cpu->CAD);
+
+    /* arg27-30 (B+124..B+136): mic scratch - set to 0 */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 124, 1, 0), 0);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 128, 1, 0), 0);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 132, 1, 0), 0);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 136, 1, 0), 0);
+
+    /* arg31-32 (B+140..B+144): OTE1, OTE2 (saved values from invoke_trap_handler) */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 140, 1, 0),
+                      cpu->trap_saved_OTE1);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 144, 1, 0),
+                      cpu->trap_saved_OTE2);
+
+    /* arg33-34 (B+148..B+152): CTE1, CTE2 */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 148, 1, 0), cpu->CTE1);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 152, 1, 0), cpu->CTE2);
+
+    /* arg35-36 (B+156..B+160): MTE1, MTE2 */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 156, 1, 0), cpu->MTE1);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 160, 1, 0), cpu->MTE2);
+
+    /* arg37-38 (B+164..B+168): TEMM1, TEMM2 */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 164, 1, 0), cpu->TEMM1);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 168, 1, 0), cpu->TEMM2);
+
+    /* arg39-40 (B+172..B+176): mic scratch - set to 0 */
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 172, 1, 0), 0);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 176, 1, 0), 0);
+
+    /* ========================================================================
+     * Set up trap handler stack registers (per ND-500 manual Steps 5-6)
+     * ======================================================================== */
+
+    /* Step 5: TOS := B + operand2 (total trap handler stack demand) */
+    cpu->TOS = trap_frame_base + stack_demand;
+
+    /* Step 6: L := B.SP (L points to first free location, same as B.SP) */
+    cpu->L = trap_frame_base + local_data_size;
+
+    /* Note: LL and HL are NOT modified by ENTT - the pre-trap values are saved
+     * in the register block but the current LL/HL remain unchanged */
+
+    printf("[ENTT]   New trap frame: B=0x%08X L=0x%08X TOS=0x%08X\n",
+           cpu->B, cpu->L, cpu->TOS);
+
+    /* ========================================================================
+     * Step 9: Clear the specific trap status bit before handler execution
+     * ======================================================================== */
+    uint64_t trapBit = 1ULL << cpu->trap_number;
+    if (cpu->trap_number < 32) {
+        cpu->ST1 &= ~(uint32_t)(trapBit & 0xFFFFFFFF);
+    } else {
+        cpu->ST2 &= ~(uint32_t)(trapBit >> 32);
+    }
+    printf("[ENTT]   Cleared trap bit %d in ST register\n", cpu->trap_number);
+
+    /* ========================================================================
+     * Step 4: Copy 10 words of program memory for diagnostics (arg41-50)
+     * Note: This is diagnostic data only. We skip it for now because:
+     * - The MMU translate for program memory may trigger page faults
+     * - Since we're inside a trap handler (OTE=0), page faults would be fatal
+     * - The SINTRAN trap handler doesn't appear to use this data
+     * TODO: Implement safe read that doesn't raise traps on page fault
+     * ======================================================================== */
+    /* Skip program memory copy for now - just zero the area */
+    for (int i = 0; i < 10; i++) {
+        nd500_bus_write32(cpu->machine,
+            nd500_mmu_translate(cpu, trap_frame_base + 180 + i * 4, 1, 0), 0);
+    }
+
+    /* PC continues to next instruction (trap handler body) */
 }
