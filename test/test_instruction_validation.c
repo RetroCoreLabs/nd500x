@@ -17,6 +17,92 @@
 #define MEMORY_SIZE (1 << 20)  /* 1MB */
 #define MAX_FAILURE_DETAILS 500 /* Max failures to show in detail */
 
+/* Track unknown elements globally for summary */
+static int unknown_reg_count = 0;
+static int unknown_field_count = 0;
+static int unknown_initial_field_count = 0;
+static int unknown_final_field_count = 0;
+
+/**
+ * Check if a top-level test field name is known
+ */
+static int is_known_test_field(const char* name) {
+    static const char* known_fields[] = {
+        "name", "assembly", "bytes", "initial", "final", "maxInstructions",
+        "strictMemory", "requiresCallContext", NULL
+    };
+    for (int i = 0; known_fields[i] != NULL; i++) {
+        if (strcmp(name, known_fields[i]) == 0) return 1;
+    }
+    return 0;
+}
+
+/**
+ * Check if an initial/final state field name is known
+ */
+static int is_known_state_field(const char* name) {
+    static const char* known_fields[] = {
+        "regs", "ram", NULL
+    };
+    for (int i = 0; known_fields[i] != NULL; i++) {
+        if (strcmp(name, known_fields[i]) == 0) return 1;
+    }
+    return 0;
+}
+
+/**
+ * Validate test structure and report unknown fields
+ * Returns number of unknown fields found
+ */
+static int validate_test_structure(cJSON* test, const char* test_name, int print_warnings) {
+    int unknown = 0;
+
+    /* Check top-level fields */
+    cJSON* field;
+    cJSON_ArrayForEach(field, test) {
+        if (field->string && !is_known_test_field(field->string)) {
+            if (print_warnings) {
+                printf("  WARNING: Unknown top-level field '%s' in test '%s'\n",
+                       field->string, test_name);
+            }
+            unknown++;
+            unknown_field_count++;
+        }
+    }
+
+    /* Check initial state fields */
+    cJSON* initial = cJSON_GetObjectItem(test, "initial");
+    if (initial && cJSON_IsObject(initial)) {
+        cJSON_ArrayForEach(field, initial) {
+            if (field->string && !is_known_state_field(field->string)) {
+                if (print_warnings) {
+                    printf("  WARNING: Unknown field '%s' in initial state of test '%s'\n",
+                           field->string, test_name);
+                }
+                unknown++;
+                unknown_initial_field_count++;
+            }
+        }
+    }
+
+    /* Check final state fields */
+    cJSON* final = cJSON_GetObjectItem(test, "final");
+    if (final && cJSON_IsObject(final)) {
+        cJSON_ArrayForEach(field, final) {
+            if (field->string && !is_known_state_field(field->string)) {
+                if (print_warnings) {
+                    printf("  WARNING: Unknown field '%s' in final state of test '%s'\n",
+                           field->string, test_name);
+                }
+                unknown++;
+                unknown_final_field_count++;
+            }
+        }
+    }
+
+    return unknown;
+}
+
 /* Known buggy tests to skip - these have confirmed issues in test data */
 static const char* BUGGY_TESTS[] = {
     /* GO tests: all expect same PC regardless of displacement - clearly wrong */
@@ -212,6 +298,22 @@ int main(int argc, char** argv) {
            passed, failed, skipped,
            (passed + failed) > 0 ? (100.0 * passed / (passed + failed)) : 0);
 
+    /* Report any unknown JSON elements */
+    int total_unknown = unknown_reg_count + unknown_field_count +
+                        unknown_initial_field_count + unknown_final_field_count;
+    if (total_unknown > 0) {
+        printf("\nWARNING: Unknown JSON elements detected - test runner may need updates!\n");
+        if (unknown_field_count > 0)
+            printf("  - %d unknown top-level fields\n", unknown_field_count);
+        if (unknown_initial_field_count > 0)
+            printf("  - %d unknown fields in initial state\n", unknown_initial_field_count);
+        if (unknown_final_field_count > 0)
+            printf("  - %d unknown fields in final state\n", unknown_final_field_count);
+        if (unknown_reg_count > 0)
+            printf("  - %d unknown register names\n", unknown_reg_count);
+        printf("Run with --verbose to see details.\n");
+    }
+
     if (failed == 0 && passed > 0) {
         printf("ALL TESTS PASSED\n");
     } else if (continue_on_fail && failed > 0) {
@@ -294,6 +396,9 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
     const char* test_name = name_json && cJSON_IsString(name_json)
         ? name_json->valuestring : "unnamed";
 
+    /* Validate test structure for unknown fields */
+    validate_test_structure(test, test_name, show_details);
+
     /* Reset CPU and clear memory */
     nd500_cpu_reset(cpu);
     memset(m->memory, 0, m->memory_size);
@@ -363,6 +468,17 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
                 }
             }
         }
+    }
+
+    /* 3b. Check for requiresCallContext flag - set up pending CALL context for ENT* tests */
+    cJSON* requires_call = cJSON_GetObjectItem(test, "requiresCallContext");
+    if (requires_call && cJSON_IsTrue(requires_call)) {
+        /* ENT* instructions require a preceding CALL to have set up context.
+         * We simulate this by setting up the pending call return address.
+         * Use a typical return address value (0x5000 as in the generator).
+         */
+        cpu->pending_call_return_address = 0x5000;
+        cpu->pending_call_arg_count = 0;
     }
 
     /* 4. Execute instruction(s) */
@@ -479,7 +595,12 @@ static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value) {
     else if (strcmp(name, "ced") == 0) cpu->CED = value;
     else if (strcmp(name, "cad") == 0) cpu->CAD = value;
     else if (strcmp(name, "ps") == 0) cpu->PS = value;
-    /* Ignore unknown registers */
+    else if (strcmp(name, "ote1") == 0) cpu->OTE1 = value;
+    else if (strcmp(name, "ote2") == 0) cpu->OTE2 = value;
+    else {
+        /* Report unknown register - this indicates test coverage gap */
+        printf("  WARNING: Unknown register '%s' in initial state (ignored)\n", name);
+    }
 }
 
 /**
@@ -511,6 +632,27 @@ static uint32_t get_register(Nd500Cpu* cpu, const char* name) {
     else if (strcmp(name, "ced") == 0) return cpu->CED;
     else if (strcmp(name, "cad") == 0) return cpu->CAD;
     else if (strcmp(name, "ps") == 0) return cpu->PS;
+    else if (strcmp(name, "ote1") == 0) return cpu->OTE1;
+    else if (strcmp(name, "ote2") == 0) return cpu->OTE2;
+    else {
+        /* This should never happen if validate_registers checks first */
+        return 0;
+    }
+}
+
+/**
+ * Check if a register name is known/supported
+ */
+static int is_known_register(const char* name) {
+    static const char* known_regs[] = {
+        "pc", "st", "i1", "i2", "i3", "i4",
+        "a1", "a2", "a3", "a4", "e1", "e2", "e3", "e4",
+        "l", "b", "r", "p", "tos", "ll", "hl", "tha",
+        "ced", "cad", "ps", "ote1", "ote2", NULL
+    };
+    for (int i = 0; known_regs[i] != NULL; i++) {
+        if (strcmp(name, known_regs[i]) == 0) return 1;
+    }
     return 0;
 }
 
@@ -526,6 +668,16 @@ static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_detail
         if (!cJSON_IsNumber(reg)) continue;
 
         const char* reg_name = reg->string;
+
+        /* Check if register is known */
+        if (!is_known_register(reg_name)) {
+            if (print_details) {
+                printf("  UNKNOWN register '%s' in expected final state!\n", reg_name);
+            }
+            unknown_reg_count++;
+            failures++;  /* Treat unknown register as failure */
+            continue;
+        }
 
         uint32_t expected = (uint32_t)reg->valuedouble;
         uint32_t actual = get_register(cpu, reg_name);
@@ -545,6 +697,7 @@ static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_detail
  * Validate memory against expected values
  * Returns 0 on success, non-zero on failure
  * If print_details is true, prints mismatch details
+ * Note: Memory values are stored as individual bytes in the JSON
  */
 static int validate_memory(Nd500Machine* m, cJSON* final_ram, int print_details) {
     int failures = 0;
@@ -558,7 +711,7 @@ static int validate_memory(Nd500Machine* m, cJSON* final_ram, int print_details)
         if (!cJSON_IsNumber(addr_json) || !cJSON_IsNumber(val_json)) continue;
 
         uint32_t addr = (uint32_t)addr_json->valuedouble;
-        uint8_t expected = (uint8_t)val_json->valueint;
+        uint8_t expected = (uint8_t)val_json->valuedouble;
         uint8_t actual = nd500_bus_read8(m, addr);
 
         if (actual != expected) {

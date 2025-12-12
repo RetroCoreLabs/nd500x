@@ -212,6 +212,8 @@ void nd500_write_double_register(Nd500Cpu* cpu, uint8_t reg_num, uint64_t value)
  * - FO: bit 14
  */
 
+#define ND500_FLAG_PIA (1u << 1)   // Privileged Instructions Allowed
+#define ND500_FLAG_PSD (1u << 4)   // Process Switch Disabled
 #define ND500_FLAG_Z   (1u << 5)   // Zero flag
 #define ND500_FLAG_C   (1u << 6)   // Carry flag
 #define ND500_FLAG_S   (1u << 7)   // Sign flag
@@ -228,6 +230,14 @@ void nd500_write_double_register(Nd500Cpu* cpu, uint8_t reg_num, uint64_t value)
  * @param dtype Data type (determines sign bit position)
  */
 void nd500_set_flags_zs(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype);
+
+/**
+ * Set Z and S flags for float/double values (handles -0.0 as zero)
+ * @param cpu CPU state
+ * @param value Float or double bits (raw IEEE-754 representation)
+ * @param is_double True for 64-bit double, false for 32-bit float
+ */
+void nd500_set_flags_zs_float(Nd500Cpu* cpu, uint64_t value, bool is_double);
 
 /**
  * Set Z, S, and C flags
@@ -795,7 +805,7 @@ int64_t nd500_read_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* 
 void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc, int64_t value);
 
 /* ============================================================================
- * FLOATING-POINT CONVERSION (ND-500 ↔ IEEE 754 ↔ Integer)
+ * FLOATING-POINT CONVERSION (ND-500 <-> IEEE 754 <-> Integer)
  * ============================================================================
  *
  * ND-500 Float Format (32-bit):
@@ -803,12 +813,40 @@ void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* de
  *   - 9 bits exponent (bits 30-22), bias 256
  *   - 22+1 bits mantissa (bits 21-0), implicit leading 1
  *   - Exponent = 0 means exactly zero (no denormalized numbers)
+ *   - M range: 0.5 <= M < 1.0
  *
  * ND-500 Double Format (64-bit):
  *   - 1 bit sign (bit 63)
  *   - 9 bits exponent (bits 62-54), bias 256
  *   - 54+1 bits mantissa (bits 53-0), implicit leading 1
  *   - Exponent = 0 means exactly zero (no denormalized numbers)
+ *   - M range: 0.5 <= M < 1.0
+ *
+ * PRECISION TRADE-OFF:
+ * ====================
+ * Transcendental functions (sin, cos, sqrt, log, etc.) are implemented by:
+ *   1. Converting ND-500 format to IEEE 754
+ *   2. Using standard C math library (works on IEEE 754)
+ *   3. Converting result back to ND-500 format
+ *
+ * This introduces a small precision loss for double-precision:
+ *   - ND-500 double: 55-bit mantissa (~16.5 decimal digits)
+ *   - IEEE 754 double: 53-bit mantissa (~15.9 decimal digits)
+ *   - Loss: ~2 bits (~0.6 decimal digits)
+ *
+ * For single-precision, IEEE 754 has MORE precision (24 vs 23 bits),
+ * so no loss occurs.
+ *
+ * This trade-off is acceptable for most applications. For bit-exact
+ * reproduction of original ND-500 hardware results, consider:
+ *   - Using Berkeley SoftFloat library (http://www.jhauser.us/arithmetic/SoftFloat.html)
+ *   - Implementing native ND-500 arithmetic routines
+ *
+ * IMPORTANT: Never use BitConverter or direct bit reinterpretation to
+ * convert between ND-500 and IEEE 754 formats. The formats are different:
+ *   - Different exponent bias (ND-500: 256, IEEE single: 127, IEEE double: 1023)
+ *   - Different mantissa interpretation (ND-500: 0.5-1.0, IEEE: 1.0-2.0)
+ * Always use the conversion functions below.
  */
 
 // Single precision conversions

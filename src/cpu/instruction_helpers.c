@@ -28,7 +28,9 @@ uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
         if (nd500_trap_occurred()) return 0;  // Trap occurred during translation
     }
 
-    return nd500_bus_read8(cpu->machine, paddr);
+    uint8_t value = nd500_bus_read8(cpu->machine, paddr);
+    MEMTRACE_RD("[MEMTRACE] read_8:  vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
+    return value;
 }
 
 void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
@@ -41,6 +43,7 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
         if (nd500_trap_occurred()) return;  // Trap occurred during translation
     }
 
+    MEMTRACE_WR("[MEMTRACE] write_8: vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
     nd500_bus_write8(cpu->machine, paddr, value);
 }
 
@@ -57,7 +60,9 @@ uint16_t nd500_read_memory_16(Nd500Cpu* cpu, uint32_t vaddr) {
     // Read two bytes BIG-ENDIAN from physical address (ND-500 spec)
     uint8_t b0 = nd500_bus_read8(cpu->machine, paddr);
     uint8_t b1 = nd500_bus_read8(cpu->machine, paddr + 1);
-    return ((uint16_t)b0 << 8) | (uint16_t)b1;
+    uint16_t value = ((uint16_t)b0 << 8) | (uint16_t)b1;
+    MEMTRACE_RD("[MEMTRACE] read_16: vaddr=0x%08X paddr=0x%08X value=0x%04X\n", vaddr, paddr, value);
+    return value;
 }
 
 void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
@@ -70,6 +75,7 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
         if (nd500_trap_occurred()) return;  // Trap occurred during translation
     }
 
+    MEMTRACE_WR("[MEMTRACE] write_16: vaddr=0x%08X paddr=0x%08X value=0x%04X\n", vaddr, paddr, value);
     // Write two bytes BIG-ENDIAN to physical address (ND-500 spec)
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 8) & 0xFF));
     nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)(value & 0xFF));
@@ -90,8 +96,10 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
     uint8_t b1 = nd500_bus_read8(cpu->machine, paddr + 1);
     uint8_t b2 = nd500_bus_read8(cpu->machine, paddr + 2);
     uint8_t b3 = nd500_bus_read8(cpu->machine, paddr + 3);
-    return ((uint32_t)b0 << 24) | ((uint32_t)b1 << 16) |
-           ((uint32_t)b2 << 8) | (uint32_t)b3;
+    uint32_t value = ((uint32_t)b0 << 24) | ((uint32_t)b1 << 16) |
+                     ((uint32_t)b2 << 8) | (uint32_t)b3;
+    MEMTRACE_RD("[MEMTRACE] read_32: vaddr=0x%08X paddr=0x%08X value=0x%08X\n", vaddr, paddr, value);
+    return value;
 }
 
 void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
@@ -102,19 +110,19 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
         if (nd500_trap_occurred()) {
-            TRACE("[TRACE] write_memory_32: MMU trap! vaddr=0x%08X value=0x%08X\n", vaddr, value);
+            MEMTRACE_WR("[MEMTRACE] write_32: MMU trap! vaddr=0x%08X value=0x%08X\n", vaddr, value);
             return;  // Trap occurred during translation
         }
     }
 
     // Debug: warn if writing to address beyond physical memory
     if (paddr >= cpu->machine->memory_size) {
-        TRACE("[TRACE] write_memory_32: BEYOND MEMORY! vaddr=0x%08X paddr=0x%08X value=0x%08X mem_size=0x%X\n",
+        MEMTRACE_WR("[MEMTRACE] write_32: BEYOND MEMORY! vaddr=0x%08X paddr=0x%08X value=0x%08X mem_size=0x%X\n",
               vaddr, paddr, value, cpu->machine->memory_size);
         return;  // Don't write beyond memory!
     }
 
-    TRACE("[TRACE] write_memory_32: vaddr=0x%08X paddr=0x%08X value=0x%08X\n", vaddr, paddr, value);
+    MEMTRACE_WR("[MEMTRACE] write_32: vaddr=0x%08X paddr=0x%08X value=0x%08X\n", vaddr, paddr, value);
 
     // Write four bytes BIG-ENDIAN to physical address (ND-500 spec)
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 24) & 0xFF));
@@ -268,6 +276,35 @@ void nd500_set_flags_zs(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype) {
     // Set S flag if sign bit is set
     if (sign_bit) {
         cpu->ST1 |= ND500_FLAG_S;
+    }
+}
+
+void nd500_set_flags_zs_float(Nd500Cpu* cpu, uint64_t value, bool is_double) {
+    // Clear Z and S flags first
+    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S);
+
+    if (is_double) {
+        // 64-bit double: sign bit at position 63, magnitude is bits 62:0
+        bool sign_bit = (value & 0x8000000000000000ULL) != 0;
+        bool is_zero = (value & 0x7FFFFFFFFFFFFFFFULL) == 0;  // +0 or -0
+
+        if (is_zero) {
+            cpu->ST1 |= ND500_FLAG_Z;
+        }
+        if (sign_bit) {
+            cpu->ST1 |= ND500_FLAG_S;
+        }
+    } else {
+        // 32-bit float: sign bit at position 31, magnitude is bits 30:0
+        bool sign_bit = (value & 0x80000000) != 0;
+        bool is_zero = (value & 0x7FFFFFFF) == 0;  // +0 or -0
+
+        if (is_zero) {
+            cpu->ST1 |= ND500_FLAG_Z;
+        }
+        if (sign_bit) {
+            cpu->ST1 |= ND500_FLAG_S;
+        }
     }
 }
 
