@@ -6,11 +6,7 @@
 /**
  * IXI instruction - ARITHMETIC class
  *
- * Index calculation: <i> * <j> -> Rn
- *
- * Despite the reference manual saying "I to the J'th power", the actual
- * operation is multiplication for array index calculation:
- *   result = index * element_size
+ * I to the J'th Power (Integer Exponentiation): <i> ** <j> -> Rn
  *
  * Mnemonics: BYn IXI, Hn IXI, Wn IXI (n=1..4)
  * Operands: 2 (<i/r/t>, <j/r/t>)
@@ -20,9 +16,16 @@
  *   0xFCCC-0xFCCF (H1 IXI through H4 IXI) - Halfword
  *   0xFCD0-0xFCD3 (W1 IXI through W4 IXI) - Word
  *
- * Operation: <i> * <j> -> Rn (datatype dependent part)
+ * Operation: <i> ** <j> -> Rn (i raised to power j)
  *
- * Flags: Z (zero), S (sign), O (overflow), C (carry)
+ * Special cases:
+ *   - Any number to power 0 = 1
+ *   - 0 to negative power = illegal operand trap
+ *   - 1 to any power = 1
+ *   - -1 to power j = 1 if j even, -1 if j odd
+ *   - Other bases to negative power = 0 (integer truncation)
+ *
+ * Flags: Z (zero), S (sign), O (overflow)
  *
  * Reference: ND-500 Reference Manual, Chapter 12.2
  */
@@ -39,47 +42,82 @@ void nd500_instr_Ixi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t i_val = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     uint64_t j_val = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
-    /* Sign-extend for signed multiplication */
-    int64_t i_signed, j_signed;
+    /* Sign-extend operands based on data type */
+    int64_t base_val, exponent;
     switch (fi->data_type) {
         case ND500_DTYPE_BYTE:
-            i_signed = (int8_t)(i_val & 0xFF);
-            j_signed = (int8_t)(j_val & 0xFF);
+            base_val = (int8_t)(i_val & 0xFF);
+            exponent = (int8_t)(j_val & 0xFF);
             break;
         case ND500_DTYPE_HALFWORD:
-            i_signed = (int16_t)(i_val & 0xFFFF);
-            j_signed = (int16_t)(j_val & 0xFFFF);
+            base_val = (int16_t)(i_val & 0xFFFF);
+            exponent = (int16_t)(j_val & 0xFFFF);
             break;
         case ND500_DTYPE_WORD:
         default:
-            i_signed = (int32_t)i_val;
-            j_signed = (int32_t)j_val;
+            base_val = (int32_t)i_val;
+            exponent = (int32_t)j_val;
             break;
     }
 
-    /* Calculate: i * j */
-    int64_t result = i_signed * j_signed;
-
-    /* Check for overflow based on data type */
+    /* Calculate: base ** exponent (integer exponentiation) */
+    int64_t result = 0;
     bool overflow = false;
-    bool carry = false;
-    uint32_t masked_result;
+    bool illegal_operand = false;
 
+    if (exponent == 0) {
+        /* Any number to power 0 is 1 */
+        result = 1;
+    } else if (exponent < 0) {
+        /* Negative exponent handling */
+        if (base_val == 0) {
+            /* 0 to negative power is undefined - trap */
+            illegal_operand = true;
+            result = 0;
+        } else if (base_val == 1) {
+            result = 1;
+        } else if (base_val == -1) {
+            /* -1 to even power = 1, -1 to odd power = -1 */
+            result = (exponent % 2 == 0) ? 1 : -1;
+        } else {
+            /* Non-unit base to negative power = 0 (integer truncation) */
+            result = 0;
+        }
+    } else {
+        /* Positive exponent - calculate power by repeated multiplication */
+        result = 1;
+        for (int64_t i = 0; i < exponent; i++) {
+            /* Check for overflow before multiplication */
+            int64_t prev_result = result;
+            result *= base_val;
+
+            /* Detect overflow based on data type limits */
+            switch (fi->data_type) {
+                case ND500_DTYPE_BYTE:
+                    if (result < -128 || result > 127) overflow = true;
+                    break;
+                case ND500_DTYPE_HALFWORD:
+                    if (result < -32768 || result > 32767) overflow = true;
+                    break;
+                case ND500_DTYPE_WORD:
+                default:
+                    if (result < INT32_MIN || result > INT32_MAX) overflow = true;
+                    break;
+            }
+        }
+    }
+
+    /* Mask result to data type size */
+    uint32_t masked_result;
     switch (fi->data_type) {
         case ND500_DTYPE_BYTE:
-            overflow = (result < -128 || result > 127);
-            carry = ((uint64_t)result > 0xFF);
             masked_result = (uint32_t)(result & 0xFF);
             break;
         case ND500_DTYPE_HALFWORD:
-            overflow = (result < -32768 || result > 32767);
-            carry = ((uint64_t)result > 0xFFFF);
             masked_result = (uint32_t)(result & 0xFFFF);
             break;
         case ND500_DTYPE_WORD:
         default:
-            overflow = (result < INT32_MIN || result > INT32_MAX);
-            carry = ((uint64_t)result > 0xFFFFFFFF);
             masked_result = (uint32_t)result;
             break;
     }
@@ -87,8 +125,8 @@ void nd500_instr_Ixi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Write result to register */
     nd500_write_integer_register(cpu, fi->target_register, masked_result);
 
-    /* Update status flags */
-    nd500_clear_flag(cpu, ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
+    /* Update status flags: Z, S, O (no C for IXI) */
+    nd500_clear_flag(cpu, ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O);
 
     if (masked_result == 0) {
         nd500_set_flag(cpu, ND500_FLAG_Z);
@@ -112,10 +150,14 @@ void nd500_instr_Ixi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (masked_result & sign_mask) {
         nd500_set_flag(cpu, ND500_FLAG_S);
     }
-    if (carry) {
-        nd500_set_flag(cpu, ND500_FLAG_C);
-    }
     if (overflow) {
         nd500_set_flag(cpu, ND500_FLAG_O);
+    }
+
+    /* Handle trap conditions */
+    if (illegal_operand) {
+        trap_invalid_operation(cpu, fi->address);
+    } else if (overflow) {
+        trap_invalid_operation(cpu, fi->address);
     }
 }
