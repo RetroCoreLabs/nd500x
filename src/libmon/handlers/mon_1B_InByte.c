@@ -1,34 +1,95 @@
 /*
  * MON 1B (1 decimal): InByte (INBT)
  *
- * Reads one byte from a character device, e.g. a terminal or an opened file. If the device is a word-oriented device, one word is read. This monitor call can be used on most input devices.
- * 
- * - Bit 7 is a parity bit if terminal or file input. IOMultiFunction may change this.
- * - The program waits if there is no bytes in the input buffer of the device. You can change this with NoWaitSwitch or TerminalNoWait.
- * - The pointer to the next byte is incremented when you read from a mass-storage file.
- * - Input from card readers are converted to ASCII characters. Use DeviceControl to read the 12-bit card columns.
- * - Background programs may read from logical device number 0. This is the SINTRAN III command buffer. You may read parameters following the program name this way. Break and echo are both set to 1. Normal SINTRAN III command editing is available. All letters are converted to uppercase. You may control this with IOMultiFunction.
- * - Appendix F contains an ASCII table.
+ * Reads one byte from a character device, e.g. a terminal or an opened file.
+ * If the device is a word-oriented device, one word is read.
+ *
+ * - Bit 7 is a parity bit if terminal or file input.
+ * - The program waits if there is no bytes in the input buffer of the device.
+ * - The pointer to the next byte is incremented when reading from mass-storage.
+ * - Background programs may read from logical device number 0 (command buffer).
  *
  * Parameters:
- *   [I] DeviceNumber (INTEGER): input
- *   [O] ReturnValue (INTEGER): output
+ *   [I] DeviceNumber (WORD): Logical device number
+ *   [O] ReturnValue (WORD): Byte read (returned in I1/W1)
  *
- * AUTO-GENERATED STUB - Implementation required
+ * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
 
 #include "../mon.h"
+#include "../mon_file_table.h"
+#include <stdio.h>
 
 MonResult mon_1B_InByte(MonContext* ctx) {
-    /* TODO: Implement InByte (INBT) */
+    /* Defensive check for argument count */
+    if (ctx->arg_count < 1) {
+        mon_set_error(ctx, 52);  /* Invalid parameter */
+        return MON_ERROR;
+    }
 
-    /* Log input parameters */
+    /* Read device number */
+    uint32_t device_no = mon_read_param_word(ctx, 0);
+
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
 
-    /* Implementation goes here */
+    mon_log(MON_LOG_DEBUG, "MON 1B INBT: DeviceNumber=%u (octal %o)",
+            device_no, device_no);
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
+    int byte_read = -1;
 
-    return MON_ERROR;
+    /* Route by device class */
+    if (is_character_device(device_no) || is_terminal(device_no)) {
+        /* Character device or terminal: use console I/O */
+        ConsoleIO* console = mon_file_table_get_console();
+        if (console && console->read_char) {
+            byte_read = console->read_char(console->context);
+        } else {
+            /* Fallback to stdin */
+            byte_read = getchar();
+        }
+
+        if (byte_read == EOF) {
+            byte_read = 0;  /* Return 0 on EOF */
+        }
+
+        mon_log(MON_LOG_DEBUG, "MON 1B INBT: Read byte 0x%02X ('%c') from console",
+                byte_read & 0xFF, (byte_read >= 32 && byte_read < 127) ? byte_read : '.');
+    }
+    else if (is_mass_storage_file(device_no)) {
+        /* Mass storage file: read from open file table */
+        OpenFileEntry* entry = mon_file_table_get((int)device_no);
+        if (!entry || !entry->in_use) {
+            mon_log(MON_LOG_WARN, "MON 1B INBT: File %u not open", device_no);
+            mon_set_error(ctx, 53);  /* File not open */
+            return MON_ERROR;
+        }
+
+        if (entry->host_file) {
+            byte_read = fgetc(entry->host_file);
+            if (byte_read == EOF) {
+                byte_read = 0;  /* Return 0 on EOF */
+                mon_log(MON_LOG_DEBUG, "MON 1B INBT: EOF on file %u", device_no);
+            } else {
+                entry->current_position++;
+                mon_log(MON_LOG_DEBUG, "MON 1B INBT: Read byte 0x%02X from file %u, pos=%u",
+                        byte_read, device_no, entry->current_position);
+            }
+        } else {
+            mon_set_error(ctx, 53);
+            return MON_ERROR;
+        }
+    }
+    else {
+        /* Unsupported device type */
+        mon_log(MON_LOG_WARN, "MON 1B INBT: Unsupported device %u (octal %o)",
+                device_no, device_no);
+        mon_set_error(ctx, 46);  /* No such filename */
+        return MON_ERROR;
+    }
+
+    /* Return byte in I1/W1 register */
+    ctx->set_error_code(ctx->cpu, (uint32_t)(byte_read & 0xFF));
+
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }
