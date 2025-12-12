@@ -10,7 +10,7 @@
  * the number of arguments transferred to the stack frame.
  *
  * Mnemonic: ENTSN
- * Operands: 2 (stack demand in words, max argument count)
+ * Operands: 2 (stack demand in BYTES - per ND-05.009.4 Section 13.10, max argument count)
  * Opcode: 0x00BA
  *
  * Format: ENTSN <stack_demand>, <max_args>
@@ -72,9 +72,8 @@ void nd500_instr_Entsn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Read stack demand operand (operand 0 - in words, multiply by 4 for bytes) */
-    uint32_t stack_demand_words = nd500_read_operand_word(cpu, &fi->operands[0]);
-    uint32_t stack_demand = stack_demand_words * 4;  /* Convert words to bytes */
+    /* Read stack demand operand (already in bytes per ND-05.009.4 Section 13.10) */
+    uint32_t stack_demand = nd500_read_operand_word(cpu, &fi->operands[0]);
 
     /* Read maximum argument count (operand 1) */
     uint32_t max_args = nd500_read_operand_word(cpu, &fi->operands[1]);
