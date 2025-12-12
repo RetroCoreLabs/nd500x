@@ -174,113 +174,210 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* ========================================================================
-     * STUB IMPLEMENTATION
+     * RETT - Return from Trap Handler
      * ========================================================================
      *
-     * RETT requires the same extensive trap system infrastructure as ENTT:
+     * RETT is the last instruction in every trap handler routine.
+     * It restores the complete register block from the trap frame that
+     * ENTT saved at THA + 256, then returns to the trapping instruction.
      *
-     * Missing Infrastructure:
-     * 1. PCB (Process Control Block) structure per domain
-     *    - Stores saved CPU context
-     *    - Tracks trap handler state
-     *    - Manages InsideTrapHandler flag
+     * From ND-500 Reference Manual Section 13.11:
+     *   "The register block is loaded from B.arg2..B.arg40."
      *
-     * 2. DomainContext structure
-     *    - Full register set save/restore
-     *    - Trap condition tracking
-     *    - Mother domain linkage
-     *    - Original domain number
-     *
-     * 3. Trap enable registers
-     *    - OTE1, OTE2 (Open Trap Enable)
-     *    - MTE1, MTE2 (Masked Trap Enable)
-     *
-     * 4. Domain management
-     *    - Current Active Domain (CAD) register
-     *    - Domain switching logic
-     *    - Domain information table (DIT)
-     *
-     * 5. InsideTrapHandler flag
-     *    - Tracks whether currently in trap handler
-     *    - Used to validate RETT execution
-     *
-     * 6. Trap bit management
-     *    - ST register trap condition bits
-     *    - Trap bit clearing logic
-     *
-     * What RETT Should Do (when fully implemented):
-     * 1. Get current domain's PCB
-     * 2. Verify inside trap handler (ISE trap if not)
-     * 3. Get saved context from PCB (ISE trap if missing)
-     * 4. Log operation
-     * 5. Clear trap bit in ST register
-     * 6. Restore trap enable registers (OTE1, OTE2, MTE1, MTE2)
-     * 7. Restore main registers (B, I1-I4, A1-A4)
-     * 8. Switch back to original domain (if cross-domain)
-     * 9. Mark as no longer in trap handler
-     * 10. Return to saved PC
-     *
-     * Current Behavior:
-     * - Logs trap handler return
-     * - Returns immediately
-     * - No context restore (PCB doesn't exist)
-     * - No OTE restoration (OTE registers don't exist)
-     * - No InsideTrapHandler check (flag doesn't exist)
-     *
+     * Current B register points to trap handler local data field (THA + 256).
+     * Register block layout in trap frame:
+     *   B+20   arg1     Trapping P (PC of trapped instruction)
+     *   B+24   arg2     P register (return PC)
+     *   B+28   arg3     L register
+     *   B+32   arg4     B register (pre-trap value)
+     *   B+36   arg5     R register
+     *   B+40   arg6     I1
+     *   ... etc (see ENTT for full layout)
+     *   B+140  arg31    OTE1
+     *   B+144  arg32    OTE2
      * ======================================================================== */
 
-    printf("[RETT] Trap handler return at PC=0x%08X (STUB: no context restore)\n",
-           fi->address);
+    /* Verify we're in trap handler context */
+    if (!cpu->in_trap_handler) {
+        printf("[ERROR] RETT at PC=0x%08X: Not in trap handler\n", fi->address);
+        trap_instruction_sequence_error(cpu, fi->address);
+        return;
+    }
 
-    /* TODO: When trap system is implemented:
-     *
-     * uint8_t current_domain = cpu->CAD;
-     * Nd500PCB* pcb = nd500_get_pcb(cpu, current_domain);
-     *
-     * // Verify inside trap handler
-     * if (!pcb->inside_trap_handler) {
-     *     printf("[ERROR] RETT at PC=0x%08X: Not in trap handler\n", fi->address);
-     *     trap_instruction_sequence_error(cpu, fi->address);
-     *     return;
-     * }
-     *
-     * // Get saved context
-     * Nd500DomainContext* context = &pcb->saved_context;
-     * if (!context->valid) {
-     *     printf("[ERROR] RETT at PC=0x%08X: No saved context\n", fi->address);
-     *     trap_instruction_sequence_error(cpu, fi->address);
-     *     return;
-     * }
-     *
-     * // Clear trap bit in ST register
-     * cpu->ST &= ~context->trap_bit;
-     *
-     * // Restore OTE (trap enables)
-     * cpu->OTE1 = context->ote1;
-     * cpu->OTE2 = context->ote2;
-     * cpu->MTE1 = context->mte1;
-     * cpu->MTE2 = context->mte2;
-     *
-     * // Restore main registers
-     * cpu->B = context->b;
-     * cpu->I[0] = context->i1;
-     * cpu->I[1] = context->i2;
-     * cpu->I[2] = context->i3;
-     * cpu->I[3] = context->i4;
-     * // ... restore all registers ...
-     *
-     * // Switch back to original domain (if different)
-     * if (context->domain_number != current_domain) {
-     *     cpu->CAD = context->domain_number;
-     * }
-     *
-     * // Mark as no longer in trap handler
-     * pcb->inside_trap_handler = 0;
-     * context->valid = 0;
-     *
-     * // Return to saved PC
-     * cpu->PC = context->pc;
-     */
+    /* B currently points to trap frame (THA + 256) */
+    uint32_t trap_frame_base = cpu->B;
 
-    /* Data status bits are restored from saved context (via ST register) */
+    printf("[RETT] Trap %d: Restoring from trap frame at 0x%08X\n",
+           cpu->trap_number, trap_frame_base);
+
+    /* ========================================================================
+     * Read saved register values from trap frame
+     * ======================================================================== */
+
+    /* Read key registers from trap frame */
+    uint32_t saved_PC = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 24, 0, 0));  /* arg2: return PC */
+    uint32_t saved_L = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 28, 0, 0));   /* arg3: L */
+    uint32_t saved_B = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 32, 0, 0));   /* arg4: B */
+    uint32_t saved_R = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 36, 0, 0));   /* arg5: R */
+
+    /* I1-I4 */
+    uint32_t saved_I1 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 40, 0, 0));
+    uint32_t saved_I2 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 44, 0, 0));
+    uint32_t saved_I3 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 48, 0, 0));
+    uint32_t saved_I4 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 52, 0, 0));
+
+    /* A1-A4 */
+    uint32_t saved_A1 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 56, 0, 0));
+    uint32_t saved_A2 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 60, 0, 0));
+    uint32_t saved_A3 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 64, 0, 0));
+    uint32_t saved_A4 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 68, 0, 0));
+
+    /* E1-E4 */
+    uint32_t saved_E1 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 72, 0, 0));
+    uint32_t saved_E2 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 76, 0, 0));
+    uint32_t saved_E3 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 80, 0, 0));
+    uint32_t saved_E4 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 84, 0, 0));
+
+    /* ST1, ST2 */
+    uint32_t saved_ST1 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 88, 0, 0));
+    uint32_t saved_ST2 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 92, 0, 0));
+
+    /* PS */
+    uint32_t saved_PS = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 96, 0, 0));
+
+    /* TOS, LL, HL */
+    uint32_t saved_TOS = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 100, 0, 0));
+    uint32_t saved_LL = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 104, 0, 0));
+    uint32_t saved_HL = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 108, 0, 0));
+
+    /* THA - don't restore, keep current */
+    /* CED, CAD - restore for domain context */
+    uint32_t saved_CED = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 116, 0, 0));
+    uint32_t saved_CAD = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 120, 0, 0));
+
+    /* OTE1, OTE2 - Per ND-500 manual, OTE should be loaded from DIT, not register block.
+     * For now we use the OTE saved by invoke_trap_handler() before ENTT cleared them.
+     * This preserves the pre-trap OTE which is the correct behavior. */
+    uint32_t saved_OTE1 = cpu->trap_saved_OTE1;
+    uint32_t saved_OTE2 = cpu->trap_saved_OTE2;
+
+    /* CTE1, CTE2 */
+    uint32_t saved_CTE1 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 148, 0, 0));
+    uint32_t saved_CTE2 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 152, 0, 0));
+
+    /* MTE1, MTE2 */
+    uint32_t saved_MTE1 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 156, 0, 0));
+    uint32_t saved_MTE2 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 160, 0, 0));
+
+    /* TEMM1, TEMM2 */
+    uint32_t saved_TEMM1 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 164, 0, 0));
+    uint32_t saved_TEMM2 = nd500_bus_read32(cpu->machine,
+        nd500_mmu_translate(cpu, trap_frame_base + 168, 0, 0));
+
+    printf("[RETT]   Restoring: B=0x%08X L=0x%08X TOS=0x%08X PC=0x%08X\n",
+           saved_B, saved_L, saved_TOS, saved_PC);
+
+    /* ========================================================================
+     * Step 4: Clear the specific trap status bit before restoring
+     * (ENTT already cleared it but we ensure it stays cleared)
+     * ======================================================================== */
+    uint64_t trapBit = 1ULL << cpu->trap_number;
+    if (cpu->trap_number < 32) {
+        saved_ST1 &= ~(uint32_t)(trapBit & 0xFFFFFFFF);
+    } else {
+        saved_ST2 &= ~(uint32_t)(trapBit >> 32);
+    }
+
+    /* ========================================================================
+     * Restore all registers
+     * ======================================================================== */
+
+    /* Core registers */
+    cpu->L = saved_L;
+    cpu->B = saved_B;
+    cpu->R = saved_R;
+
+    /* Integer registers */
+    cpu->I[0] = saved_I1;
+    cpu->I[1] = saved_I2;
+    cpu->I[2] = saved_I3;
+    cpu->I[3] = saved_I4;
+
+    /* Float registers */
+    cpu->A[0] = saved_A1;
+    cpu->A[1] = saved_A2;
+    cpu->A[2] = saved_A3;
+    cpu->A[3] = saved_A4;
+
+    /* Extension registers */
+    cpu->E[0] = saved_E1;
+    cpu->E[1] = saved_E2;
+    cpu->E[2] = saved_E3;
+    cpu->E[3] = saved_E4;
+
+    /* Status registers (with trap bit cleared) */
+    cpu->ST1 = saved_ST1;
+    cpu->ST2 = saved_ST2;
+
+    /* Process segment */
+    cpu->PS = saved_PS;
+
+    /* Stack registers */
+    cpu->TOS = saved_TOS;
+    cpu->LL = saved_LL;
+    cpu->HL = saved_HL;
+
+    /* Domain registers */
+    cpu->CED = saved_CED;
+    cpu->CAD = saved_CAD;
+
+    /* Trap enable registers */
+    cpu->OTE1 = saved_OTE1;
+    cpu->OTE2 = saved_OTE2;
+    cpu->CTE1 = saved_CTE1;
+    cpu->CTE2 = saved_CTE2;
+    cpu->MTE1 = saved_MTE1;
+    cpu->MTE2 = saved_MTE2;
+    cpu->TEMM1 = saved_TEMM1;
+    cpu->TEMM2 = saved_TEMM2;
+
+    /* ========================================================================
+     * Return to saved PC (retry the trapping instruction)
+     * ======================================================================== */
+    cpu->PC = saved_PC;
+
+    /* Clear trap handler flag */
+    cpu->in_trap_handler = false;
+
+    printf("[RETT] Trap %d handler complete, returning to PC=0x%08X\n",
+           cpu->trap_number, cpu->PC);
 }
