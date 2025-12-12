@@ -1,32 +1,57 @@
 /*
  * MON 123B (83 decimal): ReleaseResource (RELES)
  *
- * Releases a reserved device or file. The resource can then be used by another program. You reserve a device or opened file with ReserveResource. Some devices, e.g. terminals, have both an input and output part. You can only release one part with each ReleaseResource.
- * 
- * - A normal termination of an RT program release all resources.
+ * Releases a reserved device or file. The resource can then be used by
+ * another program. You reserve a device or opened file with ReserveResource.
+ * Some devices, e.g. terminals, have both an input and output part. You can
+ * only release one part with each ReleaseResource call.
+ *
+ * - A normal termination of an RT program releases all resources.
  * - Reserve the device with ReserveResource or ForceReserve.
  * - CloseFile or @CLOSE-FILE releases reserved files.
  *
  * Parameters:
- *   [I] DeviceNumber (INTEGER): input
- *   [I] IOFlag (INTEGER): input
+ *   [I] DeviceNumber (WORD): Logical device number
+ *   [I] IOFlag (WORD): 0=input part, 1=output part
  *
- * AUTO-GENERATED STUB - Implementation required
+ * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
 
 #include "../mon.h"
+#include "../mon_file_table.h"
 
 MonResult mon_123B_ReleaseResource(MonContext* ctx) {
-    /* TODO: Implement ReleaseResource (RELES) */
+    /* Defensive check for argument count */
+    if (ctx->arg_count < 2) {
+        mon_log(MON_LOG_WARN, "MON 123B RELES: Missing parameters (need 2, got %u)",
+                ctx->arg_count);
+        mon_set_error(ctx, 52);  /* Invalid parameter */
+        return MON_ERROR;
+    }
 
-    /* Log input parameters */
+    /* Read input parameters */
+    uint32_t device_no = mon_read_param_word(ctx, 0);
+    uint32_t io_flag = mon_read_param_word(ctx, 1);
+
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
     MON_LOG_IN_WORD(ctx, 1, "IOFlag");
 
-    /* Implementation goes here */
+    mon_log(MON_LOG_DEBUG, "MON 123B RELES: DeviceNo=%u (octal %o), IOFlag=%u",
+            device_no, device_no, io_flag);
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
+    /* Call release API */
+    int result = mon_release_device(device_no, (uint8_t)io_flag);
 
-    return MON_ERROR;
+    if (result < 0) {
+        mon_log(MON_LOG_INFO, "MON 123B RELES: Device %u (%s) was not reserved",
+                device_no, io_flag == 0 ? "input" : "output");
+        mon_set_error(ctx, 58);  /* Device not reserved */
+        return MON_ERROR;
+    }
+
+    mon_log(MON_LOG_INFO, "MON 123B RELES: Device %u (%s) released successfully",
+            device_no, io_flag == 0 ? "input" : "output");
+
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }

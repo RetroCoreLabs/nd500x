@@ -481,7 +481,7 @@ void mon_register_all_handlers(void) {
         "Reserves a device or file for your program only. You release it with ReleaseResource. Some devices, ",  /* Description */
         "[I] DeviceNo (INTEGER2): Logical device number. See appendix B.\\n[I] IOFlag (INTEGER2): Input/output flag. 0=input part, 1=output part.\\n[I] WaitFlag (INTEGER2): Wait flag. 0=wait if reserved, 1=return status value.\\n[O] Status (INTEGER2): Return status (output). Only used if WaitFlag=1. Negative=already reserved.",  /* Parameter details */
         mon_122B_ReserveResource,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         4             /* Param count */
     );
     mon_register_ex(
@@ -492,7 +492,7 @@ void mon_register_all_handlers(void) {
         "Releases a reserved device or file. The resource can then be used by another program. You reserve a ",  /* Description */
         "[I] DeviceNumber (INTEGER): Logical device number. See appendix B.\\n[I] IOFlag (INTEGER): Input or output flag. Use 0 for the input part and 1 for the output part.",  /* Parameter details */
         mon_123B_ReleaseResource,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -2187,9 +2187,9 @@ void mon_register_all_handlers(void) {
         "ROBJE",    /* Short name */
         "ReadObjectEntry",          /* Long name */
         "Gets information about an opened file. An object entry describes each file. It contains the file nam",  /* Description */
-        "[I] FileNumber (INTEGER2): The file number. See OpenFile.\\n[O] Buff (BYTES[64]): The 64 byte object entry buffer (output). See appendix C.",  /* Parameter details */
+        "[I] FileNumber (WORD): The file number. See OpenFile.\\n[O] Buff (BYTES[64]): The 64 byte object entry buffer. See appendix C.\\n[O] W1: Standard Error Code on error.",  /* Parameter details */
         mon_41B_ReadObjectEntry,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -2343,7 +2343,7 @@ void mon_register_all_handlers(void) {
         "Closes one or more files. Files must be opened before they are accessed. Afterwards they should be c",  /* Description */
         "[I] FileNumber (INTEGER): File number returned when the file was opened.\n-1 = close all files not permanently open\n-2 = close all files including scratch and permanently open files",  /* Parameter details */
         mon_43B_CloseFile,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -2463,7 +2463,7 @@ void mon_register_all_handlers(void) {
         "Opens a file. You cannot access a file before you open it. Specify what kind of access you want, e.g",  /* Description */
         "[IO] FileNo (INTEGER): If 0 on input, returns the ND-500 open file number. Otherwise specifies the file number to use.\\n[I] AccessCode (INTEGER): Access code specifying type of file access:\n0 = Sequential write\n1 = Sequential read\n2 = Random read or write\n3 = Random read only\n4 = Sequential read or write\n5 = Sequential write append\n6 = Random read or write common on contiguous files\n7 = Random read common on contiguous files\n8 = Random read or write on contiguous files (direct transfer for RT programs)\n9 = Random read, write append for WriteToFile\\n[I] FileName (STRING): File name string (up to 64 characters). If empty, name is read from terminal.\\n[I] FileType (STRING): Default file type string (up to 4 characters), e.g. 'SYMB'.",  /* Parameter details */
         mon_50B_OpenFile,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         4             /* Param count */
     );
     mon_register_ex(
