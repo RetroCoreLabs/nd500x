@@ -1,40 +1,79 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 /**
  * Biconv instruction - FLOAT_MATH class
- * 
+ *
  * Variants: 5
  * Mnemonics: biconv biconv biconv biconv biconv
  * Operands: 2
- * 
+ *
  * Opcodes:
- *   0xFD49 (biconv)
- *   0xFD4E (biconv)
- *   0xFD53 (biconv)
- *   0xFD58 (biconv)
- *   0xFD5D (biconv)
+ *   0xFD49 (biconv) - BY BICONV (byte to bit)
+ *   0xFD4E (biconv) - H BICONV (halfword to bit)
+ *   0xFD53 (biconv) - W BICONV (word to bit)
+ *   0xFD58 (biconv) - F BICONV (float to bit)
+ *   0xFD5D (biconv) - D BICONV (double to bit)
+ *
+ * Converts source operand to bit: non-zero -> 1, zero -> 0.
+ * For floats, checks if value is non-zero (exponent != 0).
  */
 void nd500_instr_Biconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Biconv instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 2
-     * - Access operands via: fi->operands[0..1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Biconv instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    if (fi->operand_count != 2) {
+        printf("[ERROR] BICONV expects 2 operands, got %u at PC=0x%08X\n",
+               fi->operand_count, fi->address);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Convert source to bit: non-zero -> 1, zero -> 0 */
+    bool bit_result = false;
+
+    /* Read source operand based on opcode */
+    if (fi->opcode == 0xFD49) {
+        /* BY BICONV: Byte to bit - non-zero check */
+        uint64_t byte_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
+        bit_result = (byte_val & 0xFF) != 0;
+    } else if (fi->opcode == 0xFD4E) {
+        /* H BICONV: Halfword to bit - non-zero check */
+        uint64_t h_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_HALFWORD);
+        bit_result = (h_val & 0xFFFF) != 0;
+    } else if (fi->opcode == 0xFD53) {
+        /* W BICONV: Word to bit - non-zero check */
+        uint64_t w_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        bit_result = (w_val & 0xFFFFFFFF) != 0;
+    } else if (fi->opcode == 0xFD58) {
+        /* F BICONV: Float to bit - check if ND-500 float is non-zero */
+        uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        bit_result = !nd500_float_is_zero(float_bits);
+    } else if (fi->opcode == 0xFD5D) {
+        /* D BICONV: Double to bit - check if ND-500 double is non-zero */
+        uint64_t double_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+        bit_result = !nd500_double_is_zero(double_bits);
+    } else {
+        printf("[ERROR] BICONV at PC=0x%08X: Unknown opcode 0x%04X\n",
+               fi->address, fi->opcode);
+        trap_illegal_operand(cpu, fi->address);
+        return;
+    }
+
+    /* Write result to destination operand (0 or 1) */
+    nd500_write_operand_value(cpu, &fi->operands[1], bit_result ? 1 : 0, ND500_DTYPE_BYTE);
+
+    /* Set flags: Z (result is 0), S (result is 1) */
+    if (bit_result) {
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+        nd500_set_flag(cpu, ND500_FLAG_S);
+    } else {
+        nd500_set_flag(cpu, ND500_FLAG_Z);
+        nd500_clear_flag(cpu, ND500_FLAG_S);
+    }
+
+    /* O and C flags cleared */
+    nd500_clear_flag(cpu, ND500_FLAG_O);
+    nd500_clear_flag(cpu, ND500_FLAG_C);
 }
