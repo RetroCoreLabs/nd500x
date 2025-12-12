@@ -4,6 +4,7 @@
 #include "machine_protos.h"
 #include "breakpoints.h"
 #include "../cpu/nd500_mmu.h"
+#include "../libmon/mon_file_table.h"
 
 /* Convert stop reason enum to string */
 const char* nd500_stop_reason_str(StopReason reason) {
@@ -47,6 +48,9 @@ void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
 	if (m->bp_mgr) {
 		bp_mgr_init(m->bp_mgr);
 	}
+
+	/* Initialize file system tables (for MON 50/43/122/123 etc) */
+	mon_file_table_init();
 }
 
 void nd500_machine_free(Nd500Machine* m) {
@@ -55,12 +59,15 @@ void nd500_machine_free(Nd500Machine* m) {
 	m->memory = NULL;
 	m->memory_size = 0;
 	m->run_flag = 0;
-	
+
 	/* Free breakpoint manager */
 	if (m->bp_mgr) {
 		free(m->bp_mgr);
 		m->bp_mgr = NULL;
 	}
+
+	/* Reset file system tables */
+	mon_file_table_reset();
 }
 
 static inline int in_range(Nd500Machine* m, uint32_t addr, uint32_t size) {
