@@ -61,10 +61,20 @@ typedef struct Nd500Cpu {
 	uint32_t CAD;       /* Current Alternative Domain */
 	uint32_t PS;        /* Process Segment */
 
+	/* Domain allocation tracking (like C# domainsInUse[]) */
+	uint8_t domains_in_use[256];  /* 0=free, 1=allocated. Domain 0 always in use (kernel) */
+
 	/* CALL/ENT handshake state (internal CPU state not visible to programs) */
 	uint32_t pending_call_return_address;  /* Return address from CALL to pass to ENT */
 	uint32_t pending_call_arg_count;       /* Number of arguments from CALL */
 	uint32_t pending_call_arg_addresses[256]; /* Effective addresses of arguments */
+
+	/* Trap handler state (for ENTT/RETT) */
+	bool in_trap_handler;           /* True while executing trap handler */
+	uint32_t trap_saved_PC;         /* PC to return to after RETT (trapping instruction) */
+	uint32_t trap_saved_OTE1;       /* Saved OTE1 for restoration by RETT */
+	uint32_t trap_saved_OTE2;       /* Saved OTE2 for restoration by RETT */
+	int trap_number;                /* Current trap being handled (bit position) */
 
 	/* Variable operand buffer for CALL/CALLG/POLY (decoded operands beyond first 2) */
 	Nd500OperandDecoded extra_operands[256];

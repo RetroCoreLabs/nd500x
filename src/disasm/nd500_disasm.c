@@ -1,3 +1,34 @@
+/**
+ * nd500_disasm.c - ND-500 Instruction Disassembler
+ *
+ * This module provides disassembly output for ND-500 instructions,
+ * formatting operands according to ND-500 assembly syntax conventions.
+ *
+ * CRITICAL IMPLEMENTATION NOTE - Unsigned Displacements (2024-12-12):
+ * ===================================================================
+ * Per ND-05.009.4 Section 8.4 "Local addressing":
+ *   "Displacement values are treated as unsigned."
+ *
+ * This applies to the following addressing modes:
+ *   - LOCAL (b.offset)        - base B register + unsigned displacement
+ *   - LOCAL_SHORT (b.offset)  - short form, offset = low6 * 4
+ *   - LOCAL_PI (b.offset(rN)) - with post-indexing
+ *   - LOCAL_IND (IND(b.offset)) - indirect
+ *   - LOCAL_IND_PI            - indirect with post-indexing
+ *   - RECORD (r.offset)       - base R register + unsigned displacement
+ *   - RECORD_SHORT (r.offset) - short form
+ *   - PREINDEXED (rN.offset)  - indexed register + unsigned displacement
+ *
+ * Example of correct interpretation:
+ *   Encoding: 4A C1 AC  (W STZ with LOCAL mode, 1-byte displacement 0xAC)
+ *   Correct:  W STZ b.172   (0xAC = 172 unsigned)
+ *   Wrong:    W STZ b.-84   (0xAC as signed = -84)
+ *
+ * This module uses fmt_unsigned() for all displacement values in these
+ * modes to match the correct ND-500 behavior.
+ *
+ * Reference: ND-05.009.4 ND-500 CPU Programmer's Reference Manual
+ */
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -187,18 +218,19 @@ int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, N
         }
         case ND500_ADDR_PREINDEXED: {
             /* F2. PREINDEXED: rN.offset (not disp(rN)) */
+            /* Per ND-05.009.4 Section 8.4: displacements are UNSIGNED */
             int regnum = (op->address_code & 0x03) + 1;
             int n = snprintf(p, (size_t)(e-p), "r%d.", regnum);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
-            n = fmt_signed(p, (size_t)(e-p), sval);
+            n = fmt_unsigned(p, (size_t)(e-p), val);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
         case ND500_ADDR_LOCAL: {
-            /* b.offset */
+            /* b.offset - displacements are UNSIGNED per manual */
             int n = snprintf(p, (size_t)(e-p), "b.");
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
-            n = fmt_signed(p, (size_t)(e-p), sval);
+            n = fmt_unsigned(p, (size_t)(e-p), val);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
@@ -207,7 +239,7 @@ int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, N
             int regnum = (op->address_code & 0x03) + 1;
             int n = snprintf(p, (size_t)(e-p), "b.");
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
-            n = fmt_signed(p, (size_t)(e-p), sval);
+            n = fmt_unsigned(p, (size_t)(e-p), val);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             n = snprintf(p, (size_t)(e-p), "(r%d)", regnum);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
@@ -217,7 +249,7 @@ int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, N
             /* F3. LOCAL_IND: IND(b.offset) not @b.offset */
             int n = snprintf(p, (size_t)(e-p), "IND(b.");
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
-            n = fmt_signed(p, (size_t)(e-p), sval);
+            n = fmt_unsigned(p, (size_t)(e-p), val);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             if (p < e) *p++ = ')';
             break;
@@ -227,17 +259,17 @@ int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, N
             int regnum = (op->address_code & 0x03) + 1;
             int n = snprintf(p, (size_t)(e-p), "IND(b.");
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
-            n = fmt_signed(p, (size_t)(e-p), sval);
+            n = fmt_unsigned(p, (size_t)(e-p), val);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             n = snprintf(p, (size_t)(e-p), ")(r%d)", regnum);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
         case ND500_ADDR_RECORD: {
-            /* r.offset */
+            /* r.offset - displacements are UNSIGNED per manual */
             int n = snprintf(p, (size_t)(e-p), "r.");
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
-            n = fmt_signed(p, (size_t)(e-p), sval);
+            n = fmt_unsigned(p, (size_t)(e-p), val);
             if (n>0) p += (n < (e-p)? n : (int)(e-p));
             break;
         }
@@ -341,6 +373,46 @@ static size_t buf_append(char* out, size_t cap, size_t pos, const char* fmt, ...
     size_t inc = (size_t)wrote;
     if (pos + inc >= cap) { out[cap - 1] = '\0'; return cap - 1; }
     return pos + inc;
+}
+
+size_t nd500_format_instruction(char* buf, size_t cap, const Nd500FetchedInstruction* fi) {
+    if (!buf || cap == 0 || !fi) return 0;
+    size_t pos = 0;
+
+    /* Build display mnemonic with optional dtype/register prefix */
+    const char* mnem = fi->mnemonic ? fi->mnemonic : "???";
+    char regprefix[16];
+    regprefix[0] = '\0';
+
+    if (nd500_instr_has_rn(fi->opcode)) {
+        int dreg = nd500_instr_dest_reg(fi->opcode);
+        if (dreg >= 0 && dreg < 4) {
+            const char* dts = nd500_instr_dtype_prefix(fi->opcode);
+            snprintf(regprefix, sizeof(regprefix), "%s%d ", dts, dreg + 1);
+        }
+    } else {
+        uint8_t dtype_mask = (uint8_t)(nd500_instr_prefixes_mask(fi->opcode) & 0x3F);
+        if (dtype_mask != 0) {
+            const char* dts = nd500_instr_dtype_prefix(fi->opcode);
+            snprintf(regprefix, sizeof(regprefix), "%s ", dts);
+        }
+    }
+
+    /* Print prefix + mnemonic + operands */
+    if (fi->operand_count > 0) {
+        pos = buf_append(buf, cap, pos, "%s%-12s ", regprefix, mnem);
+        for (uint8_t oi = 0; oi < fi->operand_count; ++oi) {
+            char obuf[64];
+            size_t ol = fmt_operand(obuf, sizeof(obuf), &fi->operands[oi], fi->data_type);
+            if (ol > 0) {
+                pos = buf_append(buf, cap, pos, "%s%s", (oi > 0) ? "," : "", obuf);
+            }
+        }
+    } else {
+        pos = buf_append(buf, cap, pos, "%s%s", regprefix, mnem);
+    }
+
+    return pos;
 }
 
 size_t nd500_disasm_format_range(struct Nd500Machine* m,

@@ -122,3 +122,8 @@ int nd500_domain_is_cross_domain_call(Nd500Cpu* cpu, uint32_t target_addr);
 /* Domain Validation */
 int nd500_domain_is_valid(uint8_t domain);
 int nd500_domain_has_capability(Nd500Cpu* cpu, uint8_t domain, int segment);
+
+/* Domain Allocation (like C# AllocateDomain/FreeDomain) */
+int nd500_domain_allocate(Nd500Cpu* cpu);    /* Returns domain 1-255, or -1 if none free */
+void nd500_domain_free(Nd500Cpu* cpu, uint8_t domain);
+int nd500_domain_is_allocated(Nd500Cpu* cpu, uint8_t domain);

@@ -130,18 +130,22 @@ typedef struct Nd500Cpu Nd500Cpu;
  * Parameters:
  *   m              - Machine to load into
  *   cpu            - CPU to configure (domain and MMU)
+ *   target_domain  - Domain to load into: -1 = auto-allocate (1-255), 0-255 = specific domain
  *   log_callback   - Optional callback for progress messages (NULL to suppress)
  *   log_context    - Context passed to log_callback
  *   out_start_addr - Returns start address from header (may be NULL)
+ *   out_domain     - Returns actual domain loaded into (may be NULL)
  *
  * Returns: 0 on success, -1 on error
  */
 int ndlib_dom_load_to_machine(
     Nd500Machine* m,
     Nd500Cpu* cpu,
+    int target_domain,
     void (*log_callback)(void* ctx, const char* fmt, ...),
     void* log_context,
-    uint32_t* out_start_addr);
+    uint32_t* out_start_addr,
+    int* out_domain);
 
 /* Simple printf-based log callback for command line use */
 void ndlib_dom_log_printf(void* ctx, const char* fmt, ...);

@@ -4,12 +4,14 @@
  */
 
 #include "commands.h"
+#include "debugger.h"
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
 #include "../ndlib/ndlib.h"
 #include "../cpu/cpu_protos.h"
 #include "../cpu/nd500_mmu.h"
 #include "../cpu/nd500_domain.h"
+#include "../cpu/instruction_helpers.h"
 #include "../libmon/mon.h"
 #include "nd500_dom.h"
 #include <stdio.h>
@@ -17,6 +19,53 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdarg.h>
+
+/* ============================================================================
+ * Domain Tracking System
+ * Tracks loaded domains for debugger display
+ * ============================================================================ */
+
+#define MAX_DOMAINS 256
+#define MAX_DOMAIN_NAME 64
+
+/* Information about a loaded domain */
+typedef struct {
+    int is_loaded;
+    uint8_t domain_number;
+    char domain_name[MAX_DOMAIN_NAME];
+    char filepath[256];
+    uint32_t entry_point;
+    uint32_t trap_handler;
+    int segment_count;
+} LoadedDomainInfo;
+
+/* Global domain tracking array */
+static LoadedDomainInfo g_loaded_domains[MAX_DOMAINS];
+
+/* Register a loaded domain (called from ndlib_dom_loader.c) */
+void nd500_debugger_register_domain(uint8_t domain_num, const char* name,
+                                    const char* filepath, uint32_t entry,
+                                    uint32_t tha, int seg_count) {
+    if (domain_num >= MAX_DOMAINS) return;
+    LoadedDomainInfo* info = &g_loaded_domains[domain_num];
+    info->is_loaded = 1;
+    info->domain_number = domain_num;
+    if (name) {
+        strncpy(info->domain_name, name, MAX_DOMAIN_NAME - 1);
+        info->domain_name[MAX_DOMAIN_NAME - 1] = '\0';
+    } else {
+        info->domain_name[0] = '\0';
+    }
+    if (filepath) {
+        strncpy(info->filepath, filepath, sizeof(info->filepath) - 1);
+        info->filepath[sizeof(info->filepath) - 1] = '\0';
+    } else {
+        info->filepath[0] = '\0';
+    }
+    info->entry_point = entry;
+    info->trap_handler = tha;
+    info->segment_count = seg_count;
+}
 
 /* Command handler function type */
 typedef int (*cmd_handler_fn)(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -760,7 +809,19 @@ static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args) {
 	memset(&r, 0, sizeof(r));
 	nd500_dbg_regs(m->cpu, &r);
 
-	output(ctx, "PC=%08X FLAGS=%08X", r.PC, r.FLAGS);
+	/* Build flags ASCII string: uppercase=set, lowercase=clear
+	 * Format: PDZSCKO (P=Privileged, D=PSD, Z=Zero, S=Sign, C=Carry, K=K-flag, O=Overflow) */
+	char flags_ascii[8];
+	flags_ascii[0] = (r.ST1 & ND500_FLAG_PIA) ? 'P' : 'p';
+	flags_ascii[1] = (r.ST1 & ND500_FLAG_PSD) ? 'D' : 'd';
+	flags_ascii[2] = (r.ST1 & ND500_FLAG_Z) ? 'Z' : 'z';
+	flags_ascii[3] = (r.ST1 & ND500_FLAG_S) ? 'S' : 's';
+	flags_ascii[4] = (r.ST1 & ND500_FLAG_C) ? 'C' : 'c';
+	flags_ascii[5] = (r.ST1 & ND500_FLAG_K) ? 'K' : 'k';
+	flags_ascii[6] = (r.ST1 & ND500_FLAG_O) ? 'O' : 'o';
+	flags_ascii[7] = '\0';
+
+	output(ctx, "PC=%08X FLAGS=%08X [%s]", r.PC, r.FLAGS, flags_ascii);
 	output(ctx, "I1/W1=%08X I2/W2=%08X I3/W3=%08X I4/W4=%08X", r.I[0], r.I[1], r.I[2], r.I[3]);
 	output(ctx, "A1/F1=%08X A2/F2=%08X A3/F3=%08X A4/F4=%08X", r.A[0], r.A[1], r.A[2], r.A[3]);
 	output(ctx, "E1=%08X E2=%08X E3=%08X E4=%08X  (D1-D4 high)", r.E[0], r.E[1], r.E[2], r.E[3]);
@@ -1179,10 +1240,55 @@ static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return -1;
 	}
 
-	/* Parse file path argument */
-	char* filepath = args ? strtok(args, " \t\r\n") : NULL;
+	/* Parse arguments: loaddom <filepath> [domain] [autostart] [-v|--verbose|/v]
+	 * Similar to C#: DOMLOAD <filepath> [domain] [autostart] [-v|--verbose] */
+	char* filepath = NULL;
+	int target_domain = -1;  /* -1 = auto-allocate */
+	int autostart = 1;       /* 1 = switch to domain after load */
+	int verbose = 0;         /* 0 = normal, 1 = verbose header dump */
+
+	char* tok = args ? strtok(args, " \t\r\n") : NULL;
+	while (tok) {
+		/* Check for verbose flag */
+		if (strcmp(tok, "-v") == 0 || strcmp(tok, "--verbose") == 0 || strcmp(tok, "/v") == 0) {
+			verbose = 1;
+		} else if (!filepath) {
+			/* First non-flag argument is filepath */
+			filepath = tok;
+		} else {
+			/* Subsequent numeric arguments: domain, then autostart */
+			char* endptr;
+			long val = strtol(tok, &endptr, 0);
+			if (*endptr == '\0') {
+				if (target_domain < 0 && val >= 0 && val <= 255) {
+					target_domain = (int)val;
+				} else if (val <= 1) {
+					autostart = (int)val;
+				} else {
+					error(ctx, "invalid parameter: %s", tok);
+					return -1;
+				}
+			} else {
+				error(ctx, "invalid parameter: %s", tok);
+				return -1;
+			}
+		}
+		tok = strtok(NULL, " \t\r\n");
+	}
+
 	if (!filepath) {
-		error(ctx, "usage: loaddom <path-to-dom-or-seg-file>");
+		output(ctx, "Usage: loaddom <filepath> [domain] [autostart] [-v|--verbose]");
+		output(ctx, "  filepath  - Path to .dom or .seg file");
+		output(ctx, "  domain    - Optional: domain number (0-255), omit to auto-allocate");
+		output(ctx, "  autostart - Optional: 0 to not switch, 1 to switch (default)");
+		output(ctx, "  -v        - Verbose: show detailed DOM header information");
+		output(ctx, "");
+		output(ctx, "Examples:");
+		output(ctx, "  loaddom prog.dom           - Auto-allocate domain");
+		output(ctx, "  loaddom prog.dom 5         - Load into domain 5");
+		output(ctx, "  loaddom prog.dom 5 0       - Load into domain 5, don't switch");
+		output(ctx, "  loaddom prog.dom -v        - Auto-allocate with verbose output");
+		output(ctx, "  loaddom prog.dom 5 -v      - Load into domain 5, verbose");
 		return -1;
 	}
 
@@ -1218,6 +1324,173 @@ static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  Start addr: 0x%08X", start_addr);
 	output(ctx, "  Restart addr: 0x%08X", nd500_read32(&hdr->raw[0xDC]));
 
+	/* Verbose mode: show detailed DOM header information (matching C# DumpHeaderInfo format) */
+	if (verbose) {
+		/* FILE HEADER Section */
+		output(ctx, "");
+		output(ctx, "=========================================================");
+		output(ctx, "File HEADER: %s", filepath);
+		output(ctx, "=========================================================");
+
+		/* LinkLock (octal 0000-0003) */
+		uint32_t link_lock = nd500_read32(&hdr->raw[0x00]);
+		output(ctx, "LinkLock        : 0x%08X%s", link_lock,
+			(link_lock == 0xFFFFFFFF || link_lock == 0x0000FFFF) ? " (UNIVERSAL)" : "");
+		output(ctx, "Version         : %d.%d", hdr->raw[4], hdr->raw[5]);
+
+		/* FLAGS (octal 0006) - Domain flags */
+		uint8_t flags = hdr->raw[6];
+		output(ctx, "FLAGS           : 0x%02X [%s%s%s%s%s]",
+			flags,
+			(flags & 0x08) ? "TrapBlockValid " : "",
+			(flags & 0x10) ? "IsDomainFile " : "",
+			(flags & 0x20) ? "IsRootDomain " : "",
+			(flags & 0x40) ? "IsSintranIII " : "",
+			(flags & 0x80) ? "IsND500 " : "");
+
+		/* MACHINE (octal 0007) - Target machine */
+		uint8_t machine = hdr->raw[7];
+		const char* machine_name = "Unknown";
+		uint8_t target_machine_type = (machine >> 5) & 0x07;
+		if (target_machine_type == 0) machine_name = "Norsk Data";
+		else if (target_machine_type == 1) machine_name = "Motorola";
+		else if (target_machine_type == 2) machine_name = "Intel";
+		output(ctx, "MACHINE         : 0x%02X", machine);
+		output(ctx, "Machine         : %s", machine_name);
+
+		/* OS ID (octal 0010) */
+		uint8_t os_id = hdr->raw[8];
+		const char* os_name = "Unknown";
+		if (os_id <= 9) os_name = "ND-OS (SINTRAN-III)";
+		else if (os_id >= 10 && os_id <= 19) os_name = "UNIX";
+		else if (os_id >= 20 && os_id <= 29) os_name = "MS-DOS";
+		output(ctx, "OS              : %s [%d]", os_name, os_id);
+
+		/* Subsystem key (octal 012-017, 6 bytes) */
+		output(ctx, "Subsystem key   : %02X %02X %02X %02X %02X %02X",
+			hdr->raw[10], hdr->raw[11], hdr->raw[12],
+			hdr->raw[13], hdr->raw[14], hdr->raw[15]);
+
+		if (is_dom) {
+			/* DOM HEADER Section */
+			output(ctx, "");
+			output(ctx, "=========================================================");
+			output(ctx, "DOM HEADER:");
+			output(ctx, "=========================================================");
+
+			/* Domain Privileges (octal 0020-0027) */
+			uint16_t priv1 = nd500_read16(&hdr->raw[0x10]);
+			output(ctx, "DomainPrivileges1  :  0x%04X  [%s%s]",
+				priv1,
+				(priv1 & 0x8000) ? "EnableEscape " : "",
+				(priv1 & 0x4000) ? "PrivilegedInstructions " : "");
+
+			/* COMMON PARTS Section */
+			output(ctx, "");
+			output(ctx, "=========================================================");
+			output(ctx, "COMMON Parts:");
+			output(ctx, "=========================================================");
+
+			/* FREIND - Free pointer in name pool (octal 0306-0307) */
+			uint16_t freind = nd500_read16(&hdr->raw[0xC6]);
+			output(ctx, "FREIND         :  0x%04X", freind);
+
+			/* Debug and Link areas */
+			uint32_t deb_lb = nd500_read32(&hdr->raw[0xC8]);
+			uint32_t deb_sz = nd500_read32(&hdr->raw[0xCC]);
+			uint32_t link_lb = nd500_read32(&hdr->raw[0xD0]);
+			uint32_t link_sz = nd500_read32(&hdr->raw[0xD4]);
+			output(ctx, "DEBUG LB       :  0x%08X (Lower bound of DEBUG info area within :DOM file)", deb_lb);
+			output(ctx, "DEBUG SZ       :  0x%08X (Size of DEBUG info area)", deb_sz);
+			output(ctx, "LINK LB        :  0x%08X (Lower bound of LINK info area within :DOM file)", link_lb);
+			output(ctx, "LINK SZ        :  0x%08X (Size of LINK info area)", link_sz);
+
+			/* Start and restart addresses */
+			output(ctx, "STADDR         :  0x%08X (Start address)", start_addr);
+			output(ctx, "RESTADDR       :  0x%08X (Restart address)", nd500_read32(&hdr->raw[0xDC]));
+
+			/* Trap block */
+			uint32_t tha   = nd500_read32(&hdr->raw[0xE0]);
+			uint32_t mte2  = nd500_read32(&hdr->raw[0xE4]);
+			uint32_t mte1  = nd500_read32(&hdr->raw[0xE8]);
+			uint32_t ote2  = nd500_read32(&hdr->raw[0xEC]);
+			uint32_t ote1  = nd500_read32(&hdr->raw[0xF0]);
+			uint32_t cte2  = nd500_read32(&hdr->raw[0xF4]);
+			uint32_t cte1  = nd500_read32(&hdr->raw[0xF8]);
+			uint32_t temm2 = nd500_read32(&hdr->raw[0xFC]);
+			uint32_t temm1 = nd500_read32(&hdr->raw[0x100]);
+
+			output(ctx, "THA            :  0x%08X (traphandler vector address)", tha);
+			output(ctx, "MTE2           :  0x%08X", mte2);
+			output(ctx, "MTE1           :  0x%08X", mte1);
+			output(ctx, "OTE2           :  0x%08X", ote2);
+			output(ctx, "OTE1           :  0x%08X", ote1);
+			output(ctx, "CTE2           :  0x%08X", cte2);
+			output(ctx, "CTE1           :  0x%08X", cte1);
+			output(ctx, "TEMM2          :  0x%08X", temm2);
+			output(ctx, "TEMM1          :  0x%08X", temm1);
+
+			/* Process priority (octal 0404) */
+			uint32_t priority = nd500_read32(&hdr->raw[0x104]);
+			output(ctx, "PRIORITY       :  0x%08X (Process priority)", priority);
+
+			/* Source Language mask and MSA Language */
+			output(ctx, "");
+			output(ctx, "=========================================================");
+			output(ctx, " Source Language mask and MSA Language");
+			output(ctx, "=========================================================");
+
+			/* LANGUAGE and MSAL (octal 1110) */
+			uint32_t lang_msal = nd500_read32(&hdr->raw[0x248]);
+			uint8_t msal = lang_msal & 0xFF;
+			const char* lang_name = "Unknown";
+			switch (msal) {
+				case 0: lang_name = "ND-500 Assembler"; break;
+				case 1: lang_name = "FORTRAN-500"; break;
+				case 2: lang_name = "PLANC"; break;
+				case 3: lang_name = "PASCAL"; break;
+				case 4: lang_name = "COBOL"; break;
+				case 5: lang_name = "BASIC"; break;
+				case 6: lang_name = "C"; break;
+				case 7: lang_name = "NPL"; break;
+				case 8: lang_name = "MAC"; break;
+			}
+			output(ctx, "LANGUAGE           :  %s", lang_name);
+			output(ctx, "LANGUAGE           :  0x%08X", lang_msal);
+
+			/* Free text indexes (octal 1114-1116) */
+			uint16_t min_free_text = nd500_read16(&hdr->raw[0x24C]);
+			uint16_t max_free_text = nd500_read16(&hdr->raw[0x24E]);
+			output(ctx, "MIN                :  0x%04X", min_free_text);
+			output(ctx, "MAX                :  0x%04X", max_free_text);
+		}
+
+		/* Segments Section */
+		output(ctx, "");
+		output(ctx, "=========================================================");
+		output(ctx, "Segments");
+		output(ctx, "=========================================================");
+
+		for (int i = 0; i < (is_dom ? 32 : 1); i++) {
+			uint32_t prog_size, prog_addr, data_size, data_addr;
+			int is_linked, is_used;
+			if (ndlib_dom_get_segment_info(i, &prog_size, &prog_addr, &data_size, &data_addr, &is_linked, &is_used) == 0) {
+				if (is_used || prog_size > 0 || data_size > 0) {
+					output(ctx, "Segment      : %d", i);
+					output(ctx, "-- PROGRAM --");
+					output(ctx, "LB           : 0x%08X (Lower bound of PROGRAM segment)", prog_addr);
+					output(ctx, "SZ           : 0x%08X (Size of PROGRAM segment)", prog_size);
+					output(ctx, "-- DATA --");
+					output(ctx, "LB           : 0x%08X (Lower bound of DATA segment)", data_addr);
+					output(ctx, "SZ           : 0x%08X (Size of DATA segment)", data_size);
+					output(ctx, "----");
+				}
+			}
+		}
+
+		output(ctx, "=========================================================");
+	}
+
 	/* Load segments into internal buffers */
 	rc = ndlib_load_dom_segments();
 	if (rc != 0) {
@@ -1228,11 +1501,27 @@ static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "");
 	output(ctx, "Physical Memory Layout:");
 
-	rc = ndlib_dom_load_to_machine(m, m->cpu, dom_log_callback, ctx, NULL);
+	int loaded_domain = -1;
+	rc = ndlib_dom_load_to_machine(m, m->cpu, target_domain, dom_log_callback, ctx, NULL, &loaded_domain);
 	if (rc != 0) {
 		error(ctx, "failed to configure machine for DOM execution");
 		return -1;
 	}
+
+	/* Display domain loaded summary */
+	output(ctx, "");
+	output(ctx, "============================================================");
+	output(ctx, "  Domain Loaded");
+	output(ctx, "============================================================");
+	output(ctx, "  Domain:     %d%s", loaded_domain, autostart ? " (active)" : "");
+	output(ctx, "  Entry:      0x%08X", start_addr);
+	output(ctx, "");
+	if (!autostart) {
+		output(ctx, "  Domain loaded but NOT started (autostart=0)");
+	} else {
+		output(ctx, "  Use 'run' to start execution");
+	}
+	output(ctx, "============================================================");
 
 	return 0;
 }

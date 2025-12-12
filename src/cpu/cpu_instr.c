@@ -597,28 +597,54 @@ static uint32_t get_short_embedded(const Nd500OperandDecoded* op) {
     return (uint32_t)(op->address_code & 0x3F);
 }
 
-/* Enhanced compute_effective_address matching C# implementation
- * dtype parameter is used for post-index scaling factor:
- * - BYTE: scale = 1
- * - HALFWORD: scale = 2  
- * - WORD: scale = 4
- * - DOUBLEWORD: scale = 8
+/**
+ * compute_effective_address - Calculate memory address for an operand
+ *
+ * This function computes the effective address for LOCAL, RECORD, PREINDEXED,
+ * and ABSOLUTE addressing modes according to the ND-500 architecture.
+ *
+ * CRITICAL BUG FIX (2024-12-12):
+ * ==============================
+ * Displacements in LOCAL, RECORD, and PREINDEXED modes are UNSIGNED.
+ * Previously this code incorrectly treated them as signed, causing addresses
+ * like B.172 (encoded as 0xAC) to be interpreted as B.-84, resulting in
+ * invalid memory accesses that underflowed segment boundaries.
+ *
+ * Reference: ND-05.009.4 Section 8.4 "Local addressing"
+ * Quote: "Displacement values are treated as unsigned."
+ *
+ * This applies to:
+ *   - LOCAL (0xC1-0xC3): B + unsigned_displacement
+ *   - LOCAL_PI (0xD4-0xDF): B + unsigned_displacement + (I[n] * scale)
+ *   - LOCAL_IND (0xC5-0xC7): @(B + unsigned_displacement)
+ *   - LOCAL_IND_PI (0xE4-0xEF): @(B + unsigned_displacement) + (I[n] * scale)
+ *   - RECORD (0xC9-0xCB): R + unsigned_displacement
+ *   - PREINDEXED (0xF4-0xFF): I[n] + unsigned_displacement
+ *
+ * NOTE: Branch displacements (GO, IF*GO, LOOP*) ARE signed and are handled
+ * separately in nd500_get_operand_displacement() in nd500_disasm.c.
+ *
+ * @param cpu   CPU state containing register values (B, R, I[1-4])
+ * @param op    Decoded operand with addressing mode and displacement data
+ * @param dtype Data type for post-index scaling (BYTE=1, HALF=2, WORD=4, DOUBLE=8)
+ * @return      Computed effective address
  */
 static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecoded* op, Nd500DataType dtype) {
     uint32_t address = 0;
-    int32_t displacement = 0;
-    
-    /* Extract displacement value (signed, big-endian) */
+    uint32_t displacement = 0;
+
+    /*
+     * Extract displacement value (UNSIGNED, big-endian)
+     * Per ND-05.009.4 Section 8.4: "Displacement values are treated as unsigned."
+     */
     if (op->data_len == 1) {
-        displacement = (int8_t)op->data[0];
+        displacement = (uint8_t)op->data[0];
     } else if (op->data_len == 2) {
-        uint16_t raw = ((uint16_t)op->data[0] << 8) | (uint16_t)op->data[1];  /* Big-endian */
-        displacement = (int16_t)raw;
+        displacement = ((uint32_t)op->data[0] << 8) | (uint32_t)op->data[1];  /* Big-endian */
     } else if (op->data_len >= 4) {
-        uint32_t raw = get_operand_value32(op);
-        displacement = (int32_t)raw;
+        displacement = get_operand_value32(op);
     }
-    
+
     /* STEP 1: Calculate base address based on addressing mode */
     switch (op->mode) {
         case ND500_ADDR_ABSOLUTE:
@@ -626,13 +652,13 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecod
             /* Absolute addressing - use displacement as absolute address */
             address = get_operand_value32(op);
             break;
-            
+
         case ND500_ADDR_LOCAL:
         case ND500_ADDR_LOCAL_PI:
         case ND500_ADDR_LOCAL_IND:
         case ND500_ADDR_LOCAL_IND_PI:
-            /* Local addressing - B register + displacement */
-            address = (uint32_t)((int32_t)cpu->B + displacement);
+            /* Local addressing - B register + displacement (unsigned) */
+            address = cpu->B + displacement;
             break;
             
         case ND500_ADDR_LOCAL_SHORT:
@@ -641,22 +667,22 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecod
             break;
             
         case ND500_ADDR_RECORD:
-            /* Record addressing - R register + displacement */
-            address = (uint32_t)((int32_t)cpu->R + displacement);
+            /* Record addressing - R register + displacement (unsigned) */
+            address = cpu->R + displacement;
             break;
-            
+
         case ND500_ADDR_RECORD_SHORT:
             /* Record short - R + embedded value * 4 */
             address = cpu->R + (get_short_embedded(op) * 4u);
             break;
-            
+
         case ND500_ADDR_PREINDEXED:
-            /* Pre-indexed - I[n] + displacement */
+            /* Pre-indexed - I[n] + displacement (unsigned) */
             /* op->reg is 1-4, cpu->I[] is 0-indexed (I[0]=I1, I[1]=I2, etc.) */
             if (op->reg >= 1 && op->reg <= 4) {
-                address = (uint32_t)((int32_t)cpu->I[op->reg - 1] + displacement);
+                address = cpu->I[op->reg - 1] + displacement;
             } else {
-                address = (uint32_t)displacement;
+                address = displacement;
             }
             break;
             

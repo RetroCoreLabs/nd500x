@@ -237,9 +237,11 @@ int main(int argc, char** argv) {
             if (rc != 0) {
                 printf("DOM segment load failed: %s\n", dom_path);
             } else {
-                /* Load segments to machine and configure MMU/domain system */
+                /* Load segments to machine and configure MMU/domain system
+                 * Pass -1 to auto-allocate domain (will get domain 1-255) */
                 uint32_t start_addr = 0;
-                rc = ndlib_dom_load_to_machine(&machine, &cpu, ndlib_dom_log_printf, NULL, &start_addr);
+                int loaded_domain = -1;
+                rc = ndlib_dom_load_to_machine(&machine, &cpu, -1, ndlib_dom_log_printf, NULL, &start_addr, &loaded_domain);
                 if (rc != 0) {
                     printf("DOM configuration failed: %s\n", dom_path);
                 } else {
@@ -247,7 +249,7 @@ int main(int argc, char** argv) {
                     if (has_start_pc) {
                         cpu.PC = start_pc;
                     }
-                    printf("DOM loaded: %s (start=0x%08X, MMU enabled)\n", dom_path, cpu.PC);
+                    printf("DOM loaded: %s (start=0x%08X, domain=%d, MMU enabled)\n", dom_path, cpu.PC, loaded_domain);
                 }
             }
         }

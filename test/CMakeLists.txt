@@ -59,9 +59,26 @@ else()
     message(STATUS "Skipping test_instruction_validation (cJSON not found)")
 endif()
 
-# Float arithmetic tests
+# Float arithmetic tests (helper functions only - NOT actual instruction tests)
+# NOTE: Actual float instruction tests should be added to the C# test generator
+# and included in nd500_tests.json, not as standalone C tests
 add_executable(test_float_arithmetic
     test_float_arithmetic.c
 )
 target_link_libraries(test_float_arithmetic PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 target_link_libraries(test_float_arithmetic PRIVATE m)  # Link math library
+
+# OTE instruction tests
+add_executable(test_ote_instructions
+    test_ote_instructions.c
+)
+target_link_libraries(test_ote_instructions PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
+# Unsigned displacement tests
+# Verifies LOCAL, RECORD, PREINDEXED displacements are treated as unsigned
+# per ND-05.009.4 Section 8.4
+add_executable(test_unsigned_displacement
+    test_unsigned_displacement.c
+)
+target_link_libraries(test_unsigned_displacement PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+

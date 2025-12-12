@@ -457,3 +457,68 @@ int nd500_domain_has_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
 
     return (prog_cap != 0 || data_cap != 0);
 }
+
+// =====================================================
+// DOMAIN ALLOCATION (like C# AllocateDomain/FreeDomain)
+// =====================================================
+
+/**
+ * Allocate a free domain number (1-255)
+ * Domain 0 is reserved for kernel.
+ *
+ * @param cpu CPU structure
+ * @return Allocated domain number (1-255), or -1 if no free domains
+ */
+int nd500_domain_allocate(Nd500Cpu* cpu) {
+    if (!cpu) return -1;
+
+    /* Ensure domain 0 is always marked as in use (kernel) */
+    cpu->domains_in_use[0] = 1;
+
+    /* Search domains 1-255 (skip 0 = kernel) */
+    for (int domain = 1; domain < MAX_DOMAINS; domain++) {
+        if (!cpu->domains_in_use[domain]) {
+            cpu->domains_in_use[domain] = 1;
+            printf("ND-500: Allocated domain %d\n", domain);
+            return domain;
+        }
+    }
+
+    fprintf(stderr, "ND-500: No free domains available (all 255 user domains in use)\n");
+    return -1;
+}
+
+/**
+ * Free a domain for reuse
+ *
+ * @param cpu CPU structure
+ * @param domain Domain number to free (1-255)
+ */
+void nd500_domain_free(Nd500Cpu* cpu, uint8_t domain) {
+    if (!cpu) return;
+
+    if (domain == 0) {
+        fprintf(stderr, "ND-500: Cannot free domain 0 (kernel)\n");
+        return;
+    }
+
+    if (domain >= MAX_DOMAINS) {
+        fprintf(stderr, "ND-500: Invalid domain number: %d\n", domain);
+        return;
+    }
+
+    cpu->domains_in_use[domain] = 0;
+    printf("ND-500: Freed domain %d\n", domain);
+}
+
+/**
+ * Check if a domain is currently allocated
+ *
+ * @param cpu CPU structure
+ * @param domain Domain number to check
+ * @return 1 if allocated, 0 if free
+ */
+int nd500_domain_is_allocated(Nd500Cpu* cpu, uint8_t domain) {
+    if (!cpu || domain >= MAX_DOMAINS) return 0;
+    return cpu->domains_in_use[domain] ? 1 : 0;
+}

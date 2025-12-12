@@ -32,6 +32,7 @@
 #include "../cpu/nd500_mmu.h"
 #include "../cpu/nd500_domain.h"
 #include "../machine/machine_protos.h"
+#include "../debugger/debugger.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -71,18 +72,22 @@ typedef struct {
  * Parameters:
  *   m              - Machine to load into
  *   cpu            - CPU to configure (domain and MMU)
+ *   target_domain  - Domain to load into: -1 = auto-allocate (1-255), 0-255 = specific domain
  *   log_callback   - Optional callback for progress messages (NULL to suppress)
  *   log_context    - Context passed to log_callback
  *   out_start_addr - Returns start address from header (may be NULL)
+ *   out_domain     - Returns actual domain loaded into (may be NULL)
  *
  * Returns: 0 on success, -1 on error
  */
 int ndlib_dom_load_to_machine(
     Nd500Machine* m,
     Nd500Cpu* cpu,
+    int target_domain,
     void (*log_callback)(void* ctx, const char* fmt, ...),
     void* log_context,
-    uint32_t* out_start_addr)
+    uint32_t* out_start_addr,
+    int* out_domain)
 {
     if (!m || !cpu) {
         return -1;
@@ -92,6 +97,37 @@ int ndlib_dom_load_to_machine(
     const nd500_header_t* hdr = ndlib_get_dom_header();
     if (!hdr || !ndlib_dom_is_loaded()) {
         return -1;
+    }
+
+    /* ========================================================================
+     * Domain Allocation (like C# AllocateDomain)
+     *
+     * Domain 0 is reserved for kernel. User programs should load into 1-255.
+     * If target_domain is -1, auto-allocate first free domain.
+     * ======================================================================== */
+    int domain;
+    if (target_domain < 0) {
+        /* Auto-allocate domain */
+        domain = nd500_domain_allocate(cpu);
+        if (domain < 0) {
+            if (log_callback) {
+                log_callback(log_context, "Error: No free domains available");
+            }
+            return -1;
+        }
+    } else if (target_domain >= 256) {
+        if (log_callback) {
+            log_callback(log_context, "Error: Invalid domain number %d (must be 0-255)", target_domain);
+        }
+        return -1;
+    } else {
+        domain = target_domain;
+        /* Mark domain as in use */
+        cpu->domains_in_use[domain] = 1;
+    }
+
+    if (out_domain) {
+        *out_domain = domain;
     }
 
     int is_dom = ndlib_dom_is_dom_file();
@@ -229,6 +265,14 @@ int ndlib_dom_load_to_machine(
      * ======================================================================== */
     nd500_domain_init(cpu);
 
+    /* Set domain registers to target domain */
+    cpu->CED = (uint32_t)domain;
+    cpu->CAD = (uint32_t)domain;
+
+    if (log_callback) {
+        log_callback(log_context, "Loading into domain %d (CED=%d, CAD=%d)", domain, domain, domain);
+    }
+
     /* Initialize trap registers from DOM header */
     cpu->THA   = tha;
     cpu->MTE1  = mte1;  cpu->MTE2  = mte2;
@@ -277,7 +321,7 @@ int ndlib_dom_load_to_machine(
             nd500_mmu_set_pst_entry(cpu, seg_info[i].psn_prog, PS_ASI, pt_base >> 11);
 
             /* Set program capability for this segment */
-            nd500_mmu_set_program_capability(cpu, 0, i, seg_info[i].psn_prog | PC_DIR);
+            nd500_mmu_set_program_capability(cpu, domain, i, seg_info[i].psn_prog | PC_DIR);
 
             if (log_callback) {
                 log_callback(log_context, "  Seg %d PROG: %u pages, PT @ 0x%08X, PSN %d",
@@ -311,7 +355,7 @@ int ndlib_dom_load_to_machine(
             nd500_mmu_set_pst_entry(cpu, seg_info[i].psn_data, PS_ASI, pt_base >> 11);
 
             /* Set data capability for this segment */
-            nd500_mmu_set_data_capability(cpu, 0, i, seg_info[i].psn_data | DC_WRP);
+            nd500_mmu_set_data_capability(cpu, domain, i, seg_info[i].psn_data | DC_WRP);
 
             if (log_callback) {
                 log_callback(log_context, "  Seg %d DATA: %u pages, PT @ 0x%08X, PSN %d",
@@ -321,7 +365,7 @@ int ndlib_dom_load_to_machine(
 
         /* ProgramOnly segments: set DC to same as PC for read-only data access */
         if (seg_info[i].seg_type == SEG_TYPE_PROG_ONLY) {
-            nd500_mmu_set_data_capability(cpu, 0, i, seg_info[i].psn_prog);
+            nd500_mmu_set_data_capability(cpu, domain, i, seg_info[i].psn_prog);
             if (log_callback) {
                 log_callback(log_context, "  Seg %d DC -> PSN %d (read-only, same as PC)",
                              i, seg_info[i].psn_prog);
@@ -332,7 +376,7 @@ int ndlib_dom_load_to_machine(
     /* FORTRAN-500 compatibility: if segment 0 is empty and segment 1 has data,
      * alias DC[0] to segment 1's data for programs that access data via 0x00xxxxxx */
     if (seg_info[0].seg_type == SEG_TYPE_UNUSED && seg_info[1].has_data) {
-        nd500_mmu_set_data_capability(cpu, 0, 0, seg_info[1].psn_data | DC_WRP);
+        nd500_mmu_set_data_capability(cpu, domain, 0, seg_info[1].psn_data | DC_WRP);
         if (log_callback) {
             log_callback(log_context, "  DC[0] aliased to Seg 1 DATA (PSN %d) - FORTRAN compatibility",
                          seg_info[1].psn_data);
@@ -371,7 +415,7 @@ int ndlib_dom_load_to_machine(
      * there is no physical memory mapped to segment 31.
      * ======================================================================== */
     uint16_t pc31 = PC_IND | (0 << 5) | 31;  /* 0x801F: indirect to domain 0 segment 31 */
-    nd500_mmu_set_program_capability(cpu, 0, 31, pc31);
+    nd500_mmu_set_program_capability(cpu, domain, 31, pc31);
 
     /* Enable MMU */
     nd500_mmu_enable_program(cpu);
@@ -396,6 +440,30 @@ int ndlib_dom_load_to_machine(
         if (log_callback) {
             log_callback(log_context, "PC set to start address: 0x%08X", start_addr);
         }
+    }
+
+    /* Register domain in debugger tracking system */
+    {
+        const char* filepath = ndlib_get_dom_filepath();
+        /* Extract domain name from filename (basename without extension) */
+        const char* base = filepath ? filepath : "unknown";
+        const char* p;
+        for (p = base; *p; p++) {
+            if (*p == '/' || *p == '\\') base = p + 1;
+        }
+        char domain_name[64];
+        strncpy(domain_name, base, sizeof(domain_name) - 1);
+        domain_name[sizeof(domain_name) - 1] = '\0';
+        /* Remove extension */
+        for (int i = (int)strlen(domain_name) - 1; i >= 0; i--) {
+            if (domain_name[i] == '.') {
+                domain_name[i] = '\0';
+                break;
+            }
+        }
+
+        int seg_count = ndlib_dom_get_segment_count();
+        nd500_debugger_register_domain((uint8_t)domain, domain_name, filepath, start_addr, tha, seg_count);
     }
 
     return 0;
