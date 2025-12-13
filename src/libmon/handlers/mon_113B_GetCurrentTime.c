@@ -2,26 +2,97 @@
  * MON 113B (75 decimal): GetCurrentTime (CLOCK)
  *
  * Gets the current system time and date.
- * 
- * - The current system time is returned as basic time units, seconds, minutes, hours, day, month, and year.
+ *
+ * - The current system time is returned as basic time units, seconds, minutes,
+ *   hours, day, month, and year.
+ * - Basic time units = 50 per second (20ms each).
  *
  * Parameters:
- *   [O] TimeBuffer (ARRAY): output
+ *   [O] TimeBuffer (ARRAY of 7 INTEGERs):
+ *       [0] Basic time units since midnight
+ *       [1] Seconds (0-59)
+ *       [2] Minutes (0-59)
+ *       [3] Hours (0-23)
+ *       [4] Day (1-31)
+ *       [5] Month (1-12)
+ *       [6] Year (last two digits, e.g., 85 for 1985)
  *
- * AUTO-GENERATED STUB - Implementation required
+ * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
 
 #include "../mon.h"
+#include <time.h>
+
+/* Basic time units per second */
+#define BASIC_TIME_UNITS_PER_SEC 50
+
+/* Thread-safe localtime wrapper */
+static struct tm* safe_localtime(const time_t* timep, struct tm* result) {
+#ifdef _WIN32
+    /* Windows: localtime_s has reversed args and returns errno_t */
+    return (localtime_s(result, timep) == 0) ? result : NULL;
+#else
+    /* POSIX: localtime_r returns pointer to result on success */
+    return localtime_r(timep, result);
+#endif
+}
 
 MonResult mon_113B_GetCurrentTime(MonContext* ctx) {
-    /* TODO: Implement GetCurrentTime (CLOCK) */
+    /* Defensive check for argument count */
+    if (ctx->arg_count < 1) {
+        mon_log(MON_LOG_WARN, "MON 113B CLOCK: Missing parameters (need 1, got %u)",
+                ctx->arg_count);
+        mon_set_error(ctx, 52);  /* Invalid parameter */
+        return MON_ERROR;
+    }
 
-    /* Log input parameters */
+    /* Get output buffer address */
+    uint32_t buffer_addr = ctx->arg_addresses[0];
 
-    /* Implementation goes here */
+    /* Get current time using thread-safe wrapper */
+    time_t now = time(NULL);
+    struct tm tm_storage;
+    struct tm* tm_now = safe_localtime(&now, &tm_storage);
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
+    if (!tm_now) {
+        mon_log(MON_LOG_WARN, "MON 113B CLOCK: Failed to get local time");
+        mon_set_error(ctx, 52);
+        return MON_ERROR;
+    }
 
-    return MON_ERROR;
+    /* Calculate basic time units since midnight
+     * = hours * 3600 * 50 + minutes * 60 * 50 + seconds * 50
+     */
+    uint32_t basic_units = (uint32_t)(tm_now->tm_hour * 3600 + tm_now->tm_min * 60 + tm_now->tm_sec)
+                         * BASIC_TIME_UNITS_PER_SEC;
+
+    /* Write 7 words to buffer */
+    /* [0] Basic time units since midnight */
+    ctx->write_word(ctx->cpu, buffer_addr + 0, basic_units);
+
+    /* [1] Seconds (0-59) */
+    ctx->write_word(ctx->cpu, buffer_addr + 4, (uint32_t)tm_now->tm_sec);
+
+    /* [2] Minutes (0-59) */
+    ctx->write_word(ctx->cpu, buffer_addr + 8, (uint32_t)tm_now->tm_min);
+
+    /* [3] Hours (0-23) */
+    ctx->write_word(ctx->cpu, buffer_addr + 12, (uint32_t)tm_now->tm_hour);
+
+    /* [4] Day (1-31) */
+    ctx->write_word(ctx->cpu, buffer_addr + 16, (uint32_t)tm_now->tm_mday);
+
+    /* [5] Month (1-12) - tm_mon is 0-11 */
+    ctx->write_word(ctx->cpu, buffer_addr + 20, (uint32_t)(tm_now->tm_mon + 1));
+
+    /* [6] Year (last two digits) - tm_year is years since 1900 */
+    ctx->write_word(ctx->cpu, buffer_addr + 24, (uint32_t)(tm_now->tm_year % 100));
+
+    mon_log(MON_LOG_DEBUG, "MON 113B CLOCK: %02d:%02d:%02d %02d/%02d/%02d (basic=%u)",
+            tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec,
+            tm_now->tm_mday, tm_now->tm_mon + 1, (tm_now->tm_year % 100),
+            basic_units);
+
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }
