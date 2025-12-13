@@ -1,5 +1,6 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "nd500_mmu.h"
 #include <stdio.h>
 
 /**
