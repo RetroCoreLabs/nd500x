@@ -2,33 +2,128 @@
  * MON 504B (324 decimal): OutputString (DVOUTS)
  *
  * Writes a string to a device, e.g. a terminal or an opened file.
- * 
+ *
  * - This is the most efficient way to output strings on the ND-500.
  * - The maximum string length is 2048 bytes.
  * - Appendix F contains an ASCII table.
  *
  * Parameters:
- *   [I] DeviceNo (INTEGER2): input
- *   [I] NoOfBytes (INTEGER2): input
- *   [I] Buffer (STRING): input
+ *   [I] DeviceNo (INTEGER): Logical device number
+ *   [I] NoOfBytes (INTEGER): Number of bytes to write (max 2048)
+ *   [I] Buffer (STRING): Address of buffer containing string
  *
- * AUTO-GENERATED STUB - Implementation required
+ * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
 
 #include "../mon.h"
+#include "../mon_file_table.h"
+#include <stdio.h>
+#include <string.h>
+
+#define DVOUTS_MAX_BYTES 2048
 
 MonResult mon_504B_OutputString(MonContext* ctx) {
-    /* TODO: Implement OutputString (DVOUTS) */
+    /* Defensive check for argument count */
+    if (ctx->arg_count < 3) {
+        mon_log(MON_LOG_WARN, "MON 504B DVOUTS: Missing parameters (need 3, got %u)",
+                ctx->arg_count);
+        mon_set_error(ctx, 52);  /* Invalid parameter */
+        return MON_ERROR;
+    }
 
-    /* Log input parameters */
+    /* Read parameters */
+    uint32_t device_no = mon_read_param_word(ctx, 0);
+    uint32_t num_bytes = mon_read_param_word(ctx, 1);
+    uint32_t buffer_addr = ctx->arg_addresses[2];
+
     MON_LOG_IN_WORD(ctx, 0, "DeviceNo");
     MON_LOG_IN_WORD(ctx, 1, "NoOfBytes");
-    MON_LOG_IN_WORD(ctx, 2, "Buffer");
 
-    /* Implementation goes here */
+    mon_log(MON_LOG_DEBUG, "MON 504B DVOUTS: DeviceNo=%u (octal %o), NoOfBytes=%u, BufferAddr=0x%08X",
+            device_no, device_no, num_bytes, buffer_addr);
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
+    /* Validate byte count */
+    if (num_bytes > DVOUTS_MAX_BYTES) {
+        mon_log(MON_LOG_WARN, "MON 504B DVOUTS: NoOfBytes %u exceeds max %d", num_bytes, DVOUTS_MAX_BYTES);
+        mon_set_error(ctx, 52);  /* Invalid parameter */
+        return MON_ERROR;
+    }
 
-    return MON_ERROR;
+    if (num_bytes == 0) {
+        /* Nothing to write */
+        mon_set_success(ctx);
+        return MON_SUCCESS;
+    }
+
+    /* Read string from emulator memory */
+    uint8_t buffer[DVOUTS_MAX_BYTES];
+    for (uint32_t i = 0; i < num_bytes; i++) {
+        buffer[i] = ctx->read_byte(ctx->cpu, buffer_addr + i);
+    }
+
+    /* Route by device class */
+    if (is_character_device(device_no) || is_terminal(device_no)) {
+        /* Character device or terminal: use console I/O */
+        ConsoleIO* console = mon_file_table_get_console();
+
+        for (uint32_t i = 0; i < num_bytes; i++) {
+            if (console && console->write_char) {
+                console->write_char(console->context, buffer[i]);
+            } else {
+                /* Fallback to stdout */
+                putchar(buffer[i]);
+            }
+        }
+
+        if (!console || !console->write_char) {
+            fflush(stdout);
+        }
+
+        mon_log(MON_LOG_DEBUG, "MON 504B DVOUTS: Wrote %u bytes to console (device %u)",
+                num_bytes, device_no);
+    }
+    else if (is_mass_storage_file(device_no)) {
+        /* Mass storage file: write to open file table */
+        OpenFileEntry* entry = mon_file_table_get((int)device_no);
+        if (!entry || !entry->in_use) {
+            mon_log(MON_LOG_WARN, "MON 504B DVOUTS: File %u not open", device_no);
+            mon_set_error(ctx, 53);  /* File not open */
+            return MON_ERROR;
+        }
+
+        /* Check access mode allows writing */
+        if (entry->access_mode == ACCESS_SEQ_READ || entry->access_mode == ACCESS_RAND_READ) {
+            mon_log(MON_LOG_WARN, "MON 504B DVOUTS: File %u not open for writing", device_no);
+            mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
+            return MON_ERROR;
+        }
+
+        if (entry->host_file) {
+            size_t written = fwrite(buffer, 1, num_bytes, entry->host_file);
+            if (written != num_bytes) {
+                mon_log(MON_LOG_WARN, "MON 504B DVOUTS: Write error on file %u (wrote %zu of %u)",
+                        device_no, written, num_bytes);
+                mon_set_error(ctx, 52);
+                return MON_ERROR;
+            }
+            /* Flush to ensure data is written to disk */
+            fflush(entry->host_file);
+            entry->current_position += num_bytes;
+            mon_log(MON_LOG_DEBUG, "MON 504B DVOUTS: Wrote %u bytes to file %u, pos=%u",
+                    num_bytes, device_no, entry->current_position);
+        } else {
+            mon_set_error(ctx, 53);
+            return MON_ERROR;
+        }
+    }
+    else {
+        /* Unsupported device type */
+        mon_log(MON_LOG_WARN, "MON 504B DVOUTS: Unsupported device %u (octal %o)",
+                device_no, device_no);
+        mon_set_error(ctx, 46);  /* No such filename */
+        return MON_ERROR;
+    }
+
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }
