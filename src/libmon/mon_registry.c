@@ -151,6 +151,7 @@ extern MonResult mon_314B_DefaultRemoteSystem(MonContext* ctx);
 extern MonResult mon_315B_LAMUFunction(MonContext* ctx);
 extern MonResult mon_316B_SetRemoteAccess(MonContext* ctx);
 extern MonResult mon_317B_ExecuteCommand(MonContext* ctx);
+extern MonResult mon_321B_UEAdministrator(MonContext* ctx);
 extern MonResult mon_31B_IOInstruction(MonContext* ctx);
 extern MonResult mon_322B_GetSegmentNo(MonContext* ctx);
 extern MonResult mon_323B_SegmentOverlay(MonContext* ctx);
@@ -1763,8 +1764,19 @@ void mon_register_all_handlers(void) {
         "Executes a SINTRAN III command. Specify the command name and the parameters as a text string.\n\n- An ",  /* Description */
         "[I] Command (STRING): SINTRAN III command string to execute (up to 35 chars).",  /* Parameter details */
         mon_317B_ExecuteCommand,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         1             /* Param count */
+    );
+    mon_register_ex(
+        209,           /* MON number (decimal) */
+        "321B",         /* Octal string */
+        "UEADM",    /* Short name */
+        "UEAdministrator",          /* Long name */
+        "DEPRECATED: This MON call is no longer supported.",  /* Description */
+        "",  /* Parameter details */
+        mon_321B_UEAdministrator,  /* Handler */
+        MON_STATUS_IN_PROGRESS,    /* Status */
+        0             /* Param count */
     );
     mon_register_ex(
         25,           /* MON number (decimal) */
