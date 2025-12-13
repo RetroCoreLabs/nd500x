@@ -96,6 +96,10 @@ typedef struct {
     ObjectEntry object_entry;
     uint32_t current_position;
     uint8_t access_mode;
+    uint32_t block_size;          /* Block size for RFILE/WFILE (default 512) */
+    bool mapped_as_segment;       /* True if connected as segment (MON 412B) */
+    uint32_t mapped_segment_no;   /* Logical segment number if mapped */
+    uint8_t segment_access_type;  /* 0=read, 1=write, 2=read/write */
     char host_path[256];          /* Path to host file */
     FILE* host_file;              /* Host file handle */
 } OpenFileEntry;
@@ -144,5 +148,16 @@ void mon_file_table_set_console(ConsoleIO* console);
 /* Returns the console I/O handler, or NULL if not set.
  * Callers must check for NULL before using the returned pointer. */
 ConsoleIO* mon_file_table_get_console(void);
+
+/* Host path utilities for file operations */
+void mon_build_host_path(const char* filename, char* host_path, size_t max_len);
+
+/* Command buffer support (MON 12B SETCM)
+ * THREAD SAFETY: These functions use static global state without mutex protection.
+ * External synchronization required if accessed from multiple threads. */
+const char* mon_get_command_buffer(void);
+int mon_read_command_buffer_char(void);
+void mon_reset_command_buffer_pos(void);
+void mon_set_command_buffer(const char* command);
 
 #endif /* MON_FILE_TABLE_H */
