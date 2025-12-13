@@ -196,99 +196,63 @@ This will:
 
 ### Debugger Commands
 
-The interactive debugger REPL supports the following commands with **professional tab completion**:
+The interactive debugger supports 60+ commands for memory inspection, disassembly, execution control, breakpoints, watchpoints, MMU control, MON call debugging, and more.
 
-#### Tab Completion Features
-- **Context-aware completion**: Knows when you're completing commands vs subcommands
-- **Single TAB shows all matches**: `show t` + TAB → immediately shows `trace`, `trap`, `trap-status`, `traps`
-- **Command history**: Arrow keys for navigation, persistent storage in `~/.nd500x_history`
-- **History commands**: `!!` (last command), `!nnn` (by number), `!string` (search), `history` (list)
-- **All commands supported**: Main commands, aliases, and subcommands all have tab completion
+**For complete command reference, see: [`docs/DEBUGGER_COMMAND_REFERENCE.md`](docs/DEBUGGER_COMMAND_REFERENCE.md)**
 
-#### Basic Commands
-| Command | Description | Example |
-|---------|-------------|---------|
-| `m [addr] [len]` | Display memory as hex dump | `m 0x1000 256` |
-| `d [addr] [len]` | Disassemble instructions with hex bytes | `d 0x1000 100` |
-| `step [n]` / `s [n]` | Single-step CPU execution | `step 10` |
-| `regs` | Display all CPU registers | `regs` |
-| `load <path>` | Load ND-500 a.out binary with symbols | `load program.o` |
-| `symb` | List all loaded symbols from file | `symb` |
-| `run` | Start background execution | `run` |
-| `stop` | Stop background execution | `stop` |
-| `continue` / `c` | Continue execution after breakpoint | `continue` |
-| `help` | Show available commands | `help` |
-| `dap <port>` | Start DAP server (if libdap available) | `dap 47285` |
-| `q` / `quit` / `exit` | Exit the debugger | `q` |
+#### Quick Reference
 
-#### Breakpoint Commands
-| Command | Description | Example |
-|---------|-------------|---------|
-| `bp [addr]` | Set breakpoint at address (default: PC) | `bp 0x1000` |
-| `bp list` | List all breakpoints | `bp list` |
-| `bp del <id>` | Delete breakpoint by ID | `bp del 0` |
-| `bp enable <id>` | Enable breakpoint by ID | `bp enable 0` |
-| `bp disable <id>` | Disable breakpoint by ID | `bp disable 1` |
-| `bp cond <addr> <condition>` | Set conditional breakpoint | `bp cond 0x1000 "PC == 0x2000"` |
+| Category | Commands |
+|----------|----------|
+| **Memory** | `m`, `mp`, `m!`, `msym` |
+| **Disassembly** | `d`, `dis`, `dsym` |
+| **Execution** | `step`/`s`, `run`, `stop`, `continue`/`c`, `status` |
+| **Registers** | `regs`, `set` |
+| **Loading** | `load`, `loaddom`, `loadmap`, `loadsrc` |
+| **Symbols** | `symb`, `goto`, `segments` |
+| **Breakpoints** | `bp` (set/list/del/enable/disable/cond/source) |
+| **Watchpoints** | `wp` (set/list/del/enable/disable/reg) |
+| **Display Options** | `show trace/memtrace/ea/hex/demangle/source/profile/trap/mmu` |
+| **Profiling** | `profile show/reset` |
+| **Call Stack** | `backtrace`/`bt`, `stackframe`/`sf` |
+| **MMU Control** | `mmu`, `showmmu`, `phyladr`, `showcap`, `showpages`, `memmap`, `listpst`, `listpcb`, `dumppt` |
+| **Domains** | `domains`, `domain`, `domverify` |
+| **MON Calls** | `mon log/status/list/info/break` |
+| **Utility** | `help`, `history`, `clear-traps`, `q`/`quit` |
 
-#### Watchpoint Commands
-| Command | Description | Example |
-|---------|-------------|---------|
-| `wp <addr> [len] [type]` | Set watchpoint (type: read, write, change) | `wp 0x5000 4 write` |
-| `wp list` | List all watchpoints | `wp list` |
-| `wp del <id>` | Delete watchpoint by ID | `wp del 0` |
-| `wp enable <id>` | Enable watchpoint by ID | `wp enable 0` |
-| `wp disable <id>` | Disable watchpoint by ID | `wp disable 1` |
-| `wp reg <register>` | Set register watchpoint | `wp reg PC` |
+#### Tab Completion and History
 
-#### Advanced Debugging Commands
-| Command | Description | Example |
-|---------|-------------|---------|
-| `show trace [on\|off]` | Toggle instruction tracing | `show trace on` |
-| `show profile [on\|off]` | Toggle performance profiling | `show profile on` |
-| `profile show` | Display profiling statistics | `profile show` |
-| `profile reset` | Reset profiling data | `profile reset` |
-| `backtrace` / `bt` | Show call stack | `backtrace` |
-| `set <register> <value>` | Set register value | `set PC 0x1000` |
-| `show ea [on\|off]` | Toggle effective address breakdown | `show ea on` |
-| `show demangle [on\|off]` | Toggle C symbol demangling | `show demangle on` |
-| `show trap [on\|off]` | Toggle invalid instruction 0x00 trap | `show trap on` |
-| `show traps` | Display trap system status | `show traps` |
-| `clear-traps` | Clear pending traps | `clear-traps` |
-| `history` | List command history | `history` |
+- **Tab completion**: Context-aware command and subcommand completion
+- **Command history**: Arrow keys, persistent storage in `~/.nd500x_history`
+- **History shortcuts**: `!!` (last), `!nnn` (by number), `!string` (search)
 
-**Example Session with Tab Completion:**
+#### Example Session
+
 ```
-nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, show, bp, wp, continue, help, q
-Tab completion and command history enabled - press TAB to complete, UP/DOWN for history
-History commands: !! (last), !nnn (number), !string (search), history (list)
-[00000000] sh<TAB>         # Completes to "show"
-[00000000] show <TAB>      # Shows: ea demangle trace profile trap traps trap-status
-[00000000] show t<TAB>     # Shows: trace trap trap-status traps
-[00000000] load math.o
-File Type:      OBJECT FILE (needs linking)
-Relocations:    text=24 data=0 bytes (not yet resolved)
-Note:           Setting entry point to 0 (object files cannot execute)
-loaded, entry=0x00000000
-symbols loaded
-[00000000] symb
-=== SYMBOL TABLE ===
-Total symbols: 4
-String table size: 31 bytes
+$ ./build/bin/nd500x --debug
+[00000000] loaddom /path/to/program.dom
+PC set to start address: 0x08000004
 
-Idx  Name                 Type         Value      Desc
----  ----                 ----         -----      ----
-0    _main                TEXT|EXT     0x00000026 0
-1    _add                 TEXT|EXT     0x00000000 0
-2    _write               UNDF|EXT     0x00000000 0
-3    _sub                 TEXT|EXT     0x00000013 0
-[00000000] d 0 50
-00000000: B8 CF 1C 00 00 00       ents         $28
-00000006: 1A 08 44                w move       $8,b.16
-00000009: 0C 45                   w1 :=        b.20
-0000000B: 54 46                   w1 +         b.24
-[...]
-[00000000] q
+[08000004] bp 0x08001000
+Breakpoint 0 set at 0x08001000
+
+[08000004] run
+running...
+Stopped: Breakpoint at 0x08001000
+
+[08001000] regs
+PC=08001000 FLAGS=00000000
+I1/W1=00000000 ...
+
+[08001000] show trace on
+show trace: on
+
+[08001000] step 5
+0x08001000 C3 08 02 D4 47 00  call  $134403143,$0
+...
+Stepped 5 instructions
+
+[08001006] q
 ```
 
 ### ND-500 A.out File Format Support
