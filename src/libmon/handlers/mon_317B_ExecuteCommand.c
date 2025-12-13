@@ -1,32 +1,42 @@
 /*
  * MON 317B (207 decimal): ExecuteCommand (UECOM)
  *
- * Executes a SINTRAN III command. Specify the command name and the parameters as a text string.
- * 
+ * Executes a SINTRAN III command. Specify the command name and the parameters
+ * as a text string.
+ *
  * - An error message is output if an error occurs. The program does not terminate.
- * - Some commands may destroy your program. Commands which affect your program?s memory area should be used with care.
+ * - Some commands may destroy your program.
  * - Some commands have output, e.g. @LIST-FILES. This is displayed on the terminal.
- * - Use SuspendProgram to wait a second between two ExecuteCommands which depend on each other, e.g. CreateFile and OpenFile.
- * - It may be advisable to use @enable-escape before this call, to avoid having problems terminating some commands.
  *
  * Parameters:
- *   [I] Command (STRING): input
+ *   [I] Command (STRING): SINTRAN III command to execute
  *
- * AUTO-GENERATED STUB - Implementation required
+ * Note: This is a stub implementation that logs the command but doesn't execute it.
+ * SINTRAN III command execution is not implemented.
+ *
+ * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
 
 #include "../mon.h"
 
 MonResult mon_317B_ExecuteCommand(MonContext* ctx) {
-    /* TODO: Implement ExecuteCommand (UECOM) */
+    /* Defensive check for argument count */
+    if (ctx->arg_count < 1) {
+        mon_log(MON_LOG_WARN, "MON 317B UECOM: Missing parameters (need 1, got %u)",
+                ctx->arg_count);
+        mon_set_error(ctx, 52);  /* Invalid parameter */
+        return MON_ERROR;
+    }
 
-    /* Log input parameters */
-    MON_LOG_IN_WORD(ctx, 0, "Command");
+    /* Read command string */
+    char command[256];
+    mon_read_string(ctx, 0, command, sizeof(command));
 
-    /* Implementation goes here */
+    mon_log(MON_LOG_INFO, "MON 317B UECOM: Command='%s' (not executed - stub)", command);
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
+    /* For now, just return success - actual command execution not implemented */
+    /* A real implementation would parse and execute SINTRAN commands */
 
-    return MON_ERROR;
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }
