@@ -124,6 +124,9 @@ static int cmd_domain(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_heap(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_stackframe(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_unload(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_showcap(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_showpages(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Forward declaration for init script execution (defined at end of file) */
 int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
@@ -190,6 +193,9 @@ static const CmdEntry g_commands[] = {
 	{"stackframe",  cmd_stackframe,   "Dump stack frame at B register"},
 	{"sf",          cmd_stackframe,   "Dump stack frame at B register"},
 	{"unload",      cmd_unload,       "Unload domain and free resources"},
+	{"showcap",     cmd_showcap,      "Show capability tables for a domain"},
+	{"showpages",   cmd_showpages,    "Show page mappings for a domain"},
+	{"memmap",      cmd_memmap,       "Display memory map (virtual or physical)"},
 	{"mon",         cmd_mon,          "MON call settings (log/status/list/info/break)"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
@@ -4020,6 +4026,431 @@ static int cmd_unload(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "");
 	output(ctx, "  Domain slot %u now available for reuse", domain);
 	output(ctx, "============================================================");
+
+	return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Helper: Get segment name for well-known segments
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static const char* get_segment_name(int segment, uint8_t domain) {
+	if (domain == 0) {
+		/* Kernel domain */
+		switch (segment) {
+			case 0:  return "KDATA";
+			case 1:  return "KTEXT";
+			case 27: return "PST";
+			case 28: return "PCB";
+			case 29: return "KSTACK";
+			default: return NULL;
+		}
+	} else {
+		/* User domains */
+		switch (segment) {
+			case 0:  return "DATA";   /* FORTRAN compatibility alias */
+			case 1:  return "TEXT";
+			case 26: return "UTEXT";
+			case 30: return "UDATA";
+			case 31: return "USTACK";
+			default: return NULL;
+		}
+	}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SHOWCAP COMMAND - Show capability tables for a domain
+ * Usage: showcap [domain]
+ * If no domain specified, shows current domain (CAD)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static int cmd_showcap(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "SHOWCAP: ND-500 CPU required");
+		return -1;
+	}
+	Nd500Cpu* cpu = m->cpu;
+
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		error(ctx, "MMU is disabled - capabilities only exist when MMU is enabled");
+		return -1;
+	}
+
+	/* Parse arguments */
+	char* arg = args ? strtok(args, " \t\r\n") : NULL;
+	uint8_t target_domain = cpu->CAD;  /* Default to current domain */
+
+	if (arg) {
+		uint32_t d = nd500_cmd_parse_u32(arg, 0);
+		if (d > 255) {
+			error(ctx, "Invalid domain number '%s'. Must be 0-255", arg);
+			return -1;
+		}
+		target_domain = (uint8_t)d;
+	}
+
+	output(ctx, "");
+	output(ctx, "-------------------------------------------------------");
+	output(ctx, "  Domain %u Capability Tables", target_domain);
+	output(ctx, "-------------------------------------------------------");
+	output(ctx, "");
+
+	/* Program Capabilities */
+	output(ctx, "Program Capabilities (Instruction Fetch):");
+	output(ctx, "Seg  Raw   Type      Target              Description");
+	output(ctx, "---  ----  --------  ------------------  -----------");
+
+	int prog_cap_count = 0;
+	for (int seg = 0; seg < 32; seg++) {
+		uint16_t cap = nd500_mmu_get_program_capability(cpu, target_domain, seg);
+		if (cap != 0) {
+			int is_indirect = (cap & PC_IND) != 0;
+			const char* type = is_indirect ? "INDIRECT" : "DIRECT  ";
+			char target[32];
+			const char* seg_name = get_segment_name(seg, target_domain);
+
+			if (is_indirect) {
+				int remote_domain = (cap >> 5) & 0xFF;
+				int remote_seg = cap & 0x1F;
+				snprintf(target, sizeof(target), "Domain %3d, Seg %2d", remote_domain, remote_seg);
+			} else {
+				int psn = cap & PC_PSN;
+				snprintf(target, sizeof(target), "PSN %4d (0x%03X)", psn, psn);
+			}
+
+			output(ctx, "%3d  %04X  %s  %-18s  %s",
+			       seg, cap, type, target, seg_name ? seg_name : "");
+			prog_cap_count++;
+		}
+	}
+
+	if (prog_cap_count == 0) {
+		output(ctx, "(no program capabilities configured)");
+	}
+
+	output(ctx, "");
+	output(ctx, "Data Capabilities (Data Access):");
+	output(ctx, "Seg  Raw   PSN   Flags  Physical Addr   Description");
+	output(ctx, "---  ----  ----  -----  --------------  -----------");
+
+	int data_cap_count = 0;
+	for (int seg = 0; seg < 32; seg++) {
+		uint16_t cap = nd500_mmu_get_data_capability(cpu, target_domain, seg);
+		if (cap != 0) {
+			int writable = (cap & DC_WRP) != 0;
+			int user_access = (cap & DC_PAC) != 0;
+			int shared = (cap & DC_SHS) != 0;
+			int psn = cap & DC_PSN;
+
+			char flags[5];
+			flags[0] = writable ? 'W' : 'R';
+			flags[1] = user_access ? 'U' : 'K';
+			flags[2] = shared ? 'S' : '-';
+			flags[3] = '\0';
+
+			PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(cpu, psn);
+			uint32_t physical_base = pst.physical_pfn << 11;  /* 2KB pages */
+
+			const char* seg_name = get_segment_name(seg, target_domain);
+
+			output(ctx, "%3d  %04X  %4d  %-5s  0x%08X    %s",
+			       seg, cap, psn, flags, physical_base, seg_name ? seg_name : "");
+			data_cap_count++;
+		}
+	}
+
+	if (data_cap_count == 0) {
+		output(ctx, "(no data capabilities configured)");
+	}
+
+	output(ctx, "");
+	output(ctx, "Total: %d program capabilities, %d data capabilities", prog_cap_count, data_cap_count);
+	output(ctx, "");
+	output(ctx, "Flags: W=Writable R=ReadOnly U=UserAccess K=KernelOnly S=Shared");
+	output(ctx, "");
+
+	return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SHOWPAGES COMMAND - Show page mappings for a domain
+ * Usage: showpages <domain> [segment]
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static int cmd_showpages(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "SHOWPAGES: ND-500 CPU required");
+		return -1;
+	}
+	Nd500Cpu* cpu = m->cpu;
+
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		error(ctx, "MMU is disabled - page mappings only exist when MMU is enabled");
+		return -1;
+	}
+
+	/* Parse arguments */
+	char* arg1 = args ? strtok(args, " \t\r\n") : NULL;
+	char* arg2 = arg1 ? strtok(NULL, " \t\r\n") : NULL;
+
+	if (!arg1) {
+		output(ctx, "");
+		output(ctx, "Usage: showpages <domain> [segment]");
+		output(ctx, "");
+		output(ctx, "Parameters:");
+		output(ctx, "  domain  - Domain number (0-255)");
+		output(ctx, "  segment - Optional segment number (0-31)");
+		output(ctx, "");
+		output(ctx, "Examples:");
+		output(ctx, "  showpages 0       - Show all segments for kernel domain");
+		output(ctx, "  showpages 1 1     - Show TEXT segment (1) for domain 1");
+		output(ctx, "  showpages 1 0     - Show DATA segment (0) for domain 1");
+		output(ctx, "");
+		return 0;
+	}
+
+	uint32_t domain = nd500_cmd_parse_u32(arg1, 0);
+	if (domain > 255) {
+		error(ctx, "Invalid domain number '%s'. Must be 0-255", arg1);
+		return -1;
+	}
+
+	int target_segment = -1;  /* -1 means show all */
+	if (arg2) {
+		target_segment = (int)nd500_cmd_parse_u32(arg2, 0);
+		if (target_segment < 0 || target_segment > 31) {
+			error(ctx, "Invalid segment number '%s'. Must be 0-31", arg2);
+			return -1;
+		}
+	}
+
+	output(ctx, "");
+	output(ctx, "-------------------------------------------------------");
+	output(ctx, "  ND-500 PAGE MAPPINGS - Domain %u", domain);
+	output(ctx, "-------------------------------------------------------");
+	output(ctx, "");
+
+	int segments_shown = 0;
+
+	for (int seg = 0; seg < 32; seg++) {
+		/* Skip if specific segment requested and this isn't it */
+		if (target_segment >= 0 && seg != target_segment)
+			continue;
+
+		uint16_t data_cap = nd500_mmu_get_data_capability(cpu, domain, seg);
+		if (data_cap == 0)
+			continue;  /* Segment not mapped */
+
+		int writable = (data_cap & DC_WRP) != 0;
+		int user_access = (data_cap & DC_PAC) != 0;
+		int psn = data_cap & DC_PSN;
+
+		const char* seg_name = get_segment_name(seg, domain);
+		output(ctx, "Segment %2d (%s):", seg, seg_name ? seg_name : "");
+		output(ctx, "  PSN: %d (0x%03X)", psn, psn);
+		output(ctx, "  Access: %s, %s mode",
+		       writable ? "Read/Write" : "Read-Only",
+		       user_access ? "User" : "Kernel");
+
+		/* Get PST entry to determine indexing mode */
+		PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(cpu, psn);
+		const char* index_mode;
+		switch (pst.index_mode) {
+			case 0: index_mode = "Direct (AZI) - No paging"; break;
+			case 1: index_mode = "Single-level (ASI)"; break;
+			case 2: index_mode = "Two-level (ADI)"; break;
+			default: index_mode = "Unknown"; break;
+		}
+
+		output(ctx, "  Index Mode: %s", index_mode);
+		output(ctx, "  Base PFN: %u (0x%X)", pst.physical_pfn, pst.physical_pfn);
+
+		/* Calculate virtual and physical address ranges */
+		uint32_t virtual_base = (uint32_t)seg << 27;  /* Segment base address */
+		uint32_t physical_base = pst.physical_pfn << 11;  /* Physical base (2KB pages) */
+
+		output(ctx, "  Virtual Base:  0x%08X", virtual_base);
+		output(ctx, "  Physical Base: 0x%08X", physical_base);
+
+		/* For direct mapped segments, show simple mapping */
+		if (pst.index_mode == 0) {
+			output(ctx, "  Direct mapping: Virtual 0x%08X -> Physical 0x%08X", virtual_base, physical_base);
+		}
+
+		output(ctx, "");
+		segments_shown++;
+	}
+
+	if (segments_shown == 0) {
+		if (target_segment >= 0)
+			output(ctx, "Segment %d is not mapped in domain %u", target_segment, domain);
+		else
+			output(ctx, "No segments mapped in domain %u", domain);
+	} else {
+		output(ctx, "Total: %d segment(s) mapped", segments_shown);
+	}
+
+	output(ctx, "");
+	return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MEMMAP COMMAND - Display memory map (virtual or physical)
+ * Usage: memmap [domain|phys]
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "MEMMAP: ND-500 CPU required");
+		return -1;
+	}
+	Nd500Cpu* cpu = m->cpu;
+
+	if (!nd500_machine_mmu_is_enabled(m)) {
+		error(ctx, "MMU is disabled - memory map only available when MMU is enabled");
+		return -1;
+	}
+
+	/* Parse arguments */
+	char* arg = args ? strtok(args, " \t\r\n") : NULL;
+
+	if (arg && strcasecmp(arg, "phys") == 0) {
+		/* Physical memory overview */
+		output(ctx, "");
+		output(ctx, "ND-500 Physical Memory Overview:");
+		output(ctx, "");
+
+		/* Calculate memory usage from loaded domains */
+		uint32_t total_pages = 0;
+		int domain_count = 0;
+
+		output(ctx, "Allocation by Domain:");
+		output(ctx, "+--------+---------------------+--------+----------+");
+		output(ctx, "| Domain | Name                | Pages  | Size     |");
+		output(ctx, "+--------+---------------------+--------+----------+");
+
+		for (int d = 0; d < MAX_DOMAINS; d++) {
+			if (!g_loaded_domains[d].is_loaded) continue;
+
+			/* Estimate pages from segment count (rough approximation) */
+			/* In reality we'd need to track actual page allocations */
+			uint32_t domain_pages = 0;
+
+			/* Count pages from data capabilities */
+			for (int seg = 0; seg < 32; seg++) {
+				uint16_t dc = nd500_mmu_get_data_capability(cpu, d, seg);
+				if (dc != 0) {
+					int psn = dc & DC_PSN;
+					PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(cpu, psn);
+					/* For ASI mode, count pages from page table */
+					if (pst.index_mode == 1) {
+						/* Estimate based on loaded info */
+						domain_pages += 50;  /* Approximate */
+					} else if (pst.index_mode == 0) {
+						domain_pages += 1;  /* AZI = 1 page */
+					}
+				}
+			}
+
+			total_pages += domain_pages;
+			domain_count++;
+
+			char name[20];
+			strncpy(name, g_loaded_domains[d].domain_name, 19);
+			name[19] = '\0';
+			if (name[0] == '\0') strcpy(name, "(unnamed)");
+
+			output(ctx, "| %6d | %-19s | %6u | %4u KB  |",
+			       d, name, domain_pages, domain_pages * 2);
+		}
+
+		output(ctx, "+--------+---------------------+--------+----------+");
+		output(ctx, "");
+		output(ctx, "Total: %d domain(s), ~%u pages (~%u KB) allocated",
+		       domain_count, total_pages, total_pages * 2);
+		output(ctx, "");
+		return 0;
+	}
+
+	/* Virtual memory map for a domain */
+	uint8_t target_domain = cpu->CAD;  /* Default to current domain */
+
+	if (arg) {
+		uint32_t d = nd500_cmd_parse_u32(arg, 0);
+		if (d > 255) {
+			error(ctx, "Invalid domain number '%s'. Must be 0-255", arg);
+			return -1;
+		}
+		target_domain = (uint8_t)d;
+	}
+
+	/* Check if domain is loaded */
+	if (!g_loaded_domains[target_domain].is_loaded) {
+		error(ctx, "Domain %u is not loaded. Use 'domain' to see loaded domains.", target_domain);
+		return -1;
+	}
+
+	output(ctx, "Domain %u Memory Map: %s", target_domain, g_loaded_domains[target_domain].domain_name);
+	output(ctx, "+-------------------+---------+--------------+--------------+----------+");
+	output(ctx, "| Virtual Range     | Segment | Index Mode   | Physical PFN | Size     |");
+	output(ctx, "+-------------------+---------+--------------+--------------+----------+");
+
+	uint32_t total_pages = 0;
+	int segment_count = 0;
+
+	for (int seg = 0; seg < 32; seg++) {
+		uint16_t data_cap = nd500_mmu_get_data_capability(cpu, target_domain, seg);
+		if (data_cap == 0)
+			continue;
+
+		int psn = data_cap & DC_PSN;
+		PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(cpu, psn);
+
+		/* Calculate virtual address range */
+		uint32_t virtual_base = (uint32_t)seg << 27;
+		uint32_t virtual_end = virtual_base;
+
+		/* Determine size and index mode */
+		const char* index_mode = "";
+		uint32_t page_count = 0;
+		char pfn_str[20];
+
+		if (pst.index_mode == 0) {
+			index_mode = "AZI (Direct)";
+			page_count = 1;
+			snprintf(pfn_str, sizeof(pfn_str), "%u", pst.physical_pfn);
+			virtual_end = virtual_base + (page_count * 2048) - 1;
+		} else if (pst.index_mode == 1) {
+			index_mode = "ASI (Paged) ";
+			/* Estimate page count - would need segment info for exact count */
+			page_count = 50;  /* Approximate */
+			snprintf(pfn_str, sizeof(pfn_str), "%u+", pst.physical_pfn);
+			virtual_end = virtual_base + (page_count * 2048) - 1;
+		} else if (pst.index_mode == 2) {
+			index_mode = "ADI (2-level)";
+			page_count = 100;  /* Approximate */
+			snprintf(pfn_str, sizeof(pfn_str), "%u+", pst.physical_pfn);
+			virtual_end = virtual_base + (page_count * 2048) - 1;
+		}
+
+		if (page_count == 0)
+			continue;
+
+		total_pages += page_count;
+		segment_count++;
+
+		char virt_range[24];
+		snprintf(virt_range, sizeof(virt_range), "%08X-%08X", virtual_base, virtual_end);
+
+		char size_str[12];
+		if (page_count * 2 >= 1024) {
+			snprintf(size_str, sizeof(size_str), "%uMB", (page_count * 2) / 1024);
+		} else {
+			snprintf(size_str, sizeof(size_str), "%uKB", page_count * 2);
+		}
+
+		output(ctx, "| %-17s | %7d | %-12s | %-12s | %-8s |",
+		       virt_range, seg, index_mode, pfn_str, size_str);
+	}
+
+	output(ctx, "+-------------------+---------+--------------+--------------+----------+");
+	output(ctx, "Total: ~%u KB (~%u pages) used by domain", total_pages * 2, total_pages);
 
 	return 0;
 }
