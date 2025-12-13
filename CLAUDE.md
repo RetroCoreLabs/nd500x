@@ -86,10 +86,18 @@ cd build && ctest -R disasm
 - `cpu_instr.c`: Instruction decoding and operand parsing with 14 addressing modes
 - `nd500_instructions.{c,h}`: Pre-generated O(1) dispatch table (committed to repository)
 - `nd500_mmu.c`: Three-level MMU translation (Virtual → Capability → PST → Physical)
+- `nd500_domain.c`: Domain system (process isolation, cross-domain calls, CED/CAD registers)
 - `instructions/<CLASS>/`: 242 instruction implementation files across 13 categories
+
+**src/libmon/** - SINTRAN MON call emulation
+- `mon_context.h`: MON call context and parameter access helpers
+- `mon_dispatcher.c`: MON call dispatch table (300+ handlers)
+- `handlers/mon_*B_*.c`: Individual MON call implementations
+- Key MON calls: 1B (INBT), 2B (OUTBT), 3B (EXIT), 41B/42B (OPEN), 43B (CLOSE), 117B/120B (READ/WRITE)
 
 **src/debugger/** - Interactive CLI debugger
 - `debugger.c`: REPL with tab completion (requires libreadline)
+- `commands.c`: 60+ debugger command implementations
 - `dap_adapter.c`: Debug Adapter Protocol support (requires external/libdap)
 
 **src/frontend/** - Entry points
@@ -117,6 +125,16 @@ Three-level translation (`src/cpu/nd500_mmu.c`):
 
 Virtual Address Format: `[Segment(5) | Page(16) | Offset(11)]` (32-bit)
 Control via debugger: `mmu on|off` to enable/disable, `show mmu [off|errors|trace|all]` to set logging level
+
+### Domain System
+
+The domain system provides process isolation (`src/cpu/nd500_domain.c`):
+- **CED** (Current Executing Domain): Active domain for instruction fetch
+- **CAD** (Current Alternative Domain): Domain for data access (ALT prefix switches)
+- **DIT** (Domain Information Table): Per-domain state (TOS, LL, HL, THA)
+- **PCB** (Process Control Block): Per-domain capability tables
+
+Debugger commands: `domain`, `domain <n>`, `domain switch <n>`, `domain symbols <n>`, `unload <n>`
 
 ## Dependencies
 
@@ -224,7 +242,7 @@ When implementing ND-500 instructions:
   | E2        | D2 (high 32-bit)           | 32-bit  |
   | E3        | D3 (high 32-bit)           | 32-bit  |
   | E4        | D4 (high 32-bit)           | 32-bit  |
-- all cpu instructions are defined with examples in the folder ~/repos/nd500x/docs/instructions/asm
-- never dupicate code
-- the c# code is not really REFERENCE IMPLEMENTAION. Its jist another eumator with bugs. The nd500 cpu linker and
-  assembler reference manuals are the TRUTH. Make sure to never ASSUME ANYTHING
+- All CPU instructions are defined with examples in the folder ~/repos/nd500x/docs/instructions/asm
+- Never duplicate code
+- The C# code is not a reference implementation. It is just another emulator with bugs. The ND-500 CPU, linker, and
+  assembler reference manuals are the TRUTH. Make sure to never assume anything - verify against documentation.
