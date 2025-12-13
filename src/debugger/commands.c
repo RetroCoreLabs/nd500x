@@ -855,10 +855,15 @@ static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  E4                   = 0x%08X   - Float extension 4 (D4 high 32 bits)", r.E[3]);
 	output(ctx, "");
 	output(ctx, "Double Registers (64-bit = E:A):");
-	output(ctx, "  D1                   = 0x%08X%08X   - Double precision 1 (E1:A1)", r.E[0], r.A[0]);
-	output(ctx, "  D2                   = 0x%08X%08X   - Double precision 2 (E2:A2)", r.E[1], r.A[1]);
-	output(ctx, "  D3                   = 0x%08X%08X   - Double precision 3 (E3:A3)", r.E[2], r.A[2]);
-	output(ctx, "  D4                   = 0x%08X%08X   - Double precision 4 (E4:A4)", r.E[3], r.A[3]);
+	/* Convert ND-500 double format to IEEE754 for display */
+	uint64_t d1_bits = ((uint64_t)r.E[0] << 32) | r.A[0];
+	uint64_t d2_bits = ((uint64_t)r.E[1] << 32) | r.A[1];
+	uint64_t d3_bits = ((uint64_t)r.E[2] << 32) | r.A[2];
+	uint64_t d4_bits = ((uint64_t)r.E[3] << 32) | r.A[3];
+	output(ctx, "  D1                   = %f", nd500_double_to_ieee754(d1_bits));
+	output(ctx, "  D2                   = %f", nd500_double_to_ieee754(d2_bits));
+	output(ctx, "  D3                   = %f", nd500_double_to_ieee754(d3_bits));
+	output(ctx, "  D4                   = %f", nd500_double_to_ieee754(d4_bits));
 	output(ctx, "");
 	output(ctx, "Addressing Registers:");
 	output(ctx, "  P                    = 0x%08X   - Program Counter register", r.PC);
