@@ -170,38 +170,66 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // Read index and limit
-    uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
-    uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
-
-    // Decrement index by 1
-    index--;
-
-    // Write decremented index back
-    nd500_write_operand_value(cpu, &fi->operands[0], index, fi->data_type);
-
-    // Perform signed comparison based on data type
     bool should_loop = false;
+    uint64_t index_bits = 0;  // For flag updates
 
-    switch (fi->data_type) {
-        case ND500_DTYPE_BYTE:
-            should_loop = ((int8_t)index >= (int8_t)limit);
-            break;
-        case ND500_DTYPE_HALFWORD:
-            should_loop = ((int16_t)index >= (int16_t)limit);
-            break;
-        case ND500_DTYPE_WORD:
-            should_loop = ((int32_t)index >= (int32_t)limit);
-            break;
-        case ND500_DTYPE_DOUBLEWORD:
-            // Float/Double not yet implemented
-            printf("[STUB] LOOPD at PC=0x%08X: Float/Double not implemented\n", fi->address);
-            return;
-        default:
-            printf("[ERROR] LOOPD at PC=0x%08X: Invalid data type %u\n",
-                   fi->address, fi->data_type);
-            trap_invalid_operation(cpu, fi->address);
-            return;
+    // Handle float/double variants
+    if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_DOUBLEWORD) {
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+
+        // Read operands as IEEE-754 floats
+        double fp_index = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
+        double fp_limit = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+
+        // Decrement by 1.0
+        fp_index -= 1.0;
+
+        // Write back updated index
+        nd500_write_operand_from_ieee_float(cpu, &fi->operands[0], fp_index, is_double);
+
+        // Compare: loop if index >= limit (countdown)
+        should_loop = (fp_index >= fp_limit);
+
+        // Get index bits for flag updates
+        if (is_double) {
+            index_bits = nd500_double_from_ieee754(fp_index);
+        } else {
+            index_bits = nd500_float_from_ieee754((float)fp_index);
+        }
+
+        // Update flags for float
+        nd500_set_flags_zs_float(cpu, index_bits, is_double);
+    } else {
+        // Integer variants
+        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+        uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+
+        // Decrement index by 1
+        index--;
+
+        // Write decremented index back
+        nd500_write_operand_value(cpu, &fi->operands[0], index, fi->data_type);
+
+        // Perform signed comparison based on data type
+        switch (fi->data_type) {
+            case ND500_DTYPE_BYTE:
+                should_loop = ((int8_t)index >= (int8_t)limit);
+                break;
+            case ND500_DTYPE_HALFWORD:
+                should_loop = ((int16_t)index >= (int16_t)limit);
+                break;
+            case ND500_DTYPE_WORD:
+                should_loop = ((int32_t)index >= (int32_t)limit);
+                break;
+            default:
+                printf("[ERROR] LOOPD at PC=0x%08X: Invalid data type %u\n",
+                       fi->address, fi->data_type);
+                trap_invalid_operation(cpu, fi->address);
+                return;
+        }
+
+        // Update Z and S flags based on decremented index
+        nd500_set_flags_zs(cpu, index, fi->data_type);
     }
 
     if (should_loop) {
@@ -211,7 +239,4 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         cpu->PC = (uint32_t)(fi->address + displacement);
     }
     // else: fall through to next instruction
-
-    // Update Z and S flags based on decremented index
-    nd500_set_flags_zs(cpu, index, fi->data_type);
 }

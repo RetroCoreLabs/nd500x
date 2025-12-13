@@ -869,4 +869,8 @@ bool nd500_double_is_negative(uint64_t nd500_bits);
 uint32_t nd500_double_to_single(uint64_t nd500_double_bits);
 uint64_t nd500_single_to_double(uint32_t nd500_float_bits);
 
+// IEEE-754 operand helpers
+double nd500_read_operand_as_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double);
+void nd500_write_operand_from_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, double value, bool is_double);
+
 #endif /* ND500_INSTRUCTION_HELPERS_H */

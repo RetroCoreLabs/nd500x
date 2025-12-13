@@ -1854,3 +1854,29 @@ uint64_t nd500_single_to_double(uint32_t nd500_float_bits) {
     int32_t int_value = nd500_float_to_int32(nd500_float_bits);
     return nd500_double_from_int64((int64_t)int_value);
 }
+
+/**
+ * Read operand value as IEEE-754 double (works for both float and double types)
+ */
+double nd500_read_operand_as_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double) {
+    if (is_double) {
+        uint64_t bits = nd500_read_operand_doubleword(cpu, operand);
+        return nd500_double_to_ieee754(bits);
+    } else {
+        uint32_t bits = (uint32_t)nd500_read_operand_value(cpu, operand, ND500_DTYPE_WORD);
+        return (double)nd500_float_to_ieee754(bits);
+    }
+}
+
+/**
+ * Write IEEE-754 double value to operand (converts to float if needed)
+ */
+void nd500_write_operand_from_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, double value, bool is_double) {
+    if (is_double) {
+        uint64_t bits = nd500_double_from_ieee754(value);
+        nd500_write_operand_value(cpu, operand, bits, ND500_DTYPE_DOUBLEWORD);
+    } else {
+        uint32_t bits = nd500_float_from_ieee754((float)value);
+        nd500_write_operand_value(cpu, operand, bits, ND500_DTYPE_WORD);
+    }
+}
