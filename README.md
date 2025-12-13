@@ -216,7 +216,7 @@ The interactive debugger supports 60+ commands for memory inspection, disassembl
 | **Profiling** | `profile show/reset` |
 | **Call Stack** | `backtrace`/`bt`, `stackframe`/`sf` |
 | **MMU Control** | `mmu`, `showmmu`, `phyladr`, `showcap`, `showpages`, `memmap`, `listpst`, `listpcb`, `dumppt` |
-| **Domains** | `domains`, `domain`, `domverify` |
+| **Domains** | `domain`, `unload`, `domverify` |
 | **MON Calls** | `mon log/status/list/info/break` |
 | **Utility** | `help`, `history`, `clear-traps`, `q`/`quit` |
 

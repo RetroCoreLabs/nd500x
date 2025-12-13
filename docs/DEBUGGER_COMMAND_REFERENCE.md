@@ -672,29 +672,44 @@ mmusetup
 
 ## Domain Commands
 
-### `domains` - List Domains
+### `domain` - Domain Management
 
-List all loaded domains.
-
-```
-domains
-```
-
-### `domain` - Current Domain
-
-Show current executing domain (CED).
+Unified domain management command with subcommands.
 
 ```
-domain
+domain              # Show current context + list loaded domains
+domain <n>          # Show details for domain n
+domain switch <n>   # Switch execution to domain n (sets CED, CAD, PC)
+domain symbols <n>  # Set symbol lookup domain to n
 ```
 
-### `setdomain <n>` - Set Domain
+**Output (no arguments):**
+```
+============================================================
+  Domain Status
+============================================================
 
-Switch to a different domain (for debugging purposes).
+  Current Context
+  ---------------
+  CED (executing): 1    CAD (alternative): 1    Symbols: 0
+
+  Loaded Domains
+  --------------
+    1  nc-a06            Entry: 0x08000004  Segs: 1 [executing]
+
+  Commands: domain <n>, domain switch <n>, domain symbols <n>
+============================================================
+```
+
+### `unload <domain>` - Unload Domain
+
+Unload a domain and free all resources.
 
 ```
-setdomain 1
+unload 1          # Unload domain 1
 ```
+
+**Note:** Cannot unload domain 0 (kernel) or the currently executing domain (CED).
 
 ### `domverify` - Verify DOM
 
