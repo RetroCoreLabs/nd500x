@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <math.h>
 
 /**
  * Add2 instruction - ARITHMETIC class
@@ -51,33 +52,103 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Handle float/double types - DEFERRED */
+    /* Handle float/double types (like C# lines 105-139) */
     if (fi->uses_float_registers) {
-        printf("[DEFERRED] ADD2 at PC=0x%08X: Float/Double operations not yet implemented\n",
-               fi->address);
-        /* For now, just skip - will implement when float conversion helpers are ready */
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+        bool overflow = false;
+
+        if (is_double) {
+            /* Double precision (D ADD2): a + b -> a */
+            uint64_t a_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+            uint64_t b_bits = nd500_read_operand_doubleword(cpu, &fi->operands[1]);
+
+            double a_ieee = nd500_double_to_ieee754(a_bits);
+            double b_ieee = nd500_double_to_ieee754(b_bits);
+            double sum = a_ieee + b_ieee;
+
+            /* Check for overflow */
+            if (isinf(sum)) {
+                overflow = true;
+            }
+
+            /* Convert back to ND-500 format */
+            uint64_t result_bits = nd500_double_from_ieee754(sum);
+
+            /* Write result back to operand a */
+            nd500_write_operand_value(cpu, &fi->operands[0], result_bits, ND500_DTYPE_DOUBLEWORD);
+
+            /* Update flags */
+            if (nd500_double_is_zero(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_Z);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_Z);
+            }
+            if (nd500_double_is_negative(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_S);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_S);
+            }
+        } else {
+            /* Single precision (F ADD2): a + b -> a */
+            uint32_t a_bits = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            uint32_t b_bits = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
+
+            float a_ieee = nd500_float_to_ieee754(a_bits);
+            float b_ieee = nd500_float_to_ieee754(b_bits);
+            float sum = a_ieee + b_ieee;
+
+            /* Check for overflow */
+            if (isinf(sum)) {
+                overflow = true;
+            }
+
+            /* Convert back to ND-500 format */
+            uint32_t result_bits = nd500_float_from_ieee754(sum);
+
+            /* Write result back to operand a */
+            nd500_write_operand_value(cpu, &fi->operands[0], (uint64_t)result_bits, ND500_DTYPE_WORD);
+
+            /* Update flags */
+            if (nd500_float_is_zero(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_Z);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_Z);
+            }
+            if (nd500_float_is_negative(result_bits)) {
+                nd500_set_flag(cpu, ND500_FLAG_S);
+            } else {
+                nd500_clear_flag(cpu, ND500_FLAG_S);
+            }
+        }
+
+        /* C flag unaffected for float, O flag set based on overflow */
+        if (overflow) {
+            nd500_set_flag(cpu, ND500_FLAG_O);
+            trap_floating_overflow(cpu, fi->address);
+        } else {
+            nd500_clear_flag(cpu, ND500_FLAG_O);
+        }
+
         return;
     }
 
-    uint64_t aValue, registerValue, result;
+    uint64_t aValue, bValue, result;
     bool overflow = false;
     bool carry = false;
 
-    /* Read operand a (source) value - operands[1] is Source per metadata */
-    /* Note: Assembly format is "ADD2 <b>, <a>" where operands[0]=dest, operands[1]=src */
-    aValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* Read operand a (first operand - destination and source) - C# line 60 */
+    aValue = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
-    /* Read Rn from destination operand (operands[0]) - Rn IS the destination register */
-    /* Operation is: <a> + <b> → <b> where <b> is the destination register */
-    registerValue = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* Read operand b (second operand - source only) - C# line 63 */
+    bValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
-    /* Perform addition: a + Rn (like C# lines 66-103) */
+    /* Perform addition: a + b (like C# lines 66-103) */
     switch (fi->data_type) {
         case ND500_DTYPE_BYTE: {
             /* Signed byte addition (like C# lines 73-81) */
             int8_t aByte = (int8_t)(aValue & 0xFF);
-            int8_t regByte = (int8_t)(registerValue & 0xFF);
-            int32_t sum = (int32_t)aByte + (int32_t)regByte;
+            int8_t bByte = (int8_t)(bValue & 0xFF);
+            int32_t sum = (int32_t)aByte + (int32_t)bByte;
             result = (uint64_t)(uint8_t)(sum & 0xFF);
             overflow = (sum < -128 || sum > 127);
             carry = ((sum & 0x100) != 0);
@@ -87,8 +158,8 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         case ND500_DTYPE_HALFWORD: {
             /* Signed halfword addition (like C# lines 84-92) */
             int16_t aHalf = (int16_t)(aValue & 0xFFFF);
-            int16_t regHalf = (int16_t)(registerValue & 0xFFFF);
-            int32_t sum = (int32_t)aHalf + (int32_t)regHalf;
+            int16_t bHalf = (int16_t)(bValue & 0xFFFF);
+            int32_t sum = (int32_t)aHalf + (int32_t)bHalf;
             result = (uint64_t)(uint16_t)(sum & 0xFFFF);
             overflow = (sum < -32768 || sum > 32767);
             carry = ((sum & 0x10000) != 0);
@@ -98,8 +169,8 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         case ND500_DTYPE_WORD: {
             /* Signed word addition (like C# lines 95-103) */
             int32_t aWord = (int32_t)(aValue & 0xFFFFFFFF);
-            int32_t regWord = (int32_t)(registerValue & 0xFFFFFFFF);
-            int64_t sum = (int64_t)aWord + (int64_t)regWord;
+            int32_t bWord = (int32_t)(bValue & 0xFFFFFFFF);
+            int64_t sum = (int64_t)aWord + (int64_t)bWord;
             result = (uint64_t)(uint32_t)(sum & 0xFFFFFFFF);
             overflow = (sum < INT32_MIN || sum > INT32_MAX);
             carry = ((sum & 0x100000000LL) != 0);
@@ -113,7 +184,7 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
     }
 
-    /* Write result to operand b (destination) - operands[0] is Destination per metadata */
+    /* Write result to operand a (destination) - C# line 143 */
     nd500_write_operand_value(cpu, &fi->operands[0], result, fi->data_type);
 
     /* Update status flags based on result (like C# lines 146-150) */
