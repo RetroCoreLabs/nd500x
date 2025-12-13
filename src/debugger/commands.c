@@ -854,6 +854,12 @@ static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  E3                   = 0x%08X   - Float extension 3 (D3 high 32 bits)", r.E[2]);
 	output(ctx, "  E4                   = 0x%08X   - Float extension 4 (D4 high 32 bits)", r.E[3]);
 	output(ctx, "");
+	output(ctx, "Double Registers (64-bit = E:A):");
+	output(ctx, "  D1                   = 0x%08X%08X   - Double precision 1 (E1:A1)", r.E[0], r.A[0]);
+	output(ctx, "  D2                   = 0x%08X%08X   - Double precision 2 (E2:A2)", r.E[1], r.A[1]);
+	output(ctx, "  D3                   = 0x%08X%08X   - Double precision 3 (E3:A3)", r.E[2], r.A[2]);
+	output(ctx, "  D4                   = 0x%08X%08X   - Double precision 4 (E4:A4)", r.E[3], r.A[3]);
+	output(ctx, "");
 	output(ctx, "Addressing Registers:");
 	output(ctx, "  P                    = 0x%08X   - Program Counter register", r.PC);
 	output(ctx, "  L                    = 0x%08X   - Link register - Return address", r.L);
