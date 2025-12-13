@@ -1,31 +1,46 @@
 /*
  * MON 12B (10 decimal): SetCommandBuffer (SETCM)
  *
- * Transfers a string to the command buffer. The command buffer contains the last command input from the terminal. You may read the command buffer by reading from logical device number 0. See InByte.
- * 
+ * Transfers a string to the command buffer. The command buffer contains the
+ * last command input from the terminal. You may read the command buffer by
+ * reading from logical device number 0.
+ *
  * - The command @TERMINAL-STATISTICS lists the command buffer.
- * - You may apply the SINTRAN III command editing characters to the command buffer when the program has terminated.
- * - The parameter is fetched through the alternative page table.
- * - You may use this monitor call to erase sensitive information in the command buffer, e.g., password parameters.
+ * - You may use this to erase sensitive information like passwords.
  *
  * Parameters:
- *   [I] Command (STRING): input
+ *   [I] Command (STRING): Command string to set
  *
- * AUTO-GENERATED STUB - Implementation required
+ * THREAD SAFETY: Uses shared command buffer functions from mon_file_table.c
+ * which have static global state without mutex protection. External
+ * synchronization required if accessed from multiple threads.
+ *
+ * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
 
 #include "../mon.h"
+#include "../mon_file_table.h"
 
 MonResult mon_12B_SetCommandBuffer(MonContext* ctx) {
-    /* TODO: Implement SetCommandBuffer (SETCM) */
+    /* Defensive check for argument count */
+    if (ctx->arg_count < 1) {
+        mon_log(MON_LOG_WARN, "MON 12B SETCM: Missing parameters (need 1, got %u)",
+                ctx->arg_count);
+        mon_set_error(ctx, 52);  /* Invalid parameter */
+        return MON_ERROR;
+    }
 
-    /* Log input parameters */
-    MON_LOG_IN_WORD(ctx, 0, "Command");
+    /* Read command string */
+    char command[256];
+    mon_read_string(ctx, 0, command, sizeof(command));
 
-    /* Implementation goes here */
+    mon_log(MON_LOG_DEBUG, "MON 12B SETCM: Command='%s'", command);
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
+    /* Store in shared command buffer */
+    mon_set_command_buffer(command);
 
-    return MON_ERROR;
+    mon_log(MON_LOG_DEBUG, "MON 12B SETCM: Set command buffer to '%s'", mon_get_command_buffer());
+
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }
