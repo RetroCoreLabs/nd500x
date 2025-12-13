@@ -832,8 +832,8 @@ static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "Core Registers:");
 	output(ctx, "  PC                   = 0x%08X   - Program Counter - Current instruction address", r.PC);
 	output(ctx, "  FLAGS                = 0x%08X   - Status Register Flags", r.FLAGS);
-	output(ctx, "  ST1                  = 0x%08X   - Status Register (low 32 bits)", r.ST1);
 	output(ctx, "  Flags                = %s      - CPU Status Flags as ASCII (uppercase=set, lowercase=clear)", flags_ascii);
+	output(ctx, "  ST1                  = 0x%08X   - Status Register (low 32 bits)", r.ST1);
 	output(ctx, "  ST2                  = 0x%08X   - Status Register (high 32 bits)", r.ST2);
 	output(ctx, "");
 	output(ctx, "Integer Registers:");

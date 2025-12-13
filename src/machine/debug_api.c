@@ -556,15 +556,17 @@ int nd500_dbg_get_memtrace(void) {
 #define TRACE_BYTES_WIDTH    18   /* 6 bytes * 3 chars */
 #define TRACE_DISASM_WIDTH   40   /* fixed width for disassembly */
 
-/* Format flags as string: ZSCKO (uppercase=set, lowercase=clear) */
+/* Format flags as string: PDZSCKO (uppercase=set, lowercase=clear) */
 static void format_flags(uint32_t st1, char* out) {
-    /* Flag bit positions in ST1 */
-    out[0] = (st1 & (1u << 5)) ? 'Z' : 'z';  /* Zero */
-    out[1] = (st1 & (1u << 7)) ? 'S' : 's';  /* Sign */
-    out[2] = (st1 & (1u << 6)) ? 'C' : 'c';  /* Carry */
-    out[3] = (st1 & (1u << 8)) ? 'K' : 'k';  /* K (destination full) */
-    out[4] = (st1 & (1u << 9)) ? 'O' : 'o';  /* Overflow */
-    out[5] = '\0';
+    /* Flag bit positions in ST1 - matching RetroCore format */
+    out[0] = (st1 & (1u << 1)) ? 'P' : 'p';  /* PIA - Privileged Instructions Allowed */
+    out[1] = (st1 & (1u << 4)) ? 'D' : 'd';  /* PSD - Process Switch Disabled */
+    out[2] = (st1 & (1u << 5)) ? 'Z' : 'z';  /* Zero */
+    out[3] = (st1 & (1u << 7)) ? 'S' : 's';  /* Sign */
+    out[4] = (st1 & (1u << 6)) ? 'C' : 'c';  /* Carry */
+    out[5] = (st1 & (1u << 8)) ? 'K' : 'k';  /* K (destination full) */
+    out[6] = (st1 & (1u << 9)) ? 'O' : 'o';  /* Overflow */
+    out[7] = '\0';
 }
 
 /*
