@@ -309,6 +309,7 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
     entry->in_use = true;
     entry->access_mode = access_mode;
     entry->current_position = 0;
+    entry->block_size = 512;  /* Default block size */
     entry->host_file = fp;
     strncpy(entry->host_path, host_path, sizeof(entry->host_path) - 1);
 
@@ -342,6 +343,12 @@ int mon_file_close(int file_number) {
     if (!entry->in_use) {
         mon_log(MON_LOG_WARN, "MON CLOSE: File number %d not open", file_number);
         return -53;
+    }
+
+    /* Log if file was mapped as segment (automatic disconnect per SINTRAN docs) */
+    if (entry->mapped_as_segment) {
+        mon_log(MON_LOG_INFO, "MON CLOSE: File %d auto-disconnected from segment %u",
+                file_number, entry->mapped_segment_no);
     }
 
     /* Close host file */
@@ -489,4 +496,54 @@ void mon_file_table_set_console(ConsoleIO* console) {
 
 ConsoleIO* mon_file_table_get_console(void) {
     return console_io;
+}
+
+/* ============================================================
+ * Host Path Utilities
+ * ============================================================ */
+
+void mon_build_host_path(const char* filename, char* host_path, size_t max_len) {
+    /* Simple mapping: use filename as-is, add .dat extension if no extension present */
+    const char* dot = strrchr(filename, '.');
+    if (dot) {
+        snprintf(host_path, max_len, "%s", filename);
+    } else {
+        snprintf(host_path, max_len, "%s.dat", filename);
+    }
+}
+
+/* ============================================================
+ * Command Buffer Support (MON 12B SETCM)
+ *
+ * THREAD SAFETY: These functions use static global state without
+ * mutex protection. External synchronization required if accessed
+ * from multiple threads.
+ * ============================================================ */
+
+static char g_command_buffer[256];
+static int g_command_buffer_pos = 0;
+
+const char* mon_get_command_buffer(void) {
+    return g_command_buffer;
+}
+
+int mon_read_command_buffer_char(void) {
+    if (g_command_buffer_pos < (int)strlen(g_command_buffer)) {
+        return (unsigned char)g_command_buffer[g_command_buffer_pos++];
+    }
+    return -1;  /* End of buffer */
+}
+
+void mon_reset_command_buffer_pos(void) {
+    g_command_buffer_pos = 0;
+}
+
+void mon_set_command_buffer(const char* command) {
+    if (command) {
+        strncpy(g_command_buffer, command, sizeof(g_command_buffer) - 1);
+        g_command_buffer[sizeof(g_command_buffer) - 1] = '\0';
+    } else {
+        g_command_buffer[0] = '\0';
+    }
+    g_command_buffer_pos = 0;
 }
