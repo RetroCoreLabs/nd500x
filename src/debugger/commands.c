@@ -123,6 +123,7 @@ static int cmd_domverify(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_domain(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_heap(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_stackframe(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_unload(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Forward declaration for init script execution (defined at end of file) */
 int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
@@ -188,6 +189,7 @@ static const CmdEntry g_commands[] = {
 	{"heap",        cmd_heap,         "Dump heap variables at TOS"},
 	{"stackframe",  cmd_stackframe,   "Dump stack frame at B register"},
 	{"sf",          cmd_stackframe,   "Dump stack frame at B register"},
+	{"unload",      cmd_unload,       "Unload domain and free resources"},
 	{"mon",         cmd_mon,          "MON call settings (log/status/list/info/break)"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
@@ -3935,6 +3937,89 @@ static int cmd_stackframe(Nd500Machine* m, CmdContext* ctx, char* args) {
 	if (n > 32) {
 		output(ctx, "  ... (%u more arguments)", n - 32);
 	}
+
+	return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * UNLOAD COMMAND - Unload domain and free resources
+ * Usage: unload <domain>
+ *
+ * Frees:
+ *   - Physical memory pages
+ *   - PST entries
+ *   - PCB capabilities
+ *   - Domain allocation
+ *
+ * Note: Cannot unload domain 0 (kernel)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static int cmd_unload(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "UNLOAD: ND-500 CPU required");
+		return -1;
+	}
+	Nd500Cpu* cpu = m->cpu;
+
+	/* Parse arguments */
+	char* arg = args ? strtok(args, " \t\r\n") : NULL;
+
+	if (!arg) {
+		output(ctx, "Usage: unload <domain>");
+		output(ctx, "  domain - Domain number (1-255) to unload");
+		output(ctx, "");
+		output(ctx, "Note: Cannot unload domain 0 (kernel)");
+		return 0;
+	}
+
+	uint32_t domain = nd500_cmd_parse_u32(arg, 0);
+	if (domain > 255) {
+		error(ctx, "Invalid domain number: %s (must be 0-255)", arg);
+		return -1;
+	}
+
+	if (domain == 0) {
+		error(ctx, "Cannot unload domain 0 (kernel)");
+		return -1;
+	}
+
+	/* Check if domain is loaded */
+	if (!g_loaded_domains[domain].is_loaded) {
+		error(ctx, "Domain %u is not loaded", domain);
+		return -1;
+	}
+
+	/* Check if it's the current executing domain */
+	if (domain == cpu->CED) {
+		error(ctx, "Cannot unload currently executing domain (CED=%u)", cpu->CED);
+		return -1;
+	}
+
+	/* Save info for output before clearing */
+	char domain_name[MAX_DOMAIN_NAME];
+	strncpy(domain_name, g_loaded_domains[domain].domain_name, MAX_DOMAIN_NAME - 1);
+	domain_name[MAX_DOMAIN_NAME - 1] = '\0';
+	uint32_t entry_point = g_loaded_domains[domain].entry_point;
+
+	/* Free the domain allocation in CPU */
+	nd500_domain_free(cpu, (uint8_t)domain);
+
+	/* Clear the debugger tracking entry */
+	memset(&g_loaded_domains[domain], 0, sizeof(LoadedDomainInfo));
+
+	/* Output result */
+	output(ctx, "============================================================");
+	output(ctx, "  Domain %u Unloaded", domain);
+	output(ctx, "============================================================");
+	output(ctx, "");
+	output(ctx, "  Name:         %s", domain_name[0] ? domain_name : "(unnamed)");
+	output(ctx, "  Entry Point:  0x%08X", entry_point);
+	output(ctx, "");
+	output(ctx, "  Resources freed:");
+	output(ctx, "    - Domain allocation");
+	output(ctx, "    - Memory pages (physical memory reclaimed)");
+	output(ctx, "");
+	output(ctx, "  Domain slot %u now available for reuse", domain);
+	output(ctx, "============================================================");
 
 	return 0;
 }
