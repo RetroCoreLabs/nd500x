@@ -52,6 +52,9 @@ cd build && ctest -R disasm
 
 # Run tests directly
 ./build/bin/disasm_tests
+./build/bin/test_instruction_validation
+./build/bin/test_float_arithmetic
+./build/bin/test_lget_instruction
 ./build/bin/test_mmu_translation
 ./build/bin/test_mmu_separate_id
 ./build/bin/test_source_mapping
@@ -113,7 +116,7 @@ Three-level translation (`src/cpu/nd500_mmu.c`):
 3. PST Entry → Physical Page
 
 Virtual Address Format: `[Segment(5) | Page(16) | Offset(11)]` (32-bit)
-Toggle via debugger: `show mmu [on|off]`
+Control via debugger: `mmu on|off` to enable/disable, `show mmu [off|errors|trace|all]` to set logging level
 
 ## Dependencies
 
@@ -137,17 +140,25 @@ Toggle via debugger: `show mmu [on|off]`
 
 Run with: `./build/bin/nd500x --debug`
 
+**Full command reference:** See `docs/DEBUGGER_COMMAND_REFERENCE.md` for all 60+ commands.
+
 **Essential commands:**
-- `load <path>`: Load a.out binary and symbols
+- `load <path>` / `loaddom <path>`: Load a.out or DOM binary
 - `d [addr] [len]`: Disassemble instructions
-- `m [addr] [len]`: Display memory hex dump
+- `m [addr] [len]`: Display memory hex dump (data space)
+- `mp [addr] [len]`: Display memory (program space)
+- `m! [addr] [len]`: Display physical memory (bypass MMU)
 - `step [n]` / `s [n]`: Single-step CPU
 - `run` / `stop` / `continue`: Control execution
 - `regs`: Display CPU registers
 - `bp [addr]`: Set breakpoint (use `bp list`, `bp del <id>`)
 - `wp <addr> [len] [type]`: Set watchpoint (type: read, write, change)
 - `set <reg> <value>`: Set register (PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, etc.)
-- `show trace/profile/ea/mmu [on|off]`: Toggle debug features
+- `show trace [on|off]`: Toggle instruction tracing
+- `show memtrace [off|read|write|all]`: Toggle memory access tracing
+- `show mmu [off|errors|trace|all]`: Toggle MMU logging
+- `show profile/ea [on|off]`: Toggle profiling, effective address display
+- `mon log/status/list/info`: MON call debugging
 - `symb`: List symbols
 - `q`: Quit
 
@@ -162,6 +173,7 @@ Run with: `./build/bin/nd500x --debug`
 
 ## Reference Documentation
 
+- `docs/DEBUGGER_COMMAND_REFERENCE.md`: Complete reference for all 60+ debugger commands
 - `docs/cpu_implementation_changes.md`: Detailed documentation of all CPU bug fixes, test results, and implementation notes (24 sections covering variant-to-datatype mapping, status flags, branch PC calculation, etc.)
 - `test/nd500_tests.json`: 20,902 test cases generated from C# reference implementation
 
@@ -213,3 +225,6 @@ When implementing ND-500 instructions:
   | E3        | D3 (high 32-bit)           | 32-bit  |
   | E4        | D4 (high 32-bit)           | 32-bit  |
 - all cpu instructions are defined with examples in the folder ~/repos/nd500x/docs/instructions/asm
+- never dupicate code
+- the c# code is not really REFERENCE IMPLEMENTAION. Its jist another eumator with bugs. The nd500 cpu linker and
+  assembler reference manuals are the TRUTH. Make sure to never ASSUME ANYTHING
