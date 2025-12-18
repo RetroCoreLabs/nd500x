@@ -801,8 +801,9 @@ int64_t nd500_read_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* 
  * @param cpu CPU state
  * @param desc String descriptor (must be BCD packed)
  * @param value Value to write
+ * @return true if value fit in field, false if BCD overflow occurred (K flag set)
  */
-void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc, int64_t value);
+bool nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc, int64_t value);
 
 /**
  * Write packed BCD value to memory with rounding
@@ -812,8 +813,9 @@ void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* de
  * @param desc String descriptor (must be BCD packed)
  * @param value Value to write (unscaled integer representation)
  * @param source_scale Scaling factor of source value
+ * @return true if value fit in field, false if BCD overflow occurred (K flag set)
  */
-void nd500_write_packed_bcd_value_rounded(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
+bool nd500_write_packed_bcd_value_rounded(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
                                           int64_t value, int8_t source_scale);
 
 /**

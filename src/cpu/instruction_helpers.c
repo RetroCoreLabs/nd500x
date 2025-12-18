@@ -1274,18 +1274,21 @@ int64_t nd500_read_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* 
  * - Each byte contains 2 nibbles (4-bit BCD digits)
  * - Sign nibble added based on sign representation
  * - Scaling factor applied as: value * 10^(scaling_factor)
+ *
+ * Returns true if the value fit in the field, false if BCD overflow occurred.
+ * On overflow, the K flag is set and the truncated value is still written.
  */
-void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc, int64_t value) {
-    if (!desc || !cpu) return;
+bool nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc, int64_t value) {
+    if (!desc || !cpu) return false;
     if (!desc->is_bcd_packed) {
         printf("[ERROR] nd500_write_packed_bcd_value: Descriptor is not for BCD packed operations\n");
-        return;
+        return false;
     }
 
     if (!nd500_string_descriptor_is_valid(desc)) {
         printf("[ERROR] nd500_write_packed_bcd_value: Invalid BCD descriptor\n");
         trap_invalid_operation(cpu, cpu->PC);
-        return;
+        return false;
     }
 
     // Apply scaling factor: value * 10^(scaling_factor)
@@ -1303,8 +1306,12 @@ void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* de
     if (bytes_needed <= 0 || bytes_needed > 16) {
         printf("[ERROR] nd500_write_packed_bcd_value: Invalid field width %d\n", desc->field_width);
         trap_invalid_operation(cpu, cpu->PC);
-        return;
+        return false;
     }
+
+    // Calculate max digits available (field_width minus 1 for sign nibble)
+    int max_digits = desc->field_width - 1;
+    if (max_digits < 0) max_digits = 0;
 
     // Initialize BCD data buffer
     uint8_t bcd_data[16] = {0};  // Zero-initialize
@@ -1312,10 +1319,12 @@ void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* de
     // Convert to BCD digits (process from least significant)
     int digit_count = 0;
     int64_t remaining = abs_value;
-    while (remaining > 0 && digit_count < desc->field_width) {
+    while (remaining > 0 && digit_count < max_digits) {
         int digit = remaining % 10;
-        int byte_idx = digit_count / 2;
-        int nibble_idx = digit_count % 2;
+        // Digits go into positions 1..N (position 0 is sign nibble in last byte)
+        int position = digit_count + 1;  // Skip sign position
+        int byte_idx = position / 2;
+        int nibble_idx = position % 2;
 
         bcd_data[byte_idx] |= (digit << (nibble_idx * 4));
 
@@ -1323,24 +1332,36 @@ void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* de
         digit_count++;
     }
 
-    // Add sign nibble (rightmost nibble in rightmost byte)
+    // Detect BCD overflow: if remaining > 0, value doesn't fit
+    bool overflow = (remaining > 0);
+    if (overflow) {
+        // Set K flag on BCD overflow (BO -> K per ND-500 spec)
+        nd500_set_flag(cpu, ND500_FLAG_K);
+        printf("[WARN] nd500_write_packed_bcd_value: BCD overflow - value %lld truncated to fit %d digits\n",
+               (long long)abs_value, max_digits);
+    }
+
+    // Add sign nibble (rightmost nibble in rightmost byte, position 0)
     int sign_byte = bytes_needed - 1;
     uint8_t sign_nibble = nd500_get_bcd_sign_nibble(is_negative, desc->sign_repr);
-    bcd_data[sign_byte] |= sign_nibble;  // Sign is in low nibble
+    bcd_data[sign_byte] = (bcd_data[sign_byte] & 0xF0) | sign_nibble;  // Sign in low nibble
 
-    // Write BCD data to memory
+    // Write BCD data to memory (big-endian: MSB first)
     for (int i = 0; i < bytes_needed; i++) {
-        nd500_write_memory_8(cpu, desc->base_address + i, bcd_data[i]);
+        nd500_write_memory_8(cpu, desc->base_address + i, bcd_data[bytes_needed - 1 - i]);
     }
+
+    return !overflow;
 }
 
 /**
  * Write packed BCD value to memory with rounding
  * Applies rounding when destination scaling factor causes precision loss.
+ * Returns true if value fit in field, false if BCD overflow occurred.
  */
-void nd500_write_packed_bcd_value_rounded(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
+bool nd500_write_packed_bcd_value_rounded(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
                                           int64_t value, int8_t source_scale) {
-    if (!desc || !cpu) return;
+    if (!desc || !cpu) return false;
 
     /* Calculate scale difference: how many decimal places we're losing */
     int scale_diff = source_scale - desc->scaling_factor;
@@ -1375,7 +1396,7 @@ void nd500_write_packed_bcd_value_rounded(Nd500Cpu* cpu, const Nd500StringDescri
     /* Temporarily set scaling_factor to 0 to avoid double-scaling */
     Nd500StringDescriptor temp_desc = *desc;
     temp_desc.scaling_factor = 0;
-    nd500_write_packed_bcd_value(cpu, &temp_desc, value);
+    return nd500_write_packed_bcd_value(cpu, &temp_desc, value);
 }
 
 /**
