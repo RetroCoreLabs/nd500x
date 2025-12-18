@@ -1334,6 +1334,60 @@ void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* de
     }
 }
 
+/**
+ * Write packed BCD value to memory with rounding
+ * Applies rounding when destination scaling factor causes precision loss.
+ */
+void nd500_write_packed_bcd_value_rounded(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
+                                          int64_t value, int8_t source_scale) {
+    if (!desc || !cpu) return;
+
+    /* Calculate scale difference: how many decimal places we're losing */
+    int scale_diff = source_scale - desc->scaling_factor;
+
+    if (scale_diff > 0) {
+        /* We need to reduce precision - apply rounding */
+        /* Example: value=12345, source_scale=-3 (12.345), dest_scale=-1 (X.X) */
+        /* scale_diff = -3 - (-1) = -2, need to divide by 100 with rounding */
+        int64_t divisor = 1;
+        for (int i = 0; i < scale_diff; i++) {
+            divisor *= 10;
+        }
+
+        /* Round half away from zero */
+        int64_t half = divisor / 2;
+        if (value >= 0) {
+            value = (value + half) / divisor;
+        } else {
+            value = (value - half) / divisor;
+        }
+    } else if (scale_diff < 0) {
+        /* We need to increase precision - multiply */
+        int64_t multiplier = 1;
+        for (int i = 0; i < -scale_diff; i++) {
+            multiplier *= 10;
+        }
+        value *= multiplier;
+    }
+
+    /* Now write the scaled value using the standard function */
+    /* Note: Pass value directly since we've already applied scaling */
+    /* Temporarily set scaling_factor to 0 to avoid double-scaling */
+    Nd500StringDescriptor temp_desc = *desc;
+    temp_desc.scaling_factor = 0;
+    nd500_write_packed_bcd_value(cpu, &temp_desc, value);
+}
+
+/**
+ * Clear string operation flags (S, C, O)
+ * Common helper to reduce code duplication in string instructions.
+ */
+void nd500_string_clear_unused_flags(Nd500Cpu* cpu) {
+    nd500_clear_flag(cpu, ND500_FLAG_S);
+    nd500_clear_flag(cpu, ND500_FLAG_C);
+    nd500_clear_flag(cpu, ND500_FLAG_O);
+}
+
 /* ============================================================================
  * FLOATING-POINT CONVERSION (ND-500 ↔ IEEE 754 ↔ Integer)
  * ============================================================================
@@ -1859,12 +1913,20 @@ uint64_t nd500_single_to_double(uint32_t nd500_float_bits) {
  * Read operand value as IEEE-754 double (works for both float and double types)
  */
 double nd500_read_operand_as_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double) {
+    // Read float/double bits and reinterpret as IEEE-754
+    // Note: Register values are stored as IEEE-754 format directly (matching C# emulator)
     if (is_double) {
         uint64_t bits = nd500_read_operand_doubleword(cpu, operand);
-        return nd500_double_to_ieee754(bits);
+        // Reinterpret as IEEE-754 double
+        union { uint64_t u; double d; } conv;
+        conv.u = bits;
+        return conv.d;
     } else {
-        uint32_t bits = (uint32_t)nd500_read_operand_value(cpu, operand, ND500_DTYPE_WORD);
-        return (double)nd500_float_to_ieee754(bits);
+        uint32_t bits = (uint32_t)nd500_read_operand_value(cpu, operand, ND500_DTYPE_FLOAT);
+        // Reinterpret as IEEE-754 float
+        union { uint32_t u; float f; } conv;
+        conv.u = bits;
+        return (double)conv.f;
     }
 }
 
@@ -1872,11 +1934,15 @@ double nd500_read_operand_as_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded
  * Write IEEE-754 double value to operand (converts to float if needed)
  */
 void nd500_write_operand_from_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, double value, bool is_double) {
+    // Write IEEE-754 float/double bits directly
+    // Note: Register values are stored as IEEE-754 format directly (matching C# emulator)
     if (is_double) {
-        uint64_t bits = nd500_double_from_ieee754(value);
-        nd500_write_operand_value(cpu, operand, bits, ND500_DTYPE_DOUBLEWORD);
+        union { uint64_t u; double d; } conv;
+        conv.d = value;
+        nd500_write_operand_value(cpu, operand, conv.u, ND500_DTYPE_DOUBLEWORD);
     } else {
-        uint32_t bits = nd500_float_from_ieee754((float)value);
-        nd500_write_operand_value(cpu, operand, bits, ND500_DTYPE_WORD);
+        union { uint32_t u; float f; } conv;
+        conv.f = (float)value;
+        nd500_write_operand_value(cpu, operand, conv.u, ND500_DTYPE_FLOAT);
     }
 }

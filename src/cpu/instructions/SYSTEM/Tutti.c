@@ -1,33 +1,46 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
  * Tutti instruction - SYSTEM class
- * 
- * Mnemonic: tutti
- * Operands: 0
- * Opcode: 0xFE01
+ *
+ * TUTTI - Enable Process Switch
+ *
+ * Format: TUTTI
+ *
+ * Assembly:
+ *   TUTTI (enable process switch)               Hex 0xFE01
+ *
+ * Operation: process switch is enabled
+ *
+ * Description:
+ *   Privileged instruction that enables process switching. This instruction
+ *   is used in conjunction with SOLO to implement critical sections and
+ *   synchronization mechanisms. TUTTI re-enables process switching after
+ *   a SOLO instruction has disabled it. Ignorable trap conditions are
+ *   ignored in SOLO-TUTTI sequences regardless of enabling of these traps.
+ *
+ * Trap conditions: Illegal instruction code (IIC) if not privileged
+ *
+ * Data status bits: None affected
+ *
+ * Reference: ND-500 Reference Manual, Chapter 16.2
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Tutti.cs
  */
 void nd500_instr_Tutti(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Tutti instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 0
-     * - Access operands via: fi->operands[0..-1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Tutti instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    /* Validate operand count (like C# lines 40-45) */
+    if (fi->operand_count != 0) {
+        printf("[ERROR] TUTTI at PC=0x%08X: Expected 0 operands, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Clear Process Switch Disabled flag (like C# line 50) */
+    /* Reference: instructions.md Chapter 16.2 - "allows normal interleaving of process execution" */
+    cpu->ST1 &= ~ND500_FLAG_PSD;
+
+    /* No status bits affected for this instruction */
 }

@@ -1,33 +1,110 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 /**
- * Scpuno instruction - STRING class
- * 
- * Mnemonic: scpuno
- * Operands: 1
- * Opcode: 0xFFFC
+ * SCPUNO instruction - STRING class
+ *
+ * SCPUNO - String copy until
+ *
+ * Format: BY SCPUNO <src>, <dest>, <test>
+ *
+ * Assembly:
+ *   BY SCPUNO (string copy until)  Hex 0xFFFC
+ *
+ * Operation:
+ *   while not end of strings and S(I1) != <test> do:
+ *     S(I1) -> D(I2)
+ *     I1 + 1 -> I1
+ *     I2 + 1 -> I2
+ *   endwhile
+ *
+ * Description:
+ *   Copies bytes from source string to destination string, stopping when
+ *   a byte matching the test value is encountered or end of string is reached.
+ *   The delimiter is not copied.
+ *
+ * Reference: ND-500 Reference Manual, Section 14 (String operations)
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Scpuno.cs
  */
 void nd500_instr_Scpuno(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Scpuno instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 1
-     * - Access operands via: fi->operands[0..0]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Scpuno instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    if (fi->operand_count != 3) {
+        printf("[ERROR] SCPUNO at PC=0x%08X: Expected 3 operands, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Get descriptor addresses and test byte */
+    uint32_t source_desc_addr = fi->operands[0].effective_address;
+    uint32_t dest_desc_addr = fi->operands[1].effective_address;
+    uint32_t test_value = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], fi->data_type);
+
+    /* Load string descriptors */
+    Nd500StringDescriptor source_desc, dest_desc;
+    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, true, &source_desc)) {
+        return;
+    }
+    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, true, &dest_desc)) {
+        return;
+    }
+
+    /* Get starting indices */
+    uint32_t src_index = cpu->I[0];
+    uint32_t dest_index = cpu->I[1];
+
+    /* Copy until test byte or end */
+    bool test_found = false;
+    bool src_exhausted = false;
+    bool dest_full = false;
+
+    while (src_index < source_desc.element_count && dest_index < dest_desc.element_count) {
+        uint32_t src_addr = source_desc.base_address + src_index;
+        uint8_t element = nd500_bus_read8(cpu->machine, src_addr);
+
+        /* Check for test byte (delimiter) */
+        if (element == (test_value & 0xFF)) {
+            test_found = true;
+            break;
+        }
+
+        /* Copy to destination */
+        uint32_t dest_addr = dest_desc.base_address + dest_index;
+        nd500_bus_write8(cpu->machine, dest_addr, element);
+
+        src_index++;
+        dest_index++;
+    }
+
+    /* Check termination */
+    if (src_index >= source_desc.element_count) {
+        src_exhausted = true;
+    }
+    if (dest_index >= dest_desc.element_count) {
+        dest_full = true;
+    }
+
+    /* Update index registers */
+    cpu->I[0] = src_index;
+    cpu->I[1] = dest_index;
+
+    /* K=1 if test byte found OR source exhausted, K=0 if destination full */
+    if (test_found || src_exhausted) {
+        nd500_set_flag(cpu, ND500_FLAG_K);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_K);
+    }
+
+    /* Set Z if test byte found */
+    if (test_found) {
+        nd500_set_flag(cpu, ND500_FLAG_Z);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+    }
+
+    nd500_clear_flag(cpu, ND500_FLAG_S);
+    nd500_clear_flag(cpu, ND500_FLAG_C);
+    nd500_clear_flag(cpu, ND500_FLAG_O);
 }

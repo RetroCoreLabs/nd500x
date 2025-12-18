@@ -1,33 +1,85 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 /**
- * Sscan instruction - STRING class
- * 
- * Mnemonic: sscan
- * Operands: 3
- * Opcode: 0xFDB1
+ * SSCAN instruction - STRING class
+ *
+ * SSCAN - String scan
+ *
+ * Format: BY SSCAN <source/r/BY/I1=>, <test/r/BY>
+ *
+ * Assembly:
+ *   BY SSCAN (string scan)  Hex 0xFDAE
+ *
+ * Operation:
+ *   while not end of string and S(I1) <> <test> do
+ *     I1 + 1 -> I1
+ *   enddo
+ *   if S(I1) >> <test> then 0 -> S else 1 -> S endif
+ *
+ * Description:
+ *   Elements are skipped in the <source> string until an element
+ *   equal to the <test> operand is found or the end of the string
+ *   is reached. The S bit is set to 1 if end of string is reached.
+ *
+ * Terminating conditions:
+ *   - outside source: K=0 Z=0 I1 unmodified, DR trap condition
+ *   - matching element: K=0 Z=1 I1 := matching element
+ *   - source empty: K=0 Z=0 I1 := next element
+ *
+ * Reference: ND-500 Reference Manual, Chapter 14.16
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Sscan.cs
  */
 void nd500_instr_Sscan(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Sscan instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 3
-     * - Access operands via: fi->operands[0..2]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Sscan instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    if (fi->operand_count != 2) {
+        printf("[ERROR] SSCAN at PC=0x%08X: Expected 2 operands, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Get descriptor address and test value */
+    uint32_t source_desc_addr = fi->operands[0].effective_address;
+    uint32_t test_value = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+
+    /* Load string descriptor */
+    Nd500StringDescriptor source_desc;
+    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, true, &source_desc)) {
+        return;
+    }
+
+    /* Get starting index from I1 */
+    uint32_t src_index = cpu->I[0];
+
+    /* Scan for matching element */
+    bool found = false;
+    while (src_index < source_desc.element_count) {
+        uint32_t addr = source_desc.base_address + src_index;
+        uint8_t element = nd500_bus_read8(cpu->machine, addr);
+
+        if (element == (test_value & 0xFF)) {
+            found = true;
+            break;
+        }
+        src_index++;
+    }
+
+    /* Update I1 register */
+    cpu->I[0] = src_index;
+
+    /* Set status flags */
+    if (found) {
+        nd500_set_flag(cpu, ND500_FLAG_Z);  /* Match found */
+        nd500_clear_flag(cpu, ND500_FLAG_S);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+        nd500_set_flag(cpu, ND500_FLAG_S);  /* End of string */
+    }
+    nd500_clear_flag(cpu, ND500_FLAG_K);
+    nd500_clear_flag(cpu, ND500_FLAG_C);
+    nd500_clear_flag(cpu, ND500_FLAG_O);
 }
+/* Note: Sscan uses S flag for status, so can't use nd500_string_clear_unused_flags */

@@ -1,33 +1,106 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include <stdio.h>
 
 /**
- * Ppackr instruction - ARITHMETIC class
- * 
- * Mnemonic: ppackr
- * Operands: 2
- * Opcode: 0xFE92
+ * PPACKR instruction - ARITHMETIC class
+ *
+ * PPACKR - Convert ASCII to Packed BCD Rounded
+ *
+ * Format: PPACKR <source/r/ASCII=>, <dest/w/BCD=>
+ *
+ * Assembly:
+ *   PPACKR (convert ASCII to packed rounded)  Hex 0xFE92
+ *
+ * Operation: <source> -> <dest> (with rounding)
+ *
+ * Description:
+ *   Pack ASCII coded decimal to BCD with rounding. Unsigned if <dest>
+ *   bit 26 set; otherwise sign from <source>. This instruction converts
+ *   ASCII decimal numbers to packed BCD format with rounding.
+ *
+ * Trap conditions:
+ *   - Addressing traps
+ *   - BCD overflow (BO)
+ *   - Invalid operation (IVO)
+ *
+ * Data status bits:
+ *   - value after rounding = 0 -> Z
+ *   - value.signbit -> S
+ *   - BCD overflow -> BO
+ *   - BO or IVO -> K
+ *
+ * Reference: ND-500 Reference Manual, Chapter 17.7 (Convert ASCII to packed)
+ *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Ppackr.cs
  */
 void nd500_instr_Ppackr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* TODO: Implement Ppackr instruction
-     * 
-     * Implementation notes:
-     * - Operand count: 2
-     * - Access operands via: fi->operands[0..1]
-     * - Use read_operand_w() / write_operand_w() helpers from cpu_instr.c
-     * - Update CPU registers and FLAGS as needed
-     * - PC will be advanced automatically by cpu_step()
-     * 
-     * Current status: STUB - Not implemented
-     */
-    
-    static int warned = 0;
-    if (!warned) {
-        printf("[STUB] Ppackr instruction not implemented (mnemonic: %s, opcode: 0x%04X)\n", 
-               fi->mnemonic, fi->opcode);
-        warned = 1;
+    /* Validate operand count */
+    if (fi->operand_count != 2) {
+        printf("[ERROR] PPACKR at PC=0x%08X: Expected 2 operands, got %u\n",
+               fi->address, fi->operand_count);
+        trap_illegal_operand(cpu, fi->address);
+        return;
     }
-    
-    /* Stub does nothing - PC will be advanced by cpu_step() */
+
+    /* Get descriptor addresses from operands */
+    uint32_t source_desc_addr = fi->operands[0].effective_address;
+    uint32_t dest_desc_addr = fi->operands[1].effective_address;
+
+    /* Load string descriptors - source is ASCII, dest is BCD */
+    Nd500StringDescriptor source_desc, dest_desc;
+
+    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, true, &source_desc)) {
+        return;
+    }
+    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, true, false, &dest_desc)) {
+        return;
+    }
+
+    /* Read ASCII value by parsing ASCII digits */
+    int64_t value = 0;
+    bool is_negative = false;
+    uint32_t count = source_desc.element_count;
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t addr = source_desc.base_address + i;
+        uint8_t ch = nd500_bus_read8(cpu->machine, addr);
+
+        /* Handle sign characters */
+        if (ch == '+') {
+            is_negative = false;
+            continue;
+        } else if (ch == '-') {
+            is_negative = true;
+            continue;
+        }
+
+        /* Handle digit characters '0'-'9' */
+        if (ch >= '0' && ch <= '9') {
+            value = value * 10 + (ch - '0');
+        }
+    }
+
+    if (is_negative) {
+        value = -value;
+    }
+
+    /* ASCII has no inherent decimal scale, use source descriptor scaling */
+    int8_t source_scale = source_desc.scaling_factor;
+
+    /* Write as BCD value WITH ROUNDING */
+    nd500_write_packed_bcd_value_rounded(cpu, &dest_desc, value, source_scale);
+
+    /* Update status flags */
+    if (value == 0) {
+        nd500_set_flag(cpu, ND500_FLAG_Z);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+    }
+
+    if (value < 0) {
+        nd500_set_flag(cpu, ND500_FLAG_S);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_S);
+    }
 }

@@ -804,6 +804,25 @@ int64_t nd500_read_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* 
  */
 void nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc, int64_t value);
 
+/**
+ * Write packed BCD value to memory with rounding
+ * Used by PADDR, PSUBR, PMPYR, PPACKR, PUPACKR instructions.
+ * Applies rounding when destination scaling factor causes precision loss.
+ * @param cpu CPU state
+ * @param desc String descriptor (must be BCD packed)
+ * @param value Value to write (unscaled integer representation)
+ * @param source_scale Scaling factor of source value
+ */
+void nd500_write_packed_bcd_value_rounded(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
+                                          int64_t value, int8_t source_scale);
+
+/**
+ * Clear string operation flags (S, C, O)
+ * Common helper to reduce code duplication in string instructions.
+ * @param cpu CPU state
+ */
+void nd500_string_clear_unused_flags(Nd500Cpu* cpu);
+
 /* ============================================================================
  * FLOATING-POINT CONVERSION (ND-500 <-> IEEE 754 <-> Integer)
  * ============================================================================
