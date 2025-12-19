@@ -200,11 +200,19 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         // Write back updated index
         nd500_write_operand_from_ieee_float(cpu, &fi->operands[0], fp_index, is_double);
 
+        // Set Z/S flags based on modified index
+        union { float f; uint32_t u; } conv_f;
+        union { double d; uint64_t u; } conv_d;
+        if (is_double) {
+            conv_d.d = fp_index;
+            nd500_set_flags_zs_float(cpu, conv_d.u, true);
+        } else {
+            conv_f.f = (float)fp_index;
+            nd500_set_flags_zs_float(cpu, conv_f.u, false);
+        }
+
         // Compare: loop if index >= limit (countdown)
         should_loop = (fp_index >= fp_limit);
-
-        // Note: LOOPD does NOT modify status flags per ND-500 Reference Manual
-        // "Data status bits: Unaffected"
         (void)index_bits;  // Suppress unused variable warning
     } else {
         // Integer variants
@@ -263,6 +271,10 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
 
         cpu->PC = (uint32_t)(fi->address + displacement);
+        // BT flag (bit 18) - only set for F/D variants when branch is taken
+        if (fi->uses_float_registers) {
+            cpu->ST1 |= 0x40000;
+        }
     } else {
         // Loop exit - PC advances to next instruction
         // Can't rely on fi->total_len because decoder uses wrong data_type for displacement
