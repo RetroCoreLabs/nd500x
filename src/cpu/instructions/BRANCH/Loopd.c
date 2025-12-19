@@ -174,12 +174,25 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t index_bits = 0;  // For flag updates
 
     // Handle float/double variants
-    if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_DOUBLEWORD) {
+    // Note: Decoder sets data_type=WORD for F variants, so check uses_float_registers instead
+    if (fi->uses_float_registers) {
         bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
 
-        // Read operands as IEEE-754 floats
+        // Read index operand as IEEE-754 float
         double fp_index = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
-        double fp_limit = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+
+        // Limit: if constant operand, convert integer to float
+        double fp_limit;
+        if (fi->operands[1].mode == ND500_ADDR_CONSTANT_SHORT ||
+            fi->operands[1].mode == ND500_ADDR_CONSTANT) {
+            // Integer constant - convert to float
+            int64_t limit_int = nd500_sign_extend_by_dtype(
+                nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD),
+                ND500_DTYPE_WORD);
+            fp_limit = (double)limit_int;
+        } else {
+            fp_limit = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+        }
 
         // Decrement by 1.0
         fp_index -= 1.0;
@@ -195,16 +208,18 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         (void)index_bits;  // Suppress unused variable warning
     } else {
         // Integer variants
-        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+        // IMPORTANT: Read/write full register width (WORD), data type only affects comparison
+        // The decrement operates on full 32-bit value, data type is for signed comparison
+        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
         uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
-        // Decrement index by 1
+        // Decrement index by 1 (full 32-bit operation)
         index--;
 
-        // Write decremented index back
-        nd500_write_operand_value(cpu, &fi->operands[0], index, fi->data_type);
+        // Write decremented index back (full 32-bit)
+        nd500_write_operand_value(cpu, &fi->operands[0], index, ND500_DTYPE_WORD);
 
-        // Perform signed comparison based on data type
+        // Perform signed comparison based on data type (compare low bits only)
         switch (fi->data_type) {
             case ND500_DTYPE_BYTE:
                 should_loop = ((int8_t)index >= (int8_t)limit);
@@ -226,11 +241,39 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         // "Data status bits: Unaffected"
     }
 
+    // Displacement size is determined by the opcode variant:
+    //   :B variants (0xFD23-0xFD27): 1-byte signed displacement
+    //   :H variants (0xFD28-0xFD2C): 2-byte signed displacement
+    bool is_halfword_disp = (fi->opcode >= 0xFD28 && fi->opcode <= 0xFD2C);
+
     if (should_loop) {
         // Jump back to start of loop (PC + displacement -> PC)
-        uint64_t value = nd500_read_operand_value(cpu, &fi->operands[2], fi->data_type);
-        int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
+        // NOTE: Read directly from operand data[], not via nd500_read_operand_value,
+        // because the decoder incorrectly sets data_len based on data_type instead of opcode
+        const Nd500OperandDecoded* disp_op = &fi->operands[2];
+
+        int64_t displacement;
+        if (is_halfword_disp) {
+            // :H variant - 2-byte signed displacement (big-endian)
+            int16_t disp16 = (int16_t)((disp_op->data[0] << 8) | disp_op->data[1]);
+            displacement = disp16;
+        } else {
+            // :B variant - 1-byte signed displacement
+            displacement = (int8_t)disp_op->data[0];
+        }
+
         cpu->PC = (uint32_t)(fi->address + displacement);
+    } else {
+        // Loop exit - PC advances to next instruction
+        // Can't rely on fi->total_len because decoder uses wrong data_type for displacement
+        // Calculate actual length: opcode + operand sizes + displacement
+        uint32_t actual_len = fi->opcode_len;  // opcode (2 bytes for LOOPD)
+        for (int i = 0; i < 2; i++) {
+            // Each operand is at least 1 byte (address code) plus any data bytes
+            actual_len += 1 + fi->operands[i].data_len;
+        }
+        // Displacement operand length (no address code, just data)
+        actual_len += is_halfword_disp ? 2 : 1;
+        cpu->PC = fi->address + actual_len;
     }
-    // else: fall through to next instruction
 }

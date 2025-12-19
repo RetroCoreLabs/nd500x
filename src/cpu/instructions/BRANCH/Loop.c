@@ -293,15 +293,17 @@ void nd500_instr_Loop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         should_loop = !exit_loop;
     } else {
         // Integer variants
-        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], data_type);
+        // IMPORTANT: Read/write index in full register width (WORD), data type only affects comparison
+        // The add operation uses full 32-bit value, data type is for signed comparison
+        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
         uint64_t step = nd500_read_operand_value(cpu, &fi->operands[1], data_type);
         uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[2], data_type);
 
-        // Add step to index
+        // Add step to index (full 32-bit operation)
         uint64_t new_index = index + step;
 
-        // Write updated index back
-        nd500_write_operand_value(cpu, &fi->operands[0], new_index, data_type);
+        // Write updated index back (full 32-bit)
+        nd500_write_operand_value(cpu, &fi->operands[0], new_index, ND500_DTYPE_WORD);
 
         // Per C# reference:
         // exit if (step > 0 && newIndex > limit) || (step < 0 && newIndex < limit)
