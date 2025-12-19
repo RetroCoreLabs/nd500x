@@ -190,15 +190,9 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         // Compare: loop if index >= limit (countdown)
         should_loop = (fp_index >= fp_limit);
 
-        // Get index bits for flag updates
-        if (is_double) {
-            index_bits = nd500_double_from_ieee754(fp_index);
-        } else {
-            index_bits = nd500_float_from_ieee754((float)fp_index);
-        }
-
-        // Update flags for float
-        nd500_set_flags_zs_float(cpu, index_bits, is_double);
+        // Note: LOOPD does NOT modify status flags per ND-500 Reference Manual
+        // "Data status bits: Unaffected"
+        (void)index_bits;  // Suppress unused variable warning
     } else {
         // Integer variants
         uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
@@ -228,8 +222,8 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 return;
         }
 
-        // Update Z and S flags based on decremented index
-        nd500_set_flags_zs(cpu, index, fi->data_type);
+        // Note: LOOPD does NOT modify status flags per ND-500 Reference Manual
+        // "Data status bits: Unaffected"
     }
 
     if (should_loop) {

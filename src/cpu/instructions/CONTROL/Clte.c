@@ -233,21 +233,23 @@ void nd500_instr_Clte(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t bit_number_raw = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
     uint32_t bit_number = (uint32_t)(bit_number_raw & 0xFF);
 
-    // Validate bit number range (0-15 for trap enable register)
-    if (bit_number > 15) {
-        printf("[ERROR] CLTE at PC=0x%08X: Bit number %u out of range (must be 0-15)\n",
+    // Validate bit number range (0-63 for 64-bit trap enable register)
+    if (bit_number > 63) {
+        printf("[ERROR] CLTE at PC=0x%08X: Bit number %u out of range (must be 0-63)\n",
                fi->address, bit_number);
         trap_invalid_operation(cpu, fi->address);
         return;
     }
 
-    // TODO: When trap enable register system is implemented:
-    // cpu->OTE &= ~(1U << bit_number);  // Clear bit in Own Trap Enable register
-    //
-    // The trap system would then check cpu->OTE before raising traps
-    //
-    // For now, just log the trap disable operation
-    printf("[CLTE] Disabled trap bit %u at PC=0x%08X\n", bit_number, fi->address);
+    // Clear bit in Own Trap Enable register (OTE1 for bits 0-31, OTE2 for bits 32-63)
+    if (bit_number < 32) {
+        cpu->OTE1 &= ~(1U << bit_number);
+    } else {
+        cpu->OTE2 &= ~(1U << (bit_number - 32));
+    }
+
+    printf("[CLTE] Disabled trap bit %u (OTE=0x%08X%08X) at PC=0x%08X\n",
+           bit_number, cpu->OTE2, cpu->OTE1, fi->address);
 
     // No status flags are modified by CLTE instruction
 }
