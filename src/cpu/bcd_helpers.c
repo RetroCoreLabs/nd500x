@@ -278,19 +278,15 @@ Nd500BcdResult nd500_write_packed_bcd(Nd500Cpu* cpu, const Nd500BcdDescriptor* d
     /* Add trailing sign if needed */
     switch (desc->sign_rep) {
         case BCD_SIGN_EMBEDDED_TRAILING:
-            /* Low nibble of last byte is sign */
+            /* Sign ALWAYS goes in LOW nibble for embedded trailing format.
+             * The high nibble of the sign byte is either:
+             * - The last digit (if nibble_index is odd)
+             * - Zero padding (if nibble_index is even)
+             */
             {
-                int last_byte = (nibble_index + 1) / 2 - 1;
-                if (last_byte < 0) last_byte = 0;
-                /* Check if we need to add sign to existing byte or new byte */
-                int final_nibble = nibble_index;
-                int sign_byte = final_nibble / 2;
-                int sign_high = (final_nibble % 2) == 0;
-                if (sign_high) {
-                    data[sign_byte] |= (nd500_bcd_get_sign_nibble(negative, desc->sign_rep) << 4);
-                } else {
-                    data[sign_byte] |= nd500_bcd_get_sign_nibble(negative, desc->sign_rep);
-                }
+                int sign_byte = nibble_index / 2;
+                /* Always put sign in LOW nibble, never in high nibble */
+                data[sign_byte] |= nd500_bcd_get_sign_nibble(negative, desc->sign_rep);
             }
             break;
 
