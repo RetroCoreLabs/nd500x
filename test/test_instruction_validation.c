@@ -450,7 +450,7 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
         }
     }
 
-    /* 3. Set initial memory (as 32-bit words, big-endian) */
+    /* 3. Set initial memory (byte or 32-bit word based on value size) */
     if (initial_ram && cJSON_IsArray(initial_ram)) {
         cJSON* mem_entry;
         cJSON_ArrayForEach(mem_entry, initial_ram) {
@@ -460,11 +460,16 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
                 if (cJSON_IsNumber(addr_json) && cJSON_IsNumber(val_json)) {
                     uint32_t addr = (uint32_t)addr_json->valuedouble;
                     uint32_t val = (uint32_t)val_json->valuedouble;
-                    /* Write 32-bit value in big-endian (ND-500 byte order) */
-                    nd500_bus_write8(m, addr + 0, (uint8_t)((val >> 24) & 0xFF));
-                    nd500_bus_write8(m, addr + 1, (uint8_t)((val >> 16) & 0xFF));
-                    nd500_bus_write8(m, addr + 2, (uint8_t)((val >> 8) & 0xFF));
-                    nd500_bus_write8(m, addr + 3, (uint8_t)(val & 0xFF));
+                    if (val <= 255) {
+                        /* Single byte value */
+                        nd500_bus_write8(m, addr, (uint8_t)val);
+                    } else {
+                        /* Write 32-bit value in big-endian (ND-500 byte order) */
+                        nd500_bus_write8(m, addr + 0, (uint8_t)((val >> 24) & 0xFF));
+                        nd500_bus_write8(m, addr + 1, (uint8_t)((val >> 16) & 0xFF));
+                        nd500_bus_write8(m, addr + 2, (uint8_t)((val >> 8) & 0xFF));
+                        nd500_bus_write8(m, addr + 3, (uint8_t)(val & 0xFF));
+                    }
                 }
             }
         }
