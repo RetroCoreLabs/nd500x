@@ -59,8 +59,8 @@ void nd500_instr_Pwconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
     }
 
-    /* Get descriptor address from operand */
-    uint32_t desc_addr = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+    /* Get descriptor address from operand - use effective_address, NOT the value */
+    uint32_t desc_addr = fi->operands[0].effective_address;
 
     /* Load BCD descriptor */
     Nd500BcdDescriptor desc = nd500_load_bcd_descriptor(cpu, desc_addr);
