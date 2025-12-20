@@ -697,7 +697,9 @@ static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_detail
  * Validate memory against expected values
  * Returns 0 on success, non-zero on failure
  * If print_details is true, prints mismatch details
- * Note: Memory values are stored as individual bytes in the JSON
+ * Note: Test generator uses two formats:
+ *   - Byte values (0-255): compare single byte at address
+ *   - Word values (>255): compare 32-bit big-endian word at address
  */
 static int validate_memory(Nd500Machine* m, cJSON* final_ram, int print_details) {
     int failures = 0;
@@ -711,15 +713,34 @@ static int validate_memory(Nd500Machine* m, cJSON* final_ram, int print_details)
         if (!cJSON_IsNumber(addr_json) || !cJSON_IsNumber(val_json)) continue;
 
         uint32_t addr = (uint32_t)addr_json->valuedouble;
-        uint8_t expected = (uint8_t)val_json->valuedouble;
-        uint8_t actual = nd500_bus_read8(m, addr);
+        uint32_t expected = (uint32_t)val_json->valuedouble;
 
-        if (actual != expected) {
-            if (print_details) {
-                printf("  Memory[0x%08X]: expected 0x%02X, got 0x%02X\n",
-                       addr, expected, actual);
+        if (expected <= 255) {
+            /* Byte comparison for small values */
+            uint8_t actual = nd500_bus_read8(m, addr);
+            if (actual != (uint8_t)expected) {
+                if (print_details) {
+                    printf("  Memory[0x%08X]: expected 0x%02X, got 0x%02X\n",
+                           addr, (uint8_t)expected, actual);
+                }
+                failures++;
             }
-            failures++;
+        } else {
+            /* 32-bit word comparison for large values (big-endian) */
+            uint8_t b0 = nd500_bus_read8(m, addr + 0);
+            uint8_t b1 = nd500_bus_read8(m, addr + 1);
+            uint8_t b2 = nd500_bus_read8(m, addr + 2);
+            uint8_t b3 = nd500_bus_read8(m, addr + 3);
+            uint32_t actual = ((uint32_t)b0 << 24) | ((uint32_t)b1 << 16) |
+                              ((uint32_t)b2 << 8) | (uint32_t)b3;
+
+            if (actual != expected) {
+                if (print_details) {
+                    printf("  Memory[0x%08X]: expected 0x%08X, got 0x%08X\n",
+                           addr, expected, actual);
+                }
+                failures++;
+            }
         }
     }
     return failures;

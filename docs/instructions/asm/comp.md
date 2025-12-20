@@ -92,7 +92,7 @@ COMP is typically followed by conditional branch instructions that test the flag
 
 - **Z (Zero)**: Set if accumulator == operand
 - **S (Sign)**: Set if accumulator < operand (signed comparison)
-- **C (Carry)**: Set based on unsigned comparison (accumulator < operand unsigned)
+- **C (Carry)**: Set if no borrow (accumulator >= operand unsigned). C=1 means A >= B, C=0 means A < B.
 - **V (Overflow)**: Set if signed comparison would overflow (but S still correct!)
 - **K (Interrupt bits)**: Unaffected
 
