@@ -191,15 +191,35 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     // Read current value (atomically in hardware)
-    uint64_t old_value = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+    // TSET uses the data type from the instruction (typically BYTE with BY prefix)
+    uint64_t old_value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
-    // Write 0xFFFFFFFF to operand (all bits set)
-    nd500_write_operand_value(cpu, &fi->operands[0], 0xFFFFFFFF, ND500_DTYPE_WORD);
+    // Write all-ones to operand based on data type
+    // For BYTE (BY prefix): write 0xFF
+    // For WORD: write 0xFFFFFFFF
+    uint64_t set_value;
+    uint64_t mask;
+    switch (fi->data_type) {
+        case ND500_DTYPE_BYTE:
+            set_value = 0xFF;
+            mask = 0xFF;
+            break;
+        case ND500_DTYPE_HALFWORD:
+            set_value = 0xFFFF;
+            mask = 0xFFFF;
+            break;
+        case ND500_DTYPE_WORD:
+        default:
+            set_value = 0xFFFFFFFF;
+            mask = 0xFFFFFFFF;
+            break;
+    }
+    nd500_write_operand_value(cpu, &fi->operands[0], set_value, fi->data_type);
 
     // Set Z flag based on old value
     // Z=1 if old value was 0 (lock acquired successfully)
     // Z=0 if old value was non-zero (lock already held)
-    if ((old_value & 0xFFFFFFFF) == 0) {
+    if ((old_value & mask) == 0) {
         cpu->ST1 |= ND500_FLAG_Z;   // Set Z flag
     } else {
         cpu->ST1 &= ~ND500_FLAG_Z;  // Clear Z flag
