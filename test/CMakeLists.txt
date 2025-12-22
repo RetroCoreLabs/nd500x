@@ -47,10 +47,10 @@ if(CJSON_TEST_FOUND)
         ${CJSON_TEST_INCLUDE_DIRS}
     )
 
-    # Copy test data file to build directory
+    # Copy test data file to binary output directory (where test executable lives)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/nd500_tests.json
-        ${CMAKE_CURRENT_BINARY_DIR}/nd500_tests.json
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/nd500_tests.json
         COPYONLY
     )
 

@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <libgen.h>  /* For dirname() */
+#include <unistd.h>  /* For access() */
 #include <cjson/cJSON.h>
 #include "../src/cpu/cpu_protos.h"
 #include "../src/machine/machine_protos.h"
@@ -182,10 +184,24 @@ int main(int argc, char** argv) {
     printf("ND500 Instruction Validation Tests\n");
     printf("===================================\n\n");
 
+    /* Resolve JSON path - try current dir first, then executable's dir */
+    char resolved_path[4096];
+    strncpy(resolved_path, json_path, sizeof(resolved_path) - 1);
+    resolved_path[sizeof(resolved_path) - 1] = '\0';
+
+    if (access(resolved_path, R_OK) != 0) {
+        /* File not in current dir - try executable's directory */
+        char exe_path[4096];
+        strncpy(exe_path, argv[0], sizeof(exe_path) - 1);
+        exe_path[sizeof(exe_path) - 1] = '\0';
+        char* dir = dirname(exe_path);
+        snprintf(resolved_path, sizeof(resolved_path), "%s/%s", dir, json_path);
+    }
+
     /* Load JSON file */
-    printf("Loading %s...\n", json_path);
+    printf("Loading %s...\n", resolved_path);
     size_t json_size;
-    char* json_data = load_file(json_path, &json_size);
+    char* json_data = load_file(resolved_path, &json_size);
     if (!json_data) {
         return 1;
     }
