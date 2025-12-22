@@ -29,7 +29,7 @@ static int unknown_final_field_count = 0;
 static int is_known_test_field(const char* name) {
     static const char* known_fields[] = {
         "name", "assembly", "bytes", "initial", "final", "maxInstructions",
-        "strictMemory", "requiresCallContext", NULL
+        "strictMemory", "requiresCallContext", "expectedTrap", NULL
     };
     for (int i = 0; known_fields[i] != NULL; i++) {
         if (strcmp(name, known_fields[i]) == 0) return 1;
@@ -486,11 +486,23 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
         cpu->pending_call_arg_count = 0;
     }
 
-    /* 4. Execute instruction(s) */
+    /* 4. Get expected trap (if any) */
+    cJSON* expected_trap_json = cJSON_GetObjectItem(test, "expectedTrap");
+    const char* expected_trap = NULL;
+    if (expected_trap_json && cJSON_IsString(expected_trap_json)) {
+        expected_trap = expected_trap_json->valuestring;
+    }
+
+    /* 5. Execute instruction(s) */
     int instructions = 1;
     if (max_instr && cJSON_IsNumber(max_instr)) {
         instructions = max_instr->valueint;
     }
+
+    int trap_occurred = 0;
+    char actual_trap_type[64] = {0};  /* Copy trap name before clearing state */
+    char actual_trap_desc[256] = {0};
+    uint32_t trap_pc = 0;
 
     for (int i = 0; i < instructions; i++) {
         nd500_cpu_step(cpu);
@@ -498,20 +510,76 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
         /* Check for traps */
         if (nd500_trap_occurred()) {
             const Nd500TrapState* trap = nd500_trap_get_state();
-            printf("Test %d/%d: %s ... FAIL (trap)\n", test_num, total, test_name);
-            printf("  Trap: %s at PC=0x%08X\n", trap->trap_description, trap->trap_pc);
+            trap_occurred = 1;
+            /* Copy strings before clearing - trap_clear zeros the global state */
+            strncpy(actual_trap_type, trap->trap_name, sizeof(actual_trap_type) - 1);
+            strncpy(actual_trap_desc, trap->trap_description, sizeof(actual_trap_desc) - 1);
+            trap_pc = trap->trap_pc;
             nd500_trap_clear();
+            break;  /* Stop on trap */
+        }
+    }
+
+    /* 6. Validate trap expectations */
+    if (expected_trap != NULL) {
+        /* Test expects a trap */
+        if (!trap_occurred) {
+            if (show_details) {
+                printf("Test %d/%d: %s ... FAIL (expected trap)\n", test_num, total, test_name);
+                cJSON* assembly = cJSON_GetObjectItem(test, "assembly");
+                if (assembly && cJSON_IsString(assembly)) {
+                    printf("  Assembly: %s\n", assembly->valuestring);
+                }
+                printf("  Expected trap: %s, but no trap occurred\n", expected_trap);
+            }
+            return 1;
+        }
+
+        /* Trap occurred - check if type matches */
+        if (actual_trap_type[0] == '\0' || strcmp(actual_trap_type, expected_trap) != 0) {
+            if (show_details) {
+                printf("Test %d/%d: %s ... FAIL (wrong trap type)\n", test_num, total, test_name);
+                cJSON* assembly = cJSON_GetObjectItem(test, "assembly");
+                if (assembly && cJSON_IsString(assembly)) {
+                    printf("  Assembly: %s\n", assembly->valuestring);
+                }
+                printf("  Expected trap: %s\n", expected_trap);
+                printf("  Actual trap: %s (%s) at PC=0x%08X\n",
+                       actual_trap_type[0] ? actual_trap_type : "unknown",
+                       actual_trap_desc[0] ? actual_trap_desc : "", trap_pc);
+            }
+            return 1;
+        }
+
+        /* Trap matched - test passes (skip register/memory validation for trap tests) */
+        if (verbose) {
+            printf("Test %d/%d: %s ... PASS (trap: %s)\n", test_num, total, test_name, expected_trap);
+        }
+        return 0;
+    } else {
+        /* Test does NOT expect a trap */
+        if (trap_occurred) {
+            if (show_details) {
+                printf("Test %d/%d: %s ... FAIL (unexpected trap)\n", test_num, total, test_name);
+                cJSON* assembly = cJSON_GetObjectItem(test, "assembly");
+                if (assembly && cJSON_IsString(assembly)) {
+                    printf("  Assembly: %s\n", assembly->valuestring);
+                }
+                printf("  Trap: %s (%s) at PC=0x%08X\n",
+                       actual_trap_type[0] ? actual_trap_type : "unknown",
+                       actual_trap_desc[0] ? actual_trap_desc : "", trap_pc);
+            }
             return 1;
         }
     }
 
-    /* 5. Validate final registers (without printing details yet) */
+    /* 7. Validate final registers (without printing details yet) */
     int reg_result = 0;
     if (final_regs) {
         reg_result = validate_registers(cpu, final_regs, 0);
     }
 
-    /* 6. Validate final memory (without printing details yet) */
+    /* 8. Validate final memory (without printing details yet) */
     int mem_result = 0;
     if (final_ram && cJSON_IsArray(final_ram) && cJSON_GetArraySize(final_ram) > 0) {
         mem_result = validate_memory(m, final_ram, 0);

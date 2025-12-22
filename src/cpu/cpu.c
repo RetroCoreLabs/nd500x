@@ -450,6 +450,28 @@ void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, c
     g_trap_state.trap_condition = condition;
     g_trap_state.trap_pc = pc;
     g_trap_state.trap_data_addr = data_addr;
+
+    /* Set trap_name based on condition for test validation */
+    /* Names match C# TrapType enum values */
+    const char* name = "Unknown";
+    if (condition & TRAP_DZ) name = "DivisionByZero";
+    else if (condition & TRAP_IOV) name = "IllegalOperandValue";
+    else if (condition & TRAP_IOS) name = "IllegalOperandValue";
+    else if (condition & TRAP_IIC) name = "IllegalInstruction";
+    else if (condition & TRAP_PV) name = "PrivilegeViolation";
+    else if (condition & TRAP_STO) name = "StackOverflow";
+    else if (condition & TRAP_STU) name = "StackUnderflow";
+    else if (condition & TRAP_ISE) name = "InstructionSequenceError";
+    else if (condition & (TRAP_IVO | TRAP_FU | TRAP_FO)) name = "FloatException";
+    else if (condition & TRAP_BO) name = "Overflow";  /* BCD overflow */
+    else if (condition & (TRAP_ATF | TRAP_ATR | TRAP_ATW | TRAP_AZ |
+                          TRAP_DR | TRAP_IX | TRAP_PGF)) {
+        name = "AddressingError";
+    }
+
+    strncpy(g_trap_state.trap_name, name, sizeof(g_trap_state.trap_name) - 1);
+    g_trap_state.trap_name[sizeof(g_trap_state.trap_name) - 1] = '\0';
+
     if (description) {
         strncpy(g_trap_state.trap_description, description, sizeof(g_trap_state.trap_description) - 1);
         g_trap_state.trap_description[sizeof(g_trap_state.trap_description) - 1] = '\0';

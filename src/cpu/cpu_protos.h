@@ -144,6 +144,7 @@ typedef struct {
     uint64_t trap_condition;     /* The trap condition that occurred */
     uint32_t trap_pc;            /* PC where trap occurred */
     uint32_t trap_data_addr;     /* Related data address */
+    char trap_name[64];          /* Trap type name for test validation */
     char trap_description[256];  /* Human-readable trap description */
 } Nd500TrapState;
 

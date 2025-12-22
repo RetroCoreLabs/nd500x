@@ -34,6 +34,11 @@
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Ddirt.cs
  */
 void nd500_instr_Ddirt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
+    /* Check privilege - DDIRT requires supervisor mode */
+    if (!nd500_require_privilege(cpu, fi->address)) {
+        return;  /* Trapped - not privileged */
+    }
+
     /* Validate operand count (like C# lines 40-45) */
     if (fi->operand_count != 0) {
         printf("[ERROR] DDIRT at PC=0x%08X: Expected 0 operands, got %u\n",
