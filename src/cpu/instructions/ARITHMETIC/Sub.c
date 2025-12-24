@@ -25,7 +25,7 @@
  * Flags: Z (zero), S (sign), C (carry/borrow), O (overflow)
  *   Z = 1 if result is zero
  *   S = 1 if result sign bit is set
- *   C = 1 if borrow occurred (minuend < subtrahend)
+ *   C = 1 if NO borrow (minuend >= subtrahend)
  *   O = 1 if signed overflow occurred
  *
  * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Subtract.cs
@@ -122,8 +122,9 @@ void nd500_instr_Sub(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Perform subtraction */
     uint64_t result = reg_value - operand;
 
-    /* Detect carry/borrow (when minuend < subtrahend) */
-    bool carry = (reg_value < operand);
+    /* ND-500 carry convention: C=1 means NO borrow (minuend >= subtrahend)
+     * Reference: ND-500 Reference Manual Page 2040, SUBC formula Page 194 */
+    bool carry = (reg_value >= operand);
     bool overflow = nd500_detect_sub_overflow(reg_value, operand, result, fi->data_type);
 
     /* Mask to data type (like C# MaskToDataType) */

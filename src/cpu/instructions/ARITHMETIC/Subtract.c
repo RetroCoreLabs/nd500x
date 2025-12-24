@@ -38,7 +38,7 @@
  * Flags: Z (zero), S (sign), C (carry), O (overflow)
  *   Z = 1 if difference is zero
  *   S = 1 if sign bit is set
- *   C = 1 if borrow occurred (integer only)
+ *   C = 1 if NO borrow (minuend >= subtrahend)
  *   O = 1 if overflow (integer or float overflow)
  *
  * Trap conditions:
@@ -137,8 +137,9 @@ void nd500_instr_Subtract(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Perform subtraction
     uint64_t result = reg_value - operand;
 
-    // Detect borrow (carry) - borrow if reg_value < operand
-    bool carry = (reg_value < operand);
+    /* ND-500 carry convention: C=1 means NO borrow (minuend >= subtrahend)
+     * Reference: ND-500 Reference Manual Page 2040, SUBC formula Page 194 */
+    bool carry = (reg_value >= operand);
 
     // Detect overflow
     bool overflow = nd500_detect_sub_overflow(reg_value, operand, result, fi->data_type);

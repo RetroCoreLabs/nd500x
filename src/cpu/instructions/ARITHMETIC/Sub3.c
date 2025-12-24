@@ -29,7 +29,7 @@
  * Flags: Z (zero), S (sign), C (carry), O (overflow)
  *   Z = 1 if result is zero
  *   S = 1 if result sign bit is set
- *   C = 1 if carry from most significant bit (integer only)
+ *   C = 1 if NO borrow (minuend >= subtrahend)
  *   O = 1 if overflow
  *
  * Trap conditions:
@@ -76,7 +76,9 @@ void nd500_instr_Sub3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int32_t diff = (int32_t)aByte - (int32_t)bByte;
             result = (uint64_t)(uint8_t)(diff & 0xFF);
             overflow = (diff < -128 || diff > 127);
-            carry = ((diff & 0x100) != 0);
+            /* ND-500 carry: C=1 means NO borrow (unsigned a >= b)
+             * Reference: ND-500 Manual Page 2040, SUBC formula Page 194 */
+            carry = ((aValue & 0xFF) >= (bValue & 0xFF));
             break;
         }
 
@@ -87,7 +89,8 @@ void nd500_instr_Sub3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int32_t diff = (int32_t)aHalf - (int32_t)bHalf;
             result = (uint64_t)(uint16_t)(diff & 0xFFFF);
             overflow = (diff < -32768 || diff > 32767);
-            carry = ((diff & 0x10000) != 0);
+            /* ND-500 carry: C=1 means NO borrow (unsigned a >= b) */
+            carry = ((aValue & 0xFFFF) >= (bValue & 0xFFFF));
             break;
         }
 
@@ -98,7 +101,8 @@ void nd500_instr_Sub3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int64_t diff = (int64_t)aWord - (int64_t)bWord;
             result = (uint64_t)(uint32_t)(diff & 0xFFFFFFFF);
             overflow = (diff < INT32_MIN || diff > INT32_MAX);
-            carry = ((diff & 0x100000000LL) != 0);
+            /* ND-500 carry: C=1 means NO borrow (unsigned a >= b) */
+            carry = ((aValue & 0xFFFFFFFF) >= (bValue & 0xFFFFFFFF));
             break;
         }
 

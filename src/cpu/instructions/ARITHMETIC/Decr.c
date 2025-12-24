@@ -29,7 +29,7 @@
  * Flags: Z (zero), S (sign), C (carry/borrow), O (overflow)
  *   Z = 1 if result is zero
  *   S = 1 if result sign bit is set
- *   C = 1 if borrow occurred (decrementing 0)
+ *   C = 1 if NO borrow (value >= 1)
  *   O = 1 if signed overflow occurred (most negative value decremented)
  *
  * Traps: Addressing traps, Integer overflow (O)
@@ -111,17 +111,19 @@ void nd500_instr_Decr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Perform decrement */
     uint64_t result = value - 1;
 
-    /* Detect carry/borrow and overflow before masking */
+    /* Detect carry and overflow before masking
+     * ND-500 carry convention: C=1 means NO borrow (value >= 1)
+     * Reference: ND-500 Reference Manual Page 2040 */
     bool carry = false;
     bool overflow = false;
     if (fi->data_type == ND500_DTYPE_BYTE) {
-        carry = ((uint8_t)value == 0);              /* Borrow when decrementing 0 */
+        carry = ((uint8_t)value >= 1);              /* No borrow when value >= 1 */
         overflow = ((int8_t)value == (int8_t)0x80); /* Overflow when most negative decremented */
     } else if (fi->data_type == ND500_DTYPE_HALFWORD) {
-        carry = ((uint16_t)value == 0);
+        carry = ((uint16_t)value >= 1);
         overflow = ((int16_t)value == (int16_t)0x8000);
     } else if (fi->data_type == ND500_DTYPE_WORD) {
-        carry = ((uint32_t)value == 0);
+        carry = ((uint32_t)value >= 1);
         overflow = ((int32_t)value == (int32_t)0x80000000);
     }
 
