@@ -399,8 +399,12 @@ size_t nd500_format_instruction(char* buf, size_t cap, const Nd500FetchedInstruc
     }
 
     /* Print prefix + mnemonic + operands */
+    /* Combine prefix+mnemonic into fixed-width field for aligned operands */
+    char combined[32];
+    snprintf(combined, sizeof(combined), "%s%s", regprefix, mnem);
+
     if (fi->operand_count > 0) {
-        pos = buf_append(buf, cap, pos, "%s%-12s ", regprefix, mnem);
+        pos = buf_append(buf, cap, pos, "%-13s", combined);
         for (uint8_t oi = 0; oi < fi->operand_count; ++oi) {
             char obuf[64];
             size_t ol = fmt_operand(obuf, sizeof(obuf), &fi->operands[oi], fi->data_type);
@@ -409,7 +413,7 @@ size_t nd500_format_instruction(char* buf, size_t cap, const Nd500FetchedInstruc
             }
         }
     } else {
-        pos = buf_append(buf, cap, pos, "%s%s", regprefix, mnem);
+        pos = buf_append(buf, cap, pos, "%s", combined);
     }
 
     return pos;

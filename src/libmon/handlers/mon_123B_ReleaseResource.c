@@ -1,5 +1,5 @@
 /*
- * MON 123B (83 decimal): ReleaseResource (RELES)
+ * MON 123B [RELES/ReleaseResource]
  *
  * Releases a reserved device or file. The resource can then be used by
  * another program. You reserve a device or opened file with ReserveResource.
@@ -18,12 +18,13 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 
 MonResult mon_123B_ReleaseResource(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 2) {
-        mon_log(MON_LOG_WARN, "MON 123B RELES: Missing parameters (need 2, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_123B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -36,20 +37,20 @@ MonResult mon_123B_ReleaseResource(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
     MON_LOG_IN_WORD(ctx, 1, "IOFlag");
 
-    mon_log(MON_LOG_DEBUG, "MON 123B RELES: DeviceNo=%u (octal %o), IOFlag=%u",
-            device_no, device_no, io_flag);
+    mon_log(MON_LOG_DEBUG, MON_ID_123B ": IN: DeviceNo=%o, IOFlag=%o",
+            device_no, io_flag);
 
     /* Call release API */
     int result = mon_release_device(device_no, (uint8_t)io_flag);
 
     if (result < 0) {
-        mon_log(MON_LOG_INFO, "MON 123B RELES: Device %u (%s) was not reserved",
+        mon_log(MON_LOG_INFO, MON_ID_123B ": Device %o (%s) was not reserved",
                 device_no, io_flag == 0 ? "input" : "output");
         mon_set_error(ctx, 58);  /* Device not reserved */
         return MON_ERROR;
     }
 
-    mon_log(MON_LOG_INFO, "MON 123B RELES: Device %u (%s) released successfully",
+    mon_log(MON_LOG_INFO, MON_ID_123B ": OUT: Device %o (%s) released",
             device_no, io_flag == 0 ? "input" : "output");
 
     mon_set_success(ctx);

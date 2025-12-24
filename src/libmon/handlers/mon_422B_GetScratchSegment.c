@@ -1,5 +1,5 @@
 /*
- * MON 422B (274 decimal): GetScratchSegment (GSWSP)
+ * MON 422B [GSWSP/GetScratchSegment]
  *
  * Connects an empty data segment to the user's domain and reserves space
  * for it on the swap file. The segment is assigned the default name
@@ -16,6 +16,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 
 MonResult mon_422B_GetScratchSegment(MonContext* ctx) {
     uint32_t segment_size;
@@ -24,7 +25,7 @@ MonResult mon_422B_GetScratchSegment(MonContext* ctx) {
 
     /* Check if callback is available */
     if (!ctx->allocate_segment) {
-        mon_log(MON_LOG_ERROR, "MON 422B GSWSP: allocate_segment callback not available");
+        mon_log(MON_LOG_ERROR, MON_ID_422B ": allocate_segment callback not available");
         mon_set_error(ctx, -1);
         return MON_ERROR;
     }
@@ -33,8 +34,8 @@ MonResult mon_422B_GetScratchSegment(MonContext* ctx) {
     segment_size = mon_read_param_word(ctx, 0);        /* arg0: segment size in bytes */
     requested_segment = mon_read_param_word(ctx, 1);   /* arg1: requested segment number */
 
-    mon_log(MON_LOG_DEBUG, "MON 422B: arg0_addr=0x%08X, size=%u, arg1_addr=0x%08X, req_seg=%u",
-            ctx->arg_addresses[0], segment_size, ctx->arg_addresses[1], requested_segment);
+    mon_log(MON_LOG_DEBUG, MON_ID_422B ": IN: SegmentSize=%o, RequestedSegment=%o",
+            segment_size, requested_segment);
 
     /* Call allocation callback - pass 0xFF as sentinel to indicate "use current domain" */
     /* The callback will get the domain from cpu->CED internally */
@@ -44,7 +45,7 @@ MonResult mon_422B_GetScratchSegment(MonContext* ctx) {
 
     if (rc != 0) {
         /* Allocation failed - set error code */
-        mon_log(MON_LOG_ERROR, "MON 422B GSWSP: allocation failed with error %d", rc);
+        mon_log(MON_LOG_ERROR, MON_ID_422B ": allocation failed with error %d", rc);
         mon_set_error(ctx, rc);
         return MON_ERROR;
     }
@@ -55,7 +56,8 @@ MonResult mon_422B_GetScratchSegment(MonContext* ctx) {
     }
 
     /* Log the call */
-    mon_log(MON_LOG_INFO, "MON 422B GSWSP: segment_size=%u bytes, requested_seg=%u, assigned_seg=%u", segment_size, requested_segment, assigned_segment);
+    mon_log(MON_LOG_INFO, MON_ID_422B ": OUT: SegmentSize=%o bytes, RequestedSeg=%o, AssignedSeg=%o",
+            segment_size, requested_segment, assigned_segment);
 
     /* Set success (K=0) */
     mon_set_success(ctx);

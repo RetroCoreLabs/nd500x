@@ -1,5 +1,5 @@
 /*
- * MON 41B (33 decimal): ReadObjectEntry (ROBJE)
+ * MON 41B [ROBJE/ReadObjectEntry]
  *
  * Gets information about a file or device. An object entry describes each file.
  * It contains the file name, the access rights, the date last opened for read
@@ -50,6 +50,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 #include <string.h>
 #include <stdio.h>
@@ -94,7 +95,7 @@ static MonResult handle_character_device(MonContext* ctx, uint32_t device_no,
     object_entry_to_buffer(&entry, buffer);
     write_object_entry_to_memory(ctx, buff_addr, buffer);
 
-    mon_log(MON_LOG_INFO, "MON 41B ROBJE: Character device %u -> '%s'",
+    mon_log(MON_LOG_INFO, MON_ID_41B ": OUT: Device %o -> '%s'",
             device_no, name);
 
     mon_set_success(ctx);
@@ -127,7 +128,7 @@ static MonResult handle_terminal_device(MonContext* ctx, uint32_t device_no,
     object_entry_to_buffer(&entry, buffer);
     write_object_entry_to_memory(ctx, buff_addr, buffer);
 
-    mon_log(MON_LOG_INFO, "MON 41B ROBJE: Terminal %u (device %u) -> '%s'",
+    mon_log(MON_LOG_INFO, MON_ID_41B ": OUT: Terminal %o (device %o) -> '%s'",
             term_num, device_no, name);
 
     mon_set_success(ctx);
@@ -140,7 +141,7 @@ static MonResult handle_mass_storage_file(MonContext* ctx, uint32_t file_number,
     OpenFileEntry* entry = mon_file_table_get((int)file_number);
 
     if (!entry || !entry->in_use) {
-        mon_log(MON_LOG_WARN, "MON 41B ROBJE: File %u not open", file_number);
+        mon_log(MON_LOG_WARN, MON_ID_41B ": File %o not open", file_number);
         mon_set_error(ctx, 53);  /* File not open */
         return MON_ERROR;
     }
@@ -150,7 +151,7 @@ static MonResult handle_mass_storage_file(MonContext* ctx, uint32_t file_number,
     object_entry_to_buffer(&entry->object_entry, buffer);
     write_object_entry_to_memory(ctx, buff_addr, buffer);
 
-    mon_log(MON_LOG_INFO, "MON 41B ROBJE: File %u -> '%s.%s'",
+    mon_log(MON_LOG_INFO, MON_ID_41B ": OUT: File %o -> '%s.%s'",
             file_number, entry->object_entry.object_name, entry->object_entry.type);
 
     mon_set_success(ctx);
@@ -160,7 +161,7 @@ static MonResult handle_mass_storage_file(MonContext* ctx, uint32_t file_number,
 MonResult mon_41B_ReadObjectEntry(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 2) {
-        mon_log(MON_LOG_WARN, "MON 41B ROBJE: Missing parameters (need 2, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_41B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -172,8 +173,8 @@ MonResult mon_41B_ReadObjectEntry(MonContext* ctx) {
 
     MON_LOG_IN_WORD(ctx, 0, "FileNumber");
 
-    mon_log(MON_LOG_DEBUG, "MON 41B ROBJE: FileNumber=%u (octal %o), BuffAddr=0x%08X",
-            file_number, file_number, buff_addr);
+    mon_log(MON_LOG_DEBUG, MON_ID_41B ": IN: FileNumber=%o, BuffAddr=0x%08X",
+            file_number, buff_addr);
 
     /*
      * Route by device class (SINTRAN Appendix B):
@@ -195,8 +196,7 @@ MonResult mon_41B_ReadObjectEntry(MonContext* ctx) {
     }
 
     /* Unsupported device class */
-    mon_log(MON_LOG_WARN, "MON 41B ROBJE: Unsupported device number %u (octal %o)",
-            file_number, file_number);
+    mon_log(MON_LOG_WARN, MON_ID_41B ": Unsupported device %o", file_number);
     mon_set_error(ctx, 46);  /* No such filename */
     return MON_ERROR;
 }

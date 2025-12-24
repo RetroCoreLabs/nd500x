@@ -1,7 +1,5 @@
 /*
- * MON 11B (9 decimal): GetBasicTime (TIME)
- *
- * **Time**
+ * MON 11B [TIME/GetBasicTime]
  *
  * Gets the current internal time. The internal time is specified in basic time units.
  * There are 50 basic time units in a second.
@@ -17,6 +15,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../../cpu/cpu_protos.h"
 
 MonResult mon_11B_GetBasicTime(MonContext* ctx) {
@@ -32,9 +31,11 @@ MonResult mon_11B_GetBasicTime(MonContext* ctx) {
     /* Write result to output parameter (LONGINT = 32-bit) */
     if (ctx->arg_count >= 1) {
         mon_write_param_word(ctx, 0, (uint32_t)(basic_time & 0xFFFFFFFF));
-        mon_log(MON_LOG_DEBUG, "MON 11B TIME: instruction_count=%llu -> basic_time=%llu",
-                (unsigned long long)cpu->instruction_count, (unsigned long long)basic_time);
     }
+
+    mon_log(MON_LOG_DEBUG, MON_ID_11B ": IN: (none)");
+    mon_log(MON_LOG_DEBUG, MON_ID_11B ": OUT: BasicTime=%llu",
+            (unsigned long long)basic_time);
 
     mon_set_success(ctx);
     return MON_SUCCESS;

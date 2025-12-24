@@ -1,5 +1,5 @@
 /*
- * MON 113B (75 decimal): GetCurrentTime (CLOCK)
+ * MON 113B [CLOCK/GetCurrentTime]
  *
  * Gets the current system time and date.
  *
@@ -21,6 +21,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include <time.h>
 
 /* Basic time units per second */
@@ -40,7 +41,7 @@ static struct tm* safe_localtime(const time_t* timep, struct tm* result) {
 MonResult mon_113B_GetCurrentTime(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 1) {
-        mon_log(MON_LOG_WARN, "MON 113B CLOCK: Missing parameters (need 1, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_113B ": Missing parameters (need 1, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -55,7 +56,7 @@ MonResult mon_113B_GetCurrentTime(MonContext* ctx) {
     struct tm* tm_now = safe_localtime(&now, &tm_storage);
 
     if (!tm_now) {
-        mon_log(MON_LOG_WARN, "MON 113B CLOCK: Failed to get local time");
+        mon_log(MON_LOG_WARN, MON_ID_113B ": Failed to get local time");
         mon_set_error(ctx, 52);
         return MON_ERROR;
     }
@@ -88,7 +89,8 @@ MonResult mon_113B_GetCurrentTime(MonContext* ctx) {
     /* [6] Year (last two digits) - tm_year is years since 1900 */
     ctx->write_word(ctx->cpu, buffer_addr + 24, (uint32_t)(tm_now->tm_year % 100));
 
-    mon_log(MON_LOG_DEBUG, "MON 113B CLOCK: %02d:%02d:%02d %02d/%02d/%02d (basic=%u)",
+    mon_log(MON_LOG_DEBUG, MON_ID_113B ": IN: (none)");
+    mon_log(MON_LOG_DEBUG, MON_ID_113B ": OUT: Time=%02d:%02d:%02d Date=%02d/%02d/%02d BasicUnits=%o",
             tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec,
             tm_now->tm_mday, tm_now->tm_mon + 1, (tm_now->tm_year % 100),
             basic_units);

@@ -1,5 +1,5 @@
 /*
- * MON 76B (62 decimal): SetBlockSize (SETBS)
+ * MON 76B [SETBS/SetBlockSize]
  *
  * Sets the block size of an opened file. Monitor calls which read randomly
  * from, or write randomly to a file, operate on blocks. See ReadFromFile
@@ -23,6 +23,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 
 /* Maximum reasonable block size */
@@ -31,7 +32,7 @@
 MonResult mon_76B_SetBlockSize(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 2) {
-        mon_log(MON_LOG_WARN, "MON 76B SETBS: Missing parameters (need 2, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_76B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -44,12 +45,12 @@ MonResult mon_76B_SetBlockSize(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 0, "FileNumber");
     MON_LOG_IN_WORD(ctx, 1, "BlockSize");
 
-    mon_log(MON_LOG_DEBUG, "MON 76B SETBS: FileNumber=%u, BlockSize=%u",
+    mon_log(MON_LOG_DEBUG, MON_ID_76B ": IN: FileNumber=%o, BlockSize=%o",
             file_no, block_size);
 
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
-        mon_log(MON_LOG_WARN, "MON 76B SETBS: Invalid file number %u (must be 64-127)", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_76B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
@@ -57,14 +58,14 @@ MonResult mon_76B_SetBlockSize(MonContext* ctx) {
     /* Look up file in open file table */
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
-        mon_log(MON_LOG_WARN, "MON 76B SETBS: File %u not open", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_76B ": File %o not open", file_no);
         mon_set_error(ctx, 53);  /* File not open */
         return MON_ERROR;
     }
 
     /* Validate block size */
     if (block_size == 0 || block_size > MAX_BLOCK_SIZE) {
-        mon_log(MON_LOG_WARN, "MON 76B SETBS: Invalid block size %u (must be 1-%u)",
+        mon_log(MON_LOG_WARN, MON_ID_76B ": Invalid block size %o (must be 1-%o)",
                 block_size, MAX_BLOCK_SIZE);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -73,7 +74,7 @@ MonResult mon_76B_SetBlockSize(MonContext* ctx) {
     /* Set block size */
     entry->block_size = block_size;
 
-    mon_log(MON_LOG_DEBUG, "MON 76B SETBS: Set file %u block size to %u", file_no, block_size);
+    mon_log(MON_LOG_DEBUG, MON_ID_76B ": OUT: File %o block size set to %o", file_no, block_size);
 
     mon_set_success(ctx);
     return MON_SUCCESS;

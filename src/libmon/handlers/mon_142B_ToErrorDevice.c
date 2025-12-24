@@ -1,5 +1,5 @@
 /*
- * MON 142B (98 decimal): ToErrorDevice (ERMON)
+ * MON 142B [ERMON/ToErrorDevice]
  *
  * Outputs a user-defined, real-time error. The error message is output on the
  * error device, i.e. normally the console.
@@ -18,6 +18,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include <stdio.h>
 #include <time.h>
 
@@ -44,7 +45,7 @@ MonResult mon_142B_ToErrorDevice(MonContext* ctx) {
             (unsigned int)error_number, (unsigned int)suberror_number);
 
     /* Log the call */
-    mon_log(MON_LOG_INFO, "MON 142B ERMON: ErrorNumber=%oB, SubErrorNumber=%oB",
+    mon_log(MON_LOG_INFO, MON_ID_142B ": IN: ErrorNumber=%oB, SubErrorNumber=%oB",
             (unsigned int)error_number, (unsigned int)suberror_number);
 
     /* Set success - program continues */

@@ -97,6 +97,38 @@ static void mon_write_byte_cb(void* cpu_ptr, uint32_t addr, uint8_t val) {
     nd500_bus_write8(cpu->machine, phys_addr, val);
 }
 
+static uint16_t mon_read_halfword_cb(void* cpu_ptr, uint32_t addr) {
+    Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
+    if (!cpu || !cpu->machine) return 0;
+
+    /* Use MMU if enabled */
+    uint32_t phys_addr = addr;
+    if (cpu->machine->mmu_enabled) {
+        phys_addr = nd500_mmu_translate(cpu, addr, 0, 0);
+    }
+
+    /* Read 16-bit halfword (big-endian on ND-500) */
+    uint16_t value = 0;
+    value |= (uint16_t)nd500_bus_read8(cpu->machine, phys_addr) << 8;
+    value |= (uint16_t)nd500_bus_read8(cpu->machine, phys_addr + 1);
+    return value;
+}
+
+static void mon_write_halfword_cb(void* cpu_ptr, uint32_t addr, uint16_t val) {
+    Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
+    if (!cpu || !cpu->machine) return;
+
+    /* Use MMU if enabled */
+    uint32_t phys_addr = addr;
+    if (cpu->machine->mmu_enabled) {
+        phys_addr = nd500_mmu_translate(cpu, addr, 1, 0);
+    }
+
+    /* Write 16-bit halfword (big-endian on ND-500) */
+    nd500_bus_write8(cpu->machine, phys_addr, (uint8_t)(val >> 8));
+    nd500_bus_write8(cpu->machine, phys_addr + 1, (uint8_t)val);
+}
+
 static void mon_set_k_flag_cb(void* cpu_ptr, int value) {
     Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
     if (!cpu) return;
@@ -204,6 +236,8 @@ int nd500_check_indirect_call(
         /* Setup memory access callbacks */
         ctx.read_word = mon_read_word_cb;
         ctx.write_word = mon_write_word_cb;
+        ctx.read_halfword = mon_read_halfword_cb;
+        ctx.write_halfword = mon_write_halfword_cb;
         ctx.read_byte = mon_read_byte_cb;
         ctx.write_byte = mon_write_byte_cb;
 

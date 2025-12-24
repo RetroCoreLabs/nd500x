@@ -249,7 +249,8 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	/* Ignorable trap (bits 11-29): check if enabled in OTE mask */
 	uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
 	if (trapBit & ote & TRAP_IGNORABLE_MASK) {
-		/* Trap is enabled - invoke handler immediately */
+		/* Trap is enabled - set trap state and invoke handler */
+		nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
 		/* Pass trapPC (the trapping instruction's address) so RETT can retry it */
 		invoke_trap_handler(cpu, trapBit, trapPC);
 		/* If invoke_trap_handler succeeded, execution continues in handler */

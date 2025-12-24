@@ -1,5 +1,5 @@
 /*
- * MON 221B (145 decimal): CreateFile (CRALF)
+ * MON 221B [CRALF/CreateFile]
  *
  * Creates a file. The file may be indexed, contiguous, or allocated.
  * Most files are indexed. The size of indexed files expands automatically
@@ -22,6 +22,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #include <string.h>
@@ -29,7 +30,7 @@
 MonResult mon_221B_CreateFile(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 1) {
-        mon_log(MON_LOG_WARN, "MON 221B CRALF: Missing parameters (need at least 1, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_221B ": Missing parameters (need at least 1, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -43,12 +44,12 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
     uint32_t start_address = (ctx->arg_count > 1) ? mon_read_param_word(ctx, 1) : 0;
     uint32_t num_pages = (ctx->arg_count > 2) ? mon_read_param_word(ctx, 2) : 1;
 
-    mon_log(MON_LOG_DEBUG, "MON 221B CRALF: FileName='%s', StartAddr=%u, NoOfPages=%u",
+    mon_log(MON_LOG_DEBUG, MON_ID_221B ": IN: FileName='%s', StartAddr=%o, NoOfPages=%o",
             filename, start_address, num_pages);
 
     /* Validate filename */
     if (filename[0] == '\0') {
-        mon_log(MON_LOG_WARN, "MON 221B CRALF: Empty filename");
+        mon_log(MON_LOG_WARN, MON_ID_221B ": Empty filename");
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
@@ -61,7 +62,7 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
     FILE* test_fp = fopen(host_path, "rb");
     if (test_fp) {
         fclose(test_fp);
-        mon_log(MON_LOG_WARN, "MON 221B CRALF: File '%s' already exists", host_path);
+        mon_log(MON_LOG_WARN, MON_ID_221B ": File '%s' already exists", host_path);
         mon_set_error(ctx, 58);  /* File already exists */
         return MON_ERROR;
     }
@@ -69,7 +70,7 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
     /* Create empty file */
     FILE* fp = fopen(host_path, "wb");
     if (!fp) {
-        mon_log(MON_LOG_WARN, "MON 221B CRALF: Failed to create file '%s'", host_path);
+        mon_log(MON_LOG_WARN, MON_ID_221B ": Failed to create file '%s'", host_path);
         mon_set_error(ctx, 52);  /* Invalid parameter (could be permission denied) */
         return MON_ERROR;
     }
@@ -85,7 +86,7 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
 
     fclose(fp);
 
-    mon_log(MON_LOG_DEBUG, "MON 221B CRALF: Created file '%s' (%u pages)",
+    mon_log(MON_LOG_DEBUG, MON_ID_221B ": OUT: Created file '%s' (%o pages)",
             host_path, num_pages);
 
     mon_set_success(ctx);

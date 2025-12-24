@@ -82,3 +82,10 @@ add_executable(test_unsigned_displacement
 )
 target_link_libraries(test_unsigned_displacement PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# DOM integration test
+# Loads a DOM file, runs execution for up to N steps or until MON 0B exit
+add_executable(test_dom_integration
+    test_dom_integration.c
+)
+target_link_libraries(test_dom_integration PRIVATE nd500_machine nd500_cpu nd500_ndlib nd500_debugger mon)
+

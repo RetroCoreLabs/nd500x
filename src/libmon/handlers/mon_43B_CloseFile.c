@@ -1,5 +1,5 @@
 /*
- * MON 43B (35 decimal): CloseFile (CLOSE)
+ * MON 43B [CLOSE/CloseFile]
  *
  * Closes a file that was opened with OpenFile (MON 50B).
  *
@@ -19,12 +19,13 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 
 MonResult mon_43B_CloseFile(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 1) {
-        mon_log(MON_LOG_WARN, "MON 43B CLOSE: Missing parameters (need 1, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_43B ": Missing parameters (need 1, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -35,11 +36,11 @@ MonResult mon_43B_CloseFile(MonContext* ctx) {
 
     MON_LOG_IN_WORD(ctx, 0, "FileNumber");
 
-    mon_log(MON_LOG_DEBUG, "MON 43B CLOSE: FileNumber=%d", file_number);
+    mon_log(MON_LOG_DEBUG, MON_ID_43B ": IN: FileNumber=%d", file_number);
 
     /* Handle special case: -1 means close all files not permanently open */
     if (file_number == -1) {
-        mon_log(MON_LOG_INFO, "MON 43B CLOSE: Closing all files (FileNumber=-1)");
+        mon_log(MON_LOG_INFO, MON_ID_43B ": Closing all files (FileNumber=-1)");
         mon_file_table_reset();
         mon_set_success(ctx);
         return MON_SUCCESS;
@@ -47,7 +48,7 @@ MonResult mon_43B_CloseFile(MonContext* ctx) {
 
     /* Handle special case: -2 means close all including scratch and permanently open */
     if (file_number == -2) {
-        mon_log(MON_LOG_INFO, "MON 43B CLOSE: Closing all files including scratch (FileNumber=-2)");
+        mon_log(MON_LOG_INFO, MON_ID_43B ": Closing all files including scratch (FileNumber=-2)");
         mon_file_table_reset();
         mon_set_success(ctx);
         return MON_SUCCESS;
@@ -55,8 +56,8 @@ MonResult mon_43B_CloseFile(MonContext* ctx) {
 
     /* Validate file number range for normal close */
     if (!mon_file_table_is_valid_file_number(file_number)) {
-        mon_log(MON_LOG_WARN, "MON 43B CLOSE: Invalid file number %d (must be 64-127)",
-                file_number);
+        mon_log(MON_LOG_WARN, MON_ID_43B ": Invalid file number %d (must be %o-%o)",
+                file_number, 64, 127);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
@@ -65,12 +66,12 @@ MonResult mon_43B_CloseFile(MonContext* ctx) {
     int result = mon_file_close(file_number);
 
     if (result < 0) {
-        mon_log(MON_LOG_WARN, "MON 43B CLOSE: File %d not open", file_number);
+        mon_log(MON_LOG_WARN, MON_ID_43B ": File %o not open", file_number);
         mon_set_error(ctx, 53);  /* File not open */
         return MON_ERROR;
     }
 
-    mon_log(MON_LOG_INFO, "MON 43B CLOSE: Closed file %d", file_number);
+    mon_log(MON_LOG_INFO, MON_ID_43B ": OUT: Closed file %o", file_number);
 
     mon_set_success(ctx);
     return MON_SUCCESS;

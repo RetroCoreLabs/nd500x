@@ -1,5 +1,5 @@
 /*
- * MON 50B (40 decimal): OpenFile (OPEN)
+ * MON 50B [OPEN/OpenFile]
  *
  * Opens a file for access. You must open a file before reading or writing to it.
  * The access mode determines what operations are allowed.
@@ -32,12 +32,13 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 
 MonResult mon_50B_OpenFile(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 4) {
-        mon_log(MON_LOG_WARN, "MON 50B OPEN: Missing parameters (need 4, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_50B ": Missing parameters (need 4, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -67,12 +68,12 @@ MonResult mon_50B_OpenFile(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 0, "FileNo");
     MON_LOG_IN_WORD(ctx, 1, "AccessCode");
 
-    mon_log(MON_LOG_DEBUG, "MON 50B OPEN: FileNoIn=%d, AccessCode=%u, FileName='%s', FileType='%s'",
+    mon_log(MON_LOG_DEBUG, MON_ID_50B ": IN: FileNo=%d, AccessCode=%o, FileName='%s', FileType='%s'",
             file_no_input, access_code, filename, filetype);
 
     /* Validate access code */
     if (access_code > 9) {
-        mon_log(MON_LOG_WARN, "MON 50B OPEN: Invalid access code %u", access_code);
+        mon_log(MON_LOG_WARN, MON_ID_50B ": Invalid access code %o", access_code);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
@@ -82,7 +83,7 @@ MonResult mon_50B_OpenFile(MonContext* ctx) {
     int file_number = mon_file_open_ex(filename, filetype, (uint8_t)access_code, file_no_input);
 
     if (file_number < 0) {
-        mon_log(MON_LOG_WARN, "MON 50B OPEN: Failed to open '%s.%s' (error %d)",
+        mon_log(MON_LOG_WARN, MON_ID_50B ": Failed to open '%s.%s' (error %d)",
                 filename, filetype, file_number);
 
         /* Map internal error codes to SINTRAN error codes */
@@ -95,7 +96,7 @@ MonResult mon_50B_OpenFile(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    mon_log(MON_LOG_INFO, "MON 50B OPEN: Opened '%s.%s' as file %d (access=%u)",
+    mon_log(MON_LOG_INFO, MON_ID_50B ": OUT: Opened '%s.%s' as file %o (access=%o)",
             filename, filetype, file_number, access_code);
 
     /* Return file number in W1 (I1) register */

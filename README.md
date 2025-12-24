@@ -174,11 +174,45 @@ This will:
 |--------|-------------|
 | `--debug` | Start interactive debugger REPL |
 | `-i <path>` | Load ND-500 a.out file at startup |
+| `--dom <path>` | Load DOM file |
+| `--run` | Run program non-interactively (exit on MON 0B or error) |
+| `--max-steps <n>` | Maximum instructions to execute (default: unlimited) |
+| `--trace-file <path>` | Write instruction trace to file |
 | `-ansi` | Force-enable ANSI color output (even when piped) |
 | `-noansi` | Force-disable ANSI color output |
 | `--disasm <len>` | Disassemble <len> bytes and exit |
 | `--addr <addr>` | Start address for disassembly |
 | `--hexdump <len>` | Hex dump <len> bytes and exit |
+
+**Batch Execution with Trace:**
+
+Run a DOM program and capture instruction trace to a file:
+```bash
+./build/bin/nd500x --dom program.dom --run --trace-file trace.txt
+./build/bin/nd500x --dom program.dom --run --max-steps 10000 --trace-file trace.txt
+```
+
+Using the test harness with radix option:
+```bash
+./build/bin/test_dom_integration program.dom 10000 --trace-file trace.txt --radix hex
+```
+
+The trace file contains executed instructions with register state. MON calls (CALL to segment 31) are annotated with octal number and name:
+```
+0x08000004 C3 08 02 D4 47 00                   call         $0x802D447,$0x0                                 | I1[00000000] ... |
+  -> L=0800000A
+0x0802D447 9C                                  entd                                                         | I1[00000000] ...
+0x0802D44F C3 F8 00 00 09 00                   call         $0xF8000009,$0x0                                | I1[00000000] ... | MON 11B [TIME/GetBasicTime]
+0x0802D1CC C3 F8 00 00 1A 01 C4 08 01 D7 F8    call         $0xF800001A,$0x1,$0x801D7F8                     | I1[0801D89E] ... | MON 32B [MSG/OutMessage]
+```
+
+Trace format:
+- **PC address** - Instruction location
+- **Instruction bytes** - Up to 12 bytes on one line (includes CALL argument addresses)
+- **Disassembly** - Mnemonic and operands (left-aligned, 60 chars wide)
+- **Registers** - I1-I4, flags [PDZSCKO], B, L, R, TOS before execution
+- **MON annotation** - For CALL $0xF8xxxxxx: `| MON nnnB [short/long]`
+- **Register changes** - Line starting with `->` shows registers modified by instruction
 
 **Color Output:**
 - By default, color output is automatically detected based on TTY and terminal type

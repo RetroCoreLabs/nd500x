@@ -32,6 +32,9 @@ static void print_usage(const char* prog) {
     printf("  --addr <addr>            Start address for disassembly (default: 0)\n");
     printf("  --hexdump <len>          Hex dump <len> bytes and exit\n");
     printf("  --radix <mode>           Set numeric radix: decimal | hex | octal\n");
+    printf("  --run                    Run program (exit on MON 0B or error)\n");
+    printf("  --max-steps <n>          Maximum instructions to execute (default: unlimited)\n");
+    printf("  --trace-file <path>      Write instruction trace to file\n");
     printf("  -ansi                    Force enable ANSI colors\n");
     printf("  -noansi                  Force disable ANSI colors\n");
     printf("  --help                   Show this help message\n");
@@ -41,6 +44,8 @@ static void print_usage(const char* prog) {
     printf("  %s --pseg kernel.pseg --dseg kernel.dseg --mode kernel --debug\n", prog);
     printf("  %s --pseg user_prog.pseg --mode user --debug\n", prog);
     printf("  %s --aout program --disasm 100 --addr 0x1000\n", prog);
+    printf("  %s --dom program.dom --run --trace-file trace.txt\n", prog);
+    printf("  %s --dom program.dom --run --max-steps 10000 --trace-file trace.txt\n", prog);
     printf("\n");
 }
 
@@ -59,6 +64,9 @@ int main(int argc, char** argv) {
     uint32_t hex_len = 0;
     int ansi_flag = 0; /* 0=auto, 1=force-enable, -1=force-disable */
     const char* radix_str = NULL;
+    int run_mode = 0;  /* Non-interactive run */
+    uint64_t max_steps = 0;  /* 0 = unlimited */
+    const char* trace_file_path = NULL;
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -93,6 +101,12 @@ int main(int argc, char** argv) {
             ansi_flag = 1;
         } else if (strcmp(argv[i], "-noansi") == 0) {
             ansi_flag = -1;
+        } else if (strcmp(argv[i], "--run") == 0) {
+            run_mode = 1;
+        } else if (strcmp(argv[i], "--max-steps") == 0 && i + 1 < argc) {
+            max_steps = strtoull(argv[++i], NULL, 0);
+        } else if (strcmp(argv[i], "--trace-file") == 0 && i + 1 < argc) {
+            trace_file_path = argv[++i];
         }
     }
     
@@ -111,6 +125,14 @@ int main(int argc, char** argv) {
             printf("Invalid radix: %s (use: decimal, hex, octal)\n", radix_str);
             return 1;
         }
+    }
+
+    /* Set up trace file if requested */
+    if (trace_file_path) {
+        if (nd500_dbg_set_trace_file(trace_file_path) != 0) {
+            return 1;  /* Error opening file already printed */
+        }
+        printf("Trace output: %s\n", trace_file_path);
     }
 
     Nd500Machine machine;
@@ -258,6 +280,75 @@ int main(int argc, char** argv) {
 	if (debug) {
 		return nd500_debugger_repl(&machine);
 	}
+
+    /* Non-interactive run mode */
+    if (run_mode) {
+        machine.run_flag = 1;
+        machine.stop_reason = STOP_NONE;
+
+        uint64_t steps = 0;
+        uint32_t last_pc = cpu.PC;
+        int stuck_count = 0;
+
+        printf("Running from PC=0x%08X", cpu.PC);
+        if (max_steps > 0) {
+            printf(" (max %llu steps)", (unsigned long long)max_steps);
+        }
+        printf("...\n");
+
+        while (machine.run_flag) {
+            /* Check step limit */
+            if (max_steps > 0 && steps >= max_steps) {
+                printf("Reached max steps limit (%llu)\n", (unsigned long long)max_steps);
+                break;
+            }
+
+            /* Execute one instruction */
+            if (!nd500_cpu_step(&cpu)) {
+                if (machine.stop_reason != STOP_NONE) {
+                    break;
+                }
+            }
+
+            steps++;
+
+            /* Detect infinite loop (PC stuck) */
+            if (cpu.PC == last_pc) {
+                stuck_count++;
+                if (stuck_count > 100) {
+                    printf("PC stuck at 0x%08X for 100+ instructions\n", cpu.PC);
+                    break;
+                }
+            } else {
+                stuck_count = 0;
+                last_pc = cpu.PC;
+            }
+
+            /* Check for program exit */
+            if (machine.stop_reason == STOP_MON_HALT) {
+                printf("Program exited normally (MON 0B)\n");
+                break;
+            }
+
+            if (machine.stop_reason == STOP_MON_UNIMPLEMENTED) {
+                printf("Unimplemented MON call at PC=0x%08X\n", cpu.PC);
+                break;
+            }
+        }
+
+        printf("Execution complete: %llu instructions\n", (unsigned long long)steps);
+        printf("Final PC: 0x%08X\n", cpu.PC);
+
+        if (machine.stop_reason != STOP_NONE && machine.stop_reason != STOP_MON_HALT) {
+            printf("Stop reason: %s\n", nd500_stop_reason_str(machine.stop_reason));
+        }
+
+        /* Close trace file if open */
+        nd500_dbg_close_trace_file();
+
+        nd500_machine_free(&machine);
+        return (machine.stop_reason == STOP_MON_HALT || machine.stop_reason == STOP_NONE) ? 0 : 1;
+    }
 
     if (hex_len > 0) {
         uint32_t end = dis_addr + hex_len;

@@ -843,7 +843,7 @@ void mon_register_all_handlers(void) {
         "Writes a string of characters to a peripheral file, e.g., a terminal or a printer.\n\n- You cannot use",  /* Description */
         "[I] DeviceNo (INTEGER2): Logical device number. See appendix B. You cannot use 1 for your own terminal. Use ExecutionInfo to get its logical device number instead. File numbers are illegal.\\n[I] TextWrite (STRING): Character string to be output (max 2048 bytes).",  /* Parameter details */
         mon_162B_OutString,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -1164,7 +1164,7 @@ void mon_register_all_handlers(void) {
         "Writes up to 8 characters to a device, e.g. a terminal or an internal device.",  /* Description */
         "[I] DeviceNo (INTEGER): Logical device number. Use 1 for your own terminal. File numbers are illegal.\\n[I] OutData (STRING): The 8 characters to be written (writing stops at first 0 byte).",  /* Parameter details */
         mon_22B_OutUpTo8Bytes,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -1361,7 +1361,7 @@ void mon_register_all_handlers(void) {
         "Writes 8 bytes to a character device, e.g. a terminal. All 8 bytes are output. OutUpTo8Bytes stops i",  /* Description */
         "[I] DeviceNumber (INTEGER): Logical device number. See appendix B.\\n[I] OutData (STRING): Buffer containing 8 bytes to write.",  /* Parameter details */
         mon_24B_Out8Bytes,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -1982,7 +1982,7 @@ void mon_register_all_handlers(void) {
         "Writes a number to the user's terminal. The number can be output as an octal or a decimal value.\n\n- ",  /* Description */
         "[I] Format (INTEGER2): Output format. 8=octal, 10=decimal, 16=hexadecimal, 2=bitpattern.\\n[I] Number (INTEGER2): The number to be written (-32768 to 32767).",  /* Parameter details */
         mon_35B_OutNumber,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -2640,7 +2640,7 @@ void mon_register_all_handlers(void) {
         "Gets the number of free bytes in the output buffer (number of bytes which can be written before the ",  /* Description */
         "[I] DeviceNumber (INTEGER2): Logical device number. See appendix B. Use 1 for your own terminal.\\n[O] NoOfBytes (INTEGER2): Number of free bytes in output buffer (output, returned in W1).",  /* Parameter details */
         mon_67B_OutBufferSpace,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(

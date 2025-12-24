@@ -1,5 +1,5 @@
 /*
- * MON 262B (178 decimal): GetSystemInfo (CPUST)
+ * MON 262B [CPUST/GetSystemInfo]
  *
  * Gets various system information. The system number, the CPU type, the
  * SINTRAN III version, the instruction set, the patch indicator, and the
@@ -20,6 +20,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 
 /* Simulated system values */
 #define SYSTEM_NUMBER        1      /* System number */
@@ -40,7 +41,7 @@
 MonResult mon_262B_GetSystemInfo(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 2) {
-        mon_log(MON_LOG_WARN, "MON 262B CPUST: Missing parameters (need 2, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_262B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -52,7 +53,7 @@ MonResult mon_262B_GetSystemInfo(MonContext* ctx) {
 
     MON_LOG_IN_WORD(ctx, 0, "Number");
 
-    mon_log(MON_LOG_DEBUG, "MON 262B CPUST: Querying system %u", sys_num);
+    mon_log(MON_LOG_DEBUG, MON_ID_262B ": IN: SysNum=%o", sys_num);
 
     /* Write 7 words to buffer */
     /* [0] System number */
@@ -76,7 +77,7 @@ MonResult mon_262B_GetSystemInfo(MonContext* ctx) {
     /* [6] Generation time (low) */
     ctx->write_word(ctx->cpu, buffer_addr + 24, GENERATION_TIME_LO);
 
-    mon_log(MON_LOG_DEBUG, "MON 262B CPUST: CPU=%u, Version=0x%04X",
+    mon_log(MON_LOG_DEBUG, MON_ID_262B ": OUT: CPU=%o, Version=0x%04X",
             CPU_TYPE_ND500, SINTRAN_VERSION_J);
 
     mon_set_success(ctx);

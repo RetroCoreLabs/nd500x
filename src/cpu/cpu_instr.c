@@ -547,13 +547,23 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         }
     }
 
-    /* For variable operand instructions (CALL/CALLG/POLY): decode additional argument operands into CPU buffer */
-    /* Always reset extra_operand_count for variable operand instructions, even when arg_count is 0 */
-    if (is_var_op_instr && m->cpu) {
-        m->cpu->extra_operand_count = 0;
+    /* For variable operand instructions (CALL/CALLG/POLY): decode additional argument operands */
+    /* Store in BOTH fi->operands (for disassembly) and cpu->extra_operands (for execution) */
+    if (is_var_op_instr) {
+        if (m->cpu) {
+            m->cpu->extra_operand_count = 0;
+        }
         for (uint16_t i = 0; i < arg_count && i < 256; ++i) {
-            DECODE_GENERAL_OPERAND(&m->cpu->extra_operands[i], &cursor, &byte_idx);
-            m->cpu->extra_operand_count++;
+            /* Decode into fi->operands for disassembly (if space available) */
+            if (out->operand_count < ND500_MAX_OPERANDS) {
+                DECODE_GENERAL_OPERAND(&out->operands[out->operand_count], &cursor, &byte_idx);
+                out->operand_count++;
+            }
+            /* Also copy to cpu->extra_operands for execution */
+            if (m->cpu && m->cpu->extra_operand_count < 256) {
+                m->cpu->extra_operands[m->cpu->extra_operand_count] = out->operands[out->operand_count - 1];
+                m->cpu->extra_operand_count++;
+            }
         }
     }
 

@@ -3,12 +3,14 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include "machine_protos.h"
 #include "breakpoints.h"
 #include "../disasm/nd500_disasm.h"
 #include "../cpu/cpu_protos.h"
 #include "../ndlib/ndlib.h"
 #include "../ndlib/ndlib_color.h"
+#include "../libmon/mon.h"
 
 static const char* reg_names[] = {"r1", "r2", "r3", "r4"};
 
@@ -33,6 +35,7 @@ static int g_trap_invalid = -1; /* trap on invalid instruction 0x00 */
 static int g_show_source = 0;   /* 0: off, 1: asm only, 2: c only, 3: both */
 static int g_mmu_log_level = MMU_LOG_ERRORS;  /* MMU logging: 0=off, 1=errors, 2=trace, 3=all */
 static int g_memtrace_flags = 0;  /* memory access trace flags (bitmask) */
+static FILE* g_trace_file = NULL; /* file for trace output (NULL = stdout) */
 
 /* Profiling data structures */
 #define MAX_PROFILE_ENTRIES 256
@@ -540,6 +543,37 @@ int nd500_dbg_get_trace_mode(void) {
     return g_trace_mode;
 }
 
+/* Trace file functions */
+int nd500_dbg_set_trace_file(const char* path) {
+    if (g_trace_file && g_trace_file != stdout) {
+        fclose(g_trace_file);
+        g_trace_file = NULL;
+    }
+    if (path == NULL) {
+        g_trace_file = NULL;  /* Disable file output */
+        return 0;
+    }
+    g_trace_file = fopen(path, "w");
+    if (!g_trace_file) {
+        fprintf(stderr, "Error: Cannot open trace file '%s'\n", path);
+        return -1;
+    }
+    /* Also enable trace mode */
+    nd500_dbg_set_trace_mode(1);
+    return 0;
+}
+
+void nd500_dbg_close_trace_file(void) {
+    if (g_trace_file && g_trace_file != stdout) {
+        fclose(g_trace_file);
+    }
+    g_trace_file = NULL;
+}
+
+FILE* nd500_dbg_get_trace_file(void) {
+    return g_trace_file;
+}
+
 /* Memory trace mode functions */
 int nd500_dbg_set_memtrace(int flags) {
     g_memtrace_flags = flags;
@@ -550,11 +584,11 @@ int nd500_dbg_get_memtrace(void) {
     return g_memtrace_flags;
 }
 
-/* Layout constants for trace output (matching C# implementation) */
-#define TRACE_BYTES_PER_LINE 6
-#define TRACE_PC_WIDTH       10   /* "0x0802D467" */
-#define TRACE_BYTES_WIDTH    18   /* 6 bytes * 3 chars */
-#define TRACE_DISASM_WIDTH   40   /* fixed width for disassembly */
+/* Layout constants for trace output */
+#define TRACE_BYTES_PER_LINE 12  /* show up to 12 bytes on one line (includes CALL arguments) */
+#define TRACE_PC_WIDTH       10  /* "0x0802D467" */
+#define TRACE_BYTES_WIDTH    35  /* 12 bytes * 3 chars - 1 = 35 */
+#define TRACE_DISASM_WIDTH   60  /* extended width for disassembly with operands */
 
 /* Format flags as string: PDZSCKO (uppercase=set, lowercase=clear) */
 static void format_flags(uint32_t st1, char* out) {
@@ -570,8 +604,82 @@ static void format_flags(uint32_t st1, char* out) {
 }
 
 /*
+ * Detect MON call from instruction string and format info
+ *
+ * Checks if mnemonic is "call $0xF8xxxxxx,..." (segment 31 = SINTRAN MON)
+ * Returns formatted string like "| MON 3B [EXIT/EXITT]" or empty string
+ *
+ * @param mnemonic  Full instruction string (e.g., "call         $0xF8000003,$0x0")
+ * @param out       Output buffer for MON info string
+ * @param out_size  Size of output buffer
+ * @return          1 if MON call detected, 0 otherwise
+ */
+static int format_mon_call_info(const char* mnemonic, char* out, size_t out_size) {
+    if (!mnemonic || !out || out_size == 0) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    /* Skip leading whitespace */
+    while (*mnemonic && isspace((unsigned char)*mnemonic)) mnemonic++;
+
+    /* Check if instruction starts with "call" (case insensitive) */
+    if (strncasecmp(mnemonic, "call", 4) != 0) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    /* Look for segment 31 address pattern: $0xF8 or $0xf8 */
+    const char* addr_start = strstr(mnemonic, "$0xF8");
+    if (!addr_start) addr_start = strstr(mnemonic, "$0xf8");
+    if (!addr_start) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    /* Parse the hex address after "$0x" */
+    uint32_t target_addr = 0;
+    if (sscanf(addr_start + 1, "0x%X", &target_addr) != 1 &&
+        sscanf(addr_start + 1, "0x%x", &target_addr) != 1) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    /* Verify segment 31 (top 5 bits = 0x1F = 31) */
+    uint32_t segment = (target_addr >> 27) & 0x1F;
+    if (segment != 31) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    /* Extract MON number from address offset (lower 27 bits) */
+    uint32_t mon_number = target_addr & 0x07FFFFFF;
+
+    /* Get MON call name and octal string from registry */
+    const char* octal = mon_get_octal(mon_number);
+    const char* short_name = mon_get_name(mon_number);
+    const char* long_name = mon_get_long_name(mon_number);
+
+    /* Format output: | MON 3B [EXIT/EXITT] */
+    if (short_name && long_name) {
+        snprintf(out, out_size, " | MON %s [%s/%s]",
+                 octal ? octal : "???",
+                 short_name, long_name);
+    } else if (short_name) {
+        snprintf(out, out_size, " | MON %s [%s]",
+                 octal ? octal : "???", short_name);
+    } else if (octal) {
+        snprintf(out, out_size, " | MON %s [unregistered]", octal);
+    } else {
+        snprintf(out, out_size, " | MON %u [unregistered]", mon_number);
+    }
+
+    return 1;
+}
+
+/*
  * Two-phase trace: before execution
- * Format: PC BYTES(max 6) MNEMONIC(40 wide) | I1[x] I2[x] I3[x] I4[x] [flags] B[x] L[x] R[x] TOS[x]
+ * Format: PC BYTES(max 6) MNEMONIC(40 wide) | I1[x] I2[x] I3[x] I4[x] [flags] B[x] L[x] R[x] TOS[x] [MON info]
  *         (continuation bytes if >6)
  */
 void nd500_dbg_trace_before(uint32_t pc, const char* mnemonic,
@@ -606,12 +714,19 @@ void nd500_dbg_trace_before(uint32_t pc, const char* mnemonic,
     /* Use mnemonic directly */
     const char* mnem = mnemonic ? mnemonic : "???";
 
-    /* Print first line: PC + bytes + mnemonic + registers */
-    printf("0x%08X %-*s %-*s | %s\n",
+    /* Check if this is a MON call (call to segment 31) */
+    char mon_info[128];
+    format_mon_call_info(mnem, mon_info, sizeof(mon_info));
+
+    /* Output to trace file if set, otherwise stdout */
+    FILE* out = g_trace_file ? g_trace_file : stdout;
+
+    /* Print first line: PC + bytes + mnemonic + registers + MON info */
+    fprintf(out, "0x%08X %-*s %-*s | %s%s\n",
            pc,
            TRACE_BYTES_WIDTH, bytes_str,
            TRACE_DISASM_WIDTH, mnem,
-           regs_str);
+           regs_str, mon_info);
 
     /* Print continuation lines for remaining bytes (>6) */
     int offset = TRACE_BYTES_PER_LINE;
@@ -624,7 +739,7 @@ void nd500_dbg_trace_before(uint32_t pc, const char* mnemonic,
         }
         bytes_str[bytes_pos] = '\0';
         /* Indent continuation: PC_WIDTH + 1 space */
-        printf("%*s%s\n", TRACE_PC_WIDTH + 1, "", bytes_str);
+        fprintf(out, "%*s%s\n", TRACE_PC_WIDTH + 1, "", bytes_str);
         offset += TRACE_BYTES_PER_LINE;
     }
 }
@@ -691,7 +806,9 @@ void nd500_dbg_trace_after(uint32_t* before_regs, uint32_t* after_regs) {
     if (any_changed) {
         /* Remove trailing space */
         if (pos > 0 && changes[pos-1] == ' ') changes[pos-1] = '\0';
-        printf("%s\n", changes);
+        /* Output to trace file if set, otherwise stdout */
+        FILE* out = g_trace_file ? g_trace_file : stdout;
+        fprintf(out, "%s\n", changes);
     }
 }
 

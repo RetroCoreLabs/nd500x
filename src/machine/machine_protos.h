@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include "machine_types.h"
 #include "../cpu/cpu_protos.h"
 
@@ -48,6 +49,11 @@ int    nd500_dbg_get_show_source(void);
 /* Trace configuration */
 int    nd500_dbg_set_trace_mode(int onoff);
 int    nd500_dbg_get_trace_mode(void);
+
+/* Trace file output (NULL = stdout) */
+int    nd500_dbg_set_trace_file(const char* path);
+void   nd500_dbg_close_trace_file(void);
+FILE*  nd500_dbg_get_trace_file(void);
 
 /* Two-phase trace API for register change tracking
  * mnemonic: instruction mnemonic (e.g., "call", "entd")

@@ -1,5 +1,5 @@
 /*
- * MON 73B (59 decimal): SetMaxBytes (SMAX)
+ * MON 73B [SMAX/SetMaxBytes]
  *
  * Sets the value of the maximum byte pointer in an opened file (i.e. the
  * number of bytes minus 1). The specified number of bytes are stored when
@@ -22,6 +22,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #ifdef _WIN32
@@ -33,7 +34,7 @@
 MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 2) {
-        mon_log(MON_LOG_WARN, "MON 73B SMAX: Missing parameters (need 2, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_73B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -46,12 +47,12 @@ MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 0, "FileNumber");
     MON_LOG_IN_WORD(ctx, 1, "MaxBytePointer");
 
-    mon_log(MON_LOG_DEBUG, "MON 73B SMAX: FileNumber=%u, MaxBytePointer=%u",
+    mon_log(MON_LOG_DEBUG, MON_ID_73B ": IN: FileNumber=%o, MaxBytePointer=%o",
             file_no, max_byte_ptr);
 
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
-        mon_log(MON_LOG_WARN, "MON 73B SMAX: Invalid file number %u (must be 64-127)", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_73B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
@@ -59,14 +60,14 @@ MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
     /* Look up file in open file table */
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
-        mon_log(MON_LOG_WARN, "MON 73B SMAX: File %u not open", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_73B ": File %o not open", file_no);
         mon_set_error(ctx, 53);  /* File not open */
         return MON_ERROR;
     }
 
     /* Check access mode allows writing */
     if (entry->access_mode == ACCESS_SEQ_READ || entry->access_mode == ACCESS_RAND_READ) {
-        mon_log(MON_LOG_WARN, "MON 73B SMAX: File %u not open for write", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_73B ": File %o not open for write", file_no);
         mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
         return MON_ERROR;
     }
@@ -90,7 +91,7 @@ MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
         }
     }
 
-    mon_log(MON_LOG_DEBUG, "MON 73B SMAX: Set file %u max bytes to %u", file_no, new_size);
+    mon_log(MON_LOG_DEBUG, MON_ID_73B ": OUT: File %o max bytes set to %o", file_no, new_size);
 
     mon_set_success(ctx);
     return MON_SUCCESS;

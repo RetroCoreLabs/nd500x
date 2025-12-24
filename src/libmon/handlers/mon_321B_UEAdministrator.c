@@ -1,5 +1,5 @@
 /*
- * MON 321B (209 decimal): UEAdministrator (UEADM)
+ * MON 321B [UEADM/UEAdministrator]
  *
  * DEPRECATED: This MON call is no longer supported.
  *
@@ -7,9 +7,10 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 
 MonResult mon_321B_UEAdministrator(MonContext* ctx) {
-    mon_log(MON_LOG_WARN, "MON 321B UEADM: Deprecated MON call - returning error");
+    mon_log(MON_LOG_WARN, MON_ID_321B ": Deprecated MON call - returning error");
 
     /* Return error - deprecated call */
     mon_set_error(ctx, 52);  /* Invalid parameter */

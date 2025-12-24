@@ -1,5 +1,5 @@
 /*
- * MON 32B (26 decimal): OutMessage (MSG)
+ * MON 32B [MSG/OutMessage]
  *
  * Writes a message to the user's terminal. This is convenient for error
  * messages in background programs.
@@ -12,6 +12,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include <stdio.h>
 
 #define MAX_MESSAGE_LEN 512
@@ -30,7 +31,7 @@ MonResult mon_32B_OutMessage(MonContext* ctx) {
     }
 
     /* Log the call */
-    mon_log(MON_LOG_INFO, "MON 32B MSG: \"%s\" (%d chars)", message, len);
+    mon_log(MON_LOG_INFO, MON_ID_32B ": IN: Message=\"%s\" (%d chars)", message, len);
 
     /* Set success */
     mon_set_success(ctx);

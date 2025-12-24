@@ -1,5 +1,5 @@
 /*
- * MON 62B (50 decimal): GetBytesInFile (RMAX)
+ * MON 62B [RMAX/GetBytesInFile]
  *
  * Gets the number of bytes in a file. Only the bytes containing data are counted.
  *
@@ -16,13 +16,14 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 
 MonResult mon_62B_GetBytesInFile(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 1) {
-        mon_log(MON_LOG_WARN, "MON 62B RMAX: Missing parameters (need 1, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_62B ": Missing parameters (need 1, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -33,11 +34,11 @@ MonResult mon_62B_GetBytesInFile(MonContext* ctx) {
 
     MON_LOG_IN_WORD(ctx, 0, "FileNumber");
 
-    mon_log(MON_LOG_DEBUG, "MON 62B RMAX: FileNumber=%u", file_no);
+    mon_log(MON_LOG_DEBUG, MON_ID_62B ": IN: FileNumber=%o", file_no);
 
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
-        mon_log(MON_LOG_WARN, "MON 62B RMAX: Invalid file number %u (must be 64-127)", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_62B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
@@ -45,7 +46,7 @@ MonResult mon_62B_GetBytesInFile(MonContext* ctx) {
     /* Look up file in open file table */
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
-        mon_log(MON_LOG_WARN, "MON 62B RMAX: File %u not open", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_62B ": File %o not open", file_no);
         mon_set_error(ctx, 53);  /* File not open */
         return MON_ERROR;
     }
@@ -62,7 +63,7 @@ MonResult mon_62B_GetBytesInFile(MonContext* ctx) {
         }
     }
 
-    mon_log(MON_LOG_DEBUG, "MON 62B RMAX: File %u has %u bytes", file_no, bytes_in_file);
+    mon_log(MON_LOG_DEBUG, MON_ID_62B ": OUT: File %o has %o bytes", file_no, bytes_in_file);
 
     /* Return bytes in W1 */
     ctx->set_error_code(ctx->cpu, bytes_in_file);

@@ -1,5 +1,5 @@
 /*
- * MON 120B (80 decimal): WriteToFile (WFILE)
+ * MON 120B [WFILE/WriteToFile]
  *
  * Writes any number of bytes to a file. The write operation must start
  * at the beginning of a block. The file must be opened for random write access.
@@ -26,6 +26,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +39,7 @@
 MonResult mon_120B_WriteToFile(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 5) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: Missing parameters (need 5, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_120B ": Missing parameters (need 5, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -56,12 +57,12 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 3, "BlockNo");
     MON_LOG_IN_WORD(ctx, 4, "NoOfBytes");
 
-    mon_log(MON_LOG_DEBUG, "MON 120B WFILE: FileNo=%u, ReturnFlag=%u, BuffAddr=0x%08X, BlockNo=%u, NoOfBytes=%u",
+    mon_log(MON_LOG_DEBUG, MON_ID_120B ": IN: FileNo=%o, ReturnFlag=%o, BuffAddr=0x%08X, BlockNo=%o, NoOfBytes=%o",
             file_no, return_flag, buffer_addr, block_no, num_bytes);
 
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: Invalid file number %u (must be 64-127)", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_120B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
@@ -69,7 +70,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     /* Look up file in open file table */
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: File %u not open", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_120B ": File %o not open", file_no);
         mon_set_error(ctx, 53);  /* File not open */
         return MON_ERROR;
     }
@@ -77,7 +78,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     /* Check file is not mapped as segment (per SINTRAN docs:
      * "You may not use WriteToFile on a file which is connected as a segment") */
     if (entry->mapped_as_segment) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: File %u is mapped as segment %u - use segment access",
+        mon_log(MON_LOG_WARN, MON_ID_120B ": File %o is mapped as segment %o - use segment access",
                 file_no, entry->mapped_segment_no);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -88,14 +89,14 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
         entry->access_mode != ACCESS_RAND_RDWR &&
         entry->access_mode != ACCESS_RAND_COMMON &&
         entry->access_mode != ACCESS_RAND_EXTEND) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: File %u not open for random write (access=%u)",
+        mon_log(MON_LOG_WARN, MON_ID_120B ": File %o not open for random write (access=%o)",
                 file_no, entry->access_mode);
         mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
         return MON_ERROR;
     }
 
     if (!entry->host_file) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: File %u has no host file handle", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_120B ": File %o has no host file handle", file_no);
         mon_set_error(ctx, 53);
         return MON_ERROR;
     }
@@ -108,7 +109,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     }
 
     if (num_bytes > MAX_WRITE_SIZE) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: Write size %u exceeds max %u", num_bytes, MAX_WRITE_SIZE);
+        mon_log(MON_LOG_WARN, MON_ID_120B ": Write size %o exceeds max %o", num_bytes, MAX_WRITE_SIZE);
         mon_set_error(ctx, 52);
         return MON_ERROR;
     }
@@ -120,7 +121,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
 
     /* Seek to the block position */
     if (fseek(entry->host_file, (long)file_offset, SEEK_SET) != 0) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: Seek to block %u (offset %lld) failed",
+        mon_log(MON_LOG_WARN, MON_ID_120B ": Seek to block %o (offset %lld) failed",
                 block_no, file_offset);
         mon_set_error(ctx, 55);  /* Seek error */
         return MON_ERROR;
@@ -129,7 +130,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     /* Allocate temporary buffer and read from emulator memory */
     uint8_t* buffer = (uint8_t*)malloc(num_bytes);
     if (!buffer) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: Failed to allocate %u byte buffer", num_bytes);
+        mon_log(MON_LOG_WARN, MON_ID_120B ": Failed to allocate %o byte buffer", num_bytes);
         mon_set_error(ctx, 52);
         return MON_ERROR;
     }
@@ -143,7 +144,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     size_t bytes_written = fwrite(buffer, 1, num_bytes, entry->host_file);
 
     if (bytes_written != num_bytes) {
-        mon_log(MON_LOG_WARN, "MON 120B WFILE: Write error on file %u (wrote %zu of %u)",
+        mon_log(MON_LOG_WARN, MON_ID_120B ": Write error on file %o (wrote %zu of %o)",
                 file_no, bytes_written, num_bytes);
         free(buffer);
         mon_set_error(ctx, 55);
@@ -161,7 +162,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
         entry->object_entry.bytes_in_file = entry->current_position;
     }
 
-    mon_log(MON_LOG_DEBUG, "MON 120B WFILE: Wrote %zu bytes to file %u block %u, pos=%u",
+    mon_log(MON_LOG_DEBUG, MON_ID_120B ": OUT: Wrote %zu bytes to file %o block %o, pos=%o",
             bytes_written, file_no, block_no, entry->current_position);
 
     free(buffer);

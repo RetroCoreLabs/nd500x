@@ -1,5 +1,5 @@
 /*
- * MON 143B (99 decimal): ExecutionInfo (RSIO)
+ * MON 143B [RSIO/ExecutionInfo]
  *
  * Gets information about the execution of the calling program. You are told
  * whether the program executes interactively, as a batch or mode job, or as
@@ -27,6 +27,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 
 /* Default execution environment settings */
 #define DEFAULT_EXEC_MODE       0       /* Interactive program */
@@ -64,9 +65,9 @@ MonResult mon_143B_ExecutionInfo(MonContext* ctx) {
     }
 
     /* Log the result */
-    mon_log(MON_LOG_INFO, "MON 143B RSIO: mode=%u, input=%u, output=%u, user_idx=0x%08X (dir=%u, user=%u)",
-            exec_mode, input_dev, output_dev, user_index,
-            (user_index >> 8) & 0xFF, user_index & 0xFF);
+    mon_log(MON_LOG_INFO, MON_ID_143B ": IN: (none)");
+    mon_log(MON_LOG_INFO, MON_ID_143B ": OUT: mode=%o, input=%o, output=%o, user_idx=%o",
+            exec_mode, input_dev, output_dev, user_index);
 
     /* Set success (K=0) */
     mon_set_success(ctx);

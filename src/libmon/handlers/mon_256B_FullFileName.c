@@ -1,5 +1,5 @@
 /*
- * MON 256B (174 decimal): FullFileName (DEABF)
+ * MON 256B [DEABF/FullFileName]
  *
  * Returns a complete file name from an abbreviated one. The directory, the user,
  * the file name, the file type, and the version are returned.
@@ -15,13 +15,14 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include <stdio.h>
 #include <string.h>
 
 MonResult mon_256B_FullFileName(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 3) {
-        mon_log(MON_LOG_WARN, "MON 256B DEABF: Missing parameters (need 3, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_256B ": Missing parameters (need 3, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -35,7 +36,7 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
 
     uint32_t output_addr = ctx->arg_addresses[1];
 
-    mon_log(MON_LOG_DEBUG, "MON 256B DEABF: AbbrevName='%s', FileType='%s'",
+    mon_log(MON_LOG_DEBUG, MON_ID_256B ": IN: AbbrevName='%s', FileType='%s'",
             abbrev_name, file_type);
 
     /* Build full filename
@@ -63,7 +64,7 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
     /* Add SINTRAN string terminator (0x27 = apostrophe) */
     ctx->write_byte(ctx->cpu, output_addr + (uint32_t)len, 0x27);
 
-    mon_log(MON_LOG_DEBUG, "MON 256B DEABF: FullName='%s'", full_name);
+    mon_log(MON_LOG_DEBUG, MON_ID_256B ": OUT: FullName='%s'", full_name);
 
     mon_set_success(ctx);
     return MON_SUCCESS;

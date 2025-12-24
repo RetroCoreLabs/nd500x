@@ -1,5 +1,5 @@
 /*
- * MON 114B (76 decimal): GetTimeUsed (TUSED)
+ * MON 114B [TUSED/GetTimeUsed]
  *
  * Gets the time you have used the CPU since you logged in. In batch jobs,
  * you get the time since you entered the job.
@@ -14,6 +14,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include <time.h>
 
 /* Session start time - initialized on first call */
@@ -71,7 +72,8 @@ MonResult mon_114B_GetTimeUsed(MonContext* ctx) {
     }
 
     /* Log the result */
-    mon_log(MON_LOG_INFO, "MON 114B TUSED: TimeUsed = %u basic time units (%.2f seconds)",
+    mon_log(MON_LOG_INFO, MON_ID_114B ": IN: (none)");
+    mon_log(MON_LOG_INFO, MON_ID_114B ": OUT: TimeUsed=%o (%.2f seconds)",
             time_used, (double)time_used / 50.0);
 
     /* Set success (K=0) */

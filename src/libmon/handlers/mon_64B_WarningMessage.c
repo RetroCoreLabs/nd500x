@@ -1,5 +1,5 @@
 /*
- * MON 64B (52 decimal): WarningMessage (ERMSG)
+ * MON 64B [ERMSG/WarningMessage]
  *
  * Outputs a file system error message. The error message is output to the
  * terminal. In batch jobs, mode jobs, and RT programs it is output to the
@@ -17,6 +17,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include <stdio.h>
 
 MonResult mon_64B_WarningMessage(MonContext* ctx) {
@@ -27,7 +28,7 @@ MonResult mon_64B_WarningMessage(MonContext* ctx) {
 
     /* Error code 0 is illegal per documentation */
     if (error_code == 0) {
-        mon_log(MON_LOG_WARN, "MON 64B ERMSG: Error code 0 is illegal");
+        mon_log(MON_LOG_WARN, MON_ID_64B ": Error code 0 is illegal");
         mon_set_error(ctx, -1);
         return MON_ERROR;
     }
@@ -38,7 +39,7 @@ MonResult mon_64B_WarningMessage(MonContext* ctx) {
     fprintf(stderr, "[SINTRAN ERROR %oB]\n", (unsigned int)error_code);
 
     /* Log the call */
-    mon_log(MON_LOG_INFO, "MON 64B ERMSG: Error code %oB", (unsigned int)error_code);
+    mon_log(MON_LOG_INFO, MON_ID_64B ": IN: ErrCode=%oB", (unsigned int)error_code);
 
     /* Set success - program continues */
     mon_set_success(ctx);

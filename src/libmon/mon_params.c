@@ -72,31 +72,23 @@ void mon_write_param_halfword(MonContext* ctx, int idx, uint16_t value) {
     if (!ctx || idx < 0 || (uint32_t)idx >= ctx->arg_count) {
         return;
     }
-    if (!ctx->write_byte) {
+    if (!ctx->write_halfword) {
         return;
     }
     uint32_t addr = ctx->arg_addresses[idx];
-    /* Write 16-bit value in big-endian order */
-    uint8_t hi = (uint8_t)(value >> 8);
-    uint8_t lo = (uint8_t)(value & 0xFF);
-    mon_log(MON_LOG_DEBUG, "mon_write_param_halfword: idx=%d addr=0x%08X value=0x%04X -> [0x%02X, 0x%02X]",
-            idx, addr, value, hi, lo);
-    ctx->write_byte(ctx->cpu, addr, hi);
-    ctx->write_byte(ctx->cpu, addr + 1, lo);
+    mon_log(MON_LOG_DEBUG, "mon_write_param_halfword: idx=%d addr=0x%08X value=0x%04X",
+            idx, addr, value);
+    ctx->write_halfword(ctx->cpu, addr, value);
 }
 
 uint16_t mon_read_param_halfword(MonContext* ctx, int idx) {
     if (!ctx || idx < 0 || (uint32_t)idx >= ctx->arg_count) {
         return 0;
     }
-    if (!ctx->read_byte) {
+    if (!ctx->read_halfword) {
         return 0;
     }
-    uint32_t addr = ctx->arg_addresses[idx];
-    /* Read 16-bit value in big-endian order */
-    uint16_t hi = ctx->read_byte(ctx->cpu, addr);
-    uint16_t lo = ctx->read_byte(ctx->cpu, addr + 1);
-    return (hi << 8) | lo;
+    return ctx->read_halfword(ctx->cpu, ctx->arg_addresses[idx]);
 }
 
 void mon_write_param_dword(MonContext* ctx, int idx, uint64_t value) {
@@ -131,14 +123,44 @@ int mon_read_string(MonContext* ctx, int idx, char* buf, int max) {
         if (buf && max > 0) buf[0] = '\0';
         return 0;
     }
-    if (!ctx->read_byte) {
+    if (!ctx->read_byte || !ctx->read_word) {
         buf[0] = '\0';
         return 0;
     }
 
     uint32_t addr = ctx->arg_addresses[idx];
     int i;
+    uint32_t str_addr = addr;
+    int str_len = max - 1;
 
+    /* Check for FORTRAN-500 string descriptor format:
+     *   Bytes 0-3: String length (32-bit word)
+     *   Bytes 4-7: Pointer to string data (32-bit word)
+     * Detection: First byte is 0x00 and byte 4 is 0x08 (segment 1 address)
+     */
+    uint8_t first_byte = ctx->read_byte(ctx->cpu, addr);
+    uint8_t byte4 = ctx->read_byte(ctx->cpu, addr + 4);
+
+    if (first_byte == 0x00 && byte4 == 0x08) {
+        /* FORTRAN descriptor - use read_word for 32-bit values */
+        uint32_t length = ctx->read_word(ctx->cpu, addr);
+        uint32_t str_ptr = ctx->read_word(ctx->cpu, addr + 4);
+
+        str_addr = str_ptr;
+        str_len = (int)length;
+        if (str_len > max - 1) {
+            str_len = max - 1;
+        }
+
+        /* Read fixed-length FORTRAN string (no terminator check) */
+        for (i = 0; i < str_len; i++) {
+            buf[i] = (char)ctx->read_byte(ctx->cpu, str_addr + i);
+        }
+        buf[i] = '\0';
+        return i;
+    }
+
+    /* Standard SINTRAN string - 0x27 terminated */
     for (i = 0; i < max - 1; i++) {
         uint8_t ch = ctx->read_byte(ctx->cpu, addr + i);
         /* SINTRAN string terminators: 0x00, 0x27 (apostrophe), or 0xFF */

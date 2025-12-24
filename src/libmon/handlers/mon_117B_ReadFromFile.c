@@ -1,5 +1,5 @@
 /*
- * MON 117B (79 decimal): ReadFromFile (RFILE)
+ * MON 117B [RFILE/ReadFromFile]
  *
  * Reads any number of bytes from a file. The read operation must start
  * at the beginning of a block. The file must be opened for random read access.
@@ -26,6 +26,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +39,7 @@
 MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 5) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: Missing parameters (need 5, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_117B ": Missing parameters (need 5, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -56,12 +57,12 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 3, "BlockNo");
     MON_LOG_IN_WORD(ctx, 4, "NoOfBytes");
 
-    mon_log(MON_LOG_DEBUG, "MON 117B RFILE: FileNo=%u, WaitFlag=%u, BuffAddr=0x%08X, BlockNo=%u, NoOfBytes=%u",
+    mon_log(MON_LOG_DEBUG, MON_ID_117B ": IN: FileNo=%o, WaitFlag=%o, BuffAddr=0x%08X, BlockNo=%o, NoOfBytes=%o",
             file_no, wait_flag, buffer_addr, block_no, num_bytes);
 
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: Invalid file number %u (must be 64-127)", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_117B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
@@ -69,7 +70,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     /* Look up file in open file table */
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: File %u not open", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_117B ": File %o not open", file_no);
         mon_set_error(ctx, 53);  /* File not open */
         return MON_ERROR;
     }
@@ -77,7 +78,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     /* Check file is not mapped as segment (per SINTRAN docs:
      * "You may not use ReadFromFile on a file which is connected as a segment") */
     if (entry->mapped_as_segment) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: File %u is mapped as segment %u - use segment access",
+        mon_log(MON_LOG_WARN, MON_ID_117B ": File %o is mapped as segment %o - use segment access",
                 file_no, entry->mapped_segment_no);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -89,14 +90,14 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
         entry->access_mode != ACCESS_RAND_RDWR &&
         entry->access_mode != ACCESS_RAND_COMMON &&
         entry->access_mode != ACCESS_RAND_EXTEND) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: File %u not open for random read (access=%u)",
+        mon_log(MON_LOG_WARN, MON_ID_117B ": File %o not open for random read (access=%o)",
                 file_no, entry->access_mode);
         mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
         return MON_ERROR;
     }
 
     if (!entry->host_file) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: File %u has no host file handle", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_117B ": File %o has no host file handle", file_no);
         mon_set_error(ctx, 53);
         return MON_ERROR;
     }
@@ -109,7 +110,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     }
 
     if (num_bytes > MAX_READ_SIZE) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: Read size %u exceeds max %u", num_bytes, MAX_READ_SIZE);
+        mon_log(MON_LOG_WARN, MON_ID_117B ": Read size %o exceeds max %o", num_bytes, MAX_READ_SIZE);
         mon_set_error(ctx, 52);
         return MON_ERROR;
     }
@@ -121,7 +122,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
 
     /* Seek to the block position */
     if (fseek(entry->host_file, (long)file_offset, SEEK_SET) != 0) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: Seek to block %u (offset %lld) failed",
+        mon_log(MON_LOG_WARN, MON_ID_117B ": Seek to block %o (offset %lld) failed",
                 block_no, file_offset);
         mon_set_error(ctx, 55);  /* End of file / seek error */
         return MON_ERROR;
@@ -130,7 +131,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     /* Allocate temporary buffer and read from file */
     uint8_t* buffer = (uint8_t*)malloc(num_bytes);
     if (!buffer) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: Failed to allocate %u byte buffer", num_bytes);
+        mon_log(MON_LOG_WARN, MON_ID_117B ": Failed to allocate %o byte buffer", num_bytes);
         mon_set_error(ctx, 52);
         return MON_ERROR;
     }
@@ -138,7 +139,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     size_t bytes_read = fread(buffer, 1, num_bytes, entry->host_file);
 
     if (bytes_read == 0 && ferror(entry->host_file)) {
-        mon_log(MON_LOG_WARN, "MON 117B RFILE: Read error on file %u", file_no);
+        mon_log(MON_LOG_WARN, MON_ID_117B ": Read error on file %o", file_no);
         free(buffer);
         clearerr(entry->host_file);
         mon_set_error(ctx, 55);
@@ -153,14 +154,14 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     /* Update file position */
     entry->current_position = (uint32_t)ftell(entry->host_file);
 
-    mon_log(MON_LOG_DEBUG, "MON 117B RFILE: Read %zu bytes from file %u block %u, pos=%u",
+    mon_log(MON_LOG_DEBUG, MON_ID_117B ": OUT: Read %zu bytes from file %o block %o, pos=%o",
             bytes_read, file_no, block_no, entry->current_position);
 
     free(buffer);
 
     /* If we read less than requested and hit EOF, still succeed but could set flag */
     if (bytes_read < num_bytes) {
-        mon_log(MON_LOG_DEBUG, "MON 117B RFILE: Short read - requested %u, got %zu (EOF)",
+        mon_log(MON_LOG_DEBUG, MON_ID_117B ": Short read - requested %o, got %zu (EOF)",
                 num_bytes, bytes_read);
     }
 

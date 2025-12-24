@@ -520,10 +520,13 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
     char actual_trap_desc[256] = {0};
     uint32_t trap_pc = 0;
 
+    /* Save initial ST1 to detect newly-set trap flags */
+    uint32_t initial_st1 = cpu->ST1;
+
     for (int i = 0; i < instructions; i++) {
         nd500_cpu_step(cpu);
 
-        /* Check for traps */
+        /* Check for traps - first check global trap state (interrupt-class traps) */
         if (nd500_trap_occurred()) {
             const Nd500TrapState* trap = nd500_trap_get_state();
             trap_occurred = 1;
@@ -533,6 +536,45 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
             trap_pc = trap->trap_pc;
             nd500_trap_clear();
             break;  /* Stop on trap */
+        }
+
+        /* Also check for ignorable traps via ST1 flags (bits 11-29) */
+        /* These traps set the status flag but don't trigger nd500_trap_occurred() */
+        /* Only detect flags that were NEWLY set (not already set before execution) */
+        /* Only check if test expects a trap - otherwise ST1 writes are legitimate */
+        if (expected_trap != NULL) {
+            uint32_t st1 = cpu->ST1;
+            uint32_t new_flags = st1 & ~initial_st1;  /* Flags set during execution */
+            if (new_flags & (1 << 12)) {  /* TRAP_DZ - Divide by Zero */
+                trap_occurred = 1;
+                strncpy(actual_trap_type, "DivisionByZero", sizeof(actual_trap_type) - 1);
+                trap_pc = cpu->PC;
+                break;
+            }
+            if (new_flags & (1 << 16)) {  /* TRAP_IOV - Illegal Operand Value */
+                trap_occurred = 1;
+                strncpy(actual_trap_type, "IllegalOperandValue", sizeof(actual_trap_type) - 1);
+                trap_pc = cpu->PC;
+                break;
+            }
+            if (new_flags & (1 << 14)) {  /* TRAP_FO - Floating Overflow */
+                trap_occurred = 1;
+                strncpy(actual_trap_type, "FloatException", sizeof(actual_trap_type) - 1);
+                trap_pc = cpu->PC;
+                break;
+            }
+            if (new_flags & (1 << 13)) {  /* TRAP_FU - Floating Underflow */
+                trap_occurred = 1;
+                strncpy(actual_trap_type, "FloatException", sizeof(actual_trap_type) - 1);
+                trap_pc = cpu->PC;
+                break;
+            }
+            if (new_flags & (1 << 15)) {  /* TRAP_BO - BCD Overflow */
+                trap_occurred = 1;
+                strncpy(actual_trap_type, "Overflow", sizeof(actual_trap_type) - 1);
+                trap_pc = cpu->PC;
+                break;
+            }
         }
     }
 

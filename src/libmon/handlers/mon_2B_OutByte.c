@@ -1,5 +1,5 @@
 /*
- * MON 2B (2 decimal): OutByte (OUTBT)
+ * MON 2B [OUTBT/OutByte]
  *
  * Writes one byte to a character device, e.g. a terminal or an opened file.
  * If the device is a word-oriented device, one word is written.
@@ -16,6 +16,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 
@@ -34,8 +35,8 @@ MonResult mon_2B_OutByte(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
     MON_LOG_IN_WORD(ctx, 1, "OutputValue");
 
-    mon_log(MON_LOG_DEBUG, "MON 2B OUTBT: DeviceNumber=%u (octal %o), OutputValue=0x%02X ('%c')",
-            device_no, device_no, byte_out,
+    mon_log(MON_LOG_DEBUG, MON_ID_2B ": IN: DeviceNumber=%o, OutputValue=0x%02X ('%c')",
+            device_no, byte_out,
             (byte_out >= 32 && byte_out < 127) ? byte_out : '.');
 
     /* Route by device class */
@@ -50,32 +51,32 @@ MonResult mon_2B_OutByte(MonContext* ctx) {
             fflush(stdout);
         }
 
-        mon_log(MON_LOG_DEBUG, "MON 2B OUTBT: Wrote byte 0x%02X to console", byte_out);
+        mon_log(MON_LOG_DEBUG, MON_ID_2B ": OUT: Wrote byte 0x%02X to console", byte_out);
     }
     else if (is_mass_storage_file(device_no)) {
         /* Mass storage file: write to open file table */
         OpenFileEntry* entry = mon_file_table_get((int)device_no);
         if (!entry || !entry->in_use) {
-            mon_log(MON_LOG_WARN, "MON 2B OUTBT: File %u not open", device_no);
+            mon_log(MON_LOG_WARN, MON_ID_2B ": File %o not open", device_no);
             mon_set_error(ctx, 53);  /* File not open */
             return MON_ERROR;
         }
 
         /* Check access mode allows writing */
         if (entry->access_mode == ACCESS_SEQ_READ || entry->access_mode == ACCESS_RAND_READ) {
-            mon_log(MON_LOG_WARN, "MON 2B OUTBT: File %u not open for writing", device_no);
+            mon_log(MON_LOG_WARN, MON_ID_2B ": File %o not open for writing", device_no);
             mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
             return MON_ERROR;
         }
 
         if (entry->host_file) {
             if (fputc(byte_out, entry->host_file) == EOF) {
-                mon_log(MON_LOG_WARN, "MON 2B OUTBT: Write error on file %u", device_no);
+                mon_log(MON_LOG_WARN, MON_ID_2B ": Write error on file %o", device_no);
                 mon_set_error(ctx, 52);
                 return MON_ERROR;
             }
             entry->current_position++;
-            mon_log(MON_LOG_DEBUG, "MON 2B OUTBT: Wrote byte 0x%02X to file %u, pos=%u",
+            mon_log(MON_LOG_DEBUG, MON_ID_2B ": OUT: Wrote byte 0x%02X to file %o, pos=%o",
                     byte_out, device_no, entry->current_position);
         } else {
             mon_set_error(ctx, 53);
@@ -84,8 +85,7 @@ MonResult mon_2B_OutByte(MonContext* ctx) {
     }
     else {
         /* Unsupported device type */
-        mon_log(MON_LOG_WARN, "MON 2B OUTBT: Unsupported device %u (octal %o)",
-                device_no, device_no);
+        mon_log(MON_LOG_WARN, MON_ID_2B ": Unsupported device %o", device_no);
         mon_set_error(ctx, 46);  /* No such filename */
         return MON_ERROR;
     }

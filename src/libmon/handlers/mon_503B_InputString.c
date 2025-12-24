@@ -1,5 +1,5 @@
 /*
- * MON 503B (323 decimal): InputString (DVINST)
+ * MON 503B [DVINST/InputString]
  *
  * Reads a string from a device, e.g. a terminal or an opened file.
  * This monitor call provides fast input to ND-500 programs.
@@ -26,6 +26,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #include <string.h>
@@ -46,7 +47,7 @@ static inline bool is_break_char(uint8_t c, const uint8_t break_chars[4]) {
 MonResult mon_503B_InputString(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 4) {
-        mon_log(MON_LOG_WARN, "MON 503B DVINST: Missing parameters (need at least 4, got %u)",
+        mon_log(MON_LOG_WARN, MON_ID_503B ": Missing parameters (need at least 4, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
@@ -80,12 +81,12 @@ MonResult mon_503B_InputString(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 0, "DevNo");
     MON_LOG_IN_WORD(ctx, 1, "MaxNo");
 
-    mon_log(MON_LOG_DEBUG, "MON 503B DVINST: DevNo=%u (octal %o), MaxNo=%u, BuffAddr=0x%08X",
-            device_no, device_no, max_bytes, buffer_addr);
+    mon_log(MON_LOG_DEBUG, MON_ID_503B ": IN: DevNo=%o, MaxNo=%o, BuffAddr=0x%08X",
+            device_no, max_bytes, buffer_addr);
 
     /* Validate byte count */
     if (max_bytes > DVINST_MAX_BYTES) {
-        mon_log(MON_LOG_WARN, "MON 503B DVINST: MaxNo %u exceeds max %d", max_bytes, DVINST_MAX_BYTES);
+        mon_log(MON_LOG_WARN, MON_ID_503B ": MaxNo %o exceeds max %o", max_bytes, DVINST_MAX_BYTES);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
@@ -139,21 +140,21 @@ MonResult mon_503B_InputString(MonContext* ctx) {
             fflush(stdout);
         }
 
-        mon_log(MON_LOG_DEBUG, "MON 503B DVINST: Read %u bytes from console (device %u)",
+        mon_log(MON_LOG_DEBUG, MON_ID_503B ": Read %o bytes from console (device %o)",
                 bytes_read, device_no);
     }
     else if (is_mass_storage_file(device_no)) {
         /* Mass storage file: read from open file table */
         OpenFileEntry* entry = mon_file_table_get((int)device_no);
         if (!entry || !entry->in_use) {
-            mon_log(MON_LOG_WARN, "MON 503B DVINST: File %u not open", device_no);
+            mon_log(MON_LOG_WARN, MON_ID_503B ": File %o not open", device_no);
             mon_set_error(ctx, 53);  /* File not open */
             return MON_ERROR;
         }
 
         /* Check access mode allows reading */
         if (entry->access_mode == ACCESS_SEQ_WRITE || entry->access_mode == ACCESS_SEQ_APPEND) {
-            mon_log(MON_LOG_WARN, "MON 503B DVINST: File %u not open for reading", device_no);
+            mon_log(MON_LOG_WARN, MON_ID_503B ": File %o not open for reading", device_no);
             mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
             return MON_ERROR;
         }
@@ -173,7 +174,7 @@ MonResult mon_503B_InputString(MonContext* ctx) {
                     break;
                 }
             }
-            mon_log(MON_LOG_DEBUG, "MON 503B DVINST: Read %u bytes from file %u, pos=%u",
+            mon_log(MON_LOG_DEBUG, MON_ID_503B ": Read %o bytes from file %o, pos=%o",
                     bytes_read, device_no, entry->current_position);
         } else {
             mon_set_error(ctx, 53);
@@ -182,8 +183,7 @@ MonResult mon_503B_InputString(MonContext* ctx) {
     }
     else {
         /* Unsupported device type */
-        mon_log(MON_LOG_WARN, "MON 503B DVINST: Unsupported device %u (octal %o)",
-                device_no, device_no);
+        mon_log(MON_LOG_WARN, MON_ID_503B ": Unsupported device %o", device_no);
         mon_set_error(ctx, 46);  /* No such filename */
         return MON_ERROR;
     }
@@ -196,7 +196,7 @@ MonResult mon_503B_InputString(MonContext* ctx) {
     /* Return number of bytes read */
     mon_write_param_word(ctx, 2, bytes_read);
 
-    mon_log(MON_LOG_DEBUG, "MON 503B DVINST: Returned %u bytes", bytes_read);
+    mon_log(MON_LOG_DEBUG, MON_ID_503B ": OUT: Returned %o bytes", bytes_read);
 
     mon_set_success(ctx);
     return MON_SUCCESS;
