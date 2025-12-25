@@ -25,6 +25,16 @@ static int unknown_field_count = 0;
 static int unknown_initial_field_count = 0;
 static int unknown_final_field_count = 0;
 
+/* Strict mode validation statistics */
+typedef struct {
+    int pc_only_tests;           /* Tests validating only PC */
+    int no_memory_validation;    /* Tests with empty final.ram */
+    int minimal_validation;      /* Tests with <= 2 expected registers */
+    int total_analyzed;          /* Total tests analyzed in strict mode */
+} StrictValidationStats;
+
+static StrictValidationStats strict_stats = {0};
+
 /**
  * Check if a top-level test field name is known
  */
@@ -117,6 +127,108 @@ static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value);
 static uint32_t get_register(Nd500Cpu* cpu, const char* name);
 static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_details);
 static int validate_memory(Nd500Machine* m, cJSON* final_ram, int print_details);
+static void analyze_test_coverage(cJSON* test, int verbose);
+
+/**
+ * Count number of expected registers in final state
+ */
+static int count_expected_registers(cJSON* test) {
+    cJSON* final = cJSON_GetObjectItem(test, "final");
+    if (!final) return 0;
+    cJSON* final_regs = cJSON_GetObjectItem(final, "regs");
+    if (!final_regs || !cJSON_IsObject(final_regs)) return 0;
+
+    int count = 0;
+    cJSON* reg;
+    cJSON_ArrayForEach(reg, final_regs) {
+        if (cJSON_IsNumber(reg)) count++;
+    }
+    return count;
+}
+
+/**
+ * Check if test has memory validation
+ */
+static int has_memory_validation(cJSON* test) {
+    cJSON* final = cJSON_GetObjectItem(test, "final");
+    if (!final) return 0;
+    cJSON* final_ram = cJSON_GetObjectItem(final, "ram");
+    if (!final_ram || !cJSON_IsArray(final_ram)) return 0;
+    return cJSON_GetArraySize(final_ram) > 0;
+}
+
+/**
+ * Check if test only validates PC register
+ */
+static int is_pc_only_test(cJSON* test) {
+    cJSON* final = cJSON_GetObjectItem(test, "final");
+    if (!final) return 0;
+    cJSON* final_regs = cJSON_GetObjectItem(final, "regs");
+    if (!final_regs || !cJSON_IsObject(final_regs)) return 0;
+
+    int count = 0;
+    int has_pc = 0;
+    cJSON* reg;
+    cJSON_ArrayForEach(reg, final_regs) {
+        if (cJSON_IsNumber(reg)) {
+            count++;
+            if (reg->string && strcmp(reg->string, "pc") == 0) {
+                has_pc = 1;
+            }
+        }
+    }
+    return (count == 1 && has_pc);
+}
+
+/**
+ * Analyze test for strict mode validation coverage
+ */
+static void analyze_test_coverage(cJSON* test, int verbose) {
+    cJSON* name_json = cJSON_GetObjectItem(test, "name");
+    const char* test_name = (name_json && cJSON_IsString(name_json))
+        ? name_json->valuestring : "unnamed";
+
+    strict_stats.total_analyzed++;
+
+    int reg_count = count_expected_registers(test);
+    int has_mem = has_memory_validation(test);
+    int pc_only = is_pc_only_test(test);
+
+    if (pc_only) {
+        strict_stats.pc_only_tests++;
+        if (verbose) {
+            printf("  STRICT: %s - PC-only validation\n", test_name);
+        }
+    }
+
+    if (reg_count <= 2 && !has_mem) {
+        strict_stats.minimal_validation++;
+        if (verbose && !pc_only) {
+            printf("  STRICT: %s - minimal validation (%d regs, no memory)\n",
+                   test_name, reg_count);
+        }
+    }
+
+    /* Check for expected memory validation based on instruction type */
+    cJSON* assembly = cJSON_GetObjectItem(test, "assembly");
+    if (assembly && cJSON_IsString(assembly)) {
+        const char* asm_str = assembly->valuestring;
+        /* Instructions that typically write to memory */
+        int should_have_memory = (
+            strstr(asm_str, "LPUT") != NULL ||
+            strstr(asm_str, "BMOVE") != NULL ||
+            strstr(asm_str, "WPCONV") != NULL ||
+            strstr(asm_str, "TSET") != NULL
+        );
+        if (should_have_memory && !has_mem) {
+            strict_stats.no_memory_validation++;
+            if (verbose) {
+                printf("  STRICT: %s - expected memory validation for %s\n",
+                       test_name, asm_str);
+            }
+        }
+    }
+}
 
 /* Load JSON file into memory */
 static char* load_file(const char* path, size_t* out_size) {
@@ -152,6 +264,7 @@ int main(int argc, char** argv) {
 
     int continue_on_fail = 0;  /* --continue flag */
     int verbose = 0;           /* --verbose flag */
+    int strict_mode = 0;       /* --strict flag */
 
     /* Parse command line arguments */
     for (int i = 1; i < argc; i++) {
@@ -167,6 +280,8 @@ int main(int argc, char** argv) {
             continue_on_fail = 1;
         } else if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "-v") == 0) {
             verbose = 1;
+        } else if (strcmp(argv[i], "--strict") == 0) {
+            strict_mode = 1;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             printf("Usage: %s [options]\n", argv[0]);
             printf("Options:\n");
@@ -176,6 +291,7 @@ int main(int argc, char** argv) {
             printf("  --filter <str>   Only run tests with names containing str\n");
             printf("  --continue       Continue past failures (show summary at end)\n");
             printf("  --verbose, -v    Show all test results, not just failures\n");
+            printf("  --strict         Analyze test validation coverage and report weak tests\n");
             printf("  --help           Show this help\n");
             return 0;
         }
@@ -278,6 +394,11 @@ int main(int argc, char** argv) {
             }
         }
 
+        /* Strict mode: analyze test coverage before running */
+        if (strict_mode) {
+            analyze_test_coverage(test, verbose);
+        }
+
         /* Determine if we should show details for this test */
         int show_details = continue_on_fail ? (failures_shown < MAX_FAILURE_DETAILS) : 1;
         int result = run_single_test(&machine, test, test_num + 1, total_tests, verbose, show_details);
@@ -330,8 +451,31 @@ int main(int argc, char** argv) {
         printf("Run with --verbose to see details.\n");
     }
 
+    /* Strict mode validation coverage report */
+    if (strict_mode && strict_stats.total_analyzed > 0) {
+        printf("\n=== Validation Coverage Report (Strict Mode) ===\n");
+        printf("Tests analyzed: %d\n", strict_stats.total_analyzed);
+        printf("PC-only tests: %d (%.1f%%)\n",
+               strict_stats.pc_only_tests,
+               100.0 * strict_stats.pc_only_tests / strict_stats.total_analyzed);
+        printf("Minimal validation (<=2 regs, no memory): %d (%.1f%%)\n",
+               strict_stats.minimal_validation,
+               100.0 * strict_stats.minimal_validation / strict_stats.total_analyzed);
+        printf("Missing memory validation: %d\n", strict_stats.no_memory_validation);
+
+        int strong_validation = strict_stats.total_analyzed - strict_stats.minimal_validation;
+        printf("Strong validation: %d (%.1f%%)\n",
+               strong_validation,
+               100.0 * strong_validation / strict_stats.total_analyzed);
+
+        if (strict_stats.pc_only_tests > 0 || strict_stats.no_memory_validation > 0) {
+            printf("\nWARNING: Some tests have weak validation and may produce false positives.\n");
+            printf("Use --verbose to see details of weak tests.\n");
+        }
+    }
+
     if (failed == 0 && passed > 0) {
-        printf("ALL TESTS PASSED\n");
+        printf("\nALL TESTS PASSED\n");
     } else if (continue_on_fail && failed > 0) {
         /* Show failure summary with instruction patterns */
         printf("\nFailure Summary (first %d unique failures):\n", failed < 100 ? failed : 100);
