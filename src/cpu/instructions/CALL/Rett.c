@@ -208,9 +208,6 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* B currently points to trap frame (THA + 256) */
     uint32_t trap_frame_base = cpu->B;
 
-    printf("[RETT] Trap %d: Restoring from trap frame at 0x%08X\n",
-           cpu->trap_number, trap_frame_base);
-
     /* ========================================================================
      * Read saved register values from trap frame
      * ======================================================================== */
@@ -304,9 +301,6 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t saved_TEMM2 = nd500_bus_read32(cpu->machine,
         nd500_mmu_translate(cpu, trap_frame_base + 168, 0, 0));
 
-    printf("[RETT]   Restoring: B=0x%08X L=0x%08X TOS=0x%08X PC=0x%08X\n",
-           saved_B, saved_L, saved_TOS, saved_PC);
-
     /* ========================================================================
      * Step 4: Clear the specific trap status bit before restoring
      * (ENTT already cleared it but we ensure it stays cleared)
@@ -378,7 +372,4 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Clear trap handler flag */
     cpu->in_trap_handler = false;
-
-    printf("[RETT] Trap %d handler complete, returning to PC=0x%08X\n",
-           cpu->trap_number, cpu->PC);
 }

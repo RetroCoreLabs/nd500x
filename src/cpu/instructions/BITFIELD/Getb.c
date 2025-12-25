@@ -188,9 +188,6 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read MAXL (maximum logarithmic size) from heap variables (word at offset +0) */
     uint32_t max_log = nd500_read_memory_32(cpu, heap_vars_addr + 0);
 
-    TRACE("[TRACE] GETB: TOS=0x%08X, log_size=%u, MAXL=%u\n",
-          heap_vars_addr, log_size, max_log);
-
     /* Check if requested size exceeds maximum */
     if (log_size > max_log) {
         printf("[TRAP] GETB at PC=0x%08X: Requested log_size=%u exceeds MAXL=%u\n",
@@ -207,23 +204,18 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Exact size available - unlink from free list */
         uint32_t next_block = nd500_read_memory_32(cpu, block_addr);
         nd500_write_memory_32(cpu, freelist_addr, next_block);
-        TRACE("[TRACE] GETB: Exact size freelist[%u] has block at 0x%08X\n", log_size, block_addr);
     } else {
         /* STEP 2: No exact size - search for larger blocks */
-        TRACE("[TRACE] GETB: Exact size freelist[%u] empty, searching larger...\n", log_size);
         uint8_t found_size = 0;
         for (uint8_t k = log_size + 1; k <= max_log; k++) {
             freelist_addr = heap_vars_addr + 12 + (k * 4);
             block_addr = nd500_read_memory_32(cpu, freelist_addr);
-            TRACE("[TRACE] GETB: freelist[%u] @ 0x%08X = 0x%08X (%s)\n",
-                  k, freelist_addr, block_addr, block_addr ? "has block" : "empty");
 
             if (block_addr != 0) {
                 /* Found larger block - unlink it */
                 uint32_t next_block = nd500_read_memory_32(cpu, block_addr);
                 nd500_write_memory_32(cpu, freelist_addr, next_block);
                 found_size = k;
-                TRACE("[TRACE] GETB: Found block at 0x%08X in freelist[%u], will split\n", block_addr, k);
 
                 /* STEP 3: Split block repeatedly until we get requested size */
                 while (found_size > log_size) {
@@ -245,9 +237,6 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
                     /* Update FLOG[found_size] to point to buddy */
                     nd500_write_memory_32(cpu, buddy_list_addr, buddy_addr);
-
-                    TRACE("[TRACE] GETB: Split: kept 0x%08X, buddy 0x%08X -> freelist[%u]\n",
-                          block_addr, buddy_addr, found_size);
                 }
                 break;  /* Found and split block, exit loop */
             }
@@ -258,8 +247,6 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             /* Read STAH and ENDH from heap variables */
             uint32_t stah = nd500_read_memory_32(cpu, heap_vars_addr + 4);
             uint32_t endh = nd500_read_memory_32(cpu, heap_vars_addr + 8);
-
-            TRACE("[TRACE] GETB: All FLOGs empty, checking STAH=0x%08X ENDH=0x%08X\n", stah, endh);
 
             /* If STAH/ENDH define a valid range, auto-initialize the heap */
             if (stah != 0 && endh > stah) {
@@ -279,9 +266,6 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                     uint32_t init_freelist_addr = heap_vars_addr + 12 + (init_log * 4);
                     nd500_write_memory_32(cpu, stah, 0);  /* block.next = NULL */
                     nd500_write_memory_32(cpu, init_freelist_addr, stah);
-
-                    TRACE("[TRACE] GETB: Auto-init heap: added 0x%08X (2^%u words) to FLOG[%u]\n",
-                          stah, init_log, init_log);
 
                     /* Now allocate from the newly initialized heap */
                     if (init_log == log_size) {
@@ -306,9 +290,6 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
                             nd500_write_memory_32(cpu, buddy_addr, old_head);
                             nd500_write_memory_32(cpu, buddy_list_addr, buddy_addr);
-
-                            TRACE("[TRACE] GETB: Auto-init split: kept 0x%08X, buddy 0x%08X -> freelist[%u]\n",
-                                  block_addr, buddy_addr, found_size);
                         }
                     }
                 }
@@ -316,8 +297,6 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
             /* If still no block, trap */
             if (block_addr == 0) {
-                TRACE("[TRACE] GETB: FAILED - searched freelist[%u..%u], all empty, STAH/ENDH invalid\n",
-                      log_size, max_log);
                 printf("[TRAP] GETB at PC=0x%08X: No blocks available for log_size=%u\n",
                        fi->address, log_size);
                 trap_stack_overflow(cpu, fi->address);
@@ -329,9 +308,6 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Write allocated address to target register (I1-I4) */
     /* target_register is 1-4, array is 0-indexed */
     cpu->I[fi->target_register - 1] = block_addr;
-
-    TRACE("[TRACE] GETB: SUCCESS - block=0x%08X, size=2^%u (%u words) -> I%u\n",
-          block_addr, log_size, (1U << log_size), fi->target_register);
 
     /* Data status bits are unaffected per ND-500 Reference Manual §15.13 */
     /* NOTE: All flags (Z, S, C, K, O) remain unchanged */

@@ -77,18 +77,13 @@ void nd500_instr_Freeb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read heap variables from TOS register */
     uint32_t heap_vars_addr = cpu->TOS;
 
-    TRACE("[TRACE] FREEB: TOS=0x%08X, log_size=%u, element=0x%08X\n",
-          heap_vars_addr, log_size, element);
-
     if (heap_vars_addr == 0) {
         /* TOS not initialized - silently do nothing (matches RETB behavior) */
-        TRACE("[TRACE] FREEB: TOS=0, heap not initialized, skipping\n");
         return;
     }
 
     if (element == 0) {
         /* Null pointer - nothing to free */
-        TRACE("[TRACE] FREEB: element=0, nothing to free\n");
         return;
     }
 
@@ -112,9 +107,6 @@ void nd500_instr_Freeb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Update freelist head: FLOG[log_size] = element */
     nd500_write_memory_32(cpu, freelist_addr, element);
-
-    TRACE("[TRACE] FREEB: Added 0x%08X to FLOG[%u], old_head=0x%08X\n",
-          element, log_size, current_head);
 
     /* All flags unaffected per ND-500 Reference Manual */
     /* PC will be advanced automatically by cpu_step() */

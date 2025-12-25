@@ -13,6 +13,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_file_table.h"
 #include <stdio.h>
 
 #define MAX_MESSAGE_LEN 512
@@ -24,10 +25,20 @@ MonResult mon_32B_OutMessage(MonContext* ctx) {
     /* Read the message string from parameter */
     len = mon_read_string(ctx, 0, message, MAX_MESSAGE_LEN);
 
-    /* Output the message to stdout (user's terminal) */
+    /* Output the message to user's terminal via console interface */
+    /* Note: SINTRAN messages already contain \r\n terminators, don't add extra */
     if (len > 0) {
-        fprintf(stdout, "%s\n", message);
-        fflush(stdout);
+        ConsoleIO* console = mon_file_table_get_console();
+        for (int i = 0; i < len; i++) {
+            if (console && console->write_char) {
+                console->write_char(console->context, (unsigned char)message[i]);
+            } else {
+                putchar(message[i]);
+            }
+        }
+        if (!console || !console->write_char) {
+            fflush(stdout);
+        }
     }
 
     /* Log the call */

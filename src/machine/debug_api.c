@@ -11,6 +11,7 @@
 #include "../ndlib/ndlib.h"
 #include "../ndlib/ndlib_color.h"
 #include "../libmon/mon.h"
+#include "../libmon/mon_file_table.h"
 
 static const char* reg_names[] = {"r1", "r2", "r3", "r4"};
 
@@ -543,24 +544,78 @@ int nd500_dbg_get_trace_mode(void) {
     return g_trace_mode;
 }
 
+/* Track if console output needs newline separation (for trace file and stdout separately) */
+static int g_trace_pending = 0;      /* For trace file: needs newline before next instruction */
+static int g_stdout_pending = 0;     /* For stdout: needs newline before [STOP] messages */
+static int g_out_at_line_start = 1;  /* For [OUT] prefix: are we at start of line? */
+
+/* Console handler for capturing MON output to trace file */
+static void trace_console_write_char(void* ctx, int ch) {
+    (void)ctx;
+    /* Write to stdout (normal console) */
+    putchar(ch);
+    fflush(stdout);
+
+    /* Track stdout pending state */
+    if (ch == '\n') {
+        g_stdout_pending = 0;
+    } else {
+        g_stdout_pending = 1;
+    }
+
+    /* Also write to trace file if open, prefixed for clarity */
+    if (g_trace_file) {
+        if (g_out_at_line_start) {
+            fprintf(g_trace_file, "[OUT] ");
+            g_out_at_line_start = 0;
+        }
+        fputc(ch, g_trace_file);
+        if (ch == '\n') {
+            g_out_at_line_start = 1;
+            g_trace_pending = 0;
+            fflush(g_trace_file);
+        } else {
+            g_trace_pending = 1;
+        }
+    }
+}
+
+static ConsoleIO g_trace_console = {
+    .read_char = NULL,
+    .write_char = trace_console_write_char,
+    .char_available = NULL,
+    .context = NULL
+};
+
 /* Trace file functions */
-int nd500_dbg_set_trace_file(const char* path) {
+int nd500_dbg_set_trace_file_ex(const char* path, int append) {
     if (g_trace_file && g_trace_file != stdout) {
         fclose(g_trace_file);
         g_trace_file = NULL;
     }
     if (path == NULL) {
         g_trace_file = NULL;  /* Disable file output */
+        mon_file_table_set_console(NULL);  /* Restore default console */
         return 0;
     }
-    g_trace_file = fopen(path, "w");
+    g_trace_file = fopen(path, append ? "a" : "w");
     if (!g_trace_file) {
         fprintf(stderr, "Error: Cannot open trace file '%s'\n", path);
         return -1;
     }
+    /* Set up console handler to capture MON output */
+    mon_file_table_set_console(&g_trace_console);
     /* Also enable trace mode */
     nd500_dbg_set_trace_mode(1);
+    /* Reset line start tracking for new trace session */
+    g_out_at_line_start = 1;
+    g_trace_pending = 0;
+    g_stdout_pending = 0;
     return 0;
+}
+
+int nd500_dbg_set_trace_file(const char* path) {
+    return nd500_dbg_set_trace_file_ex(path, 0);  /* Default: overwrite */
 }
 
 void nd500_dbg_close_trace_file(void) {
@@ -568,10 +623,26 @@ void nd500_dbg_close_trace_file(void) {
         fclose(g_trace_file);
     }
     g_trace_file = NULL;
+    mon_file_table_set_console(NULL);  /* Restore default console */
 }
 
 FILE* nd500_dbg_get_trace_file(void) {
     return g_trace_file;
+}
+
+/* Flush pending console output (add newline if mid-line) */
+void nd500_dbg_flush_console_output(void) {
+    if (g_stdout_pending) {
+        printf("\n");
+        fflush(stdout);
+        g_stdout_pending = 0;
+    }
+    if (g_trace_pending && g_trace_file) {
+        fprintf(g_trace_file, "\n");
+        fflush(g_trace_file);
+        g_trace_pending = 0;
+        g_out_at_line_start = 1;
+    }
 }
 
 /* Memory trace mode functions */
@@ -750,6 +821,14 @@ void nd500_dbg_trace_before(uint32_t pc, const char* mnemonic,
  */
 void nd500_dbg_trace_after(uint32_t* before_regs, uint32_t* after_regs) {
     if (!nd500_dbg_get_trace_mode()) return;
+
+    /* If console output occurred mid-instruction, add newline to trace file to separate */
+    /* Note: Don't add newline to stdout - let program output appear exactly as intended */
+    if (g_trace_pending && g_trace_file) {
+        fprintf(g_trace_file, "\n");
+        g_trace_pending = 0;
+        g_out_at_line_start = 1;  /* Next [OUT] should get prefix */
+    }
 
     int any_changed = 0;
     char changes[512];

@@ -261,12 +261,6 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* The local data field follows immediately after the vector table */
     uint32_t trap_frame_base = cpu->THA + 256;
 
-    printf("[ENTT] Trap %d: Setting up trap frame at 0x%08X (THA=0x%08X)\n",
-           cpu->trap_number, trap_frame_base, cpu->THA);
-    printf("[ENTT]   Pre-trap: B=0x%08X L=0x%08X TOS=0x%08X\n",
-           saved_B, saved_L, saved_TOS);
-    printf("[ENTT]   Return to: 0x%08X\n", cpu->trap_saved_PC);
-
     /* ========================================================================
      * Set up new B register to point to trap handler local data field
      * ======================================================================== */
@@ -392,9 +386,6 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Note: LL and HL are NOT modified by ENTT - the pre-trap values are saved
      * in the register block but the current LL/HL remain unchanged */
 
-    printf("[ENTT]   New trap frame: B=0x%08X L=0x%08X TOS=0x%08X\n",
-           cpu->B, cpu->L, cpu->TOS);
-
     /* ========================================================================
      * Step 9: Clear the specific trap status bit before handler execution
      * ======================================================================== */
@@ -404,7 +395,6 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else {
         cpu->ST2 &= ~(uint32_t)(trapBit >> 32);
     }
-    printf("[ENTT]   Cleared trap bit %d in ST register\n", cpu->trap_number);
 
     /* ========================================================================
      * Step 4: Copy 10 words of program memory for diagnostics (arg41-50)

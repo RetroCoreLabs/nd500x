@@ -113,9 +113,6 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
     uint32_t requested_segment, uint32_t segment_size_bytes,
     uint32_t* out_assigned_segment)
 {
-    TRACE("[TRACE] ALLOC: ENTER domain=%u, req_seg=%u, size=%u\n",
-          domain, requested_segment, segment_size_bytes);
-
     if (!cpu_ptr || !machine_ptr || !out_assigned_segment) {
         return ERR_ILLEGAL_ADDRESS;
     }
@@ -125,7 +122,6 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
 
     /* Validate segment number */
     if (requested_segment > 31) {
-        TRACE("[TRACE] ALLOC: ERROR req_seg %u > 31\n", requested_segment);
         return ERR_ILLEGAL_SEGMENT;
     }
 
@@ -140,10 +136,8 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
         /* Auto-assign: find first free segment */
         /* Start from segment 2 (after segments 0 and 1 used by DOM loader) */
         int found = 0;
-        TRACE("[TRACE] ALLOC: Searching for free segment in domain %u\n", domain);
         for (uint32_t seg = 2; seg < MAXSEG; seg++) {
             uint16_t dc = nd500_mmu_get_data_capability(cpu, domain, seg);
-            TRACE("[TRACE] ALLOC: DC[%u] = 0x%04X\n", seg, dc);
             if (dc == 0) {
                 assigned_segment = seg;
                 found = 1;
@@ -151,7 +145,6 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
             }
         }
         if (!found) {
-            TRACE("[TRACE] ALLOC: No free segments found!\n");
             return ERR_ILLEGAL_SEGMENT;  /* No free segments */
         }
     } else {
@@ -189,16 +182,8 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
     uint32_t phys_segment_base = start_pfn << PGSHIFT;
     uint32_t phys_segment_end = phys_segment_base + rounded_size;
 
-    TRACE("[TRACE] ALLOC: segment=%u, size=%u bytes (%u pages)\n",
-          assigned_segment, segment_size_bytes, num_pages);
-    TRACE("[TRACE] ALLOC: highest_pfn=%u, start_pfn=%u\n", highest_pfn, start_pfn);
-    TRACE("[TRACE] ALLOC: phys_base=0x%08X, phys_end=0x%08X, mem_size=0x%08X\n",
-          phys_segment_base, phys_segment_end, m->memory_size);
-
     /* Check bounds against machine memory size */
     if (phys_segment_end > m->memory_size) {
-        TRACE("[TRACE] ALLOC: FAILED - need 0x%X bytes but only 0x%X available\n",
-              phys_segment_end, m->memory_size);
         return ERR_NO_PHYS_MEM;
     }
 

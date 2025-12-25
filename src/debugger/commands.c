@@ -127,6 +127,7 @@ static int cmd_unload(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_showcap(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_showpages(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_trace(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Forward declaration for init script execution (defined at end of file) */
 int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
@@ -142,6 +143,7 @@ static const CmdEntry g_commands[] = {
 	{"dis",         cmd_dis,          "Disassemble instructions"},
 	{"disasm",      cmd_dis,          "Disassemble instructions"},
 	{"show",        cmd_show,         "Show/toggle debugger options"},
+	{"trace",       cmd_trace,        "Set trace output file"},
 	{"step",        cmd_step,         "Execute one or more instructions"},
 	{"s",           cmd_step,         "Execute one or more instructions"},
 	{"regs",        cmd_regs,         "Display CPU registers"},
@@ -390,7 +392,9 @@ static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  show hex [on|off]           Toggle hex bytes in disassembly (default: on)");
 	output(ctx, "  show demangle [on|off]      Toggle C-symbol demangling (strip leading _)");
 	output(ctx, "  show source [off|asm|c|both] Set source annotations in disassembly");
-	output(ctx, "  show trace [on|off]         Toggle instruction execution tracing");
+	output(ctx, "  show trace [on|off]         Toggle instruction execution tracing (console)");
+	output(ctx, "  trace file <path> [append]  Write trace to file (overwrites or appends)");
+	output(ctx, "  trace off                   Close trace file");
 	output(ctx, "  show profile [on|off]      Toggle instruction execution profiling");
 	output(ctx, "  show mmu [level]           Set MMU logging (off|errors|trace|all)");
 	output(ctx, "  profile [show|reset]       Show profiling statistics or reset data");
@@ -793,6 +797,60 @@ static int cmd_show(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return -1;
 	}
 	return 0;
+}
+
+/*
+ * trace command - set trace output file
+ *
+ * Usage:
+ *   trace file <path>          Write trace to file (overwrite)
+ *   trace file <path> append   Write trace to file (append)
+ *   trace off                  Close trace file
+ *   trace                      Show current trace file status
+ */
+static int cmd_trace(Nd500Machine* m, CmdContext* ctx, char* args) {
+	(void)m;
+	char* sub = args ? strtok(args, " \t\r\n") : NULL;
+
+	if (!sub) {
+		/* Show current status */
+		FILE* f = nd500_dbg_get_trace_file();
+		if (f && f != stdout) {
+			output(ctx, "trace: file output enabled");
+		} else if (nd500_dbg_get_trace_mode()) {
+			output(ctx, "trace: console output enabled (use 'trace file <path>' for file output)");
+		} else {
+			output(ctx, "trace: disabled (use 'show trace on' or 'trace file <path>')");
+		}
+		return 0;
+	}
+
+	if (strcasecmp(sub, "off") == 0) {
+		nd500_dbg_close_trace_file();
+		nd500_dbg_set_trace_mode(0);
+		output(ctx, "trace: disabled");
+		return 0;
+	}
+
+	if (strcasecmp(sub, "file") == 0) {
+		char* path = strtok(NULL, " \t\r\n");
+		if (!path) {
+			error(ctx, "usage: trace file <path> [append]");
+			return -1;
+		}
+		char* mode = strtok(NULL, " \t\r\n");
+		int append = (mode && strcasecmp(mode, "append") == 0);
+
+		if (nd500_dbg_set_trace_file_ex(path, append) != 0) {
+			error(ctx, "failed to open trace file: %s", path);
+			return -1;
+		}
+		output(ctx, "trace: %s to %s", append ? "appending" : "writing", path);
+		return 0;
+	}
+
+	error(ctx, "usage: trace file <path> [append] | trace off");
+	return -1;
 }
 
 static int cmd_step(Nd500Machine* m, CmdContext* ctx, char* args) {

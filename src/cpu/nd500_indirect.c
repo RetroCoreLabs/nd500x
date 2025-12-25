@@ -133,14 +133,11 @@ static void mon_set_k_flag_cb(void* cpu_ptr, int value) {
     Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
     if (!cpu) return;
 
-    uint32_t old_st1 = cpu->ST1;
     if (value) {
         cpu->ST1 |= (1u << ND500_ST_BIT_K);  /* Set K flag */
     } else {
         cpu->ST1 &= ~(1u << ND500_ST_BIT_K); /* Clear K flag */
     }
-    TRACE("[MON] K flag: %d -> %d (ST1: 0x%08X -> 0x%08X)\n",
-          (old_st1 >> ND500_ST_BIT_K) & 1, value, old_st1, cpu->ST1);
 }
 
 static void mon_set_error_code_cb(void* cpu_ptr, int32_t code) {
@@ -267,6 +264,7 @@ int nd500_check_indirect_call(
             cpu->machine->stop_reason = STOP_MON_HALT;
             cpu->machine->stop_addr = cpu->PC;
             cpu->machine->stop_data = ctx.mon_number;
+            nd500_dbg_flush_console_output();
             printf("[STOP] MON halt: %s\n",
                    ctx.halt_reason ? ctx.halt_reason : "unknown reason");
             *out_resolved = ctx.return_address;
@@ -279,6 +277,7 @@ int nd500_check_indirect_call(
             cpu->machine->stop_reason = STOP_MON_UNIMPLEMENTED;
             cpu->machine->stop_addr = cpu->PC;
             cpu->machine->stop_data = ctx.mon_number;
+            nd500_dbg_flush_console_output();
             const char* mon_name = mon_get_name(ctx.mon_number);
             const char* mon_octal = mon_get_octal(ctx.mon_number);
             printf("[STOP] Unimplemented MON %s (%s) with %u args\n",

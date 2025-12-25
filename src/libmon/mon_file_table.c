@@ -60,7 +60,7 @@ static void write_sintran_string(uint8_t* buf, const char* str, size_t max_len) 
 void mon_file_table_init(void) {
     memset(reservation_table, 0, sizeof(reservation_table));
     memset(open_files, 0, sizeof(open_files));
-    console_io = NULL;
+    /* Note: Don't reset console_io - it's an external hook that persists across init */
     mon_log(MON_LOG_INFO, "MON file table initialized");
 }
 

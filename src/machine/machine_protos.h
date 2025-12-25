@@ -52,8 +52,10 @@ int    nd500_dbg_get_trace_mode(void);
 
 /* Trace file output (NULL = stdout) */
 int    nd500_dbg_set_trace_file(const char* path);
+int    nd500_dbg_set_trace_file_ex(const char* path, int append);
 void   nd500_dbg_close_trace_file(void);
 FILE*  nd500_dbg_get_trace_file(void);
+void   nd500_dbg_flush_console_output(void);
 
 /* Two-phase trace API for register change tracking
  * mnemonic: instruction mnemonic (e.g., "call", "entd")

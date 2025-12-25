@@ -361,9 +361,6 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 
 	/* Clear global trap state since we're handling it */
 	nd500_trap_clear();
-
-	printf("[TRAP] Trap %d: jumping to handler at 0x%08X, will return to 0x%08X\n",
-	       trapNumber, handlerAddr, trappingP);
 }
 
 /* ═══════════════════════════════════════════════════════ */
