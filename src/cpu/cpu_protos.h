@@ -32,6 +32,7 @@ typedef struct Nd500OperandDecoded {
     uint8_t data_len;
     uint8_t data[8];
     uint32_t effective_address;  /* Computed effective address for memory operands */
+    uint8_t bit_position;        /* Bit position (0-7) within byte for BIT type addressing */
 } Nd500OperandDecoded;
 
 typedef struct Nd500Cpu {
@@ -227,7 +228,8 @@ typedef enum {
     ND500_DTYPE_HALFWORD = 1,   // 16-bit (H) -> I registers
     ND500_DTYPE_WORD = 2,       // 32-bit integer (W) -> I registers
     ND500_DTYPE_DOUBLEWORD = 3, // 64-bit (D) -> D registers (A+E pairs)
-    ND500_DTYPE_FLOAT = 4       // 32-bit float (F) -> A registers
+    ND500_DTYPE_FLOAT = 4,      // 32-bit float (F) -> A registers
+    ND500_DTYPE_BIT = 5         // 1-bit (BI) -> single bit in memory, I registers for value
 } Nd500DataType;
 
 /* Maximum operands in decoded instruction struct (fixed operands only).

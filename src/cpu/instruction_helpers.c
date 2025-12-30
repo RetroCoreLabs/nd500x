@@ -251,6 +251,11 @@ void nd500_set_flags_zs(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype) {
     bool sign_bit = false;
 
     switch (dtype) {
+        case ND500_DTYPE_BIT:
+            /* Single bit: mask=1, no sign bit */
+            mask = 0x1;
+            sign_bit = false;  /* A single bit has no sign */
+            break;
         case ND500_DTYPE_BYTE:
             mask = 0xFF;
             sign_bit = (value & 0x80) != 0;
@@ -629,6 +634,9 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
                 return nd500_read_float_register(cpu, op->reg);
             case ND500_DTYPE_DOUBLEWORD:
                 return nd500_read_double_register(cpu, op->reg);
+            case ND500_DTYPE_BIT:
+                /* BIT type from register: return LSB of integer register */
+                return nd500_read_integer_register(cpu, op->reg) & 1;
             default:
                 /* BYTE, HALFWORD, WORD -> integer registers */
                 return nd500_read_integer_register(cpu, op->reg);
@@ -637,6 +645,18 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
 
     /* Handle memory operands */
     switch (dtype) {
+        case ND500_DTYPE_BIT: {
+            /* BIT type: read single bit from memory
+             * Per ND-500 Reference Manual 7.2.1:
+             * "The specified bit is the rightmost bit (bit 0, the least
+             * significant bit) in the addressed byte."
+             *
+             * effective_address points to the byte containing the bit
+             * bit_position (0-7) indicates which bit within that byte
+             */
+            uint8_t byte = nd500_read_memory_8(cpu, op->effective_address);
+            return (byte >> op->bit_position) & 1;  /* Extract single bit (0 or 1) */
+        }
         case ND500_DTYPE_BYTE:
             return nd500_read_memory_8(cpu, op->effective_address);
         case ND500_DTYPE_HALFWORD:
@@ -676,6 +696,10 @@ void nd500_write_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uin
                 /* Double -> D1-D4 registers (A+E pairs) */
                 nd500_write_double_register(cpu, op->reg, value);
                 return;
+            case ND500_DTYPE_BIT:
+                /* Bit -> I registers, only LSB is significant, zero-fill upper bits */
+                nd500_write_integer_register(cpu, op->reg, (uint32_t)(value & 1));
+                return;
             case ND500_DTYPE_BYTE:
                 /* Byte -> I registers, zero-fill upper bits */
                 nd500_write_integer_register(cpu, op->reg, (uint32_t)(value & 0xFF));
@@ -693,6 +717,25 @@ void nd500_write_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uin
 
     /* Handle memory operands */
     switch (dtype) {
+        case ND500_DTYPE_BIT: {
+            /* BIT type: write single bit to memory (read-modify-write)
+             * Per ND-500 Reference Manual 7.2.1:
+             * "The specified bit is the rightmost bit (bit 0, the least
+             * significant bit) in the addressed byte."
+             *
+             * effective_address points to the byte containing the bit
+             * bit_position (0-7) indicates which bit within that byte
+             * value is treated as 0 or non-zero to clear/set the bit
+             */
+            uint8_t byte = nd500_read_memory_8(cpu, op->effective_address);
+            if (value & 1) {
+                byte |= (1 << op->bit_position);   /* Set bit */
+            } else {
+                byte &= ~(1 << op->bit_position);  /* Clear bit */
+            }
+            nd500_write_memory_8(cpu, op->effective_address, byte);
+            break;
+        }
         case ND500_DTYPE_BYTE:
             nd500_write_memory_8(cpu, op->effective_address, (uint8_t)value);
             break;
@@ -1119,15 +1162,65 @@ uint32_t nd500_string_get_element_address(const Nd500StringDescriptor* desc, uin
 
 /**
  * Read element value from string (based on ReadElementValue)
+ * Uses proper element size-based addressing for data type
  */
 uint64_t nd500_string_read_element(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
                                     uint32_t index, Nd500DataType dtype) {
     if (!desc || !cpu) return 0;
+    if (index >= desc->element_count) return 0;
 
-    uint32_t addr = nd500_string_get_element_address(desc, index);
-    if (addr == 0) return 0;  // Invalid index
+    /* Calculate address using element size for proper data type handling */
+    uint32_t element_size = nd500_get_element_size(dtype);
+    uint32_t addr = desc->base_address + (index * element_size);
 
     return nd500_read_value_at_address(cpu, addr, dtype);
+}
+
+/**
+ * Get element size in bytes for data type
+ */
+uint32_t nd500_get_element_size(Nd500DataType dtype) {
+    switch (dtype) {
+        case ND500_DTYPE_BYTE:      return 1;  /* BI uses BYTE width */
+        case ND500_DTYPE_HALFWORD:  return 2;
+        case ND500_DTYPE_WORD:      return 4;
+        case ND500_DTYPE_FLOAT:     return 4;
+        case ND500_DTYPE_DOUBLEWORD: return 8;
+        default:                    return 1;
+    }
+}
+
+/**
+ * Write element value to string (based on WriteElementValue)
+ * Handles different data types (byte, halfword, word, etc.)
+ */
+void nd500_string_write_element(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
+                                uint32_t index, uint64_t value, Nd500DataType dtype) {
+    if (!desc || !cpu) return;
+    if (index >= desc->element_count) return;
+
+    uint32_t element_size = nd500_get_element_size(dtype);
+    uint32_t addr = desc->base_address + (index * element_size);
+
+    switch (dtype) {
+        case ND500_DTYPE_BYTE:
+            nd500_bus_write8(cpu->machine, addr, (uint8_t)(value & 0xFF));
+            break;
+        case ND500_DTYPE_HALFWORD:
+            nd500_bus_write16(cpu->machine, addr, (uint16_t)(value & 0xFFFF));
+            break;
+        case ND500_DTYPE_WORD:
+        case ND500_DTYPE_FLOAT:
+            nd500_bus_write32(cpu->machine, addr, (uint32_t)(value & 0xFFFFFFFF));
+            break;
+        case ND500_DTYPE_DOUBLEWORD:
+            nd500_bus_write32(cpu->machine, addr, (uint32_t)((value >> 32) & 0xFFFFFFFF));
+            nd500_bus_write32(cpu->machine, addr + 4, (uint32_t)(value & 0xFFFFFFFF));
+            break;
+        default:
+            nd500_bus_write8(cpu->machine, addr, (uint8_t)(value & 0xFF));
+            break;
+    }
 }
 
 /**

@@ -776,6 +776,25 @@ uint64_t nd500_string_read_element(Nd500Cpu* cpu, const Nd500StringDescriptor* d
                                     uint32_t index, Nd500DataType dtype);
 
 /**
+ * Write element value to string (based on WriteElementValue)
+ * Handles different data types (byte, halfword, word, etc.)
+ * @param cpu CPU state
+ * @param desc String descriptor
+ * @param index Element index
+ * @param value Value to write
+ * @param dtype Data type for element
+ */
+void nd500_string_write_element(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
+                                uint32_t index, uint64_t value, Nd500DataType dtype);
+
+/**
+ * Get element size in bytes for data type
+ * @param dtype Data type
+ * @return Size in bytes (1, 2, 4, or 8)
+ */
+uint32_t nd500_get_element_size(Nd500DataType dtype);
+
+/**
  * Validate string descriptor
  * @param desc String descriptor
  * @return true if valid, false otherwise

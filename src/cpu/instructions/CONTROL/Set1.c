@@ -54,7 +54,7 @@ void nd500_instr_Set1(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Determine data type based on opcode
     Nd500DataType dtype;
     switch (fi->opcode) {
-        case 0xFC86: dtype = ND500_DTYPE_BYTE; break;        // BI set1
+        case 0xFC86: dtype = ND500_DTYPE_BIT; break;         // BI set1 - sets single bit
         case 0xFC87: dtype = ND500_DTYPE_BYTE; break;        // BY set1
         case 0xFC88: dtype = ND500_DTYPE_HALFWORD; break;    // H set1
         case 0x004D: dtype = ND500_DTYPE_WORD; break;        // W set1

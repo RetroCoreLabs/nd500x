@@ -89,3 +89,11 @@ add_executable(test_dom_integration
 )
 target_link_libraries(test_dom_integration PRIVATE nd500_machine nd500_cpu nd500_ndlib nd500_debugger mon)
 
+# BIT addressing tests
+# Tests BI-prefixed instructions and bit addressing mode
+# Verifies fix for bug where bit index was treated as byte offset
+add_executable(test_bit_addressing
+    test_bit_addressing.c
+)
+target_link_libraries(test_bit_addressing PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+

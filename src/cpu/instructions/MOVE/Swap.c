@@ -51,7 +51,7 @@ void nd500_instr_Swap(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Determine data type based on opcode
     Nd500DataType dtype;
     switch (fi->opcode) {
-        case 0xFCBD: dtype = ND500_DTYPE_BYTE; break;        // BI swap
+        case 0xFCBD: dtype = ND500_DTYPE_BIT; break;         // BI swap - swaps single bits
         case 0xFCBE: dtype = ND500_DTYPE_BYTE; break;        // BY swap
         case 0xFCBF: dtype = ND500_DTYPE_HALFWORD; break;    // H swap
         case 0x0052: dtype = ND500_DTYPE_WORD; break;        // W swap

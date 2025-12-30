@@ -152,7 +152,7 @@ static Nd500DataType determine_datatype_from_prefixes(uint8_t prefixes_mask, uin
     int count = 0;
 
     /* Build type list in order: BI, BY, H, W, F, D */
-    if (prefixes_mask & ND500_PREFIX_BI) types[count++] = ND500_DTYPE_BYTE;       /* BI uses BYTE width */
+    if (prefixes_mask & ND500_PREFIX_BI) types[count++] = ND500_DTYPE_BIT;        /* BI uses BIT addressing */
     if (prefixes_mask & ND500_PREFIX_BY) types[count++] = ND500_DTYPE_BYTE;
     if (prefixes_mask & ND500_PREFIX_H)  types[count++] = ND500_DTYPE_HALFWORD;
     if (prefixes_mask & ND500_PREFIX_W)  types[count++] = ND500_DTYPE_WORD;
@@ -296,7 +296,7 @@ int nd500_instr_operand_is_direct(uint16_t opcode, uint8_t operand_idx) {
 }
 
 /* Forward declarations */
-static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecoded* op, Nd500DataType dtype);
+static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op, Nd500DataType dtype);
 static uint32_t get_operand_value32(const Nd500OperandDecoded* op);
 static uint32_t get_short_embedded(const Nd500OperandDecoded* op);
 
@@ -639,9 +639,12 @@ static uint32_t get_short_embedded(const Nd500OperandDecoded* op) {
  * @param dtype Data type for post-index scaling (BYTE=1, HALF=2, WORD=4, DOUBLE=8)
  * @return      Computed effective address
  */
-static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecoded* op, Nd500DataType dtype) {
+static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op, Nd500DataType dtype) {
     uint32_t address = 0;
     uint32_t displacement = 0;
+
+    /* Initialize bit_position to 0 (LSB) for non-indexed BIT addressing */
+    op->bit_position = 0;
 
     /*
      * Extract displacement value (UNSIGNED, big-endian)
@@ -734,13 +737,27 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, const Nd500OperandDecod
             /* Determine scale factor based on data type */
             int scale;
             switch (dtype) {
+                case ND500_DTYPE_BIT: {
+                    /* BIT addressing: index is bit offset, not byte offset
+                     * Per ND-500 Reference Manual 7.2.1:
+                     * "As the ND-500 is byte addressable, a bit is specified by its
+                     * byte address. The specified bit is the rightmost bit (bit 0,
+                     * the least significant bit) in the addressed byte."
+                     *
+                     * Effective address = base + (bit_index / 8)
+                     * Bit position = bit_index % 8 (stored in operand for later use)
+                     */
+                    op->bit_position = (uint8_t)(index_value & 0x07);  /* bit position 0-7 */
+                    address = (uint32_t)((int32_t)address + (index_value >> 3));  /* byte offset = bit_index / 8 */
+                    return address;  /* Early return - no additional scaling */
+                }
                 case ND500_DTYPE_BYTE:       scale = 1; break;
                 case ND500_DTYPE_HALFWORD:   scale = 2; break;
                 case ND500_DTYPE_WORD:       scale = 4; break;
                 case ND500_DTYPE_DOUBLEWORD: scale = 8; break;
                 default:                     scale = 1; break;
             }
-            
+
             address = (uint32_t)((int32_t)address + scale * index_value);
             break;
         }
