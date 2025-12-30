@@ -11,6 +11,7 @@
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
 #include "../../libmon/mon.h"
+#include "../../libmon/mon_file_table.h"
 #include "nd500_dom.h"
 
 static void print_usage(const char* prog) {
@@ -28,6 +29,7 @@ static void print_usage(const char* prog) {
     printf("                           (user:   PSEG=0xD0000000, DSEG=0xF0000000)\n");
     printf("                           (auto:   detect from filename - 'user' in name)\n");
     printf("  --pc <addr>              Set starting PC address\n");
+    printf("  --args <string>          Set command buffer (program arguments)\n");
     printf("  --disasm <len>           Disassemble <len> bytes and exit\n");
     printf("  --addr <addr>            Start address for disassembly (default: 0)\n");
     printf("  --hexdump <len>          Hex dump <len> bytes and exit\n");
@@ -46,6 +48,7 @@ static void print_usage(const char* prog) {
     printf("  %s --aout program --disasm 100 --addr 0x1000\n", prog);
     printf("  %s --dom program.dom --run --trace-file trace.txt\n", prog);
     printf("  %s --dom program.dom --run --max-steps 10000 --trace-file trace.txt\n", prog);
+    printf("  %s --dom program.dom --args \"input.txt\" --run\n", prog);
     printf("\n");
 }
 
@@ -57,6 +60,7 @@ int main(int argc, char** argv) {
     const char* dseg_path = NULL;
     const char* dom_path = NULL;
     const char* mode_str = NULL; /* "kernel" or "user" */
+    const char* args_str = NULL; /* Command buffer / program arguments */
     uint32_t start_pc = 0;
     int has_start_pc = 0;
     uint32_t dis_len = 0;
@@ -86,6 +90,8 @@ int main(int argc, char** argv) {
             dom_path = argv[++i];
         } else if (strcmp(argv[i], "--mode") == 0 && i + 1 < argc) {
             mode_str = argv[++i];
+        } else if (strcmp(argv[i], "--args") == 0 && i + 1 < argc) {
+            args_str = argv[++i];
         } else if (strcmp(argv[i], "--pc") == 0 && i + 1 < argc) {
             start_pc = (uint32_t)strtoul(argv[++i], NULL, 0);
             has_start_pc = 1;
@@ -109,7 +115,7 @@ int main(int argc, char** argv) {
             trace_file_path = argv[++i];
         }
     }
-    
+
     /* Initialize color system based on flags */
     ndlib_color_init(ansi_flag);
 
@@ -145,6 +151,12 @@ int main(int argc, char** argv) {
 
 	/* Initialize SINTRAN MON call emulation */
 	mon_init();
+
+	/* Set command buffer if --args was specified */
+	if (args_str) {
+	    mon_set_command_buffer(args_str);
+	    printf("Command buffer: \"%s\"\n", args_str);
+	}
 
 	uint32_t text_size = 0;
     if (input_path) {
@@ -375,5 +387,3 @@ int main(int argc, char** argv) {
 	printf("nd500x running (no UI). Use --debug for REPL.\n");
 	return 0;
 }
-
-

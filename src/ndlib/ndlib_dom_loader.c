@@ -43,6 +43,107 @@
 #define SEG_TYPE_DATA_ONLY      2
 #define SEG_TYPE_PROG_AND_DATA  3
 
+/* SINTRAN Window configuration */
+#define SINTRAN_WINDOW_PAGES  8   /* 8 pages = 16KB */
+#define SINTRAN_WINDOW_SIZE   (SINTRAN_WINDOW_PAGES * 2048)
+
+/*
+ * Setup SINTRAN Window (Segment 31) for system data access.
+ *
+ * This function configures DC[31] to allow programs to access SINTRAN system
+ * data structures at virtual addresses 0xF8xxxxxx (segment 31).
+ *
+ * ARCHITECTURAL NOTE:
+ * In the real ND-500/ND-100 dual processor system:
+ *   - ND-100 runs SINTRAN III and manages RT scheduling
+ *   - RT descriptions and system tables live in ND-100 memory (DPIT)
+ *   - ND-500 accesses this data through shared memory or H RIOM instruction
+ *   - When ND-100 suspends an ND-500 process, it saves registers to RT description
+ *
+ * In the standalone ND-500 emulator (no ND-100 integration):
+ *   - We allocate physical memory to simulate SINTRAN tables
+ *   - MON calls like GETRT (30B) return addresses in this region (0xF8001000)
+ *   - Programs can read/write system structures at these addresses
+ *
+ * For future ND-100 integration:
+ *   - This function can be modified to map to actual ND-100 memory
+ *   - The sintran_phys_base would point to shared memory region
+ *   - Page table PTEs would reference ND-100 accessible memory
+ *
+ * Physical layout within SINTRAN window:
+ *   Offset 0x0000-0x0FFF: Reserved
+ *   Offset 0x1000-0x10FF: RT description (MON 30B returns 0xF8001000)
+ *   Offset 0x1100-0x3FFF: Available for other system structures
+ *
+ * Parameters:
+ *   m              - Machine for memory allocation
+ *   cpu            - CPU to configure MMU
+ *   domain         - Domain to set DC[31] for
+ *   pt_alloc_base  - Physical address to allocate from (updated on return)
+ *   next_psn       - Next available PST number (updated on return)
+ *   log_callback   - Optional logging callback
+ *   log_context    - Context for logging
+ *
+ * Returns: 0 on success, -1 on error
+ */
+static int setup_sintran_window(
+    Nd500Machine* m,
+    Nd500Cpu* cpu,
+    int domain,
+    uint32_t* pt_alloc_base,
+    int* next_psn,
+    void (*log_callback)(void* ctx, const char* fmt, ...),
+    void* log_context)
+{
+    if (!m || !cpu || !pt_alloc_base || !next_psn) {
+        return -1;
+    }
+
+    uint32_t alloc_base = *pt_alloc_base;
+
+    /* Allocate physical memory for SINTRAN window */
+    uint32_t sintran_phys_base = alloc_base;
+    alloc_base = (alloc_base + SINTRAN_WINDOW_SIZE + 2047) & ~2047u;
+
+    /* Zero-initialize the SINTRAN window
+     * This ensures clean state for RT descriptions and system tables
+     */
+    for (uint32_t j = 0; j < SINTRAN_WINDOW_SIZE; j++) {
+        nd500_bus_write8(m, sintran_phys_base + j, 0);
+    }
+
+    /* Create page table for SINTRAN window */
+    uint32_t sintran_pt_base = alloc_base;
+    alloc_base = (alloc_base + SINTRAN_WINDOW_PAGES * 4 + 2047) & ~2047u;
+
+    /* Fill page table with PTEs for SINTRAN window pages
+     * PTE format: [31:2]=PFN, [1]=unused, [0]=protection (0=RW)
+     */
+    for (uint32_t p = 0; p < SINTRAN_WINDOW_PAGES; p++) {
+        uint32_t pte_addr = sintran_pt_base + p * 4;
+        uint32_t pfn = (sintran_phys_base >> 11) + p;
+        uint32_t pte = (pfn << 2) | 0;  /* protection=0 for RW */
+        nd500_bus_write32(m, pte_addr, pte);
+    }
+
+    /* Allocate PST entry for SINTRAN window */
+    int sintran_psn = (*next_psn)++;
+    nd500_mmu_set_pst_entry(cpu, sintran_psn, PS_ASI, sintran_pt_base >> 11);
+
+    /* Set DC[31] to allow data access to SINTRAN window */
+    nd500_mmu_set_data_capability(cpu, domain, 31, sintran_psn | DC_WRP);
+
+    if (log_callback) {
+        log_callback(log_context, "  Seg 31 SINTRAN Window: %u pages @ phys 0x%08X, PSN %d",
+                     SINTRAN_WINDOW_PAGES, sintran_phys_base, sintran_psn);
+    }
+
+    /* Update allocation pointer */
+    *pt_alloc_base = alloc_base;
+
+    return 0;
+}
+
 /* Per-segment tracking during DOM load */
 typedef struct {
     int has_prog;
@@ -384,7 +485,7 @@ int ndlib_dom_load_to_machine(
     }
 
     /* ========================================================================
-     * SEGMENT 31: SINTRAN III Monitor Call Interception
+     * SEGMENT 31: SINTRAN III Monitor Call Interception + Data Window
      * ========================================================================
      *
      * Segment 31 is reserved by SINTRAN III for MON (monitor) calls. When a
@@ -411,11 +512,32 @@ int ndlib_dom_load_to_machine(
      *   6. Handler executes, sets output parameters
      *   7. Control returns to instruction after CALL
      *
-     * Without this setup, CALL to segment 31 would cause an MMU fault because
-     * there is no physical memory mapped to segment 31.
+     * SINTRAN WINDOW (DC[31]):
+     * In addition to MON call interception, segment 31 also serves as a
+     * "SINTRAN Window" for accessing system data structures like RT descriptions.
+     * MON 30B (GetOwnRTAddress) returns addresses in segment 31 (0xF8xxxxxx),
+     * and programs may read/write data at these addresses.
+     *
+     * We allocate physical memory for segment 31 and set up DC[31] so that
+     * data accesses to 0xF8xxxxxx are translated to this physical region.
+     * This simulates the ND-100's DPIT (Data PIT) where SINTRAN stores
+     * RT descriptions and other system tables.
+     *
+     * Without DC[31] setup, data access to segment 31 would cause an MMU fault.
      * ======================================================================== */
+
+    /* PC[31]: Indirect segment for MON call interception */
     uint16_t pc31 = PC_IND | (0 << 5) | 31;  /* 0x801F: indirect to domain 0 segment 31 */
     nd500_mmu_set_program_capability(cpu, domain, 31, pc31);
+
+    /* DC[31]: SINTRAN Window - allocate physical memory for system data
+     * See setup_sintran_window() for architectural details and future ND-100 integration notes.
+     */
+    if (setup_sintran_window(m, cpu, domain, &pt_alloc_base, &next_psn, log_callback, log_context) != 0) {
+        if (log_callback) {
+            log_callback(log_context, "Warning: Failed to setup SINTRAN window (DC[31])");
+        }
+    }
 
     /* Enable MMU */
     nd500_mmu_enable_program(cpu);

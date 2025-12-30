@@ -49,7 +49,7 @@ void nd500_instr_AssignTo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Write to appropriate register based on data type */
     if (fi->uses_float_registers) {
         /* Float/Double registers (A1-A4, E1-E4) */
-        if (fi->data_type == ND500_DTYPE_WORD) {
+        if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_WORD) {
             /* Single-precision float (32-bit) -> An */
             nd500_write_float_register(cpu, fi->target_register, (uint32_t)value);
         } else if (fi->data_type == ND500_DTYPE_DOUBLEWORD) {

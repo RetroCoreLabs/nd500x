@@ -51,7 +51,7 @@ void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read current register value (like C# lines 48-51) */
     if (fi->uses_float_registers) {
-        if (fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
+        if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
             value = nd500_read_float_register(cpu, fi->target_register);
         } else { /* Double (D) */
             value = nd500_read_double_register(cpu, fi->target_register);
@@ -115,7 +115,7 @@ void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     } else {
         /* Floating point: clear sign bit (like C# lines 75-88) */
-        if (fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
+        if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
             result = value & 0x7FFFFFFF;  /* Clear sign bit (like C# line 80) */
             nd500_write_float_register(cpu, fi->target_register, (uint32_t)result);
         } else { /* Double (D) */

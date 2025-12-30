@@ -156,7 +156,7 @@ static Nd500DataType determine_datatype_from_prefixes(uint8_t prefixes_mask, uin
     if (prefixes_mask & ND500_PREFIX_BY) types[count++] = ND500_DTYPE_BYTE;
     if (prefixes_mask & ND500_PREFIX_H)  types[count++] = ND500_DTYPE_HALFWORD;
     if (prefixes_mask & ND500_PREFIX_W)  types[count++] = ND500_DTYPE_WORD;
-    if (prefixes_mask & ND500_PREFIX_F)  types[count++] = ND500_DTYPE_WORD;       /* Float is 32-bit */
+    if (prefixes_mask & ND500_PREFIX_F)  types[count++] = ND500_DTYPE_FLOAT;      /* Float uses A registers */
     if (prefixes_mask & ND500_PREFIX_D)  types[count++] = ND500_DTYPE_DOUBLEWORD;
 
     if (count == 0) {

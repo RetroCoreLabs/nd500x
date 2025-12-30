@@ -84,7 +84,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         } else {
             uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
             reg_value = (double)nd500_float_to_ieee754(reg_bits);
-            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
             operand_value = (double)nd500_float_to_ieee754(op_bits);
         }
 

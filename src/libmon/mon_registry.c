@@ -1676,7 +1676,7 @@ void mon_register_all_handlers(void) {
         "Gets the address of the calling program's RT description. Background programs get the RT description",  /* Description */
         "[O] RTDescrAddress (INTEGER): The RT description address returned in W1.",  /* Parameter details */
         mon_30B_GetOwnRTAddress,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status - implemented for RT mode support */
         1             /* Param count */
     );
     mon_register_ex(

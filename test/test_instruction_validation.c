@@ -127,6 +127,7 @@ static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value);
 static uint32_t get_register(Nd500Cpu* cpu, const char* name);
 static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_details);
 static int validate_memory(Nd500Machine* m, cJSON* final_ram, int print_details);
+static int validate_nd100_memory(Nd500Cpu* cpu, Nd500Machine* m, cJSON* final_nd100, int print_details);
 static void analyze_test_coverage(cJSON* test, int verbose);
 
 /**
@@ -578,6 +579,7 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
     cJSON* initial_ram = cJSON_GetObjectItem(initial, "ram");
     cJSON* final_regs = cJSON_GetObjectItem(final, "regs");
     cJSON* final_ram = cJSON_GetObjectItem(final, "ram");
+    cJSON* final_nd100 = cJSON_GetObjectItem(final, "nd100_memory");
 
     /* Get PC from initial regs (default 0x1000) */
     uint32_t pc_addr = 0x1000;
@@ -635,7 +637,29 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
         }
     }
 
-    /* 3b. Check for requiresCallContext flag - set up pending CALL context for ENT* tests */
+    /* 3b. Set ND-100 memory for I/O instruction testing (RIOM) */
+    cJSON* nd100_mem = cJSON_GetObjectItem(initial, "nd100_memory");
+    if (nd100_mem && cJSON_IsArray(nd100_mem)) {
+        cJSON* mem_entry;
+        cJSON_ArrayForEach(mem_entry, nd100_mem) {
+            if (cJSON_IsArray(mem_entry) && cJSON_GetArraySize(mem_entry) >= 2) {
+                cJSON* addr_json = cJSON_GetArrayItem(mem_entry, 0);
+                cJSON* val_json = cJSON_GetArrayItem(mem_entry, 1);
+                if (cJSON_IsNumber(addr_json) && cJSON_IsNumber(val_json)) {
+                    uint32_t nd100_addr = (uint32_t)addr_json->valuedouble;
+                    uint16_t halfword = (uint16_t)val_json->valuedouble;
+
+                    /* Write to physical memory at ND-100 offset */
+                    /* Physical address = nd100_memory_offset + (nd100_addr * 2) */
+                    uint32_t phys_addr = cpu->nd100_memory_offset + (nd100_addr * 2);
+                    nd500_bus_write8(m, phys_addr, (uint8_t)(halfword >> 8));
+                    nd500_bus_write8(m, phys_addr + 1, (uint8_t)(halfword & 0xFF));
+                }
+            }
+        }
+    }
+
+    /* 3c. Check for requiresCallContext flag - set up pending CALL context for ENT* tests */
     cJSON* requires_call = cJSON_GetObjectItem(test, "requiresCallContext");
     if (requires_call && cJSON_IsTrue(requires_call)) {
         /* ENT* instructions require a preceding CALL to have set up context.
@@ -787,8 +811,14 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
         mem_result = validate_memory(m, final_ram, 0);
     }
 
+    /* 9. Validate final ND-100 memory (I/O processor memory) */
+    int nd100_result = 0;
+    if (final_nd100 && cJSON_IsArray(final_nd100) && cJSON_GetArraySize(final_nd100) > 0) {
+        nd100_result = validate_nd100_memory(cpu, m, final_nd100, 0);
+    }
+
     /* Print result */
-    if (reg_result != 0 || mem_result != 0) {
+    if (reg_result != 0 || mem_result != 0 || nd100_result != 0) {
         if (show_details) {
             printf("Test %d/%d: %s ... FAIL\n", test_num, total, test_name);
 
@@ -826,6 +856,7 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
             printf("  Expected vs Actual:\n");
             if (final_regs) validate_registers(cpu, final_regs, 1);
             if (final_ram && cJSON_IsArray(final_ram)) validate_memory(m, final_ram, 1);
+            if (final_nd100 && cJSON_IsArray(final_nd100)) validate_nd100_memory(cpu, m, final_nd100, 1);
 
             /* Show actual final state for debugging */
             printf("  Actual final state: PC=0x%08X I1=0x%08X ST1=0x%08X\n",
@@ -1016,6 +1047,46 @@ static int validate_memory(Nd500Machine* m, cJSON* final_ram, int print_details)
                 }
                 failures++;
             }
+        }
+    }
+    return failures;
+}
+
+/**
+ * Validate ND-100 I/O processor memory against expected values.
+ * Used for RIOM instruction testing to verify source memory is unchanged.
+ *
+ * Format: [[nd100_word_addr, halfword_value], ...]
+ * Physical address: nd100_memory_offset + (nd100_addr * 2)
+ */
+static int validate_nd100_memory(Nd500Cpu* cpu, Nd500Machine* m, cJSON* final_nd100, int print_details) {
+    int failures = 0;
+    cJSON* mem_entry;
+    cJSON_ArrayForEach(mem_entry, final_nd100) {
+        if (!cJSON_IsArray(mem_entry) || cJSON_GetArraySize(mem_entry) < 2) continue;
+
+        cJSON* addr_json = cJSON_GetArrayItem(mem_entry, 0);
+        cJSON* val_json = cJSON_GetArrayItem(mem_entry, 1);
+
+        if (!cJSON_IsNumber(addr_json) || !cJSON_IsNumber(val_json)) continue;
+
+        uint32_t nd100_addr = (uint32_t)addr_json->valuedouble;
+        uint16_t expected = (uint16_t)val_json->valuedouble;
+
+        /* Calculate physical address: nd100_memory_offset + (nd100_addr * 2) */
+        uint32_t phys_addr = cpu->nd100_memory_offset + (nd100_addr * 2);
+
+        /* Read halfword (big-endian) */
+        uint8_t hi = nd500_bus_read8(m, phys_addr);
+        uint8_t lo = nd500_bus_read8(m, phys_addr + 1);
+        uint16_t actual = ((uint16_t)hi << 8) | (uint16_t)lo;
+
+        if (actual != expected) {
+            if (print_details) {
+                printf("  ND100[0x%06X] (phys 0x%08X): expected 0x%04X, got 0x%04X\n",
+                       nd100_addr, phys_addr, expected, actual);
+            }
+            failures++;
         }
     }
     return failures;

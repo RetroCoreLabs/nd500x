@@ -57,7 +57,7 @@ void nd500_instr_Neg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read current register value (like C# lines 50-52) */
     if (fi->uses_float_registers) {
-        if (fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
+        if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
             value = nd500_read_float_register(cpu, fi->target_register);
         } else { /* Double (D) */
             value = nd500_read_double_register(cpu, fi->target_register);
@@ -69,7 +69,7 @@ void nd500_instr_Neg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Perform negation (like C# lines 58-91) */
     if (fi->uses_float_registers) {
         /* Float: just invert sign bit (like C# lines 60-70) */
-        if (fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
+        if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
             result = value ^ 0x80000000;  /* Flip sign bit */
             nd500_write_float_register(cpu, fi->target_register, (uint32_t)result);
         } else { /* Double (D) */

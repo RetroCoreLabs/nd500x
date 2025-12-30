@@ -63,10 +63,9 @@ void nd500_instr_Sfill(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Get starting index from I2 */
     uint32_t dest_index = cpu->I[1];
 
-    /* Fill elements */
+    /* Fill elements using proper data type handling */
     while (dest_index < dest_desc.element_count) {
-        uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_bus_write8(cpu->machine, dest_addr, (uint8_t)(fill_value & 0xFF));
+        nd500_string_write_element(cpu, &dest_desc, dest_index, fill_value, fi->data_type);
         dest_index++;
     }
 

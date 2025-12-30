@@ -63,15 +63,13 @@ void nd500_instr_Smove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t src_index = cpu->I[0];   /* I1 */
     uint32_t dest_index = cpu->I[1];  /* I2 */
 
-    /* Move elements */
+    /* Move elements using proper data type handling */
     while (src_index < source_desc.element_count && dest_index < dest_desc.element_count) {
         /* Read from source */
-        uint32_t src_addr = source_desc.base_address + src_index;
-        uint8_t value = nd500_bus_read8(cpu->machine, src_addr);
+        uint64_t value = nd500_string_read_element(cpu, &source_desc, src_index, fi->data_type);
 
         /* Write to destination */
-        uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_bus_write8(cpu->machine, dest_addr, value);
+        nd500_string_write_element(cpu, &dest_desc, dest_index, value, fi->data_type);
 
         src_index++;
         dest_index++;

@@ -138,46 +138,8 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 		saved_regs[7] = cpu->R;    saved_regs[8] = cpu->ST1;
 		saved_regs[9] = cpu->TOS;
 		/* Format instruction with operands and output trace */
-		char instr_str[256];
-		nd500_format_instruction(instr_str, sizeof(instr_str) - 128, &fi);
-
-		/* Build effective address comment for indirect/memory operands */
-		size_t pos = strlen(instr_str);
-		int has_values = 0;
-
-		/* For CALL/CALLG: show extra operand effective addresses */
-		/* Extra operands are the CALL arguments which use indirect addressing */
-		if (cpu->extra_operand_count > 0) {
-			for (uint16_t i = 0; i < cpu->extra_operand_count && i < 16; i++) {
-				Nd500AddrMode mode = cpu->extra_operands[i].mode;
-				/* Include all memory-referencing operands */
-				if (mode != ND500_ADDR_CONSTANT && mode != ND500_ADDR_CONSTANT_SHORT &&
-				    mode != ND500_ADDR_REGISTER && mode != ND500_ADDR_UNKNOWN) {
-					if (!has_values) {
-						pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, " ; ");
-						has_values = 1;
-					} else {
-						pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, ",");
-					}
-					pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, "0x%X", cpu->extra_operands[i].effective_address);
-				}
-			}
-		} else {
-			/* For non-CALL instructions: check regular operands for indirect addressing */
-			for (int i = 0; i < fi.operand_count && i < 8; i++) {
-				Nd500AddrMode mode = fi.operands[i].mode;
-				if (mode == ND500_ADDR_LOCAL_IND || mode == ND500_ADDR_LOCAL_IND_PI) {
-					if (!has_values) {
-						pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, " ; ");
-						has_values = 1;
-					} else {
-						pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, ",");
-					}
-					pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, "0x%X", fi.operands[i].effective_address);
-				}
-			}
-		}
-
+		char instr_str[128];
+		nd500_format_instruction(instr_str, sizeof(instr_str), &fi);
 		int instr_len = fi.total_len ? fi.total_len : fi.opcode_len;
 		nd500_dbg_trace_before(old_pc, instr_str, fi.bytes, instr_len, saved_regs);
 	}

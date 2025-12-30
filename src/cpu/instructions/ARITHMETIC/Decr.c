@@ -55,7 +55,7 @@ void nd500_instr_Decr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
             value = nd500_double_to_ieee754(op_bits);
         } else {
-            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
             value = (double)nd500_float_to_ieee754(op_bits);
         }
 
@@ -74,7 +74,7 @@ void nd500_instr_Decr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             nd500_write_operand_value(cpu, &fi->operands[0], result_bits, ND500_DTYPE_DOUBLEWORD);
         } else {
             result_bits = nd500_float_from_ieee754((float)result);
-            nd500_write_operand_value(cpu, &fi->operands[0], (uint32_t)result_bits, ND500_DTYPE_WORD);
+            nd500_write_operand_value(cpu, &fi->operands[0], (uint32_t)result_bits, fi->data_type);
         }
 
         /* Update flags: Z (zero), S (sign) */

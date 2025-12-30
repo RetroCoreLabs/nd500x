@@ -36,8 +36,20 @@ MonResult mon_1B_InByte(MonContext* ctx) {
 
     int byte_read = -1;
 
+    /* Special case: Device 0 = Command buffer (program arguments) */
+    if (device_no == 0) {
+        byte_read = mon_read_command_buffer_char();
+        if (byte_read == -1) {
+            /* End of command buffer - return 0 or EOF */
+            byte_read = 0;
+            mon_log(MON_LOG_DEBUG, MON_ID_1B ": End of command buffer");
+        } else {
+            mon_log(MON_LOG_DEBUG, MON_ID_1B ": Read byte 0x%02X ('%c') from command buffer",
+                    byte_read & 0xFF, (byte_read >= 32 && byte_read < 127) ? byte_read : '.');
+        }
+    }
     /* Route by device class */
-    if (is_character_device(device_no) || is_terminal(device_no)) {
+    else if (is_character_device(device_no) || is_terminal(device_no)) {
         /* Character device or terminal: use console I/O */
         ConsoleIO* console = mon_file_table_get_console();
         if (!console) {
