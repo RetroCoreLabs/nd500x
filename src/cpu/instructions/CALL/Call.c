@@ -98,11 +98,6 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Save return address in L register as well */
     cpu->L = return_address;
 
-    /* TODO (optional): Validate target address is an entry point instruction
-     * Valid entry opcodes: ENTD (0x9C), ENTS (0xB8), ENTF (0xDE), etc.
-     * For now, we skip this validation for simplicity.
-     */
-
     /* Check for indirect segment call (including SINTRAN MON calls) */
     uint32_t resolved_addr;
     int indirect_result = nd500_check_indirect_call(
@@ -118,6 +113,59 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (indirect_result == INDIRECT_HANDLED) {
         /* SINTRAN MON call completed - return to caller, don't jump to entry */
         cpu->PC = resolved_addr;  /* = return_address */
+        return;
+    }
+
+    /* ========================================================================
+     * ENTRY POINT VALIDATION
+     * ========================================================================
+     *
+     * CRITICAL: Must read opcode from PROGRAM space, not DATA space!
+     * On ND-500, program and data have separate capability tables (PMON vs DMON).
+     * Using nd500_fetch_memory_8() ensures we read from program space.
+     *
+     * Valid entry point opcodes:
+     * - ENTS   (0xB8) - Enter stack subroutine
+     * - ENTSN  (0xBA) - Enter stack subroutine, no display
+     * - ENTT   (0xBC) - Enter stack subroutine, timer
+     * - ENTB   (0xBD) - Enter stack subroutine, block
+     * - ENTD   (0x9C) - Enter domain subroutine
+     * - ENTF   (0xDD) - Enter function (no arguments)
+     * - ENTFN  (0xDE) - Enter function, no display
+     * - ENTM   (0xDF) - Enter masked subroutine
+     * ======================================================================== */
+
+    /* Read opcode from PROGRAM space (not data space!) */
+    uint8_t entry_opcode = nd500_fetch_memory_8(cpu, resolved_addr);
+
+    /* Check if a trap occurred during the fetch (e.g., page fault) */
+    if (nd500_trap_occurred()) {
+        printf("[CALL] Failed to fetch entry opcode from 0x%08X (program space)\n", resolved_addr);
+        return;
+    }
+
+    /* Validate entry point opcode */
+    int is_valid_entry = 0;
+    switch (entry_opcode) {
+        case 0xB8:  /* ENTS - Enter stack subroutine */
+        case 0xBA:  /* ENTSN - Enter stack subroutine, no display */
+        case 0xBC:  /* ENTT - Enter stack subroutine, timer */
+        case 0xBD:  /* ENTB - Enter stack subroutine, block */
+        case 0x9C:  /* ENTD - Enter domain subroutine */
+        case 0xDD:  /* ENTF - Enter function (no arguments) */
+        case 0xDE:  /* ENTFN - Enter function, no display */
+        case 0xDF:  /* ENTM - Enter masked subroutine */
+            is_valid_entry = 1;
+            break;
+        default:
+            is_valid_entry = 0;
+            break;
+    }
+
+    if (!is_valid_entry) {
+        printf("[TRAP] CALL at PC=0x%08X: Target 0x%08X opcode=0x%02X is not an entry point (PROGRAM SPACE)\n",
+               fi->address, resolved_addr, entry_opcode);
+        trap_instruction_sequence_error(cpu, fi->address);
         return;
     }
 

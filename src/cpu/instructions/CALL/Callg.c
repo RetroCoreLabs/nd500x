@@ -140,6 +140,9 @@
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Callg.cs
  */
 void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
+    /* Check if trace mode is enabled for debug output */
+    int do_trace = nd500_dbg_get_trace_mode();
+
     /* ========================================================================
      * STEP 1: VALIDATE MINIMUM OPERAND COUNT
      * ======================================================================== */
@@ -171,8 +174,10 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Operand 1: Argument count (byte value) */
     uint8_t arg_count = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_BYTE);
 
-    printf("[CALLG] Address=0x%08X (via general operand), args=%u at PC=0x%08X\n",
-           subroutine_addr, arg_count, fi->address);
+    if (do_trace) {
+        printf("[CALLG] Address=0x%08X (via general operand), args=%u at PC=0x%08X\n",
+               subroutine_addr, arg_count, fi->address);
+    }
 
     /* ========================================================================
      * STEP 4: VALIDATE EXTRA OPERAND COUNT
@@ -216,13 +221,15 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             cpu->pending_call_arg_addresses[i] = arg_operand->effective_address;
 
             /* Check if this is a MON call (segment 31) */
-            if ((subroutine_addr >> 27) == 31) {
-                printf("[CALLG MON] arg[%u]: mode=%d, addr_code=0x%02X, ea=0x%08X, B=0x%08X, R=0x%08X\n",
-                       i, arg_operand->mode, arg_operand->address_code,
-                       arg_operand->effective_address, cpu->B, cpu->R);
-            } else {
-                printf("  CALLG arg[%u]: addr=0x%08X (mode=%u)\n",
-                       i, arg_operand->effective_address, arg_operand->mode);
+            if (do_trace) {
+                if ((subroutine_addr >> 27) == 31) {
+                    printf("[CALLG MON] arg[%u]: mode=%d, addr_code=0x%02X, ea=0x%08X, B=0x%08X, R=0x%08X\n",
+                           i, arg_operand->mode, arg_operand->address_code,
+                           arg_operand->effective_address, cpu->B, cpu->R);
+                } else {
+                    printf("  CALLG arg[%u]: addr=0x%08X (mode=%u)\n",
+                           i, arg_operand->effective_address, arg_operand->mode);
+                }
             }
         }
     }
@@ -269,39 +276,72 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (indirect_result == INDIRECT_HANDLED) {
         /* SINTRAN MON call completed - return to caller, don't jump to entry */
         cpu->PC = resolved_addr;  /* = return_address */
-        printf("[CALLG] MON call completed, returning to 0x%08X\n", resolved_addr);
+        if (do_trace) {
+            printf("[CALLG] MON call completed, returning to 0x%08X\n", resolved_addr);
+        }
+        return;
+    }
+
+    /* ========================================================================
+     * ENTRY POINT VALIDATION
+     * ========================================================================
+     *
+     * CRITICAL: Must read opcode from PROGRAM space, not DATA space!
+     * On ND-500, program and data have separate capability tables (PMON vs DMON).
+     * Using nd500_fetch_memory_8() ensures we read from program space.
+     *
+     * Valid entry point opcodes:
+     * - ENTS   (0xB8) - Enter stack subroutine
+     * - ENTSN  (0xBA) - Enter stack subroutine, no display
+     * - ENTT   (0xBC) - Enter stack subroutine, timer
+     * - ENTB   (0xBD) - Enter stack subroutine, block
+     * - ENTD   (0x9C) - Enter domain subroutine
+     * - ENTF   (0xDD) - Enter function (no arguments)
+     * - ENTFN  (0xDE) - Enter function, no display
+     * - ENTM   (0xDF) - Enter masked subroutine
+     * ======================================================================== */
+
+    /* Read opcode from PROGRAM space (not data space!) */
+    uint8_t entry_opcode = nd500_fetch_memory_8(cpu, resolved_addr);
+
+    /* Check if a trap occurred during the fetch (e.g., page fault) */
+    if (nd500_trap_occurred()) {
+        printf("[CALLG] Failed to fetch entry opcode from 0x%08X (program space)\n", resolved_addr);
+        return;
+    }
+
+    /* Validate entry point opcode */
+    int is_valid_entry = 0;
+    switch (entry_opcode) {
+        case 0xB8:  /* ENTS - Enter stack subroutine */
+        case 0xBA:  /* ENTSN - Enter stack subroutine, no display */
+        case 0xBC:  /* ENTT - Enter stack subroutine, timer */
+        case 0xBD:  /* ENTB - Enter stack subroutine, block */
+        case 0x9C:  /* ENTD - Enter domain subroutine */
+        case 0xDD:  /* ENTF - Enter function (no arguments) */
+        case 0xDE:  /* ENTFN - Enter function, no display */
+        case 0xDF:  /* ENTM - Enter masked subroutine */
+            is_valid_entry = 1;
+            break;
+        default:
+            is_valid_entry = 0;
+            break;
+    }
+
+    if (!is_valid_entry) {
+        printf("[TRAP] CALLG at PC=0x%08X: Target 0x%08X opcode=0x%02X is not an entry point (PROGRAM SPACE)\n",
+               fi->address, resolved_addr, entry_opcode);
+        trap_instruction_sequence_error(cpu, fi->address);
         return;
     }
 
     /* INDIRECT_DIRECT or INDIRECT_DOMAIN_SWITCH: Jump to resolved address */
     cpu->PC = resolved_addr;
 
-    printf("[CALLG] Jumping to 0x%08X, return=0x%08X, args=%u\n",
-           resolved_addr, cpu->L, arg_count);
-
-    /* ========================================================================
-     * NOTES ON ENTRY POINT VALIDATION (optional, not implemented here)
-     * ========================================================================
-     *
-     * Real hardware optionally validates that the target address points to
-     * a valid entry point instruction:
-     * - ENTS (0x00B8)
-     * - ENTM (0x00DF)
-     * - ENTD (0x009C)
-     * - ENTB (0x00BD)
-     * - etc.
-     *
-     * If the target is not an entry point, hardware raises ISE
-     * (Instruction Sequence Error) trap.
-     *
-     * This validation is currently NOT implemented in the emulator.
-     * We trust that the code is correct and the target is valid.
-     *
-     * To implement this validation:
-     *   1. Read opcode byte at subroutine_addr
-     *   2. Check if it's a valid ENT* opcode
-     *   3. If not, call trap_instruction_sequence_error()
-     * ======================================================================== */
+    if (do_trace) {
+        printf("[CALLG] Jumping to 0x%08X, return=0x%08X, args=%u (entry opcode=0x%02X)\n",
+               resolved_addr, cpu->L, arg_count, entry_opcode);
+    }
 
     /* No status bits affected */
 }

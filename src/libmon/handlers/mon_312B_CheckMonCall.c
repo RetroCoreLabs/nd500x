@@ -7,7 +7,9 @@
  *
  * Parameters:
  *   [I] MonCallNumber (INTEGER): MON call number to check
- *   [O] MonCallEntry (INTEGER): Returns 0 if exists, -1 if not (in W1)
+ *   [O] MonCallEntry (INTEGER): Address of entry (0 if exists, non-zero if not)
+ *
+ * Note: Result is written to OUTPUT parameter, NOT W1.
  *
  * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
@@ -45,8 +47,11 @@ MonResult mon_312B_CheckMonCall(MonContext* ctx) {
         mon_log(MON_LOG_DEBUG, MON_ID_312B ": OUT: MON %oB does not exist", mon_number);
     }
 
-    /* Return result in W1 */
-    ctx->set_error_code(ctx->cpu, (uint32_t)result);
+    /* Write result to OUTPUT parameter (arg[1]), not W1 */
+    if (ctx->arg_count >= 2) {
+        mon_write_param_word(ctx, 1, (uint32_t)result);
+        MON_LOG_OUT_WORD(ctx, 1, "MonCallEntry");
+    }
 
     mon_set_success(ctx);
     return MON_SUCCESS;

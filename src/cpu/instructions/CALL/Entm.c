@@ -180,6 +180,9 @@
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entm.cs
  */
 void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
+    /* Check if trace mode is enabled for debug output */
+    int do_trace = nd500_dbg_get_trace_mode();
+
     /* ========================================================================
      * STACK FRAME FIELD OFFSETS (identical to ENTS)
      * ======================================================================== */
@@ -222,8 +225,10 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Operand 2: Total stack demand (maximum stack size, TOS limit) */
     uint32_t total_stack_demand = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_WORD);
 
-    printf("[ENTM] bottom=0x%08X, demand_main=0x%08X, total=0x%08X at PC=0x%08X\n",
-           bottom_of_stack, stack_demand_main, total_stack_demand, fi->address);
+    if (do_trace) {
+        printf("[ENTM] bottom=0x%08X, demand_main=0x%08X, total=0x%08X at PC=0x%08X\n",
+               bottom_of_stack, stack_demand_main, total_stack_demand, fi->address);
+    }
 
     /* ========================================================================
      * STEP 4: VALIDATE STACK DEMANDS
@@ -255,7 +260,9 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Save old TOS at old SP location */
     nd500_write_memory_32(cpu, old_sp, old_tos);
 
-    printf("  ENTM saved old TOS=0x%08X at old SP=0x%08X\n", old_tos, old_sp);
+    if (do_trace) {
+        printf("  ENTM saved old TOS=0x%08X at old SP=0x%08X\n", old_tos, old_sp);
+    }
 
     /* ========================================================================
      * STEP 6-8: INITIALIZE NEW STACK FRAME
@@ -287,7 +294,9 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ======================================================================== */
     cpu->TOS = bottom_of_stack + total_stack_demand;
 
-    printf("  ENTM new TOS=0x%08X (bottom + total)\n", cpu->TOS);
+    if (do_trace) {
+        printf("  ENTM new TOS=0x%08X (bottom + total)\n", cpu->TOS);
+    }
 
     /* ========================================================================
      * STEP 10: COPY ARGUMENTS TO NEW FRAME
@@ -313,8 +322,10 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     cpu->pending_call_return_address = 0;
     cpu->pending_call_arg_count = 0;
 
-    printf("[ENTM] New stack initialized: B=0x%08X, TOS=0x%08X, args=%u\n",
-           new_b, cpu->TOS, arg_count);
+    if (do_trace) {
+        printf("[ENTM] New stack initialized: B=0x%08X, TOS=0x%08X, args=%u\n",
+               new_b, cpu->TOS, arg_count);
+    }
 
     /* ========================================================================
      * NOTES ON CROSS-DOMAIN ENTM (not implemented)

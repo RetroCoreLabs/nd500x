@@ -27,12 +27,23 @@
  */
 
 /**
- * Read 8-bit byte from virtual memory
+ * Read 8-bit byte from virtual memory (DATA space)
  * @param cpu CPU state
  * @param vaddr Virtual address
  * @return 8-bit value
  */
 uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr);
+
+/**
+ * Read 8-bit byte from PROGRAM space (instruction fetch path)
+ * On ND-500, program and data use separate capability tables (PMON vs DMON).
+ * Used by CALL/CALLG to validate entry point opcodes.
+ * Reference: ND-500 Reference Manual, Chapter 2 (Memory Architecture)
+ * @param cpu CPU state
+ * @param vaddr Virtual address
+ * @return 8-bit value from program space
+ */
+uint8_t nd500_fetch_memory_8(Nd500Cpu* cpu, uint32_t vaddr);
 
 /**
  * Write 8-bit byte to virtual memory

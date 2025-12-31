@@ -33,6 +33,33 @@ uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
     return value;
 }
 
+/**
+ * Read 8-bit value from PROGRAM space (instruction fetch path)
+ *
+ * On ND-500, program and data use separate capability tables:
+ * - Program space (PMON): Used for instruction fetch
+ * - Data space (DMON): Used for data read/write
+ *
+ * This function uses is_instruction=1 to access program capabilities.
+ * Used by CALL/CALLG to validate entry point opcodes.
+ *
+ * Reference: ND-500 Reference Manual, Chapter 2 (Memory Architecture)
+ */
+uint8_t nd500_fetch_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
+    if (!cpu || !cpu->machine) return 0;
+
+    // Translate virtual to physical address if MMU is enabled
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 0, 1); // is_write=0, is_instruction=1 (PROGRAM space!)
+        if (nd500_trap_occurred()) return 0;  // Trap occurred during translation
+    }
+
+    uint8_t value = nd500_bus_read8(cpu->machine, paddr);
+    MEMTRACE_RD("[MEMTRACE] fetch_8: vaddr=0x%08X paddr=0x%08X value=0x%02X (PROGRAM SPACE)\n", vaddr, paddr, value);
+    return value;
+}
+
 void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
     if (!cpu || !cpu->machine) return;
 

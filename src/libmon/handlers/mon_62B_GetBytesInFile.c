@@ -65,8 +65,11 @@ MonResult mon_62B_GetBytesInFile(MonContext* ctx) {
 
     mon_log(MON_LOG_DEBUG, MON_ID_62B ": OUT: File %o has %o bytes", file_no, bytes_in_file);
 
-    /* Return bytes in W1 */
-    ctx->set_error_code(ctx->cpu, bytes_in_file);
+    /* Write bytes to output parameter (arg[1]) */
+    if (ctx->arg_count >= 2) {
+        mon_write_param_word(ctx, 1, bytes_in_file);
+        MON_LOG_OUT_WORD(ctx, 1, "NoOfBytes");
+    }
 
     mon_set_success(ctx);
     return MON_SUCCESS;
