@@ -417430,7 +417430,8 @@
     "final": {
       "regs": {
         "pc": 4107,
-        "b": 131072
+        "b": 131072,
+        "tos": 135168
       },
       "ram": [
         [
@@ -417497,7 +417498,8 @@
     "final": {
       "regs": {
         "pc": 4107,
-        "b": 131072
+        "b": 131072,
+        "tos": 139264
       },
       "ram": [
         [
@@ -481686,7 +481688,8 @@
       "regs": {
         "pc": 4107,
         "l": 0,
-        "b": 65536
+        "b": 65536,
+        "tos": 69632
       },
       "ram": [
         [
@@ -910014,7 +910017,8 @@
     },
     "final": {
       "regs": {
-        "pc": 4099
+        "pc": 4099,
+        "hl": 12288
       },
       "ram": []
     },
@@ -910559,7 +910563,8 @@
     },
     "final": {
       "regs": {
-        "pc": 4099
+        "pc": 4099,
+        "ll": 12288
       },
       "ram": []
     },
@@ -912336,7 +912341,8 @@
     },
     "final": {
       "regs": {
-        "pc": 4099
+        "pc": 4099,
+        "tha": 12288
       },
       "ram": []
     },
@@ -912360,7 +912366,8 @@
     },
     "final": {
       "regs": {
-        "pc": 4099
+        "pc": 4099,
+        "tos": 12288
       },
       "ram": []
     },
@@ -925509,7 +925516,8 @@
     "final": {
       "regs": {
         "pc": 4104,
-        "st": 0
+        "st": 0,
+        "tos": 8192
       },
       "ram": [
         [
@@ -925765,7 +925773,8 @@
     "final": {
       "regs": {
         "pc": 4104,
-        "st": 0
+        "st": 0,
+        "tos": 8192
       },
       "ram": [
         [
@@ -926021,7 +926030,8 @@
     "final": {
       "regs": {
         "pc": 4104,
-        "st": 0
+        "st": 0,
+        "tos": 8192
       },
       "ram": [
         [
@@ -926293,7 +926303,8 @@
     "final": {
       "regs": {
         "pc": 4104,
-        "st": 0
+        "st": 0,
+        "tos": 8192
       },
       "ram": [
         [
@@ -929591,7 +929602,7 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "Call_1100_NegativeTest_WrongPC",
+    "name": "Call_1100_NegativeTest_WrongB",
     "assembly": "call $4352,$0,$0",
     "bytes": [
       195,
@@ -929638,44 +929649,15 @@
     },
     "final": {
       "regs": {
-        "pc": 305416056,
-        "b": 65536
+        "pc": 4352,
+        "b": 305485432
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
-  },
-  {
-    "name": "Callg_2000_NegativeTest_WrongPC",
-    "assembly": "callg $8192,$0,$0",
-    "bytes": [
-      181,
-      206,
-      32,
-      0,
-      0,
-      0
-    ],
-    "initial": {
-      "regs": {
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "pc": 305428088
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "b"
   },
   {
     "name": "Chain_3000_NegativeTest_WrongI1",
@@ -929751,7 +929733,8 @@
     "final": {
       "regs": {
         "pc": 4107,
-        "b": 131072
+        "b": 131072,
+        "tos": 305546872
       },
       "ram": [
         [
@@ -929956,7 +929939,7 @@
     "expectedValidationFailure": "b"
   },
   {
-    "name": "Ifkret_KeySet_NegativeTest_WrongPC",
+    "name": "Ifkret_KeySet_NegativeTest_WrongB",
     "assembly": "ifkret",
     "bytes": [
       157
@@ -930004,18 +929987,18 @@
     },
     "final": {
       "regs": {
-        "pc": 305428088,
-        "b": 65792
+        "pc": 8192,
+        "b": 305485688
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "b"
   },
   {
-    "name": "ret_To2000_NegativeTest_WrongPC",
+    "name": "ret_To2000_NegativeTest_WrongB",
     "assembly": "ret",
     "bytes": [
       128
@@ -930104,18 +930087,18 @@
     },
     "final": {
       "regs": {
-        "pc": 305428088,
-        "b": 65792
+        "pc": 8192,
+        "b": 305485688
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "b"
   },
   {
-    "name": "retb_To2000_NegativeTest_WrongPC",
+    "name": "retb_To2000_NegativeTest_WrongB",
     "assembly": "retb",
     "bytes": [
       254,
@@ -930205,18 +930188,18 @@
     },
     "final": {
       "regs": {
-        "pc": 305428088,
-        "b": 65792
+        "pc": 8192,
+        "b": 305485688
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "b"
   },
   {
-    "name": "retbk_To2000_NegativeTest_WrongPC",
+    "name": "retbk_To2000_NegativeTest_WrongB",
     "assembly": "retbk",
     "bytes": [
       254,
@@ -930306,18 +930289,18 @@
     },
     "final": {
       "regs": {
-        "pc": 305428088,
-        "b": 65792
+        "pc": 8192,
+        "b": 305485688
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "b"
   },
   {
-    "name": "retd_To2000_NegativeTest_WrongPC",
+    "name": "retd_To2000_NegativeTest_WrongB",
     "assembly": "retd",
     "bytes": [
       130
@@ -930333,18 +930316,18 @@
     },
     "final": {
       "regs": {
-        "pc": 305428088,
-        "b": 65536
+        "pc": 8192,
+        "b": 305485432
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "b"
   },
   {
-    "name": "retk_To2000_NegativeTest_WrongPC",
+    "name": "retk_To2000_NegativeTest_WrongB",
     "assembly": "retk",
     "bytes": [
       129
@@ -930433,15 +930416,15 @@
     },
     "final": {
       "regs": {
-        "pc": 305428088,
-        "b": 65792
+        "pc": 8192,
+        "b": 305485688
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "b"
   },
   {
     "name": "Equal_Zero_NegativeTest_WrongZFlag",
@@ -931941,7 +931924,7 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "Init_Default_NegativeTest_WrongPC",
+    "name": "Init_Default_NegativeTest_WrongTOS",
     "assembly": "init $0x10000,$0x100,$0x1000",
     "bytes": [
       220,
@@ -931967,7 +931950,8 @@
       "regs": {
         "pc": 4107,
         "l": 0,
-        "b": 65536
+        "b": 65536,
+        "tos": 305481336
       },
       "ram": [
         [
@@ -932023,7 +932007,7 @@
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "tos"
   },
   {
     "name": "Noop_Default_NegativeTest_WrongZFlag",
@@ -932856,7 +932840,7 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "b_Eq_1000_NegativeTest_WrongPC",
+    "name": "b_Eq_1000_NegativeTest_WrongB",
     "assembly": "b:= I1",
     "bytes": [
       252,
@@ -932874,69 +932858,17 @@
     "final": {
       "regs": {
         "pc": 4099,
-        "b": 4096
+        "b": 305415800
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "b"
   },
   {
-    "name": "bEq__2000_NegativeTest_WrongPC",
-    "assembly": "b=: I1",
-    "bytes": [
-      252,
-      10,
-      208
-    ],
-    "initial": {
-      "regs": {
-        "i1": 8192,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "pc": 4099
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
-  },
-  {
-    "name": "Clrk_Default_NegativeTest_WrongPC",
-    "assembly": "CLRK",
-    "bytes": [
-      254,
-      3
-    ],
-    "initial": {
-      "regs": {
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "pc": 4098
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
-  },
-  {
-    "name": "hl_Eq_3000_NegativeTest_WrongPC",
+    "name": "hl_Eq_3000_NegativeTest_WrongHL",
     "assembly": "hl:= I1",
     "bytes": [
       253,
@@ -932953,17 +932885,18 @@
     },
     "final": {
       "regs": {
-        "pc": 4099
+        "pc": 4099,
+        "hl": 305423992
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "hl"
   },
   {
-    "name": "hlEq__Store_12345678_To_00010000_NegativeTest_WrongPC",
+    "name": "hlEq__Store_12345678_To_00010000_NegativeTest_WrongMem0x10000",
     "assembly": "hl=: @0x00010000",
     "bytes": [
       253,
@@ -933006,7 +932939,7 @@
       "ram": [
         [
           65536,
-          18
+          19
         ],
         [
           65537,
@@ -933024,11 +932957,11 @@
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "negativeTestType": "wrong_memory",
+    "expectedValidationFailure": "ram:0x00010000"
   },
   {
-    "name": "l_Eq_3000_NegativeTest_WrongPC",
+    "name": "l_Eq_3000_NegativeTest_WrongL",
     "assembly": "l:= I1",
     "bytes": [
       253,
@@ -933046,17 +932979,17 @@
     "final": {
       "regs": {
         "pc": 4099,
-        "l": 12288
+        "l": 305423992
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "l"
   },
   {
-    "name": "lEq__Store_12345678_To_00010000_NegativeTest_WrongPC",
+    "name": "lEq__Store_12345678_To_00010000_NegativeTest_WrongMem0x10000",
     "assembly": "l=: @0x00010000",
     "bytes": [
       253,
@@ -933099,7 +933032,7 @@
       "ram": [
         [
           65536,
-          18
+          19
         ],
         [
           65537,
@@ -933117,11 +933050,11 @@
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "negativeTestType": "wrong_memory",
+    "expectedValidationFailure": "ram:0x00010000"
   },
   {
-    "name": "ll_Eq_3000_NegativeTest_WrongPC",
+    "name": "ll_Eq_3000_NegativeTest_WrongLL",
     "assembly": "ll:= I1",
     "bytes": [
       253,
@@ -933138,17 +933071,18 @@
     },
     "final": {
       "regs": {
-        "pc": 4099
+        "pc": 4099,
+        "ll": 305423992
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "ll"
   },
   {
-    "name": "llEq__Store_12345678_To_00010000_NegativeTest_WrongPC",
+    "name": "llEq__Store_12345678_To_00010000_NegativeTest_WrongMem0x10000",
     "assembly": "ll=: @0x00010000",
     "bytes": [
       253,
@@ -933191,7 +933125,7 @@
       "ram": [
         [
           65536,
-          18
+          19
         ],
         [
           65537,
@@ -933209,8 +933143,8 @@
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "negativeTestType": "wrong_memory",
+    "expectedValidationFailure": "ram:0x00010000"
   },
   {
     "name": "Move_0_NegativeTest_WrongZFlag",
@@ -933244,61 +933178,7 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "ote1_Eq_3000_NegativeTest_WrongPC",
-    "assembly": "ote1:= I1",
-    "bytes": [
-      253,
-      187,
-      208
-    ],
-    "initial": {
-      "regs": {
-        "i1": 12288,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "pc": 4099
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
-  },
-  {
-    "name": "ote2_Eq_3000_NegativeTest_WrongPC",
-    "assembly": "ote2:= I1",
-    "bytes": [
-      253,
-      188,
-      208
-    ],
-    "initial": {
-      "regs": {
-        "i1": 12288,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "pc": 4099
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
-  },
-  {
-    "name": "r_Eq_1000_NegativeTest_WrongPC",
+    "name": "r_Eq_1000_NegativeTest_WrongR",
     "assembly": "r:= I1",
     "bytes": [
       24,
@@ -933315,68 +933195,14 @@
     "final": {
       "regs": {
         "pc": 4098,
-        "r": 4096
+        "r": 305415800
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
-  },
-  {
-    "name": "rEq__2000_NegativeTest_WrongPC",
-    "assembly": "r=: I1",
-    "bytes": [
-      252,
-      9,
-      208
-    ],
-    "initial": {
-      "regs": {
-        "i1": 8192,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "pc": 4099
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
-  },
-  {
-    "name": "st1_Eq_3000_NegativeTest_WrongPC",
-    "assembly": "st1:= I1",
-    "bytes": [
-      253,
-      185,
-      208
-    ],
-    "initial": {
-      "regs": {
-        "i1": 12288,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "pc": 4099
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "r"
   },
   {
     "name": "Stz_StoreZero_NegativeTest_WrongZFlag",
@@ -933505,7 +933331,7 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "tha_Eq_3000_NegativeTest_WrongPC",
+    "name": "tha_Eq_3000_NegativeTest_WrongTHA",
     "assembly": "tha:= I1",
     "bytes": [
       253,
@@ -933522,17 +933348,18 @@
     },
     "final": {
       "regs": {
-        "pc": 4099
+        "pc": 4099,
+        "tha": 305423992
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "tha"
   },
   {
-    "name": "tos_Eq_3000_NegativeTest_WrongPC",
+    "name": "tos_Eq_3000_NegativeTest_WrongTOS",
     "assembly": "tos:= I1",
     "bytes": [
       253,
@@ -933549,72 +933376,15 @@
     },
     "final": {
       "regs": {
-        "pc": 4099
+        "pc": 4099,
+        "tos": 305423992
       },
       "ram": []
     },
     "maxInstructions": 1,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
-  },
-  {
-    "name": "pshift_basic_NegativeTest_WrongPC",
-    "assembly": "pshift I1,I2",
-    "bytes": [
-      254,
-      178,
-      208,
-      209
-    ],
-    "initial": {
-      "regs": {
-        "i1": 8192,
-        "i2": 8208,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "pc": 4100
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
-  },
-  {
-    "name": "pshiftr_basic_NegativeTest_WrongPC",
-    "assembly": "pshiftr I1,I2",
-    "bytes": [
-      254,
-      135,
-      208,
-      209
-    ],
-    "initial": {
-      "regs": {
-        "i1": 8192,
-        "i2": 8208,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "pc": 4100
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "pc"
+    "expectedValidationFailure": "tos"
   },
   {
     "name": "Sha_0_0_NegativeTest_WrongZFlag",
@@ -935020,7 +934790,8 @@
     "final": {
       "regs": {
         "pc": 4104,
-        "st": 32
+        "st": 32,
+        "tos": 8192
       },
       "ram": [
         [
