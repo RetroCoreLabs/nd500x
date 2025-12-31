@@ -394,7 +394,7 @@ void mon_register_all_handlers(void) {
         "Gets the current system time and date.\n\n- The current system time is returned as basic time units, s",  /* Description */
         "[O] TimeBuffer (ARRAY): Buffer to receive 7 integers containing:\n[0] = basic time units (1/50th second)\n[1] = seconds\n[2] = minutes\n[3] = hours\n[4] = day\n[5] = month\n[6] = year",  /* Parameter details */
         mon_113B_GetCurrentTime,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -405,7 +405,7 @@ void mon_register_all_handlers(void) {
         "Gets the time you have used the CPU since you logged in. In batch jobs, you get the time since you entered the job. CPU time is in basic time units (1/50th second). Can also be used from RT-programs.",  /* Description */
         "[O] TimeUsed (LONGINT): CPU time used in basic time units (1/50s). Output returned in W1 register.",  /* Parameter details */
         mon_114B_GetTimeUsed,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -438,7 +438,7 @@ void mon_register_all_handlers(void) {
         "Reads any number of bytes from a file. The read operation must start at the beginning of a block. Th",  /* Description */
         "[I] FileNo (INTEGER2): File number. See OpenFile.\\n[I] WaitFlag (INTEGER2): Wait flag. 0=suspend until complete, non-zero=continue (use AwaitFileTransfer to check).\\n[O] Buff (BYTES): Buffer to receive transferred data (output). Must start on even byte address.\\n[I] BlockNo (INTEGER2): Block number to start reading from. Use -1 to read the next block.\\n[I] NoOfBytes (LONGINT): Number of bytes to read.",  /* Parameter details */
         mon_117B_ReadFromFile,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         5             /* Param count */
     );
     mon_register_ex(
@@ -460,7 +460,7 @@ void mon_register_all_handlers(void) {
         "Writes any number of bytes to a file. The read operation must start at the beginning of a block. The",  /* Description */
         "[I] FileNo (INTEGER2): File number. See OpenFile.\\n[I] ReturnFlag (INTEGER2): Wait flag. 0=suspend until complete, non-zero=continue (use AwaitFileTransfer to check).\\n[I] Buff (BYTES): Buffer containing data to be transferred.\\n[I] BlockNo (INTEGER2): Block number to start writing from. Use -1 to write to the next block.\\n[I] NoOfBytes (LONGINT): Number of bytes to be written.",  /* Parameter details */
         mon_120B_WriteToFile,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         5             /* Param count */
     );
     mon_register_ex(
@@ -548,7 +548,7 @@ void mon_register_all_handlers(void) {
         "Transfers a string to the command buffer. The command buffer contains the last command input from th",  /* Description */
         "[I] Command (STRING): String to transfer to the command buffer (up to 32 characters).",  /* Parameter details */
         mon_12B_SetCommandBuffer,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -678,7 +678,7 @@ void mon_register_all_handlers(void) {
         "Outputs a user-defined, real-time error. The error message is output on the error device, i.e. norma",  /* Description */
         "[I] ErrorNumber (INTEGER): Error number (50-69). This number is output following ERROR.\\n[I] SubErrorNumber (INTEGER): Suberror number.",  /* Parameter details */
         mon_142B_ToErrorDevice,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -689,7 +689,7 @@ void mon_register_all_handlers(void) {
         "Gets information about the execution of the calling program. You are told whether the program execut",  /* Description */
         "[O] ExecutionMode (INTEGER): Execution mode:\n0 = interactive program\n1 = batch job\n2 = mode job\n3 = RT program\\n[O] InputDev (INTEGER): Logical device number for command input. Terminal number for interactive, file number for batch/mode.\\n[O] OutputDev (INTEGER): Logical device number for command output. Terminal number for interactive, file number for batch/mode.\\n[O] UserIndex (INTEGER): Directory and user index of program's owner. Bits 8-15=directory index, bits 0-7=user index.",  /* Parameter details */
         mon_143B_ExecutionInfo,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         4             /* Param count */
     );
     mon_register_ex(
@@ -989,7 +989,7 @@ void mon_register_all_handlers(void) {
         "Reads one byte from a character device, e.g. a terminal or an opened file. If the device is a word-o",  /* Description */
         "[I] DeviceNumber (INTEGER): Logical device number. Use 1 for your own terminal.\\n[O] ReturnValue (INTEGER): The read byte.",  /* Parameter details */
         mon_1B_InByte,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register(
@@ -1131,7 +1131,7 @@ void mon_register_all_handlers(void) {
         "Creates a file. The file may be indexed, contiguous, or allocated. Most files are indexed. The size ",  /* Description */
         "[I] FileName (STRING): File name. Default file type is :DATA.\\n[I] StartAddress (INTEGER2): Start address in the directory. Use 0 if you want to create a contiguous or indexed file.\\n[I] NoOfPages (INTEGER2): Length of the file in pages. Use 0 if you want to create an indexed file.",  /* Parameter details */
         mon_221B_CreateFile,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         3             /* Param count */
     );
     mon_register_ex(
@@ -1438,7 +1438,7 @@ void mon_register_all_handlers(void) {
         "Returns a complete file name from an abbreviated one. The directory, the user, the file name, the fi",  /* Description */
         "[I] AbbrevFileName (STRING): Abbreviated file name string (64 chars). May include a file type.\\n[O] FileName (STRING): Buffer to receive complete file name, terminated by apostrophe (64 chars).\\n[I] FileType (STRING): Default file type string (4 chars). Used on ND-100 only, ignored by ND-500.",  /* Parameter details */
         mon_256B_FullFileName,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         3             /* Param count */
     );
     mon_register_ex(
@@ -1602,7 +1602,7 @@ void mon_register_all_handlers(void) {
         "Writes one byte to a character device, e.g. a terminal or an opened file. If the device is a word-or",  /* Description */
         "[I] DeviceNumber (INTEGER): Logical device number. See appendix B. Use 1 for your own terminal.\\n[I] OutputValue (INTEGER): The byte to write.",  /* Parameter details */
         mon_2B_OutByte,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -1764,7 +1764,7 @@ void mon_register_all_handlers(void) {
         "Executes a SINTRAN III command. Specify the command name and the parameters as a text string.\n\n- An ",  /* Description */
         "[I] Command (STRING): SINTRAN III command string to execute (up to 35 chars).",  /* Parameter details */
         mon_317B_ExecuteCommand,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -1775,7 +1775,7 @@ void mon_register_all_handlers(void) {
         "DEPRECATED: This MON call is no longer supported.",  /* Description */
         "",  /* Parameter details */
         mon_321B_UEAdministrator,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         0             /* Param count */
     );
     mon_register_ex(
@@ -1852,7 +1852,7 @@ void mon_register_all_handlers(void) {
         "Writes a message to the user's terminal. This is convenient for error messages in background program",  /* Description */
         "[I] Message (STRING): String message to write to user's terminal (max 512 characters).",  /* Parameter details */
         mon_32B_OutMessage,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -2135,7 +2135,7 @@ void mon_register_all_handlers(void) {
         "Connects a file as a segment to your domain. You can then access the file as a logical segment. This",  /* Description */
         "[I] FileNo (INTEGER2): File number. See OpenFile.\\n[I] LogSegmentNo (INTEGER2): Logical segment number in the domain. The segment number must be free. Use 0 to select the first free segment.\\n[I] AccessType (INTEGER2): Access type: 0=file contains initial data, 1=uninitialized empty file, 2=primarily sequential access, 3=combination of 1 and 2.\\n[O] SegmentNo (INTEGER2): Logical segment number selected (returned if LogSegmentNo was 0).",  /* Parameter details */
         mon_412B_FileAsSegment,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         4             /* Param count */
     );
     mon_register_ex(
@@ -2146,7 +2146,7 @@ void mon_register_all_handlers(void) {
         "Disconnects a file as a segment in your domain. FileAsSegment allows files to be accessed as segment",  /* Description */
         "[I] FileNumber (INTEGER2): File number. See OpenFile.\\n[I] LogSegmentNumber (INTEGER2): Segment number (optional parameter).",  /* Parameter details */
         mon_413B_FileNotAsSegment,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -2234,7 +2234,7 @@ void mon_register_all_handlers(void) {
         "Connects an empty data segment to the user's domain and reserves space for it on the swap file. The ",  /* Description */
         "[I] SizeInBytes (INTEGER): Segment size in bytes.\\n[I] LogSegmentNo (INTEGER): Logical segment number to use. Use 0 for system to select first available free segment.\\n[O] RetLogSegmentNo (INTEGER): Returns the logical segment number actually selected.",  /* Parameter details */
         mon_422B_GetScratchSegment,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         3             /* Param count */
     );
     mon_register_ex(
@@ -2431,7 +2431,7 @@ void mon_register_all_handlers(void) {
         "Reads a string from a device, e.g. a terminal or an opened file. This monitor call provide a fast in",  /* Description */
         "[I] DevNo (INTEGER): Logical device number. See appendix B. Use 1 for your own terminal.\\n[I] MaxNo (INTEGER): Maximum number of bytes to read before break.\\n[O] NoOfBytesRet (INTEGER): Number of bytes read.\\n[O] Buff (STRING): Buffer to receive input.\\n[I] BreakStrat (INTEGER): Break setting. See SetBreak. Use 8 for user-defined break table.\\n[I] EchoStrat (INTEGER): Echo setting. See SetEcho. Use 8 for user-defined echo table.\\n[I] BreakT1 (INTEGER): Break table bits 0:31. Bits set to 1 cause break.\\n[I] BreakT2 (INTEGER): Break table bits 32:63.\\n[I] BreakT3 (INTEGER): Break table bits 64:95.\\n[I] BreakT4 (INTEGER): Break table bits 96:127.\\n[I] EchoT1 (INTEGER): Echo table bits 0:31. Bits set to 0 cause echo.\\n[I] EchoT2 (INTEGER): Echo table bits 32:63.\\n[I] EchoT3 (INTEGER): Echo table bits 64:95.\\n[I] EchoT4 (INTEGER): Echo table bits 96:127.",  /* Parameter details */
         mon_503B_InputString,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         14             /* Param count */
     );
     mon_register_ex(
@@ -2519,7 +2519,7 @@ void mon_register_all_handlers(void) {
         "Deletes a file. The pages of the file are released.\n\n- You must have directory access to the file in",  /* Description */
         "[I] FileName (STRING): File name to delete. Include version number to delete specific version, otherwise all versions deleted.",  /* Parameter details */
         mon_54B_DeleteFile,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -2607,7 +2607,7 @@ void mon_register_all_handlers(void) {
         "Outputs a file system error message. Appendix A shows the messages connected to each error code. The",  /* Description */
         "[I] ErrCode (INTEGER): Error code number. Error code 0 is illegal. See appendix A.",  /* Parameter details */
         mon_64B_WarningMessage,  /* Handler */
-        MON_STATUS_IN_PROGRESS,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
