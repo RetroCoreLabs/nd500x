@@ -10,8 +10,8 @@
  * - Background programs may read from logical device number 0 (command buffer).
  *
  * Parameters:
- *   [I] DeviceNumber (WORD): Logical device number
- *   [O] ReturnValue (WORD): Byte read (returned in I1/W1)
+ *   [I] DeviceNumber (INTEGER): Logical device number (0=command buffer, 1-63=char dev, 64-127=file)
+ *   [O] ReturnValue (INTEGER): Byte read (written to OUTPUT param; also in I1 for ND-100 compat)
  *
  * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
@@ -22,8 +22,9 @@
 #include <stdio.h>
 
 MonResult mon_1B_InByte(MonContext* ctx) {
-    /* Defensive check for argument count */
-    if (ctx->arg_count < 1) {
+    /* Defensive check for argument count - need INPUT and OUTPUT params */
+    if (ctx->arg_count < 2) {
+        mon_log(MON_LOG_WARN, MON_ID_1B ": Missing parameters (need 2, got %u)", ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
