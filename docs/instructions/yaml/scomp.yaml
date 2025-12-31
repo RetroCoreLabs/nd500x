@@ -3,11 +3,11 @@ instruction:
   function: "Scomp"
   mnemonic: "scomp"
   description: |
-    Scomp
-    
-    Comparison operation
-    Sets Z (zero), N (negative), V (overflow), C (carry) flags
-    
+    SCOMP - String Compare
+
+    Compare byte strings element-by-element using descriptor bounds checking.
+    Sets K (termination type), Z (zero), S (sign) flags. C and O are cleared.
+
     Operands: 2
     Variants: 1 opcode(s)
 

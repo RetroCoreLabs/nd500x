@@ -122,7 +122,7 @@ SEARCH: W1 := SEARCH_KEY
 | Both operands outside string | 0 | 1 | 0 | Unmodified | DR trap |
 | Exact match | 0 | 1 | 0 | Next element | Strings equal |
 | source-1 longer | 0 | 0 | 0 | Next element | source-1 > source-2 |
-| source-2 longer (greater byte) | 0 | 0 | 1 | Next element | source-2 > source-1 |
+| source-2 longer | 0 | 0 | 1 | Next element | source-1 < source-2 |
 | Smaller byte in source-1 | 1 | 0 | 0 | Differing element | source-1 < source-2 |
 | Greater byte in source-1 | 1 | 0 | 1 | Differing element | source-1 > source-2 |
 
@@ -140,6 +140,8 @@ SEARCH: W1 := SEARCH_KEY
 - **K (Termination)**: 0=length mismatch, 1=byte difference found
 - **Z (Zero)**: 1=exact match, 0=difference found
 - **S (Sign)**: Indicates comparison result (see table above)
+- **C (Carry)**: Cleared (per ND-500 Manual page 244)
+- **O (Overflow)**: Cleared (per ND-500 Manual page 244)
 
 ---
 

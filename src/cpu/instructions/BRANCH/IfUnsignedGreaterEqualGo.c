@@ -39,13 +39,13 @@
  *
  * Unsigned Comparison Logic:
  *   After COMP A, B (performs A - B):
- *   - C=0 (no borrow) means A >= B (unsigned)
- *   - C=1 (borrow occurred) means A < B (unsigned)
+ *   - C=1 (no borrow) means A >= B (unsigned)
+ *   - C=0 (borrow occurred) means A < B (unsigned)
  *   - Z=1 additionally indicates A == B
- *   - C=0 AND Z=0 means A > B (strictly greater)
+ *   - C=1 AND Z=0 means A > B (strictly greater)
  *
  * Branch Condition:
- *   Branches when C=0 (unsigned greater than or equal after comparison)
+ *   Branches when C=1 (unsigned greater than or equal after comparison)
  *
  * Displacement Encoding:
  *   - Byte displacement (0x00D6): Signed 8-bit (-128 to +127 bytes)
@@ -109,9 +109,9 @@
  *   ; Handle out-of-range value
  *
  * Related Instructions:
- *   - IF<<GO: Branch if unsigned less than (C=1)
- *   - IF>>GO: Branch if unsigned greater than (C=0 AND Z=0)
- *   - IF<<=GO: Branch if unsigned less or equal (C=1 OR Z=1)
+ *   - IF<<GO: Branch if unsigned less than (C=0)
+ *   - IF>>GO: Branch if unsigned greater than (C=1 AND Z=0)
+ *   - IF<<=GO: Branch if unsigned less or equal (C=0 OR Z=1)
  *   - COMP: Compare instruction that sets flags
  *   - IF>=GO, IF<=GO: Signed comparison branches
  */

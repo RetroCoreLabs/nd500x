@@ -34,7 +34,7 @@
  * Flags: Z (zero), S (sign XOR overflow), C (carry/borrow)
  *   Z = 1 if result is zero (registers are equal)
  *   S = sign_bit XOR overflow (true comparison)
- *   C = 1 if borrow occurred (reg < operand for unsigned)
+ *   C = 1 if NO borrow (reg >= operand for unsigned)
  *
  * Traps: Addressing traps only (integer), Floating overflow/underflow (float)
  *
@@ -106,7 +106,8 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t result = reg_value - operand;
 
     /* Detect carry/borrow and overflow */
-    bool carry = (reg_value < operand);
+    /* ND-500 carry convention: C=1 means NO borrow (reg >= operand) */
+    bool carry = (reg_value >= operand);
     bool overflow = nd500_detect_sub_overflow(reg_value, operand, result, fi->data_type);
 
     /* Mask to data type for flag calculations */

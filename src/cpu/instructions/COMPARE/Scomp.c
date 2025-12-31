@@ -5,25 +5,22 @@
 #include <stdbool.h>
 
 /**
- * SCOMP instruction - COMPARE class
+ * SCOMP instruction - STRING class
  *
  * Mnemonic: scomp
  * Operands: 2
- * Opcode: 0xFDAC (175254 octal)
+ * Opcode: 0xFDAC (176654 octal)
+ *
+ * Format: BY SCOMP (<source-1/r/BY/I1>=,<source-2/r/BY/I2>=)
  *
  * Operation: Compare string (unpacked) elements
  *
  * Description:
- * Compares two strings element by element, using I1 as index into the first
- * string and I2 as index into the second string. Comparison continues until
- * a difference is found or the end of either string is reached.
- *
- * Both operands specify string descriptors pointing to string data in memory.
- * Each descriptor is an 8-byte structure containing:
- *   - Byte address of string data
- *   - Element count (number of elements)
- *   - Element size (byte, word, double-word)
- *   - Format flags
+ * Bytes from the <source-1> string are compared with the corresponding bytes
+ * in the <source-2> string until unequal bytes are found, or until the end of
+ * <source-1> or <source-2> string is reached. When unequal bytes are found,
+ * the status bits Z and S and the K flag will indicate the termination condition.
+ * The byte elements are considered to be unsigned values.
  *
  * String Comparison Algorithm:
  * 1. Load string descriptor 1 from first operand address
@@ -33,31 +30,34 @@
  *    a. Read element from string1 at index1
  *    b. Read element from string2 at index2
  *    c. If elements differ:
- *       - Set flags based on comparison
+ *       - Set K=1, S based on byte comparison
  *       - Exit loop
  *    d. Increment index1 and index2
  * 5. If no difference found:
- *    - Compare string lengths to determine result
+ *    - Set K=0, S based on length comparison
  * 6. Update I1 = index1, I2 = index2
  *
- * Flag Behavior:
- * - Z (Zero): Set if strings are equal (all elements match, same length)
- * - S (Sign): Set if string1 < string2 lexicographically
- * - C (Carry): Set if string1 > string2 lexicographically
- * - K (Invalid): Unaffected
- * - O (Overflow): Unaffected
+ * Terminating conditions (per ND-500 Reference Manual Page 240):
  *
- * Comparison Results:
- *   string1 == string2: Z=1, S=0, C=0
- *   string1 <  string2: Z=0, S=1, C=0
- *   string1 >  string2: Z=0, S=0, C=1
+ * | Condition                      | K | Z | S | I1, I2                    |
+ * |--------------------------------|---|---|---|---------------------------|
+ * | both operands outside string   | 0 | 1 | 0 | unmodified, DR trap       |
+ * | exact match                    | 0 | 1 | 0 | next element              |
+ * | source-1 longer                | 0 | 0 | 0 | next element              |
+ * | source-2 longer                | 0 | 0 | 1 | next element              |
+ * | smaller byte in source-1       | 1 | 0 | 0 | differing elements        |
+ * | greater byte in source-1       | 1 | 0 | 1 | differing elements        |
  *
- * Lexicographic Comparison:
- * - Compares elements byte by byte (unsigned comparison)
- * - First difference determines the result
- * - If all elements match but lengths differ:
- *   - Shorter string is considered "less than" longer string
- *   - Example: "ABC" < "ABCD"
+ * Data status bits (per ND-500 Reference Manual Page 240, 244):
+ *   K = 1 if byte difference found, 0 if length mismatch
+ *   Z = 1 if strings are equal
+ *   S meaning depends on K:
+ *     - K=0, S=0: source-1 longer (source-1 > source-2)
+ *     - K=0, S=1: source-2 longer (source-1 < source-2)
+ *     - K=1, S=0: smaller byte in source-1 (source-1 < source-2)
+ *     - K=1, S=1: greater byte in source-1 (source-1 > source-2)
+ *   C = 0 (cleared for all string operations)
+ *   O = 0 (cleared for all string operations)
  *
  * Index Registers:
  * - I1: Starting index into first string (input), final index (output)
@@ -66,69 +66,21 @@
  *   - Position where difference was found, OR
  *   - End of string if no difference found
  *
- * String Element Format:
- * - Typically byte elements (ASCII/EBCDIC characters)
- * - Can be word or double-word elements per descriptor
- * - Element size specified in descriptor format field
- *
  * Trap Conditions:
- * - Descriptor Range (DR): If I1 or I2 exceeds string bounds
- * - Invalid descriptor format
- * - Memory access violations during element reads
- *
- * Memory Access Pattern:
- * 1. Read 8 bytes from operand[0] address (descriptor 1)
- * 2. Read 8 bytes from operand[1] address (descriptor 2)
- * 3. Read elements from descriptor 1's data address
- * 4. Read elements from descriptor 2's data address
- * 5. Number of reads depends on where first difference occurs
- *
- * Performance:
- * - Execution time depends on string lengths and position of first difference
- * - Best case: First elements differ (10-15 CPU cycles)
- * - Worst case: Long equal strings (cycles ≈ 10 + 5×min(length1, length2))
- * - Early exit on first difference improves average case
- *
- * Typical Usage:
- *   ; Compare two file names
- *   CLR   I1              ; Start at beginning
- *   CLR   I2
- *   SCOMP DESC_NAME1, DESC_NAME2
- *   JZ    NAMES_EQUAL    ; Branch if identical
- *   JS    NAME1_LESS     ; Branch if name1 < name2
- *   ; Fall through: name1 > name2
- *
- *   ; Search for string in array
- * LOOP:
- *   CLR   I2              ; Search string index = 0
- *   SCOMP DESC_ARRAY, DESC_SEARCH
- *   JZ    FOUND           ; Match found
- *   ; Increment array pointer and continue
+ * - Descriptor Range (DR): If both operands are outside string bounds
  *
  * Notes:
  * - Comparison is unsigned (bytes 0-255, not signed -128 to +127)
  * - Index registers are updated regardless of comparison result
- * - Useful for string sorting, searching, and equality testing
- * - Different from PCOMP which compares BCD numeric values
  * - Strings do not need to be null-terminated (length from descriptor)
- * - Comparison stops at end of either string (not necessarily null terminator)
  * - Case-sensitive comparison (A != a)
  *
- * Comparison with PCOMP:
- * - PCOMP: Numeric comparison of packed BCD values
- * - SCOMP: Lexicographic comparison of string elements
- * - PCOMP: Sets Z and S flags only
- * - SCOMP: Sets Z, S, and C flags
- * - PCOMP: Does not use index registers
- * - SCOMP: Uses and updates I1 and I2
- *
  * Related Instructions:
- * - PCOMP: Compare packed BCD strings
- * - SMOVE: String move operation
- * - SSCAN: String scan operation
- * - SSPAN: String span operation
+ * - SCOTR: String compare translated
+ * - SCOPA: String compare with pad
+ * - SCOPT: String compare translated with pad
  *
- * Reference: ND-500 Reference Manual ND-05.009.4 EN, Page 240, Section 13.13
+ * Reference: ND-500 Reference Manual ND-05.009.4 EN, Page 240, Section 14.10
  */
 void nd500_instr_Scomp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Get descriptor addresses from operands */
@@ -200,7 +152,36 @@ void nd500_instr_Scomp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     cpu->I[0] = index1;  /* I1 */
     cpu->I[1] = index2;  /* I2 */
 
-    /* Set status flags based on comparison result */
+    /* Set status flags per ND-500 Reference Manual Page 240, 244 */
+
+    /* Determine if termination was due to byte difference or length mismatch */
+    /* K = 1 if byte difference found (loop exited due to element mismatch) */
+    /* K = 0 if length mismatch (loop exited because one string ended) */
+    bool byte_diff_found = !strings_equal &&
+        (index1 < desc1.element_count && index2 < desc2.element_count);
+
+    if (byte_diff_found) {
+        /* Byte difference found: K=1 */
+        nd500_set_flag(cpu, ND500_FLAG_K);
+        /* S = 1 if source-1 byte is greater (source-1 > source-2) */
+        /* S = 0 if source-1 byte is smaller (source-1 < source-2) */
+        if (!string1_less) {
+            nd500_set_flag(cpu, ND500_FLAG_S);
+        } else {
+            nd500_clear_flag(cpu, ND500_FLAG_S);
+        }
+    } else {
+        /* Length mismatch or equal strings: K=0 */
+        nd500_clear_flag(cpu, ND500_FLAG_K);
+        /* S = 1 if source-2 longer (source-1 < source-2) */
+        /* S = 0 if source-1 longer or equal (source-1 >= source-2) */
+        if (!strings_equal && index2 < desc2.element_count) {
+            nd500_set_flag(cpu, ND500_FLAG_S);
+        } else {
+            nd500_clear_flag(cpu, ND500_FLAG_S);
+        }
+    }
+
     /* Z = 1 if strings are equal */
     if (strings_equal) {
         nd500_set_flag(cpu, ND500_FLAG_Z);
@@ -208,21 +189,9 @@ void nd500_instr_Scomp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_clear_flag(cpu, ND500_FLAG_Z);
     }
 
-    /* S = 1 if string1 < string2 */
-    if (string1_less) {
-        nd500_set_flag(cpu, ND500_FLAG_S);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_S);
-    }
-
-    /* C = 1 if string1 > string2 */
-    if (!strings_equal && !string1_less) {
-        nd500_set_flag(cpu, ND500_FLAG_C);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_C);
-    }
-
-    /* K and O flags are unaffected */
+    /* C and O flags are ALWAYS CLEARED for string operations (ND-500 Manual page 244) */
+    nd500_clear_flag(cpu, ND500_FLAG_C);
+    nd500_clear_flag(cpu, ND500_FLAG_O);
 
     /* PC will be advanced automatically by cpu_step() */
 }

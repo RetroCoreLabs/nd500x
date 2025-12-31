@@ -21,7 +21,7 @@ TEST is frequently used before conditional branches to check if a value is zero,
 operand - 0  (result discarded, only flags set)
 operand = 0 → Z flag
 operand < 0 → S flag
-C flag cleared
+1 → C (integer types only)
 V flag cleared
 ```
 
@@ -30,7 +30,7 @@ V flag cleared
 - Sets flags without modifying source
 - Supports all 6 data types (BI, BY, H, W, F, D)
 - More efficient than COMP for zero testing
-- Clears C and V flags explicitly
+- Sets C=1 for integers, clears V flag
 - Essential for NULL checks and sign testing
 - Common before conditional branches
 - Faster than explicit comparison with zero constant
@@ -81,7 +81,7 @@ V flag cleared
 
 - **Z (Zero)**: Set if operand = 0, cleared otherwise
 - **S (Sign)**: Set if operand < 0, cleared otherwise
-- **C (Carry)**: Cleared
+- **C (Carry)**: Set to 1 for integer types (BI, BY, H, W); unchanged for float types (F, D)
 - **V (Overflow)**: Cleared
 
 ---
@@ -190,7 +190,7 @@ LOOP:
 **Comparison with COMP:**
 - `W TEST I1` is equivalent to `W COMP I1, 0` but more efficient
 - TEST is clearer in intent when checking for zero
-- TEST always clears C and V flags; COMP may set them
+- TEST always sets C=1 for integers and clears V; COMP sets C based on comparison
 
 **Common patterns:**
 ```assembly

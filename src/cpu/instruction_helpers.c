@@ -1114,9 +1114,11 @@ bool nd500_load_string_descriptor(Nd500Cpu* cpu, uint32_t desc_addr,
     desc->is_bcd_packed = is_bcd_packed;
     desc->is_ascii = is_ascii;
 
-    // Read 8-byte descriptor from memory (little-endian)
-    desc->element_count = nd500_read_memory_32(cpu, desc_addr);
-    desc->base_address = nd500_read_memory_32(cpu, desc_addr + 4);
+    // Read 8-byte descriptor from memory (big-endian)
+    uint32_t word0 = nd500_read_memory_32(cpu, desc_addr);
+    uint32_t word1 = nd500_read_memory_32(cpu, desc_addr + 4);
+    desc->element_count = word0;
+    desc->base_address = word1;
 
     // For BCD/ASCII operations, parse additional fields from element count word
     if (is_bcd_packed || is_ascii) {
@@ -1234,7 +1236,7 @@ bool nd500_string_descriptor_is_valid(const Nd500StringDescriptor* desc) {
 
     // Field width validation (for BCD/ASCII)
     if (desc->is_bcd_packed || desc->is_ascii) {
-        if (desc->field_width < 0 || desc->field_width > 31) return false;
+        if (desc->field_width > 31) return false;
         if (desc->field_width == 0) return false;  // Empty operands cause descriptor range trap
 
         // Scaling factor validation
@@ -1292,7 +1294,10 @@ int64_t nd500_read_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* 
     }
 
     // Calculate number of bytes needed for BCD field
-    int bytes_needed = (desc->field_width + 1) / 2;  // Round up to next byte
+    // For embedded trailing sign (sign_repr=0), total nibbles = field_width + 1 (for sign)
+    // bytes_needed = (total_nibbles + 1) / 2 to round up
+    int total_nibbles = desc->field_width + 1;  // +1 for sign nibble
+    int bytes_needed = (total_nibbles + 1) / 2;  // Round up to next byte
     if (bytes_needed <= 0 || bytes_needed > 16) {
         printf("[ERROR] nd500_read_packed_bcd_value: Invalid field width %d\n", desc->field_width);
         trap_invalid_operation(cpu, cpu->PC);
@@ -1308,7 +1313,7 @@ int64_t nd500_read_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* 
     // Convert BCD to decimal (process nibbles from right to left)
     int64_t value = 0;
     int64_t multiplier = 1;
-    int total_nibbles = 0;
+    int nibbles_processed = 0;
 
     // Process bytes from most significant to least significant
     for (int byte_idx = bytes_needed - 1; byte_idx >= 0; byte_idx--) {
@@ -1334,10 +1339,10 @@ int64_t nd500_read_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* 
 
             value += nibble * multiplier;
             multiplier *= 10;
-            total_nibbles++;
+            nibbles_processed++;
 
             // Prevent overflow (max ~18 digits for int64_t)
-            if (total_nibbles > 18) {
+            if (nibbles_processed > 18) {
                 printf("[WARN] nd500_read_packed_bcd_value: BCD value too large, truncating\n");
                 break;
             }

@@ -295,9 +295,10 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 }
             }
 
-            /* If still no block, trap */
+            /* If still no block, trap - this is normal for first heap allocation */
             if (block_addr == 0) {
-                printf("[TRAP] GETB at PC=0x%08X: No blocks available for log_size=%u\n",
+                /* Use TRACE instead of printf - trap handler will initialize heap */
+                TRACE("[GETB] PC=0x%08X: No free blocks for log_size=%u, invoking STO trap\n",
                        fi->address, log_size);
                 trap_stack_overflow(cpu, fi->address);
                 return;

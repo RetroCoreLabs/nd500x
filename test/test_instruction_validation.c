@@ -35,13 +35,28 @@ typedef struct {
 
 static StrictValidationStats strict_stats = {0};
 
+/* Negative test statistics - tracks expected-to-fail tests */
+typedef struct {
+    int total_negative;          /* Total negative tests encountered */
+    int correctly_failed;        /* Negative tests that failed as expected */
+    int incorrectly_passed;      /* Negative tests that unexpectedly passed (BUG!) */
+    int wrong_flags;             /* Negative tests with wrong_flag type */
+    int wrong_registers;         /* Negative tests with wrong_register type */
+    int wrong_memory;            /* Negative tests with wrong_memory type */
+} NegativeTestStats;
+
+static NegativeTestStats negative_stats = {0};
+
 /**
  * Check if a top-level test field name is known
  */
 static int is_known_test_field(const char* name) {
     static const char* known_fields[] = {
         "name", "assembly", "bytes", "initial", "final", "maxInstructions",
-        "strictMemory", "requiresCallContext", "expectedTrap", NULL
+        "strictMemory", "requiresCallContext", "expectedTrap",
+        /* Negative test fields - for tests that SHOULD fail validation */
+        "isNegativeTest", "negativeTestType", "expectedValidationFailure",
+        NULL
     };
     for (int i = 0; known_fields[i] != NULL; i++) {
         if (strcmp(name, known_fields[i]) == 0) return 1;
@@ -54,7 +69,7 @@ static int is_known_test_field(const char* name) {
  */
 static int is_known_state_field(const char* name) {
     static const char* known_fields[] = {
-        "regs", "ram", NULL
+        "regs", "ram", "nd100_memory", NULL  /* nd100_memory is legacy, ignored */
     };
     for (int i = 0; known_fields[i] != NULL; i++) {
         if (strcmp(name, known_fields[i]) == 0) return 1;
@@ -475,6 +490,35 @@ int main(int argc, char** argv) {
         }
     }
 
+    /* Negative test statistics report */
+    if (negative_stats.total_negative > 0) {
+        printf("\n=== Negative Test Report ===\n");
+        printf("Negative tests (expected to fail): %d\n", negative_stats.total_negative);
+        printf("  Correctly failed (GOOD): %d (%.1f%%)\n",
+               negative_stats.correctly_failed,
+               100.0 * negative_stats.correctly_failed / negative_stats.total_negative);
+        printf("  Unexpectedly passed (BUG!): %d\n", negative_stats.incorrectly_passed);
+
+        if (negative_stats.wrong_flags > 0 || negative_stats.wrong_registers > 0 ||
+            negative_stats.wrong_memory > 0) {
+            printf("By type:\n");
+            if (negative_stats.wrong_flags > 0)
+                printf("  - wrong_flag: %d\n", negative_stats.wrong_flags);
+            if (negative_stats.wrong_registers > 0)
+                printf("  - wrong_register: %d\n", negative_stats.wrong_registers);
+            if (negative_stats.wrong_memory > 0)
+                printf("  - wrong_memory: %d\n", negative_stats.wrong_memory);
+        }
+
+        if (negative_stats.incorrectly_passed > 0) {
+            printf("\nCRITICAL: %d negative tests passed when they should have failed!\n",
+                   negative_stats.incorrectly_passed);
+            printf("This indicates bugs in the test framework validation logic.\n");
+        } else {
+            printf("\nAll negative tests correctly detected validation failures.\n");
+        }
+    }
+
     if (failed == 0 && passed > 0) {
         printf("\nALL TESTS PASSED\n");
     } else if (continue_on_fail && failed > 0) {
@@ -817,7 +861,69 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
         nd100_result = validate_nd100_memory(cpu, m, final_nd100, 0);
     }
 
-    /* Print result */
+    /* 10. Check if this is a negative test (expected to fail) */
+    cJSON* is_negative = cJSON_GetObjectItem(test, "isNegativeTest");
+    int negative_test = is_negative && cJSON_IsTrue(is_negative);
+
+    if (negative_test) {
+        /* Track negative test type for statistics */
+        cJSON* neg_type = cJSON_GetObjectItem(test, "negativeTestType");
+        if (neg_type && cJSON_IsString(neg_type)) {
+            if (strcmp(neg_type->valuestring, "wrong_flag") == 0)
+                negative_stats.wrong_flags++;
+            else if (strcmp(neg_type->valuestring, "wrong_register") == 0)
+                negative_stats.wrong_registers++;
+            else if (strcmp(neg_type->valuestring, "wrong_memory") == 0)
+                negative_stats.wrong_memory++;
+        }
+
+        negative_stats.total_negative++;
+
+        /* For negative tests, validation FAILURE is the expected outcome */
+        int validation_failed = (reg_result != 0 || mem_result != 0 || nd100_result != 0);
+
+        if (validation_failed) {
+            /* PASS: Negative test correctly failed validation */
+            negative_stats.correctly_failed++;
+            if (verbose) {
+                cJSON* expected_fail = cJSON_GetObjectItem(test, "expectedValidationFailure");
+                printf("Test %d/%d: %s ... PASS (negative test correctly failed", test_num, total, test_name);
+                if (expected_fail && cJSON_IsString(expected_fail)) {
+                    printf(" on %s", expected_fail->valuestring);
+                }
+                printf(")\n");
+            }
+            return 0;  /* Pass */
+        } else {
+            /* FAIL: Negative test unexpectedly passed - indicates bug in test framework! */
+            negative_stats.incorrectly_passed++;
+            if (show_details) {
+                printf("Test %d/%d: %s ... FAIL (NEGATIVE TEST PASSED UNEXPECTEDLY!)\n",
+                       test_num, total, test_name);
+
+                /* Show assembly source */
+                cJSON* assembly = cJSON_GetObjectItem(test, "assembly");
+                if (assembly && cJSON_IsString(assembly)) {
+                    printf("  Assembly: %s\n", assembly->valuestring);
+                }
+
+                printf("  This indicates a BUG in the test framework!\n");
+                printf("  The test had intentionally wrong expected values but validation passed.\n");
+
+                cJSON* neg_type_dbg = cJSON_GetObjectItem(test, "negativeTestType");
+                cJSON* expected_fail_dbg = cJSON_GetObjectItem(test, "expectedValidationFailure");
+                if (neg_type_dbg && cJSON_IsString(neg_type_dbg)) {
+                    printf("  Negative test type: %s\n", neg_type_dbg->valuestring);
+                }
+                if (expected_fail_dbg && cJSON_IsString(expected_fail_dbg)) {
+                    printf("  Expected validation failure on: %s\n", expected_fail_dbg->valuestring);
+                }
+            }
+            return 1;  /* Fail */
+        }
+    }
+
+    /* Normal (positive) test - validation should pass */
     if (reg_result != 0 || mem_result != 0 || nd100_result != 0) {
         if (show_details) {
             printf("Test %d/%d: %s ... FAIL\n", test_num, total, test_name);
@@ -904,8 +1010,11 @@ static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value) {
     else if (strcmp(name, "ote1") == 0) cpu->OTE1 = value;
     else if (strcmp(name, "ote2") == 0) cpu->OTE2 = value;
     else {
-        /* Report unknown register - this indicates test coverage gap */
-        printf("  WARNING: Unknown register '%s' in initial state (ignored)\n", name);
+        /* FATAL: Unknown register - test data has register we don't support */
+        fprintf(stderr, "FATAL ERROR: Unknown register '%s' in initial state!\n", name);
+        fprintf(stderr, "This indicates the test generator is producing registers the C runner cannot handle.\n");
+        fprintf(stderr, "Add support for '%s' in set_register() and get_register() functions.\n", name);
+        exit(1);
     }
 }
 
@@ -941,8 +1050,11 @@ static uint32_t get_register(Nd500Cpu* cpu, const char* name) {
     else if (strcmp(name, "ote1") == 0) return cpu->OTE1;
     else if (strcmp(name, "ote2") == 0) return cpu->OTE2;
     else {
-        /* This should never happen if validate_registers checks first */
-        return 0;
+        /* FATAL: Unknown register in expected state */
+        fprintf(stderr, "FATAL ERROR: Unknown register '%s' in expected state!\n", name);
+        fprintf(stderr, "This indicates the test generator is producing registers the C runner cannot validate.\n");
+        fprintf(stderr, "Add support for '%s' in set_register() and get_register() functions.\n", name);
+        exit(1);
     }
 }
 
@@ -960,6 +1072,58 @@ static int is_known_register(const char* name) {
         if (strcmp(name, known_regs[i]) == 0) return 1;
     }
     return 0;
+}
+
+/**
+ * Print detailed flag differences between actual and expected ST register.
+ * This helps identify exactly which flag bit(s) are wrong.
+ *
+ * Flag bit positions in ST1 register:
+ *   Bit 5 (0x20)  = Z (Zero)
+ *   Bit 6 (0x40)  = C (Carry)
+ *   Bit 7 (0x80)  = S (Sign)
+ *   Bit 8 (0x100) = K (Key flag)
+ *   Bit 9 (0x200) = O (Overflow)
+ */
+static void print_flag_differences(uint32_t expected, uint32_t actual) {
+    uint32_t diff = expected ^ actual;
+
+    /* Only check data status flag bits (5-9) */
+    if ((diff & 0x3E0) == 0) {
+        printf("    (No flag bit differences in Z/C/S/K/O)\n");
+        return;
+    }
+
+    printf("    Flag differences:\n");
+
+    if (diff & 0x20) {  /* Bit 5 = Z */
+        printf("      Z (Zero):     expected=%d, actual=%d\n",
+               (expected >> 5) & 1, (actual >> 5) & 1);
+    }
+    if (diff & 0x40) {  /* Bit 6 = C */
+        printf("      C (Carry):    expected=%d, actual=%d\n",
+               (expected >> 6) & 1, (actual >> 6) & 1);
+    }
+    if (diff & 0x80) {  /* Bit 7 = S */
+        printf("      S (Sign):     expected=%d, actual=%d\n",
+               (expected >> 7) & 1, (actual >> 7) & 1);
+    }
+    if (diff & 0x100) {  /* Bit 8 = K */
+        printf("      K (Key):      expected=%d, actual=%d\n",
+               (expected >> 8) & 1, (actual >> 8) & 1);
+    }
+    if (diff & 0x200) {  /* Bit 9 = O */
+        printf("      O (Overflow): expected=%d, actual=%d\n",
+               (expected >> 9) & 1, (actual >> 9) & 1);
+    }
+
+    /* Show both values in binary for debugging */
+    printf("    Expected flags: Z=%d C=%d S=%d K=%d O=%d (0x%03X)\n",
+           (expected >> 5) & 1, (expected >> 6) & 1, (expected >> 7) & 1,
+           (expected >> 8) & 1, (expected >> 9) & 1, expected & 0x3FF);
+    printf("    Actual flags:   Z=%d C=%d S=%d K=%d O=%d (0x%03X)\n",
+           (actual >> 5) & 1, (actual >> 6) & 1, (actual >> 7) & 1,
+           (actual >> 8) & 1, (actual >> 9) & 1, actual & 0x3FF);
 }
 
 /**
@@ -992,6 +1156,11 @@ static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_detail
             if (print_details) {
                 printf("  Register %s: expected 0x%08X (%u), got 0x%08X (%u)\n",
                        reg_name, expected, expected, actual, actual);
+
+                /* For ST register, show granular flag differences */
+                if (strcmp(reg_name, "st") == 0) {
+                    print_flag_differences(expected, actual);
+                }
             }
             failures++;
         }
