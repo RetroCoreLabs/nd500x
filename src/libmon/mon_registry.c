@@ -2442,7 +2442,7 @@ void mon_register_all_handlers(void) {
         "Writes a string to a device, e.g. a terminal or an opened file.\n\n- This is the most efficient way to",  /* Description */
         "[I] DeviceNo (INTEGER2): Logical device number, e.g. a file number. See appendix B. You may use 1 for your own terminal. Use the SINTRAN III open file number if output to a file.\\n[I] NoOfBytes (INTEGER2): Number of bytes to write (max 2048).\\n[I] Buffer (STRING): String to be output.",  /* Parameter details */
         mon_504B_OutputString,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         3             /* Param count */
     );
     mon_register_ex(
