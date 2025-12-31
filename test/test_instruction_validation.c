@@ -13,6 +13,7 @@
 #include <unistd.h>  /* For access() */
 #include <cjson/cJSON.h>
 #include "../src/cpu/cpu_protos.h"
+#include "../src/cpu/nd500_mmu.h"   /* For program/data space capability setup */
 #include "../src/machine/machine_protos.h"
 
 /* Test configuration */
@@ -69,7 +70,7 @@ static int is_known_test_field(const char* name) {
  */
 static int is_known_state_field(const char* name) {
     static const char* known_fields[] = {
-        "regs", "ram", "nd100_memory", NULL  /* nd100_memory is legacy, ignored */
+        "regs", "ram", "nd100_memory", "program_ram", NULL
     };
     for (int i = 0; known_fields[i] != NULL; i++) {
         if (strcmp(name, known_fields[i]) == 0) return 1;
@@ -701,6 +702,86 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
                 }
             }
         }
+    }
+
+    /* 3d. Set PROGRAM SPACE memory (separate from data space)
+     * This is for testing instructions like CALL/CALLG that must read from
+     * program space (PMON) instead of data space (DMON).
+     *
+     * When program_ram is specified, we configure separate MMU mappings:
+     * - Program capabilities point to program physical region (0x80000+)
+     * - Data capabilities point to data physical region (0x00000+)
+     * This allows same virtual address to return different values depending
+     * on whether it's a program fetch or data read.
+     *
+     * Reference: ND-500 Reference Manual, Chapter 2 (Memory Architecture)
+     */
+    cJSON* initial_program_ram = cJSON_GetObjectItem(initial, "program_ram");
+    if (initial_program_ram && cJSON_IsArray(initial_program_ram) &&
+        cJSON_GetArraySize(initial_program_ram) > 0) {
+
+        /* Physical memory offset for program space (separate from data space) */
+        const uint32_t PROG_PHYS_OFFSET = 0x80000;
+
+        /* Initialize MMU tables first (required before enabling) */
+        nd500_mmu_init(cpu);
+
+        /* Enable MMU (both program and data) */
+        nd500_mmu_enable(cpu);  /* Enables both program and data MMU */
+
+        /* For each address in program_ram, configure capabilities
+         * so program space maps to PROG_PHYS_OFFSET region
+         * and data space maps to 0x0 region (normal ram locations).
+         *
+         * We use domain 0, and set up minimal capability that maps
+         * the segment containing the address.
+         */
+        cJSON* mem_entry;
+        cJSON_ArrayForEach(mem_entry, initial_program_ram) {
+            if (cJSON_IsArray(mem_entry) && cJSON_GetArraySize(mem_entry) >= 2) {
+                cJSON* addr_json = cJSON_GetArrayItem(mem_entry, 0);
+                cJSON* val_json = cJSON_GetArrayItem(mem_entry, 1);
+                if (cJSON_IsNumber(addr_json) && cJSON_IsNumber(val_json)) {
+                    uint32_t vaddr = (uint32_t)addr_json->valuedouble;
+                    uint32_t val = (uint32_t)val_json->valuedouble;
+
+                    /* Extract segment from virtual address */
+                    uint8_t segment = (vaddr >> 27) & 0x1F;
+
+                    /* Configure program capability: PSN pointing to program phys region */
+                    /* Use PSN value that maps to PROG_PHYS_OFFSET */
+                    uint16_t prog_psn = (PROG_PHYS_OFFSET >> 11) & 0xFFFF;  /* PSN = page frame */
+                    nd500_mmu_set_program_capability(cpu, 0, segment, prog_psn);
+
+                    /* Configure data capability: PSN pointing to regular memory */
+                    uint16_t data_psn = 0;  /* Maps to physical 0 */
+                    nd500_mmu_set_data_capability(cpu, 0, segment, data_psn);
+
+                    /* Also set up segment 0 (where PC typically starts) if different */
+                    uint8_t pc_segment = (pc_addr >> 27) & 0x1F;
+                    if (pc_segment != segment) {
+                        nd500_mmu_set_program_capability(cpu, 0, pc_segment, 0);
+                        nd500_mmu_set_data_capability(cpu, 0, pc_segment, 0);
+                    }
+
+                    /* Write value to PROGRAM space physical memory */
+                    uint32_t prog_phys_addr = PROG_PHYS_OFFSET + (vaddr & 0x7FFFFFF);
+                    if (val <= 255) {
+                        nd500_bus_write8(m, prog_phys_addr, (uint8_t)val);
+                    } else {
+                        /* Write 32-bit in big-endian */
+                        nd500_bus_write8(m, prog_phys_addr + 0, (uint8_t)((val >> 24) & 0xFF));
+                        nd500_bus_write8(m, prog_phys_addr + 1, (uint8_t)((val >> 16) & 0xFF));
+                        nd500_bus_write8(m, prog_phys_addr + 2, (uint8_t)((val >> 8) & 0xFF));
+                        nd500_bus_write8(m, prog_phys_addr + 3, (uint8_t)(val & 0xFF));
+                    }
+                }
+            }
+        }
+
+        /* Set current domain to 0 (where we configured capabilities) */
+        cpu->CED = 0;
+        cpu->CAD = 0;
     }
 
     /* 3c. Check for requiresCallContext flag - set up pending CALL context for ENT* tests */

@@ -12,6 +12,7 @@
 #include "../../ndlib/ndlib_color.h"
 #include "../../libmon/mon.h"
 #include "../../libmon/mon_file_table.h"
+#include "../../libmon/mon_config.h"
 #include "nd500_dom.h"
 
 static void print_usage(const char* prog) {
@@ -37,6 +38,9 @@ static void print_usage(const char* prog) {
     printf("  --run                    Run program (exit on MON 0B or error)\n");
     printf("  --max-steps <n>          Maximum instructions to execute (default: unlimited)\n");
     printf("  --trace-file <path>      Write instruction trace to file\n");
+    printf("  --sintran-root <path>    Set SINTRAN file system root directory\n");
+    printf("  --user <name>            Set current SINTRAN user (default: GUEST)\n");
+    printf("  --no-scratch-64          Disable automatic scratch file 64\n");
     printf("  -ansi                    Force enable ANSI colors\n");
     printf("  -noansi                  Force disable ANSI colors\n");
     printf("  --help                   Show this help message\n");
@@ -113,6 +117,12 @@ int main(int argc, char** argv) {
             max_steps = strtoull(argv[++i], NULL, 0);
         } else if (strcmp(argv[i], "--trace-file") == 0 && i + 1 < argc) {
             trace_file_path = argv[++i];
+        } else if (strcmp(argv[i], "--sintran-root") == 0 && i + 1 < argc) {
+            mon_config_set_sintran_root(argv[++i]);
+        } else if (strcmp(argv[i], "--user") == 0 && i + 1 < argc) {
+            mon_config_set_current_user(argv[++i]);
+        } else if (strcmp(argv[i], "--no-scratch-64") == 0) {
+            mon_config_set_auto_scratch_64(0);
         }
     }
 

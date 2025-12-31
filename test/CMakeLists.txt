@@ -97,3 +97,10 @@ add_executable(test_bit_addressing
 )
 target_link_libraries(test_bit_addressing PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# MON call unit tests
+# Tests SINTRAN III Monitor Call implementations
+add_executable(test_mon_calls
+    test_mon_calls.c
+)
+target_link_libraries(test_mon_calls PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib mon)
+
