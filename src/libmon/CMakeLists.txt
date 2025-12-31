@@ -10,10 +10,12 @@ file(GLOB MON_HANDLER_SOURCES
 
 # Create the library
 add_library(mon STATIC
+    mon_config.c
     mon_dispatch.c
     mon_file_table.c
     mon_log.c
     mon_params.c
+    mon_path.c
     mon_registry.c
     ${MON_HANDLER_SOURCES}
 )

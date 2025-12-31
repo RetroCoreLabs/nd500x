@@ -178,6 +178,9 @@ Run with: `./build/bin/nd500x --debug`
 - `show mmu [off|errors|trace|all]`: Toggle MMU logging
 - `show profile/ea [on|off]`: Toggle profiling, effective address display
 - `mon log/status/list/info`: MON call debugging
+- `files`: List open SINTRAN files
+- `file <n>`: Show details for open file
+- `user [name]`: Show/set current SINTRAN user
 - `symb`: List symbols
 - `q`: Quit
 

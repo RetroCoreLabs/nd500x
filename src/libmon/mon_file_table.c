@@ -8,8 +8,20 @@
 
 #include "mon_file_table.h"
 #include "mon.h"
+#include "mon_path.h"
 #include <string.h>
 #include <stdlib.h>
+#include <strings.h>  /* strcasecmp */
+#include <sys/stat.h>
+#include <time.h>
+#include <unistd.h>  /* unlink */
+
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#endif
+
+/* Forward declarations */
+static uint32_t unix_to_nd_date(time_t t);
 
 /* Static tables */
 static ReservationEntry reservation_table[MAX_DEVICES];
@@ -231,14 +243,42 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
     OpenFileEntry* entry = &open_files[free_slot];
     int file_number = FILE_NUMBER_MIN + free_slot;
 
-    /* Construct host file path
-     * For now, look in current directory or a configured path
-     * TODO: Add configurable search path */
+    /* Parse SINTRAN name to extract user, name, and extension */
+    char parsed_user[32] = {0};
+    char parsed_name[32] = {0};
+    char parsed_ext[16] = {0};
+    mon_parse_sintran_name(filename, parsed_user, sizeof(parsed_user),
+                           parsed_name, sizeof(parsed_name),
+                           parsed_ext, sizeof(parsed_ext));
+
+    /* Check if this is a scratch file (user is "SCRATCH") */
+    bool is_scratch = (strcasecmp(parsed_user, "SCRATCH") == 0);
+
+    /* Translate SINTRAN path to host path */
     char host_path[256];
-    if (filetype && filetype[0]) {
-        snprintf(host_path, sizeof(host_path), "%s.%s", filename, filetype);
-    } else {
-        snprintf(host_path, sizeof(host_path), "%s", filename);
+    if (mon_translate_path(filename, filetype, host_path, sizeof(host_path)) != 0) {
+        /* Fallback to simple path construction */
+        if (filetype && filetype[0]) {
+            snprintf(host_path, sizeof(host_path), "%s.%s", filename, filetype);
+        } else {
+            snprintf(host_path, sizeof(host_path), "%s", filename);
+        }
+    }
+
+    /* Ensure parent directory exists for scratch files */
+    if (is_scratch) {
+        char dir_path[256];
+        strncpy(dir_path, host_path, sizeof(dir_path) - 1);
+        dir_path[sizeof(dir_path) - 1] = '\0';
+        char* last_slash = strrchr(dir_path, '/');
+#ifdef _WIN32
+        char* last_backslash = strrchr(dir_path, '\\');
+        if (last_backslash > last_slash) last_slash = last_backslash;
+#endif
+        if (last_slash) {
+            *last_slash = '\0';
+            mon_ensure_directory(dir_path);
+        }
     }
 
     /* Determine fopen mode based on access code */
@@ -268,8 +308,9 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
     /* Try to open the host file */
     FILE* fp = fopen(host_path, fmode);
     if (!fp) {
-        /* For write modes, try creating the file */
-        if (access_mode == ACCESS_SEQ_WRITE || access_mode == ACCESS_RAND_WRITE) {
+        /* For write modes or read-write mode, try creating the file */
+        if (access_mode == ACCESS_SEQ_WRITE || access_mode == ACCESS_RAND_WRITE ||
+            access_mode == ACCESS_RAND_RDWR) {
             fp = fopen(host_path, "w+b");
         }
     }
@@ -307,22 +348,37 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
     /* Initialize entry */
     memset(entry, 0, sizeof(OpenFileEntry));
     entry->in_use = true;
+    entry->is_scratch = is_scratch;
     entry->access_mode = access_mode;
     entry->current_position = 0;
     entry->block_size = 512;  /* Default block size */
     entry->host_file = fp;
     strncpy(entry->host_path, host_path, sizeof(entry->host_path) - 1);
 
-    /* Initialize ObjectEntry */
-    object_entry_init_file(&entry->object_entry, filename, filetype,
+    /* Initialize ObjectEntry - use parsed name if available */
+    const char* obj_name = parsed_name[0] ? parsed_name : filename;
+    const char* obj_type = filetype ? filetype : (parsed_ext[0] ? parsed_ext : NULL);
+    object_entry_init_file(&entry->object_entry, obj_name, obj_type,
                           (uint32_t)file_size, FILETYPE_INDEXED);
     entry->object_entry.current_open_count = 1;
     entry->object_entry.total_open_count = 1;
     entry->object_entry.object_index = (uint16_t)file_number;
     entry->object_entry.header = HEADER_USED;
+    if (access_mode == ACCESS_SEQ_WRITE || access_mode == ACCESS_RAND_WRITE ||
+        access_mode == ACCESS_RAND_RDWR) {
+        entry->object_entry.header |= HEADER_WRITE_OPEN;
+    }
 
-    mon_log(MON_LOG_INFO, "MON OPEN: Opened '%s' as file number %d (mode=%d)",
-              host_path, file_number, access_mode);
+    /* Set dates from host file stats */
+    struct stat st;
+    if (stat(host_path, &st) == 0) {
+        entry->object_entry.date_created = unix_to_nd_date(st.st_ctime);
+        entry->object_entry.date_read = unix_to_nd_date(st.st_atime);
+        entry->object_entry.date_written = unix_to_nd_date(st.st_mtime);
+    }
+
+    mon_log(MON_LOG_INFO, "MON OPEN: Opened '%s' as file number %d (mode=%d%s)",
+              host_path, file_number, access_mode, is_scratch ? ", scratch" : "");
 
     return file_number;
 }
@@ -351,16 +407,28 @@ int mon_file_close(int file_number) {
                 file_number, entry->mapped_segment_no);
     }
 
+    /* Save path and scratch flag before closing */
+    char host_path[256];
+    strncpy(host_path, entry->host_path, sizeof(host_path) - 1);
+    host_path[sizeof(host_path) - 1] = '\0';
+    bool is_scratch = entry->is_scratch;
+
     /* Close host file */
     if (entry->host_file) {
         fclose(entry->host_file);
     }
 
     mon_log(MON_LOG_INFO, "MON CLOSE: Closed file number %d ('%s')",
-              file_number, entry->host_path);
+              file_number, host_path);
 
     /* Clear entry */
     memset(entry, 0, sizeof(OpenFileEntry));
+
+    /* Delete scratch files */
+    if (is_scratch && host_path[0] != '\0') {
+        unlink(host_path);
+        mon_log(MON_LOG_INFO, "MON CLOSE: Deleted scratch file '%s'", host_path);
+    }
 
     return 0;
 }
@@ -546,4 +614,170 @@ void mon_set_command_buffer(const char* command) {
         g_command_buffer[0] = '\0';
     }
     g_command_buffer_pos = 0;
+}
+
+/* ============================================================
+ * Scratch File Support
+ * ============================================================ */
+
+#include "mon_path.h"
+#include "mon_config.h"
+#include <sys/stat.h>
+#include <time.h>
+
+#ifdef _WIN32
+#include <io.h>
+#define unlink _unlink
+#else
+#include <unistd.h>
+#endif
+
+static int g_cleanup_registered = 0;
+
+/*
+ * Convert Unix timestamp to ND date format (packed 32-bit)
+ *
+ * ND Date Format:
+ *   Bits 31-26 (6 bits): Year offset from 1950 (0-63, valid years: 1950-2013)
+ *   Bits 25-22 (4 bits): Month (1-12)
+ *   Bits 21-17 (5 bits): Day of month (1-31)
+ *   Bits 16-12 (5 bits): Hour (0-23)
+ *   Bits 11-6  (6 bits): Minute (0-59)
+ *   Bits 5-0   (6 bits): Second (0-59)
+ */
+static uint32_t unix_to_nd_date(time_t t) {
+    if (t == 0) return 0;
+
+    struct tm* tm = localtime(&t);
+    if (!tm) return 0;
+
+    int year = tm->tm_year + 1900;
+
+    /* Adjust year to valid ND range 1950-2013 */
+    /* Subtract 10 years repeatedly until within range */
+    while (year > 2013) {
+        year -= 10;
+    }
+    while (year < 1950) {
+        year += 10;
+    }
+
+    uint32_t nd_date = 0;
+    nd_date |= ((year - 1950) & 0x3F) << 26;   /* Year offset (6 bits) */
+    nd_date |= ((tm->tm_mon + 1) & 0x0F) << 22; /* Month 1-12 (4 bits) */
+    nd_date |= (tm->tm_mday & 0x1F) << 17;      /* Day (5 bits) */
+    nd_date |= (tm->tm_hour & 0x1F) << 12;      /* Hour (5 bits) */
+    nd_date |= (tm->tm_min & 0x3F) << 6;        /* Minute (6 bits) */
+    nd_date |= (tm->tm_sec & 0x3F);             /* Second (6 bits) */
+
+    return nd_date;
+}
+
+/* Cleanup handler for atexit */
+static void mon_file_table_cleanup(void) {
+    /* Close all scratch files first (deletes them) */
+    mon_close_all_scratch_files();
+
+    /* Close remaining open files */
+    mon_file_table_reset();
+}
+
+void mon_file_table_register_cleanup(void) {
+    if (!g_cleanup_registered) {
+        atexit(mon_file_table_cleanup);
+        g_cleanup_registered = 1;
+    }
+}
+
+int mon_populate_object_entry_from_host(ObjectEntry* entry,
+                                         const char* host_path,
+                                         const char* sintran_name,
+                                         const char* sintran_type) {
+    if (!entry) return -1;
+
+    /* Clear entry */
+    memset(entry, 0, sizeof(ObjectEntry));
+
+    /* Set header - mark as used */
+    entry->header = HEADER_USED;
+
+    /* Set filename */
+    if (sintran_name) {
+        size_t name_len = strlen(sintran_name);
+        if (name_len > 15) name_len = 15;
+        memcpy(entry->object_name, sintran_name, name_len);
+        entry->object_name[name_len] = SINTRAN_STRING_END;
+    }
+
+    /* Set type/extension */
+    if (sintran_type) {
+        size_t type_len = strlen(sintran_type);
+        if (type_len > 3) type_len = 3;
+        memcpy(entry->type, sintran_type, type_len);
+        entry->type[type_len] = SINTRAN_STRING_END;
+    }
+
+    /* Set access bits - full read/write for owner and public */
+    entry->access_bits = 0x1F1F;
+
+    /* Get host file stats */
+    if (host_path) {
+        struct stat st;
+        if (stat(host_path, &st) == 0) {
+            /* File size */
+            entry->bytes_in_file = (uint32_t)st.st_size;
+            entry->pages_in_file = (st.st_size + SINTRAN_PAGE_SIZE - 1) / SINTRAN_PAGE_SIZE;
+
+            /* Timestamps */
+            entry->date_created = unix_to_nd_date(st.st_ctime);
+            entry->date_read = unix_to_nd_date(st.st_atime);
+            entry->date_written = unix_to_nd_date(st.st_mtime);
+        }
+    }
+
+    /* Set open counts */
+    entry->current_open_count = 1;
+    entry->total_open_count = 1;
+
+    return 0;
+}
+
+int mon_open_scratch_file(const char* filename, const char* filetype) {
+    /* Scratch files are detected automatically if user is "SCRATCH".
+     * This function just calls mon_file_open with random read/write mode. */
+    return mon_file_open(filename, filetype, ACCESS_RAND_RDWR);
+}
+
+bool mon_is_scratch_file(int file_number) {
+    if (!mon_file_table_is_valid_file_number(file_number)) {
+        return false;
+    }
+    int index = file_number - FILE_NUMBER_MIN;
+    return open_files[index].in_use && open_files[index].is_scratch;
+}
+
+void mon_close_all_scratch_files(void) {
+    for (int i = 0; i < FILE_TABLE_SIZE; i++) {
+        if (open_files[i].in_use && open_files[i].is_scratch) {
+            int file_number = FILE_NUMBER_MIN + i;
+            char path_copy[256];
+            strncpy(path_copy, open_files[i].host_path, sizeof(path_copy) - 1);
+            path_copy[sizeof(path_copy) - 1] = '\0';
+
+            /* Close the file handle */
+            if (open_files[i].host_file) {
+                fclose(open_files[i].host_file);
+                open_files[i].host_file = NULL;
+            }
+
+            /* Clear entry */
+            memset(&open_files[i], 0, sizeof(OpenFileEntry));
+
+            /* Delete the file */
+            if (path_copy[0] != '\0') {
+                unlink(path_copy);
+                mon_log(MON_LOG_INFO, "Scratch file %d deleted: %s", file_number, path_copy);
+            }
+        }
+    }
 }

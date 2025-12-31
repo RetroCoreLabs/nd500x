@@ -13,12 +13,15 @@
 #include "../cpu/nd500_domain.h"
 #include "../cpu/instruction_helpers.h"
 #include "../libmon/mon.h"
+#include "../libmon/mon_file_table.h"
+#include "../libmon/mon_config.h"
 #include "nd500_dom.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <time.h>
 
 /* ============================================================================
  * Domain Tracking System
@@ -128,6 +131,9 @@ static int cmd_showcap(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_showpages(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_trace(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_files(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_file(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_user(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Forward declaration for init script execution (defined at end of file) */
 int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
@@ -199,6 +205,9 @@ static const CmdEntry g_commands[] = {
 	{"showpages",   cmd_showpages,    "Show page mappings for a domain"},
 	{"memmap",      cmd_memmap,       "Display memory map (virtual or physical)"},
 	{"mon",         cmd_mon,          "MON call settings (log/status/list/info/break)"},
+	{"files",       cmd_files,        "List open SINTRAN files"},
+	{"file",        cmd_file,         "Show details for open file"},
+	{"user",        cmd_user,         "Show/set current SINTRAN user"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
 	{"exit",        cmd_quit,         "Quit debugger"},
@@ -4510,5 +4519,225 @@ static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "+-------------------+---------+--------------+--------------+----------+");
 	output(ctx, "Total: ~%u KB (~%u pages) used by domain", total_pages * 2, total_pages);
 
+	return 0;
+}
+
+/* ============================================================================
+ * SINTRAN Files Commands
+ * ============================================================================ */
+
+/* Get access mode name */
+static const char* get_access_mode_name(uint8_t mode) {
+	static const char* names[] = {
+		"SeqRead", "SeqWrite", "RandRead", "RandWrite", "RandRdWr",
+		"SeqAppend", "SeqCommon", "RandCommon", "SeqExtend", "RandExtend"
+	};
+	if (mode < 10) return names[mode];
+	return "Unknown";
+}
+
+/*
+ * Format ND date (packed 32-bit SINTRAN format) to human-readable string
+ *
+ * ND Date Format:
+ *   Bits 31-26 (6 bits): Year offset from 1950 (0-63, valid years: 1950-2013)
+ *   Bits 25-22 (4 bits): Month (1-12)
+ *   Bits 21-17 (5 bits): Day of month (1-31)
+ *   Bits 16-12 (5 bits): Hour (0-23)
+ *   Bits 11-6  (6 bits): Minute (0-59)
+ *   Bits 5-0   (6 bits): Second (0-59)
+ */
+static const char* format_nd_date(uint32_t nd_date, char* buf, size_t buf_size) {
+	if (nd_date == 0) {
+		snprintf(buf, buf_size, "(not set)");
+		return buf;
+	}
+
+	/* Extract components from packed ND date format */
+	int year  = ((nd_date >> 26) & 0x3F) + 1950;
+	int month = (nd_date >> 22) & 0x0F;
+	int day   = (nd_date >> 17) & 0x1F;
+	int hour  = (nd_date >> 12) & 0x1F;
+	int min   = (nd_date >> 6) & 0x3F;
+	int sec   = nd_date & 0x3F;
+
+	/* Validate ranges */
+	if (month < 1 || month > 12 || day < 1 || day > 31 ||
+	    hour > 23 || min > 59 || sec > 59) {
+		snprintf(buf, buf_size, "0x%08X (invalid)", nd_date);
+		return buf;
+	}
+
+	snprintf(buf, buf_size, "%04d-%02d-%02d %02d:%02d:%02d",
+	         year, month, day, hour, min, sec);
+	return buf;
+}
+
+/* files - List all open SINTRAN files */
+static int cmd_files(Nd500Machine* m, CmdContext* ctx, char* args) {
+	(void)m;
+	(void)args;
+
+	int open_count = 0;
+	int scratch_count = 0;
+
+	/* First pass: count files */
+	for (int fn = FILE_NUMBER_MIN; fn <= FILE_NUMBER_MAX; fn++) {
+		OpenFileEntry* entry = mon_file_table_get(fn);
+		if (entry && entry->in_use) {
+			open_count++;
+			if (entry->is_scratch) scratch_count++;
+		}
+	}
+
+	if (open_count == 0) {
+		output(ctx, "No open files.");
+		return 0;
+	}
+
+	output(ctx, "");
+	output(ctx, "Open Files (SINTRAN III):");
+	output(ctx, "  FileNo  Mode        Scratch  Position      Size          Path");
+	output(ctx, "  ------  ----------  -------  ------------  ------------  ----");
+
+	for (int fn = FILE_NUMBER_MIN; fn <= FILE_NUMBER_MAX; fn++) {
+		OpenFileEntry* entry = mon_file_table_get(fn);
+		if (!entry || !entry->in_use) continue;
+
+		/* Get file size from ObjectEntry */
+		uint32_t size = entry->object_entry.bytes_in_file;
+
+		output(ctx, "  %-6d  %-10s  %-7s  %-12u  %-12u  %s",
+			fn,
+			get_access_mode_name(entry->access_mode),
+			entry->is_scratch ? "Yes" : "No",
+			entry->current_position,
+			size,
+			entry->host_path[0] ? entry->host_path : "(none)");
+	}
+
+	output(ctx, "");
+	output(ctx, "%d file(s) open (%d scratch)", open_count, scratch_count);
+
+	return 0;
+}
+
+/* file <n> - Show details for a specific open file */
+static int cmd_file(Nd500Machine* m, CmdContext* ctx, char* args) {
+	(void)m;
+
+	if (!args || !*args) {
+		output(ctx, "Usage: file <file_number>");
+		output(ctx, "  file_number: 64-127 (octal 100-177)");
+		return 0;
+	}
+
+	/* Parse file number */
+	char* endp;
+	long fn = strtol(args, &endp, 0);
+	if (*endp != '\0' && !isspace(*endp)) {
+		error(ctx, "Invalid file number: %s", args);
+		return -1;
+	}
+
+	if (!mon_file_table_is_valid_file_number((int)fn)) {
+		error(ctx, "File number must be 64-127 (got %ld)", fn);
+		return -1;
+	}
+
+	OpenFileEntry* entry = mon_file_table_get((int)fn);
+	if (!entry || !entry->in_use) {
+		error(ctx, "File %ld is not open", fn);
+		return -1;
+	}
+
+	ObjectEntry* obj = &entry->object_entry;
+
+	output(ctx, "");
+	output(ctx, "File %ld Details:", fn);
+	output(ctx, "  Host Path:     %s", entry->host_path[0] ? entry->host_path : "(none)");
+	output(ctx, "  Access Mode:   %s (%d)", get_access_mode_name(entry->access_mode), entry->access_mode);
+	output(ctx, "  Position:      %u / %u bytes", entry->current_position, obj->bytes_in_file);
+	output(ctx, "  Block Size:    %u bytes", entry->block_size);
+	output(ctx, "  Scratch:       %s", entry->is_scratch ? "Yes (delete on close)" : "No");
+
+	if (entry->mapped_as_segment) {
+		output(ctx, "  Mapped:        Yes (segment %u, access=%d)",
+			entry->mapped_segment_no, entry->segment_access_type);
+	}
+
+	output(ctx, "");
+	output(ctx, "  ObjectEntry:");
+
+	/* Format object name (remove 0x27 terminator for display) */
+	char name_buf[17] = {0};
+	for (int i = 0; i < 16 && obj->object_name[i] && obj->object_name[i] != 0x27; i++) {
+		name_buf[i] = obj->object_name[i];
+	}
+
+	char type_buf[5] = {0};
+	for (int i = 0; i < 4 && obj->type[i] && obj->type[i] != 0x27; i++) {
+		type_buf[i] = obj->type[i];
+	}
+
+	output(ctx, "    Name:        %s", name_buf[0] ? name_buf : "(empty)");
+	output(ctx, "    Type:        %s", type_buf[0] ? type_buf : "(empty)");
+	output(ctx, "    Header:      0x%04X", obj->header);
+
+	/* Decode header bits */
+	char header_desc[64] = "";
+	if (obj->header & HEADER_USED) strcat(header_desc, "Used ");
+	if (obj->header & HEADER_WRITE_OPEN) strcat(header_desc, "WriteOpen ");
+	if (obj->header & HEADER_RESERVED) strcat(header_desc, "Reserved ");
+	if (obj->header & HEADER_MODIFIED) strcat(header_desc, "Modified ");
+	if (header_desc[0]) {
+		output(ctx, "                 (%s)", header_desc);
+	}
+
+	output(ctx, "    Size:        %u bytes (%u pages)", obj->bytes_in_file, obj->pages_in_file);
+	output(ctx, "    Open Count:  %u (total: %u)", obj->current_open_count, obj->total_open_count);
+	output(ctx, "    Access Bits: 0x%04X", obj->access_bits);
+	output(ctx, "    File Type:   0x%04X", obj->file_type);
+	output(ctx, "    Device:      %u", obj->device_number);
+	output(ctx, "    Object Idx:  %u", obj->object_index);
+
+	/* Always show dates with both formatted string and raw hex for validation */
+	output(ctx, "");
+	output(ctx, "  Dates (SINTRAN format, valid range: 1950-2013):");
+	char date_buf[32];
+	output(ctx, "    Created:     %s [0x%08X]",
+		format_nd_date(obj->date_created, date_buf, sizeof(date_buf)), obj->date_created);
+	output(ctx, "    Last Read:   %s [0x%08X]",
+		format_nd_date(obj->date_read, date_buf, sizeof(date_buf)), obj->date_read);
+	output(ctx, "    Last Write:  %s [0x%08X]",
+		format_nd_date(obj->date_written, date_buf, sizeof(date_buf)), obj->date_written);
+
+	return 0;
+}
+
+/* user - Show/set current SINTRAN user */
+static int cmd_user(Nd500Machine* m, CmdContext* ctx, char* args) {
+	(void)m;
+
+	/* Skip leading whitespace */
+	while (args && *args && isspace((unsigned char)*args)) args++;
+
+	if (!args || !*args) {
+		/* Show current user */
+		const char* current = mon_config_get_current_user();
+		output(ctx, "Current SINTRAN user: %s", current ? current : "(none)");
+		output(ctx, "");
+		output(ctx, "Usage: user <username>");
+		output(ctx, "  Sets the current user for SINTRAN path translation.");
+		output(ctx, "  Example: user SYSTEM");
+		output(ctx, "");
+		output(ctx, "  Paths without (USER) prefix use this user:");
+		output(ctx, "    FILE:DATA -> {sintran_root}/%s/FILE.DATA", current ? current : "GUEST");
+		return 0;
+	}
+
+	/* Set new user */
+	mon_config_set_current_user(args);
+	output(ctx, "SINTRAN user set to: %s", mon_config_get_current_user());
 	return 0;
 }

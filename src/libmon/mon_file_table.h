@@ -93,6 +93,7 @@ typedef struct {
 /* Open file entry - runtime tracking */
 typedef struct {
     bool in_use;
+    bool is_scratch;              /* True if scratch file (delete on close) */
     ObjectEntry object_entry;
     uint32_t current_position;
     uint8_t access_mode;
@@ -159,5 +160,63 @@ const char* mon_get_command_buffer(void);
 int mon_read_command_buffer_char(void);
 void mon_reset_command_buffer_pos(void);
 void mon_set_command_buffer(const char* command);
+
+/* ============================================================
+ * Scratch File Support
+ *
+ * Scratch files are temporary files deleted when closed.
+ * Files are numbered 64-127 (octal 100-177), assigned sequentially.
+ * ============================================================ */
+
+/**
+ * Open a scratch file (temporary, deleted on close).
+ *
+ * Parameters:
+ *   filename - SINTRAN filename (e.g., "(SCRATCH)SCRATCH64")
+ *   filetype - File type/extension (e.g., "DATA")
+ *
+ * Returns: file number (64-127) on success, -1 on error
+ */
+int mon_open_scratch_file(const char* filename, const char* filetype);
+
+/**
+ * Check if a file is marked as scratch (delete on close).
+ */
+bool mon_is_scratch_file(int file_number);
+
+/**
+ * Close all scratch files and delete them.
+ */
+void mon_close_all_scratch_files(void);
+
+/**
+ * Register cleanup handler for atexit.
+ *
+ * Ensures all open files are closed and scratch files deleted
+ * when the emulator exits.
+ */
+void mon_file_table_register_cleanup(void);
+
+/**
+ * Populate ObjectEntry from host file stats.
+ *
+ * Maps host file metadata to SINTRAN ObjectEntry structure:
+ *   stat.st_size -> BytesInFile, PagesInFile
+ *   stat.st_ctime -> DateCreated
+ *   stat.st_atime -> DateRead
+ *   stat.st_mtime -> DateWritten
+ *
+ * Parameters:
+ *   entry - ObjectEntry to populate
+ *   host_path - Path to host file
+ *   sintran_name - SINTRAN filename (for ObjectName)
+ *   sintran_type - SINTRAN extension (for Type)
+ *
+ * Returns: 0 on success, -1 on error
+ */
+int mon_populate_object_entry_from_host(ObjectEntry* entry,
+                                         const char* host_path,
+                                         const char* sintran_name,
+                                         const char* sintran_type);
 
 #endif /* MON_FILE_TABLE_H */

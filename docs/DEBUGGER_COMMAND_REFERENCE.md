@@ -842,6 +842,105 @@ mon break halt        # Halt on unimplemented and in-progress
 
 ---
 
+## SINTRAN File System Commands
+
+Commands for managing the SINTRAN III file system emulation.
+
+### `files` - List Open Files
+
+List all open SINTRAN files (file numbers 64-127).
+
+```
+files
+```
+
+**Output columns:**
+- **FileNo**: File number (64-127, octal 100-177)
+- **Mode**: Access mode (SeqRead, RandRdWr, etc.)
+- **Scratch**: Yes if temporary file (deleted on close)
+- **Position**: Current read/write position
+- **Size**: File size in bytes
+- **Path**: Host filesystem path
+
+**Example output:**
+```
+Open Files (SINTRAN III):
+  FileNo  Mode        Scratch  Position      Size          Path
+  ------  ----------  -------  ------------  ------------  ----
+  64      RandRdWr    Yes      0             0             ./SCRATCH/SCRATCH64.DATA
+  65      SeqRead     No       1024          8192          ./GUEST/INPUT.TXT
+```
+
+### `file <n>` - File Details
+
+Show detailed information for a specific open file.
+
+```
+file 64           # Show details for file 64
+file 100          # Show details for file 100
+```
+
+**Displays:**
+- Host path and access mode
+- Current position and file size
+- Scratch file flag
+- ObjectEntry metadata (name, type, header flags)
+- Size in bytes and pages
+- Open counts
+- Access bits and file type flags
+- Dates in SINTRAN format (valid range: 1950-2013) with hex values
+
+**Example output:**
+```
+File 64 Details:
+  Host Path:     ./SCRATCH/SCRATCH64.DATA
+  Access Mode:   RandRdWr (4)
+  Position:      0 / 0 bytes
+  Scratch:       Yes (delete on close)
+
+  ObjectEntry:
+    Name:        SCRATCH64
+    Type:        DATA
+    Header:      0xC000
+                 (Used WriteOpen)
+    Size:        0 bytes (0 pages)
+    Open Count:  1 (total: 1)
+    Access Bits: 0x1F1F
+    File Type:   0x0008
+    Device:      0
+    Object Idx:  64
+
+  Dates (SINTRAN format, valid range: 1950-2013):
+    Created:     2005-12-31 14:30:00 [0x5C7F7780]
+    Last Read:   2005-12-31 14:30:00 [0x5C7F7780]
+    Last Write:  2005-12-31 14:30:00 [0x5C7F7780]
+```
+
+### `user [username]` - SINTRAN User
+
+Show or set the current SINTRAN user for path translation.
+
+```
+user              # Show current user
+user SYSTEM       # Set user to SYSTEM
+user GUEST        # Reset to default user
+```
+
+**Path Translation:**
+
+When a SINTRAN filename doesn't include an explicit `(USER)` prefix, the current user is used:
+- `FILE:DATA` becomes `{sintran_root}/{current_user}/FILE.DATA`
+
+**Example:**
+```
+Current SINTRAN user: GUEST
+
+  Paths without (USER) prefix use this user:
+    FILE:DATA -> ./GUEST/FILE.DATA
+```
+
+---
+
 ## Utility Commands
 
 ### `help` / `?` - Help

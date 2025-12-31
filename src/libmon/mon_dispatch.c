@@ -5,6 +5,8 @@
  */
 
 #include "mon.h"
+#include "mon_file_table.h"
+#include "mon_config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +38,20 @@ void mon_init(void) {
 
     /* Register all handlers from generated code */
     mon_register_all_handlers();
+
+    /* Initialize file table */
+    mon_file_table_init();
+
+    /* Register cleanup handler for atexit */
+    mon_file_table_register_cleanup();
+
+    /* Open default scratch file if enabled */
+    if (mon_config_get_auto_scratch_64()) {
+        int file_num = mon_open_scratch_file("(SCRATCH)SCRATCH64", "DATA");
+        if (file_num < 0) {
+            mon_log(MON_LOG_WARN, "Failed to open default scratch file 64");
+        }
+    }
 
     mon_log(MON_LOG_INFO, "MON subsystem initialized with %d handlers", g_registry_count);
 }
