@@ -22,6 +22,13 @@ MonResult mon_32B_OutMessage(MonContext* ctx) {
     char message[MAX_MESSAGE_LEN + 1];
     int len;
 
+    /* Defensive check for argument count */
+    if (ctx->arg_count < 1) {
+        mon_log(MON_LOG_WARN, MON_ID_32B ": Missing parameters (need 1, got %u)", ctx->arg_count);
+        mon_set_error(ctx, 52);  /* Invalid parameter */
+        return MON_ERROR;
+    }
+
     /* Read the message string from parameter */
     len = mon_read_string(ctx, 0, message, MAX_MESSAGE_LEN);
 
