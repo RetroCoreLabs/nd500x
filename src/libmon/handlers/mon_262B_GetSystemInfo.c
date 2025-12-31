@@ -1,42 +1,31 @@
 /*
  * MON 262B [CPUST/GetSystemInfo]
  *
- * Gets various system information. The system number, the CPU type, the
- * SINTRAN III version, the instruction set, the patch indicator, and the
- * system generation time are returned.
+ * Gets various system information in a 24-byte buffer.
  *
  * Parameters:
- *   [I] Number (INTEGER): System number to query (usually 1)
- *   [O] Buffer (ARRAY of 7 INTEGERs):
- *       [0] System number
- *       [1] CPU type (500 for ND-500)
- *       [2] SINTRAN version (e.g., 0x4A00 for version J.0)
- *       [3] Instruction set (0 = standard)
- *       [4] Patch indicator
- *       [5] Generation time (high word)
- *       [6] Generation time (low word)
+ *   [I] Number (INTEGER): System number to query (usually 0)
+ *   [O] Buffer (24 bytes):
+ *       Bytes 0:1   - System number (16 bits)
+ *       Byte 2      - CPU type (2-5 for ND-100 variants, not used for ND-500)
+ *       Byte 3      - Instruction set (0-3)
+ *       Bytes 4:5   - Microprogram version
+ *       Bytes 6:7   - System type (100, 500, 502, 5561, etc.)
+ *       Byte 8      - Operating system (1=VSE, 2=VSE-500, 3=RTP, 4=VSX, 5=VSX-500)
+ *       Byte 9      - OS version (ASCII A-Z)
+ *       Bytes 10:11 - Reserved
+ *       Bytes 12:13 - Patch level indicator
+ *       Bytes 14:15 - Generation time (minutes)
+ *       Bytes 16:17 - Generation time (hours)
+ *       Bytes 18:19 - Generation time (day)
+ *       Bytes 20:21 - Generation time (month)
+ *       Bytes 22:23 - Generation time (year)
  *
  * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
 
 #include "../mon.h"
 #include "../mon_log.h"
-
-/* Simulated system values */
-#define SYSTEM_NUMBER        1      /* System number */
-#define CPU_TYPE_ND500       500    /* ND-500 CPU */
-
-/* SINTRAN version encoding:
- * High byte = ASCII code of version letter (A-Z)
- * Low byte = sub-version number
- * Examples: 0x4100 = A.0, 0x4A00 = J.0, 0x4B01 = K.1
- * 0x4A = 74 = ASCII 'J', so 0x4A00 = SINTRAN III J.0 */
-#define SINTRAN_VERSION_J    0x4A00 /* SINTRAN III version J.0 ('J' = 0x4A) */
-
-#define INSTRUCTION_SET      0      /* Standard instruction set */
-#define PATCH_INDICATOR      0      /* No patches */
-#define GENERATION_TIME_HI   0      /* Generation time (not used) */
-#define GENERATION_TIME_LO   0
 
 MonResult mon_262B_GetSystemInfo(MonContext* ctx) {
     /* Defensive check for argument count */
@@ -55,30 +44,60 @@ MonResult mon_262B_GetSystemInfo(MonContext* ctx) {
 
     mon_log(MON_LOG_DEBUG, MON_ID_262B ": IN: SysNum=%o", sys_num);
 
-    /* Write 7 words to buffer */
-    /* [0] System number */
-    ctx->write_word(ctx->cpu, buffer_addr + 0, SYSTEM_NUMBER);
+    /* Write 24-byte buffer */
+    /* Bytes 0:1 - System number (16 bits) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 0, 0);
+    ctx->write_byte(ctx->cpu, buffer_addr + 1, 1);  /* System 1 */
 
-    /* [1] CPU type (500 for ND-500) */
-    ctx->write_word(ctx->cpu, buffer_addr + 4, CPU_TYPE_ND500);
+    /* Byte 2 - CPU type (not applicable for ND-500, use 0) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 2, 0);
 
-    /* [2] SINTRAN version (J.0) */
-    ctx->write_word(ctx->cpu, buffer_addr + 8, SINTRAN_VERSION_J);
+    /* Byte 3 - Instruction set (0 = standard) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 3, 0);
 
-    /* [3] Instruction set */
-    ctx->write_word(ctx->cpu, buffer_addr + 12, INSTRUCTION_SET);
+    /* Bytes 4:5 - Microprogram version */
+    ctx->write_byte(ctx->cpu, buffer_addr + 4, 0);
+    ctx->write_byte(ctx->cpu, buffer_addr + 5, 0);
 
-    /* [4] Patch indicator */
-    ctx->write_word(ctx->cpu, buffer_addr + 16, PATCH_INDICATOR);
+    /* Bytes 6:7 - System type (500 = ND-500) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 6, (500 >> 8) & 0xFF);
+    ctx->write_byte(ctx->cpu, buffer_addr + 7, 500 & 0xFF);
 
-    /* [5] Generation time (high) */
-    ctx->write_word(ctx->cpu, buffer_addr + 20, GENERATION_TIME_HI);
+    /* Byte 8 - Operating system (5 = SINTRAN III VSX-500) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 8, 5);
 
-    /* [6] Generation time (low) */
-    ctx->write_word(ctx->cpu, buffer_addr + 24, GENERATION_TIME_LO);
+    /* Byte 9 - OS version (ASCII 'L' = 0x4C for SINTRAN L) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 9, 'L');
 
-    mon_log(MON_LOG_DEBUG, MON_ID_262B ": OUT: CPU=%o, Version=0x%04X",
-            CPU_TYPE_ND500, SINTRAN_VERSION_J);
+    /* Bytes 10:11 - Reserved */
+    ctx->write_byte(ctx->cpu, buffer_addr + 10, 0);
+    ctx->write_byte(ctx->cpu, buffer_addr + 11, 0);
+
+    /* Bytes 12:13 - Patch level indicator */
+    ctx->write_byte(ctx->cpu, buffer_addr + 12, 0);
+    ctx->write_byte(ctx->cpu, buffer_addr + 13, 0);
+
+    /* Bytes 14:15 - Generation time (minutes) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 14, 0);
+    ctx->write_byte(ctx->cpu, buffer_addr + 15, 0);
+
+    /* Bytes 16:17 - Generation time (hours) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 16, 0);
+    ctx->write_byte(ctx->cpu, buffer_addr + 17, 0);
+
+    /* Bytes 18:19 - Generation time (day) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 18, 0);
+    ctx->write_byte(ctx->cpu, buffer_addr + 19, 1);
+
+    /* Bytes 20:21 - Generation time (month) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 20, 0);
+    ctx->write_byte(ctx->cpu, buffer_addr + 21, 1);
+
+    /* Bytes 22:23 - Generation time (year) */
+    ctx->write_byte(ctx->cpu, buffer_addr + 22, (1990 >> 8) & 0xFF);
+    ctx->write_byte(ctx->cpu, buffer_addr + 23, 1990 & 0xFF);
+
+    mon_log(MON_LOG_DEBUG, MON_ID_262B ": OUT: SysType=500, OS=VSX-500, Version=L");
 
     mon_set_success(ctx);
     return MON_SUCCESS;

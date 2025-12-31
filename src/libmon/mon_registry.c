@@ -1460,7 +1460,7 @@ void mon_register_all_handlers(void) {
         "Gets various system information. The system number, the CPU type, the SINTRAN III version, the instr",  /* Description */
         "[I] Number (INTEGER): A number. Should always be 0.\\n[O] Buffer (ARRAY): A 24 byte (12 word) buffer receiving system information (CPU type, SINTRAN version, instruction set, etc.).",  /* Parameter details */
         mon_262B_GetSystemInfo,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
