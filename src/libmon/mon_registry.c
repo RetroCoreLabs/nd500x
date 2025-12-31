@@ -1709,7 +1709,7 @@ void mon_register_all_handlers(void) {
         "Some monitor calls are optional or only available in later versions of SINTRAN III. This monitor cal",  /* Description */
         "[I] MonCallNumber (INTEGER): Monitor-call number.\\n[O] MonCallEntry (INTEGER): Address of the monitor call entry. 0 means not implemented.",  /* Parameter details */
         mon_312B_CheckMonCall,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
