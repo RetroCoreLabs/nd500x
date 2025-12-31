@@ -2695,7 +2695,7 @@ void mon_register_all_handlers(void) {
         "Sets the value of the maximum byte pointer in an opened file (i.e. the number of bytes minus 1). The",  /* Description */
         "[I] FileNumber (INTEGER): File number. See OpenFile.\\n[I] MaxBytePointer (INTEGER4): Maximum file size in bytes (32-bit value).",  /* Parameter details */
         mon_73B_SetMaxBytes,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
