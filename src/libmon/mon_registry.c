@@ -2728,7 +2728,7 @@ void mon_register_all_handlers(void) {
         "Sets the block size of an opened file. Monitor calls which read randomly from, or write randomly to ",  /* Description */
         "[I] FileNumber (INTEGER2): File number. See OpenFile.\\n[I] BlockSize (LONGINT): Block size in bytes. Must be an even number. Factors of 2048 are most efficient.",  /* Parameter details */
         mon_76B_SetBlockSize,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
