@@ -21,8 +21,9 @@
 #include <stdio.h>
 
 MonResult mon_2B_OutByte(MonContext* ctx) {
-    /* Defensive check for argument count */
+    /* Defensive check for argument count - need both INPUT params */
     if (ctx->arg_count < 2) {
+        mon_log(MON_LOG_WARN, MON_ID_2B ": Missing parameters (need 2, got %u)", ctx->arg_count);
         mon_set_error(ctx, 52);  /* Invalid parameter */
         return MON_ERROR;
     }
