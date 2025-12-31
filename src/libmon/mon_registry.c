@@ -2585,7 +2585,7 @@ void mon_register_all_handlers(void) {
         "Gets the number of bytes in a file. Only the bytes containing data are counted.",  /* Description */
         "[I] FileNumber (INTEGER): File number. See OpenFile.\\n[O] NoOfBytes (INTEGER4): Number of bytes in the file (32-bit value).",  /* Parameter details */
         mon_62B_GetBytesInFile,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
