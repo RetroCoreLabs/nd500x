@@ -147,6 +147,15 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 
 		/* For CALL/CALLG: show extra operand effective addresses */
 		/* Extra operands are the CALL arguments which use indirect addressing */
+		/* Note: Use remaining space calculation with overflow protection */
+		#define SAFE_SNPRINTF(fmt, ...) do { \
+			if (pos < sizeof(instr_str) - 1) { \
+				int written = snprintf(instr_str + pos, sizeof(instr_str) - pos, fmt, ##__VA_ARGS__); \
+				if (written > 0) pos += (size_t)written; \
+				if (pos >= sizeof(instr_str)) pos = sizeof(instr_str) - 1; \
+			} \
+		} while(0)
+
 		if (cpu->extra_operand_count > 0) {
 			for (uint16_t i = 0; i < cpu->extra_operand_count && i < 16; i++) {
 				Nd500AddrMode mode = cpu->extra_operands[i].mode;
@@ -154,12 +163,12 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 				if (mode != ND500_ADDR_CONSTANT && mode != ND500_ADDR_CONSTANT_SHORT &&
 				    mode != ND500_ADDR_REGISTER && mode != ND500_ADDR_UNKNOWN) {
 					if (!has_values) {
-						pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, " ; ");
+						SAFE_SNPRINTF(" ; ");
 						has_values = 1;
 					} else {
-						pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, ",");
+						SAFE_SNPRINTF(",");
 					}
-					pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, "0x%X", cpu->extra_operands[i].effective_address);
+					SAFE_SNPRINTF("0x%X", cpu->extra_operands[i].effective_address);
 				}
 			}
 		} else {
@@ -168,15 +177,16 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 				Nd500AddrMode mode = fi.operands[i].mode;
 				if (mode == ND500_ADDR_LOCAL_IND || mode == ND500_ADDR_LOCAL_IND_PI) {
 					if (!has_values) {
-						pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, " ; ");
+						SAFE_SNPRINTF(" ; ");
 						has_values = 1;
 					} else {
-						pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, ",");
+						SAFE_SNPRINTF(",");
 					}
-					pos += (size_t)snprintf(instr_str + pos, sizeof(instr_str) - pos, "0x%X", fi.operands[i].effective_address);
+					SAFE_SNPRINTF("0x%X", fi.operands[i].effective_address);
 				}
 			}
 		}
+		#undef SAFE_SNPRINTF
 
 		int instr_len = fi.total_len ? fi.total_len : fi.opcode_len;
 		nd500_dbg_trace_before(old_pc, instr_str, fi.bytes, instr_len, saved_regs);
