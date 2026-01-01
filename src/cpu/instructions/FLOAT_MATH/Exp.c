@@ -53,10 +53,13 @@ void nd500_instr_Exp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Calculate exponential */
     result = exp(argument);
 
-    /* Check for overflow (infinity) */
+    /* Check for overflow (infinity) or underflow (denormalized/zero) */
     if (isinf(result)) {
         trap_floating_overflow(cpu, fi->address);
-        /* Set to max value instead of continuing with infinity */
+    } else if (result != 0.0 && fabs(result) < (is_double ? 1e-308 : 1e-38)) {
+        /* Underflow - result too small to represent.
+         * exp(x) underflows for large negative x values. */
+        trap_floating_underflow(cpu, fi->address);
     }
 
     /* Convert result back to ND-500 format */

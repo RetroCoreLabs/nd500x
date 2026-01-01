@@ -107,8 +107,9 @@ void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
 
         if (isMinNegative) {
-            /* Most negative value overflows: result stays negative, set S and O */
-            cpu->ST1 |= ND500_FLAG_S;
+            /* Most negative value overflows: set O flag only.
+             * Per ND-500 Reference Manual Section 10.15: "0 -> S" unconditionally.
+             * S should ALWAYS be 0 for ABS, even on overflow. */
             cpu->ST1 |= ND500_FLAG_O;
         }
 

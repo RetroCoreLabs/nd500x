@@ -93,6 +93,9 @@ void nd500_instr_Subtract(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Check for overflow/underflow */
         if (isinf(result)) {
             trap_floating_overflow(cpu, fi->address);
+        } else if (result != 0.0 && fabs(result) < 1e-38) {
+            /* Underflow - result too small to represent */
+            trap_floating_underflow(cpu, fi->address);
         }
 
         /* Convert result back to ND-500 format and write to register */

@@ -66,9 +66,13 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             double b_ieee = nd500_double_to_ieee754(b_bits);
             double sum = a_ieee + b_ieee;
 
-            /* Check for overflow */
+            /* Check for overflow/underflow */
             if (isinf(sum)) {
                 overflow = true;
+                trap_floating_overflow(cpu, fi->address);
+            } else if (sum != 0.0 && fabs(sum) < 1e-308) {
+                /* Underflow - result too small to represent */
+                trap_floating_underflow(cpu, fi->address);
             }
 
             /* Convert back to ND-500 format */
@@ -97,9 +101,13 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             float b_ieee = nd500_float_to_ieee754(b_bits);
             float sum = a_ieee + b_ieee;
 
-            /* Check for overflow */
+            /* Check for overflow/underflow */
             if (isinf(sum)) {
                 overflow = true;
+                trap_floating_overflow(cpu, fi->address);
+            } else if (sum != 0.0f && fabsf(sum) < 1e-38f) {
+                /* Underflow - result too small to represent */
+                trap_floating_underflow(cpu, fi->address);
             }
 
             /* Convert back to ND-500 format */
