@@ -101,6 +101,61 @@ uint64_t nd500_read_memory_64(Nd500Cpu* cpu, uint32_t vaddr);
  */
 void nd500_write_memory_64(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value);
 
+/* ============================================================================
+ * DOMAIN-AWARE MEMORY ACCESS (for ALT prefix support)
+ * ============================================================================
+ * The ALT prefix (0xC8) allows an instruction to access data in the
+ * Current Alternative Domain (CAD) instead of the Current Executing Domain (CED).
+ * This is used for cross-domain calls where the called routine needs to
+ * read/write parameters in the caller's data space.
+ *
+ * Reference: ND-500 Reference Manual, Chapter 6 (Domain System)
+ */
+
+/**
+ * Read 8-bit byte from virtual memory using specified domain
+ * @param cpu CPU state
+ * @param vaddr Virtual address
+ * @param domain Domain for MMU translation (CED or CAD)
+ * @return 8-bit value
+ */
+uint8_t nd500_read_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain);
+
+/**
+ * Write 8-bit byte to virtual memory using specified domain
+ */
+void nd500_write_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value, uint8_t domain);
+
+/**
+ * Read 16-bit halfword from virtual memory using specified domain
+ */
+uint16_t nd500_read_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain);
+
+/**
+ * Write 16-bit halfword to virtual memory using specified domain
+ */
+void nd500_write_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value, uint8_t domain);
+
+/**
+ * Read 32-bit word from virtual memory using specified domain
+ */
+uint32_t nd500_read_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain);
+
+/**
+ * Write 32-bit word to virtual memory using specified domain
+ */
+void nd500_write_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value, uint8_t domain);
+
+/**
+ * Read 64-bit doubleword from virtual memory using specified domain
+ */
+uint64_t nd500_read_memory_64_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain);
+
+/**
+ * Write 64-bit doubleword to virtual memory using specified domain
+ */
+void nd500_write_memory_64_domain(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value, uint8_t domain);
+
 
 /* ============================================================================
  * OPERAND ACCESS HELPERS

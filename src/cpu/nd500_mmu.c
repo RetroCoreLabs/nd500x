@@ -141,11 +141,22 @@ int nd500_mmu_is_enabled(Nd500Cpu* cpu) {
  *
  * Based on C# CpuND500.MMU.cs TranslateVirtualAddress() (lines 282-448)
  */
-uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction) {
+/**
+ * Core MMU translation with explicit domain parameter.
+ *
+ * Domain selection per ND-500 Reference Manual:
+ * - Instruction fetch: always uses CED (Current Executing Domain)
+ * - Data access without ALT: uses CED
+ * - Data access with ALT prefix: uses CAD (Current Alternative Domain)
+ *
+ * The ALT prefix allows called routines to access caller's data when
+ * crossing domain boundaries.
+ */
+uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction, uint8_t domain) {
     /* Debug: trace all translations for high addresses */
     if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_TRACE && virtual_addr >= 0x08000000 && is_write) {
-        fprintf(stderr, "[MMU-TRACE] translate(vaddr=0x%08X, is_write=%d, is_instr=%d)\n",
-                virtual_addr, is_write, is_instruction);
+        fprintf(stderr, "[MMU-TRACE] translate(vaddr=0x%08X, is_write=%d, is_instr=%d, domain=%d)\n",
+                virtual_addr, is_write, is_instruction, domain);
     }
 
     if (!cpu) {
@@ -188,8 +199,7 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
     int l2_index = (virtual_addr >> L2_INDEX_SHIFT) & L2_INDEX_MASK;      /* Bits 19-11 */
     int offset   = virtual_addr & (NBPG - 1);                             /* Bits 10-0 */
 
-    /* Get current domain (CAD = Current Alternative Domain) */
-    uint8_t domain = (uint8_t)cpu->CAD;
+    /* Domain parameter is now passed explicitly - no need to read from cpu->CAD */
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, so domain < MAXDOM is always true */
 
     /* Get capability from PCB */
@@ -358,6 +368,17 @@ uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write,
     }
 
     return physical_addr;
+}
+
+/**
+ * Default MMU translation using CED (Current Executing Domain).
+ * This is a convenience wrapper for code that doesn't need ALT prefix support.
+ * For ALT prefix support, use nd500_mmu_translate_domain() with explicit domain.
+ */
+uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction) {
+    /* Default to CED - most code doesn't use ALT prefix */
+    uint8_t domain = cpu ? cpu->CED : 0;
+    return nd500_mmu_translate_domain(cpu, virtual_addr, is_write, is_instruction, domain);
 }
 
 /**

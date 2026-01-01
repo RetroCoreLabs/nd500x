@@ -104,3 +104,19 @@ add_executable(test_mon_calls
 )
 target_link_libraries(test_mon_calls PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib mon)
 
+# BMOVE overlap tests
+# Tests BMOVE instruction with overlapping memory regions
+# Verifies fix for bug where forward copy corrupted overlapping destination > source
+add_executable(test_bmove_overlap
+    test_bmove_overlap.c
+)
+target_link_libraries(test_bmove_overlap PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
+# ALT prefix tests
+# Tests ALT prefix (0xC8) domain switching for data access
+# Verifies CAD is used instead of CED when ALT prefix is present
+add_executable(test_alt_prefix
+    test_alt_prefix.c
+)
+target_link_libraries(test_alt_prefix PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+

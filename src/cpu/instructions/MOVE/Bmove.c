@@ -71,8 +71,25 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     uint32_t dst_base = fi->operands[1].effective_address;
 
+    /* Determine copy direction for overlapping regions.
+     * If dst > src and regions overlap, copy backward to avoid corruption.
+     * This is the classic memmove() vs memcpy() problem.
+     */
+    uint32_t total_bytes = count * element_size;
+    bool copy_backward = false;
+
+    if (!fill_mode) {
+        /* Check for overlap: dst is within [src, src + total_bytes) */
+        if (dst_base > src_base && dst_base < src_base + total_bytes) {
+            copy_backward = true;
+        }
+    }
+
     /* Transfer elements */
-    for (uint32_t i = 0; i < count; i++) {
+    for (uint32_t iter = 0; iter < count; iter++) {
+        /* Calculate index based on copy direction */
+        uint32_t i = copy_backward ? (count - 1 - iter) : iter;
+
         uint32_t dst_addr = dst_base + (i * element_size);
         uint64_t value;
 
@@ -97,7 +114,7 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                     value = 0;
                     break;
             }
-            
+
             /* Check for trap after read (e.g., MMU page fault) */
             if (cpu->machine && !cpu->machine->run_flag) {
                 break;  /* Trap occurred - stop iteration */
@@ -119,7 +136,7 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 nd500_write_memory_64(cpu, dst_addr, value);
                 break;
         }
-        
+
         /* Check for trap after write (e.g., MMU page fault, protection violation) */
         if (cpu->machine && !cpu->machine->run_flag) {
             break;  /* Trap occurred - stop iteration */

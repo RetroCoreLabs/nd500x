@@ -35,6 +35,7 @@ const char* nd500_stop_reason_str(StopReason reason) {
 
 void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
 	if (!m) return;
+	memset(m, 0, sizeof(*m));  /* Zero all fields first */
 	m->memory_size = mem_size;
 	m->memory = (uint8_t*)calloc(1, mem_size);
 	m->run_flag = 0;

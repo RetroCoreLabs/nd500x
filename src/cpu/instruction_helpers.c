@@ -173,6 +173,126 @@ void nd500_write_memory_64(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value) {
 
 
 /* ============================================================================
+ * DOMAIN-AWARE MEMORY ACCESS (for ALT prefix support)
+ * ============================================================================
+ * The ALT prefix allows instructions to access data in CAD (Current Alternative
+ * Domain) instead of CED (Current Executing Domain). This is essential for
+ * cross-domain calls where a callee needs to access caller's data space.
+ *
+ * Reference: ND-500 Reference Manual, Chapter 6 (Domain System)
+ */
+
+uint8_t nd500_read_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain) {
+    if (!cpu || !cpu->machine) return 0;
+
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate_domain(cpu, vaddr, 0, 0, domain);
+        if (nd500_trap_occurred()) return 0;
+    }
+
+    uint8_t value = nd500_bus_read8(cpu->machine, paddr);
+    MEMTRACE_RD("[MEMTRACE] read_8_domain:  vaddr=0x%08X paddr=0x%08X domain=%d value=0x%02X\n",
+                vaddr, paddr, domain, value);
+    return value;
+}
+
+void nd500_write_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value, uint8_t domain) {
+    if (!cpu || !cpu->machine) return;
+
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate_domain(cpu, vaddr, 1, 0, domain);
+        if (nd500_trap_occurred()) return;
+    }
+
+    MEMTRACE_WR("[MEMTRACE] write_8_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%02X\n",
+                vaddr, paddr, domain, value);
+    nd500_bus_write8(cpu->machine, paddr, value);
+}
+
+uint16_t nd500_read_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain) {
+    if (!cpu || !cpu->machine) return 0;
+
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate_domain(cpu, vaddr, 0, 0, domain);
+        if (nd500_trap_occurred()) return 0;
+    }
+
+    uint8_t b0 = nd500_bus_read8(cpu->machine, paddr);
+    uint8_t b1 = nd500_bus_read8(cpu->machine, paddr + 1);
+    uint16_t value = ((uint16_t)b0 << 8) | (uint16_t)b1;
+    MEMTRACE_RD("[MEMTRACE] read_16_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%04X\n",
+                vaddr, paddr, domain, value);
+    return value;
+}
+
+void nd500_write_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value, uint8_t domain) {
+    if (!cpu || !cpu->machine) return;
+
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate_domain(cpu, vaddr, 1, 0, domain);
+        if (nd500_trap_occurred()) return;
+    }
+
+    MEMTRACE_WR("[MEMTRACE] write_16_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%04X\n",
+                vaddr, paddr, domain, value);
+    nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 8) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)(value & 0xFF));
+}
+
+uint32_t nd500_read_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain) {
+    if (!cpu || !cpu->machine) return 0;
+
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate_domain(cpu, vaddr, 0, 0, domain);
+        if (nd500_trap_occurred()) return 0;
+    }
+
+    uint8_t b0 = nd500_bus_read8(cpu->machine, paddr);
+    uint8_t b1 = nd500_bus_read8(cpu->machine, paddr + 1);
+    uint8_t b2 = nd500_bus_read8(cpu->machine, paddr + 2);
+    uint8_t b3 = nd500_bus_read8(cpu->machine, paddr + 3);
+    uint32_t value = ((uint32_t)b0 << 24) | ((uint32_t)b1 << 16) |
+                     ((uint32_t)b2 << 8) | (uint32_t)b3;
+    MEMTRACE_RD("[MEMTRACE] read_32_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%08X\n",
+                vaddr, paddr, domain, value);
+    return value;
+}
+
+void nd500_write_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value, uint8_t domain) {
+    if (!cpu || !cpu->machine) return;
+
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate_domain(cpu, vaddr, 1, 0, domain);
+        if (nd500_trap_occurred()) return;
+    }
+
+    MEMTRACE_WR("[MEMTRACE] write_32_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%08X\n",
+                vaddr, paddr, domain, value);
+    nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 24) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)((value >> 16) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 2, (uint8_t)((value >> 8) & 0xFF));
+    nd500_bus_write8(cpu->machine, paddr + 3, (uint8_t)(value & 0xFF));
+}
+
+uint64_t nd500_read_memory_64_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain) {
+    uint32_t high = nd500_read_memory_32_domain(cpu, vaddr, domain);
+    uint32_t low  = nd500_read_memory_32_domain(cpu, vaddr + 4, domain);
+    return ((uint64_t)high << 32) | (uint64_t)low;
+}
+
+void nd500_write_memory_64_domain(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value, uint8_t domain) {
+    nd500_write_memory_32_domain(cpu, vaddr,     (uint32_t)((value >> 32) & 0xFFFFFFFF), domain);
+    nd500_write_memory_32_domain(cpu, vaddr + 4, (uint32_t)(value & 0xFFFFFFFF), domain);
+}
+
+
+/* ============================================================================
  * OPERAND ACCESS HELPERS
  * ============================================================================
  */
@@ -670,7 +790,16 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
         }
     }
 
-    /* Handle memory operands */
+    /* Handle memory operands
+     *
+     * ALT prefix support: When has_alt_prefix is set, use CAD (Current Alternative
+     * Domain) instead of CED (Current Executing Domain) for MMU translation.
+     * This enables cross-domain data access.
+     *
+     * Reference: ND-500 Reference Manual, Chapter 6 (Domain System)
+     */
+    uint8_t domain = (op->has_alt_prefix && cpu) ? cpu->CAD : (cpu ? cpu->CED : 0);
+
     switch (dtype) {
         case ND500_DTYPE_BIT: {
             /* BIT type: read single bit from memory
@@ -681,18 +810,18 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
              * effective_address points to the byte containing the bit
              * bit_position (0-7) indicates which bit within that byte
              */
-            uint8_t byte = nd500_read_memory_8(cpu, op->effective_address);
+            uint8_t byte = nd500_read_memory_8_domain(cpu, op->effective_address, domain);
             return (byte >> op->bit_position) & 1;  /* Extract single bit (0 or 1) */
         }
         case ND500_DTYPE_BYTE:
-            return nd500_read_memory_8(cpu, op->effective_address);
+            return nd500_read_memory_8_domain(cpu, op->effective_address, domain);
         case ND500_DTYPE_HALFWORD:
-            return nd500_read_memory_16(cpu, op->effective_address);
+            return nd500_read_memory_16_domain(cpu, op->effective_address, domain);
         case ND500_DTYPE_WORD:
         case ND500_DTYPE_FLOAT:
-            return nd500_read_memory_32(cpu, op->effective_address);
+            return nd500_read_memory_32_domain(cpu, op->effective_address, domain);
         case ND500_DTYPE_DOUBLEWORD:
-            return nd500_read_memory_64(cpu, op->effective_address);
+            return nd500_read_memory_64_domain(cpu, op->effective_address, domain);
         default:
             return 0;
     }
@@ -742,7 +871,16 @@ void nd500_write_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uin
         }
     }
 
-    /* Handle memory operands */
+    /* Handle memory operands
+     *
+     * ALT prefix support: When has_alt_prefix is set, use CAD (Current Alternative
+     * Domain) instead of CED (Current Executing Domain) for MMU translation.
+     * This enables cross-domain data access.
+     *
+     * Reference: ND-500 Reference Manual, Chapter 6 (Domain System)
+     */
+    uint8_t domain = (op->has_alt_prefix && cpu) ? cpu->CAD : (cpu ? cpu->CED : 0);
+
     switch (dtype) {
         case ND500_DTYPE_BIT: {
             /* BIT type: write single bit to memory (read-modify-write)
@@ -754,27 +892,27 @@ void nd500_write_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uin
              * bit_position (0-7) indicates which bit within that byte
              * value is treated as 0 or non-zero to clear/set the bit
              */
-            uint8_t byte = nd500_read_memory_8(cpu, op->effective_address);
+            uint8_t byte = nd500_read_memory_8_domain(cpu, op->effective_address, domain);
             if (value & 1) {
                 byte |= (1 << op->bit_position);   /* Set bit */
             } else {
                 byte &= ~(1 << op->bit_position);  /* Clear bit */
             }
-            nd500_write_memory_8(cpu, op->effective_address, byte);
+            nd500_write_memory_8_domain(cpu, op->effective_address, byte, domain);
             break;
         }
         case ND500_DTYPE_BYTE:
-            nd500_write_memory_8(cpu, op->effective_address, (uint8_t)value);
+            nd500_write_memory_8_domain(cpu, op->effective_address, (uint8_t)value, domain);
             break;
         case ND500_DTYPE_HALFWORD:
-            nd500_write_memory_16(cpu, op->effective_address, (uint16_t)value);
+            nd500_write_memory_16_domain(cpu, op->effective_address, (uint16_t)value, domain);
             break;
         case ND500_DTYPE_WORD:
         case ND500_DTYPE_FLOAT:
-            nd500_write_memory_32(cpu, op->effective_address, (uint32_t)value);
+            nd500_write_memory_32_domain(cpu, op->effective_address, (uint32_t)value, domain);
             break;
         case ND500_DTYPE_DOUBLEWORD:
-            nd500_write_memory_64(cpu, op->effective_address, value);
+            nd500_write_memory_64_domain(cpu, op->effective_address, value, domain);
             break;
         default:
             break;

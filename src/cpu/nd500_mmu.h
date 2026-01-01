@@ -200,6 +200,7 @@ int nd500_mmu_is_enabled(Nd500Cpu* cpu);
 
 /* MMU Address Translation */
 uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction);
+uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction, uint8_t domain);
 uint32_t nd500_mmu_phyladr(Nd500Cpu* cpu, uint32_t virtual_addr);
 
 /* PST Accessors */
