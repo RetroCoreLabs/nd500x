@@ -739,15 +739,14 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op
             switch (dtype) {
                 case ND500_DTYPE_BIT: {
                     /* BIT addressing: index is bit offset, not byte offset
-                     * Per ND-500 Reference Manual 7.2.1:
-                     * "As the ND-500 is byte addressable, a bit is specified by its
-                     * byte address. The specified bit is the rightmost bit (bit 0,
-                     * the least significant bit) in the addressed byte."
+                     * Per ND-500 Reference Manual page 133-134:
+                     * "Post indexing always counts the data elements from the left"
+                     * bn = 7 - REM(index/8) = 7 - (index % 8)
                      *
                      * Effective address = base + (bit_index / 8)
-                     * Bit position = bit_index % 8 (stored in operand for later use)
+                     * Bit position = 7 - (bit_index % 8), counting from MSB
                      */
-                    op->bit_position = (uint8_t)(index_value & 0x07);  /* bit position 0-7 */
+                    op->bit_position = 7 - (uint8_t)(index_value & 0x07);  /* bit position, counted from left */
                     address = (uint32_t)((int32_t)address + (index_value >> 3));  /* byte offset = bit_index / 8 */
                     return address;  /* Early return - no additional scaling */
                 }
