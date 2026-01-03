@@ -224,7 +224,10 @@ const char* nd500_instr_mnemonic(uint16_t opcode) {
 }
 
 int nd500_instr_opcode_length(uint16_t opcode) {
-    /* Check high byte for long opcode marker (little-endian: bits 15-12) */
+    /* Determine opcode byte length:
+     * - Opcodes 0x00xx (0-255) are 1-byte in memory (just the low byte)
+     * - Opcodes 0xFCxx-0xFFxx are 2-byte in memory
+     */
     return ((opcode >> 8) >= 0xFC) ? 2 : 1;
 }
 
@@ -375,7 +378,14 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
 		b0 = nd500_bus_read8(m, pc);
 		b1 = nd500_bus_read8(m, pc+1);
 	}
-    /* Check FIRST byte (b0) for 2-byte opcode prefix 0xFC-0xFF */
+    /* Determine opcode length:
+     * 0x00-0xFB: 1-byte opcodes (stored as single byte, internally mapped to 0x00xx)
+     * 0xFC-0xFF: 2-byte opcode prefix (next byte is low part of opcode)
+     *
+     * Note: The opcode table uses 16-bit values like 0x0041 for TEST,
+     * but in memory this is encoded as single byte 0x41.
+     * The dispatch table is indexed by the full 16-bit opcode value.
+     */
     int oplen = (b0 >= 0xFC) ? 2 : 1;
     uint16_t opcode = (oplen == 2) ? ((uint16_t)b0 << 8) | (uint16_t)b1 : (uint16_t)b0;
 	out->opcode = opcode;
@@ -553,15 +563,20 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         if (m->cpu) {
             m->cpu->extra_operand_count = 0;
         }
-        for (uint16_t i = 0; i < arg_count && i < 256; ++i) {
-            /* Decode into fi->operands for disassembly (if space available) */
+        for (uint16_t i = 0; i < arg_count && i < ND500_MAX_OPERANDS; ++i) {
+            /* ALWAYS decode operand to advance cursor (required for correct instruction length) */
+            /* This fixes a bug where CALL with >16 operands would have wrong return address */
+            Nd500OperandDecoded temp_op;
+            DECODE_GENERAL_OPERAND(&temp_op, &cursor, &byte_idx);
+
+            /* Store in fi->operands for disassembly (if space available) */
             if (out->operand_count < ND500_MAX_OPERANDS) {
-                DECODE_GENERAL_OPERAND(&out->operands[out->operand_count], &cursor, &byte_idx);
+                out->operands[out->operand_count] = temp_op;
                 out->operand_count++;
             }
-            /* Also copy to cpu->extra_operands for execution */
-            if (m->cpu && m->cpu->extra_operand_count < 256) {
-                m->cpu->extra_operands[m->cpu->extra_operand_count] = out->operands[out->operand_count - 1];
+            /* Also store in cpu->extra_operands for execution */
+            if (m->cpu && m->cpu->extra_operand_count < ND500_MAX_OPERANDS) {
+                m->cpu->extra_operands[m->cpu->extra_operand_count] = temp_op;
                 m->cpu->extra_operand_count++;
             }
         }
@@ -579,7 +594,7 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
             out->operands[i].effective_address = compute_effective_address(m->cpu, &out->operands[i], out->data_type);
         }
         /* Compute effective addresses for extra operands (CALL/CALLG/POLY arguments) */
-        for (uint16_t i = 0; i < m->cpu->extra_operand_count && i < 256; ++i) {
+        for (uint16_t i = 0; i < m->cpu->extra_operand_count && i < ND500_MAX_OPERANDS; ++i) {
             m->cpu->extra_operands[i].effective_address =
                 compute_effective_address(m->cpu, &m->cpu->extra_operands[i], out->data_type);
         }

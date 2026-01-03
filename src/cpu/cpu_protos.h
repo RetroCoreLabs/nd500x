@@ -3,6 +3,11 @@
 #include <stdbool.h>
 #include "../machine/machine_types.h"
 
+/* Maximum operands in decoded instruction struct.
+ * Variable-operand instructions (CALL/CALLG/POLY) can have 2 fixed + 255 variable = 257 operands.
+ * Using 258 to match C# MaxVariableOperands for consistency. */
+#define ND500_MAX_OPERANDS 258
+
 /* Forward declarations for Nd500Cpu dependencies */
 typedef enum Nd500AddrMode {
     ND500_ADDR_UNKNOWN = 0,
@@ -80,8 +85,8 @@ typedef struct Nd500Cpu {
 	uint32_t trap_saved_OTE2;       /* Saved OTE2 for restoration by RETT */
 	int trap_number;                /* Current trap being handled (bit position) */
 
-	/* Variable operand buffer for CALL/CALLG/POLY (decoded operands beyond first 2) */
-	Nd500OperandDecoded extra_operands[256];
+	/* Variable operand buffer for CALL/CALLG/POLY (all operands including fixed) */
+	Nd500OperandDecoded extra_operands[ND500_MAX_OPERANDS];
 	uint16_t extra_operand_count;
 
 	/* ND-100 I/O Processor Bridge Configuration */
@@ -232,9 +237,7 @@ typedef enum {
     ND500_DTYPE_BIT = 5         // 1-bit (BI) -> single bit in memory, I registers for value
 } Nd500DataType;
 
-/* Maximum operands in decoded instruction struct (fixed operands only).
- * Variable-operand instructions (CALL/CALLG/POLY) store extra operands in cpu->extra_operands */
-#define ND500_MAX_OPERANDS 16
+#define ND500_MAX_INSTRUCTION_BYTES 2048  /* Max bytes for CALL with 255 operands */
 
 typedef struct Nd500FetchedInstruction {
     uint32_t address;

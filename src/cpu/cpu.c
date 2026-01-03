@@ -269,6 +269,12 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
 	if (!cpu) return;
 
+	/* DEBUG: Print when trap is raised with more context */
+	fprintf(stderr, "[DEBUG] raise_trap: trapBit=0x%llX trapPC=0x%08X dataAddr=0x%08X INTERRUPT=%d instr_count=%llu\n",
+	        (unsigned long long)trapBit, trapPC, dataAddr,
+	        (trapBit & TRAP_INTERRUPT_MASK) ? 1 : 0,
+	        (unsigned long long)cpu->instruction_count);
+
 	/* Set the corresponding bit in ST1/ST2 status registers */
 	if (trapBit & 0xFFFFFFFF) {
 		cpu->ST1 |= (uint32_t)(trapBit & 0xFFFFFFFF);

@@ -151,7 +151,7 @@ void nd500_instr_Entf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_write_memory_32(cpu, new_b + OFFSET_N, arg_count);
 
     /* STEP 6: Copy argument addresses */
-    for (uint32_t i = 0; i < arg_count && i < 256; i++) {
+    for (uint32_t i = 0; i < arg_count && i < ND500_MAX_OPERANDS; i++) {
         uint32_t arg_addr = cpu->pending_call_arg_addresses[i];
         nd500_write_memory_32(cpu, new_b + OFFSET_ARG1 + (i * 4), arg_addr);
     }
