@@ -199,58 +199,47 @@ instruction:
 
   examples:
     - description: |
-        Basic add2 operation using word register
-      prefix: "W"
-      code: |
-        W1 ADD2 W2, B.16
-      explanation: |
-        Perform add2 operation on word-sized data
-
-    - description: |
-        Add2 with byte-sized operands
-      prefix: "BY"
-      code: |
-        BY1 ADD2 B.0, 6
-      explanation: |
-        Byte operation - processes 8-bit values
-
-    - description: |
-        Add2 with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 ADD2 B.16, B.32
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Add2 with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 ADD2 ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Add2 with floating-point data
+        Add float arguments (from reference manual)
       prefix: "F"
       code: |
-        F1 ADD2 F2, F3
+        F ADD2 IND(B.X1), IND(B.X2)
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Add float argument X2 to argument X1 (indirect addressing)
 
     - description: |
-        Different variants of add2 instruction
+        Add to register with constant
+      prefix: "W"
       code: |
-        Variant 1/5: BY1 ADD2\nVariant 2/5: BY1 ADD2\nVariant 3/5: BY1 ADD2
+        W ADD2 I1, 100
       explanation: |
-        The add2 instruction has 5 variants for different addressing modes and prefixes
+        Add constant 100 to word register I1
 
     - description: |
-        Real-world use: calculations
+        Add local variables
+      addressing_mode: "LOCAL"
       code: |
-        ; Loop counter increment\nW1 ADD2 1\n; Result in W1
+        W ADD2 B.TOTAL, B.VALUE
       explanation: |
-        Common use case for add2 in calculations
+        Add VALUE to TOTAL (both local stack variables)
+
+    - description: |
+        Increment counter
+      prefix: "W"
+      code: |
+        W ADD2 B.COUNTER, 1
+      explanation: |
+        Increment word counter by 1
+
+    - description: |
+        All five variants by data type
+      code: |
+        BY ADD2 <dest>, <src>  ; Byte (0xFC17)
+        H ADD2 <dest>, <src>   ; Halfword (0xFC54)
+        W ADD2 <dest>, <src>   ; Word (0x0053)
+        F ADD2 <dest>, <src>   ; Float (0xFC56)
+        D ADD2 <dest>, <src>   ; Double (0xFC57)
+      explanation: |
+        ADD2 has 5 variants - one for each data type prefix
 
   manual_reference:
     section: "11.5"

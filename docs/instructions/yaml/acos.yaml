@@ -208,43 +208,45 @@ instruction:
 
   examples:
     - description: |
-        Basic acos operation using word register
-      prefix: "W"
-      code: |
-        W1 ACOS W2
-      explanation: |
-        Perform acos operation on word-sized data
-
-    - description: |
-        Acos with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 ACOS B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Acos with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 ACOS ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Acos with floating-point data
+        Basic acos operation using float register
       prefix: "F"
       code: |
         F1 ACOS F2
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Load arc cosine of F2 into F1 (32-bit float)
+
+    - description: |
+        Acos with local (stack) variable
+      addressing_mode: "LOCAL"
+      code: |
+        F1 ACOS B.COS_VALUE
+      explanation: |
+        Calculate arc cosine of local variable and store in F1
+
+    - description: |
+        Acos with record field
+      addressing_mode: "RECORD"
+      code: |
+        F4 ACOS R.FOO
+      explanation: |
+        Load arc cosine of record field FOO into F4
+
+    - description: |
+        Acos with double precision
+      prefix: "D"
+      code: |
+        D1 ACOS B.DELTA
+      explanation: |
+        Double precision (64-bit) arc cosine operation
 
     - description: |
         Different variants of acos instruction
       code: |
-        Variant 1/8: F1 ACOS\nVariant 2/8: F1 ACOS\nVariant 3/8: F1 ACOS
+        F1 ACOS   ; Float register 1 (opcode 0xFF64)
+        F2 ACOS   ; Float register 2 (opcode 0xFF65)
+        D1 ACOS   ; Double register 1 (opcode 0xFF90)
       explanation: |
-        The acos instruction has 8 variants for different addressing modes and prefixes
+        ACOS has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
     section: "12.8"

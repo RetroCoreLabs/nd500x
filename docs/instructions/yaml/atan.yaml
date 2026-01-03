@@ -208,43 +208,38 @@ instruction:
 
   examples:
     - description: |
-        Basic atan operation using word register
-      prefix: "W"
-      code: |
-        W1 ATAN W2
-      explanation: |
-        Perform atan operation on word-sized data
-
-    - description: |
-        Atan with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 ATAN B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Atan with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 ATAN ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Atan with floating-point data
+        Arc tangent with float register
       prefix: "F"
       code: |
-        F1 ATAN F2
+        F1 ATAN B.SLOPE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Calculate arc tangent of SLOPE into F1
 
     - description: |
-        Different variants of atan instruction
+        Arc tangent with double precision
+      prefix: "D"
       code: |
-        Variant 1/8: F1 ATAN\nVariant 2/8: F1 ATAN\nVariant 3/8: F1 ATAN
+        D1 ATAN B.VALUE
       explanation: |
-        The atan instruction has 8 variants for different addressing modes and prefixes
+        Double precision arc tangent
+
+    - description: |
+        Arc tangent from manual example
+      prefix: "F"
+      code: |
+        F4 ATAN RAY
+      explanation: |
+        Load into F4 the arc tangent of RAY
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 ATAN <arg>  ; Float reg 1 (0xFF6C)
+        F2 ATAN <arg>  ; Float reg 2 (0xFF6D)
+        D1 ATAN <arg>  ; Double reg 1 (0xFF98)
+        D2 ATAN <arg>  ; Double reg 2 (0xFF99)
+      explanation: |
+        ATAN has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
     section: "12.10"

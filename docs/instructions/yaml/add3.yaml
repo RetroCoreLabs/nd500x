@@ -254,58 +254,47 @@ instruction:
 
   examples:
     - description: |
-        Basic add3 operation using word register
+        Add registers non-destructively (from reference manual)
       prefix: "W"
       code: |
-        W1 ADD3 W2, B.16, R.8
+        W ADD3 R1, R2, R3
       explanation: |
-        Perform add3 operation on word-sized data
+        Add R1 and R2, store result in R3 (R1 and R2 preserved)
 
     - description: |
-        Add3 with byte-sized operands
-      prefix: "BY"
+        Add constant to variable
+      prefix: "W"
       code: |
-        BY1 ADD3 5, 6, B.8
+        W ADD3 B.VALUE, 100, B.RESULT
       explanation: |
-        Byte operation - processes 8-bit values
+        Add 100 to VALUE and store in RESULT (VALUE unchanged)
 
     - description: |
-        Add3 with local (stack) variables
+        Add local variables
       addressing_mode: "LOCAL"
       code: |
-        W1 ADD3 B.16, B.32, B.48
+        W ADD3 B.A, B.B, B.SUM
       explanation: |
-        Access local variables using B register (stack frame pointer)
+        Add variables A and B, store result in SUM
 
     - description: |
-        Add3 with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 ADD3 ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Add3 with floating-point data
+        Float addition preserving sources
       prefix: "F"
       code: |
-        F1 ADD3 F2, F3, F4
+        F ADD3 B.X, B.Y, A1
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Add X and Y into float register A1 (X, Y unchanged)
 
     - description: |
-        Different variants of add3 instruction
+        All five variants by data type
       code: |
-        Variant 1/5: BY1 ADD3\nVariant 2/5: BY1 ADD3\nVariant 3/5: BY1 ADD3
+        BY ADD3 <a>, <b>, <c>  ; Byte (0xFC67)
+        H ADD3 <a>, <b>, <c>   ; Halfword (0xFC68)
+        W ADD3 <a>, <b>, <c>   ; Word (0xFC69)
+        F ADD3 <a>, <b>, <c>   ; Float (0xFC6A)
+        D ADD3 <a>, <b>, <c>   ; Double (0xFC6B)
       explanation: |
-        The add3 instruction has 5 variants for different addressing modes and prefixes
-
-    - description: |
-        Real-world use: calculations
-      code: |
-        ; Loop counter increment\nW1 ADD3 1\n; Result in W1
-      explanation: |
-        Common use case for add3 in calculations
+        ADD3 has 5 variants - one for each data type prefix
 
   manual_reference:
     section: "11.9"

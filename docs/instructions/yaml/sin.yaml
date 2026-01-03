@@ -208,89 +208,77 @@ instruction:
 
   examples:
     - description: |
-        Basic sin operation using word register
-      prefix: "W"
-      code: |
-        W1 SIN W2
-      explanation: |
-        Perform sin operation on word-sized data
-
-    - description: |
-        Sin with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 SIN B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Sin with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 SIN ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Sin with floating-point data
+        Sine with float register
       prefix: "F"
       code: |
-        F1 SIN F2
+        F1 SIN B.ANGLE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Calculate sine of ANGLE (radians) into F1
 
     - description: |
-        Different variants of sin instruction
+        Sine with double precision
+      prefix: "D"
       code: |
-        Variant 1/8: F1 SIN\nVariant 2/8: F1 SIN\nVariant 3/8: F1 SIN
+        D1 SIN B.THETA
       explanation: |
-        The sin instruction has 8 variants for different addressing modes and prefixes
+        Double precision sine
+
+    - description: |
+        Sine of constant (from manual)
+      prefix: "F"
+      code: |
+        F2 SIN 2.0
+      explanation: |
+        Calculate sine of 2 radians
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 SIN <arg>  ; Float reg 1 (0xFF58)
+        F2 SIN <arg>  ; Float reg 2 (0xFF59)
+        D1 SIN <arg>  ; Double reg 1 (0xFF84)
+        D2 SIN <arg>  ; Double reg 2 (0xFF85)
+      explanation: |
+        SIN has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
-    section: "8.12"
-    title: "Constant Operand Addressing"
+    section: "12.5"
+    title: "Sine"
     content: |
-      # 8.12 Constant Operand Addressing
+      # 12.5 Sine
 
-      ## Assembly Notation
+      **Format:** tn SIN <argument/r/t>
 
-      | Assembly Notation  | Name                          | Hex Code | Octal Code |
-      |--------------------|-------------------------------|----------|------------|
-      | `<constant>`       | General Constant              |          |            |
-      | `<constant>:S`     | Short Constant                | 000H+xx  | 000B+xx    |
-      | `<constant>:B`     | Byte Constant                 | OCDH     | 315B       |
-      | `<constant>:H`     | Halfword Constant             | 0CEH     | 316B       |
-      | `<constant>:W`     | Word Constant                 | 0CFH     | 317B       |
-      | `<constant>:F`     | Floating-point Constant       | 0CFH     | 317B       |
-      | `<constant>:D`     | Double Floating-point Constant| OCCH     | 314B       |
+      | Assembly notation | Name              | Hex code       | Octal code      |
+      |-------------------|-------------------|----------------|-----------------|
+      | Fn SIN            | float sine        | 0FF58H+(n-1)   | 177530B+(n-1)   |
+      | Dn SIN            | double float sine | 0FF84H+(n-1)   | 177604B+(n-1)   |
 
-      op = data part of operand specifier
+      **Operation:** sine(<argument>) -> Rn
 
-      The data to be operated on is part of the operand specifier. It resides in the program memory and cannot be modified by any instruction. The value of the operand may have a length of six bits or one, two, four or eight bytes.
+      **Description:**
 
-      Constant operands are illegal for all write instructions, e.g. store, swap, or shift instructions. They are also illegal as destination operand(s) for multi-operand instructions, and in certain special instructions like TSET and RDUS. They are also illegal as subroutine arguments, as they have no address in data memory.
+      The trigonometric sine of <argument> is loaded into the specified float
+      or double float register. The maximum absolute value of <argument> is
+      65536.0 radians; a larger value will cause an invalid operation trap
+      condition and the specified register will be set to zero.
 
-      Note that word and floating-point constants have the same address code.
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
 
-      ## Assembly Notation
+      **Data status bits:**
 
-      | Assembly Notation | Byte0 | Byte1 | Byte2 | Byte3 | Byte4 |
-      |-------------------|-------|-------|-------|-------|-------|
-      | 150B:B            |       |       |       |       |       |
-      | Octal: 315B       | 150B  |       |       |       |       |
-      | Hex:  OCDH        | 068H  |       |       |       |       |
+      - result = 0 -> Z
+      - result.signbit -> S
 
-      | 1200000:W         |       |       |       |       |       |
-      | Octal: 317B       | 000B  | 022B  | 117B  | 200B  |       |
-      | Hex:  0CFH        | 000H  | 012H  | 04FH  | 080H  |       |
+      **Example:**
 
-      | 12B:S             |       |       |       |       |       |
-      | Octal: 012B       |       |       |       |       |       |
-      | Hex:  00AH        |       |       |       |       |       |
+      Calculate the sine of 2 radians and load into F2
 
-      | 6400H:H           |       |       |       |       |       |
-      | Octal: 316B       | 144B  | 000B  |       |       |       |
-      | Hex:  0CEH        | 064H  | 000H  |       |       |       |
+          F2 SIN 2.0
+
+      Norsk Data ND-05.009.4 EN
+
+      ---
 
       *Table 12. Example of constants*
 

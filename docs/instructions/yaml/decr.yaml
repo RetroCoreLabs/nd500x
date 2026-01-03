@@ -197,42 +197,41 @@ instruction:
         Common use case for decr in calculations
 
   manual_reference:
-    section: "13.5"
-    title: "Loop with decrement"
+    section: "10.20"
+    title: "Decrement"
     content: |
-      ### 13.5 Loop with decrement
+      # 10.20 Decrement
 
-      **Format:**
-      t LOOPD `<index/rw/t>,<limit/r/t>,<<displacement>>`
+      **Format:** t DECR <operand/rw/t>
 
-      | Assembly notation | Name                        | Hex code | Octal code |
-      |-------------------|-----------------------------|----------|------------|
-      | BY LOOPD:B        | byte loop decrement         | OFD23H   | 176443B    |
-      | BY LOOPD:H        | byte loop decrement         | OFD28H   | 176450B    |
-      | H LOOPD:B         | halfword loop decrement     | OFD24H   | 176444B    |
-      | H LOOPD:H         | halfword loop decrement     | OFD29H   | 176451B    |
-      | W LOOPD:B         | word loop decrement         | OFD25H   | 176445B    |
-      | W LOOPD:H         | word loop decrement         | OFD2AH   | 176452B    |
-      | F LOOPD:B         | float loop decrement        | OFD26H   | 176446B    |
-      | F LOOPD:H         | float loop decrement        | OFD2BH   | 176453B    |
-      | D LOOPD:B         | double float loop decrement | OFD27H   | 176447B    |
-      | D LOOPD:H         | double float loop decrement | OFD2CH   | 176454B    |
+      | Assembly notation | Name                   | Hex code | Octal code |
+      |-------------------|------------------------|----------|------------|
+      | BY DECR           | byte decrement         | 0FC86H   | 176214B    |
+      | H DECR            | halfword decrement     | 0FC87H   | 176215B    |
+      | W DECR            | word decrement         | 0511H    | 121B       |
+      | F DECR            | float decrement        | 0FC88H   | 176216B    |
+      | D DECR            | double float decrement | 0FC89H   | 176217B    |
 
-      **Operation:**
-      `<index>` - 1 -> `<index>`
-      if `<index>` - `<limit>` < 0 then
-      &nbsp;&nbsp;&nbsp;&nbsp;address of next instruction -> P
-      else
-      &nbsp;&nbsp;&nbsp;&nbsp;P + `<<displacement>>` -> P
-      endif
+      **Operation:** <operand> - 1 -> <operand>
 
       **Description:**
 
-      The `<index>` operand is decremented by one and compared with `<limit>`. If it is greater than or equal to `<limit>`, the signed `<<displacement>>` is added to the program counter; otherwise control goes to the next instruction.
+      The <operand> is decremented by one.
 
-      Normally the LOOPD instruction will be placed at the end of the loop, with a negative `<<displacement>>`. `<<displacement>>` is the number of bytes from the first byte of the loop to the first byte of the LOOPD instruction.
+      **Trap conditions:** Addressing traps, Integer overflow (0)
 
-      The `<index>` and `<limit>` operands are of the same data type, which may be BY, H, W, F or D. `<<displacement>>` is a byte or halfword direct operand, depending on the instruction.
+      **Data status bits:**
+
+      - difference = 0 -> Z
+      - difference.signbit -> S
+      - overflow -> O
+      - carry from most significant bit -> C
+
+      **Example:**
+
+      Decrement the halfword record variable STEP on the alternative domain
+
+          ALT H DECR R.STEP
 
       Norsk Data ND-05.009.4 EN
 

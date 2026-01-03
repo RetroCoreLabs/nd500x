@@ -70,41 +70,54 @@ instruction:
         Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
 
   manual_reference:
-    section: "3.2"
-    title: "Stack allocation"
+    section: "13.10"
+    title: "Subroutine entry points - ENTM"
     content: |
-      ## 3.2 Stack allocation
+      ## 13.10 Subroutine entry points
 
-      A stack is initialized through the INIT or ENTM instruction, either one can declare the lowest stack address and its maximum extent. When a stack is initialized, the TOS register is loaded with the address of the first free location beyond the stack's maximum extent. TOS serves to prevent the stack from growing too large, and as a pointer to the variables describing the heap. The first free location beyond the current extent of the stack is pointed to by the B.SP location.
+      ### ENTM - enter module
 
-      A new data block on the stack is allocated by executing an ENTS or ENTSN instruction. On routine entry the data block is automatically initialized as follows:
+      | Assembly notation | Hex code | Octal code |
+      |-------------------|----------|------------|
+      | ENTM | 0DFH | 337B |
 
-      | B       | Description                                      |
-      |---------|--------------------------------------------------|
-      | PREVB   | previous stack pointer (extent of stack)         |
-      |         | previous value of B register                     |
-      | RETA    | current return address                           |
-      | SP      | stack pointer                                    |
-      |         | (first free location)                            |
-      | AUX/LOG | auxiliary location for language                  |
-      |         | processors or buddy subroutines                  |
-      | N       | number of arguments                              |
-      | arg1    |                                                  |
-      | arg2    |                                                  |
-      | .       |                                                  |
-      | .       | addresses of arguments                           |
-      | .       |                                                  |
-      |         | local variable area                              |
-      |         | (uninitialized)                                  |
-      |         |                                                  |
-      |         | Stack pointer (B.SP)                             |
+      **Format:** ENTM <<bottom of stack/r/W>>, <stack demand of main program/r/W>,
+      <total system stack demand/r/W>
 
-      Figure 3. Local data area layout
+      **Description:**
 
-      If the number of arguments supplied exceeds the maximum allowed by the ENTSN entry point instruction, only the maximum allowed number of argument addresses will be put on the stack and the N location will contain the value of the "maximum number of arguments" operand. (This also applies to the ENTFN instruction.)
+      When the ENTM entry point is used, a new stack is initialized. A value of
+      <stack demand of main program> greater than or equal to <total system stack
+      demand> will cause a stack overflow trap condition.
 
-      The INIT instruction initializes the stack in a similar way, but the PREVB and RETA will be zeroed, so that an attempt to link downwards beyond the lower stack address will cause an Address Zero or Stack Underflow trap.
+      If ENTM is entered from another domain, TOS is not saved on the old stack,
+      but is stored in the domain information table. Also THA, LL and HL are stored
+      and new contents for these registers are fetched from the new domain
+      information table.
 
-      The ENTM instruction initializes a new stack starting from a specified address, giving the TOS register a new value. If the module called is within the current domain, the old TOS value is saved on the current.
+      ENTM is the only entry point that may be called from another domain.
+
+      **Trap conditions:** Addressing traps, Instruction sequence error (ISE),
+      Stack overflow (STO)
+
+      **Initializations performed:**
+
+      - <<bottom of stack>> -> B
+      - oldB -> B.PREVB
+      - TOS -> IND(oldB.SP)
+      - <<bottom of stack>> + <total system stack demand> -> TOS
+      - return address -> B.RETA -> L
+      - <<bottom of stack>> + <stack demand of main program> -> B.SP
+      - number of arguments -> B.N
+      - addresses of arguments -> B.arg
+
+      **If change of domain:**
+
+      - 0 -> B.PREVB
+      - 0 -> B.RETA
+      - TOS, LL, HL, THA -> old domain information table
+      - TOS, LL, HL, THA entries in new domain information table -> TOS, LL, HL, THA
+
+      Norsk Data ND-05.009.4 EN
 
       ---

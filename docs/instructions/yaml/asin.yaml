@@ -208,43 +208,38 @@ instruction:
 
   examples:
     - description: |
-        Basic asin operation using word register
-      prefix: "W"
-      code: |
-        W1 ASIN W2
-      explanation: |
-        Perform asin operation on word-sized data
-
-    - description: |
-        Asin with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 ASIN B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Asin with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 ASIN ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Asin with floating-point data
+        Arc sine with float register
       prefix: "F"
       code: |
-        F1 ASIN F2
+        F1 ASIN B.SINE_VALUE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Calculate arc sine of SINE_VALUE into F1
 
     - description: |
-        Different variants of asin instruction
+        Arc sine with double precision
+      prefix: "D"
       code: |
-        Variant 1/8: F1 ASIN\nVariant 2/8: F1 ASIN\nVariant 3/8: F1 ASIN
+        D1 ASIN B.VALUE
       explanation: |
-        The asin instruction has 8 variants for different addressing modes and prefixes
+        Double precision arc sine
+
+    - description: |
+        Arc sine from record field
+      addressing_mode: "RECORD"
+      code: |
+        F4 ASIN R.SIN_VAL
+      explanation: |
+        Load arc sine of record field into F4
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 ASIN <arg>  ; Float reg 1 (0xFF5C)
+        F2 ASIN <arg>  ; Float reg 2 (0xFF5D)
+        D1 ASIN <arg>  ; Double reg 1 (0xFF88)
+        D2 ASIN <arg>  ; Double reg 2 (0xFF89)
+      explanation: |
+        ASIN has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
     section: "12.6"

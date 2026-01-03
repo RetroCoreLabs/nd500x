@@ -208,43 +208,38 @@ instruction:
 
   examples:
     - description: |
-        Basic sqrt operation using word register
-      prefix: "W"
-      code: |
-        W1 SQRT W2
-      explanation: |
-        Perform sqrt operation on word-sized data
-
-    - description: |
-        Sqrt with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 SQRT B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Sqrt with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 SQRT ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Sqrt with floating-point data
+        Square root with float register
       prefix: "F"
       code: |
-        F1 SQRT F2
+        F1 SQRT B.VALUE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Calculate square root of VALUE into F1
 
     - description: |
-        Different variants of sqrt instruction
+        Square root with double precision (from manual)
+      prefix: "D"
       code: |
-        Variant 1/8: F1 SQRT\nVariant 2/8: F1 SQRT\nVariant 3/8: F1 SQRT
+        D1 SQRT AREA
       explanation: |
-        The sqrt instruction has 8 variants for different addressing modes and prefixes
+        Load double float register D1 with the square root of AREA
+
+    - description: |
+        Square root from array element
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        F2 SQRT DATA(W1)
+      explanation: |
+        Calculate square root of array element
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 SQRT <arg>  ; Float reg 1 (0xFCD4)
+        F2 SQRT <arg>  ; Float reg 2 (0xFCD5)
+        D1 SQRT <arg>  ; Double reg 1 (0xFCD8)
+        D2 SQRT <arg>  ; Double reg 2 (0xFCD9)
+      explanation: |
+        SQRT has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
     section: "12.4"

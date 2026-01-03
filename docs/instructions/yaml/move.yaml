@@ -240,51 +240,40 @@ instruction:
 
   examples:
     - description: |
-        Basic move operation using word register
+        Move data between memory locations
       prefix: "W"
       code: |
-        W1 MOVE W2, B.16
+        W MOVE B.SOURCE, B.DEST
       explanation: |
-        Perform move operation on word-sized data
+        Copy word from SOURCE to DEST
 
     - description: |
-        Move with byte-sized operands
-      prefix: "BY"
+        Move constant to memory
+      prefix: "W"
       code: |
-        BY1 MOVE 5, B.4
+        W MOVE 100, B.VALUE
       explanation: |
-        Byte operation - processes 8-bit values
+        Store constant 100 into VALUE
 
     - description: |
-        Move with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 MOVE B.16, B.32
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Move with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 MOVE ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Move with floating-point data
+        Float move between locations
       prefix: "F"
       code: |
-        F1 MOVE F2, F3
+        F MOVE B.INPUT, A1
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Copy float from memory to register A1
 
     - description: |
-        Different variants of move instruction
+        All six variants by data type
       code: |
-        Variant 1/6: BI1 MOVE\nVariant 2/6: BI1 MOVE\nVariant 3/6: BI1 MOVE
+        BI MOVE <src>, <dst>  ; Bit
+        BY MOVE <src>, <dst>  ; Byte
+        H MOVE <src>, <dst>   ; Halfword
+        W MOVE <src>, <dst>   ; Word
+        F MOVE <src>, <dst>   ; Float
+        D MOVE <src>, <dst>   ; Double
       explanation: |
-        The move instruction has 6 variants for different addressing modes and prefixes
+        MOVE has 6 variants - one for each data type prefix
 
   manual_reference:
     section: "10.7"

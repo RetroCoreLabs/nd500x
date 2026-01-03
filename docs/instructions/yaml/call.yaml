@@ -45,31 +45,41 @@ instruction:
 
 
   manual_reference:
-    section: "13.7"
-    title: "Call subroutine general"
+    section: "13.8"
+    title: "Call subroutine absolute"
     content: |
-      ### 13.7 Call subroutine general
+      ## 13.8 Call subroutine absolute
 
-      **Format:** CALLG `<subr. addr/r/W>,<no of arg/s/BY>, <arg1/aa/W>,...,<argn/aa/W>`
+      **Format:** CALL <<subr. addr.>>,<no of arg/s/BY>, <arg1/aa/W>,...,<argn/aa/W>
 
-      | Assembly notation | Name                  | Hex code | Octal code |
-      |-------------------|-----------------------|----------|------------|
-      | CALLG             | call subroutine general | 0B5H     | 265B       |
+      | Assembly notation | Name                    | Hex code | Octal code |
+      |-------------------|-------------------------|----------|------------|
+      | CALL              | call subroutine absolute | 0C3H     | 303B       |
 
       **Operation:**
 
-      Calculate the effective addresses of the arguments and prepare for the entry point at `<subr. addr.>`.
-      Jump to the subroutine entry point found at that address.
+      Calculate the effective addresses of the arguments and prepare for the entry point
+      at <<subr. addr.>>. Jump to the subroutine entry point found at that address.
 
       **Description:**
 
-      Call the subroutine specified by `<subr. addr.>`. This is a general operand and it *must* refer to an entry point instruction. Otherwise an instruction-sequence error-trap condition occurs.
+      Call the subroutine specified by <<subr. addr.>>. The subroutine address is a
+      direct operand in the four bytes following the instruction code. It must refer
+      to an entry point instruction, otherwise an instruction sequence error trap
+      condition occurs.
 
-      The `<no of arg>` operand must be a constant byte integer less than 256. Other data types which are not constants will cause an illegal operand specifier trap condition.
+      The <<no of arg>> operand must be a constant byte integer, i.e. less than 256.
+      Other data types which are not constants will cause an illegal operand specifier
+      trap condition.
 
-      The effective addresses of the arguments in the instruction are calculated and stored for use by the entry point instruction. The arguments are always interpreted as word integers. The data-type-dependent addressing modes (post-indexed or descriptor address code format) should be used with care, as the result will be wrong for data types other than word. `<argn>` operands of type register or constant will cause an illegal operand specifier trap condition, as neither registers nor constants have an address in data memory. The arguments may not be prefixed by the operand specifier prefix ALT.
+      The effective addresses of the arguments in the instruction are calculated and
+      stored for use by the entry point instruction. The arguments are always interpreted
+      as word integers. <argn> operands of type register or constant will cause an
+      illegal operand specifier trap condition, as neither registers nor constants have
+      an address in data memory.
 
-      **Trap conditions:** Addressing traps, Call trap (CT), Illegal operand specifier (IOS), Instruction sequence error (ISE)
+      **Trap conditions:** Addressing traps, Call trap (CT), Illegal operand specifier (IOS),
+      Instruction sequence error (ISE)
 
       **Data status bits:** Unaffected
 
@@ -77,7 +87,7 @@ instruction:
 
       Call PRINT with arguments UNIT, FORMAT and the local variable VALUE
 
-          CALLG PRINT, 3, UNIT, FORMAT, B.VALUE
+          CALL PRINT, 3, UNIT, FORMAT, B.VALUE
 
       Norsk Data ND-05.009.4 EN
 

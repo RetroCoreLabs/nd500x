@@ -79,29 +79,42 @@ instruction:
         The go instruction has 3 variants for different addressing modes and prefixes
 
   manual_reference:
-    section: "6.1"
-    title: "General"
+    section: "13.1"
+    title: "Unconditional relative jump"
     content: |
-      ## 6.1 General
+      ## 13.1 Unconditional relative jump
 
-      It is an advantage to be able to detect special situations arising during program execution, such as attempts to divide numbers by zero in a program performing many arithmetic divisions. Such checks may be made by software, but will require explicit programming. The CPU performs a number of checks automatically on every arithmetic operation, showing errors that would otherwise go unnoticed. Errors caught this way are said to be **trapped**. Situations leading to a possible trap are called trap conditions. A trap condition may or may not lead to a trap, depending on whether the trap is enabled. The above case is called a divide by zero trap condition.
+      **Format:** GO <<displacement>>
 
-      Other examples of trap conditions are floating point overflow, illegal index and stack overflow.
+      | Assembly notation | Name          | Hex code | Octal code |
+      |-------------------|---------------|----------|------------|
+      | GO:B              | jump byte     | 0C0H     | 300B       |
+      | GO:H              | jump halfword | 0C1H     | 301B       |
+      | GO:W              | jump word     | 0C2H     | 302B       |
 
-      For most trap conditions, it is possible to choose whether the trap is to be acted upon (i.e. enabled) or not. If a trap is to be acted upon, a trap handler routine will be entered.
+      **Operation:** P + <<displacement>> -> P
 
-      Trap conditions are divided into three categories depending on the way they are treated by hardware.
+      **Description:**
 
-      - Ignorable trap conditions
-      - Non-ignorable trap conditions
-      - Fatal trap conditions
+      Perform a jump relative to the current program counter value. GO uses
+      a direct operand and has three formats, with a byte, halfword, or word
+      displacement part. The displacement is signed and is found in the 1, 2
+      or 4 bytes following the instruction code.
 
-      Ignorable trap conditions do not require any handling; they may be disabled and will have no effect on program execution. Non-ignorable trap conditions require some kind of handling. If the current domain does not have a handler for it, the trap is propagated to the mother domain. After handling, program execution may continue.
+      **Trap conditions:** Addressing traps, Branch trap (BT)
 
-      Fatal trap conditions make it impossible to continue execution of the process. The CPU will report to the I/O processor, which will take appropriate action depending on the kind of trap.
+      **Data status bits:** Unaffected
 
-      The CPU status register has one bit for each possible trap condition. When a trap condition occurs, this bit is set. The same bit is reset when a trap handler routine is invoked.
+      **Example:**
 
-      Status bits representing non-ignorable and fatal trap conditions will always yield a zero result (bit reset) if explicitly tested. It is not meaningful to perform a conditional jump on these bits, as the condition is always false.
+      Jump to BACK (Assembler will calculate displacement)
+
+          BACK:
+          .
+          .
+          .
+          GO BACK
+
+      Norsk Data ND-05.009.4 EN
 
       ---

@@ -199,58 +199,39 @@ instruction:
 
   examples:
     - description: |
-        Basic mul2 operation using word register
+        Multiply two operands
       prefix: "W"
       code: |
-        W1 MUL2 W2, B.16
+        W MUL2 B.FACTOR1, B.FACTOR2
       explanation: |
-        Perform mul2 operation on word-sized data
+        Multiply FACTOR1 by FACTOR2, result in FACTOR1
 
     - description: |
-        Mul2 with byte-sized operands
-      prefix: "BY"
+        Scale value by constant
+      prefix: "W"
       code: |
-        BY1 MUL2 B.0, 6
+        W MUL2 B.VALUE, 10
       explanation: |
-        Byte operation - processes 8-bit values
+        Multiply VALUE by 10
 
     - description: |
-        Mul2 with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 MUL2 B.16, B.32
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Mul2 with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 MUL2 ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Mul2 with floating-point data
+        Float multiplication
       prefix: "F"
       code: |
-        F1 MUL2 F2, F3
+        F MUL2 A1, B.SCALE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Multiply float register A1 by SCALE
 
     - description: |
-        Different variants of mul2 instruction
+        All five variants by data type
       code: |
-        Variant 1/5: BY1 MUL2\nVariant 2/5: BY1 MUL2\nVariant 3/5: BY1 MUL2
+        BY MUL2 <a>, <b>  ; Byte
+        H MUL2 <a>, <b>   ; Halfword
+        W MUL2 <a>, <b>   ; Word
+        F MUL2 <a>, <b>   ; Float
+        D MUL2 <a>, <b>   ; Double
       explanation: |
-        The mul2 instruction has 5 variants for different addressing modes and prefixes
-
-    - description: |
-        Real-world use: calculations
-      code: |
-        ; Loop counter increment\nW1 MUL2 1\n; Result in W1
-      explanation: |
-        Common use case for mul2 in calculations
+        MUL2 has 5 variants - one for each data type prefix
 
   manual_reference:
     section: "11.7"

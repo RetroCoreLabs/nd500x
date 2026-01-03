@@ -375,97 +375,88 @@ instruction:
 
   examples:
     - description: |
-        Basic rem operation using word register
-      prefix: "W"
-      code: |
-        W1 REM W2, B.16, R.8
-      explanation: |
-        Perform rem operation on word-sized data
-
-    - description: |
-        Rem with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 REM B.16, B.32, B.48
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Rem with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 REM ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Rem with floating-point data
+        Floating point remainder (from manual)
       prefix: "F"
       code: |
-        F1 REM F2, F3, F4
+        F2 REM R.EXPENSES, R.AMOUNT, R.UNITCOST
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Divide EXPENSES by AMOUNT, store integer quotient in UNITCOST, remainder in F2
 
     - description: |
-        Different variants of rem instruction
+        Floating point remainder with local variables
+      prefix: "F"
       code: |
-        Variant 1/8: F1 REM\nVariant 2/8: F1 REM\nVariant 3/8: F1 REM
+        F1 REM B.X, B.Y, B.Q
       explanation: |
-        The rem instruction has 8 variants for different addressing modes and prefixes
+        Calculate remainder of X/Y, store quotient in Q, remainder in F1
 
     - description: |
-        Real-world use: calculations
+        Double precision remainder
+      prefix: "D"
       code: |
-        ; Loop counter increment\nW1 REM 1\n; Result in W1
+        D1 REM B.DIVIDEND, B.DIVISOR, B.QUOTIENT
       explanation: |
-        Common use case for rem in calculations
+        Double precision remainder calculation
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 REM <x>, <y>, <q>  ; Float reg 1 (0xFE58)
+        F2 REM <x>, <y>, <q>  ; Float reg 2 (0xFE59)
+        D1 REM <x>, <y>, <q>  ; Double reg 1 (0xFE5C)
+        D2 REM <x>, <y>, <q>  ; Double reg 2 (0xFE5D)
+      explanation: |
+        REM has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
-    section: "13.4"
-    title: "Loop with increment"
+    section: "10.33"
+    title: "Floating point remainder"
     content: |
-      ## 13.4 Loop with increment
+      ## 10.33 Floating point remainder
 
-      **Format:**
-      t LOOPI 〈index/rw/t〉,〈limit/r/t〉,〈〈displacement〉〉
+      **Format:** tn REM <x/r/t>,<y/r/t>,<q/w/t>
 
-      | Assembly notation | Name                    | Hex code | Octal code |
-      |-------------------|-------------------------|----------|------------|
-      | BY LOOPI:B        | byte loop increment     | OFCDEH   | 176336B    |
-      | BY LOOPI:H        | byte loop increment     | OFD1EH   | 176436B    |
-      | H LOOPI:B         | halfword loop increment | OFCDFH   | 176337B    |
-      | H LOOPI:H         | halfword loop increment | OFD1FH   | 176437B    |
-      | W LOOPI:B         | word loop increment     | OFBFH    | 277B       |
-      | W LOOPI:H         | word loop increment     | OE1H     | 341B       |
-      | F LOOPI:B         | float loop increment    | OFD1CH   | 176434B    |
-      | F LOOPI:H         | float loop increment    | OFD21H   | 176441B    |
-      | D LOOPI:B         | double float loop increment | OFD1DH | 176435B    |
-      | D LOOPI:H         | double float loop increment | OFD22H | 176442B    |
+      | Assembly notation | Name                              | Hex code      | Octal code      |
+      |-------------------|-----------------------------------|---------------|-----------------|
+      | Fn REM            | float divide with remainder       | 0FE58H+(n-1)  | 177130B+(n-1)   |
+      | Dn REM            | double float divide with remainder| 0FE5CH+(n-1)  | 177134B+(n-1)   |
 
       **Operation:**
-      if 〈index + 1〉 - 〈limit〉 > 0 then
-      &nbsp;&nbsp;&nbsp;&nbsp;address of next instruction -> P
-      else
-      &nbsp;&nbsp;&nbsp;&nbsp;P+〈〈displacement〉〉 -> P
-      endif
-      〈index〉 + 1 -> 〈index〉
+
+      - remainder of <x>/<y> in float format -> Rn
+      - integer part of <x>/<y> in float format -> <q>
 
       **Description:**
 
-      The 〈index〉 operand is incremented by one and compared with 〈limit〉.
-      If it is less than or equal to 〈limit〉, the signed 〈〈displacement〉〉 is
-      added to the program counter; otherwise control goes to the next instruction.
+      The value of the <x> operand is divided by the value of the <y> operand
+      and the integer part of the quotient in float format stored in <q>.
+      The remainder of the quotient in float format is loaded into the
+      specified register.
 
-      Normally the LOOPI instruction will be placed at the end of the loop,
-      with a negative 〈〈displacement〉〉. The 〈〈displacement〉〉 is the number
-      of bytes from the first byte of the loop to the first byte of the
-      LOOPI instruction.
+      Algorithms used:
+      <q> = int(<x>/<y>)
+      Rn = <x> - <q>*<y>
 
-      The 〈index〉 and 〈limit〉 operands are of the same data type, which may
-      be BY, H, W, F or D. 〈〈displacement〉〉 is a byte or halfword direct
-      operand, depending on the instruction.
+      Note: Some precision may be lost in the subtraction if the quotient
+      <x>/<y> is large. If it is so large that the binary point is outside
+      the floating format, then int(<x>/<y>) = <x>/<y>, and Rn will be zero.
 
-      * * *
+      **Trap conditions:** Addressing traps, Floating overflow (FO),
+      Floating underflow (FU), Divide by zero (DZ)
+
+      **Data status bits:**
+
+      - remainder = 0 -> Z
+      - remainder.signbit -> S
+      - floating underflow -> FU
+      - floating overflow -> FO
+      - <y> = 0 -> DZ
+
+      **Example:**
+
+      Divide record variables EXPENSES with AMOUNT giving UNITCOST and remainder in F2
+
+          F2 REM R.EXPENSES, R.AMOUNT, R.UNITCOST
 
       Norsk Data ND-05.009.4 EN
 

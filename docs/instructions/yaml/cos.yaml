@@ -208,77 +208,73 @@ instruction:
 
   examples:
     - description: |
-        Basic cos operation using word register
-      prefix: "W"
-      code: |
-        W1 COS W2
-      explanation: |
-        Perform cos operation on word-sized data
-
-    - description: |
-        Cos with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 COS B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Cos with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 COS ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Cos with floating-point data
+        Cosine with float register
       prefix: "F"
       code: |
-        F1 COS F2
+        F1 COS B.ANGLE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Calculate cosine of ANGLE (radians) into F1
 
     - description: |
-        Different variants of cos instruction
+        Cosine with double precision (from manual)
+      prefix: "D"
       code: |
-        Variant 1/8: F1 COS\nVariant 2/8: F1 COS\nVariant 3/8: F1 COS
+        D2 COS ANGLE
       explanation: |
-        The cos instruction has 8 variants for different addressing modes and prefixes
+        Calculate cosine of double-precision ANGLE into D2
+
+    - description: |
+        Cosine of constant
+      prefix: "F"
+      code: |
+        F2 COS 1.5708
+      explanation: |
+        Calculate cosine of pi/2 radians (approximately 0)
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 COS <arg>  ; Float reg 1 (0xFF60)
+        F2 COS <arg>  ; Float reg 2 (0xFF61)
+        D1 COS <arg>  ; Double reg 1 (0xFF8C)
+        D2 COS <arg>  ; Double reg 2 (0xFF8D)
+      explanation: |
+        COS has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
-    section: "12.8"
-    title: "Arc cosine"
+    section: "12.7"
+    title: "Cosine"
     content: |
-      ### 12.8 Arc cosine
+      # 12.7 Cosine
 
-      **Format:**
-      tn ACOS `<argument/r/t>`
+      **Format:** tn COS <argument/r/t>
 
-      | Assembly notation | Name                 | Hex code        | Octal code      |
-      |-------------------|----------------------|-----------------|-----------------|
-      | Fn ACOS           | float arc cosine     | OFF64H+(n-1)    | 177544B+(n-1)   |
-      | Dn ACOS           | double float arc cosine | OFF90H+(n-1) | 177620B+(n-1)   |
+      | Assembly notation | Name                | Hex code       | Octal code      |
+      |-------------------|---------------------|----------------|-----------------|
+      | Fn COS            | float cosine        | OFF60H+(n-1)   | 177540B+(n-1)   |
+      | Dn COS            | double float cosine | OFF8CH+(n-1)   | 177614B+(n-1)   |
 
-      **Operation:**
-      arccosine(`\<argument\>`) -> Rn
+      **Operation:** cosine(<argument>) -> Rn
 
       **Description:**
 
-      The trigonometric arccosine of `<argument>` is loaded into the specified float or double float register. The result value gives the angle in radians in the range 0 to pi. `<argument>` should be in the range -1 to +1, otherwise an invalid operation trap condition will occur and the specified register is set to zero.
+      The trigonometric cosine of <argument> is loaded into the specified float
+      or double float register. The maximum absolute value of <argument> is
+      65536.0 radians; a larger value will cause an invalid operation trap
+      condition and the specified register will be set to zero.
 
       **Trap conditions:** Addressing traps, Invalid operation (IVO)
 
       **Data status bits:**
 
-      - result = 0   -> Z
+      - result = 0 -> Z
       - result.signbit -> S
 
       **Example:**
 
-      Load into F4 the arc cosine of the field FOO in the record pointed to by the R register
+      Calculate the cosine of double-precision ANGLE and load into D2
 
-          F4 ACOS R.FOO
+          D2 COS ANGLE
 
       Norsk Data ND-05.009.4 EN
 

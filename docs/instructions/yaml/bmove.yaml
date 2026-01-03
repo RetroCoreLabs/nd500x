@@ -247,51 +247,39 @@ instruction:
 
   examples:
     - description: |
-        Basic bmove operation using word register
+        Block move between memory regions
       prefix: "W"
       code: |
-        W1 BMOVE W2, B.16, R.8
+        W BMOVE B.SOURCE, B.DEST, B.COUNT
       explanation: |
-        Perform bmove operation on word-sized data
+        Copy COUNT words from SOURCE to DEST
 
     - description: |
-        Bmove with byte-sized operands
+        Copy array with constant length
       prefix: "BY"
       code: |
-        BY1 BMOVE 5, B.4, 7
+        BY BMOVE B.SRC_ARRAY, B.DST_ARRAY, 100
       explanation: |
-        Byte operation - processes 8-bit values
+        Copy 100 bytes from source to destination array
 
     - description: |
-        Bmove with local (stack) variables
-      addressing_mode: "LOCAL"
+        Block move with register count
+      prefix: "W"
       code: |
-        W1 BMOVE B.16, B.32, B.48
+        W BMOVE B.FROM, B.TO, I1
       explanation: |
-        Access local variables using B register (stack frame pointer)
+        Copy I1 words from FROM to TO
 
     - description: |
-        Bmove with array element access
-      addressing_mode: "PRE_INDEXED"
+        All five variants by data type
       code: |
-        W1 BMOVE ARRAY(W2)
+        BY BMOVE <src>, <dst>, <cnt>  ; Byte
+        H BMOVE <src>, <dst>, <cnt>   ; Halfword
+        W BMOVE <src>, <dst>, <cnt>   ; Word
+        F BMOVE <src>, <dst>, <cnt>   ; Float
+        D BMOVE <src>, <dst>, <cnt>   ; Double
       explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Bmove with floating-point data
-      prefix: "F"
-      code: |
-        F1 BMOVE F2, F4
-      explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
-
-    - description: |
-        Different variants of bmove instruction
-      code: |
-        Variant 1/5: BY1 BMOVE\nVariant 2/5: BY1 BMOVE\nVariant 3/5: BY1 BMOVE
-      explanation: |
-        The bmove instruction has 5 variants for different addressing modes and prefixes
+        BMOVE has 5 variants - one for each data type prefix
 
   manual_reference:
     section: "15.1"

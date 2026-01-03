@@ -256,43 +256,38 @@ instruction:
 
   examples:
     - description: |
-        Basic poly operation using word register
-      prefix: "W"
-      code: |
-        W1 POLY W2, 20
-      explanation: |
-        Perform poly operation on word-sized data
-
-    - description: |
-        Poly with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 POLY B.16, 100
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Poly with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 POLY ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Poly with floating-point data
+        Polynomial evaluation (from manual)
       prefix: "F"
       code: |
-        F1 POLY F2, 3.14
+        F3 POLY X, 2, A, B, C
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Calculate A*X^2 + B*X + C and leave result in F3
 
     - description: |
-        Different variants of poly instruction
+        Linear interpolation (degree 1)
+      prefix: "F"
       code: |
-        Variant 1/8: F1 POLY\nVariant 2/8: F1 POLY\nVariant 3/8: F1 POLY
+        F1 POLY B.T, 1, SLOPE, INTERCEPT
       explanation: |
-        The poly instruction has 8 variants for different addressing modes and prefixes
+        Calculate SLOPE*T + INTERCEPT
+
+    - description: |
+        Double precision polynomial
+      prefix: "D"
+      code: |
+        D1 POLY B.X, 3, C3, C2, C1, C0
+      explanation: |
+        Evaluate cubic polynomial with double precision
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 POLY <x>, <m>, <coeffs>  ; Float reg 1 (0xFCE0)
+        F2 POLY <x>, <m>, <coeffs>  ; Float reg 2 (0xFCE1)
+        D1 POLY <x>, <m>, <coeffs>  ; Double reg 1 (0xFCE4)
+        D2 POLY <x>, <m>, <coeffs>  ; Double reg 2 (0xFCE5)
+      explanation: |
+        POLY has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
     section: "12.3"

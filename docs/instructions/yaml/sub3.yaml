@@ -254,58 +254,39 @@ instruction:
 
   examples:
     - description: |
-        Basic sub3 operation using word register
+        Subtract registers non-destructively
       prefix: "W"
       code: |
-        W1 SUB3 W2, B.16, R.8
+        W SUB3 R1, R2, R3
       explanation: |
-        Perform sub3 operation on word-sized data
+        Subtract R2 from R1, store result in R3 (R1, R2 preserved)
 
     - description: |
-        Sub3 with byte-sized operands
-      prefix: "BY"
+        Subtract constant from variable
+      prefix: "W"
       code: |
-        BY1 SUB3 5, 6, B.8
+        W SUB3 B.VALUE, 100, B.RESULT
       explanation: |
-        Byte operation - processes 8-bit values
+        Subtract 100 from VALUE and store in RESULT
 
     - description: |
-        Sub3 with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 SUB3 B.16, B.32, B.48
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Sub3 with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 SUB3 ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Sub3 with floating-point data
+        Float subtraction preserving sources
       prefix: "F"
       code: |
-        F1 SUB3 F2, F3, F4
+        F SUB3 B.X, B.Y, A1
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        X - Y -> A1 (X, Y unchanged)
 
     - description: |
-        Different variants of sub3 instruction
+        All five variants by data type
       code: |
-        Variant 1/5: BY1 SUB3\nVariant 2/5: BY1 SUB3\nVariant 3/5: BY1 SUB3
+        BY SUB3 <a>, <b>, <c>  ; Byte
+        H SUB3 <a>, <b>, <c>   ; Halfword
+        W SUB3 <a>, <b>, <c>   ; Word
+        F SUB3 <a>, <b>, <c>   ; Float
+        D SUB3 <a>, <b>, <c>   ; Double
       explanation: |
-        The sub3 instruction has 5 variants for different addressing modes and prefixes
-
-    - description: |
-        Real-world use: calculations
-      code: |
-        ; Loop counter increment\nW1 SUB3 1\n; Result in W1
-      explanation: |
-        Common use case for sub3 in calculations
+        SUB3 has 5 variants - one for each data type prefix
 
   manual_reference:
     section: "11.10"

@@ -72,31 +72,35 @@ instruction:
         Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
 
   manual_reference:
-    section: "6.4"
-    title: "Trap handler data field"
+    section: "13.10"
+    title: "Subroutine entry points - ENTT"
     content: |
-      # 6.4 Trap handler data field
+      ## 13.10 Subroutine entry points
 
-      The Trap Handler Address register (THA) points to the base of an array in data memory, containing the start addresses of the trap handler routines in program memory. The Nth element of this array must hold the start address of the routine to handle the Nth trap condition. The area after the start address vector is used as a local data field for the invoked trap handler routine. This data field is filled by the ENTT instruction (see section 13.10).
+      ### ENTT - enter trap handler
 
-      | Data memory                       |
-      |-----------------------------------|
-      | THA                               |
-      |                                   |
-      | Start address vector (64 words)   |
-      | Local data field heading (5 words)|
-      | Trapping P (1 word)               |
-      |                                   |
-      | Copy of register block            |
-      | (39 words - see the ENTT instruction) |
-      |                                   |
-      | Local data area                   |
+      | Assembly notation | Hex code | Octal code |
+      |-------------------|----------|------------|
+      | ENTT <trap handler main program stack demand/r/W>, <total trap handler stack demand/r/W> | 0BCH | 274B |
 
-      *Figure 19. Trap handler start address and local data field*
+      **Description:**
 
-      When a trap handler is invoked, trapping P (the address of the instruction that caused the trap condition), the register block, and information about the trap are saved in the local data area of the trap handler.
+      ENTT is the trap handler entry point. A trap handler is called when a trap
+      condition arises and the trap enable bit is set for the trap in question.
+      When a trap handler routine is called, the start address is taken from a
+      trap handler entry point vector. The THA register holds the address of
+      this vector. The area following the trap handler vector is used as a local
+      data area for the trap handler routine called.
 
-      The P register saved in B.ARG2 holds the address of the instruction to be executed when the trap condition has been taken care of. Trapping P and the saved P register will be equal if the trap is handled before the instruction is executed. The instruction causing the trap will then be re-executed. If the trap is handled after the instruction is executed, the saved P register will point to the next instruction.
+      The register block is stacked as shown in table 5 on page 12.
+
+      The instruction may start at any byte in the first word. 'Trapping P',
+      saved as arg1, is the address of the first byte of the instruction
+      causing the trap.
+
+      **Trap conditions:** Addressing traps, Instruction sequence error (ISE)
+
+      (No traps are handled locally.)
 
       Norsk Data ND-05.009.4 EN
 

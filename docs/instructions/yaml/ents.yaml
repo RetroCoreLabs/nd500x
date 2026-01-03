@@ -61,28 +61,35 @@ instruction:
         Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
 
   manual_reference:
-    section: "1.4"
-    title: "Domains, segments and processes"
+    section: "13.10"
+    title: "Subroutine entry points"
     content: |
-      ### 1.4 Domains, segments and processes
+      ## 13.10 Subroutine entry points
 
-      The memory in an ND-500 type system is logically structured into DOMAINS. A domain has one 32-bit address area (4 gigabytes) for executable code (the program domain) and another one for data (the data domain).
+      ### ENTS - enter stack subroutine
 
-      Each domain is divided into SEGMENTS, with up to 32 per domain. A segment can be up to 128 Mbytes, which is equivalent to 27 address bits. The smallest unit for access protection (write and parameter access protection) is a segment. An instruction segment may access any data segment in the domain.
+      | Assembly notation | Hex code | Octal code |
+      |-------------------|----------|------------|
+      | ENTS <stack demand/r/W> | 0B8H | 270B |
 
-      Two (or more) domains may have segments in common in order to share code or data.
+      **Description:**
 
-      A sequence of operations requiring no parallel execution is called a PROCESS. A process is carried out sequentially in the CPU, but several processes started at different times may, in effect, run concurrently. The processes, however, are "time-sliced".
+      The <stack demand> is the number of bytes needed for the local data field
+      of the subroutine, including the predefined locations PREVB, RETA, SP,
+      AUX and N (a total of 20 bytes). There will be a stack overflow trap
+      condition if B + <stack demand> is greater than or equal to TOS.
 
-      A process may refer to up to 256 domains of data and instructions. These are connected in a tree structure called a domain tree, specified by the process description kept by the memory management system. The links between the domains are determined at the creation of each domain. The domain closest above (that is, closer to the root) a domain D is the mother of D, and D is the child. D may itself be the mother of other child domains.
+      **Trap conditions:** Addressing traps, Stack overflow (STO), Instruction
+      sequence error (ISE)
 
-      Control can be switched from one domain to another by calling a routine in the other domain, or by causing an error situation (trap condition) not taken care of by a routine in the current domain. A routine may access data in the domain from which it was called through an address prefix (ALT).
+      **Initializations performed:**
 
-      Within a domain, routines are called directly by address. Routines in other domains are called through their routine number, not by address.
-
-      Communication between processes is possible through monitor calls or through a shared data segment.
-
-      ---
+      - B.SP -> B
+      - oldB -> B.PREVB
+      - return address -> B.RETA -> L
+      - newB + <stackdemand> -> B.SP
+      - number of arguments -> B.N
+      - addresses of arguments -> B.ARG
 
       Norsk Data ND-05.009.4 EN
 

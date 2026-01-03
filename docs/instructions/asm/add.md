@@ -41,13 +41,13 @@ For integer types (BY, H, W), carry and overflow flags are set appropriately. Fo
 
 Total variants: 20 (5 data types × 4 registers)
 
-| Data Type | Registers | Opcodes |
-|-----------|-----------|---------|
-| BY | 1-4 | 0x0054-0x0057 |
-| H | 1-4 | 0x0058-0x005B |
-| W | 1-4 | 0x005C-0x005F |
-| F | 1-4 | 0xFC34-0xFC37 |
-| D | 1-4 | 0xFC38-0xFC3B |
+| Data Type | Registers | Opcodes | Octal |
+|-----------|-----------|---------|-------|
+| BY | 1-4 | 0xFC34-0xFC37 | 176064B-176067B |
+| H | 1-4 | 0xFC38-0xFC3B | 176070B-176073B |
+| W | 1-4 | 0x0054-0x0057 | 124B-127B |
+| F | 1-4 | 0x0058-0x005B | 130B-133B |
+| D | 1-4 | 0x005C-0x005F | 134B-137B |
 
 ---
 
@@ -139,8 +139,8 @@ LOOP:
 
 ## Reference Manual
 
-**Section:** §11.5
-**Title:** Add two operands
+**Section:** §11.1
+**Title:** Add
 
 ---
 

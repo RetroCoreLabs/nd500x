@@ -327,46 +327,52 @@ instruction:
         The abs instruction has 20 variants for different addressing modes and prefixes
 
   manual_reference:
-    section: "13.8"
-    title: "Call subroutine absolute"
+    section: "10.15"
+    title: "Absolute value"
     content: |
-      # 13.8 Call subroutine absolute
+      # 10.15 Absolute value
 
-      **Format:**
-      CALL <<subr. addr.>>,<<no of arg/s/BY>, <arg1/aa/W>,...,<argn/aa/W>
+      **Format:** tn ABS
 
       **Assembly notation**
 
-      | Name                        | Hex code | Octal code |
-      |-----------------------------|----------|------------|
-      | CALL call subroutine absolute | 0C3H     | 303B       |
+      | Name                        | Hex code      | Octal code     |
+      |-----------------------------|---------------|----------------|
+      | BYn ABS (byte)              | 0FF00H+(n-1)  | 177400B+(n-1)  |
+      | Hn ABS (halfword)           | 0FF04H+(n-1)  | 177404B+(n-1)  |
+      | Wn ABS (word)               | 0FF08H+(n-1)  | 177410B+(n-1)  |
+      | Fn ABS (float)              | 0FF0CH+(n-1)  | 177414B+(n-1)  |
+      | Dn ABS (double float)       | 0FF0CH+(n-1)  | 177414B+(n-1)  |
 
       ### Operation:
 
-      Calculate the effective addresses of the arguments and prepare for the entry point at <<subr. addr.>>.
-      Jump to the subroutine entry point found at that address.
+      Absolute value of Rn -> Rn
 
       ### Description:
 
-      Call the subroutine specified by <<subr. addr.>>. The subroutine address is a direct operand in the four bytes following the instruction code. It must refer to an entry point instruction, otherwise an instruction sequence error trap condition occurs.
-
-      The <<no of arg>> operand must be a constant byte integer, i.e. less than 256. Other data types which are not constants will cause an illegal operand specifier trap condition.
-
-      The effective addresses of the arguments in the instruction are calculated and stored for use by the entry point instruction. The arguments are always interpreted as word integer. The data-type-dependent addressing modes (post-indexed or descriptor address code format) should be used with care, as the result will be incorrect for data types other than word. <<argn>> operands of type register or constant will cause an illegal operand specifier trap condition, as neither registers nor constants have an address in data memory. The arguments may not be prefixed by the operand specifier prefix ALT.
+      The absolute value of the contents of the specified register is calculated
+      and stored in the same register. When the datatype is either BY or H, the
+      result is stored in the least significant bits and the rest of the register
+      is cleared. Overflow occurs if and only if the greatest negative integer
+      is negated.
 
       ### Trap conditions:
 
-      Addressing traps, Call trap (CT), Illegal operand specifier (IOS), Instruction sequence error (ISE)
+      Integer overflow (O)
 
       ### Data status bits:
 
-      Unaffected
+      - result = 0 -> Z
+      - 0 -> S
+      - overflow -> O (integer)
 
       ### Example:
 
-      Call SUBR with the value of local word variable READONLY. Value transfer should be used with word-size data items only
+      Take the absolute value of local double precision variable DELTA
 
-      CALL SUBR, 1, IND(B.READONLY)
+      D1 := B.DELTA
+      D1 ABS
+      D1 =: B.DELTA
 
       Norsk Data ND-05.009.4 EN
 

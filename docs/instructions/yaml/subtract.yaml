@@ -598,47 +598,46 @@ instruction:
         Common use case for - in calculations
 
   manual_reference:
-    section: "16.31"
-    title: "RPHS - Read from physical segment ('87 extension)"
+    section: "11.2"
+    title: "Subtract"
     content: |
-      ### 16.31 RPHS - Read from physical segment ('87 extension)
+      ## 11.2 Subtract
 
-      **Format:** RPHS <domain number/r/W>
+      **Format:** tn - <subtrahend/r/t>
 
-      | Assembly notation | Name                    | Hex code | Octal code  |
-      |-------------------|-------------------------|----------|-------------|
-      | RPHS              | read from physical segment | FFF5H    | 177765B     |
+      | Assembly notation | Name                    | Hex code        | Octal code        |
+      |-------------------|-------------------------|-----------------|-------------------|
+      | BYn -             | byte subtract           | 0FC3CH+(n-1)    | 176074B+(n-1)     |
+      | Hn -              | halfword subtract       | 0FC40H+(n-1)    | 176100B+(n-1)     |
+      | Wn -              | word subtract           | 060H+(n-1)      | 140B+(n-1)        |
+      | Fn -              | float subtract          | 064H+(n-1)      | 144B+(n-1)        |
+      | Dn -              | double float subtract   | 068H+(n-1)      | 150B+(n-1)        |
 
-      **Operation:**
-
-          while I1 > 0 do
-            S([I4,I3) -> D(<domain number>.I2)
-            I3 + 1 -> I3
-            I2 + 1 -> I2
-            I1 - 1 -> I1
-          enddo
+      **Operation:** Rn - <subtrahend> -> Rn
 
       **Description:**
 
-      Privileged instruction
+      The <subtrahend> operand is subtracted from the contents of the specified register.
+      The same rules as for ADD apply for the setting of the carry bit. For overflow, see
+      section on arithmetical traps.
 
-      Copy a number of bytes from logical address on physical segment to logical address on the domain.
+      **Trap conditions:** Addressing traps, Integer overflow (O), Floating overflow (FO),
+      Floating underflow (FU)
 
-      - I1 : Number of bytes to be moved.
-      - I2 : Logical address on the domain.
-      - I3 : Address on the physical segment.
-      - I4 : Physical segment number.
+      **Data status bits:**
 
-      Operand : domain number.
+      - difference = 0 -> Z
+      - difference.signbit -> S
+      - overflow -> O
+      - carry from the most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> FO
 
-      The copy operation is continued until the number of bytes left is equal to 0 (I1 = 0) or a page boundary is reached on the physical segment. Number of bytes to be moved is counted down and will be zero when the move operation is completed. The addresses are incremented during the copy operation.
+      **Example:**
 
-      The instruction is meant for use when copying data from a physical segment in one process to a domain in another. The physical segment number is used together with the physical segment table pointer to find the physical page number of the wanted data page or of the corresponding index page.
+      Subtract the contents of register F1 from the contents of register F4
 
-      **Data Status Bits:**
-
-      - no bytes left = 0 : 1 -> Z
-      - page boundary and no bytes left < 0 : 0 -> Z
+          F4 - F1
 
       Norsk Data ND-05.009.4 EN
 

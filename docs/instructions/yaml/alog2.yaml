@@ -208,43 +208,38 @@ instruction:
 
   examples:
     - description: |
-        Basic alog2 operation using word register
-      prefix: "W"
-      code: |
-        W1 ALOG2 W2
-      explanation: |
-        Perform alog2 operation on word-sized data
-
-    - description: |
-        Alog2 with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 ALOG2 B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Alog2 with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 ALOG2 ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Alog2 with floating-point data
+        Binary logarithm with float register (from manual)
       prefix: "F"
       code: |
-        F1 ALOG2 F2
+        F1 ALOG2 B.RANGE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Load the binary logarithm of local variable RANGE into F1
 
     - description: |
-        Different variants of alog2 instruction
+        Binary logarithm with double precision
+      prefix: "D"
       code: |
-        Variant 1/8: F1 ALOG2\nVariant 2/8: F1 ALOG2\nVariant 3/8: F1 ALOG2
+        D1 ALOG2 B.VALUE
       explanation: |
-        The alog2 instruction has 8 variants for different addressing modes and prefixes
+        Double precision base-2 logarithm
+
+    - description: |
+        Binary logarithm from array
+      addressing_mode: "PRE_INDEXED"
+      code: |
+        F2 ALOG2 DATA(W1)
+      explanation: |
+        Calculate log2 of array element
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 ALOG2 <arg>  ; Float reg 1 (0xFF7C)
+        F2 ALOG2 <arg>  ; Float reg 2 (0xFF7D)
+        D1 ALOG2 <arg>  ; Double reg 1 (0xFFA8)
+        D2 ALOG2 <arg>  ; Double reg 2 (0xFFA9)
+      explanation: |
+        ALOG2 has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
     section: "12.14"

@@ -208,43 +208,38 @@ instruction:
 
   examples:
     - description: |
-        Basic alog operation using word register
-      prefix: "W"
-      code: |
-        W1 ALOG W2
-      explanation: |
-        Perform alog operation on word-sized data
-
-    - description: |
-        Alog with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 ALOG B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Alog with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 ALOG ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Alog with floating-point data
+        Natural logarithm with float register
       prefix: "F"
       code: |
-        F1 ALOG F2
+        F1 ALOG B.VALUE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Calculate natural log (ln) of VALUE into F1
 
     - description: |
-        Different variants of alog instruction
+        Natural logarithm from array (from manual)
+      prefix: "D"
       code: |
-        Variant 1/8: F1 ALOG\nVariant 2/8: F1 ALOG\nVariant 3/8: F1 ALOG
+        D1 ALOG COEFF(R1)
       explanation: |
-        The alog instruction has 8 variants for different addressing modes and prefixes
+        Load the natural logarithm of the R1th element of array COEFF into D1
+
+    - description: |
+        Natural logarithm with double precision
+      prefix: "D"
+      code: |
+        D2 ALOG B.RATIO
+      explanation: |
+        Double precision natural logarithm
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 ALOG <arg>  ; Float reg 1 (0xFF78)
+        F2 ALOG <arg>  ; Float reg 2 (0xFF79)
+        D1 ALOG <arg>  ; Double reg 1 (0xFFA4)
+        D2 ALOG <arg>  ; Double reg 2 (0xFFA5)
+      explanation: |
+        ALOG has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
     section: "12.13"

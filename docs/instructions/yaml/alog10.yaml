@@ -208,43 +208,38 @@ instruction:
 
   examples:
     - description: |
-        Basic alog10 operation using word register
-      prefix: "W"
-      code: |
-        W1 ALOG10 W2
-      explanation: |
-        Perform alog10 operation on word-sized data
-
-    - description: |
-        Alog10 with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 ALOG10 B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Alog10 with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 ALOG10 ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Alog10 with floating-point data
+        Common logarithm with float register (from manual)
       prefix: "F"
       code: |
-        F1 ALOG10 F2
+        F4 ALOG10 BIGNUMB
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Load the common logarithm of BIGNUMB into F4
 
     - description: |
-        Different variants of alog10 instruction
+        Common logarithm with double precision
+      prefix: "D"
       code: |
-        Variant 1/8: F1 ALOG10\nVariant 2/8: F1 ALOG10\nVariant 3/8: F1 ALOG10
+        D1 ALOG10 B.VALUE
       explanation: |
-        The alog10 instruction has 8 variants for different addressing modes and prefixes
+        Double precision base-10 logarithm
+
+    - description: |
+        Common logarithm from record field
+      addressing_mode: "RECORD"
+      code: |
+        F2 ALOG10 R.MAGNITUDE
+      explanation: |
+        Calculate log10 of record field
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 ALOG10 <arg>  ; Float reg 1 (0xFF80)
+        F2 ALOG10 <arg>  ; Float reg 2 (0xFF81)
+        D1 ALOG10 <arg>  ; Double reg 1 (0xFFAC)
+        D2 ALOG10 <arg>  ; Double reg 2 (0xFFAD)
+      explanation: |
+        ALOG10 has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
     section: "12.15"

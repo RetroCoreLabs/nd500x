@@ -598,25 +598,49 @@ instruction:
         Common use case for / in calculations
 
   manual_reference:
-    section: "1.3"
-    title: "Communication between the I/O Processor and the CPUs"
+    section: "11.4"
+    title: "Divide"
     content: |
-      # 1.3 Communication between the I/O Processor and the CPUs
+      ## 11.4 Divide
 
-      All or part of the memory can be shared between the CPU, the I/O processor and associated I/O devices. This allows for easy access and control by all components of the system.
+      **Format:** tn / <divisor/r/t>
 
-      The communication between the I/O processor and the CPU is set up as a mailbox and DMA transfer system. The mailbox contains 3 registers:
+      | Assembly notation | Name                    | Hex code        | Octal code        |
+      |-------------------|-------------------------|-----------------|-------------------|
+      | BYn /             | byte divide             | 0FC4CH+(n-1)    | 176114B+(n-1)     |
+      | Hn /              | halfword divide         | 0FC50H+(n-1)    | 176120B+(n-1)     |
+      | Wn /              | word divide             | 078H+(n-1)      | 170B+(n-1)        |
+      | Fn /              | float divide            | 07CH+(n-1)      | 174B+(n-1)        |
+      | Dn /              | double float divide     | 0E8H+(n-1)      | 350B+(n-1)        |
 
-      - **Control register**: For the I/O processor to give the CPU a command
+      **Operation:** Rn / <divisor> -> Rn
 
-      - **Status register**: For the CPU to give the I/O processor status
+      **Description:**
 
-      - **Address register**: A pointer to where in the I/O-processor memory a chain of message buffers will be found. Message buffers may contain commands or data from the I/O processor to the CPU or may be used by the CPU for storing extended status information
+      The contents of the specified register are divided by the <divisor> operand.
+      The quotient is left in the same register. In integer division the remainder
+      (unless it is zero) has the same sign as the register contents, i.e., the quotient
+      is truncated towards 0. Integer overflow occurs if and only if the largest
+      possible negative integer is divided by -1.
 
-      Some examples of commands to the CPU are context switch, reset, wait or data transfer.
+      **Trap conditions:** Addressing traps, Integer overflow (O), Floating overflow (FO),
+      Floating underflow (FU), Divide by zero (DZ)
 
-      The status information returned to the I/O processor reports that a job is finished, the reason for the CPU termination and the type of possible CPU malfunctions.
+      **Data status bits:**
 
-      The CPU microprogram initiates and controls the DMA access channel to the I/O-processor memory. The communication channel is also used extensively for diagnostic and test program information. The I/O-processor is used as a diagnostic vehicle for the CPU.
+      - quotient = 0 -> Z
+      - quotient.signbit -> S
+      - overflow -> O
+      - floating underflow -> FU
+      - floating overflow -> FO
+      - divide by zero -> DZ
+
+      **Example:**
+
+      Divide word register W3 by 10
+
+          W3 / 10
+
+      Norsk Data ND-05.009.4 EN
 
       ---

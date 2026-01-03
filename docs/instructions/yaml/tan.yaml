@@ -208,89 +208,77 @@ instruction:
 
   examples:
     - description: |
-        Basic tan operation using word register
-      prefix: "W"
-      code: |
-        W1 TAN W2
-      explanation: |
-        Perform tan operation on word-sized data
-
-    - description: |
-        Tan with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 TAN B.16
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Tan with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 TAN ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Tan with floating-point data
+        Tangent with float register
       prefix: "F"
       code: |
-        F1 TAN F2
+        F1 TAN B.ANGLE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Calculate tangent of ANGLE (radians) into F1
 
     - description: |
-        Different variants of tan instruction
+        Tangent with double precision (from manual)
+      prefix: "F"
       code: |
-        Variant 1/8: F1 TAN\nVariant 2/8: F1 TAN\nVariant 3/8: F1 TAN
+        F4 TAN SPREAD
       explanation: |
-        The tan instruction has 8 variants for different addressing modes and prefixes
+        Calculate the tangent of argument SPREAD and load into F4
+
+    - description: |
+        Tangent with double precision
+      prefix: "D"
+      code: |
+        D1 TAN B.THETA
+      explanation: |
+        Double precision tangent
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 TAN <arg>  ; Float reg 1 (0xFF68)
+        F2 TAN <arg>  ; Float reg 2 (0xFF69)
+        D1 TAN <arg>  ; Double reg 1 (0xFF94)
+        D2 TAN <arg>  ; Double reg 2 (0xFF95)
+      explanation: |
+        TAN has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
-    section: "8.12"
-    title: "Constant Operand Addressing"
+    section: "12.9"
+    title: "Tangent"
     content: |
-      # 8.12 Constant Operand Addressing
+      # 12.9 Tangent
 
-      ## Assembly Notation
+      **Format:** tn TAN <argument/r/t>
 
-      | Assembly Notation  | Name                          | Hex Code | Octal Code |
-      |--------------------|-------------------------------|----------|------------|
-      | `<constant>`       | General Constant              |          |            |
-      | `<constant>:S`     | Short Constant                | 000H+xx  | 000B+xx    |
-      | `<constant>:B`     | Byte Constant                 | OCDH     | 315B       |
-      | `<constant>:H`     | Halfword Constant             | 0CEH     | 316B       |
-      | `<constant>:W`     | Word Constant                 | 0CFH     | 317B       |
-      | `<constant>:F`     | Floating-point Constant       | 0CFH     | 317B       |
-      | `<constant>:D`     | Double Floating-point Constant| OCCH     | 314B       |
+      | Assembly notation | Name                 | Hex code       | Octal code      |
+      |-------------------|----------------------|----------------|-----------------|
+      | Fn TAN            | float tangent        | 0FF68H+(n-1)   | 177550B+(n-1)   |
+      | Dn TAN            | double float tangent | 0FF94H+(n-1)   | 177624B+(n-1)   |
 
-      op = data part of operand specifier
+      **Operation:** tangent(<argument>) -> Rn
 
-      The data to be operated on is part of the operand specifier. It resides in the program memory and cannot be modified by any instruction. The value of the operand may have a length of six bits or one, two, four or eight bytes.
+      **Description:**
 
-      Constant operands are illegal for all write instructions, e.g. store, swap, or shift instructions. They are also illegal as destination operand(s) for multi-operand instructions, and in certain special instructions like TSET and RDUS. They are also illegal as subroutine arguments, as they have no address in data memory.
+      The trigonometric tangent of <argument> is loaded into the specified
+      float or double float register. The maximum absolute value of <argument>
+      is 65536.0 radians; a larger value will cause an invalid operation trap
+      condition and the specified register is set to zero.
 
-      Note that word and floating-point constants have the same address code.
+      **Trap conditions:** Addressing traps, Invalid operation (IVO)
 
-      ## Assembly Notation
+      **Data status bits:**
 
-      | Assembly Notation | Byte0 | Byte1 | Byte2 | Byte3 | Byte4 |
-      |-------------------|-------|-------|-------|-------|-------|
-      | 150B:B            |       |       |       |       |       |
-      | Octal: 315B       | 150B  |       |       |       |       |
-      | Hex:  OCDH        | 068H  |       |       |       |       |
+      - result = 0 -> Z
+      - result.signbit -> S
 
-      | 1200000:W         |       |       |       |       |       |
-      | Octal: 317B       | 000B  | 022B  | 117B  | 200B  |       |
-      | Hex:  0CFH        | 000H  | 012H  | 04FH  | 080H  |       |
+      **Example:**
 
-      | 12B:S             |       |       |       |       |       |
-      | Octal: 012B       |       |       |       |       |       |
-      | Hex:  00AH        |       |       |       |       |       |
+      Calculate the tangent of argument SPREAD and load into F4
 
-      | 6400H:H           |       |       |       |       |       |
-      | Octal: 316B       | 144B  | 000B  |       |       |       |
-      | Hex:  0CEH        | 064H  | 000H  |       |       |       |
+          F4 TAN SPREAD
+
+      Norsk Data ND-05.009.4 EN
+
+      ---
 
       *Table 12. Example of constants*
 

@@ -295,50 +295,38 @@ instruction:
 
   examples:
     - description: |
-        Basic axi operation using word register
-      prefix: "W"
-      code: |
-        W1 AXI W2, B.16
-      explanation: |
-        Perform axi operation on word-sized data
-
-    - description: |
-        Axi with local (stack) variables
-      addressing_mode: "LOCAL"
-      code: |
-        W1 AXI B.16, B.32
-      explanation: |
-        Access local variables using B register (stack frame pointer)
-
-    - description: |
-        Axi with array element access
-      addressing_mode: "PRE_INDEXED"
-      code: |
-        W1 AXI ARRAY(W2)
-      explanation: |
-        Array access: ARRAY(W2) computes address as ARRAY + W2 * element_size
-
-    - description: |
-        Axi with floating-point data
+        A to the I'th power (from manual)
       prefix: "F"
       code: |
-        F1 AXI F2, F3
+        F3 AXI 2.0, STATE
       explanation: |
-        Floating-point operation using F registers (32-bit IEEE 754)
+        Load 2.0 to the STATE'th power into F3
 
     - description: |
-        Different variants of axi instruction
+        Power with float base
+      prefix: "F"
       code: |
-        Variant 1/8: F1 AXI\nVariant 2/8: F1 AXI\nVariant 3/8: F1 AXI
+        F1 AXI B.BASE, B.EXPONENT
       explanation: |
-        The axi instruction has 8 variants for different addressing modes and prefixes
+        Calculate BASE^EXPONENT (exponent is word integer)
 
     - description: |
-        Real-world use: calculations
+        Power with double precision
+      prefix: "D"
       code: |
-        ; Loop counter increment\nW1 AXI 1\n; Result in W1
+        D1 AXI B.A, B.N
       explanation: |
-        Common use case for axi in calculations
+        Double precision A^N calculation
+
+    - description: |
+        All eight variants (F/D only)
+      code: |
+        F1 AXI <a>, <i>  ; Float reg 1 (0xFCC0)
+        F2 AXI <a>, <i>  ; Float reg 2 (0xFCC1)
+        D1 AXI <a>, <i>  ; Double reg 1 (0xFCC4)
+        D2 AXI <a>, <i>  ; Double reg 2 (0xFCC5)
+      explanation: |
+        AXI has 8 variants: F1-F4 (float) and D1-D4 (double)
 
   manual_reference:
     section: "12.1"

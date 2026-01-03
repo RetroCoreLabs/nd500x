@@ -598,43 +598,51 @@ instruction:
         Common use case for + in calculations
 
   manual_reference:
-    section: "8.15"
-    title: "Descriptor addressing"
+    section: "11.1"
+    title: "Add"
     content: |
-      ## 8.15 Descriptor addressing
+      ## 11.1 Add
 
-      | Assembly notation  | Hex code | Octal code |
-      |--------------------|----------|------------|
-      | DESC(<operand>)(Rn) descriptor | 0F0H+y  | 360B+y     |
+      **Format:** tn + <addend/r/t>
 
-      ea = A + P*(Rn), &nbsp; A = contents of second word of <operand>
+      | Assembly notation | Name             | Hex code       | Octal code     |
+      |-------------------|------------------|----------------|----------------|
+      | BYn +             | byte add         | 0FC34H+(n-1)   | 176064B+(n-1)  |
+      | Hn +              | halfword add     | 0FC38H+(n-1)   | 176070B+(n-1)  |
+      | Wn +              | word add         | 054H+(n-1)     | 124B+(n-1)     |
+      | Fn +              | floating add     | 058H+(n-1)     | 130B+(n-1)     |
+      | Dn +              | double float add | 05CH+(n-1)     | 134B+(n-1)     |
 
-      <operand> is the address of a descriptor, and it can be any operand specifier except ALT, constant or register. <operand> may be post-indexed, selecting an element in an array of descriptors, in which case the post-index scaling factor is 8 (the size of a descriptor). The post-index scaling factor of the descriptor addressing itself is determined by the data type specified in the instruction code.
+      **Operation:** Rn + <addend> -> Rn
 
-      A descriptor comprises two words in memory accessed via a general operand. The first word contains the number of elements in a data array, the second contains the start address of the array. The operand element of the array is addressed post-indexed relative to the start address in the descriptor. Elements are indexed from zero; the legal index range is 0 to descriptor.length-1.
+      **Description:**
 
-      The hardware will report if the last element of the array is addressed by setting the K flag. If an element beyond the array is addressed the K flag is set and a descriptor range trap condition occurs.
+      The <addend> operand is added to the contents of the specified register.
+      The carry bit is set if a carry occurs from the sign bit position of the
+      adder, otherwise it is reset. For overflow, see the section on arithmetical
+      traps.
 
-      The index register is incremented by a data access via descriptor. It is not incremented when accessing only the address of the operand (load address and call instructions).
+      **Trap conditions:**
 
-      ```
-      if (Rn)+1 >> descriptor.length then
-         descriptor range trap condition
-      endif
-      if (Rn)+1 >> = descriptor.length then
-         1 =: status.K
-      endif
-      if not descriptor range trap then
-         perform addressing with Rn as post-index
-         if data access then
-            (Rn)+1 =: Rn
-         endif
-      endif
-      endif
-      ```
+      Addressing traps, Integer overflow (O), Floating overflow (FO),
+      Floating underflow (FU)
 
-      Note that an access outside the string as defined by the descriptor is carried out if the descriptor range trap is not enabled.
+      **Data status bits:**
 
-      Norsk Data ND–05.009.4 EN
+      - sum.signbit -> S
+      - sum = 0 -> Z
+      - 0 -> O (float)
+      - overflow -> O
+      - carry from most significant bit -> C (integer)
+      - floating underflow -> FU
+      - floating overflow -> FO
+
+      **Example:**
+
+      Add byte argument FIFTHARG to R3
+
+          BY3 + IND(B.FIFTHARG)
+
+      Norsk Data ND-05.009.4 EN
 
       ---

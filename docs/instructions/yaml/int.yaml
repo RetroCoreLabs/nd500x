@@ -246,22 +246,37 @@ instruction:
         The int instruction has 8 variants for different addressing modes and prefixes
 
   manual_reference:
-    section: "4.1"
-    title: "Introduction"
+    section: "10.34"
+    title: "Integer part"
     content: |
-      ### 4.1 Introduction
+      ## 10.34 Integer part
 
-      A process is a sequential computation requiring no parallel execution. A process may refer to up to 256 domains. Each domain is a full 32-bit address area for program instructions and another one for data. A process may easily access two such data domains, the so-called Current Executing Domain (CED) and the Current Alternative Domain (CAD). Instructions will always be fetched from CED, but data will be taken from CAD when the address code prefix ALT is used. If ALT is omitted, data accesses will be done in CED.
+      **Format:** tn INT <x/r/t>
 
-      Each domain is divided into 32 logical segments with 27 address bits each. A 27-bit logical segment address is translated by the memory management system so that it addresses a location in a so-called physical segment. Physical segments contain the data and programs for the CPU. A physical segment is divided into blocks of 2k bytes called pages, and may have any size from 2**11 to 2**27 bytes in units of 2k bytes (1 page). Pages can be moved (swapped) between main memory and secondary storage as the need arises.
+      | Assembly notation | Name                        | Hex code      | Octal code     |
+      |-------------------|-----------------------------|---------------|----------------|
+      | Fn INT            | float integer part          | 0FE60H+(n-1)  | 177140B+(n-1)  |
+      | Dn INT            | double float integer part   | 0FE64H+(n-1)  | 177144B+(n-1)  |
 
-      All physical segments in the system are described in the Physical Segment Table (PST). The PST always resides in the main memory and it is used by the translation mechanism to find the physical segment. If a physical segment consists of more than one page, an indexing mechanism is used to address the segment. Each physical segment is described by a 16-bit entry in PST.
+      **Operation:** truncated integer part of <x> in float format -> Rn
 
-      By following this scheme each process may use up to 256*32 physical segments of program, and an equal number of physical segments of data. The structure and properties of the domains and segments of a process are kept on a special physical segment generated and maintained by supervising mechanisms. This physical segment is called the Process Segment (PS). There is one PS for each process in the CPU. The size of a PS will depend on the number of domains the process can use.
+      **Description:**
 
-      The PS of a process cannot be accessed directly by the process itself. It is used by supervising mechanisms which may be other processes, other domains or the I/O processor. Each domain used by a process has one entry in the PS.
+      The truncated integer part of the <x> operand is calculated and loaded into
+      the specified floating register in float format. No rounding is performed.
 
-      One part of the process segment is called the domain information table. A domain information table contains 32 pointers for data (the data capability table) and 32 pointers for program (the program capability table), one pointer for each logical segment of the domain. The pointers indicate the PST entry describing the physical segment to be addressed by the logical address. Information on legal access modes for each logical segment is also kept in the domain information table, together with the pointers. One PST pointer with the corresponding legal access mode indicators is called a capability. The domain information table also contains the necessary information for the trap and domain call system.
+      **Trap conditions:** Addressing traps
+
+      **Data status bits:**
+
+      - result = 0 -> Z
+      - result.signbit -> S
+
+      **Example:**
+
+      Load F4 with the integer part of EXACT
+
+          F4 INT EXACT
 
       Norsk Data ND-05.009.4 EN
 
