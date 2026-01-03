@@ -305,6 +305,9 @@ int main(int argc, char** argv) {
 
     /* Non-interactive run mode */
     if (run_mode) {
+        /* Install stdio console for interactive I/O */
+        mon_install_stdio_console();
+
         machine.run_flag = 1;
         machine.stop_reason = STOP_NONE;
 

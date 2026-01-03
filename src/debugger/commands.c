@@ -134,6 +134,7 @@ static int cmd_trace(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_files(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_file(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_user(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_input(Nd500Machine* m, CmdContext* ctx, char* args);
 
 /* Forward declaration for init script execution (defined at end of file) */
 int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
@@ -208,6 +209,7 @@ static const CmdEntry g_commands[] = {
 	{"files",       cmd_files,        "List open SINTRAN files"},
 	{"file",        cmd_file,         "Show details for open file"},
 	{"user",        cmd_user,         "Show/set current SINTRAN user"},
+	{"input",       cmd_input,        "Queue console input (e.g., input HELP\\r\\n)"},
 	{"q",           cmd_quit,         "Quit debugger"},
 	{"quit",        cmd_quit,         "Quit debugger"},
 	{"exit",        cmd_quit,         "Quit debugger"},
@@ -865,6 +867,14 @@ static int cmd_trace(Nd500Machine* m, CmdContext* ctx, char* args) {
 static int cmd_step(Nd500Machine* m, CmdContext* ctx, char* args) {
 	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
 	uint32_t n = nd500_cmd_parse_u32(a1, 1);
+	/* Clear any stale traps before stepping - prevents write functions from
+	 * silently failing due to traps left over from previous operations
+	 * (e.g., disassembly, memory dumps that triggered MMU translations) */
+	nd500_dbg_clear_traps();
+	/* Set run_flag = 1 for stepping - instructions like BMOVE check run_flag
+	 * to detect traps. Without this, run_flag stays at 0 and instructions
+	 * incorrectly think a trap occurred after every memory operation. */
+	m->run_flag = 1;
 	m->stop_reason = STOP_NONE;
 	uint32_t executed = 0;
 	for (uint32_t i = 0; i < n; ++i) {
@@ -4739,5 +4749,123 @@ static int cmd_user(Nd500Machine* m, CmdContext* ctx, char* args) {
 	/* Set new user */
 	mon_config_set_current_user(args);
 	output(ctx, "SINTRAN user set to: %s", mon_config_get_current_user());
+	return 0;
+}
+
+/* ============================================================================
+ * input - Queue console input for MON calls (1B, 503B, etc.)
+ * ============================================================================ */
+static int cmd_input(Nd500Machine* m, CmdContext* ctx, char* args) {
+	(void)m;
+
+	/* Skip leading whitespace */
+	while (args && *args && isspace((unsigned char)*args)) args++;
+
+	if (!args || !*args) {
+		/* Show status and usage */
+		size_t remaining = mon_get_console_input_remaining();
+		size_t output_len = mon_get_console_output_len();
+
+		output(ctx, "Console Input Queue:");
+		output(ctx, "  Pending input: %zu chars", remaining);
+		output(ctx, "  Output buffer: %zu chars", output_len);
+		if (output_len > 0) {
+			output(ctx, "  Output: \"%s\"", mon_get_console_output());
+		}
+		output(ctx, "");
+		output(ctx, "Usage: input <text>");
+		output(ctx, "  Queues text as console input for MON calls.");
+		output(ctx, "  Escape sequences: \\r = CR, \\n = LF, \\\\ = backslash");
+		output(ctx, "");
+		output(ctx, "Examples:");
+		output(ctx, "  input HELP\\r\\n     Queue 'HELP' followed by CR LF");
+		output(ctx, "  input clear        Clear input queue and output buffer");
+		output(ctx, "  input output       Show captured output");
+		return 0;
+	}
+
+	/* Special subcommands */
+	if (strcmp(args, "clear") == 0) {
+		mon_clear_console_queue();
+		output(ctx, "Console queue cleared.");
+		return 0;
+	}
+
+	if (strcmp(args, "output") == 0) {
+		size_t len = mon_get_console_output_len();
+		const char* out = mon_get_console_output();
+		output(ctx, "Console output (%zu chars):", len);
+		if (len > 0) {
+			/* Print output, escaping non-printable chars */
+			char buf[256];
+			size_t pos = 0;
+			for (size_t i = 0; i < len && pos < sizeof(buf) - 5; i++) {
+				char ch = out[i];
+				if (ch == '\r') {
+					buf[pos++] = '\\';
+					buf[pos++] = 'r';
+				} else if (ch == '\n') {
+					buf[pos++] = '\\';
+					buf[pos++] = 'n';
+				} else if (ch >= 32 && ch < 127) {
+					buf[pos++] = ch;
+				} else {
+					pos += snprintf(buf + pos, sizeof(buf) - pos, "\\x%02X", (unsigned char)ch);
+				}
+			}
+			buf[pos] = '\0';
+			output(ctx, "  %s", buf);
+		}
+		return 0;
+	}
+
+	/* Process escape sequences and queue input */
+	char processed[4096];
+	size_t out_pos = 0;
+	const char* p = args;
+
+	while (*p && out_pos < sizeof(processed) - 1) {
+		if (*p == '\\' && *(p + 1)) {
+			p++;
+			switch (*p) {
+				case 'r': processed[out_pos++] = '\r'; break;
+				case 'n': processed[out_pos++] = '\n'; break;
+				case 't': processed[out_pos++] = '\t'; break;
+				case '\\': processed[out_pos++] = '\\'; break;
+				case '0': processed[out_pos++] = '\0'; break;
+				default:
+					/* Unknown escape - keep as-is */
+					processed[out_pos++] = '\\';
+					processed[out_pos++] = *p;
+					break;
+			}
+			p++;
+		} else {
+			processed[out_pos++] = *p++;
+		}
+	}
+	processed[out_pos] = '\0';
+
+	/* Automatically append CR if not present - simulates pressing Enter */
+	if (out_pos > 0 && processed[out_pos - 1] != '\r' && processed[out_pos - 1] != '\n') {
+		if (out_pos < sizeof(processed) - 2) {
+			processed[out_pos++] = '\r';
+			processed[out_pos] = '\0';
+		}
+	}
+
+	/* Append EOT (0x04 = Ctrl-D) to signal end of input.
+	 * This prevents infinite loops in programs that keep calling DVINST
+	 * expecting more input - they'll get EOT and treat it as end of file. */
+	if (out_pos < sizeof(processed) - 1) {
+		processed[out_pos++] = '\x04';  /* EOT = End of Transmission */
+		processed[out_pos] = '\0';
+	}
+
+	/* Queue the processed input */
+	mon_queue_console_input(processed);
+
+	output(ctx, "Queued %zu chars: \"%s\"", out_pos, args);
+	output(ctx, "Total pending: %zu chars", mon_get_console_input_remaining());
 	return 0;
 }
