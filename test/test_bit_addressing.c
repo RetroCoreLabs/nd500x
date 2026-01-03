@@ -26,6 +26,8 @@
 #include "../src/machine/machine_protos.h"
 #include "../src/cpu/instruction_helpers.h"
 
+/* nd500_dbg_set_trap_invalid is declared in machine_protos.h */
+
 /* Test memory size */
 #define MEMORY_SIZE (1 << 20)  /* 1MB */
 #define CODE_ADDR   0x2000     /* Where we place test instructions */
@@ -325,6 +327,142 @@ static void test_dom_bug_scenario(void) {
 }
 
 /**
+ * Test actual BI TEST instruction execution with post-indexed addressing
+ *
+ * This test executes REAL instruction bytes through the full decode/execute
+ * pipeline to test compute_effective_address with BIT data type.
+ *
+ * The existing tests manually compute bit_position, but this test exercises
+ * the actual code path where compute_effective_address calculates:
+ *   bit_position = 7 - (index % 8)  [counted from left/MSB]
+ *
+ * Instruction encoding:
+ *   BI TEST = opcode 0x0041 (2 bytes)
+ *   $addr(r1) = address code 0xE0 + 4-byte address (big-endian)
+ */
+static void test_bi_test_instruction_execution(void) {
+    printf("\n=== BI TEST Instruction Execution Tests ===\n");
+
+    /* Disable the trap on 0x00 instruction check - BI TEST opcode 0x0041 starts with 0x00 */
+    nd500_dbg_set_trap_invalid(0);
+
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+
+    /* Test data at DATA_ADDR (0x1000):
+     * 0x1000: 0x00 = 00000000b (all bits 0)
+     * 0x1001: 0x5F = 01011111b
+     *         bit 7 (MSB) = 0
+     *         bit 6 = 1
+     *         bit 5 = 0
+     *         bit 4 = 1
+     *         bit 3 = 1
+     *         bit 2 = 1
+     *         bit 1 = 1
+     *         bit 0 (LSB) = 1
+     */
+    nd500_bus_write8(&m, DATA_ADDR + 0, 0x00);
+    nd500_bus_write8(&m, DATA_ADDR + 1, 0x5F);
+    nd500_bus_write8(&m, DATA_ADDR + 2, 0x80);
+    nd500_bus_write8(&m, DATA_ADDR + 3, 0xFF);
+
+    /* BI TEST instruction: opcode 0x0041
+     * In memory, 0x00xx opcodes are stored as single byte (just 0x41)
+     * Operand: $DATA_ADDR(r1) = address code 0xE0 + 4-byte address
+     * Full encoding: 41 E0 00 00 10 00 (6 bytes)
+     */
+    uint8_t bi_test_instr[] = {
+        0x41,                 /* BI TEST opcode (low byte only, 0x00 prefix implicit) */
+        0xE0,                 /* $addr(r1) addressing mode */
+        (DATA_ADDR >> 24) & 0xFF,
+        (DATA_ADDR >> 16) & 0xFF,
+        (DATA_ADDR >> 8) & 0xFF,
+        (DATA_ADDR) & 0xFF
+    };
+
+    struct {
+        int32_t index;        /* I1 value (bit index) */
+        uint8_t expected_bit; /* Expected bit value (0 or 1) */
+        bool expected_z;      /* Expected Z flag (Z=1 if bit is 0) */
+        const char* desc;
+    } test_cases[] = {
+        /* Index 0-7: byte at DATA_ADDR+0 (0x00 = all zeros) */
+        { 0, 0, true,  "bit 0 of 0x00" },
+        { 7, 0, true,  "bit 7 of 0x00" },
+
+        /* Index 8-15: byte at DATA_ADDR+1 (0x5F = 01011111b)
+         * Using ND-500 bit numbering (from left/MSB):
+         *   index 8  -> byte_offset=1, bit_pos=7-(8%8)=7 -> bit 7 = 0
+         *   index 9  -> byte_offset=1, bit_pos=7-(9%8)=6 -> bit 6 = 1
+         *   index 10 -> byte_offset=1, bit_pos=7-(10%8)=5 -> bit 5 = 0
+         *   index 11 -> byte_offset=1, bit_pos=7-(11%8)=4 -> bit 4 = 1
+         *   index 12 -> byte_offset=1, bit_pos=7-(12%8)=3 -> bit 3 = 1
+         *   index 13 -> byte_offset=1, bit_pos=7-(13%8)=2 -> bit 2 = 1 (CR!)
+         *   index 14 -> byte_offset=1, bit_pos=7-(14%8)=1 -> bit 1 = 1
+         *   index 15 -> byte_offset=1, bit_pos=7-(15%8)=0 -> bit 0 = 1
+         */
+        { 8,  0, true,  "idx=8: bit_pos=7 of 0x5F = 0" },
+        { 9,  1, false, "idx=9: bit_pos=6 of 0x5F = 1 (TAB BUG CASE)" },
+        { 10, 0, true,  "idx=10: bit_pos=5 of 0x5F = 0" },
+        { 11, 1, false, "idx=11: bit_pos=4 of 0x5F = 1" },
+        { 12, 1, false, "idx=12: bit_pos=3 of 0x5F = 1" },
+        { 13, 1, false, "idx=13: bit_pos=2 of 0x5F = 1 (CR BUG CASE)" },
+        { 14, 1, false, "idx=14: bit_pos=1 of 0x5F = 1" },
+        { 15, 1, false, "idx=15: bit_pos=0 of 0x5F = 1" },
+
+        /* Index 16-23: byte at DATA_ADDR+2 (0x80 = 10000000b) */
+        { 16, 1, false, "idx=16: bit_pos=7 of 0x80 = 1" },
+        { 17, 0, true,  "idx=17: bit_pos=6 of 0x80 = 0" },
+        { 23, 0, true,  "idx=23: bit_pos=0 of 0x80 = 0" },
+
+        /* Index 24-31: byte at DATA_ADDR+3 (0xFF = all ones) */
+        { 24, 1, false, "idx=24: bit_pos=7 of 0xFF = 1" },
+        { 31, 1, false, "idx=31: bit_pos=0 of 0xFF = 1" },
+    };
+    int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);
+
+    for (int i = 0; i < num_tests; i++) {
+        /* Reset CPU state */
+        nd500_cpu_reset(&cpu);
+        cpu.ST1 = 0;  /* Clear all flags */
+        cpu.I[0] = (uint32_t)test_cases[i].index;  /* I1 = bit index */
+
+        /* Execute BI TEST instruction */
+        execute_instruction(&m, &cpu, bi_test_instr, sizeof(bi_test_instr), CODE_ADDR);
+
+        bool z_set = (cpu.ST1 & ND500_FLAG_Z) != 0;
+
+        char name[80];
+        snprintf(name, sizeof(name), "bi_test(I1=%d) %s",
+                 test_cases[i].index, test_cases[i].desc);
+
+        char details[128];
+        snprintf(details, sizeof(details),
+                 "Z flag: expected %s got %s",
+                 test_cases[i].expected_z ? "SET" : "CLEAR",
+                 z_set ? "SET" : "CLEAR");
+
+        bool passed = (z_set == test_cases[i].expected_z);
+        test_result(name, passed, details);
+
+        if (!passed) {
+            /* Extra debug info on failure */
+            printf("    DEBUG: I1=%d, byte_offset=%d, bit_pos_formula=%d\n",
+                   test_cases[i].index,
+                   test_cases[i].index >> 3,
+                   7 - (test_cases[i].index & 7));
+            uint32_t byte_addr = DATA_ADDR + (test_cases[i].index >> 3);
+            uint8_t byte_val = nd500_bus_read8(&m, byte_addr);
+            printf("    DEBUG: byte at 0x%X = 0x%02X\n", byte_addr, byte_val);
+        }
+    }
+
+    nd500_machine_free(&m);
+}
+
+/**
  * Test flag handling for BIT type
  *
  * Verifies nd500_set_flags_zs handles ND500_DTYPE_BIT correctly.
@@ -389,6 +527,7 @@ int main(int argc, char* argv[]) {
     test_bit_memory_read();
     test_bit_memory_write();
     test_dom_bug_scenario();
+    test_bi_test_instruction_execution();  /* NEW: Tests actual instruction execution */
     test_bit_flag_handling();
 
     /* Summary */

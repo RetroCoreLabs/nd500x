@@ -21,6 +21,70 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
+/* ============================================================
+ * Queued Console I/O for testing
+ *
+ * Allows queuing input characters for MON calls that read from
+ * console (MON 1B INBT, MON 503B DVINST, etc.)
+ * ============================================================ */
+
+#define QUEUED_CONSOLE_MAX 256
+
+typedef struct {
+    char buffer[QUEUED_CONSOLE_MAX];
+    size_t read_pos;
+    size_t write_pos;
+    size_t count;
+    /* Output capture */
+    char output[QUEUED_CONSOLE_MAX];
+    size_t output_len;
+} QueuedConsoleState;
+
+static QueuedConsoleState g_queued_console = {0};
+
+static void queued_console_reset(void) {
+    memset(&g_queued_console, 0, sizeof(g_queued_console));
+}
+
+static void queued_console_queue_string(const char* str) {
+    while (*str && g_queued_console.count < QUEUED_CONSOLE_MAX) {
+        g_queued_console.buffer[g_queued_console.write_pos] = *str++;
+        g_queued_console.write_pos = (g_queued_console.write_pos + 1) % QUEUED_CONSOLE_MAX;
+        g_queued_console.count++;
+    }
+}
+
+static bool queued_console_char_available(void* ctx) {
+    (void)ctx;
+    return g_queued_console.count > 0;
+}
+
+static int queued_console_read_char(void* ctx) {
+    (void)ctx;
+    if (g_queued_console.count == 0) {
+        return -1;  /* EOF */
+    }
+    char ch = g_queued_console.buffer[g_queued_console.read_pos];
+    g_queued_console.read_pos = (g_queued_console.read_pos + 1) % QUEUED_CONSOLE_MAX;
+    g_queued_console.count--;
+    return (unsigned char)ch;
+}
+
+static void queued_console_write_char(void* ctx, int ch) {
+    (void)ctx;
+    if (g_queued_console.output_len < QUEUED_CONSOLE_MAX - 1) {
+        g_queued_console.output[g_queued_console.output_len++] = (char)ch;
+        g_queued_console.output[g_queued_console.output_len] = '\0';
+    }
+}
+
+static ConsoleIO g_test_console = {
+    .read_char = queued_console_read_char,
+    .write_char = queued_console_write_char,
+    .char_available = queued_console_char_available,
+    .context = NULL
+};
+
 #define TEST_PASS(name) do { \
     printf("  PASS: %s\n", name); \
     tests_passed++; \
@@ -804,6 +868,162 @@ static void test_mon_503B_dvinst_zero_bytes(void) {
 }
 
 /*
+ * Test MON 503B DVINST with queued "HELP\r\n" input
+ *
+ * Verifies that MON 503B reads input correctly from a queued console.
+ * Uses break strategy 2 (MAC) which breaks on CR, LF, ESC, EOF, 0x27.
+ */
+static void test_mon_503B_dvinst_queued_input(void) {
+    printf("\nTesting MON 503B DVINST with queued HELP input...\n");
+    setup();
+
+    /* Set up queued console with "HELP\r\n" */
+    queued_console_reset();
+    queued_console_queue_string("HELP\r\n");
+    mon_file_table_set_console(&g_test_console);
+
+    /* Set up parameters */
+    uint32_t dev_no_loc = 0x1000;
+    uint32_t max_no_loc = 0x1004;
+    uint32_t ret_count_loc = 0x1008;
+    uint32_t buffer_loc = 0x1100;
+    uint32_t break_strat_loc = 0x100C;
+    uint32_t echo_strat_loc = 0x1010;
+
+    /* Device 0 (console), max 100 bytes, break strategy 2 (MAC), echo strategy 2 (MAC) */
+    test_write_word(&cpu, dev_no_loc, 0);
+    test_write_word(&cpu, max_no_loc, 100);
+    test_write_word(&cpu, ret_count_loc, 0xDEADBEEF);
+    test_write_word(&cpu, break_strat_loc, 2);  /* MAC strategy breaks on CR */
+    test_write_word(&cpu, echo_strat_loc, 2);   /* MAC strategy echoes printable + CR/LF */
+
+    /* Clear buffer */
+    for (int i = 0; i < 16; i++) {
+        nd500_bus_write8(&machine, buffer_loc + i, 0);
+    }
+
+    uint32_t args[6] = { dev_no_loc, max_no_loc, ret_count_loc, buffer_loc, break_strat_loc, echo_strat_loc };
+    MonContext ctx;
+    setup_mon_context(&ctx, 323, 6, args);  /* 503B = 323 decimal, 6 args */
+
+    MonResult result = mon_dispatch(&ctx);
+
+    if (result == MON_SUCCESS) {
+        TEST_PASS("MON 503B returns success");
+    } else {
+        TEST_FAIL("MON 503B returns success", "returned error");
+        mon_file_table_set_console(NULL);
+        teardown();
+        return;
+    }
+
+    /* Verify bytes read (should be 5: "HELP\r" - CR is break char, included) */
+    uint32_t ret_count = test_read_word(&cpu, ret_count_loc);
+    if (ret_count == 5) {
+        TEST_PASS("MON 503B read 5 bytes (HELP + CR)");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "expected 5, got %u", ret_count);
+        TEST_FAIL("MON 503B read 5 bytes (HELP + CR)", msg);
+    }
+
+    /* Verify buffer content */
+    char read_buf[16];
+    for (uint32_t i = 0; i < ret_count && i < 15; i++) {
+        read_buf[i] = (char)nd500_bus_read8(&machine, buffer_loc + i);
+    }
+    read_buf[ret_count < 15 ? ret_count : 15] = '\0';
+
+    if (ret_count >= 4 && strncmp(read_buf, "HELP", 4) == 0) {
+        TEST_PASS("Buffer contains HELP");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "got '%s'", read_buf);
+        TEST_FAIL("Buffer contains HELP", msg);
+    }
+
+    /* Verify CR was included */
+    if (ret_count >= 5 && read_buf[4] == '\r') {
+        TEST_PASS("Buffer contains CR break character");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "byte[4]=0x%02X", ret_count >= 5 ? (unsigned char)read_buf[4] : 0);
+        TEST_FAIL("Buffer contains CR break character", msg);
+    }
+
+    /* Verify echo output: "HELP\r" should be echoed back */
+    if (g_queued_console.output_len == 5 &&
+        strncmp(g_queued_console.output, "HELP\r", 5) == 0) {
+        TEST_PASS("Echo output is 'HELP\\r' (5 chars)");
+    } else {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "echo_len=%zu, got '%s'",
+                 g_queued_console.output_len, g_queued_console.output);
+        TEST_FAIL("Echo output is 'HELP\\r' (5 chars)", msg);
+    }
+
+    /* Verify LF remains in queue (CR broke before LF was read) */
+    if (g_queued_console.count == 1) {
+        TEST_PASS("LF remains in input queue after CR break");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "remaining=%zu", g_queued_console.count);
+        TEST_FAIL("LF remains in input queue after CR break", msg);
+    }
+
+    mon_file_table_set_console(NULL);
+    teardown();
+}
+
+/*
+ * Test MON 1B INBT with queued input
+ */
+static void test_mon_1B_inbt_queued_input(void) {
+    printf("\nTesting MON 1B INBT with queued input...\n");
+    setup();
+
+    /* Set up queued console with 'X' */
+    queued_console_reset();
+    queued_console_queue_string("X");
+    mon_file_table_set_console(&g_test_console);
+
+    /* Set up parameters */
+    uint32_t dev_no_loc = 0x1000;
+    uint32_t value_loc = 0x1004;
+
+    test_write_word(&cpu, dev_no_loc, 0);       /* Device 0 (console) */
+    test_write_word(&cpu, value_loc, 0xDEAD);   /* Pre-fill with garbage */
+
+    uint32_t args[2] = { dev_no_loc, value_loc };
+    MonContext ctx;
+    setup_mon_context(&ctx, 1, 2, args);  /* 1B = 1 decimal */
+
+    MonResult result = mon_dispatch(&ctx);
+
+    if (result == MON_SUCCESS) {
+        TEST_PASS("MON 1B returns success");
+    } else {
+        TEST_FAIL("MON 1B returns success", "returned error");
+        mon_file_table_set_console(NULL);
+        teardown();
+        return;
+    }
+
+    /* Verify character read */
+    uint32_t value = test_read_word(&cpu, value_loc);
+    if ((value & 0xFF) == 'X') {
+        TEST_PASS("MON 1B read 'X' from queue");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "expected 'X' (0x58), got 0x%02X", value & 0xFF);
+        TEST_FAIL("MON 1B read 'X' from queue", msg);
+    }
+
+    mon_file_table_set_console(NULL);
+    teardown();
+}
+
+/*
  * Test MON 321B UEADM (UEAdministrator) - deprecated, always returns error
  */
 static void test_mon_321B_ueadm_deprecated(void) {
@@ -1072,6 +1292,8 @@ int main(int argc, char* argv[]) {
     test_mon_503B_dvinst_missing_args();
     test_mon_503B_dvinst_max_bytes_exceeded();
     test_mon_503B_dvinst_zero_bytes();
+    test_mon_503B_dvinst_queued_input();
+    test_mon_1B_inbt_queued_input();
     test_mon_412B_fscnt_file_not_open();
     test_mon_412B_fscnt_missing_args();
     test_mon_413B_fscdnt_file_not_open();

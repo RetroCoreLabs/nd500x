@@ -26,7 +26,7 @@
 #include "../src/libmon/mon.h"
 
 #define DEFAULT_MAX_STEPS 10000
-#define MEMORY_SIZE (256 * 1024 * 1024)  /* 256MB */
+#define MEMORY_SIZE (16 * 1024 * 1024)  /* 16MB - same as debugger */
 
 /* Test result tracking */
 typedef struct {
@@ -67,6 +67,7 @@ static void verbose_log(void* ctx, const char* fmt, ...) {
 static int run_dom_test(const char* dom_path, int max_steps, int verbose, TestResult* result) {
     memset(result, 0, sizeof(*result));
 
+    fprintf(stderr, "[RUN_DOM_TEST] Starting load of: %s\n", dom_path);
     printf("Loading: %s\n", dom_path);
 
     /* Load DOM header */
@@ -116,6 +117,7 @@ static int run_dom_test(const char* dom_path, int max_steps, int verbose, TestRe
 
     result->initial_pc = cpu.PC;
     printf("  Start PC: 0x%08X (domain %d)\n", result->initial_pc, domain);
+    printf("  Initial instruction_count: %llu\n", (unsigned long long)cpu.instruction_count);
 
     /* Run execution loop */
     machine.run_flag = 1;
@@ -126,12 +128,30 @@ static int run_dom_test(const char* dom_path, int max_steps, int verbose, TestRe
     int stuck_count = 0;
 
     while (steps < max_steps && machine.run_flag) {
+        /* Debug: Show progress at key milestones */
+        if (steps >= 4250 && steps <= 4280) {
+            printf("  TRACE: step=%d PC=0x%08X I1=%08X B=%08X L=%08X\n",
+                   steps, cpu.PC, cpu.I[0], cpu.B, cpu.L);
+            fflush(stdout);
+        }
+
         /* Execute one instruction */
-        if (!nd500_cpu_step(&cpu)) {
+        bool step_ok = nd500_cpu_step(&cpu);
+
+        /* Check if stop_reason changed during step */
+        if (machine.stop_reason != STOP_NONE) {
+            printf("  DEBUG: stop_reason=%d detected at step %d, PC=0x%08X, step_ok=%d\n",
+                   machine.stop_reason, steps, cpu.PC, step_ok);
+            fflush(stdout);
+            break;
+        }
+
+        if (!step_ok) {
             /* Trap occurred - check if it's fatal */
-            if (machine.stop_reason != STOP_NONE) {
-                break;
-            }
+            printf("  DEBUG: step returned false at step %d, PC=0x%08X, stop_reason=%d, run_flag=%d\n",
+                   steps, cpu.PC, machine.stop_reason, machine.run_flag);
+            fflush(stdout);
+            break;  /* Always break on step failure */
         }
 
         steps++;
@@ -224,6 +244,11 @@ static void print_usage(const char* prog) {
 }
 
 int main(int argc, char* argv[]) {
+    /* Ensure output is line-buffered for proper ordering */
+    setbuf(stdout, NULL);
+    setbuf(stderr, NULL);
+
+    fprintf(stderr, "[MAIN] Starting test...\n");
     printf("===============================================\n");
     printf("  ND-500 DOM Integration Test\n");
     printf("===============================================\n\n");
