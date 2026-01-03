@@ -118,6 +118,103 @@ void mon_write_param_byte(MonContext* ctx, int idx, uint8_t value) {
  * STRING HELPERS
  * ========================================================================= */
 
+/**
+ * Read a SINTRAN string directly from parameter address.
+ * String is terminated by 0x00, 0x27 ('), or 0xFF.
+ */
+int mon_read_sintran_string(MonContext* ctx, int idx, char* buf, int max) {
+    if (!ctx || !buf || max <= 0 || idx < 0 || (uint32_t)idx >= ctx->arg_count) {
+        if (buf && max > 0) buf[0] = '\0';
+        return 0;
+    }
+    if (!ctx->read_byte) {
+        buf[0] = '\0';
+        return 0;
+    }
+
+    uint32_t addr = ctx->arg_addresses[idx];
+    int i;
+
+    /* Read directly from address, terminated by 0x00, 0x27, or 0xFF */
+    for (i = 0; i < max - 1; i++) {
+        uint8_t ch = ctx->read_byte(ctx->cpu, addr + i);
+        if (ch == 0x00 || ch == 0x27 || ch == 0xFF) {
+            break;
+        }
+        buf[i] = (char)ch;
+    }
+    buf[i] = '\0';
+
+    mon_log(MON_LOG_DEBUG, "mon_read_sintran_string: addr=0x%08X len=%d str='%s'",
+            addr, i, buf);
+
+    return i;
+}
+
+/**
+ * Read a string from a [Length:4][Pointer:4] descriptor.
+ * Used by FORTRAN-500 and Pascal compilers.
+ * Returns -1 if descriptor format is invalid.
+ */
+int mon_read_descriptor_string(MonContext* ctx, int idx, char* buf, int max) {
+    if (!ctx || !buf || max <= 0 || idx < 0 || (uint32_t)idx >= ctx->arg_count) {
+        if (buf && max > 0) buf[0] = '\0';
+        return -1;
+    }
+    if (!ctx->read_byte || !ctx->read_word) {
+        buf[0] = '\0';
+        return -1;
+    }
+
+    uint32_t addr = ctx->arg_addresses[idx];
+
+    /* Read descriptor: [Length:4][Pointer:4] */
+    uint32_t str_len = ctx->read_word(ctx->cpu, addr);
+    uint32_t str_ptr = ctx->read_word(ctx->cpu, addr + 4);
+
+    mon_log(MON_LOG_DEBUG, "mon_read_descriptor_string: addr=0x%08X desc=[len=%u, ptr=0x%08X]",
+            addr, str_len, str_ptr);
+
+    /* Validate descriptor - length must be reasonable, pointer must be non-zero */
+    if (str_len == 0 || str_len > 10000 || str_ptr == 0) {
+        mon_log(MON_LOG_WARN, "mon_read_descriptor_string: invalid descriptor at 0x%08X",
+                addr);
+        buf[0] = '\0';
+        return -1;
+    }
+
+    /* Limit to buffer size */
+    int read_len = (int)str_len;
+    if (read_len > max - 1) {
+        read_len = max - 1;
+    }
+
+    /* Read string from pointer, checking for terminators */
+    int i;
+    for (i = 0; i < read_len; i++) {
+        uint8_t ch = ctx->read_byte(ctx->cpu, str_ptr + i);
+        /* SINTRAN string terminators: 0x00, 0x27 (apostrophe), or 0xFF */
+        if (ch == 0x00 || ch == 0x27 || ch == 0xFF) {
+            break;
+        }
+        buf[i] = (char)ch;
+    }
+    buf[i] = '\0';
+
+    /* Trim trailing spaces (common in fixed-length strings) */
+    while (i > 0 && buf[i-1] == ' ') {
+        buf[--i] = '\0';
+    }
+
+    mon_log(MON_LOG_DEBUG, "mon_read_descriptor_string: result len=%d str='%s'", i, buf);
+
+    return i;
+}
+
+/**
+ * DEPRECATED: Auto-detect string format.
+ * Use mon_read_sintran_string or mon_read_descriptor_string instead.
+ */
 int mon_read_string(MonContext* ctx, int idx, char* buf, int max) {
     if (!ctx || !buf || max <= 0 || idx < 0 || (uint32_t)idx >= ctx->arg_count) {
         if (buf && max > 0) buf[0] = '\0';
@@ -129,49 +226,27 @@ int mon_read_string(MonContext* ctx, int idx, char* buf, int max) {
     }
 
     uint32_t addr = ctx->arg_addresses[idx];
-    int i;
-    uint32_t str_addr = addr;
-    int str_len = max - 1;
 
-    /* Check for FORTRAN-500 string descriptor format:
-     *   Bytes 0-3: String length (32-bit word)
-     *   Bytes 4-7: Pointer to string data (32-bit word)
-     * Detection: First byte is 0x00 and byte 4 is 0x08 (segment 1 address)
-     */
-    uint8_t first_byte = ctx->read_byte(ctx->cpu, addr);
-    uint8_t byte4 = ctx->read_byte(ctx->cpu, addr + 4);
+    /* Debug: dump first 16 bytes at argument address */
+    uint32_t word0 = ctx->read_word(ctx->cpu, addr);
+    uint32_t word1 = ctx->read_word(ctx->cpu, addr + 4);
+    mon_log(MON_LOG_DEBUG, "mon_read_string(DEPRECATED): addr=0x%08X, words: [0x%08X, 0x%08X]",
+            addr, word0, word1);
 
-    if (first_byte == 0x00 && byte4 == 0x08) {
-        /* FORTRAN descriptor - use read_word for 32-bit values */
-        uint32_t length = ctx->read_word(ctx->cpu, addr);
-        uint32_t str_ptr = ctx->read_word(ctx->cpu, addr + 4);
+    /* Try descriptor format first - check if word1 looks like a valid pointer */
+    uint8_t ptr_segment = (word1 >> 24) & 0xFF;
+    int is_valid_segment = (ptr_segment == 0x08 || ptr_segment == 0x10 ||
+                            ptr_segment == 0x18 || ptr_segment == 0x20);
 
-        str_addr = str_ptr;
-        str_len = (int)length;
-        if (str_len > max - 1) {
-            str_len = max - 1;
+    if (word0 > 0 && word0 < 1000 && is_valid_segment) {
+        int result = mon_read_descriptor_string(ctx, idx, buf, max);
+        if (result >= 0) {
+            return result;
         }
-
-        /* Read fixed-length FORTRAN string (no terminator check) */
-        for (i = 0; i < str_len; i++) {
-            buf[i] = (char)ctx->read_byte(ctx->cpu, str_addr + i);
-        }
-        buf[i] = '\0';
-        return i;
     }
 
-    /* Standard SINTRAN string - 0x27 terminated */
-    for (i = 0; i < max - 1; i++) {
-        uint8_t ch = ctx->read_byte(ctx->cpu, addr + i);
-        /* SINTRAN string terminators: 0x00, 0x27 (apostrophe), or 0xFF */
-        if (ch == 0x00 || ch == 0x27 || ch == 0xFF) {
-            break;
-        }
-        buf[i] = (char)ch;
-    }
-    buf[i] = '\0';
-
-    return i;
+    /* Fall back to direct SINTRAN string */
+    return mon_read_sintran_string(ctx, idx, buf, max);
 }
 
 int mon_write_string(MonContext* ctx, int idx, const char* str) {

@@ -40,6 +40,8 @@ typedef enum {
 #define MON_ID_0B     MON_ID("0B", "LEAVE", "ExitFromProgram")
 #define MON_ID_1B     MON_ID("1B", "INBT", "InByte")
 #define MON_ID_2B     MON_ID("2B", "OUTBT", "OutByte")
+#define MON_ID_3B     MON_ID("3B", "ECHOM", "SetEcho")
+#define MON_ID_4B     MON_ID("4B", "BRKM", "SetBreak")
 #define MON_ID_11B    MON_ID("11B", "TIME", "GetBasicTime")
 #define MON_ID_12B    MON_ID("12B", "SETCM", "SetCommandBuffer")
 #define MON_ID_22B    MON_ID("22B", "M8OUT", "OutUpTo8Bytes")

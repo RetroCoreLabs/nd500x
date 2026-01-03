@@ -17,6 +17,7 @@ add_library(mon STATIC
     mon_params.c
     mon_path.c
     mon_registry.c
+    mon_terminal_state.c
     ${MON_HANDLER_SOURCES}
 )
 

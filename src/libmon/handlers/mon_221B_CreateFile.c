@@ -24,8 +24,10 @@
 #include "../mon.h"
 #include "../mon_log.h"
 #include "../mon_file_table.h"
+#include "../mon_path.h"
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>  /* unlink */
 
 MonResult mon_221B_CreateFile(MonContext* ctx) {
     /* Defensive check for argument count */
@@ -36,9 +38,10 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Read filename string */
+    /* Read filename string from descriptor [Length:4][Pointer:4]
+     * High-level languages (FORTRAN/Pascal) pass string descriptors */
     char filename[65];
-    mon_read_string(ctx, 0, filename, 65);
+    mon_read_descriptor_string(ctx, 0, filename, 65);
 
     /* Optional parameters */
     uint32_t start_address = (ctx->arg_count > 1) ? mon_read_param_word(ctx, 1) : 0;
@@ -54,17 +57,37 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Build host path using shared utility */
+    /* Parse filename to check if it's a scratch file */
+    char parsed_name[32] = {0};
+    mon_parse_sintran_name(filename, NULL, 0, parsed_name, sizeof(parsed_name), NULL, 0);
+    int is_scratch_file = (strncmp(parsed_name, "SCRATCH-", 8) == 0);
+
+    /* Translate SINTRAN path to host path
+     * mon_translate_path handles:
+     * - SCRATCH-NNNNN files auto-routed to SCRATCH directory
+     * - Parent directory auto-creation
+     * - Extension from filename (NAME:EXT format)
+     */
     char host_path[256];
-    mon_build_host_path(filename, host_path, sizeof(host_path));
+    if (mon_translate_path(filename, NULL, host_path, sizeof(host_path)) != 0) {
+        /* Fallback to simple path construction */
+        mon_build_host_path(filename, host_path, sizeof(host_path));
+    }
 
     /* Check if file already exists */
     FILE* test_fp = fopen(host_path, "rb");
     if (test_fp) {
         fclose(test_fp);
-        mon_log(MON_LOG_WARN, MON_ID_221B ": File '%s' already exists", host_path);
-        mon_set_error(ctx, 58);  /* File already exists */
-        return MON_ERROR;
+
+        /* For scratch files, delete and recreate (they are temporary) */
+        if (is_scratch_file) {
+            mon_log(MON_LOG_DEBUG, MON_ID_221B ": Deleting existing scratch file '%s'", host_path);
+            unlink(host_path);
+        } else {
+            mon_log(MON_LOG_WARN, MON_ID_221B ": File '%s' already exists", host_path);
+            mon_set_error(ctx, 58);  /* File already exists */
+            return MON_ERROR;
+        }
     }
 
     /* Create empty file */

@@ -207,8 +207,41 @@ OpenFileEntry* mon_file_table_get(int file_number) {
     return &open_files[index];
 }
 
+/* Global scratch file counter for unique naming */
+static int g_scratch_counter = 1;
+
 int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_mode, int requested_file_no) {
     int free_slot = -1;
+    bool is_scratch = false;
+    char scratch_name[64] = {0};
+    const char* effective_filename = filename;
+    const char* effective_filetype = filetype;
+
+    /* Handle :TYPE scratch file syntax
+     *
+     * When filename is just ":TYPE" (e.g., ":NRF"), it means "create a
+     * scratch file of type TYPE". Generate unique name like SCRATCH-00001.
+     */
+    if (filename && filename[0] == ':') {
+        is_scratch = true;
+
+        /* Use part after colon as the file type if not empty */
+        const char* type_part = filename + 1;
+        size_t type_len = mon_strlen_sintran(type_part);
+        if (type_len > 0 && (!filetype || filetype[0] == '\0' ||
+            (uint8_t)filetype[0] == SINTRAN_STRING_END)) {
+            effective_filetype = type_part;
+        }
+
+        /* Generate unique scratch filename */
+        snprintf(scratch_name, sizeof(scratch_name), "(SCRATCH)SCRATCH-%05d",
+                 g_scratch_counter++);
+        effective_filename = scratch_name;
+
+        mon_log(MON_LOG_INFO, "MON OPEN: Generating scratch file '%s:%s' for '%s'",
+                scratch_name, effective_filetype ? effective_filetype : "",
+                filename);
+    }
 
     /* If caller requested a specific file number, try to use it */
     if (requested_file_no != 0) {
@@ -247,21 +280,23 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
     char parsed_user[32] = {0};
     char parsed_name[32] = {0};
     char parsed_ext[16] = {0};
-    mon_parse_sintran_name(filename, parsed_user, sizeof(parsed_user),
+    mon_parse_sintran_name(effective_filename, parsed_user, sizeof(parsed_user),
                            parsed_name, sizeof(parsed_name),
                            parsed_ext, sizeof(parsed_ext));
 
-    /* Check if this is a scratch file (user is "SCRATCH") */
-    bool is_scratch = (strcasecmp(parsed_user, "SCRATCH") == 0);
+    /* Check if this is a scratch file (user is "SCRATCH" or detected from :TYPE syntax) */
+    if (!is_scratch) {
+        is_scratch = (strcasecmp(parsed_user, "SCRATCH") == 0);
+    }
 
     /* Translate SINTRAN path to host path */
     char host_path[256];
-    if (mon_translate_path(filename, filetype, host_path, sizeof(host_path)) != 0) {
+    if (mon_translate_path(effective_filename, effective_filetype, host_path, sizeof(host_path)) != 0) {
         /* Fallback to simple path construction */
-        if (filetype && filetype[0]) {
-            snprintf(host_path, sizeof(host_path), "%s.%s", filename, filetype);
+        if (effective_filetype && effective_filetype[0]) {
+            snprintf(host_path, sizeof(host_path), "%s.%s", effective_filename, effective_filetype);
         } else {
-            snprintf(host_path, sizeof(host_path), "%s", filename);
+            snprintf(host_path, sizeof(host_path), "%s", effective_filename);
         }
     }
 
@@ -281,24 +316,39 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
         }
     }
 
-    /* Determine fopen mode based on access code */
+    /* Determine fopen mode based on access code
+     * Per SINTRAN MASTER reference ND-860228.2 EN:
+     *   0 = Sequential write
+     *   1 = Sequential read
+     *   2 = Random read or write
+     *   3 = Random read only
+     *   4 = Sequential read or write
+     *   5 = Sequential write append
+     *   6-9 = Various contiguous/extend modes
+     */
     const char* fmode;
+    bool allows_write = false;
     switch (access_mode) {
-        case ACCESS_SEQ_READ:
-        case ACCESS_RAND_READ:
+        case ACCESS_SEQ_READ:      /* 1 */
+        case ACCESS_RAND_READ:     /* 3 */
+        case ACCESS_RAND_READ_CTG: /* 7 */
             fmode = "rb";
             break;
-        case ACCESS_SEQ_WRITE:
-        case ACCESS_RAND_WRITE:
+        case ACCESS_SEQ_WRITE:     /* 0 */
             fmode = "wb";
+            allows_write = true;
             break;
-        case ACCESS_RAND_RDWR:
+        case ACCESS_RAND_RDWR:     /* 2 */
+        case ACCESS_SEQ_RDWR:      /* 4 */
+        case ACCESS_RAND_RDWR_CTG: /* 6 */
+        case ACCESS_RAND_RDWR_RT:  /* 8 */
             fmode = "r+b";
+            allows_write = true;
             break;
-        case ACCESS_SEQ_APPEND:
-        case ACCESS_SEQ_EXTEND:
-        case ACCESS_RAND_EXTEND:
+        case ACCESS_SEQ_APPEND:    /* 5 */
+        case ACCESS_RAND_EXTEND:   /* 9 */
             fmode = "ab";
+            allows_write = true;
             break;
         default:
             fmode = "rb";
@@ -307,12 +357,9 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
 
     /* Try to open the host file */
     FILE* fp = fopen(host_path, fmode);
-    if (!fp) {
-        /* For write modes or read-write mode, try creating the file */
-        if (access_mode == ACCESS_SEQ_WRITE || access_mode == ACCESS_RAND_WRITE ||
-            access_mode == ACCESS_RAND_RDWR) {
-            fp = fopen(host_path, "w+b");
-        }
+    if (!fp && allows_write) {
+        /* For write modes, try creating the file */
+        fp = fopen(host_path, "w+b");
     }
 
     if (!fp) {
@@ -356,16 +403,15 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
     strncpy(entry->host_path, host_path, sizeof(entry->host_path) - 1);
 
     /* Initialize ObjectEntry - use parsed name if available */
-    const char* obj_name = parsed_name[0] ? parsed_name : filename;
-    const char* obj_type = filetype ? filetype : (parsed_ext[0] ? parsed_ext : NULL);
+    const char* obj_name = parsed_name[0] ? parsed_name : effective_filename;
+    const char* obj_type = effective_filetype ? effective_filetype : (parsed_ext[0] ? parsed_ext : NULL);
     object_entry_init_file(&entry->object_entry, obj_name, obj_type,
                           (uint32_t)file_size, FILETYPE_INDEXED);
     entry->object_entry.current_open_count = 1;
     entry->object_entry.total_open_count = 1;
     entry->object_entry.object_index = (uint16_t)file_number;
     entry->object_entry.header = HEADER_USED;
-    if (access_mode == ACCESS_SEQ_WRITE || access_mode == ACCESS_RAND_WRITE ||
-        access_mode == ACCESS_RAND_RDWR) {
+    if (allows_write) {
         entry->object_entry.header |= HEADER_WRITE_OPEN;
     }
 
@@ -567,15 +613,223 @@ ConsoleIO* mon_file_table_get_console(void) {
 }
 
 /* ============================================================
+ * Queued Console I/O Support
+ *
+ * Provides a queue-based console for testing and scripted input.
+ * Input can be queued with mon_queue_console_input(), and the
+ * built-in queued console handlers will be installed automatically.
+ * ============================================================ */
+
+#define QUEUED_CONSOLE_MAX 4096
+
+static struct {
+    char input_buffer[QUEUED_CONSOLE_MAX];
+    char output_buffer[QUEUED_CONSOLE_MAX];
+    size_t input_read_pos;
+    size_t input_write_pos;
+    size_t input_count;
+    size_t output_len;
+} g_queued_console = {0};
+
+static bool queued_console_char_available(void* ctx) {
+    (void)ctx;
+    return g_queued_console.input_count > 0;
+}
+
+static int queued_console_read_char(void* ctx) {
+    (void)ctx;
+    if (g_queued_console.input_count == 0) {
+        return -1;  /* EOF - no input available */
+    }
+    char ch = g_queued_console.input_buffer[g_queued_console.input_read_pos];
+    g_queued_console.input_read_pos = (g_queued_console.input_read_pos + 1) % QUEUED_CONSOLE_MAX;
+    g_queued_console.input_count--;
+    return (unsigned char)ch;
+}
+
+static void queued_console_write_char(void* ctx, int ch) {
+    (void)ctx;
+    if (g_queued_console.output_len < QUEUED_CONSOLE_MAX - 1) {
+        g_queued_console.output_buffer[g_queued_console.output_len++] = (char)ch;
+        g_queued_console.output_buffer[g_queued_console.output_len] = '\0';
+    }
+}
+
+/* Static console structure for queued I/O */
+static ConsoleIO g_queued_console_io = {
+    .read_char = queued_console_read_char,
+    .write_char = queued_console_write_char,
+    .char_available = queued_console_char_available,
+    .context = NULL
+};
+
+void mon_queue_console_input(const char* input) {
+    if (!input) return;
+
+    /* Queue each character */
+    while (*input && g_queued_console.input_count < QUEUED_CONSOLE_MAX) {
+        g_queued_console.input_buffer[g_queued_console.input_write_pos] = *input++;
+        g_queued_console.input_write_pos = (g_queued_console.input_write_pos + 1) % QUEUED_CONSOLE_MAX;
+        g_queued_console.input_count++;
+    }
+
+    /* Install queued console if not already set */
+    if (console_io != &g_queued_console_io) {
+        console_io = &g_queued_console_io;
+    }
+}
+
+void mon_clear_console_queue(void) {
+    memset(&g_queued_console, 0, sizeof(g_queued_console));
+}
+
+const char* mon_get_console_output(void) {
+    return g_queued_console.output_buffer;
+}
+
+size_t mon_get_console_output_len(void) {
+    return g_queued_console.output_len;
+}
+
+size_t mon_get_console_input_remaining(void) {
+    return g_queued_console.input_count;
+}
+
+/* ============================================================
+ * Standard I/O Console
+ *
+ * Uses stdin/stdout for interactive console mode.
+ * Call mon_install_stdio_console() to enable.
+ * Sets terminal to raw mode for proper character-by-character I/O.
+ * ============================================================ */
+
+#include <unistd.h>
+#include <sys/select.h>
+#include <termios.h>
+#include <signal.h>
+
+static struct termios g_orig_termios;
+static bool g_termios_saved = false;
+
+static void stdio_restore_terminal(void) {
+    if (g_termios_saved) {
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_orig_termios);
+        g_termios_saved = false;
+    }
+}
+
+static void stdio_signal_handler(int sig) {
+    stdio_restore_terminal();
+    printf("\n");
+    exit(128 + sig);
+}
+
+static void stdio_setup_terminal(void) {
+    if (!isatty(STDIN_FILENO)) {
+        return;  /* Not a terminal, skip raw mode */
+    }
+
+    if (tcgetattr(STDIN_FILENO, &g_orig_termios) == 0) {
+        g_termios_saved = true;
+        atexit(stdio_restore_terminal);
+
+        /* Handle Ctrl+C gracefully */
+        signal(SIGINT, stdio_signal_handler);
+        signal(SIGTERM, stdio_signal_handler);
+
+        struct termios raw = g_orig_termios;
+        /* Disable canonical mode and local echo */
+        raw.c_lflag &= ~(ICANON | ECHO);
+        /* Read returns after 1 char, no timeout */
+        raw.c_cc[VMIN] = 1;
+        raw.c_cc[VTIME] = 0;
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+    }
+}
+
+static bool stdio_char_available(void* ctx) {
+    (void)ctx;
+    /* Use select() to check if stdin has data available */
+    fd_set fds;
+    struct timeval tv = {0, 0};  /* No wait */
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0;
+}
+
+static int stdio_read_char(void* ctx) {
+    (void)ctx;
+    unsigned char ch;
+    if (read(STDIN_FILENO, &ch, 1) == 1) {
+        /* Translate Unix LF (Enter key) to CR for SINTRAN */
+        if (ch == '\n') {
+            ch = '\r';
+        }
+        return ch;
+    }
+    return EOF;
+}
+
+/* Track last written char to avoid CR LF -> CR LF LF */
+static int g_stdio_last_char = 0;
+
+static void stdio_write_char(void* ctx, int ch) {
+    (void)ctx;
+    unsigned char c = (unsigned char)ch;
+
+    /* If we just wrote CR (which output CR LF) and now get LF, skip it */
+    if (g_stdio_last_char == '\r' && ch == '\n') {
+        g_stdio_last_char = ch;
+        return;  /* Already sent LF after CR */
+    }
+
+    write(STDOUT_FILENO, &c, 1);
+
+    /* Translate CR to CRLF for Unix terminal */
+    if (ch == '\r') {
+        c = '\n';
+        write(STDOUT_FILENO, &c, 1);
+    }
+
+    g_stdio_last_char = ch;
+}
+
+static ConsoleIO g_stdio_console = {
+    .read_char = stdio_read_char,
+    .write_char = stdio_write_char,
+    .char_available = stdio_char_available,
+    .context = NULL
+};
+
+void mon_install_stdio_console(void) {
+    stdio_setup_terminal();
+    console_io = &g_stdio_console;
+}
+
+/* ============================================================
  * Host Path Utilities
  * ============================================================ */
 
 void mon_build_host_path(const char* filename, char* host_path, size_t max_len) {
-    /* Simple mapping: use filename as-is, add .dat extension if no extension present */
+    /* SINTRAN uses : as extension separator, host uses .
+     * Convert FILENAME:EXT to FILENAME.EXT
+     */
+    const char* colon = strrchr(filename, ':');
     const char* dot = strrchr(filename, '.');
-    if (dot) {
+
+    if (colon) {
+        /* Has SINTRAN extension - convert : to . */
+        size_t base_len = colon - filename;
+        if (base_len >= max_len - 1) base_len = max_len - 2;
+        memcpy(host_path, filename, base_len);
+        host_path[base_len] = '.';
+        strncpy(host_path + base_len + 1, colon + 1, max_len - base_len - 2);
+        host_path[max_len - 1] = '\0';
+    } else if (dot) {
+        /* Already has . extension */
         snprintf(host_path, max_len, "%s", filename);
     } else {
+        /* No extension - add .dat */
         snprintf(host_path, max_len, "%s.dat", filename);
     }
 }

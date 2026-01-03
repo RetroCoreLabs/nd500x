@@ -84,11 +84,16 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Check access mode allows random reading */
-    if (entry->access_mode != ACCESS_RAND_READ &&
-        entry->access_mode != ACCESS_RAND_WRITE &&
-        entry->access_mode != ACCESS_RAND_RDWR &&
-        entry->access_mode != ACCESS_RAND_COMMON &&
+    /* Check access mode allows random reading
+     * Valid modes: ACCESS_RAND_RDWR (2), ACCESS_RAND_READ (3),
+     *              ACCESS_RAND_RDWR_CTG (6), ACCESS_RAND_READ_CTG (7),
+     *              ACCESS_RAND_RDWR_RT (8), ACCESS_RAND_EXTEND (9)
+     */
+    if (entry->access_mode != ACCESS_RAND_RDWR &&
+        entry->access_mode != ACCESS_RAND_READ &&
+        entry->access_mode != ACCESS_RAND_RDWR_CTG &&
+        entry->access_mode != ACCESS_RAND_READ_CTG &&
+        entry->access_mode != ACCESS_RAND_RDWR_RT &&
         entry->access_mode != ACCESS_RAND_EXTEND) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": File %o not open for random read (access=%o)",
                 file_no, entry->access_mode);
@@ -159,9 +164,18 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
 
     free(buffer);
 
-    /* If we read less than requested and hit EOF, still succeed but could set flag */
+    /* Check for EOF condition */
+    if (bytes_read == 0) {
+        /* True EOF - no data available at requested position */
+        mon_log(MON_LOG_DEBUG, MON_ID_117B ": EOF - requested %u bytes at block %u, got 0",
+                num_bytes, block_no);
+        mon_set_error(ctx, 55);  /* End of file */
+        return MON_ERROR;
+    }
+
     if (bytes_read < num_bytes) {
-        mon_log(MON_LOG_DEBUG, MON_ID_117B ": Short read - requested %o, got %zu (EOF)",
+        /* Partial read - some data available but less than requested */
+        mon_log(MON_LOG_DEBUG, MON_ID_117B ": Partial read - requested %u, got %zu (near EOF)",
                 num_bytes, bytes_read);
     }
 

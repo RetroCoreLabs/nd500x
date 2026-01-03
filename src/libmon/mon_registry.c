@@ -1775,7 +1775,7 @@ void mon_register_all_handlers(void) {
         "DEPRECATED: This MON call is no longer supported.",  /* Description */
         "",  /* Parameter details */
         mon_321B_UEAdministrator,  /* Handler */
-        MON_STATUS_VALIDATED,    /* Status */
+        MON_STATUS_NOT_IMPLEMENTED,    /* Status - deprecated, MOINF returns 0 */
         0             /* Param count */
     );
     mon_register_ex(
@@ -2015,7 +2015,7 @@ void mon_register_all_handlers(void) {
         "When you press a key on the terminal, a character is normally displayed. This is called echo. You mo",  /* Description */
         "[I] DeviceNumber (INTEGER2): The terminal's logical device number. See appendix B. Only needed for RT programs. Background programs ignore this parameter. The user's terminal is assumed.\\n[I] EchoStrategy (INTEGER2): Echo strategy: <0=No echo, 0=Echo all, 1=Echo except control chars, 2=MAC echo, 3-6=System defined, 7=User-defined table.\\n[I] Table (INTEGER2[8]): User-defined echo table (128 bits for ASCII chars). Only used when EchoStrategy=7. Bit 0 means echo that character.",  /* Parameter details */
         mon_3B_SetEcho,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         3             /* Param count */
     );
     mon_register(
@@ -2388,7 +2388,7 @@ void mon_register_all_handlers(void) {
         "Sets the break characters for a terminal. Normally, a program waits for input. When a break characte",  /* Description */
         "[I] DeviceNo (INTEGER): Logical device number. Only used by RT programs; background programs use own terminal.\\n[I] BreakStrategy (INTEGER): Break strategy: <0=none, 0=all, 1=control chars, 2=MAC, 3-6=system, 7=user table, 8=last user, 9=max chars only.\\n[I] Table (ARRAY): User-defined 128-bit break table (8 words). Only used with strategy 7.\\n[I] NoOfChar (INTEGER): Maximum number of characters before break. Dummy for strategies 0, 1, 2.",  /* Parameter details */
         mon_4B_SetBreak,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         4             /* Param count */
     );
     mon_register_ex(

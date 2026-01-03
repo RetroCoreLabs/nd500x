@@ -197,6 +197,15 @@ int mon_translate_path(const char* sintran_name, const char* sintran_type,
         }
     }
 
+    /* Handle SCRATCH file naming convention:
+     * Files starting with "SCRATCH-" should go to SCRATCH directory
+     * even if no (SCRATCH) prefix was given. This handles cases where
+     * programs create companion files for scratch files. */
+    if (user[0] == '\0' && strncmp(name, "SCRATCH-", 8) == 0) {
+        strcpy(user, "SCRATCH");
+        mon_log(MON_LOG_DEBUG, "Auto-routing '%s' to SCRATCH directory", name);
+    }
+
     /* Use current user if not specified */
     if (user[0] == '\0') {
         const char* current_user = mon_config_get_current_user();
@@ -232,6 +241,22 @@ int mon_translate_path(const char* sintran_name, const char* sintran_type,
 
     mon_log(MON_LOG_DEBUG, "Path translation: '%s' + '%s' -> '%s'",
             sintran_name, sintran_type ? sintran_type : "", host_path);
+
+    /* Ensure parent directory exists */
+    char dir_path[SINTRAN_MAX_PATH];
+    strncpy(dir_path, host_path, sizeof(dir_path) - 1);
+    dir_path[sizeof(dir_path) - 1] = '\0';
+
+    /* Find last path separator */
+    char* last_sep = strrchr(dir_path, PATH_SEP);
+#ifdef _WIN32
+    char* last_sep2 = strrchr(dir_path, '/');
+    if (last_sep2 > last_sep) last_sep = last_sep2;
+#endif
+    if (last_sep) {
+        *last_sep = '\0';
+        mon_ensure_directory(dir_path);
+    }
 
     return 0;
 }

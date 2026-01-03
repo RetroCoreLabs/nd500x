@@ -84,10 +84,13 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Check access mode allows random writing */
-    if (entry->access_mode != ACCESS_RAND_WRITE &&
-        entry->access_mode != ACCESS_RAND_RDWR &&
-        entry->access_mode != ACCESS_RAND_COMMON &&
+    /* Check access mode allows random writing
+     * Valid modes: ACCESS_RAND_RDWR (2), ACCESS_RAND_RDWR_CTG (6),
+     *              ACCESS_RAND_RDWR_RT (8), ACCESS_RAND_EXTEND (9)
+     */
+    if (entry->access_mode != ACCESS_RAND_RDWR &&
+        entry->access_mode != ACCESS_RAND_RDWR_CTG &&
+        entry->access_mode != ACCESS_RAND_RDWR_RT &&
         entry->access_mode != ACCESS_RAND_EXTEND) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": File %o not open for random write (access=%o)",
                 file_no, entry->access_mode);

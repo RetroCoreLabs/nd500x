@@ -40,8 +40,15 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 0, "DeviceNo");
     MON_LOG_IN_WORD(ctx, 1, "NoOfBytes");
 
-    mon_log(MON_LOG_DEBUG, MON_ID_504B ": IN: DeviceNo=%o, NoOfBytes=%o, BufferAddr=0x%08X",
-            device_no, num_bytes, buffer_addr);
+    /* Identify device type */
+    const char* dev_type = "unknown";
+    if (is_character_device(device_no)) dev_type = "character";
+    else if (is_terminal(device_no)) dev_type = "terminal";
+    else if (is_mass_storage_file(device_no)) dev_type = "file";
+
+    mon_log(MON_LOG_DEBUG, MON_ID_504B ": IN: DeviceNo=%u (%o), NoOfBytes=%u, BufferAddr=0x%08X",
+            device_no, device_no, num_bytes, buffer_addr);
+    mon_log(MON_LOG_DEBUG, MON_ID_504B ":     DeviceType=%s", dev_type);
 
     /* Validate byte count */
     if (num_bytes > DVOUTS_MAX_BYTES) {
@@ -60,6 +67,29 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
     uint8_t buffer[DVOUTS_MAX_BYTES];
     for (uint32_t i = 0; i < num_bytes; i++) {
         buffer[i] = ctx->read_byte(ctx->cpu, buffer_addr + i);
+    }
+
+    /* Log the string content (sanitized for display) */
+    char display_buf[128];
+    uint32_t display_len = (num_bytes < 64) ? num_bytes : 64;
+    for (uint32_t i = 0; i < display_len; i++) {
+        uint8_t c = buffer[i];
+        display_buf[i] = (c >= 0x20 && c < 0x7F) ? (char)c : '.';
+    }
+    display_buf[display_len] = '\0';
+
+    mon_log(MON_LOG_DEBUG, MON_ID_504B ":     Content: \"%s\"%s",
+            display_buf, (num_bytes > 64) ? "..." : "");
+
+    /* Log hex dump of first 32 bytes */
+    if (num_bytes > 0) {
+        char hex_buf[128];
+        int hex_len = 0;
+        uint32_t hex_count = (num_bytes < 32) ? num_bytes : 32;
+        for (uint32_t i = 0; i < hex_count; i++) {
+            hex_len += snprintf(hex_buf + hex_len, sizeof(hex_buf) - hex_len, "%02X ", buffer[i]);
+        }
+        mon_log(MON_LOG_DEBUG, MON_ID_504B ":     Hex: %s", hex_buf);
     }
 
     /* Route by device class */

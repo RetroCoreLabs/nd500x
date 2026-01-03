@@ -42,17 +42,28 @@
 #define HEADER_RESERVED      (1 << 13) /* R - Reserved */
 #define HEADER_MODIFIED      (1 << 12) /* M - File modified */
 
-/* Access mode codes (from OPEN MON call) */
-#define ACCESS_SEQ_READ      0  /* Sequential read */
-#define ACCESS_SEQ_WRITE     1  /* Sequential write */
-#define ACCESS_RAND_READ     2  /* Random read */
-#define ACCESS_RAND_WRITE    3  /* Random write */
-#define ACCESS_RAND_RDWR     4  /* Random read/write */
-#define ACCESS_SEQ_APPEND    5  /* Sequential append */
-#define ACCESS_SEQ_COMMON    6  /* Sequential common */
-#define ACCESS_RAND_COMMON   7  /* Random common */
-#define ACCESS_SEQ_EXTEND    8  /* Sequential extend */
-#define ACCESS_RAND_EXTEND   9  /* Random extend */
+/* Access mode codes (from OPEN MON call - per MASTER reference ND-860228.2 EN)
+ *   0 = Sequential write
+ *   1 = Sequential read
+ *   2 = Random read or write
+ *   3 = Random read only
+ *   4 = Sequential read or write
+ *   5 = Sequential write append
+ *   6 = Random read or write common on contiguous files
+ *   7 = Random read common on contiguous files
+ *   8 = Random read or write on contiguous files (direct transfer for RT)
+ *   9 = Random read, write append for WriteToFile
+ */
+#define ACCESS_SEQ_WRITE     0  /* Sequential write */
+#define ACCESS_SEQ_READ      1  /* Sequential read */
+#define ACCESS_RAND_RDWR     2  /* Random read or write */
+#define ACCESS_RAND_READ     3  /* Random read only */
+#define ACCESS_SEQ_RDWR      4  /* Sequential read or write */
+#define ACCESS_SEQ_APPEND    5  /* Sequential write append */
+#define ACCESS_RAND_RDWR_CTG 6  /* Random r/w common on contiguous */
+#define ACCESS_RAND_READ_CTG 7  /* Random read common on contiguous */
+#define ACCESS_RAND_RDWR_RT  8  /* Random r/w direct transfer for RT */
+#define ACCESS_RAND_EXTEND   9  /* Random read, write append */
 
 /* I/O flags for reservation (MON 122/123) */
 #define IO_FLAG_INPUT        0
@@ -149,6 +160,25 @@ void mon_file_table_set_console(ConsoleIO* console);
 /* Returns the console I/O handler, or NULL if not set.
  * Callers must check for NULL before using the returned pointer. */
 ConsoleIO* mon_file_table_get_console(void);
+
+/* Queued Console I/O - for testing and scripted input.
+ * Queues input to be read by MON calls like 1B (INBT) and 503B (DVINST).
+ * Automatically installs a queue-based console handler.
+ * Supports escape sequences: \r = CR, \n = LF */
+void mon_queue_console_input(const char* input);
+
+/* Clear the console input queue and output buffer */
+void mon_clear_console_queue(void);
+
+/* Get the console output that has been written (e.g., echo from MON 503B) */
+const char* mon_get_console_output(void);
+size_t mon_get_console_output_len(void);
+
+/* Get remaining chars in input queue (for debugging) */
+size_t mon_get_console_input_remaining(void);
+
+/* Standard I/O Console - uses stdin/stdout for interactive mode */
+void mon_install_stdio_console(void);
 
 /* Host path utilities for file operations */
 void mon_build_host_path(const char* filename, char* host_path, size_t max_len);

@@ -34,6 +34,7 @@
 #include "../mon.h"
 #include "../mon_log.h"
 #include "../mon_file_table.h"
+#include <string.h>
 
 MonResult mon_50B_OpenFile(MonContext* ctx) {
     /* Defensive check for argument count */
@@ -57,13 +58,14 @@ MonResult mon_50B_OpenFile(MonContext* ctx) {
     /* Read access code */
     uint32_t access_code = mon_read_param_word(ctx, 1);
 
-    /* Read filename string from memory (up to 64 chars per MASTER reference) */
+    /* Read filename string from memory (up to 64 chars per MASTER reference)
+     * High-level languages (FORTRAN/Pascal) pass string descriptors [Length:4][Pointer:4] */
     char filename[65];
-    mon_read_string(ctx, 2, filename, 65);
+    mon_read_descriptor_string(ctx, 2, filename, 65);
 
     /* Read file type string (up to 4 chars) */
     char filetype[5];
-    mon_read_string(ctx, 3, filetype, 5);
+    mon_read_descriptor_string(ctx, 3, filetype, 5);
 
     MON_LOG_IN_WORD(ctx, 0, "FileNo");
     MON_LOG_IN_WORD(ctx, 1, "AccessCode");
@@ -83,8 +85,14 @@ MonResult mon_50B_OpenFile(MonContext* ctx) {
     int file_number = mon_file_open_ex(filename, filetype, (uint8_t)access_code, file_no_input);
 
     if (file_number < 0) {
-        mon_log(MON_LOG_WARN, MON_ID_50B ": Failed to open '%s.%s' (error %d)",
-                filename, filetype, file_number);
+        /* Only show filetype if filename doesn't already have extension */
+        if (strchr(filename, ':') || filetype[0] == '\0') {
+            mon_log(MON_LOG_WARN, MON_ID_50B ": Failed to open '%s' (error %d)",
+                    filename, file_number);
+        } else {
+            mon_log(MON_LOG_WARN, MON_ID_50B ": Failed to open '%s' (type='%s', error %d)",
+                    filename, filetype, file_number);
+        }
 
         /* Map internal error codes to SINTRAN error codes */
         switch (file_number) {
@@ -96,8 +104,14 @@ MonResult mon_50B_OpenFile(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    mon_log(MON_LOG_INFO, MON_ID_50B ": OUT: Opened '%s.%s' as file %o (access=%o)",
-            filename, filetype, file_number, access_code);
+    /* Only show filetype if filename doesn't already have extension */
+    if (strchr(filename, ':') || filetype[0] == '\0') {
+        mon_log(MON_LOG_INFO, MON_ID_50B ": OUT: Opened '%s' as file %o (access=%o)",
+                filename, file_number, access_code);
+    } else {
+        mon_log(MON_LOG_INFO, MON_ID_50B ": OUT: Opened '%s:%s' as file %o (access=%o)",
+                filename, filetype, file_number, access_code);
+    }
 
     /* Return file number in W1 (I1) register */
     if (ctx->set_error_code) {

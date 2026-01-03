@@ -36,14 +36,14 @@ MonResult mon_312B_CheckMonCall(MonContext* ctx) {
     /* Check if the MON call is implemented */
     MonImplStatus status = mon_get_status(mon_number);
 
-    int32_t result;
+    uint32_t result;
     if (status == MON_STATUS_VALIDATED || status == MON_STATUS_IN_PROGRESS) {
-        /* MON call exists */
-        result = 0;
-        mon_log(MON_LOG_DEBUG, MON_ID_312B ": OUT: MON %oB exists (status=%d)", mon_number, status);
+        /* MON call exists - return non-zero (fake entry address) */
+        result = 0xF8000000 + mon_number;  /* Segment 31 + MON number */
+        mon_log(MON_LOG_DEBUG, MON_ID_312B ": OUT: MON %oB exists (entry=0x%08X)", mon_number, result);
     } else {
-        /* MON call does not exist */
-        result = -1;
+        /* MON call does not exist - return 0 */
+        result = 0;
         mon_log(MON_LOG_DEBUG, MON_ID_312B ": OUT: MON %oB does not exist", mon_number);
     }
 

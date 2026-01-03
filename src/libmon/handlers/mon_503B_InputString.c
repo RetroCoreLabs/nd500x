@@ -222,12 +222,13 @@ MonResult mon_503B_InputString(MonContext* ctx) {
         ConsoleIO* console = mon_file_table_get_console();
 
         while (bytes_read < max_bytes) {
-            if (console && console->read_char) {
-                ch = console->read_char(console->context);
-            } else {
-                /* Fallback to stdin */
-                ch = getchar();
+            /* Check if we have a console configured */
+            if (!console || !console->read_char) {
+                break;  /* No console configured - don't block */
             }
+
+            /* Read character - this may block for interactive consoles */
+            ch = console->read_char(console->context);
 
             if (ch == EOF) {
                 break;

@@ -144,7 +144,40 @@ void mon_write_param_byte(MonContext* ctx, int idx, uint8_t value);
  * ========================================================================= */
 
 /**
- * Read a SINTRAN string from parameter.
+ * Read a SINTRAN string from parameter (direct address, 0x27 terminated).
+ *
+ * Use this when the parameter IS the string (not a descriptor).
+ * String is terminated by 0x00, 0x27 ('), or 0xFF.
+ *
+ * @param ctx    MON context
+ * @param idx    Parameter index
+ * @param buf    Output buffer
+ * @param max    Maximum bytes to read (including null terminator)
+ * @return       Actual string length (not including null)
+ */
+int mon_read_sintran_string(MonContext* ctx, int idx, char* buf, int max);
+
+/**
+ * Read a string from a descriptor [Length:4][Pointer:4] format.
+ *
+ * Used by FORTRAN-500 and Pascal compilers. The parameter points to
+ * an 8-byte descriptor containing the string length and pointer.
+ * String is terminated by 0x00, 0x27 ('), 0xFF, or the length limit.
+ *
+ * @param ctx    MON context
+ * @param idx    Parameter index
+ * @param buf    Output buffer
+ * @param max    Maximum bytes to read (including null terminator)
+ * @return       Actual string length (not including null), or -1 on error
+ */
+int mon_read_descriptor_string(MonContext* ctx, int idx, char* buf, int max);
+
+/**
+ * Read a SINTRAN string from parameter (auto-detect format).
+ *
+ * DEPRECATED: Use mon_read_sintran_string or mon_read_descriptor_string.
+ * This function attempts to auto-detect descriptor vs direct format,
+ * which can fail with certain memory patterns.
  *
  * @param ctx    MON context
  * @param idx    Parameter index
