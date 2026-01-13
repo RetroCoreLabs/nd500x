@@ -31,8 +31,8 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
     /* Read input strings */
     char abbrev_name[65];
     char file_type[5];
-    mon_read_string(ctx, 0, abbrev_name, sizeof(abbrev_name));
-    mon_read_string(ctx, 2, file_type, sizeof(file_type));
+    mon_read_sintran_string(ctx, 0, abbrev_name, sizeof(abbrev_name));
+    mon_read_sintran_string(ctx, 2, file_type, sizeof(file_type));
 
     uint32_t output_addr = ctx->arg_addresses[1];
 

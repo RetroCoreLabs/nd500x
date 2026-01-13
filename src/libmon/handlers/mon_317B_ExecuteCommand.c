@@ -31,7 +31,7 @@ MonResult mon_317B_ExecuteCommand(MonContext* ctx) {
 
     /* Read command string */
     char command[256];
-    mon_read_string(ctx, 0, command, sizeof(command));
+    mon_read_sintran_string(ctx, 0, command, sizeof(command));
 
     mon_log(MON_LOG_INFO, MON_ID_317B ": IN: Command='%s' (stub - not executed)", command);
 

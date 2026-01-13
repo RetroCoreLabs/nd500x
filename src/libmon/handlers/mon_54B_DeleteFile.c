@@ -35,7 +35,7 @@ MonResult mon_54B_DeleteFile(MonContext* ctx) {
 
     /* Read filename string */
     char filename[65];
-    mon_read_string(ctx, 0, filename, 65);
+    mon_read_sintran_string(ctx, 0, filename, 65);
 
     mon_log(MON_LOG_DEBUG, MON_ID_54B ": IN: FileName='%s'", filename);
 

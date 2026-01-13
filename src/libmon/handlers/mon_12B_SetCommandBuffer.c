@@ -33,7 +33,7 @@ MonResult mon_12B_SetCommandBuffer(MonContext* ctx) {
 
     /* Read command string */
     char command[256];
-    mon_read_string(ctx, 0, command, sizeof(command));
+    mon_read_sintran_string(ctx, 0, command, sizeof(command));
 
     mon_log(MON_LOG_DEBUG, MON_ID_12B ": IN: Command='%s'", command);
 

@@ -211,44 +211,6 @@ int mon_read_descriptor_string(MonContext* ctx, int idx, char* buf, int max) {
     return i;
 }
 
-/**
- * DEPRECATED: Auto-detect string format.
- * Use mon_read_sintran_string or mon_read_descriptor_string instead.
- */
-int mon_read_string(MonContext* ctx, int idx, char* buf, int max) {
-    if (!ctx || !buf || max <= 0 || idx < 0 || (uint32_t)idx >= ctx->arg_count) {
-        if (buf && max > 0) buf[0] = '\0';
-        return 0;
-    }
-    if (!ctx->read_byte || !ctx->read_word) {
-        buf[0] = '\0';
-        return 0;
-    }
-
-    uint32_t addr = ctx->arg_addresses[idx];
-
-    /* Debug: dump first 16 bytes at argument address */
-    uint32_t word0 = ctx->read_word(ctx->cpu, addr);
-    uint32_t word1 = ctx->read_word(ctx->cpu, addr + 4);
-    mon_log(MON_LOG_DEBUG, "mon_read_string(DEPRECATED): addr=0x%08X, words: [0x%08X, 0x%08X]",
-            addr, word0, word1);
-
-    /* Try descriptor format first - check if word1 looks like a valid pointer */
-    uint8_t ptr_segment = (word1 >> 24) & 0xFF;
-    int is_valid_segment = (ptr_segment == 0x08 || ptr_segment == 0x10 ||
-                            ptr_segment == 0x18 || ptr_segment == 0x20);
-
-    if (word0 > 0 && word0 < 1000 && is_valid_segment) {
-        int result = mon_read_descriptor_string(ctx, idx, buf, max);
-        if (result >= 0) {
-            return result;
-        }
-    }
-
-    /* Fall back to direct SINTRAN string */
-    return mon_read_sintran_string(ctx, idx, buf, max);
-}
-
 int mon_write_string(MonContext* ctx, int idx, const char* str) {
     if (!ctx || !str || idx < 0 || (uint32_t)idx >= ctx->arg_count) {
         return 0;

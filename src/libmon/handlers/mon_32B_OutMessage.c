@@ -29,8 +29,8 @@ MonResult mon_32B_OutMessage(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Read the message string from parameter */
-    len = mon_read_string(ctx, 0, message, MAX_MESSAGE_LEN);
+    /* Read the message string from parameter (Pascal/FORTRAN use descriptors) */
+    len = mon_read_descriptor_string(ctx, 0, message, MAX_MESSAGE_LEN);
 
     /* Output the message to user's terminal via console interface */
     /* Note: SINTRAN messages already contain \r\n terminators, don't add extra */

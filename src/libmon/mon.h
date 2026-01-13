@@ -173,21 +173,6 @@ int mon_read_sintran_string(MonContext* ctx, int idx, char* buf, int max);
 int mon_read_descriptor_string(MonContext* ctx, int idx, char* buf, int max);
 
 /**
- * Read a SINTRAN string from parameter (auto-detect format).
- *
- * DEPRECATED: Use mon_read_sintran_string or mon_read_descriptor_string.
- * This function attempts to auto-detect descriptor vs direct format,
- * which can fail with certain memory patterns.
- *
- * @param ctx    MON context
- * @param idx    Parameter index
- * @param buf    Output buffer
- * @param max    Maximum bytes to read (including null terminator)
- * @return       Actual string length (not including null)
- */
-int mon_read_string(MonContext* ctx, int idx, char* buf, int max);
-
-/**
  * Write a string to parameter address.
  *
  * @param ctx    MON context
