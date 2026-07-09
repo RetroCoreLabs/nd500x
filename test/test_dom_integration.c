@@ -24,9 +24,65 @@
 #include "../src/ndlib/ndlib.h"
 #include "../src/debugger/debugger.h"
 #include "../src/libmon/mon.h"
+#include "../src/libmon/mon_file_table.h"
 
 #define DEFAULT_MAX_STEPS 10000
 #define MEMORY_SIZE (16 * 1024 * 1024)  /* 16MB - same as debugger */
+#define MAX_INPUTS 16
+#define MAX_COMPARES 16
+
+/* Queued console input strings (--input), applied after mon_init() */
+static const char* g_inputs[MAX_INPUTS];
+static int g_input_count = 0;
+
+/* File comparisons (--compare produced=expected), checked after the run */
+static const char* g_compares[MAX_COMPARES];
+static int g_compare_count = 0;
+
+/* Process \r and \n escape sequences into a malloc'd string */
+static char* process_escapes(const char* src) {
+    size_t len = strlen(src);
+    char* out = malloc(len + 1);
+    if (!out) return NULL;
+    size_t j = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (src[i] == '\\' && i + 1 < len) {
+            if (src[i + 1] == 'r') { out[j++] = '\r'; i++; continue; }
+            if (src[i + 1] == 'n') { out[j++] = '\n'; i++; continue; }
+        }
+        out[j++] = src[i];
+    }
+    out[j] = '\0';
+    return out;
+}
+
+/* Byte-compare two files; returns 0 if identical */
+static int compare_files(const char* produced, const char* expected) {
+    FILE* fp = fopen(produced, "rb");
+    FILE* fe = fopen(expected, "rb");
+    int rc = 0;
+    if (!fp || !fe) {
+        printf("  COMPARE ERROR: cannot open %s\n", !fp ? produced : expected);
+        rc = -1;
+    } else {
+        long pos = 0;
+        for (;;) {
+            int cp = fgetc(fp);
+            int ce = fgetc(fe);
+            if (cp != ce) {
+                printf("  COMPARE MISMATCH at byte %ld: %s has 0x%02X, %s has 0x%02X\n",
+                       pos, produced, cp & 0xFF, expected, ce & 0xFF);
+                rc = -1;
+                break;
+            }
+            if (cp == EOF) break;
+            pos++;
+        }
+    }
+    if (fp) fclose(fp);
+    if (fe) fclose(fe);
+    return rc;
+}
 
 /* Test result tracking */
 typedef struct {
@@ -102,6 +158,17 @@ static int run_dom_test(const char* dom_path, int max_steps, int verbose, TestRe
     /* Initialize MON call subsystem */
     mon_init();
 
+    /* Queue console input (--input); installs the queued console so the
+     * program reads scripted commands instead of blocking on stdin */
+    for (int i = 0; i < g_input_count; i++) {
+        char* processed = process_escapes(g_inputs[i]);
+        if (processed) {
+            printf("  Queued input: \"%s\"\n", g_inputs[i]);
+            mon_queue_console_input(processed);
+            free(processed);
+        }
+    }
+
     /* Load DOM into machine with MMU setup */
     uint32_t start_addr = 0;
     int domain = 0;
@@ -143,6 +210,10 @@ static int run_dom_test(const char* dom_path, int max_steps, int verbose, TestRe
             printf("  DEBUG: stop_reason=%d detected at step %d, PC=0x%08X, step_ok=%d\n",
                    machine.stop_reason, steps, cpu.PC, step_ok);
             fflush(stdout);
+            if (machine.stop_reason == STOP_MON_HALT) {
+                /* Normal program exit via MON 0B LEAVE */
+                result->exited_normally = 1;
+            }
             break;
         }
 
@@ -232,6 +303,9 @@ static void print_usage(const char* prog) {
     printf("  -v                   Verbose output (show DOM loading details)\n");
     printf("  --trace-file <path>  Write instruction trace to file\n");
     printf("  --radix <mode>       Set numeric radix: decimal | hex | octal\n");
+    printf("  --input <text>       Queue console input (\\r and \\n escapes; repeatable)\n");
+    printf("  --compare <p>=<e>    After the run, byte-compare produced file <p>\n");
+    printf("                       against expected file <e> (repeatable)\n");
     printf("\n");
     printf("Exit codes:\n");
     printf("  0 = Success (normal exit or completed steps)\n");
@@ -272,6 +346,20 @@ int main(int argc, char* argv[]) {
             trace_file_path = argv[++i];
         } else if (strcmp(argv[i], "--radix") == 0 && i + 1 < argc) {
             radix_str = argv[++i];
+        } else if (strcmp(argv[i], "--input") == 0 && i + 1 < argc) {
+            if (g_input_count < MAX_INPUTS) {
+                g_inputs[g_input_count++] = argv[++i];
+            } else {
+                printf("Too many --input arguments (max %d)\n", MAX_INPUTS);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--compare") == 0 && i + 1 < argc) {
+            if (g_compare_count < MAX_COMPARES) {
+                g_compares[g_compare_count++] = argv[++i];
+            } else {
+                printf("Too many --compare arguments (max %d)\n", MAX_COMPARES);
+                return 1;
+            }
         } else {
             max_steps = atoi(argv[i]);
             if (max_steps <= 0) {
@@ -319,8 +407,32 @@ int main(int argc, char* argv[]) {
     TestResult result;
     int rc = run_dom_test(dom_path, max_steps, verbose, &result);
 
+    /* Post-run file comparisons (--compare produced=expected) */
+    if (rc == 0 && g_compare_count > 0) {
+        printf("\nOutput file comparisons:\n");
+        for (int i = 0; i < g_compare_count; i++) {
+            char spec[512];
+            strncpy(spec, g_compares[i], sizeof(spec) - 1);
+            spec[sizeof(spec) - 1] = '\0';
+            char* eq = strchr(spec, '=');
+            if (!eq) {
+                printf("  Invalid --compare spec (need produced=expected): %s\n", spec);
+                rc = -2;
+                continue;
+            }
+            *eq = '\0';
+            const char* produced = spec;
+            const char* expected = eq + 1;
+            if (compare_files(produced, expected) == 0) {
+                printf("  MATCH: %s == %s\n", produced, expected);
+            } else {
+                rc = -2;
+            }
+        }
+    }
+
     printf("\n===============================================\n");
-    if (result.passed > 0 && result.failed == 0) {
+    if (rc == 0 && result.passed > 0 && result.failed == 0) {
         printf("  TEST PASSED\n");
     } else {
         printf("  TEST FAILED\n");

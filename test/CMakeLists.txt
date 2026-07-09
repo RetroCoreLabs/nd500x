@@ -163,3 +163,41 @@ if(EXISTS ${NC_COMPILER_DOM})
 else()
     message(STATUS "DOM smoke test skipped: ${NC_COMPILER_DOM} not found")
 endif()
+
+# NC end-to-end compile tests: run the real NC compiler under emulation,
+# compile a C source to an object file, and byte-compare the output against
+# the checked-in baselines in test/nc_fixtures/expected/.
+#
+# NOTE: the baselines are EMULATOR-PRODUCED (self-referential) - these are
+# regression tests, not ground truth. Cross-emulator agreement with the C#
+# RetroCore emulator compiling the same sources is the real parity check.
+#
+# The sandbox is reset by a CTest fixture before each ctest invocation, and
+# both compile tests share it, so they are serialized via RESOURCE_LOCK.
+if(EXISTS ${NC_COMPILER_DOM})
+    set(NC_SANDBOX ${CMAKE_BINARY_DIR}/nc_sandbox)
+
+    add_test(NAME nc_sandbox_setup
+        COMMAND ${CMAKE_COMMAND}
+            -DSANDBOX=${NC_SANDBOX}
+            -DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/nc_fixtures
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/nc_sandbox_setup.cmake)
+    set_tests_properties(nc_sandbox_setup PROPERTIES
+        FIXTURES_SETUP nc_sandbox)
+
+    add_test(NAME dom_nc_compile_a
+        COMMAND test_dom_integration ${NC_COMPILER_DOM} 5000000
+            --input "COMPILE A,A,A\\r"
+            --compare GUEST/A.NRF=expected/A.NRF
+        WORKING_DIRECTORY ${NC_SANDBOX})
+    add_test(NAME dom_nc_compile_b
+        COMMAND test_dom_integration ${NC_COMPILER_DOM} 5000000
+            --input "COMPILE B,B,B\\r"
+            --compare GUEST/B.NRF=expected/B.NRF
+        WORKING_DIRECTORY ${NC_SANDBOX})
+    set_tests_properties(dom_nc_compile_a dom_nc_compile_b PROPERTIES
+        FIXTURES_REQUIRED nc_sandbox
+        RESOURCE_LOCK nc_sandbox
+        TIMEOUT 300)
+    message(STATUS "NC compile tests enabled (sandbox: ${NC_SANDBOX})")
+endif()

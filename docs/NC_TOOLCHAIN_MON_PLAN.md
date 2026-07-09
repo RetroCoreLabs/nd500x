@@ -58,16 +58,29 @@ trusted for this and cannot produce DOM files.
 
 ## Phases
 
-### Phase 1 - NC end-to-end loop hardened (C side, nd500x)
-1. Fix the three C-side bugs above; make ctest fully green.
-2. Script the full compile loop: load nc-a06.dom, feed it GUEST/A.C (and a
-   richer test .C exercising more of the compiler), produce .O, compare
-   against the existing emulator-produced GUEST/A.O + B.O as regression
-   baselines.
-3. Add as ctest integration test (pattern: dom_nc_compiler smoke test, but
-   asserting on output file content, not just "ran N steps").
-4. Triage any remaining runtime failures with mon log + trace.
-   Exit criterion: deterministic .C -> .O compile as a green ctest.
+### Phase 1 - NC end-to-end loop hardened (C side, nd500x) - DONE 2026-07-09
+1. [DONE] Fix the three C-side bugs above; make ctest fully green.
+   (Also fixed along the way: systemic FLOAT_MATH register-operand bug,
+   POLY decoder coefficient count, BYCONV overflow write, stale LGET MMU
+   test setup - exposed by the regenerated 39,803-case test JSON.)
+2. [DONE] Compile loop scripted: test_dom_integration gained --input
+   (queued console via mon_queue_console_input) and --compare
+   (byte-compare produced vs expected). The NC dialogue is
+   "COMPILE <name>,<name>,<name>" with BARE SINTRAN names - typing
+   "B.C" makes NC treat the dot as part of the NAME and append the
+   default type (:C -> host B.C.C, fails "no rewrite"). NC appends
+   default types itself: source :C, list :LIST, object :NRF.
+3. [DONE] ctest tests dom_nc_compile_a/b: sandbox reset by CTest fixture
+   (test/nc_sandbox_setup.cmake), fixtures in test/nc_fixtures/,
+   byte-exact comparison against the January baselines. 16/16 green.
+4. Exit criterion met for the regression loop. REMAINING (Phase 1b):
+   - The baseline .O files contain macro-expanded SOURCE (B.O shows
+     "x = 42;" with VALUE expanded), NOT NRF object code. Either NC needs
+     an init file (NC-A:INIT - it tries to open it and fails, tolerated)
+     or extra commands to run code generation, or the compile stops after
+     the preprocessor. Investigate what a real NC A06 run produces.
+   - Cross-emulator: C# compiling the same sources to identical bytes
+     (tasked to the C# side) is the true exit criterion.
 
 **Baseline caveat (C# LLM refinement, accepted)**: comparing NC output
 against GUEST/A.O + B.O is SELF-REFERENTIAL - those baselines were produced
