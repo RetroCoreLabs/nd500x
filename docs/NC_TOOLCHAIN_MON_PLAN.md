@@ -74,13 +74,28 @@ trusted for this and cannot produce DOM files.
    (test/nc_sandbox_setup.cmake), fixtures in test/nc_fixtures/,
    byte-exact comparison against the January baselines. 16/16 green.
 4. Exit criterion met for the regression loop. REMAINING (Phase 1b):
-   - The baseline .O files contain macro-expanded SOURCE (B.O shows
-     "x = 42;" with VALUE expanded), NOT NRF object code. Either NC needs
-     an init file (NC-A:INIT - it tries to open it and fails, tolerated)
-     or extra commands to run code generation, or the compile stops after
-     the preprocessor. Investigate what a real NC A06 run produces.
+   - CONFIRMED 2026-07-09: the baseline .O files are PREPROCESSOR OUTPUT,
+     not object code. B.O is the C source with the VALUE macro expanded
+     ("x = 42;") plus a trailing 0x0D 0x13 terminator - 30 ASCII bytes.
+     A real NRF object file is BINARY: see the genuine ND-produced sample
+     /mnt/d/ND/500/FraTor/test-real/test-real.nrf (4677 bytes, dated
+     1991-03-18, from test-real.pasc) - it starts 0A 00 01 70 44 ... with
+     NRF control bytes and embedded symbol names (TEST_REAL, INPUT,
+     OUTPUT). So the current regression baselines validate the
+     PREPROCESSOR, not the compiler back end.
+   - The NC compile TERMINATES EARLY: console shows "no rewrite" then
+     " terminated"; the "generate-code" phase (string present in the DOM)
+     is never reached. NC tries to open NC-A:INIT (the compiler config /
+     init file) and fails with error -46 (no such file); no NC-A:INIT
+     exists anywhere on /mnt/d. Hypothesis: without the init file the
+     compiler runs preprocess-only and terminates. Next: find or
+     reconstruct NC-A:INIT, or determine the command/option that drives
+     code generation ("generate-code" option is in the string table).
    - Cross-emulator: C# compiling the same sources to identical bytes
-     (tasked to the C# side) is the true exit criterion.
+     (tasked to the C# side) is the true exit criterion. Until codegen
+     works, both emulators would only agree on preprocessor output.
+   - test-real.nrf is a real GOLDEN NRF - promote it as the format oracle
+     once codegen produces binary output (per review refinement 4).
 
 **Baseline caveat (C# LLM refinement, accepted)**: comparing NC output
 against GUEST/A.O + B.O is SELF-REFERENTIAL - those baselines were produced
