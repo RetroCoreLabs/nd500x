@@ -53,8 +53,10 @@
  *   - Assembler auto-selects optimal displacement size
  *
  * Branch Target Calculation:
- *   target_address = PC + sign_extend(displacement)
- *   where PC points to the instruction AFTER IFKGO
+ *   target_address = address_of_IFKGO + sign_extend(displacement)
+ *   The displacement is relative to the first byte of the IFKGO
+ *   instruction itself (manual section 8.16.1), verified against a
+ *   real SINTRAN-linked binary.
  *
  * Flags: None modified
  *   K, Z, S, C, V - All flags remain unchanged
@@ -108,7 +110,7 @@
  *   - SETK: Set K flag to 1
  *   - CLRK: Clear K flag to 0
  *   - IFNKGO: Branch if K flag is clear (K=0)
- *   - Other conditional branches: IF=0, IF≠0, IF<, IF>, IF≤, IF≥
+ *   - Other conditional branches: IF=GO, IF><GO, IF<GO, IF>GO, IF<=GO, IF>=GO
  *
  * Reference: ND-500 Reference Manual, §13.x (Conditional Branches)
  *            /home/ronny/repos/nd500x/docs/instructions/asm/ifkgo.md
@@ -142,9 +144,9 @@ void nd500_instr_Ifkgo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Conditional branch based on K flag
     if (k_flag_set) {
         // K=1: Take the branch
-        // Add sign-extended displacement to current PC
-        // Note: PC has already been advanced past this instruction by cpu_step()
-        cpu->PC = (uint32_t)((int32_t)cpu->PC + displacement);
+        // Displacement is relative to the FIRST byte of this instruction
+        // (manual 8.16.1), same as all other GO/IF..GO/LOOP instructions.
+        cpu->PC = (uint32_t)(fi->address + displacement);
 
         // Note: No flags are modified by IFKGO
         // The K flag remains set, and all other flags are unchanged
