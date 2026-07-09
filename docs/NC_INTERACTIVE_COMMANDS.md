@@ -119,10 +119,49 @@ Findings:
   change the "no rewrite" outcome - so the missing init file is not the
   (sole) cause.
 
-Working hypothesis: the compiler runs preprocess-only and reports
-"no rewrite" (nothing to write as object) - either a default option
-suppresses code generation, or the check/parse back end needs a runtime
-piece not present in this loaded DOM. NOT yet resolved.
+Full human-facing console message for `compile B,B,BOUT`:
+
+    Norsk Data C - Version: A06 - 1989-01-10
+    NC:
+    preprocessing
+    <blank>
+    no rewrite
+    <blank>
+     terminated
+       0:00:01
+
+So "no rewrite" = the object file was never rewritten with real code;
+compilation terminated after the preprocessing pass.
+
+Hard findings from tracing the compile (1,113,964 instructions):
+- ALL compiler code is loaded and exercised. Segment 1 PROG is 191,678
+  bytes (0x08000000..~0x0802EC00); the highest PC executed is 0x0802E506,
+  i.e. the top of the code. There is NO missing/never-entered code
+  generator segment - the back end is present and reachable.
+- Preprocessing does real work: 871k of the 1.11M instructions (87%) run
+  in the 0x0800Dxxxx region (the lexer/preprocessor), and it produces the
+  CORRECT macro-expanded output (VALUE -> 42). So the front end works.
+- After preprocessing the driver (code region 0x0802Cxxx-0x0802Exxx)
+  emits "no rewrite"/"terminated" via the print routine at 0x0802D171
+  WITHOUT invoking the code generator. The status word tested at the
+  report site (0x0801D7BC) is 0 - this is message-machinery state, not
+  the upstream compile decision.
+- NOT caused by: the missing NC-A:INIT (pre-placing a valid one changes
+  nothing), the object option (o+ tested), or any MON error (every MON
+  call in the trace returns SUCCESS).
+
+Remaining hypotheses (unresolved):
+(a) This nc-a06.dom / this invocation is intentionally preprocess-only
+    and expects a separate driver or a different command path to reach
+    codegen (e.g. a real two-step check -> generate-code with a proper
+    :CAT intermediate that this front end does not itself produce).
+(b) A subtle MON file-I/O semantics mismatch (the classic ND-500 BYTE vs
+    ND-100 WORD count divergence in RFILE/WFILE, flagged in the MON plan)
+    makes the driver's post-preprocess check take the terminate branch.
+    Note the preprocessing round-trip does WFILE then RFILE on the
+    intermediate; if the returned byte/word count is off, the driver may
+    conclude it cannot proceed. The small-case data path is byte-correct,
+    but the COUNT semantics were not independently verified here.
 
 ## 5. NC-A:INIT - the compile-parameter file
 
