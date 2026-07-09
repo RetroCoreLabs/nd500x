@@ -1775,7 +1775,7 @@ void mon_register_all_handlers(void) {
         "DEPRECATED: This MON call is no longer supported.",  /* Description */
         "",  /* Parameter details */
         mon_321B_UEAdministrator,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status - deprecated, MOINF returns 0 */
+        MON_STATUS_DEPRECATED,    /* Handler runs (error 52), MOINF returns 0 */
         0             /* Param count */
     );
     mon_register_ex(

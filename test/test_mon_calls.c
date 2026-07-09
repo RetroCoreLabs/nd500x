@@ -413,14 +413,44 @@ static void test_mon_312B_moinf(void) {
         return;
     }
 
-    /* Result should be 0 (exists) or -1 (not exists) */
-    int32_t check_result = (int32_t)test_read_word(&cpu, result_loc);
-    if (check_result == 0 || check_result == -1) {
-        TEST_PASS("MON 312B returns valid result");
+    /* Implemented call: entry address is the shared emulator convention
+     * 0xF8000000 + mon_number (segment 31 + call number). MON 0 -> 0xF8000000.
+     * Provenance: convention (agreed with the C# emulator), not manual text. */
+    uint32_t check_result = test_read_word(&cpu, result_loc);
+    if (check_result == 0xF8000000u) {
+        TEST_PASS("MON 312B implemented call returns entry 0xF8000000+n");
     } else {
         char msg[64];
-        snprintf(msg, sizeof(msg), "result=%d (expected 0 or -1)", check_result);
-        TEST_FAIL("MON 312B returns valid result", msg);
+        snprintf(msg, sizeof(msg), "result=0x%08X (expected 0xF8000000)", check_result);
+        TEST_FAIL("MON 312B implemented call returns entry 0xF8000000+n", msg);
+    }
+
+    /* Non-existent call (200B = 128 decimal, unused) must return 0 */
+    test_write_word(&cpu, mon_number_loc, 128);
+    test_write_word(&cpu, result_loc, 0xFFFFFFFF);
+    setup_mon_context(&ctx, 202, 2, args);
+    result = mon_dispatch(&ctx);
+    check_result = test_read_word(&cpu, result_loc);
+    if (result == MON_SUCCESS && check_result == 0) {
+        TEST_PASS("MON 312B non-existent call returns 0");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "result=0x%08X (expected 0)", check_result);
+        TEST_FAIL("MON 312B non-existent call returns 0", msg);
+    }
+
+    /* Deprecated call (321B = 209 decimal) must also return 0 */
+    test_write_word(&cpu, mon_number_loc, 209);
+    test_write_word(&cpu, result_loc, 0xFFFFFFFF);
+    setup_mon_context(&ctx, 202, 2, args);
+    result = mon_dispatch(&ctx);
+    check_result = test_read_word(&cpu, result_loc);
+    if (result == MON_SUCCESS && check_result == 0) {
+        TEST_PASS("MON 312B deprecated call returns 0");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "result=0x%08X (expected 0)", check_result);
+        TEST_FAIL("MON 312B deprecated call returns 0", msg);
     }
 
     teardown();
@@ -991,7 +1021,10 @@ static void test_mon_1B_inbt_queued_input(void) {
     uint32_t dev_no_loc = 0x1000;
     uint32_t value_loc = 0x1004;
 
-    test_write_word(&cpu, dev_no_loc, 0);       /* Device 0 (console) */
+    /* Device 1 = terminal (character device). Device 0 is the SINTRAN
+     * command buffer, NOT the console - using 0 here read leftover
+     * command-buffer text from the MON 12B test ('T' of "TEST-COMMAND"). */
+    test_write_word(&cpu, dev_no_loc, 1);
     test_write_word(&cpu, value_loc, 0xDEAD);   /* Pre-fill with garbage */
 
     uint32_t args[2] = { dev_no_loc, value_loc };
@@ -1017,6 +1050,18 @@ static void test_mon_1B_inbt_queued_input(void) {
         char msg[64];
         snprintf(msg, sizeof(msg), "expected 'X' (0x58), got 0x%02X", value & 0xFF);
         TEST_FAIL("MON 1B read 'X' from queue", msg);
+    }
+
+    /* Agreed semantics (matches C# emulator): non-blocking, empty input
+     * queue returns error 57 (EOF) instead of waiting */
+    setup_mon_context(&ctx, 1, 2, args);
+    result = mon_dispatch(&ctx);
+    if (result == MON_ERROR && ctx.error_code == 57) {
+        TEST_PASS("MON 1B empty queue returns EOF error 57 (non-blocking)");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "result=%d, error_code=%d", (int)result, ctx.error_code);
+        TEST_FAIL("MON 1B empty queue returns EOF error 57 (non-blocking)", msg);
     }
 
     mon_file_table_set_console(NULL);

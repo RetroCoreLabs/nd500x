@@ -31,7 +31,11 @@ typedef enum {
 typedef enum {
     MON_STATUS_NOT_IMPLEMENTED = 0,  /* Stub only - will break if called */
     MON_STATUS_IN_PROGRESS = 1,      /* Partially implemented - may break */
-    MON_STATUS_VALIDATED = 2         /* Fully tested and working */
+    MON_STATUS_VALIDATED = 2,        /* Fully tested and working */
+    MON_STATUS_DEPRECATED = 3        /* No longer supported by SINTRAN.
+                                      * Handler IS called (returns error 52
+                                      * with K flag), but MOINF (312B)
+                                      * reports the call as non-existent. */
 } MonImplStatus;
 
 /* =========================================================================

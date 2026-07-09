@@ -3497,12 +3497,14 @@ static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args) {
 		int validated = mon_count_by_status(MON_STATUS_VALIDATED);
 		int in_progress = mon_count_by_status(MON_STATUS_IN_PROGRESS);
 		int not_impl = mon_count_by_status(MON_STATUS_NOT_IMPLEMENTED);
+		int deprecated = mon_count_by_status(MON_STATUS_DEPRECATED);
 		int total = mon_get_total_count();
 
 		output(ctx, "MON Implementation Status:");
 		output(ctx, "  VALIDATED:       %3d calls", validated);
 		output(ctx, "  IN_PROGRESS:     %3d calls", in_progress);
 		output(ctx, "  NOT_IMPLEMENTED: %3d calls", not_impl);
+		output(ctx, "  DEPRECATED:      %3d calls", deprecated);
 		output(ctx, "  Total:           %3d calls", total);
 
 		/* Show current behavior settings */
@@ -3549,8 +3551,11 @@ static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args) {
 		} else if (strcasecmp(status_str, "notimpl") == 0 || strcasecmp(status_str, "not_implemented") == 0) {
 			filter_status = MON_STATUS_NOT_IMPLEMENTED;
 			status_name = "NOT_IMPLEMENTED";
+		} else if (strcasecmp(status_str, "deprecated") == 0) {
+			filter_status = MON_STATUS_DEPRECATED;
+			status_name = "DEPRECATED";
 		} else {
-			error(ctx, "usage: mon list [all|validated|inprogress|notimpl]");
+			error(ctx, "usage: mon list [all|validated|inprogress|notimpl|deprecated]");
 			return -1;
 		}
 
@@ -3605,6 +3610,7 @@ static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args) {
 		switch (entry->status) {
 			case MON_STATUS_VALIDATED:       status_str = "VALIDATED"; break;
 			case MON_STATUS_IN_PROGRESS:     status_str = "IN_PROGRESS"; break;
+			case MON_STATUS_DEPRECATED:      status_str = "DEPRECATED"; break;
 			case MON_STATUS_NOT_IMPLEMENTED:
 			default:                         status_str = "NOT_IMPLEMENTED"; break;
 		}

@@ -42,7 +42,7 @@ MonResult mon_312B_CheckMonCall(MonContext* ctx) {
         result = 0xF8000000 + mon_number;  /* Segment 31 + MON number */
         mon_log(MON_LOG_DEBUG, MON_ID_312B ": OUT: MON %oB exists (entry=0x%08X)", mon_number, result);
     } else {
-        /* MON call does not exist - return 0 */
+        /* NOT_IMPLEMENTED and DEPRECATED both report as non-existent (0) */
         result = 0;
         mon_log(MON_LOG_DEBUG, MON_ID_312B ": OUT: MON %oB does not exist", mon_number);
     }
