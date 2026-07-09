@@ -129,7 +129,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     if (fseek(entry->host_file, (long)file_offset, SEEK_SET) != 0) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": Seek to block %o (offset %lld) failed",
                 block_no, file_offset);
-        mon_set_error(ctx, 55);  /* End of file / seek error */
+        mon_set_error(ctx, 3);  /* End of file (SINTRAN code 3, per 73B SMAX doc) */
         return MON_ERROR;
     }
 
@@ -164,19 +164,27 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
 
     free(buffer);
 
-    /* Check for EOF condition */
+    /* End-of-file signalling (SINTRAN III, per 73B SMAX doc: "Error code 3
+     * means end of file"). RFILE has no residual-count output parameter, so
+     * error code 3 in W1 is the ONLY way a reader detects end of data. Any
+     * transfer that reaches or crosses EOF must return code 3 - including a
+     * short final block, whose partial data is still delivered to the buffer
+     * before the EOF is signalled. Returning success (or the old code 55) on
+     * these paths makes read-until-EOF loops never terminate cleanly. */
     if (bytes_read == 0) {
         /* True EOF - no data available at requested position */
         mon_log(MON_LOG_DEBUG, MON_ID_117B ": EOF - requested %u bytes at block %u, got 0",
                 num_bytes, block_no);
-        mon_set_error(ctx, 55);  /* End of file */
+        mon_set_error(ctx, 3);  /* End of file */
         return MON_ERROR;
     }
 
     if (bytes_read < num_bytes) {
-        /* Partial read - some data available but less than requested */
-        mon_log(MON_LOG_DEBUG, MON_ID_117B ": Partial read - requested %u, got %zu (near EOF)",
+        /* Short final block: partial data was written above, now signal EOF */
+        mon_log(MON_LOG_DEBUG, MON_ID_117B ": Partial read - requested %u, got %zu, signalling EOF",
                 num_bytes, bytes_read);
+        mon_set_error(ctx, 3);  /* End of file (partial data delivered) */
+        return MON_ERROR;
     }
 
     mon_set_success(ctx);
