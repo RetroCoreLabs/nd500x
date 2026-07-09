@@ -8,18 +8,18 @@
  *
  * Shift Left (bidirectional). Positive shift count shifts left, negative shifts right.
  *
- * Variants: 3 (by data type)
- * Mnemonics: SHL:H, SHL:W, SHL:D
+ * Variants: 3 (by data type: BY, H, W; no BI/F/D variants exist)
+ * Mnemonics: BY SHL, H SHL, W SHL
  * Operands: 2 (value to shift, shift count)
  *
- * Opcodes:
- *   0xFCA8 (SHL:H) - Halfword shift
- *   0xFCA9 (SHL:W) - Word shift
- *   0xFCAA (SHL:D) - Doubleword shift
+ * Opcodes (manual 10.24: 176250B-176252B):
+ *   0xFCA8 (BY SHL) - Byte shift
+ *   0xFCA9 (H SHL)  - Halfword shift
+ *   0xFCAA (W SHL)  - Word shift
  *
  * Operation:
- *   If shift_count >= 0: operand << shift_count → operand
- *   If shift_count < 0:  operand >> abs(shift_count) → operand
+ *   If shift_count >= 0: operand << shift_count -> operand
+ *   If shift_count < 0:  operand >> abs(shift_count) -> operand
  *
  * Description:
  *   Shifts operand left (positive count) or right (negative count).

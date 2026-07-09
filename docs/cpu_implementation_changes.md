@@ -225,29 +225,24 @@ nd500_write_integer_register(cpu, fi->target_register, address);
 
 ### File: `src/cpu/instructions/SHIFT/Sha.c`
 
-**Problem 1 - Wrong shift direction**: Original implementation had positive shift count = left shift, but tests expected right shift.
+**HISTORY NOTE (corrected)**: An earlier revision of this section claimed
+"positive count = RIGHT shift" with sign taken from the full 32-bit register.
+That change was driven by buggy generated test data and was REVERTED
+(commit 0a886d5). The current, correct behavior matches the reference manual
+section 10.25 and the C# reference (Sha.cs):
 
-**Problem 2 - Wrong sign determination**: For byte/halfword operations on registers, sign was determined from the masked data type (e.g., 0xFF = -1 as byte), but should use the full 32-bit register value (0x000000FF = 255, positive).
+- Positive shift count = LEFT shift; negative = RIGHT shift (arithmetic,
+  sign-extending). Manual 10.25: "Positive shiftcount implies left shift,
+  negative shiftcount implies right shift."
+- Sign for right shifts is taken from the OPERAND's own width (bit 7 for BY,
+  bit 15 for H, bit 31 for W), not from the full 32-bit register. The manual
+  describes the shift as operating on "the byte, halfword or word operand".
+- A shift count with magnitude >= the operand size raises an illegal operand
+  value trap (manual 10.25); count 0 is legal and leaves the operand
+  unchanged.
 
-**Solution**:
-```c
-/* Empirically verified convention (matching test expectations):
- * - Positive count = RIGHT shift (arithmetic, sign-extending)
- * - Negative count = LEFT shift (same as logical shift left) */
-if (shift_count >= 0) {
-    /* Sign determined by bit 31 of full register, not data type */
-    int32_t signed_val = (int32_t)(raw_value & 0xFFFFFFFF);
-    result = (uint64_t)(uint32_t)(signed_val >> abs_shift);
-} else {
-    result = raw_value << abs_shift;
-}
-/* Mask output to data type */
-result = nd500_mask_to_datatype(result, fi->data_type);
-```
-
-**Test case**: `BY SHA I1,$1` with I1=0xFF
-- Old (wrong): 0xFF as byte = -1, -1 >> 1 = -1 = 0xFF
-- New (correct): 0x000000FF as int32 = 255, 255 >> 1 = 127 = 0x7F
+**Test case**: `BY SHA I1,$-1` (right shift by 1) with I1=0xFF
+- 0xFF as byte operand = -1; -1 >> 1 = -1 = 0xFF (sign preserved at bit 7)
 
 ---
 
@@ -307,29 +302,43 @@ if (op->mode == ND500_ADDR_CONSTANT_SHORT) {
 
 ---
 
-## 12. Branch PC Calculation (Relative to Instruction END)
+## 12. Branch PC Calculation (Relative to Instruction START)
 
 ### Files: `src/cpu/instructions/BRANCH/*.c`
 
-**Problem**: All branch instructions (GO, IF*GO, LOOP*) were calculating the target PC relative to the instruction START instead of END.
+**HISTORY NOTE (corrected)**: An earlier revision of this section claimed the
+displacement was relative to the instruction END (start + size), based on the
+C# test formula `expectedPC = DefaultPC + SIZE_BRANCH + offset`. That claim
+came from BUGGY generated test data (see "Test Data Issues" below: all GO
+tests carry offset-0 expected PCs) and was wrong. The change was reverted.
 
-**C# formula**: `expectedPC = DefaultPC + SIZE_BRANCH + (uint)offset`
+**Correct behavior** (manual section 8.16.1, confirmed against a real
+SINTRAN-linked binary): the displacement is "the distance from the first byte
+of the current instruction to the first byte of the addressed instruction".
 
-This means: `PC = instruction_start + instruction_size + displacement`
-
-**Old (incorrect)**:
 ```c
-cpu->PC = (uint32_t)((int64_t)cpu->PC + displacement);
+cpu->PC = (uint32_t)(fi->address + displacement);
 ```
-Result: 0x1000 + 20 = 0x1014 (wrong)
 
-**New (correct)**:
-```c
-cpu->PC = (uint32_t)(fi->address + fi->total_len + displacement);
+**Real-binary verification** (nc-a06.dom, NC compiler, linker v97.251, 1990):
+
 ```
-Result: 0x1000 + 2 + 20 = 0x1016 (correct)
+08000205: C5 00 86   IF = GO 0x86
+  start-relative: 0x08000205 + 0x86 = 0x0800028B -> valid instruction boundary
+  end-relative:   0x08000208 + 0x86 = 0x0800028E -> lands MID-instruction (wrong)
 
-**Assembler Impact**: When calculating branch displacements, the assembler must account for the instruction size. The displacement is relative to the address AFTER the branch instruction, not the branch instruction itself.
+08000291: IF = GO 0x92 -> 0x08000291 + 0x92 = 0x08000323
+0800029D: IF = GO 0x86 -> 0x0800029D + 0x86 = 0x08000323
+  (two independent branches converge on one common exit only with the
+   start-relative anchor)
+```
+
+Note: `cpu->PC` is advanced past the instruction BEFORE the handler runs
+(cpu.c), so branch handlers must use `fi->address`, never `cpu->PC`, as the
+base. IFKGO had exactly this bug (fixed).
+
+**Assembler Impact**: branch displacements are computed from the first byte
+of the branch instruction; the assembler must NOT add the instruction size.
 
 ---
 
@@ -363,6 +372,18 @@ result = nd500_mask_to_datatype(result, fi->data_type);
 ```
 
 **Rationale**: For rotation, shift 31 on 8-bit value = shift 7 (31 % 8 = 7). Test data expects normalization, not trapping.
+
+**CAVEATS (added after manual review)**:
+- The modulo normalization is backed by NEITHER the reference manual NOR the
+  C# reference. Manual section 10.26 mandates an illegal operand value trap
+  for counts >= operand size, and C# Shr.cs traps too. The modulo exists only
+  to satisfy generated test data. Restoring the manual-mandated trap (and
+  fixing the offending test data in RetroCore) is an open decision.
+- The rotate-RIGHT-on-positive-count direction contradicts the manual's
+  "positive shiftcount implies left shift" (10.26). Both this emulator and
+  the C# reference rotate right, justified only by empirical testing against
+  nd500-as (see docs/instructions/asm/shr.md). Unresolved against real
+  hardware.
 
 ---
 
@@ -517,10 +538,13 @@ The `variant` field in the dispatch table (`nd500_instructions.c`) has DIFFERENT
 - variant 1 = BYTE (BY)
 - variant 2 = HALFWORD (H)
 
-**SHL/SHA/SHR (0xFCA8-0xFCB0)**:
-- variant 0 = HALFWORD (H)
-- variant 1 = WORD (W)
-- variant 2 = DOUBLEWORD (D)
+**SHL/SHA/SHR (0xFCA8-0xFCB0)** (corrected; an earlier revision wrongly said H/W/D):
+- variant 0 = BYTE (BY)
+- variant 1 = HALFWORD (H)
+- variant 2 = WORD (W)
+- (prefixes_mask 0x0E = BY|H|W; matches manual sections 10.24-10.26 octal
+  codes 176250B-176260B, the C# generator, and the test JSON. Shifts have
+  no BI, F or D variants.)
 
 **6-variant instructions (AssignTo, AssignFrom, etc.)**:
 - variant 0 = BI (bit)
@@ -581,7 +605,13 @@ Tests for ENTB, ENTF, ENTS, RET, RETB, RETK, RETBK, RETD execute without proper 
 
 ### Float/Double Operations
 
-Float and double arithmetic operations are stubbed out. Integer variants work correctly.
+(Updated) F/D arithmetic is implemented, not stubbed: the ND storage format
+(sign + 9-bit exponent, bias 256, hidden-bit mantissa) is faithful, but all
+arithmetic converts ND -> host IEEE 754 -> ND with truncation. The manual's
+L/G/St guard/round/sticky rounding is NOT modeled; bit-exactness against real
+hardware is unverified. Remaining literal stubs: none in ARITHMETIC after the
+MUL4/REM F/D implementation. Known limitation: no native ND rounding (would
+require a SoftFloat-style core).
 
 ---
 

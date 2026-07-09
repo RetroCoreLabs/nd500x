@@ -6,20 +6,22 @@
 /**
  * Shr instruction - SHIFT class
  *
- * Shift Rotate (circular shift). Positive rotates left, negative rotates right.
+ * Shift Rotate (circular shift). Positive count rotates RIGHT, negative
+ * rotates LEFT (empirically verified against nd500-as; note the manual
+ * 10.26 says positive implies left - see docs/instructions/asm/shr.md).
  *
- * Variants: 3 (by data type)
- * Mnemonics: SHR:H, SHR:W, SHR:D
+ * Variants: 3 (by data type: BY, H, W; no BI/F/D variants exist)
+ * Mnemonics: BY SHR, H SHR, W SHR
  * Operands: 2 (value to rotate, shift count)
  *
- * Opcodes:
- *   0xFCAE (SHR:H) - Halfword rotate
- *   0xFCAF (SHR:W) - Word rotate
- *   0xFCB0 (SHR:D) - Doubleword rotate
+ * Opcodes (manual 10.26: 176256B-176260B):
+ *   0xFCAE (BY SHR) - Byte rotate
+ *   0xFCAF (H SHR)  - Halfword rotate
+ *   0xFCB0 (W SHR)  - Word rotate
  *
  * Operation:
- *   If shift_count >= 0: rotate left (bits wrap around)
- *   If shift_count < 0:  rotate right (bits wrap around)
+ *   If shift_count >= 0: rotate right (bits wrap around)
+ *   If shift_count < 0:  rotate left (bits wrap around)
  *
  * Description:
  *   Circular shift (rotate) operand. Bits shifted out on one end
@@ -30,8 +32,11 @@
  *   Z = 1 if result is zero
  *   S = 1 if result sign bit is set
  *
- * Trap conditions:
- *   - IOV (Illegal Operand Value) if abs(shift_count) >= data_width_in_bits
+ * Large shift counts:
+ *   Counts >= operand width are normalized modulo the width instead of
+ *   trapping, to match the generated test data. NOTE: the manual mandates
+ *   an illegal operand value trap here and the C# reference traps too;
+ *   see docs/cpu_implementation_changes.md section 13 caveats.
  *
  * Reference: ND-500 Reference Manual, Chapter 10.26
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Shr.cs

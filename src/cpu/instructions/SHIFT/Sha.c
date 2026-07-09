@@ -8,18 +8,18 @@
  *
  * Shift Arithmetic. Preserves sign bit during shift.
  *
- * Variants: 3 (by data type)
- * Mnemonics: SHA:H, SHA:W, SHA:D
+ * Variants: 3 (by data type: BY, H, W; no BI/F/D variants exist)
+ * Mnemonics: BY SHA, H SHA, W SHA
  * Operands: 2 (value to shift, shift count)
  *
- * Opcodes:
- *   0xFCAB (SHA:H) - Halfword arithmetic shift
- *   0xFCAC (SHA:W) - Word arithmetic shift
- *   0xFCAD (SHA:D) - Doubleword arithmetic shift
+ * Opcodes (manual 10.25: 176253B-176255B):
+ *   0xFCAB (BY SHA) - Byte arithmetic shift
+ *   0xFCAC (H SHA)  - Halfword arithmetic shift
+ *   0xFCAD (W SHA)  - Word arithmetic shift
  *
  * Operation:
- *   If shift_count >= 0: operand << shift_count → operand (sign preserved)
- *   If shift_count < 0:  operand >> abs(shift_count) → operand (sign extended)
+ *   If shift_count >= 0: operand << shift_count -> operand (sign preserved)
+ *   If shift_count < 0:  operand >> abs(shift_count) -> operand (sign extended)
  *
  * Description:
  *   Arithmetic shift that preserves the sign bit.
