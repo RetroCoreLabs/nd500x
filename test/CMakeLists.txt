@@ -120,3 +120,46 @@ add_executable(test_alt_prefix
 )
 target_link_libraries(test_alt_prefix PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+
+# ---------------------------------------------------------------------------
+# CTest registration
+# enable_testing() is called in the top-level CMakeLists.txt.
+# disasm_tests is not registered: it requires an object file argument.
+# test_mmu_translation and test_lget_instruction always exit 0, so they are
+# gated on their printed output instead of the exit code.
+
+add_test(NAME mmu_translation COMMAND test_mmu_translation)
+set_tests_properties(mmu_translation PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
+
+add_test(NAME mmu_separate_id COMMAND test_mmu_separate_id)
+add_test(NAME source_mapping COMMAND test_source_mapping)
+
+add_test(NAME lget_instruction COMMAND test_lget_instruction)
+set_tests_properties(lget_instruction PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
+
+add_test(NAME float_arithmetic COMMAND test_float_arithmetic)
+add_test(NAME ote_instructions COMMAND test_ote_instructions)
+add_test(NAME unsigned_displacement COMMAND test_unsigned_displacement)
+add_test(NAME bit_addressing COMMAND test_bit_addressing)
+add_test(NAME mon_calls COMMAND test_mon_calls)
+add_test(NAME bmove_overlap COMMAND test_bmove_overlap)
+add_test(NAME alt_prefix COMMAND test_alt_prefix)
+
+if(CJSON_TEST_FOUND)
+    # Runner locates nd500_tests.json in its own executable directory
+    add_test(NAME instruction_validation COMMAND test_instruction_validation --continue)
+    set_tests_properties(instruction_validation PROPERTIES TIMEOUT 600)
+endif()
+
+# DOM integration smoke test: load and run a real 1990 SINTRAN-linked binary
+# (the NC compiler domain). Skipped when the external file is not present so
+# fresh checkouts and CI do not fail.
+set(NC_COMPILER_DOM "/mnt/d/ND/500/FraTor/nc/nc-a06.dom"
+    CACHE FILEPATH "Path to NC compiler DOM binary for the integration smoke test")
+if(EXISTS ${NC_COMPILER_DOM})
+    add_test(NAME dom_nc_compiler COMMAND test_dom_integration ${NC_COMPILER_DOM} 100000)
+    set_tests_properties(dom_nc_compiler PROPERTIES TIMEOUT 120)
+    message(STATUS "DOM smoke test enabled: ${NC_COMPILER_DOM}")
+else()
+    message(STATUS "DOM smoke test skipped: ${NC_COMPILER_DOM} not found")
+endif()
