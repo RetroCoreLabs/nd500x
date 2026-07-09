@@ -2,137 +2,116 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <math.h>
 
 /**
  * Rem instruction - ARITHMETIC class
  *
- * Remainder (Modulo) Operation: <dividend> % <divisor> → <result>
+ * Floating Point Remainder (float divide with remainder)
  *
- * Variants: 8
- * Mnemonics: rem
- * Operands: 3 (<dividend/r/t>, <divisor/r/t>, <result/w/t>)
+ * Format: tn REM <x/r/t>,<y/r/t>,<q/w/t>
  *
- * Opcodes:
- *   0xFE58-0xFE5F (rem) - 8 variants for different addressing modes
+ * Variants: 8 (F and D only - REM has NO integer variants)
+ * Mnemonics: Fn REM, Dn REM
+ * Operands: 3 (<x/r/t>, <y/r/t>, <q/w/t>)
  *
- * Operation: <dividend> % <divisor> → <result>
+ * Opcodes (manual 10.33: 177130B-177137B):
+ *   0xFE58-0xFE5B (Fn REM) - float, remainder to A1-A4
+ *   0xFE5C-0xFE5F (Dn REM) - double, remainder to D1-D4 (An:En pair)
+ *
+ * Operation (manual 10.33):
+ *   <q> = int(<x>/<y>)          integer part of quotient, in float format
+ *   Rn  = <x> - <q>*<y>         remainder, in float format, to register n
  *
  * Description:
- *   Computes the integer remainder of dividing the dividend by the divisor,
- *   storing the result in the destination operand. This implements the modulo
- *   operation (dividend mod divisor), which returns the remainder after
- *   integer division.
+ *   The <x> operand is divided by the <y> operand. The integer part of the
+ *   quotient (in float format) is stored in <q>. The remainder is loaded
+ *   into float register n (A-register for F, A:E pair for D), where n is
+ *   encoded in the low 2 bits of the opcode.
  *
- *   The remainder has the same sign as the dividend and satisfies:
- *     dividend = (dividend / divisor) * divisor + remainder
+ *   Note (manual): precision may be lost in the subtraction if the quotient
+ *   is large; if the binary point falls outside the floating format then
+ *   int(x/y) = x/y and Rn becomes zero.
  *
- *   Examples:
- *     17 REM 5 = 2 (because 17 = 3×5 + 2)
- *     -17 REM 5 = -2 (because -17 = -4×5 + (-2))
- *     17 REM -5 = 2 (because 17 = -3×(-5) + 2)
- *
- *   Data Types: F (float), D (double), R (register/integer)
- *
- * Flags: Z (zero), S (sign), V (overflow), C (undefined)
- *   Z = 1 if remainder is zero (dividend evenly divisible)
- *   S = 1 if remainder is negative (matches dividend sign)
- *   V = 1 if floating-point overflow
- *   C = undefined for REM
+ * Flags (manual 10.33):
+ *   Z  = 1 if remainder is zero
+ *   S  = remainder sign bit
+ *   FU = floating underflow
+ *   FO = floating overflow
+ *   DZ = 1 if <y> is zero
  *
  * Trap conditions:
- *   - Addressing traps
- *   - Divide fault (DVF) if divisor is zero
- *   - Floating-point exceptions (for F/D types)
+ *   Addressing traps, Floating overflow (FO), Floating underflow (FU),
+ *   Divide by zero (DZ)
  *
- * Key Characteristics:
- *   - Three-operand form allows flexible operand combinations
- *   - Sign of remainder matches sign of dividend (not divisor)
- *   - Division by zero traps with divide fault
- *   - Quotient is discarded (use DIV for quotient only)
- *   - Use DIV4 when both quotient and remainder are needed
- *
- * Common Use Cases:
- *   - Modular arithmetic (hash functions, cyclic buffers)
- *   - Even/odd detection (n REM 2)
- *   - Digit extraction (number REM 10)
- *   - Array index wrapping (index REM array_size)
- *   - Time calculations (seconds REM 60, minutes REM 60)
- *
- * Performance Notes:
- *   - For power-of-2 divisors, use AND with mask instead (faster)
- *   - Always traps on zero divisor - check beforehand if needed
- *   - If both quotient and remainder needed, use DIV4
- *
- * Reference: ND-500 Reference Manual, §11.x (Remainder operation)
+ * Reference: ND-500 Reference Manual, section 10.33 (Floating point remainder)
  *            /home/ronny/repos/nd500x/docs/instructions/asm/rem.md
  */
 void nd500_instr_Rem(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    // Validate operand count
+    // Validate operand count and target register (n from opcode low bits)
     if (!nd500_validate_operand_count(cpu, fi, 3, INSTR_REM)) return;
-    if (nd500_check_float_stub(fi, INSTR_REM)) return;
+    if (!nd500_validate_target_register(cpu, fi, INSTR_REM)) return;
 
-    // Read operands
-    uint64_t dividend = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
-    uint64_t divisor = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+    uint8_t reg_num = fi->target_register;
 
-    // Check for divide by zero
-    if (divisor == 0) {
+    // Read <x> and <y> as ND-format bits, convert to IEEE for arithmetic
+    double x, y;
+    if (is_double) {
+        x = nd500_double_to_ieee754(nd500_read_operand_doubleword(cpu, &fi->operands[0]));
+        y = nd500_double_to_ieee754(nd500_read_operand_doubleword(cpu, &fi->operands[1]));
+    } else {
+        x = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type));
+        y = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type));
+    }
+
+    // <y> = 0 -> DZ (manual 10.33)
+    if (y == 0.0) {
         cpu->ST1 |= ND500_FLAG_DZ;
         trap_divide_by_zero(cpu, fi->address);
         return;
     }
-
-    // Clear divide-by-zero flag
     cpu->ST1 &= ~ND500_FLAG_DZ;
 
-    // Sign-extend operands based on data type (signed arithmetic)
-    int64_t signed_dividend = 0;
-    int64_t signed_divisor = 0;
+    // Manual algorithm: q = int(x/y); Rn = x - q*y
+    double quotient = trunc(x / y);
+    double remainder = x - quotient * y;
 
-    switch (fi->data_type) {
-        case ND500_DTYPE_BYTE:
-            signed_dividend = (int8_t)(dividend & 0xFF);
-            signed_divisor = (int8_t)(divisor & 0xFF);
-            break;
-        case ND500_DTYPE_HALFWORD:
-            signed_dividend = (int16_t)(dividend & 0xFFFF);
-            signed_divisor = (int16_t)(divisor & 0xFFFF);
-            break;
-        case ND500_DTYPE_WORD:
-            signed_dividend = (int32_t)(dividend & 0xFFFFFFFF);
-            signed_divisor = (int32_t)(divisor & 0xFFFFFFFF);
-            break;
-        default:
-            signed_dividend = (int64_t)dividend;
-            signed_divisor = (int64_t)divisor;
-            break;
+    // Overflow check on the quotient (the value being stored)
+    if (isinf(quotient) || isnan(quotient)) {
+        trap_floating_overflow(cpu, fi->address);
+        return;
     }
 
-    // Compute remainder (modulo)
-    // C % operator: remainder has sign of dividend (matches ND-500 behavior)
-    int64_t remainder = signed_dividend % signed_divisor;
-
-    // Mask result to data type
-    uint32_t masked_result = nd500_mask_to_datatype((uint64_t)remainder, fi->data_type);
-
-    // Write result to destination operand
-    nd500_write_operand_value(cpu, &fi->operands[2], masked_result, fi->data_type);
-
-    // Update status flags
-    if (masked_result == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;
+    // Convert results back to ND-500 format and store:
+    // integer part of quotient -> <q> operand, remainder -> register n
+    uint64_t rem_bits;
+    if (is_double) {
+        nd500_write_operand_value(cpu, &fi->operands[2],
+                                  nd500_double_from_ieee754(quotient), fi->data_type);
+        rem_bits = nd500_double_from_ieee754(remainder);
+        nd500_write_double_register(cpu, reg_num, rem_bits);
     } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;
+        nd500_write_operand_value(cpu, &fi->operands[2],
+                                  (uint64_t)nd500_float_from_ieee754((float)quotient), fi->data_type);
+        rem_bits = nd500_float_from_ieee754((float)remainder);
+        nd500_write_float_register(cpu, reg_num, (uint32_t)rem_bits);
     }
 
-    // Set sign bit based on data type
-    bool sign_bit = nd500_is_negative(masked_result, fi->data_type);
-    if (sign_bit) {
-        cpu->ST1 |= ND500_FLAG_S;
+    // Data status bits: remainder = 0 -> Z, remainder sign -> S
+    bool rem_zero = is_double ? nd500_double_is_zero(rem_bits)
+                              : nd500_float_is_zero((uint32_t)rem_bits);
+    bool rem_neg = is_double ? nd500_double_is_negative(rem_bits)
+                             : nd500_float_is_negative((uint32_t)rem_bits);
+
+    if (rem_zero) {
+        nd500_set_flag(cpu, ND500_FLAG_Z);
     } else {
-        cpu->ST1 &= ~ND500_FLAG_S;
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
     }
-
-    // Overflow flag is not set for REM (only for floating-point variants)
-    cpu->ST1 &= ~ND500_FLAG_O;
+    if (rem_neg) {
+        nd500_set_flag(cpu, ND500_FLAG_S);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_S);
+    }
 }

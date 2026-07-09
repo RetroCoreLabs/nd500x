@@ -1234,14 +1234,6 @@ bool nd500_validate_target_register(Nd500Cpu* cpu, const Nd500FetchedInstruction
     return true;
 }
 
-bool nd500_check_float_stub(const Nd500FetchedInstruction* fi, Nd500InstrName instr) {
-    if (fi->uses_float_registers) {
-        printf("[STUB] %s at PC=0x%08X: Float/Double not yet implemented\n",
-               nd500_instr_name_str(instr), fi->address);
-        return true;  /* true = is stub, caller should return */
-    }
-    return false;  /* false = not stub, caller can continue */
-}
 
 /* ============================================================================
  * STRING DESCRIPTOR IMPLEMENTATION
@@ -2172,25 +2164,47 @@ bool nd500_double_is_negative(uint64_t nd500_bits) {
 
 /**
  * Convert ND-500 double to single (precision loss)
- * Based on ND500Double.ToSingle from C#
+ *
+ * ND single and double share the same sign position (MSB), 9-bit exponent
+ * width and bias (256); only the mantissa width differs (54 vs 22 bits).
+ * Conversion therefore keeps sign and exponent and truncates the mantissa
+ * (54 -> 22 bits), preserving all fractional precision the F format can hold.
  */
 uint32_t nd500_double_to_single(uint64_t nd500_double_bits) {
-    // Simple conversion via int64 to avoid complex precision handling
-    int64_t int_value = nd500_double_to_int64(nd500_double_bits);
-    if (int_value < INT32_MIN || int_value > INT32_MAX) {
-        // Overflow - return maximum/minimum float
-        return (int_value < 0) ? 0xFFE00000u : 0x7FE00000u;
+    // Exponent 0 means exactly zero in both formats
+    if ((nd500_double_bits & ND500_DOUBLE_EXPONENT_MASK) == 0) {
+        return 0;
     }
-    return nd500_float_from_int32((int32_t)int_value);
+
+    uint32_t sign = (nd500_double_bits & ND500_DOUBLE_SIGN_MASK) ? ND500_FLOAT_SIGN_MASK : 0;
+    uint32_t exponent = (uint32_t)((nd500_double_bits & ND500_DOUBLE_EXPONENT_MASK)
+                                   >> ND500_DOUBLE_EXPONENT_SHIFT);
+    uint64_t mantissa = nd500_double_bits & ND500_DOUBLE_MANTISSA_MASK;
+
+    // Truncate mantissa 54 -> 22 bits (drop the low 32 bits)
+    uint32_t f_mantissa = (uint32_t)(mantissa >> (ND500_DOUBLE_MANTISSA_BITS - ND500_FLOAT_MANTISSA_BITS));
+
+    return sign | (exponent << ND500_FLOAT_EXPONENT_SHIFT) | f_mantissa;
 }
 
 /**
  * Convert ND-500 single to double (precision extension)
+ *
+ * Exact: sign and exponent carry over, mantissa is widened 22 -> 54 bits
+ * with zero fill.
  */
 uint64_t nd500_single_to_double(uint32_t nd500_float_bits) {
-    // Convert via int32 to maintain accuracy
-    int32_t int_value = nd500_float_to_int32(nd500_float_bits);
-    return nd500_double_from_int64((int64_t)int_value);
+    // Exponent 0 means exactly zero in both formats
+    if ((nd500_float_bits & ND500_FLOAT_EXPONENT_MASK) == 0) {
+        return 0;
+    }
+
+    uint64_t sign = (nd500_float_bits & ND500_FLOAT_SIGN_MASK) ? ND500_DOUBLE_SIGN_MASK : 0;
+    uint64_t exponent = (nd500_float_bits & ND500_FLOAT_EXPONENT_MASK) >> ND500_FLOAT_EXPONENT_SHIFT;
+    uint64_t mantissa = nd500_float_bits & ND500_FLOAT_MANTISSA_MASK;
+
+    return sign | (exponent << ND500_DOUBLE_EXPONENT_SHIFT)
+                | (mantissa << (ND500_DOUBLE_MANTISSA_BITS - ND500_FLOAT_MANTISSA_BITS));
 }
 
 /**

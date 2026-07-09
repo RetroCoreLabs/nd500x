@@ -539,14 +539,6 @@ bool nd500_validate_operand_count(Nd500Cpu* cpu, const Nd500FetchedInstruction* 
 bool nd500_validate_target_register(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi,
                                      Nd500InstrName instr);
 
-/**
- * Check if instruction uses float registers and print stub message if so
- * @param fi Fetched instruction
- * @param instr Instruction name enum
- * @return true if float/double (not implemented), false if integer (can continue)
- */
-bool nd500_check_float_stub(const Nd500FetchedInstruction* fi, Nd500InstrName instr);
-
 /* ============================================================================
  * STACK OPERATION HELPERS (for CALL/RETURN instructions)
  * ============================================================================

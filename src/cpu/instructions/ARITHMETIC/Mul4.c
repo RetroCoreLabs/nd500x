@@ -83,7 +83,7 @@ void nd500_instr_Mul4(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Validate operands and target register
     if (!nd500_validate_operand_count(cpu, fi, 3, INSTR_MUL4)) return;
     if (!nd500_validate_target_register(cpu, fi, INSTR_MUL4)) return;
-    if (nd500_check_float_stub(fi, INSTR_MUL4)) return;
+    /* MUL4 has only BY/H/W variants (prefixes_mask 0x0E) - no float check needed */
 
     // Read operands
     uint64_t operandA = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);

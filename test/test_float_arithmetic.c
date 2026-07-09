@@ -328,6 +328,120 @@ static void test_combined_operations(void) {
     }
 }
 
+/* Test fractional values through the ND <-> IEEE conversion */
+static void test_fractional_values(void) {
+    printf("\n=== Fractional Value Tests ===\n");
+
+    /* Values exactly representable in both ND (22+1 bit mantissa) and IEEE */
+    float test_values[] = {0.5f, -0.5f, 0.25f, 2.5f, -2.5f, 3.75f, 0.125f,
+                           1.5f, -1.5f, 100.625f, -100.625f, 0.0078125f};
+    int num_tests = sizeof(test_values) / sizeof(test_values[0]);
+
+    for (int i = 0; i < num_tests; i++) {
+        float val = test_values[i];
+        uint32_t nd_bits = nd500_float_from_ieee754(val);
+        float back = nd500_float_to_ieee754(nd_bits);
+
+        char name[64];
+        snprintf(name, sizeof(name), "fractional(%g)", (double)val);
+
+        char details[128];
+        snprintf(details, sizeof(details), "expected %g, got %g (nd bits: 0x%08X)",
+                 (double)val, (double)back, nd_bits);
+
+        test_result(name, val == back, details);
+    }
+}
+
+/* Test D <-> F precision conversion (must preserve fractions, not go via int) */
+static void test_double_single_conversion(void) {
+    printf("\n=== Double <-> Single Conversion Tests ===\n");
+
+    /* F -> D -> F must be exact for any F value */
+    float f_values[] = {2.5f, -2.5f, 0.5f, 100.625f, -0.125f, 12345.0f, 1.0f};
+    int num_f = sizeof(f_values) / sizeof(f_values[0]);
+
+    for (int i = 0; i < num_f; i++) {
+        float val = f_values[i];
+        uint32_t f_bits = nd500_float_from_ieee754(val);
+        uint64_t d_bits = nd500_single_to_double(f_bits);
+        uint32_t f_back = nd500_double_to_single(d_bits);
+
+        char name[64];
+        snprintf(name, sizeof(name), "F->D->F(%g)", (double)val);
+
+        char details[160];
+        snprintf(details, sizeof(details),
+                 "f_bits 0x%08X -> d_bits 0x%016llX -> 0x%08X",
+                 f_bits, (unsigned long long)d_bits, f_back);
+
+        test_result(name, f_bits == f_back, details);
+    }
+
+    /* D -> F keeps fractional value (regression: old code converted via int64,
+     * so 2.5 D -> F yielded 2) */
+    double d_values[] = {2.5, -2.5, 0.5, 100.625, -0.125};
+    int num_d = sizeof(d_values) / sizeof(d_values[0]);
+
+    for (int i = 0; i < num_d; i++) {
+        double val = d_values[i];
+        uint64_t d_bits = nd500_double_from_ieee754(val);
+        uint32_t f_bits = nd500_double_to_single(d_bits);
+        float f_val = nd500_float_to_ieee754(f_bits);
+
+        char name[64];
+        snprintf(name, sizeof(name), "D->F(%g)", val);
+
+        char details[128];
+        snprintf(details, sizeof(details), "expected %g, got %g", val, (double)f_val);
+
+        test_result(name, (double)f_val == val, details);
+    }
+
+    /* Zero maps to zero in both directions */
+    test_result("D->F(0)", nd500_double_to_single(0) == 0, "nonzero result");
+    test_result("F->D(0)", nd500_single_to_double(0) == 0, "nonzero result");
+}
+
+/* Test overflow/underflow edges of the 9-bit bias-256 exponent */
+static void test_exponent_edges(void) {
+    printf("\n=== Exponent Edge Tests ===\n");
+
+    /* IEEE value too small for ND (ND min exponent 1 - 256 = -255 for the
+     * 0.5..1 mantissa; IEEE denormals are far below) -> flush to zero */
+    union { uint32_t u; float f; } denorm;
+    denorm.u = 0x00000001u; /* smallest IEEE denormal */
+    uint32_t nd_small = nd500_float_from_ieee754(denorm.f);
+    test_result("underflow flushes to zero", nd500_float_is_zero(nd_small),
+                "denormal did not flush to zero");
+
+    /* IEEE infinity saturates to ND max (exponent field all ones) */
+    union { uint32_t u; float f; } inf;
+    inf.u = 0x7F800000u;
+    uint32_t nd_inf = nd500_float_from_ieee754(inf.f);
+    test_result("infinity saturates", !nd500_float_is_zero(nd_inf) && !nd500_float_is_negative(nd_inf),
+                "infinity mapped to zero or negative");
+
+    /* Negative zero in, zero out */
+    union { uint32_t u; float f; } negz;
+    negz.u = 0x80000000u;
+    uint32_t nd_negz = nd500_float_from_ieee754(negz.f);
+    test_result("negative zero is zero", nd500_float_is_zero(nd_negz),
+                "minus zero did not map to ND zero");
+
+    /* Round-trip a very large in-range value */
+    float big = 1.0e30f;
+    uint32_t nd_big = nd500_float_from_ieee754(big);
+    float big_back = nd500_float_to_ieee754(nd_big);
+    /* Truncating conversion loses at most 1 ulp of the 22-bit mantissa */
+    float rel_err = (big_back - big) / big;
+    if (rel_err < 0) rel_err = -rel_err;
+    char details[128];
+    snprintf(details, sizeof(details), "1e30 -> 0x%08X -> %g (rel err %g)",
+             nd_big, (double)big_back, (double)rel_err);
+    test_result("large value roundtrip", rel_err < 1.0e-6f, details);
+}
+
 int main(int argc, char** argv) {
     printf("ND500 Float Arithmetic Tests\n");
     printf("============================\n");
@@ -340,6 +454,9 @@ int main(int argc, char** argv) {
     test_float_add_sub();
     test_double_operations();
     test_combined_operations();
+    test_fractional_values();
+    test_double_single_conversion();
+    test_exponent_edges();
 
     /* Summary */
     printf("\n============================\n");
