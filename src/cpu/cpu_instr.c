@@ -560,10 +560,17 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     /* For variable operand instructions (CALL/CALLG/POLY): decode additional argument operands */
     /* Store in BOTH fi->operands (for disassembly) and cpu->extra_operands (for execution) */
     if (is_var_op_instr) {
+        /* POLY (0xFCE0-0xFCE7): operand 1 is the polynomial DEGREE m, and
+         * m+1 coefficients follow (c(m)..c(0)). CALL/CALLG: operand 1 is
+         * the argument count itself. */
+        uint16_t extra_count = arg_count;
+        if (opcode >= 0xFCE0 && opcode <= 0xFCE7) {
+            extra_count = (uint16_t)arg_count + 1;
+        }
         if (m->cpu) {
             m->cpu->extra_operand_count = 0;
         }
-        for (uint16_t i = 0; i < arg_count && i < ND500_MAX_OPERANDS; ++i) {
+        for (uint16_t i = 0; i < extra_count && i < ND500_MAX_OPERANDS; ++i) {
             /* ALWAYS decode operand to advance cursor (required for correct instruction length) */
             /* This fixes a bug where CALL with >16 operands would have wrong return address */
             Nd500OperandDecoded temp_op;

@@ -62,8 +62,9 @@ void nd500_instr_Fconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Write result to destination operand */
-    nd500_write_operand_value(cpu, &fi->operands[1], float_result, ND500_DTYPE_WORD);
+    /* Write result to destination operand as FLOAT so a register
+     * destination goes to A1-A4, not I1-I4 */
+    nd500_write_operand_value(cpu, &fi->operands[1], float_result, ND500_DTYPE_FLOAT);
 
     /* Set flags: Z (zero), S (sign) */
     if (nd500_float_is_zero(float_result)) {

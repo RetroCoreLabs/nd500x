@@ -47,8 +47,9 @@ void nd500_instr_Biconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint64_t w_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
         bit_result = (w_val & 0xFFFFFFFF) != 0;
     } else if (fi->opcode == 0xFD58) {
-        /* F BICONV: Float to bit - check if ND-500 float is non-zero */
-        uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        /* F BICONV: Float to bit - check if ND-500 float is non-zero.
+         * Read as FLOAT so a register operand comes from A1-A4, not I1-I4. */
+        uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
         bit_result = !nd500_float_is_zero(float_bits);
     } else if (fi->opcode == 0xFD5D) {
         /* D BICONV: Double to bit - check if ND-500 double is non-zero */

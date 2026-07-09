@@ -340,9 +340,11 @@ void test_lget_with_mmu() {
      *   Offset  = 0x0801D7F0 & 0x7FF = 0x7F0 (2032)
      *
      * For this test, we'll use a simpler address that fits our memory:
-     * Virtual address 0x08001000 (segment 1, page 0, offset 0)
+     * Virtual address 0x08000000 (segment 1, L1=0, L2=0, offset 0).
+     * PS_AZI direct mode maps a SINGLE 2KB page and requires both page
+     * indices to be zero, so the virtual address must be the segment base.
      */
-    uint32_t virtual_addr = 0x08001000;
+    uint32_t virtual_addr = 0x08000000;
     uint32_t physical_addr = 0x00010000;  /* Physical address where we want data to go */
 
     printf("  Virtual addr:  0x%08X\n", virtual_addr);
@@ -362,10 +364,10 @@ void test_lget_with_mmu() {
 
     /* Set data capability for domain 0, segment 1 (bits 27-31 of virtual addr = 1)
      * Capability value: PSN (lower 13 bits) + flags
-     * We need it writable, so don't set DC_WRP
+     * DC_WRP SET means Write Permitted - required for the LGET store
      */
     int segment = (virtual_addr >> 27) & 0x1F;  /* = 1 */
-    uint16_t dc_value = psn;  /* PSN in lower bits, no write-protect */
+    uint16_t dc_value = (uint16_t)(psn | DC_WRP);  /* PSN in lower bits, writable */
     printf("  Data capability for domain 0, segment %d: PSN=%d (0x%04X)\n", segment, psn, dc_value);
 
     nd500_mmu_set_data_capability(&cpu, 0, segment, dc_value);

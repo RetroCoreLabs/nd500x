@@ -41,8 +41,9 @@ void nd500_instr_Byconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             overflow = true;
         }
     } else {
-        /* F BYCONR: Float to byte (truncate toward zero) */
-        uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        /* F BYCONR: Float to byte (truncate toward zero).
+         * Read as FLOAT so a register operand comes from A1-A4, not I1-I4. */
+        uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
         int32_t int_val = nd500_float_to_int32(float_bits);
         source_value = int_val;
         if (int_val < -128 || int_val > 127) {

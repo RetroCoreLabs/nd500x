@@ -31,9 +31,11 @@
  *   FU: Set if floating underflow occurred
  */
 void nd500_instr_Poly(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* 1. Validate operand count (must be 2 fixed operands) */
-    if (fi->operand_count != 2) {
-        printf("[ERROR] POLY at PC=0x%08X: Expected 2 operands, got %u\n",
+    /* 1. Validate operand count: 2 fixed operands (x, degree) plus the
+     * coefficients, which the decoder appends to fi->operands AND stores
+     * in cpu->extra_operands */
+    if (fi->operand_count < 2) {
+        printf("[ERROR] POLY at PC=0x%08X: Expected >=2 operands, got %u\n",
                fi->address, fi->operand_count);
         trap_illegal_operand(cpu, fi->address);
         return;

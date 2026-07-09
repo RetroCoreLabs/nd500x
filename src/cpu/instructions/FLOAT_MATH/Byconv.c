@@ -56,8 +56,9 @@ void nd500_instr_Byconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             overflow = true;
         }
     } else if (fi->opcode == 0xFD59) {
-        /* F BYCONV: Float to byte (truncate toward zero) */
-        uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        /* F BYCONV: Float to byte (truncate toward zero).
+         * Read as FLOAT so a register operand comes from A1-A4, not I1-I4. */
+        uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
         int32_t int_val = nd500_float_to_int32(float_bits);
         source_value = int_val;
         if (int_val < -128 || int_val > 127) {
@@ -78,16 +79,20 @@ void nd500_instr_Byconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Check for overflow trap */
+    /* Convert to byte (truncate) */
+    byte_result = (int8_t)source_value;
+
+    /* Integer overflow: the truncated result IS written (manual 15.2 -
+     * "conversion of longer to shorter data types is by truncation and may
+     * cause integer overflow"), then the IOV trap is raised. Flags are not
+     * updated on the trap path. */
     if (overflow) {
         printf("[TRAP] BYCONV at PC=0x%08X: Value %lld outside byte range (-128 to 127)\n",
                fi->address, (long long)source_value);
+        nd500_write_operand_value(cpu, &fi->operands[1], (uint64_t)(uint8_t)byte_result, ND500_DTYPE_BYTE);
         raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
     }
-
-    /* Convert to byte (truncate) */
-    byte_result = (int8_t)source_value;
 
     /* Write result to destination operand */
     nd500_write_operand_value(cpu, &fi->operands[1], (uint64_t)(uint8_t)byte_result, ND500_DTYPE_BYTE);

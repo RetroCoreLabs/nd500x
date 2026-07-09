@@ -46,7 +46,7 @@ void nd500_instr_Alog(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint64_t arg_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
         argument = nd500_double_to_ieee754(arg_bits);
     } else {
-        uint32_t arg_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        uint32_t arg_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
         argument = (double)nd500_float_to_ieee754(arg_bits);
     }
 

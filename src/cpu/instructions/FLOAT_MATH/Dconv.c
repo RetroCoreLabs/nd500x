@@ -52,8 +52,9 @@ void nd500_instr_Dconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         int64_t int_val = (int64_t)(int32_t)w_val;  /* Sign extend */
         double_result = nd500_double_from_int64(int_val);
     } else if (fi->opcode == 0xFD5C) {
-        /* F DCONV: Float to double */
-        uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        /* F DCONV: Float to double.
+         * Read as FLOAT so a register operand comes from A1-A4, not I1-I4. */
+        uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
         double_result = nd500_single_to_double(float_bits);
     } else {
         printf("[ERROR] DCONV at PC=0x%08X: Unknown opcode 0x%04X\n",

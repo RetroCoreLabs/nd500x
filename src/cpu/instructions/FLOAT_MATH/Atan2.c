@@ -50,8 +50,8 @@ void nd500_instr_Atan2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         y = nd500_double_to_ieee754(y_bits);
         x = nd500_double_to_ieee754(x_bits);
     } else {
-        uint32_t y_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
-        uint32_t x_bits = nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
+        uint32_t y_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
+        uint32_t x_bits = nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_FLOAT);
         y = (double)nd500_float_to_ieee754(y_bits);
         x = (double)nd500_float_to_ieee754(x_bits);
     }
