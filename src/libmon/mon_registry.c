@@ -645,7 +645,7 @@ void mon_register_all_handlers(void) {
         "Clears a device input buffer. Input from character devices, e.g. terminals, are temporarily stored i",  /* Description */
         "[I] DeviceNumber (INTEGER): Logical device number. See appendix B.",  /* Parameter details */
         mon_13B_ClearInBuffer,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -887,7 +887,7 @@ void mon_register_all_handlers(void) {
         "Gets the terminal type. The terminal type tells SINTRAN III how to handle a particular terminal. A w",  /* Description */
         "[I] DeviceNumber (INTEGER2): The logical device number of the terminal. Use 1 for your own terminal in background programs. You may specify TADs.\\n[O] TerminalType (INTEGER2): The terminal type (output). See appendix H for terminal types.",  /* Parameter details */
         mon_16B_GetTerminalType,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register(
@@ -978,7 +978,7 @@ void mon_register_all_handlers(void) {
         "Sets the type of a terminal. The terminal type tells SINTRAN III how to handle a particular terminal",  /* Description */
         "[I] DeviceNumber (INTEGER2): The logical device number of the terminal. Use 1 for your own terminal in background programs.\\n[I] TerminalType (INTEGER2): The terminal type. See appendix H for terminal types.",  /* Parameter details */
         mon_17B_SetTerminalType,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(
@@ -2706,7 +2706,7 @@ void mon_register_all_handlers(void) {
         "Sets the next byte to be read or written in an opened mass-storage file.\n\n- The bytes in a file are ",  /* Description */
         "[I] FileNumber (INTEGER): File number. See OpenFile.\\n[I] BytePointer (INTEGER4): Start byte in the file (32-bit value). First byte is 0.",  /* Parameter details */
         mon_74B_SetStartByte,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_VALIDATED,    /* Status */
         2             /* Param count */
     );
     mon_register_ex(

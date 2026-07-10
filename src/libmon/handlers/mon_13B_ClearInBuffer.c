@@ -12,17 +12,25 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
+#include "../mon_errors.h"
 
 MonResult mon_13B_ClearInBuffer(MonContext* ctx) {
-    /* TODO: Implement ClearInBuffer (CIBUF) */
+    /* CIBUF discards any UNREAD, type-ahead input pending in a character
+     * device's buffer. The emulator has no separate hardware type-ahead
+     * buffer to flush, and the queued-console input models the program's
+     * OWN scripted command stream - clearing that would drop commands the
+     * program still intends to read. So this is a success no-op: there is
+     * no pending device-buffer state to clear. */
+    if (ctx->arg_count < 1) {
+        mon_log(MON_LOG_WARN, MON_ID_13B ": Missing parameters (need 1, got %u)",
+                ctx->arg_count);
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
+        return MON_ERROR;
+    }
 
-    /* Log input parameters */
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
 
-    /* Implementation goes here */
-
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
-
-    return MON_ERROR;
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }

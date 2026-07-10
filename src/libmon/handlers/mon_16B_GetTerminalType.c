@@ -13,17 +13,28 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
+#include "../mon_errors.h"
+
+/* Terminal type reported to programs. Appendix H terminal types: 0 means an
+ * ordinary/undefined terminal, which is the safe generic answer for an
+ * emulated console (no ND-specific screen/function-key handling assumed). */
+#define MON_TERMINAL_TYPE_GENERIC 0
 
 MonResult mon_16B_GetTerminalType(MonContext* ctx) {
-    /* TODO: Implement GetTerminalType (MGTTY) */
+    if (ctx->arg_count < 2) {
+        mon_log(MON_LOG_WARN, MON_ID_16B ": Missing parameters (need 2, got %u)",
+                ctx->arg_count);
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
+        return MON_ERROR;
+    }
 
-    /* Log input parameters */
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
 
-    /* Implementation goes here */
+    /* [O] TerminalType -> generic terminal (ND-500 INTEGER = 32-bit word) */
+    mon_write_param_word(ctx, 1, MON_TERMINAL_TYPE_GENERIC);
+    MON_LOG_OUT_WORD(ctx, 1, "TerminalType");
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
-
-    return MON_ERROR;
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }

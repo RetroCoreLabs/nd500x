@@ -9,7 +9,9 @@
  *
  * Parameters:
  *   [I] FileNumber (INTEGER): File number (64-127)
- *   [I] LogSegmentNumber (INTEGER): Logical segment number to disconnect
+ *   [I] LogSegmentNumber (INTEGER): Logical segment number to disconnect.
+ *       OPTIONAL. If omitted, the file is disconnected from whichever segment
+ *       it is currently mapped to.
  *
  * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
@@ -20,9 +22,10 @@
 #include "../mon_file_table.h"
 
 MonResult mon_413B_FileNotAsSegment(MonContext* ctx) {
-    /* Defensive check for argument count */
-    if (ctx->arg_count < 2) {
-        mon_log(MON_LOG_WARN, MON_ID_413B ": Missing parameters (need 2, got %u)",
+    /* LogSegmentNumber is an OPTIONAL parameter, so one argument is legal.
+     * Only FileNumber is mandatory. */
+    if (ctx->arg_count < 1) {
+        mon_log(MON_LOG_WARN, MON_ID_413B ": Missing parameters (need at least 1, got %u)",
                 ctx->arg_count);
         mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
@@ -30,13 +33,18 @@ MonResult mon_413B_FileNotAsSegment(MonContext* ctx) {
 
     /* Read parameters */
     uint32_t file_no = mon_read_param_word(ctx, 0);
-    uint32_t log_segment_no = mon_read_param_word(ctx, 1);
+    bool have_segment_no = (ctx->arg_count >= 2);
+    uint32_t log_segment_no = have_segment_no ? mon_read_param_word(ctx, 1) : 0;
 
     MON_LOG_IN_WORD(ctx, 0, "FileNumber");
-    MON_LOG_IN_WORD(ctx, 1, "LogSegmentNumber");
-
-    mon_log(MON_LOG_DEBUG, MON_ID_413B ": IN: FileNo=%o, LogSegmentNo=%o",
-            file_no, log_segment_no);
+    if (have_segment_no) {
+        MON_LOG_IN_WORD(ctx, 1, "LogSegmentNumber");
+        mon_log(MON_LOG_DEBUG, MON_ID_413B ": IN: FileNo=%o, LogSegmentNo=%o",
+                file_no, log_segment_no);
+    } else {
+        mon_log(MON_LOG_DEBUG, MON_ID_413B ": IN: FileNo=%o, LogSegmentNo omitted",
+                file_no);
+    }
 
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
@@ -60,21 +68,24 @@ MonResult mon_413B_FileNotAsSegment(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Check if segment number matches */
-    if (entry->mapped_segment_no != log_segment_no) {
+    /* If the caller named a segment, it must be the one the file is mapped to.
+     * If the caller omitted it, disconnect whichever segment that is. */
+    if (have_segment_no && entry->mapped_segment_no != log_segment_no) {
         mon_log(MON_LOG_WARN, MON_ID_413B ": File %o mapped to segment %o, not %o",
                 file_no, entry->mapped_segment_no, log_segment_no);
         mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
-    /* Clear segment mapping state */
+    uint32_t disconnected_from = entry->mapped_segment_no;
+
+    /* Clear segment mapping state. The file itself stays open. */
     entry->mapped_as_segment = false;
     entry->mapped_segment_no = 0;
     entry->segment_access_type = 0;
 
     mon_log(MON_LOG_INFO, MON_ID_413B ": OUT: File %o disconnected from segment %o",
-            file_no, log_segment_no);
+            file_no, disconnected_from);
 
     mon_set_success(ctx);
     return MON_SUCCESS;

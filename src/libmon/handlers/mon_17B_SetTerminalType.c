@@ -14,18 +14,22 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
+#include "../mon_errors.h"
 
 MonResult mon_17B_SetTerminalType(MonContext* ctx) {
-    /* TODO: Implement SetTerminalType (MSTTY) */
+    /* The emulated console has no ND-specific terminal-type behaviour to
+     * configure, so accept and ignore the requested type. Success no-op. */
+    if (ctx->arg_count < 2) {
+        mon_log(MON_LOG_WARN, MON_ID_17B ": Missing parameters (need 2, got %u)",
+                ctx->arg_count);
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
+        return MON_ERROR;
+    }
 
-    /* Log input parameters */
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
     MON_LOG_IN_WORD(ctx, 1, "TerminalType");
 
-    /* Implementation goes here */
-
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
-
-    return MON_ERROR;
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }

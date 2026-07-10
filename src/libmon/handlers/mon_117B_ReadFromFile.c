@@ -121,17 +121,39 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Calculate file offset from block number
-     * Use 64-bit arithmetic to avoid overflow with large block numbers */
+    /* Position the file.
+     *
+     * BlockNo is a SIGNED halfword: -1 means "read the next block", i.e. carry
+     * on from wherever the previous transfer left off, without seeking. This is
+     * how sequential streaming through RFILE works. Callers sign-extend it to a
+     * word (PLANC emits H WCONV), so -1 arrives here as 0xFFFFFFFF; treating it
+     * as an unsigned block index seeks past the end and fails every read. */
     uint32_t block_size = entry->block_size ? entry->block_size : DEFAULT_BLOCK_SIZE;
-    long long file_offset = (long long)block_no * block_size;
+    int32_t block_no_signed = (int32_t)block_no;
 
-    /* Seek to the block position */
-    if (fseek(entry->host_file, (long)file_offset, SEEK_SET) != 0) {
-        mon_log(MON_LOG_WARN, MON_ID_117B ": Seek to block %o (offset %lld) failed",
-                block_no, file_offset);
-        mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
+    if (block_no_signed == -1) {
+        /* Next block: resume at the recorded position. */
+        if (fseek(entry->host_file, (long)entry->current_position, SEEK_SET) != 0) {
+            mon_log(MON_LOG_WARN, MON_ID_117B ": Seek to next block (pos %o) failed",
+                    entry->current_position);
+            mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
+            return MON_ERROR;
+        }
+    } else if (block_no_signed < 0) {
+        mon_log(MON_LOG_WARN, MON_ID_117B ": Negative block number %d (only -1 is legal)",
+                block_no_signed);
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
+    } else {
+        /* Use 64-bit arithmetic to avoid overflow with large block numbers */
+        long long file_offset = (long long)block_no * block_size;
+
+        if (fseek(entry->host_file, (long)file_offset, SEEK_SET) != 0) {
+            mon_log(MON_LOG_WARN, MON_ID_117B ": Seek to block %o (offset %lld) failed",
+                    block_no, file_offset);
+            mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
+            return MON_ERROR;
+        }
     }
 
     /* Allocate temporary buffer and read from file */
