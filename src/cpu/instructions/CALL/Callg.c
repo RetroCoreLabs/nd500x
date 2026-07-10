@@ -206,30 +206,35 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     for (uint16_t i = 0; i < arg_count && i < ND500_MAX_OPERANDS; i++) {
         const Nd500OperandDecoded* arg_operand = &cpu->extra_operands[i];
 
-        /* Validate: Arguments MUST be memory operands, not constants */
+        /* Validate: Arguments MUST be memory operands, not constants.
+         *
+         * The manual is explicit for both CALL and CALLG: "<argn> operands of
+         * type register or constant will cause an illegal operand specifier
+         * trap condition, as neither registers nor constants have an address in
+         * data memory." Trap here exactly as Call.c does - substituting address
+         * 0 and continuing hands the callee a null pointer for that argument
+         * and corrupts the frame silently. */
         if (arg_operand->mode == ND500_ADDR_CONSTANT ||
             arg_operand->mode == ND500_ADDR_CONSTANT_SHORT) {
             printf("[TRAP] CALLG at PC=0x%08X: Argument %u is constant (mode=%u), must be memory operand\n",
                    fi->address, i + 1, arg_operand->mode);
-            /* Set address to 0 to indicate error, but continue collecting other args */
-            cpu->pending_call_arg_addresses[i] = 0;
-            /* NOTE: Real hardware would raise IOS (Illegal Operand Specifier) trap here */
-            /* For now, we allow it to continue but mark the address as invalid */
-        } else {
-            /* Store effective address of this argument */
-            /* The subroutine will use this address to access the argument */
-            cpu->pending_call_arg_addresses[i] = arg_operand->effective_address;
+            trap_illegal_operand(cpu, fi->address);
+            return;
+        }
 
-            /* Check if this is a MON call (segment 31) */
-            if (do_trace) {
-                if ((subroutine_addr >> 27) == 31) {
-                    printf("[CALLG MON] arg[%u]: mode=%d, addr_code=0x%02X, ea=0x%08X, B=0x%08X, R=0x%08X\n",
-                           i, arg_operand->mode, arg_operand->address_code,
-                           arg_operand->effective_address, cpu->B, cpu->R);
-                } else {
-                    printf("  CALLG arg[%u]: addr=0x%08X (mode=%u)\n",
-                           i, arg_operand->effective_address, arg_operand->mode);
-                }
+        /* Store effective address of this argument */
+        /* The subroutine will use this address to access the argument */
+        cpu->pending_call_arg_addresses[i] = arg_operand->effective_address;
+
+        /* Check if this is a MON call (segment 31) */
+        if (do_trace) {
+            if ((subroutine_addr >> 27) == 31) {
+                printf("[CALLG MON] arg[%u]: mode=%d, addr_code=0x%02X, ea=0x%08X, B=0x%08X, R=0x%08X\n",
+                       i, arg_operand->mode, arg_operand->address_code,
+                       arg_operand->effective_address, cpu->B, cpu->R);
+            } else {
+                printf("  CALLG arg[%u]: addr=0x%08X (mode=%u)\n",
+                       i, arg_operand->effective_address, arg_operand->mode);
             }
         }
     }

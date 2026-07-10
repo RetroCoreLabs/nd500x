@@ -177,7 +177,7 @@ int nd500_cpu_run(Nd500Cpu* cpu, int steps);
 
 /* Trap system functions */
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr);
-void check_pending_traps(Nd500Cpu* cpu);
+void check_pending_traps(Nd500Cpu* cpu, uint32_t trappingPC);
 void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP);
 
 /* Trap state management */

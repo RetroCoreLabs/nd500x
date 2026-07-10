@@ -59,8 +59,12 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* For MON calls, log argument details at DEBUG level */
+    /* The routine index is the low 27 bits of the target address (ND-500
+     * Reference Manual 4.2.5). Masking to 9 bits would silently alias any MON
+     * number >= 512 onto a different call; use the same width the dispatcher in
+     * nd500_check_indirect_call() uses. */
     int is_mon_call = ((subroutine_addr >> 27) == 31);
-    uint32_t mon_number = is_mon_call ? (subroutine_addr & 0x1FF) : 0;
+    uint32_t mon_number = is_mon_call ? (subroutine_addr & 0x07FFFFFF) : 0;
 
     /* Process arguments from cpu->extra_operands (decoded by cpu_instr.c) */
     for (uint16_t i = 0; i < arg_count && i < ND500_MAX_OPERANDS; i++) {

@@ -213,8 +213,11 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 	/* Increment instruction counter (used by MON 11B TIME) */
 	cpu->instruction_count++;
 
-	/* Check for pending ignorable traps at end of instruction */
-	check_pending_traps(cpu);
+	/* Check for pending ignorable traps at end of instruction.
+	 * Pass old_pc (the faulting/just-executed instruction's address, before
+	 * PC was advanced) so RETT retries the correct instruction - not the
+	 * already-advanced cpu->PC. */
+	check_pending_traps(cpu, old_pc);
 
 	/* Check if a non-ignorable trap occurred during execution */
 	if (nd500_trap_occurred()) {
@@ -316,23 +319,28 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 /**
  * Check for pending ignorable traps at end of instruction
  * Called after each instruction completes
+ *
+ * trappingPC is the address of the instruction that just completed
+ * (the PC BEFORE it was advanced by fetch/decode), not the current
+ * (already-advanced) cpu->PC. This is the address RETT must retry,
+ * matching the C# reference (CpuND500.Execute.cs: CheckPendingTraps(instructionPC)).
  */
-void check_pending_traps(Nd500Cpu* cpu) {
+void check_pending_traps(Nd500Cpu* cpu, uint32_t trappingPC) {
 	if (!cpu) return;
-	
+
 	/* Combine ST1 and ST2 into 64-bit status */
 	uint64_t st = ((uint64_t)cpu->ST2 << 32) | cpu->ST1;
 	uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
-	
+
 	/* Find pending ignorable traps that are enabled */
 	uint64_t pending = st & ote & TRAP_IGNORABLE_MASK;
-	
+
 	if (pending != 0) {
 		/* Find highest priority trap (highest bit number) */
 		for (int bit = 29; bit >= 11; bit--) {
 			uint64_t trapBit = 1ULL << bit;
 			if (pending & trapBit) {
-				invoke_trap_handler(cpu, trapBit, cpu->PC);
+				invoke_trap_handler(cpu, trapBit, trappingPC);
 				break;  /* Only handle one trap at a time */
 			}
 		}
