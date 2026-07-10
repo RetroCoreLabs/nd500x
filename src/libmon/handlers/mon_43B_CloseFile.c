@@ -20,6 +20,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 
 MonResult mon_43B_CloseFile(MonContext* ctx) {
@@ -27,7 +28,7 @@ MonResult mon_43B_CloseFile(MonContext* ctx) {
     if (ctx->arg_count < 1) {
         mon_log(MON_LOG_WARN, MON_ID_43B ": Missing parameters (need 1, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -58,7 +59,7 @@ MonResult mon_43B_CloseFile(MonContext* ctx) {
     if (!mon_file_table_is_valid_file_number(file_number)) {
         mon_log(MON_LOG_WARN, MON_ID_43B ": Invalid file number %d (must be %o-%o)",
                 file_number, 64, 127);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_FILE_NUMBER_RANGE);  /* 127B File number out of range */
         return MON_ERROR;
     }
 
@@ -67,7 +68,7 @@ MonResult mon_43B_CloseFile(MonContext* ctx) {
 
     if (result < 0) {
         mon_log(MON_LOG_WARN, MON_ID_43B ": File %o not open", file_number);
-        mon_set_error(ctx, 53);  /* File not open */
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 

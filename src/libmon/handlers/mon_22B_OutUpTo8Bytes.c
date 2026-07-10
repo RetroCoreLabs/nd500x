@@ -19,6 +19,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 
@@ -27,7 +28,7 @@ MonResult mon_22B_OutUpTo8Bytes(MonContext* ctx) {
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_22B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -43,14 +44,14 @@ MonResult mon_22B_OutUpTo8Bytes(MonContext* ctx) {
     /* File numbers are illegal for this call */
     if (is_mass_storage_file(device_no)) {
         mon_log(MON_LOG_WARN, MON_ID_22B ": File numbers not allowed (device %o)", device_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
     /* Validate device type */
     if (!is_character_device(device_no) && !is_terminal(device_no)) {
         mon_log(MON_LOG_WARN, MON_ID_22B ": Unsupported device %o", device_no);
-        mon_set_error(ctx, 46);  /* No such filename */
+        mon_set_error(ctx, MON_ERR_NO_SUCH_DEVICE_NAME);  /* 030B No such device name */
         return MON_ERROR;
     }
 

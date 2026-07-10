@@ -19,6 +19,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 
 MonResult mon_123B_ReleaseResource(MonContext* ctx) {
@@ -26,7 +27,7 @@ MonResult mon_123B_ReleaseResource(MonContext* ctx) {
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_123B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -46,7 +47,7 @@ MonResult mon_123B_ReleaseResource(MonContext* ctx) {
     if (result < 0) {
         mon_log(MON_LOG_INFO, MON_ID_123B ": Device %o (%s) was not reserved",
                 device_no, io_flag == 0 ? "input" : "output");
-        mon_set_error(ctx, 58);  /* Device not reserved */
+        mon_set_error(ctx, MON_ERR_DEVICE_NOT_RESERVED);  /* 005B Device not reserved */
         return MON_ERROR;
     }
 

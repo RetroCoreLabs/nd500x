@@ -28,6 +28,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_errors.h"
 #include "../mon_terminal_state.h"
 
 MonResult mon_4B_SetBreak(MonContext* ctx) {
@@ -35,7 +36,7 @@ MonResult mon_4B_SetBreak(MonContext* ctx) {
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_4B ": Missing parameters (need at least 2, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 

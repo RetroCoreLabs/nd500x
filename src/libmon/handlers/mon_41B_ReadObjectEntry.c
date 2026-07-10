@@ -51,6 +51,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <string.h>
 #include <stdio.h>
@@ -142,7 +143,7 @@ static MonResult handle_mass_storage_file(MonContext* ctx, uint32_t file_number,
 
     if (!entry || !entry->in_use) {
         mon_log(MON_LOG_WARN, MON_ID_41B ": File %o not open", file_number);
-        mon_set_error(ctx, 53);  /* File not open */
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 
@@ -163,7 +164,7 @@ MonResult mon_41B_ReadObjectEntry(MonContext* ctx) {
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_41B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -197,6 +198,6 @@ MonResult mon_41B_ReadObjectEntry(MonContext* ctx) {
 
     /* Unsupported device class */
     mon_log(MON_LOG_WARN, MON_ID_41B ": Unsupported device %o", file_number);
-    mon_set_error(ctx, 46);  /* No such filename */
+    mon_set_error(ctx, MON_ERR_NO_SUCH_DEVICE_NAME);  /* 030B No such device name */
     return MON_ERROR;
 }

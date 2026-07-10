@@ -22,6 +22,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include <time.h>
 
 /* Basic time units per second */
@@ -43,7 +44,7 @@ MonResult mon_113B_GetCurrentTime(MonContext* ctx) {
     if (ctx->arg_count < 1) {
         mon_log(MON_LOG_WARN, MON_ID_113B ": Missing parameters (need 1, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -57,7 +58,7 @@ MonResult mon_113B_GetCurrentTime(MonContext* ctx) {
 
     if (!tm_now) {
         mon_log(MON_LOG_WARN, MON_ID_113B ": Failed to get local time");
-        mon_set_error(ctx, 52);
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 

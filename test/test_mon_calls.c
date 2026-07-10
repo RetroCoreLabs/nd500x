@@ -15,6 +15,7 @@
 #include "../src/cpu/nd500_domain.h"
 #include "../src/cpu/instruction_helpers.h"
 #include "../src/libmon/mon.h"
+#include "../src/libmon/mon_errors.h"
 #include "../src/libmon/mon_file_table.h"
 
 /* Test counters */
@@ -1056,12 +1057,12 @@ static void test_mon_1B_inbt_queued_input(void) {
      * queue returns error 57 (EOF) instead of waiting */
     setup_mon_context(&ctx, 1, 2, args);
     result = mon_dispatch(&ctx);
-    if (result == MON_ERROR && ctx.error_code == 57) {
-        TEST_PASS("MON 1B empty queue returns EOF error 57 (non-blocking)");
+    if (result == MON_ERROR && ctx.error_code == MON_ERR_END_OF_FILE) {
+        TEST_PASS("MON 1B empty queue returns EOF error 3 (non-blocking)");
     } else {
         char msg[64];
         snprintf(msg, sizeof(msg), "result=%d, error_code=%d", (int)result, ctx.error_code);
-        TEST_FAIL("MON 1B empty queue returns EOF error 57 (non-blocking)", msg);
+        TEST_FAIL("MON 1B empty queue returns EOF error 3 (non-blocking)", msg);
     }
 
     mon_file_table_set_console(NULL);
@@ -1088,13 +1089,13 @@ static void test_mon_321B_ueadm_deprecated(void) {
         TEST_FAIL("MON 321B returns error (deprecated)", "should fail");
     }
 
-    /* Verify error code is 52 (Invalid parameter) */
-    if (cpu.I[0] == 52) {
-        TEST_PASS("MON 321B error code is 52");
+    /* Verify error code is 124 (174B Illegal parameter) */
+    if (cpu.I[0] == MON_ERR_ILLEGAL_PARAMETER) {
+        TEST_PASS("MON 321B error code is 124 (illegal parameter)");
     } else {
         char msg[64];
         snprintf(msg, sizeof(msg), "got %u", cpu.I[0]);
-        TEST_FAIL("MON 321B error code is 52", msg);
+        TEST_FAIL("MON 321B error code is 124 (illegal parameter)", msg);
     }
 
     teardown();
@@ -1209,13 +1210,13 @@ static void test_mon_412B_fscnt_file_not_open(void) {
         TEST_FAIL("MON 412B returns error for unopened file", "should fail");
     }
 
-    /* Check error code is 53 (file not open) */
-    if (cpu.I[0] == 53) {
-        TEST_PASS("MON 412B error code is 53 (file not open)");
+    /* Check error code is 90 (132B No file opened with this number) */
+    if (cpu.I[0] == MON_ERR_FILE_NOT_OPEN) {
+        TEST_PASS("MON 412B error code is 90 (file not open)");
     } else {
         char msg[64];
         snprintf(msg, sizeof(msg), "got %u", cpu.I[0]);
-        TEST_FAIL("MON 412B error code is 53 (file not open)", msg);
+        TEST_FAIL("MON 412B error code is 90 (file not open)", msg);
     }
 
     teardown();
@@ -1273,13 +1274,13 @@ static void test_mon_413B_fscdnt_file_not_open(void) {
         TEST_FAIL("MON 413B returns error for unopened file", "should fail");
     }
 
-    /* Check error code is 53 (file not open) */
-    if (cpu.I[0] == 53) {
-        TEST_PASS("MON 413B error code is 53 (file not open)");
+    /* Check error code is 90 (132B No file opened with this number) */
+    if (cpu.I[0] == MON_ERR_FILE_NOT_OPEN) {
+        TEST_PASS("MON 413B error code is 90 (file not open)");
     } else {
         char msg[64];
         snprintf(msg, sizeof(msg), "got %u", cpu.I[0]);
-        TEST_FAIL("MON 413B error code is 53 (file not open)", msg);
+        TEST_FAIL("MON 413B error code is 90 (file not open)", msg);
     }
 
     teardown();

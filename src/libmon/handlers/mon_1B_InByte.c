@@ -18,6 +18,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 
@@ -25,7 +26,7 @@ MonResult mon_1B_InByte(MonContext* ctx) {
     /* Defensive check for argument count - need INPUT and OUTPUT params */
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_1B ": Missing parameters (need 2, got %u)", ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -56,7 +57,7 @@ MonResult mon_1B_InByte(MonContext* ctx) {
         if (!console) {
             /* No console handler configured - return EOF immediately, never block */
             mon_log(MON_LOG_DEBUG, MON_ID_1B ": No console handler, returning EOF");
-            mon_set_error(ctx, 57);  /* EOF error */
+            mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
             return MON_ERROR;
         }
 
@@ -64,7 +65,7 @@ MonResult mon_1B_InByte(MonContext* ctx) {
         if (console->char_available && !console->char_available(console->context)) {
             /* No input available - return EOF, don't block */
             mon_log(MON_LOG_DEBUG, MON_ID_1B ": No input available, EOF");
-            mon_set_error(ctx, 57);  /* EOF error */
+            mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
             return MON_ERROR;
         }
 
@@ -87,7 +88,7 @@ MonResult mon_1B_InByte(MonContext* ctx) {
         OpenFileEntry* entry = mon_file_table_get((int)device_no);
         if (!entry || !entry->in_use) {
             mon_log(MON_LOG_WARN, MON_ID_1B ": File %o not open", device_no);
-            mon_set_error(ctx, 53);  /* File not open */
+            mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
             return MON_ERROR;
         }
 
@@ -102,7 +103,7 @@ MonResult mon_1B_InByte(MonContext* ctx) {
                         byte_read, device_no, entry->current_position);
             }
         } else {
-            mon_set_error(ctx, 53);
+            mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
             return MON_ERROR;
         }
     }
@@ -110,7 +111,7 @@ MonResult mon_1B_InByte(MonContext* ctx) {
         /* Unsupported device type */
         mon_log(MON_LOG_WARN, MON_ID_1B ": Unsupported device %o",
                 device_no);
-        mon_set_error(ctx, 46);  /* No such filename */
+        mon_set_error(ctx, MON_ERR_NO_SUCH_DEVICE_NAME);  /* 030B No such device name */
         return MON_ERROR;
     }
 

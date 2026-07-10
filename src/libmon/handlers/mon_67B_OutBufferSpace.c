@@ -23,6 +23,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 
 #define DEFAULT_BUFFER_SIZE 2048
@@ -32,7 +33,7 @@ MonResult mon_67B_OutBufferSpace(MonContext* ctx) {
     if (ctx->arg_count < 1) {
         mon_log(MON_LOG_WARN, MON_ID_67B ": Missing parameters (need 1, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -46,7 +47,7 @@ MonResult mon_67B_OutBufferSpace(MonContext* ctx) {
     /* File numbers are not allowed */
     if (is_mass_storage_file(device_no)) {
         mon_log(MON_LOG_WARN, MON_ID_67B ": File numbers not supported (device %o)", device_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 

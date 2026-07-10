@@ -23,6 +23,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #ifdef _WIN32
@@ -36,7 +37,7 @@ MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_73B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -53,7 +54,7 @@ MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
         mon_log(MON_LOG_WARN, MON_ID_73B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_FILE_NUMBER_RANGE);  /* 127B File number out of range */
         return MON_ERROR;
     }
 
@@ -61,14 +62,14 @@ MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
         mon_log(MON_LOG_WARN, MON_ID_73B ": File %o not open", file_no);
-        mon_set_error(ctx, 53);  /* File not open */
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 
     /* Check access mode allows writing */
     if (entry->access_mode == ACCESS_SEQ_READ || entry->access_mode == ACCESS_RAND_READ) {
         mon_log(MON_LOG_WARN, MON_ID_73B ": File %o not open for write", file_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 

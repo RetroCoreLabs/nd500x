@@ -24,6 +24,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 
 /* Maximum reasonable block size */
@@ -34,7 +35,7 @@ MonResult mon_76B_SetBlockSize(MonContext* ctx) {
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_76B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -51,7 +52,7 @@ MonResult mon_76B_SetBlockSize(MonContext* ctx) {
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
         mon_log(MON_LOG_WARN, MON_ID_76B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_FILE_NUMBER_RANGE);  /* 127B File number out of range */
         return MON_ERROR;
     }
 
@@ -59,7 +60,7 @@ MonResult mon_76B_SetBlockSize(MonContext* ctx) {
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
         mon_log(MON_LOG_WARN, MON_ID_76B ": File %o not open", file_no);
-        mon_set_error(ctx, 53);  /* File not open */
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 
@@ -67,7 +68,7 @@ MonResult mon_76B_SetBlockSize(MonContext* ctx) {
     if (block_size == 0 || block_size > MAX_BLOCK_SIZE) {
         mon_log(MON_LOG_WARN, MON_ID_76B ": Invalid block size %o (must be 1-%o)",
                 block_size, MAX_BLOCK_SIZE);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 

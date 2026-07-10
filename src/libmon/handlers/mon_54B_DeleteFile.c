@@ -20,6 +20,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #include <string.h>
@@ -29,7 +30,7 @@ MonResult mon_54B_DeleteFile(MonContext* ctx) {
     if (ctx->arg_count < 1) {
         mon_log(MON_LOG_WARN, MON_ID_54B ": Missing parameters (need 1, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -42,7 +43,7 @@ MonResult mon_54B_DeleteFile(MonContext* ctx) {
     /* Validate filename */
     if (filename[0] == '\0') {
         mon_log(MON_LOG_WARN, MON_ID_54B ": Empty filename");
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -54,7 +55,7 @@ MonResult mon_54B_DeleteFile(MonContext* ctx) {
     FILE* test_fp = fopen(host_path, "rb");
     if (!test_fp) {
         mon_log(MON_LOG_WARN, MON_ID_54B ": File '%s' not found", host_path);
-        mon_set_error(ctx, 46);  /* File not found */
+        mon_set_error(ctx, MON_ERR_NO_SUCH_FILE_NAME);  /* 056B No such file name */
         return MON_ERROR;
     }
     fclose(test_fp);
@@ -62,7 +63,7 @@ MonResult mon_54B_DeleteFile(MonContext* ctx) {
     /* Delete the file */
     if (remove(host_path) != 0) {
         mon_log(MON_LOG_WARN, MON_ID_54B ": Failed to delete file '%s'", host_path);
-        mon_set_error(ctx, 52);  /* Invalid parameter (could be permission denied) */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 

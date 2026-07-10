@@ -23,6 +23,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include "../mon_path.h"
 #include <stdio.h>
@@ -34,7 +35,7 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
     if (ctx->arg_count < 1) {
         mon_log(MON_LOG_WARN, MON_ID_221B ": Missing parameters (need at least 1, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -53,7 +54,7 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
     /* Validate filename */
     if (filename[0] == '\0') {
         mon_log(MON_LOG_WARN, MON_ID_221B ": Empty filename");
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -85,7 +86,7 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
             unlink(host_path);
         } else {
             mon_log(MON_LOG_WARN, MON_ID_221B ": File '%s' already exists", host_path);
-            mon_set_error(ctx, 58);  /* File already exists */
+            mon_set_error(ctx, MON_ERR_FILE_ALREADY_EXISTS);  /* 076B File already exists */
             return MON_ERROR;
         }
     }
@@ -94,7 +95,7 @@ MonResult mon_221B_CreateFile(MonContext* ctx) {
     FILE* fp = fopen(host_path, "wb");
     if (!fp) {
         mon_log(MON_LOG_WARN, MON_ID_221B ": Failed to create file '%s'", host_path);
-        mon_set_error(ctx, 52);  /* Invalid parameter (could be permission denied) */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 

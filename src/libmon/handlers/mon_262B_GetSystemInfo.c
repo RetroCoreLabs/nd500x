@@ -26,13 +26,14 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 
 MonResult mon_262B_GetSystemInfo(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_262B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 

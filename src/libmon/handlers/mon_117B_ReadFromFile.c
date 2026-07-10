@@ -27,6 +27,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,7 +42,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     if (ctx->arg_count < 5) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": Missing parameters (need 5, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -63,7 +64,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_FILE_NUMBER_RANGE);  /* 127B File number out of range */
         return MON_ERROR;
     }
 
@@ -71,7 +72,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": File %o not open", file_no);
-        mon_set_error(ctx, 53);  /* File not open */
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 
@@ -80,7 +81,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     if (entry->mapped_as_segment) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": File %o is mapped as segment %o - use segment access",
                 file_no, entry->mapped_segment_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -97,13 +98,13 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
         entry->access_mode != ACCESS_RAND_EXTEND) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": File %o not open for random read (access=%o)",
                 file_no, entry->access_mode);
-        mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
+        mon_set_error(ctx, MON_ERR_NOT_OPEN_RAND_READ);  /* 126B */
         return MON_ERROR;
     }
 
     if (!entry->host_file) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": File %o has no host file handle", file_no);
-        mon_set_error(ctx, 53);
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 
@@ -116,7 +117,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
 
     if (num_bytes > MAX_READ_SIZE) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": Read size %o exceeds max %o", num_bytes, MAX_READ_SIZE);
-        mon_set_error(ctx, 52);
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -129,7 +130,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     if (fseek(entry->host_file, (long)file_offset, SEEK_SET) != 0) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": Seek to block %o (offset %lld) failed",
                 block_no, file_offset);
-        mon_set_error(ctx, 3);  /* End of file (SINTRAN code 3, per 73B SMAX doc) */
+        mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
         return MON_ERROR;
     }
 
@@ -137,7 +138,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
     uint8_t* buffer = (uint8_t*)malloc(num_bytes);
     if (!buffer) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": Failed to allocate %o byte buffer", num_bytes);
-        mon_set_error(ctx, 52);
+        mon_set_error(ctx, MON_ERR_NO_BUFFER_SPACE);  /* 131B No more buffer space */
         return MON_ERROR;
     }
 
@@ -147,7 +148,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
         mon_log(MON_LOG_WARN, MON_ID_117B ": Read error on file %o", file_no);
         free(buffer);
         clearerr(entry->host_file);
-        mon_set_error(ctx, 55);
+        mon_set_error(ctx, MON_ERR_TRANSFER_ERROR);  /* 141B Transfer error */
         return MON_ERROR;
     }
 
@@ -175,7 +176,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
         /* True EOF - no data available at requested position */
         mon_log(MON_LOG_DEBUG, MON_ID_117B ": EOF - requested %u bytes at block %u, got 0",
                 num_bytes, block_no);
-        mon_set_error(ctx, 3);  /* End of file */
+        mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
         return MON_ERROR;
     }
 
@@ -183,7 +184,7 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
         /* Short final block: partial data was written above, now signal EOF */
         mon_log(MON_LOG_DEBUG, MON_ID_117B ": Partial read - requested %u, got %zu, signalling EOF",
                 num_bytes, bytes_read);
-        mon_set_error(ctx, 3);  /* End of file (partial data delivered) */
+        mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
         return MON_ERROR;
     }
 

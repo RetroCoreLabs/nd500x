@@ -17,6 +17,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 
@@ -25,7 +26,7 @@ MonResult mon_62B_GetBytesInFile(MonContext* ctx) {
     if (ctx->arg_count < 1) {
         mon_log(MON_LOG_WARN, MON_ID_62B ": Missing parameters (need 1, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -39,7 +40,7 @@ MonResult mon_62B_GetBytesInFile(MonContext* ctx) {
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
         mon_log(MON_LOG_WARN, MON_ID_62B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_FILE_NUMBER_RANGE);  /* 127B File number out of range */
         return MON_ERROR;
     }
 
@@ -47,7 +48,7 @@ MonResult mon_62B_GetBytesInFile(MonContext* ctx) {
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
         mon_log(MON_LOG_WARN, MON_ID_62B ": File %o not open", file_no);
-        mon_set_error(ctx, 53);  /* File not open */
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 

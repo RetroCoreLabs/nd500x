@@ -19,13 +19,14 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 
 MonResult mon_317B_ExecuteCommand(MonContext* ctx) {
     /* Defensive check for argument count */
     if (ctx->arg_count < 1) {
         mon_log(MON_LOG_WARN, MON_ID_317B ": Missing parameters (need 1, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 

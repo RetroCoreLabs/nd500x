@@ -27,6 +27,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,7 +42,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     if (ctx->arg_count < 5) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": Missing parameters (need 5, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -63,7 +64,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": Invalid file number %o (must be %o-%o)", file_no, 64, 127);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_FILE_NUMBER_RANGE);  /* 127B File number out of range */
         return MON_ERROR;
     }
 
@@ -71,7 +72,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": File %o not open", file_no);
-        mon_set_error(ctx, 53);  /* File not open */
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 
@@ -80,7 +81,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     if (entry->mapped_as_segment) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": File %o is mapped as segment %o - use segment access",
                 file_no, entry->mapped_segment_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -94,13 +95,13 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
         entry->access_mode != ACCESS_RAND_EXTEND) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": File %o not open for random write (access=%o)",
                 file_no, entry->access_mode);
-        mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
+        mon_set_error(ctx, MON_ERR_NOT_OPEN_RAND_WRITE);  /* 125B */
         return MON_ERROR;
     }
 
     if (!entry->host_file) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": File %o has no host file handle", file_no);
-        mon_set_error(ctx, 53);
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 
@@ -113,7 +114,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
 
     if (num_bytes > MAX_WRITE_SIZE) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": Write size %o exceeds max %o", num_bytes, MAX_WRITE_SIZE);
-        mon_set_error(ctx, 52);
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -126,7 +127,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     if (fseek(entry->host_file, (long)file_offset, SEEK_SET) != 0) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": Seek to block %o (offset %lld) failed",
                 block_no, file_offset);
-        mon_set_error(ctx, 55);  /* Seek error */
+        mon_set_error(ctx, MON_ERR_NO_SUCH_BLOCK);  /* 143B No such block */
         return MON_ERROR;
     }
 
@@ -134,7 +135,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
     uint8_t* buffer = (uint8_t*)malloc(num_bytes);
     if (!buffer) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": Failed to allocate %o byte buffer", num_bytes);
-        mon_set_error(ctx, 52);
+        mon_set_error(ctx, MON_ERR_NO_BUFFER_SPACE);  /* 131B No more buffer space */
         return MON_ERROR;
     }
 
@@ -150,7 +151,7 @@ MonResult mon_120B_WriteToFile(MonContext* ctx) {
         mon_log(MON_LOG_WARN, MON_ID_120B ": Write error on file %o (wrote %zu of %o)",
                 file_no, bytes_written, num_bytes);
         free(buffer);
-        mon_set_error(ctx, 55);
+        mon_set_error(ctx, MON_ERR_TRANSFER_ERROR);  /* 141B Transfer error */
         return MON_ERROR;
     }
 

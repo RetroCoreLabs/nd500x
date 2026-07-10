@@ -16,6 +16,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -24,7 +25,7 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
     if (ctx->arg_count < 3) {
         mon_log(MON_LOG_WARN, MON_ID_256B ": Missing parameters (need 3, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 

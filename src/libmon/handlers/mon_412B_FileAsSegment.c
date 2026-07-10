@@ -21,6 +21,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 
 MonResult mon_412B_FileAsSegment(MonContext* ctx) {
@@ -28,7 +29,7 @@ MonResult mon_412B_FileAsSegment(MonContext* ctx) {
     if (ctx->arg_count < 3) {
         mon_log(MON_LOG_WARN, MON_ID_412B ": Missing parameters (need 3, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -47,14 +48,14 @@ MonResult mon_412B_FileAsSegment(MonContext* ctx) {
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
         mon_log(MON_LOG_WARN, MON_ID_412B ": Invalid file number %o (must be 100-177)", file_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_FILE_NUMBER_RANGE);  /* 127B File number out of range */
         return MON_ERROR;
     }
 
     /* Validate access type */
     if (access_type > 2) {
         mon_log(MON_LOG_WARN, MON_ID_412B ": Invalid access type %o (must be 0-2)", access_type);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -62,7 +63,7 @@ MonResult mon_412B_FileAsSegment(MonContext* ctx) {
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
         mon_log(MON_LOG_WARN, MON_ID_412B ": File %o not open", file_no);
-        mon_set_error(ctx, 53);  /* File not open */
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 
@@ -70,7 +71,7 @@ MonResult mon_412B_FileAsSegment(MonContext* ctx) {
     if (entry->mapped_as_segment) {
         mon_log(MON_LOG_WARN, MON_ID_412B ": File %o already mapped to segment %o",
                 file_no, entry->mapped_segment_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -78,7 +79,7 @@ MonResult mon_412B_FileAsSegment(MonContext* ctx) {
     if (access_type == 1 || access_type == 2) {  /* Write access requested */
         if (entry->access_mode == ACCESS_SEQ_READ || entry->access_mode == ACCESS_RAND_READ) {
             mon_log(MON_LOG_WARN, MON_ID_412B ": File %o not open for write", file_no);
-            mon_set_error(ctx, 52);
+            mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
             return MON_ERROR;
         }
     }

@@ -16,6 +16,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 
 MonResult mon_413B_FileNotAsSegment(MonContext* ctx) {
@@ -23,7 +24,7 @@ MonResult mon_413B_FileNotAsSegment(MonContext* ctx) {
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_413B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -40,7 +41,7 @@ MonResult mon_413B_FileNotAsSegment(MonContext* ctx) {
     /* Validate file number is in mass storage range */
     if (!is_mass_storage_file(file_no)) {
         mon_log(MON_LOG_WARN, MON_ID_413B ": Invalid file number %o (must be 100-177)", file_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_FILE_NUMBER_RANGE);  /* 127B File number out of range */
         return MON_ERROR;
     }
 
@@ -48,14 +49,14 @@ MonResult mon_413B_FileNotAsSegment(MonContext* ctx) {
     OpenFileEntry* entry = mon_file_table_get((int)file_no);
     if (!entry || !entry->in_use) {
         mon_log(MON_LOG_WARN, MON_ID_413B ": File %o not open", file_no);
-        mon_set_error(ctx, 53);  /* File not open */
+        mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
         return MON_ERROR;
     }
 
     /* Check if this file is actually mapped as a segment */
     if (!entry->mapped_as_segment) {
         mon_log(MON_LOG_WARN, MON_ID_413B ": File %o not mapped as segment", file_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -63,7 +64,7 @@ MonResult mon_413B_FileNotAsSegment(MonContext* ctx) {
     if (entry->mapped_segment_no != log_segment_no) {
         mon_log(MON_LOG_WARN, MON_ID_413B ": File %o mapped to segment %o, not %o",
                 file_no, entry->mapped_segment_no, log_segment_no);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 

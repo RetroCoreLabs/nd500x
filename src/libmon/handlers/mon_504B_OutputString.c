@@ -17,6 +17,7 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
 #include <string.h>
@@ -28,7 +29,7 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
     if (ctx->arg_count < 3) {
         mon_log(MON_LOG_WARN, MON_ID_504B ": Missing parameters (need 3, got %u)",
                 ctx->arg_count);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_MISSING_PARAMETER);  /* 157B Missing parameter */
         return MON_ERROR;
     }
 
@@ -53,7 +54,7 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
     /* Validate byte count */
     if (num_bytes > DVOUTS_MAX_BYTES) {
         mon_log(MON_LOG_WARN, MON_ID_504B ": NoOfBytes %o exceeds max %o", num_bytes, DVOUTS_MAX_BYTES);
-        mon_set_error(ctx, 52);  /* Invalid parameter */
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 
@@ -118,14 +119,14 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
         OpenFileEntry* entry = mon_file_table_get((int)device_no);
         if (!entry || !entry->in_use) {
             mon_log(MON_LOG_WARN, MON_ID_504B ": File %o not open", device_no);
-            mon_set_error(ctx, 53);  /* File not open */
+            mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
             return MON_ERROR;
         }
 
         /* Check access mode allows writing */
         if (entry->access_mode == ACCESS_SEQ_READ || entry->access_mode == ACCESS_RAND_READ) {
             mon_log(MON_LOG_WARN, MON_ID_504B ": File %o not open for writing", device_no);
-            mon_set_error(ctx, 52);  /* Invalid parameter (wrong access mode) */
+            mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
             return MON_ERROR;
         }
 
@@ -134,7 +135,7 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
             if (written != num_bytes) {
                 mon_log(MON_LOG_WARN, MON_ID_504B ": Write error on file %o (wrote %zu of %o)",
                         device_no, written, num_bytes);
-                mon_set_error(ctx, 52);
+                mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
                 return MON_ERROR;
             }
             /* Flush to ensure data is written to disk */
@@ -143,14 +144,14 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
             mon_log(MON_LOG_DEBUG, MON_ID_504B ": OUT: Wrote %o bytes to file %o, pos=%o",
                     num_bytes, device_no, entry->current_position);
         } else {
-            mon_set_error(ctx, 53);
+            mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
             return MON_ERROR;
         }
     }
     else {
         /* Unsupported device type */
         mon_log(MON_LOG_WARN, MON_ID_504B ": Unsupported device %o", device_no);
-        mon_set_error(ctx, 46);  /* No such filename */
+        mon_set_error(ctx, MON_ERR_NO_SUCH_DEVICE_NAME);  /* 030B No such device name */
         return MON_ERROR;
     }
 
