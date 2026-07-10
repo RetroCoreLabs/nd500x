@@ -44,9 +44,12 @@ trusted for this and cannot produce DOM files.
 
 ## Known bugs to fix first (all detected by the new ctest registration)
 
-- C MON 321B returns success; must return error 52 + K flag (deprecated),
-  matching C# and the manual. (C registry has it as a deliberate stub but
-  the behavior is wrong per the failing test.)
+- [RESOLVED] MON 321B UEADM (deprecated) returns error + K flag. The error
+  code is 124 (octal 174B "Illegal parameter"), NOT 52. Verified against the
+  manual's Appendix A background-error table: decimal 124 = octal 174 =
+  "Illegal parameter"; decimal 52 = octal 064 = "No such friend" (an
+  unrelated code). C is at 124 (MON_ERR_ILLEGAL_PARAMETER). The earlier "52"
+  in this doc and the plan was wrong - do not change C to 52.
 - C test data for MON 312B MOINF expects 0/-1; both emulators correctly
   return fake entry address 0xF8000000+n for implemented calls. Fix the TEST.
 - MON 1B queued-console test gets 'T' instead of 'X' - queue ordering bug in
