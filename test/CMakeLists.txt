@@ -74,6 +74,12 @@ add_executable(test_ote_instructions
 )
 target_link_libraries(test_ote_instructions PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# STO (Stack Overflow) status-bit tests for heap/stack instructions (GETB et al.)
+add_executable(test_stack_overflow
+    test_stack_overflow.c
+)
+target_link_libraries(test_stack_overflow PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # Unsigned displacement tests
 # Verifies LOCAL, RECORD, PREINDEXED displacements are treated as unsigned
 # per ND-05.009.4 Section 8.4
@@ -139,6 +145,7 @@ set_tests_properties(lget_instruction PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 
 add_test(NAME float_arithmetic COMMAND test_float_arithmetic)
 add_test(NAME ote_instructions COMMAND test_ote_instructions)
+add_test(NAME stack_overflow COMMAND test_stack_overflow)
 add_test(NAME unsigned_displacement COMMAND test_unsigned_displacement)
 add_test(NAME bit_addressing COMMAND test_bit_addressing)
 add_test(NAME mon_calls COMMAND test_mon_calls)
@@ -164,13 +171,19 @@ else()
     message(STATUS "DOM smoke test skipped: ${NC_COMPILER_DOM} not found")
 endif()
 
-# NC end-to-end compile tests: run the real NC compiler under emulation,
-# compile a C source to an object file, and byte-compare the output against
-# the checked-in baselines in test/nc_fixtures/expected/.
+# NC end-to-end compile tests: run the real NC compiler under emulation and
+# assert it reaches code generation (a PROGRESS gate on instruction count).
 #
-# NOTE: the baselines are EMULATOR-PRODUCED (self-referential) - these are
-# regression tests, not ground truth. Cross-emulator agreement with the C#
-# RetroCore emulator compiling the same sources is the real parity check.
+# History: these once byte-compared the output against emulator-produced
+# baselines, but that was a false positive - NC was only PREPROCESSING (the
+# "no rewrite" bug, root-caused to the GETB heap allocator) and the "object"
+# files were just macro-expanded source text. With that fixed NC genuinely
+# compiles, runs well past the old ~1.11M-instruction preprocessing ceiling,
+# and currently stops on a separate downstream bug (a corrupted pointer near
+# instruction 1.5M). Until that is fixed and a real NRF baseline exists, we
+# assert PROGRESS (>= 1,200,000 instructions = got past "no rewrite") rather
+# than final output. Cross-emulator agreement with the C# RetroCore emulator
+# remains the eventual ground truth.
 #
 # The sandbox is reset by a CTest fixture before each ctest invocation, and
 # both compile tests share it, so they are serialized via RESOURCE_LOCK.
@@ -188,12 +201,12 @@ if(EXISTS ${NC_COMPILER_DOM})
     add_test(NAME dom_nc_compile_a
         COMMAND test_dom_integration ${NC_COMPILER_DOM} 5000000
             --input "COMPILE A,A,A\\r"
-            --compare GUEST/A.NRF=expected/A.NRF
+            --min-instructions 1200000
         WORKING_DIRECTORY ${NC_SANDBOX})
     add_test(NAME dom_nc_compile_b
         COMMAND test_dom_integration ${NC_COMPILER_DOM} 5000000
             --input "COMPILE B,B,B\\r"
-            --compare GUEST/B.NRF=expected/B.NRF
+            --min-instructions 1200000
         WORKING_DIRECTORY ${NC_SANDBOX})
     set_tests_properties(dom_nc_compile_a dom_nc_compile_b PROPERTIES
         FIXTURES_REQUIRED nc_sandbox

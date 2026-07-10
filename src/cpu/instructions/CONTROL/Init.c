@@ -87,6 +87,11 @@ void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* STEP 4: Set initial SP (like C# line 109) */
     nd500_write_memory_32(cpu, cpu->B + OFFSET_SP, bottom_of_stack + stack_demand_main);
 
+    /* STO status bit is set/reset for each ENTS, ENTSN, ENTB, INIT, ENTM and
+     * GETB (ND-500 Reference Manual, traps section). Successful completion
+     * resets it - the bit must not stay stale after an earlier overflow. */
+    cpu->ST1 &= ~(uint32_t)TRAP_STO;
+
     /* NOTE: C# code lines 113-124 copy arguments, but manual spec does NOT mention this.
      * INIT is executed at program startup BEFORE any CALL, so no arguments should exist.
      * We omit argument copying to strictly follow the manual specification.

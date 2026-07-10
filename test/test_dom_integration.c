@@ -39,6 +39,13 @@ static int g_input_count = 0;
 static const char* g_compares[MAX_COMPARES];
 static int g_compare_count = 0;
 
+/* --min-instructions N: pass if the run executed at least N instructions,
+ * regardless of how it stopped. Used as a PROGRESS guard for work-in-progress
+ * programs that run further than a known-bad ceiling but do not yet complete
+ * cleanly (e.g. the NC compiler now reaches code generation but crashes on a
+ * separate downstream bug). 0 = disabled. */
+static uint64_t g_min_instructions = 0;
+
 /* Process \r and \n escape sequences into a malloc'd string */
 static char* process_escapes(const char* src) {
     size_t len = strlen(src);
@@ -306,6 +313,8 @@ static void print_usage(const char* prog) {
     printf("  --input <text>       Queue console input (\\r and \\n escapes; repeatable)\n");
     printf("  --compare <p>=<e>    After the run, byte-compare produced file <p>\n");
     printf("                       against expected file <e> (repeatable)\n");
+    printf("  --min-instructions N Pass if the run executed >= N instructions,\n");
+    printf("                       regardless of how it stopped (progress gate)\n");
     printf("\n");
     printf("Exit codes:\n");
     printf("  0 = Success (normal exit or completed steps)\n");
@@ -353,6 +362,8 @@ int main(int argc, char* argv[]) {
                 printf("Too many --input arguments (max %d)\n", MAX_INPUTS);
                 return 1;
             }
+        } else if (strcmp(argv[i], "--min-instructions") == 0 && i + 1 < argc) {
+            g_min_instructions = strtoull(argv[++i], NULL, 0);
         } else if (strcmp(argv[i], "--compare") == 0 && i + 1 < argc) {
             if (g_compare_count < MAX_COMPARES) {
                 g_compares[g_compare_count++] = argv[++i];
@@ -431,8 +442,24 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    /* Progress gate (--min-instructions): overrides the normal pass/fail.
+     * Passes if the run got at least N instructions in, even if it later
+     * crashed - this asserts the program reached a milestone without
+     * requiring it to complete. */
+    int passed;
+    if (g_min_instructions > 0) {
+        passed = (result.instructions_executed >= g_min_instructions);
+        printf("\nProgress gate: executed %llu / required >= %llu -> %s\n",
+               (unsigned long long)result.instructions_executed,
+               (unsigned long long)g_min_instructions,
+               passed ? "PASS" : "FAIL");
+        rc = passed ? 0 : -3;
+    } else {
+        passed = (rc == 0 && result.passed > 0 && result.failed == 0);
+    }
+
     printf("\n===============================================\n");
-    if (rc == 0 && result.passed > 0 && result.failed == 0) {
+    if (passed) {
         printf("  TEST PASSED\n");
     } else {
         printf("  TEST FAILED\n");

@@ -110,5 +110,10 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     cpu->pending_call_return_address = 0;
     cpu->pending_call_arg_count = 0;
 
+    /* STO status bit is set/reset for each ENTS, ENTSN, ENTB, INIT, ENTM and
+     * GETB (ND-500 Reference Manual, traps section). Successful completion
+     * resets it - the bit must not stay stale after an earlier overflow. */
+    cpu->ST1 &= ~(uint32_t)TRAP_STO;
+
     /* PC already advanced by cpu_step() */
 }

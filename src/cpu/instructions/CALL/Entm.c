@@ -322,6 +322,11 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     cpu->pending_call_return_address = 0;
     cpu->pending_call_arg_count = 0;
 
+    /* STO status bit is set/reset for each ENTS, ENTSN, ENTB, INIT, ENTM and
+     * GETB (ND-500 Reference Manual, traps section). Successful completion
+     * resets it - the bit must not stay stale after an earlier overflow. */
+    cpu->ST1 &= ~(uint32_t)TRAP_STO;
+
     if (do_trace) {
         printf("[ENTM] New stack initialized: B=0x%08X, TOS=0x%08X, args=%u\n",
                new_b, cpu->TOS, arg_count);
