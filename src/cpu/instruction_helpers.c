@@ -158,6 +158,69 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
     nd500_bus_write8(cpu->machine, paddr + 3, (uint8_t)(value & 0xFF));
 }
 
+int nd500_heap_alloc_block(Nd500Cpu* cpu, uint8_t log_size, uint32_t pc,
+                           uint32_t* out_addr) {
+    /* TOS points to the heap variables (section 3.3, Figure 4). */
+    uint32_t heap_vars_addr = cpu->TOS;
+    if (heap_vars_addr == 0) {
+        trap_stack_overflow(cpu, pc);
+        return 0;
+    }
+
+    /* MAXL at +0 - requesting larger than the heap allows is STO. */
+    uint32_t max_log = nd500_read_memory_32(cpu, heap_vars_addr + 0);
+    if (log_size > max_log) {
+        trap_stack_overflow(cpu, pc);
+        return 0;
+    }
+
+    /* Exact-size element available in FLOG[log_size]? Unlink it. */
+    uint32_t freelist_addr = heap_vars_addr + 12 + ((uint32_t)log_size * 4);
+    uint32_t block_addr = nd500_read_memory_32(cpu, freelist_addr);
+
+    if (block_addr != 0) {
+        uint32_t next_block = nd500_read_memory_32(cpu, block_addr);
+        nd500_write_memory_32(cpu, freelist_addr, next_block);
+    } else {
+        /* Search the larger freelists and split down to the desired size. */
+        for (uint8_t k = (uint8_t)(log_size + 1); k <= max_log; k++) {
+            freelist_addr = heap_vars_addr + 12 + ((uint32_t)k * 4);
+            block_addr = nd500_read_memory_32(cpu, freelist_addr);
+            if (block_addr != 0) {
+                uint32_t next_block = nd500_read_memory_32(cpu, block_addr);
+                nd500_write_memory_32(cpu, freelist_addr, next_block);
+
+                /* Chop into halves; each upper half goes onto its freelist.
+                 * Sizes are in words, addresses in bytes (1 word = 4 bytes). */
+                uint8_t found_size = k;
+                while (found_size > log_size) {
+                    found_size--;
+                    uint32_t half_block_size_bytes = (1U << found_size) * 4;
+                    uint32_t buddy_addr = block_addr + half_block_size_bytes;
+                    uint32_t buddy_list_addr = heap_vars_addr + 12 + ((uint32_t)found_size * 4);
+                    uint32_t old_head = nd500_read_memory_32(cpu, buddy_list_addr);
+                    nd500_write_memory_32(cpu, buddy_addr, old_head);
+                    nd500_write_memory_32(cpu, buddy_list_addr, buddy_addr);
+                }
+                break;
+            }
+        }
+
+        /* No element of the requested size or larger available - raise STO so
+         * the program's own trap handler can seed/extend the heap. GETB/ENTB
+         * must never touch STAH/ENDH (section 3.3: reserved for trap
+         * handlers); re-seeding here would hand out blocks that overlap live
+         * allocations and corrupt the heap. */
+        if (block_addr == 0) {
+            trap_stack_overflow(cpu, pc);
+            return 0;
+        }
+    }
+
+    *out_addr = block_addr;
+    return 1;
+}
+
 uint64_t nd500_read_memory_64(Nd500Cpu* cpu, uint32_t vaddr) {
     // Read eight bytes BIG-ENDIAN (ND-500 spec)
     uint32_t high = nd500_read_memory_32(cpu, vaddr);

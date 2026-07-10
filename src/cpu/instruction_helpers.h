@@ -86,6 +86,30 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr);
 void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value);
 
 /**
+ * Allocate a block from the buddy-system heap (ND-500 Reference Manual
+ * section 3.3 / 15.13). Shared by GETB and ENTB.
+ *
+ * The heap variables are pointed to by TOS: +0 MAXL, +4 STAH, +8 ENDH,
+ * +12+4*k FLOG[k] (freelist head for 2^k-word elements, 0 = empty). If the
+ * exact-size freelist is empty, a larger element is split in halves with the
+ * upper halves returned to their freelists.
+ *
+ * On success, stores the block's byte-address in *out_addr and returns 1.
+ * On heap-not-initialized (TOS==0), log_size > MAXL, or no element of the
+ * requested size or larger available, raises the STO trap (so the program's
+ * own stack-overflow handler can seed/extend the heap - GETB/ENTB must never
+ * touch STAH/ENDH themselves) and returns 0.
+ *
+ * @param cpu      CPU state
+ * @param log_size log2 of the requested element size in words
+ * @param pc       instruction address (for the trap)
+ * @param out_addr receives the allocated block byte-address on success
+ * @return 1 on success, 0 if STO was raised
+ */
+int nd500_heap_alloc_block(Nd500Cpu* cpu, uint8_t log_size, uint32_t pc,
+                           uint32_t* out_addr);
+
+/**
  * Read 64-bit doubleword from virtual memory (little-endian)
  * @param cpu CPU state
  * @param vaddr Virtual address

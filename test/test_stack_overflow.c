@@ -21,6 +21,7 @@
 #include "../src/machine/machine_protos.h"
 
 extern void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
+extern void nd500_instr_Entb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 
 static int tests_passed = 0;
 static int tests_failed = 0;
@@ -132,6 +133,52 @@ int main(void) {
     CHECK(nd500_read_memory_32(&cpu, FLOG(2)) == 0x8000 + (1u << 2) * 4u,
           "upper half placed on FLOG[2]");
     CHECK((cpu.ST1 & (uint32_t)TRAP_STO) == 0, "STO reset after successful split");
+
+    /* ---- Test 5: ENTB allocates a heap frame and resets STO ------------- */
+    printf("\nTest 5: ENTB builds a heap-block frame and resets STO\n");
+    reset_cpu(&cpu);
+    nd500_write_memory_32(&cpu, HEAP_VARS + MAXL_OFF, 4);
+    nd500_write_memory_32(&cpu, FLOG(3), 0x8000);   /* one 2^3 (32-byte) block */
+    nd500_write_memory_32(&cpu, 0x8000, 0);
+    /* Old frame at 0x7000 with SP=0x7050 (ENTB inherits SP from it) */
+    cpu.B = 0x7000;
+    nd500_write_memory_32(&cpu, 0x7000 + 8, 0x7050);
+    /* Pending CALL state that ENTB consumes */
+    cpu.pending_call_return_address = 0x1234;
+    cpu.pending_call_arg_count = 2;
+    cpu.pending_call_arg_addresses[0] = 0xAAAA;
+    cpu.pending_call_arg_addresses[1] = 0xBBBB;
+    cpu.ST1 |= (uint32_t)TRAP_STO;
+    {
+        Nd500FetchedInstruction fi = make_getb(0, 3);  /* log_size=3; no target reg */
+        nd500_instr_Entb(&cpu, &fi);
+    }
+    CHECK(cpu.B == 0x8000, "ENTB set B to the allocated block");
+    CHECK(cpu.L == 0x1234, "ENTB copied return address to L");
+    CHECK(nd500_read_memory_32(&cpu, 0x8000 + 0) == 0x7000, "frame PREVB = old B");
+    CHECK(nd500_read_memory_32(&cpu, 0x8000 + 4) == 0x1234, "frame RETA = return addr");
+    CHECK(nd500_read_memory_32(&cpu, 0x8000 + 8) == 0x7050, "frame SP inherited from old frame");
+    CHECK(nd500_read_memory_32(&cpu, 0x8000 + 12) == 3, "frame AUX/LOG = log size");
+    CHECK(nd500_read_memory_32(&cpu, 0x8000 + 16) == 2, "frame N = argument count");
+    CHECK(nd500_read_memory_32(&cpu, 0x8000 + 20) == 0xAAAA, "frame ARG1 = first arg address");
+    CHECK(cpu.pending_call_return_address == 0, "pending call state cleared");
+    CHECK((cpu.ST1 & (uint32_t)TRAP_STO) == 0, "STO reset on successful ENTB");
+
+    /* ---- Test 6: ENTB on an exhausted heap sets STO and does not enter --- */
+    printf("\nTest 6: ENTB heap exhaustion sets STO, frame not entered\n");
+    reset_cpu(&cpu);
+    nd500_write_memory_32(&cpu, HEAP_VARS + MAXL_OFF, 4);
+    for (int k = 0; k <= 4; k++) nd500_write_memory_32(&cpu, FLOG(k), 0);
+    cpu.B = 0x7000;
+    cpu.pending_call_return_address = 0x1234;
+    cpu.pending_call_arg_count = 0;
+    {
+        Nd500FetchedInstruction fi = make_getb(0, 3);
+        nd500_instr_Entb(&cpu, &fi);
+    }
+    CHECK((cpu.ST1 & (uint32_t)TRAP_STO) != 0, "STO set on ENTB heap exhaustion");
+    CHECK(cpu.B == 0x7000, "B unchanged when ENTB cannot allocate");
+    CHECK(cpu.pending_call_return_address == 0x1234, "pending call state left intact on failure");
 
     nd500_machine_free(&m);
     printf("\nPassed: %d\nFailed: %d\n", tests_passed, tests_failed);

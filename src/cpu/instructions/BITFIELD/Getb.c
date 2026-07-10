@@ -87,76 +87,12 @@ void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read log_size operand (byte value) - handles both register and memory modes */
     uint8_t log_size = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
 
-    /* TOS must point to the heap variables */
-    uint32_t heap_vars_addr = cpu->TOS;
-    if (heap_vars_addr == 0) {
-        printf("[ERROR] GETB at PC=0x%08X: TOS register is zero (heap not initialized)\n",
-               fi->address);
-        trap_stack_overflow(cpu, fi->address);
+    /* Allocate a block from the buddy heap (shared with ENTB). On failure the
+     * helper has already raised the STO trap so the program's own handler can
+     * seed/extend the heap. */
+    uint32_t block_addr = 0;
+    if (!nd500_heap_alloc_block(cpu, log_size, fi->address, &block_addr)) {
         return;
-    }
-
-    /* Read MAXL (maximum log size of elements allowed) at TOS+0 */
-    uint32_t max_log = nd500_read_memory_32(cpu, heap_vars_addr + 0);
-
-    /* Requested size larger than MAXL -> STO (section 3.3) */
-    if (log_size > max_log) {
-        TRACE("[GETB] PC=0x%08X: Requested log_size=%u exceeds MAXL=%u, invoking STO trap\n",
-              fi->address, log_size, max_log);
-        trap_stack_overflow(cpu, fi->address);
-        return;
-    }
-
-    /* Exact size available in FLOG[log_size]? Unlink from the freelist. */
-    uint32_t freelist_addr = heap_vars_addr + 12 + (log_size * 4);
-    uint32_t block_addr = nd500_read_memory_32(cpu, freelist_addr);
-
-    if (block_addr != 0) {
-        uint32_t next_block = nd500_read_memory_32(cpu, block_addr);
-        nd500_write_memory_32(cpu, freelist_addr, next_block);
-    } else {
-        /* List empty - examine the lists for larger elements */
-        for (uint8_t k = log_size + 1; k <= max_log; k++) {
-            freelist_addr = heap_vars_addr + 12 + (k * 4);
-            block_addr = nd500_read_memory_32(cpu, freelist_addr);
-
-            if (block_addr != 0) {
-                /* Found larger element - unlink it */
-                uint32_t next_block = nd500_read_memory_32(cpu, block_addr);
-                nd500_write_memory_32(cpu, freelist_addr, next_block);
-
-                /* Chop into halves until the desired size is reached; the
-                 * upper half of each chop goes onto its freelist. Sizes are
-                 * in words, addresses in bytes (1 word = 4 bytes). */
-                uint8_t found_size = k;
-                while (found_size > log_size) {
-                    found_size--;
-
-                    uint32_t half_block_size_bytes = (1U << found_size) * 4;
-                    uint32_t buddy_addr = block_addr + half_block_size_bytes;
-
-                    uint32_t buddy_list_addr = heap_vars_addr + 12 + (found_size * 4);
-                    uint32_t old_head = nd500_read_memory_32(cpu, buddy_list_addr);
-
-                    nd500_write_memory_32(cpu, buddy_addr, old_head);
-                    nd500_write_memory_32(cpu, buddy_list_addr, buddy_addr);
-                }
-                break;
-            }
-        }
-
-        /* No element of the requested size or larger available - raise STO
-         * so the program's own trap handler can seed or extend the heap.
-         * GETB itself must never touch STAH/ENDH (section 3.3: they are
-         * reserved for trap handlers). Re-seeding from STAH here would hand
-         * out blocks that overlap earlier allocations and corrupt live heap
-         * objects. */
-        if (block_addr == 0) {
-            TRACE("[GETB] PC=0x%08X: No free blocks for log_size=%u, invoking STO trap\n",
-                   fi->address, log_size);
-            trap_stack_overflow(cpu, fi->address);
-            return;
-        }
     }
 
     /* Successful completion resets the STO status bit (set/reset for each

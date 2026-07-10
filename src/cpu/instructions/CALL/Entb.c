@@ -126,21 +126,10 @@
  * - TOS register must point to valid heap descriptor
  * - Heap must be initialized before first ENTB
  *
- * IMPLEMENTATION STATUS: TODO (Buddy system allocator not implemented)
- *
- * Current implementation:
- * - Full validation and error checking
- * - Comprehensive documentation from C# reference
- * - Frame initialization logic implemented
- * - Buddy allocator marked as TODO (requires ~250 lines)
- *
- * To complete:
- * 1. Implement buddy system heap management helpers:
- *    - nd500_read_heap_maxl()
- *    - nd500_allocate_heap_block()
- *    - nd500_split_heap_block()
- * 2. Add heap structure validation
- * 3. Add unit tests for buddy allocation
+ * IMPLEMENTATION STATUS: implemented. Allocation uses the shared buddy-heap
+ * helper nd500_heap_alloc_block() (also used by GETB); the frame is built as
+ * in ENTS with the block log size stored in AUX/LOG and B.SP inherited from
+ * the old frame. Covered by test/test_stack_overflow.c (tests 5-6).
  *
  * Related Instructions:
  * - ENTS:  Enter stack-based subroutine (stack allocation)
@@ -185,108 +174,66 @@ void nd500_instr_Entb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
            log_size, log_size, (1u << log_size), (1u << (log_size + 2)), fi->address);
 
     /* ========================================================================
-     * STEP 4-6: BUDDY SYSTEM HEAP ALLOCATION
-     * ========================================================================
-     *
-     * TODO: Implement buddy system heap management
-     *
-     * Required steps:
-     * 1. Read MAXL from TOS+0 (max log size allowed)
-     * 2. Validate log_size <= MAXL
-     * 3. Try to allocate from FLOG[log_size] (exact size)
-     * 4. If not available, find larger block and split
-     * 5. Link split buddies back to free lists
-     * 6. If no blocks available, raise STO trap
-     *
-     * Required helper functions (from Instructionset.BuddySystem.cs):
-     *   uint32_t nd500_read_heap_maxl(Nd500Cpu* cpu);
-     *   uint32_t nd500_read_heap_free_list_head(Nd500Cpu* cpu, uint32_t log_size);
-     *   void nd500_write_heap_free_list_head(Nd500Cpu* cpu, uint32_t log_size, uint32_t addr);
-     *   uint32_t nd500_allocate_heap_block(Nd500Cpu* cpu, uint32_t log_size);
-     *   uint32_t nd500_split_heap_block(Nd500Cpu* cpu, uint32_t addr, uint32_t current_log, uint32_t target_log);
-     *
-     * Heap structure at TOS:
-     *   +0: MAXL (max log size)
-     *   +4: STAH (start of heap)
-     *   +8: ENDH (end of heap)
-     *   +12: FLOG[0] (free list for 2^0 words)
-     *   +16: FLOG[1] (free list for 2^1 words)
-     *   +20: FLOG[2] (free list for 2^2 words)
-     *   ...
-     *
-     * Free list link format:
-     *   - Each block's first word = address of next free block (0 = end)
-     *
-     * Allocation algorithm:
-     *   1. Check FLOG[log_size] for exact size
-     *   2. If found: unlink and return
-     *   3. If not: search FLOG[log_size+1..MAXL] for larger block
-     *   4. Split larger block in half repeatedly until reaching target size
-     *   5. Link unused buddies to appropriate FLOG lists
-     *
+     * STEP 4-6: BUDDY SYSTEM HEAP ALLOCATION (shared helper, also used by GETB)
      * ======================================================================== */
-
-    /* TEMPORARY STUB: For now, raise STO trap until buddy allocator is implemented */
-    printf("[TODO] ENTB buddy allocator not implemented - raising STO trap at PC=0x%08X\n",
-           fi->address);
-    trap_stack_overflow(cpu, fi->address);
-    return;
+    /* On failure the helper has already raised STO so the program's own
+     * stack-overflow trap handler can seed/extend the heap. */
+    uint32_t block_address = 0;
+    if (!nd500_heap_alloc_block(cpu, (uint8_t)log_size, fi->address, &block_address)) {
+        return;
+    }
 
     /* ========================================================================
-     * STEP 7-10: FRAME INITIALIZATION (will be enabled when allocator works)
+     * STEP 7-10: FRAME INITIALIZATION
      * ========================================================================
-     *
-     * This code is ready but commented out until buddy allocator exists:
-
-    uint32_t block_address = allocated_block; // From buddy allocator
-
-    // Frame offsets (identical to ENTS)
-    const uint32_t OFFSET_PREVB = 0;
-    const uint32_t OFFSET_RETA = 4;
-    const uint32_t OFFSET_SP = 8;
+     * Frame layout is identical to ENTS except that the block's log size is
+     * stored in the AUX/LOG field, and B.SP is INHERITED from the old frame
+     * (a heap block is not a stack extent, so SP is not derived from it). */
+    const uint32_t OFFSET_PREVB   = 0;
+    const uint32_t OFFSET_RETA    = 4;
+    const uint32_t OFFSET_SP      = 8;
     const uint32_t OFFSET_AUX_LOG = 12;
-    const uint32_t OFFSET_N = 16;
-    const uint32_t OFFSET_ARG1 = 20;
+    const uint32_t OFFSET_N       = 16;
+    const uint32_t OFFSET_ARG1    = 20;
 
-    // Save old B
     uint32_t old_b = cpu->B;
 
-    // Initialize frame structure
+    /* B.PREVB = old B */
     nd500_write_memory_32(cpu, block_address + OFFSET_PREVB, old_b);
 
-    // Set return address in frame and L register
+    /* B.RETA = return address; also copied to L */
     uint32_t return_addr = cpu->pending_call_return_address;
     nd500_write_memory_32(cpu, block_address + OFFSET_RETA, return_addr);
     cpu->L = return_addr;
 
-    // Inherit SP from old frame (oldB.SP -> B.SP)
+    /* B.SP inherited from old frame (oldB.SP -> newBlock.SP) */
     uint32_t old_sp = nd500_read_memory_32(cpu, old_b + OFFSET_SP);
     nd500_write_memory_32(cpu, block_address + OFFSET_SP, old_sp);
 
-    // Store log size in AUX/LOG location
+    /* B.AUX/LOG = block log size */
     nd500_write_memory_32(cpu, block_address + OFFSET_AUX_LOG, log_size);
 
-    // Copy argument count
+    /* B.N = argument count */
     uint32_t arg_count = cpu->pending_call_arg_count;
     nd500_write_memory_32(cpu, block_address + OFFSET_N, arg_count);
 
-    // Copy argument addresses
+    /* B.ARG1+ = argument effective addresses */
     for (uint32_t i = 0; i < arg_count && i < ND500_MAX_OPERANDS; i++) {
-        uint32_t arg_addr = cpu->pending_call_arg_addresses[i];
-        nd500_write_memory_32(cpu, block_address + OFFSET_ARG1 + (i * 4), arg_addr);
+        nd500_write_memory_32(cpu, block_address + OFFSET_ARG1 + (i * 4),
+                              cpu->pending_call_arg_addresses[i]);
     }
 
-    // Update B register to new heap block
+    /* Update B to the new heap block frame */
     cpu->B = block_address;
 
-    // Clear pending call state (consumed by ENTB)
+    /* Clear pending call state (consumed by ENTB) */
     cpu->pending_call_return_address = 0;
     cpu->pending_call_arg_count = 0;
 
-    printf("[ENTB] Completed: B=0x%08X, log_size=%u, return=0x%08X, args=%u at PC=0x%08X\n",
-           cpu->B, log_size, return_addr, arg_count, fi->address);
+    /* STO status bit is set/reset for each ENTS, ENTSN, ENTB, INIT, ENTM and
+     * GETB (ND-500 Reference Manual, traps section). Successful completion
+     * resets it - the bit must not stay stale after an earlier overflow. */
+    cpu->ST1 &= ~(uint32_t)TRAP_STO;
 
-    // Data status bits unaffected
-
-     * ======================================================================== */
+    /* Data status bits (Z, S, C, O, K) unaffected */
 }
