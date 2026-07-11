@@ -1024,91 +1024,9 @@ static int cmd_set(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 	uint32_t value = nd500_cmd_parse_u32(value_str, 0);
 
-	/* Set register based on name */
-	if (strcmp(reg_name, "PC") == 0) {
-		m->cpu->PC = value;
-		output(ctx, "PC = 0x%08X", value);
-	} else if (strcmp(reg_name, "I1") == 0) {
-		m->cpu->I[0] = value;
-		output(ctx, "I1 = 0x%08X", value);
-	} else if (strcmp(reg_name, "I2") == 0) {
-		m->cpu->I[1] = value;
-		output(ctx, "I2 = 0x%08X", value);
-	} else if (strcmp(reg_name, "I3") == 0) {
-		m->cpu->I[2] = value;
-		output(ctx, "I3 = 0x%08X", value);
-	} else if (strcmp(reg_name, "I4") == 0) {
-		m->cpu->I[3] = value;
-		output(ctx, "I4 = 0x%08X", value);
-	} else if (strcmp(reg_name, "A1") == 0) {
-		m->cpu->A[0] = value;
-		output(ctx, "A1 = 0x%08X", value);
-	} else if (strcmp(reg_name, "A2") == 0) {
-		m->cpu->A[1] = value;
-		output(ctx, "A2 = 0x%08X", value);
-	} else if (strcmp(reg_name, "A3") == 0) {
-		m->cpu->A[2] = value;
-		output(ctx, "A3 = 0x%08X", value);
-	} else if (strcmp(reg_name, "A4") == 0) {
-		m->cpu->A[3] = value;
-		output(ctx, "A4 = 0x%08X", value);
-	} else if (strcmp(reg_name, "E1") == 0) {
-		m->cpu->E[0] = value;
-		output(ctx, "E1 = 0x%08X", value);
-	} else if (strcmp(reg_name, "E2") == 0) {
-		m->cpu->E[1] = value;
-		output(ctx, "E2 = 0x%08X", value);
-	} else if (strcmp(reg_name, "E3") == 0) {
-		m->cpu->E[2] = value;
-		output(ctx, "E3 = 0x%08X", value);
-	} else if (strcmp(reg_name, "E4") == 0) {
-		m->cpu->E[3] = value;
-		output(ctx, "E4 = 0x%08X", value);
-	} else if (strcmp(reg_name, "L") == 0) {
-		m->cpu->L = value;
-		output(ctx, "L = 0x%08X", value);
-	} else if (strcmp(reg_name, "B") == 0) {
-		m->cpu->B = value;
-		output(ctx, "B = 0x%08X", value);
-	} else if (strcmp(reg_name, "R") == 0) {
-		m->cpu->R = value;
-		output(ctx, "R = 0x%08X", value);
-	} else if (strcmp(reg_name, "FLAGS") == 0) {
-		m->cpu->FLAGS = value;
-		output(ctx, "FLAGS = 0x%08X", value);
-	} else if (strcmp(reg_name, "TOS") == 0) {
-		m->cpu->TOS = value;
-		output(ctx, "TOS = 0x%08X", value);
-	} else if (strcmp(reg_name, "LL") == 0) {
-		m->cpu->LL = value;
-		output(ctx, "LL = 0x%08X", value);
-	} else if (strcmp(reg_name, "HL") == 0) {
-		m->cpu->HL = value;
-		output(ctx, "HL = 0x%08X", value);
-	} else if (strcmp(reg_name, "THA") == 0) {
-		m->cpu->THA = value;
-		output(ctx, "THA = 0x%08X", value);
-	} else if (strcmp(reg_name, "ST1") == 0) {
-		m->cpu->ST1 = value;
-		output(ctx, "ST1 = 0x%08X", value);
-	} else if (strcmp(reg_name, "ST2") == 0) {
-		m->cpu->ST2 = value;
-		output(ctx, "ST2 = 0x%08X", value);
-	} else if (strcmp(reg_name, "PSTP") == 0) {
-		m->cpu->PSTP = value;
-		output(ctx, "PSTP = 0x%08X", value);
-	} else if (strcmp(reg_name, "DITBASE") == 0) {
-		m->cpu->DITBASE = value;
-		output(ctx, "DITBASE = 0x%08X", value);
-	} else if (strcmp(reg_name, "CED") == 0) {
-		m->cpu->CED = value;
-		output(ctx, "CED = 0x%08X", value);
-	} else if (strcmp(reg_name, "CAD") == 0) {
-		m->cpu->CAD = value;
-		output(ctx, "CAD = 0x%08X", value);
-	} else if (strcmp(reg_name, "PS") == 0) {
-		m->cpu->PS = value;
-		output(ctx, "PS = 0x%08X", value);
+	/* Set register based on name (shared table in debug_api.c) */
+	if (nd500_dbg_reg_set_by_name(m->cpu, reg_name, value) == 0) {
+		output(ctx, "%s = 0x%08X", reg_name, value);
 	} else {
 		error(ctx, "unknown register: %s", reg_name);
 		error(ctx, "registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2");
@@ -2216,20 +2134,21 @@ static int cmd_wp(Nd500Machine* m, CmdContext* ctx, char* args) {
 			error(ctx, "usage: wp reg <register_name>");
 			return -1;
 		}
-		uint32_t reg_index = 0;
-		if (strcasecmp(a2, "PC") == 0) reg_index = 0;
-		else if (strcasecmp(a2, "I1") == 0) reg_index = 1;
-		else if (strcasecmp(a2, "I2") == 0) reg_index = 2;
-		else if (strcasecmp(a2, "I3") == 0) reg_index = 3;
-		else if (strcasecmp(a2, "I4") == 0) reg_index = 4;
-		else if (strcasecmp(a2, "L") == 0) reg_index = 5;
-		else if (strcasecmp(a2, "B") == 0) reg_index = 6;
-		else if (strcasecmp(a2, "R") == 0) reg_index = 7;
-		else {
+		int reg_index = wp_register_index_for_name(a2);
+		if (reg_index < 0) {
 			error(ctx, "Unknown register: %s", a2);
 			return -1;
 		}
-		wp_add_register(m->bp_mgr, a2, reg_index);
+		int wid = wp_add_register(m->bp_mgr, a2, (uint32_t)reg_index);
+		if (wid >= 0 && m->cpu) {
+			/* Prime with the current value so the watch fires on the
+			 * next change, not immediately */
+			uint32_t cur[WP_REG_INDEX_COUNT] = {
+				m->cpu->PC, m->cpu->I[0], m->cpu->I[1], m->cpu->I[2],
+				m->cpu->I[3], m->cpu->L, m->cpu->B, m->cpu->R
+			};
+			m->bp_mgr->watchpoints[wid].last_value = cur[reg_index];
+		}
 	} else {
 		uint32_t addr = nd500_cmd_parse_u32(a1, 0);
 		uint32_t len = a2 ? nd500_cmd_parse_u32(a2, 4) : 4;

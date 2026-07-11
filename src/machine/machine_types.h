@@ -11,6 +11,7 @@ typedef enum {
 	STOP_BREAKPOINT,
 	STOP_WATCHPOINT_READ,
 	STOP_WATCHPOINT_WRITE,
+	STOP_WATCHPOINT_REGISTER,
 	STOP_TRAP_PAGE_FAULT,
 	STOP_TRAP_PROTECTION_VIOLATION,
 	STOP_TRAP_ILLEGAL_INSTRUCTION,
@@ -38,6 +39,11 @@ typedef struct Nd500Machine {
 	struct Nd500Cpu* cpu; /* linked CPU for debug APIs */
 	struct BreakpointManager* bp_mgr; /* Breakpoint/watchpoint manager */
 	int mmu_enabled; /* MMU address translation enabled */
+	/* Resume-from-breakpoint: skip the breakpoint check once at this PC
+	 * so step/continue can leave a breakpoint the CPU is parked on
+	 * (set by nd500_dbg_run/nd500_dbg_step, consumed by nd500_cpu_step) */
+	uint32_t bp_resume_pc;
+	volatile int bp_resume_skip;
 } Nd500Machine;
 
 /* Get human-readable stop reason string */

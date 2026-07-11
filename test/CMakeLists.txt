@@ -25,6 +25,17 @@ add_executable(test_lget_instruction
 )
 target_link_libraries(test_lget_instruction PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# DAP adapter unit tests (only when libdap is part of the build)
+if(TARGET dap_objects)
+    add_executable(test_dap_adapter
+        test_dap_adapter.c
+    )
+    target_link_libraries(test_dap_adapter PRIVATE
+        nd500_debugger nd500_machine nd500_cpu nd500_ndlib mon)
+    target_include_directories(test_dap_adapter PRIVATE
+        ${CMAKE_SOURCE_DIR}/external/libdap/libdap/include)
+endif()
+
 # Instruction validation tests (requires cJSON)
 # Find cJSON independently to ensure it's available in this scope
 find_package(PkgConfig QUIET)
@@ -151,6 +162,10 @@ add_test(NAME bit_addressing COMMAND test_bit_addressing)
 add_test(NAME mon_calls COMMAND test_mon_calls)
 add_test(NAME bmove_overlap COMMAND test_bmove_overlap)
 add_test(NAME alt_prefix COMMAND test_alt_prefix)
+
+if(TARGET dap_objects)
+    add_test(NAME dap_adapter COMMAND test_dap_adapter)
+endif()
 
 if(CJSON_TEST_FOUND)
     # Runner locates nd500_tests.json in its own executable directory

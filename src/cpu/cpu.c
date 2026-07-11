@@ -93,8 +93,16 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 		return false;
 	}
 
-	/* Check breakpoints before executing instruction */
-	if (cpu->machine->bp_mgr && bp_should_break_at(cpu->machine->bp_mgr, cpu->PC)) {
+	/* Check breakpoints before executing instruction.
+	 * A resume (step/continue) from a PC that has a breakpoint must
+	 * execute that instruction instead of immediately re-breaking. */
+	int bp_skip = 0;
+	if (cpu->machine->bp_resume_skip) {
+		bp_skip = (cpu->machine->bp_resume_pc == cpu->PC);
+		cpu->machine->bp_resume_skip = 0;
+	}
+	if (!bp_skip && cpu->machine->bp_mgr &&
+	    bp_should_break_at(cpu->machine->bp_mgr, cpu->PC)) {
 		cpu->machine->run_flag = 0;
 		cpu->machine->stop_reason = STOP_BREAKPOINT;
 		cpu->machine->stop_addr = cpu->PC;
@@ -230,6 +238,26 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 			printf("[STOP] %s at PC=0x%08X data=0x%08X\n",
 			       nd500_stop_reason_str(cpu->machine->stop_reason),
 			       trap->trap_pc, trap->trap_data_addr);
+			return false;
+		}
+	}
+
+	/* Check register watchpoints. Guarded by wp_count so the cost is a
+	 * single compare per instruction when no watchpoints exist. */
+	if (cpu->machine->bp_mgr && cpu->machine->bp_mgr->wp_count > 0) {
+		uint32_t wp_regs[WP_REG_INDEX_COUNT] = {
+			cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3],
+			cpu->L, cpu->B, cpu->R
+		};
+		int hit = wp_check_registers(cpu->machine->bp_mgr, wp_regs);
+		if (hit >= 0) {
+			cpu->machine->run_flag = 0;
+			cpu->machine->stop_reason = STOP_WATCHPOINT_REGISTER;
+			cpu->machine->stop_addr = cpu->PC;
+			cpu->machine->stop_data =
+				cpu->machine->bp_mgr->watchpoints[hit].last_value;
+			printf("[STOP] Register watchpoint (%s) at PC=0x%08X\n",
+			       cpu->machine->bp_mgr->watchpoints[hit].register_name, cpu->PC);
 			return false;
 		}
 	}

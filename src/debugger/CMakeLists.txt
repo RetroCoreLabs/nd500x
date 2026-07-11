@@ -9,11 +9,12 @@ if(READLINE_FOUND)
     target_include_directories(nd500_debugger PUBLIC ${READLINE_INCLUDE_DIRS})
 endif()
 
-if(DEFINED HAVE_LIBDAP)
-    target_compile_definitions(nd500_debugger PUBLIC WITH_DEBUGGER)
-    if(TARGET dap_objects)
-        target_link_libraries(nd500_debugger PUBLIC dap_objects)
-        target_include_directories(nd500_debugger PUBLIC ${CMAKE_SOURCE_DIR}/external/libdap/libdap/include)
-    endif()
+# DAP support: enabled when the libdap object library target exists
+# (added by the top-level CMakeLists when external/libdap is present and
+# SKIP_LIBDAP is off). DAP_ENABLED matches the nd100x convention.
+if(TARGET dap_objects)
+    target_compile_definitions(nd500_debugger PUBLIC DAP_ENABLED=1)
+    target_link_libraries(nd500_debugger PUBLIC dap_objects)
+    target_include_directories(nd500_debugger PUBLIC ${CMAKE_SOURCE_DIR}/external/libdap/libdap/include)
 endif()
 

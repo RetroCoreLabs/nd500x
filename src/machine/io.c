@@ -14,6 +14,7 @@ const char* nd500_stop_reason_str(StopReason reason) {
 		case STOP_BREAKPOINT:               return "breakpoint";
 		case STOP_WATCHPOINT_READ:          return "watchpoint (read)";
 		case STOP_WATCHPOINT_WRITE:         return "watchpoint (write)";
+		case STOP_WATCHPOINT_REGISTER:      return "watchpoint (register)";
 		case STOP_TRAP_PAGE_FAULT:          return "page fault";
 		case STOP_TRAP_PROTECTION_VIOLATION: return "protection violation";
 		case STOP_TRAP_ILLEGAL_INSTRUCTION: return "illegal instruction";

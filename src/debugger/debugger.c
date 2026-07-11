@@ -258,12 +258,12 @@ static int handle_special_commands(Nd500Machine* m, const char* line) {
 		return 1;
 	}
 
-	/* Handle 'dap' command specially (requires WITH_DEBUGGER) */
+	/* Handle 'dap' command specially (requires DAP_ENABLED) */
 	if (strncmp(line, "dap", 3) == 0) {
-#ifdef WITH_DEBUGGER
+#ifdef DAP_ENABLED
 		char* rest = (char*)(line + 3);
 		while (*rest && isspace(*rest)) rest++;
-		int port = rest && *rest ? atoi(rest) : 47285;
+		int port = rest && *rest ? atoi(rest) : 4500;
 		if (nd500_dap_start(m, port) == 0) {
 			printf("DAP server started on %d\n", port);
 		} else {

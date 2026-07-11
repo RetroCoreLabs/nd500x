@@ -12,15 +12,20 @@
 #ifdef __unix__
 static void* run_thread(void* arg) {
 	Nd500Machine* m = (Nd500Machine*)arg;
+	uint32_t batch = 0;
 	while (m->run_flag) {
 		/* Execute one instruction - returns false if trap occurred */
 		if (m->cpu && !nd500_cpu_step(m->cpu)) {
 			/* Trap occurred - stop execution */
 			break;
 		}
-		/* Simple throttle to avoid busy looping */
-		struct timespec ts = {0, 1000000}; /* 1ms */
-		nanosleep(&ts, NULL);
+		/* Yield briefly every 64K instructions so other threads
+		 * (REPL, DAP server) stay responsive without throttling
+		 * execution speed. */
+		if ((++batch & 0xFFFF) == 0) {
+			struct timespec ts = {0, 100000}; /* 0.1ms */
+			nanosleep(&ts, NULL);
+		}
 	}
 	return NULL;
 }
@@ -28,6 +33,11 @@ static void* run_thread(void* arg) {
 void nd500_dbg_run(Nd500Machine* m) {
 	if (!m) return;
 	if (m->run_flag) return;
+	/* Allow leaving a breakpoint the CPU is currently parked on */
+	if (m->cpu) {
+		m->bp_resume_pc = m->cpu->PC;
+		m->bp_resume_skip = 1;
+	}
 	m->run_flag = 1;
 	pthread_t t;
 	(void)pthread_create(&t, NULL, run_thread, m);

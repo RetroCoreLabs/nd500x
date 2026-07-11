@@ -27,6 +27,17 @@ int    nd500_dbg_load_aout_file(Nd500Machine* m, const char* path, uint32_t* out
 int    nd500_dbg_load_aout_buffer(Nd500Machine* m, const uint8_t* data, size_t size, uint32_t* out_entry_pc);
 void   nd500_dbg_regs(struct Nd500Cpu* cpu, Nd500Regs* out_regs);
 
+/* Register access by name (shared by CLI 'set' command and DAP adapter) */
+uint32_t* nd500_dbg_reg_ptr(struct Nd500Cpu* cpu, const char* name);
+int    nd500_dbg_reg_get_by_name(struct Nd500Cpu* cpu, const char* name, uint32_t* out);
+int    nd500_dbg_reg_set_by_name(struct Nd500Cpu* cpu, const char* name, uint32_t value);
+int    nd500_dbg_reg_count(void);
+const char* nd500_dbg_reg_name(int index);
+
+/* Side-effect-free memory access for debugger use (no watchpoint triggers) */
+size_t nd500_dbg_mem_read_raw(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t* out, size_t out_cap);
+size_t nd500_dbg_mem_write_raw(Nd500Machine* m, uint32_t addr, const uint8_t* data, uint32_t len);
+
 /* Segment loading helpers */
 int    nd500_load_file_to_memory(Nd500Machine* m, const char* path, uint32_t base_addr);
 int    nd500_load_pseg_file(Nd500Machine* m, const char* path, uint32_t pseg_base_addr);

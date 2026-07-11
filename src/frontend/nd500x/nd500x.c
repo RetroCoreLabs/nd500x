@@ -2,6 +2,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include <time.h>
 #include "../../machine/machine_protos.h"
 #include "../../cpu/cpu_protos.h"
 #include "../../cpu/nd500_mmu.h"
@@ -36,6 +37,7 @@ static void print_usage(const char* prog) {
     printf("  --hexdump <len>          Hex dump <len> bytes and exit\n");
     printf("  --radix <mode>           Set numeric radix: decimal | hex | octal\n");
     printf("  --run                    Run program (exit on MON 0B or error)\n");
+    printf("  --dap [port]             Start DAP server (default port 4500) and wait for client\n");
     printf("  --max-steps <n>          Maximum instructions to execute (default: unlimited)\n");
     printf("  --trace-file <path>      Write instruction trace to file\n");
     printf("  --sintran-root <path>    Set SINTRAN file system root directory\n");
@@ -75,6 +77,7 @@ int main(int argc, char** argv) {
     int run_mode = 0;  /* Non-interactive run */
     uint64_t max_steps = 0;  /* 0 = unlimited */
     const char* trace_file_path = NULL;
+    int dap_port = 0;  /* 0 = DAP server not requested */
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -111,6 +114,12 @@ int main(int argc, char** argv) {
             ansi_flag = 1;
         } else if (strcmp(argv[i], "-noansi") == 0) {
             ansi_flag = -1;
+        } else if (strcmp(argv[i], "--dap") == 0) {
+            /* Optional port argument (default 4711) */
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                dap_port = atoi(argv[++i]);
+            }
+            if (dap_port <= 0) dap_port = 4500;
         } else if (strcmp(argv[i], "--run") == 0) {
             run_mode = 1;
         } else if (strcmp(argv[i], "--max-steps") == 0 && i + 1 < argc) {
@@ -297,6 +306,31 @@ int main(int argc, char** argv) {
                 }
             }
         }
+    }
+
+    /* Start DAP server if requested (runs on a background thread) */
+    if (dap_port > 0) {
+#ifdef DAP_ENABLED
+        /* Install stdio console so MON call output is visible */
+        mon_install_stdio_console();
+        if (nd500_dap_start(&machine, dap_port) != 0) {
+            printf("Failed to start DAP server on port %d\n", dap_port);
+            return 1;
+        }
+        printf("DAP server listening on port %d\n", dap_port);
+        if (!debug) {
+            /* Headless: keep serving until the DAP thread exits */
+            while (nd500_dap_is_active()) {
+                struct timespec ts = {0, 100000000}; /* 100ms */
+                nanosleep(&ts, NULL);
+            }
+            nd500_machine_free(&machine);
+            return 0;
+        }
+#else
+        printf("DAP not available (built without libdap)\n");
+        return 1;
+#endif
     }
 
 	if (debug) {

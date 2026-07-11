@@ -83,3 +83,13 @@ bool wp_should_break_on_read(BreakpointManager* mgr, uint32_t addr);
 bool wp_should_break_on_write(BreakpointManager* mgr, uint32_t addr, uint32_t value);
 bool wp_should_break_on_register_change(BreakpointManager* mgr, uint32_t reg_index, uint32_t value);
 
+/* Check all register watchpoints against the current register values.
+ * regs[] is indexed by the register-watch index convention:
+ * 0=PC, 1-4=I1-I4, 5=L, 6=B, 7=R.
+ * Returns the watchpoint id that fired (change detected), or -1. */
+#define WP_REG_INDEX_COUNT 8
+int wp_check_registers(BreakpointManager* mgr, const uint32_t regs[WP_REG_INDEX_COUNT]);
+
+/* Map a register name (PC, I1-I4, L, B, R) to its watch index, -1 if not watchable */
+int wp_register_index_for_name(const char* name);
+

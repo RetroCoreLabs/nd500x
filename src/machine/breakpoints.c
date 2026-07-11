@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include "breakpoints.h"
@@ -166,6 +167,35 @@ int wp_add_register(BreakpointManager* mgr, const char* reg_name, uint32_t reg_i
     mgr->wp_count++;
     printf("Register watchpoint %d set on %s (index=%u)\n", id, reg_name, reg_index);
     return id;
+}
+
+int wp_register_index_for_name(const char* name) {
+    static const char* names[WP_REG_INDEX_COUNT] = {
+        "PC", "I1", "I2", "I3", "I4", "L", "B", "R"
+    };
+    if (!name) return -1;
+    for (int i = 0; i < WP_REG_INDEX_COUNT; i++) {
+        if (strcasecmp(names[i], name) == 0) return i;
+    }
+    return -1;
+}
+
+int wp_check_registers(BreakpointManager* mgr, const uint32_t regs[WP_REG_INDEX_COUNT]) {
+    if (!mgr) return -1;
+    for (int i = 0; i < mgr->wp_count; i++) {
+        Watchpoint* wp = &mgr->watchpoints[i];
+        if (!wp->enabled || wp->type != WP_TYPE_REGISTER) continue;
+        if (wp->address >= WP_REG_INDEX_COUNT) continue;
+        uint32_t value = regs[wp->address];
+        if (value != wp->last_value) {
+            wp->hit_count++;
+            printf("\nRegister watchpoint %d hit on %s (old=0x%08X new=0x%08X)\n",
+                   i, wp->register_name, wp->last_value, value);
+            wp->last_value = value;
+            return i;
+        }
+    }
+    return -1;
 }
 
 int wp_delete(BreakpointManager* mgr, int id) {

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <ctype.h>
 #include "machine_protos.h"
 #include "breakpoints.h"
@@ -441,6 +442,9 @@ size_t nd500_dbg_disasm(Nd500Machine* m, uint32_t addr, uint32_t len, char* out,
 
 void nd500_dbg_step(Nd500Machine* m, uint32_t count) {
 	if (!m || !m->cpu) return;
+	/* Allow stepping off a breakpoint the CPU is currently parked on */
+	m->bp_resume_pc = m->cpu->PC;
+	m->bp_resume_skip = 1;
 	for (uint32_t i = 0; i < count; ++i) {
 		nd500_cpu_step(m->cpu);
 		/* Stop stepping if CPU was halted (e.g., MON 0B LEAVE) */
@@ -453,6 +457,10 @@ void nd500_dbg_step(Nd500Machine* m, uint32_t count) {
 #ifndef __unix__
 void nd500_dbg_run(Nd500Machine* m) {
 	if (!m) return;
+	if (m->cpu) {
+		m->bp_resume_pc = m->cpu->PC;
+		m->bp_resume_skip = 1;
+	}
 	m->run_flag = 1;
 }
 
@@ -469,6 +477,115 @@ int nd500_dbg_is_running(Nd500Machine* m) {
 /* Optional: expose regs snapshot through machine */
 void nd500_dbg_regs(struct Nd500Cpu* cpu, Nd500Regs* out_regs) {
 	nd500_cpu_get_regs(cpu, out_regs);
+}
+
+/* ═══════════════════════════════════════════════════════
+ * REGISTER ACCESS BY NAME
+ * Single source of truth for the register-name-to-storage
+ * mapping, shared by the CLI 'set' command and the DAP
+ * adapter (setVariable / evaluate).
+ * ═══════════════════════════════════════════════════════ */
+
+typedef struct {
+	const char* name;
+	size_t offset;   /* offset of the uint32_t field inside Nd500Cpu */
+} RegNameEntry;
+
+static const RegNameEntry g_reg_table[] = {
+	{"PC",      offsetof(Nd500Cpu, PC)},
+	{"I1",      offsetof(Nd500Cpu, I[0])},
+	{"I2",      offsetof(Nd500Cpu, I[1])},
+	{"I3",      offsetof(Nd500Cpu, I[2])},
+	{"I4",      offsetof(Nd500Cpu, I[3])},
+	{"A1",      offsetof(Nd500Cpu, A[0])},
+	{"A2",      offsetof(Nd500Cpu, A[1])},
+	{"A3",      offsetof(Nd500Cpu, A[2])},
+	{"A4",      offsetof(Nd500Cpu, A[3])},
+	{"E1",      offsetof(Nd500Cpu, E[0])},
+	{"E2",      offsetof(Nd500Cpu, E[1])},
+	{"E3",      offsetof(Nd500Cpu, E[2])},
+	{"E4",      offsetof(Nd500Cpu, E[3])},
+	{"L",       offsetof(Nd500Cpu, L)},
+	{"B",       offsetof(Nd500Cpu, B)},
+	{"R",       offsetof(Nd500Cpu, R)},
+	{"TOS",     offsetof(Nd500Cpu, TOS)},
+	{"LL",      offsetof(Nd500Cpu, LL)},
+	{"HL",      offsetof(Nd500Cpu, HL)},
+	{"THA",     offsetof(Nd500Cpu, THA)},
+	{"ST1",     offsetof(Nd500Cpu, ST1)},
+	{"ST2",     offsetof(Nd500Cpu, ST2)},
+	{"FLAGS",   offsetof(Nd500Cpu, FLAGS)},
+	{"OTE1",    offsetof(Nd500Cpu, OTE1)},
+	{"OTE2",    offsetof(Nd500Cpu, OTE2)},
+	{"CTE1",    offsetof(Nd500Cpu, CTE1)},
+	{"CTE2",    offsetof(Nd500Cpu, CTE2)},
+	{"MTE1",    offsetof(Nd500Cpu, MTE1)},
+	{"MTE2",    offsetof(Nd500Cpu, MTE2)},
+	{"TEMM1",   offsetof(Nd500Cpu, TEMM1)},
+	{"TEMM2",   offsetof(Nd500Cpu, TEMM2)},
+	{"PSTP",    offsetof(Nd500Cpu, PSTP)},
+	{"DITBASE", offsetof(Nd500Cpu, DITBASE)},
+	{"CED",     offsetof(Nd500Cpu, CED)},
+	{"CAD",     offsetof(Nd500Cpu, CAD)},
+	{"PS",      offsetof(Nd500Cpu, PS)},
+};
+
+#define REG_TABLE_COUNT ((int)(sizeof(g_reg_table) / sizeof(g_reg_table[0])))
+
+uint32_t* nd500_dbg_reg_ptr(struct Nd500Cpu* cpu, const char* name) {
+	if (!cpu || !name) return NULL;
+	for (int i = 0; i < REG_TABLE_COUNT; i++) {
+		if (strcmp(g_reg_table[i].name, name) == 0) {
+			return (uint32_t*)((uint8_t*)cpu + g_reg_table[i].offset);
+		}
+	}
+	return NULL;
+}
+
+int nd500_dbg_reg_get_by_name(struct Nd500Cpu* cpu, const char* name, uint32_t* out) {
+	uint32_t* p = nd500_dbg_reg_ptr(cpu, name);
+	if (!p || !out) return -1;
+	*out = *p;
+	return 0;
+}
+
+int nd500_dbg_reg_set_by_name(struct Nd500Cpu* cpu, const char* name, uint32_t value) {
+	uint32_t* p = nd500_dbg_reg_ptr(cpu, name);
+	if (!p) return -1;
+	*p = value;
+	return 0;
+}
+
+int nd500_dbg_reg_count(void) {
+	return REG_TABLE_COUNT;
+}
+
+const char* nd500_dbg_reg_name(int index) {
+	if (index < 0 || index >= REG_TABLE_COUNT) return NULL;
+	return g_reg_table[index].name;
+}
+
+/* Read memory without side effects: bypasses the bus layer so that
+ * debugger reads never trigger read watchpoints or MMU logging.
+ * Returns the number of bytes copied. */
+size_t nd500_dbg_mem_read_raw(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t* out, size_t out_cap) {
+	if (!m || !m->memory || !out || out_cap == 0) return 0;
+	if (addr >= m->memory_size) return 0;
+	uint32_t max = (uint32_t)((addr + len) > m->memory_size ? (m->memory_size - addr) : len);
+	if (max > out_cap) max = (uint32_t)out_cap;
+	memcpy(out, m->memory + addr, max);
+	return max;
+}
+
+/* Write memory without side effects: bypasses the bus layer so that
+ * debugger writes never trigger write watchpoints.
+ * Returns the number of bytes written. */
+size_t nd500_dbg_mem_write_raw(Nd500Machine* m, uint32_t addr, const uint8_t* data, uint32_t len) {
+	if (!m || !m->memory || !data) return 0;
+	if (addr >= m->memory_size) return 0;
+	uint32_t max = (uint32_t)((addr + len) > m->memory_size ? (m->memory_size - addr) : len);
+	memcpy(m->memory + addr, data, max);
+	return max;
 }
 
 /* NOTE: nd500_dbg_load_aout_file and nd500_dbg_load_aout_buffer are now in machine_loader.c */
