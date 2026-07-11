@@ -63,11 +63,13 @@ int main(int argc, char** argv) {
     nd500_domain_init(&cpu);
     mon_init();   /* reads ND500X_PIN_CLOCK for the deterministic clock */
 
-    /* Queue the compile command (translate the trailing \r escape) */
-    char inbuf[64];
+    /* Queue the compile command(s). Both "\r" and the ";;" separator become CR,
+     * matching diag_nc_pctrace so the two tools drive NC identically. */
+    char inbuf[128];
     size_t j = 0;
-    for (size_t i = 0; cmd[i] && j < sizeof(inbuf) - 1; i++) {
+    for (size_t i = 0; cmd[i] && j < sizeof(inbuf) - 2; i++) {
         if (cmd[i] == '\\' && cmd[i + 1] == 'r') { inbuf[j++] = '\r'; i++; }
+        else if (cmd[i] == ';' && cmd[i + 1] == ';') { inbuf[j++] = '\r'; i++; }
         else inbuf[j++] = cmd[i];
     }
     inbuf[j] = 0;
