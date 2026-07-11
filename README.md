@@ -22,7 +22,7 @@ ND500X is an emulator for the Norsk Data ND-500 architecture, featuring:
 - **Advanced debugging features** including conditional breakpoints, instruction tracing, performance profiling, and call stack tracking
 - **WebAssembly support** for browser-based emulation
 - **Instruction code generation** from JSON specification (1078 instruction variants, 241 unique functions)
-- **Debug Adapter Protocol** (DAP) support for IDE integration (optional)
+- **Debug Adapter Protocol (DAP) server** for IDE-driven debugging (VS Code and other DAP clients): breakpoints, data breakpoints (memory and register watchpoints), full ND-500 register file as variables, memory read/write, disassembly and console I/O - see [docs/DAP_INTEGRATION.md](docs/DAP_INTEGRATION.md)
 
 ## Table of Contents
 
@@ -252,8 +252,12 @@ For negative tests, additional fields mark expected failures:
 | Option | Description |
 |--------|-------------|
 | `--debug` | Start interactive debugger REPL |
+| `--dap [port]` | Start DAP server for IDE debugging (default port 4500) |
 | `-i <path>` | Load ND-500 a.out file at startup |
+| `--aout <path>` | Load ND-500 a.out file at startup |
 | `--dom <path>` | Load DOM file |
+| `--args <string>` | Set command buffer (program arguments) |
+| `--pc <addr>` | Override starting PC address |
 | `--run` | Run program non-interactively (exit on MON 0B or error) |
 | `--max-steps <n>` | Maximum instructions to execute (default: unlimited) |
 | `--trace-file <path>` | Write instruction trace to file |
@@ -368,6 +372,60 @@ Stepped 5 instructions
 [08001006] q
 ```
 
+### DAP Debugging (IDE Integration)
+
+The emulator includes a Debug Adapter Protocol server, so it can be debugged
+from VS Code or any other DAP client instead of (or alongside) the CLI REPL.
+
+**Default port: 4500** (the sibling nd100x emulator uses 4711, so both can
+run at the same time).
+
+Start the server:
+
+```bash
+# Headless: load a DOM and serve DAP until the client disconnects.
+# The CPU stays stopped until the client sends continue.
+./build/bin/nd500x --dom program.dom --dap          # port 4500
+./build/bin/nd500x --dom program.dom --dap 4600     # explicit port
+
+# Or from the interactive REPL (DAP runs alongside the CLI):
+./build/bin/nd500x --debug
+nd500> dap
+```
+
+What the client gets:
+
+* **Execution control**: continue, step, pause, stopped events with reasons
+  (`breakpoint`, `data breakpoint`, `step`, `pause`, `exception` for CPU traps)
+* **Instruction breakpoints** and source breakpoints (when symbol/source maps
+  are loaded), sharing the same engine as the CLI `bp` command
+* **Data breakpoints**: memory read/write/readWrite watchpoints on virtual
+  (MMU-translated) or physical addresses, plus break-on-change register
+  watches for PC, I1-I4, L, B, R
+* **The full ND-500 register block as variables**, mirroring the CLI `regs`
+  report: Core (PC, FLAGS, ST1/ST2, PDZSCKO flag string), Integer I1-I4,
+  Float A1-A4/E1-E4 with computed D1-D4 doubles, Addressing L/B/R, Special
+  TOS/LL/HL/THA, MMU/Domain CED/CAD/PS/PSTP/DITBASE, and Trap Control
+  OTE/CTE/MTE/TEMM - all writable via setVariable (except computed values)
+* **Memory read/write** (base64 per the DAP spec) with `phys:`, `dspace:`
+  and `ispace:` address-space prefixes; debugger access never triggers
+  watchpoints
+* **Disassembly**, expression evaluation (registers, symbols, literals),
+  symbol listing, and console I/O (send keyboard input to the running
+  program, receive its output as DAP output events)
+
+Documentation:
+
+* [docs/DAP_INTEGRATION.md](docs/DAP_INTEGRATION.md) - architecture, address
+  spaces, dataId contract, scopes, build notes
+* [docs/DAP_COMMAND_TEST_MATRIX.md](docs/DAP_COMMAND_TEST_MATRIX.md) - every
+  supported command with usage variants and live test results
+* [docs/DAP_BUG_REPORTS.md](docs/DAP_BUG_REPORTS.md) - behaviour reports
+  from client sessions
+
+Unit tests for the adapter run as part of `ctest` (test name `dap_adapter`).
+Building without DAP: `make without-dap`.
+
 ### ND-500 A.out File Format Support
 
 The emulator supports loading ND-500 a.out format files with full symbol table parsing:
@@ -466,7 +524,7 @@ The emulator supports loading ND-500 a.out format files with full symbol table p
 |------------|----------|---------|--------------|
 | **libcjson** | Optional | JSON output support | `apt install libcjson-dev` (Debian/Ubuntu)<br>`pkg-config --modversion cjson` |
 | **pthread** | Yes (Unix) | Background execution thread | Built into libc on Linux/Unix |
-| **external/libdap** | Optional | Debug Adapter Protocol | Clone into `external/libdap/` |
+| **external/libdap** | Optional | Debug Adapter Protocol server | Git submodule: `git submodule update --init` (also needs libcjson) |
 | **external/libsymbols** | Optional | Symbol table support | Clone into `external/libsymbols/` |
 
 If libcjson is not found, the native build proceeds without JSON support.
@@ -562,11 +620,13 @@ nd500x/
 |--------|---------|-------------|
 | `BUILD_WASM` | OFF | Build WebAssembly target with Emscripten |
 | `DEBUGGER_ENABLED` | ON | Enable debugger support (forced OFF for WASM) |
+| `SKIP_LIBDAP` | OFF | Build without the DAP server even if `external/libdap` is present |
 
 **Example:**
 ```bash
 cmake -DBUILD_WASM=ON ..
 cmake -DDEBUGGER_ENABLED=OFF ..
+cmake -DSKIP_LIBDAP=ON ..        # same as: make without-dap
 ```
 
 ## Contributing
