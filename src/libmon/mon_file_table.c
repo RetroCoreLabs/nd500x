@@ -9,6 +9,7 @@
 #include "mon_file_table.h"
 #include "mon.h"
 #include "mon_path.h"
+#include "mon_clock.h"
 #include <string.h>
 #include <stdlib.h>
 #include <strings.h>  /* strcasecmp */
@@ -900,9 +901,16 @@ static int g_cleanup_registered = 0;
  *   Bits 5-0   (6 bits): Second (0-59)
  */
 static uint32_t unix_to_nd_date(time_t t) {
+    /* In deterministic (pinned-clock) mode all object-entry dates report the
+     * agreed fixed UTC instant, so ROBJE (41B) is bit-reproducible regardless
+     * of the host filesystem timestamps. */
+    if (mon_clock_is_deterministic()) {
+        t = mon_clock_now();
+    }
     if (t == 0) return 0;
 
-    struct tm* tm = localtime(&t);
+    struct tm tm_storage;
+    struct tm* tm = mon_clock_breakdown(t, &tm_storage);
     if (!tm) return 0;
 
     int year = tm->tm_year + 1900;

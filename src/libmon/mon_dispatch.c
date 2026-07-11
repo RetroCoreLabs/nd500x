@@ -7,6 +7,7 @@
 #include "mon.h"
 #include "mon_file_table.h"
 #include "mon_config.h"
+#include "mon_clock.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,6 +36,23 @@ void mon_init(void) {
     /* Clear registry */
     memset(g_registry, 0, sizeof(g_registry));
     g_registry_count = 0;
+
+    /* Optional deterministic clock for reproducible runs / cross-emulator diff.
+     * ND500X_PIN_CLOCK unset  -> real host clock (real-machine behaviour).
+     * ND500X_PIN_CLOCK=1      -> pin to the agreed 1990-01-01 12:00:00 UTC.
+     * ND500X_PIN_CLOCK=<secs> -> pin to that Unix epoch (UTC). */
+    const char* pin = getenv("ND500X_PIN_CLOCK");
+    if (pin && pin[0] != '\0') {
+        char* end = NULL;
+        long long secs = strtoll(pin, &end, 10);
+        if (end && *end == '\0' && secs > 1) {
+            mon_clock_set_deterministic((time_t)secs);
+        } else {
+            mon_clock_set_deterministic(MON_CLOCK_PINNED_EPOCH_DEFAULT);
+        }
+        mon_log(MON_LOG_INFO, "MON clock PINNED (deterministic) at epoch %ld UTC",
+                (long)mon_clock_now());
+    }
 
     /* Register all handlers from generated code */
     mon_register_all_handlers();

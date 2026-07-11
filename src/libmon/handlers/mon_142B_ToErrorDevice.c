@@ -19,22 +19,23 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
+#include "../mon_clock.h"
 #include <stdio.h>
-#include <time.h>
 
 MonResult mon_142B_ToErrorDevice(MonContext* ctx) {
     int32_t error_number;
     int32_t suberror_number;
     time_t now;
+    struct tm tm_storage;
     struct tm* tm_info;
 
     /* Read input parameters as 32-bit words (ND-500 INTEGER = W) */
     error_number = (int32_t)mon_read_param_word(ctx, 0);
     suberror_number = (int32_t)mon_read_param_word(ctx, 1);
 
-    /* Get current time for timestamp */
-    time(&now);
-    tm_info = localtime(&now);
+    /* Get current time for timestamp (pinned UTC instant in deterministic mode). */
+    now = mon_clock_now();
+    tm_info = mon_clock_breakdown(now, &tm_storage);
 
     /* Output error message to stderr (error device/console)
      * Format similar to SINTRAN: "HH.MM.SS ERROR nn, USER ERROR, SUBERROR m"

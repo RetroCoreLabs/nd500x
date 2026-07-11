@@ -15,56 +15,20 @@
 
 #include "../mon.h"
 #include "../mon_log.h"
-#include <time.h>
+#include "../mon_clock.h"
 
-/* Session start time - initialized on first call */
-static int g_time_initialized = 0;
-static struct timespec g_session_start;
-
-/* Initialize session start time */
-static void init_session_time(void) {
-    if (!g_time_initialized) {
-        clock_gettime(CLOCK_MONOTONIC, &g_session_start);
-        g_time_initialized = 1;
-    }
-}
-
-/* Reset session time (can be called from mon_init or debugger) */
+/* Reset session time (can be called from mon_init or debugger).
+ * The TUSED baseline now lives in mon_clock; kept as a thin alias so existing
+ * callers continue to work. */
 void mon_reset_session_time(void) {
-    clock_gettime(CLOCK_MONOTONIC, &g_session_start);
-    g_time_initialized = 1;
+    mon_clock_reset_session();
 }
 
 MonResult mon_114B_GetTimeUsed(MonContext* ctx) {
-    struct timespec now;
-    uint32_t time_used;
-
-    /* Ensure session time is initialized */
-    init_session_time();
-
-    /* Get current time */
-    clock_gettime(CLOCK_MONOTONIC, &now);
-
-    /* Calculate elapsed time in basic time units (1/50s = 20ms)
-     *
-     * elapsed_seconds = now.tv_sec - start.tv_sec
-     * elapsed_nsec = now.tv_nsec - start.tv_nsec
-     *
-     * basic_units = elapsed_seconds * 50 + elapsed_nsec / 20000000
-     *             = (elapsed_seconds * 1000000000 + elapsed_nsec) / 20000000
-     */
-    int64_t elapsed_ns = (int64_t)(now.tv_sec - g_session_start.tv_sec) * 1000000000LL
-                       + (int64_t)(now.tv_nsec - g_session_start.tv_nsec);
-
-    /* Convert to basic time units (20ms = 20,000,000 ns) */
-    int64_t basic_units = elapsed_ns / 20000000LL;
-
-    /* Clamp to 32-bit (LONGINT) - about 994 days max */
-    if (basic_units > 0xFFFFFFFF) {
-        basic_units = 0xFFFFFFFF;
-    }
-
-    time_used = (uint32_t)basic_units;
+    /* Elapsed CPU time in basic time units. In deterministic (pinned-clock)
+     * mode this returns 0 so the run is bit-reproducible; otherwise it is the
+     * real host CLOCK_MONOTONIC elapsed since session start. */
+    uint32_t time_used = mon_clock_tused_basic_units();
 
     /* Return result in W1 (I1) register */
     if (ctx->set_i1) {

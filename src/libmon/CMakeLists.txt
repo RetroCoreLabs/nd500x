@@ -10,6 +10,7 @@ file(GLOB MON_HANDLER_SOURCES
 
 # Create the library
 add_library(mon STATIC
+    mon_clock.c
     mon_config.c
     mon_dispatch.c
     mon_file_table.c

@@ -23,21 +23,10 @@
 #include "../mon.h"
 #include "../mon_log.h"
 #include "../mon_errors.h"
-#include <time.h>
+#include "../mon_clock.h"
 
 /* Basic time units per second */
 #define BASIC_TIME_UNITS_PER_SEC 50
-
-/* Thread-safe localtime wrapper */
-static struct tm* safe_localtime(const time_t* timep, struct tm* result) {
-#ifdef _WIN32
-    /* Windows: localtime_s has reversed args and returns errno_t */
-    return (localtime_s(result, timep) == 0) ? result : NULL;
-#else
-    /* POSIX: localtime_r returns pointer to result on success */
-    return localtime_r(timep, result);
-#endif
-}
 
 MonResult mon_113B_GetCurrentTime(MonContext* ctx) {
     /* Defensive check for argument count */
@@ -51,10 +40,11 @@ MonResult mon_113B_GetCurrentTime(MonContext* ctx) {
     /* Get output buffer address */
     uint32_t buffer_addr = ctx->arg_addresses[0];
 
-    /* Get current time using thread-safe wrapper */
-    time_t now = time(NULL);
+    /* Get current time via the MON clock (pinned UTC instant in deterministic
+     * mode, else real host localtime). */
+    time_t now = mon_clock_now();
     struct tm tm_storage;
-    struct tm* tm_now = safe_localtime(&now, &tm_storage);
+    struct tm* tm_now = mon_clock_breakdown(now, &tm_storage);
 
     if (!tm_now) {
         mon_log(MON_LOG_WARN, MON_ID_113B ": Failed to get local time");
