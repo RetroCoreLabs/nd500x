@@ -47,19 +47,28 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t mask = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
     uint32_t address = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
 
-    /* Apply privilege restrictions for non-privileged mode (like C# lines 55-63) */
-    /* Non-privileged mode cannot modify: ST2 (18), PS (19), CED (24), CAD (25), CTE (32-33), MTE (34-35), TEMM (36-37) */
-    /* Note: Only lower 32 bits of mask are used - bits 32-37 need 64-bit mask */
-    if (!(cpu->ST1 & ND500_FLAG_PIA)) {
-        uint32_t privileged_mask = (1u << 17) | (1u << 18) | (1u << 23) | (1u << 24);  /* ST2, PS, CED, CAD */
-        mask &= ~privileged_mask;
-        /* Bits 32-37 cannot be set in a 32-bit mask anyway, so they're implicitly excluded */
-    }
+    bool privileged = (cpu->ST1 & ND500_FLAG_PIA) != 0;
 
-    /* Load registers based on mask bits (like C# lines 68-122) */
-    /* Address calculation: <address> + register_number*4 */
-    for (int reg_num = 1; reg_num <= 37; reg_num++) {
+    /* Load registers based on mask bits (like C# lines 68-122).
+     * The mask operand is a 32-bit word, so only bits 0:31 (reg_num 1..32,
+     * up to CTE1) are addressable; shifting by 32 or more would be undefined
+     * behaviour, so the loop is capped at reg_num 32. Registers 33..37
+     * (CTE2/MTE1/MTE2/TEMM1/TEMM2) are not reachable by a 32-bit mask.
+     *
+     * Address calculation: <address> + register_number*4 */
+    for (int reg_num = 1; reg_num <= 32; reg_num++) {
         if ((mask & (1u << (reg_num - 1))) != 0) {
+            /* Privilege restriction (manual 16.27.2): in non-privileged mode
+             * the mask is reduced to registers modifiable outside privileged
+             * mode. Skip ST2 (18), PS (19), CED (24), CAD (25) and the trap
+             * control registers CTE1 (32) [and CTE2/MTE/TEMM, unreachable via
+             * a 32-bit mask]. CTE1 at bit 31 previously escaped this filter. */
+            if (!privileged) {
+                if (reg_num == 18 || reg_num == 19 || reg_num == 24 ||
+                    reg_num == 25 || reg_num == 32) {
+                    continue;
+                }
+            }
             uint32_t reg_address = address + (uint32_t)(reg_num * 4);
             uint32_t reg_value = nd500_read_memory_32(cpu, reg_address);
 

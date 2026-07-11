@@ -68,7 +68,9 @@ void nd500_instr_Sha(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (abs_shift >= (int32_t)bits) {
         printf("[TRAP] SHA at PC=0x%08X: Illegal shift count %d (>= %u bits)\n",
                fi->address, abs_shift, bits);
-        trap_invalid_operation(cpu, fi->address);  /* IOV trap */
+        /* Raise IOV (Illegal Operand Value) trap - must be TRAP_IOV, not
+         * trap_invalid_operation()'s TRAP_IVO - matches C# Sha.cs. */
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
     }
 

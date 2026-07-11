@@ -66,8 +66,10 @@ void nd500_instr_Shl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * "If the IOV trap condition is ignored the instruction will be terminated (act as a NOOP)"
      * "On the IOV trap condition the destination field is not changed" */
     if (abs_shift >= (int32_t)bits) {
-        /* Raise IOV trap - handler will execute if trap is enabled */
-        trap_invalid_operation(cpu, fi->address);
+        /* Raise IOV (Illegal Operand Value) trap - handler will execute if trap is enabled.
+         * NOTE: this must be TRAP_IOV, not trap_invalid_operation()'s TRAP_IVO -
+         * matches C# CpuND500.TrapCondition.IOV in Shl.cs. */
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
         /* Don't modify destination, return (act as NOOP if trap is ignored) */
         return;
     }

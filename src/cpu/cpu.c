@@ -52,7 +52,13 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	cpu->L = cpu->B = cpu->R = 0;
 	cpu->TOS = cpu->LL = cpu->HL = cpu->THA = 0;
 	cpu->OTE1 = cpu->OTE2 = cpu->CTE1 = cpu->CTE2 = 0;
-	cpu->MTE1 = cpu->MTE2 = cpu->TEMM1 = cpu->TEMM2 = 0;
+	cpu->MTE1 = cpu->MTE2 = 0;
+	/* TEMM (Trap Enable Modification Mask): a real domain loads TEMM from its
+	 * Domain Information Table (manual line 8133). At cold boot / in a bare
+	 * (root) context no mother has restricted us, so every OTE bit is
+	 * modifiable. Default to all-ones so SETE/CLTE/OTE:= work until a domain
+	 * installs a restrictive mask; a zero default would trap every OTE write. */
+	cpu->TEMM1 = cpu->TEMM2 = 0xFFFFFFFFu;
 	/* Initialize status registers - CPU boots in PRIVILEGED mode (PIA=1)
 	 * This allows the OS kernel to execute privileged instructions during boot
 	 * (DCTSB, PCTSB, INIT, etc.) before user mode is established.

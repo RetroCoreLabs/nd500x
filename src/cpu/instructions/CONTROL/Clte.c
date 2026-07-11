@@ -241,6 +241,15 @@ void nd500_instr_Clte(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
+    // TEMM gating (manual 10.25, ref line 10209): the bit is modifiable only if
+    // the corresponding TEMM bit is set, else an illegal operand value trap.
+    uint32_t bit_in_half = 1U << (bit_number & 31);
+    uint32_t temm_half = (bit_number < 32) ? cpu->TEMM1 : cpu->TEMM2;
+    if (!nd500_temm_allows_change(bit_in_half, temm_half)) {
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
+        return;
+    }
+
     // Clear bit in Own Trap Enable register (OTE1 for bits 0-31, OTE2 for bits 32-63)
     if (bit_number < 32) {
         cpu->OTE1 &= ~(1U << bit_number);

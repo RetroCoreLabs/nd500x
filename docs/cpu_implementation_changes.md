@@ -27,7 +27,7 @@ These fixes involve byte order and addressing that the assembler generates:
 
 1. **Big-endian operand value reading** (Section 5) - Assembler must emit big-endian
 2. **Big-endian displacement in compute_effective_address** (Section 18) - 2-byte displacements
-3. **Branch PC calculation** (Section 12) - Relative to instruction END, not start
+3. **Branch PC calculation** (Section 12) - Relative to instruction START (first byte)
 
 ### Variant/Datatype Mapping Issues (Dispatch Table)
 
@@ -346,19 +346,21 @@ of the branch instruction; the assembler must NOT add the instruction size.
 
 ### File: `src/cpu/instructions/SHIFT/Shr.c`
 
-**Problem 1 - Large shift count handling**: Originally trapped for shift counts >= data width (e.g., shift 31 on byte type).
+**Problem 1 - Large shift count handling (RESOLVED: traps per manual)**: An
+earlier revision normalized the count with modulo instead of trapping. That was
+backed by NEITHER the manual NOR the C# reference and existed only to satisfy
+buggy generated test data. The current code raises an IOV (Illegal Operand
+Value) trap for counts >= operand width, matching manual section 10.26 and C#
+Shr.cs.
 
 **Problem 2 - Rotation direction**: Needed to match C# reference behavior.
 
-**Solution**:
+**Current behavior** (`src/cpu/instructions/SHIFT/Shr.c`):
 ```c
-/* Rotation direction (matching C# Shr.cs):
- * - Positive count = rotate RIGHT (bits wrap from LSB to MSB)
- * - Negative count = rotate LEFT (bits wrap from MSB to LSB) */
-
-/* For circular shift, normalize shift count with modulo instead of trapping */
-if (shift >= (int32_t)bits && bits > 0) {
-    shift = shift % (int32_t)bits;
+/* Illegal operand value trap for out-of-range counts (manual 10.26, C# Shr.cs) */
+if (shift >= (int32_t)bits) {
+    raise_trap(cpu, TRAP_IOV, fi->address, 0);
+    return;
 }
 
 if (shift_count >= 0) {
@@ -371,14 +373,7 @@ if (shift_count >= 0) {
 result = nd500_mask_to_datatype(result, fi->data_type);
 ```
 
-**Rationale**: For rotation, shift 31 on 8-bit value = shift 7 (31 % 8 = 7). Test data expects normalization, not trapping.
-
-**CAVEATS (added after manual review)**:
-- The modulo normalization is backed by NEITHER the reference manual NOR the
-  C# reference. Manual section 10.26 mandates an illegal operand value trap
-  for counts >= operand size, and C# Shr.cs traps too. The modulo exists only
-  to satisfy generated test data. Restoring the manual-mandated trap (and
-  fixing the offending test data in RetroCore) is an open decision.
+**CAVEATS (after manual review)**:
 - The rotate-RIGHT-on-positive-count direction contradicts the manual's
   "positive shiftcount implies left shift" (10.26). Both this emulator and
   the C# reference rotate right, justified only by empirical testing against
@@ -668,7 +663,7 @@ The following fixes have implications for how the assembler generates code:
 |---------|-------|------------------|
 | 5 | Big-endian constants | Assembler must emit multi-byte values in big-endian |
 | 11 | 6-bit signed constants | Values 0x20-0x3F encode negative numbers -32 to -1 |
-| 12 | Branch displacement | Relative to instruction END, not start |
+| 12 | Branch displacement | Relative to instruction START (first byte), not end |
 | 18 | Big-endian 2-byte displacement | 2-byte address displacements must be big-endian |
 | 19 | Variant inconsistencies | Data type prefixes may map to different variant values per instruction class |
 
@@ -1126,3 +1121,72 @@ Because of these assembler limitations, full verification of shift and bitfield 
 
 - `/home/ronny/repos/nd500x/test/disasm_mul_abs_test.s` - MUL and ABS data type prefix test
 - `/home/ronny/repos/nd500x/test/disasm_mul_abs_test.bin` - Assembled binary
+
+---
+
+## 25. TEMM Enforcement for OTE / SETE / CLTE and LREGBL Privilege Fix
+
+### Files: `src/cpu/instructions/MOVE/Ote1Set.c`, `Ote2Set.c`,
+### `src/cpu/instructions/CONTROL/Sete.c`, `Clte.c`,
+### `src/cpu/instructions/SYSTEM/Lregbl.c`, `src/cpu/cpu.c`,
+### `src/cpu/instruction_helpers.{c,h}`
+
+**Background**: The Own Trap Enable register (OTE) is writable, but each bit is
+modifiable only if the corresponding bit in the Trap Enable Modification Mask
+(TEMM) is set. The instruction pages are authoritative:
+
+- SETE (manual 10.24, ref line 10177): "The specified bit in OTE is set. The
+  <bit no> operand is compared with a modify mask (TEMM) ... An attempt to
+  modify a non-modifiable bit will cause an illegal operand value trap."
+- CLTE (manual 10.25, ref line 10209): same wording for clearing.
+- OTE load (ref line 10253): "the operand is compared with a modify mask
+  (TEMM) ... An attempt to modify a non-modifiable bit in the Own Trap Enable
+  register will cause an illegal operand value trap."
+
+(The general architecture text at line 1905 says such a change is "ignored";
+the stricter instruction-specific pages govern these opcodes and are used here.)
+
+**Problem**: OTE1:=, OTE2:=, SETE and CLTE wrote OTE unconditionally, ignoring
+TEMM entirely. No illegal-operand-value trap was raised for a protected bit.
+
+**Fix**: Added a shared helper `nd500_temm_allows_change(changed_bits, temm)`
+(returns `(changed_bits & ~temm) == 0`) and applied it:
+- OTE load: `changed = new ^ current`; if any changed bit is not modifiable,
+  raise `TRAP_IOV` and leave OTE unchanged.
+- SETE/CLTE: gate the single target bit against the relevant TEMM half
+  (TEMM1 for bits 0-31, TEMM2 for bits 32-63).
+
+**TEMM cold-boot default**: A real domain loads TEMM from its Domain
+Information Table (ref line 8133). At cold boot / in a bare (root) context no
+mother has restricted the process, so `nd500_cpu_init` now defaults
+`TEMM1 = TEMM2 = 0xFFFFFFFF` (all bits modifiable). A zero default would have
+trapped every OTE write. Enforcement therefore only bites once a domain
+installs a restrictive mask.
+
+### LREGBL privilege leak + undefined-shift fix (`Lregbl.c`)
+
+**Problem 1 (privilege leak)**: The non-privileged mask reduction only cleared
+ST2/PS/CED/CAD. CTE1 is register number 32 = mask bit 31, which is
+representable in the 32-bit mask and therefore escaped the filter, letting
+non-privileged code overwrite CTE1.
+
+**Problem 2 (undefined behaviour)**: The load loop ran `reg_num` 1..37 and
+computed `1u << (reg_num - 1)`. For reg_num > 32 the shift count is >= 32,
+which is undefined in C (on x86 it aliases low mask bits, e.g. reg_num 33
+tested mask bit 0).
+
+**Fix**: The mask operand is a 32-bit word, so only reg_num 1..32 (up to CTE1)
+are addressable; the loop is capped at 32 (removing the UB), and an in-loop
+guard skips the privileged registers ST2(18), PS(19), CED(24), CAD(25) and
+CTE1(32) when not privileged. CTE2/MTE/TEMM (reg 33-37) are unreachable via a
+32-bit mask.
+
+### Tests
+
+`test/test_ote_instructions.c` gained TEMM and LREGBL coverage (42 checks total):
+- ote1:= blocked by TEMM (IOV raised, OTE1 unchanged) and allowed when only
+  modifiable bits change.
+- SETE blocked / allowed by TEMM; CLTE blocked by TEMM.
+- LREGBL cannot write CTE1 in non-privileged mode; can in privileged mode.
+
+All 18 ctest targets and the 39,598-case validation suite remain green.

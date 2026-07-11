@@ -376,6 +376,11 @@ uint64_t nd500_read_operand_doubleword(Nd500Cpu* cpu, const Nd500OperandDecoded*
     return nd500_read_operand_value(cpu, operand, ND500_DTYPE_DOUBLEWORD);
 }
 
+bool nd500_temm_allows_change(uint32_t changed_bits, uint32_t temm) {
+    /* A change is permitted only if every changed bit is set in TEMM. */
+    return (changed_bits & ~temm) == 0;
+}
+
 void nd500_write_operand_word(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint32_t value) {
     // Handle register direct
     if (operand->mode == ND500_ADDR_REGISTER) {

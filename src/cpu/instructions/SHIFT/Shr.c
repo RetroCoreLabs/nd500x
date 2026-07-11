@@ -33,10 +33,8 @@
  *   S = 1 if result sign bit is set
  *
  * Large shift counts:
- *   Counts >= operand width are normalized modulo the width instead of
- *   trapping, to match the generated test data. NOTE: the manual mandates
- *   an illegal operand value trap here and the C# reference traps too;
- *   see docs/cpu_implementation_changes.md section 13 caveats.
+ *   Counts >= operand width raise an IOV (Illegal Operand Value) trap,
+ *   matching the manual and the C# reference (Shr.cs).
  *
  * Reference: ND-500 Reference Manual, Chapter 10.26
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Shr.cs
@@ -67,11 +65,11 @@ void nd500_instr_Shr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Get absolute shift (like C# line 36) */
     int32_t shift = (shift_count >= 0) ? shift_count : -shift_count;
 
-    /* For circular shift, normalize shift count to range [0, bits-1]
-     * Rotating by N bits where N >= bits is equivalent to rotating by N % bits.
-     * Note: Test data expects normalization, not trapping for large shifts. */
-    if (shift >= (int32_t)bits && bits > 0) {
-        shift = shift % (int32_t)bits;
+    /* Validate shift count - IOV (Illegal Operand Value) trap if the count
+     * is out of range, matching C# Shr.cs. */
+    if (shift >= (int32_t)bits) {
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
+        return;
     }
 
     /* Perform circular shift (like C# Shr.cs lines 47-57)

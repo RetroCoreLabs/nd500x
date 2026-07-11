@@ -478,6 +478,182 @@ void test_ote2_bug_scenario(void) {
     nd500_machine_free(&m);
 }
 
+/* ===================================================================
+ * TEMM (Trap Enable Modification Mask) enforcement tests
+ *
+ * Per the ND-500 Reference Manual, a bit in OTE is modifiable only if the
+ * corresponding TEMM bit is set. SETE/CLTE and OTE:= must raise an illegal
+ * operand value trap (TRAP_IOV) when a non-modifiable bit is targeted, and
+ * must leave OTE unchanged in that case.
+ * =================================================================== */
+
+void test_ote1_temm_blocks_protected_bit(void) {
+    printf("\n=== Test: ote1:= blocked by TEMM (protected bit) ===\n");
+
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+    nd500_cpu_reset(&cpu);
+
+    cpu.OTE1 = 0x00000000;
+    cpu.TEMM1 = 0xFFFFFFFF & ~0x00001000u;  /* bit 12 NOT modifiable */
+    cpu.I[0] = 0x00001000;                  /* attempt to change bit 12 */
+    cpu.ST1 &= ~(uint32_t)TRAP_IOV;
+
+    uint8_t code[] = { 0xFD, 0xBB, 0xD0 };  /* ote1:= I1 */
+    execute_instruction(&m, &cpu, code, sizeof(code), CODE_ADDR);
+
+    CHECK((cpu.ST1 & (uint32_t)TRAP_IOV) != 0, "IOV trap raised for protected bit");
+    CHECK(cpu.OTE1 == 0x00000000, "OTE1 unchanged after blocked write");
+
+    nd500_machine_free(&m);
+}
+
+void test_ote1_temm_allows_modifiable_bit(void) {
+    printf("\n=== Test: ote1:= allowed when only modifiable bits change ===\n");
+
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+    nd500_cpu_reset(&cpu);
+
+    cpu.OTE1 = 0x00000000;
+    cpu.TEMM1 = 0xFFFFFFFF & ~0x00001000u;  /* bit 12 protected */
+    cpu.I[0] = 0x00002000;                  /* only bit 13 changes (modifiable) */
+    cpu.ST1 &= ~(uint32_t)TRAP_IOV;
+
+    uint8_t code[] = { 0xFD, 0xBB, 0xD0 };  /* ote1:= I1 */
+    execute_instruction(&m, &cpu, code, sizeof(code), CODE_ADDR);
+
+    CHECK((cpu.ST1 & (uint32_t)TRAP_IOV) == 0, "no trap for modifiable bit");
+    CHECK(cpu.OTE1 == 0x00002000, "OTE1 loaded with modifiable value");
+
+    nd500_machine_free(&m);
+}
+
+void test_sete_temm_blocks(void) {
+    printf("\n=== Test: SETE blocked by TEMM ===\n");
+
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+    nd500_cpu_reset(&cpu);
+
+    cpu.OTE1 = 0x00000000;
+    cpu.TEMM1 = 0xFFFFFFFF & ~(1u << 5);  /* bit 5 NOT modifiable */
+    cpu.I[0] = 5;                          /* SETE bit 5 */
+    cpu.ST1 &= ~(uint32_t)TRAP_IOV;
+
+    uint8_t code[] = { 0xFD, 0x39, 0xD0 };  /* SETE I1 */
+    execute_instruction(&m, &cpu, code, sizeof(code), CODE_ADDR);
+
+    CHECK((cpu.ST1 & (uint32_t)TRAP_IOV) != 0, "IOV trap raised by SETE on protected bit");
+    CHECK(cpu.OTE1 == 0x00000000, "OTE1 bit not set when blocked");
+
+    nd500_machine_free(&m);
+}
+
+void test_sete_temm_allows(void) {
+    printf("\n=== Test: SETE allowed by TEMM ===\n");
+
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+    nd500_cpu_reset(&cpu);
+
+    cpu.OTE1 = 0x00000000;
+    cpu.TEMM1 = 0xFFFFFFFF;  /* all modifiable */
+    cpu.I[0] = 5;
+    cpu.ST1 &= ~(uint32_t)TRAP_IOV;
+
+    uint8_t code[] = { 0xFD, 0x39, 0xD0 };  /* SETE I1 */
+    execute_instruction(&m, &cpu, code, sizeof(code), CODE_ADDR);
+
+    CHECK((cpu.ST1 & (uint32_t)TRAP_IOV) == 0, "no trap for modifiable SETE bit");
+    CHECK(cpu.OTE1 == (1u << 5), "OTE1 bit 5 set");
+
+    nd500_machine_free(&m);
+}
+
+void test_clte_temm_blocks(void) {
+    printf("\n=== Test: CLTE blocked by TEMM ===\n");
+
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+    nd500_cpu_reset(&cpu);
+
+    cpu.OTE1 = (1u << 5);                  /* bit 5 currently set */
+    cpu.TEMM1 = 0xFFFFFFFF & ~(1u << 5);  /* bit 5 NOT modifiable */
+    cpu.I[0] = 5;
+    cpu.ST1 &= ~(uint32_t)TRAP_IOV;
+
+    uint8_t code[] = { 0xFD, 0x3A, 0xD0 };  /* CLTE I1 */
+    execute_instruction(&m, &cpu, code, sizeof(code), CODE_ADDR);
+
+    CHECK((cpu.ST1 & (uint32_t)TRAP_IOV) != 0, "IOV trap raised by CLTE on protected bit");
+    CHECK(cpu.OTE1 == (1u << 5), "OTE1 bit unchanged when CLTE blocked");
+
+    nd500_machine_free(&m);
+}
+
+/* ===================================================================
+ * LREGBL privilege tests: CTE1 (register 32, mask bit 31) must NOT be
+ * loadable in non-privileged mode. Previously bit 31 escaped the privilege
+ * filter and could silently overwrite CTE1.
+ * =================================================================== */
+
+void test_lregbl_cte1_no_leak_nonpriv(void) {
+    printf("\n=== Test: LREGBL cannot write CTE1 in non-privileged mode ===\n");
+
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+    nd500_cpu_reset(&cpu);
+
+    cpu.ST1 &= ~ND500_FLAG_PIA;             /* non-privileged */
+    cpu.CTE1 = 0xAAAAAAAA;                   /* sentinel */
+    /* LREGBL loads reg N from <address> + N*4. mask 0x80000000 selects only
+     * register 32 (CTE1); with base address 0 the CTE1 slot is at 0x80. */
+    write_word(&m, 0x80, 0x12345678);        /* would-be CTE1 value */
+
+    uint8_t code[] = { 0xFF, 0xF6,
+                       0x80, 0x00, 0x00, 0x00 };  /* mask (inline word) = reg 32 (CTE1) */
+    execute_instruction(&m, &cpu, code, sizeof(code), CODE_ADDR);
+
+    CHECK(cpu.CTE1 == 0xAAAAAAAA, "CTE1 unchanged (no privilege leak)");
+
+    nd500_machine_free(&m);
+}
+
+void test_lregbl_cte1_priv_loads(void) {
+    printf("\n=== Test: LREGBL can write CTE1 in privileged mode ===\n");
+
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+    nd500_cpu_reset(&cpu);
+
+    cpu.ST1 |= ND500_FLAG_PIA;              /* privileged */
+    cpu.CTE1 = 0xAAAAAAAA;
+    write_word(&m, 0x80, 0x12345678);        /* CTE1 slot (base 0 + 32*4) */
+
+    uint8_t code[] = { 0xFF, 0xF6,
+                       0x80, 0x00, 0x00, 0x00 };  /* mask (inline word) = reg 32 (CTE1) */
+    execute_instruction(&m, &cpu, code, sizeof(code), CODE_ADDR);
+
+    CHECK(cpu.CTE1 == 0x12345678, "CTE1 loaded in privileged mode");
+
+    nd500_machine_free(&m);
+}
+
 int main(void) {
     printf("OTE (Own Trap Enable) Instruction Tests\n");
     printf("========================================\n");
@@ -507,6 +683,17 @@ int main(void) {
 
     /* Bug scenario test */
     RUN_TEST(test_ote2_bug_scenario);
+
+    /* TEMM enforcement tests */
+    RUN_TEST(test_ote1_temm_blocks_protected_bit);
+    RUN_TEST(test_ote1_temm_allows_modifiable_bit);
+    RUN_TEST(test_sete_temm_blocks);
+    RUN_TEST(test_sete_temm_allows);
+    RUN_TEST(test_clte_temm_blocks);
+
+    /* LREGBL privilege tests */
+    RUN_TEST(test_lregbl_cte1_no_leak_nonpriv);
+    RUN_TEST(test_lregbl_cte1_priv_loads);
 
     /* Summary */
     printf("\n========================================\n");

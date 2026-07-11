@@ -214,6 +214,18 @@ uint16_t nd500_read_operand_halfword(Nd500Cpu* cpu, const Nd500OperandDecoded* o
 uint32_t nd500_read_operand_word(Nd500Cpu* cpu, const Nd500OperandDecoded* operand);
 
 /**
+ * Test whether a set of OTE bit changes is permitted by the Trap Enable
+ * Modification Mask (TEMM). Per the ND-500 Reference Manual (sections 10.24
+ * SETE / 10.25 CLTE / OTE load), a bit in OTE is modifiable only if the
+ * corresponding TEMM bit is set; attempting to modify a non-modifiable bit
+ * causes an illegal operand value trap.
+ * @param changed_bits Bits that the operation would change (e.g. new ^ old, or 1<<n)
+ * @param temm         The relevant TEMM half (TEMM1 for OTE1, TEMM2 for OTE2)
+ * @return true if every changed bit is modifiable, false if any is protected
+ */
+bool nd500_temm_allows_change(uint32_t changed_bits, uint32_t temm);
+
+/**
  * Read doubleword (64-bit) from operand
  * @param cpu CPU state
  * @param operand Decoded operand

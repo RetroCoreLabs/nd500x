@@ -42,6 +42,17 @@ void nd500_instr_Ote2Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     uint32_t value = nd500_read_operand_word(cpu, &fi->operands[0]);
+
+    /* TEMM gating (manual OTE load, ref line 10253): a bit in OTE may only be
+     * modified if the corresponding TEMM2 bit is set. Attempting to change a
+     * non-modifiable bit causes an illegal operand value trap; OTE2 is left
+     * unchanged. */
+    uint32_t changed = value ^ cpu->OTE2;
+    if (!nd500_temm_allows_change(changed, cpu->TEMM2)) {
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
+        return;
+    }
+
     cpu->OTE2 = value;
 
     // Set Z and S flags based on the value
