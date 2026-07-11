@@ -51,8 +51,25 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t op1 = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     uint64_t op2 = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
+    /* Normalise both operands to the datatype width before comparing. The
+     * operand fetch may deliver the two operands with different extensions - a
+     * memory halfword zero-extended (0x0000FFFF) while an immediate -1 is
+     * sign-extended (0xFFFFFFFFFFFFFFFF). Comparing the raw 64-bit values then
+     * yields a non-zero difference for values that are equal within the
+     * datatype (e.g. H 0xFFFF vs -1), wrongly clearing Z. The ND-500 compares
+     * two operands OF THE GIVEN DATATYPE, so mask to that width first. */
+    uint64_t width_mask;
+    switch (fi->data_type) {
+        case ND500_DTYPE_BYTE:       width_mask = 0xFFull; break;
+        case ND500_DTYPE_HALFWORD:   width_mask = 0xFFFFull; break;
+        case ND500_DTYPE_WORD:       width_mask = 0xFFFFFFFFull; break;
+        default:                     width_mask = 0xFFFFFFFFFFFFFFFFull; break;
+    }
+    op1 &= width_mask;
+    op2 &= width_mask;
+
     /* Perform subtraction (result not stored) (like C# line 53) */
-    uint64_t result = op1 - op2;
+    uint64_t result = (op1 - op2) & width_mask;
 
     /* ND-500 carry convention: C=1 means NO borrow (op1 >= op2)
      * Reference: ND-500 Reference Manual Page 2040 */
