@@ -1293,19 +1293,112 @@ static void test_mon_413B_fscdnt_missing_args(void) {
     printf("\nTesting MON 413B FSCDNT missing args...\n");
     setup();
 
-    uint32_t file_no_loc = 0x1000;
-    test_write_word(&cpu, file_no_loc, 64);
-
-    uint32_t args[1] = { file_no_loc };
     MonContext ctx;
-    setup_mon_context(&ctx, 267, 1, args);  /* Only 1 arg, need 2 */
+    setup_mon_context(&ctx, 267, 0, NULL);  /* No args; FileNumber is mandatory */
 
     MonResult result = mon_dispatch(&ctx);
 
     if (result == MON_ERROR) {
-        TEST_PASS("MON 413B returns error with insufficient arguments");
+        TEST_PASS("MON 413B returns error with no arguments");
     } else {
-        TEST_FAIL("MON 413B returns error with insufficient arguments", "should fail");
+        TEST_FAIL("MON 413B returns error with no arguments", "should fail");
+    }
+
+    teardown();
+}
+
+/*
+ * Test MON 413B FSCDNT - LogSegmentNumber is an OPTIONAL parameter.
+ * Calling with only FileNumber must disconnect whichever segment the file
+ * is currently mapped to, and must leave the file open.
+ */
+static void test_mon_413B_fscdnt_optional_segment_no(void) {
+    printf("\nTesting MON 413B FSCDNT optional LogSegmentNumber...\n");
+    setup();
+
+    /* Open a file, then map it as a segment via 412B so 413B has work to do. */
+    int file_no = mon_file_open_ex("SCRATCH-413", "DATA", ACCESS_RAND_RDWR, 0);
+    if (file_no < 0) {
+        TEST_FAIL("MON 413B optional param: could not open scratch file", "open failed");
+        teardown();
+        return;
+    }
+
+    OpenFileEntry* entry = mon_file_table_get(file_no);
+    entry->mapped_as_segment = true;
+    entry->mapped_segment_no = 5;
+    entry->segment_access_type = 0;
+
+    uint32_t file_no_loc = 0x1000;
+    test_write_word(&cpu, file_no_loc, (uint32_t)file_no);
+
+    uint32_t args[1] = { file_no_loc };
+    MonContext ctx;
+    setup_mon_context(&ctx, 267, 1, args);  /* 1 arg: segment number omitted */
+
+    MonResult result = mon_dispatch(&ctx);
+
+    if (result == MON_SUCCESS) {
+        TEST_PASS("MON 413B accepts omitted LogSegmentNumber");
+    } else {
+        TEST_FAIL("MON 413B accepts omitted LogSegmentNumber", "should succeed");
+    }
+
+    if (!entry->mapped_as_segment) {
+        TEST_PASS("MON 413B disconnected the mapped segment");
+    } else {
+        TEST_FAIL("MON 413B disconnected the mapped segment", "still mapped");
+    }
+
+    if (entry->in_use) {
+        TEST_PASS("MON 413B leaves the file open");
+    } else {
+        TEST_FAIL("MON 413B leaves the file open", "file was closed");
+    }
+
+    teardown();
+}
+
+/*
+ * Test MON 413B FSCDNT - when LogSegmentNumber IS given it must match the
+ * segment the file is mapped to.
+ */
+static void test_mon_413B_fscdnt_segment_mismatch(void) {
+    printf("\nTesting MON 413B FSCDNT segment mismatch...\n");
+    setup();
+
+    int file_no = mon_file_open_ex("SCRATCH-413B", "DATA", ACCESS_RAND_RDWR, 0);
+    if (file_no < 0) {
+        TEST_FAIL("MON 413B mismatch: could not open scratch file", "open failed");
+        teardown();
+        return;
+    }
+
+    OpenFileEntry* entry = mon_file_table_get(file_no);
+    entry->mapped_as_segment = true;
+    entry->mapped_segment_no = 5;
+
+    uint32_t file_no_loc = 0x1000;
+    uint32_t seg_no_loc  = 0x1010;
+    test_write_word(&cpu, file_no_loc, (uint32_t)file_no);
+    test_write_word(&cpu, seg_no_loc, 7);  /* wrong segment */
+
+    uint32_t args[2] = { file_no_loc, seg_no_loc };
+    MonContext ctx;
+    setup_mon_context(&ctx, 267, 2, args);
+
+    MonResult result = mon_dispatch(&ctx);
+
+    if (result == MON_ERROR) {
+        TEST_PASS("MON 413B rejects a mismatched segment number");
+    } else {
+        TEST_FAIL("MON 413B rejects a mismatched segment number", "should fail");
+    }
+
+    if (entry->mapped_as_segment) {
+        TEST_PASS("MON 413B left the mapping intact after a mismatch");
+    } else {
+        TEST_FAIL("MON 413B left the mapping intact after a mismatch", "mapping cleared");
     }
 
     teardown();
@@ -1344,6 +1437,8 @@ int main(int argc, char* argv[]) {
     test_mon_412B_fscnt_missing_args();
     test_mon_413B_fscdnt_file_not_open();
     test_mon_413B_fscdnt_missing_args();
+    test_mon_413B_fscdnt_optional_segment_no();
+    test_mon_413B_fscdnt_segment_mismatch();
 
     /* Summary */
     printf("\n=== Test Summary ===\n");
