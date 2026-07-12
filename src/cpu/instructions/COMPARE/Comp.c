@@ -102,6 +102,15 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t reg_value = nd500_read_integer_register(cpu, fi->target_register);
     uint64_t operand = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
+    /* Normalise both to the datatype width before comparing. The register read
+     * delivers the full register while the operand may be sign- or zero-extended
+     * differently; comparing raw 64-bit values makes the carry (and, via an
+     * unmasked subtraction, the borrow chain) wrong for sub-word datatypes when
+     * the register's high bits are set. comp is a comparison OF THE DATATYPE.
+     * (Z/sign already used nd500_mask_to_datatype below; this also fixes C.) */
+    reg_value = nd500_mask_to_datatype(reg_value, fi->data_type);
+    operand   = nd500_mask_to_datatype(operand, fi->data_type);
+
     /* Perform subtraction (result not stored, only flags updated) */
     uint64_t result = reg_value - operand;
 
