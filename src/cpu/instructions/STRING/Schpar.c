@@ -93,7 +93,7 @@ void nd500_instr_Schpar(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     bool parity_ok;
     while (index < string_desc.element_count) {
         uint32_t addr = string_desc.base_address + index;
-        uint8_t byte_val = nd500_bus_read8(cpu->machine, addr);
+        uint8_t byte_val = nd500_read_memory_8(cpu, addr);
         uint8_t bit7 = (byte_val >> 7) & 1;
 
         switch (mode) {

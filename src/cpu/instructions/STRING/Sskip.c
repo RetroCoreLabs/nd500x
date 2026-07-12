@@ -57,7 +57,7 @@ void nd500_instr_Sskip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     bool found_different = false;
     while (src_index < source_desc.element_count) {
         uint32_t addr = source_desc.base_address + src_index;
-        uint8_t element = nd500_bus_read8(cpu->machine, addr);
+        uint8_t element = nd500_read_memory_8(cpu, addr);
 
         if (element != (test_value & 0xFF)) {
             found_different = true;

@@ -61,7 +61,7 @@ void nd500_instr_Sfilln(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             break;
         }
         uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_bus_write8(cpu->machine, dest_addr, (uint8_t)(fill_value & 0xFF));
+        nd500_write_memory_8(cpu, dest_addr, (uint8_t)(fill_value & 0xFF));
         dest_index++;
     }
 

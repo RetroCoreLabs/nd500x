@@ -82,12 +82,12 @@ void nd500_instr_Scotr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Read elements */
         uint32_t src1_addr = source1_desc.base_address + src1_index;
         uint32_t src2_addr = source2_desc.base_address + src2_index;
-        uint8_t element1 = nd500_bus_read8(cpu->machine, src1_addr);
-        uint8_t element2 = nd500_bus_read8(cpu->machine, src2_addr);
+        uint8_t element1 = nd500_read_memory_8(cpu, src1_addr);
+        uint8_t element2 = nd500_read_memory_8(cpu, src2_addr);
 
         /* Translate elements via 256-byte translation table */
-        uint8_t translated1 = nd500_bus_read8(cpu->machine, trans_table_addr + element1);
-        uint8_t translated2 = nd500_bus_read8(cpu->machine, trans_table_addr + element2);
+        uint8_t translated1 = nd500_read_memory_8(cpu, trans_table_addr + element1);
+        uint8_t translated2 = nd500_read_memory_8(cpu, trans_table_addr + element2);
 
         /* Compare translated elements */
         if (translated1 != translated2) {

@@ -65,10 +65,10 @@ void nd500_instr_Smovn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
 
         uint32_t src_addr = source_desc.base_address + src_index;
-        uint8_t value = nd500_bus_read8(cpu->machine, src_addr);
+        uint8_t value = nd500_read_memory_8(cpu, src_addr);
 
         uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_bus_write8(cpu->machine, dest_addr, value);
+        nd500_write_memory_8(cpu, dest_addr, value);
 
         src_index++;
         dest_index++;

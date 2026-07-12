@@ -68,14 +68,14 @@ void nd500_instr_Smvtr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     while (src_index < source_desc.element_count && dest_index < dest_desc.element_count) {
         /* Read source element */
         uint32_t src_addr = source_desc.base_address + src_index;
-        uint8_t element = nd500_bus_read8(cpu->machine, src_addr);
+        uint8_t element = nd500_read_memory_8(cpu, src_addr);
 
         /* Translate through 256-byte table: element (0-255) -> translated byte */
-        uint8_t translated = nd500_bus_read8(cpu->machine, trans_table_addr + element);
+        uint8_t translated = nd500_read_memory_8(cpu, trans_table_addr + element);
 
         /* Write to destination */
         uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_bus_write8(cpu->machine, dest_addr, translated);
+        nd500_write_memory_8(cpu, dest_addr, translated);
 
         src_index++;
         dest_index++;

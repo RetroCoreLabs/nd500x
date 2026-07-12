@@ -62,7 +62,7 @@ void nd500_instr_Scpuno(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     while (src_index < source_desc.element_count && dest_index < dest_desc.element_count) {
         uint32_t src_addr = source_desc.base_address + src_index;
-        uint8_t element = nd500_bus_read8(cpu->machine, src_addr);
+        uint8_t element = nd500_read_memory_8(cpu, src_addr);
 
         /* Check for test byte (delimiter) */
         if (element == (test_value & 0xFF)) {
@@ -72,7 +72,7 @@ void nd500_instr_Scpuno(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
         /* Copy to destination */
         uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_bus_write8(cpu->machine, dest_addr, element);
+        nd500_write_memory_8(cpu, dest_addr, element);
 
         src_index++;
         dest_index++;

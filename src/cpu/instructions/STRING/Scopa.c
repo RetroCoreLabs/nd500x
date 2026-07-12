@@ -55,20 +55,20 @@ void nd500_instr_Scopa(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Copy with translation */
     while (src_index < source_desc.element_count && dest_index < dest_desc.element_count) {
         uint32_t src_addr = source_desc.base_address + src_index;
-        uint8_t element = nd500_bus_read8(cpu->machine, src_addr);
+        uint8_t element = nd500_read_memory_8(cpu, src_addr);
 
         /* Translate through table */
         uint8_t translated;
         if (element < table_desc.element_count) {
             uint32_t table_addr = table_desc.base_address + element;
-            translated = nd500_bus_read8(cpu->machine, table_addr);
+            translated = nd500_read_memory_8(cpu, table_addr);
         } else {
             translated = element;  /* No translation if out of table range */
         }
 
         /* Write to destination */
         uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_bus_write8(cpu->machine, dest_addr, translated);
+        nd500_write_memory_8(cpu, dest_addr, translated);
 
         src_index++;
         dest_index++;

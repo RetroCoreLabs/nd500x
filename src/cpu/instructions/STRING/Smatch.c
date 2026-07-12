@@ -60,8 +60,8 @@ void nd500_instr_Smatch(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         for (uint32_t i = 0; i < pattern_len; i++) {
             uint32_t src_addr = source_desc.base_address + src_index + i;
             uint32_t pat_addr = pattern_desc.base_address + i;
-            uint8_t src_elem = nd500_bus_read8(cpu->machine, src_addr);
-            uint8_t pat_elem = nd500_bus_read8(cpu->machine, pat_addr);
+            uint8_t src_elem = nd500_read_memory_8(cpu, src_addr);
+            uint8_t pat_elem = nd500_read_memory_8(cpu, pat_addr);
             if (src_elem != pat_elem) {
                 match = false;
                 break;

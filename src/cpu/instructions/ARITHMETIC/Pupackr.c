@@ -114,12 +114,12 @@ void nd500_instr_Pupackr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         } else {
             ch = '0';  /* Leading zero */
         }
-        nd500_bus_write8(cpu->machine, addr, (uint8_t)ch);
+        nd500_write_memory_8(cpu, addr, (uint8_t)ch);
     }
 
     /* Handle sign if needed */
     if (is_negative && count > 0) {
-        nd500_bus_write8(cpu->machine, dest_desc.base_address, '-');
+        nd500_write_memory_8(cpu, dest_desc.base_address, '-');
     }
 
     /* Update status flags */

@@ -52,13 +52,13 @@ void nd500_instr_Sspar(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     bool found_not_in_set = false;
     while (src_index >= 0) {
         uint32_t addr = source_desc.base_address + (uint32_t)src_index;
-        uint8_t element = nd500_bus_read8(cpu->machine, addr);
+        uint8_t element = nd500_read_memory_8(cpu, addr);
 
         /* Check if element is in set */
         bool in_set = false;
         for (uint32_t i = 0; i < set_desc.element_count; i++) {
             uint32_t set_addr = set_desc.base_address + i;
-            uint8_t set_elem = nd500_bus_read8(cpu->machine, set_addr);
+            uint8_t set_elem = nd500_read_memory_8(cpu, set_addr);
             if (element == set_elem) {
                 in_set = true;
                 break;

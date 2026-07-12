@@ -64,7 +64,7 @@ void nd500_instr_Ppack(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     for (uint32_t i = 0; i < count; i++) {
         uint32_t addr = source_desc.base_address + i;
-        uint8_t ch = nd500_bus_read8(cpu->machine, addr);
+        uint8_t ch = nd500_read_memory_8(cpu, addr);
 
         /* Handle sign characters */
         if (ch == '+') {
