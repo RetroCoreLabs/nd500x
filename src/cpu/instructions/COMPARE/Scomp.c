@@ -112,13 +112,16 @@ void nd500_instr_Scomp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Compare while both indices are within bounds */
     while (index1 < desc1.element_count && index2 < desc2.element_count) {
         /* Read element from string 1 */
-        /* For string comparison, we assume byte elements (typical for text strings) */
+        /* For string comparison, we assume byte elements (typical for text strings).
+         * String descriptor base_address is a VIRTUAL address - it must go through
+         * the MMU (nd500_read_memory_8), not a raw physical bus read, or with the
+         * MMU enabled we compare the wrong bytes. */
         uint32_t addr1 = desc1.base_address + index1;
-        uint8_t element1 = nd500_bus_read8(cpu->machine, addr1);
+        uint8_t element1 = nd500_read_memory_8(cpu, addr1);
 
         /* Read element from string 2 */
         uint32_t addr2 = desc2.base_address + index2;
-        uint8_t element2 = nd500_bus_read8(cpu->machine, addr2);
+        uint8_t element2 = nd500_read_memory_8(cpu, addr2);
 
         /* Check if elements differ */
         if (element1 != element2) {
