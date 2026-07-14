@@ -164,14 +164,17 @@ void nd500_instr_Scomp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         (index1 < desc1.element_count && index2 < desc2.element_count);
 
     if (byte_diff_found) {
-        /* Byte difference found: K=1 */
+        /* Byte difference found: K=1. Per ND-500 Ref Manual sect 14.10 (p254):
+         * smaller byte in source-1 (source1 < source2) -> S=1;
+         * greater byte in source-1 (source1 > source2) -> S=0.
+         * This matches the COMP sign convention (S=1 <=> source1 < source2) that the
+         * shared conditional branches (if>=go tests S=0, if<go tests S=1) rely on.
+         * The previous code had this inverted, breaking NC's keyword binary search. */
         nd500_set_flag(cpu, ND500_FLAG_K);
-        /* S = 1 if source-1 byte is greater (source-1 > source-2) */
-        /* S = 0 if source-1 byte is smaller (source-1 < source-2) */
-        if (!string1_less) {
-            nd500_set_flag(cpu, ND500_FLAG_S);
+        if (string1_less) {
+            nd500_set_flag(cpu, ND500_FLAG_S);   /* source1 < source2 -> S=1 */
         } else {
-            nd500_clear_flag(cpu, ND500_FLAG_S);
+            nd500_clear_flag(cpu, ND500_FLAG_S); /* source1 > source2 -> S=0 */
         }
     } else {
         /* Length mismatch or equal strings: K=0 */

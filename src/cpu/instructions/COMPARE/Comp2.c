@@ -47,6 +47,27 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
+    /* Floating compares (F/D COMP2) must compare as FLOATS, not raw integer bit
+     * patterns. Doing integer subtraction on ND float bits sets S/C (and Z for
+     * some encodings, e.g. +0.0 vs -0.0) wrong, which flips the conditional branch
+     * that consumes them - e.g. the freelist size-bucket rounding at 0x0802CED9
+     * (d comp2 / if = go). Compare the decoded IEEE values instead. */
+    if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_DOUBLEWORD) {
+        double a, b;
+        if (fi->data_type == ND500_DTYPE_DOUBLEWORD) {
+            a = nd500_double_to_ieee754(nd500_read_operand_doubleword(cpu, &fi->operands[0]));
+            b = nd500_double_to_ieee754(nd500_read_operand_doubleword(cpu, &fi->operands[1]));
+        } else {
+            a = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT));
+            b = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_FLOAT));
+        }
+        /* op1 - op2: Z = equal, S = op1 < op2 (result sign), C = no borrow (op1 >= op2) */
+        if (a == b) nd500_set_flag(cpu, ND500_FLAG_Z); else nd500_clear_flag(cpu, ND500_FLAG_Z);
+        if (a <  b) nd500_set_flag(cpu, ND500_FLAG_S); else nd500_clear_flag(cpu, ND500_FLAG_S);
+        if (a >= b) nd500_set_flag(cpu, ND500_FLAG_C); else nd500_clear_flag(cpu, ND500_FLAG_C);
+        return;
+    }
+
     /* Read both operands (like C# lines 49-50) */
     uint64_t op1 = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     uint64_t op2 = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
