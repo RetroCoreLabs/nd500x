@@ -1,3 +1,4 @@
+#include <stdlib.h>
 /*
  * ND-500 Segment Allocation for MON Calls
  *
@@ -238,6 +239,22 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
 
     /* Return assigned segment number */
     *out_assigned_segment = assigned_segment;
+
+    /* Opt-in layout dump (ND500X_SEG_DUMP) to hunt physical overlap between GSWSP segments. */
+    {
+        static int dbg = -1;
+        if (dbg < 0) { const char* e = getenv("ND500X_SEG_DUMP"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (dbg) {
+            uint32_t vbase = (uint32_t)assigned_segment << 27; /* VA seg field */
+            fprintf(stderr, "[SEG] ic=%llu CED=%u dom=%u seg=%u vbase=%08X reqBytes=%u rounded=%u pages=%u "
+                    "phys=[%08X,%08X) ptbl=[%08X,%08X) psn=%d highestPfn=%u\n",
+                    (unsigned long long)cpu->instruction_count, (unsigned)cpu->CED, domain, assigned_segment, vbase,
+                    segment_size_bytes, rounded_size, num_pages,
+                    phys_segment_base, phys_segment_end, page_table_base, page_table_end,
+                    psn, highest_pfn); (void)0;
+            fflush(stderr);
+        }
+    }
 
     return ERR_SUCCESS;
 }

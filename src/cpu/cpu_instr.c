@@ -53,8 +53,25 @@ static inline uint8_t mmu_read8(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int
 /**
  * Write 8-bit value with MMU translation
  */
+/* Opt-in write-watch (ND500X_NC_WWATCH) for the NC crash record range. Logs any
+ * store whose virtual address falls in [WWATCH_LO, WWATCH_HI). Off by default. */
+#define NC_WWATCH_LO 0x1802A1B0u
+#define NC_WWATCH_HI 0x1802A1D0u
+static inline void nc_wwatch(Nd500Cpu* cpu, uint32_t vaddr, int width, uint32_t val) {
+	static int mode = -1;
+	if (mode < 0) { const char* e = getenv("ND500X_NC_WWATCH"); mode = (e && e[0] && e[0] != '0') ? 1 : 0; }
+	if (!mode) return;
+	if (vaddr >= NC_WWATCH_LO && vaddr < NC_WWATCH_HI) {
+		fprintf(stderr, "[WWATCH] instr=%llu PC~=%08X w%d [%08X] <- %0*X\n",
+		        (unsigned long long)cpu->instruction_count, cpu->PC, width,
+		        vaddr, width/4, val);
+		fflush(stderr);
+	}
+}
+
 static inline void mmu_write8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t val) {
 	if (!cpu || !cpu->machine) return;
+	nc_wwatch(cpu, vaddr, 8, val);
 
 	uint32_t paddr = vaddr;
 	if (cpu->machine->mmu_enabled) {
@@ -83,6 +100,7 @@ static inline uint16_t mmu_read16(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
  */
 static inline void mmu_write16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) {
 	if (!cpu || !cpu->machine) return;
+	nc_wwatch(cpu, vaddr, 16, val);
 
 	uint32_t paddr = vaddr;
 	if (cpu->machine->mmu_enabled) {
@@ -111,6 +129,7 @@ static inline uint32_t mmu_read32(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
  */
 static inline void mmu_write32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t val) {
 	if (!cpu || !cpu->machine) return;
+	nc_wwatch(cpu, vaddr, 32, val);
 
 	uint32_t paddr = vaddr;
 	if (cpu->machine->mmu_enabled) {

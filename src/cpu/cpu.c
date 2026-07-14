@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include "cpu_protos.h"
 #include "instruction_helpers.h"
@@ -217,6 +218,49 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 
 	nd500_execute_decoded(cpu, &fi);
 
+	/* -------------------------------------------------------------------
+	 * WORKAROUND (opt-in via ND500X_NC_TYPETAG_GUARD): NC type-confusion guard
+	 *
+	 * Compiling B.C, NC's list-builder helper at 0x08024829 computes a list
+	 * size as  count = mem16[recordA] + mem16[recordB]  via:
+	 *   0x08024834  h1 := IND(b.20)   ; h1 = mem16[recordA]
+	 *   0x08024837  h2 := IND(b.24)   ; h2 = mem16[recordB]
+	 *   0x0802483A  w1 + W2           ; count = h1 + h2
+	 * At instr ~1,196,914 recordA (0x1802A1B0) is a LIVE type-3 object
+	 * (tag byte 0x03 at offset 0), so mem16[recordA] = 0x0300 (the tag) is
+	 * misread as a count -> 0x0300 + 2 = 770 -> an over-sized list whose walk
+	 * later dereferences a wild pointer -> PV at 0x080241FC.
+	 *
+	 * The type-confusion is upstream and NOT resolvable by tracing without a
+	 * hardware/manual oracle (see docs/NC_CRASH_0x08023EA4_ROOTCAUSE.md
+	 * UPDATE 39-43). This guard does not FIX it - it validates the record's
+	 * type tag at the count read and, when the source is a type-3 object,
+	 * substitutes a 0 count contribution so execution proceeds past this
+	 * crash and exposes the NEXT blocker. Disabled unless the env var is set.
+	 * ------------------------------------------------------------------- */
+	if (old_pc == 0x08024834u) {
+		static int guard_mode = -1; /* -1 unread, 0 off, 1 on */
+		if (guard_mode < 0) {
+			const char* e = getenv("ND500X_NC_TYPETAG_GUARD");
+			guard_mode = (e && e[0] && e[0] != '0') ? 1 : 0;
+		}
+		/* h1 (cpu->I[0]) now holds mem16[recordA], big-endian, so its high
+		 * byte is the record's tag byte at offset 0. A type-3 object has
+		 * tag 0x03; a genuine count-record here holds a tiny value (1,2).
+		 * Only the high byte is inspected - no memory access, so no host
+		 * fault risk on non-type-3 invocations. */
+		if (guard_mode && ((cpu->I[0] >> 8) & 0xFF) == 0x03) {
+			uint32_t rec_ptr = (fi.operand_count >= 1)
+			                   ? fi.operands[0].effective_address : 0;
+			printf("[NC-GUARD] type-3 tag (mem16=0x%04X) at record 0x%08X read as "
+			       "list count at PC=0x%08X instr=%llu; substituting count 0\n",
+			       (unsigned)(cpu->I[0] & 0xFFFF), rec_ptr, old_pc,
+			       (unsigned long long)cpu->instruction_count);
+			fflush(stdout);
+			cpu->I[0] = 0;
+		}
+	}
+
 	/* Trace register changes after execution */
 	if (do_trace) {
 		uint32_t after_regs[10] = {cpu->PC, cpu->I[0], cpu->I[1], cpu->I[2], cpu->I[3],
@@ -322,6 +366,26 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 
 	/* Check if this is a non-ignorable/fatal trap (bits 32+) */
 	if (trapBit & TRAP_INTERRUPT_MASK) {
+		/* Non-ignorable traps (bits 32-41: PV, ISE, THM, PGF, ...) are still delivered to the
+		 * PROGRAM via its THA vector on the ND-500 - a program installs handlers precisely to
+		 * receive them (NC sets THA[36]=PV handler 0x0802D817, and handlers for 32-41). The
+		 * machine only halts when there is NO handler (THA==0 or slot==0 -> Trap Handler Missing)
+		 * or when a fault occurs while ALREADY inside a handler (a double fault - our single-level
+		 * saved-trap state cannot nest, and a nested non-ignorable trap is a genuine hard error).
+		 * Opt out with ND500X_NO_TRAP_DISPATCH=1 to restore the old always-halt behavior. */
+		static int td = -1;
+		if (td < 0) { const char* e = getenv("ND500X_NO_TRAP_DISPATCH"); td = (e && e[0] && e[0] != '0') ? 0 : 1; }
+		if (td && cpu->THA != 0 && !cpu->in_trap_handler) {
+			int tn = 0; for (int i = 0; i < 64; i++) { if ((trapBit >> i) & 1) { tn = i; break; } }
+			uint32_t hp = nd500_mmu_translate(cpu, cpu->THA + tn * 4, 0, 0);
+			uint32_t haddr = nd500_trap_occurred() ? 0 : nd500_bus_read32(cpu->machine, hp);
+			if (haddr != 0) {
+				nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
+				invoke_trap_handler(cpu, trapBit, trapPC);
+				return;
+			}
+			/* no handler installed for this trap -> fall through to halt (Trap Handler Missing) */
+		}
 		/* Set trap state - this WILL stop execution */
 		nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
 		TRACE("[TRAP] %s at PC=0x%08X data=0x%08X\n",
