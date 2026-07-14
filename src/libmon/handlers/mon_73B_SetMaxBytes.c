@@ -73,24 +73,14 @@ MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Set max bytes (pointer + 1 = number of bytes) */
+    /* Set max bytes (pointer + 1 = number of bytes).
+     * Per the carved L07 SMAX: this only RECORDS the logical max-byte length; the
+     * physical file length is applied at CLOSE, not now. Immediately ftruncate-ing
+     * here shortens a scratch file under the program's feet and makes a later
+     * read-back deliver a truncated image. So just record the logical length; do
+     * NOT touch the host file. (CLOSE/43B applies it.) */
     uint32_t new_size = max_byte_ptr + 1;
     entry->object_entry.bytes_in_file = new_size;
-
-    /* If we have a host file, truncate or extend it */
-    if (entry->host_file) {
-        /* Truncate file to new size */
-        int fd = fileno(entry->host_file);
-        if (fd >= 0) {
-            fflush(entry->host_file);
-            /* Use platform-appropriate truncate - ftruncate on POSIX */
-            #ifdef _WIN32
-            _chsize(fd, (long)new_size);
-            #else
-            ftruncate(fd, (off_t)new_size);
-            #endif
-        }
-    }
 
     mon_log(MON_LOG_DEBUG, MON_ID_73B ": OUT: File %o max bytes set to %o", file_no, new_size);
 

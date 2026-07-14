@@ -97,7 +97,7 @@ MonResult mon_50B_OpenFile(MonContext* ctx) {
 
         /* Map internal error codes to SINTRAN error codes */
         switch (file_number) {
-            case -52: mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
+            case -52: mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER); break;  /* 174B Illegal parameter */
             case -54: mon_set_error(ctx, MON_ERR_FILE_ALREADY_OPEN); break;  /* File already open */
             case -55: mon_set_error(ctx, MON_ERR_TOO_MANY_FILES_OPEN); break;  /* No free file slots */
             default:  mon_set_error(ctx, MON_ERR_NO_SUCH_FILE_NAME);  /* 056B No such file name */

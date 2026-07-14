@@ -187,29 +187,33 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
 
     free(buffer);
 
-    /* End-of-file signalling (SINTRAN III, per 73B SMAX doc: "Error code 3
-     * means end of file"). RFILE has no residual-count output parameter, so
-     * error code 3 in W1 is the ONLY way a reader detects end of data. Any
-     * transfer that reaches or crosses EOF must return code 3 - including a
-     * short final block, whose partial data is still delivered to the buffer
-     * before the EOF is signalled. Returning success (or the old code 55) on
-     * these paths makes read-until-EOF loops never terminate cleanly. */
+    /* Return contract per the carved L07 RFILE (006-S3FS worker 102130B):
+     *  - Error 3 (end-of-file) is a RANGE check raised only when the requested
+     *    block/position is ENTIRELY beyond the file's data (carve: bounds test
+     *    102364-102402, SAA 3 @ 102403). A block that exists but holds fewer
+     *    bytes than requested PASSES and does the read.
+     *  - A within-bounds read - even a short final block at EOF - returns
+     *    SUCCESS (K clear) and writes the ACTUAL transferred byte count back to
+     *    the caller (carve success path 102433-102470: recompute count -> B+16 ->
+     *    stored via rec[26]). That count is how the reader learns the length; it
+     *    is NOT signalled by an error.
+     * The previous handler returned error 3 on every short read, so NC reading
+     * 4096 bytes of a 23-byte source saw K-set/EXIT-ERROR, treated the source as
+     * unreadable, and rejected valid declarations ("IDENTIFIER deleted"). */
     if (bytes_read == 0) {
-        /* True EOF - no data available at requested position */
+        /* Nothing available at the requested position -> genuinely at/past EOF. */
         mon_log(MON_LOG_DEBUG, MON_ID_117B ": EOF - requested %u bytes at block %u, got 0",
                 num_bytes, block_no);
         mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
         return MON_ERROR;
-    }
-
+    }    /* Success (full or short read): report the actual bytes transferred back to
+     * the caller in the NoOfBytes parameter (arg 4), matching the carve's
+     * count-write-back, so the reader knows exactly how many bytes it got. */
+    mon_write_param_word(ctx, 4, (uint32_t)bytes_read);
     if (bytes_read < num_bytes) {
-        /* Short final block: partial data was written above, now signal EOF */
-        mon_log(MON_LOG_DEBUG, MON_ID_117B ": Partial read - requested %u, got %zu, signalling EOF",
+        mon_log(MON_LOG_DEBUG, MON_ID_117B ": Short read - requested %u, got %zu (SUCCESS, count returned)",
                 num_bytes, bytes_read);
-        mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
-        return MON_ERROR;
     }
-
     mon_set_success(ctx);
     return MON_SUCCESS;
 }
