@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
 #define RING 256
     static uint32_t ring[RING];
     unsigned rpos = 0;
-    int reported = 0;
+    int reported = 0, tracing = 0;
     size_t prev_out_len = 0;
     for (long s = 0; s < maxsteps && m.run_flag; s++) {
         ring[rpos++ % RING] = c.PC;
@@ -107,7 +107,16 @@ int main(int argc, char** argv) {
             if (olen != prev_out_len) {
                 prev_out_len = olen;
                 const char* o = mon_get_console_output();
+                /* Turn on read-tracing exactly for the code-generation window so
+                 * we can see whether the mapped CAT (VA 0x20000000) is ever read. */
+                if (o && !tracing && strstr(o, "code generation")) {
+                    tracing = 1;
+                    nd500_dbg_set_memtrace(MEMTRACE_READ);
+                    printf("---- memtrace ON at instr=%llu ----\n",
+                           (unsigned long long)c.instruction_count);
+                }
                 if (o && strstr(o, "can't generate")) {
+                    nd500_dbg_set_memtrace(0);
                     printf("---- FAILURE EMITTED at instr=%llu PC=0x%08X ----\n",
                            (unsigned long long)c.instruction_count, c.PC);
                     printf("Preceding PC trace (oldest -> newest):\n");

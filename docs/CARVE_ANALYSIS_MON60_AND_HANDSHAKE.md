@@ -304,6 +304,55 @@ mapped CAT). If it never reads there, candidate 1 is confirmed and the fix is in
 nd500_mon_connect_file_as_segment / the segment addressing convention. If it does read there
 and still rejects the data, candidate 2/3 move up.
 
+## 4e. HARD FACT: CAT-500 never reads the mapped CAT file (2026-07-15)
+
+Enabled `nd500_dbg_set_memtrace(MEMTRACE_READ)` for exactly the code-generation window
+(from the "code generation" console output until "can't generate code"). Result over the
+**11,102 reads** in that window:
+
+| vaddr region | reads | what it is |
+|---|---|---|
+| `0x10xxxxxx` | 7107 | stack / frame |
+| `0x08xxxxxx` | 3039 | CAT-500's own code+data (PSEG/DSEG base 0x08000000) |
+| `0x18xxxxxx` |  889 | **segment 3 = its GSWSP working segment** (internal structures) |
+| `0x00xxxxxx` |   67 | low memory |
+| **`0x2xxxxxxx`** | **0** | **the FSCNT-mapped CAT input - NEVER TOUCHED** |
+| `0x28xxxxxx` |    0 | the FSCNT-mapped scratch - never touched |
+
+No read anywhere in the window returns the CAT header (`0xD60200`/`0xD00200`): **zero hits**.
+
+**So CAT-500 maps both files successfully and then fails WITHOUT EVER READING THE CAT.** It
+only churns over its own working segment (422B GSWSP assigned it segments 2 and 3; it reads
+`0x18xxxxxx` = segment 3). This kills the "it read our bytes and rejected the format" theory
+AND means the earlier "segment->address convention" suspicion cannot be concluded from this
+alone - it never gets as far as addressing the file.
+
+**The FSCNT result check is NOT the failure** (byte-verified):
+```
+0801F08B: MON 412B FSCNT
+0801F096: if -k go 0801F0A3      ; K clear (success) -> jump
+0801F099: h1 =: $0x80224F0       ; error path: store error code
+0801F0A3: h stz $0x80224F0       ; success path: zero the error cell
+0801F2D6: h1 := $0x80224F0 ; ret ; the "get status" routine the caller tests
+0800C5B4: call $0x801F2D6 ; 0800C5BD: h test b.0x18 ; non-zero -> error
+```
+nd500x's 412B clears K and returns SUCCESS ("mon_set_success: clearing K flag (K=0)",
+"EXIT 412B FSCNT -> SUCCESS"), so the error cell is zeroed and this check PASSES.
+
+**Therefore the failure is a decision CAT-500 makes on its own internal state, after a
+successful mapping and before reading the file.** The failure-path loop is
+`0801D68F -> 0801D3C0..0801D44C -> 0801C1E4 -> 0801D32B..0801D3BD` (repeating), exiting to
+`0801C517..0801C557` -> `call $0x801D735` (message emitter) -> 504B DVOUTS.
+
+**Open question / next step:** identify what state that loop tests. Since the CAT is never
+read, the likely culprits are (ALL UNVERIFIED): a setup step CAT-500 expects between mapping
+and reading (e.g. it may expect FSCNT to hand back an ADDRESS or to map into an EXISTING
+working segment rather than allocating a NEW segment 4/5 - note it passes LogSegmentNo=0
+"first free" and only ever uses the returned number to DISCONNECT via 413B FSCDNT); or a
+missing/incorrect value in a structure it built earlier. Instrument the loop at 0801D3C0 /
+0801D32B and find the predicate. Do NOT assume the nd500x segment convention is wrong until
+that predicate is known.
+
 ## 5. What (b) tells me I do NOT need for (a)
 - The MON 60B gateway, 5IFUNC/FUNCS tables, 3022 IOX bus, 5MPM message, control-store gate,
   level-12 return ISR: all irrelevant to the single-CPU nd500x experiment. Documented here
