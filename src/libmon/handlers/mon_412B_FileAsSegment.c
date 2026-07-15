@@ -122,7 +122,20 @@ MonResult mon_412B_FileAsSegment(MonContext* ctx) {
             "(accessType=%o, writable=%d, bytes=%u)",
             file_no, assigned, access_type, writable, entry->object_entry.bytes_in_file);
 
-    /* Return assigned segment number in W1 */
+    /* Return the assigned segment number to the CALLER'S OUTPUT PARAMETER (arg 3).
+     * This is how callers learn which segment the file landed on, and therefore
+     * which address to read it at. Verified against CAT-500 (cat-cat5-b06.dom):
+     * its wrapper issues
+     *     call MON 412B, $0x4, b.0x14, b.0x18, b.0x1C, @b.0x20
+     * i.e. a 4th, indirect OUT argument. Without this write the caller keeps the
+     * cell's stale value (0), addresses segment 0, reads zeros instead of the
+     * mapped file, and then fails - and its later 413B FSCDNT(LogSegmentNo=0)
+     * mismatches the real segment too. */
+    if (ctx->arg_count >= 4) {
+        mon_write_param_word(ctx, 3, assigned);
+    }
+
+    /* Also leave it in W1: some callers read the result register instead. */
     ctx->set_error_code(ctx->cpu, (int32_t)assigned);
 
     mon_set_success(ctx);
