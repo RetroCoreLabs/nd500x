@@ -29,9 +29,29 @@
 #include "../mon.h"
 #include "../mon_log.h"
 
-/* Default execution environment settings */
+/* Default execution environment settings.
+ *
+ * INPUT DEV = 1 (the TERMINAL), changed 2026-07-16 - previously 0.
+ *
+ * Its own documented contract (above) says InputDev is the "Terminal number for
+ * interactive, file number for batch/mode". We report ExecutionMode = 0
+ * (interactive) and OutputDev = 1 (terminal), so InputDev = 0 (the SINTRAN
+ * command buffer = the BATCH channel) was self-inconsistent: it told an
+ * interactive program to take its commands from the batch channel.
+ *
+ * Byte-verified consequence of the old value: the ND LINKER believed its command
+ * input was device 0, issued 1B INBT on it, found it empty and blocked forever.
+ * Feeding device 0 instead forced it into its BATCH dialogue ("Batch abortion
+ * (Yes,No)Yes") where it spun without ever consuming the fed commands.
+ *
+ * COUPLED CHANGE - do not ship this alone: with InputDev = 1 the linker takes
+ * its interactive path and immediately calls MON 511B DVIO. Before 511B existed
+ * that traded a hang for an unimplemented-MON stop, which is why this was probed
+ * and REVERTED twice (2026-07-15). It lands only together with
+ * handlers/mon_511B_DVIO.c.
+ */
 #define DEFAULT_EXEC_MODE       0       /* Interactive program (0=interactive, 3=RT) */
-#define DEFAULT_INPUT_DEV       0       /* Input device 0 (command buffer) */
+#define DEFAULT_INPUT_DEV       1       /* Terminal (interactive command input) */
 #define DEFAULT_OUTPUT_DEV      1       /* Output device 1 (terminal) */
 #define DEFAULT_DIRECTORY_INDEX 1       /* Default directory */
 #define DEFAULT_USER_INDEX      1       /* Default user (SYSTEM or RT) */

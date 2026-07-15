@@ -19,6 +19,7 @@
 #include "../mon_log.h"
 #include "../mon_errors.h"
 #include "../mon_file_table.h"
+#include "../mon_device_io.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -41,6 +42,21 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
     MON_LOG_IN_WORD(ctx, 0, "DeviceNo");
     MON_LOG_IN_WORD(ctx, 1, "NoOfBytes");
 
+    MonResult r = mon_dvouts_write(ctx, device_no, num_bytes, buffer_addr);
+    if (r != MON_SUCCESS) {
+        return r;
+    }
+
+    mon_set_success(ctx);
+    return MON_SUCCESS;
+}
+
+/* =========================================================================
+ * DVOUTS core - shared with MON 511B DVIO (see mon_device_io.h).
+ * ========================================================================= */
+
+MonResult mon_dvouts_write(MonContext* ctx, uint32_t device_no,
+                           uint32_t num_bytes, uint32_t buffer_addr) {
     /* Identify device type */
     const char* dev_type = "unknown";
     if (is_character_device(device_no)) dev_type = "character";
@@ -59,8 +75,7 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
     }
 
     if (num_bytes == 0) {
-        /* Nothing to write */
-        mon_set_success(ctx);
+        /* Nothing to write - caller owns the final status */
         return MON_SUCCESS;
     }
 
@@ -155,6 +170,6 @@ MonResult mon_504B_OutputString(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    mon_set_success(ctx);
+    /* Caller owns the final status (511B still has its input phase to run). */
     return MON_SUCCESS;
 }

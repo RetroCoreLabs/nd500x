@@ -22,6 +22,7 @@
 #include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 MonResult mon_1B_InByte(MonContext* ctx) {
     /* Defensive check for argument count - need INPUT and OUTPUT params */
@@ -50,6 +51,13 @@ MonResult mon_1B_InByte(MonContext* ctx) {
              * the CALLG, and the run loop stops with STOP_WAIT_INPUT so the host
              * can feed the next line and resume. (The command line itself is also
              * read from the terminal via 503B DVINST; both channels are fed.) */
+            /* RE-TESTED 2026-07-16 and CONFIRMED, after 143B RSIO moved command
+             * input to the terminal: returning EOF here still makes the LINKER
+             * busy-spin - 20,088 consecutive 1B INBT calls at PC=0xB004E759 in
+             * 600k instructions, with no other MON activity. So the suspend
+             * below is required by the linker itself, not by NC (NC now reads
+             * device 1 and never touches device 0). An earlier note blaming NC's
+             * reader for the EOF spin was wrong. Do not "restore EOF" here. */
             mon_log(MON_LOG_DEBUG, MON_ID_1B ": Command buffer empty - suspend (wait for input)");
             ctx->wait_requested = 1;
             ctx->wait_device = 0;

@@ -37,6 +37,7 @@
 #include "../mon_errors.h"
 #include "../mon_file_table.h"
 #include "../mon_terminal_state.h"
+#include "../mon_device_io.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -137,9 +138,36 @@ MonResult mon_503B_InputString(MonContext* ctx) {
     }
     uint32_t device_no = mon_read_param_word(ctx, 0);
     uint32_t max_bytes = mon_read_param_word(ctx, 1);
-    uint32_t ret_count_addr = ctx->arg_addresses[2];  /* Output: bytes read */
     uint32_t buffer_addr = ctx->arg_addresses[3];     /* Output: string buffer */
 
+    MON_LOG_IN_WORD(ctx, 0, "DevNo");
+    MON_LOG_IN_WORD(ctx, 1, "MaxNo");
+
+    /* DVINST returns the byte count in argument 2. */
+    MonResult r = mon_dvinst_read(ctx, device_no, max_bytes, 2, buffer_addr);
+    if (r != MON_SUCCESS) {
+        return r;
+    }
+    if (ctx->wait_requested) {
+        /* Uncommitted: the CPU rewinds to the CALLG and retries this MON. */
+        return MON_SUCCESS;
+    }
+
+    mon_set_success(ctx);
+    return MON_SUCCESS;
+}
+
+/* =========================================================================
+ * DVINST core - shared with MON 511B DVIO (see mon_device_io.h).
+ *
+ * Reads the break/echo strategies and user tables from ctx at the FIXED
+ * argument indices 4..13, which DVINST and DVIO share. Only DevNo, MaxNo,
+ * the returned-count index and the buffer differ between the two.
+ * ========================================================================= */
+
+MonResult mon_dvinst_read(MonContext* ctx, uint32_t device_no,
+                          uint32_t max_bytes, int ret_count_param_idx,
+                          uint32_t buffer_addr) {
     /* Per-call break/echo strategy parameters */
     int32_t break_strat = (ctx->arg_count > 4)
                           ? (int32_t)mon_read_param_word(ctx, 4)
@@ -211,9 +239,6 @@ MonResult mon_503B_InputString(MonContext* ctx) {
         echo_table_ptr = mon_get_user_echo_table(device_no);
     }
 
-    MON_LOG_IN_WORD(ctx, 0, "DevNo");
-    MON_LOG_IN_WORD(ctx, 1, "MaxNo");
-
     /* Identify device type */
     const char* dev_type = "unknown";
     if (is_character_device(device_no)) dev_type = "character";
@@ -234,9 +259,8 @@ MonResult mon_503B_InputString(MonContext* ctx) {
     }
 
     if (max_bytes == 0) {
-        /* Nothing to read */
-        mon_write_param_word(ctx, 2, 0);  /* NoOfBytesRet = 0 */
-        mon_set_success(ctx);
+        /* Nothing to read - caller owns the final status */
+        mon_write_param_word(ctx, ret_count_param_idx, 0);  /* NoOfBytesRet = 0 */
         return MON_SUCCESS;
     }
 
@@ -353,8 +377,8 @@ MonResult mon_503B_InputString(MonContext* ctx) {
         ctx->write_byte(ctx->cpu, buffer_addr + i, buffer[i]);
     }
 
-    /* Return number of bytes read */
-    mon_write_param_word(ctx, 2, bytes_read);
+    /* Return number of bytes read (DVINST: arg 2; DVIO: arg 15) */
+    mon_write_param_word(ctx, ret_count_param_idx, bytes_read);
 
     /* Log the string content (sanitized for display) */
     char display_buf[128];
@@ -381,6 +405,6 @@ MonResult mon_503B_InputString(MonContext* ctx) {
         mon_log(MON_LOG_DEBUG, MON_ID_503B ":     Hex: %s", hex_buf);
     }
 
-    mon_set_success(ctx);
+    /* Caller owns the final status. */
     return MON_SUCCESS;
 }

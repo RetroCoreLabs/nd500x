@@ -1017,6 +1017,267 @@ static void test_mon_503B_dvinst_queued_input(void) {
     teardown();
 }
 
+/* =========================================================================
+ * MON 511B DVIO (fused output-then-input)
+ *
+ * Argument mapping established from the ND LINKER's own call sites - see the
+ * header of src/libmon/handlers/mon_511B_DVIO.c:
+ *   0 DevNo, 1 NoOfBytes(out), 2 @outbuf, 3 @inbuf, 4..13 strategies/tables,
+ *   14 MaxNo, 15 @returned-count (OUT)
+ * ========================================================================= */
+
+/* Fill a 16-slot DVIO argument block. Slots 6..13 are the strategy/table
+ * words, which the linker sources from its own frame; zero is fine here
+ * because the tests below use break strategy 2 (MAC), not the user table. */
+static void dvio_build_args(uint32_t* args, uint32_t dev_loc, uint32_t outcnt_loc,
+                            uint32_t outbuf_loc, uint32_t inbuf_loc,
+                            uint32_t brk_loc, uint32_t echo_loc,
+                            uint32_t tbl_base, uint32_t maxno_loc,
+                            uint32_t retcnt_loc) {
+    args[0] = dev_loc;
+    args[1] = outcnt_loc;
+    args[2] = outbuf_loc;
+    args[3] = inbuf_loc;
+    args[4] = brk_loc;
+    args[5] = echo_loc;
+    for (int i = 6; i <= 13; i++) {
+        args[i] = tbl_base + (uint32_t)(i - 6) * 4;
+    }
+    args[14] = maxno_loc;
+    args[15] = retcnt_loc;
+}
+
+static void test_mon_511B_dvio_missing_args(void) {
+    printf("\nTesting MON 511B DVIO missing args...\n");
+    setup();
+
+    uint32_t args[4] = { 0x1000, 0x1004, 0x1008, 0x100C };
+    MonContext ctx;
+    setup_mon_context(&ctx, 329, 4, args);  /* 511B = 329 decimal, too few args */
+
+    MonResult result = mon_dispatch(&ctx);
+
+    if (result == MON_ERROR) {
+        TEST_PASS("MON 511B rejects a short argument list");
+    } else {
+        TEST_FAIL("MON 511B rejects a short argument list", "should fail");
+    }
+
+    teardown();
+}
+
+static void test_mon_511B_dvio_prompt_then_read(void) {
+    printf("\nTesting MON 511B DVIO prompt-then-read...\n");
+    setup();
+
+    queued_console_reset();
+    queued_console_queue_string("LOAD B\r");
+    mon_file_table_set_console(&g_test_console);
+
+    uint32_t dev_loc    = 0x1000;
+    uint32_t outcnt_loc = 0x1004;
+    uint32_t maxno_loc  = 0x1008;
+    uint32_t retcnt_loc = 0x100C;
+    uint32_t brk_loc    = 0x1010;
+    uint32_t echo_loc   = 0x1014;
+    uint32_t tbl_base   = 0x1020;   /* 8 words: args 6..13 */
+    uint32_t outbuf_loc = 0x1100;   /* the prompt */
+    uint32_t inbuf_loc  = 0x1200;   /* the reply */
+
+    const char* prompt = "NDL: ";
+    for (uint32_t i = 0; i < 5; i++) {
+        nd500_bus_write8(&machine, outbuf_loc + i, (uint8_t)prompt[i]);
+    }
+    for (int i = 0; i < 16; i++) {
+        nd500_bus_write8(&machine, inbuf_loc + i, 0);
+    }
+    for (int i = 0; i < 8; i++) {
+        test_write_word(&cpu, tbl_base + (uint32_t)i * 4, 0);
+    }
+
+    test_write_word(&cpu, dev_loc, 0);          /* console */
+    test_write_word(&cpu, outcnt_loc, 5);       /* write "NDL: " */
+    test_write_word(&cpu, maxno_loc, 100);      /* arg14 MaxNo */
+    test_write_word(&cpu, retcnt_loc, 0xDEADBEEF); /* arg15 OUT - must be overwritten */
+    test_write_word(&cpu, brk_loc, 2);          /* MAC: breaks on CR */
+    test_write_word(&cpu, echo_loc, (uint32_t)-1); /* ECHO_STRAT_NONE: output = prompt only.
+                                                   * -1 is what the linker itself passes. */
+
+    uint32_t args[16];
+    dvio_build_args(args, dev_loc, outcnt_loc, outbuf_loc, inbuf_loc,
+                    brk_loc, echo_loc, tbl_base, maxno_loc, retcnt_loc);
+
+    MonContext ctx;
+    setup_mon_context(&ctx, 329, 16, args);
+
+    MonResult result = mon_dispatch(&ctx);
+
+    if (result == MON_SUCCESS) {
+        TEST_PASS("MON 511B returns success");
+    } else {
+        TEST_FAIL("MON 511B returns success", "returned error");
+        mon_file_table_set_console(NULL);
+        teardown();
+        return;
+    }
+
+    /* Output phase: the prompt must have been written to the device. */
+    if (g_queued_console.output_len == 5 &&
+        strncmp(g_queued_console.output, "NDL: ", 5) == 0) {
+        TEST_PASS("MON 511B wrote the prompt (output phase)");
+    } else {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "out_len=%zu, got '%s'",
+                 g_queued_console.output_len, g_queued_console.output);
+        TEST_FAIL("MON 511B wrote the prompt (output phase)", msg);
+    }
+
+    /* Input phase: the reply must be in the INPUT buffer (arg 3), not arg 2. */
+    char read_buf[16];
+    for (int i = 0; i < 7; i++) {
+        read_buf[i] = (char)nd500_bus_read8(&machine, inbuf_loc + i);
+    }
+    read_buf[7] = '\0';
+    if (strncmp(read_buf, "LOAD B\r", 7) == 0) {
+        TEST_PASS("MON 511B read the reply into the input buffer (arg 3)");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "got '%s'", read_buf);
+        TEST_FAIL("MON 511B read the reply into the input buffer (arg 3)", msg);
+    }
+
+    /* THE OUT-PARAMETER GUARD (the MON 412B FSCNT bug class): the returned
+     * byte count must be written to argument 15, not merely left in a
+     * register. "LOAD B\r" = 7 bytes including the CR break character. */
+    uint32_t ret_count = test_read_word(&cpu, retcnt_loc);
+    if (ret_count == 7) {
+        TEST_PASS("MON 511B wrote the returned count to OUT arg 15");
+    } else {
+        char msg[80];
+        snprintf(msg, sizeof(msg), "expected 7, got %u (0x%08X)", ret_count, ret_count);
+        TEST_FAIL("MON 511B wrote the returned count to OUT arg 15", msg);
+    }
+
+    mon_file_table_set_console(NULL);
+    teardown();
+}
+
+/* The output phase must NOT consume the input, and the input phase must NOT
+ * overwrite the prompt buffer - i.e. args 2 and 3 are distinct buffers. */
+static void test_mon_511B_dvio_buffers_are_distinct(void) {
+    printf("\nTesting MON 511B DVIO keeps output and input buffers distinct...\n");
+    setup();
+
+    queued_console_reset();
+    queued_console_queue_string("X\r");
+    mon_file_table_set_console(&g_test_console);
+
+    uint32_t dev_loc    = 0x1000;
+    uint32_t outcnt_loc = 0x1004;
+    uint32_t maxno_loc  = 0x1008;
+    uint32_t retcnt_loc = 0x100C;
+    uint32_t brk_loc    = 0x1010;
+    uint32_t echo_loc   = 0x1014;
+    uint32_t tbl_base   = 0x1020;
+    uint32_t outbuf_loc = 0x1100;
+    uint32_t inbuf_loc  = 0x1200;
+
+    const char* prompt = "AB";
+    nd500_bus_write8(&machine, outbuf_loc + 0, (uint8_t)prompt[0]);
+    nd500_bus_write8(&machine, outbuf_loc + 1, (uint8_t)prompt[1]);
+    for (int i = 0; i < 8; i++) {
+        test_write_word(&cpu, tbl_base + (uint32_t)i * 4, 0);
+    }
+
+    test_write_word(&cpu, dev_loc, 0);
+    test_write_word(&cpu, outcnt_loc, 2);
+    test_write_word(&cpu, maxno_loc, 100);
+    test_write_word(&cpu, retcnt_loc, 0);
+    test_write_word(&cpu, brk_loc, 2);
+    test_write_word(&cpu, echo_loc, (uint32_t)-1);  /* ECHO_STRAT_NONE */
+
+    uint32_t args[16];
+    dvio_build_args(args, dev_loc, outcnt_loc, outbuf_loc, inbuf_loc,
+                    brk_loc, echo_loc, tbl_base, maxno_loc, retcnt_loc);
+
+    MonContext ctx;
+    setup_mon_context(&ctx, 329, 16, args);
+    mon_dispatch(&ctx);
+
+    /* The prompt buffer must still hold "AB" - the reply went elsewhere. */
+    if (nd500_bus_read8(&machine, outbuf_loc + 0) == 'A' &&
+        nd500_bus_read8(&machine, outbuf_loc + 1) == 'B') {
+        TEST_PASS("MON 511B did not clobber the prompt buffer with the reply");
+    } else {
+        TEST_FAIL("MON 511B did not clobber the prompt buffer with the reply",
+                  "output buffer was overwritten");
+    }
+
+    mon_file_table_set_console(NULL);
+    teardown();
+}
+
+/* With no input queued, a terminal DVIO must SUSPEND (uncommitted) rather than
+ * report a zero-length line - mirrors the 1B/503B blocking-read model. */
+static void test_mon_511B_dvio_blocks_on_empty_input(void) {
+    printf("\nTesting MON 511B DVIO suspends on empty input...\n");
+    setup();
+
+    queued_console_reset();  /* nothing queued */
+    mon_file_table_set_console(&g_test_console);
+
+    uint32_t dev_loc    = 0x1000;
+    uint32_t outcnt_loc = 0x1004;
+    uint32_t maxno_loc  = 0x1008;
+    uint32_t retcnt_loc = 0x100C;
+    uint32_t brk_loc    = 0x1010;
+    uint32_t echo_loc   = 0x1014;
+    uint32_t tbl_base   = 0x1020;
+    uint32_t outbuf_loc = 0x1100;
+    uint32_t inbuf_loc  = 0x1200;
+
+    nd500_bus_write8(&machine, outbuf_loc, (uint8_t)'?');
+    for (int i = 0; i < 8; i++) {
+        test_write_word(&cpu, tbl_base + (uint32_t)i * 4, 0);
+    }
+
+    test_write_word(&cpu, dev_loc, 0);
+    test_write_word(&cpu, outcnt_loc, 1);
+    test_write_word(&cpu, maxno_loc, 100);
+    test_write_word(&cpu, retcnt_loc, 0xDEADBEEF);
+    test_write_word(&cpu, brk_loc, 2);
+    test_write_word(&cpu, echo_loc, (uint32_t)-1);  /* ECHO_STRAT_NONE */
+
+    uint32_t args[16];
+    dvio_build_args(args, dev_loc, outcnt_loc, outbuf_loc, inbuf_loc,
+                    brk_loc, echo_loc, tbl_base, maxno_loc, retcnt_loc);
+
+    MonContext ctx;
+    setup_mon_context(&ctx, 329, 16, args);
+    mon_dispatch(&ctx);
+
+    if (ctx.wait_requested) {
+        TEST_PASS("MON 511B requests a wait when no input is available");
+    } else {
+        TEST_FAIL("MON 511B requests a wait when no input is available",
+                  "did not set wait_requested");
+    }
+
+    /* Uncommitted: the count must NOT have been written, because the CALLG
+     * rewinds and the whole MON re-runs on resume. */
+    uint32_t ret_count = test_read_word(&cpu, retcnt_loc);
+    if (ret_count == 0xDEADBEEF) {
+        TEST_PASS("MON 511B left the OUT count untouched while suspended");
+    } else {
+        char msg[80];
+        snprintf(msg, sizeof(msg), "count was written: 0x%08X", ret_count);
+        TEST_FAIL("MON 511B left the OUT count untouched while suspended", msg);
+    }
+
+    mon_file_table_set_console(NULL);
+    teardown();
+}
+
 /*
  * Test MON 1B INBT with queued input
  */
@@ -1447,6 +1708,10 @@ int main(int argc, char* argv[]) {
     test_mon_503B_dvinst_max_bytes_exceeded();
     test_mon_503B_dvinst_zero_bytes();
     test_mon_503B_dvinst_queued_input();
+    test_mon_511B_dvio_missing_args();
+    test_mon_511B_dvio_prompt_then_read();
+    test_mon_511B_dvio_buffers_are_distinct();
+    test_mon_511B_dvio_blocks_on_empty_input();
     test_mon_1B_inbt_queued_input();
     test_mon_412B_fscnt_file_not_open();
     test_mon_412B_fscnt_missing_args();
