@@ -43,15 +43,13 @@ MonResult mon_1B_InByte(MonContext* ctx) {
     if (device_no == 0) {
         byte_read = mon_read_command_buffer_char();
         if (byte_read == -1) {
-            /* Command buffer exhausted. On real SINTRAN the command buffer
-             * (logical device 0) is refilled from the terminal, and INBT SUSPENDS
-             * the process until a byte is available ("the program waits if there
-             * is no bytes in the input buffer of the device"). We model that with
-             * a blocking-read wait: the MON call is not committed, the CPU rewinds
-             * to the CALLG, and the run loop stops with STOP_WAIT_INPUT so the host
-             * can feed the next command line and resume. This replaces the old
-             * return-EOF behaviour that made the linker's resident command reader
-             * busy-spin forever once the queued command line ran out. */
+            /* Device 0 is the SINTRAN command buffer. The ND LINKER's resident
+             * reader polls it and busy-spins on EOF (it does NOT fall through to
+             * the terminal on EOF), so an empty command buffer must SUSPEND like
+             * a terminal read: the MON call is not committed, the CPU rewinds to
+             * the CALLG, and the run loop stops with STOP_WAIT_INPUT so the host
+             * can feed the next line and resume. (The command line itself is also
+             * read from the terminal via 503B DVINST; both channels are fed.) */
             mon_log(MON_LOG_DEBUG, MON_ID_1B ": Command buffer empty - suspend (wait for input)");
             ctx->wait_requested = 1;
             ctx->wait_device = 0;

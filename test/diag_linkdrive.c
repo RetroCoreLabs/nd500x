@@ -111,11 +111,17 @@ int main(int argc, char** argv) {
                  * >0 = terminal/console (503B/INBT device 1). Route the fed line
                  * to the channel the linker is actually reading from. */
                 uint32_t wdev = m.stop_data;
-                fprintf(stderr,"  --> feeding line[%d]=\"%s\" to device %u (%s)\n",
-                        fed, lines[fed], wdev, wdev==0?"cmdbuf":"console");
-                if (wdev == 0) {
-                    mon_set_command_buffer(lines[fed]);
+                fprintf(stderr,"  --> feeding line[%d]=\"%s\" (waited on device %u) to BOTH channels\n",
+                        fed, lines[fed], wdev);
+                /* The linker reads the command via BOTH the resident device-0
+                 * command-buffer poll AND 503B DVINST on the terminal; feed both
+                 * so whichever reader is active is satisfied. ND500X_LINKDRIVE_ONE
+                 * restricts to just the waiting device for isolation experiments. */
+                if (getenv("ND500X_LINKDRIVE_ONE")) {
+                    if (wdev == 0) mon_set_command_buffer(lines[fed]);
+                    else           mon_queue_console_input(lines[fed]);
                 } else {
+                    mon_set_command_buffer(lines[fed]);
                     mon_queue_console_input(lines[fed]);
                 }
                 fed++;
