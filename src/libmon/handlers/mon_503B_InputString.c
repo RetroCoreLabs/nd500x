@@ -249,6 +249,23 @@ MonResult mon_503B_InputString(MonContext* ctx) {
         /* Character device or terminal: use console I/O */
         ConsoleIO* console = mon_file_table_get_console();
 
+        /* Blocking line-input: a terminal DVINST with NO input available must
+         * SUSPEND the process (SINTRAN "the program waits ...") rather than
+         * return an empty line, which would make the caller act on a blank
+         * answer and busy-loop. Mirror the MON 1B blocking-read model: since
+         * nothing has been consumed yet, the MON call is not committed - the
+         * CPU rewinds to the CALLG and the run loop stops with STOP_WAIT_INPUT,
+         * so the host can feed a line and resume, re-reading the whole line.
+         * Only applies before the first byte; a line already in the buffer is
+         * read to its break character as usual. */
+        if (console && console->char_available && !console->char_available(console->context)) {
+            mon_log(MON_LOG_DEBUG, MON_ID_503B ": No input on device %u - suspend (wait for line)",
+                    device_no);
+            ctx->wait_requested = 1;
+            ctx->wait_device = device_no;
+            return MON_SUCCESS;  /* not committed; CPU rewinds and retries */
+        }
+
         while (bytes_read < max_bytes) {
             /* Check if we have a console configured */
             if (!console || !console->read_char) {

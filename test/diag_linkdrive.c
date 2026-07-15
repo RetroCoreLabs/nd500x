@@ -101,8 +101,17 @@ int main(int argc, char** argv) {
         if (m.stop_reason == STOP_MON_HALT) { fprintf(stderr,"=== CLEAN EXIT (MON 0B LEAVE) ===\n"); break; }
         if (m.stop_reason == STOP_WAIT_INPUT) {
             if (fed < nlines) {
-                fprintf(stderr,"  --> feeding line[%d]=\"%s\"\n", fed, lines[fed]);
-                mon_set_command_buffer(lines[fed]);
+                /* stop_data holds the waiting device: 0 = command buffer,
+                 * >0 = terminal/console (503B/INBT device 1). Route the fed line
+                 * to the channel the linker is actually reading from. */
+                uint32_t wdev = m.stop_data;
+                fprintf(stderr,"  --> feeding line[%d]=\"%s\" to device %u (%s)\n",
+                        fed, lines[fed], wdev, wdev==0?"cmdbuf":"console");
+                if (wdev == 0) {
+                    mon_set_command_buffer(lines[fed]);
+                } else {
+                    mon_queue_console_input(lines[fed]);
+                }
                 fed++;
                 continue;
             } else {
