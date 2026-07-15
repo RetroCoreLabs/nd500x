@@ -45,19 +45,26 @@ static uint32_t rd32(Nd500Cpu* c, uint32_t v, int* ok) {
     return nd500_bus_read32(c->machine, v);
 }
 
+/* ND-500 is BIG-ENDIAN: for a 32-bit read at A, byte[A] is the HIGH byte.
+ * (Confirmed: seg 4 word 0xD0020013 == B.CAT's leading bytes d0 02 00 13.)
+ * So byte[A] = (word_at(A) >> 24) & 0xFF. */
+static int byte_at(Nd500Cpu* c, uint32_t addr, uint8_t* out) {
+    int ok; uint32_t w = rd32(c, addr, &ok);
+    if (!ok) return 0;
+    *out = (uint8_t)((w >> 24) & 0xFF);
+    return 1;
+}
+
 static void dump_at(Nd500Cpu* c, uint32_t addr, const char* label) {
     printf("      %s @0x%08X: ", label, addr);
-    char txt[33]; int any = 0;
-    for (int i = 0; i < 32; i++) {
-        int ok; uint32_t w = rd32(c, addr + (uint32_t)i, &ok);
-        if (!ok) { printf("<unmapped>"); return; }
-        uint8_t b = (uint8_t)(w & 0xFF);
+    char txt[49];
+    for (int i = 0; i < 48; i++) {
+        uint8_t b;
+        if (!byte_at(c, addr + (uint32_t)i, &b)) { printf("<unmapped>\n"); return; }
         txt[i] = (b >= 0x20 && b < 0x7F) ? (char)b : '.';
-        any = 1;
     }
-    txt[32] = 0;
-    if (any) printf("\"%s\"", txt);
-    printf("\n");
+    txt[48] = 0;
+    printf("\"%s\"\n", txt);
 }
 
 int main(int argc, char** argv) {
@@ -84,20 +91,35 @@ int main(int argc, char** argv) {
     printf("Loaded entry=0x%08X, tracing record chain at $0x%08X\n", c.PC, RECPTR);
 
     m.run_flag = 1; m.stop_reason = STOP_NONE;
-    /* Watch the cell every step and report WHICH PC changed it. That pinpoints
-     * the writer that puts ASCII text where a record pointer belongs. */
-    uint32_t last = 0xFFFFFFFFu; int hits = 0;
+    /* Catch the moment "can't generate code" is emitted and dump the PC history
+     * leading up to it - that exposes the branch that chose the failure path. */
+#define RING 256
+    static uint32_t ring[RING];
+    unsigned rpos = 0;
+    int reported = 0;
+    size_t prev_out_len = 0;
     for (long s = 0; s < maxsteps && m.run_flag; s++) {
-        uint32_t pc_before = c.PC;
+        ring[rpos++ % RING] = c.PC;
         nd500_cpu_step(&c);
-        if (hits < 20) {
-            int ok; uint32_t rp = rd32(&c, RECPTR, &ok);
-            if (ok && rp != last) {
-                printf("  [%2d] instr=%llu  written by PC=0x%08X: $80232BC = 0x%08X%s\n",
-                       hits, (unsigned long long)c.instruction_count, pc_before, rp,
-                       (rp == 0x20202020u) ? "   <-- ASCII SPACES (corrupt)" : "");
-                if (rp == 0x20202020u) dump_at(&c, RECPTR - 32, "cell-32");
-                last = rp; hits++;
+
+        if (!reported) {
+            size_t olen = mon_get_console_output_len();
+            if (olen != prev_out_len) {
+                prev_out_len = olen;
+                const char* o = mon_get_console_output();
+                if (o && strstr(o, "can't generate")) {
+                    printf("---- FAILURE EMITTED at instr=%llu PC=0x%08X ----\n",
+                           (unsigned long long)c.instruction_count, c.PC);
+                    printf("Preceding PC trace (oldest -> newest):\n");
+                    unsigned start = (rpos > RING) ? rpos - RING : 0;
+                    for (unsigned i = start; i < rpos; i++) {
+                        printf(" %08X", ring[i % RING]);
+                        if (((i - start) % 8) == 7) printf("\n");
+                    }
+                    printf("\n");
+                    reported = 1;
+                    break;      /* stop at the failure; the rest is the error loop */
+                }
             }
         }
         if (m.run_flag == 0 && m.stop_reason != STOP_NONE) break;
@@ -108,6 +130,15 @@ int main(int argc, char** argv) {
     /* Are the mapped file bytes visible at the virtual address CAT-500 derives
      * from the segment number FSCNT returned? VA = [Segment(5)|Page(16)|Offset(11)],
      * so segment N base = N << 27. B.CAT starts d0 02 00 13 07 "CHARPTR". */
+    /* Identify what the "record" pointers actually point at, with CORRECT byte
+     * order, plus the computed site of the failure string. */
+    printf("---- data probes (correct big-endian byte order) ----\n");
+    {
+        uint32_t probes[] = { 0x0800324Eu, 0x0802324Eu, 0x080232BCu };
+        for (unsigned i = 0; i < sizeof(probes)/sizeof(probes[0]); i++)
+            dump_at(&c, probes[i], "");
+    }
+
     printf("---- segment base probe (expect CHARPTR for the CAT input) ----\n");
     for (uint32_t seg = 3; seg <= 6; seg++) {
         uint32_t base = seg << 27;

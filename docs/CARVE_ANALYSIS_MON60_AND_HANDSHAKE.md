@@ -250,6 +250,60 @@ encodes a format version and whether B06 accepts what A06 emits; (3) only then c
 whether a different CAT-500 build is needed. Do NOT assume a nd500x bug: nothing in the file
 I/O, mapping, or command path is currently disproven.
 
+## 4d. FAILURE ISOLATED: no MON call is at fault (2026-07-15)
+
+Traced the exact failure window with build/bin/diag_cat_record (PC ring buffer that fires when
+"can't generate code" first reaches the console buffer). The sequence, byte-observed:
+
+```
+50B OPEN x2            -> ./SCRATCH/SCRATCH-00001.CAT (file 65), ./GUEST/B.NRF (file 66)
+504B DVOUTS            -> "code generation "
+412B FSCNT (file 101(8)=65, AccessType=0) -> SUCCESS, segment 4, bytes=2048   [CAT input]
+412B FSCNT (file 100(8)=64, AccessType=1) -> SUCCESS, segment 5, bytes=8192   [scratch]
+504B DVOUTS            -> "\r\n"
+504B DVOUTS            -> "*ERROR*"   ... "can't generate code"
+```
+
+**There is NO MON call between the successful mappings and the error.** Both FSCNT calls
+return SUCCESS with K cleared. So the failure is CAT-500's OWN computation over data that we
+have independently verified is correctly mapped. **No MON handler / no file I/O is implicated.**
+
+- `321B UEADM` returning "Deprecated MON call - returning error" is a RED HERRING: it is called
+  only AFTER the error, on the cleanup path. (`413B FSCDNT -> ERROR` is likewise on teardown.)
+  Both are still worth fixing eventually, but neither causes this.
+- Failure-path PCs: the record loop `0801D68F -> 0801D3C0..0801D44C -> 0801C1E4 -> 0801D32B..
+  0801D3BD` (repeating), then `0801C517..0801C557` -> `call $0x801D735` (generic message
+  emitter) -> `0801F0BD/0801F0C8` (504B DVOUTS). `0801C557` only SELECTS a message; the
+  decision is upstream in the record loop.
+- Error/message strings live in DSEG. Anchored exactly from two known file offsets:
+  "subrange or index out of range" (file 0x4424E) -> VA 0x0802324E and "exception handler
+  missing" (file 0x442CE) -> VA 0x080232CE, giving **DSEG VA = file_offset + 0x07FDF000**
+  (data base 0x08000000). Verified live: "can't generate code" (file 0x2424E) reads at DSEG
+  **0x0800324E**. It has NO direct code reference - it is reached via a descriptor/table.
+
+**DIAGNOSTIC CORRECTION (my own bug, not the emulator's):** the ND-500 is BIG-ENDIAN, so for a
+32-bit read at A, byte[A] is the HIGH byte ((w>>24)&0xFF). An earlier dump helper used
+(w & 0xFF), i.e. byte[A+3], shifting every dump by 3 and making the DSEG message table look
+like binary "records". That is what produced the earlier (wrong) "record chain" reading.
+Endianness confirmed: seg 4 word 0xD0020013 == the CAT file's leading bytes d0 02 00 13.
+
+**Remaining candidates for "can't generate code" (ALL UNVERIFIED - do not treat as fact):**
+1. **Segment->address convention.** nd500x places file bytes such that segment N is readable at
+   VA = N<<27 (seg 4 -> 0x20000000, verified to contain the CAT bytes). But statically, the
+   segment number FSCNT returns into `$0x80146A0` is only ever consumed to DISCONNECT later
+   (`0800C54F` -> 413B FSCDNT); it is never shifted into a data address in that routine. So how
+   CAT-500 actually addresses the mapped file is NOT yet established. If it expects the file at
+   some other address (or expects SINTRAN to map it into an existing pointer), it would read
+   nothing and fail exactly here. **This is the top suspect and the next thing to establish.**
+2. CAT format/version skew: NC is A06 (1989-01-10), CAT-500 is B06 (1988-01-05); the CAT header
+   byte differs between artifacts (d6 vs d0). Only one CAT-500 build exists on disk.
+3. A CPU-level computation bug in nd500x affecting this code path.
+
+**Next concrete step:** determine empirically whether CAT-500 ever READS VA 0x20000000 (the
+mapped CAT). If it never reads there, candidate 1 is confirmed and the fix is in
+nd500_mon_connect_file_as_segment / the segment addressing convention. If it does read there
+and still rejects the data, candidate 2/3 move up.
+
 ## 5. What (b) tells me I do NOT need for (a)
 - The MON 60B gateway, 5IFUNC/FUNCS tables, 3022 IOX bus, 5MPM message, control-store gate,
   level-12 return ISR: all irrelevant to the single-CPU nd500x experiment. Documented here
