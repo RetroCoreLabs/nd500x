@@ -827,31 +827,42 @@ static void test_mon_503B_dvinst_missing_args(void) {
  * Test MON 503B DVINST with max bytes too large
  */
 static void test_mon_503B_dvinst_max_bytes_exceeded(void) {
-    printf("\nTesting MON 503B DVINST max bytes exceeded...\n");
+    printf("\nTesting MON 503B DVINST max bytes CLAMPED (not error)...\n");
     setup();
 
-    /* Set up parameters */
+    /* A MaxNo larger than the 2048 buffer is NOT an error - MaxNo is an inclusive
+     * ceiling (per the 503B carve/oracle), so it is clamped to the buffer size and
+     * the read proceeds until the break char. The ND LINKER relies on this: it
+     * passes a huge MaxNo meaning "read until break". Queue a short CR-terminated
+     * line and confirm the call SUCCEEDS and reads it. */
+    queued_console_reset();
+    queued_console_queue_string("AB\r");
+    mon_file_table_set_console(&g_test_console);
+
     uint32_t dev_no_loc = 0x1000;
     uint32_t max_no_loc = 0x1004;
     uint32_t ret_count_loc = 0x1008;
     uint32_t buffer_loc = 0x1100;
+    uint32_t break_strat_loc = 0x100C;
 
-    /* Device 0 (console), but request more than 2048 bytes */
     test_write_word(&cpu, dev_no_loc, 0);
-    test_write_word(&cpu, max_no_loc, 3000);  /* Exceeds DVINST_MAX_BYTES (2048) */
+    test_write_word(&cpu, max_no_loc, 3000);  /* Exceeds DVINST_MAX_BYTES (2048) -> clamp */
+    test_write_word(&cpu, ret_count_loc, 0xDEADBEEF);
+    test_write_word(&cpu, break_strat_loc, 2);  /* MAC: break on CR */
 
-    uint32_t args[4] = { dev_no_loc, max_no_loc, ret_count_loc, buffer_loc };
+    uint32_t args[5] = { dev_no_loc, max_no_loc, ret_count_loc, buffer_loc, break_strat_loc };
     MonContext ctx;
-    setup_mon_context(&ctx, 323, 4, args);  /* 503B = 323 decimal */
+    setup_mon_context(&ctx, 323, 5, args);  /* 503B = 323 decimal */
 
     MonResult result = mon_dispatch(&ctx);
 
-    if (result == MON_ERROR) {
-        TEST_PASS("MON 503B returns error when max bytes exceeded");
+    if (result == MON_SUCCESS) {
+        TEST_PASS("MON 503B clamps an oversized MaxNo and reads (no error)");
     } else {
-        TEST_FAIL("MON 503B returns error when max bytes exceeded", "should fail");
+        TEST_FAIL("MON 503B clamps an oversized MaxNo and reads (no error)", "returned error");
     }
 
+    mon_file_table_set_console(NULL);
     teardown();
 }
 
@@ -1053,16 +1064,20 @@ static void test_mon_1B_inbt_queued_input(void) {
         TEST_FAIL("MON 1B read 'X' from queue", msg);
     }
 
-    /* Agreed semantics (matches C# emulator): non-blocking, empty input
-     * queue returns error 57 (EOF) instead of waiting */
+    /* Blocking-read semantics (models SINTRAN "the program waits if there is no
+     * bytes in the input buffer of the device"): an empty terminal input queue
+     * requests a process-suspend (wait_requested) rather than returning EOF. The
+     * MON call is NOT committed - the CPU rewinds to the CALLG and the run loop
+     * stops with STOP_WAIT_INPUT so the host can feed input and resume. */
     setup_mon_context(&ctx, 1, 2, args);
     result = mon_dispatch(&ctx);
-    if (result == MON_ERROR && ctx.error_code == MON_ERR_END_OF_FILE) {
-        TEST_PASS("MON 1B empty queue returns EOF error 3 (non-blocking)");
+    if (ctx.wait_requested && ctx.wait_device == 1) {
+        TEST_PASS("MON 1B empty queue requests wait (blocking read suspend)");
     } else {
-        char msg[64];
-        snprintf(msg, sizeof(msg), "result=%d, error_code=%d", (int)result, ctx.error_code);
-        TEST_FAIL("MON 1B empty queue returns EOF error 3 (non-blocking)", msg);
+        char msg[80];
+        snprintf(msg, sizeof(msg), "result=%d, wait_requested=%d, wait_device=%u",
+                 (int)result, ctx.wait_requested, ctx.wait_device);
+        TEST_FAIL("MON 1B empty queue requests wait (blocking read suspend)", msg);
     }
 
     mon_file_table_set_console(NULL);

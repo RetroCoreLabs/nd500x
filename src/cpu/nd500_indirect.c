@@ -20,6 +20,10 @@
 extern int nd500_mon_allocate_segment(void* cpu, void* machine, uint8_t domain,
     uint32_t requested_segment, uint32_t segment_size_bytes,
     uint32_t* out_assigned_segment);
+extern int nd500_mon_connect_file_as_segment(void* cpu, void* machine, uint8_t domain,
+    uint32_t requested_segment, uint32_t access_type, int writable,
+    const char* host_path, uint32_t file_size_bytes,
+    uint32_t* out_assigned_segment);
 
 /* =========================================================================
  * INTERNAL CONSTANTS
@@ -244,8 +248,9 @@ int nd500_check_indirect_call(
         ctx.set_i1 = mon_set_i1_cb;
         ctx.get_i1 = mon_get_i1_cb;
 
-        /* Setup segment allocation callback */
+        /* Setup segment allocation callbacks */
         ctx.allocate_segment = nd500_mon_allocate_segment;
+        ctx.connect_file_as_segment = nd500_mon_connect_file_as_segment;
 
         /* Dispatch MON call */
         MonResult result = mon_dispatch(&ctx);
@@ -256,6 +261,22 @@ int nd500_check_indirect_call(
          * the error code is always placed in W1 for ND-500 */
         if (ctx.error_flag && ctx.error_code != 0) {
             cpu->I[0] = (uint32_t)ctx.error_code;  /* W1 = I[0] on ND-500 */
+        }
+
+        /* Check for blocking-read suspend (INBT/terminal read with no input).
+         * The MON call is NOT committed: rewind PC to the CALLG instruction so
+         * that when the host feeds input and resumes, the MON call re-executes
+         * and this time finds the byte. Stop the run loop with STOP_WAIT_INPUT.
+         * This models SINTRAN suspending the process at the point of the read
+         * instead of the emulator busy-spinning on EOF. */
+        if (ctx.wait_requested) {
+            cpu->machine->run_flag = 0;
+            cpu->machine->stop_reason = STOP_WAIT_INPUT;
+            cpu->machine->stop_addr = instruction_addr;
+            cpu->machine->stop_data = ctx.wait_device;
+            nd500_dbg_flush_console_output();
+            *out_resolved = instruction_addr;  /* retry the CALLG on resume */
+            return INDIRECT_WAIT;
         }
 
         /* Check for halt request (MON 0B LEAVE or unimplemented) */

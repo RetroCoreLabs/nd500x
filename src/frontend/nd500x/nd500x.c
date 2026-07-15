@@ -383,6 +383,23 @@ int main(int argc, char** argv) {
                 last_pc = cpu.PC;
             }
 
+            /* Blocking terminal read: the program did an INBT/terminal read with
+             * no input available. On a real interactive terminal we honour the
+             * SINTRAN "the program waits for input" semantics by blocking until
+             * the user types, then resuming - the CPU already rewound to the
+             * CALLG, so the read re-executes and consumes the new character. */
+            if (machine.stop_reason == STOP_WAIT_INPUT) {
+                if (mon_console_wait_for_input()) {
+                    machine.stop_reason = STOP_NONE;
+                    machine.run_flag = 1;
+                    stuck_count = 0;
+                    continue;
+                }
+                /* No input can ever arrive (EOF on redirected stdin) - stop. */
+                printf("Waiting for input, but none available (EOF)\n");
+                break;
+            }
+
             /* Check for program exit */
             if (machine.stop_reason == STOP_MON_HALT) {
                 printf("Program exited normally (MON 0B)\n");

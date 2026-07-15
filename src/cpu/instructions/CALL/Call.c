@@ -114,6 +114,13 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
+    if (indirect_result == INDIRECT_WAIT) {
+        /* Blocking read had no input - PC rewound to THIS CALL so the MON call
+         * retries on resume. Run loop already stopped with STOP_WAIT_INPUT. */
+        cpu->PC = resolved_addr;  /* = fi->address (this instruction) */
+        return;
+    }
+
     if (indirect_result == INDIRECT_HANDLED) {
         /* SINTRAN MON call completed - return to caller, don't jump to entry */
         cpu->PC = resolved_addr;  /* = return_address */

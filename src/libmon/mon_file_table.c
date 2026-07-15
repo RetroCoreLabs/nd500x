@@ -164,16 +164,22 @@ int mon_release_device(uint32_t device_no, uint8_t io_flag) {
 
     ReservationEntry* entry = &reservation_table[device_no];
 
+    /* Per carved L07 BRELEASE (BRELE=010610B): releasing a valid device that is
+     * not currently reserved is an idempotent SUCCESS no-op (the primitive
+     * branches on DF.RESLI=0 straight to the register-restore/return with NO
+     * error code loaded). Signal "not reserved" distinctly (-2) so the caller
+     * can succeed on it, while a genuinely invalid device (-1) / bad io_flag
+     * (-52) still errors. */
     if (io_flag == IO_FLAG_INPUT) {
         if (!entry->reserved_input) {
-            mon_log(MON_LOG_WARN, "MON RELES: Device %u input not reserved", device_no);
-            return -1;
+            mon_log(MON_LOG_DEBUG, "MON RELES: Device %u input not reserved (no-op)", device_no);
+            return -2;
         }
         entry->reserved_input = false;
     } else {
         if (!entry->reserved_output) {
-            mon_log(MON_LOG_WARN, "MON RELES: Device %u output not reserved", device_no);
-            return -1;
+            mon_log(MON_LOG_DEBUG, "MON RELES: Device %u output not reserved (no-op)", device_no);
+            return -2;
         }
         entry->reserved_output = false;
     }
@@ -460,6 +466,24 @@ int mon_file_close(int file_number) {
     host_path[sizeof(host_path) - 1] = '\0';
     bool is_scratch = entry->is_scratch;
 
+    /* Apply a deferred MON 73B SMAX length: SMAX only RECORDS the logical
+     * max-byte count; the physical truncation happens here at CLOSE. Only touch
+     * files where SMAX actually ran (max_bytes_set), and never a scratch file
+     * that is about to be unlinked. */
+    if (entry->max_bytes_set && entry->host_file && !entry->is_scratch) {
+        int fd = fileno(entry->host_file);
+        if (fd >= 0) {
+            fflush(entry->host_file);
+            if (ftruncate(fd, (off_t)entry->object_entry.bytes_in_file) != 0) {
+                mon_log(MON_LOG_WARN, "MON CLOSE: ftruncate('%s', %u) failed",
+                        host_path, entry->object_entry.bytes_in_file);
+            } else {
+                mon_log(MON_LOG_DEBUG, "MON CLOSE: applied SMAX length %u to '%s'",
+                        entry->object_entry.bytes_in_file, host_path);
+            }
+        }
+    }
+
     /* Close host file */
     if (entry->host_file) {
         fclose(entry->host_file);
@@ -613,6 +637,13 @@ ConsoleIO* mon_file_table_get_console(void) {
     return console_io;
 }
 
+int mon_console_wait_for_input(void) {
+    if (console_io && console_io->wait_for_input) {
+        return console_io->wait_for_input(console_io->context);
+    }
+    return 0;  /* Headless/scripted console cannot block; host decides */
+}
+
 /* ============================================================
  * Queued Console I/O Support
  *
@@ -758,6 +789,17 @@ static bool stdio_char_available(void* ctx) {
     return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0;
 }
 
+static int stdio_wait_for_input(void* ctx) {
+    (void)ctx;
+    /* Block until stdin has data (real interactive terminal wait). A NULL
+     * timeout makes select() wait indefinitely. Returns 0 on error/EOF. */
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    int r = select(STDIN_FILENO + 1, &fds, NULL, NULL, NULL);
+    return (r > 0) ? 1 : 0;
+}
+
 static int stdio_read_char(void* ctx) {
     (void)ctx;
     unsigned char ch;
@@ -799,6 +841,7 @@ static ConsoleIO g_stdio_console = {
     .read_char = stdio_read_char,
     .write_char = stdio_write_char,
     .char_available = stdio_char_available,
+    .wait_for_input = stdio_wait_for_input,
     .context = NULL
 };
 

@@ -30,6 +30,7 @@ const char* nd500_stop_reason_str(StopReason reason) {
 		case STOP_INVALID_INSTRUCTION_00:   return "invalid instruction 0x00";
 		case STOP_MON_HALT:                 return "MON halt";
 		case STOP_MON_UNIMPLEMENTED:        return "unimplemented MON";
+		case STOP_WAIT_INPUT:               return "waiting for input";
 		default:                            return "unknown";
 	}
 }

@@ -20,7 +20,8 @@ typedef enum {
     INDIRECT_HANDLED = 1,       /* Indirect call handled (MON call completed) */
     INDIRECT_DOMAIN_SWITCH = 2, /* Indirect call - domain switch needed */
     INDIRECT_ERROR = -1,        /* Error or halt requested */
-    INDIRECT_BREAK = -2         /* Break into debugger requested */
+    INDIRECT_BREAK = -2,        /* Break into debugger requested */
+    INDIRECT_WAIT = -3          /* Blocking read has no input - suspend and retry */
 } IndirectCallResult;
 
 /**

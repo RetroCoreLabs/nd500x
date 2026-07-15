@@ -17,6 +17,7 @@
  */
 
 #include "../mon.h"
+#include "../mon_terminal_state.h"
 #include "../mon_log.h"
 #include "../mon_errors.h"
 #include "../mon_file_table.h"
@@ -42,9 +43,19 @@ MonResult mon_1B_InByte(MonContext* ctx) {
     if (device_no == 0) {
         byte_read = mon_read_command_buffer_char();
         if (byte_read == -1) {
-            /* End of command buffer - return 0 or EOF */
-            byte_read = 0;
-            mon_log(MON_LOG_DEBUG, MON_ID_1B ": End of command buffer");
+            /* Command buffer exhausted. On real SINTRAN the command buffer
+             * (logical device 0) is refilled from the terminal, and INBT SUSPENDS
+             * the process until a byte is available ("the program waits if there
+             * is no bytes in the input buffer of the device"). We model that with
+             * a blocking-read wait: the MON call is not committed, the CPU rewinds
+             * to the CALLG, and the run loop stops with STOP_WAIT_INPUT so the host
+             * can feed the next command line and resume. This replaces the old
+             * return-EOF behaviour that made the linker's resident command reader
+             * busy-spin forever once the queued command line ran out. */
+            mon_log(MON_LOG_DEBUG, MON_ID_1B ": Command buffer empty - suspend (wait for input)");
+            ctx->wait_requested = 1;
+            ctx->wait_device = 0;
+            return MON_SUCCESS;  /* not committed; CPU rewinds and retries */
         } else {
             mon_log(MON_LOG_DEBUG, MON_ID_1B ": Read byte 0x%02X ('%c') from command buffer",
                     byte_read & 0xFF, (byte_read >= 32 && byte_read < 127) ? byte_read : '.');
@@ -61,12 +72,20 @@ MonResult mon_1B_InByte(MonContext* ctx) {
             return MON_ERROR;
         }
 
-        /* Check if input is available (non-blocking) */
+        /* Check if input is available. On a real terminal SINTRAN SUSPENDS the
+         * process when the input buffer is empty ("the program waits if there is
+         * no bytes in the input buffer of the device"). We model that suspend by
+         * requesting a blocking-read wait: the MON call is not committed, the CPU
+         * rewinds to the CALLG, and the run loop stops with STOP_WAIT_INPUT. When
+         * the host feeds input and resumes, this MON call re-executes and reads
+         * the byte. This replaces the old busy-spin-on-EOF behaviour that hung
+         * the linker's resident char reader when interactive input ran out. */
         if (console->char_available && !console->char_available(console->context)) {
-            /* No input available - return EOF, don't block */
-            mon_log(MON_LOG_DEBUG, MON_ID_1B ": No input available, EOF");
-            mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
-            return MON_ERROR;
+            mon_log(MON_LOG_DEBUG, MON_ID_1B ": No input on device %o - suspend (wait for input)",
+                    device_no);
+            ctx->wait_requested = 1;
+            ctx->wait_device = device_no;
+            return MON_SUCCESS;  /* not committed; CPU rewinds and retries */
         }
 
         if (console->read_char) {
@@ -74,6 +93,19 @@ MonResult mon_1B_InByte(MonContext* ctx) {
         } else {
             /* Fallback to stdin - note: this may still block if char_available is NULL */
             byte_read = getchar();
+        }
+
+        /* ESCAPE (user-break) handling: if the char is this terminal's escape
+         * character AND escape is ENABLED (DFLAG.5IESC clear), it is a user
+         * break, not input data. If escape is DISABLED (e.g. the linker called
+         * 71B DESCF), the character passes through as ordinary data. */
+        if (byte_read >= 0 && mon_is_escape_break(device_no, (uint8_t)byte_read)) {
+            mon_log(MON_LOG_DEBUG, MON_ID_1B ": ESCAPE (user break) on device %o", device_no);
+            if (console->user_break) {
+                console->user_break(console->context, device_no);
+            }
+            mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* signal break/EOF to caller */
+            return MON_ERROR;
         }
 
         if (byte_read == EOF || byte_read < 0) {

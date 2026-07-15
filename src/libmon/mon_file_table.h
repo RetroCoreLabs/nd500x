@@ -109,6 +109,8 @@ typedef struct {
     uint32_t current_position;
     uint8_t access_mode;
     uint32_t block_size;          /* Block size for RFILE/WFILE (default 512) */
+    bool max_bytes_set;           /* True if MON 73B SMAX recorded a logical length
+                                   * in object_entry.bytes_in_file to apply at CLOSE */
     bool mapped_as_segment;       /* True if connected as segment (MON 412B) */
     uint32_t mapped_segment_no;   /* Logical segment number if mapped */
     uint8_t segment_access_type;  /* 0=read, 1=write, 2=read/write */
@@ -153,7 +155,24 @@ typedef struct {
     void (*write_char)(void* ctx, int ch);    /* Write single character */
     bool (*char_available)(void* ctx);        /* Check if input available */
     void* context;                            /* User context pointer */
+    /* Optional: invoked when an ESCAPE (user-break) character is read on a
+     * terminal whose escape is ENABLED (SINTRAN DFLAG.5IESC clear). The terminal
+     * front-end implements the actual break/abort. May be NULL. */
+    void (*user_break)(void* ctx, uint32_t device_no);
+    /* Optional: BLOCK until at least one input character is available, then
+     * return 1 (true). Used by an interactive front-end to honour SINTRAN's
+     * "the program waits if there is no bytes in the input buffer" semantics
+     * for a real terminal: when a blocking INBT/terminal read finds no input,
+     * the run loop calls this to wait for the user instead of stopping. Returns
+     * 0 if no input can ever arrive (e.g. EOF on a redirected stdin). NULL for
+     * scripted/headless consoles, where the host decides on STOP_WAIT_INPUT. */
+    int (*wait_for_input)(void* ctx);
 } ConsoleIO;
+
+/* Block until the currently-installed console has input, honouring a blocking
+ * terminal read. Returns 1 if input is now available, 0 if the console cannot
+ * block (no wait_for_input handler) or input can never arrive. */
+int mon_console_wait_for_input(void);
 
 void mon_file_table_set_console(ConsoleIO* console);
 

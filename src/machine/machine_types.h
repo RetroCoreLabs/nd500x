@@ -27,6 +27,7 @@ typedef enum {
 	STOP_INVALID_INSTRUCTION_00,
 	STOP_MON_HALT,
 	STOP_MON_UNIMPLEMENTED,
+	STOP_WAIT_INPUT,   /* Blocking terminal/INBT read found no input (SINTRAN process-suspend) */
 } StopReason;
 
 typedef struct Nd500Machine {

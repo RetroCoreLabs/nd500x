@@ -94,10 +94,26 @@ typedef struct MonContext {
         uint32_t requested_segment, uint32_t segment_size_bytes,
         uint32_t* out_assigned_segment);
 
+    /* Connect an open file as a data segment (412B FSCNT): allocate an
+     * MMU/PST-backed segment and pre-load the file's bytes. writable selects
+     * the capability access mode (from the file's open mode). */
+    int (*connect_file_as_segment)(void* cpu, void* machine, uint8_t domain,
+        uint32_t requested_segment, uint32_t access_type, int writable,
+        const char* host_path, uint32_t file_size_bytes,
+        uint32_t* out_assigned_segment);
+
     /* Control flow signals (set by handler or dispatcher) */
     int halt_requested;         /* Request CPU halt (MON 0B LEAVE) */
     int break_requested;        /* Request debugger break */
     const char* halt_reason;    /* Human-readable halt reason */
+
+    /* Blocking-read suspend: a handler sets wait_requested when a terminal/INBT
+     * read finds no input. The MON call is NOT committed - the CPU rewinds PC to
+     * the CALLG and stops with STOP_WAIT_INPUT so the host can feed input and
+     * resume, at which point the MON call re-executes. Models SINTRAN's
+     * "the program waits if there is no bytes in the input buffer" semantics. */
+    int wait_requested;         /* Request process-suspend (no input available) */
+    uint32_t wait_device;       /* Logical device number the read was waiting on */
 
     /* Error reporting (set by handlers via mon_set_error) */
     int32_t error_code;         /* Error code from last MON call (CPU-agnostic) */
