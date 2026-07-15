@@ -32,9 +32,14 @@ MonResult mon_12B_SetCommandBuffer(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Read command string */
+    /* Read command string. Like 317B UECOM, the VDM front-ends (NC etc.) pass a
+     * [Length:4][Pointer:4] descriptor (arg0 = {maxlen, ptr, ...}; text at the
+     * pointer, 0x27-terminated), not an inline string. Try the descriptor form
+     * first, fall back to the direct read. */
     char command[256];
-    mon_read_sintran_string(ctx, 0, command, sizeof(command));
+    if (mon_read_descriptor_string(ctx, 0, command, sizeof(command)) <= 0) {
+        mon_read_sintran_string(ctx, 0, command, sizeof(command));
+    }
 
     mon_log(MON_LOG_DEBUG, MON_ID_12B ": IN: Command='%s'", command);
 
