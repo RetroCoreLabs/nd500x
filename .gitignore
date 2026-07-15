@@ -11,7 +11,7 @@ build_wasm/
 # Executables
 *.exe
 *.out
-nd500x
+/nd500x
 nd500wasm.js
 nd500wasm.wasm
 
@@ -53,3 +53,15 @@ node_modules/
 .nd500x_history
 
 build-wasm/
+
+# Emulator runtime artifacts (SINTRAN scratch/user dirs, trace logs)
+/GUEST/
+/SCRATCH/
+nc_trace.log
+SCRATCH-*.dat
+/SCRATCH-00001:CAT.dat
+
+# Backups and stray patches
+*.bak
+*.bak-*
+*.patch
