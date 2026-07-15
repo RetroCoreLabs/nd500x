@@ -792,3 +792,63 @@ channel. The first move is the one that has worked every time and has not yet
 been applied here: **read the producer.** Disassemble the reader at
 `B004E759` and its caller to find out which device it is *actually* asking for
 and why the batch path engages, rather than trying more feed permutations.
+
+## 14. Leads for chapter 3 - the command loop (gathered 2026-07-16, NOT yet conclusive)
+
+The "read the producer" pass was started. These are **observations**, not conclusions;
+the mechanism is still unresolved. Everything below is byte-read from
+`/mnt/d/ND/500/nd-linker/linker-b01.dom.asm` or from the loaded image.
+
+**The linker's command-input device is a HALFWORD VARIABLE at `0xB00272FA`** (companion at
+`0xB00272FC`). In the loaded image **both are `0000`** - read with the debugger:
+`m 0xB00272F8 16` -> `00 00 00 00 00 00 00 00 ...`.
+
+The `1B INBT` call we see is a thunk, like the DVxxx ones:
+```
+B004E753: ents $0x20
+B004E759: call $0xF8000001,$0x2,b.0x14,b.0x1C   ; MON 1B INBT - DeviceNo at b.0x14
+B004E762: w1 := b.0x1C                          ; returns the byte
+```
+It has **7 callers**. The one at `B000028F` sources DeviceNo straight from the variable:
+```
+B0000283: h wconv $0xB00272FA,r1   ; device := the variable
+B000028D: w1 =: r.0x14
+B000028F: call $0xB004E753,$0x0    ; MON 1B INBT
+B000029D: by1 and $0x7F            ; mask parity
+```
+**So `1B INBT` asks for device 0 simply because `0xB00272FA` is 0** - i.e. nothing has set
+it. That is the thing to explain.
+
+A second resident reader at `B0000019` **branches on the same variable**:
+```
+B000001F: h comp2 $0xB00272FA,$0x1   ; == 1 (terminal)? -> read via the OTHER var 0xB00272FC
+B0000068: h comp2 $0x40,$0xB00272FA  ; 64..127 (a file)? -> read that file
+B0000073: h comp2 $0xB00272FA,$0x7F
+B0000097: ...                        ; otherwise: a BUFFER path, comparing the pointer pair
+                                     ; 0xB0027228 / 0xB0027224 - no MON call at all
+```
+(The exact branch senses were NOT verified - do not rely on the arrows above.)
+
+**The variable is written at `B000DFC9`**, from that routine's own argument `b.0x54`:
+```
+B000DFBF: w hconv r.0x14,$0xB00272FA
+B000DFC9: h2 =: $0xB00272FA          ; <- w2 came from b.0x54
+```
+Finding what calls that, and with what, is the next concrete step.
+
+**RSIO's consumer is at `B0015342`**, reached through a halfword<->word wrapper at
+`B0000A05` (`w hconv r.0x18,b.0x16` - the linker holds mode/input/output as HALFWORDS and
+converts; nd500x writing 32-bit words is correct here). It tests the mode first:
+```
+B0015342: w test b.0x1C     ; ExecutionMode
+B0015344: if >< go $0xA4    ; mode != 0 -> the batch path
+B0015347: w set1 b.0x4C     ; mode == 0 -> interactive
+```
+With `mode=0` it takes the interactive path, as intended. **No write of `input_dev`
+(`b.0x20`) to `0xB00272FA` was found on that path** - but the search was not exhaustive,
+so this is a LEAD, not a finding.
+
+**The open question, sharpened:** it is now clear *why* `1B INBT` asks for device 0 (the
+variable is 0). It is NOT established what is supposed to set it, whether RSIO's `InputDev`
+is meant to reach it at all, or whether the command loop should be using the buffer path at
+`B0000097` instead of a MON call. Resolve that before touching any handler.
