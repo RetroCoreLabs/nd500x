@@ -71,10 +71,73 @@ CAT-500 standalone behavior (verified by booting the dom in nd500x):
   bytes (nd500_mon_connect_file_as_segment). C# ACTION: 412B must actually map the
   scratch/CAT file bytes into the address space, else CAT-500 can't read its input.
 
-REMAINING for end-to-end BOUT.NRF (Route B):
-1. 317B UECOM must actually RUN the named subsystem nested (load cat-cat5-b06.dom,
-   run to MON 0B LEAVE, return to NC) sharing the scratch file/segment.
-2. The NC->CAT-500 parameter handshake (which CAT file, which NRF name) still needs
-   tracing - CAT-500 gets it via its command record (device 0/1), not from the bare
-   "CAT-CAT5-B" name. Under investigation.
+## 4. SOLVED: C -> NRF WORKS END TO END. One real bug: 412B FSCNT's OUT parameter
+
+**THE BUG (high priority - the C# side almost certainly has it too):**
+`MON 412B FSCNT` takes FOUR arguments: `FileNo, LogSegmentNo, AccessType, @out SegNo`.
+The 4th is an INDIRECT OUT parameter that receives the assigned segment number. nd500x was
+only leaving the value in W1 and never writing argument 3. **C# ACTION: write the assigned
+segment number to the caller's 4th (out) argument.**
+
+CAT-500's wrapper proves the signature (byte-verified):
+```
+0801F080: ents ; w1 := $0x80234A0
+0801F08B: call $0xFFFFFFFFF800010A,$0x4,b.0x14,b.0x18,b.0x1C,@b.0x20   ; 0x10A = 412B
+0801F096: if -k go 0801F0A3     ; K clear (success) -> zero the error cell
+0801F099: h1 =: $0x80224F0      ; error path: store error code
+0801F0A3: h stz $0x80224F0      ; success path
+```
+Symptoms if you get this wrong (exactly what we saw, all byte-observed):
+- the caller keeps the OUT cell's stale value (0), so it addresses **segment 0** and reads
+  zeros - we measured 67 reads at vaddr 0x00000000 and **0 reads** of the real mapping at
+  0x20000000 across the entire 11,102-read code-generation window;
+- CAT-500 then prints `*ERROR*   can't generate code` WITHOUT EVER READING ITS INPUT;
+- its later `413B FSCDNT(LogSegmentNo=0)` mismatches the real segment ("File 100 mapped to
+  segment 5, not 0").
+
+**With the OUT parameter written, the whole pipeline works:**
+```
+Cat-500: generate-code
+CAT file: SCRATCH-00001:CAT
+object file: B:NRF
+code generation : ok
+programCAT_COMPILER terminated
+```
+`GUEST/B.NRF` = 513 bytes; header `0a 00 01 70 44 ...` matches the golden reference
+`/mnt/d/ND/500/FraTor/test-real/test-real.nrf`, with real NRF symbol records
+(`PROG!NAME`, `V!ARGC`, `X`). No regressions (MON 53/3 unchanged; instruction validation
+39791/12 unchanged).
+
+### The CAT-500 protocol (so you can drive it identically)
+- Prompts, in order: `Cat-500: ` -> `CAT file: ` -> `object file: `.
+- Command: **`generate-code`**, then the CAT input, then the NRF output. The comma form
+  `generate-code,SCRATCH-00001:CAT,B:NRF` also works. `EXIT` exits cleanly via 0B LEAVE;
+  `help` prints help.
+- The command is NOT guessed: NC writes it verbatim into its control stream
+  (`SCRATCH64.DATA`, plain text: options line + `generate-code,SCRATCH-00001:CAT,B:NRF`).
+- **NC creates the CAT itself** via `221B CRALF 'SCRATCH-00001:CAT'` ->
+  `./SCRATCH/SCRATCH-00001.CAT`, and DELETES any pre-existing copy. Don't hand-substitute it.
+- 503B DVINST reads ONE character per call (MaxNo=1).
+
+### Things that are NOT bugs (we checked; don't "fix" these)
+- `143B RSIO` execution mode does NOT gate CAT-500's prompt (mode 0 vs 1 identical).
+- `AccessType=1` mapping legitimately leaves the segment zeroed (1 = uninitialized/empty);
+  CAT-500 maps the scratch to WRITE it.
+- `321B UEADM` "deprecated -> error" and `413B FSCDNT -> ERROR` occur only on the POST-error
+  cleanup path - red herrings. (413B's segment-number check is still worth fixing.)
+- Colon->dot filename mapping already works (`SCRATCH-00001:CAT` -> `./SCRATCH/SCRATCH-00001.CAT`).
+- MON logs print numbers in OCTAL - an "asked 4000 got 2048 short read" is 4000(8) = 2048.
+
+### Diagnostic gotcha that will cost you hours
+Queuing console input installs a ConsoleIO whose `write_char` captures guest output into an
+internal buffer, so 504B DVOUTS output becomes INVISIBLE on stdout. Print the captured buffer
+(`mon_get_console_output()`) or you will not see the banner/prompts at all.
+
+### Still open
+1. 317B UECOM does not yet RUN the named subsystem nested (load cat-cat5-b06.dom, run to
+   MON 0B LEAVE, return to NC). The carve proves UECOM is a synchronous
+   execute-command-and-return, so nested invocation is still required for a fully automatic
+   NC->CAT-500 flow. Today the two stages are driven separately.
+2. Phase 3 (linker -> :DOM) is unchanged.
+
 Both emulators need the same nested-invocation model; keep bit-aligned.
