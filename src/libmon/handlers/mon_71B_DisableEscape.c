@@ -10,17 +10,24 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
+#include "../mon_terminal_state.h"
 
 MonResult mon_71B_DisableEscape(MonContext* ctx) {
     /* TODO: Implement DisableEscape (DESCF) */
 
-    /* Log input parameters */
+    /* DeviceNumber is ignored for background programs; own terminal is selected.
+     * Device 1 == "own terminal". */
+    uint32_t device_no = (ctx->arg_count >= 1) ? mon_read_param_word(ctx, 0) : 1;
+    if (device_no == 0) device_no = 1;  /* own terminal */
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
 
-    /* Implementation goes here */
+    /* Disable the ESCAPE (user-break) key on that terminal. Sets the terminal
+     * datafield's 5IESC (inhibit-escape) bit - real per-device state, so a later
+     * ESCAPE will not user-break until 72B EESCF re-enables it. */
+    mon_set_escape_enabled(device_no, false);
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
-
-    return MON_ERROR;
+    mon_log(MON_LOG_DEBUG, MON_ID_71B ": ESCAPE disabled on device %o", device_no);
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }

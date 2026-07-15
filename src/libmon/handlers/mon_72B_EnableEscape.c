@@ -12,17 +12,21 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
+#include "../mon_terminal_state.h"
 
 MonResult mon_72B_EnableEscape(MonContext* ctx) {
     /* TODO: Implement EnableEscape (EESCF) */
 
-    /* Log input parameters */
+    uint32_t device_no = (ctx->arg_count >= 1) ? mon_read_param_word(ctx, 0) : 1;
+    if (device_no == 0) device_no = 1;  /* own terminal */
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
 
-    /* Implementation goes here */
+    /* Enable the ESCAPE (user-break) key - inverse of 71B DESCF. Clears the
+     * terminal datafield's 5IESC bit so ESCAPE resumes user-breaking. */
+    mon_set_escape_enabled(device_no, true);
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
-
-    return MON_ERROR;
+    mon_log(MON_LOG_DEBUG, MON_ID_72B ": ESCAPE enabled on device %o", device_no);
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }

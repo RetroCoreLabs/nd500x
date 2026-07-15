@@ -73,7 +73,13 @@ typedef struct {
     uint8_t bits[16];  /* 128 bits, one per ASCII character 0-127 */
 } BitTable128;
 
-/* Terminal state for a single device */
+/* Terminal state for a single device.
+ *
+ * This models SINTRAN III's per-terminal INPUT DATAFIELD (NPL `5TTIFIELD`, see
+ * /mnt/e/Dev/Ronny/NDInsight/SINTRAN/NPL-SOURCE/NPL/5P-P2-MON60.NPL and
+ * MP-P2-TERM-DRIV.NPL). The break/echo strategy, tables and 8-bit flag already
+ * mirror the datafield; the escape fields below add the rest of the DFLAG-level
+ * terminal control so the terminal actually works (not a no-op). */
 typedef struct {
     bool initialized;           /* True if state has been set */
     int32_t break_strategy;     /* Current break strategy */
@@ -82,7 +88,19 @@ typedef struct {
     bool eight_bit_io;          /* 8-bit I/O mode (TerminalFunction 112) */
     BitTable128 user_break_table;  /* User-defined break table (strategy 7 AND 8) */
     BitTable128 user_echo_table;   /* User-defined echo table (strategy 7 AND 8) */
+
+    /* ESCAPE (user-break) control - SINTRAN DFLAG.5IESC "inhibit escape" bit.
+     * escape_inhibited default 0 (memset) == escape ENABLED, matching SINTRAN
+     * (`DFLAG BZERO 5IESC` = enable, `DFLAG BONE 5IESC` = disable). Toggled by
+     * MON 71B DESCF (disable) / 72B EESCF (enable) and the corresponding
+     * ENABLE-ESCAPE / DISABLE-ESCAPE commands. */
+    bool escape_inhibited;      /* 5IESC: true => ESCAPE key does NOT user-break */
+    bool escape_set;            /* escape_char has been explicitly configured */
+    uint8_t escape_char;        /* VESCAPE: escape character (SINTRAN default 033B = 0x1B) */
 } TerminalState;
+
+/* SINTRAN default escape character (VESCAPE): ASCII ESC, octal 033. */
+#define TERM_DEFAULT_ESCAPE_CHAR 0x1B
 
 /* Initialization */
 void mon_terminal_state_init(void);
@@ -137,5 +155,17 @@ const BitTable128* mon_get_user_echo_table(uint32_t device_no);
 /* 8-bit I/O mode (TerminalFunction 112) */
 void mon_set_eight_bit_io(uint32_t device_no, bool enabled);
 bool mon_get_eight_bit_io(uint32_t device_no);
+
+/* ESCAPE (user-break) control - MON 71B DESCF / 72B EESCF and the
+ * ENABLE-ESCAPE / DISABLE-ESCAPE commands. escape ENABLED is the default. */
+void mon_set_escape_enabled(uint32_t device_no, bool enabled);
+bool mon_get_escape_enabled(uint32_t device_no);
+/* The device's escape character (VESCAPE); returns TERM_DEFAULT_ESCAPE_CHAR
+ * (0x1B) unless explicitly changed. */
+void mon_set_escape_char(uint32_t device_no, uint8_t ch);
+uint8_t mon_get_escape_char(uint32_t device_no);
+/* True if ch is the device's escape char AND escape is currently enabled
+ * (i.e. this character should trigger a user break on that terminal). */
+bool mon_is_escape_break(uint32_t device_no, uint8_t ch);
 
 #endif /* MON_TERMINAL_STATE_H */

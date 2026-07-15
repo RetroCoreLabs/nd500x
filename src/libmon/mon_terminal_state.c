@@ -393,3 +393,47 @@ bool mon_get_eight_bit_io(uint32_t device_no) {
     TerminalState* state = &terminal_states[device_no];
     return state->eight_bit_io;
 }
+
+/* ESCAPE control (SINTRAN DFLAG.5IESC). escape_inhibited == !enabled. */
+void mon_set_escape_enabled(uint32_t device_no, bool enabled) {
+    if (device_no >= MAX_TERMINAL_DEVICES) {
+        return;
+    }
+    TerminalState* state = &terminal_states[device_no];
+    state->initialized = true;
+    state->escape_inhibited = !enabled;  /* 5IESC set == escape disabled */
+    mon_log(MON_LOG_DEBUG, "ESCAPE %s for device %u",
+            enabled ? "enabled (EESCF)" : "disabled (DESCF)", device_no);
+}
+
+bool mon_get_escape_enabled(uint32_t device_no) {
+    if (device_no >= MAX_TERMINAL_DEVICES) {
+        return false;
+    }
+    /* Default (memset) escape_inhibited == 0 -> escape ENABLED, per SINTRAN. */
+    return !terminal_states[device_no].escape_inhibited;
+}
+
+void mon_set_escape_char(uint32_t device_no, uint8_t ch) {
+    if (device_no >= MAX_TERMINAL_DEVICES) {
+        return;
+    }
+    TerminalState* state = &terminal_states[device_no];
+    state->initialized = true;
+    state->escape_set = true;
+    state->escape_char = ch;
+}
+
+uint8_t mon_get_escape_char(uint32_t device_no) {
+    if (device_no >= MAX_TERMINAL_DEVICES) {
+        return TERM_DEFAULT_ESCAPE_CHAR;
+    }
+    TerminalState* state = &terminal_states[device_no];
+    /* memset leaves escape_char 0; report the SINTRAN default until set. */
+    return state->escape_set ? state->escape_char : TERM_DEFAULT_ESCAPE_CHAR;
+}
+
+bool mon_is_escape_break(uint32_t device_no, uint8_t ch) {
+    return mon_get_escape_enabled(device_no) &&
+           ch == mon_get_escape_char(device_no);
+}
