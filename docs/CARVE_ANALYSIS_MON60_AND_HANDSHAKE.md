@@ -195,6 +195,61 @@ offset within the mapped segment, so the record walk starts at the wrong place. 
 dump the mapped segment-4/5 contents at the address the dispatcher reads (`$0x80232BC` and what it
 points at) and compare against the on-disk bytes to see whether the offset/base is right.
 
+## 4c. COMMAND PROTOCOL SOLVED; generator now fails with "can't generate code" (2026-07-15)
+
+**CAT-500's interactive protocol is fully established (byte-observed console dialogue):**
+```
+CAT-500 - Version B06 - 1988-01-05
+Cat-500: generate-code
+CAT file: SCRATCH-00001:CAT
+object file: B:NRF
+code generation
+*ERROR*   can't generate code
+```
+Prompts in order: `Cat-500: ` -> `CAT file: ` -> `object file: `. Success message would be
+"code generation : ok" (dom file offset 221212); failure string "can't generate code" (offset
+148046). Single commands never trap: `EXIT` -> clean 0B LEAVE; `help` prints help;
+`generate-code` alone prompts for its args. Both the comma form and the prompt-by-prompt form
+are accepted.
+
+**DIAGNOSTIC GOTCHA (cost real time - document for both emulators):** calling
+`mon_queue_console_input()` installs a ConsoleIO whose `write_char` captures output into an
+internal buffer (`queued_console_write_char`, src/libmon/mon_file_table.c:689), so
+`mon_504B_OutputString.c:102` prefers it over `putchar` and **all guest console output becomes
+invisible on stdout**. Harnesses must print `mon_get_console_output()` to see banners/prompts.
+
+**Verified CORRECT (so NOT the cause) - each checked, not assumed:**
+- CAT input segment mapping is byte-perfect. Probing the VA CAT-500 derives from the returned
+  segment number (VA = seg << 27): `seg 4 base 0x20000000` reads
+  `"..CHARPTR..UCHARPTR..WORDPTR.."` = exactly the CAT file's bytes.
+- `seg 5` (the scratch, mapped `accessType=1`, `writable=1`) reads all zeros - and that is
+  CORRECT: accessType 1 = "uninitialized/empty" per the 412B handler's documented contract
+  (ND-860228.2), so nd500x deliberately leaves the pages zeroed. CAT-500 maps it to WRITE.
+  (Caveat: taken from the handler's comment citing the manual; the manual page itself not read.)
+- NC's compile SUCCEEDS: GUEST/B.LIST says "Norsk Data C - Version: A06 - 1989-01-10 ...
+  *** no errors detected ***". The CAT is complete (2048 bytes, 0xF0-padded tail, no zero-fill).
+- **NC creates the CAT itself**: `221B CRALF FileName='SCRATCH-00001:CAT'` ->
+  `./SCRATCH/SCRATCH-00001.CAT`, and it DELETES any pre-existing copy. So hand-substituting
+  GUEST/B.CAT is both unnecessary and futile. Running CAT-500 against NC's REAL output gives the
+  SAME "can't generate code".
+- Ruled out: 143B exec mode; colon->dot mapping; 0x27 vs CR terminator; command case; short
+  reads (octal misread); 412B being a stub.
+- The "record chain" corruption (0x20202020) is a SYMPTOM: 0x0802xxxx there holds MESSAGE
+  STRINGS, so the page-fault loop is CAT-500's error-reporting path after the failure, not the cause.
+
+**REMAINING BLOCKER:** CAT-500's generator itself rejects the input ("can't generate code")
+even on genuine NC output. **Leading suspicion (UNVERIFIED - do not act on it as fact):** a
+version skew - NC is **A06 (1989-01-10)** but CAT-500 is **B06 (1988-01-05)**, and the CAT
+header's byte 1 differs between artifacts (`d6` in NC's SCRATCH-00001.CAT vs `d0` in
+GUEST/B.CAT), which may be a CAT format/version field. Only ONE CAT-500 exists on disk
+(/mnt/d/ND/500/CAT5-CAT/cat-cat5-b06.dom); no newer back-end is available to test against.
+
+**Next steps (in order):** (1) find the branch that selects "can't generate code" (data VA
+~0x0802324E) and identify the exact predicate it tests; (2) determine whether the CAT header
+encodes a format version and whether B06 accepts what A06 emits; (3) only then consider
+whether a different CAT-500 build is needed. Do NOT assume a nd500x bug: nothing in the file
+I/O, mapping, or command path is currently disproven.
+
 ## 5. What (b) tells me I do NOT need for (a)
 - The MON 60B gateway, 5IFUNC/FUNCS tables, 3022 IOX bus, 5MPM message, control-store gate,
   level-12 return ISR: all irrelevant to the single-CPU nd500x experiment. Documented here
