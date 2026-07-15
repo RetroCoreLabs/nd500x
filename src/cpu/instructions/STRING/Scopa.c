@@ -2,26 +2,40 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 /**
  * SCOPA instruction - STRING class
  *
- * SCOPA - String copy all
+ * Mnemonic: scopa    Opcode: 0xFDBE (176676 octal)
+ * Format:  BY SCOPA <source-1/r/BY/I1=>, <source-2/r/BY/I2=>, <pad/r/BY>
  *
- * Format: BY SCOPA <source/r/BY/I1=>, <dest/w/BY/I2=>, <table/r/BY>
+ * SCOPA - "String COmpare with PAd" (NOT a copy, and NO translation table).
  *
- * Assembly:
- *   BY SCOPA (string copy all)  Hex 0xFDBE
+ * Compare byte string <source-1> (indexed by I1) with <source-2> (indexed by I2).
+ * If the strings are of unequal length, the SHORTER string is logically extended
+ * with <pad> bytes so both are the same length, and the comparison continues.
+ * The THIRD operand is the PAD BYTE VALUE - a scalar, NOT a descriptor address.
  *
- * Operation:
- *   Copy all elements from source to destination using translation table.
+ * (The previous implementation modelled SCOPA as "string copy all" with a
+ *  translation-table descriptor loaded from the 3rd operand's address. That is a
+ *  different, non-existent instruction: for a constant pad operand like `$0` it
+ *  dereferenced address 0 and took a protection violation. The ND LINKER's
+ *  startup `BY SCOPA b.x, b.y, $0` hit exactly that. Corrected against the
+ *  ND-500 Reference Manual ND-05.009.4 EN sect 14.12 p256, opcode 176676B.)
  *
- * Description:
- *   Copies all elements from <source> to <dest>, translating each
- *   element through the <table>.
+ * Operation (manual):
+ *   while not end of both strings and S(I1) = D(I2) do  I1+1->I1, I2+1->I2  enddo
+ *   The shorter string is padded with <pad>; an index is only advanced while it
+ *   is still inside its own string (padding does not advance that index).
  *
- * Reference: ND-500 Reference Manual, Chapter 14.22
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Scopa.cs
+ * Terminating conditions (ND-500 Ref Manual p256):
+ *   | condition                  | K | Z | S | I1,I2                 |
+ *   | exact match (incl. pad)    | 0 | 1 | 0 | :- next element       |
+ *   | greater byte in source-1   | 1 | 0 | 0 | :- differing elements |
+ *   | smaller byte in source-1   | 1 | 0 | 1 | :- differing elements |
+ *   (S convention matches SCOMP/COMP: source1 < source2 -> S=1.)
+ *   C and O are cleared for all string operations (p244).
  */
 void nd500_instr_Scopa(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 3) {
@@ -31,63 +45,62 @@ void nd500_instr_Scopa(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Get descriptor addresses */
-    uint32_t source_desc_addr = fi->operands[0].effective_address;
-    uint32_t dest_desc_addr = fi->operands[1].effective_address;
-    uint32_t table_desc_addr = fi->operands[2].effective_address;
-
-    /* Load string descriptors */
-    Nd500StringDescriptor source_desc, dest_desc, table_desc;
-    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, true, &source_desc)) {
+    /* operand[0]/[1] are string descriptors; operand[2] is the pad BYTE VALUE. */
+    Nd500StringDescriptor desc1, desc2;
+    if (!nd500_load_string_descriptor(cpu, fi->operands[0].effective_address, false, true, &desc1)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, true, &dest_desc)) {
+    if (!nd500_load_string_descriptor(cpu, fi->operands[1].effective_address, false, true, &desc2)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, table_desc_addr, false, true, &table_desc)) {
-        return;
-    }
+    uint8_t pad = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_BYTE);
 
-    /* Get starting indices */
-    uint32_t src_index = cpu->I[0];
-    uint32_t dest_index = cpu->I[1];
+    uint32_t index1 = cpu->I[0];  /* I1 */
+    uint32_t index2 = cpu->I[1];  /* I2 */
 
-    /* Copy with translation */
-    while (src_index < source_desc.element_count && dest_index < dest_desc.element_count) {
-        uint32_t src_addr = source_desc.base_address + src_index;
-        uint8_t element = nd500_read_memory_8(cpu, src_addr);
+    bool strings_equal = true;
+    bool string1_less = false;
 
-        /* Translate through table */
-        uint8_t translated;
-        if (element < table_desc.element_count) {
-            uint32_t table_addr = table_desc.base_address + element;
-            translated = nd500_read_memory_8(cpu, table_addr);
-        } else {
-            translated = element;  /* No translation if out of table range */
+    /* Compare until BOTH strings are exhausted; an exhausted string yields pad. */
+    while (index1 < desc1.element_count || index2 < desc2.element_count) {
+        uint8_t element1 = (index1 < desc1.element_count)
+            ? nd500_read_memory_8(cpu, desc1.base_address + index1) : pad;
+        uint8_t element2 = (index2 < desc2.element_count)
+            ? nd500_read_memory_8(cpu, desc2.base_address + index2) : pad;
+
+        if (element1 != element2) {
+            strings_equal = false;
+            string1_less = (element1 < element2);
+            break;
         }
 
-        /* Write to destination */
-        uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_write_memory_8(cpu, dest_addr, translated);
-
-        src_index++;
-        dest_index++;
+        /* Advance each index only while it is still inside its own string
+         * (padding does not advance that string's index). */
+        if (index1 < desc1.element_count) index1++;
+        if (index2 < desc2.element_count) index2++;
     }
 
-    /* Update index registers */
-    cpu->I[0] = src_index;
-    cpu->I[1] = dest_index;
+    /* Update index registers with final positions */
+    cpu->I[0] = index1;  /* I1 */
+    cpu->I[1] = index2;  /* I2 */
 
-    /* Set status flags */
-    if (src_index >= source_desc.element_count) {
-        nd500_set_flag(cpu, ND500_FLAG_Z);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_Z);
-    }
-    if (dest_index >= dest_desc.element_count) {
-        nd500_set_flag(cpu, ND500_FLAG_K);
-    } else {
+    /* Flags. With padding there is no length-mismatch case: a byte-vs-pad
+     * difference sets K=1 just like a real byte difference. */
+    if (strings_equal) {
         nd500_clear_flag(cpu, ND500_FLAG_K);
+        nd500_set_flag(cpu, ND500_FLAG_Z);
+        nd500_clear_flag(cpu, ND500_FLAG_S);
+    } else {
+        nd500_set_flag(cpu, ND500_FLAG_K);
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+        if (string1_less) {
+            nd500_set_flag(cpu, ND500_FLAG_S);   /* source1 < source2 -> S=1 */
+        } else {
+            nd500_clear_flag(cpu, ND500_FLAG_S); /* source1 > source2 -> S=0 */
+        }
     }
-    nd500_string_clear_unused_flags(cpu);  /* Clears S, C, O */
+
+    /* C and O are always cleared for string operations (manual p244). */
+    nd500_clear_flag(cpu, ND500_FLAG_C);
+    nd500_clear_flag(cpu, ND500_FLAG_O);
 }
