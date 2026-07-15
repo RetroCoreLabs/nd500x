@@ -14,17 +14,45 @@
  */
 
 #include "../mon.h"
+#include "../mon_log.h"
+#include "../mon_file_table.h"
 
+/*
+ * Implemented against the carved contract (mon-analysis/313B-InBufferState):
+ *   r->T (arg0) = logical device number; returns
+ *     NoInBuffer   = characters currently held in the terminal input ring
+ *     NoUntilBreak = characters before the next break (0 if no break)
+ * Here the "terminal input ring" is our queued console input. The ND LINKER
+ * calls IBRISZ(device=1, &NoInBuffer) (2-arg form) at startup to poll whether a
+ * command is waiting. Report the remaining queued input length so the linker's
+ * command reader proceeds instead of blocking. (device/break accounting is
+ * modelled, not byte-exact - the worker link is uncarved; refine if needed.)
+ */
 MonResult mon_313B_InBufferState(MonContext* ctx) {
-    /* TODO: Implement InBufferState (IBRISZ) */
-
-    /* Log input parameters */
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
 
-    /* Implementation goes here */
+    uint32_t remaining = (uint32_t)mon_get_console_input_remaining();
 
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
+    /* arg1 = NoInBuffer (always present for the 2- and 3-arg forms) */
+    if (ctx->arg_count >= 2) {
+        mon_write_param_word(ctx, 1, remaining);
+    }
+    /* arg2 = NoUntilBreak (3-arg form). Our queued input is line-oriented and
+     * terminated by CR, so a break is present whenever there is any input. */
+    if (ctx->arg_count >= 3) {
+        mon_write_param_word(ctx, 2, remaining);
+    }
 
-    return MON_ERROR;
+    /* Also return the count in W1. The ND LINKER reads its input-buffer length
+     * from W1 after the IBRISZ CALLG (linker-b01.dom 0xB004DA8F -> W1 =: b.68 ->
+     * used as the command-line length). Without this, W1 keeps the leftover
+     * CALLG target address (0xF80000CB) and the linker's command parser walks
+     * off the end and traps. */
+    ctx->set_error_code(ctx->cpu, (int32_t)remaining);
+
+    mon_log(MON_LOG_DEBUG, MON_ID_313B ": OUT: NoInBuffer=%u (args=%u, W1=%u)",
+            remaining, ctx->arg_count, remaining);
+
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }

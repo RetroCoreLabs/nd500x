@@ -81,6 +81,7 @@ MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
      * NOT touch the host file. (CLOSE/43B applies it.) */
     uint32_t new_size = max_byte_ptr + 1;
     entry->object_entry.bytes_in_file = new_size;
+    entry->max_bytes_set = true;  /* CLOSE applies this logical length to the host file */
 
     mon_log(MON_LOG_DEBUG, MON_ID_73B ": OUT: File %o max bytes set to %o", file_no, new_size);
 

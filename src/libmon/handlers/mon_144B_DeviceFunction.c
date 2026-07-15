@@ -20,19 +20,22 @@
 #include "../mon.h"
 
 MonResult mon_144B_DeviceFunction(MonContext* ctx) {
-    /* TODO: Implement DeviceFunction (MAGTP) */
+    /* PHASE-2 TIER-2a PROVISIONAL STUB (session 557c0950, 2026-07-14).
+     * The linker (linker-b01.dom) issues MON 144B once at startup and HALTS if it
+     * returns the -1 "unimplemented" error. The real MAGTP worker (carve
+     * 144B-DeviceFunction, MAGTP=026354B) is reached through an UNCARVED CALLPROC
+     * bridge, so its exact success contract is UNVERIFIED. To let linker bring-up
+     * proceed and expose the next blocker, return benign SUCCESS with no device
+     * side effects. Refine once the real return convention (status word / IO
+     * buffer format) is known. Do NOT port to C# as final until verified. */
 
-    /* Log input parameters */
+    /* Log input parameters (linker call observed args: 0,0,46,4096,3) */
     MON_LOG_IN_WORD(ctx, 0, "FunctionCode");
     MON_LOG_IN_WORD(ctx, 1, "Buffer");
     MON_LOG_IN_WORD(ctx, 2, "DeviceNo");
     MON_LOG_IN_WORD(ctx, 3, "DeviceParam1");
     MON_LOG_IN_WORD(ctx, 4, "DeviceParam2");
 
-    /* Implementation goes here */
-
-    /* Set error - not yet implemented */
-    mon_set_error(ctx, -1);
-
-    return MON_ERROR;
+    mon_set_success(ctx);
+    return MON_SUCCESS;
 }

@@ -26,11 +26,13 @@ MonResult mon_64B_WarningMessage(MonContext* ctx) {
     /* Read the error code parameter as 32-bit word (ND-500 INTEGER = W) */
     error_code = (int32_t)mon_read_param_word(ctx, 0);
 
-    /* Error code 0 is illegal per documentation */
+    /* Per the carved L07 ERMSG worker (dual entry ERMSG/QERMS @16714B, closing
+     * at 17020B EXIT): the body has NO error/K return path - it looks up the
+     * message text, writes it, and always continues. "Error code 0 is illegal"
+     * is a caller-side manual note, NOT a status this call returns. So do not
+     * fabricate an error return for code 0; just log and continue. */
     if (error_code == 0) {
-        mon_log(MON_LOG_WARN, MON_ID_64B ": Error code 0 is illegal");
-        mon_set_error(ctx, -1);
-        return MON_ERROR;
+        mon_log(MON_LOG_WARN, MON_ID_64B ": Error code 0 (caller-side illegal; continuing)");
     }
 
     /* Output the error message to console in octal format per SINTRAN convention

@@ -700,7 +700,7 @@ void mon_register_all_handlers(void) {
         "Performs various operations on floppy disks, magnetic tapes, Versatec plotters, and SCSI streamers.\n",  /* Description */
         "[I] FunctionCode (INTEGER2): Function code. See the following pages.\\n[IO] Buffer (INTEGER2[1024]): Buffer used for data transfer to and from the device.\\n[I] DeviceNo (INTEGER2): Logical device number (or open-file number). See appendix B.\\n[I] DeviceParam1 (INTEGER2): First device dependent parameter. See the following pages.\\n[I] DeviceParam2 (INTEGER2): Second device dependent parameter. See the following pages.",  /* Parameter details */
         mon_144B_DeviceFunction,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status: Phase-2 provisional benign-success stub (linker startup) */
         5             /* Param count */
     );
     mon_register_ex(
@@ -1065,7 +1065,7 @@ void mon_register_all_handlers(void) {
         "Gets the name of a user. The user may be on a remote computer if the COSMOS network is installed. Th",  /* Description */
         "[O] UserName (STRING): Buffer to receive user name (16 chars).\\n[I] DirectoryIndex (INTEGER): Directory index.\\n[I] UserIndex (INTEGER): User index.\\n[O] RemoteFlag (INTEGER): 0 if local user, 1 if remote user.\\n[O] RemoteSystem (STRING): Remote system identification string (optional, 64 chars).",  /* Parameter details */
         mon_214B_GetUserName,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         5             /* Param count */
     );
     mon_register_ex(
@@ -1720,7 +1720,7 @@ void mon_register_all_handlers(void) {
         "Gets information about an input buffer. The current number of bytes in it, and the number of bytes u",  /* Description */
         "[I] DeviceNumber (INTEGER): Logical device number. See appendix B.\\n[O] NoInBuffer (INTEGER): Number of bytes currently in the buffer.\\n[O] NoUntilBreak (INTEGER): Number of bytes until break character (0 if no break in buffer).",  /* Parameter details */
         mon_313B_InBufferState,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status: implemented from carve (linker input-poll) */
         3             /* Param count */
     );
     mon_register_ex(
@@ -2673,7 +2673,7 @@ void mon_register_all_handlers(void) {
         "The ESCAPE key on the terminal normally terminates a program. This is called user break. This monito",  /* Description */
         "[I] DeviceNumber (INTEGER): The terminal's logical device number. This parameter is ignored for background programs. Your own terminal is always selected.",  /* Parameter details */
         mon_71B_DisableEscape,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(
@@ -2684,7 +2684,7 @@ void mon_register_all_handlers(void) {
         "Enables the ESCAPE key on the terminal. The ESCAPE key normally terminates a program. This is called",  /* Description */
         "[I] DeviceNumber (INTEGER2): The terminal's logical device number. Ignored for background programs (own terminal selected).",  /* Parameter details */
         mon_72B_EnableEscape,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         1             /* Param count */
     );
     mon_register_ex(

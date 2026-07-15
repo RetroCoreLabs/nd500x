@@ -41,13 +41,24 @@ MonResult mon_123B_ReleaseResource(MonContext* ctx) {
     mon_log(MON_LOG_DEBUG, MON_ID_123B ": IN: DeviceNo=%o, IOFlag=%o",
             device_no, io_flag);
 
-    /* Call release API */
+    /* Call release API. Return codes: 0 = released, -2 = valid device but not
+     * reserved, -1 = invalid device number, -52 = invalid io_flag. */
     int result = mon_release_device(device_no, (uint8_t)io_flag);
 
-    if (result < 0) {
-        mon_log(MON_LOG_INFO, MON_ID_123B ": Device %o (%s) was not reserved",
+    if (result == -2) {
+        /* Carved L07 RELES: releasing an unreserved (but valid) resource is an
+         * idempotent SUCCESS no-op - error 005B belongs to the I/O operations
+         * that REQUIRE a reservation, never to RELES itself. */
+        mon_log(MON_LOG_DEBUG, MON_ID_123B ": Device %o (%s) not reserved - success no-op",
                 device_no, io_flag == 0 ? "input" : "output");
-        mon_set_error(ctx, MON_ERR_DEVICE_NOT_RESERVED);  /* 005B Device not reserved */
+        mon_set_success(ctx);
+        return MON_SUCCESS;
+    }
+    if (result < 0) {
+        /* Genuinely bad parameter (invalid device number or io_flag). */
+        mon_log(MON_LOG_INFO, MON_ID_123B ": Device %o (%s) release rejected (bad parameter)",
+                device_no, io_flag == 0 ? "input" : "output");
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
 

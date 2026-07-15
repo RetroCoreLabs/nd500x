@@ -32,6 +32,7 @@
  */
 
 #include "../mon.h"
+#include <stdlib.h>
 #include "../mon_log.h"
 #include "../mon_errors.h"
 #include "../mon_file_table.h"
@@ -127,6 +128,13 @@ MonResult mon_503B_InputString(MonContext* ctx) {
     }
 
     /* Read parameters */
+    /* TEMP Phase-2 arg-layout probe (remove after mapping the linker's DVINST) */
+    if (getenv("ND500X_DVINST_DUMP")) {
+        for (uint32_t _i = 0; _i < ctx->arg_count && _i < 16; _i++) {
+            mon_log(MON_LOG_WARN, "  DVINST arg[%u] @0x%08X = 0x%08X",
+                    _i, ctx->arg_addresses[_i], mon_read_param_word(ctx, (int)_i));
+        }
+    }
     uint32_t device_no = mon_read_param_word(ctx, 0);
     uint32_t max_bytes = mon_read_param_word(ctx, 1);
     uint32_t ret_count_addr = ctx->arg_addresses[2];  /* Output: bytes read */
@@ -164,6 +172,24 @@ MonResult mon_503B_InputString(MonContext* ctx) {
         break_table_ptr = mon_get_user_break_table(device_no);
     }
 
+    /* Guard against a mis-decoded user break table. The ND LINKER's 503B DVINST
+     * uses a 14-arg layout that differs from NC's (arg[1] is a procedure pointer,
+     * not MaxNo; args[6..9] are not an inline break table - see MON_TO_BINARY_PLAN
+     * "503B DVINST arg-layout mismatch"). Read positionally, its "table" is garbage
+     * that breaks on the letter 'T' but NOT on CR, so every command truncates at
+     * its first 'T'. A valid terminal line-input break table ALWAYS breaks on CR
+     * (0x0D). If a user-table strategy yields a table that does not break on CR,
+     * treat it as invalid and fall back to MAC-style line breaks (CR/LF/ESC/EOF).
+     * NC uses strategy 1 and is unaffected. (Remove once the linker's true 503B
+     * parameter layout is mapped and the args are read correctly.) */
+    if ((break_strat == BREAK_STRAT_USER || break_strat == BREAK_STRAT_LAST_USER) &&
+        (!break_table_ptr || !bit_table_test_bit(break_table_ptr, BREAK_CHAR_CR))) {
+        mon_log(MON_LOG_WARN, MON_ID_503B ": user break table does not break on CR"
+                " - falling back to MAC-style line break (unresolved 503B arg layout)");
+        break_strat = BREAK_STRAT_MAC;
+        break_table_ptr = NULL;
+    }
+
     /* Echo table handling:
      * Strategy 7 or 8 with inline T1-T4: read and store to device state
      * Strategy 7 or 8 without inline: use device's current user table
@@ -199,11 +225,12 @@ MonResult mon_503B_InputString(MonContext* ctx) {
     mon_log(MON_LOG_DEBUG, MON_ID_503B ":     DeviceType=%s, BreakStrat=%d, EchoStrat=%d",
             dev_type, break_strat, echo_strat);
 
-    /* Validate byte count */
+    /* Validate byte count. PHASE-2 EXPERIMENT (session 557c0950): the ND LINKER
+     * passes a huge MaxNo (0xF80000CB); clamp instead of erroring to test whether
+     * its command read then proceeds (BuffAddr correct?) - revert if not. */
     if (max_bytes > DVINST_MAX_BYTES) {
-        mon_log(MON_LOG_WARN, MON_ID_503B ": MaxNo %u exceeds max %u", max_bytes, DVINST_MAX_BYTES);
-        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
-        return MON_ERROR;
+        mon_log(MON_LOG_WARN, MON_ID_503B ": MaxNo %u exceeds max %u - clamping", max_bytes, DVINST_MAX_BYTES);
+        max_bytes = DVINST_MAX_BYTES;
     }
 
     if (max_bytes == 0) {

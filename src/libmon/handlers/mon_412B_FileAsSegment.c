@@ -12,9 +12,18 @@
  *
  * Parameters:
  *   [I] FileNo (INTEGER): File number (64-127)
- *   [I] LogSegmentNo (INTEGER): Logical segment number to use
- *   [I] AccessType (INTEGER): Access type (0=read, 1=write, 2=read/write)
+ *   [I] LogSegmentNo (INTEGER): Logical segment number to use (0 = first free)
+ *   [I] AccessType (INTEGER): 0 = file contains initial data, 1 = uninitialized/
+ *                             empty, 2 = primarily sequential, 3 = combination
+ *                             of 1 and 2. (NOT read/write/rdwr - the segment's
+ *                             read/write capability comes from the file's OPEN
+ *                             mode.) Corrected per 412B_FileAsSegment.yaml + carve.
  *   [O] SegmentNo (INTEGER): Actual segment number assigned (returned in W1)
+ *
+ * Now REAL: maps the open file's bytes into an MMU/PST-backed logical segment in
+ * the caller's (CED) domain via ctx->connect_file_as_segment. Unblocks CAT-500's
+ * scratch-as-segment reads (the C compiler back-end). Handoff:
+ * docs/HANDOFF_412B_FSCNT_FileAsSegment.md.
  *
  * Reference: SINTRAN III Monitor Calls (ND-860228.2 EN)
  */
@@ -52,9 +61,13 @@ MonResult mon_412B_FileAsSegment(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Validate access type */
-    if (access_type > 2) {
-        mon_log(MON_LOG_WARN, MON_ID_412B ": Invalid access type %o (must be 0-2)", access_type);
+    /* Validate access type. Per the YAML/carve, AccessType is
+     *   0 = file contains initial data, 1 = uninitialized/empty,
+     *   2 = primarily sequential, 3 = combination of 1 and 2.
+     * (NOT read/write/rdwr - the read/write capability comes from the file's
+     * OPEN mode, below.) */
+    if (access_type > 3) {
+        mon_log(MON_LOG_WARN, MON_ID_412B ": Invalid access type %o (must be 0-3)", access_type);
         mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
         return MON_ERROR;
     }
@@ -75,25 +88,42 @@ MonResult mon_412B_FileAsSegment(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Check access mode compatibility */
-    if (access_type == 1 || access_type == 2) {  /* Write access requested */
-        if (entry->access_mode == ACCESS_SEQ_READ || entry->access_mode == ACCESS_RAND_READ) {
-            mon_log(MON_LOG_WARN, MON_ID_412B ": File %o not open for write", file_no);
-            mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
-            return MON_ERROR;
-        }
+    /* Capability access mode comes from the FILE'S OPEN MODE, not AccessType.
+     * Read-only open modes -> RO segment; everything else -> RW. */
+    int writable = !(entry->access_mode == ACCESS_SEQ_READ ||
+                     entry->access_mode == ACCESS_RAND_READ ||
+                     entry->access_mode == ACCESS_RAND_READ_CTG);
+
+    if (!ctx->connect_file_as_segment) {
+        mon_log(MON_LOG_WARN, MON_ID_412B ": no connect_file_as_segment callback");
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);
+        return MON_ERROR;
     }
 
-    /* Mark file as mapped to segment */
+    /* Ensure the file's bytes are on disk before we map them. */
+    if (entry->host_file) fflush(entry->host_file);
+
+    uint32_t assigned = 0;
+    int rc = ctx->connect_file_as_segment(ctx->cpu, ctx->machine,
+                 /*domain=*/ 0xFF /* callback resolves to CED */,
+                 log_segment_no, access_type, writable,
+                 entry->host_path, entry->object_entry.bytes_in_file, &assigned);
+    if (rc != 0) {
+        mon_log(MON_LOG_WARN, MON_ID_412B ": connect failed rc=%d for '%s'", rc, entry->host_path);
+        mon_set_error(ctx, MON_ERR_ILLEGAL_PARAMETER);  /* 174B Illegal parameter */
+        return MON_ERROR;
+    }
+
     entry->mapped_as_segment = true;
-    entry->mapped_segment_no = log_segment_no;
+    entry->mapped_segment_no = assigned;
     entry->segment_access_type = (uint8_t)access_type;
 
-    mon_log(MON_LOG_INFO, MON_ID_412B ": OUT: File %o connected as segment %o (access=%o)",
-            file_no, log_segment_no, access_type);
+    mon_log(MON_LOG_INFO, MON_ID_412B ": OUT: File %o connected as segment %o "
+            "(accessType=%o, writable=%d, bytes=%u)",
+            file_no, assigned, access_type, writable, entry->object_entry.bytes_in_file);
 
     /* Return assigned segment number in W1 */
-    ctx->set_error_code(ctx->cpu, log_segment_no);
+    ctx->set_error_code(ctx->cpu, (int32_t)assigned);
 
     mon_set_success(ctx);
     return MON_SUCCESS;
