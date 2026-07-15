@@ -85,8 +85,14 @@ int main(int argc, char** argv) {
     int fed = 0;
     size_t con_off = 0;
     long total = 0;
+    int memtrace_spin = (getenv("ND500X_MEMTRACE_SPIN") != NULL);
     for (int round=0; round<nlines+4; round++) {
         m.run_flag=1; m.stop_reason=STOP_NONE;
+        /* Empirical poll-address finder: once at least one command line has been
+         * fed (so we are past startup and into the command/config loop that
+         * spins), turn on data-read memtrace for this bounded window so the
+         * repeatedly-polled datafield address can be histogrammed from stdout. */
+        if (memtrace_spin && fed >= 1) { nd500_dbg_set_memtrace(MEMTRACE_READ); }
         long s=0;
         for (; s<maxsteps && m.run_flag; s++) {
             nd500_cpu_step(&c);
