@@ -371,6 +371,63 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
 }
 
 /**
+ * Trap-free read-only translation for DIAGNOSTICS (harnesses/debugger).
+ * Mirrors nd500_mmu_translate_domain's data-read path (is_write=0, is_instruction=0)
+ * but NEVER raises a trap or mutates CPU/machine state. Returns the physical address,
+ * or 0xFFFFFFFF if the address cannot be translated (unmapped/invalid). Use this to
+ * inspect virtual memory without perturbing a running program (the real translate
+ * calls trap_page_fault/trap_protect_violation as side effects).
+ */
+uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr) {
+    if (!cpu) return 0xFFFFFFFFu;
+    if (!g_mmu_data_enabled) return virtual_addr; /* MMU off: identity */
+    if (!g_pst || !g_pcb_table) return 0xFFFFFFFFu;
+
+    int segment  = (virtual_addr >> SGSHIFT) & 0x1F;
+    int l1_index = (virtual_addr >> L1_INDEX_SHIFT) & L1_INDEX_MASK;
+    int l2_index = (virtual_addr >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
+    int offset   = virtual_addr & (NBPG - 1);
+    uint8_t domain = (uint8_t)cpu->CED;
+
+    uint16_t capability = g_pcb_table[domain].data_capabilities[segment];
+    if (capability == 0) return 0xFFFFFFFFu;
+
+    int psn = capability & PC_PSN;
+    if (psn >= MAX_PST) return 0xFFFFFFFFu;
+
+    PhysicalSegmentTableEntry pst_entry = g_pst[psn];
+    uint32_t physical_pfn;
+
+    switch (pst_entry.index_mode) {
+        case PS_AZI:
+            if (l1_index != 0 || l2_index != 0) return 0xFFFFFFFFu;
+            physical_pfn = pst_entry.physical_pfn;
+            break;
+        case PS_ASI: {
+            if (l1_index != 0) return 0xFFFFFFFFu;
+            uint32_t pte_addr = (pst_entry.physical_pfn << PGSHIFT) + (l2_index * 4);
+            PageTableEntry pte = nd500_mmu_read_pte(cpu, pte_addr);
+            if (!pte.valid) return 0xFFFFFFFFu;
+            physical_pfn = pte.physical_pfn;
+            break;
+        }
+        case PS_ADI: {
+            uint32_t l1_pte_addr = (pst_entry.physical_pfn << PGSHIFT) + (l1_index * 4);
+            PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
+            if (!l1_pte.valid) return 0xFFFFFFFFu;
+            uint32_t l2_pte_addr = (l1_pte.physical_pfn << PGSHIFT) + (l2_index * 4);
+            PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
+            if (!l2_pte.valid) return 0xFFFFFFFFu;
+            physical_pfn = l2_pte.physical_pfn;
+            break;
+        }
+        default:
+            return 0xFFFFFFFFu;
+    }
+    return (physical_pfn << PGSHIFT) | offset;
+}
+
+/**
  * Default MMU translation using CED (Current Executing Domain).
  * This is a convenience wrapper for code that doesn't need ALT prefix support.
  * For ALT prefix support, use nd500_mmu_translate_domain() with explicit domain.

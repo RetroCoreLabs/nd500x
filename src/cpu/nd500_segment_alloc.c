@@ -110,9 +110,15 @@ static int find_free_psn(Nd500Cpu* cpu, int start_psn) {
  *
  * Returns: 0 on success, SINTRAN error code on failure
  */
-int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
-    uint32_t requested_segment, uint32_t segment_size_bytes,
-    uint32_t* out_assigned_segment)
+/* Shared core: allocate an MMU/PST-backed data segment and wire the caller
+ * domain's data capability. `writable` selects RW (DC_WRP + PTE prot 0) vs RO
+ * (no DC_WRP + PTE prot 1). Returns the physical base of the segment via
+ * out_phys_base so a caller (FSCNT) can pre-load file bytes. Used by both
+ * nd500_mon_allocate_segment (empty scratch, 422B GSWSP) and
+ * nd500_mon_connect_file_as_segment (file-backed, 412B FSCNT). */
+static int alloc_backed_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
+    uint32_t requested_segment, uint32_t segment_size_bytes, int writable,
+    uint32_t* out_assigned_segment, uint32_t* out_phys_base)
 {
     if (!cpu_ptr || !machine_ptr || !out_assigned_segment) {
         return ERR_ILLEGAL_ADDRESS;
@@ -216,10 +222,11 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
     /* PTE format: [31:2]=PFN, [1]=unused, [0]=protection (0=RW, 1=RO) */
     /* Valid = (PFN != 0) - there is no separate valid bit */
     uint32_t segment_pfn = phys_segment_base >> PGSHIFT;
+    uint32_t pte_prot = writable ? 0u : 1u;  /* 0=RW, 1=RO */
     for (uint32_t i = 0; i < num_pages; i++) {
         uint32_t pte_addr = page_table_base + (i * 4);
         uint32_t pfn = segment_pfn + i;
-        uint32_t pte = (pfn << 2) | 0;  /* PFN | RW (protection=0) */
+        uint32_t pte = (pfn << 2) | pte_prot;
         nd500_bus_write32(m, pte_addr, pte);
     }
 
@@ -233,12 +240,13 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
     uint32_t page_table_pfn = page_table_base >> PGSHIFT;
     nd500_mmu_set_pst_entry(cpu, psn, PS_ASI, page_table_pfn);
 
-    /* Configure PCB data capability (writable) */
-    uint16_t data_cap = psn | DC_WRP;
+    /* Configure PCB data capability. DC_WRP set = write permitted. */
+    uint16_t data_cap = (uint16_t)(psn | (writable ? DC_WRP : 0));
     nd500_mmu_set_data_capability(cpu, domain, assigned_segment, data_cap);
 
-    /* Return assigned segment number */
+    /* Return assigned segment number + physical base (for file preload) */
     *out_assigned_segment = assigned_segment;
+    if (out_phys_base) *out_phys_base = phys_segment_base;
 
     /* Opt-in layout dump (ND500X_SEG_DUMP) to hunt physical overlap between GSWSP segments. */
     {
@@ -256,6 +264,78 @@ int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
         }
     }
 
+    return ERR_SUCCESS;
+}
+
+/**
+ * MON callback: Allocate an EMPTY scratch segment (422B GSWSP). Thin wrapper
+ * over the shared core with a writable capability.
+ */
+int nd500_mon_allocate_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
+    uint32_t requested_segment, uint32_t segment_size_bytes,
+    uint32_t* out_assigned_segment)
+{
+    uint32_t phys_base = 0;
+    return alloc_backed_segment(cpu_ptr, machine_ptr, domain, requested_segment,
+        segment_size_bytes, /*writable=*/1, out_assigned_segment, &phys_base);
+}
+
+/**
+ * MON callback: Connect an open FILE as a data segment (412B FSCNT). Allocates
+ * an MMU/PST-backed segment (same wiring as GSWSP) then pre-loads the file's
+ * bytes into its physical pages.
+ *
+ *   access_type: 0 = initial data (load file), 1 = uninitialized (zero),
+ *                2 = primarily sequential (load), 3 = combination 1+2 (load).
+ *   writable:    RO vs RW capability comes from the FILE's open mode, passed by
+ *                the handler (NOT from access_type).
+ * The segment is zeroed by the core allocator; for load types we overwrite the
+ * head with the file bytes (raw byte stream - copied verbatim, no byte-swap).
+ * Returns 0 on success, SINTRAN error code otherwise.
+ */
+int nd500_mon_connect_file_as_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain,
+    uint32_t requested_segment, uint32_t access_type, int writable,
+    const char* host_path, uint32_t file_size_bytes,
+    uint32_t* out_assigned_segment)
+{
+    if (!cpu_ptr || !machine_ptr || !out_assigned_segment || !host_path) {
+        return ERR_ILLEGAL_ADDRESS;
+    }
+    Nd500Machine* m = (Nd500Machine*)machine_ptr;
+
+    /* If the size is unknown (scratch may report 0), measure the host file. */
+    uint32_t load_bytes = file_size_bytes;
+    long fsz = -1;
+    FILE* fp = fopen(host_path, "rb");
+    if (fp) {
+        if (fseek(fp, 0, SEEK_END) == 0) { fsz = ftell(fp); }
+        if (fsz >= 0 && (load_bytes == 0 || (uint32_t)fsz < load_bytes)) {
+            load_bytes = (uint32_t)fsz;
+        }
+    }
+    /* Segment must be at least one page even for an empty file. */
+    uint32_t seg_bytes = (load_bytes == 0) ? 1u : load_bytes;
+
+    uint32_t phys_base = 0;
+    int rc = alloc_backed_segment(cpu_ptr, machine_ptr, domain, requested_segment,
+        seg_bytes, writable, out_assigned_segment, &phys_base);
+    if (rc != ERR_SUCCESS) { if (fp) fclose(fp); return rc; }
+
+    /* access_type 1 = uninitialized: leave the (already zeroed) pages. */
+    if (access_type == 1 || !fp || load_bytes == 0) {
+        if (fp) fclose(fp);
+        return ERR_SUCCESS;
+    }
+
+    /* Load types (0/2/3): copy the file's bytes into the segment's physical
+     * pages verbatim. The core allocator already zeroed the tail. */
+    rewind(fp);
+    for (uint32_t off = 0; off < load_bytes; off++) {
+        int c = fgetc(fp);
+        if (c == EOF) break;
+        nd500_bus_write8(m, phys_base + off, (uint8_t)c);
+    }
+    fclose(fp);
     return ERR_SUCCESS;
 }
 
