@@ -141,3 +141,135 @@ internal buffer, so 504B DVOUTS output becomes INVISIBLE on stdout. Print the ca
 2. Phase 3 (linker -> :DOM) is unchanged.
 
 Both emulators need the same nested-invocation model; keep bit-aligned.
+
+---
+
+## 5. MON 511B DVIO implemented + 143B RSIO command input moved to the terminal (2026-07-16)
+
+**Port these two TOGETHER. Neither works alone** - RSIO alone just trades a hang for an
+unimplemented-MON stop (it was probed and reverted twice for exactly that reason).
+
+nd500x commit: `2d9b00f`. Files:
+- `/home/ronny/repos/nd500x/src/libmon/mon_device_io.h`                    (new - shared cores)
+- `/home/ronny/repos/nd500x/src/libmon/handlers/mon_511B_DVIO.c`           (implemented)
+- `/home/ronny/repos/nd500x/src/libmon/handlers/mon_503B_InputString.c`    (core extracted)
+- `/home/ronny/repos/nd500x/src/libmon/handlers/mon_504B_OutputString.c`   (core extracted)
+- `/home/ronny/repos/nd500x/src/libmon/handlers/mon_143B_ExecutionInfo.c`  (InputDev 0 -> 1)
+- `/home/ronny/repos/nd500x/src/libmon/handlers/mon_1B_InByte.c`           (comment only)
+- `/home/ronny/repos/nd500x/test/test_mon_calls.c`                         (8 new assertions)
+- `/home/ronny/repos/nd500x/test/diag_linkterm.c`                          (new harness)
+
+### 5.1 Change A - 143B RSIO reports the TERMINAL as command input
+
+`InputDev` 0 -> **1**. Its own documented contract says InputDev is the "Terminal number for
+interactive"; we report `ExecutionMode=0` (interactive) and `OutputDev=1` (terminal), so
+`InputDev=0` (the command buffer = the BATCH channel) was self-inconsistent.
+
+Consequence, byte-verified: with the old value the linker believed its command input was
+device 0, issued `1B INBT` on it, found it empty and blocked forever.
+
+**Regression checked:** NC is unaffected in outcome. It now reads device 1 (verified: it
+blocks with `dev=1` and exits cleanly on `EXIT`), still compiles `B.C` to
+`*** no errors detected ***`, and reaches a clean `MON 0B LEAVE`.
+
+### 5.2 Change B - MON 511B DVIO (fused prompt-then-read)
+
+**DVIO = DVOUTS(arg0, arg1, @arg2) THEN DVINST(arg0, MaxNo=arg14, @ret=arg15, @buf=arg3, arg4..arg13).**
+
+| arg | meaning |
+|---|---|
+| 0 | DeviceNo |
+| 1 | NoOfBytes to WRITE (output phase) |
+| 2 | @output buffer (the prompt) |
+| 3 | @input buffer |
+| 4 | BreakStrat (observed 7) |
+| 5 | EchoStrat (observed -1 = ECHO_STRAT_NONE) |
+| 6..9 | see caveat below |
+| 10..13 | table words (observed -1, 0, 0, 3) |
+| 14 | **MaxNo** to read |
+| 15 | **@returned byte count - OUT PARAMETER** |
+
+> **Do NOT derive this from `3 + (14 - 1) = 16`.** That arithmetic gets the COUNT right and
+> the ORDER wrong. DVINST's MaxNo and returned-count are relocated to args 14/15 so args 1..2
+> can carry the output phase. A mapping built on the arithmetic puts MaxNo at arg 1 and
+> clobbers the output byte count. **args 3..13 keep DVINST's own indices** - only MaxNo and
+> the returned-count move.
+
+**arg[15] is an OUT parameter** - the MON 412B FSCNT bug shape all over again. Nobody writes
+it before the call; the caller reads it immediately after (`B0047539: w move b.0x1A0,b.0xA8`).
+If your handler only leaves the count in a register, the caller keeps a stale value.
+
+### 5.3 How the mapping was established (reproduce it if you doubt it)
+
+In `/mnt/d/ND/500/nd-linker/linker-b01.dom.asm` each of 503B/504B/511B has exactly ONE call
+site, and each is a bare pass-through thunk - nothing runs between `ents` and the `call`, so
+the thunk's `b.0x14..` slots ARE its incoming arguments:
+
+```
+B004AC8A: ents $0x4C
+B004AC90: call $0xF8000143,$0xE ,b.0x14,b.0x18,b.0x1C,@b.0x20,b.0x24..b.0x48   ; 503B
+B004ACA7: ents $0x20
+B004ACAD: call $0xF8000144,$0x3 ,b.0x14,b.0x18,@b.0x1C                         ; 504B
+B004ACB9: ents $0x54
+B004ACBF: call $0xF8000149,$0x10,b.0x14,b.0x18,@b.0x1C,@b.0x20,b.0x24..b.0x50  ; 511B
+```
+
+Each thunk has ONE caller, which calls it with ZERO CALLG args (`call $0xB004ACB9,$0x0`)
+after building the argument block at the top of its own frame (a fixed +0x150). Diffing the
+511B caller (`B00474A1..B0047535`) against the 503B caller (`B004754F..B00475C0`) yields the
+table above. Three independent confirmations:
+
+1. 511B's args 0..2 are built by a sequence **byte-identical** to the 504B DVOUTS caller's
+   (`w move $0xB0053068,b.0x114` / `by2 laddr @b.0x114+` / `w2 =: b.0x16C`), and all three
+   callers take arg0 from the same `b.0x58`.
+2. arg4's source is written `w move $0x7,b.0x100` at `B004745C`; the live probe observed
+   `arg[4] == 7`.
+3. args 10..13 are read from the table at `0xB0052F04`, whose bytes in the loaded image are
+   `FF FF FF FF | 00 00 00 00 | 00 00 00 00 | 00 00 00 03`; the probe observed
+   `arg[10..13] == -1, 0, 0, 3`.
+
+### 5.4 Runtime evidence that it works
+
+```
+CALL 511B DVIO (16 args) at PC=0xB004ACBF
+  IN: DeviceNo=1 (1), OutBytes=2, OutBuf=0xB0049430, MaxNo=12, InBuf=0xB0001C2E
+  504B DVOUTS: Wrote 2 bytes to console (device 1)
+  503B DVINST: Read 12 bytes from console (device 1)
+EXIT 511B DVIO -> SUCCESS
+```
+`MaxNo=12` arrives via arg[14] exactly as mapped, and it consumes a 12-byte line
+(`"LIST-STATUS\r"`).
+
+### 5.5 Implement by REUSE, not duplication
+
+503B's and 504B's bodies were extracted into cores (`mon_dvinst_read`, `mon_dvouts_write`)
+and 511B delegates to both. Because args 4..13 keep their indices, the DVINST core reads the
+strategy/table arguments from the context unchanged for BOTH calls; only DeviceNo, MaxNo, the
+returned-count index and the buffer are parameterised. The cores deliberately do NOT set
+success - the caller owns the final status, because 511B still has its input phase to run
+after the output phase returns.
+
+Suspend semantics carry through: if the device has no input the DVINST core sets
+`wait_requested`, the MON is left **uncommitted**, the CPU rewinds to the CALLG and the whole
+511B (prompt included) re-runs on resume. Do not commit the returned count on that path.
+
+### 5.6 CORRECTION to section 2 - who spins on device-0 EOF
+
+Section 2 / earlier notes said NC's resident reader busy-spins if an empty device-0 `1B INBT`
+returns EOF. **That is wrong.** Re-tested 2026-07-16 with an explicit experiment: it is the
+**LINKER** that spins - 20,088 consecutive `1B INBT` at `PC=0xB004E759` within 600k
+instructions, no other MON activity. NC now reads device 1 and never touches device 0.
+The suspend-on-empty behaviour for device 0 is therefore required by the **linker**. Keep it.
+
+### 5.7 Still open (do NOT guess)
+
+- **The linker uses BOTH channels**: device 1 (terminal) for its startup dialogue via 511B
+  DVIO, and device 0 (command buffer) for its command loop via `1B INBT` @ `B004E759`.
+  Feeding device 0 forces BATCH mode and it then spins on `71B DESCF` @ `B004D9E6`;
+  returning EOF spins; suspending blocks. **The correct way to drive the command loop is
+  unresolved** - this is the remaining blocker for producing a `:DOM`.
+- **args 6..9 semantics.** The caller fills `b.0x104..` via an `h smove` from a `[len][ptr]`
+  descriptor at `0xB0052854` / `0xB005285C`, so they are NOT plainly a 128-bit break table in
+  the linker's usage. Passing indices 4..13 through to the DVINST core is what the linker's
+  own DVINST call site does with the identical values, so this does not block 511B - but do
+  not document them as a break table.

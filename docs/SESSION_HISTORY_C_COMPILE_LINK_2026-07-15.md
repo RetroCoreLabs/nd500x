@@ -3,7 +3,7 @@
 **Full path of this document:** `/home/ronny/repos/nd500x/docs/SESSION_HISTORY_C_COMPILE_LINK_2026-07-15.md`
 
 Started: 2026-07-15 (24 commits, `26f665d` .. `5b6bdfd`, all on `main`)
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 > **THIS IS A LIVING DOCUMENT.** It is the running history of the C compile+link
 > effort, not a one-off session write-up. **Append a new chapter as each phase
@@ -19,7 +19,7 @@ runnable domain, entirely under the nd500x emulator.
 | Chapter | Phase(s) | Subject | Status |
 |---|---|---|---|
 | 1 (sections 1-7) | 0-1 | C -> `:NRF` (NC front-end + CAT-500 back-end) | **DONE** 2026-07-15 |
-| 2 (to be written) | 2-3 | `:NRF` -> `:DOM` (ND Linker; `MON 511B DVIO` + RSIO) | blocked, see 6 |
+| 2 (sections 9-13) | 2-3 | `:NRF` -> `:DOM` (ND Linker; `MON 511B DVIO` + RSIO) | **PARTIAL** 2026-07-16 - 511B works; command loop unresolved |
 | 3 (to be written) | 4 | End-to-end compile+link+**run** (the DONE gate) | pending |
 | 4 (to be written) | 5 | Finalise + release the C# cross-emulator handoff | pending |
 
@@ -556,3 +556,239 @@ Chapter 2 (phases 2-3, `:NRF` -> `:DOM`) should open with the two coupled change
 in [section 6](#6-state-at-end-of-session) - `MON 511B DVIO` and the `143B RSIO`
 terminal-input fix - and must record how the 511B **input-phase argument mapping**
 was finally established, since this chapter deliberately refused to guess it.
+
+---
+
+# Chapter 2 - The link half, part 1: teaching the linker to talk (phases 2-3)
+
+**Headline result: `MON 511B DVIO` is implemented and works, and its argument
+mapping was established from evidence rather than guessed.** The linker now
+takes its interactive path, prints through DVIO and reads a line back. It still
+does not produce a `:DOM`: its *command loop* reads a different channel, and how
+to drive that channel correctly is **unresolved**. This chapter records what was
+proved, what was disproved, and exactly where it stopped.
+
+Commit: `2d9b00f`.
+
+## 9. Where we were
+
+Chapter 1 closed with the two coupled changes already scoped in section 6, and
+with one explicit refusal recorded: the 511B input-phase argument mapping (args
+3..15) was **not** to be derived from the observation that
+`3 + (14 - 1 shared DeviceNo) = 16` matches the observed argument count.
+Section 8 required this chapter to record how the mapping was finally
+established. It is recorded in section 11.1.
+
+That refusal turned out to be worth it - see section 11.2.
+
+## 10. What we set out to fix, and the false trails
+
+### 10.1 "device-0 EOF will let the linker fall through to the terminal" - DISPROVEN
+
+Once `143B RSIO` reported the terminal, NC was verified to read device 1 and to
+never touch device 0. That made a tempting hypothesis available: the old
+constraint forcing device-0 `1B INBT` to *suspend* rather than return EOF
+existed only to stop **NC** busy-spinning, so with NC off that channel we could
+restore EOF and let the linker's command loop fall through to the terminal.
+
+Two recorded claims disagreed about who spins:
+- project memory said **NC's** resident reader spins on EOF;
+- the comment in `mon_1B_InByte.c` said the **LINKER** spins on EOF.
+
+Rather than trust either, the experiment was run behind a temporary
+`ND500X_DEV0_EOF` lever. Result, unambiguous:
+
+| device-0 empty behaviour | linker outcome |
+|---|---|
+| EOF | **busy-spin**: 20,088 consecutive `1B INBT` @ `PC=0xB004E759` in 600k instructions, no other MON activity |
+| suspend (current) | blocks cleanly |
+| fed | enters BATCH mode, then spins on `71B DESCF` @ `B004D9E6` |
+
+The hypothesis is dead: **the linker spins on EOF**, the comment was right, the
+memory note was wrong. The lever was **removed** and the only artefact kept is a
+corrected comment carrying the measurement. Zero behaviour changed.
+
+### 10.2 "the arg count fits, so the order must be DVOUTS-then-DVINST" - would have been WRONG
+
+The arithmetic `3 + (14 - 1) = 16` predicts the argument COUNT exactly. It is
+also the wrong mapping. See 11.2.
+
+## 11. What we actually fixed
+
+### 11.1 `MON 511B DVIO` - the mapping, established from the linker's own bytes
+
+The method was the one that has worked every time: **read the producer.**
+
+In `/mnt/d/ND/500/nd-linker/linker-b01.dom.asm` each of 503B / 504B / 511B has
+exactly **one** call site, and each is a bare pass-through thunk:
+
+```
+B004AC8A: ents $0x4C
+B004AC90: call $0xF8000143,$0xE ,b.0x14,b.0x18,b.0x1C,@b.0x20,b.0x24..b.0x48   ; 503B DVINST
+B004ACA7: ents $0x20
+B004ACAD: call $0xF8000144,$0x3 ,b.0x14,b.0x18,@b.0x1C                         ; 504B DVOUTS
+B004ACB9: ents $0x54
+B004ACBF: call $0xF8000149,$0x10,b.0x14,b.0x18,@b.0x1C,@b.0x20,b.0x24..b.0x50  ; 511B DVIO
+```
+
+Nothing executes between `ents` and the `call`, so the thunk's `b.0x14..` slots
+**are** its incoming arguments. Each thunk has exactly one caller, and each
+caller invokes it with **zero** CALLG arguments (`call $0xB004ACB9,$0x0`) after
+building the block at the top of its own frame - a fixed `+0x150` from the
+thunk's view. So the evidence lives in the *callers*, and the mapping falls out
+of diffing them:
+
+| | 503B caller `B004754F..B00475C0` | 511B caller `B00474A1..B0047535` |
+|---|---|---|
+| arg0 | `b.0x58` | `b.0x58` (same source) |
+| arg1 | `b.0xF0` = **MaxNo** | `b.0xFC` = NoOfBytes to write |
+| arg2 | **READ AFTER call** = ret-count OUT | `laddr @b.0x114+` = @output buffer |
+| arg3 | `laddr @b.0xD8+` = @input buffer | `laddr @b.0xD8+` (same source) |
+| arg4..9 | `b.0x100, b.0xF8, b.0x104, b.0x108, b.0x10C, b.0x110` | identical sources |
+| arg10..13 | table `0xB0052F04[0..3]` | identical |
+| arg14 | - | `b.0xF0` = **MaxNo** (503B's arg1 source!) |
+| arg15 | - | **READ AFTER call** = ret-count OUT |
+
+Three independent confirmations, so this is not one clever reading:
+
+1. 511B's args 0..2 are built by an instruction sequence **byte-identical** to
+   the 504B DVOUTS caller's (`w move $0xB0053068,b.0x114` / `by2 laddr
+   @b.0x114+` / `w2 =: b.0x16C`), and all three callers take arg0 from `b.0x58`.
+2. arg4's source is written `w move $0x7,b.0x100` at `B004745C`; the live probe
+   had observed `arg[4] == 7`.
+3. args 10..13 are read from the table at `0xB0052F04`, whose bytes **in the
+   loaded image** are `FF FF FF FF | 00 00 00 00 | 00 00 00 00 | 00 00 00 03`;
+   the live probe had observed `arg[10..13] == -1, 0, 0, 3`.
+
+A fourth fell out afterwards: the probe's `arg[5] == -1` is exactly
+`ECHO_STRAT_NONE`, which is what a program printing its own prompt would pass.
+
+Result:
+
+```
+DVIO = DVOUTS(arg0, arg1, @arg2)
+     THEN DVINST(arg0, MaxNo=arg14, @ret=arg15, @buf=arg3, arg4..arg13)
+```
+
+### 11.2 Why refusing to guess mattered
+
+The arithmetic was right about the count and **wrong about the order**. DVINST's
+`MaxNo` and returned-count are relocated to args **14 and 15** precisely so that
+indices 1..2 can carry the output phase; args 3..13 keep DVINST's own indices.
+A mapping built on `3 + 13 = 16` would have put `MaxNo` at arg 1 - clobbering
+the output byte count - and the returned-count at arg 2, clobbering the prompt
+pointer. It would have compiled, run, and produced garbage.
+
+**arg[15] is an OUT parameter**: written by nobody before the call, read
+immediately after it (`B0047539: w move b.0x1A0,b.0xA8`). That is the exact
+shape of the `MON 412B FSCNT` bug from Chapter 1 - the same class of defect, in
+a second call, found by looking for it deliberately.
+
+### 11.3 Implemented by reuse
+
+503B's and 504B's bodies were extracted into shared cores in
+`/home/ronny/repos/nd500x/src/libmon/mon_device_io.h` (`mon_dvinst_read`,
+`mon_dvouts_write`); 511B delegates to both. Because args 4..13 keep their
+indices, the DVINST core reads the strategy/table arguments unchanged for both
+calls - only DeviceNo, MaxNo, the ret-count index and the buffer are
+parameterised. The cores deliberately do not set success: the caller owns the
+final status, because 511B still has an input phase to run. Suspend semantics
+carry through unchanged, so an empty terminal leaves the MON uncommitted and the
+whole 511B - prompt included - re-runs on resume.
+
+### 11.4 `143B RSIO` - command input is the terminal
+
+`InputDev` 0 -> 1, shipped **together with** 511B as required. Verified no
+regression: NC now reads device 1, still compiles `B.C` to
+`*** no errors detected ***`, and reaches a clean `MON 0B LEAVE`.
+
+### 11.5 Runtime proof
+
+```
+CALL 511B DVIO (16 args) at PC=0xB004ACBF
+  IN: DeviceNo=1 (1), OutBytes=2, OutBuf=0xB0049430, MaxNo=12, InBuf=0xB0001C2E
+  504B DVOUTS: Wrote 2 bytes to console (device 1)
+  503B DVINST: Read 12 bytes from console (device 1)
+EXIT 511B DVIO -> SUCCESS
+```
+
+`MaxNo=12` arrives via `arg[14]` exactly as mapped and consumes a 12-byte line.
+
+## 12. What we learned
+
+### 12.1 A count that matches is not a mapping that matches
+`3 + 13 = 16` was true, checkable, and useless as a design input. It predicted
+the size of the argument list and nothing about its order - and the order is
+where the entire bug would have been. **An arithmetic coincidence is evidence
+about arithmetic, not about semantics.**
+
+### 12.2 The OUT-parameter defect is a CLASS, not an incident
+412B (Chapter 1) and 511B arg[15] are the same defect: a handler that leaves a
+value in a register instead of writing the caller's cell. Chapter 1 predicted
+"412B is unlikely to be the only one"; the very next call implemented had one.
+The tell is cheap to look for in a disassembly: **a slot written by nobody
+before the call and read immediately after it.** Look for it every time.
+
+### 12.3 When two recorded claims disagree, run the experiment - do not pick
+Memory said NC spins on device-0 EOF; the source comment said the linker does.
+Both were load-bearing, and picking the more convenient one would have been
+free. The 10-minute experiment settled it against memory (section 10.1) and the
+correction is now in the source with the measurement attached.
+
+### 12.4 Harnesses lie by omission
+`diag_domload` never calls `mon_get_console_output()`, so the linker's prompts
+were invisible and the console looked empty - the same trap Chapter 1 recorded
+in 5.5, hit again by using a harness that predates the lesson.
+`/home/ronny/repos/nd500x/test/diag_linkterm.c` was written to print the console
+at every stop, and to route each feed to the channel that is actually waiting
+(`m.stop_data`), since the linker uses both.
+
+### 12.5 Fixing the interface can move the blocker, not remove it
+RSIO + 511B did exactly what they promised: the linker talks now. It still does
+not link. Getting a subsystem to *communicate* is not the same as getting it to
+*work*, and the honest report is "511B works; the command loop does not".
+
+## 13. State at end
+
+**Working:** everything in Chapter 1's section 6, plus `MON 511B DVIO`. The MON
+suite is **61 pass / 3 fail** - the same three pre-existing failures (312B
+MCTAB, 256B DEABF x2), with 8 new 511B assertions covering prompt-then-read, the
+OUT-parameter write, buffer separation, and suspend-leaves-the-count-untouched.
+
+**The remaining blocker - the linker's command loop.** The linker uses **two**
+channels:
+- device 1 (terminal), for its startup dialogue via `511B DVIO` - **works now**;
+- device 0 (command buffer), for its command loop via `1B INBT` @ `B004E759`.
+
+Every known device-0 behaviour fails:
+
+| device 0 | result |
+|---|---|
+| suspend (current) | blocks forever; no commands consumed |
+| EOF | busy-spin, 20,088 `1B INBT` in 600k instructions |
+| fed | BATCH mode, then spins on `71B DESCF` @ `B004D9E6` |
+
+So `OPEN-DOMAIN` / `LOAD` / `CLOSE` never run and no `:DOM` is produced.
+
+**Open questions (explicitly unresolved - do not assume):**
+- how the command loop is *meant* to be driven. It is not yet established that
+  device 0 is even the right channel for it, nor what the startup `511B DVIO`
+  (which writes only a 2-byte CRLF and reads up to 12 bytes) is actually asking.
+- the semantics of args 6..9. The caller fills `b.0x104..` via an `h smove` from
+  a `[len][ptr]` descriptor at `0xB0052854` / `0xB005285C`, so they are **not**
+  plainly a 128-bit break table in the linker's usage. This does not block 511B
+  (indices 4..13 are passed through to the same core the linker's own DVINST
+  call site feeds with identical values), but they must not be documented as a
+  break table.
+- the existing 503B guard that falls back to MAC line-breaks when a user break
+  table does not break on CR is a **workaround built on a belief this chapter
+  partly contradicts** (its comment says the linker's arg[1] is a procedure
+  pointer, not MaxNo; the call-site evidence says arg1's source is `b.0xF0`).
+  It is untouched and still active. Re-examine it before trusting it.
+- everything still open from Chapter 1's section 6.
+
+**Next chapter, already scoped:** Chapter 3 must resolve the command-loop
+channel. The first move is the one that has worked every time and has not yet
+been applied here: **read the producer.** Disassemble the reader at
+`B004E759` and its caller to find out which device it is *actually* asking for
+and why the batch path engages, rather than trying more feed permutations.
