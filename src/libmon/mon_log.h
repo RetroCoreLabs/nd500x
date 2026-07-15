@@ -86,6 +86,7 @@ typedef enum {
 #define MON_ID_422B   MON_ID("422B", "GSWSP", "GetScratchSegment")
 #define MON_ID_503B   MON_ID("503B", "DVINST", "InputString")
 #define MON_ID_504B   MON_ID("504B", "DVOUTS", "OutputString")
+#define MON_ID_511B   MON_ID("511B", "DVIO", "DeviceInputOutput")
 
 /* =========================================================================
  * LOG OUTPUT CALLBACK

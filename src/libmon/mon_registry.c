@@ -214,6 +214,7 @@ extern MonResult mon_502B_SwitchProcess(MonContext* ctx);
 extern MonResult mon_503B_InputString(MonContext* ctx);
 extern MonResult mon_504B_OutputString(MonContext* ctx);
 extern MonResult mon_505B_GetTrapReason(MonContext* ctx);
+extern MonResult mon_511B_DVIO(MonContext* ctx);
 extern MonResult mon_507B_SetProcessPriority(MonContext* ctx);
 extern MonResult mon_50B_OpenFile(MonContext* ctx);
 extern MonResult mon_514B_ND500TimeOut(MonContext* ctx);
@@ -2444,6 +2445,17 @@ void mon_register_all_handlers(void) {
         mon_504B_OutputString,  /* Handler */
         MON_STATUS_VALIDATED,    /* Status */
         3             /* Param count */
+    );
+    mon_register_ex(
+        329,           /* MON number (decimal) - 511 octal */
+        "511B",         /* Octal string */
+        "DVIO",    /* Short name */
+        "DeviceInputOutput",          /* Long name */
+        "Fused terminal output+input: writes a prompt to a device, then reads a line back from it. The carve names its input phase XNINSTR, which is MON 503B DVINST's body.",  /* Description */
+        "[I] DeviceNo (INTEGER2): Logical device number (1 = own terminal).\\n[I] NoOfBytes (INTEGER2): Number of bytes to write.\\n[I] Buffer (STRING): Prompt string to output.\\n[?] Remaining arguments are the input phase (DVINST-like); layout NOT yet established.",  /* Parameter details */
+        mon_511B_DVIO,  /* Handler */
+        MON_STATUS_IN_PROGRESS,    /* Status - probe: dumps args, returns error */
+        16             /* Param count (observed at the linker's call site) */
     );
     mon_register_ex(
         325,           /* MON number (decimal) */
