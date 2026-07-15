@@ -1,0 +1,5211 @@
+{
+  "header": {
+    "schemaVersion": "3.0.0",
+    "status": "DRAFT - NOT FROZEN. C side explicitly requested the MON test spec not be finalized yet (per NC_TOOLCHAIN_MON_PLAN.md Phase 2 division of labor). This file may still change shape or values before either runner treats it as a locked contract.",
+    "generatedBy": "RetroCore C# side, mon_tests.json Phase 2 (NC_TOOLCHAIN_MON_PLAN.md), revised in place (schema v3.0.0) for the MonContext case-shape revert and the Appendix A error-code correction pass.",
+    "changelog": [
+      {
+        "version": "1.0.0",
+        "summary": "Original shape: cases at the MonContext boundary (monNumber, argAddresses, initial/final {regs, ram}, kFlag, provenance, source, notes). No CALLG bytes, no MMU state."
+      },
+      {
+        "version": "2.0.0",
+        "summary": "Lifted cases to drive a real CALLG instruction through the indirect-segment-31 capability + program MMU decode path: added per-case 'mmu' and 'callg' blocks plus initial.regs.pc / final.regs.pc / final.regs.l. Rationale at the time: exercise the real dispatch boundary end-to-end on both emulators."
+      },
+      {
+        "version": "3.0.0",
+        "summary": "REVERTED to the v1.0.0 MonContext boundary shape (this decision settled on the C side - see 'caseBoundary' below for the full reasoning) - removed 'mmu'/'callg' blocks and pc/l register fields. ALSO corrected SINTRAN background-program error codes against Appendix A (several prior codes, e.g. decimal 41/52/57, were either drawn from the WRONG Appendix A table (RT-program namespace, not background-program) or invented outright with no source; see 'errorCodeCorrections' below). Status set to DRAFT / NOT FROZEN per explicit C-side request."
+      }
+    ],
+    "caseBoundary": {
+      "boundary": "MonContext (the interface nd500x's nd500_indirect.c hands to mon_dispatch() after intercepting a segment-31 CALLG and resolving the operand effective addresses).",
+      "why": "The C side settled this: ALL MON semantics - parameter layout, byte counts, error codes, 32-bit INTEGER width, file effects - live at or below the MonContext boundary. The two things that boundary does NOT exercise (CALLG operand decoding, MMU translation) are already covered elsewhere: CALLG operand decoding by nd500_tests.json (the general CPU instruction corpus), and MMU translation by test_mmu_translation. Lifting this shared spec to full CALLG byte encoding + MMU capability-table state (as v2.0.0 did) would force emulator-specific MMU state into language-neutral JSON for zero parity gain on MON semantics - the thing this spec exists to test.",
+      "notExercisedHere": [
+        "CALLG operand decoding (opcode/operand-mode encoding, effective-address computation for CONSTANT/CONSTANT_SHORT/ABSOLUTE argument operands) - covered by nd500_tests.json.",
+        "MMU translation (program/data MMU enable, capability tables, page-index tables, PS_AZI/PS_ASI/PS_ADI page-status modes) - covered by test_mmu_translation."
+      ]
+    },
+    "contractPoints": {
+      "flatIdentityRamMmuOff": "Both harnesses build the MonContext directly (no CPU/CALLG step, no MMU translation layer engaged). 'argAddresses' in every case are therefore DIRECT offsets into the case's 'ram' array - flat, identity-mapped, MMU OFF. A runner MUST NOT apply any address translation to argAddresses or to any address embedded in 'ram'.",
+      "integerParamsAre32Bit": "Every ND-500 INTEGER-typed MON parameter (per the YAML 'type: INTEGER' field) is a 32-BIT WORD, read/written via the equivalent of mon_read_param_word / mon_write_param_word - NEVER a 16-bit halfword. This applies uniformly across all 34 covered calls; a runner that reads/writes INTEGER parameters as 16-bit halfwords will mis-decode every case with more than one INTEGER parameter (the second parameter's address would be off by a factor of 2 from what 'argAddresses' expects)."
+    },
+    "sourceOfTruth": [
+      "YAML docs: NDInsight/Developer/MON/calls/*.yaml (parameter layouts, directions, types, cited manual page/line)",
+      "ND-860228.2 EN SINTRAN III Monitor Calls manual OCR, Appendix A (NDInsight/Reference-Manuals/ND-860228-2-EN SINTRAN III Monitor Calls.md, line 25974 'APPENDIX A: ERROR MESSAGES' onward)",
+      "NOT either emulator: no emulator was run to produce this spec.",
+      "Error-code corrections in this revision (v3.0.0): Monitor Calls.md Appendix A background-program octal/decimal table (line 26076 onward) read in full for decimal 0-114 (the range touched by any case in this corpus), NOT the earlier RT-program decimal-only table (line ~25988) that several v2.0.0 cases had mistakenly cited."
+    ],
+    "provenanceDefinitions": {
+      "manual": "Value/behavior taken directly from a manual page/line cited in the YAML or the Appendix A error table.",
+      "convention": "An agreed cross-emulator convention not stated verbatim in the manual for this exact call (e.g. MOINF 0xF8000000+n fake entry address, error-in-W1 + K-flag-on-error, non-blocking console with error 57 on empty for InByte, or an Appendix A global error code mapped onto a specific call by reasonable inference rather than an explicit manual statement for that call).",
+      "yaml-unvalidated": "Taken from a YAML marked validated:false with no manual confirmation found for the specific value asserted."
+    },
+    "callgConvention": {
+      "dispatchBoundary": "MON calls dispatch when a CALLG's resolved target capability has PC_IND set and targets SINTRAN segment 31 (see nd500x src/cpu/nd500_indirect.c nd500_check_indirect_call); the offset within segment 31 IS the MON number directly (not divided by 4).",
+      "argumentsAreAddresses": "Per ND-05.009.4 EN section 13.7 (CALLG), each CALLG argument slot holds the EFFECTIVE ADDRESS of the parameter, not its value. Cases encode this as 'argAddresses': [...] mirroring MonContext.arg_addresses[].",
+      "errorConvention": "On error, the error code is written to W1 (== I1 / I[0] on ND-500) and the K (skip/error) flag is set; caller code then does 'IF K GO ERROR'. This is stated in nearly every YAML's assembly_500 example ('ERROR: W1 =: ErrCode').",
+      "kFlagField": "Each case has a top-level 'kFlag' boolean: expected K-flag state after mon_dispatch() returns.",
+      "registerModel": "regs use 'i1'..'i4' (I[0..3]) plus 'st' (status word), matching the key names already used by test_instruction_validation.c's known_regs[] array in nd500x, so the harness's existing register read/write helpers can be reused verbatim.",
+      "rawStateModel": "RESOLVED 2026-07-10 (was OPEN in schema v1.0.0): cases now drive a REAL CALLG instruction through the indirect-segment-31 capability + program MMU, not a MonContext shortcut. Verified by reading src/cpu/nd500_indirect.c (nd500_check_indirect_call), src/cpu/nd500_mmu.c/.h, and src/cpu/instructions/CALL/Callg.c on the C side, cross-checked against CpuND500.IndirectSegments.cs / CpuND500.MMU.cs / Instructions/CALL/Callg.cs on the C# side. See callgDispatchModel below for the full encoding."
+    },
+    "determinismConventions": {
+      "fixedBasicTime": {
+        "value": 0,
+        "source": "manual: 11B_GetBasicTime.yaml - 'The internal time is set to 0 each time SINTRAN III is started.' The spec PINS the test clock to remain at this start value for determinism; this pinning itself is a spec convention."
+      },
+      "fixedClockDateOpenItem": "OPEN ITEM: 113B GetCurrentTime/114B GetTimeUsed nominal cases only assert the buffer LAYOUT (manual-grounded) with placeholder zero values, NOT a real fixed calendar date - no manual or emulator-agnostic source for a canonical test date was found. Needs a concrete fixed-clock test-hook decision from the C side.",
+      "terminalDeviceNumber": {
+        "value": 1,
+        "source": "manual convention repeated across nearly every YAML: 'Use 1 for your own terminal.'"
+      },
+      "moinfFakeEntryAddress": {
+        "formula": "0xF8000000 + monNumber",
+        "source": "NC_TOOLCHAIN_MON_PLAN.md (authoritative plan text): 'both emulators correctly return fake entry address 0xF8000000+n for implemented calls.' Cross-checked against nd500x mon_312B_CheckMonCall.c."
+      },
+      "queueOrdering": "FIFO for queued console input (InByte, InputString); plan-confirmed semantics: non-blocking, error 57 returned on an empty queue rather than waiting.",
+      "sinTranStringTerminator": {
+        "value": "apostrophe (0x27)",
+        "source": "manual: 256B_FULLFILENAME.yaml - 'terminated by apostrophe (64 chars)'. Applied here as a CONVENTION to all STRING-typed CALLG input arguments, since not every YAML restates the terminator explicitly."
+      },
+      "memoryLayout": {
+        "argBase": "0x00002000",
+        "argStride": 4,
+        "bufBase": "0x00003000",
+        "note": "Spec-only test-fixture memory layout choice (convention), not a manual or emulator fact."
+      },
+      "fileSandbox": "File-system cases (OpenFile, CreateFile, DeleteFile, FullFileName, ...) run against a sandbox temp dir per test, matching the plan's 'files preamble section' convention; concrete sandbox wiring is left to each harness's existing fixture (C: test/nc_sandbox_setup.cmake pattern already used for dom_nc_compile_a/b)."
+    },
+    "errorCodeTable": {
+      "description": "Reference copy of the Monitor Calls.md Appendix A background-program error table (octal/decimal/meaning), decimal 0-114 (the range needed by this corpus's cases plus the task-verified corroboration entries). Provenance: manual. Use this table, not emulator memory, to check or extend any case's error code.",
+      "doc": "NDInsight/Developer/MON/Monitor Calls.md (ND-860228.2 EN SINTRAN III Monitor Calls, Appendix A)",
+      "tableHeaderLine": 26076,
+      "provenance": "manual",
+      "entries": [
+        {
+          "decimal": 0,
+          "octal": "000",
+          "meaning": "Not used",
+          "line": 26094,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 1,
+          "octal": "001",
+          "meaning": "Not used",
+          "line": 26095,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 2,
+          "octal": "002",
+          "meaning": "Bad file number",
+          "line": 26097,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 3,
+          "octal": "003",
+          "meaning": "End of file",
+          "line": 26098,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 4,
+          "octal": "004",
+          "meaning": "Card reader error (card read)",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 5,
+          "octal": "005",
+          "meaning": "Device not reserved",
+          "line": 26100,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 10,
+          "octal": "012",
+          "meaning": "End of device (timeout)",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 17,
+          "octal": "021",
+          "meaning": "Illegal character in parameter",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 18,
+          "octal": "022",
+          "meaning": "No such page",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 19,
+          "octal": "023",
+          "meaning": "Not decimal number",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 20,
+          "octal": "024",
+          "meaning": "Not octal number",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 21,
+          "octal": "025",
+          "meaning": "You are not authorized to do this",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 22,
+          "octal": "026",
+          "meaning": "Directory not entered",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 23,
+          "octal": "027",
+          "meaning": "Ambiguous directory name",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 24,
+          "octal": "030",
+          "meaning": "No such device name",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 25,
+          "octal": "031",
+          "meaning": "Ambiguous device name",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 26,
+          "octal": "032",
+          "meaning": "Directory entered",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 27,
+          "octal": "033",
+          "meaning": "No such logical unit",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 28,
+          "octal": "034",
+          "meaning": "Unit occupied",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 29,
+          "octal": "035",
+          "meaning": "Master block transfer error",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 30,
+          "octal": "036",
+          "meaning": "Bit-file transfer error",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 31,
+          "octal": "037",
+          "meaning": "No more tracks available",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 32,
+          "octal": "040",
+          "meaning": "Directory not on specified unit",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 33,
+          "octal": "041",
+          "meaning": "Files open on this directory",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 34,
+          "octal": "042",
+          "meaning": "Main directory not last one released",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 35,
+          "octal": "043",
+          "meaning": "No main directory",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 36,
+          "octal": "044",
+          "meaning": "Too long parameter",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 37,
+          "octal": "045",
+          "meaning": "Ambiguous user name",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 38,
+          "octal": "046",
+          "meaning": "No such user name",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 39,
+          "octal": "047",
+          "meaning": "No such user name in main directory",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 40,
+          "octal": "050",
+          "meaning": "Attempt to create too many users",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 41,
+          "octal": "051",
+          "meaning": "User already exists",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 42,
+          "octal": "052",
+          "meaning": "User has files",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 43,
+          "octal": "053",
+          "meaning": "User is entered",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 44,
+          "octal": "054",
+          "meaning": "Not so much space unreserved in directory",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 45,
+          "octal": "055",
+          "meaning": "Reserved space already used",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 46,
+          "octal": "056",
+          "meaning": "No such file name",
+          "line": 26154,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 47,
+          "octal": "057",
+          "meaning": "Ambiguous file name",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 48,
+          "octal": "060",
+          "meaning": "Wrong password",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 49,
+          "octal": "061",
+          "meaning": "User already entered",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 50,
+          "octal": "062",
+          "meaning": "No user entered",
+          "line": 26158,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 51,
+          "octal": "063",
+          "meaning": "Friend already exists",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 52,
+          "octal": "064",
+          "meaning": "No such friend",
+          "line": 26160,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 53,
+          "octal": "065",
+          "meaning": "Attempt to create too many friends",
+          "line": 26161,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 54,
+          "octal": "066",
+          "meaning": "Attempt to create yourself as friend",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 55,
+          "octal": "067",
+          "meaning": "Contiguous space not available",
+          "line": 26163,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 56,
+          "octal": "070",
+          "meaning": "Not directory access",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 57,
+          "octal": "071",
+          "meaning": "Space not available to expand file",
+          "line": 26165,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 58,
+          "octal": "072",
+          "meaning": "Space already allocated",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 59,
+          "octal": "073",
+          "meaning": "No space in default directories",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 60,
+          "octal": "074",
+          "meaning": "No such file version",
+          "line": 26168,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 61,
+          "octal": "075",
+          "meaning": "No more pages available for this user",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 62,
+          "octal": "076",
+          "meaning": "File already exists",
+          "line": 26170,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 63,
+          "octal": "077",
+          "meaning": "Attempt to create too many files",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 64,
+          "octal": "100",
+          "meaning": "Outside device limits",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 65,
+          "octal": "101",
+          "meaning": "No previous version",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 66,
+          "octal": "102",
+          "meaning": "File not contiguous",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 67,
+          "octal": "103",
+          "meaning": "File type already defined",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 68,
+          "octal": "104",
+          "meaning": "No such access code",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 69,
+          "octal": "105",
+          "meaning": "File already open",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 70,
+          "octal": "106",
+          "meaning": "Not write access",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 71,
+          "octal": "107",
+          "meaning": "Attempt to open too many files",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 72,
+          "octal": "110",
+          "meaning": "Not write and append access",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 73,
+          "octal": "111",
+          "meaning": "Not read access",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 74,
+          "octal": "112",
+          "meaning": "Not read, write and common access",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 75,
+          "octal": "113",
+          "meaning": "Not read and write access",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 76,
+          "octal": "114",
+          "meaning": "Not read and common access",
+          "line": 26184,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 77,
+          "octal": "115",
+          "meaning": "File reserved by another user",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 78,
+          "octal": "116",
+          "meaning": "File already opened for write by you",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 79,
+          "octal": "117",
+          "meaning": "No such user index",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 80,
+          "octal": "120",
+          "meaning": "Not append access",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 81,
+          "octal": "121",
+          "meaning": "Attempt to open too many mass storage files",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 82,
+          "octal": "122",
+          "meaning": "Attempt to open too many files",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 83,
+          "octal": "123",
+          "meaning": "Not open for sequential write",
+          "line": 26191,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 84,
+          "octal": "124",
+          "meaning": "Not open for sequential read",
+          "line": 26192,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 85,
+          "octal": "125",
+          "meaning": "Not open for random write",
+          "line": 26193,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 86,
+          "octal": "126",
+          "meaning": "Not open for random read",
+          "line": 26194,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 87,
+          "octal": "127",
+          "meaning": "File number out of range",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 88,
+          "octal": "130",
+          "meaning": "File number already used",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 89,
+          "octal": "131",
+          "meaning": "No more buffer space",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 90,
+          "octal": "132",
+          "meaning": "No file opened with this number",
+          "line": 26198,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 91,
+          "octal": "133",
+          "meaning": "Not mass storage file",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 92,
+          "octal": "134",
+          "meaning": "File used for write",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 93,
+          "octal": "135",
+          "meaning": "File used for read",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 94,
+          "octal": "136",
+          "meaning": "File only open for sequential read or write",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 95,
+          "octal": "137",
+          "meaning": "No scratch file open",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 96,
+          "octal": "140",
+          "meaning": "File not reserved by you",
+          "line": 26217,
+          "doc": "Monitor Calls.md"
+        },
+        {
+          "decimal": 97,
+          "octal": "141",
+          "meaning": "Transfer error",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 98,
+          "octal": "142",
+          "meaning": "File already reserved",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 99,
+          "octal": "143",
+          "meaning": "No such block",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 100,
+          "octal": "144",
+          "meaning": "Source and destination equal",
+          "line": null,
+          "doc": null
+        },
+        {
+          "decimal": 114,
+          "octal": "162",
+          "meaning": "Device cannot be reserved",
+          "line": 26235,
+          "doc": "Monitor Calls.md"
+        }
+      ]
+    },
+    "errorCodeCorrections": [
+      {
+        "call": "64B WarningMessage (ERMSG)",
+        "case": "WarningMessage_IllegalZero_Error",
+        "old": 41,
+        "new": null,
+        "status": "OPEN (K-flag only)",
+        "meaning": "old value cited the WRONG Appendix A table (RT-program namespace); no call-specific code found in manual or YAML",
+        "line": null
+      },
+      {
+        "call": "142B ToErrorDevice (ERMON)",
+        "case": "ToErrorDevice_OutOfRange_Error",
+        "old": 41,
+        "new": null,
+        "status": "OPEN (K-flag only)",
+        "meaning": "same wrong-table issue as 64B; no call-specific code found",
+        "line": null
+      },
+      {
+        "call": "317B ExecuteCommand (UECOM)",
+        "case": "ExecuteCommand_UnknownCommand_Error",
+        "old": 30,
+        "new": null,
+        "status": "OPEN (K-flag only, pre-existing OPEN item)",
+        "meaning": "old decimal 30 = octal 036 'Bit-file transfer error', unrelated; no call-specific code in manual or YAML",
+        "line": null
+      },
+      {
+        "call": "321B UEAdministrator (UEADM)",
+        "case": "UEADM_Deprecated_KFlagOnly (renamed from UEADM_Deprecated_Error52)",
+        "old": 52,
+        "new": null,
+        "status": "OPEN (K-flag only)",
+        "meaning": "old decimal 52 = octal 064 'No such friend', unrelated; mon-calls-described.md gives only 'Return with K flag set', no numeric code",
+        "line": null
+      },
+      {
+        "call": "1B InByte (INBT)",
+        "case": "InByte_Console_EmptyQueue_Error57",
+        "old": 57,
+        "new": 57,
+        "status": "OPEN (value UNCHANGED, flagged only)",
+        "meaning": "kept at 57 pending cross-emulator re-agreement; RECOMMENDED value is 3 ('End of file') per Appendix A line 26098 and 73B_SetMaxBytes.yaml's EOF corroboration",
+        "line": 26098
+      },
+      {
+        "call": "41B ReadObjectEntry (ROBJE)",
+        "case": "ReadObjectEntry_BadFileNumber_Error",
+        "old": 2,
+        "new": 2,
+        "status": "unchanged value, retagged manual",
+        "meaning": "Bad file number - exact-name match, was tagged 'convention'",
+        "line": 26097
+      },
+      {
+        "call": "43B CloseFile (CLOSE)",
+        "case": "CloseFile_NotOpen_Error",
+        "old": 90,
+        "new": 90,
+        "status": "unchanged value, retagged manual",
+        "meaning": "No file opened with this number - exact-name match, was tagged 'convention'",
+        "line": 26198
+      },
+      {
+        "call": "62B GetBytesInFile (RMAX)",
+        "case": "GetBytesInFile_NotOpen_Error",
+        "old": 90,
+        "new": 90,
+        "status": "unchanged value, retagged manual",
+        "meaning": "No file opened with this number - exact-name match, was tagged 'convention'",
+        "line": 26198
+      },
+      {
+        "call": "73B SetMaxBytes (SMAX)",
+        "case": "SetMaxBytes_NotOpen_Error",
+        "old": 90,
+        "new": 90,
+        "status": "unchanged value, retagged manual",
+        "meaning": "No file opened with this number - exact-name match, was tagged 'convention'",
+        "line": 26198
+      },
+      {
+        "call": "76B SetBlockSize (SETBS)",
+        "case": "SetBlockSize_NotOpen_Error",
+        "old": 90,
+        "new": 90,
+        "status": "unchanged value, retagged manual",
+        "meaning": "No file opened with this number - exact-name match, was tagged 'convention'",
+        "line": 26198
+      },
+      {
+        "call": "117B ReadFromFile (RFILE)",
+        "case": "ReadFromFile_NotOpen_Error",
+        "old": 86,
+        "new": 86,
+        "status": "unchanged value, retagged manual",
+        "meaning": "Not open for random read - exact-name match, was tagged 'convention'",
+        "line": 26194
+      },
+      {
+        "call": "120B WriteToFile (WFILE)",
+        "case": "WriteToFile_NotOpen_Error",
+        "old": 85,
+        "new": 85,
+        "status": "unchanged value, retagged manual",
+        "meaning": "Not open for random write - exact-name match, was tagged 'convention'",
+        "line": 26193
+      },
+      {
+        "call": "122B ReserveResource (RESRV)",
+        "case": "ReserveResource_CannotReserve_Error",
+        "old": 114,
+        "new": 114,
+        "status": "unchanged value, retagged manual",
+        "meaning": "Device cannot be reserved - exact-name match, was tagged 'convention'",
+        "line": 26235
+      },
+      {
+        "call": "412B FileAsSegment (FSCNT)",
+        "case": "FileAsSegment_NotOpen_Error",
+        "old": 90,
+        "new": 90,
+        "status": "unchanged value, retagged manual",
+        "meaning": "No file opened with this number - exact-name match, was tagged 'convention'",
+        "line": 26198
+      },
+      {
+        "call": "413B FileNotAsSegment (FSCDNT)",
+        "case": "FileNotAsSegment_NotConnected_Error",
+        "old": 90,
+        "new": 90,
+        "status": "unchanged value, re-cited line, tag unchanged (convention)",
+        "meaning": "No file opened with this number, applied by convention to 'never connected' (not an exact-name match)",
+        "line": 26198
+      }
+    ],
+    "openItemsNotSettled": [
+      {
+        "item": "RFILE short-final-block EOF signalling",
+        "detail": "The C side infers RFILE (MON 117B) should signal EOF (decimal 3) on a short final block (0 < bytesRead < numBytes), delivering the partial data first, reasoning RFILE has no residual-count output parameter. This is an INFERENCE, not documented in the manual or 117B_ReadFromFile.yaml. NOT baked into any case in this spec. If a future case touches this, it must be marked OPEN with a note describing the disagreement, not asserted as fact."
+      },
+      {
+        "item": "1B InByte empty-queue error code",
+        "detail": "See errorCodeCorrections entry above - kept at the prior cross-emulator-agreed value (57) but flagged OPEN with a recommended replacement (3) pending re-agreement between the two emulator teams."
+      },
+      {
+        "item": "317B ExecuteCommand error mapping",
+        "detail": "Left OPEN (K-flag only). Per the plan, this can graduate to a concrete code/K-flag assertion once the C side's error-return path for ExecuteCommand is settled; re-check against the errorCodeTable above once a candidate value is proposed."
+      },
+      {
+        "item": "113B/114B time buffer values, 262B identity buffer contents, 422B/30B allocated addresses",
+        "detail": "Pre-existing OPEN items (see each call's case notes / the prior schema doc 'Known gaps' section) - unchanged by this revision, remain OPEN: no manual-fixed value exists for a test fixture."
+      }
+    ],
+    "coveredCalls": [
+      {
+        "octal": "0B",
+        "monNumber": 0,
+        "name": "ExitFromProgram",
+        "shortName": "LEAVE"
+      },
+      {
+        "octal": "1B",
+        "monNumber": 1,
+        "name": "InByte",
+        "shortName": "INBT"
+      },
+      {
+        "octal": "2B",
+        "monNumber": 2,
+        "name": "OutByte",
+        "shortName": "OUTBT"
+      },
+      {
+        "octal": "11B",
+        "monNumber": 9,
+        "name": "GetBasicTime",
+        "shortName": "TIME"
+      },
+      {
+        "octal": "12B",
+        "monNumber": 10,
+        "name": "SetCommandBuffer",
+        "shortName": "SETCM"
+      },
+      {
+        "octal": "30B",
+        "monNumber": 24,
+        "name": "GetOwnRTAddress",
+        "shortName": "GETRT"
+      },
+      {
+        "octal": "32B",
+        "monNumber": 26,
+        "name": "OutMessage",
+        "shortName": "MSG"
+      },
+      {
+        "octal": "41B",
+        "monNumber": 33,
+        "name": "ReadObjectEntry",
+        "shortName": "ROBJE"
+      },
+      {
+        "octal": "43B",
+        "monNumber": 35,
+        "name": "CloseFile",
+        "shortName": "CLOSE"
+      },
+      {
+        "octal": "50B",
+        "monNumber": 40,
+        "name": "OpenFile",
+        "shortName": "OPEN"
+      },
+      {
+        "octal": "54B",
+        "monNumber": 44,
+        "name": "DeleteFile",
+        "shortName": "MDLFI"
+      },
+      {
+        "octal": "62B",
+        "monNumber": 50,
+        "name": "GetBytesInFile",
+        "shortName": "RMAX"
+      },
+      {
+        "octal": "64B",
+        "monNumber": 52,
+        "name": "WarningMessage",
+        "shortName": "ERMSG"
+      },
+      {
+        "octal": "73B",
+        "monNumber": 59,
+        "name": "SetMaxBytes",
+        "shortName": "SMAX"
+      },
+      {
+        "octal": "76B",
+        "monNumber": 62,
+        "name": "SetBlockSize",
+        "shortName": "SETBS"
+      },
+      {
+        "octal": "113B",
+        "monNumber": 75,
+        "name": "GetCurrentTime",
+        "shortName": "CLOCK"
+      },
+      {
+        "octal": "114B",
+        "monNumber": 76,
+        "name": "GetTimeUsed",
+        "shortName": "TUSED"
+      },
+      {
+        "octal": "117B",
+        "monNumber": 79,
+        "name": "ReadFromFile",
+        "shortName": "RFILE"
+      },
+      {
+        "octal": "120B",
+        "monNumber": 80,
+        "name": "WriteToFile",
+        "shortName": "WFILE"
+      },
+      {
+        "octal": "122B",
+        "monNumber": 82,
+        "name": "ReserveResource",
+        "shortName": "RESRV"
+      },
+      {
+        "octal": "123B",
+        "monNumber": 83,
+        "name": "ReleaseResource",
+        "shortName": "RELES"
+      },
+      {
+        "octal": "142B",
+        "monNumber": 98,
+        "name": "ToErrorDevice",
+        "shortName": "ERMON"
+      },
+      {
+        "octal": "143B",
+        "monNumber": 99,
+        "name": "ExecutionInfo",
+        "shortName": "RSIO"
+      },
+      {
+        "octal": "221B",
+        "monNumber": 145,
+        "name": "CreateFile",
+        "shortName": "CRALF"
+      },
+      {
+        "octal": "256B",
+        "monNumber": 174,
+        "name": "FullFileName",
+        "shortName": "DEABF"
+      },
+      {
+        "octal": "262B",
+        "monNumber": 178,
+        "name": "GetSystemInfo",
+        "shortName": "CPUST"
+      },
+      {
+        "octal": "312B",
+        "monNumber": 202,
+        "name": "CheckMonCall",
+        "shortName": "MOINF"
+      },
+      {
+        "octal": "317B",
+        "monNumber": 207,
+        "name": "ExecuteCommand",
+        "shortName": "UECOM"
+      },
+      {
+        "octal": "412B",
+        "monNumber": 266,
+        "name": "FileAsSegment",
+        "shortName": "FSCNT"
+      },
+      {
+        "octal": "413B",
+        "monNumber": 267,
+        "name": "FileNotAsSegment",
+        "shortName": "FSCDNT"
+      },
+      {
+        "octal": "422B",
+        "monNumber": 274,
+        "name": "GetScratchSegment",
+        "shortName": "GSWSP"
+      },
+      {
+        "octal": "503B",
+        "monNumber": 323,
+        "name": "InputString",
+        "shortName": "DVINST"
+      },
+      {
+        "octal": "504B",
+        "monNumber": 324,
+        "name": "OutputString",
+        "shortName": "DVOUTS"
+      },
+      {
+        "octal": "321B",
+        "monNumber": 209,
+        "name": "UEAdministrator",
+        "shortName": "UEADM"
+      }
+    ],
+    "phase3TodoLinkerCalls": [
+      {
+        "octal": "162B",
+        "name": "OUTST",
+        "note": "7 uses in linker-b01.dom; C status IN_PROGRESS"
+      },
+      {
+        "octal": "513B",
+        "name": "(undocumented)",
+        "note": "14 raw-scan hits; INCONCLUSIVE per plan 2026-07-09 513B pre-check - GOTAB is 256 entries (0-377B) so cannot rule out via table size; kernel dispatch guide confirms calls >=400B route through a separate ND-500 command path extending to at least 515B; only disassembly settles it"
+      },
+      {
+        "octal": "144B",
+        "name": "MAGTP",
+        "note": "raw scan hit, needs disassembly confirmation"
+      },
+      {
+        "octal": "74B",
+        "name": "SETBT",
+        "note": "stub in C"
+      },
+      {
+        "octal": "66B",
+        "name": "ISIZE",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "71B",
+        "name": "DESCF",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "72B",
+        "name": "EESCF",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "45B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "53B",
+        "name": "RSEGM",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "104B",
+        "name": "HOLD",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "13B",
+        "name": "CIBUF",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "16B",
+        "name": "MGTTY",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "17B",
+        "name": "MSTTY",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "214B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "217B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "244B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "251B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "254B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "257B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "263B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "273B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "320B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "322B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "336B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "423B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "505B",
+        "name": "GERRCOD",
+        "note": "YAML exists but not in NC's 34-call set"
+      },
+      {
+        "octal": "511B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "512B",
+        "name": "(unconfirmed)",
+        "note": "raw scan hit"
+      },
+      {
+        "octal": "514B",
+        "name": "5TMOUT",
+        "note": "YAML exists but not in NC's 34-call set"
+      }
+    ],
+    "coveredCallsCaseCount": 40,
+    "maxArgAddressesInAnyCase": 12
+  },
+  "calls": [
+    {
+      "octal": "0B",
+      "monNumber": 0,
+      "name": "ExitFromProgram",
+      "shortName": "LEAVE",
+      "parameters": [],
+      "cases": [
+        {
+          "name": "LEAVE_Halts",
+          "provenance": "manual",
+          "source": "0B_ExitFromProgram.yaml page 185 line 7998: 'Terminates the program.'",
+          "monNumber": 0,
+          "argAddresses": [],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": []
+          },
+          "final": {
+            "regs": {},
+            "ram": []
+          },
+          "kFlag": false,
+          "notes": "Expects ctx.halt_requested=true, run_flag cleared. No register/RAM effect is documented; harness asserts the halt signal, not regs/ram."
+        }
+      ]
+    },
+    {
+      "octal": "1B",
+      "monNumber": 1,
+      "name": "InByte",
+      "shortName": "INBT",
+      "parameters": [
+        {
+          "name": "DeviceNumber",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "ReturnValue",
+          "type": "INTEGER",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "InByte_Console_Success",
+          "provenance": "convention",
+          "source": "1B_InByte.yaml page 319 line 14357 (param layout, manual); byte value/queue mechanics are the cross-emulator convention in mon_1B_InByte.c",
+          "monNumber": 1,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                1
+              ]
+            ],
+            "console": {
+              "queued": "X"
+            }
+          },
+          "final": {
+            "regs": {
+              "i1": 88,
+              "st": 0
+            },
+            "ram": [
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                88
+              ]
+            ]
+          },
+          "kFlag": false,
+          "notes": "Queued console convention: FIFO, one char consumed."
+        },
+        {
+          "name": "InByte_Console_EmptyQueue_Error57",
+          "provenance": "convention",
+          "source": "Plan NC_TOOLCHAIN_MON_PLAN.md 'Known bugs to fix first': 'MON 1B queued-console test gets T instead of X - queue ordering bug... C# semantics agreed: non-blocking, error 57 on empty.' Cross-checked against mon_1B_InByte.c (mon_set_error(ctx, 57) on no-input-available). NOTE: this value is under dispute - see 'notes' and header.errorCodeCorrections for the recommended replacement (3) and its citation.",
+          "monNumber": 1,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                1
+              ]
+            ],
+            "console": {
+              "queued": ""
+            }
+          },
+          "final": {
+            "regs": {
+              "i1": 57
+            },
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "Non-blocking: must NOT wait/hang when queue is empty. OPEN (schema v3.0.0 revision, 2026-07-10): the prior cross-emulator agreement pinning 'empty input -> error 57' is very likely WRONG. Decimal 57 = octal 071 = 'Space not available to expand file' (Monitor Calls.md Appendix A line 26165), which has nothing to do with an empty input queue. RECOMMENDED VALUE: 3 (octal 003) = 'End of file' (Monitor Calls.md Appendix A line 26098), corroborated by NDInsight/Developer/MON/calls/73B_SetMaxBytes.yaml: 'The error code 3 is returned if you later try to read beyond this size. Error code 3 means end of file.' Left at 57 here pending cross-emulator re-agreement - do NOT silently change the asserted value without both sides agreeing.",
+          "status": "OPEN"
+        }
+      ]
+    },
+    {
+      "octal": "2B",
+      "monNumber": 2,
+      "name": "OutByte",
+      "shortName": "OUTBT",
+      "parameters": [
+        {
+          "name": "DeviceNumber",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "OutputValue",
+          "type": "INTEGER",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "OutByte_Console_Success",
+          "provenance": "manual",
+          "source": "2B_OutByte.yaml page 377 line 17049",
+          "monNumber": 2,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                1
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                65
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": [],
+            "console": {
+              "output": "A"
+            }
+          },
+          "kFlag": false
+        }
+      ]
+    },
+    {
+      "octal": "11B",
+      "monNumber": 9,
+      "name": "GetBasicTime",
+      "shortName": "TIME",
+      "parameters": [
+        {
+          "name": "BasicTime",
+          "type": "LONGINT",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "GetBasicTime_FixedClockZero",
+          "provenance": "convention",
+          "source": "Header determinism convention FIXED_BASIC_TIME=0, grounded in 11B_GetBasicTime.yaml: 'The internal time is set to 0 each time SINTRAN III is started.' (manual fact for the START value; the spec PINS the test clock to stay at 0, which is a spec convention, not an emulator-observed fact.)",
+          "monNumber": 9,
+          "argAddresses": [],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": []
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false,
+          "notes": "Result returned in W1 (=I1) per assembly_500 example, NOT via an output parameter address."
+        }
+      ]
+    },
+    {
+      "octal": "12B",
+      "monNumber": 10,
+      "name": "SetCommandBuffer",
+      "shortName": "SETCM",
+      "parameters": [
+        {
+          "name": "Command",
+          "type": "STRING",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "SetCommandBuffer_Success",
+          "provenance": "manual",
+          "source": "12B_SetCommandBuffer.yaml page 439 line 19999, assembly_500 example: Command STRINGDATA 'CLOSE-FILE 102'",
+          "monNumber": 10,
+          "argAddresses": [
+            8192
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                48
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                12288,
+                67
+              ],
+              [
+                12289,
+                76
+              ],
+              [
+                12290,
+                79
+              ],
+              [
+                12291,
+                83
+              ],
+              [
+                12292,
+                69
+              ],
+              [
+                12293,
+                45
+              ],
+              [
+                12294,
+                70
+              ],
+              [
+                12295,
+                73
+              ],
+              [
+                12296,
+                76
+              ],
+              [
+                12297,
+                69
+              ],
+              [
+                12298,
+                32
+              ],
+              [
+                12299,
+                49
+              ],
+              [
+                12300,
+                48
+              ],
+              [
+                12301,
+                50
+              ],
+              [
+                12302,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false,
+          "notes": "Max 32 chars per YAML; command buffer becomes readable via InByte device 0 afterward (not asserted here)."
+        }
+      ]
+    },
+    {
+      "octal": "30B",
+      "monNumber": 24,
+      "name": "GetOwnRTAddress",
+      "shortName": "GETRT",
+      "parameters": [
+        {
+          "name": "RTDescrAddress",
+          "type": "INTEGER",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "GetOwnRTAddress_Success",
+          "provenance": "yaml-unvalidated",
+          "source": "30B_GetOwnRTAddress.yaml page 265 line 11710 (validated:false; actual RT-description address value is emulator-internal, not given by the manual text)",
+          "monNumber": 24,
+          "argAddresses": [],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": []
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false,
+          "notes": "Placeholder: exact nonzero RTDescrAddress value depends on emulator RT-table layout; only 'no error' is manual-grounded here. Needs C-side confirmation of the concrete address convention for background programs."
+        }
+      ]
+    },
+    {
+      "octal": "32B",
+      "monNumber": 26,
+      "name": "OutMessage",
+      "shortName": "MSG",
+      "parameters": [
+        {
+          "name": "Message",
+          "type": "STRING",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "OutMessage_Success",
+          "provenance": "manual",
+          "source": "32B_OutMessage.yaml page 379 line 17154, mac example: TEXT, 'THIS IS A TEXT'",
+          "monNumber": 26,
+          "argAddresses": [
+            8192
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                48
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                12288,
+                84
+              ],
+              [
+                12289,
+                72
+              ],
+              [
+                12290,
+                73
+              ],
+              [
+                12291,
+                83
+              ],
+              [
+                12292,
+                32
+              ],
+              [
+                12293,
+                73
+              ],
+              [
+                12294,
+                83
+              ],
+              [
+                12295,
+                32
+              ],
+              [
+                12296,
+                65
+              ],
+              [
+                12297,
+                32
+              ],
+              [
+                12298,
+                84
+              ],
+              [
+                12299,
+                69
+              ],
+              [
+                12300,
+                83
+              ],
+              [
+                12301,
+                84
+              ],
+              [
+                12302,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": [],
+            "console": {
+              "output": "THIS IS A TEST"
+            }
+          },
+          "kFlag": false,
+          "notes": "Max string length is 512 characters (manual note)."
+        }
+      ]
+    },
+    {
+      "octal": "41B",
+      "monNumber": 33,
+      "name": "ReadObjectEntry",
+      "shortName": "ROBJE",
+      "parameters": [
+        {
+          "name": "FileNumber",
+          "type": "WORD",
+          "io": "I"
+        },
+        {
+          "name": "Buff",
+          "type": "BYTES[64]",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "ReadObjectEntry_BadFileNumber_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26097: octal 002 / decimal 2 = \"Bad file number\". ReadObjectEntry given a FileNumber that was never opened; Appendix A decimal 2 'Bad file number' is the literal, exact-name match for this condition (not just a plausible global code).",
+          "monNumber": 33,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 2
+            },
+            "ram": []
+          },
+          "kFlag": true
+        }
+      ]
+    },
+    {
+      "octal": "43B",
+      "monNumber": 35,
+      "name": "CloseFile",
+      "shortName": "CLOSE",
+      "parameters": [
+        {
+          "name": "FileNumber",
+          "type": "INTEGER",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "CloseFile_CloseAllNotPermanent",
+          "provenance": "manual",
+          "source": "43B_CloseFile.yaml page 117 line 4868: 'FileNumber: -1 = close all files not permanently open'",
+          "monNumber": 35,
+          "argAddresses": [
+            8192
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                255
+              ],
+              [
+                8193,
+                255
+              ],
+              [
+                8194,
+                255
+              ],
+              [
+                8195,
+                255
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false,
+          "notes": "Boundary case documented directly in the YAML parameter description."
+        },
+        {
+          "name": "CloseFile_CloseAllIncludingScratch",
+          "provenance": "manual",
+          "source": "43B_CloseFile.yaml page 117 line 4868: 'FileNumber: -2 = close all files including scratch and permanently open files'",
+          "monNumber": 35,
+          "argAddresses": [
+            8192
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                255
+              ],
+              [
+                8193,
+                255
+              ],
+              [
+                8194,
+                255
+              ],
+              [
+                8195,
+                254
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false
+        },
+        {
+          "name": "CloseFile_NotOpen_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26198: octal 132 / decimal 90 = \"No file opened with this number\". CloseFile given a FileNumber with no open file; Appendix A decimal 90 'No file opened with this number' is the literal, exact-name match.",
+          "monNumber": 35,
+          "argAddresses": [
+            8192
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 90
+            },
+            "ram": []
+          },
+          "kFlag": true
+        }
+      ]
+    },
+    {
+      "octal": "50B",
+      "monNumber": 40,
+      "name": "OpenFile",
+      "shortName": "OPEN",
+      "parameters": [
+        {
+          "name": "FileNo",
+          "type": "INTEGER",
+          "io": "IO"
+        },
+        {
+          "name": "AccessCode",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "FileName",
+          "type": "STRING",
+          "io": "I"
+        },
+        {
+          "name": "FileType",
+          "type": "STRING",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "OpenFile_NoSuchFile_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26154: octal 056 / decimal 46 = \"No such file name\". OpenFile on a nonexistent file; Appendix A decimal 46 'No such file name' is the literal, exact-name match.",
+          "monNumber": 40,
+          "argAddresses": [
+            8192,
+            8196,
+            8200,
+            8204
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                1
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                48
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                8204,
+                0
+              ],
+              [
+                8205,
+                0
+              ],
+              [
+                8206,
+                49
+              ],
+              [
+                8207,
+                0
+              ],
+              [
+                12288,
+                69
+              ],
+              [
+                12289,
+                88
+              ],
+              [
+                12290,
+                65
+              ],
+              [
+                12291,
+                77
+              ],
+              [
+                12292,
+                80
+              ],
+              [
+                12293,
+                76
+              ],
+              [
+                12294,
+                69
+              ],
+              [
+                12295,
+                39
+              ],
+              [
+                12544,
+                83
+              ],
+              [
+                12545,
+                89
+              ],
+              [
+                12546,
+                77
+              ],
+              [
+                12547,
+                66
+              ],
+              [
+                12548,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 46
+            },
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "FileNo=0 on input requests an ND-500-assigned open file number per the YAML 'IO' direction; not returned here because the open fails."
+        }
+      ]
+    },
+    {
+      "octal": "54B",
+      "monNumber": 44,
+      "name": "DeleteFile",
+      "shortName": "MDLFI",
+      "parameters": [
+        {
+          "name": "FileName",
+          "type": "STRING",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "DeleteFile_NoSuchFile_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26154: octal 056 / decimal 46 = \"No such file name\". DeleteFile on a nonexistent file; Appendix A decimal 46 'No such file name' is the literal, exact-name match.",
+          "monNumber": 44,
+          "argAddresses": [
+            8192
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                48
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                12288,
+                78
+              ],
+              [
+                12289,
+                79
+              ],
+              [
+                12290,
+                83
+              ],
+              [
+                12291,
+                85
+              ],
+              [
+                12292,
+                67
+              ],
+              [
+                12293,
+                72
+              ],
+              [
+                12294,
+                70
+              ],
+              [
+                12295,
+                73
+              ],
+              [
+                12296,
+                76
+              ],
+              [
+                12297,
+                69
+              ],
+              [
+                12298,
+                58
+              ],
+              [
+                12299,
+                68
+              ],
+              [
+                12300,
+                65
+              ],
+              [
+                12301,
+                84
+              ],
+              [
+                12302,
+                65
+              ],
+              [
+                12303,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 46
+            },
+            "ram": []
+          },
+          "kFlag": true
+        }
+      ]
+    },
+    {
+      "octal": "62B",
+      "monNumber": 50,
+      "name": "GetBytesInFile",
+      "shortName": "RMAX",
+      "parameters": [
+        {
+          "name": "FileNumber",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "NoOfBytes",
+          "type": "INTEGER4",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "GetBytesInFile_NotOpen_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26198: octal 132 / decimal 90 = \"No file opened with this number\". GetBytesInFile requires 'the file must be open' per its YAML; Appendix A decimal 90 is the literal match for an unopened FileNumber.",
+          "monNumber": 50,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 90
+            },
+            "ram": []
+          },
+          "kFlag": true
+        }
+      ]
+    },
+    {
+      "octal": "64B",
+      "monNumber": 52,
+      "name": "WarningMessage",
+      "shortName": "ERMSG",
+      "parameters": [
+        {
+          "name": "ErrCode",
+          "type": "INTEGER",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "WarningMessage_IllegalZero_Error",
+          "provenance": "yaml-unvalidated",
+          "source": "No manual (Appendix A) or call-specific YAML entry grounds a numeric error code for this condition; downgraded from an unverifiable literal value to K-flag-only per project honesty rule. 64B_WarningMessage.yaml: 'Error code 0 is illegal. See appendix A.' - direct manual statement.",
+          "monNumber": 52,
+          "argAddresses": [
+            8192
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {},
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "Reuses Appendix A decimal 41 'Illegal error code in ERMON' as the closest manual-documented illegal-error-code condition; ERMSG-specific code not separately listed, so this mapping is tagged manual for the '0 is illegal' fact but convention for the exact numeric error value - see schema doc caveats. OPEN (schema v3.0.0 revision, 2026-07-10): Previous i1=41 cited 'Illegal error code in ERMON' from the manual's FIRST Appendix A table (RT-program decimal-only error numbers, ~line 26040) - a DIFFERENT numbering namespace than the background-program octal/decimal table (line 26076+) this spec's W1/K-flag convention is built on. Decimal 41 in the correct table means 'User already exists', which has nothing to do with WarningMessage. 64B_WarningMessage.yaml states only 'Error code 0 is illegal. See appendix A' - no specific replacement code for the illegal-input condition is given anywhere in the manual excerpt reviewed.",
+          "status": "OPEN"
+        }
+      ]
+    },
+    {
+      "octal": "73B",
+      "monNumber": 59,
+      "name": "SetMaxBytes",
+      "shortName": "SMAX",
+      "parameters": [
+        {
+          "name": "FileNumber",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "MaxBytePointer",
+          "type": "INTEGER4",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "SetMaxBytes_NotOpen_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26198: octal 132 / decimal 90 = \"No file opened with this number\". SetMaxBytes on an unopened FileNumber; Appendix A decimal 90 is the literal match.",
+          "monNumber": 59,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                2
+              ],
+              [
+                8199,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 90
+            },
+            "ram": []
+          },
+          "kFlag": true
+        }
+      ]
+    },
+    {
+      "octal": "76B",
+      "monNumber": 62,
+      "name": "SetBlockSize",
+      "shortName": "SETBS",
+      "parameters": [
+        {
+          "name": "FileNumber",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "BlockSize",
+          "type": "LONGINT",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "SetBlockSize_NotOpen_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26198: octal 132 / decimal 90 = \"No file opened with this number\". SetBlockSize on an unopened FileNumber; Appendix A decimal 90 is the literal match.",
+          "monNumber": 62,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                2
+              ],
+              [
+                8199,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 90
+            },
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "'Must be an even number' (manual) - a dedicated odd-BlockSize boundary case is deferred; not directly tied to a specific Appendix A code in the sources reviewed."
+        }
+      ]
+    },
+    {
+      "octal": "113B",
+      "monNumber": 75,
+      "name": "GetCurrentTime",
+      "shortName": "CLOCK",
+      "parameters": [
+        {
+          "name": "TimeBuffer",
+          "type": "ARRAY[7]",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "GetCurrentTime_FixedClock",
+          "provenance": "convention",
+          "source": "113B_GetCurrentTime.yaml: 7-word buffer layout (manual, [basicTime,sec,min,hour,day,month,year]); numeric VALUES pinned to header FIXED_CLOCK convention (all-zero epoch) - this is a spec-only determinism convention, not an observed manual or emulator fact - see schema doc OPEN ITEM.",
+          "monNumber": 75,
+          "argAddresses": [
+            8192
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                48
+              ],
+              [
+                8195,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": [
+              [
+                12288,
+                0
+              ],
+              [
+                12289,
+                0
+              ],
+              [
+                12290,
+                0
+              ],
+              [
+                12291,
+                0
+              ],
+              [
+                12292,
+                0
+              ],
+              [
+                12293,
+                0
+              ],
+              [
+                12294,
+                0
+              ],
+              [
+                12295,
+                0
+              ],
+              [
+                12296,
+                0
+              ],
+              [
+                12297,
+                0
+              ],
+              [
+                12298,
+                0
+              ],
+              [
+                12299,
+                0
+              ],
+              [
+                12300,
+                0
+              ],
+              [
+                12301,
+                0
+              ],
+              [
+                12302,
+                0
+              ],
+              [
+                12303,
+                0
+              ],
+              [
+                12304,
+                0
+              ],
+              [
+                12305,
+                0
+              ],
+              [
+                12306,
+                0
+              ],
+              [
+                12307,
+                0
+              ],
+              [
+                12308,
+                0
+              ],
+              [
+                12309,
+                0
+              ],
+              [
+                12310,
+                0
+              ],
+              [
+                12311,
+                0
+              ],
+              [
+                12312,
+                0
+              ],
+              [
+                12313,
+                0
+              ],
+              [
+                12314,
+                0
+              ],
+              [
+                12315,
+                0
+              ]
+            ]
+          },
+          "kFlag": false,
+          "notes": "OPEN ITEM: the fixed-clock VALUE itself needs a concrete decision from the C side (which fixed-clock test hook nd500x exposes); this case only pins the buffer LAYOUT from the manual, values are placeholders."
+        }
+      ]
+    },
+    {
+      "octal": "114B",
+      "monNumber": 76,
+      "name": "GetTimeUsed",
+      "shortName": "TUSED",
+      "parameters": [
+        {
+          "name": "TimeUsed",
+          "type": "LONGINT",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "GetTimeUsed_FixedClockZero",
+          "provenance": "convention",
+          "source": "114B_GetTimeUsed.yaml: 'Output returned in W1 register.' (manual); value pinned to header FIXED_CLOCK=0 convention.",
+          "monNumber": 76,
+          "argAddresses": [],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": []
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false
+        }
+      ]
+    },
+    {
+      "octal": "117B",
+      "monNumber": 79,
+      "name": "ReadFromFile",
+      "shortName": "RFILE",
+      "parameters": [
+        {
+          "name": "FileNo",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "WaitFlag",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "Buff",
+          "type": "BYTES",
+          "io": "O"
+        },
+        {
+          "name": "BlockNo",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "NoOfBytes",
+          "type": "LONGINT",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "ReadFromFile_NotOpen_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26194: octal 126 / decimal 86 = \"Not open for random read\". ReadFromFile (random access) on an unopened/wrong-access file; Appendix A decimal 86 'Not open for random read' is the literal, exact-name match for RFILE specifically.",
+          "monNumber": 79,
+          "argAddresses": [
+            8192,
+            8196,
+            8200,
+            8204,
+            8208
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                48
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                8204,
+                0
+              ],
+              [
+                8205,
+                0
+              ],
+              [
+                8206,
+                0
+              ],
+              [
+                8207,
+                0
+              ],
+              [
+                8208,
+                0
+              ],
+              [
+                8209,
+                0
+              ],
+              [
+                8210,
+                2
+              ],
+              [
+                8211,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 86
+            },
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "BYTE counts on ND-500 vs WORD counts on ND-100 is the classic divergence point flagged in the plan's Notes/risks; this case pins BYTE-count semantics only (ND-500 side)."
+        }
+      ]
+    },
+    {
+      "octal": "120B",
+      "monNumber": 80,
+      "name": "WriteToFile",
+      "shortName": "WFILE",
+      "parameters": [
+        {
+          "name": "FileNo",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "ReturnFlag",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "Buff",
+          "type": "BYTES",
+          "io": "I"
+        },
+        {
+          "name": "BlockNo",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "NoOfBytes",
+          "type": "LONGINT",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "WriteToFile_NotOpen_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26193: octal 125 / decimal 85 = \"Not open for random write\". WriteToFile (random access) on an unopened/wrong-access file; Appendix A decimal 85 'Not open for random write' is the literal, exact-name match for WFILE specifically.",
+          "monNumber": 80,
+          "argAddresses": [
+            8192,
+            8196,
+            8200,
+            8204,
+            8208
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                48
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                8204,
+                0
+              ],
+              [
+                8205,
+                0
+              ],
+              [
+                8206,
+                0
+              ],
+              [
+                8207,
+                0
+              ],
+              [
+                8208,
+                0
+              ],
+              [
+                8209,
+                0
+              ],
+              [
+                8210,
+                2
+              ],
+              [
+                8211,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 85
+            },
+            "ram": []
+          },
+          "kFlag": true
+        }
+      ]
+    },
+    {
+      "octal": "122B",
+      "monNumber": 82,
+      "name": "ReserveResource",
+      "shortName": "RESRV",
+      "parameters": [
+        {
+          "name": "DeviceNumber",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "IOFlag",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "WaitFlag",
+          "type": "INTEGER2",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "ReserveResource_CannotReserve_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26235: octal 162 / decimal 114 = \"Device cannot be reserved\". ReserveResource on an out-of-range/unreservable device; Appendix A decimal 114 'Device cannot be reserved' is the literal, exact-name match.",
+          "monNumber": 82,
+          "argAddresses": [
+            8192,
+            8196,
+            8200
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                0
+              ],
+              [
+                8203,
+                1
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 114
+            },
+            "ram": []
+          },
+          "kFlag": true
+        }
+      ]
+    },
+    {
+      "octal": "123B",
+      "monNumber": 83,
+      "name": "ReleaseResource",
+      "shortName": "RELES",
+      "parameters": [
+        {
+          "name": "DeviceNumber",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "IOFlag",
+          "type": "INTEGER",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "ReleaseResource_Terminal_Success",
+          "provenance": "manual",
+          "source": "123B_ReleaseResource.yaml page (see file), assembly_500 example: CALLG ReleaseResource, 2, DeviceNumber, IOFlag (no IF K GO ERROR shown in this particular example, but the W1=:ErrCode convention still applies on failure paths per every other YAML in this set).",
+          "monNumber": 83,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                1
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false
+        }
+      ]
+    },
+    {
+      "octal": "142B",
+      "monNumber": 98,
+      "name": "ToErrorDevice",
+      "shortName": "ERMON",
+      "parameters": [
+        {
+          "name": "ErrorNumber",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "SubErrorNumber",
+          "type": "INTEGER",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "ToErrorDevice_ValidUserRange_Success",
+          "provenance": "manual",
+          "source": "142B_ToErrorDevice.yaml: 'ErrorNumber (50-69). The real-time errors numbers 50-69 can be used.' - direct manual range.",
+          "monNumber": 98,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                55
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                1
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false
+        },
+        {
+          "name": "ToErrorDevice_OutOfRange_Error",
+          "provenance": "yaml-unvalidated",
+          "source": "No manual (Appendix A) or call-specific YAML entry grounds a numeric error code for this condition; downgraded from an unverifiable literal value to K-flag-only per project honesty rule. 142B_ToErrorDevice.yaml range 50-69 (manual); out-of-range value triggers Appendix A decimal 41 'Illegal error code in ERMON' - directly matches this call's own error-device mechanism (manual-named 'ERMON' == MON 142B's short name).",
+          "monNumber": 98,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                5
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {},
+            "ram": []
+          },
+          "kFlag": true,
+          "status": "OPEN",
+          "notes": "OPEN (schema v3.0.0 revision, 2026-07-10): Previous i1=41 cited 'Illegal error code in ERMON' from the manual's FIRST (RT-program) Appendix A table - the wrong numbering namespace for this background-program spec (see 64B note for the full explanation). 142B_ToErrorDevice.yaml documents the valid ErrorNumber range (50-69) but gives no numeric error code for what MON 142B itself returns when called out of range."
+        }
+      ]
+    },
+    {
+      "octal": "143B",
+      "monNumber": 99,
+      "name": "ExecutionInfo",
+      "shortName": "RSIO",
+      "parameters": [
+        {
+          "name": "ExecutionMode",
+          "type": "INTEGER",
+          "io": "O"
+        },
+        {
+          "name": "InputDev",
+          "type": "INTEGER",
+          "io": "O"
+        },
+        {
+          "name": "OutputDev",
+          "type": "INTEGER",
+          "io": "O"
+        },
+        {
+          "name": "UserIndex",
+          "type": "INTEGER",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "ExecutionInfo_Interactive_Success",
+          "provenance": "convention",
+          "source": "143B_ExecutionInfo.yaml: 'ExecutionMode: 0 = interactive program' (manual enum); the specific InputDev/OutputDev/UserIndex values for the test fixture are a spec convention (fixed test terminal device 1), not an observed fact.",
+          "monNumber": 99,
+          "argAddresses": [
+            8192,
+            8196,
+            8200,
+            8204
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                0
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                8204,
+                0
+              ],
+              [
+                8205,
+                0
+              ],
+              [
+                8206,
+                0
+              ],
+              [
+                8207,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                1
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                0
+              ],
+              [
+                8203,
+                1
+              ],
+              [
+                8204,
+                0
+              ],
+              [
+                8205,
+                0
+              ],
+              [
+                8206,
+                0
+              ],
+              [
+                8207,
+                0
+              ]
+            ]
+          },
+          "kFlag": false
+        }
+      ]
+    },
+    {
+      "octal": "221B",
+      "monNumber": 145,
+      "name": "CreateFile",
+      "shortName": "CRALF",
+      "parameters": [
+        {
+          "name": "FileName",
+          "type": "STRING",
+          "io": "I"
+        },
+        {
+          "name": "StartAddress",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "NoOfPages",
+          "type": "INTEGER2",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "CreateFile_Indexed_Success",
+          "provenance": "manual",
+          "source": "221B_CreateFile.yaml: 'Use 0 if you want to create a contiguous or indexed file' / 'Use 0 if you want to create an indexed file' - both 0 => indexed file, direct manual statement.",
+          "monNumber": 145,
+          "argAddresses": [
+            8192,
+            8196,
+            8200
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                48
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                0
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                12288,
+                78
+              ],
+              [
+                12289,
+                69
+              ],
+              [
+                12290,
+                87
+              ],
+              [
+                12291,
+                70
+              ],
+              [
+                12292,
+                73
+              ],
+              [
+                12293,
+                76
+              ],
+              [
+                12294,
+                69
+              ],
+              [
+                12295,
+                58
+              ],
+              [
+                12296,
+                68
+              ],
+              [
+                12297,
+                65
+              ],
+              [
+                12298,
+                84
+              ],
+              [
+                12299,
+                65
+              ],
+              [
+                12300,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false
+        },
+        {
+          "name": "CreateFile_AlreadyExists_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26170: octal 076 / decimal 62 = \"File already exists\". CreateFile on a name that already exists (see case notes: NEWFILE:DATA created by the preceding success case); Appendix A decimal 62 'File already exists' is the literal, exact-name match.",
+          "monNumber": 145,
+          "argAddresses": [
+            8192,
+            8196,
+            8200
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                48
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                0
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                12288,
+                78
+              ],
+              [
+                12289,
+                69
+              ],
+              [
+                12290,
+                87
+              ],
+              [
+                12291,
+                70
+              ],
+              [
+                12292,
+                73
+              ],
+              [
+                12293,
+                76
+              ],
+              [
+                12294,
+                69
+              ],
+              [
+                12295,
+                58
+              ],
+              [
+                12296,
+                68
+              ],
+              [
+                12297,
+                65
+              ],
+              [
+                12298,
+                84
+              ],
+              [
+                12299,
+                65
+              ],
+              [
+                12300,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 62
+            },
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "Same FileName as the success case above, run second: sandbox file-preamble must create NEWFILE:DATA before this case (header 'files' preamble convention)."
+        }
+      ]
+    },
+    {
+      "octal": "256B",
+      "monNumber": 174,
+      "name": "FullFileName",
+      "shortName": "DEABF",
+      "parameters": [
+        {
+          "name": "AbbrevFileName",
+          "type": "STRING",
+          "io": "I"
+        },
+        {
+          "name": "FileName",
+          "type": "STRING",
+          "io": "O"
+        },
+        {
+          "name": "FileType",
+          "type": "STRING",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "FullFileName_NoSuchFile_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26154: octal 056 / decimal 46 = \"No such file name\". FullFileName on a nonexistent file; Appendix A decimal 46 'No such file name' is the literal, exact-name match.",
+          "monNumber": 174,
+          "argAddresses": [
+            8192,
+            8196,
+            8200
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                48
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                49
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                50
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                12288,
+                78
+              ],
+              [
+                12289,
+                79
+              ],
+              [
+                12290,
+                83
+              ],
+              [
+                12291,
+                85
+              ],
+              [
+                12292,
+                67
+              ],
+              [
+                12293,
+                72
+              ],
+              [
+                12294,
+                70
+              ],
+              [
+                12295,
+                73
+              ],
+              [
+                12296,
+                76
+              ],
+              [
+                12297,
+                69
+              ],
+              [
+                12298,
+                39
+              ],
+              [
+                12800,
+                68
+              ],
+              [
+                12801,
+                65
+              ],
+              [
+                12802,
+                84
+              ],
+              [
+                12803,
+                65
+              ],
+              [
+                12804,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 46
+            },
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "'Used on ND-100 only, ignored by ND-500' for FileType per the YAML - ND-500-side test still supplies it."
+        }
+      ]
+    },
+    {
+      "octal": "262B",
+      "monNumber": 178,
+      "name": "GetSystemInfo",
+      "shortName": "CPUST",
+      "parameters": [
+        {
+          "name": "Number",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "Buffer",
+          "type": "ARRAY[12]",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "GetSystemInfo_Number0_Success",
+          "provenance": "manual",
+          "source": "262B_GetSystemInfo.yaml: 'Number: A number. Should always be 0.' - direct manual statement; specific CPU-type/version buffer CONTENTS are emulator-identity facts, not manual text, so only the error-free outcome is asserted here.",
+          "monNumber": 178,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                48
+              ],
+              [
+                8199,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false,
+          "notes": "OPEN ITEM: 24-byte Buffer contents (CPU type, SINTRAN version, instruction set, patch indicator, generation time) are NOT asserted - no manual-fixed values found; needs a fixed-identity convention from the header if byte-exact checking is required."
+        }
+      ]
+    },
+    {
+      "octal": "312B",
+      "monNumber": 202,
+      "name": "CheckMonCall",
+      "shortName": "MOINF",
+      "parameters": [
+        {
+          "name": "MonCallNumber",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "MonCallEntry",
+          "type": "INTEGER",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "CheckMonCall_ImplementedCall_FakeEntry",
+          "provenance": "convention",
+          "source": "Plan NC_TOOLCHAIN_MON_PLAN.md: 'both emulators correctly return fake entry address 0xF8000000+n for implemented calls' (explicit cross-emulator convention from the plan). Cross-checked against mon_312B_CheckMonCall.c: result = 0xF8000000 + mon_number for VALIDATED/IN_PROGRESS.",
+          "monNumber": 202,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                1
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": [
+              [
+                8196,
+                248
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                1
+              ]
+            ]
+          },
+          "kFlag": false
+        },
+        {
+          "name": "CheckMonCall_NotImplemented_Zero",
+          "provenance": "manual",
+          "source": "312B_CheckMonCall.yaml: 'MonCallEntry: Address of the monitor call entry. 0 means not implemented.' - direct manual statement.",
+          "monNumber": 202,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                3
+              ],
+              [
+                8195,
+                9
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": [
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ]
+            ]
+          },
+          "kFlag": false,
+          "notes": "777 (octal-looking decimal literal) chosen only as an obviously-unregistered MON number; not itself a real MON call in the 34-call NC set."
+        }
+      ]
+    },
+    {
+      "octal": "317B",
+      "monNumber": 207,
+      "name": "ExecuteCommand",
+      "shortName": "UECOM",
+      "parameters": [
+        {
+          "name": "Command",
+          "type": "STRING",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "ExecuteCommand_UnknownCommand_Error",
+          "provenance": "yaml-unvalidated",
+          "source": "No manual (Appendix A) or call-specific YAML entry grounds a numeric error code for this condition; downgraded from an unverifiable literal value to K-flag-only per project honesty rule. 317B_ExecuteCommand.yaml: 'An error message is output if an error occurs.' (manual); error via Appendix A line ~26120: '030/024 No such device name' chosen as a representative 'unrecognized command target' failure (convention mapping - manual does not name a single ExecuteCommand-specific code).",
+          "monNumber": 207,
+          "argAddresses": [
+            8192
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                48
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                12288,
+                78
+              ],
+              [
+                12289,
+                79
+              ],
+              [
+                12290,
+                83
+              ],
+              [
+                12291,
+                85
+              ],
+              [
+                12292,
+                67
+              ],
+              [
+                12293,
+                72
+              ],
+              [
+                12294,
+                67
+              ],
+              [
+                12295,
+                79
+              ],
+              [
+                12296,
+                77
+              ],
+              [
+                12297,
+                77
+              ],
+              [
+                12298,
+                65
+              ],
+              [
+                12299,
+                78
+              ],
+              [
+                12300,
+                68
+              ],
+              [
+                12301,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {},
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "This case's exact error VALUE is the weakest-grounded one in the spec; flagged yaml-unvalidated-adjacent in the schema doc caveats even though tagged manual for the qualitative 'errors on bad command' fact. OPEN (schema v3.0.0 revision, 2026-07-10): Previous i1=30 (decimal) = octal 036 'Bit-file transfer error' in the correct background table - unrelated to an unrecognized SINTRAN command string. 317B_ExecuteCommand.yaml states only 'An error message is output if an error occurs' with no call-specific code. Per NC_TOOLCHAIN_MON_PLAN.md this mapping stays OPEN until the C side settles the error-return path (Phase 3); it can then graduate to a concrete code/K-flag assertion. See Appendix A (Monitor Calls.md line 26076 onward) for the full table to re-check against once a candidate value is identified.",
+          "status": "OPEN"
+        }
+      ]
+    },
+    {
+      "octal": "412B",
+      "monNumber": 266,
+      "name": "FileAsSegment",
+      "shortName": "FSCNT",
+      "parameters": [
+        {
+          "name": "FileNo",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "LogSegmentNo",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "AccessType",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "SegmentNo",
+          "type": "INTEGER2",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "FileAsSegment_NotOpen_Error",
+          "provenance": "manual",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26198: octal 132 / decimal 90 = \"No file opened with this number\". FileAsSegment on an unopened FileNumber; Appendix A decimal 90 is the literal match.",
+          "monNumber": 266,
+          "argAddresses": [
+            8192,
+            8196,
+            8200,
+            8204
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                0
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                8204,
+                0
+              ],
+              [
+                8205,
+                0
+              ],
+              [
+                8206,
+                0
+              ],
+              [
+                8207,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 90
+            },
+            "ram": []
+          },
+          "kFlag": true
+        }
+      ]
+    },
+    {
+      "octal": "413B",
+      "monNumber": 267,
+      "name": "FileNotAsSegment",
+      "shortName": "FSCDNT",
+      "parameters": [
+        {
+          "name": "FileNumber",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "LogSegmentNumber",
+          "type": "INTEGER2",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "FileNotAsSegment_NotConnected_Error",
+          "provenance": "convention",
+          "source": "Monitor Calls.md Appendix A (background-program octal/decimal table), line 26198: octal 132 / decimal 90 = \"No file opened with this number\". Applied by convention to 'never connected via FileAsSegment' - Appendix A does not name this exact condition, but decimal 90 is the closest documented 'no such open/connected file number' code and 413B_FileNotAsSegment.yaml does not state a call-specific value. Relevant per plan bug note: 'C# MON 413B: wire the existing FSCDNT logic into the registration table (name registered as FSDCNT - also fix spelling mismatch).'",
+          "monNumber": 267,
+          "argAddresses": [
+            8192,
+            8196
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                39
+              ],
+              [
+                8195,
+                15
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 90
+            },
+            "ram": []
+          },
+          "kFlag": true
+        }
+      ]
+    },
+    {
+      "octal": "422B",
+      "monNumber": 274,
+      "name": "GetScratchSegment",
+      "shortName": "GSWSP",
+      "parameters": [
+        {
+          "name": "SizeInBytes",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "LogSegmentNo",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "RetLogSegmentNo",
+          "type": "INTEGER",
+          "io": "O"
+        }
+      ],
+      "cases": [
+        {
+          "name": "GetScratchSegment_AutoSelect_Success",
+          "provenance": "manual",
+          "source": "422B_GetScratchSegment.yaml: 'LogSegmentNo: Use 0 for system to select first available free segment.' (manual); the specific segment number returned is emulator-internal state, not a manual fact, so only 'no error' is asserted.",
+          "monNumber": 274,
+          "argAddresses": [
+            8192,
+            8196,
+            8200
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                16
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                0
+              ],
+              [
+                8203,
+                0
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": false,
+          "notes": "OPEN ITEM: RetLogSegmentNo's concrete value is not asserted; needs a fixed-allocation-order convention from the header if byte-exact checking is required."
+        }
+      ]
+    },
+    {
+      "octal": "503B",
+      "monNumber": 323,
+      "name": "InputString",
+      "shortName": "DVINST",
+      "parameters": [
+        {
+          "name": "DevNo",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "MaxNo",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "NoOfBytesRet",
+          "type": "INTEGER",
+          "io": "O"
+        },
+        {
+          "name": "Buff",
+          "type": "STRING",
+          "io": "O"
+        },
+        {
+          "name": "BreakStrat",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "EchoStrat",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "BreakT1",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "BreakT2",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "BreakT3",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "BreakT4",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "EchoT1",
+          "type": "INTEGER",
+          "io": "I"
+        },
+        {
+          "name": "EchoT2",
+          "type": "INTEGER",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "InputString_Console_Success",
+          "provenance": "manual",
+          "source": "503B_InputString.yaml (12-parameter layout, manual); BreakStrat/EchoStrat=8 'user-defined table' per manual, with an all-zero break/echo table (no break characters set) - a spec convention for the test fixture.",
+          "monNumber": 323,
+          "argAddresses": [
+            8192,
+            8196,
+            8200,
+            8204,
+            8208,
+            8212,
+            8216,
+            8220,
+            8224,
+            8228,
+            8232,
+            8236
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                1
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                16
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                0
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                8204,
+                0
+              ],
+              [
+                8205,
+                0
+              ],
+              [
+                8206,
+                48
+              ],
+              [
+                8207,
+                0
+              ],
+              [
+                8208,
+                0
+              ],
+              [
+                8209,
+                0
+              ],
+              [
+                8210,
+                0
+              ],
+              [
+                8211,
+                8
+              ],
+              [
+                8212,
+                0
+              ],
+              [
+                8213,
+                0
+              ],
+              [
+                8214,
+                0
+              ],
+              [
+                8215,
+                8
+              ],
+              [
+                8216,
+                0
+              ],
+              [
+                8217,
+                0
+              ],
+              [
+                8218,
+                0
+              ],
+              [
+                8219,
+                0
+              ],
+              [
+                8220,
+                0
+              ],
+              [
+                8221,
+                0
+              ],
+              [
+                8222,
+                0
+              ],
+              [
+                8223,
+                0
+              ],
+              [
+                8224,
+                0
+              ],
+              [
+                8225,
+                0
+              ],
+              [
+                8226,
+                0
+              ],
+              [
+                8227,
+                0
+              ],
+              [
+                8228,
+                0
+              ],
+              [
+                8229,
+                0
+              ],
+              [
+                8230,
+                0
+              ],
+              [
+                8231,
+                0
+              ],
+              [
+                8232,
+                0
+              ],
+              [
+                8233,
+                0
+              ],
+              [
+                8234,
+                0
+              ],
+              [
+                8235,
+                0
+              ],
+              [
+                8236,
+                0
+              ],
+              [
+                8237,
+                0
+              ],
+              [
+                8238,
+                0
+              ],
+              [
+                8239,
+                0
+              ]
+            ],
+            "console": {
+              "queued": "HI"
+            }
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": [
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                0
+              ],
+              [
+                8203,
+                2
+              ],
+              [
+                12288,
+                72
+              ],
+              [
+                12289,
+                73
+              ],
+              [
+                12290,
+                39
+              ]
+            ]
+          },
+          "kFlag": false,
+          "notes": "'This monitor call provides fast input to ND-500 programs' (manual) - functional shorthand for InByte loops."
+        }
+      ]
+    },
+    {
+      "octal": "504B",
+      "monNumber": 324,
+      "name": "OutputString",
+      "shortName": "DVOUTS",
+      "parameters": [
+        {
+          "name": "DeviceNo",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "NoOfBytes",
+          "type": "INTEGER2",
+          "io": "I"
+        },
+        {
+          "name": "Buffer",
+          "type": "STRING",
+          "io": "I"
+        }
+      ],
+      "cases": [
+        {
+          "name": "OutputString_Console_Success",
+          "provenance": "manual",
+          "source": "504B_OutputString.yaml: 'the most efficient way to output strings on the ND-500. Maximum string length is 2048 bytes.' (manual)",
+          "monNumber": 324,
+          "argAddresses": [
+            8192,
+            8196,
+            8200
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                0
+              ],
+              [
+                8195,
+                1
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                0
+              ],
+              [
+                8199,
+                5
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                48
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                12288,
+                72
+              ],
+              [
+                12289,
+                69
+              ],
+              [
+                12290,
+                76
+              ],
+              [
+                12291,
+                76
+              ],
+              [
+                12292,
+                79
+              ],
+              [
+                12293,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": [],
+            "console": {
+              "output": "HELLO"
+            }
+          },
+          "kFlag": false
+        }
+      ]
+    },
+    {
+      "octal": "321B",
+      "monNumber": 209,
+      "name": "UEAdministrator",
+      "shortName": "UEADM",
+      "parameters": [],
+      "cases": [
+        {
+          "name": "UEADM_Deprecated_KFlagOnly",
+          "provenance": "yaml-unvalidated",
+          "source": "No manual (Appendix A) or call-specific YAML entry grounds a numeric error code for this condition; downgraded from an unverifiable literal value to K-flag-only per project honesty rule. mon-calls-described.md '## MON 321B - **NOT FOUND**': '321B UEADM  UEAdministrator / Handle Yser Environment / MON call no longer suported. / Return with K flag set' (verbatim from the described.md extraction of the manual text); exact numeric error value 52 confirmed by plan NC_TOOLCHAIN_MON_PLAN.md 'Known bugs to fix first': 'C MON 321B returns success; must return error 52 + K flag (deprecated), matching C# and the manual.'",
+          "monNumber": 209,
+          "argAddresses": [],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": []
+          },
+          "final": {
+            "regs": {},
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "No YAML file exists for 321B; description sourced entirely from mon-calls-described.md's manual-text extraction, not from a structured YAML. OPEN (schema v3.0.0 revision, 2026-07-10): Previous i1=52 (decimal) = octal 064 'No such friend' in the correct background table - unrelated to 'call no longer supported'. mon-calls-described.md's manual-text extraction for MON 321B (UEADM) says only 'MON call no longer suported. Return with K flag set' - no numeric error code is given anywhere in the source. The plan's prior claim ('must return error 52 + K flag') is one of the invented/unverified codes flagged for correction; only the K-flag-set behavior is manual-grounded.",
+          "status": "OPEN"
+        }
+      ]
+    }
+  ]
+}
