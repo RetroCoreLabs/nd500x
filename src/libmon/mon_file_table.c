@@ -495,10 +495,17 @@ int mon_file_close(int file_number) {
     /* Clear entry */
     memset(entry, 0, sizeof(OpenFileEntry));
 
-    /* Delete scratch files */
+    /* Delete scratch files - UNLESS persistence is requested. The VDM compiler
+     * pipeline needs the scratch file (SCRATCHnn:DATA, file 0100 octal = 64) to
+     * survive NC's close so the CAT-500 back-end can read the CAT intermediate
+     * from it. Set ND500X_KEEP_SCRATCH=1 to keep scratch files on close. */
     if (is_scratch && host_path[0] != '\0') {
-        unlink(host_path);
-        mon_log(MON_LOG_INFO, "MON CLOSE: Deleted scratch file '%s'", host_path);
+        if (getenv("ND500X_KEEP_SCRATCH")) {
+            mon_log(MON_LOG_INFO, "MON CLOSE: Kept scratch file '%s' (ND500X_KEEP_SCRATCH)", host_path);
+        } else {
+            unlink(host_path);
+            mon_log(MON_LOG_INFO, "MON CLOSE: Deleted scratch file '%s'", host_path);
+        }
     }
 
     return 0;
@@ -1078,10 +1085,14 @@ void mon_close_all_scratch_files(void) {
             /* Clear entry */
             memset(&open_files[i], 0, sizeof(OpenFileEntry));
 
-            /* Delete the file */
+            /* Delete the file (unless persistence is requested - see mon_close_file) */
             if (path_copy[0] != '\0') {
-                unlink(path_copy);
-                mon_log(MON_LOG_INFO, "Scratch file %d deleted: %s", file_number, path_copy);
+                if (getenv("ND500X_KEEP_SCRATCH")) {
+                    mon_log(MON_LOG_INFO, "Scratch file %d kept: %s (ND500X_KEEP_SCRATCH)", file_number, path_copy);
+                } else {
+                    unlink(path_copy);
+                    mon_log(MON_LOG_INFO, "Scratch file %d deleted: %s", file_number, path_copy);
+                }
             }
         }
     }
