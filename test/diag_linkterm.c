@@ -28,16 +28,42 @@
 #include "../src/libmon/mon_clock.h"
 #define MEMSZ (16u*1024u*1024u)
 
-/* Print whatever the guest has written since the last call. */
+/* Print whatever the guest has written since the last call.
+ *
+ * MUST print by LENGTH, not with printf("%s"). The guest's output contains
+ * embedded NUL bytes - the linker's banner starts
+ *   0D 0A 0D 0A 00 00 00 00 00 00 00 29 4E 44 4C ...  ("\r\n\r\n" then NULs then ")NDL")
+ * so a "%s" print stops at byte 4 and the whole banner looks like it was never
+ * written. That cost real time twice: the console capture was always correct,
+ * the PRINTER was truncating it.
+ *
+ * NULs and other non-printables are shown as '.', with the raw hex available via
+ * ND500X_CONSOLE_HEX for anything that is not really text. */
 static size_t g_shown = 0;
 static void show_console(const char* tag) {
     const char* out = mon_get_console_output();
     if (!out) return;
     size_t len = mon_get_console_output_len();
-    if (len > g_shown) {
-        printf("---- console (%s) ----\n%s\n----------------------\n", tag, out + g_shown);
-        g_shown = len;
+    if (len <= g_shown) return;
+
+    printf("---- console (%s) %zu new byte(s) ----\n", tag, len - g_shown);
+    for (size_t i = g_shown; i < len; i++) {
+        unsigned char ch = (unsigned char)out[i];
+        if (ch == '\r') continue;                 /* CR: keep the transcript readable */
+        if (ch == '\n' || (ch >= 0x20 && ch < 0x7F)) putchar(ch);
+        else putchar('.');                        /* NUL / BEL / binary */
     }
+    putchar('\n');
+    if (getenv("ND500X_CONSOLE_HEX")) {
+        printf("---- hex ----\n");
+        for (size_t i = g_shown; i < len; i++) {
+            printf("%02X ", (unsigned char)out[i]);
+            if (((i - g_shown) & 31) == 31) putchar('\n');
+        }
+        putchar('\n');
+    }
+    printf("----------------------\n");
+    g_shown = len;
 }
 
 int main(int argc, char** argv) {
@@ -89,6 +115,23 @@ int main(int argc, char** argv) {
                  * buffer) for its command loop via 1B INBT. m.stop_data carries
                  * the waiting device (ctx->wait_device). */
                 if (m.stop_data == 0) {
+                    /* Device 0 is the SINTRAN COMMAND BUFFER, which per the manual
+                     * (ND-860228.2, MON 1B INBT / MON 12B SETCM) holds "the last
+                     * command input from the terminal" - i.e. the invocation line,
+                     * max 32 chars - and is how a program reads "parameters
+                     * following the program name". It is NOT a command stream.
+                     * ND500X_CMDBUF_TERM=1 answers it with a bare terminator,
+                     * meaning "no parameters", to test whether the linker then
+                     * takes its commands from the terminal instead. */
+                    const char* t = getenv("ND500X_CMDBUF_TERM");
+                    if (t) {
+                        printf("[feed CMDBUF @instr=%llu dev=%u] <terminator '%s'> (no params)\n",
+                               (unsigned long long)c.instruction_count, m.stop_data, t);
+                        mon_set_command_buffer(t);
+                        feeds++;
+                        m.stop_reason = STOP_NONE; m.run_flag = 1;
+                        continue;   /* do NOT consume a command line for this */
+                    }
                     printf("[feed CMDBUF @instr=%llu dev=%u] %s\n",
                            (unsigned long long)c.instruction_count, m.stop_data, lines[next]);
                     mon_set_command_buffer(line);
