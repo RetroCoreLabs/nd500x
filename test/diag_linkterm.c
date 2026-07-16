@@ -107,6 +107,28 @@ int main(int argc, char** argv) {
         while (steps < maxsteps && m.run_flag) { nd500_cpu_step(&c); steps++; }
         if (m.stop_reason == STOP_WAIT_INPUT && feeds < 64) {
             show_console("prompt");
+
+            /* Device 0 is the SINTRAN COMMAND BUFFER: per the manual (ND-860228.2,
+             * MON 1B INBT / MON 12B SETCM) it holds "the last command input from the
+             * terminal" - the invocation line, max 32 chars - and is how a program
+             * reads "parameters following the program name". It is NOT a command
+             * stream. ND500X_CMDBUF_TERM answers an empty device-0 wait with a bare
+             * terminator ("no parameters"), independently of whether any command
+             * lines are queued - this is the read-side experiment for what a device-0
+             * read returns after the line is consumed. */
+            if (m.stop_data == 0) {
+                const char* t = getenv("ND500X_CMDBUF_TERM");
+                if (t) {
+                    printf("[feed CMDBUF @instr=%llu dev=%u] <terminator '%s'> (no params)\n",
+                           (unsigned long long)c.instruction_count, m.stop_data,
+                           (t[0] == '\r') ? "\\r" : t);
+                    mon_set_command_buffer(t);
+                    feeds++;
+                    m.stop_reason = STOP_NONE; m.run_flag = 1;
+                    continue;   /* do NOT consume a command line for this */
+                }
+            }
+
             if (next < nlines) {
                 char line[160]; snprintf(line, sizeof(line), "%s\r", lines[next]);
                 /* Route the feed to whichever channel is actually waiting.
@@ -115,23 +137,6 @@ int main(int argc, char** argv) {
                  * buffer) for its command loop via 1B INBT. m.stop_data carries
                  * the waiting device (ctx->wait_device). */
                 if (m.stop_data == 0) {
-                    /* Device 0 is the SINTRAN COMMAND BUFFER, which per the manual
-                     * (ND-860228.2, MON 1B INBT / MON 12B SETCM) holds "the last
-                     * command input from the terminal" - i.e. the invocation line,
-                     * max 32 chars - and is how a program reads "parameters
-                     * following the program name". It is NOT a command stream.
-                     * ND500X_CMDBUF_TERM=1 answers it with a bare terminator,
-                     * meaning "no parameters", to test whether the linker then
-                     * takes its commands from the terminal instead. */
-                    const char* t = getenv("ND500X_CMDBUF_TERM");
-                    if (t) {
-                        printf("[feed CMDBUF @instr=%llu dev=%u] <terminator '%s'> (no params)\n",
-                               (unsigned long long)c.instruction_count, m.stop_data, t);
-                        mon_set_command_buffer(t);
-                        feeds++;
-                        m.stop_reason = STOP_NONE; m.run_flag = 1;
-                        continue;   /* do NOT consume a command line for this */
-                    }
                     printf("[feed CMDBUF @instr=%llu dev=%u] %s\n",
                            (unsigned long long)c.instruction_count, m.stop_data, lines[next]);
                     mon_set_command_buffer(line);
@@ -142,8 +147,8 @@ int main(int argc, char** argv) {
                 }
                 next++;
             } else {
-                printf("[no more commands; stopping at instr=%llu]\n",
-                       (unsigned long long)c.instruction_count);
+                printf("[no more commands; stopping at instr=%llu dev=%u]\n",
+                       (unsigned long long)c.instruction_count, m.stop_data);
                 break;
             }
             feeds++;

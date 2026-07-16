@@ -1346,6 +1346,94 @@ static void test_mon_1B_inbt_queued_input(void) {
 }
 
 /*
+ * Test MON 1B INBT on device 0 (the SINTRAN command buffer).
+ *
+ * Device 0 holds the INVOCATION command line, which is always CR-terminated
+ * (015B) - byte-proven in the L07 command processor (it substitutes CR at the
+ * 47B source marker). So a device-0 read returns the stored bytes followed by
+ * exactly one CR, even when there are no arguments (a lone CR). Returning raw
+ * EOF instead made the ND linker busy-spin 20,088 times; the CR lets it
+ * complete its line and proceed.
+ */
+static void test_mon_1B_inbt_device0_cr_terminated(void) {
+    printf("\nTesting MON 1B INBT device-0 command buffer (CR termination)...\n");
+    setup();
+
+    uint32_t dev_no_loc = 0x1000;
+    uint32_t value_loc  = 0x1004;
+    test_write_word(&cpu, dev_no_loc, 0);   /* device 0 = command buffer */
+    uint32_t args[2] = { dev_no_loc, value_loc };
+
+    /* Case A: a line WITHOUT a trailing CR must still yield "AB" then a
+     * synthetic CR, then a wait (end-of-line). */
+    mon_set_command_buffer("AB");
+    int got[4]; int n = 0;
+    for (int i = 0; i < 4; i++) {
+        MonContext ctx;
+        setup_mon_context(&ctx, 1, 2, args);
+        MonResult r = mon_dispatch(&ctx);
+        if (ctx.wait_requested) { got[n++] = -1; break; }
+        if (r != MON_SUCCESS) { got[n++] = -2; break; }
+        got[n++] = (int)(test_read_word(&cpu, value_loc) & 0xFF);
+    }
+    if (n == 4 && got[0] == 'A' && got[1] == 'B' && got[2] == 0x0D && got[3] == -1) {
+        TEST_PASS("device 0 'AB' -> 'A','B',CR then wait");
+    } else {
+        char msg[96];
+        snprintf(msg, sizeof(msg), "n=%d got=%d,%d,%d,%d", n,
+                 n > 0 ? got[0] : 0, n > 1 ? got[1] : 0, n > 2 ? got[2] : 0, n > 3 ? got[3] : 0);
+        TEST_FAIL("device 0 'AB' -> 'A','B',CR then wait", msg);
+    }
+
+    /* Case B: a line that ALREADY ends in CR must not get a second CR. */
+    mon_set_command_buffer("Q\r");
+    n = 0;
+    for (int i = 0; i < 4; i++) {
+        MonContext ctx;
+        setup_mon_context(&ctx, 1, 2, args);
+        MonResult r = mon_dispatch(&ctx);
+        if (ctx.wait_requested || r != MON_SUCCESS) { got[n++] = -1; break; }
+        got[n++] = (int)(test_read_word(&cpu, value_loc) & 0xFF);
+    }
+    if (n == 3 && got[0] == 'Q' && got[1] == 0x0D && got[2] == -1) {
+        TEST_PASS("device 0 'Q\\r' -> 'Q',CR then wait (no double CR)");
+    } else {
+        char msg[96];
+        snprintf(msg, sizeof(msg), "n=%d got=%d,%d,%d", n,
+                 n > 0 ? got[0] : 0, n > 1 ? got[1] : 0, n > 2 ? got[2] : 0);
+        TEST_FAIL("device 0 'Q\\r' -> 'Q',CR then wait (no double CR)", msg);
+    }
+
+    /* Case C: an EMPTY buffer (no-arguments invocation) must still yield a lone
+     * CR on the first read - NOT an immediate wait, and NOT raw EOF. This is the
+     * exact case that decided the linker: empty -> CR -> proceed. */
+    mon_set_command_buffer("");
+    MonContext ctx;
+    setup_mon_context(&ctx, 1, 2, args);
+    MonResult r = mon_dispatch(&ctx);
+    int first = (!ctx.wait_requested && r == MON_SUCCESS)
+                ? (int)(test_read_word(&cpu, value_loc) & 0xFF) : -1;
+    if (first == 0x0D) {
+        TEST_PASS("device 0 empty (no args) -> lone CR, not wait/EOF");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "first read = %d (wait=%d)", first, ctx.wait_requested);
+        TEST_FAIL("device 0 empty (no args) -> lone CR, not wait/EOF", msg);
+    }
+    /* second read past the CR = end-of-line = wait */
+    setup_mon_context(&ctx, 1, 2, args);
+    mon_dispatch(&ctx);
+    if (ctx.wait_requested && ctx.wait_device == 0) {
+        TEST_PASS("device 0 read past CR -> wait (end of line)");
+    } else {
+        TEST_FAIL("device 0 read past CR -> wait (end of line)", "did not wait on device 0");
+    }
+
+    mon_set_command_buffer("");  /* leave clean for later tests */
+    teardown();
+}
+
+/*
  * Test MON 321B UEADM (UEAdministrator) - deprecated, always returns error
  */
 static void test_mon_321B_ueadm_deprecated(void) {
@@ -1713,6 +1801,7 @@ int main(int argc, char* argv[]) {
     test_mon_511B_dvio_buffers_are_distinct();
     test_mon_511B_dvio_blocks_on_empty_input();
     test_mon_1B_inbt_queued_input();
+    test_mon_1B_inbt_device0_cr_terminated();
     test_mon_412B_fscnt_file_not_open();
     test_mon_412B_fscnt_missing_args();
     test_mon_413B_fscdnt_file_not_open();

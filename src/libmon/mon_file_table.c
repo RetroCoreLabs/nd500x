@@ -901,10 +901,32 @@ const char* mon_get_command_buffer(void) {
 }
 
 int mon_read_command_buffer_char(void) {
-    if (g_command_buffer_pos < (int)strlen(g_command_buffer)) {
+    int len = (int)strlen(g_command_buffer);
+
+    if (g_command_buffer_pos < len) {
         return (unsigned char)g_command_buffer[g_command_buffer_pos++];
     }
-    return -1;  /* End of buffer */
+
+    /* Device 0 = the SINTRAN command buffer = the INVOCATION command line, which
+     * is ALWAYS terminated by CR (015B / 0x0D). Byte-proven in the L07 command
+     * processor: at the 47B source marker it substitutes CR (050773: SAA 15 ->
+     * SBYT) and resets the byte pointer, so the buffer a program reads via 1B INBT
+     * ends in CR - never 47B, never raw EOF. A program launched with no arguments
+     * still reads a lone CR.
+     *
+     * So once the stored bytes are exhausted, deliver exactly one CR if the line
+     * did not already end in one, THEN signal end-of-line. Returning raw EOF here
+     * instead made the ND linker busy-spin (measured: 20,088 consecutive 1B INBT
+     * retries at PC=0xB004E759); delivering the CR lets it complete its line and
+     * proceed - verified: the linker reads the CR once and never reads device 0
+     * again. The end-of-line (-1) is only reached if a program reads PAST the CR,
+     * which the linker does not; what a real device-0 read returns after the CR is
+     * unproven (the caller treats -1 as "suspend"). */
+    if (g_command_buffer_pos == len && (len == 0 || g_command_buffer[len - 1] != '\r')) {
+        g_command_buffer_pos++;   /* consume the synthetic terminating CR */
+        return '\r';
+    }
+    return -1;  /* end of line (CR already delivered) */
 }
 
 void mon_reset_command_buffer_pos(void) {
