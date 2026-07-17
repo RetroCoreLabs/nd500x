@@ -377,7 +377,7 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
             }
         }
     }
-    (void)quoted_create;  /* consumed by the create-fallback below */
+
 
     /* Handle :TYPE scratch file syntax
      *
@@ -519,9 +519,31 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
 
     /* Try to open the host file */
     FILE* fp = fopen(host_path, fmode);
-    if (!fp && allows_write) {
-        /* For write modes, try creating the file */
-        fp = fopen(host_path, "w+b");
+
+    /* CREATE semantics, byte-verified against the SINTRAN GCFIL/CROBJ/GFILI
+     * resolver (carve 006-S3FS: GCFIL @064670B, CROBJ @063726B, GFILI @057173B;
+     * see CARVE-ANSWER-OPEN-QUOTED-FILENAME.md):
+     *
+     *  - A QUOTED name creates the file if it is absent, and errors 076B "File
+     *    already exists" if it is present (CROBJ - never truncates/overwrites).
+     *  - A scratch file (":TYPE" syntax) is created on open by definition.
+     *  - An UNQUOTED name is LOOKUP-ONLY (GFILI): if it is missing, OPEN returns
+     *    056B "No such file name" for EVERY access code. SINTRAN III has NO
+     *    write-open-creates - a plain write-open of a missing file does not create
+     *    it. (Callers that need a new file either quote the name or @CREATE-FILE /
+     *    MON 221B it first - which is what NC does for its scratch CAT file.)
+     *
+     * This replaces a non-standard auto-create-on-write that diverged from real
+     * hardware. */
+    if (quoted_create) {
+        if (fp) {
+            fclose(fp);
+            mon_log(MON_LOG_WARN, "MON OPEN: quoted name but '%s' already exists -> 076B", host_path);
+            return -62;  /* 076B File already exists */
+        }
+        fp = fopen(host_path, "w+b");  /* absent + quoted -> create */
+    } else if (!fp && is_scratch && allows_write) {
+        fp = fopen(host_path, "w+b");  /* scratch files are created on open */
     }
 
     if (!fp && !allows_write) {

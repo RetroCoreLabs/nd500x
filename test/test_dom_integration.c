@@ -25,6 +25,7 @@
 #include "../src/debugger/debugger.h"
 #include "../src/libmon/mon.h"
 #include "../src/libmon/mon_file_table.h"
+#include "../src/libmon/mon_log.h"
 
 #define DEFAULT_MAX_STEPS 10000
 #define MEMORY_SIZE (16 * 1024 * 1024)  /* 16MB - same as debugger */
@@ -164,6 +165,7 @@ static int run_dom_test(const char* dom_path, int max_steps, int verbose, TestRe
 
     /* Initialize MON call subsystem */
     mon_init();
+    if (getenv("ND500X_MONLOG")) { mon_log_enable(1); mon_log_set_level(MON_LOG_DEBUG); }
 
     /* Queue console input (--input); installs the queued console so the
      * program reads scripted commands instead of blocking on stdin */
