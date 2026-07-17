@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
     nd500_machine_init(&m, MEMSZ); nd500_cpu_init(&c, &m); nd500_cpu_reset(&c);
     nd500_mmu_init(&c); nd500_domain_init(&c); mon_init();
     mon_log_enable(0);
+    if (getenv("ND500X_MONLOG")) { mon_log_enable(1); mon_log_set_level(MON_LOG_DEBUG); }
 
     /* Split the ';'-separated command list. */
     char buf[512]; snprintf(buf, sizeof(buf), "%s", cmds);
