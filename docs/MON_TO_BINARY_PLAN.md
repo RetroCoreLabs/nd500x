@@ -957,6 +957,92 @@ Sitting in RetroTerm, connected over telnet to `nd500x serve`: type `@LED`, edit
 C file, exit, `@NC` it, `@ND-LINKER` it, run the result - and see its output. On
 emulated 1989 hardware, with the vendor's own toolchain.
 
+## PHASE 11 - WASM: the emulator in a browser (like nd100x glass)
+
+**User requirement, verbatim:** "i would also like a wasm version that runs in the
+browser, like the nd100x wasm glass - with needed files uploaded to webfs ... part
+of that is to learn from the nd100x - but this is after we have done the cli
+console + tcp. however the wasm cant do tcp so tcp must be compile time enabled or
+not. and in the nd100x we have extern library that has tdv2200 emulator with
+virtual keyboard so we can hook that up to talk to the cli"
+
+**Sequencing is the user's and it is right: AFTER phases 8-9 (CLI + TCP).** The
+browser build is a second FRONT END onto the same console abstraction. Building it
+before that abstraction exists means building it twice.
+
+### 11.1 Starting position - better than it looks
+
+- **nd500x ALREADY has a WASM target**: `/home/ronny/repos/nd500x/src/frontend/nd500wasm/`
+  (`main.c`, `CMakeLists.txt`, `web/`), and `make wasm` / `make wasm-serve` exist.
+  This phase is not a from-scratch port; it is bringing that target up to the glass
+  standard.
+- **libmon's `ConsoleIO` is already an interface** - the same indirection that makes
+  the telnet server cheap (9.2) makes the browser terminal cheap. stdio, socket and
+  browser are three bindings of one interface.
+
+### 11.2 Learn from nd100x - the prior art is a working system
+
+`/home/ronny/repos/nd100x/`:
+- `GLASS.md` - the architecture reference for `template-glass/`. **Read this first.**
+- `docs/HOWTO_BUILD_WASM.md`
+- `template-glass/js/` - the pattern to copy:
+  - `emu-worker.js` - the emulator runs in a WEB WORKER, not the UI thread
+  - `emu-proxy.js` - the UI<->worker boundary
+  - `module-init.js` - Emscripten module bring-up
+  - `floppy-browser.js` - loading images/files into the FS
+  - `toolbar.js`
+- Its build wires the whole thing:
+  `wasm-glass: check-deps mkptypes retroterm-build ndfs-build ts-compile`
+  i.e. RetroTermWeb + an ND filesystem layer + TypeScript are all part of it.
+
+### 11.3 The terminal: RetroTermWeb
+
+**`/home/ronny/repos/nd100x/template-glass/external/RetroTermWeb/`** - this is the
+"extern library with tdv2200 emulator and virtual keyboard" the user means. It is
+the WEB sibling of the Avalonia RetroTerm (`/mnt/e/Dev/Ronny/RetroTerm`), already
+integrated into nd100x's glass UI (`retroterm-build` target, `terminal-popout.html`).
+
+So the browser terminal is SOLVED prior art - hook RetroTermWeb's input/output to
+the emulator's `ConsoleIO` binding, exactly as nd100x hooks it to its own.
+
+This also means the terminal-type question (9.3) has the same answer in the
+browser: RetroTermWeb is a TDV2200, so `16B MGTTY` should report a TDV type there,
+not VT100.
+
+### 11.4 TCP must be compile-time optional
+
+The user is right: **WASM cannot open TCP sockets.** So the socket/telnet console
+(9.2) must be behind a build flag, e.g. `ND500X_ENABLE_TCP`, defaulted ON for
+native and OFF for WASM. `CMakeLists` already branches on `BUILD_WASM`.
+
+Design consequence worth stating: `ConsoleIO` bindings should be REGISTERED, not
+hard-wired, so a build can simply not include the socket one. Do not let telnet
+code become load-bearing in the shared path.
+
+### 11.5 webfs - getting the files in
+
+The browser has no `/home/ronny/nd500/fs`. The 8b JSON config's filesystem root has
+to become a browser FS (Emscripten MEMFS/IDBFS), populated by upload. What must get
+in there, and it is more than "a program":
+
+- the `:DOM` to run (linker, NC, LED, CONVERT-DOMAIN...)
+- **`DDBTABLES-G06:VTM`** - without it the linker aborts (proven today). Note it is
+  extracted from `ND-disk-00047.img` and is NOT in the repo (`GUEST/` is
+  gitignored), so the browser build needs either the floppy image + the extractor,
+  or a prepared bundle.
+- `UE-ERMSG-EN-C06:ERR`, `LINKER:INIT`, `LINKER:HELP`
+- the user's own source/objects
+
+`floppy-browser.js` in nd100x is the closest prior art. Ideal: upload the FLOPPY
+IMAGE and extract in-browser, reusing the object-entry/index-block format proven in
+memory `sintran-floppy-extraction` - one artifact instead of a pile of loose files.
+IDBFS would persist it across reloads.
+
+### 11.6 DONE
+
+Open a browser, upload (or find persisted) the files, get a TDV2200 with a virtual
+keyboard talking to the ND-500, and run the linker - no install, no toolchain.
+
 ## Open questions for the user (do NOT guess these)
 
 RESOLVED 2026-07-17 - the client is RetroTerm (`/mnt/e/Dev/Ronny/RetroTerm`):
