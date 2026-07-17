@@ -284,12 +284,59 @@ Any other instruction class with no coverage deserves the same suspicion.
    `FLOAT` alongside `WORD`. Suspected latent bug, **NOT fixed**, flagged only.
    Check the C# side for the same asymmetry.
 
-3. **MON 144B MAGTP is a deliberate provisional stub** at
-   `/home/ronny/repos/nd500x/src/libmon/handlers/mon_144B_DeviceFunction.c`:
-   it returns benign SUCCESS without writing its `IO` buffer because the linker
-   halts if 144B returns the -1 unimplemented error. Same OUT-parameter defect
-   class as 412B FSCNT. It is **not** the fix for anything above - it only ever
-   saw device 46 because the OPEN had already failed. Do not port as final.
+3. **MON 144B MAGTP function 0 (Read-Record) is now IMPLEMENTED - port this.**
+   `/home/ronny/repos/nd500x/src/libmon/handlers/mon_144B_DeviceFunction.c`
+
+   **Function codes are OCTAL. Primary source: `ND-60.050.06 SINTRAN III Users
+   Guide`, Table 9.1, page 232** (in NDInsight at
+   `/mnt/e/Dev/Ronny/NDInsight/Reference-Manuals/ND-60.050.06 SINTRAN III Users Guide.md`,
+   around line 8650). Neither the 144B YAML nor `ND MON Calls.md` carries the
+   table - both say "Function code. See the following pages." **This is the table
+   those pages refer to.**
+
+   | Code | Function | | Code | Function |
+   |------|----------|-|------|----------|
+   | `0`  | **Read-Record** | | `13` | Rewind |
+   | `1`  | Write-Record | | `14` | Write-Erase-Gap |
+   | `5`  | Unlock-and-Stop | | `15` | Back-Space-Records |
+   | `6`  | Lock-Cassette | | `16` | Advance-Records |
+   | `7`  | Erase-EOF | | `17` | Unload |
+   | `10` | Advance-to-EOF | | `20` | Read Status |
+   | `11` | Reverse-to-EOF | | `21` | Clear Device |
+   | `12` | Write-EOF | | `23` | Select Density-and-Parity |
+   |      | | | `24` | Read Last Status |
+
+   Two independent corroborations that this is the right table:
+   - It skips 8 and 9, so it is octal.
+   - The linker's own MAGTP wrapper at `0xB004E98A` special-cases function codes
+     `0x10` and `0x14` (16 and 20 decimal = **20B and 24B octal**) = exactly
+     *Read Status* / *Read Last Status* - the codes the manual says take dummy
+     parameters ("in the range 5B to 24B ... the parameter buffer and the two
+     device dependent parameters are dummies").
+
+   **What function 0 does (verified end to end):** reads from the open file given
+   by `DeviceNo` at its current byte pointer into `Buffer`. The linker OPENs
+   `'DDBTABLES-G':VTM`, `74B SETBT`s the pointer to 0, then calls
+   `MAGTP(0, buffer@0xB00530BC, file, 4096, 3)` and immediately requires the
+   first buffer word to be 1 (`0xB004AFB8: w comp2 r.0x0,$0x1`, else error
+   0x106A). The real `DDBTABLES-G06:VTM` begins `00 00 00 01` and carries
+   0x40-byte records at `+0x78` - exactly where the linker indexes. The file
+   image maps directly onto the buffer.
+
+   **Result:** error 0x106A goes from 1 occurrence to **0**; the protect
+   violation and stack overflow disappear entirely.
+
+   **UNVERIFIED in this implementation - carry the caveat across:** which
+   parameter carries the transfer size. Table 9.1 lists param2 as "octal no. of
+   words", but the linker passes `param1=4096, param2=3`, and 4096 is the only
+   value that can span the table it then indexes. Treating **param1 as a byte
+   count** is INFERRED from the linker's usage, not read from a manual. The pages
+   that would settle the ND-500 parameter convention are not in the scanned set.
+
+   All other function codes still return benign SUCCESS and are **not** correct -
+   they are real device operations against hardware we do not emulate. Same
+   OUT-parameter defect class as 412B FSCNT. Do not port the default branch as
+   final.
 
 4. **Garbled console output:** every character the linker prints has the high bit
    set (parity / 7-bit masking). Separate issue, not investigated.
