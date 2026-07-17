@@ -242,15 +242,41 @@ Any other instruction class with no coverage deserves the same suspicion.
 
 ## 7. Related / still open (NOT part of this fix)
 
-1. **Stack overflow (new blocker, nd500x, under investigation):**
+1. **Stack overflow - DIAGNOSED, and it is NOT an emulator bug. Do NOT "fix" it.**
+
    ```
    [TRAP] ENTS at PC=0xB004D3D7: Stack overflow (newB=0xB00593E0, demand=0x4C, TOS=0xB005940C)
    *** ND LINKER abortion ***
    ```
-   We initialise `B=0xB0001ABC, TOS=0xB0011ABC`, but the trap reports
-   `TOS=0xB005940C` with only 0x2C bytes of headroom. **UNKNOWN** whether our
-   stack/TOS handling is wrong or the linker relocates its own stack. Not yet
-   diagnosed - do not port a "fix" for this yet.
+
+   This is **two levels of symptom deep**. Measured chain:
+
+   ```
+   DDBTABLES-G:VTM missing (we do not have the file)
+     -> the linker's tables are never populated; region 0xB003F040.. is ALL SPACES (0x20)
+     -> the linker walks that blank region as a linked list of records
+     -> node[0x10] + node[0x14] = 0x20202020 + 0x20202020 = 0x40404040
+     -> "by scopa b.0x30,b.0x38" @0xB003A888 builds descriptor {count=1, addr=0x40404040}
+     -> PROTECT VIOLATION (TRAP_PV, bit 36) at instr 30414
+     -> the LINKER'S OWN trap handler (0xB0055xxx) installs a small stack:
+        TOS=0xB005940C, B=0xB005910C, at instr 30416 (PC 0xB005571B)
+     -> ENTS @0xB004D3D7 needs 0x4C, has 0x2C -> TRAP_STO at instr 88121
+     -> *** ND LINKER abortion *** -> clean MON 0B LEAVE @0xB0016205
+   ```
+
+   **Our TOS handling is correct.** A live watch of every TOS change shows TOS is
+   set correctly to 0xB0011ABC at instr 1 by INIT @0xB0013B41, and is moved to
+   0xB005940C by the linker's own trap handler two instructions after the PV.
+   The C# side should expect the same behaviour and must not "correct" the stack.
+
+   Note both magic values are "nothing was loaded here" signatures, not data:
+   `0x40` ('@') is the SINTRAN floppy fill/erase byte, and `0x20` is the
+   blank-table filler.
+
+   Real root cause: the missing table file `DDBTABLES-G06:VTM`, which resolves
+   from the requested `DDBTABLES-G` via the SINTRAN abbreviated-name matcher
+   (confirmed by a listing inside the vendor floppy image:
+   `TABLE-G     DDBTABLES-G06:VTM       "DDBTABLES-G06:VTM"`).
 
 2. **FLOAT gap:** `nd500_read_value_at_address()`
    (`/home/ronny/repos/nd500x/src/cpu/instruction_helpers.c:1315`) has **no**

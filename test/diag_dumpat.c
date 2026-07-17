@@ -89,10 +89,18 @@ int main(int argc, char** argv) {
         mon_queue_console_input(line);
     }
 
+    /* ND500X_DUMPAT_AFTER: ignore hits before this instruction number. A PC that
+     * executes many times usually only misbehaves on one particular invocation
+     * (e.g. the one that traps); stopping at the first hit inspects the healthy
+     * case and proves nothing. */
+    unsigned long long after = 0;
+    const char* aenv = getenv("ND500X_DUMPAT_AFTER");
+    if (aenv && *aenv) after = strtoull(aenv, 0, 0);
+
     m.run_flag = 1; m.stop_reason = STOP_NONE;
     long n = 0; int hit = 0;
     for (; n < maxsteps && m.run_flag; n++) {
-        if (c.PC == stop_pc) {
+        if (c.PC == stop_pc && (unsigned long long)c.instruction_count >= after) {
             hit = 1;
             printf("HIT PC=%08X at instr=%llu  B=%08X\n", c.PC,
                    (unsigned long long)c.instruction_count, c.B);
