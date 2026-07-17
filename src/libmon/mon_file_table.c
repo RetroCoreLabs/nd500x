@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>  /* unlink */
+#include <dirent.h>  /* SINTRAN abbreviated-name resolution */
 
 #ifdef _WIN32
 #define strcasecmp _stricmp
@@ -217,6 +218,129 @@ OpenFileEntry* mon_file_table_get(int file_number) {
 /* Global scratch file counter for unique naming */
 static int g_scratch_counter = 1;
 
+/* ------------------------------------------------------------------
+ * SINTRAN abbreviated file-name matching.
+ *
+ * Carved from L-VSX-500 segment 006-S3FS: comparator COMPS @041552,
+ * scanner decision GOBJI @056326 (terminal codes at 056576-056607).
+ * See CARVE-ANSWER-FLPAR-MDEAB-FOR-IMPLEMENTER.md at
+ * /mnt/e/Dev/Ronny/NDInsight/tools/sintran-segment-carver/versions/
+ *   L-VSX-500/re/segments-ref/006-S3FS/
+ *
+ * COMPS compares a whole supplied name against a whole stored name in
+ * one pass; the '-' handling yields per-subpart behaviour implicitly.
+ * On the guest side both strings end with 047 ('); by the time a name
+ * reaches here the descriptor reader has already converted that to a
+ * C NUL, so NUL is the terminator below.
+ * ------------------------------------------------------------------ */
+#define SINTRAN_NO_MATCH     0
+#define SINTRAN_PREFIX_MATCH 1
+#define SINTRAN_EXACT_MATCH  2
+
+static int sintran_comps(const char* a, const char* b) {
+    int i = 0, j = 0;
+    for (;;) {
+        char ca = a[i], cb = b[j];
+        if (ca == cb) {
+            if (ca == '\0') return SINTRAN_EXACT_MATCH;   /* 041603/041612 */
+            i++; j++; continue;                           /* 041606 */
+        }
+        if (ca == '*') { i++; j++; continue; }            /* 041600/041661 */
+        if (ca == '\0') return SINTRAN_PREFIX_MATCH;      /* 041616-041620 */
+        if (ca == '-') {                                  /* 041621-041706 */
+            /* Positional/empty subpart: skip B to its next '-' boundary.
+             * UNVERIFIED (per carve doc): the exact branch when B's
+             * terminator arrives before a '-' - i.e. the supplied name has
+             * MORE subparts than the stored one - was not traced. Treated
+             * as a mismatch here; the verified common path is unaffected. */
+            while (b[j] != '-' && b[j] != '\0') j++;
+            if (b[j] == '\0') return SINTRAN_NO_MATCH;
+            i++; j++;
+            continue;
+        }
+        return SINTRAN_NO_MATCH;                          /* 041621->041623->041614 */
+    }
+}
+
+/* Scanner decision (GOBJI @056326): exact wins outright; otherwise count
+ * prefix matches - 0 -> 056 no-such, >1 -> 057 ambiguous, 1 -> unique.
+ * Returns 0 and fills resolved[] on a unique/exact hit; else -46 (no such
+ * file) or -47 (ambiguous). host_path is a literal path that already failed
+ * to open; its directory is scanned for an abbreviation match. */
+static int sintran_resolve_abbrev(const char* host_path, char* resolved, size_t resolved_size) {
+    char dir[256];
+    const char* base;
+    const char* slash = strrchr(host_path, '/');
+    if (slash) {
+        size_t dlen = (size_t)(slash - host_path);
+        if (dlen >= sizeof(dir)) return -46;
+        memcpy(dir, host_path, dlen);
+        dir[dlen] = '\0';
+        base = slash + 1;
+    } else {
+        strcpy(dir, ".");
+        base = host_path;
+    }
+
+    /* Split the supplied basename into name and type; they are matched as
+     * separate strings (the guest's NAME:TYPE framing is split off before
+     * name matching - SEPOB @056645 / SEPFS @042622). */
+    char want_name[128], want_type[32];
+    const char* dot = strrchr(base, '.');
+    if (dot) {
+        size_t nlen = (size_t)(dot - base);
+        if (nlen >= sizeof(want_name)) return -46;
+        memcpy(want_name, base, nlen);
+        want_name[nlen] = '\0';
+        snprintf(want_type, sizeof(want_type), "%s", dot + 1);
+    } else {
+        snprintf(want_name, sizeof(want_name), "%s", base);
+        want_type[0] = '\0';
+    }
+
+    DIR* d = opendir(dir);
+    if (!d) return -46;
+
+    int matches = 0;
+    char found[256];
+    found[0] = '\0';
+    struct dirent* de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+
+        char have_name[128], have_type[32];
+        const char* hdot = strrchr(de->d_name, '.');
+        if (hdot) {
+            size_t nlen = (size_t)(hdot - de->d_name);
+            if (nlen >= sizeof(have_name)) continue;
+            memcpy(have_name, de->d_name, nlen);
+            have_name[nlen] = '\0';
+            snprintf(have_type, sizeof(have_type), "%s", hdot + 1);
+        } else {
+            snprintf(have_name, sizeof(have_name), "%s", de->d_name);
+            have_type[0] = '\0';
+        }
+
+        int nres = sintran_comps(want_name, have_name);
+        if (nres == SINTRAN_NO_MATCH) continue;
+        int tres = sintran_comps(want_type, have_type);
+        if (tres == SINTRAN_NO_MATCH) continue;
+
+        snprintf(found, sizeof(found), "%s/%s", dir, de->d_name);
+        if (nres == SINTRAN_EXACT_MATCH && tres == SINTRAN_EXACT_MATCH) {
+            matches = 1;
+            break;                       /* exact wins outright, scan stops */
+        }
+        matches++;                       /* 056535 MIN ,B41 */
+    }
+    closedir(d);
+
+    if (matches == 0) return -46;        /* 056 No such file name */
+    if (matches > 1) return -47;         /* 057 Ambiguous file name */
+    snprintf(resolved, resolved_size, "%s", found);
+    return 0;
+}
+
 int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_mode, int requested_file_no) {
     int free_slot = -1;
     bool is_scratch = false;
@@ -367,6 +491,24 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
     if (!fp && allows_write) {
         /* For write modes, try creating the file */
         fp = fopen(host_path, "w+b");
+    }
+
+    if (!fp && !allows_write) {
+        /* The literal name did not exist. SINTRAN allows an abbreviated name
+         * on a read open (not when creating a file), so resolve it against the
+         * directory using the carved COMPS/GOBJI rules. */
+        char resolved[256];
+        int rc = sintran_resolve_abbrev(host_path, resolved, sizeof(resolved));
+        if (rc == 0) {
+            fp = fopen(resolved, fmode);
+            if (fp) {
+                mon_log(MON_LOG_INFO, "MON OPEN: '%s' resolved to '%s'", host_path, resolved);
+                snprintf(host_path, sizeof(host_path), "%s", resolved);
+            }
+        } else if (rc == -47) {
+            mon_log(MON_LOG_WARN, "MON OPEN: Ambiguous file name '%s'", host_path);
+            return -47;  /* Error 57B: Ambiguous file name */
+        }
     }
 
     if (!fp) {
