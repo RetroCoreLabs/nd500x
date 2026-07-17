@@ -82,6 +82,23 @@ int main(int argc, char** argv) {
     if (ndlib_dom_load_to_machine(&m,&c,-1,NULL,NULL,&sa,&dm)) { fprintf(stderr,"load2 fail\n"); return 2; }
 
     fprintf(stderr,"=== DRIVE %s with %d line(s) ===\n", dom, nlines);
+
+    /* Install the console BEFORE the first step.
+     *
+     * The console is installed as a side effect of mon_queue_console_input(), and
+     * this driver used to call that only inside the feed loop - which runs on
+     * STOP_WAIT_INPUT. But MON 503B only suspends when a console EXISTS and is
+     * empty; with NO console it returns 0 bytes + SUCCESS (deliberate: that is
+     * how headless batch programs proceed). So the driver deadlocked on itself:
+     *
+     *   no console -> terminal reads succeed with 0 bytes -> never suspends
+     *              -> never feeds -> never installs a console
+     *
+     * The ND linker span 123,308 zero-byte reads that way. Queuing an empty
+     * string installs the console with nothing in it, so the first terminal read
+     * finds it empty and suspends, and the feed loop can do its job. */
+    mon_queue_console_input("");
+
     int fed = 0;
     size_t con_off = 0;
     long total = 0;

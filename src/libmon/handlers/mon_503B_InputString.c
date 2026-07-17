@@ -36,6 +36,7 @@
 #include "../mon_log.h"
 #include "../mon_errors.h"
 #include "../mon_file_table.h"
+#include <stdbool.h>
 #include "../mon_terminal_state.h"
 #include "../mon_device_io.h"
 #include <stdio.h>
@@ -282,6 +283,22 @@ MonResult mon_dvinst_read(MonContext* ctx, uint32_t device_no,
          * so the host can feed a line and resume, re-reading the whole line.
          * Only applies before the first byte; a line already in the buffer is
          * read to its break character as usual. */
+        /* A console that EXISTS but is empty must SUSPEND, so the host can feed a
+         * line and the CPU retries the whole call.
+         *
+         * NO console configured is deliberately NOT a suspend: it means this run
+         * has no terminal at all (headless/batch), so nobody will ever type and
+         * suspending would deadlock. Batch programs rely on this - NC reads the
+         * terminal and proceeds on the empty result; making no-console suspend
+         * makes the whole NC compile stop with "waiting for input" (measured:
+         * dom_nc_compiler fails exactly that way).
+         *
+         * CONSEQUENCE FOR HARNESSES, worth knowing: with no console installed, a
+         * terminal read returns 0 bytes + SUCCESS forever, and an interactive
+         * program will spin rather than suspend - the ND linker did exactly this,
+         * 123,308 zero-byte reads in one run. A driver that intends to feed input
+         * MUST install a console BEFORE the run (mon_queue_console_input), not
+         * lazily on the first STOP_WAIT_INPUT that then never comes. */
         if (console && console->char_available && !console->char_available(console->context)) {
             mon_log(MON_LOG_DEBUG, MON_ID_503B ": No input on device %u - suspend (wait for line)",
                     device_no);
