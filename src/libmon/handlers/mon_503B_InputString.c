@@ -360,6 +360,27 @@ MonResult mon_dvinst_read(MonContext* ctx, uint32_t device_no,
             }
             mon_log(MON_LOG_DEBUG, MON_ID_503B ": Read %u bytes from file %u, pos=%u",
                     bytes_read, device_no, entry->current_position);
+
+            /* End of file must be SIGNALLED, not reported as a successful read of
+             * zero bytes. SINTRAN's file-system EOF is error 3 (003B) - the same
+             * contract 117B RFILE follows (see commit 01c286e; the authority is
+             * 73B SMAX's own manual text).
+             *
+             * This matters: the ND linker reads its LINKER:INIT command file
+             * through DVINST, one line per call. Returning "success, 0 bytes" at
+             * the end of that file left it with no way to know the file was
+             * finished, so it re-read forever instead of moving on to the
+             * terminal - a silent infinite loop with no error anywhere.
+             *
+             * Only when NOTHING was read: a short final line with no trailing
+             * break character is a successful read, and its EOF is reported on
+             * the NEXT call. */
+            if (bytes_read == 0 && feof(entry->host_file)) {
+                mon_log(MON_LOG_DEBUG, MON_ID_503B ": File %u at end of file", device_no);
+                mon_write_param_word(ctx, ret_count_param_idx, 0);
+                mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
+                return MON_ERROR;
+            }
         } else {
             mon_set_error(ctx, MON_ERR_FILE_NOT_OPEN);  /* 132B No file opened with this number */
             return MON_ERROR;

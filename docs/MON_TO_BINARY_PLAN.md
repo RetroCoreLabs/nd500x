@@ -588,3 +588,142 @@ provided GUEST/LINKER.INIT ("LIST\rSET-ADVANCED-MODE\r") + LINKER.HELP. Executio
 abortion is a SEPARATE blocker, not filename-driven.
 NEXT (carver request drafted): what triggers the "Batch abortion (Yes,No)" prompt in linker-b01.dom,
 how it reads the Yes/No answer, and what it does on each - to drive it to a clean exit / real link.
+
+---
+
+# PART II - RUNNING REAL ND-500 APPLICATIONS (added 2026-07-17)
+
+Phases 0-5 end at "we can compile and link OUR C". Part II is a different goal:
+**run the real ND-500 application suite**, and give the user a way to actually
+USE it. Added at the user's request.
+
+Everything below inherits the Part I standing invariants (assume nothing, cite
+or say unknown, never fabricate a vendor file, document every change for the C#
+side at the time of the change).
+
+## Why this order
+
+`CONVERT-DOMAIN` comes first because it is the KEY that unlocks the rest. Its own
+`.init` file states the purpose, verbatim:
+
+    % This program converts domains and segments from :PSEG/:DSEG/:LINK
+    % format to :DOM/:SEG format. If you need help, press the help key.
+
+LED - the editor we want next - ships ONLY as `:PSEG`/`:DSEG`/`:LINK`
+(`/mnt/d/ND/500/LED/x/led-b03.{pseg,dseg,link}`). We have no `led-b03.dom`. So
+CONVERT-DOMAIN is not a side quest: it is how LED (and any other old-format
+program) becomes runnable at all.
+
+---
+
+## PHASE 6 - CONVERT-DOMAIN: understand it, then run it
+
+Target: `/mnt/d/ND/500/CONVERT-DOMAIN/`
+- `convert-dom-a03.dom`  (339,968 bytes) - the program, ALREADY :DOM, so runnable now
+- `convert-dom-a03.help` (16,159)
+- `convert-dom-a03.init` (144)
+- `in-conv-xx-a03.init`  (16,053)
+- `ND-disk-00037.img`    (1,310,720) - ANOTHER vendor floppy, not yet mined
+
+### 6.1 Static analysis (before running anything)
+- Disassemble `convert-dom-a03.dom` the way `linker-b01.dom.asm` was produced;
+  put the listing next to the binary.
+- Enumerate its MON calls (`grep` the `$0xFFFFFFFFF80000XX` trampolines) and diff
+  that set against what libmon implements. That list IS the Phase 6 work item -
+  the same method that made the linker tractable.
+- Identify its startup file opens (init/help/error-message files), as was done in
+  `/mnt/d/ND/500/nd-linker/linker-b01-startup-filenames.md`.
+
+### 6.2 Run it
+- Sandbox `build/convert_sandbox/` mirroring `build/link_sandbox/`
+  (GUEST/, SYSTEM/, SCRATCH/), with the `.init` and `.help` beside it under the
+  names the program actually opens (watch for the SINTRAN abbreviated-name rules
+  - see `HANDOFF_CSHARP_FILE_TABLE_SINTRAN_SEMANTICS.md`).
+- FINDING, already checked (2026-07-17): `convert-dom-a03.help` is ALREADY 7-bit
+  clean - no bit 7 set, it reads directly as text. The "strip bit 7" hypothesis is
+  NOT needed for this file. Any garbling seen was OUR parity bug, fixed by
+  MON 336B function 12B (commit 558ecc6). Do not add a bit-7 strip without
+  evidence that some other file needs it.
+- Implement whatever MON calls 6.1 turns up. Expect the same defect classes:
+  OUT-parameters not written, EOF not signalled, function-code tables that the
+  YAML defers to but the FULL scanned manual holds.
+
+### 6.3 Learn the :PSEG/:DSEG/:LINK -> :DOM format
+- Drive CONVERT-DOMAIN to convert a KNOWN pair and diff the output against a
+  known-good `:DOM` (we have several) to learn the mapping.
+- Document the format in `/mnt/d/ND/500/` next to the binaries.
+- DONE when: CONVERT-DOMAIN runs to a clean MON 0B LEAVE and emits a `:DOM` we
+  can load.
+
+## PHASE 7 - LED (the editor)
+
+Target: `/mnt/d/ND/500/LED/x/` - `led-b03.pseg` (223,695), `led-b03.dseg`
+(394,525), `led-b03.link` (0 bytes), `description-file.desc` (22,528),
+`scratch-seg-01.dseg`.
+
+- 7.1 Convert `led-b03` to `:DOM` using Phase 6. (If Phase 6 stalls, the fallback
+  is to load `:PSEG`/`:DSEG` directly - see Phase 8.2 - but conversion is the
+  path the vendor intended.)
+- 7.2 Same analysis loop as the linker: disassemble, enumerate MON calls, diff
+  against libmon, implement the gaps.
+- 7.3 LED is a SCREEN editor, so it will exercise paths the linker never did:
+  cursor addressing, function keys, and MON 336B functions beyond 12B
+  (101B set terminal type, 102B escape/local character, 106B character length,
+  4B/6B echo and break strategies). The 336B function table is already recorded
+  in `mon_336B_Terminal.c` - implement from there, and note `16B MGTTY` currently
+  answers 6 (VT100), which LED will believe.
+- DONE when: LED starts, renders a screen, accepts input, edits and saves a file.
+
+## PHASE 8 - A CLI to run ND-500 programs
+
+The emulator can already load and run a `:DOM`; what is missing is a way for a
+HUMAN to use it.
+
+- 8.1 `nd500x run <file>:DOM [args]` - run a domain, console wired to the host
+  terminal, program exit code surfaced. Today this only exists as ad-hoc diag
+  harnesses (`test/diag_*.c`), which are debugging instruments, not a UI.
+- 8.2 If Phase 6 proves the format: `nd500x run <file>:PSEG` loading old-format
+  segments directly, so LED-class programs run without conversion.
+- 8.3 Configuration for the ND-500 program suite: where GUEST/SYSTEM/SCRATCH live,
+  which user, terminal type, the pinned clock, which DDBTABLES variant. Today
+  these are compile-time constants and env vars (`ND500X_PIN_CLOCK`,
+  `ND500X_KEEP_SCRATCH`); they need to be one coherent config.
+  NOTE the real dependency: `GUEST/` is gitignored and `DDBTABLES-G06.VTM` must be
+  re-extracted from `ND-disk-00047.img` on a fresh clone
+  (see memory `sintran-floppy-extraction`). A config/bootstrap step should make
+  that reproducible rather than manual.
+
+## PHASE 9 - Terminal / connectivity
+
+- 9.1 **Host console, rendered correctly.** The linker already emits real VT100
+  (`ESC[2J`, `ESC[1;1H`, `ESC[K`) and it renders in a normal terminal today. The
+  work is making the CLI pass it through cleanly (no extra buffering/escaping) and
+  deciding what happens when stdout is NOT a tty.
+- 9.2 **TCP server mode**: `nd500x serve --port N` so an incoming telnet client or
+  the user's TDV 2200 emulator can connect and drive the program. Needs the
+  console abstraction (`ConsoleIO` in libmon, already an interface) pointed at a
+  socket instead of stdio - that indirection already exists, which makes this
+  cheaper than it looks.
+- 9.3 **TDV 2200 emulator**: the user has one. Once 9.2 exists, point it at the
+  port. `16B MGTTY`/`336B 101B` should then report a Tandberg type instead of
+  VT100 - the DDBTABLES menu lists several (80/83/90/93/100/103/110/113...).
+  UNKNOWN which type the user's emulator implements - ASK, do not guess.
+- 9.4 Telnet negotiation (IAC etc.) is UNSPECIFIED work - decide whether to speak
+  real telnet or raw TCP before building.
+
+## Open questions for the user (do NOT guess these)
+
+1. Which TDV 2200 emulator, and which terminal type does it implement?
+2. Telnet protocol proper, or raw TCP?
+3. Is LED the priority, or is the CLI/serve the priority? Phase 7 and Phases 8-9
+   are independent and can be reordered.
+
+## Known-open items carried from Part I (none blocking)
+
+- `Date: 17. July 1926` - year off by 100 in the linker banner; time correct.
+- `*** WARNING - "LINKER:HHHHH:HHHHH:H"` - mangled name in a warning; string
+  formatting bug, uninvestigated.
+- `317B ExecuteCommand` decodes but executes nothing - why compiled output lands
+  as a 0-byte NRF.
+- `511B DVIO` is the linker's current spin: "implementation incomplete" logged
+  repeatedly while it waits for a command.
