@@ -16,10 +16,41 @@
 #include "../mon_log.h"
 #include "../mon_errors.h"
 
-/* Terminal type reported to programs. Appendix H terminal types: 0 means an
- * ordinary/undefined terminal, which is the safe generic answer for an
- * emulated console (no ND-specific screen/function-key handling assumed). */
-#define MON_TERMINAL_TYPE_GENERIC 0
+/* Terminal type reported to programs.
+ *
+ * This used to return 0 on the assumption that 0 meant "ordinary/undefined
+ * terminal" and was the safe generic answer. That assumption is DISPROVEN: the
+ * ND linker rejects it outright, printing
+ *
+ *     Terminal type 000 is unknown.
+ *     Available terminal types are: ...
+ *     What is your terminal type?
+ *
+ * and then loops on the prompt. 0 is not a valid type.
+ *
+ * 6 = "DEC VT100 (80 columns)". The console bytes end up in a real host
+ * terminal, and every host terminal emulator in practical use speaks VT100 - so
+ * reporting VT100 describes what is actually on the other end of the stream.
+ * (A duller answer such as 2 "Teletype ASR 33" would be safe but would deny the
+ * guest cursor addressing and function keys that the host can honour.)
+ *
+ * EVIDENCE, and its limits - the type->meaning mapping is NOT read from a
+ * manual: Appendix H, which lists the terminal types, is not in the scanned
+ * document set. What we have instead:
+ *   - The linker's own terminal table, DDBTABLES-G06:VTM (extracted from vendor
+ *     floppy ND-disk-00047.img), lists "6: DEC VT100 (80 columns)" in the menu
+ *     it prints at startup. That menu is generated from that file, so 6 is
+ *     valid for the table we actually load.
+ *   - CAVEAT: the type list DIFFERS BETWEEN DDBTABLES VARIANTS. G06 lists
+ *     6/131/132/134/135; another observed variant jumps 3 -> 11 and has NO type
+ *     6 at all (it lists 11/36/52/57/79/91/92/99/105 instead). Under such a
+ *     variant this answer would be rejected the same way 0 is today. Type 2
+ *     ("Teletype ASR 33") appears in every variant seen and is the fallback if
+ *     that ever bites.
+ *
+ * This is an emulator CHOICE, in the same class as the pinned clock - it is not
+ * a claim about what SINTRAN would report for real hardware. */
+#define MON_TERMINAL_TYPE_GENERIC 6   /* DEC VT100 (80 columns) */
 
 MonResult mon_16B_GetTerminalType(MonContext* ctx) {
     if (ctx->arg_count < 2) {

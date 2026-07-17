@@ -1919,8 +1919,8 @@ void mon_register_all_handlers(void) {
         "This I/O multifunction monitor call is used to change the attributes of terminal and terminal access",  /* Description */
         "[I] FunctionCode (INTEGER2): Function code (more details on page 496).\\n[I] ArrayLength (INTEGER2): Length of function parameter array (must be greater than or equal number of input/output parameters specified for function).\\n[IO] ParameterArray (INTEGER2[]): Function parameter array. (More details are given on page 496.)",  /* Parameter details */
         mon_336B_Terminal,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
-        3             /* Param count */
+        MON_STATUS_IN_PROGRESS,    /* Status */
+        4             /* Param count */
     );
     mon_register(
         223,           /* MON number (decimal) */
