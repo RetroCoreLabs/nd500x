@@ -1396,6 +1396,23 @@ uint64_t nd500_string_read_element(Nd500Cpu* cpu, const Nd500StringDescriptor* d
     if (!desc || !cpu) return 0;
     if (index >= desc->element_count) return 0;
 
+    /* BI (bit) arrays are addressed by BIT, not by byte. Per ND-05.009.4 EN
+     * (worked example, "Load bit register 2 ... from the bit array BITA"):
+     *
+     *     byte = base + INT(index/8)
+     *     bit  = 7 - REM(index/8)      "Post indexing always counts the data
+     *                                   elements from the left"
+     *
+     * so element i lives in byte base+i/8 at bit 7-(i%8), MSB first. Treating a
+     * BI element as a whole byte makes an N-element bit array claim N BYTES
+     * instead of N/8 - an 8x overrun. */
+    if (dtype == ND500_DTYPE_BIT) {
+        uint32_t byte_addr = desc->base_address + (index >> 3);
+        uint8_t  bit_no    = (uint8_t)(7 - (index & 7));
+        uint8_t  byte_val  = nd500_read_memory_8(cpu, byte_addr);
+        return (uint64_t)((byte_val >> bit_no) & 1u);
+    }
+
     /* Calculate address using element size for proper data type handling */
     uint32_t element_size = nd500_get_element_size(dtype);
     uint32_t addr = desc->base_address + (index * element_size);
@@ -1408,7 +1425,13 @@ uint64_t nd500_string_read_element(Nd500Cpu* cpu, const Nd500StringDescriptor* d
  */
 uint32_t nd500_get_element_size(Nd500DataType dtype) {
     switch (dtype) {
-        case ND500_DTYPE_BYTE:      return 1;  /* BI uses BYTE width */
+        case ND500_DTYPE_BYTE:      return 1;
+        /* NOTE: ND500_DTYPE_BIT has NO entry here on purpose. A bit is not a
+         * byte and cannot be expressed as a whole-byte element size; BI element
+         * access is special-cased in nd500_string_read_element/write_element,
+         * which address it as byte base+index/8, bit 7-(index%8). The old
+         * comment here claimed "BI uses BYTE width", which silently gave every
+         * BI array an 8x overrun. */
         case ND500_DTYPE_HALFWORD:  return 2;
         case ND500_DTYPE_WORD:      return 4;
         case ND500_DTYPE_FLOAT:     return 4;
@@ -1425,6 +1448,24 @@ void nd500_string_write_element(Nd500Cpu* cpu, const Nd500StringDescriptor* desc
                                 uint32_t index, uint64_t value, Nd500DataType dtype) {
     if (!desc || !cpu) return;
     if (index >= desc->element_count) return;
+
+    /* BI (bit) arrays: read-modify-write a single bit. See the read path for the
+     * ND-05.009.4 citation - byte = base + index/8, bit = 7 - (index%8).
+     *
+     * This is what the ND linker's "bi3 sfill b.0x18" needs: a 64-element BI fill
+     * must clear 8 BYTES, not 64. Filling 64 bytes overran the caller's stack
+     * frame by 56 bytes and zeroed the pointer in b.0x14, so the routine at
+     * 0xB00046D4 then did "setbi r.0x0" through a NULL and took a protect
+     * violation ("No data capability! domain=1 segment=0 vaddr=0x00000000"). */
+    if (dtype == ND500_DTYPE_BIT) {
+        uint32_t byte_addr = desc->base_address + (index >> 3);
+        uint8_t  bit_no    = (uint8_t)(7 - (index & 7));
+        uint8_t  byte_val  = nd500_read_memory_8(cpu, byte_addr);
+        if (value & 1u) byte_val |=  (uint8_t)(1u << bit_no);
+        else            byte_val &= (uint8_t)~(1u << bit_no);
+        nd500_write_memory_8(cpu, byte_addr, byte_val);
+        return;
+    }
 
     uint32_t element_size = nd500_get_element_size(dtype);
     uint32_t addr = desc->base_address + (index * element_size);

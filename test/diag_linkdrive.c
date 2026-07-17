@@ -78,6 +78,10 @@ int main(int argc, char** argv) {
     nd500_machine_init(&m,MEMSZ); nd500_cpu_init(&c,&m); nd500_cpu_reset(&c);
     nd500_mmu_init(&c); nd500_domain_init(&c); mon_init();
     if (!getenv("ND500X_NOLOG")) { mon_log_enable(1); mon_log_set_level(MON_LOG_DEBUG); }
+    /* ND500X_MMULOG=<0..3>: MMU logging. Level 1 (ERRORS) prints the reason a
+     * translation was refused, which is the only way to tell the four distinct
+     * protect-violation causes apart. */
+    if (getenv("ND500X_MMULOG")) nd500_dbg_set_mmu_log_level(atoi(getenv("ND500X_MMULOG")));
     uint32_t sa=0; int dm=0;
     if (ndlib_dom_load_to_machine(&m,&c,-1,NULL,NULL,&sa,&dm)) { fprintf(stderr,"load2 fail\n"); return 2; }
 
@@ -111,7 +115,17 @@ int main(int argc, char** argv) {
          * repeatedly-polled datafield address can be histogrammed from stdout. */
         if (memtrace_spin && fed >= 1) { nd500_dbg_set_memtrace(MEMTRACE_READ); }
         long s=0;
+        /* ND500X_BREAK_PC=<pc>: report registers each time this PC is reached.
+         * The protection violation only happens on the FED path, which the
+         * pre-primed harnesses do not reproduce (they diverge at startup), so the
+         * observation has to happen inside this driver. */
+        uint32_t break_pc = 0;
+        if (getenv("ND500X_BREAK_PC")) break_pc = (uint32_t)strtoul(getenv("ND500X_BREAK_PC"), 0, 0);
         for (; s<maxsteps && m.run_flag; s++) {
+            if (break_pc && c.PC == break_pc) {
+                fprintf(stderr, "[BREAK] PC=%08X instr=%llu B=%08X R=%08X I1=%08X\n",
+                        c.PC, (unsigned long long)c.instruction_count, c.B, c.R, c.I[0]);
+            }
             nd500_cpu_step(&c);
             if (m.run_flag==0 && m.stop_reason!=STOP_NONE) break;
         }
