@@ -49,20 +49,34 @@ void nd500_instr_Sloca(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Read descriptor address and test value (like C# lines 61-62) */
-    uint32_t desc_address = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+    /* Operand 0 IS the string descriptor, in place - its effective address is the
+     * descriptor address, exactly as Smove/Sfill take it. This routine used to
+     * read a VALUE from operand 0 (dereferencing the descriptor's first word) and
+     * treat that as the descriptor address, which is wrong: with the descriptor
+     * {count=7, base=0xB0001D3C} sitting in frame slot b.0x14, it took the count 7
+     * as the descriptor address and read garbage. Operand 1 is the test value. */
+    uint32_t desc_address = fi->operands[0].effective_address;
     uint32_t test_value = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
-    /* Load string descriptor from memory */
-    /* Descriptor format: [base_address(32)] [element_count(32)] */
-    uint32_t base_address = nd500_read_memory_32(cpu, desc_address);
-    uint32_t element_count = nd500_read_memory_32(cpu, desc_address + 4);
+    /* Load string descriptor from memory.
+     *
+     * The field order is [element_count(32)] [base_address(32)] - word0 is the
+     * COUNT, word1 is the BASE. This routine had it BACKWARDS (base first), so it
+     * searched from the count value as if it were an address: with a real
+     * descriptor {count=7, base=0xB0001D3C} it read base=7 and took a protect
+     * violation at vaddr=0x00000007. Every other STRING instruction goes through
+     * nd500_load_string_descriptor(); use it here too rather than re-deriving the
+     * layout. It also gives the correct element size per data type instead of a
+     * hard-coded 1. */
+    Nd500StringDescriptor desc;
+    if (!nd500_load_string_descriptor(cpu, desc_address, false, true, &desc)) {
+        return;
+    }
+    uint32_t base_address = desc.base_address;
+    uint32_t element_count = desc.element_count;
 
     /* String operations use I1 as index register (like C# line 68) */
     uint32_t index = cpu->I[0];
-
-    /* Determine element size - both bit and byte operations use 1 byte in memory */
-    uint32_t element_size = 1;
 
     /* Check for empty string (like C# lines 71-79) */
     if (element_count == 0) {
@@ -84,14 +98,11 @@ void nd500_instr_Sloca(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Search for matching element (like C# lines 94-108) */
     bool found = false;
     while (index < element_count) {
-        /* Read element from string */
-        uint32_t element_address = base_address + (index * element_size);
-        uint32_t element;
+        /* Read element from the string at the descriptor's data type (BI/BY/H/W),
+         * honouring bit addressing for BI. */
+        uint64_t element = nd500_string_read_element(cpu, &desc, index, fi->data_type);
 
-        /* Read byte element */
-        element = nd500_read_memory_8(cpu, element_address);
-
-        if (element == test_value) {
+        if ((uint32_t)element == test_value) {
             /* Found matching element */
             found = true;
             break;

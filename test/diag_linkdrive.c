@@ -125,6 +125,16 @@ int main(int argc, char** argv) {
             if (break_pc && c.PC == break_pc) {
                 fprintf(stderr, "[BREAK] PC=%08X instr=%llu B=%08X R=%08X I1=%08X\n",
                         c.PC, (unsigned long long)c.instruction_count, c.B, c.R, c.I[0]);
+                const char* dmp = getenv("ND500X_BREAK_DUMP");
+                if (dmp) {
+                    uint32_t va = (uint32_t)strtoul(dmp, 0, 0);
+                    fprintf(stderr, "[DUMP] %08X:", va);
+                    for (int _b=0;_b<16;_b++){
+                        uint32_t pa = c.machine->mmu_enabled ? nd500_mmu_translate(&c, va+_b,0,0) : va+_b;
+                        fprintf(stderr, " %02X", (pa!=0xFFFFFFFFu && pa<MEMSZ)? nd500_bus_read8(&m,pa):0);
+                    }
+                    fprintf(stderr, "\n");
+                }
             }
             nd500_cpu_step(&c);
             if (m.run_flag==0 && m.stop_reason!=STOP_NONE) break;
