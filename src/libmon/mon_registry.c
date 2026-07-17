@@ -1472,7 +1472,7 @@ void mon_register_all_handlers(void) {
         "Gets the device type, e.g. terminal, floppy disk, mass-storage file, etc. The monitor call also prov",  /* Description */
         "[I] DeviceNo (INTEGER): Logical device number (1= own terminal). See appendix B.\\n[I] IOFlag (INTEGER): Input or output part. Use 0 for input and 1 for output.\\n[O] DevType (INTEGER): Device type. The numbers below are returned: 0: Unspecified. 1: Terminal. 2: Terminal access device (TAD). 3: Communication channel. 4: Internal block device. 5: Floppy disk drive. 6: Magnetic tape station. 7: Mass-storage file.\\n[O] DevAttr (INTEGER4): Device information (returned in the combined A and D registers. The bits have the following meaning: Bit 0: InByte or OutByte allowed. Bit 1: StartOnInterrupt allowed. Bit 2: DeviceControl allowed. Bit 3: Block calls allowed. Bit 4: ClearDevice available. Bit 5: Reservation not needed. Bit 6: COSMOS remote open file. Bit 10g: NOTS (NET/One Terminal Server) terminal. Bit 11g: MTAD device.",  /* Parameter details */
         mon_263B_GetDeviceType,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         4             /* Param count */
     );
     mon_register_ex(
