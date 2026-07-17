@@ -85,10 +85,21 @@ void nd500_instr_Ifkret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     const uint32_t OFFSET_PREVB = 0;
     const uint32_t OFFSET_RETA  = 4;
 
-    /* STEP 2: Clear K flag (RET behavior, not RETK) */
-    nd500_clear_flag(cpu, ND500_FLAG_K);
-
-    /* STEP 3: Read PREVB and RETA from current stack frame */
+    /* STEP 2: the K flag REMAINS SET across the return.
+     *
+     * ND-05.009.4 EN, "IF K RET" (line 8158): "If the flag bit K is set when the
+     * IF K RET instruction is executed, a subroutine return is performed WITH THE
+     * FLAG BIT REMAINING SET." This is the whole point of the instruction - it is
+     * how an error (K set by a MON call or a failed operation) propagates up a
+     * chain of "MON ...; ifkret" wrapper routines to the caller that finally
+     * checks it.
+     *
+     * This code previously CLEARED K here ("RET behaviour, not RETK"), which
+     * silently swallowed the error after ONE level. The ND linker's OPEN-DOMAIN
+     * reads block 0 of a new domain through four nested ifkret wrappers; with K
+     * cleared, the top caller saw K-clear = "read succeeded", used a garbage
+     * buffer as the domain header, and aborted with error 41B instead of taking
+     * its new-domain path. Do NOT clear K here. */
     uint32_t prev_b = nd500_read_memory_32(cpu, cpu->B + OFFSET_PREVB);
     uint32_t ret_addr = nd500_read_memory_32(cpu, cpu->B + OFFSET_RETA);
 
