@@ -201,10 +201,30 @@ MonResult mon_117B_ReadFromFile(MonContext* ctx) {
      * 4096 bytes of a 23-byte source saw K-set/EXIT-ERROR, treated the source as
      * unreadable, and rejected valid declarations ("IDENTIFIER deleted"). */
     if (bytes_read == 0) {
-        /* Nothing available at the requested position -> genuinely at/past EOF. */
-        mon_log(MON_LOG_DEBUG, MON_ID_117B ": EOF - requested %u bytes at block %u, got 0",
-                num_bytes, block_no);
-        mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
+        /* Nothing at the requested position. SINTRAN distinguishes two cases, and
+         * the distinction is load-bearing:
+         *
+         *  - A RANDOM read (explicit BlockNo >= 0) of a page that is not allocated
+         *    returns "No such page" (022B / 18), NOT "End of file". The ND linker's
+         *    OPEN-DOMAIN reads block 0 of a freshly-created domain and RELIES on
+         *    this: its domain-read routine (linker-b01.dom @B002215C) treats error
+         *    022B as "page absent -> new domain, use a fresh header" and proceeds,
+         *    but treats ANY OTHER error (including 003B) as fatal and aborts the
+         *    command with error 41B. Returning 003B here left A-TEST:DOM empty.
+         *    Confirmed against the SINTRAN III Reference Manual error table:
+         *    022B(018) = "No such page", 003B(003) = "End of file".
+         *
+         *  - A SEQUENTIAL resume (BlockNo == -1) that has run off the end is a
+         *    genuine end-of-file: "End of file" (003B). This is the path NC uses
+         *    when streaming a source file, so it must keep 003B. */
+        if (block_no_signed >= 0) {
+            mon_log(MON_LOG_DEBUG, MON_ID_117B ": No such page - random block %u of file %o has no data",
+                    block_no, file_no);
+            mon_set_error(ctx, MON_ERR_NO_SUCH_PAGE);  /* 022B No such page */
+        } else {
+            mon_log(MON_LOG_DEBUG, MON_ID_117B ": EOF - sequential read at end of file %o", file_no);
+            mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* 003B End of file */
+        }
         return MON_ERROR;
     }    /* Success (full or short read): report the actual bytes transferred back to
      * the caller in the NoOfBytes parameter (arg 4), matching the carve's

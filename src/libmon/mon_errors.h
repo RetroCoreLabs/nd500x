@@ -21,6 +21,8 @@
 /* --- General / file identity ------------------------------------------- */
 #define MON_ERR_BAD_FILE_NUMBER        2    /* 002B Bad file number */
 #define MON_ERR_END_OF_FILE            3    /* 003B End of file */
+#define MON_ERR_NO_SUCH_PAGE          18    /* 022B No such page (random read of an
+                                             * unallocated page - distinct from EOF) */
 #define MON_ERR_DEVICE_NOT_RESERVED    5    /* 005B Device not reserved */
 #define MON_ERR_END_OF_DEVICE         10    /* 012B End of device (timeout) */
 
