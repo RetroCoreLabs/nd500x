@@ -348,6 +348,37 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
     const char* effective_filename = filename;
     const char* effective_filetype = filetype;
 
+    /* SINTRAN "create-on-open" convention: a file name enclosed in double quotes
+     * means "create this file if it does not already exist" (it becomes an indexed
+     * file); WITHOUT quotes the file must already exist. Primary sources:
+     * ND-60.050.06 SINTRAN III Users Guide p1422 ("A file may be created ... by
+     * the @OPEN-FILE ... command ... with the file name surrounded by quotation
+     * marks"), and ND-60.128.5 SINTRAN III Reference Manual ("If the file does not
+     * exist, it is created by giving the name in quotes. It will be an indexed
+     * file.").
+     *
+     * The quotes arrive as literal characters in the name (the ND linker passes
+     * FileName='"A-TEST"' for `OPEN-DOMAIN "A-TEST"`). Strip them so the real file
+     * name is used; the create itself is handled by the write-mode fallback below.
+     * quoted_create records that this open explicitly asked to create. */
+    char unquoted_name[128];
+    bool quoted_create = false;
+    if (filename) {
+        size_t nlen = mon_strlen_sintran(filename);
+        if (nlen >= 2 && filename[0] == '"' && filename[nlen - 1] == '"') {
+            size_t inner = nlen - 2;
+            if (inner < sizeof(unquoted_name)) {
+                memcpy(unquoted_name, filename + 1, inner);
+                unquoted_name[inner] = '\0';
+                effective_filename = unquoted_name;
+                quoted_create = true;
+                mon_log(MON_LOG_DEBUG, "MON OPEN: quoted name '%s' -> create '%s'",
+                        filename, unquoted_name);
+            }
+        }
+    }
+    (void)quoted_create;  /* consumed by the create-fallback below */
+
     /* Handle :TYPE scratch file syntax
      *
      * When filename is just ":TYPE" (e.g., ":NRF"), it means "create a
