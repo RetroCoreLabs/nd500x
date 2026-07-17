@@ -693,30 +693,286 @@ HUMAN to use it.
   (see memory `sintran-floppy-extraction`). A config/bootstrap step should make
   that reproducible rather than manual.
 
+## PHASE 8b - THE SHIPPABLE THING: one binary + one JSON config
+
+**User requirement, verbatim:** "i will want in the end a binary that is the
+nd500x emulator with all its mon call supported, then we need some config files
+to tell where we have everything we need, root folder for file system with users
+under. information on what programs are installed (or maybe found on the system
+user folder)? and options to have multiple users? and both the option to run the
+cli with stdio for cli or as a telnet server" ... "and it needs to be easy to set
+up, so maybe a json file for that config"
+
+This is the DELIVERABLE. Phases 6-10 are how we earn it.
+
+### 8b.1 Model SINTRAN's user/file namespace properly
+
+SINTRAN addresses files as `(USER)NAME:TYPE`. Users own files; `(SYSTEM)` holds
+the installed programs. TODAY nd500x hardwires a single `./GUEST/` directory and
+translates `NAME:TYPE` -> `./GUEST/NAME.TYPE`. That is why everything above runs
+out of one folder and why `build/link_sandbox/` had to be assembled by hand.
+
+Required: a filesystem ROOT with USER directories under it, and path translation
+that honours `(USER)` when present and the current user otherwise. `MON 44B
+GUSER` / `214B GUSNA` already exist in the MON surface for "who am I".
+
+### 8b.2 The config file (JSON)
+
+Sketch - NOT settled, and deliberately mirrors SINTRAN concepts rather than
+inventing new ones:
+
+```json
+{
+  "filesystem": {
+    "root": "/home/ronny/nd500/fs",
+    "defaultUser": "GUEST",
+    "users": ["SYSTEM", "GUEST", "RONNY"],
+    "scratch": "SCRATCH"
+  },
+  "programs": {
+    "discoverIn": "SYSTEM",
+    "commands": {
+      "NC":        "(SYSTEM)NC-A06:DOM",
+      "ND-LINKER": "(SYSTEM)LINKER-B01:DOM",
+      "LED":       "(SYSTEM)LED-B03:DOM",
+      "CONVERT-DOMAIN": "(SYSTEM)CONVERT-DOM-A03:DOM"
+    }
+  },
+  "terminal": { "type": 6 },
+  "clock":    { "pinned": false },
+  "console":  { "mode": "stdio" },
+  "telnet":   { "port": 2323, "bind": "0.0.0.0" }
+}
+```
+
+Design notes, each with a reason:
+- **`programs.discoverIn`**: the user asked "or maybe found on the system user
+  folder?" - YES, prefer discovery. Scanning `(SYSTEM)` for `:DOM` files means
+  installing a program is copying a file, not editing config. Keep the explicit
+  `commands` map only for aliases and overrides (the file is `LINKER-B01:DOM`
+  but the command is `ND-LINKER`).
+- **`terminal.type`**: this is the config-file home for what is currently
+  `ND500X_TERMINAL_TYPE`. It stands in for SINTRAN's `@SET-TERMINAL-TYPE`. 0 =
+  not set = programs ask, which is authentic. Under telnet this should instead
+  come from the negotiated TERMINAL-TYPE (phase 9.3).
+- **`console.mode`**: `stdio` | `telnet`. Both required. Same emulator, different
+  `ConsoleIO` binding - the interface already exists in libmon.
+- **Existing env vars fold in here**: `ND500X_PIN_CLOCK`, `ND500X_KEEP_SCRATCH`,
+  `ND500X_TERMINAL_TYPE`. Env should override the file (handy for tests); the file
+  is the easy-setup path the user asked for.
+- **Bootstrap must be part of setup**: `DDBTABLES-G06:VTM` has to be extracted
+  from `ND-disk-00047.img` (memory `sintran-floppy-extraction`) and `GUEST/` is
+  gitignored. A fresh clone must have a documented, ideally automated, path to a
+  working `fs/` - otherwise "easy to set up" is false.
+
+### 8b.3 Multiple users
+
+The user asked for it. Cheap once 8b.1 is real: users are directories under
+`filesystem.root`. What is NOT free, and must NOT be faked:
+- **Access control.** SINTRAN has user permissions, friends, and public/private
+  access. We would have directories, not permissions. Say so plainly rather than
+  implying protection that is not there.
+- **Login.** `@LOGIN` / `MON 33B` etc. are a separate matter from "which folder
+  do my files live in". UNKNOWN whether any target program cares.
+
+### 8b.4 "All MON calls supported"
+
+Reality check, so this is not mistaken for nearly-done: 261 MON YAMLs exist, ~231
+handlers are registered, and only ~43 are real implementations - and even that
+count is soft, because the `AUTO-GENERATED STUB` markers LAG the code (71B/72B are
+implemented but still marked stub; see the 2026-07-17 YAML backfill).
+
+"All MON calls" is not the bar. **"Every MON call the target programs actually
+issue, verified against a real trace"** is the bar, and it is reachable: the
+linker needed ~20. The method that works, proven three times now:
+
+1. Disassemble the `:DOM`, grep the `$0xFFFFFFFFF80000XX` trampolines -> the
+   exact call set.
+2. Diff against libmon.
+3. Implement, then RUN and compare against a trace - never trust the status label.
+
 ## PHASE 9 - Terminal / connectivity
 
-- 9.1 **Host console, rendered correctly.** The linker already emits real VT100
-  (`ESC[2J`, `ESC[1;1H`, `ESC[K`) and it renders in a normal terminal today. The
-  work is making the CLI pass it through cleanly (no extra buffering/escaping) and
-  deciding what happens when stdout is NOT a tty.
-- 9.2 **TCP server mode**: `nd500x serve --port N` so an incoming telnet client or
-  the user's TDV 2200 emulator can connect and drive the program. Needs the
-  console abstraction (`ConsoleIO` in libmon, already an interface) pointed at a
-  socket instead of stdio - that indirection already exists, which makes this
-  cheaper than it looks.
-- 9.3 **TDV 2200 emulator**: the user has one. Once 9.2 exists, point it at the
-  port. `16B MGTTY`/`336B 101B` should then report a Tandberg type instead of
-  VT100 - the DDBTABLES menu lists several (80/83/90/93/100/103/110/113...).
-  UNKNOWN which type the user's emulator implements - ASK, do not guess.
-- 9.4 Telnet negotiation (IAC etc.) is UNSPECIFIED work - decide whether to speak
-  real telnet or raw TCP before building.
+**The client is known: RetroTerm** (`/mnt/e/Dev/Ronny/RetroTerm`, C# / .NET 9 /
+Avalonia, 2069 tests). This ANSWERS two questions that were open when Part II was
+first drafted - they are facts now, not guesses:
+
+- **Terminal types it implements:** Tandberg **TDV1200, TDV2215, TDV2200/9**
+  FULLY; **VT100 only PARTIAL** (VT220/xterm planned). Consequence: our
+  `16B MGTTY` currently answers **6 (DEC VT100)**, which targets RetroTerm's
+  WEAKEST emulation. A TDV type is the better target for this client.
+- **Protocol: real Telnet (RFC 854)**, with **NAWS** and **TERMINAL-TYPE**
+  negotiation (also SSH). NOT raw TCP. So Phase 9.4 is decided: we speak real
+  telnet, including IAC handling.
+
+### 9.1 Host console, rendered correctly
+The linker already emits real VT100 (`ESC[2J`, `ESC[1;1H`, `ESC[K`) and renders
+in a normal terminal today. Work: make the CLI pass it through cleanly, and
+decide behaviour when stdout is not a tty.
+
+### 9.2 TCP/telnet server mode - `nd500x serve --port N`
+Point libmon's `ConsoleIO` (already an interface) at a socket instead of stdio;
+that indirection existing is what makes this cheap.
+
+**Prior art to read first - do NOT reinvent the negotiation:**
+`/mnt/e/Dev/Ronny/RetroTerm/src/RetroTerm.Core.Protocols.TelnetServer/`
+- `Telnet/TelnetNegotiator.cs` - sends `WILL ECHO`, `DO NAWS`, parses
+  `IAC SB TERMINAL_TYPE IS "..." IAC SE`
+- `Telnet/TelnetCodec.cs` - the IAC/option constants
+- `Telnet/TelnetServer.cs`, `TelnetSession.cs`
+- `Telnet/ITelnetApp.cs` - an interface for a telnet-HOSTED app
+- `Utilities/TDVCapabilityChecker.cs`, `TDVResponseValidator.cs`
+
+nd500x is C, so this is a REFERENCE for the wire contract, not code to link.
+NOTE for the C# side: RetroCore could instead implement `ITelnetApp` and be
+hosted by RetroTerm's existing server - that is a genuinely different and cheaper
+option for that emulator, worth raising in the C# handoff.
+
+### 9.3 Terminal type: let TELNET drive MON 16B MGTTY
+The elegant part. RetroTerm's telnet client advertises a configurable
+`TerminalType` string (`TelnetConnection.cs:54`, default `"VT100"`; the codebase
+also carries `"TDV2200"`, `"TDV1200"`, `"TDV2215"`, `"TDV2115"`). Our server
+already has to parse TERMINAL-TYPE for telnet. So:
+
+    telnet TERMINAL-TYPE string  ->  ND terminal type number  ->  16B MGTTY answer
+
+instead of a hard-coded constant. Proposed mapping, from the terminal menu that
+`DDBTABLES-G06:VTM` itself prints (so these numbers are evidence, not invention):
+
+| RetroTerm advertises | ND type | DDBTABLES-G06 menu entry |
+|----------------------|---------|--------------------------|
+| `VT100`    | 6   | DEC VT100 (80 columns) |
+| `TDV2115`  | 3   | Tandberg TDV 2115 |
+| `TDV2200`  | 53 or 80 or 83 | TDV 2200/9 ND-NOTIS / ND-NET / V2 ND-NOTIS |
+| `TDV1200`  | 110 or 113 | TDV 1200/1 ND-NET / ND-NOTIS |
+| `TDV2215`  | **36** | **NOT in the G06 menu** - see caveat |
+
+**UNKNOWN, must be resolved before implementing the mapping:**
+- **ND-NET vs ND-NOTIS**: the TDV entries come in pairs and the distinction is not
+  understood. Do NOT pick one arbitrarily.
+- **TDV2215 = 36 is NOT in DDBTABLES-G06**, whose list jumps 3 -> 6 -> 53. Type 36
+  appears in a DIFFERENT DDBTABLES variant. So the valid type set depends on WHICH
+  DDBTABLES is loaded - the mapping must be validated against the loaded table, not
+  hard-coded. (This is the same variant-divergence caveat recorded in
+  `mon_16B_GetTerminalType.c`.)
+- Appendix H, which would define the type numbers authoritatively, is NOT in the
+  scanned document set. The numbers above are read from the DDBTABLES menu only.
+
+### 9.4 Telnet specifics - DECIDED
+Real telnet (RFC 854): IAC handling, `WILL ECHO`, `DO NAWS`, TERMINAL-TYPE.
+NAWS gives the window size, which is real information the ND side could use.
+Interaction to think about: telnet `WILL ECHO` (server echoes) vs SINTRAN's own
+echo strategy (MON 3B SetEcho / 336B function 4B) - two echo models that must not
+both apply, or every keystroke doubles.
+
+## PHASE 10 - THE POINT OF ALL THIS: a self-hosted C workflow
+
+**The user's question, verbatim: "LED will let me edit c files and then i can
+compile and run them?"**
+
+**Yes - that is exactly the end state, and every piece of it already exists as a
+real 1988-89 ND binary.** Nothing here needs writing from scratch; it needs the
+MON contract underneath it to be honest. The loop is:
+
+    LED          edit  A:C           (/mnt/d/ND/500/LED/x, needs Phase 6 conversion)
+      |
+    NC           compile A:C -> A:NRF   (nc-a06.dom, works today - Phase 1)
+      |  (NC internally invokes CAT-500 via MON 317B)
+      |
+    ND-LINKER    OPEN-DOMAIN / LOAD A:NRF + libs -> A:DOM   (linker-b01.dom - Phase 3)
+      |
+    RUN A:DOM    the emulator loads and runs it              (works today)
+      |
+    back to LED
+
+All four are ND-500 programs talking to each other through SINTRAN. The emulator
+does not need to BE SINTRAN - it needs to answer MON calls the way SINTRAN would.
+
+### The one architectural gap: nothing can invoke anything
+
+Today the emulator loads exactly ONE domain and runs it to `MON 0B LEAVE`. There
+is no `@`-prompt, so there is no way to go from LED to NC to the linker without
+restarting the process by hand. Two things are missing, and they are the same
+thing seen from two sides:
+
+1. **A user-facing command layer** - SINTRAN's `@` prompt. `@LED`, `@NC A`,
+   `@ND-LINKER`, `@A` to run a domain.
+2. **MON 317B ExecuteCommand** - how a PROGRAM invokes another program.
+   ALREADY OBSERVED, ALREADY STUBBED: it decodes `NC-A` / `CAT-CAT5-B` but
+   executes nothing, and *that is why compiled output lands as a 0-byte NRF*.
+   NC issues 317B expecting CAT-500 to run; nothing runs; NC writes nothing.
+
+Both need the SAME dispatcher: "given a command line, find the domain, load it,
+run it, return its status".
+
+### Design decision to make (do not default into it silently)
+
+- **(a) Emulate the real SINTRAN command processor.** Faithful, and it is carved
+  material (L07). But it is an OPERATING SYSTEM - user accounts, RT, spooling,
+  the whole datafield world. Enormous, and mostly irrelevant to compiling C.
+- **(b) A HOST-side dispatcher in nd500x** that presents an `@`-style prompt,
+  resolves a command to a `:DOM`, loads and runs it, and returns to the prompt.
+  The guest programs cannot tell the difference as long as the MON contract holds
+  - which is the same bet the whole project already makes.
+
+**Recommendation: (b).** We are not writing SINTRAN; we are providing the MON
+surface it exposes. (b) is a few hundred lines against an emulator that already
+loads domains. (a) is a research project. Revisit only if a program turns out to
+need real SINTRAN command semantics we cannot fake.
+
+### What Phase 10 actually requires
+
+1. **Program lifecycle**: load domain -> run -> `LEAVE` returns to the dispatcher
+   -> load the next. Today `LEAVE` ends the process.
+2. **State that must PERSIST across programs** (this is the subtle part):
+   - the open-file table and `GUEST/` contents - already persistent, this is how
+     A:C survives from LED to NC
+   - terminal state (echo/break strategy, 8-bit mode, escape inhibit) - per
+     device, must not reset between programs
+   - the command buffer (device 0) - each program gets ITS arguments, i.e. the
+     dispatcher must SET it per invocation, exactly as SINTRAN does
+     (see `HANDOFF_CSHARP_FILE_TABLE_SINTRAN_SEMANTICS.md` item 2)
+3. **317B wired to the dispatcher**, so NC->CAT-500 works and the 0-byte NRF bug
+   dies.
+4. **Scratch file discipline** across programs (`ND500X_KEEP_SCRATCH` exists).
+
+### Sequencing (the user's own framing: "after we have all the mon calls implemented and tested")
+
+Correct order, and the reason it is correct: a dispatcher on top of a dishonest
+MON layer would just relocate the bugs. Everything found today
+(`smove`, MAGTP fn 0, 336B fn 12B, 503B EOF) was a MON/CPU contract defect that
+looked like an application bug. So:
+
+    Phases 0-5   the MON contract is honest for NC + linker      <- mostly done
+    Phase 6      CONVERT-DOMAIN (unlocks old-format programs)
+    Phase 7      LED (proves the contract under a SCREEN program)
+    Phase 8-9    CLI + telnet/RetroTerm (the human's seat)
+    Phase 10     the dispatcher, 317B, and the loop closes       <- self-hosting
+
+Phase 10 is LAST because it is the payoff, not the foundation.
+
+### DONE, for the whole project
+
+Sitting in RetroTerm, connected over telnet to `nd500x serve`: type `@LED`, edit a
+C file, exit, `@NC` it, `@ND-LINKER` it, run the result - and see its output. On
+emulated 1989 hardware, with the vendor's own toolchain.
 
 ## Open questions for the user (do NOT guess these)
 
-1. Which TDV 2200 emulator, and which terminal type does it implement?
-2. Telnet protocol proper, or raw TCP?
-3. Is LED the priority, or is the CLI/serve the priority? Phase 7 and Phases 8-9
-   are independent and can be reordered.
+RESOLVED 2026-07-17 - the client is RetroTerm (`/mnt/e/Dev/Ronny/RetroTerm`):
+- ~~Which TDV emulator, and which terminal type?~~ -> TDV1200 / TDV2215 /
+  TDV2200/9 fully implemented; VT100 only partial. See Phase 9.3.
+- ~~Telnet proper or raw TCP?~~ -> real Telnet (RFC 854), NAWS + TERMINAL-TYPE.
+  See Phase 9.4.
+
+STILL OPEN:
+1. **Priority order.** Phase 7 (LED) and Phases 8-9 (CLI/serve) are independent.
+   Which first?
+2. **Which TDV model** is the default target? TDV2200/9 is the flagship; 1200 and
+   2215 are also fully implemented in RetroTerm.
+3. **ND-NET vs ND-NOTIS** - the TDV types come in pairs and we do not know the
+   difference. Needed before the 9.3 mapping is real.
+4. **Phase 10 dispatcher: (a) or (b)?** Recommendation is (b), host-side.
 
 ## Known-open items carried from Part I (none blocking)
 

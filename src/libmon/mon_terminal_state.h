@@ -85,7 +85,11 @@ typedef struct {
     int32_t break_strategy;     /* Current break strategy */
     int32_t echo_strategy;      /* Current echo strategy */
     uint32_t max_chars;         /* Maximum characters before auto-break */
-    bool eight_bit_io;          /* 8-bit I/O mode (TerminalFunction 112) */
+    bool eight_bit_io;          /* 8-bit I/O mode (336B function 12B) */
+    int32_t terminal_type;      /* SINTRAN terminal type (16B MGTTY / 17B MSTTY,
+                                 * 336B function 101B). 0 = NOT SET: programs
+                                 * needing VTM then ASK the user. Set on a real
+                                 * system with @SET-TERMINAL-TYPE. */
     BitTable128 user_break_table;  /* User-defined break table (strategy 7 AND 8) */
     BitTable128 user_echo_table;   /* User-defined echo table (strategy 7 AND 8) */
 
@@ -155,6 +159,12 @@ const BitTable128* mon_get_user_echo_table(uint32_t device_no);
 /* 8-bit I/O mode (TerminalFunction 112) */
 void mon_set_eight_bit_io(uint32_t device_no, bool enabled);
 bool mon_get_eight_bit_io(uint32_t device_no);
+
+/* SINTRAN terminal type for a device (16B MGTTY reads, 17B MSTTY and 336B
+ * function 101B write). 0 means "not set" - programs that need VTM ask the user,
+ * which is real SINTRAN behaviour, not a fault. */
+void mon_set_terminal_type(uint32_t device_no, int32_t type);
+int32_t mon_get_terminal_type(uint32_t device_no);
 
 /* ESCAPE (user-break) control - MON 71B DESCF / 72B EESCF and the
  * ENABLE-ESCAPE / DISABLE-ESCAPE commands. escape ENABLED is the default. */

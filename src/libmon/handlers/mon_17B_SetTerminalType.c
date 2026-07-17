@@ -16,10 +16,14 @@
 #include "../mon.h"
 #include "../mon_log.h"
 #include "../mon_errors.h"
+#include "../mon_terminal_state.h"
 
 MonResult mon_17B_SetTerminalType(MonContext* ctx) {
-    /* The emulated console has no ND-specific terminal-type behaviour to
-     * configure, so accept and ignore the requested type. Success no-op. */
+    /* This is SINTRAN's @SET-TERMINAL-TYPE mechanism at the MON level: MSTTY
+     * writes the per-terminal type, 16B MGTTY reads it back. It used to accept
+     * and ignore, so set->get did not round-trip and a program could not
+     * configure its own terminal - which matters because a program that reads
+     * type 0 (not set) asks the user instead. */
     if (ctx->arg_count < 2) {
         mon_log(MON_LOG_WARN, MON_ID_17B ": Missing parameters (need 2, got %u)",
                 ctx->arg_count);
@@ -27,8 +31,13 @@ MonResult mon_17B_SetTerminalType(MonContext* ctx) {
         return MON_ERROR;
     }
 
+    uint32_t device_no = mon_read_param_word(ctx, 0);
+    uint32_t type      = mon_read_param_word(ctx, 1);
     MON_LOG_IN_WORD(ctx, 0, "DeviceNumber");
     MON_LOG_IN_WORD(ctx, 1, "TerminalType");
+
+    if (device_no == 0) device_no = 1;  /* own terminal */
+    mon_set_terminal_type(device_no, (int32_t)type);
 
     mon_set_success(ctx);
     return MON_SUCCESS;

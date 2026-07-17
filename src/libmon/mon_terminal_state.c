@@ -372,7 +372,9 @@ const BitTable128* mon_get_user_echo_table(uint32_t device_no) {
 }
 
 /* ============================================================
- * 8-bit I/O Mode (TerminalFunction 112)
+ * 8-bit I/O Mode (336B function 12B - "Set/reset 8-bit unmodified
+ * input and output", ND-860228.2 EN p504. NOT function 112B, which
+ * is "set half or full duplex".)
  * ============================================================ */
 
 void mon_set_eight_bit_io(uint32_t device_no, bool enabled) {
@@ -392,6 +394,36 @@ bool mon_get_eight_bit_io(uint32_t device_no) {
     }
     TerminalState* state = &terminal_states[device_no];
     return state->eight_bit_io;
+}
+
+/* ============================================================
+ * SINTRAN terminal type (16B MGTTY reads, 17B MSTTY / 336B 101B write)
+ *
+ * On a real system the terminal type lives in SINTRAN's per-terminal
+ * datafield and is set with the @SET-TERMINAL-TYPE command. It is
+ * SINTRAN state, not a property of the program.
+ *
+ * 0 means NOT SET. A program that needs VTM and reads 0 will ASK the
+ * user ("Terminal type 000 is unknown. / What is your terminal type?").
+ * That is correct SINTRAN behaviour - do NOT treat it as a defect and
+ * do NOT paper over it by inventing a type inside MGTTY.
+ * ============================================================ */
+
+void mon_set_terminal_type(uint32_t device_no, int32_t type) {
+    if (device_no >= MAX_TERMINAL_DEVICES) {
+        return;
+    }
+    TerminalState* state = &terminal_states[device_no];
+    state->initialized = true;
+    state->terminal_type = type;
+    mon_log(MON_LOG_DEBUG, "Terminal type set to %d for device %u", type, device_no);
+}
+
+int32_t mon_get_terminal_type(uint32_t device_no) {
+    if (device_no >= MAX_TERMINAL_DEVICES) {
+        return 0;
+    }
+    return terminal_states[device_no].terminal_type;
 }
 
 /* ESCAPE control (SINTRAN DFLAG.5IESC). escape_inhibited == !enabled. */
