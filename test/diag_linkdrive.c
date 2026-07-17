@@ -121,10 +121,16 @@ int main(int argc, char** argv) {
          * observation has to happen inside this driver. */
         uint32_t break_pc = 0;
         if (getenv("ND500X_BREAK_PC")) break_pc = (uint32_t)strtoul(getenv("ND500X_BREAK_PC"), 0, 0);
+        /* ND500X_CALLTRACE_LO/HI: within [instr LO,HI], print PC whenever it lands
+         * OUTSIDE the previous instruction's fall-through by more than a page - a
+         * cheap call/jump tracer to map a handler's control flow on the fed path. */
+        static uint64_t ct_lo=0, ct_hi=0; static uint32_t prev_pc=0;
+        if (getenv("ND500X_CALLTRACE_LO")) ct_lo=strtoull(getenv("ND500X_CALLTRACE_LO"),0,0);
+        if (getenv("ND500X_CALLTRACE_HI")) ct_hi=strtoull(getenv("ND500X_CALLTRACE_HI"),0,0);
         for (; s<maxsteps && m.run_flag; s++) {
             if (break_pc && c.PC == break_pc) {
-                fprintf(stderr, "[BREAK] PC=%08X instr=%llu B=%08X R=%08X I1=%08X\n",
-                        c.PC, (unsigned long long)c.instruction_count, c.B, c.R, c.I[0]);
+                fprintf(stderr, "[BREAK] PC=%08X instr=%llu B=%08X R=%08X I1=%08X ST1=%08X\n",
+                        c.PC, (unsigned long long)c.instruction_count, c.B, c.R, c.I[0], c.ST1);
                 const char* dmp = getenv("ND500X_BREAK_DUMP");
                 if (dmp) {
                     uint32_t va = (uint32_t)strtoul(dmp, 0, 0);
@@ -135,6 +141,12 @@ int main(int argc, char** argv) {
                     }
                     fprintf(stderr, "\n");
                 }
+            }
+            if (ct_hi && c.instruction_count>=ct_lo && c.instruction_count<=ct_hi) {
+                int32_t d = (int32_t)(c.PC - prev_pc);
+                if (d> 8 || d< -4) fprintf(stderr,"[CT %llu] %08X -> %08X\n",
+                    (unsigned long long)c.instruction_count, prev_pc, c.PC);
+                prev_pc = c.PC;
             }
             nd500_cpu_step(&c);
             if (m.run_flag==0 && m.stop_reason!=STOP_NONE) break;
