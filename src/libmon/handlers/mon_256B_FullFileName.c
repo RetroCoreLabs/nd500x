@@ -38,12 +38,23 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Read input strings. FileType (arg 2) is ND-100-only; read it if present. */
+    /* Read the abbreviated name. On ND-500 a STR argument is a [length:4][ptr:4]
+     * descriptor, which is how the ND linker passes it: for `OPEN-DOMAIN "A-TEST"`
+     * arg 0 is {len=64, ptr-> "A-TEST:DOM'"}. Reading it INLINE (mon_read_sintran_
+     * string) read the descriptor's own first byte - the high byte of the length,
+     * 0x00 - as a terminator and yielded an EMPTY name, so DEABF returned "no such
+     * file" and the linker aborted OPEN-DOMAIN with error 41B. Read the descriptor
+     * form first; fall back to inline only if the descriptor is not valid, so a
+     * caller that passes an inline string still works. */
     char abbrev_name[65];
     char file_type[5] = {0};
-    mon_read_sintran_string(ctx, 0, abbrev_name, sizeof(abbrev_name));
+    if (mon_read_descriptor_string(ctx, 0, abbrev_name, sizeof(abbrev_name)) < 0) {
+        mon_read_sintran_string(ctx, 0, abbrev_name, sizeof(abbrev_name));
+    }
     if (ctx->arg_count >= 3) {
-        mon_read_sintran_string(ctx, 2, file_type, sizeof(file_type));
+        if (mon_read_descriptor_string(ctx, 2, file_type, sizeof(file_type)) < 0) {
+            mon_read_sintran_string(ctx, 2, file_type, sizeof(file_type));
+        }
     }
 
     uint32_t output_addr = ctx->arg_addresses[1];
@@ -105,12 +116,22 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
         }
     }
 
-    /* Write full name to output with SINTRAN string terminator (0x27). */
+    /* Write the full name to the OUTPUT argument. On ND-500 arg 1 is also a
+     * [length:4][ptr:4] descriptor, so the bytes go to the descriptor's POINTER,
+     * not to the descriptor address itself. Writing to the descriptor address
+     * corrupted the descriptor; the linker then read its "full name" through a
+     * garbage pointer and took a page fault. Terminate with 0x27 (apostrophe).
+     * Fall back to writing inline at the arg address if arg 1 is not a valid
+     * descriptor (an inline caller). */
+    uint32_t out_len = ctx->read_word ? ctx->read_word(ctx->cpu, output_addr) : 0;
+    uint32_t out_ptr = ctx->read_word ? ctx->read_word(ctx->cpu, output_addr + 4) : 0;
+    uint32_t write_at = (out_len != 0 && out_len <= 10000 && out_ptr != 0)
+                        ? out_ptr : output_addr;
     size_t len = strlen(full_name);
     for (size_t i = 0; i < len; i++) {
-        ctx->write_byte(ctx->cpu, output_addr + (uint32_t)i, (uint8_t)full_name[i]);
+        ctx->write_byte(ctx->cpu, write_at + (uint32_t)i, (uint8_t)full_name[i]);
     }
-    ctx->write_byte(ctx->cpu, output_addr + (uint32_t)len, 0x27);
+    ctx->write_byte(ctx->cpu, write_at + (uint32_t)len, 0x27);
 
     mon_log(MON_LOG_DEBUG, MON_ID_256B ": OUT: FullName='%s'", full_name);
 
