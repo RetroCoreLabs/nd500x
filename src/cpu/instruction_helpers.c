@@ -1429,23 +1429,27 @@ void nd500_string_write_element(Nd500Cpu* cpu, const Nd500StringDescriptor* desc
     uint32_t element_size = nd500_get_element_size(dtype);
     uint32_t addr = desc->base_address + (index * element_size);
 
+    /* base_address comes from the string descriptor and is a VIRTUAL address, so
+     * these must go through the translating nd500_write_memory_* helpers - the
+     * matching read path (nd500_read_value_at_address) already does. Writing
+     * straight to the bus sent the untranslated address past physical memory and
+     * the store was silently dropped, so every string move was a no-op. */
     switch (dtype) {
         case ND500_DTYPE_BYTE:
-            nd500_bus_write8(cpu->machine, addr, (uint8_t)(value & 0xFF));
+            nd500_write_memory_8(cpu, addr, (uint8_t)(value & 0xFF));
             break;
         case ND500_DTYPE_HALFWORD:
-            nd500_bus_write16(cpu->machine, addr, (uint16_t)(value & 0xFFFF));
+            nd500_write_memory_16(cpu, addr, (uint16_t)(value & 0xFFFF));
             break;
         case ND500_DTYPE_WORD:
         case ND500_DTYPE_FLOAT:
-            nd500_bus_write32(cpu->machine, addr, (uint32_t)(value & 0xFFFFFFFF));
+            nd500_write_memory_32(cpu, addr, (uint32_t)(value & 0xFFFFFFFF));
             break;
         case ND500_DTYPE_DOUBLEWORD:
-            nd500_bus_write32(cpu->machine, addr, (uint32_t)((value >> 32) & 0xFFFFFFFF));
-            nd500_bus_write32(cpu->machine, addr + 4, (uint32_t)(value & 0xFFFFFFFF));
+            nd500_write_memory_64(cpu, addr, value);
             break;
         default:
-            nd500_bus_write8(cpu->machine, addr, (uint8_t)(value & 0xFF));
+            nd500_write_memory_8(cpu, addr, (uint8_t)(value & 0xFF));
             break;
     }
 }
