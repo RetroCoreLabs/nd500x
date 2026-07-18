@@ -451,9 +451,15 @@ int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_
         is_scratch = (strcasecmp(parsed_user, "SCRATCH") == 0);
     }
 
-    /* Translate SINTRAN path to host path */
+    /* Translate SINTRAN path to host path. For a LOOKUP (opening an existing
+     * file) apply the verified GFILI own-directory-then-(SYSTEM) fallback; for a
+     * CREATE (quoted name or scratch ":TYPE") stay in the own/named directory so
+     * the new file is not shadowed by a same-named SYSTEM file. */
     char host_path[256];
-    if (mon_translate_path(effective_filename, effective_filetype, host_path, sizeof(host_path)) != 0) {
+    int xlate = (quoted_create || is_scratch)
+        ? mon_translate_path(effective_filename, effective_filetype, host_path, sizeof(host_path))
+        : mon_translate_path_lookup(effective_filename, effective_filetype, host_path, sizeof(host_path));
+    if (xlate != 0) {
         /* Fallback to simple path construction */
         if (effective_filetype && effective_filetype[0]) {
             snprintf(host_path, sizeof(host_path), "%s.%s", effective_filename, effective_filetype);

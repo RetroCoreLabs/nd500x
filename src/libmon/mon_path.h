@@ -71,6 +71,20 @@ int mon_translate_path(const char* sintran_name, const char* sintran_type,
                        char* host_path, size_t max_len);
 
 /**
+ * Resolve a SINTRAN name for LOOKUP (opening an existing file), applying the
+ * verified GFILI fallback: search the caller's own directory first, and if the
+ * file is not found there AND no (USER) was named, retry under user SYSTEM.
+ * On success host_path is set to a path that exists (own or SYSTEM); if the file
+ * is found in neither, host_path holds the own-directory path (so create/error
+ * paths behave as before). Suppressed when a user is named or for SCRATCH- names.
+ * Use mon_translate_path (not this) for creates - the fallback is lookup-only.
+ *
+ * Returns: 0 on success (path built), -1 on error (invalid input/buffer).
+ */
+int mon_translate_path_lookup(const char* sintran_name, const char* sintran_type,
+                              char* host_path, size_t max_len);
+
+/**
  * Ensure directory exists, creating if necessary.
  *
  * Creates parent directories as needed (like mkdir -p).

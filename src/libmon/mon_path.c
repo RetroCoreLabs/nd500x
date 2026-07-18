@@ -261,6 +261,60 @@ int mon_translate_path(const char* sintran_name, const char* sintran_type,
     return 0;
 }
 
+int mon_translate_path_lookup(const char* sintran_name, const char* sintran_type,
+                              char* host_path, size_t max_len) {
+    /* Primary resolution: the caller's own (or an explicitly named) directory. */
+    if (mon_translate_path(sintran_name, sintran_type, host_path, max_len) != 0) {
+        return -1;
+    }
+    if (access(host_path, F_OK) == 0) {
+        return 0;  /* found in own/named directory - no fallback needed */
+    }
+
+    /* SINTRAN GFILI "unqualified open" fallback, byte-verified against carve
+     * 006-S3FS (GFILI @057173B -> GOBJI @056326B twice: own scan, then a SYSTEM
+     * scan via GSYSI @055540B; ND-60.050.06 Users Guide L1720-1724). Rule: a name
+     * NOT found in the caller's own directory is retried under user SYSTEM - BUT
+     * only when NO user was named. GFILI zeroes its ,B40 gate when the spec's
+     * first char is '(' (a (USER) prefix) and then skips the fallback. The
+     * friend/access check (GFIAC) is a SEPARATE post-resolution stage, not part
+     * of this lookup, so it is not modelled here. SYSTEM is modelled as a fixed
+     * directory (the real resolver names it via GSYSI->GMUSI). */
+    char user[SINTRAN_MAX_USER + 1] = {0};
+    char name[SINTRAN_MAX_NAME + 1] = {0};
+    char ext[SINTRAN_MAX_TYPE + 1] = {0};
+    if (mon_parse_sintran_name(sintran_name, user, sizeof(user),
+                               name, sizeof(name), ext, sizeof(ext)) != 0) {
+        mon_strcpy_sintran(name, sintran_name, sizeof(name));
+    }
+    if (user[0] != '\0') {
+        return 0;  /* a user was named -> only that directory is searched */
+    }
+    if (strncmp(name, "SCRATCH-", 8) == 0) {
+        return 0;  /* scratch-routed name -> not a SYSTEM candidate */
+    }
+
+    /* Retry under (SYSTEM). Reuse the primary translator with an explicit prefix. */
+    char system_spec[SINTRAN_MAX_PATH];
+    if (snprintf(system_spec, sizeof(system_spec), "(SYSTEM)%s", name)
+        >= (int)sizeof(system_spec)) {
+        return 0;  /* too long - keep the own-dir path for error reporting */
+    }
+    const char* type_for_sys = ext[0] ? ext : sintran_type;
+    char sys_path[SINTRAN_MAX_PATH];
+    if (mon_translate_path(system_spec, type_for_sys, sys_path, sizeof(sys_path)) == 0
+        && access(sys_path, F_OK) == 0) {
+        mon_strcpy_sintran(host_path, sys_path, max_len);
+        mon_log(MON_LOG_DEBUG,
+                "SINTRAN SYSTEM fallback: '%s' not in own dir -> '%s'",
+                sintran_name, host_path);
+        return 0;
+    }
+
+    /* Not found anywhere: keep the own-directory path (for create/error paths). */
+    return 0;
+}
+
 /* ============================================================
  * Directory Creation
  * ============================================================ */

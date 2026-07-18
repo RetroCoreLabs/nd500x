@@ -87,7 +87,12 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
     }
     char host_path[SINTRAN_MAX_PATH];
     int exists = 0;
-    if (mon_translate_path(sintran_for_xlate, use_type, host_path, sizeof(host_path)) == 0) {
+    /* Resolve for lookup: own directory first, then the SINTRAN (SYSTEM)
+     * fallback for an unqualified name (verified GFILI behaviour, carve
+     * 006-S3FS). mon_translate_path_lookup leaves host_path on the own-directory
+     * path when the file is found in neither, so the not-found (create) path is
+     * unchanged. */
+    if (mon_translate_path_lookup(sintran_for_xlate, use_type, host_path, sizeof(host_path)) == 0) {
         exists = (access(host_path, F_OK) == 0);
     }
 

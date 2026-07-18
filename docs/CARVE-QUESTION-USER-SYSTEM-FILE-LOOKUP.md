@@ -1,5 +1,28 @@
 # Carve question: does SINTRAN III fall back from the current user to (SYSTEM) on an unqualified OPEN?
 
+> **ANSWERED + IMPLEMENTED 2026-07-18.** Verdict: **option (B)** - own-directory
+> first, then an automatic `(SYSTEM)` fallback, performed **inside SINTRAN's
+> resolver (`GFILI`), not the linker**. Triggered on error 56; **suppressed when a
+> `(USER)` is named** (`GFILI` zeroes its `,B40` gate when the spec's first char
+> is `(`). `GFIAC` (friend/access) is confirmed NOT part of `GFILI` - it is a
+> separate post-resolution permission stage, so it is not modelled in the lookup.
+> Carve evidence: `006-S3FS.asm` GFILI@057173B -> GOBJI@056326B (own scan 057263,
+> SYSTEM scan 057443 via GSYSI@055540B); fallback gate 057414B on `,B40 == -1`.
+> Confirmed by ND-60.050.06 Users Guide L1720-1724. Full carves:
+> `.../L-VSX-500/re/segments-ref/006-S3FS/CARVE-ANSWER-UNQUALIFIED-OPEN-USER-SYSTEM-FALLBACK.md`
+> and `GFILI-COMPLETE-CARVE.md`.
+> Implemented as `mon_translate_path_lookup()` in
+> `/home/ronny/repos/nd500x/src/libmon/mon_path.c`, wired into `50B OPEN`
+> (lookup, not create) and `256B DEABF`. SYSTEM modelled as a fixed `(SYSTEM)`
+> directory. Verified 5/5 (own-dir hit, SYSTEM fallback for CAT-LIB/NC-LIB,
+> named-user suppression, not-found -> own dir) with no linker-startup regression.
+> Remaining carve gap (not blocking): the exact GSYSI->GMUSI SYSTEM-name literal
+> (our fixed "SYSTEM" rests on the symbol name + manual, not a decoded constant).
+
+---
+
+
+
 Full path of this file: `/home/ronny/repos/nd500x/docs/CARVE-QUESTION-USER-SYSTEM-FILE-LOOKUP.md`
 Date: 2026-07-18
 Target carve: SINTRAN III L-VSX-500 monitor (segment 006-S3FS), file-name
