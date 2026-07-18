@@ -127,19 +127,63 @@ int main(int argc, char** argv) {
         static uint64_t ct_lo=0, ct_hi=0; static uint32_t prev_pc=0;
         if (getenv("ND500X_CALLTRACE_LO")) ct_lo=strtoull(getenv("ND500X_CALLTRACE_LO"),0,0);
         if (getenv("ND500X_CALLTRACE_HI")) ct_hi=strtoull(getenv("ND500X_CALLTRACE_HI"),0,0);
+        /* ND500X_WATCH_VA=<va>: watch a 4-byte DATA word; print the writer PC and
+         * old->new value each time it changes. Used to find who does (or fails to
+         * do) the store to the linker's domain-context flag. */
+        static uint32_t watch_va=0; static uint32_t watch_val=0; static int watch_init=0;
+        if (getenv("ND500X_WATCH_VA")) watch_va=(uint32_t)strtoul(getenv("ND500X_WATCH_VA"),0,0);
+        /* ND500X_KWATCH=1: print PC + I1 whenever the K flag (ST1 bit 8) goes
+         * 0->1 within [KWATCH_LO,KWATCH_HI] instr window - finds the exact error
+         * setk raise site and the error code (usually in w1/I1). */
+        static int kwatch=0; static uint64_t kw_lo=0, kw_hi=~0ull;
+        if (getenv("ND500X_KWATCH")) kwatch=1;
+        if (getenv("ND500X_KWATCH_LO")) kw_lo=strtoull(getenv("ND500X_KWATCH_LO"),0,0);
+        if (getenv("ND500X_KWATCH_HI")) kw_hi=strtoull(getenv("ND500X_KWATCH_HI"),0,0);
+        /* ND500X_FTRACE_LO/HI: within [instr LO,HI], print PC + I1..I4 EVERY step, and
+         * flag when any I-reg first holds a target value (ND500X_FTRACE_VAL). */
+        static uint64_t ft_lo=0, ft_hi=0; static uint32_t ft_val=0xFFFFFFFF;
+        if (getenv("ND500X_FTRACE_LO")) ft_lo=strtoull(getenv("ND500X_FTRACE_LO"),0,0);
+        if (getenv("ND500X_FTRACE_HI")) ft_hi=strtoull(getenv("ND500X_FTRACE_HI"),0,0);
+        if (getenv("ND500X_FTRACE_VAL")) ft_val=(uint32_t)strtoul(getenv("ND500X_FTRACE_VAL"),0,0);
         for (; s<maxsteps && m.run_flag; s++) {
+            uint32_t watch_pc_before = c.PC;
+            uint32_t k_before = c.ST1 & 0x100u;
             if (break_pc && c.PC == break_pc) {
-                fprintf(stderr, "[BREAK] PC=%08X instr=%llu B=%08X R=%08X I1=%08X ST1=%08X\n",
-                        c.PC, (unsigned long long)c.instruction_count, c.B, c.R, c.I[0], c.ST1);
+                fprintf(stderr, "[BREAK] PC=%08X instr=%llu B=%08X R=%08X I1=%08X I2=%08X I3=%08X I4=%08X ST1=%08X\n",
+                        c.PC, (unsigned long long)c.instruction_count, c.B, c.R, c.I[0], c.I[1], c.I[2], c.I[3], c.ST1);
                 const char* dmp = getenv("ND500X_BREAK_DUMP");
+                const char* dmpb = getenv("ND500X_BREAK_DUMP_BREL");
+                if (dmpb) {
+                    /* dump at B + signed offset (frame-relative) - survives frame aliasing */
+                    int32_t off = (int32_t)strtol(dmpb, 0, 0);
+                    uint32_t va = c.B + (uint32_t)off;
+                    int dlen = getenv("ND500X_BREAK_DUMPLEN") ? atoi(getenv("ND500X_BREAK_DUMPLEN")) : 16;
+                    for (int _row=0; _row<dlen; _row+=16) {
+                        fprintf(stderr, "[BDUMP B%+d @%08X]:", off+_row, va+_row);
+                        for (int _b=0;_b<16 && _row+_b<dlen;_b++){
+                            uint32_t a = va+_row+_b;
+                            uint32_t pa = c.machine->mmu_enabled ? nd500_mmu_translate(&c, a,0,0) : a;
+                            fprintf(stderr, " %02X", (pa!=0xFFFFFFFFu && pa<MEMSZ)? nd500_bus_read8(&m,pa):0);
+                        }
+                        fprintf(stderr, "\n");
+                    }
+                }
                 if (dmp) {
                     uint32_t va = (uint32_t)strtoul(dmp, 0, 0);
-                    fprintf(stderr, "[DUMP] %08X:", va);
-                    for (int _b=0;_b<16;_b++){
-                        uint32_t pa = c.machine->mmu_enabled ? nd500_mmu_translate(&c, va+_b,0,0) : va+_b;
-                        fprintf(stderr, " %02X", (pa!=0xFFFFFFFFu && pa<MEMSZ)? nd500_bus_read8(&m,pa):0);
+                    int dlen = getenv("ND500X_BREAK_DUMPLEN") ? atoi(getenv("ND500X_BREAK_DUMPLEN")) : 16;
+                    for (int _row=0; _row<dlen; _row+=16) {
+                        fprintf(stderr, "[DUMP] %08X:", va+_row);
+                        char ascii[17]; int an=0;
+                        for (int _b=0;_b<16 && _row+_b<dlen;_b++){
+                            uint32_t a = va+_row+_b;
+                            uint32_t pa = c.machine->mmu_enabled ? nd500_mmu_translate(&c, a,0,0) : a;
+                            uint8_t v = (pa!=0xFFFFFFFFu && pa<MEMSZ)? nd500_bus_read8(&m,pa):0;
+                            fprintf(stderr, " %02X", v);
+                            ascii[an++] = (v>=32 && v<127)? (char)v : '.';
+                        }
+                        ascii[an]=0;
+                        fprintf(stderr, "  |%s|\n", ascii);
                     }
-                    fprintf(stderr, "\n");
                 }
             }
             if (ct_hi && c.instruction_count>=ct_lo && c.instruction_count<=ct_hi) {
@@ -149,6 +193,32 @@ int main(int argc, char** argv) {
                 prev_pc = c.PC;
             }
             nd500_cpu_step(&c);
+            if (ft_hi && c.instruction_count>=ft_lo && c.instruction_count<=ft_hi) {
+                int hit = (c.I[0]==ft_val||c.I[1]==ft_val||c.I[2]==ft_val||c.I[3]==ft_val);
+                fprintf(stderr,"[FT %llu] PC=%08X I=%08X %08X %08X %08X%s\n",
+                        (unsigned long long)c.instruction_count, watch_pc_before,
+                        c.I[0],c.I[1],c.I[2],c.I[3], hit?"  <== VAL":"");
+            }
+            if (kwatch && !k_before && (c.ST1 & 0x100u)
+                && c.instruction_count>=kw_lo && c.instruction_count<=kw_hi) {
+                fprintf(stderr,"[KSET] PC=%08X (raised at %08X) I1=%08X instr=%llu B=%08X\n",
+                        c.PC, watch_pc_before, c.I[0],
+                        (unsigned long long)c.instruction_count, c.B);
+            }
+            if (watch_va) {
+                uint32_t pa = c.machine->mmu_enabled ? nd500_mmu_translate(&c, watch_va, 0, 0) : watch_va;
+                if (pa != 0xFFFFFFFFu && pa+3 < MEMSZ) {
+                    uint32_t v = ((uint32_t)nd500_bus_read8(&m,pa)<<24)|((uint32_t)nd500_bus_read8(&m,pa+1)<<16)
+                               | ((uint32_t)nd500_bus_read8(&m,pa+2)<<8)|(uint32_t)nd500_bus_read8(&m,pa+3);
+                    if (!watch_init) { watch_val=v; watch_init=1; }
+                    else if (v != watch_val) {
+                        fprintf(stderr,"[WATCH %08X] %08X -> %08X  by PC=%08X instr=%llu B=%08X\n",
+                                watch_va, watch_val, v, watch_pc_before,
+                                (unsigned long long)c.instruction_count, c.B);
+                        watch_val=v;
+                    }
+                }
+            }
             if (m.run_flag==0 && m.stop_reason!=STOP_NONE) break;
         }
         total += s;

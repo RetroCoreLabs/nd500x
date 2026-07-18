@@ -4064,6 +4064,140 @@
           },
           "kFlag": true,
           "notes": "'Used on ND-100 only, ignored by ND-500' for FileType per the YAML - ND-500-side test still supplies it."
+        },
+        {
+          "name": "FullFileName_ExistingFile_Success",
+          "provenance": "emulator-behavior",
+          "source": "ND linker linker-b01 resolves file names via `callg <seg31:256B DEABF>` at B004DA08 then `if k go <success>` at B004DA13: it treats K=SET as success (path B004DBF1) and K=CLEAR as failure (path B004DBD0 -> linker error 52, LOAD aborts before OPEN). This matches the ND-500 ABI: monitor calls are domain calls whose callee signals result via RET (clears K) vs RETK (sets K) - ND-05.009.4 EN ND-500 Reference Manual sec on domain/monitor calls; ND-500-TRAPS.md RET/RETK. Therefore DEABF on a name that RESOLVES to an existing file MUST return K=SET (kFlag=true), not clear. nd500x fix: src/libmon/handlers/mon_256B_FullFileName.c sets K=1 after mon_set_success on the resolve path.",
+          "monNumber": 174,
+          "argAddresses": [
+            8192,
+            8196,
+            8200
+          ],
+          "initial": {
+            "regs": {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "st": 0
+            },
+            "ram": [
+              [
+                8192,
+                0
+              ],
+              [
+                8193,
+                0
+              ],
+              [
+                8194,
+                48
+              ],
+              [
+                8195,
+                0
+              ],
+              [
+                8196,
+                0
+              ],
+              [
+                8197,
+                0
+              ],
+              [
+                8198,
+                49
+              ],
+              [
+                8199,
+                0
+              ],
+              [
+                8200,
+                0
+              ],
+              [
+                8201,
+                0
+              ],
+              [
+                8202,
+                50
+              ],
+              [
+                8203,
+                0
+              ],
+              [
+                12288,
+                84
+              ],
+              [
+                12289,
+                72
+              ],
+              [
+                12290,
+                73
+              ],
+              [
+                12291,
+                83
+              ],
+              [
+                12292,
+                70
+              ],
+              [
+                12293,
+                73
+              ],
+              [
+                12294,
+                76
+              ],
+              [
+                12295,
+                69
+              ],
+              [
+                12296,
+                39
+              ],
+              [
+                12800,
+                68
+              ],
+              [
+                12801,
+                65
+              ],
+              [
+                12802,
+                84
+              ],
+              [
+                12803,
+                65
+              ],
+              [
+                12804,
+                39
+              ]
+            ]
+          },
+          "final": {
+            "regs": {
+              "i1": 0
+            },
+            "ram": []
+          },
+          "kFlag": true,
+          "notes": "AbbrevFileName='THISFILE' (bytes 84,72,73,83,70,73,76,69 = T,H,I,S,F,I,L,E), apostrophe-terminated; FileType='DATA'. SANDBOX FILE-PREAMBLE must create THISFILE:DATA before this case so DEABF resolves to an existing file (same 'files' preamble convention as the FSCNT/CreateFile cases). Key contract: a RESOLVING DEABF returns kFlag=true (K SET) - the mirror of FullFileName_NoSuchFile_Error, which returns kFlag=true too but with i1=46; success leaves i1 unchanged (0). Output FileName bytes are not asserted here (final.ram=[]) to avoid over-specifying the descriptor-vs-inline write layout; add once both emulators agree on it."
         }
       ]
     },
