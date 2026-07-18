@@ -10,6 +10,13 @@
  * Mnemonic: sspar   Opcode: 0xFDB4 (176664 octal)
  * Format:  BY SSPAR <string/rw/BY/I1>, <mode/r/BY>
  *
+ * VALIDATED AGAINST THE MANUAL: ND-05.009.4 EN ND-500 Reference Manual,
+ * section 14.19 "Set parity in string", opcode 176664B (0xFDB4). Verbatim:
+ *     while not end of string do
+ *         parity according to <mode> -> bit 7 of S(I1)
+ *         I1 + 1 -> I1
+ *     enddo
+ *
  * SSPAR - "String Set PARity". Sets the parity bit (bit 7) of every byte in
  * <string> (from I1 to the end) according to <mode> (a SCALAR value, NOT a
  * descriptor):
@@ -18,13 +25,13 @@
  *   2 = even parity  (bit 7 makes the total number of 1-bits even)
  *   3 = odd parity   (bit 7 makes the total number of 1-bits odd)
  *   any other value -> illegal operand value trap.
- * Terminating condition: K = 1.
+ * Terminating condition: K = 1. (RetroCore C# Sspar.cs mirrors this.)
  *
  * (The previous implementation modelled SSPAR as "string span reverse" and
  *  loaded the 2nd operand as a SET descriptor, dereferencing the mode scalar as
  *  a descriptor address -> protection violation. The ND LINKER does
- *  `by sspar IND(b.x), 2`. Corrected against the ND-500 Reference Manual
- *  ND-05.009.4 EN sect 14.20, opcode 176664B.)
+ *  `by sspar IND(b.x), 2`. Section reference corrected from 14.20 to the actual
+ *  14.19; 14.20 is "Check parity in string", a different instruction.)
  */
 void nd500_instr_Sspar(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 2) {
