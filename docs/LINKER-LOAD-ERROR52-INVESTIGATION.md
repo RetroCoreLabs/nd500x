@@ -1,5 +1,39 @@
 # ND linker `LOAD <obj>` — error 52 investigation (blocker #1, LOAD object load)
 
+## *** SOLVED 2026-07-19: root cause = DEABF returned a VERSION-LESS name ***
+The linker's `LOAD` rejects a resolved object name that lacks a SINTRAN **version**.
+Our `256B DEABF/FullFileName` returned `B:NRF` (no version); the Monitor Calls manual
+(ND-860228, 256B FULLFILENAME) states DEABF returns "the directory, the user, the file
+name, the file type, AND the version." Appending the default version `;1` to FOUND
+files (`B:NRF;1`) makes the linker **open the object** (`50B OPEN ./GUEST/B.NRF` as file
+102) and proceed — the days-old `(-677:52)` is gone.
+
+- Fix: `/home/ronny/repos/nd500x/src/libmon/handlers/mon_256B_FullFileName.c` — the four
+  found-file `snprintf` branches now append `;1`. Only FOUND files get it (a not-yet-
+  created file still returns not-found/err-46, so NC's create-if-missing is unchanged).
+- Verified: NC gate `dom_nc_compile` 4/4 still pass. `mon_calls` unit test fails but that
+  is PRE-EXISTING (fails identically with the fix reverted — its DEABF fixture file is
+  absent in the test env, hitting the not-found path; plus an unrelated 312B check).
+- How it was found: the earlier "gate B0040D75 / b.0x49 / K" framing was a dead end. A
+  MON-level trace showed that right after DEABF success the linker does NO file open — it
+  jumps straight to reading the error-message file and printing `(-677:52)`. So the reject
+  is a check on DEABF's OUTPUT. The manual named the missing field (version); a one-line
+  experiment (`;1`) confirmed it by making `50B OPEN` fire.
+
+### NEW frontier (next blocker, separate): "no current domain"
+With the object now opening, `LOAD B:NRF` hits:
+`*** ERROR - Command not valid when no current domain or segment exists. (0054:67)`
+`OPEN-DOMAIN "A-TEST"` DOES create the `.DOM` file (`50B OPEN` file 101 + `120B WFILE`
+4096-byte header), but it does not leave the linker's internal **current-domain/segment**
+context set for the subsequent `LOAD`. Next step: trace what `OPEN-DOMAIN` must set (an
+in-memory current-domain pointer/flag) that our emulation leaves unset, or whether
+`OPEN-DOMAIN` needs a follow-up step. NOT caused by the `;1` fix (reproduces from a clean
+domain create). The `0xB0048CC8` global (=1) is not this state.
+
+---
+### (historical) original error-52 investigation follows
+
+
 Full path: `/home/ronny/repos/nd500x/docs/LINKER-LOAD-ERROR52-INVESTIGATION.md`
 Date: 2026-07-18
 Run from: `/home/ronny/repos/nd500x/build/link_sandbox` (NOT nc_sandbox)
@@ -220,6 +254,57 @@ Concretely, a real-HW trace need only report, at `B0040D75` for `LOAD B:NRF`:
 `ST1` (is K set?), `b.0x49`, and `I1`. Everything reachable from the emulator +
 both ND manuals (Loader/Monitor ND-60.136.04A and Monitor Calls ND-860228.2) is
 now exhausted.
+
+## Session 2026-07-19 (part 2) — runtime trace executed (the "corrected next step")
+Ran the non-destructive KWATCH / CALLTRACE / FTRACE harness over the LOAD round
+(instr window ~191530..194000). New, verified facts:
+
+- **The float-subsystem rebase does NOT affect this blocker**: `LOAD B:NRF` still
+  errors `(-677:52)` at the same place, byte-identical. Confirms the two are unrelated.
+- **Post-DEABF control flow is now fully traced** (CALLTRACE):
+  ```
+  191530 B004DA11 (DEABF callg returns, K set, I1=0)   <- DEABF success for B:NRF
+  191540 -> B0040D75  (the gate; PASSED, as the round-2 static analysis predicted)
+  191553..193088  scan loop B0040D89->DAA->DCE->DDA->B0040E53(loopi b.56,#127)->D89
+                  i.e. a FIXED 127-iteration scan of the command buffer
+  193088 B0040E6D: RET -> returns to caller at B003D0E8
+  193088+ tail: B003D0E8 -> B003CFDA -> B0034AF1 / B0036ACD / B0040711 ->
+                 B0049903.. (B0049xxx/B004Axxx)  = error MESSAGE FORMATTER
+  ```
+- **The LOAD line handler (B0040C3C/D75/127-byte scan) is a SUBROUTINE**; B0040E6D is
+  its `ret`. Its caller is at **B003D0E8**, which then dispatches via `jumpg b.532`
+  (routine B003CFDA) into the tail.
+- **"code 32" was a RED HERRING**: the earlier KSET `I1=0x20 @B003F864` is `by1 sfill
+  b.40` at B003F861 space-filling a 156-byte line buffer (`w move #156,b.40`) before
+  writing the error text. B003F855+ is the error-line FORMATTER, not the decision.
+- **52 (0x34) is NOT held in any I-reg** across the tail window (FTRACE_VAL=0x34, no
+  hit), so `(-677:52)` is computed/formatted, not passed as a bare register code.
+
+### Corrected next step (narrowed)
+The error DECISION is upstream of the B003F855 formatter, in the tail
+`B003D0E8 -> B003CFDA(jumpg b.532) -> B0034AF1 / B0036ACD / B0040711 -> B0049903`.
+Next probe: CALLTRACE/step that chain to find the routine that PRODUCES the -677/52
+pair (watch the memory word the formatter reads, or the arg passed into B0049903),
+and determine what "-677:52" denotes (SINTRAN error record vs linker-internal). The
+127-fixed-count scan (`loopi b.56,#127`) is also worth validating against the real
+command-buffer length semantics.
+
+### Additional RULED-OUT items (2026-07-19 part 3)
+- **Global `0xB0048CC8` is NOT the reject.** B0036ACD does `comp2 [0xB0048CC8],$1;
+  if< go` (a domain/mode flag check). BREAK at B0036AD3 during the LOAD round
+  (instr 193113) dumps `0xB0048CC8 = 0x00000001`, so `1 < 1` is FALSE -> the check
+  PASSES and B0036ACD proceeds. The flag is correctly set by OPEN-DOMAIN
+  (WATCH shows 1->FFFFFFFF->1 during startup, settled at 1). Not the cause.
+- **B0049903 / B004A9xx / B004A69C are STRING/name utilities**, not the error
+  reporter; they feed the B003F816/B003F855 line formatter (entered instr 193963
+  `B003F7AA -> B003F816`). B0036ACD returns early W1=1 only if the length routine
+  B0040711 yields `b.28-b.24+1 <= 0`; in the LOAD round B0040711 returned W1=0
+  (valid), so that early-out did NOT fire either.
+- Net: gate, "code 32", the 0xB0048CC8 domain flag, and the B0040711 length early-out
+  are all RULED OUT. The `-677:52` decision is still unpinned within the
+  B003D0E8/B0032Bxx/B003A2xx/B00401FC tail. This needs a patient single-step of the
+  ONE conditional that routes to the reporter (or the carve meaning of -677:52) --
+  a dedicated session; breadth-first call-tree mapping is not converging.
 
 ## Reproduce
 ```

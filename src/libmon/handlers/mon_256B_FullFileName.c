@@ -105,19 +105,27 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
     }
 
     /* Found: build the expanded name. Preserve the caller's directory/name and
-     * append the resolved type, then apostrophe-terminate. */
+     * append the resolved type, then apostrophe-terminate.
+     *
+     * DEABF returns "the directory, the user, the file name, the file type, AND the
+     * VERSION" (Monitor Calls ND-860228, 256B FULLFILENAME). A version-less name is
+     * rejected by the ND Linker: `LOAD B:NRF` resolved to "B:NRF" (no version) and
+     * the linker aborted with error (-677:52) BEFORE opening the object. Returning the
+     * version ";1" (the default/only version of our single-version host files) lets the
+     * linker OPEN the .NRF object and proceed. Host files carry no SINTRAN version, so
+     * ";1" is synthesized; only FOUND files get it (a not-yet-created file has none). */
     char full_name[128];
     if (use_type) {
         if (user[0]) {
-            snprintf(full_name, sizeof(full_name), "(%s)%s:%s", user, name, use_type);
+            snprintf(full_name, sizeof(full_name), "(%s)%s:%s;1", user, name, use_type);
         } else {
-            snprintf(full_name, sizeof(full_name), "%s:%s", name, use_type);
+            snprintf(full_name, sizeof(full_name), "%s:%s;1", name, use_type);
         }
     } else {
         if (user[0]) {
-            snprintf(full_name, sizeof(full_name), "(%s)%s", user, name);
+            snprintf(full_name, sizeof(full_name), "(%s)%s;1", user, name);
         } else {
-            snprintf(full_name, sizeof(full_name), "%s", name);
+            snprintf(full_name, sizeof(full_name), "%s;1", name);
         }
     }
 
