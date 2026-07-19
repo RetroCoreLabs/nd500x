@@ -56,9 +56,20 @@ void nd500_instr_Mulad(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ST,SAVF/ST,ACCF set Z,S,FU,FO; C,O cleared (rule 4040). */
     if (fi->uses_float_registers) {
         bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
-        double regValue = is_double
-            ? nd500_double_to_ieee754(nd500_read_double_register(cpu, fi->target_register))
-            : (double)nd500_float_to_ieee754(nd500_read_float_register(cpu, fi->target_register));
+        /* Read Rn as raw IEEE-754 (float registers are stored as raw IEEE bits, e.g.
+         * validation case FloatAbs_F_1_40400000 holds A1=0x40400000=IEEE 3.0), NOT via
+         * the ND-500 native bias-256 conversion. Matches the C# ReadRegisterAsIeeeFloat
+         * and nd500_read_operand_as_ieee_float. */
+        double regValue;
+        if (is_double) {
+            union { uint64_t u; double d; } c;
+            c.u = nd500_read_double_register(cpu, fi->target_register);
+            regValue = c.d;
+        } else {
+            union { uint32_t u; float f; } c;
+            c.u = nd500_read_float_register(cpu, fi->target_register);
+            regValue = (double)c.f;
+        }
         double x = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
         double y = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
         double fresult = regValue * x + y;
