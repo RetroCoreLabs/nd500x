@@ -44,10 +44,10 @@ void nd500_instr_E3Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     uint32_t value = nd500_read_operand_word(cpu, &fi->operands[0]);
 
-    // Read current E3, preserve upper 32 bits, replace lower 32 bits
-    uint64_t e3_full = nd500_read_double_register(cpu, 3);
-    e3_full = (e3_full & 0xFFFFFFFF00000000ULL) | (uint64_t)value;
-    nd500_write_double_register(cpu, 3, e3_full);
+    // en:= writes the source into the E3 register. E is the HIGH 32 bits of
+    // the D3 pair (microcode LOADE3 @001166: D,E3); the previous code
+    // wrote the low half, which is A3, not E3.
+    cpu->E[2] = value;
 
     // Set Z and S flags based on the 32-bit word value
     if (value == 0) {
@@ -61,4 +61,7 @@ void nd500_instr_E3Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else {
         cpu->ST1 &= ~ND500_FLAG_S;
     }
+
+    // ST,SAVA: C and O cleared; K unchanged.
+    cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_O);
 }

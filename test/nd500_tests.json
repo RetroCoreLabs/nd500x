@@ -1051617,6 +1051617,1098 @@
     "maxInstructions": 1
   },
   {
+    "name": "e1_Eq_3000",
+    "assembly": "e1:= I1",
+    "bytes": [
+      254,
+      52,
+      208
+    ],
+    "initial": {
+      "regs": {
+        "i1": 12288,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "e1": 12288,
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e1Eq__Store_12345678_To_00010000",
+    "assembly": "e1=: @0x00010000",
+    "bytes": [
+      254,
+      60,
+      196,
+      0,
+      1,
+      0,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "e1": 305419896,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65536,
+          222
+        ],
+        [
+          65537,
+          173
+        ],
+        [
+          65538,
+          190
+        ],
+        [
+          65539,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65536,
+          18
+        ],
+        [
+          65537,
+          52
+        ],
+        [
+          65538,
+          86
+        ],
+        [
+          65539,
+          120
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e1Eq__Store_DEADBEEF_To_00010004",
+    "assembly": "e1=: @0x00010004",
+    "bytes": [
+      254,
+      60,
+      196,
+      0,
+      1,
+      0,
+      4
+    ],
+    "initial": {
+      "regs": {
+        "e1": 3735928559,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65540,
+          222
+        ],
+        [
+          65541,
+          173
+        ],
+        [
+          65542,
+          190
+        ],
+        [
+          65543,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65540,
+          222
+        ],
+        [
+          65541,
+          173
+        ],
+        [
+          65542,
+          190
+        ],
+        [
+          65543,
+          239
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e1Eq__Store_00000000_To_00010008",
+    "assembly": "e1=: @0x00010008",
+    "bytes": [
+      254,
+      60,
+      196,
+      0,
+      1,
+      0,
+      8
+    ],
+    "initial": {
+      "regs": {
+        "e1": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65544,
+          222
+        ],
+        [
+          65545,
+          173
+        ],
+        [
+          65546,
+          190
+        ],
+        [
+          65547,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65544,
+          0
+        ],
+        [
+          65545,
+          0
+        ],
+        [
+          65546,
+          0
+        ],
+        [
+          65547,
+          0
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e1Eq__Store_FFFFFFFF_To_0001000C",
+    "assembly": "e1=: @0x0001000C",
+    "bytes": [
+      254,
+      60,
+      196,
+      0,
+      1,
+      0,
+      12
+    ],
+    "initial": {
+      "regs": {
+        "e1": 4294967295,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65548,
+          222
+        ],
+        [
+          65549,
+          173
+        ],
+        [
+          65550,
+          190
+        ],
+        [
+          65551,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65548,
+          255
+        ],
+        [
+          65549,
+          255
+        ],
+        [
+          65550,
+          255
+        ],
+        [
+          65551,
+          255
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e2_Eq_3000",
+    "assembly": "e2:= I1",
+    "bytes": [
+      254,
+      53,
+      208
+    ],
+    "initial": {
+      "regs": {
+        "i1": 12288,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "e2": 12288,
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e2Eq__Store_12345678_To_00010000",
+    "assembly": "e2=: @0x00010000",
+    "bytes": [
+      254,
+      61,
+      196,
+      0,
+      1,
+      0,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "e2": 305419896,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65536,
+          222
+        ],
+        [
+          65537,
+          173
+        ],
+        [
+          65538,
+          190
+        ],
+        [
+          65539,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65536,
+          18
+        ],
+        [
+          65537,
+          52
+        ],
+        [
+          65538,
+          86
+        ],
+        [
+          65539,
+          120
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e2Eq__Store_DEADBEEF_To_00010004",
+    "assembly": "e2=: @0x00010004",
+    "bytes": [
+      254,
+      61,
+      196,
+      0,
+      1,
+      0,
+      4
+    ],
+    "initial": {
+      "regs": {
+        "e2": 3735928559,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65540,
+          222
+        ],
+        [
+          65541,
+          173
+        ],
+        [
+          65542,
+          190
+        ],
+        [
+          65543,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65540,
+          222
+        ],
+        [
+          65541,
+          173
+        ],
+        [
+          65542,
+          190
+        ],
+        [
+          65543,
+          239
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e2Eq__Store_00000000_To_00010008",
+    "assembly": "e2=: @0x00010008",
+    "bytes": [
+      254,
+      61,
+      196,
+      0,
+      1,
+      0,
+      8
+    ],
+    "initial": {
+      "regs": {
+        "e2": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65544,
+          222
+        ],
+        [
+          65545,
+          173
+        ],
+        [
+          65546,
+          190
+        ],
+        [
+          65547,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65544,
+          0
+        ],
+        [
+          65545,
+          0
+        ],
+        [
+          65546,
+          0
+        ],
+        [
+          65547,
+          0
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e2Eq__Store_FFFFFFFF_To_0001000C",
+    "assembly": "e2=: @0x0001000C",
+    "bytes": [
+      254,
+      61,
+      196,
+      0,
+      1,
+      0,
+      12
+    ],
+    "initial": {
+      "regs": {
+        "e2": 4294967295,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65548,
+          222
+        ],
+        [
+          65549,
+          173
+        ],
+        [
+          65550,
+          190
+        ],
+        [
+          65551,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65548,
+          255
+        ],
+        [
+          65549,
+          255
+        ],
+        [
+          65550,
+          255
+        ],
+        [
+          65551,
+          255
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e3_Eq_3000",
+    "assembly": "e3:= I1",
+    "bytes": [
+      254,
+      54,
+      208
+    ],
+    "initial": {
+      "regs": {
+        "i1": 12288,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "e3": 12288,
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e3Eq__Store_12345678_To_00010000",
+    "assembly": "e3=: @0x00010000",
+    "bytes": [
+      254,
+      62,
+      196,
+      0,
+      1,
+      0,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "e3": 305419896,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65536,
+          222
+        ],
+        [
+          65537,
+          173
+        ],
+        [
+          65538,
+          190
+        ],
+        [
+          65539,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65536,
+          18
+        ],
+        [
+          65537,
+          52
+        ],
+        [
+          65538,
+          86
+        ],
+        [
+          65539,
+          120
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e3Eq__Store_DEADBEEF_To_00010004",
+    "assembly": "e3=: @0x00010004",
+    "bytes": [
+      254,
+      62,
+      196,
+      0,
+      1,
+      0,
+      4
+    ],
+    "initial": {
+      "regs": {
+        "e3": 3735928559,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65540,
+          222
+        ],
+        [
+          65541,
+          173
+        ],
+        [
+          65542,
+          190
+        ],
+        [
+          65543,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65540,
+          222
+        ],
+        [
+          65541,
+          173
+        ],
+        [
+          65542,
+          190
+        ],
+        [
+          65543,
+          239
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e3Eq__Store_00000000_To_00010008",
+    "assembly": "e3=: @0x00010008",
+    "bytes": [
+      254,
+      62,
+      196,
+      0,
+      1,
+      0,
+      8
+    ],
+    "initial": {
+      "regs": {
+        "e3": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65544,
+          222
+        ],
+        [
+          65545,
+          173
+        ],
+        [
+          65546,
+          190
+        ],
+        [
+          65547,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65544,
+          0
+        ],
+        [
+          65545,
+          0
+        ],
+        [
+          65546,
+          0
+        ],
+        [
+          65547,
+          0
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e3Eq__Store_FFFFFFFF_To_0001000C",
+    "assembly": "e3=: @0x0001000C",
+    "bytes": [
+      254,
+      62,
+      196,
+      0,
+      1,
+      0,
+      12
+    ],
+    "initial": {
+      "regs": {
+        "e3": 4294967295,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65548,
+          222
+        ],
+        [
+          65549,
+          173
+        ],
+        [
+          65550,
+          190
+        ],
+        [
+          65551,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65548,
+          255
+        ],
+        [
+          65549,
+          255
+        ],
+        [
+          65550,
+          255
+        ],
+        [
+          65551,
+          255
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e4_Eq_3000",
+    "assembly": "e4:= I1",
+    "bytes": [
+      254,
+      55,
+      208
+    ],
+    "initial": {
+      "regs": {
+        "i1": 12288,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "e4": 12288,
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e4Eq__Store_12345678_To_00010000",
+    "assembly": "e4=: @0x00010000",
+    "bytes": [
+      254,
+      63,
+      196,
+      0,
+      1,
+      0,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "e4": 305419896,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65536,
+          222
+        ],
+        [
+          65537,
+          173
+        ],
+        [
+          65538,
+          190
+        ],
+        [
+          65539,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65536,
+          18
+        ],
+        [
+          65537,
+          52
+        ],
+        [
+          65538,
+          86
+        ],
+        [
+          65539,
+          120
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e4Eq__Store_DEADBEEF_To_00010004",
+    "assembly": "e4=: @0x00010004",
+    "bytes": [
+      254,
+      63,
+      196,
+      0,
+      1,
+      0,
+      4
+    ],
+    "initial": {
+      "regs": {
+        "e4": 3735928559,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65540,
+          222
+        ],
+        [
+          65541,
+          173
+        ],
+        [
+          65542,
+          190
+        ],
+        [
+          65543,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65540,
+          222
+        ],
+        [
+          65541,
+          173
+        ],
+        [
+          65542,
+          190
+        ],
+        [
+          65543,
+          239
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e4Eq__Store_00000000_To_00010008",
+    "assembly": "e4=: @0x00010008",
+    "bytes": [
+      254,
+      63,
+      196,
+      0,
+      1,
+      0,
+      8
+    ],
+    "initial": {
+      "regs": {
+        "e4": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65544,
+          222
+        ],
+        [
+          65545,
+          173
+        ],
+        [
+          65546,
+          190
+        ],
+        [
+          65547,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65544,
+          0
+        ],
+        [
+          65545,
+          0
+        ],
+        [
+          65546,
+          0
+        ],
+        [
+          65547,
+          0
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "e4Eq__Store_FFFFFFFF_To_0001000C",
+    "assembly": "e4=: @0x0001000C",
+    "bytes": [
+      254,
+      63,
+      196,
+      0,
+      1,
+      0,
+      12
+    ],
+    "initial": {
+      "regs": {
+        "e4": 4294967295,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65548,
+          222
+        ],
+        [
+          65549,
+          173
+        ],
+        [
+          65550,
+          190
+        ],
+        [
+          65551,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65548,
+          255
+        ],
+        [
+          65549,
+          255
+        ],
+        [
+          65550,
+          255
+        ],
+        [
+          65551,
+          255
+        ]
+      ]
+    },
+    "maxInstructions": 1
+  },
+  {
     "name": "hl_Eq_3000",
     "assembly": "hl:= I1",
     "bytes": [
@@ -1084828,6 +1085920,378 @@
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
     "expectedValidationFailure": "b"
+  },
+  {
+    "name": "e1_Eq_3000_NegativeTest_WrongE1",
+    "assembly": "e1:= I1",
+    "bytes": [
+      254,
+      52,
+      208
+    ],
+    "initial": {
+      "regs": {
+        "i1": 12288,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "e1": 305423992,
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "e1"
+  },
+  {
+    "name": "e1Eq__Store_12345678_To_00010000_NegativeTest_WrongMem0x10000",
+    "assembly": "e1=: @0x00010000",
+    "bytes": [
+      254,
+      60,
+      196,
+      0,
+      1,
+      0,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "e1": 305419896,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65536,
+          222
+        ],
+        [
+          65537,
+          173
+        ],
+        [
+          65538,
+          190
+        ],
+        [
+          65539,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65536,
+          19
+        ],
+        [
+          65537,
+          52
+        ],
+        [
+          65538,
+          86
+        ],
+        [
+          65539,
+          120
+        ]
+      ]
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_memory",
+    "expectedValidationFailure": "ram:0x00010000"
+  },
+  {
+    "name": "e2_Eq_3000_NegativeTest_WrongE2",
+    "assembly": "e2:= I1",
+    "bytes": [
+      254,
+      53,
+      208
+    ],
+    "initial": {
+      "regs": {
+        "i1": 12288,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "e2": 305423992,
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "e2"
+  },
+  {
+    "name": "e2Eq__Store_12345678_To_00010000_NegativeTest_WrongMem0x10000",
+    "assembly": "e2=: @0x00010000",
+    "bytes": [
+      254,
+      61,
+      196,
+      0,
+      1,
+      0,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "e2": 305419896,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65536,
+          222
+        ],
+        [
+          65537,
+          173
+        ],
+        [
+          65538,
+          190
+        ],
+        [
+          65539,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65536,
+          19
+        ],
+        [
+          65537,
+          52
+        ],
+        [
+          65538,
+          86
+        ],
+        [
+          65539,
+          120
+        ]
+      ]
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_memory",
+    "expectedValidationFailure": "ram:0x00010000"
+  },
+  {
+    "name": "e3_Eq_3000_NegativeTest_WrongE3",
+    "assembly": "e3:= I1",
+    "bytes": [
+      254,
+      54,
+      208
+    ],
+    "initial": {
+      "regs": {
+        "i1": 12288,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "e3": 305423992,
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "e3"
+  },
+  {
+    "name": "e3Eq__Store_12345678_To_00010000_NegativeTest_WrongMem0x10000",
+    "assembly": "e3=: @0x00010000",
+    "bytes": [
+      254,
+      62,
+      196,
+      0,
+      1,
+      0,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "e3": 305419896,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65536,
+          222
+        ],
+        [
+          65537,
+          173
+        ],
+        [
+          65538,
+          190
+        ],
+        [
+          65539,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65536,
+          19
+        ],
+        [
+          65537,
+          52
+        ],
+        [
+          65538,
+          86
+        ],
+        [
+          65539,
+          120
+        ]
+      ]
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_memory",
+    "expectedValidationFailure": "ram:0x00010000"
+  },
+  {
+    "name": "e4_Eq_3000_NegativeTest_WrongE4",
+    "assembly": "e4:= I1",
+    "bytes": [
+      254,
+      55,
+      208
+    ],
+    "initial": {
+      "regs": {
+        "i1": 12288,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "e4": 305423992,
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "e4"
+  },
+  {
+    "name": "e4Eq__Store_12345678_To_00010000_NegativeTest_WrongMem0x10000",
+    "assembly": "e4=: @0x00010000",
+    "bytes": [
+      254,
+      63,
+      196,
+      0,
+      1,
+      0,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "e4": 305419896,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": [
+        [
+          65536,
+          222
+        ],
+        [
+          65537,
+          173
+        ],
+        [
+          65538,
+          190
+        ],
+        [
+          65539,
+          239
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4103
+      },
+      "ram": [
+        [
+          65536,
+          19
+        ],
+        [
+          65537,
+          52
+        ],
+        [
+          65538,
+          86
+        ],
+        [
+          65539,
+          120
+        ]
+      ]
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_memory",
+    "expectedValidationFailure": "ram:0x00010000"
   },
   {
     "name": "hl_Eq_3000_NegativeTest_WrongHL",
@@ -1196858,16 +1198322,17 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "Move_0_NegativeTest_WrongZFlag",
-    "assembly": "W MOVE I1,I2",
+    "name": "Move_FF_NegativeTest_WrongZFlag",
+    "assembly": "H MOVE I1,I2",
     "bytes": [
-      26,
+      252,
+      20,
       208,
       209
     ],
     "initial": {
       "regs": {
-        "i1": 0,
+        "i1": 255,
         "i2": 0,
         "pc": 4096,
         "st": 0
@@ -1196876,10 +1198341,10 @@
     },
     "final": {
       "regs": {
-        "i1": 0,
-        "i2": 0,
-        "pc": 4099,
-        "st": 0
+        "i1": 255,
+        "i2": 255,
+        "pc": 4100,
+        "st": 32
       },
       "ram": []
     },
@@ -1196889,16 +1198354,17 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "Move_0_NegativeTest_WrongI1",
-    "assembly": "W MOVE I1,I2",
+    "name": "Move_FF_NegativeTest_WrongI1",
+    "assembly": "H MOVE I1,I2",
     "bytes": [
-      26,
+      252,
+      20,
       208,
       209
     ],
     "initial": {
       "regs": {
-        "i1": 0,
+        "i1": 255,
         "i2": 0,
         "pc": 4096,
         "st": 0
@@ -1196907,10 +1198373,10 @@
     },
     "final": {
       "regs": {
-        "i1": 305419896,
-        "i2": 0,
-        "pc": 4099,
-        "st": 32
+        "i1": 305419911,
+        "i2": 255,
+        "pc": 4100,
+        "st": 0
       },
       "ram": []
     },
@@ -1196920,7 +1198386,69 @@
     "expectedValidationFailure": "i1"
   },
   {
-    "name": "Swap_12345678_87654321_NegativeTest_WrongZFlag",
+    "name": "Move_3F_NegativeTest_WrongZFlag",
+    "assembly": "W MOVE I1,I2",
+    "bytes": [
+      26,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 63,
+        "i2": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 63,
+        "i2": 63,
+        "pc": 4099,
+        "st": 32
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_flag",
+    "expectedValidationFailure": "st:Z"
+  },
+  {
+    "name": "Move_3F_NegativeTest_WrongI1",
+    "assembly": "W MOVE I1,I2",
+    "bytes": [
+      26,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 63,
+        "i2": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 305419847,
+        "i2": 63,
+        "pc": 4099,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "i1"
+  },
+  {
+    "name": "Swap_64_C8_NegativeTest_WrongZFlag",
     "assembly": "BY SWAP I1,I2",
     "bytes": [
       252,
@@ -1196930,8 +1198458,8 @@
     ],
     "initial": {
       "regs": {
-        "i1": 120,
-        "i2": 33,
+        "i1": 100,
+        "i2": 200,
         "pc": 4096,
         "st": 0
       },
@@ -1196939,8 +1198467,8 @@
     },
     "final": {
       "regs": {
-        "i1": 33,
-        "i2": 120,
+        "i1": 200,
+        "i2": 100,
         "pc": 4100,
         "st": 32
       },
@@ -1196952,7 +1198480,7 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "Swap_12345678_87654321_NegativeTest_WrongI1",
+    "name": "Swap_64_C8_NegativeTest_WrongI1",
     "assembly": "BY SWAP I1,I2",
     "bytes": [
       252,
@@ -1196962,8 +1198490,8 @@
     ],
     "initial": {
       "regs": {
-        "i1": 120,
-        "i2": 33,
+        "i1": 100,
+        "i2": 200,
         "pc": 4096,
         "st": 0
       },
@@ -1196971,8 +1198499,8 @@
     },
     "final": {
       "regs": {
-        "i1": 305419865,
-        "i2": 120,
+        "i1": 305419952,
+        "i2": 100,
         "pc": 4100,
         "st": 0
       },
@@ -1196984,315 +1198512,13 @@
     "expectedValidationFailure": "i1"
   },
   {
-    "name": "Swap_0_FFFFFFFF_NegativeTest_WrongZFlag",
-    "assembly": "W SWAP I1,I2",
-    "bytes": [
-      82,
-      208,
-      209
-    ],
-    "initial": {
-      "regs": {
-        "i1": 0,
-        "i2": 4294967295,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 4294967295,
-        "i2": 0,
-        "pc": 4099,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_flag",
-    "expectedValidationFailure": "st:Z"
-  },
-  {
-    "name": "Swap_0_FFFFFFFF_NegativeTest_WrongI1",
-    "assembly": "W SWAP I1,I2",
-    "bytes": [
-      82,
-      208,
-      209
-    ],
-    "initial": {
-      "regs": {
-        "i1": 0,
-        "i2": 4294967295,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 3989547399,
-        "i2": 0,
-        "pc": 4099,
-        "st": 32
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "i1"
-  },
-  {
-    "name": "Sha_F_1_NegativeTest_WrongZFlag",
-    "assembly": "BY SHA I1,$1",
+    "name": "Sha_1_0_NegativeTest_WrongZFlag",
+    "assembly": "H SHA I1,$0",
     "bytes": [
       252,
-      171,
-      208,
-      1
-    ],
-    "initial": {
-      "regs": {
-        "i1": 15,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 30,
-        "pc": 4100,
-        "st": 32
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_flag",
-    "expectedValidationFailure": "st:Z"
-  },
-  {
-    "name": "Sha_F_1_NegativeTest_WrongI1",
-    "assembly": "BY SHA I1,$1",
-    "bytes": [
-      252,
-      171,
-      208,
-      1
-    ],
-    "initial": {
-      "regs": {
-        "i1": 15,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 305419878,
-        "pc": 4100,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "i1"
-  },
-  {
-    "name": "Sha_0_0_NegativeTest_WrongZFlag",
-    "assembly": "W SHA I1,$0",
-    "bytes": [
-      252,
-      173,
+      172,
       208,
       0
-    ],
-    "initial": {
-      "regs": {
-        "i1": 0,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 0,
-        "pc": 4100,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_flag",
-    "expectedValidationFailure": "st:Z"
-  },
-  {
-    "name": "Sha_0_0_NegativeTest_WrongI1",
-    "assembly": "W SHA I1,$0",
-    "bytes": [
-      252,
-      173,
-      208,
-      0
-    ],
-    "initial": {
-      "regs": {
-        "i1": 0,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 305419896,
-        "pc": 4100,
-        "st": 32
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "i1"
-  },
-  {
-    "name": "Sha_0_4_NegativeTest_WrongZFlag",
-    "assembly": "W SHA I1,$4",
-    "bytes": [
-      252,
-      173,
-      208,
-      4
-    ],
-    "initial": {
-      "regs": {
-        "i1": 0,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 0,
-        "pc": 4100,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_flag",
-    "expectedValidationFailure": "st:Z"
-  },
-  {
-    "name": "Sha_0_4_NegativeTest_WrongI1",
-    "assembly": "W SHA I1,$4",
-    "bytes": [
-      252,
-      173,
-      208,
-      4
-    ],
-    "initial": {
-      "regs": {
-        "i1": 0,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 305419896,
-        "pc": 4100,
-        "st": 32
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "i1"
-  },
-  {
-    "name": "Shl_80_1_NegativeTest_WrongZFlag",
-    "assembly": "BY SHL I1,$1",
-    "bytes": [
-      252,
-      168,
-      208,
-      1
-    ],
-    "initial": {
-      "regs": {
-        "i1": 128,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 0,
-        "pc": 4100,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_flag",
-    "expectedValidationFailure": "st:Z"
-  },
-  {
-    "name": "Shl_80_1_NegativeTest_WrongI1",
-    "assembly": "BY SHL I1,$1",
-    "bytes": [
-      252,
-      168,
-      208,
-      1
-    ],
-    "initial": {
-      "regs": {
-        "i1": 128,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 305419896,
-        "pc": 4100,
-        "st": 32
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "i1"
-  },
-  {
-    "name": "Shl_1_8_NegativeTest_WrongZFlag",
-    "assembly": "W SHL I1,$8",
-    "bytes": [
-      252,
-      170,
-      208,
-      8
     ],
     "initial": {
       "regs": {
@@ -1197304,7 +1198530,7 @@
     },
     "final": {
       "regs": {
-        "i1": 256,
+        "i1": 1,
         "pc": 4100,
         "st": 32
       },
@@ -1197316,13 +1198542,13 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "Shl_1_8_NegativeTest_WrongI1",
-    "assembly": "W SHL I1,$8",
+    "name": "Sha_1_0_NegativeTest_WrongI1",
+    "assembly": "H SHA I1,$0",
     "bytes": [
       252,
-      170,
+      172,
       208,
-      8
+      0
     ],
     "initial": {
       "regs": {
@@ -1197334,7 +1198560,7 @@
     },
     "final": {
       "regs": {
-        "i1": 305420152,
+        "i1": 305419897,
         "pc": 4100,
         "st": 0
       },
@@ -1197346,17 +1198572,17 @@
     "expectedValidationFailure": "i1"
   },
   {
-    "name": "Shl_2_4_NegativeTest_WrongZFlag",
-    "assembly": "W SHL I1,$4",
+    "name": "Sha_1_4_NegativeTest_WrongZFlag",
+    "assembly": "H SHA I1,$4",
     "bytes": [
       252,
-      170,
+      172,
       208,
       4
     ],
     "initial": {
       "regs": {
-        "i1": 2,
+        "i1": 1,
         "pc": 4096,
         "st": 0
       },
@@ -1197364,7 +1198590,7 @@
     },
     "final": {
       "regs": {
-        "i1": 32,
+        "i1": 16,
         "pc": 4100,
         "st": 32
       },
@@ -1197376,17 +1198602,17 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "Shl_2_4_NegativeTest_WrongI1",
-    "assembly": "W SHL I1,$4",
+    "name": "Sha_1_4_NegativeTest_WrongI1",
+    "assembly": "H SHA I1,$4",
     "bytes": [
       252,
-      170,
+      172,
       208,
       4
     ],
     "initial": {
       "regs": {
-        "i1": 2,
+        "i1": 1,
         "pc": 4096,
         "st": 0
       },
@@ -1197394,7 +1198620,7 @@
     },
     "final": {
       "regs": {
-        "i1": 305419864,
+        "i1": 305419880,
         "pc": 4100,
         "st": 0
       },
@@ -1197406,133 +1198632,253 @@
     "expectedValidationFailure": "i1"
   },
   {
-    "name": "Shl_80_1_NegativeTest_WrongZFlag",
+    "name": "Sha_80000000_1_NegativeTest_WrongZFlag",
+    "assembly": "W SHA I1,$1",
+    "bytes": [
+      252,
+      173,
+      208,
+      1
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483648,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 0,
+        "pc": 4100,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_flag",
+    "expectedValidationFailure": "st:Z"
+  },
+  {
+    "name": "Sha_80000000_1_NegativeTest_WrongI1",
+    "assembly": "W SHA I1,$1",
+    "bytes": [
+      252,
+      173,
+      208,
+      1
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483648,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 305419896,
+        "pc": 4100,
+        "st": 32
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "i1"
+  },
+  {
+    "name": "Shl_40_1_NegativeTest_WrongZFlag",
+    "assembly": "H SHL I1,$1",
+    "bytes": [
+      252,
+      169,
+      208,
+      1
+    ],
+    "initial": {
+      "regs": {
+        "i1": 64,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 128,
+        "pc": 4100,
+        "st": 32
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_flag",
+    "expectedValidationFailure": "st:Z"
+  },
+  {
+    "name": "Shl_40_1_NegativeTest_WrongI1",
+    "assembly": "H SHL I1,$1",
+    "bytes": [
+      252,
+      169,
+      208,
+      1
+    ],
+    "initial": {
+      "regs": {
+        "i1": 64,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 305420024,
+        "pc": 4100,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "i1"
+  },
+  {
+    "name": "Shl_1_1_NegativeTest_WrongZFlag",
+    "assembly": "H SHL I1,$1",
+    "bytes": [
+      252,
+      169,
+      208,
+      1
+    ],
+    "initial": {
+      "regs": {
+        "i1": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 2,
+        "pc": 4100,
+        "st": 32
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_flag",
+    "expectedValidationFailure": "st:Z"
+  },
+  {
+    "name": "Shl_1_1_NegativeTest_WrongI1",
+    "assembly": "H SHL I1,$1",
+    "bytes": [
+      252,
+      169,
+      208,
+      1
+    ],
+    "initial": {
+      "regs": {
+        "i1": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 305419898,
+        "pc": 4100,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "i1"
+  },
+  {
+    "name": "Shl_1_16_NegativeTest_WrongZFlag",
+    "assembly": "W SHL I1,$16",
+    "bytes": [
+      252,
+      170,
+      208,
+      16
+    ],
+    "initial": {
+      "regs": {
+        "i1": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 65536,
+        "pc": 4100,
+        "st": 32
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_flag",
+    "expectedValidationFailure": "st:Z"
+  },
+  {
+    "name": "Shl_1_16_NegativeTest_WrongI1",
+    "assembly": "W SHL I1,$16",
+    "bytes": [
+      252,
+      170,
+      208,
+      16
+    ],
+    "initial": {
+      "regs": {
+        "i1": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 305485432,
+        "pc": 4100,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "i1"
+  },
+  {
+    "name": "Shl_3F_1_NegativeTest_WrongZFlag",
     "assembly": "W SHL I1,$1",
     "bytes": [
       252,
       170,
       208,
       1
-    ],
-    "initial": {
-      "regs": {
-        "i1": 128,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 256,
-        "pc": 4100,
-        "st": 32
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_flag",
-    "expectedValidationFailure": "st:Z"
-  },
-  {
-    "name": "Shl_80_1_NegativeTest_WrongI1",
-    "assembly": "W SHL I1,$1",
-    "bytes": [
-      252,
-      170,
-      208,
-      1
-    ],
-    "initial": {
-      "regs": {
-        "i1": 128,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 305420152,
-        "pc": 4100,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "i1"
-  },
-  {
-    "name": "Shr_2_4_NegativeTest_WrongZFlag",
-    "assembly": "BY SHR I1,$4",
-    "bytes": [
-      252,
-      174,
-      208,
-      4
-    ],
-    "initial": {
-      "regs": {
-        "i1": 2,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 32,
-        "pc": 4100,
-        "st": 32
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_flag",
-    "expectedValidationFailure": "st:Z"
-  },
-  {
-    "name": "Shr_2_4_NegativeTest_WrongI1",
-    "assembly": "BY SHR I1,$4",
-    "bytes": [
-      252,
-      174,
-      208,
-      4
-    ],
-    "initial": {
-      "regs": {
-        "i1": 2,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 305419864,
-        "pc": 4100,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "i1"
-  },
-  {
-    "name": "Shr_3F_15_NegativeTest_WrongZFlag",
-    "assembly": "W SHR I1,$15",
-    "bytes": [
-      252,
-      176,
-      208,
-      15
     ],
     "initial": {
       "regs": {
@@ -1197544,7 +1198890,7 @@
     },
     "final": {
       "regs": {
-        "i1": 2064384,
+        "i1": 126,
         "pc": 4100,
         "st": 32
       },
@@ -1197556,13 +1198902,13 @@
     "expectedValidationFailure": "st:Z"
   },
   {
-    "name": "Shr_3F_15_NegativeTest_WrongI1",
-    "assembly": "W SHR I1,$15",
+    "name": "Shl_3F_1_NegativeTest_WrongI1",
+    "assembly": "W SHL I1,$1",
     "bytes": [
       252,
-      176,
+      170,
       208,
-      15
+      1
     ],
     "initial": {
       "regs": {
@@ -1197574,7 +1198920,127 @@
     },
     "final": {
       "regs": {
-        "i1": 304862840,
+        "i1": 305419782,
+        "pc": 4100,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "i1"
+  },
+  {
+    "name": "Shr_1_1_NegativeTest_WrongZFlag",
+    "assembly": "W SHR I1,$1",
+    "bytes": [
+      252,
+      176,
+      208,
+      1
+    ],
+    "initial": {
+      "regs": {
+        "i1": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 2,
+        "pc": 4100,
+        "st": 32
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_flag",
+    "expectedValidationFailure": "st:Z"
+  },
+  {
+    "name": "Shr_1_1_NegativeTest_WrongI1",
+    "assembly": "W SHR I1,$1",
+    "bytes": [
+      252,
+      176,
+      208,
+      1
+    ],
+    "initial": {
+      "regs": {
+        "i1": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 305419898,
+        "pc": 4100,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_register",
+    "expectedValidationFailure": "i1"
+  },
+  {
+    "name": "Shr_1_7_NegativeTest_WrongZFlag",
+    "assembly": "W SHR I1,$7",
+    "bytes": [
+      252,
+      176,
+      208,
+      7
+    ],
+    "initial": {
+      "regs": {
+        "i1": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 128,
+        "pc": 4100,
+        "st": 32
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "isNegativeTest": true,
+    "negativeTestType": "wrong_flag",
+    "expectedValidationFailure": "st:Z"
+  },
+  {
+    "name": "Shr_1_7_NegativeTest_WrongI1",
+    "assembly": "W SHR I1,$7",
+    "bytes": [
+      252,
+      176,
+      208,
+      7
+    ],
+    "initial": {
+      "regs": {
+        "i1": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 305420024,
         "pc": 4100,
         "st": 0
       },
@@ -1197646,15 +1199112,15 @@
     "expectedValidationFailure": "i1"
   },
   {
-    "name": "Laddr_1000_NegativeTest_WrongI1",
-    "assembly": "W1 laddr @4096",
+    "name": "Laddr_8000_NegativeTest_WrongI1",
+    "assembly": "W1 laddr @32768",
     "bytes": [
       253,
       60,
       196,
       0,
       0,
-      16,
+      128,
       0
     ],
     "initial": {
@@ -1197666,7 +1199132,7 @@
     },
     "final": {
       "regs": {
-        "i1": 305415800,
+        "i1": 305452664,
         "pc": 4103
       },
       "ram": []
@@ -1197677,15 +1199143,15 @@
     "expectedValidationFailure": "i1"
   },
   {
-    "name": "Laddr_2000_NegativeTest_WrongI1",
-    "assembly": "W1 laddr @8192",
+    "name": "Laddr_8000_NegativeTest_WrongI1",
+    "assembly": "W1 laddr @32768",
     "bytes": [
       253,
       60,
       196,
       0,
       0,
-      32,
+      128,
       0
     ],
     "initial": {
@@ -1197697,38 +1199163,7 @@
     },
     "final": {
       "regs": {
-        "i1": 305428088,
-        "pc": 4103
-      },
-      "ram": []
-    },
-    "maxInstructions": 1,
-    "isNegativeTest": true,
-    "negativeTestType": "wrong_register",
-    "expectedValidationFailure": "i1"
-  },
-  {
-    "name": "Laddr_2000_NegativeTest_WrongI1",
-    "assembly": "W1 laddr @8192",
-    "bytes": [
-      253,
-      60,
-      196,
-      0,
-      0,
-      32,
-      0
-    ],
-    "initial": {
-      "regs": {
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 305428088,
+        "i1": 305452664,
         "pc": 4103
       },
       "ram": []

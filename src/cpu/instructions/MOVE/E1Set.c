@@ -44,10 +44,10 @@ void nd500_instr_E1Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     uint32_t value = nd500_read_operand_word(cpu, &fi->operands[0]);
 
-    // Read current E1, preserve upper 32 bits, replace lower 32 bits
-    uint64_t e1_full = nd500_read_double_register(cpu, 1);
-    e1_full = (e1_full & 0xFFFFFFFF00000000ULL) | (uint64_t)value;
-    nd500_write_double_register(cpu, 1, e1_full);
+    // en:= writes the source into the E1 register. E is the HIGH 32 bits of
+    // the D1 pair (microcode LOADE1 @001164: D,E1); the previous code
+    // wrote the low half, which is A1, not E1.
+    cpu->E[0] = value;
 
     // Set Z and S flags based on the 32-bit word value
     if (value == 0) {
@@ -61,4 +61,7 @@ void nd500_instr_E1Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else {
         cpu->ST1 &= ~ND500_FLAG_S;
     }
+
+    // ST,SAVA: C and O cleared; K unchanged.
+    cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_O);
 }

@@ -42,9 +42,9 @@ void nd500_instr_E2Get(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // Read full 64-bit E2 register, but only use lower 32 bits
-    uint64_t e2_full = nd500_read_double_register(cpu, 2);
-    uint32_t value = (uint32_t)(e2_full & 0xFFFFFFFF);
+    // en=: reads the E2 register (E = HIGH 32 bits of D2;
+    // microcode STOREE2 @001175: A,E2). Was reading the low half (A2).
+    uint32_t value = cpu->E[1];
 
     nd500_write_operand_word(cpu, &fi->operands[0], value);
 
@@ -60,4 +60,7 @@ void nd500_instr_E2Get(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else {
         cpu->ST1 &= ~ND500_FLAG_S;
     }
+
+    // ST,SAVA: C and O cleared; K unchanged.
+    cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_O);
 }

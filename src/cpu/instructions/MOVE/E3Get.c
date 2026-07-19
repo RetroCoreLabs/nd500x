@@ -42,9 +42,9 @@ void nd500_instr_E3Get(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // Read full 64-bit E3 register, but only use lower 32 bits
-    uint64_t e3_full = nd500_read_double_register(cpu, 3);
-    uint32_t value = (uint32_t)(e3_full & 0xFFFFFFFF);
+    // en=: reads the E3 register (E = HIGH 32 bits of D3;
+    // microcode STOREE3 @001176: A,E3). Was reading the low half (A3).
+    uint32_t value = cpu->E[2];
 
     nd500_write_operand_word(cpu, &fi->operands[0], value);
 
@@ -60,4 +60,7 @@ void nd500_instr_E3Get(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else {
         cpu->ST1 &= ~ND500_FLAG_S;
     }
+
+    // ST,SAVA: C and O cleared; K unchanged.
+    cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_O);
 }
