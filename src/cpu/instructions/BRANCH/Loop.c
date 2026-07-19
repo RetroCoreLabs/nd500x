@@ -299,6 +299,28 @@ void nd500_instr_Loop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint64_t step = nd500_read_operand_value(cpu, &fi->operands[1], data_type);
         uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[2], data_type);
 
+        // step == 0 -> Illegal Operand Value (IOV) trap, then fall through to the
+        // next instruction (no index update, no loop-back). Manual 13.6; microcode
+        // 000637 -> LOOP_IOV_B. Without this a zero step is an INFINITE LOOP.
+        bool step_zero = false;
+        switch (data_type) {
+            case ND500_DTYPE_BYTE:     step_zero = ((int8_t)step == 0); break;
+            case ND500_DTYPE_HALFWORD: step_zero = ((int16_t)step == 0); break;
+            case ND500_DTYPE_WORD:     step_zero = ((int32_t)step == 0); break;
+            default: break;
+        }
+        if (step_zero) {
+            raise_trap(cpu, TRAP_IOV, fi->address, 0);  // Illegal Operand Value
+            // Fall through to the next sequential instruction (no loop-back).
+            uint32_t actual_len = 2;  // opcode
+            for (int i = 0; i < 3; i++) {
+                actual_len += 1 + fi->operands[i].data_len;
+            }
+            actual_len += is_halfword_disp ? 2 : 1;
+            cpu->PC = fi->address + actual_len;
+            return;
+        }
+
         // Add step to index (full 32-bit operation)
         uint64_t new_index = index + step;
 

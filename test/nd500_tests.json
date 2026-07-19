@@ -445838,6 +445838,34 @@
     "maxInstructions": 1
   },
   {
+    "name": "Loop_BY_StepZero_IOV",
+    "assembly": "BY LOOP I1,$0,$10,$-10",
+    "bytes": [
+      253,
+      45,
+      208,
+      0,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 5,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4102
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue"
+  },
+  {
     "name": "Loop_Step1_Index0_Taken",
     "assembly": "H LOOP I1,$1,$10,$-10",
     "bytes": [
@@ -445925,6 +445953,34 @@
     "maxInstructions": 1
   },
   {
+    "name": "Loop_H_StepZero_IOV",
+    "assembly": "H LOOP I1,$0,$10,$-10",
+    "bytes": [
+      253,
+      46,
+      208,
+      0,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 5,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4102
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue"
+  },
+  {
     "name": "Loop_Step1_Index0_Taken",
     "assembly": "W LOOP I1,$1,$10,$-10",
     "bytes": [
@@ -446010,6 +446066,34 @@
       "ram": []
     },
     "maxInstructions": 1
+  },
+  {
+    "name": "Loop_W_StepZero_IOV",
+    "assembly": "W LOOP I1,$0,$10,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      0,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 5,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4102
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue"
   },
   {
     "name": "Loop_Float_Step2_Index0_Taken",
@@ -446339,106 +446423,19 @@
     "maxInstructions": 1
   },
   {
-    "name": "Loop_Step1_Index0_Taken",
-    "assembly": "W LOOP I1,$1,$10,$-10",
+    "name": "Loop_W_StepZero_IOV",
+    "assembly": "W LOOP I1,$0,$10,$-10",
     "bytes": [
       253,
       47,
       208,
-      1,
-      10,
-      246
-    ],
-    "initial": {
-      "regs": {
-        "i1": 0,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 1,
-        "pc": 4086,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1
-  },
-  {
-    "name": "Loop_Step1_Index10_Exit",
-    "assembly": "W LOOP I1,$1,$10,$-10",
-    "bytes": [
-      253,
-      47,
-      208,
-      1,
-      10,
-      246
-    ],
-    "initial": {
-      "regs": {
-        "i1": 10,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 11,
-        "pc": 4102,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1
-  },
-  {
-    "name": "Loop_StepNeg1_Index10_Taken",
-    "assembly": "W LOOP I1,$4294967295,$0,$-10",
-    "bytes": [
-      253,
-      47,
-      208,
-      63,
       0,
-      246
-    ],
-    "initial": {
-      "regs": {
-        "i1": 10,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 9,
-        "pc": 4086,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1
-  },
-  {
-    "name": "Loop_Step1_Index0_Taken",
-    "assembly": "W LOOP I1,$1,$10,$-10",
-    "bytes": [
-      253,
-      47,
-      208,
-      1,
       10,
       246
     ],
     "initial": {
       "regs": {
-        "i1": 0,
+        "i1": 5,
         "pc": 4096,
         "st": 0
       },
@@ -446446,71 +446443,12 @@
     },
     "final": {
       "regs": {
-        "i1": 1,
-        "pc": 4086,
-        "st": 0
+        "pc": 4102
       },
       "ram": []
     },
-    "maxInstructions": 1
-  },
-  {
-    "name": "Loop_Step1_Index10_Exit",
-    "assembly": "W LOOP I1,$1,$10,$-10",
-    "bytes": [
-      253,
-      47,
-      208,
-      1,
-      10,
-      246
-    ],
-    "initial": {
-      "regs": {
-        "i1": 10,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 11,
-        "pc": 4102,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1
-  },
-  {
-    "name": "Loop_StepNeg1_Index10_Taken",
-    "assembly": "W LOOP I1,$4294967295,$0,$-10",
-    "bytes": [
-      253,
-      47,
-      208,
-      63,
-      0,
-      246
-    ],
-    "initial": {
-      "regs": {
-        "i1": 10,
-        "pc": 4096,
-        "st": 0
-      },
-      "ram": []
-    },
-    "final": {
-      "regs": {
-        "i1": 9,
-        "pc": 4086,
-        "st": 0
-      },
-      "ram": []
-    },
-    "maxInstructions": 1
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue"
   },
   {
     "name": "Loop_Step1_Index0_Taken",
@@ -446600,6 +446538,34 @@
     "maxInstructions": 1
   },
   {
+    "name": "Loop_W_StepZero_IOV",
+    "assembly": "W LOOP I1,$0,$10,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      0,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 5,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4102
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue"
+  },
+  {
     "name": "Loop_Step1_Index0_Taken",
     "assembly": "W LOOP I1,$1,$10,$-10",
     "bytes": [
@@ -446685,6 +446651,264 @@
       "ram": []
     },
     "maxInstructions": 1
+  },
+  {
+    "name": "Loop_W_StepZero_IOV",
+    "assembly": "W LOOP I1,$0,$10,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      0,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 5,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4102
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue"
+  },
+  {
+    "name": "Loop_Step1_Index0_Taken",
+    "assembly": "W LOOP I1,$1,$10,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      1,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 1,
+        "pc": 4086,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "Loop_Step1_Index10_Exit",
+    "assembly": "W LOOP I1,$1,$10,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      1,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 10,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 11,
+        "pc": 4102,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "Loop_StepNeg1_Index10_Taken",
+    "assembly": "W LOOP I1,$4294967295,$0,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      63,
+      0,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 10,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 9,
+        "pc": 4086,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "Loop_W_StepZero_IOV",
+    "assembly": "W LOOP I1,$0,$10,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      0,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 5,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4102
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue"
+  },
+  {
+    "name": "Loop_Step1_Index0_Taken",
+    "assembly": "W LOOP I1,$1,$10,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      1,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 1,
+        "pc": 4086,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "Loop_Step1_Index10_Exit",
+    "assembly": "W LOOP I1,$1,$10,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      1,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 10,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 11,
+        "pc": 4102,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "Loop_StepNeg1_Index10_Taken",
+    "assembly": "W LOOP I1,$4294967295,$0,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      63,
+      0,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 10,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "i1": 9,
+        "pc": 4086,
+        "st": 0
+      },
+      "ram": []
+    },
+    "maxInstructions": 1
+  },
+  {
+    "name": "Loop_W_StepZero_IOV",
+    "assembly": "W LOOP I1,$0,$10,$-10",
+    "bytes": [
+      253,
+      47,
+      208,
+      0,
+      10,
+      246
+    ],
+    "initial": {
+      "regs": {
+        "i1": 5,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4102
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue"
   },
   {
     "name": "Loopd_Index10_Limit0_Taken",
