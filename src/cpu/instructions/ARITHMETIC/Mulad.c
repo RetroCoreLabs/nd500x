@@ -51,10 +51,23 @@ void nd500_instr_Mulad(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Handle float/double types - DEFERRED (like C# lines 59-143) */
+    /* Handle float/double types.
+     * Microcode MULADF @002633 / MULADD @002635: Rn * <x> + <y> -> Rn;
+     * ST,SAVF/ST,ACCF set Z,S,FU,FO; C,O cleared (rule 4040). */
     if (fi->uses_float_registers) {
-        printf("[DEFERRED] MULAD at PC=0x%08X: Float/Double operations not yet implemented\n",
-               fi->address);
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+        double regValue = is_double
+            ? nd500_double_to_ieee754(nd500_read_double_register(cpu, fi->target_register))
+            : (double)nd500_float_to_ieee754(nd500_read_float_register(cpu, fi->target_register));
+        double x = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
+        double y = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+        double fresult = regValue * x + y;
+        uint64_t bits = nd500_float_finish(cpu, fi->address, fresult, is_double);
+        if (is_double) {
+            nd500_write_double_register(cpu, fi->target_register, bits);
+        } else {
+            nd500_write_float_register(cpu, fi->target_register, (uint32_t)bits);
+        }
         return;
     }
 

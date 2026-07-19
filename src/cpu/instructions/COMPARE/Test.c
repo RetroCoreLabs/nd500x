@@ -46,16 +46,20 @@ void nd500_instr_Test(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Read operand (like C# line 48) */
+    /* Read operand */
     uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
-    /* Test against zero (result = value - 0 = value) (like C# line 51) */
-    /* Update Z and S flags */
-    nd500_set_flags_zs(cpu, value, fi->data_type);
-
-    /* For integer types, C is always 1 (like C# lines 54-55) */
-    /* Check uses_float_registers to distinguish integer from float */
-    if (!fi->uses_float_registers) {
+    /* Test against zero (result = value - 0 = value).
+     * Microcode F TEST @000252 / D TEST @000253 (ST,SAVC): Z = (operand == 0.0),
+     * S = signbit(operand); float TEST does NOT set C. Integer TEST @000250
+     * (ST,SAVC): Z = (operand == 0), S = signbit, C = 1 ALWAYS (subtracting 0
+     * never borrows). O is not listed for either -> CLEARED (rule 4040). */
+    if (fi->uses_float_registers) {
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+        nd500_set_flags_zs_float(cpu, value, is_double);
+    } else {
+        nd500_set_flags_zs(cpu, value, fi->data_type);
         nd500_set_flag(cpu, ND500_FLAG_C);
     }
+    nd500_clear_flag(cpu, ND500_FLAG_O);
 }

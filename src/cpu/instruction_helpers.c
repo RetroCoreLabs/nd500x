@@ -528,6 +528,47 @@ void nd500_set_flags_zs_float(Nd500Cpu* cpu, uint64_t value, bool is_double) {
     }
 }
 
+uint64_t nd500_float_finish(Nd500Cpu* cpu, uint32_t pc, double result, bool is_double) {
+    /* Shared tail for floating-point arithmetic instructions (ADD3/SUB2/SUB3/
+     * MUL2/MUL3/MULAD/DIV2/DIV3 float paths). Microcode ST,SAVF sets Z,S and
+     * conditionally FU,FO; the Reference "unlisted-bit" rule (4040) clears every
+     * data-status bit the instruction does not name, so C and O are CLEARED.
+     * Returns the ND-500 result bits (float in the low 32, double in the 64)
+     * for the caller to store to its destination (operand or register). */
+
+    /* Convert the IEEE result back to ND-500 float/double bits */
+    uint64_t result_bits = is_double
+        ? nd500_double_from_ieee754(result)
+        : (uint64_t)nd500_float_from_ieee754((float)result);
+
+    /* Detect floating overflow / underflow (mirrors the Add.c float path) */
+    bool fovfl = (isinf(result) || isnan(result));
+    bool funfl = (!fovfl && result != 0.0 && fabs(result) < 1e-38);
+
+    /* STATUS: Z,S from result; C,O cleared (rule 4040); FU,FO conditional */
+    nd500_set_flags_zs_float(cpu, result_bits, is_double);
+    cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_O);
+    if (fovfl) {
+        cpu->ST1 |= ND500_FLAG_FO;
+    } else {
+        cpu->ST1 &= ~ND500_FLAG_FO;
+    }
+    if (funfl) {
+        cpu->ST1 |= ND500_FLAG_FU;
+    } else {
+        cpu->ST1 &= ~ND500_FLAG_FU;
+    }
+
+    /* TRAP: Floating overflow (FO) / Floating underflow (FU) */
+    if (fovfl) {
+        trap_floating_overflow(cpu, pc);
+    } else if (funfl) {
+        trap_floating_underflow(cpu, pc);
+    }
+
+    return result_bits;
+}
+
 void nd500_set_flags_zsc(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype, bool carry) {
     // Set Z and S flags
     nd500_set_flags_zs(cpu, value, dtype);

@@ -341,6 +341,15 @@ void nd500_set_flags_zs(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype);
  */
 void nd500_set_flags_zs_float(Nd500Cpu* cpu, uint64_t value, bool is_double);
 
+/*
+ * Shared tail for floating-point arithmetic instructions.
+ * Given the IEEE-754 result, sets Z,S from the result, clears C and O
+ * (Reference rule 4040), sets FU/FO conditionally, and raises the FO/FU trap.
+ * Returns the ND-500 result bits (float in low 32, double in 64) for the caller
+ * to store to its destination operand or register.
+ */
+uint64_t nd500_float_finish(Nd500Cpu* cpu, uint32_t pc, double result, bool is_double);
+
 /**
  * Set Z, S, and C flags
  * @param cpu CPU state

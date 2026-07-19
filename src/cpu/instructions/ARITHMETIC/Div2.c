@@ -51,11 +51,22 @@ void nd500_instr_Div2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Handle float/double types - DEFERRED */
+    /* Handle float/double types.
+     * Microcode DIV2F / DIV2D: a / b -> <a>; ST,SAVF sets Z,S,FU,FO; C,O cleared (rule 4040).
+     * Divide-by-zero sets DZ and raises the divide-by-zero trap. */
     if (fi->uses_float_registers) {
-        printf("[DEFERRED] DIV2 at PC=0x%08X: Float/Double operations not yet implemented\n",
-               fi->address);
-        /* For now, just skip - will implement when float conversion helpers are ready */
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+        double aValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
+        double bValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+        if (bValue == 0.0) {
+            cpu->ST1 |= ND500_FLAG_DZ;
+            trap_divide_by_zero(cpu, fi->address);
+            return;
+        }
+        cpu->ST1 &= ~ND500_FLAG_DZ;
+        double fresult = aValue / bValue;
+        nd500_write_operand_from_ieee_float(cpu, &fi->operands[0], fresult, is_double);
+        nd500_float_finish(cpu, fi->address, fresult, is_double);
         return;
     }
 

@@ -67,9 +67,18 @@ void nd500_instr_Set1(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
     }
 
-    // Write 1 to destination operand
-    nd500_write_operand_value(cpu, &fi->operands[0], 1, dtype);
+    // Write 1 to destination operand.
+    // Microcode SET1F @000326 / SET1D @000330 produce floating 1.0 for the F/D
+    // variants (ALU constant 1 in the operand's datatype), NOT the integer bit
+    // pattern 0x00000001 (which is a tiny denormal, not 1.0).
+    if (fi->opcode == 0x0047) {          // F set1 -> single-precision 1.0
+        nd500_write_operand_from_ieee_float(cpu, &fi->operands[0], 1.0, false);
+    } else if (fi->opcode == 0xFC89) {   // D set1 -> double-precision 1.0
+        nd500_write_operand_from_ieee_float(cpu, &fi->operands[0], 1.0, true);
+    } else {
+        nd500_write_operand_value(cpu, &fi->operands[0], 1, dtype);
+    }
 
-    // Clear all status flags (Z, S, C, O)
+    // Clear all status flags (Z, S, C, O) - result +1 is positive, non-zero
     cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
 }

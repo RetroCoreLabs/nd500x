@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <math.h>
 
 /**
  * Add3 instruction - ARITHMETIC class
@@ -50,11 +51,21 @@ void nd500_instr_Add3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Handle float/double types - DEFERRED */
+    /* Handle float/double types.
+     * Microcode ADD3F @002177 / ADD3D @002221: READ a, READ b, a+b -> SC1 (ST,SAVF),
+     * WRITE sum to <c>. Float status = Z,S,FU,FO; C and O are not named by the
+     * instruction and are therefore CLEARED (Reference rule 4040). */
     if (fi->uses_float_registers) {
-        printf("[DEFERRED] ADD3 at PC=0x%08X: Float/Double operations not yet implemented\n",
-               fi->address);
-        /* For now, just skip - will implement when float conversion helpers are ready */
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+
+        /* READ operand a and operand b as IEEE doubles */
+        double aValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
+        double bValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+
+        /* a + b -> <c>; shared tail sets Z,S / clears C,O / sets+traps FU,FO */
+        double fresult = aValue + bValue;
+        nd500_write_operand_from_ieee_float(cpu, &fi->operands[2], fresult, is_double);
+        nd500_float_finish(cpu, fi->address, fresult, is_double);
         return;
     }
 
