@@ -122,6 +122,8 @@ int main(int argc, char** argv) {
          * observation has to happen inside this driver. */
         uint32_t break_pc = 0;
         if (getenv("ND500X_BREAK_PC")) break_pc = (uint32_t)strtoul(getenv("ND500X_BREAK_PC"), 0, 0);
+        static unsigned long long break_after = 0;
+        if (getenv("ND500X_BREAK_AFTER")) break_after = strtoull(getenv("ND500X_BREAK_AFTER"),0,0);
         /* ND500X_CALLTRACE_LO/HI: within [instr LO,HI], print PC whenever it lands
          * OUTSIDE the previous instruction's fall-through by more than a page - a
          * cheap call/jump tracer to map a handler's control flow on the fed path. */
@@ -164,7 +166,7 @@ int main(int argc, char** argv) {
                 fprintf(stderr,"=== DISASM @%08X len=%u (hit PC=%08X instr=%llu) ===\n%s\n=== END DISASM ===\n",
                         base, disasm_len, c.PC, (unsigned long long)c.instruction_count, dbuf);
             }
-            if (break_pc && c.PC == break_pc) {
+            if (break_pc && c.PC == break_pc && c.instruction_count >= break_after) {
                 fprintf(stderr, "[BREAK] PC=%08X instr=%llu B=%08X R=%08X I1=%08X I2=%08X I3=%08X I4=%08X ST1=%08X\n",
                         c.PC, (unsigned long long)c.instruction_count, c.B, c.R, c.I[0], c.I[1], c.I[2], c.I[3], c.ST1);
                 const char* dmp = getenv("ND500X_BREAK_DUMP");

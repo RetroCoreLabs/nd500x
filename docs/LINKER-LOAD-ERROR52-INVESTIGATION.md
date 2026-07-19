@@ -454,3 +454,42 @@ BREAK at the LOAD-handler return and walk backwards, or watch for the first writ
 of 0x37(55)/0x2C(44) or an error-index into the frame during the LOAD window
 [173830,191660]. The current-domain "handle" the handler reads is the real
 target; OPEN-DOMAIN must set it and our create path does not.
+
+---
+
+## UPDATE 2026-07-19d: error code computed downstream; OPEN-DOMAIN handler call-chain located
+
+Continued the current-domain-handle hunt. Ruled out the downstream layers and
+located the OPEN-DOMAIN handler body for next session.
+
+### The (0054:67) code is computed in the formatter, NOT stored in a global
+- Executive `b.144` (`test b.144; if=go B0034B57`) is NOT the error decider - it
+  is the "run post-command autojob" flag:
+  `b.144 = ((W1==13)|b.440) & ((cmd==11)|(cmd==13)) & (global[0xB0048CC0]==1)`
+  (disasm B0034A80..B0034AD5). Both success and error reach the shared banner.
+- b.80 passed to the banner formatter B0036ACD is a descriptor
+  `{ptr=0xB0048FEC, n1, n2}`: OPEN-DOMAIN {12,19}, LOAD {5,9}. 0xB0048FEC is just
+  the ECHOED COMMAND TEXT buffer ("OPEN-DOMAIN \"A-TEST\"" / "LOAD B:NRF"), not
+  the code.
+- Dumped 0xB0048F60..0xB0049000 (linker status block) at BOTH banners:
+  byte-identical except the echoed command. So (0054:67) is computed by the
+  message path from the error condition, carried in regs/frame - the DECISION is
+  upstream in the LOAD handler, already made before the banner.
+
+### OPEN-DOMAIN "create" MON sequence + handler location (for the set-current store)
+`OPEN-DOMAIN "A-TEST"` create (instr window [104184,173830]):
+  50B OPEN "A-TEST":DOM (create, file 101) @ handler-called wrapper B004E80F/E874,
+  the create OPEN itself at instr 132725; then 76B SETBS 4000, 120B WFILE 4096
+  bytes block0 (the on-disk header), 256B DEABF, 43B CLOSE.
+Call chain INTO the create (calltrace): ... B0020487 -> B0007195 -> B0002D92 ->
+B000489B -> B0006D0C ... B0022688 ... B00226C5 -> B000061B -> B00026A2 -> ...
+B000064C -> **B004E80F** (OPEN wrapper). The OPEN-DOMAIN command HANDLER lives up
+this chain in the B0020487 / B0022688 / B0006Dxx region. NEXT SESSION: disassemble
+that handler's body from its dispatch entry through its tail; find (a) the store
+of the current-domain handle/pointer to a linker global and whether it executes,
+and (b) the matching read on the LOAD side. Leading hypothesis unchanged: the
+handle is derived from the domain and ends up 0 (our create writes a 4096-zero
+header; check whether the WFILE buffer @0xB0013130 is structured on real HW).
+
+Harness: diag_linkdrive now also supports ND500X_BREAK_AFTER=<instr> to gate
+ND500X_BREAK_PC past startup (the create OPEN is only the A-TEST one after 104184).
