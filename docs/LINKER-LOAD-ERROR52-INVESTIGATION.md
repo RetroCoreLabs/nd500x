@@ -20,7 +20,32 @@ files (`B:NRF;1`) makes the linker **open the object** (`50B OPEN ./GUEST/B.NRF`
   is a check on DEABF's OUTPUT. The manual named the missing field (version); a one-line
   experiment (`;1`) confirmed it by making `50B OPEN` fire.
 
-### NEW frontier (next blocker, separate): "no current domain"
+### NEW frontier (next blocker, separate): "no current domain" — CHARACTERIZED 2026-07-19
+MON-level trace of the full run (deterministic) pins the behaviour:
+- **OPEN-DOMAIN "A-TEST"** (quoted create): `50B OPEN` create A-TEST.DOM (file 101) ->
+  `120B WFILE` 4096-byte empty header at block 0 -> `256B DEABF` 'A-TEST:DOM;1' ->
+  `43B CLOSE` file 101. It then OPENs the ERROR-MESSAGE file (UE-ERMSG) and RFILEs it to
+  format the `(0000:00)` success line. It NEVER reopens A-TEST.DOM. So OPEN-DOMAIN
+  persists an empty domain file + prints success, but leaves NO open/current domain and
+  (apparently) does not set the linker's in-memory current-domain pointer.
+- **LOAD B:NRF** (with the version fix): `50B OPEN` B.NRF (file 102) -> `43B CLOSE` ->
+  current-domain check FAILS -> `*** ERROR - Command not valid when no current domain or
+  segment exists. (0054:67)`. Object handling is now fully correct; the fault is purely
+  the missing current-domain state.
+
+Manual truth (ND-860289 ND Linker): the workflow IS `OPEN-DOMAIN "X"` then `LOAD`
+(p.197-200), and LOAD loads into "the current domain" (p.958). OPEN-DOMAIN must make the
+new domain current. `0xB0048CC8` (=1) is NOT that state (already ruled out).
+
+NEXT PROBE: find the linker's in-memory current-domain variable (the one LOAD's (0054:67)
+gate reads) and determine why OPEN-DOMAIN's quoted-create path does not set it — candidates:
+(a) the create path diverges from the open-existing path before the "set current" store;
+(b) OPEN-DOMAIN expects to read back a VALID domain header (ours is 4096 zeros) to build
+the descriptor and skips "set current" when the header is empty/invalid;
+(c) a MON call in the create path returns a value our emulation gets wrong. Approach: watch
+memory writes during OPEN-DOMAIN, then find which the LOAD gate reads as zero.
+
+### (historical) NEW frontier note (superseded by the characterization above): "no current domain"
 With the object now opening, `LOAD B:NRF` hits:
 `*** ERROR - Command not valid when no current domain or segment exists. (0054:67)`
 `OPEN-DOMAIN "A-TEST"` DOES create the `.DOM` file (`50B OPEN` file 101 + `120B WFILE`
