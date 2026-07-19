@@ -104,29 +104,41 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
         return MON_ERROR;
     }
 
-    /* Found: build the expanded name. Preserve the caller's directory/name and
-     * append the resolved type, then apostrophe-terminate.
+    /* Found: build the canonical expanded name (DIR:USER)NAME:TYPE;VERSION.
      *
      * DEABF returns "the directory, the user, the file name, the file type, AND the
-     * VERSION" (Monitor Calls ND-860228, 256B FULLFILENAME). A version-less name is
-     * rejected by the ND Linker: `LOAD B:NRF` resolved to "B:NRF" (no version) and
-     * the linker aborted with error (-677:52) BEFORE opening the object. Returning the
-     * version ";1" (the default/only version of our single-version host files) lets the
-     * linker OPEN the .NRF object and proceed. Host files carry no SINTRAN version, so
-     * ";1" is synthesized; only FOUND files get it (a not-yet-created file has none). */
-    char full_name[128];
+     * VERSION" (Monitor Calls ND-860228, 256B FULLFILENAME). The version is NOT
+     * cosmetic: on a name with no explicit ;version, SINTRAN's GFILI resolver walks
+     * the file's on-disk version chain and selects the default (highest) version, and
+     * the canonical name it hands back carries that ;VERSION field. Byte-verified in
+     * the S3FS carve: FLPAR/MDEAB resolver + GFILI @057173 version chain
+     * (057276 "no version requested -> pick default", framing NAME:TYPE;VERSION) --
+     *   /mnt/e/Dev/Ronny/NDInsight/tools/sintran-segment-carver/versions/L-VSX-500/re/
+     *     segments-ref/006-S3FS/{CARVE-ANSWER-FLPAR-MDEAB-FOR-IMPLEMENTER,
+     *                            GFILI-COMPLETE-CARVE}.md
+     * The ND Linker relies on this: `LOAD B:NRF` resolved to version-less "B:NRF" was
+     * rejected with (-677:52) BEFORE any object open; with the ;VERSION it OPENs .NRF.
+     *
+     * Our host files carry no SINTRAN version chain, so each maps to a single on-disk
+     * version whose default is version 1 -- exactly what GFILI's default-version walk
+     * yields. So append ";1" UNLESS the resolved name already carries an explicit
+     * version (defensive; the linker never sends one). Only FOUND files get a version;
+     * a not-yet-created name still returns not-found so NC's create path is unchanged. */
+    char base_name[128];
     if (use_type) {
-        if (user[0]) {
-            snprintf(full_name, sizeof(full_name), "(%s)%s:%s;1", user, name, use_type);
-        } else {
-            snprintf(full_name, sizeof(full_name), "%s:%s;1", name, use_type);
-        }
+        if (user[0]) snprintf(base_name, sizeof(base_name), "(%s)%s:%s", user, name, use_type);
+        else         snprintf(base_name, sizeof(base_name), "%s:%s", name, use_type);
     } else {
-        if (user[0]) {
-            snprintf(full_name, sizeof(full_name), "(%s)%s;1", user, name);
-        } else {
-            snprintf(full_name, sizeof(full_name), "%s;1", name);
-        }
+        if (user[0]) snprintf(base_name, sizeof(base_name), "(%s)%s", user, name);
+        else         snprintf(base_name, sizeof(base_name), "%s", name);
+    }
+    char full_name[160];
+    if (strchr(base_name, ';')) {
+        /* Caller already specified a version -> honour it (GFILI explicit-match path). */
+        snprintf(full_name, sizeof(full_name), "%s", base_name);
+    } else {
+        /* No version requested -> GFILI default: highest/only version (1 for host files). */
+        snprintf(full_name, sizeof(full_name), "%s;1", base_name);
     }
 
     /* Write the full name to the OUTPUT argument. On ND-500 arg 1 is also a
