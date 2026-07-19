@@ -124,6 +124,45 @@ add float branch in each Create*Scenario keyed on dataType F/D), and the CONTROL
 generators for SET1 and TEST. Ensure the orchestrator actually routes the F/D variants to
 these generators (currently no float ADD3 cases are emitted at all).
 
+## Generator extension - DONE (2026-07-19), verified, pending user regen
+
+Extended and verified (spot-checked against actual source, not assumed):
+- ComprehensiveArithmeticGenerator.cs: F/D routing added in GenerateForMnemonic (root
+  cause of zero float coverage: the F/D branch only routed `+ - * / abs neg incr decr`,
+  never the extended 2/3-address forms). New FloatFinishFlags/FloatBitsRaw/DoubleBitsRaw/
+  ApplyFloatOp/GenerateFloatExtendedArithmeticScenarios/CreateFloatArithScenario/
+  CreateFloatMuladScenario. FloatFinishFlags mirrors nd500_float_finish exactly.
+- ComprehensiveControlGenerator.cs: GenerateForMnemonic override + CreateSet1FloatScenario
+  (SET1 F/D -> 1.0).
+- ComprehensiveCompareGenerator.cs: GenerateForMnemonic override + CreateFloatTestScenario
+  (F/D TEST: +0.0/-0.0/positive/negative/C-preserved).
+- ~96 new float scenarios (positive + FU/FO/DZ negatives); framework auto-adds wrong-flag
+  negatives at 5% over the positive scenarios.
+- Verified: TrapType enum has FloatException + DivisionByZero (NOT FloatingOverflow etc.);
+  test_instruction_validation.c maps FO(bit14)+FU(bit13)->"FloatException", DZ(bit12)->
+  "DivisionByZero". Generator uses TrapType.FloatException (FO/FU) and .DivisionByZero (DZ).
+- Verified: ST flag constants in generator (Z=0x20,S=0x80,DZ=0x1000,FU=0x2000,FO=0x4000).
+
+nd500x MULAD register-read bug fixed (commit c57935e): reads Rn as raw IEEE-754 (was
+ND-native), now consistent with C# ReadRegisterAsIeeeFloat + the write path.
+
+CAVEAT to watch during regen: the exporter's AssembleSingleStatement is the real gate for
+the float operand spellings (esp. `F1 MULAD A2,A3` with A-register operands vs the integer
+form's constant operands). If any float scenario fails to assemble, that mnemonic's operand
+form needs adjusting. MULAD positive cases validate FLAGS ONLY by design (now that both
+emulators read Rn as raw IEEE, they could be strengthened to validate the result register).
+
+## Regen commands (USER runs - heavy dotnet step)
+```
+cd /mnt/e/Dev/Repos/Ronny/RetroCore
+dotnet test Emulated.Tests.ND500 --filter "Generate_Master_JSON"
+cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json /home/ronny/repos/nd500x/test/nd500_tests.json
+cd /home/ronny/repos/nd500x && make
+./build/bin/test_instruction_validation --continue
+```
+If green: commit RetroCore (emulator instruction files + InstructionHelpers.cs + 3 generators)
+and the refreshed nd500x test/nd500_tests.json.
+
 ## RetroCore (C#) remaining TODO
 
 1. Apply the same float/double paths to
