@@ -1012,6 +1012,21 @@ bool nd500_double_is_negative(uint64_t nd500_bits);
 uint32_t nd500_double_to_single(uint64_t nd500_double_bits);
 uint64_t nd500_single_to_double(uint32_t nd500_float_bits);
 
+// Full-range ND-500 NATIVE float/double <-> host-double codec.
+//
+// Unlike nd500_float_to_ieee754/_from_ieee754 (which manipulate IEEE bit-fields and
+// therefore clamp the value to the IEEE single/double sub-range and disagree on
+// denormal inputs), these carry the value in a host DOUBLE, which spans the full
+// native bias-256 range (+/-8.6e-78 .. +/-5.8e76). Overflow/underflow are reported by
+// native EXPONENT range per Reference Manual sections 2.5.1.4 / 2.5.3.6 and the FU/FO
+// trap definitions (a signed exponent requiring more than 9 bits): FO when the native
+// exponent field would exceed 511, FU when it would fall below 1 (result stored as zero,
+// keeping the sign). Used by the float-arithmetic cluster + LOOP + SET1 helpers below.
+double   nd500_native_single_to_double(uint32_t nd500_bits);
+uint32_t nd500_native_single_from_double(double value, bool* out_overflow, bool* out_underflow);
+double   nd500_native_double_to_double(uint64_t nd500_bits);
+uint64_t nd500_native_double_from_double(double value, bool* out_overflow, bool* out_underflow);
+
 // IEEE-754 operand helpers
 double nd500_read_operand_as_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double);
 void nd500_write_operand_from_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, double value, bool is_double);

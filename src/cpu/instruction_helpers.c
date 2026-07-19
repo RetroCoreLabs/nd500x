@@ -536,14 +536,20 @@ uint64_t nd500_float_finish(Nd500Cpu* cpu, uint32_t pc, double result, bool is_d
      * Returns the ND-500 result bits (float in the low 32, double in the 64)
      * for the caller to store to its destination (operand or register). */
 
-    /* Convert the IEEE result back to ND-500 float/double bits */
+    /* Convert the result to ND-500 NATIVE float/double bits via the full-range
+     * codec, which also reports floating overflow/underflow by the native exponent
+     * range (Reference Manual: a signed exponent requiring more than 9 bits ->
+     * e_field > 511 = FO, e_field < 1 = FU). A non-finite host result (inf/NaN)
+     * is always an overflow. This replaces the earlier host-double isinf/1e-38
+     * heuristic, which used the narrower IEEE range instead of the native one. */
+    bool codec_ovfl = false;
+    bool codec_unfl = false;
     uint64_t result_bits = is_double
-        ? nd500_double_from_ieee754(result)
-        : (uint64_t)nd500_float_from_ieee754((float)result);
+        ? nd500_native_double_from_double(result, &codec_ovfl, &codec_unfl)
+        : (uint64_t)nd500_native_single_from_double(result, &codec_ovfl, &codec_unfl);
 
-    /* Detect floating overflow / underflow (mirrors the Add.c float path) */
-    bool fovfl = (isinf(result) || isnan(result));
-    bool funfl = (!fovfl && result != 0.0 && fabs(result) < 1e-38);
+    bool fovfl = codec_ovfl || isinf(result) || isnan(result);
+    bool funfl = (!fovfl && codec_unfl);
 
     /* STATUS: Z,S from result; C,O cleared (rule 4040); FU,FO conditional */
     nd500_set_flags_zs_float(cpu, result_bits, is_double);
@@ -1843,6 +1849,89 @@ void nd500_string_clear_unused_flags(Nd500Cpu* cpu) {
 #define ND500_DOUBLE_EXPONENT_SHIFT 54
 #define ND500_DOUBLE_MANTISSA_BITS  54
 
+// ---------------------------------------------------------------------------
+// Full-range ND-500 NATIVE float/double <-> host-double codec (frexp-based).
+//
+// Ground truth: ND-500 Reference Manual sections 2.5.1.4 (single) / 2.5.3.6 (double):
+//   value = S * M * 2^(e_field - 256),  M in [0.5, 1) with a hidden leading 1,
+//   e_field is the unsigned 9-bit exponent, e_field == 0 means EXACTLY zero.
+//   Single mantissa 22 bits, double mantissa 54 bits (host double keeps 52 -> the
+//   low 2 native-double mantissa bits are always zero, an accepted precision limit).
+//
+// FU/FO per manual (a signed exponent requiring more than 9 bits):
+//   overflow  when e_field would be > 511  -> store max magnitude, keep sign
+//   underflow when e_field would be < 1    -> store zero (minus-zero if sign set)
+//
+// These do NOT go through IEEE single/double bit fields, so they cover the whole
+// native range and behave identically in C and C# (no denormal special-casing).
+// ---------------------------------------------------------------------------
+
+double nd500_native_single_to_double(uint32_t nd500_bits) {
+    uint32_t e_field = (nd500_bits & ND500_FLOAT_EXPONENT_MASK) >> ND500_FLOAT_EXPONENT_SHIFT;
+    if (e_field == 0) return 0.0;   // exponent all zero == exactly zero
+    uint32_t mant = nd500_bits & ND500_FLOAT_MANTISSA_MASK;
+    // M = 0.5 + mant * 2^-23  (22 mantissa bits after the "0.1" binary prefix)
+    double m = 0.5 + (double)mant / 8388608.0;   // 8388608 = 2^23
+    double v = ldexp(m, (int)e_field - ND500_FLOAT_EXPONENT_BIAS);
+    return (nd500_bits & ND500_FLOAT_SIGN_MASK) ? -v : v;
+}
+
+uint32_t nd500_native_single_from_double(double value, bool* out_overflow, bool* out_underflow) {
+    if (out_overflow)  *out_overflow  = false;
+    if (out_underflow) *out_underflow = false;
+    if (value == 0.0) return 0;
+    bool sign = signbit(value);
+    uint32_t sign_bit = sign ? ND500_FLOAT_SIGN_MASK : 0u;
+    int e;
+    double m = frexp(fabs(value), &e);   // |value| = m * 2^e, m in [0.5, 1)
+    // mant = round((m - 0.5) * 2^23); a round up to 1.0 renormalizes into the next exponent
+    long mant = lround((m - 0.5) * 8388608.0);
+    if (mant > (long)ND500_FLOAT_MANTISSA_MASK) { mant = 0; e += 1; }
+    int e_field = e + ND500_FLOAT_EXPONENT_BIAS;
+    if (e_field > 511) {   // floating overflow -> largest magnitude, keep sign
+        if (out_overflow) *out_overflow = true;
+        return sign_bit | ND500_FLOAT_EXPONENT_MASK | ND500_FLOAT_MANTISSA_MASK;
+    }
+    if (e_field < 1) {     // floating underflow -> zero (minus-zero if negative)
+        if (out_underflow) *out_underflow = true;
+        return sign_bit;
+    }
+    return sign_bit | ((uint32_t)e_field << ND500_FLOAT_EXPONENT_SHIFT) | (uint32_t)mant;
+}
+
+double nd500_native_double_to_double(uint64_t nd500_bits) {
+    uint32_t e_field = (uint32_t)((nd500_bits & ND500_DOUBLE_EXPONENT_MASK) >> ND500_DOUBLE_EXPONENT_SHIFT);
+    if (e_field == 0) return 0.0;
+    uint64_t mant = nd500_bits & ND500_DOUBLE_MANTISSA_MASK;
+    // M = 0.5 + mant * 2^-55  (54 mantissa bits)
+    double m = 0.5 + (double)mant / 36028797018963968.0;   // 36028797018963968 = 2^55
+    double v = ldexp(m, (int)e_field - ND500_DOUBLE_EXPONENT_BIAS);
+    return (nd500_bits & ND500_DOUBLE_SIGN_MASK) ? -v : v;
+}
+
+uint64_t nd500_native_double_from_double(double value, bool* out_overflow, bool* out_underflow) {
+    if (out_overflow)  *out_overflow  = false;
+    if (out_underflow) *out_underflow = false;
+    if (value == 0.0) return 0;
+    bool sign = signbit(value);
+    uint64_t sign_bit = sign ? ND500_DOUBLE_SIGN_MASK : 0ull;
+    int e;
+    double m = frexp(fabs(value), &e);   // |value| = m * 2^e, m in [0.5, 1)
+    // mant = round((m - 0.5) * 2^55); host double keeps 52 bits so the low 2 stay zero
+    long long mant = llround((m - 0.5) * 36028797018963968.0);
+    if (mant > (long long)ND500_DOUBLE_MANTISSA_MASK) { mant = 0; e += 1; }
+    int e_field = e + ND500_DOUBLE_EXPONENT_BIAS;
+    if (e_field > 511) {
+        if (out_overflow) *out_overflow = true;
+        return sign_bit | ND500_DOUBLE_EXPONENT_MASK | ND500_DOUBLE_MANTISSA_MASK;
+    }
+    if (e_field < 1) {
+        if (out_underflow) *out_underflow = true;
+        return sign_bit;
+    }
+    return sign_bit | ((uint64_t)e_field << ND500_DOUBLE_EXPONENT_SHIFT) | (uint64_t)mant;
+}
+
 // Helper: Count leading zeros (for normalization)
 static inline int count_leading_zeros_32(uint32_t x) {
     if (x == 0) return 32;
@@ -2365,20 +2454,16 @@ uint64_t nd500_single_to_double(uint32_t nd500_float_bits) {
  * Read operand value as IEEE-754 double (works for both float and double types)
  */
 double nd500_read_operand_as_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double) {
-    // Read float/double bits and reinterpret as IEEE-754
-    // Note: Register values are stored as IEEE-754 format directly (matching C# emulator)
+    // Read ND-500 NATIVE float/double bits (bias-256, M in [0.5,1), exp==0 => 0)
+    // and CONVERT to an IEEE-754 value for arithmetic. This mirrors the native
+    // reference path (Add.c/Sub.c: nd500_read_operand_value + nd500_float_to_ieee754).
+    // Reference: ND-500 Reference Manual sections 2.5.1.4 / 2.5.3.6.
     if (is_double) {
         uint64_t bits = nd500_read_operand_doubleword(cpu, operand);
-        // Reinterpret as IEEE-754 double
-        union { uint64_t u; double d; } conv;
-        conv.u = bits;
-        return conv.d;
+        return nd500_native_double_to_double(bits);
     } else {
         uint32_t bits = (uint32_t)nd500_read_operand_value(cpu, operand, ND500_DTYPE_FLOAT);
-        // Reinterpret as IEEE-754 float
-        union { uint32_t u; float f; } conv;
-        conv.u = bits;
-        return (double)conv.f;
+        return nd500_native_single_to_double(bits);
     }
 }
 
@@ -2386,15 +2471,15 @@ double nd500_read_operand_as_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded
  * Write IEEE-754 double value to operand (converts to float if needed)
  */
 void nd500_write_operand_from_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, double value, bool is_double) {
-    // Write IEEE-754 float/double bits directly
-    // Note: Register values are stored as IEEE-754 format directly (matching C# emulator)
+    // CONVERT the IEEE-754 result back to ND-500 NATIVE float/double bits
+    // (bias-256, M in [0.5,1)) before storing. Mirrors the native reference path
+    // (Add.c/Sub.c: nd500_float_from_ieee754 + nd500_write_*).
+    // Reference: ND-500 Reference Manual sections 2.5.1.4 / 2.5.3.6.
     if (is_double) {
-        union { uint64_t u; double d; } conv;
-        conv.d = value;
-        nd500_write_operand_value(cpu, operand, conv.u, ND500_DTYPE_DOUBLEWORD);
+        uint64_t bits = nd500_native_double_from_double(value, NULL, NULL);
+        nd500_write_operand_value(cpu, operand, bits, ND500_DTYPE_DOUBLEWORD);
     } else {
-        union { uint32_t u; float f; } conv;
-        conv.f = (float)value;
-        nd500_write_operand_value(cpu, operand, conv.u, ND500_DTYPE_FLOAT);
+        uint32_t bits = nd500_native_single_from_double(value, NULL, NULL);
+        nd500_write_operand_value(cpu, operand, bits, ND500_DTYPE_FLOAT);
     }
 }
