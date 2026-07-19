@@ -7,21 +7,38 @@
 /**
  * SCOPT instruction - STRING class
  *
- * SCOPT - String copy translate
+ * SCOPT - "String COmpare Translated with PAd" (Manual 14.13)
  *
- * Format: BY SCOPT <source/r/BY/I1=>, <dest/w/BY/I2=>, <table/r/BY>, <stop/r/BY>
+ * Format: BY SCOPT <source-1/r/BY/I1=>, <source-2/r/BY/I2=>,
+ *                  <trans table/aa/BY>, <pad/r/BY>
+ * Opcode: 0xFDBF / 176677B
+ * Microcode: 001323 SCOPT -> 007022 SCOPTBY_F01 (mismatch SCOPTBY_MIS 007114).
  *
- * Assembly:
- *   BY SCOPT (string copy translate)  Hex 0xFDBF
+ * SCOPT is SCOPA (compare-with-pad) with every compared byte - including the pad
+ * substituted past a string's end - passed through a 256-byte translate table.
+ * It is NOT a "copy-translate-until-stop" (that was a different, wrong
+ * instruction; the real op writes nothing and compares).
  *
- * Operation:
- *   Copy elements with translation until stop character is found.
+ * Operation (manual 14.13):
+ *   tpad = table[pad]
+ *   compare, substituting the (translated) pad past a string's end; an index is
+ *   only advanced while it is still inside its own string:
+ *       a = table[ (I1<L1)? S(I1) : pad ]
+ *       b = table[ (I2<L2)? D(I2) : pad ]
+ *       d = a - b ; if d != 0 break ; else I1+=1, I2+=1
  *
- * Description:
- *   Copies elements from <source> to <dest>, translating through <table>,
- *   until the <stop> character is found in the translated output.
+ * Terminating conditions (manual 14.13, same K/Z/S as SCOPA):
+ *   | condition                      | K | Z | S | I1,I2                 |
+ *   | exact match (incl. pad)        | 0 | 1 | 0 | :- next element       |
+ *   | greater byte in source-1       | 1 | 0 | 0 | :- differing elements |
+ *   | smaller byte in source-1       | 1 | 0 | 1 | :- differing elements |
+ *   C and O are cleared for all string operations.
  *
- * Reference: ND-500 Reference Manual, Chapter 14.23
+ * Operands: <source-1/r/BY/I1>, <source-2/r/BY/I2>, <trans table/aa/BY>, <pad/r/BY>.
+ *
+ * Traps: DR trap (operand outside its string); ILL_OP_SPEC (bad table, 007027).
+ *
+ * Reference: ND-500 Reference Manual, Section 14.13.
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Scopt.cs
  */
 void nd500_instr_Scopt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
@@ -32,73 +49,64 @@ void nd500_instr_Scopt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Get descriptor addresses and stop value */
-    uint32_t source_desc_addr = fi->operands[0].effective_address;
-    uint32_t dest_desc_addr = fi->operands[1].effective_address;
-    uint32_t table_desc_addr = fi->operands[2].effective_address;
-    uint32_t stop_value = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[3], fi->data_type);
-
-    /* Load string descriptors */
-    Nd500StringDescriptor source_desc, dest_desc, table_desc;
-    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, true, &source_desc)) {
+    /* operand[0]/[1] string descriptors; operand[2] translate-table base
+     * (256-byte, absolute address); operand[3] pad BYTE VALUE. */
+    Nd500StringDescriptor desc1, desc2;
+    if (!nd500_load_string_descriptor(cpu, fi->operands[0].effective_address, false, true, &desc1)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, true, &dest_desc)) {
+    if (!nd500_load_string_descriptor(cpu, fi->operands[1].effective_address, false, true, &desc2)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, table_desc_addr, false, true, &table_desc)) {
-        return;
-    }
+    uint32_t table_addr = fi->operands[2].effective_address;
+    uint8_t pad = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[3], ND500_DTYPE_BYTE);
 
-    /* Get starting indices */
-    uint32_t src_index = cpu->I[0];
-    uint32_t dest_index = cpu->I[1];
+    uint32_t index1 = cpu->I[0];  /* I1 */
+    uint32_t index2 = cpu->I[1];  /* I2 */
 
-    /* Copy with translation until stop */
-    bool found_stop = false;
-    while (src_index < source_desc.element_count && dest_index < dest_desc.element_count) {
-        uint32_t src_addr = source_desc.base_address + src_index;
-        uint8_t element = nd500_read_memory_8(cpu, src_addr);
+    bool strings_equal = true;
+    bool string1_less = false;
 
-        /* Translate through table */
-        uint8_t translated;
-        if (element < table_desc.element_count) {
-            uint32_t table_addr = table_desc.base_address + element;
-            translated = nd500_read_memory_8(cpu, table_addr);
-        } else {
-            translated = element;
-        }
+    /* Compare until BOTH strings are exhausted; an exhausted string yields pad.
+     * Every compared byte (including pad) is translated through the table. */
+    while (index1 < desc1.element_count || index2 < desc2.element_count) {
+        uint8_t raw1 = (index1 < desc1.element_count)
+            ? nd500_read_memory_8(cpu, desc1.base_address + index1) : pad;
+        uint8_t raw2 = (index2 < desc2.element_count)
+            ? nd500_read_memory_8(cpu, desc2.base_address + index2) : pad;
 
-        /* Check for stop character */
-        if (translated == (stop_value & 0xFF)) {
-            found_stop = true;
+        uint8_t a = nd500_read_memory_8(cpu, table_addr + raw1);
+        uint8_t b = nd500_read_memory_8(cpu, table_addr + raw2);
+
+        if (a != b) {
+            strings_equal = false;
+            string1_less = (a < b);
             break;
         }
 
-        /* Write to destination */
-        uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_write_memory_8(cpu, dest_addr, translated);
-
-        src_index++;
-        dest_index++;
+        /* Advance each index only while still inside its own string. */
+        if (index1 < desc1.element_count) index1++;
+        if (index2 < desc2.element_count) index2++;
     }
 
-    /* Update index registers */
-    cpu->I[0] = src_index;
-    cpu->I[1] = dest_index;
+    cpu->I[0] = index1;  /* I1 */
+    cpu->I[1] = index2;  /* I2 */
 
-    /* Set status flags */
-    if (found_stop) {
-        nd500_set_flag(cpu, ND500_FLAG_Z);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_Z);
-    }
-    if (dest_index >= dest_desc.element_count) {
-        nd500_set_flag(cpu, ND500_FLAG_K);
-    } else {
+    /* Flags: same convention as SCOPA (source1 < source2 -> S=1). */
+    if (strings_equal) {
         nd500_clear_flag(cpu, ND500_FLAG_K);
+        nd500_set_flag(cpu, ND500_FLAG_Z);
+        nd500_clear_flag(cpu, ND500_FLAG_S);
+    } else {
+        nd500_set_flag(cpu, ND500_FLAG_K);
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+        if (string1_less) {
+            nd500_set_flag(cpu, ND500_FLAG_S);   /* source1 < source2 -> S=1 */
+        } else {
+            nd500_clear_flag(cpu, ND500_FLAG_S); /* source1 > source2 -> S=0 */
+        }
     }
-    nd500_clear_flag(cpu, ND500_FLAG_S);
+
     nd500_clear_flag(cpu, ND500_FLAG_C);
     nd500_clear_flag(cpu, ND500_FLAG_O);
 }

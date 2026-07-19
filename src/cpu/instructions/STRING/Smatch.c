@@ -7,25 +7,37 @@
 /**
  * SMATCH instruction - STRING class
  *
- * SMATCH - String pattern match
+ * SMATCH - String Match (Manual 14.18)
  *
- * Format: BY SMATCH <source/r/BY/I1=>, <pattern/r/BY/I3=>
- *
- * Assembly:
- *   BY SMATCH (string pattern match)  Hex 0xFDB3
+ * Format: BY SMATCH <substring/r/BY/I1=>, <string/r/BY/I2=>
+ * Opcode: 0xFDB3 / 176663B
+ * Microcode: 001344 SMATCH -> 007244 SMATCHBY_F01 (outer 007257, inner 007265-007276).
  *
  * Operation:
- *   Search for pattern in source string starting at I1.
+ *   subptr = I1 (kept; I1 is NOT modified)
+ *   while not end-of-string:
+ *       if substring == string[I2 .. I2+sublen-1] byte-for-byte:
+ *           Z=1 ; I2 :- first matching byte ; stop
+ *       I2 += 1
+ *   end
  *
  * Description:
- *   Searches for the <pattern> string within the <source> string
- *   starting at index I1. If found, I1 is updated to the match position.
+ *   Naive substring search. <substring> (operand 0, indexed by I1, which is left
+ *   unmodified) is searched for within <string> (operand 1, indexed by I2). On a
+ *   match, I2 points at the first matching byte. This is a two-operand match, NOT
+ *   a three-operand copy; the destination index that advances is I2, not I1.
  *
- * Terminating conditions:
- *   - pattern found: Z=1, I1 := match position
- *   - pattern not found: Z=0, S=1, I1 := end of source
+ * Terminating conditions (manual 14.18):
+ *   - substring outside          : K=0 Z=1 ; DR trap ; I2 unchanged
+ *   - string outside (sub inside): K=0 Z=0 ; DR trap ; I2 unchanged
+ *   - substring found            : K=0 Z=1 ; I2 :- first matching byte
+ *   - string exhausted (no match): K=0 Z=0 ; I2 :- next element
  *
- * Reference: ND-500 Reference Manual, Chapter 14.19
+ * Data Status Bits: K CLEARED, Z CONDITIONAL, C/O/S CLEARED.
+ *
+ * Traps: DR trap (an operand addressed outside its string).
+ *
+ * Reference: ND-500 Reference Manual, Section 14.18.
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smatch.cs
  */
 void nd500_instr_Smatch(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
@@ -36,33 +48,34 @@ void nd500_instr_Smatch(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Get descriptor addresses */
-    uint32_t source_desc_addr = fi->operands[0].effective_address;
-    uint32_t pattern_desc_addr = fi->operands[1].effective_address;
+    /* Operand 0: substring descriptor (indexed by I1, kept).
+     * Operand 1: string descriptor (indexed by I2, advances). */
+    uint32_t substr_desc_addr = fi->operands[0].effective_address;
+    uint32_t string_desc_addr = fi->operands[1].effective_address;
 
-    /* Load string descriptors */
-    Nd500StringDescriptor source_desc, pattern_desc;
-    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, true, &source_desc)) {
+    Nd500StringDescriptor substr_desc, string_desc;
+    if (!nd500_load_string_descriptor(cpu, substr_desc_addr, false, true, &substr_desc)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, pattern_desc_addr, false, true, &pattern_desc)) {
+    if (!nd500_load_string_descriptor(cpu, string_desc_addr, false, true, &string_desc)) {
         return;
     }
 
-    /* Get starting index from I1 */
-    uint32_t src_index = cpu->I[0];
-    uint32_t pattern_len = pattern_desc.element_count;
+    /* subptr = I1 (kept). The substring runs from I1 to the end of its descriptor. */
+    uint32_t sub_start = cpu->I[0];
+    uint32_t sublen = (substr_desc.element_count > sub_start)
+                      ? (substr_desc.element_count - sub_start) : 0;
 
-    /* Search for pattern in source */
+    uint32_t str_index = cpu->I[1];
+
+    /* Naive substring search: advance I2 until the substring matches at I2. */
     bool found = false;
-    while (src_index + pattern_len <= source_desc.element_count) {
+    while (str_index + sublen <= string_desc.element_count) {
         bool match = true;
-        for (uint32_t i = 0; i < pattern_len; i++) {
-            uint32_t src_addr = source_desc.base_address + src_index + i;
-            uint32_t pat_addr = pattern_desc.base_address + i;
-            uint8_t src_elem = nd500_read_memory_8(cpu, src_addr);
-            uint8_t pat_elem = nd500_read_memory_8(cpu, pat_addr);
-            if (src_elem != pat_elem) {
+        for (uint32_t i = 0; i < sublen; i++) {
+            uint8_t s = nd500_read_memory_8(cpu, substr_desc.base_address + sub_start + i);
+            uint8_t d = nd500_read_memory_8(cpu, string_desc.base_address + str_index + i);
+            if (s != d) {
                 match = false;
                 break;
             }
@@ -71,24 +84,23 @@ void nd500_instr_Smatch(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             found = true;
             break;
         }
-        src_index++;
+        str_index++;
     }
 
-    /* Update I1 register */
+    /* I1 is left unmodified; I2 updated to the match position or next element. */
     if (!found) {
-        src_index = source_desc.element_count;
+        str_index = string_desc.element_count;
     }
-    cpu->I[0] = src_index;
+    cpu->I[1] = str_index;
 
-    /* Set status flags */
+    /* Status: K/S/C/O cleared; Z=1 if found, Z=0 if the string was exhausted. */
     if (found) {
         nd500_set_flag(cpu, ND500_FLAG_Z);
-        nd500_clear_flag(cpu, ND500_FLAG_S);
     } else {
         nd500_clear_flag(cpu, ND500_FLAG_Z);
-        nd500_set_flag(cpu, ND500_FLAG_S);
     }
     nd500_clear_flag(cpu, ND500_FLAG_K);
+    nd500_clear_flag(cpu, ND500_FLAG_S);
     nd500_clear_flag(cpu, ND500_FLAG_C);
     nd500_clear_flag(cpu, ND500_FLAG_O);
 }

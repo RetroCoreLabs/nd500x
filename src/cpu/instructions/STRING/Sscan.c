@@ -7,79 +7,80 @@
 /**
  * SSCAN instruction - STRING class
  *
- * SSCAN - String scan
+ * SSCAN - String Scan (Manual 14.16)
  *
- * Format: BY SSCAN <source/r/BY/I1=>, <test/r/BY>
- *
- * Assembly:
- *   BY SSCAN (string scan)  Hex 0xFDAE
+ * Format: BY SSCAN <source/r/BY/I1=>, <mask/r/BY>, <trans table/aa/BY>
+ * Opcode: 0xFDB1 / 176661B
+ * Microcode: 001336 SSCAN -> DIS_IDESC -> 007200 SSCANBY_F01 (mask test 007217-007220).
  *
  * Operation:
- *   while not end of string and S(I1) <> <test> do
- *     I1 + 1 -> I1
- *   enddo
- *   if S(I1) >> <test> then 0 -> S else 1 -> S endif
+ *   while not end-of-source and (table[S(I1)] AND mask) == 0:
+ *       I1 += 1
+ *   end
  *
  * Description:
- *   Elements are skipped in the <source> string until an element
- *   equal to the <test> operand is found or the end of the string
- *   is reached. The S bit is set to 1 if end of string is reached.
+ *   Scan the <source> string, translating each element through the 256-byte
+ *   <trans table> and ANDing with <mask>, until a translated element has any
+ *   masked bit set (found) or the end of the source is reached. This is NOT a
+ *   plain equal-byte scan - both the mask and the translate table participate.
  *
- * Terminating conditions:
- *   - outside source: K=0 Z=0 I1 unmodified, DR trap condition
- *   - matching element: K=0 Z=1 I1 := matching element
- *   - source empty: K=0 Z=0 I1 := next element
+ * Terminating conditions (manual 14.16):
+ *   - source outside:              K=0 Z=1 ; DR trap ; I1 unchanged
+ *   - (tr(byte) AND mask) != 0:    K=0 Z=0 ; I1 :- found element
+ *   - source empty / end reached:  K=0 Z=1 ; I1 :- next element
  *
- * Reference: ND-500 Reference Manual, Chapter 14.16
+ * Data Status Bits: K CLEARED, Z CONDITIONAL, C/O/S CLEARED.
+ *
+ * Traps: DR trap (source outside string); ILL_OP_SPEC (bad table, 007203).
+ *
+ * Reference: ND-500 Reference Manual, Section 14.16.
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Sscan.cs
  */
 void nd500_instr_Sscan(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    if (fi->operand_count != 2) {
-        printf("[ERROR] SSCAN at PC=0x%08X: Expected 2 operands, got %u\n",
+    if (fi->operand_count != 3) {
+        printf("[ERROR] SSCAN at PC=0x%08X: Expected 3 operands, got %u\n",
                fi->address, fi->operand_count);
         trap_illegal_operand(cpu, fi->address);
         return;
     }
 
-    /* Get descriptor address and test value */
+    /* Operand 0: source string descriptor (absolute address).
+     * Operand 1: mask byte.
+     * Operand 2: translate table base (256-byte table, absolute address). */
     uint32_t source_desc_addr = fi->operands[0].effective_address;
-    uint32_t test_value = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    uint8_t  mask = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    uint32_t table_addr = fi->operands[2].effective_address;
 
-    /* Load string descriptor */
     Nd500StringDescriptor source_desc;
     if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, true, &source_desc)) {
         return;
     }
 
-    /* Get starting index from I1 */
     uint32_t src_index = cpu->I[0];
 
-    /* Scan for matching element */
+    /* Scan until (table[S(I1)] AND mask) != 0, or end of source */
     bool found = false;
     while (src_index < source_desc.element_count) {
-        uint32_t addr = source_desc.base_address + src_index;
-        uint8_t element = nd500_read_memory_8(cpu, addr);
-
-        if (element == (test_value & 0xFF)) {
+        uint8_t element = nd500_read_memory_8(cpu, source_desc.base_address + src_index);
+        uint8_t translated = nd500_read_memory_8(cpu, table_addr + element);
+        if ((translated & mask) != 0) {
             found = true;
             break;
         }
         src_index++;
     }
 
-    /* Update I1 register */
+    /* Update I1: found element, or next element (end) */
     cpu->I[0] = src_index;
 
-    /* Set status flags */
+    /* Status: K/S/C/O cleared; Z=0 if found, Z=1 if end/empty reached */
     if (found) {
-        nd500_set_flag(cpu, ND500_FLAG_Z);  /* Match found */
-        nd500_clear_flag(cpu, ND500_FLAG_S);
-    } else {
         nd500_clear_flag(cpu, ND500_FLAG_Z);
-        nd500_set_flag(cpu, ND500_FLAG_S);  /* End of string */
+    } else {
+        nd500_set_flag(cpu, ND500_FLAG_Z);
     }
     nd500_clear_flag(cpu, ND500_FLAG_K);
+    nd500_clear_flag(cpu, ND500_FLAG_S);
     nd500_clear_flag(cpu, ND500_FLAG_C);
     nd500_clear_flag(cpu, ND500_FLAG_O);
 }
-/* Note: Sscan uses S flag for status, so can't use nd500_string_clear_unused_flags */
