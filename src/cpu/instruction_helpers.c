@@ -2059,42 +2059,11 @@ int32_t nd500_float_to_int32(uint32_t nd500_bits) {
  *   ieee_mantissa = nd_mantissa << 1
  */
 float nd500_float_to_ieee754(uint32_t nd500_bits) {
-    // Check for zero (exponent = 0 means exactly zero)
-    uint32_t exponent = (nd500_bits & ND500_FLOAT_EXPONENT_MASK) >> ND500_FLOAT_EXPONENT_SHIFT;
-    if (exponent == 0) return 0.0f;
-
-    // Extract components
-    bool sign = (nd500_bits & ND500_FLOAT_SIGN_MASK) != 0;
-    uint32_t mantissa = nd500_bits & ND500_FLOAT_MANTISSA_MASK;
-
-    // Convert exponent: ieee_exp = nd_exp - 130
-    // (accounts for bias change 256->127 and mantissa range 0.5-1 -> 1-2)
-    int ieee_exponent = (int)exponent - 130;
-
-    // Check for underflow/overflow
-    if (ieee_exponent <= 0) {
-        // Underflow to zero
-        return sign ? -0.0f : 0.0f;
-    }
-    if (ieee_exponent >= 255) {
-        // Overflow to infinity
-        union { uint32_t u; float f; } conv;
-        conv.u = sign ? 0xFF800000u : 0x7F800000u;
-        return conv.f;
-    }
-
-    // Build IEEE bits
-    uint32_t ieee_bits = 0;
-    if (sign) ieee_bits |= 0x80000000u;
-    ieee_bits |= ((uint32_t)ieee_exponent << 23);
-
-    // Convert mantissa: 22 bits -> 23 bits (shift left by 1)
-    ieee_bits |= (mantissa << 1);
-
-    // Convert bits to float
-    union { uint32_t u; float f; } conv;
-    conv.u = ieee_bits;
-    return conv.f;
+    // Converged onto the full-range native codec (nd500_native_single_to_double).
+    // The narrowing (float) cast preserves the historical narrow-range behaviour for
+    // callers that only ever see IEEE-single-range values, while removing the old
+    // denormal disagreement with the C# side. See docs/SYNC-FLOAT-NATIVE-REBASE.md.
+    return (float)nd500_native_single_to_double(nd500_bits);
 }
 
 /**
@@ -2109,55 +2078,10 @@ float nd500_float_to_ieee754(uint32_t nd500_bits) {
  *   nd_mantissa = ieee_mantissa >> 1
  */
 uint32_t nd500_float_from_ieee754(float ieee_value) {
-    if (ieee_value == 0.0f) return 0;
-
-    // Convert float to bits
-    union { float f; uint32_t u; } conv;
-    conv.f = ieee_value;
-    uint32_t ieee_bits = conv.u;
-
-    // Extract IEEE 754 components
-    bool sign = (ieee_bits & 0x80000000u) != 0;
-    uint32_t ieee_exponent = (ieee_bits >> 23) & 0xFF;
-    uint32_t ieee_mantissa = ieee_bits & 0x7FFFFF;
-
-    // Handle special cases
-    if (ieee_exponent == 0) {
-        // Denormalized number or zero - treat as zero for ND-500
-        return 0;
-    }
-    if (ieee_exponent == 255) {
-        // Infinity or NaN - return max/min ND-500 value
-        uint32_t max_exp = 511;  // Max 9-bit exponent
-        uint32_t nd500_bits = (max_exp << ND500_FLOAT_EXPONENT_SHIFT) | ND500_FLOAT_MANTISSA_MASK;
-        if (sign) nd500_bits |= ND500_FLOAT_SIGN_MASK;
-        return nd500_bits;
-    }
-
-    // Convert exponent: nd_exp = ieee_exp + 130
-    int nd_exponent = (int)ieee_exponent + 130;
-
-    // Check for ND-500 exponent overflow/underflow (9-bit range: 0-511)
-    if (nd_exponent <= 0) {
-        // Underflow to zero
-        return 0;
-    }
-    if (nd_exponent > 511) {
-        // Overflow - return max ND-500 value
-        uint32_t nd500_bits = (511U << ND500_FLOAT_EXPONENT_SHIFT) | ND500_FLOAT_MANTISSA_MASK;
-        if (sign) nd500_bits |= ND500_FLOAT_SIGN_MASK;
-        return nd500_bits;
-    }
-
-    // Build ND-500 bits
-    uint32_t nd500_bits = 0;
-    if (sign) nd500_bits |= ND500_FLOAT_SIGN_MASK;
-    nd500_bits |= ((uint32_t)nd_exponent << ND500_FLOAT_EXPONENT_SHIFT);
-
-    // Convert mantissa: 23 bits -> 22 bits (shift right by 1)
-    nd500_bits |= (ieee_mantissa >> 1);
-
-    return nd500_bits;
+    // Converged onto the full-range native codec (nd500_native_single_from_double),
+    // which applies the same overflow-to-max / underflow-to-zero rules but over the
+    // whole native range. See docs/SYNC-FLOAT-NATIVE-REBASE.md.
+    return nd500_native_single_from_double((double)ieee_value, NULL, NULL);
 }
 
 /**
@@ -2290,42 +2214,9 @@ int64_t nd500_double_to_int64(uint64_t nd500_bits) {
  *   ieee_mantissa = nd_mantissa >> 2
  */
 double nd500_double_to_ieee754(uint64_t nd500_bits) {
-    // Check for zero (exponent = 0 means exactly zero)
-    uint32_t exponent = (uint32_t)((nd500_bits & ND500_DOUBLE_EXPONENT_MASK) >> ND500_DOUBLE_EXPONENT_SHIFT);
-    if (exponent == 0) return 0.0;
-
-    // Extract components
-    bool sign = (nd500_bits & ND500_DOUBLE_SIGN_MASK) != 0;
-    uint64_t mantissa = nd500_bits & ND500_DOUBLE_MANTISSA_MASK;
-
-    // Convert exponent: ieee_exp = nd_exp + 766
-    // (accounts for bias change 256->1023 and mantissa range 0.5-1 -> 1-2)
-    int ieee_exponent = (int)exponent + 766;
-
-    // Check for underflow/overflow
-    if (ieee_exponent <= 0) {
-        // Underflow to zero
-        return sign ? -0.0 : 0.0;
-    }
-    if (ieee_exponent >= 2047) {
-        // Overflow to infinity
-        union { uint64_t u; double d; } conv;
-        conv.u = sign ? 0xFFF0000000000000ull : 0x7FF0000000000000ull;
-        return conv.d;
-    }
-
-    // Build IEEE bits
-    uint64_t ieee_bits = 0;
-    if (sign) ieee_bits |= 0x8000000000000000ull;
-    ieee_bits |= ((uint64_t)ieee_exponent << 52);
-
-    // Convert mantissa: 54 bits -> 52 bits (shift right by 2)
-    ieee_bits |= (mantissa >> 2);
-
-    // Convert bits to double
-    union { uint64_t u; double d; } conv;
-    conv.u = ieee_bits;
-    return conv.d;
+    // Converged onto the full-range native codec (nd500_native_double_to_double).
+    // See docs/SYNC-FLOAT-NATIVE-REBASE.md.
+    return nd500_native_double_to_double(nd500_bits);
 }
 
 /**
@@ -2340,55 +2231,9 @@ double nd500_double_to_ieee754(uint64_t nd500_bits) {
  *   nd_mantissa = ieee_mantissa << 2
  */
 uint64_t nd500_double_from_ieee754(double ieee_value) {
-    if (ieee_value == 0.0) return 0;
-
-    // Convert double to bits
-    union { double d; uint64_t u; } conv;
-    conv.d = ieee_value;
-    uint64_t ieee_bits = conv.u;
-
-    // Extract IEEE 754 components
-    bool sign = (ieee_bits & 0x8000000000000000ull) != 0;
-    uint64_t ieee_exponent = (ieee_bits >> 52) & 0x7FF;
-    uint64_t ieee_mantissa = ieee_bits & 0xFFFFFFFFFFFFFull;
-
-    // Handle special cases
-    if (ieee_exponent == 0) {
-        // Denormalized number or zero - treat as zero for ND-500
-        return 0;
-    }
-    if (ieee_exponent == 2047) {
-        // Infinity or NaN - return max/min ND-500 value
-        uint64_t max_exp = 511;  // Max 9-bit exponent
-        uint64_t nd500_bits = (max_exp << ND500_DOUBLE_EXPONENT_SHIFT) | ND500_DOUBLE_MANTISSA_MASK;
-        if (sign) nd500_bits |= ND500_DOUBLE_SIGN_MASK;
-        return nd500_bits;
-    }
-
-    // Convert exponent: nd_exp = ieee_exp - 766
-    int nd_exponent = (int)ieee_exponent - 766;
-
-    // Check for ND-500 exponent overflow/underflow (9-bit range: 0-511)
-    if (nd_exponent <= 0) {
-        // Underflow to zero
-        return 0;
-    }
-    if (nd_exponent > 511) {
-        // Overflow - return max ND-500 value
-        uint64_t nd500_bits = (511ULL << ND500_DOUBLE_EXPONENT_SHIFT) | ND500_DOUBLE_MANTISSA_MASK;
-        if (sign) nd500_bits |= ND500_DOUBLE_SIGN_MASK;
-        return nd500_bits;
-    }
-
-    // Build ND-500 bits
-    uint64_t nd500_bits = 0;
-    if (sign) nd500_bits |= ND500_DOUBLE_SIGN_MASK;
-    nd500_bits |= ((uint64_t)nd_exponent << ND500_DOUBLE_EXPONENT_SHIFT);
-
-    // Convert mantissa: 52 bits -> 54 bits (shift left by 2)
-    nd500_bits |= (ieee_mantissa << 2);
-
-    return nd500_bits;
+    // Converged onto the full-range native codec (nd500_native_double_from_double).
+    // See docs/SYNC-FLOAT-NATIVE-REBASE.md.
+    return nd500_native_double_from_double(ieee_value, NULL, NULL);
 }
 
 /**

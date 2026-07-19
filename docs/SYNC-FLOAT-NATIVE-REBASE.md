@@ -141,10 +141,12 @@ Fix (both emulators, kept bit-identical):
   WriteOperandAsIeeeFloat / ReadRegisterAsIeeeFloat), Mulad's Rn read, and
   nd500_float_finish / FloatFinish now use this codec. float_finish/FloatFinish take
   FU/FO straight from the codec's overflow/underflow flags (inf/NaN still forced to FO).
-- The legacy nd500_float_to/from_ieee754 and ND500Float.To/FromIeee754Single are LEFT AS
-  IS -- they are still used by ~28 other float instructions whose tests pass with
-  normal-range values. They carry the same latent narrow-range/denormal defect; converging
-  them onto the full-range codec is a documented FOLLOW-UP (no failing test today).
+- The legacy nd500_float_to/from_ieee754 / nd500_double_to/from_ieee754 and the C#
+  ND500Float.To/FromIeee754Single / ND500Double.To/FromIeee754Double (used by ~28 other
+  float instructions: Add/Sub/Mul/Div register forms, trig, CONR, REM, INT, compare, ...)
+  now DELEGATE to the full-range codec (their signatures are unchanged, so no caller
+  edits). This removes the last narrow-range/denormal path and the C-vs-C# denormal
+  disagreement across the whole float subsystem. FOLLOW-UP DONE (same session).
 
 Trap-fixture rework (ComprehensiveArithmeticGenerator.cs) -- the old seeds injected
 values that are un-loadable in native (1e-40 is representable, not underflow; +inf clamps
