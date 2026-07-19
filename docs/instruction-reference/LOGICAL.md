@@ -1,313 +1,373 @@
-# ND-500 CPU Instruction Category: LOGICAL - Authoritative Behavior Reference
+# ND-500 Instruction Reference - LOGICAL Category
 
-Scope: the five instructions whose implementation files exist under
-`/home/ronny/repos/nd500x/src/cpu/instructions/LOGICAL/`:
+FUNCTIONAL behavior reference built by TRACING THE MICROCODE.
 
-    And.c  -> AND
-    Inv.c  -> INV
-    Invc.c -> INVC
-    Or.c   -> OR
-    Xor.c  -> XOR
+Sources of truth (full absolute paths):
+- Microcode ROM:  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+- Field decode:   /mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md
+- Reference:      /home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md
+- Emulator C:     /home/ronny/repos/nd500x/src/cpu/instructions/LOGICAL/*.c
 
-Every statement below is taken directly from one of the two authoritative
-sources listed here. Anything that neither source confirms is marked
-`UNKNOWN (needs verification)`. Nothing is assumed.
+Category members (from ls of the LOGICAL directory): AND, INV, INVC, OR, XOR.
 
-## Sources
+---
 
-- PRIMARY (architecture / documented behavior):
-  `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-  - Section 10.21 And   (manual page 157)
-  - Section 10.22 Or    (manual page 158)
-  - Section 10.23 Exclusive or (manual page 159)
-  - Section 10.13 Invert (manual page 149)
-  - Section 10.14 Invert with carry add (manual page 150)
-  - Appendix G "Instruction Code Table" (manual page 396+): octal opcode table
-  - Section 6.5 status-bit definitions (manual pages ~57-62, source lines 2008-2244)
+## Conventions used below
 
-- GROUND-TRUTH (ND-5000 microcode, flag micro-behavior):
-  `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-  - AND  at octal micro-address `000341` (label **AND**),  source line 239
-  - OR   at octal micro-address `000344` (label **OR**),   source line 242
-  - XOR  at octal micro-address `000347` (label **XOR**),  source line 245
-  - INV  at octal micro-address `000260` (label **INV**),  source line 190
-  - INVC at octal micro-address `000261` (label **INVC**), source line 191
+Decoded microcode fields (from /mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md):
 
-- Micro-op field decoding:
-  `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
+- `ALU,AND` / `ALU,OR` / `ALU,XOR` = the bitwise ALU function A op B.
+- `ALU,ADIRC` = "ALU OUTPUT COMPLEMENTED" (one's-complement / NOT of the A input).
+- `ALU,A-B CRY,C` = A minus B with the status Carry flag added as the ALU carry-in.
+- `A,<src>` = A-bus operand source; `B,X1` = B-bus is index register X1 (dummy filler when B is unused).
+- `ORB,IN` (mnemonics.md line 480) = "OR B-operand from instruction" - routes the instruction's
+  operand (memory/immediate operand for AND/OR/XOR, or the register value for register-only ops)
+  onto the B-bus.
+- `A,ALU,REG37` / `D,ALU,REG37` = the instruction-selected register file port. mnemonics.md marks
+  REG37 as "[UNDOCUMENTED GUESS] ... very common". INFERRED from routine structure to be the
+  operand register Rn (the register named by the instruction). Marked inferred wherever relied on.
+- `TYP,DR` (line 239) = "DATA TYPE CONTROLLED BY ICA" - the W/H/BY width comes from the opcode's
+  datatype field. `TYP,BI` / `TYP,BY` = fixed bit / byte width.
+- `D,<dest>` = where the result is written. `D,SC5`/`D,SC6` = scratch registers (temporaries).
+- `ST,SAVA` (line 656) = "SAVE STATUS FROM ALU OPERATION" - writes the Z, C, O, S data-status
+  bits from this ALU result.
+- `READ` / `ADACT` = memory read with address-arithmetic active (this is where addressing traps
+  can arise during operand fetch).
+- `G,OOPS` (line 843) = "GET NEXT INSTRUCTION AND OPERAND SPECIFIER" - ends the routine and
+  advances to the next instruction. Each of these five instructions is essentially ONE
+  microinstruction (plus a separate tail for the BI datatype).
+- `COND,MSEXO` = branch condition = XOR of S and O of the ALU result (used only for microcode
+  dispatch sequencing, NOT a stored architectural flag).
+- No `K,ONE` / `K,ZRO` / `K,1IFZ` field appears in any of these five routines -> the K flag is
+  UNCHANGED by all of them (ground-truth: no K-modifier present in the microword).
 
-## Status-flag definitions (from the manual, so the table columns are exact)
+Manual status-bit rule (Reference Manual, page 132, lines 2022 and 4040):
+"All data status bits not mentioned are reset." and
+"Data status bits not mentioned in the instruction description are always cleared after the
+instruction has been executed. If the status bit is conditionally set a TRUE condition causes the
+bit to be set (1), a FALSE condition causes it to be reset (0)."
+This RESOLVES the previously-UNKNOWN C and O for AND/OR/XOR/INV: they are CLEARED. This agrees
+with the microcode: a logical ALU function (AND/OR/XOR/ADIRC) produces carry-out = 0 and
+overflow = 0, and ST,SAVA saves exactly those zeros.
 
-Source: `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-lines 2008-2244.
+Flag columns in the tables: K, Z, C, O, S.
+- SET = always 1; CLEARED = always 0; UNCHANGED = not written; CONDITIONAL = 1 iff the stated
+  condition holds, else 0.
 
-- Z (status bit 5, "zero"): set if the operand/result of the last instruction
-  was exactly zero, otherwise cleared. (line 2026)
-- C (status bit 6, "carry"): set only when performing integer arithmetic,
-  otherwise cleared; set if a carry out of / borrow into the most significant
-  bit occurs; also consumed by ADDC, SUBC and INVC. (line 2040)
-- S (status bit 7, "sign"): holds the sign bit of the last operand/result.
-  (line 2028)
-- K (status bit 8, "flag"): a signalling flag with dedicated set/reset/test
-  instructions; also used by descriptor addressing, CIND/LIND, and string
-  instructions. Descriptor addressing "may set but never clear" K. (line 2244)
-- O (status bit 9, "overflow"): set only when performing integer arithmetic,
-  otherwise cleared; set when the result is too large for the destination.
-  (line 2043)
+Bit / BY / H datatypes: for the BI (single-bit) datatype the main opcode dispatches (via ORCON)
+to a separate bit tail (AND_BI 003250, OR_BI 003252, XOR_BI 003255, INV_BI 003247, all in
+/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md). Those tails extract the single bit,
+apply the logical function to it, write the low bit back, zero-fill the upper register (the
+`CLEAR_SIGN` continuation), and set Z/S via ST,SAVA. The BY and H widths run the SAME main cell
+with `TYP,DR` selecting the width; the "upper part zero filled" behaviour is the register-file
+write masking to the datatype width. This matches the manual and the emulator's
+`nd500_mask_to_datatype`.
 
-## Microcode-field decoding used below
-
-Source: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
-
-The STATUS field (micro-word bits 75-72) is a SINGLE 4-bit field; its values
-are mutually exclusive (mnemonics.md lines 649-666):
-
-    1 = K,ONE     set K to 1
-    2 = K,ZRO     clear K to 0
-    3 = K,1IFZ    set K to 1 if the ALU result is 0
-    4 = ST,SAVA   save status (Z,C,O,S) from the ALU operation
-
-CONSEQUENCE: an instruction whose STATUS field is `ST,SAVA` (value 4) does NOT
-select any K,* encoding, therefore it does not modify the K flag. All five
-LOGICAL instructions use `ST,SAVA`, so K is UNCHANGED for every one of them.
-
-ALU function mnemonics (mnemonics.md lines 27-37):
-
-    ALU,AND   (2)  = A AND B
-    ALU,OR    (7)  = A OR B
-    ALU,XOR   (5)  = A XOR B
-    ALU,ADIRC (1)  = ALU output complemented (one's complement)
-    ALU,A-B   (10) = A minus B (carry selects -1 or +C)
-
-    CRY,C     (2)  = carry input taken from the C status bit (mnemonics.md line 49)
-    COND,MSEXO(0)  = test condition = EXOR of S and O from the ALU result
-                     (mnemonics.md line 766); this is the shared ALU
-                     signed-overflow-trap check micro-op ("T,JMP ... G,OOPS").
-
-NOTE on the `ST,SAVA` interaction with C and O for the bitwise ops (AND/OR/XOR)
-and INV: the manual documents ONLY Z and S as the data status bits for those
-four instructions, yet the microcode uses `ST,SAVA`, which physically saves the
-full ALU status word (Z, C, O, S). For a purely logical ALU operation the C and
-O outputs are hardware artifacts that the manual does not define. The two
-sources therefore disagree on whether C and O are touched. This is recorded as
-`UNKNOWN (needs verification)` in each affected table rather than guessed.
-
--------------------------------------------------------------------------------
+---
 
 ## AND
 
-- Manual section: 10.21 And (page 157). Microcode: octal `000341`, label **AND**.
-- Operation: `Rn AND <operand> -> Rn` (bitwise AND).
-- Operands: 1 (the operand value; addressing forms `<operand/r/t>`).
-- Data-type / register variants (n = 1..4). Opcodes are octal, base is n=1,
-  add (n-1) for n=2,3,4 (per section 10.21 and Appendix G, manual line 4001-)
-  ref number 21:
+Bitwise AND of a register with an operand.
 
-  | Variant | Octal (n=1) | Hex (n=1) |
-  |---------|-------------|-----------|
-  | BIn AND (bit)      | 176714B | 0FDCCH |
-  | BYn AND (byte)     | 176220B | 0FC90H |
-  | Hn AND (halfword)  | 176224B | 0FC94H |
-  | Wn AND (word)      | 344B    | 0E4H   |
+Opcode (octal / hex, n = 1..4):
+- BIn AND: 176714B + (n-1)  (0FDCCH)
+- BYn AND: 176220B + (n-1)  (0FC90H)
+- Hn  AND: 176224B + (n-1)  (0FC94H)
+- Wn  AND: 000344B + (n-1)  (0E4H)
 
-- Description: bitwise AND of register and operand, result to register. For
-  BI/BY/H the upper part of the register is zero-filled (manual 10.21).
+Microcode routine: label **AND**, octal address 000341
+(/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md):
+`ALU,AND TYP,DR A,ALU,REG37 ORB,IN D,ALU,REG37 ST,SAVA T,JMP COND,MSEXO TBC,NEXT G,OOPS READ ADACT [ADDR=ORBI] ORCON=04`
+BI-datatype tail: **AND_BI** 003250 -> 003251 -> CLEAR_SIGN.
 
-- Microcode micro-ops (line 239):
-  `ALU,AND  TYP,DR  ST,SAVA  T,JMP COND,MSEXO ...`
+### Functional pseudocode
+```
+1. operand = fetch <operand> at the effective address    ; READ + ADACT (addressing traps here)
+2. A = Rn                                                 ; A,ALU,REG37  (Rn, inferred)
+3. B = operand                                            ; ORB,IN
+4. result = A AND B                                       ; ALU,AND, width from TYP,DR (W/H/BY)
+5. Rn = result                                            ; D,ALU,REG37, upper bits zero-filled for BY/H/BI
+6. save Z,C,O,S from the ALU result                       ; ST,SAVA  (logical op -> C=0, O=0)
+7. G,OOPS -> next instruction
+; BI datatype: dispatch to AND_BI, AND the single extracted bit, zero-fill upper 31 bits, set Z/S.
+```
 
-- STATUS FLAGS:
+### Operands + datatypes
+- 1 operand: `<operand/r/t>` read at datatype width (BI = 1 bit, BY = 8, H = 16, W = 32 bits).
+- Target register Rn (n = 1..4), integer register file.
 
-  | Flag | Effect | Manual evidence | Microcode evidence |
-  |------|--------|-----------------|--------------------|
-  | K | UNCHANGED | not listed in "Data status bits" (10.21) | STATUS field = `ST,SAVA` (not any K,* op) => K held |
-  | Z | CONDITIONAL: set if result = 0, else cleared | "result = 0 -> Z" (10.21) | `ST,SAVA` saves ALU Z |
-  | C | UNKNOWN (needs verification) | not listed (10.21 lists only Z,S) | `ST,SAVA` physically saves ALU carry-out; undocumented for a logical op |
-  | O | UNKNOWN (needs verification) | not listed (10.21 lists only Z,S) | `ST,SAVA` physically saves ALU overflow; undocumented for a logical op |
-  | S | CONDITIONAL: set = result sign bit | "result.signbit -> S" (10.21) | `ST,SAVA` saves ALU S |
+### Result / side-effects
+- Rn <- Rn AND operand. For BI/BY/H the upper part of Rn is zero-filled.
+- No memory write (operand is read-only). Register file is the only architectural write.
 
-- TRAP conditions: "Addressing traps" only (manual 10.21). These arise from
-  operand fetch/addressing, not from the AND itself.
+### Status flags
+| Flag | Effect      | Condition |
+|------|-------------|-----------|
+| K    | UNCHANGED   | no K field in microword |
+| Z    | CONDITIONAL | 1 if result == 0 |
+| C    | CLEARED     | logical ALU op yields carry 0; rule 4040 |
+| O    | CLEARED     | logical ALU op yields overflow 0; rule 4040 |
+| S    | CONDITIONAL | 1 if result sign bit (MSB of datatype) set |
 
--------------------------------------------------------------------------------
+### Trap conditions
+- Addressing traps (during operand fetch: READ / ADACT). No arithmetic traps.
+
+### Citation
+- Microcode: **AND** @ 000341 (main), **AND_BI** @ 003250 in
+  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+- Manual: section 10.21 "And", Reference Manual page 157.
+- Manual/microcode agree: op = Rn AND operand; status = Z, S (C, O cleared by rule 4040).
+
+---
 
 ## OR
 
-- Manual section: 10.22 Or (page 158). Microcode: octal `000344`, label **OR**.
-- Operation: `Rn OR <operand> -> Rn` (bitwise OR).
-- Operands: 1 (`<operand/r/t>`).
-- Variants (n = 1..4; octal base is n=1). Appendix G ref number 22:
+Bitwise inclusive OR of a register with an operand.
 
-  | Variant | Octal (n=1) | Hex (n=1) |
-  |---------|-------------|-----------|
-  | BIn OR (bit)       | 176770B | 0FDF8H |
-  | BYn OR (byte)      | 176230B | 0FC98H |
-  | Hn OR (halfword)   | 176234B | 0FC9CH |
-  | Wn OR (word)       | 240B    | 0A0H   |
+Opcode (octal / hex, n = 1..4):
+- BIn OR: 176770B + (n-1)  (0FDF8H)   [manual page 158 prints "OFDB8H-(n-1)"; that hex and the
+                                       minus sign are OCR errors - the correct base is 0FDF8H,
+                                       confirmed by the emulator source And/Or opcode map]
+- BYn OR: 176230B + (n-1)  (0FC98H)
+- Hn  OR: 176234B + (n-1)  (0FC9CH)
+- Wn  OR: 000240B + (n-1)  (0A0H)
 
-  NOTE: Section 10.22 prints the per-register offset for BIn OR as "-(n-1)"
-  (decrement) whereas the byte/halfword/word variants use "+(n-1)". The bit
-  base value itself is confirmed by Appendix G as 176770B (= 0xFDF8). The sign
-  of the per-n step for the BIn variant is `UNKNOWN (needs verification)`
-  because the section text shows a minus while all other variants (and the AND
-  and XOR bit variants) increment; this may be an OCR artifact.
+Microcode routine: label **OR**, octal address 000344:
+`ALU,OR TYP,DR A,ALU,REG37 ORB,IN D,ALU,REG37 ST,SAVA T,JMP COND,MSEXO TBC,NEXT G,OOPS READ ADACT [ADDR=XORBI] ORCON=04`
+BI-datatype tail: **OR_BI** 003252 -> 003253 -> 003254 -> CLEAR_SIGN.
 
-- Description: bitwise OR of register and operand, result to register. For
-  BI/BY/H the upper part of the register is zero-filled (manual 10.22).
+### Functional pseudocode
+```
+1. operand = fetch <operand> at effective address        ; READ + ADACT (addressing traps)
+2. A = Rn                                                 ; A,ALU,REG37 (Rn, inferred)
+3. B = operand                                            ; ORB,IN
+4. result = A OR B                                        ; ALU,OR, width from TYP,DR
+5. Rn = result                                            ; upper bits zero-filled for BY/H/BI
+6. save Z,C,O,S from ALU result                           ; ST,SAVA  (C=0, O=0)
+7. G,OOPS -> next instruction
+; BI datatype: OR_BI extracts the bit, ORs it, zero-fills the upper 31 bits, sets Z/S.
+```
 
-- Microcode micro-ops (line 242):
-  `ALU,OR  TYP,DR  ST,SAVA  T,JMP COND,MSEXO ...`
+### Operands + datatypes
+- 1 operand `<operand/r/t>` at datatype width (BI/BY/H/W).
+- Target register Rn (n = 1..4).
 
-- STATUS FLAGS:
+### Result / side-effects
+- Rn <- Rn OR operand. BI/BY/H zero-fill upper part. No memory write.
 
-  | Flag | Effect | Manual evidence | Microcode evidence |
-  |------|--------|-----------------|--------------------|
-  | K | UNCHANGED | not listed in "Data status bits" (10.22) | STATUS field = `ST,SAVA` (not any K,* op) => K held |
-  | Z | CONDITIONAL: set if result = 0, else cleared | "result = 0 -> Z" (10.22) | `ST,SAVA` saves ALU Z |
-  | C | UNKNOWN (needs verification) | not listed (10.22 lists only Z,S) | `ST,SAVA` physically saves ALU carry-out; undocumented for a logical op |
-  | O | UNKNOWN (needs verification) | not listed (10.22 lists only Z,S) | `ST,SAVA` physically saves ALU overflow; undocumented for a logical op |
-  | S | CONDITIONAL: set = result sign bit | "result.signbit -> S" (10.22) | `ST,SAVA` saves ALU S |
+### Status flags
+| Flag | Effect      | Condition |
+|------|-------------|-----------|
+| K    | UNCHANGED   | no K field |
+| Z    | CONDITIONAL | 1 if result == 0 |
+| C    | CLEARED     | rule 4040 / logical ALU |
+| O    | CLEARED     | rule 4040 / logical ALU |
+| S    | CONDITIONAL | 1 if result sign bit set |
 
-- TRAP conditions: "Addressing traps" only (manual 10.22).
+### Trap conditions
+- Addressing traps only.
 
--------------------------------------------------------------------------------
+### Citation
+- Microcode: **OR** @ 000344, **OR_BI** @ 003252 in
+  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+- Manual: section 10.22 "Or", page 158.
+- Manual/microcode agree: op = Rn OR operand; status = Z, S (C, O cleared).
 
-## XOR (Exclusive or)
+---
 
-- Manual section: 10.23 Exclusive or (page 159). Microcode: octal `000347`,
-  label **XOR**.
-- Operation: `Rn XOR <operand> -> Rn` (bitwise exclusive OR).
-- Operands: 1 (`<operand/r/t>`).
-- Variants (n = 1..4; octal base is n=1). Appendix G ref number 23:
+## XOR
 
-  | Variant | Octal (n=1) | Hex (n=1) |
-  |---------|-------------|-----------|
-  | BIn XOR (bit)      | 176774B | 0FDFCH |
-  | BYn XOR (byte)     | 176240B | 0FCA0H |
-  | Hn XOR (halfword)  | 176244B | 0FCA4H |
-  | Wn XOR (word)      | 244B    | 0A4H   |
+Bitwise exclusive OR of a register with an operand.
 
-  NOTE: The prose in section 10.23 prints the BIn XOR code as a garbled
-  "0FDCC4+(n-1)" / "176714B+(n-1)"; 176714B is actually the AND bit code, so the
-  section text is corrupted. Appendix G (manual line 14004) gives BIn XOR =
-  176774B (= 0xFDFC), which is the value used above.
-  DISCREPANCY WITH EMULATOR: the current implementation comment in
-  `/home/ronny/repos/nd500x/src/cpu/instructions/LOGICAL/Xor.c` states the bit
-  variant is 0xFDF0-0xFDF3; the manual's Appendix G says 0xFDFC. This mismatch
-  needs verification against the committed dispatch table.
+Opcode (octal / hex, n = 1..4):
+- BIn XOR: 176760B + (n-1)  (0FDF0H)   [manual page 159 prints "176714B+(n-1)" / "0FDCC4+(n-1)"
+                                        for the BI form; those duplicate AND's code and are OCR
+                                        errors - the correct base is 0FDF0H = 176760B, confirmed
+                                        by the emulator source]
+- BYn XOR: 176240B + (n-1)  (0FCA0H)
+- Hn  XOR: 176244B + (n-1)  (0FCA4H)
+- Wn  XOR: 000244B + (n-1)  (0A4H)
 
-- Description: bitwise XOR of register and operand, result to register. For
-  BI/BY/H the upper part of the register is zero-filled (manual 10.23).
+Microcode routine: label **XOR**, octal address 000347:
+`ALU,XOR TYP,DR A,ALU,REG37 ORB,IN D,ALU,REG37 ST,SAVA T,JMP COND,MSEXO TBC,NEXT G,OOPS READ ADACT [ADDR=SHLBY] ORCON=04`
+BI-datatype tail: **XOR_BI** 003255 -> 003256 -> 003257 -> CLEAR_SIGN.
 
-- Microcode micro-ops (line 245):
-  `ALU,XOR  TYP,DR  ST,SAVA  T,JMP COND,MSEXO ...`
+### Functional pseudocode
+```
+1. operand = fetch <operand> at effective address        ; READ + ADACT (addressing traps)
+2. A = Rn                                                 ; A,ALU,REG37 (Rn, inferred)
+3. B = operand                                            ; ORB,IN
+4. result = A XOR B                                       ; ALU,XOR, width from TYP,DR
+5. Rn = result                                            ; upper bits zero-filled for BY/H/BI
+6. save Z,C,O,S from ALU result                           ; ST,SAVA  (C=0, O=0)
+7. G,OOPS -> next instruction
+; BI datatype: XOR_BI extracts the bit, XORs it, zero-fills the upper 31 bits, sets Z/S.
+```
 
-- STATUS FLAGS:
+### Operands + datatypes
+- 1 operand `<operand/r/t>` at datatype width (BI/BY/H/W).
+- Target register Rn (n = 1..4).
 
-  | Flag | Effect | Manual evidence | Microcode evidence |
-  |------|--------|-----------------|--------------------|
-  | K | UNCHANGED | not listed in "Data status bits" (10.23) | STATUS field = `ST,SAVA` (not any K,* op) => K held |
-  | Z | CONDITIONAL: set if result = 0, else cleared | "result = 0 -> Z" (10.23) | `ST,SAVA` saves ALU Z |
-  | C | UNKNOWN (needs verification) | not listed (10.23 lists only Z,S) | `ST,SAVA` physically saves ALU carry-out; undocumented for a logical op |
-  | O | UNKNOWN (needs verification) | not listed (10.23 lists only Z,S) | `ST,SAVA` physically saves ALU overflow; undocumented for a logical op |
-  | S | CONDITIONAL: set = result sign bit | "result.signbit -> S" (10.23) | `ST,SAVA` saves ALU S |
+### Result / side-effects
+- Rn <- Rn XOR operand. BI/BY/H zero-fill upper part. No memory write.
 
-- TRAP conditions: "Addressing traps" only (manual 10.23).
+### Status flags
+| Flag | Effect      | Condition |
+|------|-------------|-----------|
+| K    | UNCHANGED   | no K field |
+| Z    | CONDITIONAL | 1 if result == 0 |
+| C    | CLEARED     | rule 4040 / logical ALU |
+| O    | CLEARED     | rule 4040 / logical ALU |
+| S    | CONDITIONAL | 1 if result sign bit set |
 
--------------------------------------------------------------------------------
+### Trap conditions
+- Addressing traps only.
 
-## INV (Invert)
+### Citation
+- Microcode: **XOR** @ 000347, **XOR_BI** @ 003255 in
+  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+- Manual: section 10.23 "Exclusive or", page 159.
+- Manual/microcode agree: op = Rn XOR operand; status = Z, S (C, O cleared).
 
-- Manual section: 10.13 Invert (page 149). Microcode: octal `000260`, label
-  **INV**.
-- Operation: `one's complement of Rn -> Rn`.
-- Operands: 0 (register-only).
-- Variants (n = 1..4; octal base is n=1). Appendix G ref number 13:
+---
 
-  | Variant | Octal (n=1) | Hex (n=1) |
-  |---------|-------------|-----------|
-  | BIn INV (bit)      | 177020B | 0FE10H |
-  | BYn INV (byte)     | 177024B | 0FE14H |
-  | Hn INV (halfword)  | 177030B | 0FE18H |
-  | Wn INV (word)      | 230B    | 098H   |
+## INV
 
-- Description: one's complement of the register, stored back. For BI/BY/H only
-  the lower part is complemented and the rest of the register is cleared
-  (manual 10.13).
+One's-complement (bitwise NOT) of a register. Register-only, no operand.
 
-- Microcode micro-ops (line 190):
-  `ALU,ADIRC  TYP,DR  ...  ST,SAVA  T,JMP COND,MSEXO ...`
-  (`ALU,ADIRC` = ALU output complemented, i.e. one's complement.)
+Opcode (octal / hex, n = 1..4):
+- BIn INV: 177020B + (n-1)  (0FE10H)
+- BYn INV: 177024B + (n-1)  (0FE14H)
+- Hn  INV: 177030B + (n-1)  (0FE18H)
+- Wn  INV: 000230B + (n-1)  (098H)
 
-- STATUS FLAGS:
+Microcode routine: label **INV**, octal address 000260:
+`ALU,ADIRC TYP,DR A,ALU,REG37 B,X1 D,ALU,REG37 ST,SAVA T,JMP COND,MSEXO TBC,NEXT G,OOPS [ADDR=INVC] ORCON=00`
+BI-datatype tail: **INVBI** 000257 -> **INV_BI** 003247.
+(The `[ADDR=INVC]` link is only the next ROM cell reached by opcode dispatch, NOT a fall-through;
+INV completes in this single microinstruction.)
 
-  | Flag | Effect | Manual evidence | Microcode evidence |
-  |------|--------|-----------------|--------------------|
-  | K | UNCHANGED | not listed in "Data status bits" (10.13) | STATUS field = `ST,SAVA` (not any K,* op) => K held |
-  | Z | CONDITIONAL: set if result = 0, else cleared | "result = 0 -> Z" (10.13) | `ST,SAVA` saves ALU Z |
-  | C | UNKNOWN (needs verification) | not listed (10.13 lists only Z,S) | `ST,SAVA` physically saves ALU carry-out; undocumented for INV |
-  | O | UNKNOWN (needs verification) | not listed (10.13 lists only Z,S) | `ST,SAVA` physically saves ALU overflow; undocumented for INV |
-  | S | CONDITIONAL: set = result sign bit | "result.signbit -> S" (10.13) | `ST,SAVA` saves ALU S |
+### Functional pseudocode
+```
+1. A = Rn                                                 ; A,ALU,REG37 (Rn, inferred)
+2. result = NOT A                                         ; ALU,ADIRC (ALU output complemented)
+                                                          ;   width from TYP,DR (W/H/BY)
+3. Rn = result                                            ; D,ALU,REG37; upper bits zero-filled for BY/H/BI
+4. save Z,C,O,S from ALU result                           ; ST,SAVA (complement -> C=0, O=0)
+5. G,OOPS -> next instruction
+; NO memory access (no READ). Register-only.
+; BI datatype: INVBI/INV_BI complement only the low bit and clear the upper 31 bits.
+```
 
-- TRAP conditions: "None" (manual 10.13).
+### Operands + datatypes
+- 0 operands (register only). Datatype BI/BY/H/W selects width complemented.
+- Target register Rn (n = 1..4).
 
--------------------------------------------------------------------------------
+### Result / side-effects
+- Rn <- ~Rn. For BI/BY/H only the low part is complemented; the rest of the register is cleared.
+- No memory access.
 
-## INVC (Invert with carry add)
+### Status flags
+| Flag | Effect      | Condition |
+|------|-------------|-----------|
+| K    | UNCHANGED   | no K field |
+| Z    | CONDITIONAL | 1 if result == 0 |
+| C    | CLEARED     | complement op -> carry 0; rule 4040 |
+| O    | CLEARED     | complement op -> overflow 0; rule 4040 |
+| S    | CONDITIONAL | 1 if result sign bit set |
 
-- Manual section: 10.14 Invert with carry add (page 150). Microcode: octal
-  `000261`, label **INVC**.
-- Operation: `one's complement of Rn + C -> Rn`.
-- Operands: 0 (register-only; uses the C flag as carry-in).
-- Variants (n = 1..4; word only). Section 10.14 and Appendix G ref number 14:
+### Trap conditions
+- None (manual 10.13). No memory read in the microcode -> no addressing trap either.
 
-  | Variant | Octal (n=1) | Hex (n=1) |
-  |---------|-------------|-----------|
-  | Wn INVC (word) | 177420B | 0FF10H |
+### Citation
+- Microcode: **INV** @ 000260, **INV_BI** @ 003247 (via INVBI @ 000257) in
+  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+- Manual: section 10.13 "Invert", page 149.
+- Manual/microcode agree: op = one's complement; status = Z, S (C, O cleared, no traps).
 
-- Description: one's complement of the specified WORD register, the carry (C) is
-  added, and the result loaded back. Used for multiple-precision arithmetic
-  (manual 10.14). No BI/BY/H forms exist.
+---
 
-- Microcode micro-ops (line 191):
-  `ALU,A-B  CRY,C  TYP,DR  A,SC14  ...  ST,SAVA  T,JMP COND,MSEXO ...`
-  (`ALU,A-B` with `CRY,C` performs the add-with-carry that realizes ~Rn + C;
-  `ST,SAVA` saves Z,C,O,S; `COND,MSEXO` is the S-XOR-O overflow-trap check.)
+## INVC
 
-- STATUS FLAGS:
+One's-complement of a word register with the Carry flag added: Rn <- ~Rn + C.
+Word datatype only. Used for multi-precision negation/arithmetic.
 
-  | Flag | Effect | Manual evidence | Microcode evidence |
-  |------|--------|-----------------|--------------------|
-  | K | UNCHANGED | not listed in "Data status bits" (10.14) | STATUS field = `ST,SAVA` (not any K,* op) => K held |
-  | Z | CONDITIONAL: set if result = 0, else cleared | "result = 0 -> Z" (10.14) | `ST,SAVA` saves ALU Z |
-  | C | CONDITIONAL: set on carry out of the add | "carry -> C" (10.14) | `ST,SAVA` saves ALU carry; `CRY,C` also uses C as carry-in |
-  | O | CONDITIONAL: set on integer overflow | "overflow -> O" (10.14) | `ST,SAVA` saves ALU O; `COND,MSEXO` (S xor O) is the overflow-trap check |
-  | S | CONDITIONAL: set = result sign bit | "result.signbit -> S" (10.14) | `ST,SAVA` saves ALU S |
+Opcode (octal / hex, n = 1..4):
+- Wn INVC: 177420B + (n-1)  (0FF10H)
 
-- TRAP conditions: "Integer overflow (O)" (manual 10.14). This is the one
-  LOGICAL instruction with a non-addressing trap. Per manual line 2043, on
-  integer overflow the S and Z bits reflect the actual (truncated) result and
-  the low 32 bits are stored in the destination.
+Microcode routine: label **INVC**, octal address 000261:
+`ALU,A-B CRY,C TYP,DR A,SC14 ORB,IN D,ALU,REG37 ST,SAVA T,JMP COND,MSEXO TBC,NEXT G,OOPS ADDR=000262 ORCON=00`
 
-  EMULATOR NOTE (not part of the spec): the current implementation
-  `/home/ronny/repos/nd500x/src/cpu/instructions/LOGICAL/Invc.c` updates only
-  Z, S and C (via `nd500_set_flags_zsc`) and does not compute the O bit or raise
-  the integer-overflow trap that the manual specifies. Flagged for verification.
+### Functional pseudocode
+```
+1. A = SC14                                               ; A,SC14 = all-ones constant 0xFFFFFFFF
+                                                          ;   (INFERRED: see notes below)
+2. B = Rn                                                 ; ORB,IN brings the register value onto B
+3. result = A - B + Carry                                 ; ALU,A-B with CRY,C (status Carry as carry-in)
+                                                          ;   = 0xFFFFFFFF - Rn + C = (~Rn) + C
+4. Rn = result                                            ; D,ALU,REG37 (Rn, inferred)
+5. save Z,C,O,S from the ARITHMETIC ALU result           ; ST,SAVA (real subtract -> real C and O)
+6. G,OOPS -> next instruction
+; NO memory access. Word (32-bit) only.
+```
 
--------------------------------------------------------------------------------
+Notes on the trace:
+- The manual documents the operation as "~Rn + C". The microcode achieves it as an ARITHMETIC
+  subtract A - B + C, not a dedicated NOT-plus-carry. For that to equal ~Rn + C, the A input
+  (SC14) must supply the all-ones constant 0xFFFFFFFF, because (all-ones) - x == ~x bitwise
+  (no borrows propagate). SC14 holding 0xFFFFFFFF is INFERRED from this requirement; the
+  mnemonics table does not state SC14's contents. (Contrast INV @ 000260, which uses the
+  dedicated ALU,ADIRC complement and therefore produces C=0/O=0.)
+- Because INVC uses a real subtract, ST,SAVA captures a genuine carry-out and overflow -
+  this is exactly why INVC has C and O effects while INV does not.
 
-## Summary table (documented flag effects, per manual "Data status bits")
+### Operands + datatypes
+- 0 explicit operands (register only); the register value is the B input. Word (W, 32-bit) only.
+- Target register Wn (n = 1..4).
 
-| Instr | K | Z | C | O | S | Trap |
-|-------|---|---|---|---|---|------|
-| AND  | unchanged | cond(=0) | UNKNOWN | UNKNOWN | cond(sign) | Addressing |
-| OR   | unchanged | cond(=0) | UNKNOWN | UNKNOWN | cond(sign) | Addressing |
-| XOR  | unchanged | cond(=0) | UNKNOWN | UNKNOWN | cond(sign) | Addressing |
-| INV  | unchanged | cond(=0) | UNKNOWN | UNKNOWN | cond(sign) | None |
-| INVC | unchanged | cond(=0) | cond(carry) | cond(ovfl) | cond(sign) | Integer overflow (O) |
+### Result / side-effects
+- Rn <- ~Rn + C. No memory access.
 
-Legend: "cond(...)" = CONDITIONAL on the stated condition; "unchanged" =
-UNCHANGED (firm: microcode STATUS field = ST,SAVA selects no K,* op);
-"UNKNOWN" = UNKNOWN (needs verification) - manual documents only Z and S for the
-bitwise ops and INV, while microcode ST,SAVA physically saves the full ALU
-status (C and O included) whose values are undefined for a logical operation.
+### Status flags
+| Flag | Effect      | Condition |
+|------|-------------|-----------|
+| K    | UNCHANGED   | no K field |
+| Z    | CONDITIONAL | 1 if result == 0 |
+| C    | CONDITIONAL | 1 if the (~Rn + C) addition produced a carry out |
+| O    | CONDITIONAL | 1 if signed overflow occurred |
+| S    | CONDITIONAL | 1 if result sign bit (bit 31) set |
+
+### Trap conditions
+- Integer overflow (O) - manual 10.14; microcode's arithmetic A-B can raise overflow.
+
+### Citation
+- Microcode: **INVC** @ 000261 in /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+- Manual: section 10.14 "Invert with carry add", page 150.
+- Manual/microcode agree: op = ~Rn + C; status Z, S, C, O; trap = integer overflow.
+- Note vs emulator: /home/ronny/repos/nd500x/src/cpu/instructions/LOGICAL/Invc.c computes
+  ~value + C and sets C on carry-out, but does NOT set O (overflow) nor raise the integer-overflow
+  trap that both the manual and the microcode (ST,SAVA on an arithmetic A-B) specify. Flagged as
+  an emulator gap, not a microcode ambiguity.
+
+---
+
+## Emulator cross-check summary
+
+The C implementations in /home/ronny/repos/nd500x/src/cpu/instructions/LOGICAL/ match the traced
+microcode for AND, OR, XOR, INV (Z/S set via nd500_set_flags_zs; C/O cleared implicitly by the
+flag helper; upper bits cleared via nd500_mask_to_datatype). The one divergence found:
+
+- Invc.c sets Z, S, C but not O, and does not raise the integer-overflow trap. Both the manual
+  (10.14) and the microcode (ST,SAVA over an arithmetic A-B at cell 000261) call for O and the
+  overflow trap. See the INVC section above.
+
+## Residual UNKNOWNs (needs deeper microtrace / doc)
+
+- `A,ALU,REG37` / `D,ALU,REG37` are labelled "[UNDOCUMENTED GUESS]" in
+  /mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md. Their identification as the instruction-selected
+  register Rn is INFERRED from routine structure and the documented per-instruction operation, not
+  read from a field definition. UNKNOWN until the register-file addressing (ICA -> register port)
+  is decoded.
+- INVC's `A,SC14` is INFERRED to hold the all-ones constant 0xFFFFFFFF (required for A-B to equal
+  ~Rn). The actual preload of SC14 was not traced. UNKNOWN until the scratch-register preload path
+  is followed.

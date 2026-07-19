@@ -1,354 +1,532 @@
-# ND-500 CONTROL Category - Authoritative Behavior Reference
+# ND-500 Instruction Reference - CONTROL category
 
-Scope: the CONTROL instruction category as defined by the emulator source files
-in `/home/ronny/repos/nd500x/src/cpu/instructions/CONTROL/*.c`.
+FUNCTIONAL behaviour reference built by TRACING THE MICROCODE, not by guessing from
+flag tables. For every instruction the routine was followed cell-by-cell through the
+ND-5800 microstore and cross-checked against the printed manual.
 
-Every statement below is taken directly from one of two sources. Nothing is
-inferred unless explicitly marked. Where a source is silent, the entry says
-UNKNOWN (needs verification).
+Sources of truth (full absolute paths):
+- Microcode (ground truth mechanism):
+  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+- Microcode field decoding:
+  /mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md
+- ND-500 Reference Manual (documented intent):
+  /home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md
+- Emulator implementations:
+  /home/ronny/repos/nd500x/src/cpu/instructions/CONTROL/*.c
 
-Sources
-- PRIMARY spec (manual):
-  `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-- GROUND-TRUTH micro-behavior (ND-5000 microcode):
-  `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-- Micro-op field mnemonics decoded via:
-  `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
+Category enumerated from:
+  /home/ronny/repos/nd500x/src/cpu/instructions/CONTROL/
+  Bp.c Clte.c Init.c Noop.c Set1.c Sete.c Setk.c Solo.c Tset.c  (9 instructions)
 
-## Status-bit background (from manual, both required for the tables below)
+## Notation and conventions
 
-Manual 6.5.1 "Data status bits" (`ND-05.009.4 ... Manual.md` lines 2004-2060)
-and 6.5.7 "Status bits survey" (same file, lines 2331-2413) define the bits the
-tables below track:
-
-| Flag | Manual name | Status-register bit no. | Kind |
-|------|-------------|-------------------------|------|
-| K | Flag | 8 | status bit, modifiable, no trap ("S M") |
-| Z | Zero | 5 | data status bit, no trap ("S M") |
-| C | Carry | 6 | data status bit, no trap ("S M") |
-| O | Overflow (integer) | 9 | data status bit, ignorable trap ("I M A") |
-| S | Sign | 7 | data status bit, no trap ("S M") |
-
-Note: K (bit 8, "Flag") is NOT one of the "data status bits" (Z,C,S,O,IVO,DZ,
-FU,FO,BO of Table 7). It is a separate status/flag bit. Therefore an instruction
-whose manual entry reads "Data status bits: Unaffected" leaves K unaffected too
-unless its Operation line explicitly writes K.
-
-Two general manual rules used below:
-- Manual line 2028: "All data status bits not mentioned are reset." (i.e. an
-  instruction that mentions only some data status bits clears the rest.)
-- Manual line 4040: "Data status bits not mentioned in the instruction
-  description are always cleared after the instruction has been executed."
-
-Microcode decoding key (from `mnemonics.md`):
-- `K,ONE` (mnemonics.md line 653) = "SET K (FLAG) 1 TO K" -> K := 1
-- `K,ZRO` (line 654) = "CLEAR K (FLAG) 0 TO K" -> K := 0
-- `ST,SAVA` (line 656) = "SAVE STATUS FROM ALU OPERATION" -> updates Z/C/S/O
-  from the ALU result of that microword
-- `MIC,STS` / `A,MIC,STS` (lines 578/381) = access MIC status bits (used for
-  trap/STO bookkeeping, not the Z/C/S/O data status bits)
-- `A,MIC,MISTS` / `D,MIC,MISTS` (lines 377/574) = MIC status register
-  (process-switch/PSD state)
-- Absence of `ST,SAVA` on an instruction's microwords => Z/C/S/O are not
-  recomputed => they retain their previous values (UNCHANGED).
-- Absence of `K,ONE`/`K,ZRO` => K is not written (UNCHANGED).
+- Opcodes are given in octal (B suffix) and hex (H suffix), as printed in the manual.
+- Microstore addresses (e.g. 000201) are 6-digit OCTAL microcell addresses inside
+  MICRO-5800-A30.md. They are NOT the instruction opcode.
+- Microcode field meanings used below (from mnemonics.md):
+    ALU,A       ALU output = A input          ALU,FZRO   force ALU output to zero
+    ALU,AND     A AND B                        ALU,OR     A OR B
+    ALU,XOR     A XOR B                        ALU,ANDCB  A AND (NOT B)
+    ALU,ANDCA   (NOT A) AND B                  ALU,A-1    A minus 1     ALU,A+B  A plus B
+    A,<x>/B,<x> ALU bus inputs (BMnn = internal bit masks, SCn = scratch regs,
+                DAC,EAn = effective-address regs, MIC,TE = trap-enable bits,
+                MIC,STS/MISTS = micro status/modus register, X1 = index reg)
+    D,<x>       destination of ALU result (SCn scratch, ALU,REG37 = ALU work reg,
+                MIC,STS/MISTS = micro status, SPEC,MOD = MODUS register)
+    TYP,DR      datatype taken from instruction (integer path)  TYP,F single float
+    TYP,DF      double float   TYP,BY byte   TYP,BI bit   TYP,HW halfword
+    ST,SAVA     SAVE arithmetic status from the ALU result -> writes Z/C/O/S
+    K,ONE / K,ZRO / K,1IFZ   set / clear / (set-if-ALU-zero) the K flag
+    READ / WRITE / LADDR / ADACT / DAC   memory / effective-address activity
+    ORCON=nn    OR the datatype into low microaddress bits to pick the variant cell
+    C,SEQ + COND,MZRO (+INVSEQ)   conditional micro-sequence / trap dispatch
+- "Data status bits not mentioned in the instruction description are always cleared"
+  (Reference Manual, page 132 line 4040, and page ~2022). This resolves the flags the
+  earlier flags-only pass left UNKNOWN: where ST,SAVA runs, the listed bits ARE written,
+  and any data-status bit the manual does not mention is CLEARED.
+- The K flag is treated by the manual as "the flag", separate from the Z/C/O/S data
+  status bits. A microcell with no K,* field leaves K UNCHANGED.
 
 ---
 
-## BP - break point instruction
+## BP - Break point
 
-- Opcode: 002H = 002B (manual line 10139).
-- Operands: none. Format `BP` (manual 16.4, line 10135).
-- Operation: cause a break point instruction trap condition (manual line 10143).
-- Description: intended for program debugging; the trap handler normally invokes
-  a debug routine (manual lines 10143-10147).
-- Manual "Data status bits:" = Unaffected (manual line, section 16.4).
-- Microcode: `BP` at octal 000201 (MICRO-5800-A30.md line 143); continues
-  `BP_1` 011540 (line 4974), `BP_2` 011552 (line 4984). No `ST,SAVA`, no
-  `K,ONE`/`K,ZRO` on any of these microwords (uses `MIC,STS` for trap status
-  only).
+Opcode: 002B / 002H. Zero operands.
 
-Status flags:
+Microcode entry: 000201 BP -> 011540 BP_1 -> 011541 -> 011542 -> 011552 BP_2.
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual 16.4 "Unaffected"; microcode BP 000201 has no K micro-op |
-| Z | UNCHANGED | Manual 16.4 "Unaffected"; microcode BP 000201 has no ST,SAVA |
-| C | UNCHANGED | Manual 16.4 "Unaffected"; microcode BP 000201 has no ST,SAVA |
-| O | UNCHANGED | Manual 16.4 "Unaffected"; microcode BP 000201 has no ST,SAVA |
-| S | UNCHANGED | Manual 16.4 "Unaffected"; microcode BP 000201 has no ST,SAVA |
+### Functional pseudocode
+```
+1. mask := trap-enable bits (A,MIC,TE) AND (breakpoint bit mask)   ; 011541
+2. test the BPT enable bit against MIC status (COND,MZRO, INVSEQ)  ; 011542
+3. if BPT enabled:
+       raise BPT (Break Point instruction Trap) -> invoke trap handler
+   else:
+       raise IIC (Illegal Instruction Code) trap
+4. record the trap in the micro status register (D,MIC,STS)        ; BP_2 011552
+```
+No architectural register or memory is modified along the normal path; the only
+effect is the trap.
 
-Trap conditions (manual line 10151): Breakpoint instruction trap (BPT); Illegal
-instruction code (IIC) if BPT is not enabled.
+### Operands / datatypes
+None.
 
----
+### Result / side-effects
+Raises a trap (BPT if enabled, otherwise IIC). No data written.
 
-## NOOP - no operation
+### Status flags
+| Flag | Effect     |
+|------|------------|
+| K    | UNCHANGED  |
+| Z    | UNCHANGED  |
+| C    | UNCHANGED  |
+| O    | UNCHANGED  |
+| S    | UNCHANGED  |
 
-- Opcode: 003H = 003B (manual line 9689).
-- Operands: none. Format `NOOP` (manual 15.10, line 9685).
-- Operation: None (manual line 9689 area, "Operation: None").
-- Manual "Data status bits:" = Unaffected (manual 15.10).
-- Microcode: `NOOP` at octal 000202 (MICRO-5800-A30.md line 144). Single
-  microword `ALU,FZRO ... G,OOPS`; no `ST,SAVA`, no K micro-op.
+No ST,SAVA in the routine; manual "Data status bits: Unaffected".
 
-Status flags:
+### Trap conditions
+- BPT (Breakpoint instruction Trap) if the BPT trap is enabled.
+- IIC (Illegal Instruction Code) if the BPT trap is disabled.
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual 15.10 "Unaffected"; microcode NOOP 000202 no K micro-op |
-| Z | UNCHANGED | Manual 15.10 "Unaffected"; microcode NOOP 000202 no ST,SAVA |
-| C | UNCHANGED | Manual 15.10 "Unaffected"; microcode NOOP 000202 no ST,SAVA |
-| O | UNCHANGED | Manual 15.10 "Unaffected"; microcode NOOP 000202 no ST,SAVA |
-| S | UNCHANGED | Manual 15.10 "Unaffected"; microcode NOOP 000202 no ST,SAVA |
+### Citation
+Microcode 000201 BP -> 011540 BP_1 -> 011541 (AND with MIC,TE) -> 011542 (BPT test)
+-> 011552 BP_2. Manual section 16.4 "Break point" (page 292); trap definitions
+page ~2086 (BPT) and page ~2213 (IIC).
 
-Trap conditions (manual): None.
-
----
-
-## SETK - set flag
-
-- Opcode: 0FE02H = 177002B (manual line 9717).
-- Operands: none. Format `SETK` (manual 15.11, line 9713).
-- Operation: `1 -> K bit of status register` (manual, section 15.11).
-- Manual "Data status bits:" = Unaffected (manual 15.11) - i.e. the DATA status
-  bits Z/C/S/O are unaffected; the Operation line separately sets K.
-- Microcode: `SETK` at octal 000774 (MICRO-5800-A30.md line 522):
-  `ALU,FZRO A,BM00 B,X1 K,ONE T,JMP COND,MSEXO TBC,NEXT G,OOPS`. The `K,ONE`
-  micro-op sets K:=1. No `ST,SAVA` (Z/C/S/O untouched). This is a single-
-  microword handler ending in `TBC,NEXT` (fetch next macro-instruction); the
-  adjacent 000775 `CLRK` (`K,ZRO`) is a SEPARATE macro-instruction (RESK), not a
-  fall-through.
-
-Status flags:
-
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | SET (K := 1) | Manual 15.11 Operation "1 -> K"; microcode SETK 000774 `K,ONE` |
-| Z | UNCHANGED | Manual 15.11 "Unaffected"; microcode SETK 000774 no ST,SAVA |
-| C | UNCHANGED | Manual 15.11 "Unaffected"; microcode SETK 000774 no ST,SAVA |
-| O | UNCHANGED | Manual 15.11 "Unaffected"; microcode SETK 000774 no ST,SAVA |
-| S | UNCHANGED | Manual 15.11 "Unaffected"; microcode SETK 000774 no ST,SAVA |
-
-Trap conditions (manual): None.
+Note: the emulator (Bp.c) currently only logs the hit and does not yet consult a real
+BPT-enable bit (its own TODO). Mechanism above is from microcode/manual, not the C stub.
 
 ---
 
-## SET1 - set to one
+## CLTE - Clear bit in Own Trap Enable register
 
-Note: the emulator files SET1 under CONTROL, but the manual documents it in
-chapter 10.18 "Set to one" under DATA TRANSFER AND LOGICAL INSTRUCTIONS
-(`ND-05.009.4 ... Manual.md` lines 4855-4888).
+Opcode: 176472B / 0FD3AH. One operand: <bit no /r/ BY> (byte).
 
-- Opcodes (manual lines 4864-4869):
-  - BI SET1 (bit): 0FC86H = 176206B
-  - BY SET1 (byte): 0FC87H = 176207B
-  - H SET1 (halfword): 0FC88H = 176210B
-  - W SET1 (word): 04DH = 115B
-  - F SET1 (float): 047H = 107B
-  - D SET1 (double float): 0FC89H = 176211B
-- Operands: 1 - `<operand/w/t>` (write, typed) (manual line 4860).
-- Operation: `1 -> <operand>` (manual, section 10.18).
-- Manual "Data status bits:" = All cleared (manual line 4880).
-- Microcode: `SET1` at octal 000325, `SET1_BI` at 000324, plus 000322/000323
-  (MICRO-5800-A30.md lines 224-227). These microwords carry `ST,SAVA` (save
-  status from ALU). Because the ALU result stored is the value 1, `ST,SAVA`
-  yields Z=0 (nonzero), S=0 (positive), C=0, O=0 -> all data status bits
-  cleared, matching the manual. No `K,ONE`/`K,ZRO` micro-op -> K untouched.
+Microcode entry: 000715 CLTE -> 000716 -> 011127 CLTE_01 -> 011137 CLTE1 -> 011051 CED_TO_DIT.
 
-Status flags:
+### Functional pseudocode
+```
+1. read <bit no> (byte) from operand (READ, ADACT)                 ; 000715
+2. bit_mask := A,BM05 combined for the addressed bit (ALU,AND)     ; 000716
+3. gate against TEMM (Trap Enable Modification Mask):
+      if TEMM bit for <bit no> = 0 -> raise IOV and abort          ; CLTE_01, COND,MZRO
+4. OTE[bit no] := 0        ; clear the bit in Own Trap Enable       ; CLTE1
+5. write the updated OTE back into the domain (CED_TO_DIT copies
+   current-executing-domain trap-enable state to the Domain
+   Information Table)                                              ; 011051 CED_TO_DIT
+```
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual 10.18 clears DATA status bits only (K is not a data status bit); microcode SET1 000325 no K micro-op |
-| Z | CLEARED | Manual 10.18 "All cleared"; microcode SET1 000325 `ST,SAVA` on result=1 (nonzero) |
-| C | CLEARED | Manual 10.18 "All cleared"; microcode SET1 000325 `ST,SAVA` (no integer carry) |
-| O | CLEARED | Manual 10.18 "All cleared"; microcode SET1 000325 `ST,SAVA` (no overflow) |
-| S | CLEARED | Manual 10.18 "All cleared"; microcode SET1 000325 `ST,SAVA` on result=1 (positive) |
+### Operands / datatypes
+- <bit no> : BYTE (r). Selects which OTE bit (0..63; OTE is two 32-bit halves
+  OTE1/OTE2 per the register model, page 922).
 
-Trap conditions (manual line 4876): Addressing traps.
+### Result / side-effects
+Clears one bit of the Own Trap Enable register for the current domain and propagates
+it to the Domain Information Table. Disabling an ignorable trap makes that condition be
+ignored unless the corresponding MTE bit is set; non-ignorable conditions propagate to
+the mother domain (manual 16.6).
 
----
+### Status flags
+| Flag | Effect     |
+|------|------------|
+| K    | UNCHANGED  |
+| Z    | UNCHANGED  |
+| C    | UNCHANGED  |
+| O    | UNCHANGED  |
+| S    | UNCHANGED  |
 
-## TSET - test and set
+No ST,SAVA; manual "Data status bits: Unaffected".
 
-- Opcode: 0FD40H = 176500B (manual line 10097).
-- Operands: 1 - `BY TSET <operand/rwl/BY>` (read-write-locked, BYTE type)
-  (manual 16.3, line 10093). Register and constant operands are illegal.
-- Operation (manual lines 10101-10106): lock; read operand and set status bits;
-  set operand to all ones; unlock.
-- Manual "Data status bits:" (manual, section 16.3):
-  - operand was zero before store -> Z
-  - operand was negative before store -> S
-  (C and O are not mentioned -> reset by the general rules at manual lines
-  2028 / 4040.)
-- Microcode: `TSET` at octal 000757 (MICRO-5800-A30.md line 509), typed
-  `TYP,BY` (byte); continues `TSET_1` 004540, `TSET_2` 004553, and 004560.
-  `ST,SAVA` appears at 004560 (line 2430) and 004552 (line 2424), saving Z/C/S/O
-  from the BYTE value read before the store. No `K,ONE`/`K,ZRO` -> K untouched.
+### Trap conditions
+- IOV (Illegal Operand Value) if the addressed bit is not modifiable in TEMM.
+- Addressing traps on operand fetch.
 
-Status flags:
-
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual 16.3 lists only Z,S; K is not a data status bit and microcode TSET path has no K micro-op |
-| Z | CONDITIONAL (set if operand byte was zero before store, else cleared) | Manual 16.3 "operand was zero before store -> Z"; microcode `ST,SAVA` at 004560 |
-| C | CLEARED | Manual general rule (lines 2028/4040) - not mentioned in 16.3; microcode `ST,SAVA` on a load/AND yields no carry |
-| O | CLEARED | Manual general rule (lines 2028/4040) - not mentioned in 16.3; microcode `ST,SAVA` yields no overflow |
-| S | CONDITIONAL (set if operand byte was negative before store, else cleared) | Manual 16.3 "operand was negative before store -> S"; microcode `ST,SAVA` at 004560 |
-
-Trap conditions (manual line 10120): Addressing traps; Illegal operand
-specifier (IOS) - caused by register or constant operands (manual lines
-2215, 3630, 3708).
-
-Emulator discrepancy (not a manual/microcode statement, flagged for validation):
-the emulator source `.../CONTROL/Tset.c` operates on a 32-bit WORD and writes
-0xFFFFFFFF. The manual and microcode define TSET as a BYTE operation
-(`TYP,BY`, `<operand/rwl/BY>`) that stores all-ones into a byte.
+### Citation
+Microcode 000715 CLTE -> 000716 -> 011127 CLTE_01 -> 011137 CLTE1 -> 011051 CED_TO_DIT.
+Manual section 16.6 "Clear bit in trap enable register" (page 294); TEMM rule page ~1905;
+register model page 907-922. Emulator Clte.c matches (TEMM gating -> TRAP_IOV, clears
+OTE1/OTE2).
 
 ---
 
-## SOLO - disable process switch
+## INIT - Initialize stack
 
-- Opcode: 0FE00H = 177000B (manual line 10024).
-- Operands: none. Format `SOLO` (manual 16.1, line 10020).
-- Operation: disables process switch for a maximum of 256 micro-cycles (manual
-  line 10024 area). Only the PSD status bit (bit 4) is modified, and only by
-  SOLO/TUTTI (manual line 2271).
-- Manual "Data status bits:" = Unaffected (manual 16.1).
-- Microcode: `SOLO` at octal 000711 (MICRO-5800-A30.md line 471); continues
-  `SOLO_0` 004524 (line 2402) which uses `D,MIC,MISTS` (writes the MIC status
-  register - i.e. sets Process Switch Disabled). No `ST,SAVA`, no K micro-op.
+Opcode: 334B / 0DCH. Three operands, all WORD:
+<<bottom of stack /r/ W>>, <stack demand of main program /r/ W>, <total system stack demand /r/ W>.
 
-Status flags:
+Microcode entry: 000654 INIT -> 000655 -> 003720 INIT_1 -> 003721 -> 003722 -> 003723 ...
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual 16.1 "Unaffected"; microcode SOLO 000711 no K micro-op |
-| Z | UNCHANGED | Manual 16.1 "Unaffected"; microcode SOLO 000711 no ST,SAVA |
-| C | UNCHANGED | Manual 16.1 "Unaffected"; microcode SOLO 000711 no ST,SAVA |
-| O | UNCHANGED | Manual 16.1 "Unaffected"; microcode SOLO 000711 no ST,SAVA |
-| S | UNCHANGED | Manual 16.1 "Unaffected"; microcode SOLO 000711 no ST,SAVA |
+### Functional pseudocode
+```
+1. read bottom-of-stack (word) via effective-address arithmetic (AD_ARTI=1, EA1SAVE) ; 000654/003720
+2. read the two demand operands (READ, ADACT)                                        ; 003721
+3. compute address sums with ALU,A+B using DAC effective-address regs                ; 003722
+4. B   := <<bottom of stack>>
+5. TOS := <<bottom of stack>> + <total system stack demand>
+6. B.SP    := <<bottom of stack>> + <stack demand of main program>
+7. B.PREVB := 0
+8. B.RETA  := 0 ; L := 0            ; bottom-of-stack sentinels
+9. if <stack demand of main program> >= <total system stack demand> -> Stack Overflow (STO) trap
+```
 
-Side effect (not a data flag): sets PSD (Process Switch Disabled, status bit 4)
-- manual lines 2271, 10030; microcode `SOLO_0` 004524 `D,MIC,MISTS`.
+### Operands / datatypes
+Three WORD (32-bit) operands, read-only. <<bottom of stack>> is a 4-byte absolute
+data-memory address loaded into B.
 
-Trap conditions (manual, section 16.1): Disable process switch timeout (DT);
-Disable process switch error (DE). (Timeout if unprivileged and PSD held > 256
-cycles; error if a non-ignorable/fatal trap occurs while PSD is set - manual
-lines 2265, 10036-10038.)
+### Result / side-effects
+- B, TOS, L registers set as above.
+- Stack-frame header written in memory: B.PREVB=0, B.RETA=0, B.SP=bottom+main-demand.
+- PREVB=0 / RETA=0 act as underflow sentinels (a later RET past the bottom traps).
 
----
+### Status flags
+| Flag | Effect     |
+|------|------------|
+| K    | UNCHANGED  |
+| Z    | UNCHANGED  |
+| C    | UNCHANGED  |
+| O    | UNCHANGED  |
+| S    | UNCHANGED  |
 
-## SETE - set bit in own trap enable register
+Manual "Data status bits: Unaffected" (no ST,SAVA in the traced cells). Note: the STO
+bit is a TRAP status bit, not a data-status flag; the emulator resets it on successful
+completion (per the traps section), which is orthogonal to Z/C/O/S/K.
 
-- Opcode: 0FD39H = 176471B (manual line 10171).
-- Operands: 1 - `<bit no/r/BY>` (read, BYTE) (manual 16.5, line 10167).
-- Operation: set bit `<bit no>` in the Own Trap Enable (OTE) register (manual,
-  section 16.5). The `<bit no>` is checked against the modify mask TEMM in the
-  domain description table; a non-modifiable bit causes IOV (manual, 16.5 desc).
-- Manual "Data status bits:" = Unaffected (manual 16.5).
-- Microcode: `SETE` at octal 000713 (MICRO-5800-A30.md line 473), continues
-  000714 and `SETE_01` 011110 (line 4694). Operates on the trap-enable register
-  via AND/masks; no `ST,SAVA`, no K micro-op.
+### Trap conditions
+- Stack Overflow (STO) if stack demand of main program >= total system stack demand.
+- Addressing traps on operand / memory access.
 
-Status flags:
-
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual 16.5 "Unaffected"; microcode SETE 000713 no K micro-op |
-| Z | UNCHANGED | Manual 16.5 "Unaffected"; microcode SETE 000713 no ST,SAVA |
-| C | UNCHANGED | Manual 16.5 "Unaffected"; microcode SETE 000713 no ST,SAVA |
-| O | UNCHANGED | Manual 16.5 "Unaffected"; microcode SETE 000713 no ST,SAVA |
-| S | UNCHANGED | Manual 16.5 "Unaffected"; microcode SETE 000713 no ST,SAVA |
-
-Trap conditions (manual, section 16.5): Addressing traps; Illegal operand value
-(IOV) - when attempting to modify a non-modifiable bit (TEMM mask).
+### Citation
+Microcode 000654 INIT -> 000655 -> 003720 INIT_1 -> 003721 -> 003722 -> 003723.
+Manual section 13.9 "Initialize stack" (page 229). Emulator Init.c matches (B/TOS/SP/PREVB/RETA/L,
+STO check). The manual's page-229 example prints operands in an order that, taken
+literally, would trap (main >= total); the emulator note flags this as a manual typo.
 
 ---
 
-## CLTE - clear bit in own trap enable register
+## NOOP - No operation
 
-- Opcode: 0FD3AH = 176472B (manual line 10201).
-- Operands: 1 - `<bit no/r/BY>` (read, BYTE) (manual 16.6, line 10197).
-- Operation: clear bit `<bit no>` in the Own Trap Enable (OTE) register (manual,
-  section 16.6). Same TEMM modify-mask check as SETE; non-modifiable bit -> IOV.
-- Manual "Data status bits:" = Unaffected (manual 16.6).
-- Microcode: `CLTE` at octal 000715 (MICRO-5800-A30.md line 475), continues
-  000716 and `CLTE_01` 011127 (line 4709). Operates on the trap-enable register
-  via AND/masks; no `ST,SAVA`, no K micro-op.
+Opcode: 003B / 003H. Zero operands.
 
-Status flags:
+Microcode entry: 000202 NOOP. Single microcell.
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual 16.6 "Unaffected"; microcode CLTE 000715 no K micro-op |
-| Z | UNCHANGED | Manual 16.6 "Unaffected"; microcode CLTE 000715 no ST,SAVA |
-| C | UNCHANGED | Manual 16.6 "Unaffected"; microcode CLTE 000715 no ST,SAVA |
-| O | UNCHANGED | Manual 16.6 "Unaffected"; microcode CLTE 000715 no ST,SAVA |
-| S | UNCHANGED | Manual 16.6 "Unaffected"; microcode CLTE 000715 no ST,SAVA |
+### Functional pseudocode
+```
+1. ALU,FZRO (force zero), no destination written, G,OOPS (no operand)   ; 000202
+2. fall through to next macroinstruction fetch
+```
+The listed continuation ADDR=LOADBI (000203) is simply the physically-next microstore
+cell (a different instruction, "load bit"); NOOP is a single terminal cell and the
+macroinstruction dispatch (TBC,NEXT) fetches the next instruction. LOADBI is NOT executed.
 
-Trap conditions (manual, section 16.6): Addressing traps; Illegal operand value
-(IOV) - when attempting to modify a non-modifiable bit (TEMM mask).
+### Operands / datatypes
+None.
 
----
+### Result / side-effects
+None. PC advances to the next instruction.
 
-## INIT - initialize stack
+### Status flags
+| Flag | Effect     |
+|------|------------|
+| K    | UNCHANGED  |
+| Z    | UNCHANGED  |
+| C    | UNCHANGED  |
+| O    | UNCHANGED  |
+| S    | UNCHANGED  |
 
-- Opcode: 0DCH = 334B (manual line 7764).
-- Operands: 3 (manual 13.9, lines 7750-7760):
-  - `<<bottom of stack/r/W>>` (a 4-byte absolute address, direct operand)
-  - `<stack demand of main program/r/W>`
-  - `<total system stack demand/r/W>`
-- Operation (manual, section 13.9):
-  - `<<bottom of stack>> -> B`
-  - `<<bottom of stack>> + <total system stack demand> -> TOS`
-  - `<<bottom of stack>> + <stack demand of main program> -> B.SP`
-  - `0 -> B.PREVB`
-  - `0 -> B.RETA -> L`
-  A `<stack demand of main program>` >= `<total system stack demand>` causes a
-  stack overflow (manual, section 13.9 description; also line 2192).
-- Manual "Data status bits:" = Unaffected (manual, section 13.9).
-- Microcode: `INIT` at octal 000654 (MICRO-5800-A30.md line 442); long sequence
-  through `INIT_1` 003720, `INIT_2` 003726, `INIT_3` 003731 (lines 2014-2023).
-  The `MIC,STS` / `COND,MCRY` at 003730 is the stack-overflow (STO) bookkeeping
-  (SP vs TOS compare), not a data-status write. No `ST,SAVA`, no K micro-op ->
-  Z/C/S/O and K are not written.
+No ST,SAVA; manual "Data status bits: Unaffected".
 
-Status flags:
+### Trap conditions
+None.
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual 13.9 "Unaffected"; microcode INIT 000654 no K micro-op |
-| Z | UNCHANGED | Manual 13.9 "Unaffected"; microcode INIT 000654 no ST,SAVA |
-| C | UNCHANGED | Manual 13.9 "Unaffected"; microcode INIT 000654 no ST,SAVA (MIC,STS at 003730 is STO bookkeeping) |
-| O | UNCHANGED | Manual 13.9 "Unaffected"; microcode INIT 000654 no ST,SAVA |
-| S | UNCHANGED | Manual 13.9 "Unaffected"; microcode INIT 000654 no ST,SAVA |
-
-Trap conditions (manual, section 13.9): Addressing traps; Stack overflow (STO)
-when main-program stack demand >= total system stack demand. INIT sets B.PREVB
-= 0, so a later attempt to link below the bottom of the stack raises an Address
-Zero (AZ) / Stack Underflow trap (manual lines 1122, 2181) - that is a
-consequence of the zeroed PREVB on subsequent instructions, not of INIT itself.
+### Citation
+Microcode 000202 NOOP. Manual section 15.10 "No operation" (page 263/9683). Emulator
+Noop.c matches (does nothing).
 
 ---
 
-## Category summary (STATUS FLAGS)
+## SET1 - Set to one
 
-| Instr | Opcode (octal) | K | Z | C | O | S |
-|-------|----------------|---|---|---|---|---|
-| BP    | 002B    | UNCH | UNCH | UNCH | UNCH | UNCH |
-| NOOP  | 003B    | UNCH | UNCH | UNCH | UNCH | UNCH |
-| SETK  | 177002B | SET  | UNCH | UNCH | UNCH | UNCH |
-| SET1  | see variants | UNCH | CLR | CLR | CLR | CLR |
-| TSET  | 176500B | UNCH | COND(zero before) | CLR | CLR | COND(neg before) |
-| SOLO  | 177000B | UNCH | UNCH | UNCH | UNCH | UNCH |
-| SETE  | 176471B | UNCH | UNCH | UNCH | UNCH | UNCH |
-| CLTE  | 176472B | UNCH | UNCH | UNCH | UNCH | UNCH |
-| INIT  | 334B    | UNCH | UNCH | UNCH | UNCH | UNCH |
+Opcodes (one per datatype):
+| Variant | Octal    | Hex    |
+|---------|----------|--------|
+| BI SET1 | 176206B  | 0FC86H |
+| BY SET1 | 176207B  | 0FC87H |
+| H  SET1 | 176210B  | 0FC88H |
+| W  SET1 | 115B     | 04DH   |
+| F  SET1 | 107B     | 047H   |
+| D  SET1 | 176211B  | 0FC89H |
 
-UNCH = UNCHANGED, CLR = CLEARED, COND = CONDITIONAL. SET1 opcodes: BI 176206B,
-BY 176207B, H 176210B, W 115B, F 107B, D 176211B.
+One operand: <operand /w/ t> (write, datatype = t).
 
-No flag effect in this category was left UNKNOWN: every entry is confirmed by
-both the manual and the microcode.
+Microcode entry: 000325 SET1 (integer path, TYP,DR) with ORCON datatype dispatch:
+000325 (BI/BY/H/W) -> 000326 SET1F / 000327 (F, TYP,F) -> 000330 SET1D / 000331 (D, TYP,DF).
+
+### Functional pseudocode
+```
+1. select variant cell by datatype (ORCON ORs the type into the microaddress)
+2. ALU produces the constant 1 for the operand's datatype
+3. write 1 -> <operand>   (WRITE, D,ALU,REG37)
+4. ST,SAVA : save Z/C/O/S from the ALU result (result = 1)
+```
+
+### Operands / datatypes
+- <operand> : write, datatype per opcode - BIT, BYTE, HALFWORD, WORD, single FLOAT, or
+  double FLOAT. Result value is 1 in that type (integer 1, or floating 1.0).
+
+### Result / side-effects
+Destination operand replaced by 1. Memory or register written per operand specifier.
+
+### Status flags
+Result is +1 (positive, non-zero), and ST,SAVA writes the arithmetic status:
+| Flag | Effect                     |
+|------|----------------------------|
+| K    | UNCHANGED (no K field)     |
+| Z    | CLEARED (result != 0)      |
+| C    | CLEARED                    |
+| O    | CLEARED                    |
+| S    | CLEARED (result positive)  |
+
+Manual: "Data status bits: All cleared" - consistent with ST,SAVA on a +1 result plus
+the rule that unmentioned bits are cleared.
+
+### Trap conditions
+- Addressing traps (constant destination is illegal for write instructions).
+
+### Citation
+Microcode 000325 SET1 -> 000326 SET1F -> 000327 -> 000330 SET1D -> 000331 (ORCON datatype
+dispatch; every variant cell carries ST,SAVA + WRITE). Manual section 10.18 "Set to one"
+(page 154/4857). Emulator Set1.c matches (writes 1, clears Z/S/C/O).
+
+---
+
+## SETE - Set bit in Own Trap Enable register
+
+Opcode: 176471B / 0FD39H. One operand: <bit no /r/ BY> (byte).
+
+Microcode entry: 000713 SETE -> 000714 -> 011110 SETE_01 -> 011120 SETE1 -> 011051 CED_TO_DIT.
+
+### Functional pseudocode
+```
+1. read <bit no> (byte) from operand (READ, ADACT)                 ; 000713
+2. bit_mask := A,BM05 combined for the addressed bit (ALU,AND)     ; 000714
+3. gate against TEMM (Trap Enable Modification Mask):
+      if TEMM bit for <bit no> = 0 -> raise IOV and abort          ; SETE_01, COND,MZRO
+4. OTE[bit no] := 1        ; set the bit in Own Trap Enable         ; SETE1
+5. propagate updated OTE to the Domain Information Table            ; 011051 CED_TO_DIT
+```
+
+### Operands / datatypes
+- <bit no> : BYTE (r). Selects which OTE bit (0..63).
+
+### Result / side-effects
+Sets one bit of the Own Trap Enable register for the current domain (enabling that trap
+type) and copies the state to the Domain Information Table.
+
+### Status flags
+| Flag | Effect     |
+|------|------------|
+| K    | UNCHANGED  |
+| Z    | UNCHANGED  |
+| C    | UNCHANGED  |
+| O    | UNCHANGED  |
+| S    | UNCHANGED  |
+
+No ST,SAVA; manual "Data status bits: Unaffected".
+
+### Trap conditions
+- IOV (Illegal Operand Value) if the addressed bit is not modifiable in TEMM.
+- Addressing traps on operand fetch.
+
+### Citation
+Microcode 000713 SETE -> 000714 -> 011110 SETE_01 -> 011120 SETE1 -> 011051 CED_TO_DIT.
+Manual section 16.5 "Set bit in trap enable register" (page 293); TEMM rule page ~1905.
+Emulator Sete.c matches (TEMM gating -> TRAP_IOV, sets OTE1/OTE2). SETE and CLTE share
+the identical structure and both end in CED_TO_DIT; only step 4 (set vs clear) differs.
+
+---
+
+## SETK - Set flag (K)
+
+Opcode: 177002B / 0FE02H. Zero operands.
+
+Microcode entry: 000774 SETK. Single microcell.
+
+### Functional pseudocode
+```
+1. K := 1   (microcell field K,ONE)     ; 000774
+2. fall through to next macroinstruction fetch
+```
+The continuation ADDR=CLRK (000775) is the physically-next microcell (the separate
+"clear K" instruction, K,ZRO); it is NOT executed - SETK is a single terminal cell.
+
+### Operands / datatypes
+None.
+
+### Result / side-effects
+Sets the K flag (destination-full / general flag) of the status register to 1.
+
+### Status flags
+| Flag | Effect     |
+|------|------------|
+| K    | SET (= 1)  |
+| Z    | UNCHANGED  |
+| C    | UNCHANGED  |
+| O    | UNCHANGED  |
+| S    | UNCHANGED  |
+
+Manual "Data status bits: Unaffected" (K is the flag, not a data-status bit; only K is
+touched).
+
+### Trap conditions
+None.
+
+### Citation
+Microcode 000774 SETK (K,ONE). Manual section 15.11 "Set flag" (page 278/9707).
+Emulator Setk.c matches (ST1 |= K).
+
+---
+
+## SOLO - Disable process switch
+
+Opcode: 177000B / 0FE00H. Zero operands.
+
+Microcode entry: 000711 SOLO -> 004524 SOLO_0 -> 000104 DUMMY_2 -> 000105 DUMMY_1 (RETURN).
+
+### Functional pseudocode
+```
+1. compute PSD-set value (ALU,A-1 on a scratch reg)                ; SOLO_0 004524
+2. write the MIC micro-status / modus register (D,MIC,MISTS) to
+   set the Process-Switch-Disable (PSD) status bit                 ; SOLO_0
+3. T,PUSH / DUMMY subroutine, then RETURN to instruction fetch     ; DUMMY_2 -> DUMMY_1
+```
+Effect: subsequent instructions up to the next TUTTI run as an indivisible sequence.
+A privileged process may stay in SOLO indefinitely; an unprivileged one is limited to
+256 cycles (macroinstruction cycles on ND-5000, microcycles on 500/2), else a Disable
+Process switch Timeout occurs.
+
+### Operands / datatypes
+None.
+
+### Result / side-effects
+Sets the Process-Switch-Disable status bit (PSD). Process switching is suppressed until
+TUTTI (177001B) re-enables it, or a timeout/error trap fires.
+
+### Status flags
+| Flag | Effect     |
+|------|------------|
+| K    | UNCHANGED  |
+| Z    | UNCHANGED  |
+| C    | UNCHANGED  |
+| O    | UNCHANGED  |
+| S    | UNCHANGED  |
+
+No ST,SAVA; manual "Data status bits: Unaffected". (PSD is a machine/trap-status bit,
+not a data-status flag.)
+
+### Trap conditions
+- DT (Disable process switch Timeout) if disabled longer than 256 cycles (unprivileged).
+- DE (Disable process switch Error) if a non-ignorable trap (e.g. page fault) occurs
+  while the process switch is disabled.
+
+### Citation
+Microcode 000711 SOLO -> 004524 SOLO_0 (D,MIC,MISTS sets PSD) -> 000104 DUMMY_2 ->
+000105 DUMMY_1 RETURN. Manual section 16.1 "Disable process switch" (page 289/10018),
+trap discussion page ~2265-2273.
+
+Note: the manual mnemonic terminating SOLO is TUTTI (16.2, 177001B); the emulator source
+comments describe "conditional branch" termination, which is not what the manual states.
+The emulator Solo.c is a logging stub (its PSD effect is a TODO); the mechanism above is
+from microcode/manual, not the C stub.
+
+---
+
+## TSET - Test and set
+
+Opcode: 176500B / 0FD40H. One operand: BY TSET <operand /rwl/ BY> (byte, read-write-locked).
+
+Microcode entry: 000757 TSET (TYP,BY) -> 000760 -> 004540 TSET_1 -> 004541 -> 004542 ->
+004543 -> 004544 -> 004545 -> 004546 (D,SPEC,MOD) -> DUMMY.
+
+### Functional pseudocode
+```
+1. lock the memory system (locked swap access; TSET always reads main memory,
+   bypassing cache, and updates cache for later loads)
+2. old := <operand>            ; byte read (TYP,BY), effective addr via LADDR/EA1SAVE ; 000757/000760
+3. set status from old value (COND,MZRO save, ADIRC/CSAVE):
+        Z := (old == 0)
+        S := (old < 0)         ; sign of the byte read
+4. <operand> := all ones (0FFH for a byte)     ; write via DAC path
+5. update MODUS register / release lock (D,SPEC,MOD)   ; 004546
+6. unlock
+```
+Steps 1-6 are one uninterruptible read-modify-write (no other processor or channel can
+interleave) on MPM-IV and later memory.
+
+### Operands / datatypes
+- <operand> : BYTE, read-write, locked. Register and constant operands are ILLEGAL
+  (cause IOS). The manual example uses BY4 TSET RESERVE.
+
+### Result / side-effects
+Operand is atomically read then overwritten with all-ones (byte -> 0FFH). Cache line
+updated. Z/S reflect the value before the store.
+
+### Status flags
+| Flag | Effect                                   |
+|------|------------------------------------------|
+| K    | UNCHANGED                                |
+| Z    | CONDITIONAL - SET if old operand == 0    |
+| C    | CLEARED (not mentioned -> reset rule)    |
+| O    | CLEARED (not mentioned -> reset rule)    |
+| S    | CONDITIONAL - SET if old operand < 0     |
+
+Manual lists only "operand was zero -> Z" and "operand was negative -> S"; by the
+unmentioned-bits-cleared rule (page 4040), C and O are cleared, K unchanged.
+
+### Trap conditions
+- Addressing traps.
+- IOS (Illegal Operand Specifier) for register or constant operands.
+
+### Citation
+Microcode 000757 TSET -> 000760 -> 004540 TSET_1 -> 004541 (status save) -> 004542 ->
+004543 (ADIRC/CSAVE) -> 004544 -> 004545 -> 004546 (D,SPEC,MOD, release) -> DUMMY.
+Manual section 16.3 "Test and set" (page 291/10090); IOS rule pages ~2215, ~3630, ~3708;
+locked-swap note page ~4003.
+
+DISCREPANCY (emulator vs manual): Tset.c sets only the Z flag and does NOT set S for a
+negative old value, and it writes the operand using fi->data_type (byte -> 0FF) rather
+than the manual's fixed BYTE form. The manual and microcode both set S from the sign of
+the pre-store value; the emulator's S handling is missing.
+
+---
+
+## Summary table
+
+| Instr | Octal   | Operands            | K   | Z    | C   | O   | S    | Traps            |
+|-------|---------|---------------------|-----|------|-----|-----|------|------------------|
+| BP    | 002B    | none                | -   | -    | -   | -   | -    | BPT / IIC        |
+| CLTE  | 176472B | bit no (BY)         | -   | -    | -   | -   | -    | IOV, addressing  |
+| INIT  | 334B    | 3 x W               | -   | -    | -   | -   | -    | STO, addressing  |
+| NOOP  | 003B    | none                | -   | -    | -   | -   | -    | none             |
+| SET1  | *       | operand (w/t)       | -   | clr  | clr | clr | clr  | addressing       |
+| SETE  | 176471B | bit no (BY)         | -   | -    | -   | -   | -    | IOV, addressing  |
+| SETK  | 177002B | none                | SET | -    | -   | -   | -    | none             |
+| SOLO  | 177000B | none                | -   | -    | -   | -   | -    | DT, DE           |
+| TSET  | 176500B | operand (rwl/BY)    | -   | cond | clr | clr | cond | IOS, addressing  |
+
+("-" = unchanged; "clr" = cleared; "cond" = conditionally set. SET1 octal is per datatype:
+BI 176206B, BY 176207B, H 176210B, W 115B, F 107B, D 176211B.)
+
+## Still-UNKNOWN after this trace (need deeper microtrace)
+
+1. TSET C-flag and exact byte-vs-word status width: manual mentions only Z and S. The
+   reset-rule fixes C/O to cleared, but the individual microcells 004541-004545 use
+   TYP,HW / ADIRC / SARG masks whose bit-level effect on the saved condition stack was
+   not decoded to the bit. The Z/S outcome is confirmed; C/O are inferred from the rule,
+   not read out of the status-save microcells.
+2. SOLO exact PSD bit position and the privileged/unprivileged 256-cycle counter logic:
+   SOLO_0 writes D,MIC,MISTS, but the specific bit and the timeout counter are in the
+   MIC status hardware, not decoded here.
+3. BP trap-vector selection (which THA entry BPT vs IIC dispatch to): the BP_1/BP_2
+   cells set the trap in MIC status; the vector index resolution lives in the shared
+   trap-dispatch microcode not traced in this pass.

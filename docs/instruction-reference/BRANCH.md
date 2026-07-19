@@ -1,515 +1,465 @@
-# ND-500 BRANCH Instruction Behavior Reference
+# ND-500 Instruction Reference - BRANCH class (functional, microcode-traced)
 
-Authoritative behavior reference for the ND-500 CPU instruction category **BRANCH**,
-built for validating the nd500x emulator. Every statement below is taken directly from
-one of the two ground-truth sources; anything not confirmed by either source is marked
-`UNKNOWN (needs verification)`.
+Source of truth for this document:
 
-## Sources
-
-- PRIMARY spec (manual):
-  `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-- GROUND-TRUTH micro-behavior (microcode):
+- Microcode (ground-truth mechanism):
   `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-- Micro-op field decode (mnemonics):
+- Microcode field mnemonics:
   `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
+- Reference Manual (documented intent):
+  `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+- Emulator C sources traced for opcode/operand shape:
+  `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/*.c`
 
-Instruction set enumerated from:
-`/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/*.c` (20 files).
+This file was rebuilt by tracing each instruction's microcode routine. Where the
+microcode, the manual, and the committed C implementation disagree, the
+disagreement is called out explicitly under DISCREPANCY. The prior flags-only
+version of this file is preserved in git history.
 
-## Flag model used here
+## How the ND-500 conditional-branch microcode works (shared mechanism)
 
-The ND-500 data status bits relevant to this category are K, Z, C (carry), O (overflow),
-S (sign). Manual references:
+All twelve arithmetic/flag conditional jumps are ONE microinstruction each, laid
+out consecutively at octal 000544..000557. Each cell has the identical shape
+(example is IFEQL / IF = GO at octal 000544):
 
-- Manual line 2024: "The Z, C, and S status bits have no corresponding trap conditions.
-  They are only used for conditional jumps."
-- Manual line 2020: "The majority of control and special instructions, including
-  conditional jump instructions, leave the data status bits unaffected."
+```
+ALU,FZRO SLOW2  A,BM00 B,X1  T,JMP  COND,ZRO  ABR,NPCREL  TBC,NEXT  G,OOPS,T
+```
 
-Microcode micro-op decode (mnemonics.md):
+Field decode (from mnemonics.md):
 
-- `ST,SAVA` (mnemonics.md line 656) = "SAVE STATUS FROM ALU OPERATION" -> updates Z/C/O/S.
-- `K,ONE` (653) set K=1; `K,ZRO` (654) clear K=0; `K,1IFZ` (655) set K=1 if ALU result 0.
-- Condition selectors used by the jump decode (mnemonics.md lines 766-800):
-  `COND,ZRO`=Z from status S1; `COND,SGN`=S from S1; `COND,CRY`=C from S1;
-  `COND,K`=K from S1; `COND,SORZ`=OR of S and Z from S1; `COND,CNZ`=AND of C and NOT Z
-  from S1.
-- Branch/get polarity (mnemonics.md lines 843-845): `G,OOPS,T` = fetch (take branch) IF
-  condition TRUE; `G,OOPS,F` = fetch (take branch) IF condition FALSE. `ABR,NPCREL`
-  (line 817) = "CALCULATE JUMP TARGET ADDRESS".
+- `ALU,FZRO`   - ALU output forced to zero; the cell performs NO data computation.
+- `COND,<x>`   - selects which standing status bit(s) to test, read from status
+                 register S1 (the flags left by the previous data instruction):
+                 `ZRO`=Z, `SGN`=S, `SORZ`=S OR Z, `K`=K, `CRY`=C,
+                 `CNZ`=C AND (NOT Z).
+- `ABR,NPCREL` - "CALCULATE JUMP TARGET ADDRESS", target = instruction-P + displ.
+- `G,OOPS,T`   - "GET NEXT INSTRUCTION ... IF TRUE": fetch from the branch target
+                 when the tested condition is TRUE.
+- `G,OOPS,F`   - same but branch when the condition is FALSE.
 
-**Absence rule:** For every instruction whose microcode decode word contains NO `ST,SAVA`
-and NO `K,*` micro-op, Z/C/O/S/K are physically not written, i.e. UNCHANGED. This is used
-below and is consistent with the manual "Data status bits: Unaffected" statements.
+Because the cell never asserts `ST,SAVA` and never asserts any `K,*` field, NO
+status bit is written. Manual section 13.3 confirms: "Data status bits:
+Unaffected." So every conditional branch below leaves K,Z,C,O,S UNCHANGED.
 
-## Branch trap (BT), category-wide
+Displacement is a signed direct operand embedded in the instruction stream (1
+byte for :B opcode, 2 bytes for :H opcode, and 4 bytes for GO:W). It is
+sign-extended and added to the address of the FIRST byte of the branch
+instruction (manual 13.9 line: "the distance from the first byte of the current
+instruction to the first byte of the addressed instruction"), NOT to the address
+of the next instruction.
 
-Manual line 2082: "BT: Branch Trap condition occurs when the next instruction to be
-executed is other than the one immediately following the last executed instruction; e.g.
-after a GO, JUMPQ, RET, LOOP or conditional jump instruction. The trap condition does not
-occur if the test in the conditional jump is false and no jump is made."
+Branch Trap (BT): manual (Traps chapter) states BT "occurs when the next
+instruction to be executed is other than the one immediately following the last
+executed instruction; e.g. after a GO, JUMPG, RET, LOOP or conditional jump
+instruction. The trap condition does not occur if the test in the conditional
+jump is false and no jump is made." BT is an ignorable trap CONDITION bit, not
+one of the K/Z/C/O/S data-status bits. It is raised by the branch mechanism only
+when a branch is actually TAKEN.
 
-## Displacement semantics, category-wide
-
-Manual line 3846: "The ND-500 instructions LOOP, LOOPI, LOOPD, GO and IF <rel> GO have
-displacement (program relative) addressing. Each instruction has two instruction codes,
-one for the byte displacement part and one for the halfword displacement part. GO is also
-available with the word displacement part. The displacement is signed, and is the distance
-from the first byte of the current instruction to the first byte of the addressed
-instruction."
-
----
-
-## 1. GO -- Unconditional relative jump
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/Go.c`
-- Manual section 13.1 (lines 7256-7288).
-- Opcodes (manual line 7263-7265): GO:B = 0C0H / 300B; GO:H = 0C1H / 301B;
-  GO:W = 0C2H / 302B.
-- Operation (manual line 7268): `P + <<displacement>> -> P`.
-- Operands: 1 direct signed displacement (byte / halfword / word), sign-extended.
-- Trap conditions (manual line 7274): Addressing traps, Branch trap (BT).
-- Microcode: no distinct labeled GO micro-routine located in
-  `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md` (searched; the relative
-  unconditional jump is handled by the general NPCREL fetch path). No `ST,SAVA` path
-  observed.
-
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual line 7276 "Data status bits: Unaffected" |
-| Z | UNCHANGED | Manual line 7276 |
-| C | UNCHANGED | Manual line 7276 |
-| O | UNCHANGED | Manual line 7276 |
-| S | UNCHANGED | Manual line 7276 |
+ND-500 carry convention (from the manual conditional-jump table, cross-checked
+against the microcode `CRY`/`CNZ` tests): after a compare/subtract of A and B,
+`C = 1` means "no borrow" i.e. A >= B unsigned; `C = 0` means "borrow" i.e.
+A < B unsigned. Load instructions reset carry, so magnitude tests are only
+meaningful after compare/subtract.
 
 ---
 
-## 2. JUMPG -- Unconditional absolute jump
+## GO - Unconditional relative jump
 
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/Jumpg.c`
-- Manual section 13.2 (lines 7294-7320).
-- Opcode (manual line 7300): JUMPG = 0B4H / 264B.
-- Operation (manual line 7302): `<address> -> P`.
-- Operand: 1 general operand `<address/r/W>`. The `<address>` operand may NOT be prefixed
-  by ALT (manual line 7306).
-- Behavior note (manual line 7308): "If a descriptor range trap occurs, the next
-  instruction to be executed is the one following the JUMPG instruction (fall through)."
-- Trap conditions (manual line 7310): Addressing traps, Branch trap (BT), Illegal operand
-  specifier (IOS).
-- Microcode: `JUMPG` at octal 000542 (MICRO-5800-A30.md line 368) and
-  `JUMPG_1`/`JUMPG_2` at 003112/003114 (lines 1624-1626); the IRALT check at 003112
-  (`COND,IRALT`) implements the ALT-prefix rejection. No `ST,SAVA` in the JUMPG path.
+- Opcodes (octal / hex): GO:B 300B / 0xC0, GO:H 301B / 0xC1, GO:W 302B / 0xC2
+- Operands: 1 direct signed displacement (BY / H / W by variant)
+- Microcode: JUMPEND, octal 000541 (the sole unconditional NPCREL cell in the
+  store). C source: `.../BRANCH/Go.c`
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual line 7312 "Data status bits: Unaffected"; microcode no ST,SAVA |
-| Z | UNCHANGED | Manual line 7312 |
-| C | UNCHANGED | Manual line 7312 |
-| O | UNCHANGED | Manual line 7312 |
-| S | UNCHANGED | Manual line 7312 |
+FUNCTIONAL PSEUDOCODE:
+```
+1. displ  <- signextend(direct operand, {BY|H|W})   ; 1, 2 or 4 stream bytes
+2. P      <- address_of(this instruction) + displ    ; ABR,NPCREL
+3. fetch next instruction from new P                 ; G,OOPS (unconditional)
+```
 
----
+Microcell (000541):
+`ALU,FZRO A,BM00 B,X1 ... TBC,NPCREL G,OOPS` - unconditional (no ,T/,F), NPCREL
+target, no ALU result, no status write.
 
-## 3. JUMPS -- Call supervisor ('87 extension)
+- RESULT / side effects: P updated. No memory written.
+- STATUS FLAGS:
 
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/Jumps.c`
-- Manual section 16.34 (lines 11521-11543). NOTE: the manual documents JUMPS as
-  "call supervisor", NOT as a "jump short". See DISCREPANCY note below.
-- Opcode (manual line 11527): JUMPS = B9H / 271B.
-- Operation (manual lines 11529-11533):
-  ```
-  P -> context.P
-  B -> context.B
-  <address> -> P
-  <cpuno> -> W1
-  ```
-- Description (manual lines 11535-11539): "Save P and B register in context block.
-  Execution is started in <address>. The instruction implies SOLO mode. W1 returns the
-  ND-500/ND-5000 CPU number."
-- Operand: 1 general operand `<address/r/W>`.
-- Trap conditions (manual line 11541): None.
-- Microcode: `JUMPS` at octal 001045 (MICRO-5800-A30.md line 563) and `JUMPS_1` at
-  011026 (line 4644). `JUMPS_1` contains `T,PUSH` and chains to `GET_CNTXT`, consistent
-  with a context save / supervisor entry (not a plain PC load). No `ST,SAVA` observed.
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 16.34 lists no "Data status bits" line; microcode shows no ST,SAVA/K,* (absence => inferred UNCHANGED, not documented) |
-| Z | UNKNOWN (needs verification) | as above |
-| C | UNKNOWN (needs verification) | as above |
-| O | UNKNOWN (needs verification) | as above |
-| S | UNKNOWN (needs verification) | as above |
-
-Side effect (documented, not a flag): W1 <- CPU number.
-
-**DISCREPANCY:** Emulator source `Jumps.c` documents JUMPS as "Jump Short" performing
-`PC = address` only. The manual (ND-05.009.4, section 16.34) and microcode (context PUSH /
-GET_CNTXT) define JUMPS as a supervisor call that saves P and B to a context block, sets
-W1 to the CPU number, and implies SOLO mode. Needs emulator verification.
+- TRAPS: Addressing traps (operand fetch), Branch trap (BT, always, since the
+  jump is unconditional).
+- CITATION: microcode octal 000541 (JUMPEND); manual 13.1, "Data status bits:
+  Unaffected".
 
 ---
 
-## Conditional jumps IF <rel> GO -- shared behavior
+## JUMPG - Unconditional absolute jump
 
-- Manual section 13.3 (lines 7329-7423).
-- Format (manual line 7334): `IF <rel> GO <<displacement>>` and, for status-bit tests,
-  `IF <rel> GO <bit No./r/BY>, <<displacement>>`.
-- Operation (manual lines 7342-7346): `if <rel> then (P)+<<(displacement)>> -> P endif`.
-  The sign-extended byte or halfword displacement is added to P when the condition is
-  true (manual line 7352).
-- Trap conditions (manual line 7358): Addressing traps, Branch trap (BT), Illegal operand
-  value (IOV). BT does not occur when the test is false (manual line 2082).
-- Data status bits (manual line 7360): **Unaffected** -- applies to ALL IF <rel> GO
-  variants below.
-- Microcode: the conditional-jump opcode decode chain lives at octal 000544-000567
-  (MICRO-5800-A30.md lines 370-388). Every entry uses `ALU,FZRO` (force-zero ALU output),
-  `ABR,NPCREL` (compute relative target) and `G,OOPS,T`/`G,OOPS,F` (take branch on
-  true/false). NONE contains `ST,SAVA` or any `K,*` micro-op => K/Z/C/O/S all UNCHANGED.
+- Opcode: 264B / 0xB4
+- Operands: 1 general operand `<address/r/W>` (32-bit absolute target)
+- Microcode: JUMPG octal 000542-000543, continuing at JUMPG_1 octal 003112,
+  JUMPG_2 octal 003114. C source: `.../BRANCH/Jumpg.c`
 
-For every IF <rel> GO instruction (sections 4-15), the status-flag table is identical:
+FUNCTIONAL PSEUDOCODE:
+```
+1. SC4 <- read operand value (word) via general addressing   ; 000542, READ ADACT
+2. if operand used the ALT prefix:                           ; JUMPG_1, COND,IRALT
+       trap Illegal Operand Specifier (IOS)                  ; -> ILL_OP_SPEC
+3. P   <- SC4                                                 ; JUMPG_2, D,IAC,P
+4. fetch next instruction from new P                         ; -> GET_NEXT
+   ; if a descriptor-range trap occurred while evaluating the
+   ; operand, control "falls through" to the next instruction
+   ; (JUMPG_DR_1 / SOUR_RANGE path, octal 003110/003117)
+```
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual line 7360 "Data status bits: Unaffected"; microcode decode has no ST,SAVA/K,* |
-| Z | UNCHANGED | as above |
-| C | UNCHANGED | as above |
-| O | UNCHANGED | as above |
-| S | UNCHANGED | as above |
+- OPERANDS + datatype: address, word (W), general addressing mode; ALT prefix
+  forbidden.
+- RESULT / side effects: P set to absolute address. No memory written.
+- STATUS FLAGS:
 
-Only the branch CONDITION differs per instruction, listed below.
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED |
 
----
-
-## 4. IF = GO -- conditional jump if equal
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfEqualGo.c`
-- Opcodes (manual line 7376-7377): IF = GO / IF Z GO = 0C4H / 304B (:B),
-  0C5H / 305B (:H).
-- Condition (manual line 7376): **Z = 1** ("equal").
-- Operation: if Z=1 then `P + displacement -> P`.
-- Microcode: `IFEQL` at octal 000544 (MICRO-5800-A30.md line 370):
-  `COND,ZRO ... G,OOPS,T` -- take branch when Z true.
-- Flags: see shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, Branch trap (BT), Illegal operand value (IOV).
-
-## 5. IF <> GO -- conditional jump if unequal
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfNotEqualGo.c`
-- Opcodes (manual line 7380-7381): IF <> GO / IF -Z GO = 0C6H / 306B (:B),
-  0C7H / 307B (:H).
-- Condition (manual line 7380): **Z = 0** ("unequal").
-- Microcode: `IFUEQ` at octal 000545 (line 371): `COND,ZRO ... G,OOPS,F` -- take branch
-  when Z false.
-- Flags: shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, BT, IOV.
-
-## 6. IF > GO -- conditional jump if greater (signed)
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfGreaterThanGo.c`
-- Opcodes (manual line 7384-7386): 0C8H / 310B (:B), 0C9H / 311B (:H).
-- Condition (manual line 7384): **S = 0 and Z = 0** ("greater signed").
-- Microcode: `IFGR` at octal 000546 (line 372): `COND,SORZ ... G,OOPS,F` -- take branch
-  when (S OR Z) is FALSE, i.e. S=0 and Z=0.
-- Flags: shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, BT, IOV.
-
-## 7. IF < GO -- conditional jump if less (signed)
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfLessThanGo.c`
-- Opcodes (manual line 7387-7390): 0CAH / 312B (:B), 0CBH / 313B (:H).
-- Condition (manual line 7387): **S = 1** ("less signed").
-- Microcode: `IFLS` at octal 000547 (line 373): `COND,SGN ... G,OOPS,T` -- take branch
-  when S true.
-- Flags: shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, BT, IOV.
-
-## 8. IF >= GO -- conditional jump if greater or equal (signed)
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfGreaterEqualGo.c`
-- Opcodes (manual line 7391-7394): IF >= GO / IF -S GO = 0CCH / 314B (:B),
-  0CDH / 315B (:H).
-- Condition (manual line 7391): **S = 0** ("greater or equal signed").
-- Microcode: `IFGRE` at octal 000550 (line 374): `COND,SGN ... G,OOPS,F` -- take branch
-  when S false, i.e. S=0.
-- Flags: shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, BT, IOV.
-
-## 9. IF <= GO -- conditional jump if less or equal (signed)
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfLessEqualGo.c`
-- Opcodes (manual line 7395-7397): 0CEH / 316B (:B), 0CFH / 317B (:H).
-- Condition (manual line 7395): **S = 1 or Z = 1** ("less or equal signed").
-- Microcode: `IFLSE` at octal 000551 (line 375): `COND,SORZ ... G,OOPS,T` -- take branch
-  when (S OR Z) true.
-- Flags: shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, BT, IOV.
-
-## 10. IF K GO -- conditional jump if flag K set
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/Ifkgo.c`
-- Opcodes (manual line 7398-7400): 0D0H / 320B (:B), 0D1H / 321B (:H).
-- Condition (manual line 7398): **K = 1** ("flag set").
-- Microcode: `IFK` at octal 000552 (line 376): `COND,K ... G,OOPS,T` -- take branch when
-  K true.
-- Flags: shared IF <rel> GO table (all UNCHANGED). (K is TESTED, not modified.)
-- Traps: Addressing traps, BT, IOV.
-
-## 11. IF -K GO -- conditional jump if flag K reset
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfKeyGo.c`
-- Opcodes (manual line 7401-7403): 0D2H / 322B (:B), 0D3H / 323B (:H).
-- Condition (manual line 7401): **K = 0** ("flag reset").
-- Microcode: `IFNK` at octal 000553 (line 377): `COND,K ... G,OOPS,F` -- take branch when
-  K false, i.e. K=0.
-- Flags: shared IF <rel> GO table (all UNCHANGED). (K is TESTED, not modified.)
-- Traps: Addressing traps, BT, IOV.
-
-## 12. IF >> GO -- conditional jump if greater (magnitude / unsigned)
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfUnsignedGreaterGo.c`
-- Opcodes (manual line 7404-7406): 0D4H / 324B (:B), 0D5H / 325B (:H).
-- Condition (manual line 7404): **C = 1 and Z = 0** ("greater magnitude").
-- Microcode: `IFGRM` at octal 000554 (line 378): `COND,CNZ ... G,OOPS,T` -- COND,CNZ =
-  AND of C and NOT Z; take branch when (C and not Z) true.
-- Flags: shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, BT, IOV.
-- Manual usage note (line 7356): magnitude tests are only meaningful after compare and
-  subtract instructions, as carry is reset in load instructions.
-
-## 13. IF >= GO (magnitude) / IF C GO -- conditional jump if greater or equal magnitude
-
-- Source file:
-  `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfUnsignedGreaterEqualGo.c`
-- Opcodes (manual line 7407-7410): IF >= GO / IF C GO = 0D6H / 326B (:B),
-  0D7H / 327B (:H).
-- Condition (manual line 7407): **C = 1** ("greater or equal magnitude").
-- Microcode: `IFC` at octal 000555 (line 379): `COND,CRY ... G,OOPS,T` -- take branch
-  when C true, i.e. C=1.
-- Flags: shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, BT, IOV.
-- NOTE: emulator `IfUnsignedGreaterEqualGo.c` header comment claims branch on C=0, but the
-  emulator code body branches on `nd500_test_flag(cpu, ND500_FLAG_C)` (C=1), which matches
-  the manual and microcode. The header comment is wrong; the code is correct.
-
-## 14. IF << GO / IF -C GO -- conditional jump if less magnitude
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfUnsignedLessGo.c`
-- Opcodes (manual line 7411-7414): IF << GO / IF -C GO = 0D8H / 330B (:B),
-  0D9H / 331B (:H).
-- Condition (manual line 7411): **C = 0** ("less magnitude").
-- Microcode: `IFNC` at octal 000556 (line 380): `COND,CRY ... G,OOPS,F` -- take branch
-  when C false, i.e. C=0.
-- Flags: shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, BT, IOV.
-
-## 15. IF <= GO (magnitude) -- conditional jump if less or equal magnitude
-
-- Source file:
-  `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfUnsignedLessEqualGo.c`
-- Opcodes (manual line 7415-7417): 0DAH / 332B (:B), 0DBH / 333B (:H).
-- Condition (manual line 7415): **C = 0 or Z = 1** ("less or equal magnitude").
-- Microcode: `IFLSEM` at octal 000557 (line 381): `COND,CNZ ... G,OOPS,F` -- take branch
-  when (C and not Z) FALSE, i.e. C=0 or Z=1.
-- Flags: shared IF <rel> GO table (all UNCHANGED).
-- Traps: Addressing traps, BT, IOV.
+- TRAPS: Addressing traps, Branch trap (BT), Illegal Operand Specifier (IOS) if
+  ALT prefix used, descriptor-range trap (falls through to next instruction).
+- CITATION: microcode octal 000542 (JUMPG) -> 003112 (JUMPG_1, the COND,IRALT
+  ALT-prefix check) -> 003114 (JUMPG_2, P<-SC4); manual 13.2, "Data status bits:
+  Unaffected".
 
 ---
 
-## 16. IF ST GO -- conditional jump if specified status bit SET
+## JUMPS - Call supervisor ('87 extension)   [NOT a plain jump]
 
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfStackGo.c`
-  (opcode-verified: 0xFC7B :B, 0xFD64 :H = manual "IF ST GO").
-- Opcodes (manual line 7418-7420): IF ST GO = 0FC7BH / 176173B (:B),
-  0FD64H / 176544B (:H).
-- Format (manual line 7337): `IF ST GO <bit No./r/BY>, <<displacement>>`.
-- Condition (manual line 7354): tests `<bit No.>` of the status register; **jump is
-  performed if that bit is SET** ("specified bit in status register set"). `<bit No.>`
-  range is 0..29 inclusive; other values cause an illegal operand value trap and no jump
-  when <rel> is ST.
-- Microcode: `IFSTB` at octal 000560 / `IFSTH` at 000562 (MICRO-5800-A30.md lines
-  382,384); helper `IFST_CHK_B` at 003644 / `IFST_CHK_H` at 003646 (lines 1970,1972).
-  No `ST,SAVA` in these paths.
+- Opcode: 271B / 0xB9
+- Operands: 1 general operand `<address/r/W>`
+- Microcode: JUMPS octal 001045-001046, continuing at JUMPS_1 octal 011026.
+  C source: `.../BRANCH/Jumps.c`
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual line 7360 "Data status bits: Unaffected"; microcode no ST,SAVA/K,* |
-| Z | UNCHANGED | as above |
-| C | UNCHANGED | as above |
-| O | UNCHANGED | as above |
-| S | UNCHANGED | as above |
+FUNCTIONAL PSEUDOCODE (manual 16.34):
+```
+1. context.P <- P            ; save current program counter
+2. context.B <- B            ; save current base register
+3. P         <- <address>    ; start execution at operand address
+4. W1        <- <cpuno>      ; ND-500/ND-5000 CPU number returned in W1
+   ; the instruction implies SOLO mode
+```
 
-- Trap conditions (manual line 7358): Addressing traps, Branch trap (BT),
-  Illegal operand value (IOV) when `<bit No.>` > 29.
+Microcode evidence: JUMPS_1 (octal 011026) does `A,SRF11 ... T,PUSH -> GET_CNTXT`
+and the following cells manipulate the context/DAC data path (011027 DAC,DPA,
+011030 SPEC,LA, 011031 DAC,B ...) - i.e. a context save, NOT a bare `P<-address`.
 
-## 17. IF -ST GO -- conditional jump if specified status bit NOT set
+- OPERANDS + datatype: address, word (W).
+- RESULT / side effects: P and B saved into the context block; P set to
+  `<address>`; W1 loaded with the CPU number; SOLO mode entered.
+- STATUS FLAGS:
 
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/Ifstgo.c`
-  (opcode-verified: 0xFD65 :B, 0xFC84 :H = manual "IF -ST GO").
-- Opcodes (manual line 7421-7423): IF -ST GO = 0FD65H / 176545B (:B),
-  0FC84H / 176204B (:H).
-- Format (manual line 7337): `IF -ST GO <bit No./r/BY>, <<displacement>>`.
-- Condition (manual line 7354): tests `<bit No.>` of the status register; **jump is
-  performed if that bit is NOT set** ("specified bit in status register not set").
-  `<bit No.>` range 0..29 inclusive; other values cause an illegal operand value trap.
-  Manual line 7354 explicitly: "the jump is performed if <rel> is -ST" (for out-of-range
-  bit numbers).
-- Microcode: `IFNSTB` at octal 000564 / `IFNSTH` at 000566 (MICRO-5800-A30.md lines
-  386,388). No `ST,SAVA` in these paths.
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Manual line 7360 "Data status bits: Unaffected"; microcode no ST,SAVA/K,* |
-| Z | UNCHANGED | as above |
-| C | UNCHANGED | as above |
-| O | UNCHANGED | as above |
-| S | UNCHANGED | as above |
+(manual lists no data-status effect; the visible register effect is W1 <- cpuno)
 
-- Trap conditions (manual line 7358): Addressing traps, Branch trap (BT),
-  Illegal operand value (IOV) when `<bit No.>` > 29.
+- TRAPS: None (manual 16.34 "Trap Conditions: None").
+- CITATION: microcode octal 001045 (JUMPS) -> 011026 (JUMPS_1 -> GET_CNTXT);
+  manual 16.34.
+- DISCREPANCY: the committed C implementation `Jumps.c` models JUMPS as an
+  absolute jump identical to JUMPG (`PC = address`, nothing else). This is wrong:
+  it omits the P/B context save, the `W1 <- cpuno` result, and SOLO-mode entry.
+  Its header comment ("Jump Short, functionally identical to JUMPG") is
+  incorrect - JUMPS is "call supervisor".
 
 ---
 
-## 18. LOOPI -- Loop with increment
+## Conditional relative jumps IF <rel> GO
 
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/Loopi.c`
-- Manual section 13.4 (lines 7434-7507).
-- Opcodes (manual line 7441-7450):
-  BY LOOPI:B = 0FCDEH / 176336B; BY LOOPI:H = 0FD1EH / 176436B;
-  H LOOPI:B = 0FCDFH / 176337B; H LOOPI:H = 0FD1FH / 176437B;
-  W LOOPI:B = 0FBFH / 277B; W LOOPI:H = 0E1H / 341B;
-  F LOOPI:B = 0FD1CH / 176434B; F LOOPI:H = 0FD21H / 176441B;
-  D LOOPI:B = 0FD1DH / 176435B; D LOOPI:H = 0FD22H / 176442B.
-- Operands: `<index/rw/t>, <limit/r/t>, <<displacement>>`; t in {BY, H, W, F, D}.
-- Operation (manual lines 7452-7458):
-  ```
-  if <index + 1> - <limit> > 0 then
-      address of next instruction -> P     (fall through)
-  else
-      P + <<displacement>> -> P            (loop back)
-  endif
-  <index> + 1 -> <index>
-  ```
-  i.e. increment index by 1; branch (loop back) while modified index <= limit
-  (signed comparison, manual line 7462-7464).
-- Trap conditions (manual line 7486-7487): Addressing traps, Branch trap (BT).
-- Microcode: `LOOPIB` at octal 000570 / `LOOPIH` at 000574 (MICRO-5800-A30.md lines
-  390,394). The write-back micro-instructions at 000573 and 000577 contain **`ST,SAVA`**
-  (save status from ALU operation) => Z/C/O/S written from the (index+1) ALU result.
+All twelve share the single-microcell mechanism described at the top of this
+file. For every one: STATUS FLAGS K,Z,C,O,S are UNCHANGED (manual 13.3 "Data
+status bits: Unaffected"; microcode cells assert `ALU,FZRO` with no `ST,SAVA`).
+Operand: 1 direct signed displacement (:B = 1 byte, :H = 2 bytes),
+sign-extended, added to the address of the first byte of the instruction.
+TRAPS for all: Addressing traps, Branch trap (BT) when the jump is taken.
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Microcode LOOPI path has no K,* micro-op |
-| Z | CONDITIONAL: SET if modified index = 0, else CLEARED | Manual line 7493 "modified index = 0 -> Z"; microcode ST,SAVA at 000573/000577 |
-| S | CONDITIONAL: SET if modified index sign bit = 1, else CLEARED | Manual line 7494 "modified index.signbit -> S"; microcode ST,SAVA |
-| C | Written by ST,SAVA (carry of the index+1 ALU op) but NOT documented in manual | Microcode ST,SAVA at 000573/000577; manual data-status table lists only Z and S. Value/semantics UNKNOWN (needs verification) |
-| O | Written by ST,SAVA (overflow of the index+1 ALU op) but NOT documented in manual | Microcode ST,SAVA; manual silent. UNKNOWN (needs verification) |
+| Mnemonic | Branch taken when | Opcode :B (oct/hex) | :H (oct/hex) | Microcode | C source |
+|----------|-------------------|---------------------|--------------|-----------|----------|
+| IF = GO   (equal)               | Z = 1            | 304B / 0xC4 | 305B / 0xC5 | IFEQL  000544 (COND,ZRO ,T)  | IfEqualGo.c |
+| IF <> GO  (unequal)             | Z = 0            | 306B / 0xC6 | 307B / 0xC7 | IFUEQ  000545 (COND,ZRO ,F)  | IfNotEqualGo.c |
+| IF > GO   (greater, signed)     | S = 0 AND Z = 0  | 310B / 0xC8 | 311B / 0xC9 | IFGR   000546 (COND,SORZ ,F) | IfGreaterThanGo.c |
+| IF < GO   (less, signed)        | S = 1            | 312B / 0xCA | 313B / 0xCB | IFLS   000547 (COND,SGN ,T)  | IfLessThanGo.c |
+| IF >= GO  (greater/eq, signed)  | S = 0            | 314B / 0xCC | 315B / 0xCD | IFGRE  000550 (COND,SGN ,F)  | IfGreaterEqualGo.c |
+| IF <= GO  (less/eq, signed)     | S = 1 OR Z = 1   | 316B / 0xCE | 317B / 0xCF | IFLSE  000551 (COND,SORZ ,T) | IfLessEqualGo.c |
+| IF K GO   (flag set)            | K = 1            | 320B / 0xD0 | 321B / 0xD1 | IFK    000552 (COND,K ,T)    | Ifkgo.c |
+| IF -K GO  (flag reset)          | K = 0            | 322B / 0xD2 | 323B / 0xD3 | IFNK   000553 (COND,K ,F)    | IfKeyGo.c |
+| IF >> GO  (greater, unsigned)   | C = 1 AND Z = 0  | 324B / 0xD4 | 325B / 0xD5 | IFGRM  000554 (COND,CNZ ,T)  | IfUnsignedGreaterGo.c |
+| IF >= GO / IF C GO (ge, uns.)   | C = 1            | 326B / 0xD6 | 327B / 0xD7 | IFC    000555 (COND,CRY ,T)  | IfUnsignedGreaterEqualGo.c |
+| IF << GO  (less, unsigned)      | C = 0            | 330B / 0xD8 | 331B / 0xD9 | IFNC   000556 (COND,CRY ,F)  | IfUnsignedLessGo.c |
+| IF <= GO  (less/eq, unsigned)   | C = 0 OR Z = 1   | 332B / 0xDA | 333B / 0xDB | IFLSEM 000557 (COND,CNZ ,F)  | IfUnsignedLessEqualGo.c |
 
-**DISCREPANCY:** manual + microcode show LOOPI updates at least Z and S; emulator source
-`Loopi.c` header comments do not reflect Z/S being set. Needs emulator verification.
+FUNCTIONAL PSEUDOCODE (generic, substitute the condition from the table):
+```
+1. cond <- test( selected status bits of S1 )    ; e.g. Z, S, C, K, S|Z, C&!Z
+2. if cond == <polarity>:                         ; polarity = ,T (true) or ,F
+       P <- address_of(this instruction) + signextend(displacement)
+   else:
+       P <- next sequential instruction
+   ; no status bit written
+```
 
-## 19. LOOPD -- Loop with decrement
+Notes verified against microcode/manual:
 
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/Loopd.c`
-- Manual section 13.5 (lines 7516-7581).
-- Opcodes (manual line 7523-7532):
-  BY LOOPD:B = 0FD23H / 176443B; BY LOOPD:H = 0FD28H / 176450B;
-  H LOOPD:B = 0FD24H / 176444B; H LOOPD:H = 0FD29H / 176451B;
-  W LOOPD:B = 0FD25H / 176445B; W LOOPD:H = 0FD2AH / 176452B;
-  F LOOPD:B = 0FD26H / 176446B; F LOOPD:H = 0FD2BH / 176453B;
-  D LOOPD:B = 0FD27H / 176447B; D LOOPD:H = 0FD2CH / 176454B.
-- Operands: `<index/rw/t>, <limit/r/t>, <<displacement>>`; t in {BY, H, W, F, D}.
-- Operation (manual lines 7534-7540):
-  ```
-  <index> - 1 -> <index>
-  if <index> - <limit> < 0 then
-      address of next instruction -> P     (fall through)
-  else
-      P + <<displacement>> -> P            (loop back)
-  endif
-  ```
-  i.e. decrement index by 1; branch (loop back) while modified index >= limit
-  (signed comparison, manual line 7544).
-- Trap conditions (manual line 7559-7561): Addressing traps, Branch trap (BT).
-- Microcode: `LOOPDB` at octal 000612 / `LOOPDH` at 000616 (MICRO-5800-A30.md lines
-  408,412). Write-back micro-instructions at 000615 and 000621 contain **`ST,SAVA`**
-  => Z/C/O/S written from the (index-1) ALU result.
+- IF > GO (greater, signed) tests `SORZ` with FALSE polarity: branch when
+  NOT(S OR Z) = S=0 AND Z=0. Matches manual "S=0 and Z=0".
+- IF <= GO (signed) tests `SORZ` TRUE: branch when S=1 OR Z=1.
+- IF >> GO (unsigned greater) tests `CNZ` = "C AND NOT Z", TRUE polarity: branch
+  when C=1 AND Z=0. Matches manual "C=1 and Z=0".
+- IF <= GO (unsigned) tests `CNZ` FALSE: branch when NOT(C AND !Z) = (C=0 OR Z=1).
+  Matches manual "C=0 or Z=1".
+- The executable logic in all twelve committed C files matches the microcode and
+  manual. (Several C files contain self-contradictory DOC COMMENTS about the
+  carry polarity - e.g. IfUnsignedGreaterEqualGo.c's prose says both "C=0" and
+  "C=1" - but the compiled `if()` tests the correct bit. Trust the code and this
+  table, not those comments.)
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Microcode LOOPD path has no K,* micro-op |
-| Z | CONDITIONAL: SET if modified index = 0, else CLEARED | Manual line 7567 "modified index = 0 -> Z"; microcode ST,SAVA at 000615/000621 |
-| S | CONDITIONAL: SET if modified index sign bit = 1, else CLEARED | Manual line 7568 "modified index.signbit -> S"; microcode ST,SAVA |
-| C | Written by ST,SAVA (carry of the index-1 ALU op) but NOT documented in manual | Microcode ST,SAVA; manual data-status table lists only Z and S. UNKNOWN (needs verification) |
-| O | Written by ST,SAVA (overflow of the index-1 ALU op) but NOT documented in manual | Microcode ST,SAVA; manual silent. UNKNOWN (needs verification) |
+STATUS FLAGS (all twelve identical):
 
-**DISCREPANCY:** manual + microcode show LOOPD updates at least Z and S; emulator source
-`Loopd.c` header comments do not reflect Z/S being set. Needs emulator verification.
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED |
 
-## 20. LOOP -- Loop general (with step)
-
-- Source file: `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/Loop.c`
-- Manual section 13.6 (lines 7591-7662).
-- Opcodes (manual line 7598-7607; NOTE the manual table has several OCR-duplicated
-  hex values in the :B column -- treat the octal codes / :H column with caution):
-  F LOOP:B = 0FD30H / 176460B; F LOOP:H = 0FD35H / 176465B;
-  D LOOP:B = 0FD31H / 176461B; D LOOP:H = 0FD36H / 176466B;
-  BY/H/W LOOP:H = 0FD33H / 0FD34H family (see manual line 7598-7603).
-  The emulator `Loop.c` assigns: BY LOOP:B 0xFD2D, BY LOOP:H 0xFD32, H LOOP:B 0xFD2E,
-  H LOOP:H 0xFD33, W LOOP:B 0xFD2F, W LOOP:H 0xFD34, F LOOP:B 0xFD30, F LOOP:H 0xFD35,
-  D LOOP:B 0xFD31, D LOOP:H 0xFD36. The manual's :B integer codes (FD2D-FD2F) are
-  UNKNOWN (needs verification) because the manual table prints 0FD32H for every :B row
-  (apparent OCR corruption).
-- Operands: `<index/rw/t>, <step/r/t>, <limit/r/t>, <<displacement>>`; t in
-  {BY, H, W, F, D}.
-- Operation (manual lines 7609-7620):
-  ```
-  <index> + <step> -> <index>
-  if <step> > 0 and <index> - <limit> > 0
-     or <step> < 0 and <index> - <limit> < 0 then
-      address of next instruction -> P     (fall through)
-  else
-      P + <displacement> -> P              (loop back)
-  endif
-  if <step> = 0 then
-      illegal operand value trap condition
-  endif
-  ```
-  i.e. add step to index; loop back unless the sign of (index - limit) equals the sign of
-  step (manual line 7624).
-- Special: a `<step>` value of 0 causes an Illegal operand value (IOV) trap condition, and
-  execution continues at the next instruction (manual lines 7618-7620, 7630).
-- Trap conditions (manual line 7641-7642): Addressing traps, Branch trap (BT), Illegal
-  operand value (IOV).
-- Microcode: `LOOPB` at octal 000634 / `LOOPH` at 000640 (MICRO-5800-A30.md lines
-  426,430). Both include an `ST,SAVA` micro-instruction (000637 for LOOPB, 000643 for
-  LOOPH) => Z/C/O/S written from the ALU result. The step=0 IOV path is `LOOP_IOV_B` at
-  003674 / `LOOP_IOV_H` at 003701 (lines 1994,1999), which also carries `ST,SAVA`
-  (003676). Dispatch helpers `LOOPB_1`/`LOOPH_1` at 003706/003711 select the increment
-  vs decrement sub-path based on step sign (`COND,MSGN`).
-
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNCHANGED | Microcode LOOP path has no K,* micro-op |
-| Z | CONDITIONAL: SET if modified index = 0, else CLEARED | Manual line 7648 "modified index = 0 -> Z"; microcode ST,SAVA at 000637/000643 |
-| S | CONDITIONAL: SET if modified index sign bit = 1, else CLEARED | Manual line 7649 "modified index.signbit -> S"; microcode ST,SAVA |
-| C | Written by ST,SAVA (carry of the index+step ALU op) but NOT documented in manual | Microcode ST,SAVA; manual data-status table lists only Z and S. UNKNOWN (needs verification) |
-| O | Written by ST,SAVA (overflow of the index+step ALU op) but NOT documented in manual | Microcode ST,SAVA; manual silent. UNKNOWN (needs verification) |
-
-**DISCREPANCY:** manual + microcode show LOOP updates at least Z and S; emulator source
-`Loop.c` header comments do not reflect Z/S being set. Needs emulator verification.
+- CITATION: microcode octal 000544-000557; manual 13.3 conditional-jump table
+  (page 220), "Data status bits: Unaffected".
 
 ---
 
-## Summary of open items / unresolved
+## IF ST GO / IF -ST GO - Conditional jump on a specified status-register bit
 
-1. JUMPS: manual + microcode define it as "call supervisor" (save P and B to context,
-   W1 <- CPU number, SOLO mode), not a plain "jump short". Emulator implements
-   `PC = address` only.
-2. LOOP / LOOPI / LOOPD: manual data-status tables and microcode `ST,SAVA` show Z and S
-   ARE updated (index=0 -> Z; index sign bit -> S). C and O are physically written by
-   `ST,SAVA` but their LOOP semantics are undocumented in the manual (marked UNKNOWN).
-3. LOOP :B integer opcodes (FD2D-FD2F range): the manual table is OCR-corrupted
-   (prints 0FD32H for every :B row); authoritative :B codes UNKNOWN from the manual.
-4. GO: no distinct labeled micro-routine located in the microcode file; flag behavior is
-   taken from the manual ("Unaffected") only.
+- IF ST GO   (jump if bit SET):     :B 176173B / 0xFC7B, :H 176544B / 0xFD64
+- IF -ST GO  (jump if bit NOT set):  :B 176545B / 0xFD65, :H 176204B / 0xFC84
+- Operands: 2 - `<bit No./r/BY>` (0..29) and `<<displacement>>` (:B/:H)
+- Microcode: entry cells IFSTB octal 000560, IFSTH 000562, IFNSTB 000564,
+  IFNSTH 000566; bodies IFSTB_0 octal 003650.., IFST_CHK_B octal 003644..,
+  range check at octal 003651 (`A-B, MARG=035` i.e. 29 - bitno).
+  C sources: `.../BRANCH/IfStackGo.c` and `.../BRANCH/Ifstgo.c`
+
+FUNCTIONAL PSEUDOCODE:
+```
+1. bitno <- read operand[0] as BY                  ; 000560, D,LC (loop counter)
+2. if (29 - bitno) < 0   (i.e. bitno > 29):        ; 003651 A-B MARG=035, COND,MSGN
+       trap Illegal Operand Value (IOV)            ; IFST_CHK path
+3. mask <- 1 << bitno                              ; BMLC (bit mask from LC)
+4. bit  <- (S1_status AND mask) != 0               ; 003652 AND, 003653 COND,MZRO
+5. for IF -ST GO  (microcell branches when bit CLEAR):
+       if bit == 0: P <- addr(this instr) + signextend(displacement)
+6. for IF ST GO   (microcell branches when bit SET):
+       if bit == 1: P <- addr(this instr) + signextend(displacement)
+   else fall through. No status bit written.
+```
+
+Microcode detail: the IFSTB body (003652-003654) computes `mask AND status`, then
+`COND,MZRO` (true when the masked result is zero, i.e. the bit is CLEAR), pushes
+it with `CSAVE`, and at 003654 does `COND,SAVC1 ... G,OOPS,T` - branch when that
+saved "bit is clear" condition is TRUE. So the IFSTB microcell branches when the
+bit is CLEAR (= the IF -ST GO semantics). The parallel IFNSTB body branches when
+the bit is SET (= the IF ST GO semantics). The two available behaviours
+(jump-if-set, jump-if-clear) match the manual's two instructions.
+
+- OPERANDS + datatype: bit number (BY, 0-29); displacement (BY or H direct).
+- RESULT / side effects: P updated on a taken branch. No memory written.
+- STATUS FLAGS:
+
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED | UNCHANGED |
+
+(manual 13.3 "Data status bits: Unaffected"; the IFST microcells assert no
+`ST,SAVA` and no `K,*`.)
+
+- TRAPS: Addressing traps, Branch trap (BT) on a taken branch, Illegal Operand
+  Value (IOV) when bit number > 29. Manual note on out-of-range bit number: the
+  jump is NOT performed for IF ST GO and IS performed for IF -ST GO (out-of-range
+  bit is treated as "not set").
+- CITATION: microcode octal 000560/000564 (IFSTB/IFNSTB) + octal 003644-003665
+  (IFST_CHK_B, range check MARG=035=29, mask/test); manual 13.3 IF ST GO / IF -ST
+  GO rows.
+- DISCREPANCY: both committed C files invert the branch condition relative to the
+  manual and microcode:
+  - `IfStackGo.c` carries the IF ST GO opcodes (0xFC7B/0xFD64) but branches when
+    `!bit_is_set` - it should branch when the bit IS set.
+  - `Ifstgo.c` carries the IF -ST GO opcodes (0xFD65/0xFC84) but branches when
+    `bit_is_set` - it should branch when the bit is NOT set.
+  Their header comments are also swapped/garbled. The IOV range check (bitno>29)
+  in both C files is correct and matches the microcode `MARG=035` test.
+
+---
+
+## LOOPI - Loop with increment
+
+- Opcodes (octal / hex): BY 176336B/0xFCDE (:B), 176436B/0xFD1E (:H);
+  H 176337B/0xFCDF, 176437B/0xFD1F; W 277B/0xBF, 341B/0xE1;
+  F 176434B/0xFD1C, 176441B/0xFD21; D 176435B/0xFD1D, 176442B/0xFD22
+- Operands: 3 - `<index/rw/t>`, `<limit/r/t>`, `<<displacement>>` (:B/:H).
+  Data type t may be BY, H, W, F, D.
+- Microcode: LOOPIB octal 000570-000573, LOOPIH 000574-000577; FP variants
+  FLOOPIB 000600, DLOOPIB 000604, etc. C source: `.../BRANCH/Loopi.c`
+
+FUNCTIONAL PSEUDOCODE (manual 13.4):
+```
+1. new <- index + 1                          ; 000570 ALU,A CRY,ONE (A+1) -> SC5
+2. cmp <- limit - new                         ; 000571 ALU,B-A CRY,ONE
+3. index <- new   (write back, full width)    ; 000573 D,ALU,REG37 WRITE
+4. set data status from 'new' (ST,SAVA):      ; 000573 ST,SAVA
+       Z <- (new == 0);  S <- signbit(new);  C <- 0;  O <- 0
+5. if new <= limit  (signed, via MSORZ on cmp):   ; branch taken
+       P <- address_of(this instruction) + signextend(displacement)
+   else:
+       P <- next sequential instruction
+```
+
+- OPERANDS + datatypes: index (rw, type t), limit (r, type t), displacement
+  (direct BY or H). For F/D the increment is +1.0 and the compare is
+  floating-point.
+- RESULT / side effects: index incremented in place (written back); P updated on
+  loop-back.
+- STATUS FLAGS (manual 13.4 lists Z and S; unlisted bits cleared per manual rule
+  4040; microcode `ST,SAVA` on the pass-through of `new` gives C=O=0; no `K,*`):
+
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | CONDITIONAL: 1 if modified index = 0, else 0 | CLEARED | CLEARED | CONDITIONAL: 1 if modified index sign bit set |
+
+- TRAPS: Addressing traps, Branch trap (BT) on a taken loop-back.
+- CITATION: microcode octal 000570-000577 (note `ST,SAVA` at 000573/000577);
+  manual 13.4, Data-status table (modified index = 0 -> Z; modified index.signbit
+  -> S); manual rule 4040 (unmentioned data-status bits cleared).
+- DISCREPANCY: the committed `Loopi.c` integer path explicitly does NOT write
+  Z/S/C/O ("LOOPI does NOT modify status flags"). That contradicts both the
+  manual (Z and S ARE set from the modified index) and the microcode (`ST,SAVA`
+  is asserted). Only the float/double path in `Loopi.c` sets Z/S. The integer
+  path should set Z/S from the modified index (and clear C/O).
+
+---
+
+## LOOPD - Loop with decrement
+
+- Opcodes (octal / hex): BY 176443B/0xFD23 (:B), 176450B/0xFD28 (:H);
+  H 176444B/0xFD24, 176451B/0xFD29; W 176445B/0xFD25, 176452B/0xFD2A;
+  F 176446B/0xFD26, 176453B/0xFD2B; D 176447B/0xFD27, 176454B/0xFD2C
+- Operands: 3 - `<index/rw/t>`, `<limit/r/t>`, `<<displacement>>` (:B/:H)
+- Microcode: LOOPDB octal 000612-000615, LOOPDH 000616-000621; FP variants
+  FLOOPDB 000622, DLOOPDB 000626, etc. C source: `.../BRANCH/Loopd.c`
+
+FUNCTIONAL PSEUDOCODE (manual 13.5):
+```
+1. new <- index - 1                          ; 000612 ALU,A-1 -> SC5
+2. cmp <- limit - new                         ; 000613 ALU,B-A CRY,ONE
+3. index <- new   (write back, full width)    ; 000615 D,ALU,REG37 WRITE
+4. set data status from 'new' (ST,SAVA):      ; 000615 ST,SAVA
+       Z <- (new == 0);  S <- signbit(new);  C <- 0;  O <- 0
+5. if new >= limit  (signed, via MSGN on cmp):    ; branch taken
+       P <- address_of(this instruction) + signextend(displacement)
+   else:
+       P <- next sequential instruction
+```
+
+- OPERANDS + datatypes: index (rw, type t), limit (r, type t), displacement
+  (direct BY or H). For F/D the decrement is -1.0 and the compare is
+  floating-point.
+- RESULT / side effects: index decremented in place; P updated on loop-back.
+- STATUS FLAGS:
+
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | CONDITIONAL: 1 if modified index = 0, else 0 | CLEARED | CLEARED | CONDITIONAL: 1 if modified index sign bit set |
+
+- TRAPS: Addressing traps, Branch trap (BT) on a taken loop-back.
+- CITATION: microcode octal 000612-000621 (`ST,SAVA` at 000615/000621; the
+  loop-back test is `COND,MSGN` at 000614/000620); manual 13.5 Data-status table;
+  rule 4040.
+- DISCREPANCY: `Loopd.c` integer path does not write Z/S/C/O (its comment claims
+  "Data status bits: Unaffected"). This contradicts manual 13.5 and the microcode
+  `ST,SAVA`. The float/double path does set Z/S. Integer path should set Z/S from
+  the modified index and clear C/O.
+
+---
+
+## LOOP - Loop general (configurable step)
+
+- Opcodes (hex, from committed C source; octal computed):
+  BY 0xFD2D/176455B (:B), 0xFD32/176462B (:H);
+  H 0xFD2E/176456B, 0xFD33/176463B; W 0xFD2F/176457B, 0xFD34/176464B;
+  F 0xFD30/176460B, 0xFD35/176465B; D 0xFD31/176461B, 0xFD36/176466B
+  (The manual's :B opcode column for section 13.6 is OCR-garbled - most rows
+  print 0FD32H - so the :B codes above come from the committed dispatch table and
+  the microcode ordering, not the manual table. The manual's :H column matches.)
+- Operands: 4 - `<index/rw/t>`, `<step/r/t>`, `<limit/r/t>`, `<<displacement>>`
+- Microcode: LOOPB octal 000634-000637, LOOPH 000640-000643;
+  LOOPB_1/2/3 octal 003706-003710; LOOP_IOV_B octal 003674; FP variants
+  FLOOPB 001543-ish (label FLOOPB), etc. C source: `.../BRANCH/Loop.c`
+
+FUNCTIONAL PSEUDOCODE (manual 13.6):
+```
+1. read index -> SC5, read step -> SC6                 ; 000634-000635
+2. if step == 0:                                        ; tested via COND,MZRO
+       trap Illegal Operand Value (IOV); continue at next instruction
+                                                        ; 000637 -> LOOP_IOV_B
+3. new <- index + step                                  ; LOOPB_1 003706 ALU,A+B
+4. if signbit(step)  (step < 0):                        ; LOOPB_1 COND,MSGN
+       use decrement-style compare (LOOPB_3 -> LOOPDB_0): loop if new >= limit
+   else (step >= 0):
+       use increment-style compare (LOOPB_2 -> LOOPIB_0): loop if new <= limit
+5. index <- new  (write back);  set data status from 'new' (ST,SAVA):
+       Z <- (new == 0);  S <- signbit(new);  C <- 0;  O <- 0
+       ; shared LOOPIB_0/LOOPDB_0 tail cells (000573 / 000615) assert ST,SAVA
+6. if loop condition holds:
+       P <- address_of(this instruction) + signextend(displacement)
+   else:
+       P <- next sequential instruction
+```
+
+Manual 13.6 phrasing of the exit test: exit (fall through) when the sign of
+`(index - limit)` equals the sign of `step`; otherwise take the branch. This is
+equivalent to: with step>0 exit if new>limit; with step<0 exit if new<limit -
+matching the microcode's step-sign dispatch to the increment vs decrement compare
+tail, and matching the committed `Loop.c` integer exit logic.
+
+- OPERANDS + datatypes: index (rw, t), step (r, t), limit (r, t), displacement
+  (direct BY or H). Types BY/H/W use signed integer compare; F/D use FP compare.
+- RESULT / side effects: index updated in place; P updated on loop-back.
+- STATUS FLAGS:
+
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | CONDITIONAL: 1 if modified index = 0, else 0 | CLEARED | CLEARED | CONDITIONAL: 1 if modified index sign bit set |
+
+- TRAPS: Addressing traps, Branch trap (BT) on a taken loop-back, Illegal Operand
+  Value (IOV) when step == 0 (then execution falls through to the next
+  instruction).
+- CITATION: microcode octal 000634-000643 (LOOPB/LOOPH) with step-sign dispatch
+  at LOOPB_1 octal 003706 and IOV path LOOP_IOV_B octal 003674; the ST,SAVA is in
+  the shared LOOPIB_0/LOOPDB_0 tail (octal 000573/000615). Manual 13.6, Data
+  status table (modified index = 0 -> Z; modified index.signbit -> S), and the
+  step==0 IOV rule; rule 4040.
+- DISCREPANCY: `Loop.c` (integer path) does NOT set Z/S/C/O and does NOT
+  implement the step==0 -> IOV trap (a zero step silently produces an infinite
+  loop). Both contradict manual 13.6 and the microcode: LOOP must set Z/S from the
+  modified index (clear C/O) and must raise IOV on step==0.
+
+---
+
+## Summary of C-implementation vs microcode/manual disagreements
+
+1. JUMPS (Jumps.c) - modelled as a plain absolute jump; it is actually "call
+   supervisor" (save P/B to context, W1<-cpuno, SOLO mode). Wrong behaviour.
+2. IF ST GO / IF -ST GO (IfStackGo.c, Ifstgo.c) - both branch on the INVERTED
+   bit condition relative to manual 13.3 and the microcode.
+3. LOOPI / LOOPD / LOOP integer paths (Loopi.c, Loopd.c, Loop.c) - fail to set
+   the Z and S data-status bits from the modified index (manual 13.4/13.5/13.6
+   require it; microcode asserts ST,SAVA). LOOP additionally omits the step==0
+   IOV trap.
+
+These are emulator issues, not documentation gaps - the microcode + manual agree
+with each other in every case above.

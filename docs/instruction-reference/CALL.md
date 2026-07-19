@@ -1,598 +1,917 @@
-# ND-500 CPU Instruction Behavior Reference: Category CALL
+# ND-500 Instruction Category: CALL (Subroutine Call / Entry / Return)
 
-Authoritative behavior reference for the ND-500 CALL instruction category, for
-validating the nd500x emulator. Every statement below is read directly from one
-of the two primary sources; anything not confirmed by either source is marked
-`UNKNOWN (needs verification)`.
+FUNCTIONAL behavior reference built by TRACING THE MICROCODE, cross-checked
+against the printed manual. Ground-truth mechanism = microcode; documented
+intent = manual. Disagreements are called out per-instruction.
 
-## Sources
+Sources traced:
+- Microcode: `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
+- Field mnemonics: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
+- Manual: `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+- Emulator sources: `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/*.c`
 
-- PRIMARY spec (the TRUTH per project rules):
-  `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-- GROUND-TRUTH flag micro-behavior (ND-5000 microcode):
-  `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-- Micro-op field decode:
-  `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
-- Instruction set enumerated from:
-  `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/*.c`
+Category members (18 files): CALL, CALLG, CHAIN, ENTB, ENTD, ENTF, ENTFN,
+ENTM, ENTS, ENTSN, ENTT, IFKRET (IF K RET), RET, RETB, RETBK, RETD, RETK, RETT.
 
-## Micro-op field decode (from mnemonics.md, "K" field bits and STATUS field)
+--------------------------------------------------------------------------------
+## How the CALL / ENT* / RET* trio works (read this first)
 
-- `K,ONE`  = SET K to 1                              (mnemonics.md line 653)
-- `K,ZRO`  = CLEAR K to 0                            (mnemonics.md line 654)
-- `K,1IFZ` = SET K to 1 IF ALU operation result is 0 (mnemonics.md line 655)
-- `ST,SAVA` = SAVE STATUS FROM ALU OPERATION (updates the arithmetic data
-  status bits from the ALU result)                  (mnemonics.md line 656)
-- `COND,K` = branch condition tests K from S1 (a test, NOT a flag write)
-                                                     (mnemonics.md line 778)
-- `COND,MSGN` = condition = S (sign) from ALU op     (mnemonics.md line 773)
-- `COND,MSORZ` = condition = OR of S and Z from ALU op (mnemonics.md line 767)
+The ND-500 splits subroutine linkage across TWO instructions:
 
-## Flag / status-bit vocabulary used in this document
+1. A caller executes CALL or CALLG. This computes the effective addresses of
+   the argument list, stores them plus the argument count and the return
+   address in pending "call information", then jumps to the first instruction
+   of the callee, which MUST be an ENT* instruction.
+2. The callee's first instruction (ENTS / ENTF / ENTD / ENTM / ...) consumes
+   that pending call information to build the local data area (stack frame),
+   copy the argument addresses into the frame (B.ARG), store PREVB / RETA / SP
+   / N, and set L = return address. The variant selects WHERE the frame lives
+   (stack, fixed area, heap "buddy" element, new module stack, trap vector).
+3. RET / RETK / RETD / RETT / RETB / RETBK / IFKRET tear the frame down and
+   reload P (program counter) and B (base register) from the frame.
 
-- K  = the "flag" bit of the STATUS register (a.k.a. Key / Invalid flag). Set/
-  cleared explicitly by the return instructions and by CHAIN.
-- Z, C, O, S = the ARITHMETIC DATA STATUS bits (Zero, Carry, Overflow, Sign).
-  The manual's "Data status bits" line refers to THESE. They are written only by
-  a micro-op that saves ALU status (`ST,SAVA`).
-- STO / STU = trap-condition status bits (Stack Overflow / Stack Underflow).
-  These are distinct from the arithmetic data status bits. Per manual page 275:
-  "The STO status bit is set/reset for each ENTS, ENTSN, ENTB, INIT, ENTM and
-  GETB instruction." and "STU ... set/reset at each return from a stack
-  subroutine."
+Microcode field decoding used below (from mnemonics.md):
+- `ALU,<f>` core ALU op: `A`=pass A, `A+B`, `A-B`, `B-A`, `AND`, `OR`, `XOR`,
+  `ANDCB`=A AND (NOT B), `FZRO`=force 0, `A-1`, `A+B,*2`.
+- `A,<src>` / `B,<src>` ALU inputs. `D,<dest>` result destination.
+  `A,IAC,L` = A input is the L register; `D,IAC,L` = write result to L.
+  `A,DAC,B`/`D,DAC,...` = data-cache/register-file access. `A,ALU,REG37`,
+  `SC1..SC14` = microcode scratch cells. `MIC,STS` = internal micro status
+  (sequence/overflow bookkeeping, NOT the architectural status word).
+- Memory: `READ`/`RD` = data read, `WRITE`/`WR` = data write, `WR,PHYS` /
+  `RD,PHYS` = physical (MMU-bypass) access, `LOADLA` = load look-ahead / P.
+- `ST,SAVA` = SAVE ARITHMETIC STATUS: writes the architectural data-status
+  bits Z, C, O (overflow), S (sign) from the current ALU result.
+- `ST,SAVC`/`SAVC1` = save carry only (internal). `K,ONE`/`K,ZRO` = force the
+  architectural K (flag) bit to 1 / 0. `K,1IFZ` = set K if zero.
+  `COND,K` = branch on K.
+- `C,SEQ ... INVSEQ` = sequence check; taking the INVSEQ path routes to an
+  Instruction-Sequence-Error trap. `T,PUSH`/`T,POP` = micro stack. `T,RETURN`
+  = microroutine return. `GET_NEXT`/`DGET_NEXT` (000231 / 000230) = normal
+  end-of-instruction: fetch and dispatch the next macro-instruction.
 
-## Instruction set (from `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/`)
+RULE 4040 (manual, "unmentioned data-status bits are cleared") is applied
+only to instructions whose microcode actually writes status (`ST,SAVA`). The
+ENT* / RET* / CALL* routines contain NO `ST,SAVA` on their spine (verified),
+so the arithmetic status bits Z/C/O/S are UNCHANGED by them; only K is touched
+where the microcode shows an explicit `K,ONE`/`K,ZRO`.
 
-CALL, CALLG, CHAIN, ENTB, ENTD, ENTF, ENTFN, ENTM, ENTS, ENTSN, ENTT,
-IFKRET (manual name: IF K RET), RET, RETB, RETBK, RETD, RETK, RETT.
+--------------------------------------------------------------------------------
+## Opcode discrepancies found during the trace (READ THIS)
 
-### OPCODE DISCREPANCIES (source-file vs manual) - flagged, not resolved here
+- CHAIN: the emulator source comment lists octal `0175554`. That is WRONG:
+  0xFD6C = 64876 decimal = octal `0176554`, which is exactly what the manual
+  (section 15.7) prints. Correct octal = **0176554B**.
+- ENTT: emulator source uses opcode `0xFD3A` (octal 0176472). The manual's
+  ENTT page prints `0BCH / 274B`. These do not agree.
+- RETT: emulator source uses opcode `0xFD3B` (octal 0176473). The manual's
+  return-summary table (13.11) prints `083H / 203B` as part of the clean run
+  RET=200B, RETK=201B, RETD=202B, RETT=203B.
+  Both ENTT/RETT conflicts are UNRESOLVED here: the microcode markdown lists
+  MICRO addresses (ENTT at micro 000673, RETT at micro 000710), not the
+  macro-opcode -> micro-address dispatch table, so which byte the real
+  hardware decodes cannot be proven from this trace. Both encodings are
+  reported below; do not treat either as confirmed.
 
-- ENTT: manual says `0BCH / 274B` (manual page 235). Source file
-  `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/Entt.c` claims
-  `0xFD3A / 0176472`. These disagree; the manual value is used below as PRIMARY.
-- RETT: manual says `083H / 203B` (manual page 238). Source file
-  `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/Rett.c` claims
-  `0xFD3B / 0176473`. These disagree; the manual value is used below as PRIMARY.
-- CHAIN: manual says `0FD6C+(n-1) / 176554B+(n-1)` (manual line 9539). Source
-  file `Chain.c` octal `0175554` is arithmetically WRONG (0x175554 octal =
-  64364 decimal, but 0xFD6C = 64876 decimal = 176554 octal). Manual value used.
-
-Note: the octal numbers cited as "microcode entry" below are ND-5000 microcode
-ROM addresses (the label's address in MICRO-5800-A30.md), NOT instruction
-opcodes.
-
----
-
+================================================================================
 ## CALL - call subroutine absolute
 
-- Opcode: 303B (0C3H)   [manual page 228, line ~7717]
-- Microcode entry: label **CALL** at octal 000644 (MICRO-5800-A30.md line 434)
-- Operation: Calculate the effective addresses of the arguments, prepare for the
-  entry point at <subr. addr.> (a direct 4-byte operand following the opcode),
-  and jump to that subroutine entry point.
-- Operands: `<subr. addr.>, <no of arg/s/BY>, <arg1/aa/W>,...,<argn/aa/W>`.
-  `<no of arg>` must be a constant byte integer < 256. Args are always
-  interpreted as word integers; register/constant args are illegal (they have no
-  data-memory address). Args may not be prefixed with ALT.
+Opcode: 0xC3 / 0303B. Microcode entry: **CALL** micro 000644.
 
-STATUS FLAGS:
+Format: `CALL <subr.addr/r/W>, <no.of.arg/s/BY>, <arg1/aa/W>,...,<argn/aa/W>`
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | Manual "Data status bits: Unaffected" (page 228); no K micro-op at CALL entry (line 434-437) |
-| Z | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in CALL flow |
-| C | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in CALL flow |
-| O | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in CALL flow |
-| S | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in CALL flow |
+### Functional pseudocode
+```
+1. subr_addr = direct 4-byte operand following the opcode      ; micro 000644 A,DAC,B
+2. n = <no.of.arg>            ; MUST be a constant byte < 256   ; micro 000646 TYP,BY, D,LC
+     if operand is not a constant byte -> Illegal Operand Specifier trap
+                                                                ; 000646/000647 -> ILL_OP_SPEC
+3. for each of the n argument operands:
+       EA[i] = effective address of arg[i]  (arg always read as W integer)
+       if arg is register or constant (no memory address) -> IOS trap
+     ; C,SEQ / CONOP loop over the operand list (micro 000645-000646, CSAVE)
+4. store {subr_addr, n, EA[1..n], return_address = P_after_instr} as pending
+   call information for the ENT* at the target
+5. P <- subr_addr        (jump; target's first instruction must be ENT*)
+     if target is not an entry-point instruction -> Instruction Sequence Error
+```
 
-TRAP conditions (manual page 228): Addressing traps, Call trap (CT), Illegal
-operand specifier (IOS), Instruction sequence error (ISE). ISE occurs if the
-target is not an entry-point instruction.
+### Operands + datatypes
+- `<subr.addr>` : direct W (4 bytes), absolute address of callee entry point.
+- `<no.of.arg>` : constant BY (byte, 0..255).
+- `<argN>`      : any addressable operand (`aa`), interpreted as W. ALT prefix
+  forbidden. Register/constant args are illegal.
 
----
+### Result / side-effects
+Effective addresses of args + count + return address saved for the ENT*.
+P set to callee. No memory of the frame is built yet (the ENT* does that).
 
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED (no K op in trace) |
+| Z | UNCHANGED (no ST,SAVA) |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+
+Manual "Data status bits: Unaffected" - agrees with microcode.
+
+### Traps
+Addressing traps; Call trap (CT); Illegal Operand Specifier (IOS, bad arg or
+non-constant count); Instruction Sequence Error (ISE, target not an ENT*).
+(The CT trigger point was not located on the traced spine - see UNRESOLVED.)
+
+Citation: micro CALL 000644-000647; manual section 13.8 (Page 228).
+
+================================================================================
 ## CALLG - call subroutine general
 
-- Opcode: 265B (0B5H)   [manual page 227, line 7677]
-- Microcode entry: label **CALLG** at octal 000650 (MICRO-5800-A30.md line 438)
-- Operation: Same as CALL, except <subr. addr.> is a GENERAL operand (any
-  addressing mode), accessed via a general operand rather than a direct operand.
-  Calculate arg effective addresses, prepare for the entry point, jump to it.
-- Operands: `<subr. addr/r/W>, <no of arg/s/BY>, <arg1/aa/W>,...,<argn/aa/W>`.
-  Same operand rules as CALL.
+Opcode: 0xB5 / 0265B. Microcode entry: **CALLG** micro 000650.
 
-STATUS FLAGS:
+Format: `CALLG <subr.addr/r/W>, <no.of.arg/s/BY>, <arg1/aa/W>,...,<argn/aa/W>`
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | Manual "Data status bits: Unaffected" (page 227); no K micro-op at CALLG entry (line 438-440) |
-| Z | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in CALLG flow |
-| C | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in CALLG flow |
-| O | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in CALLG flow |
-| S | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in CALLG flow |
+### Functional pseudocode
+```
+1. subr_addr = value of the GENERAL operand <subr.addr> (any addressing mode)
+                                                     ; micro 000650 READ, ADACT
+2. n = <no.of.arg> constant byte < 256               ; micro 000651 TYP,BY D,LC
+     non-constant -> IOS trap                        ; 000653 -> ILL_OP_SPEC
+3. compute EA[1..n] of the argument list (each as W); reg/const arg -> IOS
+4. save {subr_addr, n, EA[], return_address} as pending call info
+5. P <- subr_addr ; target must be an ENT* else ISE  ; 000652 C,SEQ
+```
+Identical to CALL except operand 0 is a general operand (read through any
+addressing mode) instead of a direct 4-byte immediate.
 
-TRAP conditions (manual page 227): Addressing traps, Call trap (CT), Illegal
-operand specifier (IOS), Instruction sequence error (ISE).
+### Operands + datatypes
+`<subr.addr>` general W operand (must resolve to an entry point);
+`<no.of.arg>` constant BY; `<argN>` addressable, read as W; ALT forbidden.
 
----
+### Result / side-effects
+Same as CALL: arg EAs + count + return address staged for the ENT*; P<-callee.
 
-## CHAIN - load address of multilevel chain (Wn CHAIN)
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+Manual "Data status bits: Unaffected" - agrees.
 
-- Opcode: 176554B+(n-1) (0FD6CH+(n-1)), where Wn selects the destination
-  register 1..4   [manual section 15.7, line 9539]
-- Microcode entry: label **CHAIN** at octal 000753 (MICRO-5800-A30.md line 505);
-  resolution tail **CHAIN_RES** at octal 007454-007455 (lines 3900-3901).
-- Operation (manual line 9539+):
-  `<address> -> Wn ; for i in (1..<no. of levels>) do while ((Wn)+<offset>) != 0 :
-  ((Wn)+<offset>) -> Wn`. Follows a static-link chain `<no. of levels>` steps and
-  loads Wn with the base address of the target scope. `<no. of levels>` == 0
-  behaves like LADDR.
-- Operands: `<address/aa/W>, <offset/r/W>, <no. of levels/r/W>`.
+### Traps
+Addressing traps; Call trap (CT); IOS; ISE.
 
-STATUS FLAGS:
+Citation: micro CALLG 000650-000653 -> CALLG_1 003714 -> INIT_1 003720;
+manual section 13.7 (Page 227).
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | CONDITIONAL: SET (=1) if a next link in the chain is zero (premature termination); CLEARED otherwise | Manual line 9552: "If the next link in the chain is zero ... the K flag is set." Microcode: `K,ONE` at octal 007443 and 007451 (the zero-link/terminate paths); `K,ZRO` at octal 007436 (non-terminating path). |
-| S | SET to the sign bit of the last computed address ("Last address.signbit -> S") | Manual "Data Status Bits: Last address.signbit -> S" (line ~9560). Microcode: `ST,SAVA` at **CHAIN_RES** octal 007455 (and 000762 in the levels==0 / LADDR path), saving ALU status; S = COND,MSGN sense. |
-| Z | Written by ST,SAVA (saves full ALU status), but the manual documents only S | Microcode `ST,SAVA` at 007455; manual documents only S. Exact Z value = UNKNOWN (needs verification of the final ALU operand at 007455). |
-| C | Written by ST,SAVA, manual documents only S | Same as Z above; exact C value UNKNOWN (needs verification). |
-| O | Written by ST,SAVA, manual documents only S | Same as Z above; exact O value UNKNOWN (needs verification). |
+================================================================================
+## ENTM - enter module
 
-TRAP conditions (manual line 9556): Addressing traps, Illegal operand value
-(IOV). IOV occurs when a next link is zero (chain terminated early) AND when
-`<no. of levels>` is negative.
+Opcode: 0xDF / 0337B. Microcode entry: **ENTM** micro 000656.
 
----
+Format: `ENTM <bottom.of.stack/r/W>, <stack.demand.of.main/r/W>,
+        <total.system.stack.demand/r/W>`
 
-## ENTS - enter stack subroutine
+### Functional pseudocode
+```
+new stack frame for a whole module; the ONLY cross-domain entry point.
+1. B_new  = <bottom of stack>                        ; -> B
+2. IND(B_new.PREVB) = oldB
+3. IND(oldB.SP)     = TOS                             ; save caller TOS
+4. TOS = B_new + <total system stack demand>
+5. L = B_new.RETA = return_address (from pending call info)
+6. B_new.SP = B_new + <stack demand of main program>
+7. B_new.N  = number of arguments
+8. copy argument EAs into B_new.ARG[1..N]            ; micro 004102.. WRITE loop
+9. if <stack demand of main> >= <total system stack demand> -> Stack Overflow
+                                                     ; ENTM_0 004111 A-B,CRY MCRY
+if entering from a DIFFERENT domain:
+   0 -> B.PREVB ; 0 -> B.RETA
+   save TOS,LL,HL,THA into OLD domain information table (DIT)
+   load TOS,LL,HL,THA from NEW domain information table
+                                                     ; DOM_ENTM_* 004114.., WR,PHYS
+```
 
-- Opcode: 270B (0B8H)   [manual page 233, line 7900+]
-- Microcode entry: label **ENTS** at octal 000662 (MICRO-5800-A30.md line 448)
-- Operation: Allocate a new local data block on the stack and enter the
-  subroutine. `<stack demand>` is the number of bytes for the local data field
-  (including the 20-byte predefined PREVB/RETA/SP/AUX/N area).
-- Operands: `<stack demand/r/W>`.
-- Initializations (manual page 233): B.SP -> B ; oldB -> B.PREVB ;
-  return address -> B.RETA -> L ; newB + <stackdemand> -> B.SP ;
-  number of arguments -> B.N ; addresses of arguments -> B.ARG.
-- Sequence rule: executing an entry-point instruction not resulting from a
-  subroutine call causes an ISE trap (manual page 230).
+### Operands + datatypes
+Three r/W operands: bottom-of-stack (absolute addr), main-program stack demand,
+total system stack demand. ALT forbidden.
 
-STATUS FLAGS:
+### Result / side-effects
+Builds a fresh module stack; writes PREVB, RETA, SP, N, ARG list to memory;
+updates TOS; may swap domain register context (TOS/LL/HL/THA via DIT).
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | No K micro-op in ENTS flow (entry line 448-450; extended flow 2183-2187 verified no K,ONE/K,ZRO) |
-| Z | UNCHANGED | No ST,SAVA in ENTS flow |
-| C | UNCHANGED | No ST,SAVA in ENTS flow |
-| O | UNCHANGED | No ST,SAVA in ENTS flow |
-| S | UNCHANGED | No ST,SAVA in ENTS flow |
-| STO (trap bit) | SET/RESET by this instruction (set if newB.SP >= TOS) | Manual page 275: "The STO status bit is set/reset for each ENTS, ENTSN, ENTB, INIT, ENTM and GETB instruction." |
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED (no K op) |
+| Z | UNCHANGED (no ST,SAVA) |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+Manual gives no "Data status bits" line; microcode confirms none written.
 
-TRAP conditions (manual page 233): Addressing traps, Stack overflow (STO),
-Instruction sequence error (ISE). STO occurs if B + <stack demand> >= TOS.
+### Traps
+Addressing traps; ISE (ENTM not reached from a CALL/CALLG); Stack Overflow (STO).
 
----
+Citation: micro ENTM 000656-000657 -> ENTM1 004102 -> ENTM_0/ENTM_1 004111;
+manual "ENTM - enter module" (Page 231).
 
-## ENTSN - enter maximum-number-of-arguments stack subroutine
-
-- Opcode: 272B (0BAH)   [manual page 233, line 7923]
-- Microcode entry: label **ENTSN** at octal 000666 (MICRO-5800-A30.md line 452)
-- Operation: Like ENTS, but only the first `<max no. of arg.>` argument addresses
-  are transferred to the stack; remaining ones are ignored, and B.N contains the
-  <max no. of arg.> value (manual page 233 and line 1120).
-- Operands: `<stack demand/r/W>, <max no. of arg./r/W>`.
-- Initializations: same layout as ENTS.
-
-STATUS FLAGS:
-
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | No K micro-op in ENTSN flow (entry 452-454; extended 2216-2220 verified no K write) |
-| Z | UNCHANGED | No ST,SAVA in ENTSN flow |
-| C | UNCHANGED | No ST,SAVA in ENTSN flow |
-| O | UNCHANGED | No ST,SAVA in ENTSN flow |
-| S | UNCHANGED | No ST,SAVA in ENTSN flow |
-| STO (trap bit) | SET/RESET by this instruction | Manual page 275 (ENTSN listed explicitly) |
-
-TRAP conditions (manual page 233): Addressing traps, Stack overflow (STO),
-Instruction sequence error (ISE).
-
----
-
+================================================================================
 ## ENTD - enter subroutine directly
 
-- Opcode: 234B (09CH)   [manual page 232]
-- Microcode entry: label **ENTD** at octal 000660 (MICRO-5800-A30.md line 446)
-- Operation: No local-data-area initialization and no argument transfer. The
-  call to ENTD MUST have zero arguments.
-- Operands: `<stack demand/r/W>` (per manual section 13.10 format table; the
-  ENTD description states no stack frame is initialized).
-- Initializations (manual page 232): return address -> L.
+Opcode: 0x9C / 0234B. Microcode entry: **ENTD** micro 000660.
 
-STATUS FLAGS:
+Format: `ENTD <stack demand/r/W>` (operand present in encoding but no frame
+is built; see manual).
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | No K micro-op at ENTD (line 446) |
-| Z | UNCHANGED | No ST,SAVA in ENTD flow |
-| C | UNCHANGED | No ST,SAVA in ENTD flow |
-| O | UNCHANGED | No ST,SAVA in ENTD flow |
-| S | UNCHANGED | No ST,SAVA in ENTD flow |
+### Functional pseudocode
+```
+1. verify the call carried ZERO arguments:
+     C,SEQ + COND,MZRO at micro 000660; if N != 0 -> ENT_SEQ_ERR (000661)
+     -> INS_SEQ_ERR -> Instruction Sequence Error trap
+2. L = return_address        ; the ONLY initialization ENTD performs
+3. (no PREVB/SP/ARG frame is created; a leaf routine)
+```
 
-TRAP conditions (manual page 232): Address trap fetch (ATF), Instruction
-sequence error (ISE). ISE also occurs if the argument count is non-zero.
+### Operands + datatypes
+`<stack demand>` r/W (validated; effectively unused for frame build). The CALL
+that reached ENTD must pass 0 arguments.
 
----
+### Result / side-effects
+L <- return address. Nothing written to the stack. If the routine calls
+others, software must save/restore L itself.
 
-## ENTF - enter subroutine (fixed/static data area)
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
 
-- Opcode: 335B (0DDH)   [manual page 234]
-- Microcode entry: label **ENTF** at octal 000665 (MICRO-5800-A30.md line 451)
-- Operation: Enter a subroutine using a pre-allocated fixed (static) data area.
-  Variables keep their values between calls (non-reentrant).
-- Operands: `<address of local data area/r/W>`.
-- Initializations (manual page 234): <address of local data area> -> B ;
-  oldB -> B.PREVB ; return address -> B.RETA -> L ; oldB.SP -> B.SP ;
-  number of arguments -> B.N ; addresses of arguments -> B.ARG.
+### Traps
+Address Trap Fetch (ATF); Instruction Sequence Error (ISE, non-zero arg count
+OR ENTD not reached from a call).
 
-STATUS FLAGS:
+Citation: micro ENTD 000660 -> ENT_SEQ_ERR 000661 -> INS_SEQ_ERR 003141;
+manual "ENTD - enter subroutine directly" (Page 232).
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | No K micro-op in ENTF flow (entry 451; extended 2207-2214 verified no K write) |
-| Z | UNCHANGED | No ST,SAVA in ENTF flow |
-| C | UNCHANGED | No ST,SAVA in ENTF flow |
-| O | UNCHANGED | No ST,SAVA in ENTF flow |
-| S | UNCHANGED | No ST,SAVA in ENTF flow |
+================================================================================
+## ENTS - enter stack subroutine
 
-TRAP conditions (manual page 234): Addressing traps, Instruction sequence error
-(ISE). (STO is NOT listed for ENTF/ENTFN in the manual page-275 STO list.)
+Opcode: 0xB8 / 0270B. Microcode entry: **ENTS** micro 000662.
 
----
+Format: `ENTS <stack demand/r/W>`
 
-## ENTFN - enter maximum-number-of-arguments subroutine (fixed data area)
+### Functional pseudocode
+```
+1. read <stack demand> (r, integer/DR datatype)      ; micro 000662 TYP,DR READ
+2. newB = oldB.SP                                     ; frame grows on the stack
+3. IND(newB.PREVB) = oldB
+4. L = newB.RETA = return_address
+5. newB.SP = newB + <stack demand>
+6. if newB + <stack demand> >= TOS -> Stack Overflow  ; ENTS_STO 004213 -> TRAP
+7. newB.N = number of arguments
+8. copy argument EAs into newB.ARG[1..N]              ; ENTS_3 004216.. WRITE loop
+9. B = newB
+```
+The ENTS_NEQ0 branch (004171) handles the argument-copy WRITE loop; ENTS_1
+(004203) is the zero/short path. `<stack demand>` counts the 20 predefined
+bytes (PREVB, RETA, SP, AUX, N).
 
-- Opcode: 336B (0DEH)   [manual page 234, line 7964]
-- Microcode entry: label **ENTFN** at octal 000671 (MICRO-5800-A30.md line 455)
-- Operation: Like ENTF (fixed data area), but only the first `<max no. of arg.>`
-  argument addresses are transferred to the stack; remaining ones ignored and
-  B.N = <max no. of arg.> (manual page 234, line 7968; line 1120).
-- Operands: `<address of local data area/r/W>, <max no. of arg./r/W>`.
-- Initializations: same layout as ENTF.
+### Operands + datatypes
+`<stack demand>` r/W (number of bytes for the local field, incl. 20 predefined).
 
-STATUS FLAGS:
+### Result / side-effects
+New stack frame written (PREVB, RETA, SP, N, ARG list); B and L updated; SP
+advanced.
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | No K micro-op in ENTFN flow (entry 455-456; extended 2243-2250 verified no K write) |
-| Z | UNCHANGED | No ST,SAVA in ENTFN flow |
-| C | UNCHANGED | No ST,SAVA in ENTFN flow |
-| O | UNCHANGED | No ST,SAVA in ENTFN flow |
-| S | UNCHANGED | No ST,SAVA in ENTFN flow |
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+Microcode manipulates MIC,STS only (sequence/overflow), not architectural bits.
 
-TRAP conditions (manual page 234): Addressing traps, Instruction sequence error
-(ISE).
+### Traps
+Addressing traps; Stack Overflow (STO); Instruction Sequence Error (ISE).
 
----
+Citation: micro ENTS 000662-000664 -> ENTS_NEQ0 004171 / ENTS_1 004203 /
+ENTS_STO 004213; manual "ENTS" (Page 233).
 
-## ENTM - enter module (initialize new stack)
+================================================================================
+## ENTSN - enter (max number of arguments) stack subroutine
 
-- Opcode: 337B (0DFH)   [manual page 231]
-- Microcode entry: label **ENTM** at octal 000656 (MICRO-5800-A30.md line 444)
-- Operation: Initialize a NEW stack. The only entry point that may be called
-  from another domain. If entered cross-domain, TOS/THA/LL/HL are saved to the
-  old domain information table and reloaded from the new one.
-- Operands: `<bottom of stack/r/W>, <stack demand of main program/r/W>,
-  <total system stack demand/r/W>`.
-- Initializations (manual page 231): <bottom of stack> -> B ; oldB -> B.PREVB ;
-  TOS -> IND(oldB.SP) ; <bottom of stack> + <total system stack demand> -> TOS ;
-  return address -> B.RETA -> L ;
-  <bottom of stack> + <stack demand of main program> -> B.SP ;
-  number of arguments -> B.N ; addresses of arguments -> B.arg.
-  If change of domain: 0 -> B.PREVB ; 0 -> B.RETA ; TOS,LL,HL,THA saved/loaded
-  via domain information tables.
+Opcode: 0xBA / 0272B. Microcode entry: **ENTSN** micro 000666.
 
-STATUS FLAGS:
+Format: `ENTSN <stack demand/r/W>, <max no. of arg./r/W>`
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | No K micro-op in ENTM flow (entry 444; extended 2112-2136 verified no K write) |
-| Z | UNCHANGED | No ST,SAVA in ENTM flow |
-| C | UNCHANGED | No ST,SAVA in ENTM flow |
-| O | UNCHANGED | No ST,SAVA in ENTM flow |
-| S | UNCHANGED | No ST,SAVA in ENTM flow |
-| STO (trap bit) | SET/RESET by this instruction (set if main-program stack demand >= total system stack demand) | Manual page 275 (ENTM listed explicitly); manual page 231 |
+### Functional pseudocode
+```
+Same stack-frame construction as ENTS, but the argument-copy loop is bounded:
+1. read <stack demand> and <max no. of arg.>         ; micro 000666-000667 READ
+2. newB = oldB.SP ; PREVB, RETA->L, SP, B as in ENTS
+3. copy only min(N, <max no. of arg.>) argument EAs into newB.ARG;
+   remaining arguments are IGNORED                    ; ENTN_SLOOP 004262 LCDECR loop
+4. stack overflow check as ENTS                       ; ENTSN_STO 004253 -> TRAP
+```
 
-TRAP conditions (manual page 231): Addressing traps, Instruction sequence error
-(ISE), Stack overflow (STO).
+### Operands + datatypes
+`<stack demand>` r/W; `<max no. of arg.>` r/W.
 
----
+### Result / side-effects
+Same as ENTS but at most `<max no. of arg.>` argument addresses are stored.
 
-## ENTB - enter subroutine with buddy allocation
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
 
-- Opcode: 275B (0BDH)   [manual page 237]
-- Microcode entry: label **ENTB** at octal 000676 (MICRO-5800-A30.md line 460)
-- Operation: Allocate a local data area of size 2**<log size> words from the
-  heap (buddy allocator) and enter the subroutine.
-- Operands: `<log size/r/BY>`.
-- Initializations (manual page 237): address of heap element -> B ;
-  oldB -> B.PREVB ; oldB.SP -> B.SP ; return address -> B.RETA -> L ;
-  log size -> B.LOG ; number of arguments -> B.N ; addresses of arguments -> B.ARG.
+### Traps
+Addressing traps; Stack Overflow (STO); Instruction Sequence Error (ISE).
 
-STATUS FLAGS:
+Citation: micro ENTSN 000666-000670 -> ENTSN_0 004232 -> ENTSN_1/2/3
+004236/004245/004254 -> ENT_PARAM 004257 / ENTN_SLOOP 004262;
+manual "ENTSN" (Page 233).
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | No K micro-op in ENTB flow (entry 460-461; extended 2259-2269 verified no K write) |
-| Z | UNCHANGED | No ST,SAVA in ENTB flow |
-| C | UNCHANGED | No ST,SAVA in ENTB flow |
-| O | UNCHANGED | No ST,SAVA in ENTB flow |
-| S | UNCHANGED | No ST,SAVA in ENTB flow |
-| STO (trap bit) | SET/RESET by this instruction (set if no free heap block of the requested size or larger) | Manual page 275 (ENTB listed explicitly); manual page 237 |
+================================================================================
+## ENTF - enter subroutine (fixed data area)
 
-TRAP conditions (manual page 237): Addressing traps, Stack overflow (STO),
-Instruction sequence error (ISE).
+Opcode: 0xDD / 0335B. Microcode entry: **ENTF** micro 000665.
 
----
+Format: `ENTF <address of local data area/r/W>`
 
+### Functional pseudocode
+```
+1. B = <address of local data area>   ; a FIXED area - variables persist
+                                       ; between calls (not on the stack)
+2. IND(B.PREVB) = oldB
+3. L = B.RETA = return_address         ; ENTF_1 004221 WRITE
+4. B.SP = oldB.SP                      ; SP inherited from caller
+5. B.N  = number of arguments
+6. copy argument EAs into B.ARG[1..N]  ; ENTF_4 004230 -> ENT_PARAM loop
+```
+
+### Operands + datatypes
+`<address of local data area>` r/W - absolute address of a statically allocated
+data area.
+
+### Result / side-effects
+Frame overlaid on the fixed area; PREVB/RETA/SP/N/ARG written; B,L updated.
+Because the area is fixed, locals keep their values between invocations.
+
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+
+### Traps
+Addressing traps; Instruction Sequence Error (ISE).
+
+Citation: micro ENTF 000665 -> ENTF_1 004221 -> ENTF_2 004224 -> ENTF_4 004230
+-> ENT_PARAM 004257; manual "ENTF" (Page 234).
+
+================================================================================
+## ENTFN - enter (max number of arguments) fixed-area subroutine
+
+Opcode: 0xDE / 0336B. Microcode entry: **ENTFN** micro 000671.
+
+Format: `ENTFN <address of local data area/r/W>, <max no. of arg./r/W>`
+
+### Functional pseudocode
+```
+As ENTF (fixed data area, SP inherited from caller) but the argument copy is
+bounded by <max no. of arg.>:
+1. B = <address of local data area>
+2. IND(B.PREVB)=oldB ; L=B.RETA=return_address ; B.SP=oldB.SP ; B.N=N
+3. copy only min(N, <max no. of arg.>) argument EAs into B.ARG; rest ignored
+                                       ; ENTFN_1 004265 -> ENT_PARAM loop
+```
+
+### Operands + datatypes
+`<address of local data area>` r/W; `<max no. of arg.>` r/W.
+
+### Result / side-effects
+Same as ENTF but at most `<max no. of arg.>` addresses stored.
+
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+
+### Traps
+Addressing traps; Instruction Sequence Error (ISE).
+
+Citation: micro ENTFN 000671-000672 -> ENTFN_1 004265 -> ENT_PARAM 004257;
+manual "ENTFN" (Page 234).
+
+================================================================================
+## ENTB - enter subroutine with buddy (heap) allocation
+
+Opcode: 0xBD / 0275B. Microcode entry: **ENTB** micro 000676.
+
+Format: `ENTB <log size/r/BY>`
+
+### Functional pseudocode
+```
+1. read <log size> (byte)                            ; micro 000676 TYP,BY READ
+2. allocate a heap element of 2**<log size> words via the buddy allocator
+                                       ; FINDBDY 004322, HEAPWR
+     if no free element of that size (or larger) -> Stack Overflow trap
+3. B = address of the allocated heap element
+4. IND(B.PREVB) = oldB
+5. B.SP = oldB.SP                       ; SP inherited
+6. L = B.RETA = return_address          ; ENTB_1 004305 WRITE
+7. B.LOG = <log size>                   ; remembered so RETB can free it
+8. B.N = number of arguments
+9. copy argument EAs into B.ARG[1..N]   ; ENTB_1 004315 -> ENT_PARAM loop
+```
+
+### Operands + datatypes
+`<log size>` r/BY - base-2 log of the element size in words.
+
+### Result / side-effects
+Heap element allocated and used as the local data area; PREVB/SP/RETA/LOG/N/ARG
+written; B,L updated. Must be released by RETB/RETBK.
+
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+
+### Traps
+Addressing traps; Stack Overflow (STO, no free heap element); Instruction
+Sequence Error (ISE).
+
+Citation: micro ENTB 000676-000677 -> ENTB_1 004305 -> FINDBDY 004322 /
+HEAPWR / ENTB_5 004317 -> ENTS_END 004206; manual "ENTB" (Page 237).
+
+================================================================================
 ## ENTT - enter trap handler
 
-- Opcode: 274B (0BCH)   [manual page 235]. (Source file Entt.c disagrees: claims
-  0176472/0xFD3A. See "OPCODE DISCREPANCIES" above.)
-- Microcode entry: label **ENTT** at octal 000673 (MICRO-5800-A30.md line 457);
-  further flow at 013053+ (lines 5689+).
-- Operation: Trap-handler entry point (first instruction of a trap handler).
-  Stacks the register block into a special local data area at THA+400B; arg1 =
-  "Trapping P" (address of the first byte of the trapping instruction). ENTT may
-  ONLY be executed as the result of a trap, never as a normal CALL/CALLG target
-  (manual page 230).
-- Operands: `<trap handler main program stack demand/r/W>,
-  <total trap handler stack demand/r/W>`.
+Opcode (emulator): 0xFD3A / 0176472B.  Opcode (manual page): 0BCH / 0274B.
+(DISAGREEMENT - see the opcode-discrepancy note above.)
+Microcode entry: **ENTT** micro 000673.
 
-STATUS FLAGS:
+Format: `ENTT <trap handler main-program stack demand/r/W>,
+        <total trap handler stack demand/r/W>`
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED (the entering register block, including STATUS, is SAVED to the local data area, not modified) | No K,ONE/K,ZRO micro-op in ENTT flow (entry 457; flow 5689-5697); manual page 235 describes only saving the register block |
-| Z | UNCHANGED | No ST,SAVA in ENTT flow |
-| C | UNCHANGED | No ST,SAVA in ENTT flow |
-| O | UNCHANGED | No ST,SAVA in ENTT flow |
-| S | UNCHANGED | No ST,SAVA in ENTT flow |
+### Functional pseudocode
+```
+ENTT is the FIRST instruction of every trap handler; it may ONLY be reached by
+a trap (not by CALL/CALLG).
+1. sequence check: if not reached by a trap -> Instruction Sequence Error
+                                       ; ENTT1 013056 C,SEQ -> TRAP_ISE (013057)
+2. local data area = area following the trap-handler vector; THA points at it.
+   Layout at B = THA + 400B:
+     B.PREVB = 0 ; B.RETA = 0 ; L = contents of B.RETA-slot
+     B.SP    = B + <trap handler main-program stack demand>
+     B.AUX   = protect-violation information
+     B.N     = 62B (fixed)
+     B.arg1  = 'Trapping P' (address of first byte of the trapping instruction)
+     B.arg2..B.arg40 = the saved register block (as numbered in chapter 2)
+3. save register block into the frame        ; ENTT_REGS 013062 -> SAVEREG
+4. save domain info (OTE/TEMM/CED/CAS etc.)  ; ENTT_DITS 013063 -> SAVEDINFR
+5. TOS = B + <total trap handler stack demand>
+```
 
-Note: ENTT clearing of the OTE / trap-enable state (asserted by the nd500x
-source) is NOT confirmed as a Z/C/O/S/K data-status effect by the manual page
-235 or the microcode entry flow. Any OTE side effect is a separate register, not
-one of the K/Z/C/O/S flags = out of scope for this flag table.
+### Operands + datatypes
+`<trap handler main-program stack demand>` r/W; `<total trap handler stack
+demand>` r/W. ALT forbidden.
 
-TRAP conditions (manual page 235): Addressing traps, Instruction sequence error
-(ISE). "(No traps are handled locally.)"
+### Result / side-effects
+Full register block + status + domain context of the trapped program are saved
+into the trap-handler local data area; B/L/TOS set up for the handler.
+No traps are handled locally within ENTT.
 
----
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED for the handler (the trapped program's K is SAVED into the frame, arg block) |
+| Z | UNCHANGED (saved, not computed) |
+| C | UNCHANGED (saved) |
+| O | UNCHANGED (saved) |
+| S | UNCHANGED (saved) |
+ENTT preserves/saves the architectural status; it does not compute new Z/C/O/S.
 
+### Traps
+Addressing traps; Instruction Sequence Error (ISE, ENTT executed other than as
+a trap entry).
+
+Citation: micro ENTT 000673-000675 -> ENTT1 013056 -> ENTT2/ENTT_REGS 013060/
+013062; manual "ENTT - enter trap handler" (Pages 235-236).
+
+================================================================================
 ## RET - clear-flag return from subroutine
 
-- Opcode: 200B (080H)   [manual page 238]
-- Microcode entry: label **RET** at octal 000701 (MICRO-5800-A30.md line 463)
-- Operation (manual page 238): `0 -> STATUS.K ; B.RETA -> P -> L ; B.PREVB -> B`.
-  Return from a subroutine with local data area; new base register and return
-  address taken from the current local data area.
-- Operands: none.
+Opcode: 0x80 / 0200B. Microcode entry: **RET** micro 000701.
 
-STATUS FLAGS:
+Format: `RET`  (no operands)
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | CLEARED (to 0) | Manual page 238 "0 -> STATUS.K". Microcode `K,ZRO` at octal 000701 (line 463). |
-| Z | UNCHANGED | Manual page 239 "Data status bits: Unaffected"; no ST,SAVA in RET / RET_1 / RET_2 tail (verified 004406-004414) |
-| C | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RET tail |
-| O | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RET tail |
-| S | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RET tail |
-| STU (trap bit) | SET/RESET at this return | Manual page 275: STU "set/reset at each return from a stack subroutine" |
+### Functional pseudocode
+```
+1. 0 -> STATUS.K                       ; micro 000701 K,ZRO
+2. L = B.RETA                          ; reload link/return addr from frame
+3. P = B.RETA                          ; jump back to caller
+4. B = B.PREVB                         ; restore caller base register
+   ; RET_1 004406 -> RET_2 004410: reads B.RETA (READ), C,SEQ underflow test
+5. if B.PREVB == 0 or B.RETA == 0:     ; RET_2/RET_3 004410/004412 COND,MZRO
+     compare CAD (from calling domain DIT) to CED:
+        if equal    -> Stack Underflow trap           ; RET_SU 004417
+        if unequal  -> cross-domain return: CED <- CAD; reload B,P,CAD and
+                       TOS,HL,LL,THA from the new domain information table
+6. else normal in-domain return complete              ; RET_4 004414 -> GET_NEXT
+```
 
-TRAP conditions (manual page 239): Addressing traps, Stack underflow (STU),
-Branch trap (BT). If B.PREVB or B.RETA is zero, a cross-domain return is
-attempted; STU occurs only if there is no alternative domain (CAD zero or CAD ==
-CED).
+### Operands + datatypes
+None.
 
----
+### Result / side-effects
+P and B reloaded from the current frame; K cleared. Possible domain switch on
+a zero PREVB/RETA. Frees the stack frame implicitly (B moves to PREVB).
 
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | CLEARED (0 -> K), micro K,ZRO |
+| Z | UNCHANGED (no ST,SAVA) |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+Manual "Data status bits: Unaffected" refers to Z/C/O/S; K is explicitly set 0
+by the Operation clause and by the microcode.
+
+### Traps
+Addressing traps; Stack Underflow (STU); Branch Trap (BT).
+
+Citation: micro RET 000701 -> RET_1 004406 -> RET_2..RET_4 004410-004414 /
+RET_SU 004417; manual section 13.11, "RET" (Pages 238-239).
+
+================================================================================
 ## RETK - set-flag return from subroutine
 
-- Opcode: 201B (081H)   [manual page 238]
-- Microcode entry: label **RETK** at octal 000702 (MICRO-5800-A30.md line 464)
-- Operation (manual page 238): `1 -> STATUS.K ; B.RETA -> P -> L ; B.PREVB -> B`.
-  Identical to RET except it SETS K.
-- Operands: none.
+Opcode: 0x81 / 0201B. Microcode entry: **RETK** micro 000702.
 
-STATUS FLAGS:
+Format: `RETK`
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | SET (to 1) | Manual page 238 "1 -> STATUS.K". Microcode `K,ONE` at octal 000702 (line 464). |
-| Z | UNCHANGED | Manual page 239 "Data status bits: Unaffected"; no ST,SAVA in RET tail |
-| C | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RET tail |
-| O | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RET tail |
-| S | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RET tail |
-| STU (trap bit) | SET/RESET at this return | Manual page 275 |
+### Functional pseudocode
+```
+Identical to RET except the flag is SET instead of cleared:
+1. 1 -> STATUS.K                       ; micro 000702 K,ONE
+2. L = B.RETA ; P = B.RETA ; B = B.PREVB
+3. same zero-PREVB/RETA underflow / cross-domain handling as RET (shared RET_1)
+```
 
-TRAP conditions (manual page 239): Addressing traps, Stack underflow (STU),
-Branch trap (BT). Same cross-domain rule as RET.
+### Operands + datatypes
+None.
 
----
+### Result / side-effects
+As RET, but K is set to 1 - lets a callee signal an error/special condition to
+the caller through the flag bit.
 
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | SET (1 -> K), micro K,ONE |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+
+### Traps
+Addressing traps; Stack Underflow (STU); Branch Trap (BT).
+
+Citation: micro RETK 000702 -> RET_1 004406 (shared with RET);
+manual section 13.11, "RETK" (Page 238).
+
+================================================================================
+## IFKRET - conditional return (IF K RET)
+
+Opcode: 0x9D / 0235B. Microcode entry: **IFKRET** micro 000703.
+
+Format: `IF K RET`  (assembler notation)
+
+### Functional pseudocode
+```
+1. if STATUS.K == 1 then                ; micro 000704 COND,K
+       ; perform a return WITH the flag left set:
+       L = B.RETA ; P = B.RETA ; B = B.PREVB
+       ; (K is NOT modified - stays 1)  ; 000705 -> RET_1 004406
+   else
+       fall through to the next instruction (no return)
+                                        ; 000704 INVSEQ -> GET_NEXT
+```
+
+### Operands + datatypes
+None.
+
+### Result / side-effects
+If K set: subroutine return (P,B,L reloaded from frame) with K still set.
+If K clear: no effect, execution continues in-line.
+
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED (tested only; stays as-is - remains 1 on the taken path) |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+Note: unlike RET (which forces K=0), IFKRET does NOT clear K on return - the
+micro path from 000705 to RET_1 carries no K,ZRO/K,ONE, so K keeps its value.
+
+### Traps
+Addressing traps; Stack Underflow (STU); Branch Trap (BT) - only on the taken
+(return) path, via the shared RET_1 routine.
+
+Citation: micro IFKRET 000703-000705 -> RET_1 004406; manual section 13.11,
+"IF K RET" (Page 238).
+
+================================================================================
 ## RETD - return from direct subroutine
 
-- Opcode: 202B (082H)   [manual page 238]
-- Microcode entry: label **RETD** at octal 000700 (MICRO-5800-A30.md line 462)
-- Operation (manual page 238/239): `L -> P`. Load the new program counter from
-  the link register. (Pairs with ENTD; B register is not changed.)
-- Operands: none.
+Opcode: 0x82 / 0202B. Microcode entry: **RETD** micro 000700.
 
-STATUS FLAGS:
+Format: `RETD`
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED | Manual page 239 "Data status bits: Unaffected"; no K micro-op at RETD (line 462) or RETD_1 (004415) |
-| Z | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETD flow |
-| C | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETD flow |
-| O | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETD flow |
-| S | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETD flow |
+### Functional pseudocode
+```
+1. P = L                               ; micro 000700 A,IAC,L LOADLA
+2. (no frame to unwind - the ENTD partner built none)
+   ; RETD_1 004415: reload look-ahead, MIC,RESTU, sequence check, GET_NEXT
+```
 
-TRAP conditions (manual page 239, shared RET-group line): Addressing traps,
-Stack underflow (STU), Branch trap (BT). (RETD does not unwind a stack frame, so
-STU applicability is per the shared group line; the RETD operation itself only
-loads P from L.)
+### Operands + datatypes
+None.
 
----
+### Result / side-effects
+Program counter loaded from the L (link) register. B, PREVB, RETA untouched.
+Paired with ENTD.
 
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | UNCHANGED (no K op) |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+Manual "Data status bits: Unaffected" - agrees; and unlike RET there is no K
+change (no K,ZRO/K,ONE in the RETD path).
+
+### Traps
+Addressing traps; Stack Underflow (STU); Branch Trap (BT).
+
+Citation: micro RETD 000700 -> RETD_1 004415; manual section 13.11, "RETD"
+(Pages 238-239).
+
+================================================================================
+## RETB - buddy subroutine return
+
+Opcode: 0xFE1C / 0177034B. Microcode entry: **RETB** micro 000706.
+
+Format: `RETB`
+
+### Functional pseudocode
+```
+1. 0 -> STATUS.K                       ; micro 000706 K,ZRO
+2. release the current local data area (a heap/buddy element) back to the heap
+   described by the variables the TOS register points at
+                                       ; RETB_1 004363 -> RELBDY 004367 (WRITE)
+3. L = B.RETA ; P = B.RETA ; B = B.PREVB   ; (shared with RET via RET_2 004366)
+```
+
+### Operands + datatypes
+None. (Paired with ENTB.)
+
+### Result / side-effects
+Heap element freed to the buddy heap; P,B,L reloaded from frame; K cleared.
+
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | CLEARED (0 -> K), micro K,ZRO |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+
+### Traps
+Addressing traps; Stack Underflow (STU); Branch Trap (BT).
+
+Citation: micro RETB 000706 -> RETB_1 004363 -> RELBDY 004367 -> RET_2 004410;
+manual section 13.11, "RETB" (Pages 238-239).
+
+================================================================================
+## RETBK - set-flag buddy subroutine return
+
+Opcode: 0xFE1D / 0177035B. Microcode entry: **RETBK** micro 000707.
+
+Format: `RETBK`
+
+### Functional pseudocode
+```
+Identical to RETB but sets the flag:
+1. 1 -> STATUS.K                       ; micro 000707 K,ONE
+2. release heap/buddy local data area back to the heap   ; RETB_1 004363
+3. L = B.RETA ; P = B.RETA ; B = B.PREVB
+```
+
+### Operands + datatypes
+None. (Paired with ENTB.)
+
+### Result / side-effects
+As RETB but K set to 1.
+
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | SET (1 -> K), micro K,ONE |
+| Z | UNCHANGED |
+| C | UNCHANGED |
+| O | UNCHANGED |
+| S | UNCHANGED |
+
+### Traps
+Addressing traps; Stack Underflow (STU); Branch Trap (BT).
+
+Citation: micro RETBK 000707 -> RETB_1 004363 (shared with RETB);
+manual section 13.11, "RETBK" (Pages 238-239).
+
+================================================================================
 ## RETT - trap handler return
 
-- Opcode: 203B (083H)   [manual page 238]. (Source file Rett.c disagrees: claims
-  0176473/0xFD3B. See "OPCODE DISCREPANCIES" above.)
-- Microcode entry: label **RETT** at octal 000710 (MICRO-5800-A30.md line 470);
-  status-restore flow includes **RETT_NSTS** at octal 013440 (line 5934).
-- Operation (manual page 238/239): The register block is loaded from
-  B.arg2..B.arg40. OTE, TEMM, CED and CAS are loaded from the domain information
-  table. The status register is loaded partly from B.arg18..B.arg19 and partly
-  from the domain information table. PREVB and RETA are not used or tested.
-- Operands: none.
+Opcode (emulator): 0xFD3B / 0176473B.  Opcode (manual table): 083H / 0203B.
+(DISAGREEMENT - see the opcode-discrepancy note above.)
+Microcode entry: **RETT** micro 000710.
 
-STATUS FLAGS:
+Format: `RETT`
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | RESTORED from saved trap context (part of the status register loaded from B.arg18..B.arg19 / DIT), NOT computed | Manual page 238/239: "The status register is loaded partly from B.arg18..B.arg19 and partly from the domain information table." Microcode has no K,ONE/K,ZRO write in the RETT flow; status is restored (RETT_NSTS 013440). |
-| Z | RESTORED from saved trap context | Same manual/microcode evidence as K above |
-| C | RESTORED from saved trap context | Same manual/microcode evidence as K above |
-| O | RESTORED from saved trap context | Same manual/microcode evidence as K above |
-| S | RESTORED from saved trap context | Same manual/microcode evidence as K above |
+### Functional pseudocode
+```
+Undo what ENTT saved; return from a trap handler.
+1. reload the register block from B.arg2..B.arg40  ; RETT1 013363.. READ loop
+2. reload OTE, TEMM, CED, CAS from the domain information table
+                                       ; RETT via CED_TO_DIT / NEW_TO_DIT
+3. reload the status register: non-ignorable + fatal status bits from the DIT,
+   the rest from B.arg18..B.arg19       ; i.e. the trapped program's full STATUS
+   (K,Z,C,O,S) is RESTORED, not computed
+4. PREVB and RETA are NOT used/tested.
+5. compare trapped-domain number (saved in DIT) with current CED:
+     if unequal -> change CED back to the trapped domain    ; domain restore
+6. P = trapped P (resume the trapped program)
+```
 
-Note: RETT does NOT clear or set flags to fixed values; it reloads the entire
-status register (all of K/Z/C/O/S) from the saved trap context. Exact bit-by-bit
-provenance (which come from B.arg18..B.arg19 vs the domain information table) =
-UNKNOWN (needs verification against the DIT/status layout).
+### Operands + datatypes
+None.
 
-TRAP conditions (manual page 239, shared RET-group line): Addressing traps,
-Stack underflow (STU), Branch trap (BT). Manual page 235 (ENTT section): "No
-traps are handled locally" for the trap-handler pair.
+### Result / side-effects
+Complete restoration of the trapped program's register block, domain registers,
+and status register; execution resumes at the trapped P (possibly in another
+domain).
 
----
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | RESTORED from saved trap context (DIT / B.arg block) - NOT cleared/computed |
+| Z | RESTORED from saved trap context |
+| C | RESTORED from saved trap context |
+| O | RESTORED from saved trap context |
+| S | RESTORED from saved trap context |
+Manual "Data status bits: Unaffected" is misleading for RETT: the microcode and
+the RETT Operation clause show the ENTIRE status register (including K/Z/C/O/S)
+is LOADED from the saved trap frame + DIT. Treat RETT as "status = restored".
 
-## IF K RET (source: IFKRET) - conditional return if flag set
+### Traps
+Addressing traps; Stack Underflow (STU); Branch Trap (BT).
 
-- Opcode: 235B (09DH)   [manual page 238]
-- Microcode entry: label **IFKRET** at octal 000703 (MICRO-5800-A30.md line 465);
-  test at octal 000704 (`COND,K`), fall-through-to-return tail at octal 000705.
-- Operation (manual page 238):
-  `if STATUS.K = 1 then B.RETA -> P -> L ; B.PREVB -> B endif`.
-  If K is set, perform a subroutine return WITH THE FLAG BIT REMAINING SET;
-  otherwise control goes to the next instruction.
-- Operands: none.
+Citation: micro RETT 000710 -> RETT1 013363 -> RETT2 013373; manual section
+13.11, "RETT" (Pages 238-239).
 
-STATUS FLAGS:
+================================================================================
+## CHAIN - load address of multilevel chain (Wn CHAIN)
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | UNCHANGED. If K==1 a return is taken and K remains SET; if K==0 no return and K remains CLEAR. | Manual page 238: "a subroutine return is performed with the flag bit remaining set." Microcode: octal 000704 uses `COND,K` (a TEST, not a write); the taken-return tail at octal 000705 -> RET_1 contains NO `K,ZRO`/`K,ONE`. So K is never rewritten. |
-| Z | UNCHANGED | Manual page 239 "Data status bits: Unaffected"; no ST,SAVA in IFKRET flow (000703-000705 + RET tail) |
-| C | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in flow |
-| O | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in flow |
-| S | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in flow |
-| STU (trap bit) | SET/RESET at this return (only when a return is actually performed) | Manual page 275 STU note; manual page 239 lists IF K RET among the returns subject to the PREVB/RETA==0 cross-domain / STU rule |
+Opcode: 0xFD6C+(n-1) / 0176554B+(n-1).  (Emulator source octal comment
+"0175554" is a typo; correct is 0176554B, matching the manual.)
+Microcode entry: **CHAIN** micro 000753.
 
-CONTRADICTION TO FLAG (for emulator validation): the nd500x source file
-`/home/ronny/repos/nd500x/src/cpu/instructions/CALL/Ifkret.c` comment claims
-"K: Cleared if return occurs". Both the manual (page 238, "flag bit remaining
-set") AND the microcode (no K,ZRO in the 000704/000705/RET_1 taken path)
-CONTRADICT this: K must remain SET when the return is taken. Emulator must NOT
-clear K on an IF K RET return.
+Format: `Wn CHAIN <address/aa/W>, <offset/r/W>, <no. of levels/r/W>`
 
-TRAP conditions (manual page 239, shared RET-group line): Addressing traps,
-Stack underflow (STU), Branch trap (BT). Source-file note also mentions Address
-trap fetch (ATF) if the return address is invalid; the manual groups this under
-Addressing traps.
+### Functional pseudocode
+```
+1. Wn = <address>                                    ; micro 000753-000754
+2. for i in 1..<no. of levels>:                      ; CHAIN_F02 007432.. loop
+       link = IND(Wn + <offset>)     ; read the next link (word)
+       if link == 0:                 ; CHAIN_F11 007446 COND,MZRO
+             1 -> STATUS.K           ; micro 007443/007451 K,ONE
+             stop the loop; Wn = last element (points at a zero location)
+             -> Illegal Operand Value trap condition
+       else:
+             Wn = link
+3. if <no. of levels> < 0  -> Illegal Operand Value trap
+   if <no. of levels> == 0 -> behaves like a LADDR (just <address> -> Wn)
+4. CHAIN_RES 007454-007455: ST,SAVA saves arithmetic status from the final
+   address value:  S = sign bit of the last address; Z/C/O written from that
+   ALU result.
+```
 
----
+### Operands + datatypes
+`<address>` aa/W (start pointer; typically current B); `<offset>` r/W (B-relative
+offset of the static link); `<no. of levels>` r/W (chain depth).
+Result register `Wn` is the word index register selected by the opcode (n=1..4).
 
-## RETB - buddy subroutine return (clear flag)
+### Result / side-effects
+`Wn` = base address `<no. of levels>` links up the static chain. Used by
+compilers to reach variables of an enclosing procedure.
 
-- Opcode: 177034B (0FE1CH)   [manual page 238, line 8111+]
-- Microcode entry: label **RETB** at octal 000706 (MICRO-5800-A30.md line 468);
-  heap-release tail **RETB_1** at octal 004363 (line 2305).
-- Operation (manual page 238): Local data area released to heap;
-  `0 -> STATUS.K ; B.RETA -> P -> L ; B.PREVB -> B`. The heap element used as the
-  local data area is released to the heap described by the variables pointed at
-  by TOS. Must be used to return from an ENTB-entered routine.
-- Operands: none.
+### Status flags
+| Bit | Effect |
+|-----|--------|
+| K | SET to 1 if a link in the chain is zero (short chain); otherwise (all links non-zero) written by the ST,SAVA at CHAIN_RES - see note |
+| Z | WRITTEN by ST,SAVA from the last-address value (micro 007455). Documented value UNKNOWN in the manual (only S is stated). |
+| C | WRITTEN by ST,SAVA from the last-address value. Documented value UNKNOWN. |
+| O | WRITTEN by ST,SAVA from the last-address value. Documented value UNKNOWN. |
+| S | Sign bit of the last address (manual: "Last address.signbit -> S"; micro ST,SAVA). |
+Manual "Data Status Bits: Last address.signbit -> S". The microcode's ST,SAVA
+at CHAIN_RES 007455 writes the full Z/C/O/S group; the manual only documents S,
+so the exact Z/C/O results are inferred-written but their documented meaning is
+not stated (UNKNOWN). K is set on a zero link (manual + micro K,ONE).
 
-STATUS FLAGS:
+### Traps
+Addressing traps; Illegal Operand Value (IOV: zero link reached, or negative
+<no. of levels>).
 
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | CLEARED (to 0) | Manual page 238 "0 -> STATUS.K". Microcode `K,ZRO` at octal 000706 (line 468). |
-| Z | UNCHANGED | Manual page 239 "Data status bits: Unaffected"; no ST,SAVA in RETB flow |
-| C | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETB flow |
-| O | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETB flow |
-| S | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETB flow |
-| STU (trap bit) | SET/RESET at this return | Manual page 275 |
+Citation: micro CHAIN 000753-000756 -> CHAIN_F01 007426 -> CHAIN_F02/F11
+007432/007446 -> CHAIN_RES 007454; manual section 15.7 (Page 274).
 
-TRAP conditions (manual page 239): Addressing traps, Stack underflow (STU),
-Branch trap (BT).
+================================================================================
+## Category summary table (status bits)
 
----
+| Instr | Opcode (oct) | K | Z | C | O | S | Frame action |
+|-------|--------------|---|---|---|---|---|--------------|
+| CALL   | 0303B   | - | - | - | - | - | stage args, jump to ENT* |
+| CALLG  | 0265B   | - | - | - | - | - | as CALL, general subr operand |
+| ENTM   | 0337B   | - | - | - | - | - | new module stack (cross-domain ok) |
+| ENTD   | 0234B   | - | - | - | - | - | L<-ret only, 0 args |
+| ENTS   | 0270B   | - | - | - | - | - | stack frame |
+| ENTSN  | 0272B   | - | - | - | - | - | stack frame, bounded arg copy |
+| ENTF   | 0335B   | - | - | - | - | - | fixed data area |
+| ENTFN  | 0336B   | - | - | - | - | - | fixed area, bounded arg copy |
+| ENTB   | 0275B   | - | - | - | - | - | heap/buddy element |
+| ENTT   | 0176472B* | save | save | save | save | save | trap-handler entry |
+| RET    | 0200B   | 0 | - | - | - | - | pop frame, K:=0 |
+| RETK   | 0201B   | 1 | - | - | - | - | pop frame, K:=1 |
+| IFKRET | 0235B   | - | - | - | - | - | pop frame IFF K=1 (K kept) |
+| RETD   | 0202B   | - | - | - | - | - | P<-L |
+| RETB   | 0177034B | 0 | - | - | - | - | free heap elem, K:=0 |
+| RETBK  | 0177035B | 1 | - | - | - | - | free heap elem, K:=1 |
+| RETT   | 0176473B* | rest | rest | rest | rest | rest | restore trap context |
+| CHAIN  | 0176554B | 1 if 0-link | wr | wr | wr | sign | follow static chain |
 
-## RETBK - buddy subroutine return (set flag)
+Legend: `-` = unchanged; `0`/`1` = forced; `save` = saved into trap frame;
+`rest` = restored from trap frame/DIT; `wr` = written by ST,SAVA (CHAIN);
+`sign` = sign of last address. `*` = emulator opcode; manual prints a different
+value (ENTT 0274B, RETT 0203B) - unresolved.
 
-- Opcode: 177035B (0FE1DH)   [manual page 238, line 8117]
-- Microcode entry: label **RETBK** at octal 000707 (MICRO-5800-A30.md line 469);
-  shares the RETB_1 heap-release tail (octal 004363).
-- Operation (manual page 238): Local data area released to heap;
-  `1 -> STATUS.K ; B.RETA -> P -> L ; B.PREVB -> B`. Identical to RETB except it
-  SETS K.
-- Operands: none.
+================================================================================
+## UNRESOLVED (needs deeper microtrace or authority)
 
-STATUS FLAGS:
-
-| Flag | Effect | Evidence |
-|------|--------|----------|
-| K | SET (to 1) | Manual page 238 "1 -> STATUS.K". Microcode `K,ONE` at octal 000707 (line 469). |
-| Z | UNCHANGED | Manual page 239 "Data status bits: Unaffected"; no ST,SAVA in RETBK flow |
-| C | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETBK flow |
-| O | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETBK flow |
-| S | UNCHANGED | Manual "Data status bits: Unaffected"; no ST,SAVA in RETBK flow |
-| STU (trap bit) | SET/RESET at this return | Manual page 275 |
-
-TRAP conditions (manual page 239): Addressing traps, Stack underflow (STU),
-Branch trap (BT).
-
----
-
-## Summary table (K flag and arithmetic data status bits)
-
-| Instr | Opcode (oct/hex, manual) | K | Z | C | O | S | Other |
-|-------|--------------------------|---|---|---|---|---|-------|
-| CALL   | 303B / 0C3H | unch | unch | unch | unch | unch | CT trap on execute |
-| CALLG  | 265B / 0B5H | unch | unch | unch | unch | unch | CT trap on execute |
-| CHAIN  | 176554B+(n-1) / 0FD6CH+(n-1) | SET if zero link else CLEAR | ST,SAVA (only S documented) | ST,SAVA (only S documented) | ST,SAVA (only S documented) | = last addr sign bit | IOV trap on zero link / negative levels |
-| ENTS   | 270B / 0B8H | unch | unch | unch | unch | unch | STO set/reset |
-| ENTSN  | 272B / 0BAH | unch | unch | unch | unch | unch | STO set/reset |
-| ENTD   | 234B / 09CH | unch | unch | unch | unch | unch | - |
-| ENTF   | 335B / 0DDH | unch | unch | unch | unch | unch | - |
-| ENTFN  | 336B / 0DEH | unch | unch | unch | unch | unch | - |
-| ENTM   | 337B / 0DFH | unch | unch | unch | unch | unch | STO set/reset |
-| ENTB   | 275B / 0BDH | unch | unch | unch | unch | unch | STO set/reset |
-| ENTT   | 274B / 0BCH (src conflict) | unch (block saved) | unch | unch | unch | unch | saves reg block |
-| RET    | 200B / 080H | CLEAR | unch | unch | unch | unch | STU set/reset |
-| RETK   | 201B / 081H | SET | unch | unch | unch | unch | STU set/reset |
-| RETD   | 202B / 082H | unch | unch | unch | unch | unch | - |
-| RETT   | 203B / 083H (src conflict) | RESTORED | RESTORED | RESTORED | RESTORED | RESTORED | reloads status reg from context |
-| IF K RET | 235B / 09DH | unch (stays set when return taken) | unch | unch | unch | unch | STU set/reset when return taken |
-| RETB   | 177034B / 0FE1CH | CLEAR | unch | unch | unch | unch | STU set/reset; frees heap block |
-| RETBK  | 177035B / 0FE1DH | SET | unch | unch | unch | unch | STU set/reset; frees heap block |
-
-"unch" = UNCHANGED. All effects above confirmed by BOTH the ND-500 Reference
-Manual and the ND-5000 microcode except where noted UNKNOWN or documented in one
-source only (CHAIN Z/C/O; RETT per-bit provenance).
+1. ENTT / RETT opcodes: emulator sources use 0xFD3A / 0xFD3B (0176472B /
+   0176473B); the manual prints 0BCH/0274B (ENTT) and 083H/0203B (RETT). The
+   microcode markdown lists MICRO addresses only, not the macro-opcode ->
+   micro-address dispatch, so which byte the hardware actually decodes is not
+   provable from this trace. Missing: the opcode-to-microaddress dispatch ROM.
+2. CHAIN Z/C/O documented values: the microcode's ST,SAVA at CHAIN_RES 007455
+   writes the full Z/C/O/S group, but the manual documents only S. The
+   architectural meaning of the Z/C/O it writes for CHAIN is UNKNOWN (would
+   need the exact ALU inputs at 007454/007455 decoded to bit level).
+3. CALL/CALLG "Call trap (CT)" trigger: the manual lists CT as a trap
+   condition, but the CT-raising microstep was not identified on the traced
+   CALL/CALLG spine (000644-000653). Missing: where CT is asserted (likely a
+   permission/vector check outside the traced cells).
+4. RET cross-domain / stack-underflow full path (RET_SU 004417 -> RET_DOM00
+   and the DIT reload sequence) was only partially followed; the exact register
+   reload order on a cross-domain return is not fully enumerated here.

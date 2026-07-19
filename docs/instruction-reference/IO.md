@@ -1,188 +1,191 @@
-# ND-500 CPU Instruction Category: IO - Behavior Reference
+# ND-500 Instruction Category: IO
 
-Authoritative behavior reference for the ND-500 CPU instruction category **IO**,
-built to validate the nd500x emulator. Every statement below is taken directly
-from one of the two ground-truth sources named. Anything not confirmed by either
-source is labelled **UNKNOWN (needs verification)**.
+Functional behavior reference built by TRACING THE 5800 MICROCODE
+(`/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`), decoding fields via
+`/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`, and cross-checking documented
+intent against the ND-500 Reference Manual
+(`/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`).
 
-## Sources
+Rule of evidence: statements below are taken from the actual microcells and the
+manual. Anything not directly derivable from those is marked UNKNOWN or inferred.
 
-- PRIMARY spec (architectural behavior):
+Category source directory: `/home/ronny/repos/nd500x/src/cpu/instructions/IO/`
+Instructions in this category (one .c file each):
+
+- `Riom.c` -> RIOM
+
+---
+
+## RIOM - Read I/O Processor Memory
+
+- Mnemonic / assembly form: `H RIOM <ND-100 addr/r/W>,<buffer/w/H>,<no of halfwords>`
+- Opcode: octal `0177166` (hex `0xFE76`, decimal 65142)
+- Class: IO, privileged
+- Operand count: 3
+- Manual section: 16.23 (Reference Manual page 297/311)
+
+### Microcode routine (ground truth)
+
+Entry dispatch (operand-fetch stage, ORCON=04 = OR A/D from operand specifier):
+
+```
+000745 RIOM   : ALU,A A,ALU,REG37 B,X1 D,SC1  READ ADACT ORCON=04  -> 000746
+000746        : ALU,A A,BM01     B,X1 D,SC2                        -> RIOM_0 (011271)
+```
+
+Privilege check:
+
+```
+011271 RIOM_0 : ALU,A   A,BM01    B,X1 D,SC2                       -> 011272
+011272        : ALU,AND A,MIC,STS B,SC2                            -> 011273
+011273        : ALU,FZRO A,BM00   B,X1  C,SEQ COND,MZRO  -> ILLEG (000200) on zero
+```
+
+Operand address setup:
+
+```
+011274 RIOM_1 : ALU,XOR A,BM00 B,X1  G,OPS                        -> 011275
+011275        : ALU,A A,ALU,REG37 B,X1 D,SC2  G,OPS LADDR EA2SAVE ADACT ORCON=04 -> 011276
+011276        : ALU,A A,ALU,REG37 B,X1 D,LC   READ ADACT ORCON=04 -> 011277
+011277        : ALU,A EXUC A,SC1 B,X1 D,DAC,DPA COND,MSEXO         -> DUMMY (pipeline break)
+011300        : ALU,FZRO EXUC A,BM00 B,X1  AD_ARTI=1 EA2SAVE ADACT AA=6 AB=1 IX*8 ORCON=0x3E -> DUMMY
+011301        : ALU,FZRO A,BM00 B,X1  T,JMP AD_ARTI=1 EA1SAVE ADACT AA=2 AB=1 IX*8 ORCON=0x3E -> RIOM_2
+```
+
+Transfer loop:
+
+```
+011302 RIOM_2 : ALU,FZRO A,BM00 B,X1 LCDECR C,SEQ T,JMP INVSEQ COND,LCZ
+                AD_ARTI=1 EA1SAVE ADACT AA=5 AB=1 ORCON=0x02  -> RIOM_3 while LC!=0
+011303        : ALU,FZRO A,BM00 B,X1 T,JMP -> GET_NEXT (003231)   (loop exit, LC==0)
+011304 RIOM_3 : ALU,A  TYP,HW A,DATA B,X1 D,SC1  RD,POF           -> 011305   (read halfword src)
+011305        : ALU,XOR TYP,HW A,BM00 B,X1  AD_ARTI=1 EA2SAVE ADACT AA=6 AB=1 ORCON=0x02 -> 011306
+011306        : ALU,A  TYP,HW A,SC1  B,X1  WRITE                  -> RIOM_2   (write halfword dst)
+```
+
+Field decode used above (from mnemonics.md):
+- `A,MIC,STS` = MIC status bits; `ALU,AND ... COND,MZRO -> ILLEG` = privilege/mode
+  bit test; branch to ILLEG (the illegal-instruction handler at octal 000200) when
+  the masked bit is zero. This is the IIC (Illegal Instruction Code) trap.
+- `LADDR` = ladder (address-translation) request; `EA1SAVE`/`EA2SAVE` = save computed
+  address into EA1/EA2 (and EAO); `ADACT` = address-arithmetic activate; `AD_ARTI=1`
+  with AA/AB = pointer increment (AA=5 EA1, AA=6 EA2, AB=1 MARG stride).
+- `D,LC` = load Loop Counter; `LCDECR` = decrement LC; `COND,LCZ` + `INVSEQ` = loop
+  while LC != 0.
+- `RD,POF` = physical read with MMS (read source halfword); `WRITE` = write data
+  memory (store halfword to ND-500 buffer). `TYP,HW` = 16-bit halfword element.
+- No `ST,SAVA` / `ST,SAV*` / `K,*` appears anywhere in 000745-011306: the routine
+  writes NO arithmetic status and NO K flag.
+
+### Functional pseudocode (traced data path)
+
+```
+RIOM src_addr(op0, W, read), buffer(op1, H, write addr), count(op2, halfwords):
+
+  1. Fetch operand 0 (ND-100 physical address, Word):  SC1 <- value(op0)
+  2. Privilege check:
+        if (MIC.STS AND privilege_mask) == 0:
+            trap ILLEG            ; Illegal Instruction Code (IIC) - privileged instr
+  3. Fetch operand 1 (ND-500 buffer, logical address):  EA2 <- address(op1)   ; LADDR translated
+  4. Fetch operand 2 (halfword count):                  LC  <- value(op2)
+  5. DAC.DPA <- SC1                                      ; source physical data address
+     EA1 <- source pointer,  EA2 <- destination pointer  ; initialized via AD_ARTI
+  6. loop (RIOM_2):
+        if LC == 0: goto GET_NEXT          ; done, fetch next instruction
+        LC <- LC - 1
+        EA1 <- EA1 + stride                ; advance source (halfword)
+        h  <- read_halfword(source)        ; RD,POF, TYP,HW   -> SC1
+        EA2 <- EA2 + stride                ; advance destination (halfword)
+        write_halfword(destination, SC1)   ; WRITE, TYP,HW
+        goto loop
+  7. (fall out of loop) -> GET_NEXT
+```
+
+Note: the ND-100 source is read via DMA/physical-read path (`RD,POF`, DAC.DPA set
+from the ND-100 address). Per manual, this does not interrupt ND-100 execution.
+
+### Operands and datatypes
+
+| # | Role | Direction | Datatype | Microcode evidence |
+|---|------|-----------|----------|--------------------|
+| 0 | ND-100 physical source address | read | Word (W, 32-bit) | 000745 READ -> SC1; manual `<ND-100 addr/r/W>` |
+| 1 | ND-500 destination buffer (logical addr) | write | Halfword (H, 16-bit) | 011275 LADDR EA2SAVE (addr only); loop WRITE TYP,HW |
+| 2 | Count = number of halfwords | read | Word/count | 011276 READ -> D,LC (loop counter) |
+
+The `H` instruction prefix selects halfword (16-bit) transfer units (loop cells use
+`TYP,HW`).
+
+### Result / side-effects
+
+- `count` halfwords are copied from ND-100 (I/O processor) memory into the ND-500
+  buffer, one halfword per loop pass (source and destination pointers both advance
+  by one halfword each pass; LC counts down to 0).
+- Registers used internally: SC1 (source addr / transfer temp), SC2 (privilege mask
+  scratch), EA1 (source pointer), EA2 (destination pointer), LC (count), DAC.DPA
+  (source physical data address). These are microarchitectural scratch, not
+  programmer-visible ND-500 registers.
+- No programmer-visible general register is modified by the transfer itself.
+
+### Status flags
+
+Microcode ground truth: NO `ST,SAVA`, `ST,SAVC`, `ST,SAVF`, `ST,LOAD`, `K,ONE`,
+`K,ZRO`, or `K,1IFZ` field appears in any RIOM microcell (000745-011306). No status
+is written. Manual 16.23 states verbatim: "Data status bits: Unaffected." The flag
+summary table (manual line ~15046) row RIOM shows no data-status writes.
+
+| Flag | Effect | Basis |
+|------|--------|-------|
+| K | UNCHANGED | no K,* field in routine; manual "unaffected" |
+| Z | UNCHANGED | no ST,SAV* in routine; manual "unaffected" |
+| C | UNCHANGED | no ST,SAV* in routine; manual "unaffected" |
+| O | UNCHANGED | no ST,SAV* in routine; manual "unaffected" |
+| S | UNCHANGED | no ST,SAV* in routine; manual "unaffected" |
+
+Manual rule 4040 (unmentioned data-status bits are CLEARED) does NOT apply here:
+the manual explicitly declares all data status bits Unaffected, and the microcode
+confirms by never issuing a status-save, so every bit is preserved, not cleared.
+
+### Trap conditions
+
+- IIC (Illegal Instruction Code): raised by the microcode privilege test at
+  011272-011273 (`MIC.STS AND mask == 0 -> ILLEG` at octal 000200). RIOM is a
+  privileged instruction; executing it without the required privilege bit traps.
+  (Manual: "Privileged instruction." / trap "Illegal instruction code (IIC)".)
+- Addressing traps: raised by the address-translation / memory path
+  (`LADDR` at 011275, `RD,POF` at 011304, `WRITE` at 011306) on page fault,
+  protection violation, or invalid address of source or destination.
+  (Manual: "Addressing traps".)
+- IOV (Illegal Operand Value): documented by manual as a trap condition. The exact
+  microcell that raises IOV is NOT isolated in this trace; it is most plausibly
+  raised during operand fetch / address arithmetic for an invalid count or address,
+  but that specific check is UNKNOWN from the traced cells (see Unresolved).
+
+### Microcode vs manual vs C implementation
+
+- Microcode and manual AGREE: privileged (IIC on privilege failure), DMA halfword
+  copy from I/O processor memory to an ND-500 buffer, all data status bits
+  Unaffected.
+- DISAGREEMENT with the C emulator source
+  `/home/ronny/repos/nd500x/src/cpu/instructions/IO/Riom.c`:
+  1. Riom.c SETS Z if count==0 and CLEARS Z otherwise (lines ~258-262). This
+     contradicts BOTH the microcode (no ST,SAV*) and the manual ("Data status bits:
+     Unaffected"). Per ground truth, RIOM must leave Z (and all flags) UNCHANGED.
+  2. Riom.c does NOT perform the privilege (IIC) check - it has a TODO for PIA and
+     "for now, we allow the instruction to execute" (lines ~166-169). The microcode
+     performs a mandatory MIC.STS privilege test and traps to ILLEG when unset.
+  3. Riom.c range-checks count to 16 bits and ND-100 address to 22 bits and raises
+     `trap_illegal_operand`; the specific bit-widths and IOV trigger are not
+     confirmed by the traced microcode (UNKNOWN origin) - treat as inferred.
+
+### Citations
+
+- Microcode: label RIOM at octal 000745 / 000746; RIOM_0 011271; RIOM_1 011274;
+  RIOM_2 011302; RIOM_3 011304-011306; ILLEG 000200; GET_NEXT 003231.
+  File: `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md` (lines 499-500,
+  4806-4820, 142, 1703).
+- Field decode: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
+  (STATUS/ST,SAVA table ~line 646-665; MEMORY READ/WRITE/RD,POF ~885-901;
+  LC_DECR ~683; COND,LCZ ~784; EA_SAVE ~903-912; TYP,HW ~234).
+- Manual: ND-500 Reference Manual section 16.23 "Read I/O processor memory",
   `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-- GROUND-TRUTH flag micro-behavior (ND-5000 microcode):
-  `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-- Micro-op field decode:
-  `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
-
-## Category membership
-
-Source of truth for the instruction set of this category is the emulator source
-directory `/home/ronny/repos/nd500x/src/cpu/instructions/IO/`.
-
-```
-/home/ronny/repos/nd500x/src/cpu/instructions/IO/Riom.c
-```
-
-The IO category contains exactly ONE instruction:
-
-| File    | Mnemonic |
-|---------|----------|
-| Riom.c  | RIOM     |
-
----
-
-## Microcode flag semantics (how flags are decoded from the microcode)
-
-Per `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`, the architectural status /
-condition flags are written ONLY by the STATUS field (bits 75-72). Its relevant
-values are:
-
-| Value | Mnemonic  | Effect (from mnemonics.md line) |
-|-------|-----------|---------------------------------|
-| 0     | (hold)    | Hold status unchanged (mnemonics.md:652) |
-| 1     | K,ONE     | Set K (flag) to 1 (mnemonics.md:653) |
-| 2     | K,ZRO     | Clear K (flag) to 0 (mnemonics.md:654) |
-| 3     | K,1IFZ    | Set K to 1 if ALU result is 0 (mnemonics.md:655) |
-| 4     | ST,SAVA   | Save status from ALU operation - updates Z/C/O/S (mnemonics.md:656) |
-| 5-14  | ST,SAVC / ST,SAVF / ST,SAVB / ST,LOAD / ST,SAVM / ST,ACC* | other status-save forms (mnemonics.md:657-664) |
-
-IMPORTANT decode note: `COND,MSEXO`, `COND,MZRO`, `COND,LCZ`, `INVSEQ` are
-microsequencer TEST conditions for the `T,JMP` micro-branch (mnemonics.md:766,
-771, 784, 749). They select which micro-address executes next; they do NOT write
-the architectural status register. Only a STATUS-field value of 1..14 (K,* or
-ST,*) writes an architectural flag. A micro-op that carries no K,*/ST,* mnemonic
-holds all flags unchanged.
-
----
-
-## RIOM - Read I/O processor memory
-
-### Opcode
-
-| Form | Hex code | Octal code | Decimal |
-|------|----------|------------|---------|
-| RIOM | 0xFE76   | 0177166    | 65142   |
-
-Source: ND-500 Reference Manual section 16.23 (manual line 10832) and the
-instruction code table (manual line 14359). Confirmed against the emulator
-header `/home/ronny/repos/nd500x/src/cpu/instructions/IO/Riom.c:11`.
-
-### Assembly format
-
-    H RIOM <ND-100 addr/r/W>, <buffer/w/H>, <no of halfwords>
-
-Source: manual line 10828 (section 16.23). The leading `H` is the halfword
-data-type prefix (manual page-382 table lists it as `Hn RIOM`, manual line 13534).
-
-### One-line operation
-
-I/O processor (ND-100) memory -> ND-500 memory. Copies halfwords from ND-100
-physical memory into an ND-500 logical buffer via DMA. Privileged instruction.
-Source: manual section 16.23 "Operation: I/O processor memory -> ND-500 memory"
-(manual line ~10840) and "Description" (manual lines 10842-10846).
-
-### Operands
-
-Per manual section 16.23 format line (manual line 10828):
-
-| # | Role                 | Access | Data type | Notes |
-|---|----------------------|--------|-----------|-------|
-| 1 | `<ND-100 addr>`      | read   | W (word)  | Physical ND-100 address, usually private ND-100 memory not directly addressable by the ND-500 (manual line 10844). |
-| 2 | `<buffer>`           | write  | H (halfword) | Logical ND-500 address (manual line 10844). |
-| 3 | `<no of halfwords>`  | read   | (count)   | Number of halfwords to transfer (manual example: 1024). |
-
-Addressing-mode legend for RIOM, manual line 15046
-(`| RIOM | :A | : | :A | :A A A:A | : | * |`, columns BI BY H W F D): read as
-the per-datatype operand addressing-mode matrix from the manual's addressing
-table. Exact per-column expansion is UNKNOWN (needs verification) without the
-legend key for that table.
-
-### Microcode entry points
-
-Category-decode entry (dispatch): microcode octal `000745` label **RIOM**
-(MICRO-5800-A30.md:499), falling through `000746` to label **RIOM_0** at octal
-`011271` (MICRO-5800-A30.md:500, 4807). Main body:
-
-| Octal  | Label   | Role (from micro-op) |
-|--------|---------|----------------------|
-| 000745 | RIOM    | operand fetch, READ, ADACT (MICRO-5800-A30.md:499) |
-| 000746 |         | -> RIOM_0 (MICRO-5800-A30.md:500) |
-| 011270 |         | G,OOPS -> RIOM_0 (MICRO-5800-A30.md:4806) |
-| 011271 | RIOM_0  | (MICRO-5800-A30.md:4807) |
-| 011272 |         | ALU,AND A,MIC,STS B,SC2 - AND the MIC status/mode bits (MICRO-5800-A30.md:4808) |
-| 011273 |         | C,SEQ T,JMP COND,MZRO -> ILLEG : privilege/mode trap if result zero (MICRO-5800-A30.md:4809) |
-| 011274 | RIOM_1  | G,OPS (MICRO-5800-A30.md:4810) |
-| 011275 |         | LADDR EA2SAVE ADACT - form destination (buffer) address (MICRO-5800-A30.md:4811) |
-| 011276 |         | D,LC READ ADACT - load loop counter, read source (MICRO-5800-A30.md:4812) |
-| 011277 |         | DAC,DPA -> DUMMY (MICRO-5800-A30.md:4813) |
-| 011300 |         | EA2SAVE (MICRO-5800-A30.md:4814) |
-| 011301 |         | EA1SAVE -> RIOM_2 (MICRO-5800-A30.md:4815) |
-| 011302 | RIOM_2  | LCDECR C,SEQ T,JMP INVSEQ COND,LCZ - decrement loop counter, test loop-counter-zero (MICRO-5800-A30.md:4816) |
-| 011303 |         | -> GET_NEXT : loop exit (MICRO-5800-A30.md:4817) |
-| 011304 | RIOM_3  | ALU,A TYP,HW ... RD,POF - physical read of one halfword (MICRO-5800-A30.md:4818) |
-| 011305 |         | TYP,HW EA2SAVE (MICRO-5800-A30.md:4819) |
-| 011306 |         | ALU,A TYP,HW ... WRITE -> RIOM_2 : write halfword to ND-500, loop back (MICRO-5800-A30.md:4820) |
-
-### STATUS FLAGS
-
-Manual section 16.23 states explicitly: **"Data status bits: Unaffected"**
-(manual line ~10847, the line immediately preceding the RIOM example).
-
-Microcode confirmation: across ALL RIOM micro-ops listed above (octal 000745,
-000746, 011270-011306), NONE carries a STATUS-field flag-write mnemonic - there
-is no `ST,SAVA`, `ST,SAVC`, `ST,SAVF`, `K,ONE`, `K,ZRO`, or `K,1IFZ` anywhere in
-the RIOM microcode. The `COND,MZRO` / `COND,LCZ` / `COND,MSEXO` tokens present
-are microsequencer branch conditions (see decode note above), not flag writes.
-Therefore the microcode holds every architectural flag unchanged.
-
-| Flag | Effect     | Manual citation | Microcode citation |
-|------|------------|-----------------|--------------------|
-| K    | UNCHANGED  | "Data status bits: Unaffected" (manual sec 16.23) | STATUS field = (hold) on every RIOM micro-op; no K,* mnemonic (MICRO-5800-A30.md:499-500, 4806-4820) |
-| Z    | UNCHANGED  | "Data status bits: Unaffected" (manual sec 16.23) | no ST,SAV*/K,1IFZ writing Z (MICRO-5800-A30.md:499-500, 4806-4820) |
-| C (carry)    | UNCHANGED | "Data status bits: Unaffected" (manual sec 16.23) | no ST,SAVA (MICRO-5800-A30.md:499-500, 4806-4820) |
-| O (overflow) | UNCHANGED | "Data status bits: Unaffected" (manual sec 16.23) | no ST,SAVA (MICRO-5800-A30.md:499-500, 4806-4820) |
-| S (sign)     | UNCHANGED | "Data status bits: Unaffected" (manual sec 16.23) | no ST,SAVA (MICRO-5800-A30.md:499-500, 4806-4820) |
-
-No other architectural flag is written by RIOM in either source.
-
-### TRAP conditions
-
-Manual section 16.23 (manual line ~10847): **"Trap conditions: Addressing
-traps, Illegal instruction code (IIC), Illegal operand value (IOV)"**.
-
-Microcode corroboration:
-
-- Illegal instruction code (IIC) / privilege: octal `011272` ANDs the MIC status
-  bits (`A,MIC,STS`), and `011273` does `T,JMP COND,MZRO -> ILLEG`, i.e. if the
-  mode/privilege test yields zero it branches to the ILLEG trap handler
-  (MICRO-5800-A30.md:4808-4809). This is the privileged-instruction check.
-- Addressing traps: the transfer uses `LADDR` (ladder / address request),
-  `ADACT` (address arithmetic activate), `RD,POF` (physical read with MMS) and
-  `WRITE` micro-ops (octal 011275, 011276, 011304, 011306;
-  MICRO-5800-A30.md:4811-4812, 4818, 4820); these memory-access requests are the
-  point at which addressing/protection traps are raised.
-- Illegal operand value (IOV): stated by the manual. The exact micro-address
-  that raises IOV for RIOM is UNKNOWN (needs verification) - not isolated in the
-  RIOM micro-op block examined.
-
----
-
-## Emulator discrepancy note (for validation)
-
-The manual and the microcode BOTH say RIOM leaves all status flags unchanged
-("Data status bits: Unaffected"; no STATUS-field write in any RIOM micro-op).
-
-The current emulator implementation
-`/home/ronny/repos/nd500x/src/cpu/instructions/IO/Riom.c:255-262` instead SETS
-the Z flag when `count == 0` and CLEARS it otherwise:
-
-```c
-if (count == 0) {
-    nd500_set_flag(cpu, ND500_FLAG_Z);
-} else {
-    nd500_clear_flag(cpu, ND500_FLAG_Z);
-}
-```
-
-This contradicts both ground-truth sources: RIOM should NOT touch Z (or any
-flag). This is flagged for verification/fix, not changed here.
+  (lines 10826-10852; flag table line ~15046).

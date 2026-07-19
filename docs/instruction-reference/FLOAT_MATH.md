@@ -1,783 +1,855 @@
-# ND-500 Instruction Behavior Reference: FLOAT_MATH
+# ND-500 Instruction Reference: FLOAT_MATH
 
-Authoritative behavior reference for the FLOAT_MATH instruction category, for
-validating the nd500x emulator. Every statement below is taken directly from one
-of the two ground-truth sources; nothing is inferred unless explicitly labelled.
+Functional behaviour reference for the FLOAT_MATH instruction category, built by
+tracing the ND-5000/5800 microcode and cross-checking the ND-500 Reference Manual.
 
-## Sources
+Sources:
+- Microcode: `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
+- Field decode: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
+- Manual: `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+- Emulator sources: `/home/ronny/repos/nd500x/src/cpu/instructions/FLOAT_MATH/*.c`
 
-1. PRIMARY SPEC (architectural truth):
-   `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-   - Chapter 12 MATHEMATICAL FUNCTIONS (sections 12.3 - 12.15)
-   - Chapter 15 MISCELLANEOUS INSTRUCTIONS (sections 15.2 Data type conversion,
-     15.3 Data type conversion with rounding)
-   - Chapter 17 (sections 17.9 PWCONV, 17.10 WPCONV)
-
-2. GROUND-TRUTH MICROCODE (ND-5000 implementation):
-   `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-   Field mnemonics decoded via
-   `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
-
-## Category source files (nd500x)
-
-`/home/ronny/repos/nd500x/src/cpu/instructions/FLOAT_MATH/*.c` - 25 files:
-Acos, Alog, Alog10, Alog2, Asin, Atan, Atan2, Biconv, Byconr, Byconv, Cos,
-Dconv, Exp, Fconr, Fconv, Hconr, Hconv, Poly, Pwconv, Sin, Sqrt, Tan, Wconr,
-Wconv, Wpconv.
+Note on evidence: everything below is read directly from the microcode listing,
+the field-decode table, or the manual. Items that could not be resolved from
+those sources are marked UNKNOWN. No behaviour is invented.
 
 ---
 
-## Flag model and how it is read from the two sources
+## 0. Shared facts (read once)
 
-STATUS flags examined for every instruction (per task): K, Z, C (carry),
-O (overflow), S (sign), plus any additional documented bits.
+### 0.1 Data status bits (ND-500 status register, manual section 6.5.1)
 
-### From the PRIMARY SPEC
+| Code | Name               | Bit |
+|------|--------------------|-----|
+| Z    | zero               | 5   |
+| C    | carry              | 6   |
+| S    | sign               | 7   |
+| O    | overflow (integer) | 9   |
+| IVO  | invalid operation  | 11  |
+| DZ   | divide by zero     | 12  |
+| FU   | floating underflow | 13  |
+| FO   | floating overflow  | 14  |
+| BO   | BCD overflow       | 15  |
 
-Each manual section has a "Data status bits" block. The manual only ever lists
-the bits it defines for that instruction; a bit NOT listed is NOT documented by
-the manual as being affected. The bits used in this category are:
+Manual rule (6.5.1, verbatim): "Bits that are set, reset or left unaffected are
+mentioned explicitly. **All data status bits not mentioned are reset.**"
+This is the rule used below to resolve every flag the flag-only pass left UNKNOWN:
+if the manual's per-instruction "Data status bits" list does not name a bit, that
+bit is CLEARED by the instruction.
 
-- Z  = result is zero
-- S  = result sign bit
-- O  = integer overflow
-- FO = floating overflow
-- FU = floating underflow
-- BO = BCD overflow
-- K  = "error / trouble" flag (documented only for PWCONV and WPCONV in this
-       category)
+Manual facts used repeatedly:
+- C: "may be set only when performing integer arithmetic; otherwise it is cleared."
+  Every FLOAT_MATH instruction produces a floating result or a conversion, so C is
+  CLEARED unless the instruction is an integer<->integer conversion (still cleared,
+  because conversions are pass/sign-extend/truncate, not carry-generating adds).
+- O: integer overflow only. Floating overflow is reported in FO, not O.
+- Floating overflow/underflow in a long instruction (POLY) traps at completion, not
+  at the intermediate step; Z and S reflect the final result.
 
-### From the MICROCODE (mnemonics.md, STATUS field bits 75-72)
+### 0.2 The "K" flag
 
-The micro-op in the STATUS field that actually writes the condition flags:
+K is NOT one of the defined ND-500 data status bits in table 6.5.1 (the architectural
+data bits are Z, C, S, O, IVO, DZ, FU, FO, BO). K appears as an architectural result
+bit ONLY in the two packed-decimal conversions in this category:
+- PWCONV: `IVO or O -> K`
+- WPCONV: `BO -> K`
 
-| Value | Mnemonic    | Meaning (verbatim from mnemonics.md)          |
-|-------|-------------|-----------------------------------------------|
-| 0     | (hold)      | Hold status unchanged                         |
-| 1     | K,ONE       | SET K (FLAG) 1 TO K                            |
-| 2     | K,ZRO       | CLEAR K (FLAG) 0 TO K                          |
-| 3     | K,1IFZ      | SET K TO 1 IF ALU OPERATION IS 0              |
-| 4     | ST,SAVA     | SAVE STATUS FROM ALU OPERATION (Z/C/O/S)      |
-| 5     | ST,SAVC     | SAVE STATUS FROM ALU IN COMPARE               |
-| 6     | ST,SAVF     | SAVE STATUS FROM FLOATING OPERATION           |
-| 7     | ST,SAVB     | SAVE STATUS FROM BCD OPERATION                |
-| 8     | ST,LOAD     | LOAD ALU STATUS                               |
-| 9     | ST,SAVM     | SAVE MIXED STATUS FOR INTEGER MULTIPLY        |
-| 12    | ST,ACCA     | SAVE AND ACCUMULATE ALU STATUS                |
+In the microcode, K is an internal condition flag written by `K,ONE` / `K,ZRO` /
+`K,1IFZ` (STATUS field values 1/2/3) and tested by `COND,K`. For every other
+FLOAT_MATH instruction the manual does not list K as affected, so in the tables
+below K is reported UNCHANGED for those (with the architectural bit position of K
+noted UNKNOWN - it is not enumerated in 6.5.1).
 
-NOTE: the task brief mentions `K,1IFFZ`; that mnemonic does NOT appear in
-mnemonics.md. The documented conditional-K op is `K,1IFZ` (value 3). Stated as
-read, not assumed.
+### 0.3 How the transcendental functions are implemented (traced mechanism)
 
-### Observed microcode flag-finalization pattern (ground truth)
+SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, EXP, ALOG, ALOG2, ALOG10, SQRT and POLY are
+NOT trapped to software - they are microcoded polynomial (Horner) approximations run
+in the AAP2 floating-point unit. The common data path, traced from the entry cells at
+octal 001354-001513 into the compute bodies at 024254-025702 and the shared loop at
+025424:
 
-For the CHAPTER-12 transcendental/POLY/SQRT instructions the microcode routine
-ends by forcing the float result through the ALU (`ALU,FZRO` = "FORCE ZERO ALU
-OUTPUT", i.e. a zero/sign test of the result) with `ST,SAVA` set, then jumps to
-the common float write-back `FWRITE_0` (octal 017544) / `DWRITE_0`
-(octal 017545). Example finalize steps verified:
-- `024636` ASINF_6:  `... ST,SAVA ... ADDR=FWRITE_0`
-- `025026` ATANF_ANGLE: `... ST,SAVA ... ADDR=FWRITE_0`
-- `024350` SINF_3:   `ALU,FZRO ALUF,XOR ... ST,SAVA ... ADDR=FWRITE`
+1. Entry cell (e.g. `SINF` @ 001354): `ALU,A TYP,DR A,ALU,REG37 ... D,SC5 ... READ
+   ADACT` - reads the argument operand from data memory (READ) into scratch SC5; the
+   `TYP,DR` datatype is resolved by the operand specifier (F vs D chosen by the
+   opcode's own entry point, not by TYP).
+2. Argument reduction / sign handling (routine-specific cells, e.g. SINF_0..SINF_5,
+   which mask the sign with `A,BM37`/`ALU,ANDCA`, range-reduce, and set a quadrant/
+   sign selector).
+3. Coefficient load: `... A,SARG SARG=00xxxx ... D,RFA1 ... T,LOAD IX*n` (e.g.
+   SINF_CONST @ 017075) points the AAP scratch register-file address RFA1 at a
+   coefficient table.
+4. Horner loop `POLLYF*` (025424) / `POLLYD*` (025434):
+   `AAP2,MUL TYP,F A,RF1D B,SC3` (multiply accumulator by x, pull next coeff via
+   auto-decrementing RF1D) then `POLLYF++`/`POLLYF**`: `AAP2,ADD TYP,F A,RF1D B,SC11`
+   (add next coefficient), decrement the loop counter `LCDECR`, loop until `COND,LCZ`
+   (`F,RETURN,F,POP`). `AAPSYNC` waits for each AAP result.
+5. Write-back `FWRITE_AAP` (026044) / `DWRITE_AAP`: `... D,ALU,REG37 ST,SAVF ...
+   G,OOPS WRITE` - stores the AAP result into the destination float/double register
+   and executes `ST,SAVF` = "SAVE STATUS FROM FLOATING OPERATION". This is the cell
+   that writes the architectural Z/S (and FO/FU on over/underflow) from the floating
+   result. `G,OOPS` fetches the next macro-instruction.
 
-`ST,SAVA` writes the full ALU status word (Z/C/O/S). The manual only DEFINES the
-meaning of Z and S for these results. Therefore C and O are physically written
-by the microcode but their post-conditions are NOT architecturally documented
-for a float pass-through; they are reported below as UNKNOWN rather than guessed.
+`ST,SAVF` is the floating-status save; the floating AAP condition sources are
+`COND,MFS` (S), `COND,MFO` (FO), `COND,MFU` (FU), `COND,MDZ` (DZ). Because the write
+is a floating operation, C and O are CLEARED (integer-only bits, per 0.1).
 
-The CHAPTER-15 CONV/CONR routines likewise finalize with `ST,SAVA` before
-`WRITE` (verified at octal `001543`, `001554`, `001557`, `001566`, `001575`).
+### 0.4 How the conversions are implemented (traced mechanism)
 
-Convention used in the per-instruction tables:
-- SET / CLEARED / UNCHANGED / CONDITIONAL(cond) = confirmed by a cited source.
-- UNKNOWN (needs verification) = not defined by the manual AND not isolable in
-  the microcode as a defined post-condition.
+Two microcode families:
+- Integer-to-integer width changes (BICONV/BYCONV/HCONV/WCONV among BI/BY/H/W): pass
+  through the ALU with sign-extend or truncate (`ALU,A`, `ALU,OR`, `TYP,*`), status via
+  `ST,SAVA` ("save status from ALU operation" -> Z,C,S,O). Bodies at 001514-001612 and
+  003173+ (CONV_TO_DBI/BICONVBY_0...).
+- Anything touching float/double uses the AAP:
+  - integer -> float/double: `AAP2,CTF` (convert to floating) then `CTF`/`CTDF`
+    finalizer with `ST,SAVF` and WRITE (e.g. WCONVF @ 002711, BYCONVF @ 002667).
+  - float/double -> integer (truncate): `AAP2,CTI` then the `FL_INT`/`DFL_INT`
+    range/overflow common routine (022652 / 022711) which checks the exponent and
+    sets integer overflow; CTBY/CTHW/CTW (026122/026145/026167) test `COND,OVFL`.
+  - float<->double: `AAP2,CBF` ("convert to other floating format"), e.g. FCONVD,
+    DCONVF, DCONRF @ 002767.
+  - rounding conversions (t2CONR): add the rounding constant `A,BM26` (FCONRBY/H/W @
+    002750/2/4) or use `AAP2,CTIR`/`CBF`, then the same integer/float finalizer.
+- Packed-decimal conversions (PWCONV/WPCONV) use the optional BCD hardware routines
+  (`BCD_BIN` @ 022317 for packed->binary; PACK/BCD_ADD for binary->packed). See notes.
 
 ---
 
-# GROUP A - Chapter 12 mathematical functions
+## 1. SIN - Sine
 
-All Chapter-12 instructions take one float/double register target `Rn`
-(n = 1..4), selected by the low 2 bits of the opcode. Float form uses register
-Fn, double form uses register Dn. Operand `<argument>` is read (`/r/`), any
-addressable type of the matching size.
+- Opcode: Fn SIN 0xFF58-0xFF5B (octal 177530B+(n-1)); Dn SIN 0xFF84-0xFF87 (177604B+(n-1))
 
----
-
-## SQRT - Square root
-
-Manual section 12.4 (page 202).
-
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn SQRT  | 176324B+(n-1)   | 0FCD4H  |
-| Dn (double)| Dn SQRT  | 176330B+(n-1)   | 0FCD8H  |
-
-Operation: `sqrt(<argument>) -> Rn`.
-Operands: 1 (`<argument/r/t>`).
-
-Microcode: entry `SQRTF` octal `001477`, `SQRTD` octal `001501`; result-forming
-steps carry `ST,SAVA` (e.g. `017415` SQRTF_9, `017460` SQRTD_9).
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; SINF/SIND @ 001354/001356, READ->SC5
+2. if |arg| > 65536.0 radians:                ; range guard
+       Rn = 0.0 ; set IVO ; trap InvalidOperation
+3. reduce arg modulo pi/2, capture quadrant + sign   ; SINF_0..SINF_5 @ 024341
+4. y = Horner_polynomial(reduced_arg, sin_coeffs)     ; POLLYF*/POLLYD* @ 025424
+5. apply quadrant sign
+6. Rn = y                                     ; FWRITE_AAP: ST,SAVF, WRITE
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn (n from opcode).
+RESULT: sine(argument) in the addressed float/double accumulator. On range violation
+the destination is set to 0.0.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED (not a documented result bit) | SET if result == 0, else CLEARED | CLEARED (floating op) | CLEARED (floating op; O is integer-only) | SET to result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.4 does not list K; no K micro-op observed in SQRT routine |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.4 "result = 0 -> Z"; microcode `ST,SAVA` at `017460`/`017415` |
-| C | UNKNOWN (needs verification) | Not documented; `ST,SAVA` writes C but semantics undefined for this result |
-| O | UNKNOWN (needs verification) | Not documented by manual 12.4 |
-| S | UNKNOWN (needs verification) | Manual 12.4 lists ONLY Z (S is NOT listed); `ST,SAVA` physically writes S but manual does not define it |
-
-TRAP conditions (Manual 12.4): Addressing traps, Invalid operation (IVO).
-Note: a negative argument gives a result of zero and raises IVO.
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if |argument| > 65536.0.
+CITATION: microcode SINF @ 001354 / SIND @ 001356 -> SINF_0 @ 024341 -> POLLYF* @
+025424 -> FWRITE_AAP @ 026044; manual section 12.5 (Sine).
 
 ---
 
-## POLY - Polynomial evaluation
+## 2. COS - Cosine
 
-Manual section 12.3 (page 201).
+- Opcode: Fn COS 0xFF60-0xFF63 (177540B+(n-1)); Dn COS 0xFF8C-0xFF8F (177614B+(n-1))
 
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn POLY  | 176340B+(n-1)   | 0FCE0H  |
-| Dn (double)| Dn POLY  | 176344B+(n-1)   | 0FCE4H  |
-
-Operation: `<cm>*<x>^m + ... + <c1>*<x> + <c0> -> Rn`.
-Operands: variable - `<x>`, degree `<m>` (constant, 0..255), then m+1
-coefficients `<cm>..<c0>`.
-
-Microcode: entry `POLYF` octal `001503`, `POLYD` octal `001507`.
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; COSF/COSD @ 001364/001366
+2. if |arg| > 65536.0: Rn = 0.0 ; IVO ; trap
+3. cos(x) = sin(x + pi/2): COSF_0 @ 024335 seeds the sine reducer via SINF_CONST
+4. y = Horner_polynomial(reduced_arg, sin_coeffs)     ; POLLYF*
+5. Rn = y                                     ; FWRITE_AAP: ST,SAVF
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: cosine(argument); destination set to 0.0 on range violation.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.3 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.3 "result = 0 -> Z" (reflects FINAL result); microcode float finalize `ST,SAVA` -> FWRITE_0 |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented (see FO/FU below) |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.3 "result.signbit -> S" |
-| FU | CONDITIONAL(set on floating underflow) | Manual 12.3 "floating underflow -> FU" |
-| FO | CONDITIONAL(set on floating overflow) | Manual 12.3 "floating overflow -> FO" |
-
-Manual note: on intermediate overflow/underflow the trap is deferred until the
-instruction completes; Z and S reflect the FINAL result.
-
-TRAP conditions (Manual 12.3): Addressing traps, Floating overflow (FO),
-Floating underflow (FU), Illegal operand specifier (IOS - raised if `<m>` is not
-a positive constant < 256).
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if |argument| > 65536.0.
+CITATION: microcode COSF @ 001364 / COSD @ 001366 -> COSF_0 @ 024335 (shares SINF
+polynomial core) -> FWRITE_AAP; manual section 12.7 (Cosine).
 
 ---
 
-## SIN - Sine
+## 3. TAN - Tangent
 
-Manual section 12.5 (page 203).
+- Opcode: Fn TAN 0xFF68-0xFF6B (177550B+(n-1)); Dn TAN 0xFF94-0xFF97 (177624B+(n-1))
 
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn SIN   | 177530B+(n-1)   | 0FF58H  |
-| Dn (double)| Dn SIN   | 177604B+(n-1)   | 0FF84H  |
-
-Operation: `sine(<argument>) -> Rn`. Argument in radians.
-Operands: 1.
-
-Microcode: entry `SINF` octal `001354`, `SIND` octal `001356` (both carry
-`ST,SAVA`); result finalize `SINF_3` octal `024350` `ST,SAVA` -> FWRITE.
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; TANF/TAND @ 001374/001376
+2. if |arg| > 65536.0: Rn = 0.0 ; IVO ; trap
+3. reduce arg; compute sin-like and cos-like polynomials  ; TANF_0..TANF_5 @ 024410
+4. tan = num / den  (AAP divide)              ; TANF_4/TANF_5 use POLLYF*, AAPSYNC
+5. if den ~ 0 (tan -> infinity): FO trap
+6. Rn = tan                                   ; FWRITE_AAP: ST,SAVF
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: tangent(argument); destination set to 0.0 on range violation. Near pi/2+n*pi
+the quotient overflows.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.5 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.5 "result = 0 -> Z"; microcode `ST,SAVA` @ `024350` |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.5 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.5): Addressing traps, Invalid operation (IVO).
-Note: |argument| > 65536.0 radians raises IVO and sets the register to zero.
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if |argument| > 65536.0.
+The emulator source also raises Floating Overflow (FO) near the pole; the manual lists
+only IVO for TAN, so FO-at-pole is emulator behaviour, not manual-documented (noted as
+a disagreement).
+CITATION: microcode TANF @ 001374 / TAND @ 001376 -> TANF_0 @ 024410 -> POLLYF* ->
+FWRITE_AAP; manual section 12.9 (Tangent).
 
 ---
 
-## ASIN - Arc sine
+## 4. ASIN - Arc sine
 
-Manual section 12.6 (page 204).
+- Opcode: Fn ASIN 0xFF5C-0xFF5F (177534B+(n-1)); Dn ASIN 0xFF88-0xFF8B (177610B+(n-1))
 
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn ASIN  | 177534B+(n-1)   | 0FF5CH  |
-| Dn (double)| Dn ASIN  | 177610B+(n-1)   | 0FF88H  |
-
-Operation: `arcsine(<argument>) -> Rn`. Result in radians, range -pi/2..pi/2.
-Operands: 1.
-
-Microcode: entry `ASINF` octal `001360`, `ASIND` octal `001362`; finalize
-`ASINF_6` octal `024636` `ST,SAVA` -> FWRITE_0.
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; ASINF/ASIND @ 001360/001362
+2. if |arg| > 1.0: Rn = 0.0 ; IVO ; trap
+3. reduce, load asin coefficients (ASIN_CON/ASIN_CON1)     ; ASINF_0 @ 024615
+4. y = Horner_polynomial(...) ; result angle in [-pi/2, pi/2]
+5. Rn = y                                     ; FWRITE_AAP: ST,SAVF
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: arcsine(argument), radians in [-pi/2, pi/2]; destination set to 0.0 on domain
+violation (|argument| > 1).
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.6 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.6 "result = 0 -> Z"; microcode `ST,SAVA` @ `024636` |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.6 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.6): Addressing traps, Invalid operation (IVO).
-Note: argument outside -1..+1 raises IVO and sets the register to zero.
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if |argument| > 1.0.
+CITATION: microcode ASINF @ 001360 / ASIND @ 001362 -> ASINF_0 @ 024615 -> POLLYF* ->
+FWRITE_AAP; manual section 12.6 (Arc sine).
 
 ---
 
-## ACOS - Arc cosine
+## 5. ACOS - Arc cosine
 
-Manual section 12.8 (page 206).
+- Opcode: Fn ACOS 0xFF64-0xFF67 (177544B+(n-1)); Dn ACOS 0xFF90-0xFF93 (177620B+(n-1))
 
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn ACOS  | 177544B+(n-1)   | 0FF64H  |
-| Dn (double)| Dn ACOS  | 177620B+(n-1)   | 0FF90H  |
-
-Operation: `arccosine(<argument>) -> Rn`. Result in radians, range 0..pi.
-Operands: 1.
-
-Microcode: entry `ACOSF` octal `001370`, `ACOSD` octal `001372` (share the
-ASIN finalize path `ASINF_1`/`ASIND_1`).
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; ACOSF/ACOSD @ 001370/001372
+2. if |arg| > 1.0: Rn = 0.0 ; IVO ; trap
+3. acos(x) = pi/2 - asin(x): ACOSF_0 @ 024614 seeds SC1 with a bias then joins ASINF_1
+4. y = pi/2 - asin_poly(x)                     ; result in [0, pi]
+5. Rn = y                                     ; FWRITE_AAP: ST,SAVF
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: arccosine(argument), radians in [0, pi]; destination 0.0 on domain violation.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.8 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.8 "result = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.8 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.8): Addressing traps, Invalid operation (IVO).
-Note: argument outside -1..+1 raises IVO and sets the register to zero.
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if |argument| > 1.0.
+CITATION: microcode ACOSF @ 001370 / ACOSD @ 001372 -> ACOSF_0 @ 024614 (joins
+ASINF_1) -> POLLYF* -> FWRITE_AAP; manual section 12.8 (Arc cosine).
 
 ---
 
-## COS - Cosine
+## 6. ATAN - Arc tangent
 
-Manual section 12.7 (page 205).
+- Opcode: Fn ATAN 0xFF6C-0xFF6F (177554B+(n-1)); Dn ATAN 0xFF98-0xFF9B (177630B+(n-1))
+  (Manual prints float hex as "0FFC6H" - an OCR error; octal 177554B = 0xFF6C, which
+  matches the emulator source. Octal is authoritative.)
 
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn COS   | 177540B+(n-1)   | 0FF60H  |
-| Dn (double)| Dn COS   | 177614B+(n-1)   | 0FF8CH  |
-
-Operation: `cosine(<argument>) -> Rn`. Argument in radians.
-Operands: 1.
-
-Microcode: entry `COSF` octal `001364`, `COSD` octal `001366` (both carry
-`ST,SAVA`); `COSF_0` octal `024335`, `COSD_0` octal `024362` route into the
-SIN constant path.
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; ATANF/ATAND @ 001400/001403
+2. build a coefficient-table selector in SC5 (ATANF cells 001401-001402: A,BM36 | BM26)
+3. reduce arg, choose table region              ; ATANF_0 @ 024746, ATANF_DIV/ANGLE
+4. y = Horner_polynomial(...) ; result angle in [-pi/2, pi/2]
+5. Rn = y                                     ; FWRITE_AAP: ST,SAVF
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: arctangent(argument), radians in [-pi/2, pi/2]. Defined for all reals - no
+domain trap.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.7 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.7 "result = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.7 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.7): Addressing traps, Invalid operation (IVO).
-Note: |argument| > 65536.0 radians raises IVO and sets the register to zero.
+TRAP CONDITIONS: Addressing traps only (manual lists no IVO; emulator source likewise
+raises no IVO - consistent).
+CITATION: microcode ATANF @ 001400 / ATAND @ 001403 -> ATANF_0 @ 024746 -> POLLYF* ->
+FWRITE_AAP; manual section 12.10 (Arc tangent).
 
 ---
 
-## TAN - Tangent
+## 7. ATAN2 - Arc tangent, two arguments
 
-Manual section 12.9 (page 207).
+- Opcode: Fn ATAN2 0xFF70-0xFF73 (177560B+(n-1)); Dn ATAN2 0xFF9C-0xFF9F (177634B+(n-1))
 
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn TAN   | 177550B+(n-1)   | 0FF68H  |
-| Dn (double)| Dn TAN   | 177624B+(n-1)   | 0FF94H  |
-
-Operation: `tangent(<argument>) -> Rn`. Argument in radians.
-Operands: 1.
-
-Microcode: entry `TANF` octal `001374`, `TAND` octal `001376` (both carry
-`ST,SAVA`).
+FUNCTIONAL PSEUDOCODE:
+```
+1. num = read_operand1 ; den = read_operand2  ; ATAN2F @ 001410 reads den->SC7 (G,OPS),
+                                                 then num->SC5 @ 001411
+2. if num == 0 and den == 0: Rn = 0.0 ; IVO ; trap
+3. q = num / den (AAP divide) ; ratio -> the ATANF core, with quadrant from signs
+4. y = arctan(q) placed in the correct quadrant, range (-pi, pi)   ; joins ATANF_0
+5. Rn = y                                     ; FWRITE_AAP: ST,SAVF
+```
+OPERANDS: two sources `<num/r/t>, <den/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: arctangent(num/den) in the correct quadrant, radians in (-pi, pi); destination
+0.0 if both operands are zero.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.9 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.9 "result = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.9 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.9): Addressing traps, Invalid operation (IVO).
-Note: |argument| > 65536.0 radians raises IVO and sets the register to zero.
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if num == 0 and den == 0.
+CITATION: microcode ATAN2F @ 001410 / ATAN2D @ 001413 -> ATANF_0 @ 024746 (shared
+core after the divide) -> POLLYF* -> FWRITE_AAP; manual section 12.11 (Arc tangent two
+argument). PARTIAL: the exact quadrant-selection cells between the divide and ATANF_0
+were followed only to the shared entry, not step-by-step - see unresolved list.
 
 ---
 
-## ATAN - Arc tangent
+## 8. EXP - Exponential (e**x)
 
-Manual section 12.10 (page 208).
+- Opcode: Fn EXP 0xFF74-0xFF77 (177564B+(n-1)); Dn EXP 0xFFA0-0xFFA3 (177640B+(n-1))
+  (Manual prints float hex as "0FF7U4" - OCR garbage; octal 177564B = 0xFF74 matches source.)
 
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn ATAN  | 177554B+(n-1)   | 0FF6CH  |
-| Dn (double)| Dn ATAN  | 177630B+(n-1)   | 0FF98H  |
-
-(Manual's hex column prints "0FFC6H" for the float form, which is inconsistent
-with the octal 177554B and with the (n-1) sequence; 177554B = 0FF6CH. The octal
-177554B is taken as authoritative and matches the nd500x source opcode 0xFF6C.)
-
-Operation: `arctangent(<argument>) -> Rn`. Result in radians, range -pi/2..pi/2.
-Operands: 1.
-
-Microcode: entry `ATANF` octal `001400`, `ATAND` octal `001403`; finalize
-`ATANF_ANGLE` octal `025026` `ST,SAVA` -> FWRITE_0.
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; EXPF/EXPD @ 001417/001421
+2. if arg > 255*ln(2) (~176.75): Rn = +max_float (~5.8E76) ; IVO ; trap
+   if arg < -255*ln(2):          Rn = 0.0    ; (underflow to zero)
+3. split arg = k*ln(2) + r ; load exp coefficients (EXPF_CONST @ 017246)
+4. m = 2**k ; y = m * Horner_polynomial(r, exp_coeffs)   ; EXPF_0/EXPF_4, EXPRUT_0
+5. Rn = y                                     ; FWRITE_AAP: ST,SAVF
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: e**argument. Overflow -> largest float and IVO; deep underflow -> 0.0.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | CLEARED - manual states `0 -> S` (e**x is never negative) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.10 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.10 "result = 0 -> Z"; microcode `ST,SAVA` @ `025026` |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.10 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.10): Addressing traps ONLY. (Manual 12.10 does NOT
-list Invalid operation - ATAN accepts any argument.)
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if argument > 255*ln(2).
+(Emulator source additionally references FO/FU trap helpers; the manual documents the
+overflow case as IVO with the result clamped to max float - noted as a wording
+difference between manual "IVO" and emulator "FO".)
+CITATION: microcode EXPF @ 001417 / EXPD @ 001421 -> EXPF_0 @ 024254 -> EXPRUT_0 @
+023527 -> POLLYF* -> FWRITE_AAP; manual section 12.12 (Exponential).
 
 ---
 
-## ATAN2 - Arc tangent, two argument
+## 9. ALOG - Natural logarithm (ln)
 
-Manual section 12.11 (page 209).
+- Opcode: Fn ALOG 0xFF78-0xFF7B (177570B+(n-1)); Dn ALOG 0xFFA4-0xFFA7 (177644B+(n-1))
 
-| Form       | Assembly  | Octal opcode    | Hex     |
-|------------|-----------|-----------------|---------|
-| Fn (float) | Fn ATAN2  | 177560B+(n-1)   | 0FF70H  |
-| Dn (double)| Dn ATAN2  | 177634B+(n-1)   | 0FF9CH  |
-
-Operation: `arctangent(<num>/<den>) -> Rn`. Result in radians in the correct
-quadrant, range -pi..pi.
-Operands: 2 (`<num/r/t>`, `<den/r/t>`).
-
-Microcode: entry `ATAN2F` octal `001410`, `ATAN2D` octal `001413`.
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; ALOGF/ALOGD @ 001423/001425
+2. if arg <= 0: Rn = -5.8E76 (max negative) ; IVO ; trap
+3. decompose arg = m * 2**e, m in [1,2) ; f = (m-1)/(m+1)  ; ALOGF_1/ALOGF_2 @ 025251
+   using AAP2,SUBBA / AAP2,ADD (025256/025266)
+4. ln(m) = 2*(f + f^3/3 + ...) ; ln(arg) = e*ln(2) + ln(m)  ; ALOGF_5/ALOGF_6 + POLLYF*
+5. Rn = ln(arg)                               ; ALOGF_END @ 025307 -> FWRITE_AAP: ST,SAVF
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: ln(argument). For argument <= 0 the destination is set to -5.8*10**76 and IVO
+is raised.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.11 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.11 "result = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.11 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.11): Addressing traps, Invalid operation (IVO).
-Note: `<num>` == 0 AND `<den>` == 0 raises IVO and sets the register to zero.
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if argument <= 0.
+CITATION: microcode ALOGF @ 001423 / ALOGD @ 001425 -> ALOGF_0 @ 025246 ->
+ALOGF_1..ALOGF_6 (025251-025266) -> POLLYF* -> ALOGF_END @ 025307 -> FWRITE_AAP;
+manual section 12.13 (Natural logarithm).
 
 ---
 
-## EXP - Exponential
+## 10. ALOG2 - Binary logarithm (log2)
 
-Manual section 12.12 (page 210).
+- Opcode: Fn ALOG2 0xFF7C-0xFF7F (177574B+(n-1)); Dn ALOG2 0xFFA8-0xFFAB (177650B+(n-1))
 
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn EXP   | 177564B+(n-1)   | 0FF74H  |
-| Dn (double)| Dn EXP   | 177640B+(n-1)   | 0FFA0H  |
-
-(Manual's hex column prints garbled "0FF7U4" for the float form; octal
-177564B = 0FF74H is authoritative and matches nd500x source opcode 0xFF74.)
-
-Operation: `e ** <argument> -> Rn`.
-Operands: 1.
-
-Microcode: entry `EXPF` octal `001417`, `EXPD` octal `001421` (both carry
-`ST,SAVA`).
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; ALOG2F/ALOG2D @ 001427/001431
+2. if arg <= 0: Rn = -5.8E76 ; IVO ; trap
+3. log2(arg) = ln(arg) * (1/ln(2))            ; shares the ALOG core, scales by 1/ln(2)
+4. Rn = log2(arg)                             ; FWRITE_AAP: ST,SAVF
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: log base 2 of argument; -5.8E76 + IVO for argument <= 0.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.12 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.12 "result = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CLEARED (always 0) | Manual 12.12 "0 -> S" (result is always non-negative; S forced to 0) |
-
-TRAP conditions (Manual 12.12): Addressing traps, Invalid operation (IVO).
-Note: argument > 255*ln(2) (~176.75) raises IVO and sets the register to the
-largest float (~5.8E+76). argument < -255*ln(2) yields result zero (no trap
-stated).
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if argument <= 0.
+CITATION: microcode ALOG2F @ 001427 / ALOG2D @ 001431 -> ALOG2F_0 @ 023xxx (shares
+ALOG polynomial core) -> POLLYF* -> FWRITE_AAP; manual section 12.14 (Binary logarithm).
 
 ---
 
-## ALOG - Natural logarithm (base e)
+## 11. ALOG10 - Common logarithm (log10)
 
-Manual section 12.13 (page 211).
+- Opcode: Fn ALOG10 0xFF80-0xFF83 (177600B+(n-1)); Dn ALOG10 0xFFAC-0xFFAF (177654B+(n-1))
 
-| Form       | Assembly | Octal opcode    | Hex     |
-|------------|----------|-----------------|---------|
-| Fn (float) | Fn ALOG  | 177570B+(n-1)   | 0FF78H  |
-| Dn (double)| Dn ALOG  | 177644B+(n-1)   | 0FFA4H  |
-
-Operation: `ln(<argument>) -> Rn`.
-Operands: 1.
-
-Microcode: entry `ALOGF` octal `001423`, `ALOGD` octal `001425` (both carry
-`ST,SAVA`).
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; ALOG10F/ALOG10D @ 001433/001435
+2. if arg <= 0: Rn = -5.8E76 ; IVO ; trap
+3. log10(arg) = ln(arg) * (1/ln(10))          ; shares the ALOG core, scales by 1/ln(10)
+4. Rn = log10(arg)                            ; FWRITE_AAP: ST,SAVF
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: log base 10 of argument; -5.8E76 + IVO for argument <= 0.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.13 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.13 "result = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.13 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.13): Addressing traps, Invalid operation (IVO).
-Note: argument <= 0 raises IVO and yields result -5.8*10**76.
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if argument <= 0.
+CITATION: microcode ALOG10F @ 001433 / ALOG10D @ 001435 -> ALOG10F_0 (shares ALOG
+core) -> POLLYF* -> FWRITE_AAP; manual section 12.15 (Common logarithm).
 
 ---
 
-## ALOG2 - Binary logarithm (base 2)
+## 12. SQRT - Square root
 
-Manual section 12.14 (page 212).
+- Opcode: Fn SQRT 0xFCD4-0xFCD7 (176324B+(n-1)); Dn SQRT 0xFCD8-0xFCDB (176330B+(n-1))
 
-| Form       | Assembly  | Octal opcode    | Hex     |
-|------------|-----------|-----------------|---------|
-| Fn (float) | Fn ALOG2  | 177574B+(n-1)   | 0FF7CH  |
-| Dn (double)| Dn ALOG2  | 177650B+(n-1)   | 0FFA8H  |
-
-Operation: `log2(<argument>) -> Rn`.
-Operands: 1.
-
-Microcode: entry `ALOG2F` octal `001427`, `ALOG2D` octal `001431` (both carry
-`ST,SAVA`).
+FUNCTIONAL PSEUDOCODE:
+```
+1. arg = read_operand(F or D)                 ; SQRTF/SQRTD @ 001477/001501
+2. if arg < 0: Rn = 0.0 ; IVO ; trap
+3. if arg == 0: Rn = 0.0 (Z set)
+4. Newton/seed-and-refine iteration in AAP     ; SQRTF_0 @ 017407 -> SQRTF_00..SQRTF_101
+   (loop pushes/pops sequencer stack; each step refines mantissa; exponent halved)
+5. Rn = sqrt(arg)                             ; write path sets Z via the result
+```
+OPERANDS: one source `<argument/r/t>`, t in {F,D}. Result -> An/Dn.
+RESULT: sqrt(argument). Negative argument -> result 0.0 and IVO.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED | CLEARED - manual lists only `result==0 -> Z` (sqrt result is non-negative, so S is not set) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.14 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.14 "result = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.14 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.14): Addressing traps, Invalid operation (IVO).
-Note: argument <= 0 raises IVO and yields result -5.8*10**76.
+TRAP CONDITIONS: Addressing traps; Invalid Operation (IVO) if argument < 0.
+CITATION: microcode SQRTF @ 001477 / SQRTD @ 001501 -> SQRTF_0 @ 017407 (iterative
+refine, SQRTF_00..SQRTF_101); manual section 12.4 (Square root). Manual "Data status
+bits: result = 0 -> Z" (S not mentioned -> S CLEARED by rule 6.5.1).
 
 ---
 
-## ALOG10 - Common logarithm (base 10)
+## 13. POLY - Polynomial evaluation
 
-Manual section 12.15 (page 213).
+- Opcode: Fn POLY 0xFCE0-0xFCE3 (176340B+(n-1)); Dn POLY 0xFCE4-0xFCE7 (176344B+(n-1))
 
-| Form       | Assembly   | Octal opcode    | Hex     |
-|------------|------------|-----------------|---------|
-| Fn (float) | Fn ALOG10  | 177600B+(n-1)   | 0FF80H  |
-| Dn (double)| Dn ALOG10  | 177654B+(n-1)   | 0FFACH  |
-
-Operation: `log10(<argument>) -> Rn`.
-Operands: 1.
-
-Microcode: entry `ALOG10F` octal `001433`, `ALOG10D` octal `001435` (both carry
-`ST,SAVA`).
+FUNCTIONAL PSEUDOCODE:
+```
+1. x   = read_operand(x/r/t)                  ; POLYF @ 001503 (F) / POLYD @ 001507 (D)
+2. m   = read constant operand (BY, degree)   ; POLYF cell 001504: TYP,BY -> SC11 -> LC
+   if m is not a positive constant < 256: trap Illegal Operand Specifier (IOS)
+                                                ; POLYF_0 falls to ILL_OP_SPEC @ 001506
+3. acc = c_m                                   ; POLYF_0 @ 025667 primes the accumulator
+4. loop i = m-1 downto 0:                      ; POLLYF*/POLYF_2 @ 025702, AAP2,MUL/ADD
+       acc = acc * x + c_i                     ; LC counts the m+1 coefficients
+5. Rn = acc                                   ; FWRITE_AAP: ST,SAVF
+   (FO/FU, if any at an intermediate step, are deferred to instruction completion)
+```
+OPERANDS: `<x/r/t>, <m/s/BY>, <cm/r/t>, ..., <c1/r/t>, <c0/r/t>` - the argument, a byte
+degree constant m, then m+1 coefficients. t in {F,D}. Result -> An/Dn.
+RESULT: c_m*x^m + ... + c1*x + c0. Z and S reflect the final result.
 
 STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if final result==0 else CLEARED (manual note: for POLY the Z bit is NOT forced by intermediate underflow) | CLEARED | CLEARED (O is integer overflow; not used) | result sign bit (CONDITIONAL) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 12.15 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 12.15 "result = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Not documented |
-| S | CONDITIONAL(set to result sign bit) | Manual 12.15 "result.signbit -> S" |
-
-TRAP conditions (Manual 12.15): Addressing traps, Invalid operation (IVO).
-Note: argument <= 0 raises IVO and yields result -5.8*10**76.
+TRAP CONDITIONS: Addressing traps; Floating Overflow (FO); Floating Underflow (FU);
+Illegal Operand Specifier (IOS) if m is not a positive constant < 256. FO/FU are
+reported at instruction completion even if they occurred at an intermediate term.
+CITATION: microcode POLYF @ 001503 / POLYD @ 001507 -> POLYF_0 @ 025667 -> POLLYF* @
+025424 (Horner loop, LCDECR/COND,LCZ) -> FWRITE_AAP; manual section 12.3 (Polynomial).
 
 ---
 
-# GROUP B - Chapter 15.2 data type conversion (no rounding)
+## 14. BICONV - Convert to bit
 
-Format: `t1 t2CONV <source/r/t1>, <dest/w/t2>`. The source of type t1 is
-converted to type t2 and stored (2 operands). Integer widening = sign extension;
-integer narrowing = truncation of the most significant bits (may set integer
-overflow); float-to-integer may set integer overflow. Convert-from-bit: result 0
-if bit clear, 1 if bit set. Convert-to-bit: bit set if source != 0, else clear.
-Result is NOT rounded.
+- Opcode: BY BICONV 0xFD49 (176511B); H BICONV 0xFD4E (176516B); W BICONV 0xFD53
+  (176523B); F BICONV 0xFD58 (176530B); D BICONV 0xFD5D (176535B).
+  (Also the reverse "convert to bit" from BI is the identity; the "to bit" opcodes are
+  the ones above.)
 
-Manual section 15.2 (pages 268-269) applies IDENTICAL "Data status bits" and
-"Trap conditions" to ALL 30 CONV variants:
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(t1)                      ; entry cells @ 001514+ (BICONVBY/H/W/F/D)
+2. bit = (src != 0) ? 1 : 0                     ; ALU test, K/condition from zero test
+3. dest = bit  (stored as a bit)                ; CONV_TO_DBI / BICONV*_1 write path
+```
+OPERANDS: `<source/r/t1>, <dest/w/BI>`. t1 in {BY,H,W,F,D}. Result stored to dest bit.
+RESULT: dest bit set if source != 0, cleared otherwise.
 
-Common STATUS FLAGS for every CONV variant:
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 (source was 0) else CLEARED | CLEARED | CLEARED | result sign bit (CONDITIONAL; a single bit result is 0 or 1 so S is effectively 0) |
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 15.2 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 15.2 "result = 0 -> Z"; microcode CONV finalize `ST,SAVA` before WRITE (e.g. octal `001543`, `001554`, `001557`, `001566`, `001575`) |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | CONDITIONAL(set on integer overflow) | Manual 15.2 lists Integer overflow (O) as a trap; overflow occurs on narrowing/float-to-int. Microcode `ST,SAVA` writes O. |
-| S | CONDITIONAL(set to result sign bit) | Manual 15.2 "result.signbit -> S" |
-
-Common TRAP conditions for every CONV variant (Manual 15.2): Addressing traps,
-Integer overflow (O).
-
-Microcode: the CONV opcode block dispatches at octal `001530`..`001576`;
-integer results finalize with `ST,SAVA` then WRITE (`001543` byte, `001554`
-byte, `001557` halfword, `001566` double, `001575` float verified). Per-source
-paths route through `CONV_TO_DBI` / `CONV_TO_RBI`.
-
-The five CONV instruction files in the category, with the octal opcode of each
-variant (Manual 15.2 table, pages 268-269):
-
-## BICONV - convert TO bit
-
-| Assembly  | Meaning              | Octal   | Hex    |
-|-----------|----------------------|---------|--------|
-| BY BICONV | byte to bit          | 176511B | 0FD49H |
-| H BICONV  | halfword to bit      | 176516B | 0FD4EH |
-| W BICONV  | word to bit          | 176523B | 0FD53H |
-| F BICONV  | float to bit         | 176530B | 0FD58H |
-| D BICONV  | double to bit        | 176535B | 0FD5DH |
-
-Operation: bit set if source != 0, else clear. Flags/traps = common CONV block.
-
-## BYCONV - convert TO byte
-
-| Assembly  | Meaning              | Octal   | Hex    |
-|-----------|----------------------|---------|--------|
-| BI BYCONV | bit to byte          | 176504B | 0FD44H |
-| H BYCONV  | halfword to byte     | 176517B | 0FD4FH |
-| W BYCONV  | word to byte         | 176524B | 0FD54H |
-| F BYCONV  | float to byte        | 176531B | 0FD59H |
-| D BYCONV  | double to byte       | 176536B | 0FD5EH |
-
-Flags/traps = common CONV block.
-
-## HCONV - convert TO halfword
-
-| Assembly  | Meaning              | Octal   | Hex    |
-|-----------|----------------------|---------|--------|
-| BI HCONV  | bit to halfword      | 176505B | 0FD45H |
-| BY HCONV  | byte to halfword     | 176512B | 0FD4AH |
-| W HCONV   | word to halfword     | 176525B | 0FD55H |
-| F HCONV   | float to halfword    | 176532B | 0FD5AH |
-| D HCONV   | double to halfword   | 176537B | 0FD5FH |
-
-Flags/traps = common CONV block.
-
-## WCONV - convert TO word
-
-| Assembly  | Meaning              | Octal   | Hex    |
-|-----------|----------------------|---------|--------|
-| BI WCONV  | bit to word          | 176506B | 0FD46H |
-| BY WCONV  | byte to word         | 176513B | 0FD4BH |
-| H WCONV   | halfword to word     | 176520B | 0FD50H |
-| F WCONV   | float to word        | 176533B | 0FD5BH |
-| D WCONV   | double to word       | 176540B | 0FD60H |
-
-Flags/traps = common CONV block.
-
-## DCONV - convert TO double float
-
-| Assembly  | Meaning              | Octal   | Hex    |
-|-----------|----------------------|---------|--------|
-| BI DCONV  | bit to double        | 176510B | 0FD48H |
-| BY DCONV  | byte to double       | 176515B | 0FD4DH |
-| H DCONV   | halfword to double   | 176522B | 0FD52H |
-| W DCONV   | word to double       | 176527B | 0FD57H |
-| F DCONV   | float to double      | 176534B | 0FD5CH |
-
-Flags/traps = common CONV block.
-
-## FCONV - convert TO float
-
-| Assembly  | Meaning              | Octal   | Hex    |
-|-----------|----------------------|---------|--------|
-| BI FCONV  | bit to float         | 176507B | 0FD47H |
-| BY FCONV  | byte to float        | 176514B | 0FD4CH |
-| H FCONV   | halfword to float    | 176521B | 0FD51H |
-| W FCONV   | word to float        | 176526B | 0FD56H |
-| D FCONV   | double to float      | 176541B | 0FD61H |
-
-Flags/traps = common CONV block.
-
-NOTE: The nd500x FCONV.c file also documents opcode 0xFD61 (D FCONV) which the
-manual labels "double float to float convert" - this is the double-to-float
-narrowing variant, correctly a member of the "convert TO float" group.
+TRAP CONDITIONS: Addressing traps. (No integer overflow possible converting to a bit.)
+CITATION: microcode BICONVBY @ 001514, BICONVH @ 001516, BICONVW @ 001520, BICONVF @
+001522, BICONVD @ 001524 -> BICONVBY_0 @ 003175 / CONV_TO_DBI @ 003173; manual section
+15.2 (Data type conversion). Manual data status bits: result==0 -> Z, result.signbit -> S.
 
 ---
 
-# GROUP C - Chapter 15.3 data type conversion WITH rounding
+## 15. BYCONV - Convert to byte
 
-Format: `t1 t2CONR <source/r/t1>, <dest/w/t2>`. Same as CONV but the result is
-ROUNDED (2 operands). Manual section 15.3 (page 270) applies IDENTICAL "Data
-status bits" and "Trap conditions" to ALL 8 CONR variants:
+- Opcode: BI BYCONV 0xFD44 (176504B); H BYCONV 0xFD4F (176517B); W BYCONV 0xFD54
+  (176524B); F BYCONV 0xFD59 (176531B); D BYCONV 0xFD5E (176536B).
 
-Common STATUS FLAGS for every CONR variant:
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(t1)
+2. case t1:
+     BI:  dest = src ? 1 : 0                    ; BYCONVBI @ 001526 (widen bit->byte)
+     H,W: dest = truncate_to_8(src)             ; if bits above bit7 significant -> IOV
+     F,D: dest = trunc_toward_zero(src) as int  ; BYCONVF @ 002667 / BYCONVD @ 002673,
+          AAP2,CTF path is for the *reverse*; here float->byte uses AAP integer-part
+          then range-checks -128..127 -> IOV on overflow
+3. dest stored (byte)                           ; ST,SAVA / CTF finalizer ST,SAVF
+```
+OPERANDS: `<source/r/t1>, <dest/w/BY>`. t1 in {BI,H,W,F,D}. Result -> dest byte.
+RESULT: source value as an 8-bit byte. Longer->byte truncates MSBs; float->byte
+truncates toward zero. Out-of-range value raises integer overflow.
 
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | UNKNOWN (needs verification) | Manual 15.3 does not list K |
-| Z | CONDITIONAL(set if result == 0) | Manual 15.3 "result = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | CONDITIONAL(set on integer overflow) | Manual 15.3 lists Integer overflow (O) as a trap |
-| S | CONDITIONAL(set to result sign bit) | Manual 15.3 "result.signbit -> S" |
-| FO | CONDITIONAL(set on floating overflow) | Manual 15.3 lists Floating overflow (FO) as a trap for the word/double-to-float variants |
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CONDITIONAL: SET on integer overflow (value outside -128..127), else CLEARED | result sign bit (CONDITIONAL) |
 
-Common TRAP conditions for every CONR variant (Manual 15.3): Addressing traps,
-Floating overflow (FO), Integer overflow (O).
-
-## BYCONR - convert TO byte, rounded
-
-| Assembly | Meaning                   | Octal   | Hex    |
-|----------|---------------------------|---------|--------|
-| F BYCONR | float to byte, rounding   | 177160B | 0FE70H |
-| D BYCONR | double to byte, rounding  | 177161B | 0FE71H |
-
-Flags/traps = common CONR block.
-
-## HCONR - convert TO halfword, rounded
-
-| Assembly | Meaning                       | Octal   | Hex    |
-|----------|-------------------------------|---------|--------|
-| F HCONR  | float to halfword, rounding   | 177162B | 0FE72H |
-| D HCONR  | double to halfword, rounding  | 177163B | 0FE73H |
-
-Flags/traps = common CONR block.
-
-## WCONR - convert TO word, rounded
-
-| Assembly | Meaning                   | Octal   | Hex    |
-|----------|---------------------------|---------|--------|
-| F WCONR  | float to word, rounding   | 177164B | 0FE74H |
-| D WCONR  | double to word, rounding  | 177165B | 0FE75H |
-
-Flags/traps = common CONR block.
-
-## FCONR - convert TO float, rounded
-
-| Assembly | Meaning                   | Octal   | Hex    |
-|----------|---------------------------|---------|--------|
-| W FCONR  | word to float, rounding   | 177203B | 0FE83H |
-| D FCONR  | double to float, rounding | 177204B | 0FE84H |
-
-Flags/traps = common CONR block.
+TRAP CONDITIONS: Addressing traps; Integer Overflow (O) if the value does not fit in a
+signed byte.
+CITATION: microcode BYCONVBI @ 001526, BYCONVH/W @ 001532/001534, BYCONVF @ 002667,
+BYCONVD @ 002673 (float->int via AAP, CTBY @ 026122 tests COND,OVFL); manual 15.2.
 
 ---
 
-# GROUP D - packed-decimal (BCD) conversions
+## 16. HCONV - Convert to halfword
 
-## PWCONV - convert packed decimal to binary word
+- Opcode: BI HCONV 0xFD45 (176505B); BY HCONV 0xFD4A (176512B); H HCONV 0xFD55
+  (176525B, halfword->halfword identity); W HCONV 0xFD5A (176532B); D HCONV 0xFD5F
+  (176537B). (F HCONV 0xFD5A per manual table; the emulator groups float/double->H here.)
 
-Manual section 17.9 (page 349).
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(t1)
+2. case t1:
+     BI:  dest = src ? 1 : 0                     ; widen
+     BY:  dest = sign_extend_8_to_16(src)        ; HCONVBY @ 001542
+     H:   dest = src                             ; identity (HCONV 0xFD55)
+     W:   dest = truncate_to_16(src) ; IOV if MSBs significant   ; HCONVW @ 001545
+     F,D: dest = trunc_toward_zero(src) ; IOV if outside -32768..32767  ; HCONVF @ 002700,
+          HCONVD @ 002704 (AAP integer-part, CTHW @ 026145 tests COND,OVFL)
+3. dest stored (halfword)
+```
+OPERANDS: `<source/r/t1>, <dest/w/H>`. t1 in {BI,BY,H,W,F,D}. Result -> dest halfword.
+RESULT: source value as a signed 16-bit halfword; overflow on narrowing raises IOV.
 
-| Assembly  | Meaning                    | Octal          | Hex          |
-|-----------|----------------------------|----------------|--------------|
-| Wn PWCONV | convert packed to binary   | 177274B+(n-1)  | 0FEBCH+(n-1) |
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CONDITIONAL: SET on integer overflow (outside -32768..32767) else CLEARED | result sign bit (CONDITIONAL) |
 
-(Manual's hex column prints "0FBECH"; octal 177274B = 0FEBCH is authoritative
-and matches nd500x source opcode 0xFEBC. n = 1..4 selects target Wn = I1..I4.)
-
-Operation: `<source (packed decimal)> -> Rn`. Fractional part of source is lost;
-no rounding before conversion. On integer overflow the result is the least
-significant 32 bits.
-Operands: 2 (`<source/r/BCD>`, target register Wn from opcode).
-
-Microcode: not locatable by the mnemonic "PWCONV" in MICRO-5800-A30.md. The
-packed-to-binary routine family is labelled `BINC` (entry octal `002075`,
-continuations `BINC_1` octal `022377` onward). Correspondence PWCONV==BINC is
-INFERRED from the "convert packed to binary" description and is NOT byte-verified
-against the opcode dispatch table - treat the microcode citation as unverified.
-
-STATUS FLAGS (Manual 17.9 explicitly documents all four):
-
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | CONDITIONAL(set if IVO or O occurred) | Manual 17.9 "IVO or O -> K" |
-| Z | CONDITIONAL(set if value == 0) | Manual 17.9 "value = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | CONDITIONAL(set on integer overflow) | Manual 17.9 "overflow -> O" |
-| S | CONDITIONAL(set to value sign bit) | Manual 17.9 "value.signbit -> S" |
-
-TRAP conditions (Manual 17.9): Addressing traps, Integer overflow (O),
-Invalid operation (IVO).
-
-## WPCONV - convert binary word to packed decimal
-
-Manual section 17.10 (page 350).
-
-| Assembly  | Meaning                    | Octal          | Hex          |
-|-----------|----------------------------|----------------|--------------|
-| Wn WPCONV | convert binary to packed   | 177270B+(n-1)  | 0FEB8H+(n-1) |
-
-(n = 1..4 selects source Wn = I1..I4. Hex 0FEB8H matches nd500x source 0xFEB8.)
-
-Operation: `Rn -> <dest (packed decimal)>`. If the scaling factor of `<dest>` is
-negative the least significant digits are lost; `<dest>` is zero-extended (low or
-high order) as required by the scaling factor.
-Operands: 2 (source register Wn from opcode, `<dest/w/BCD>`).
-
-Microcode: not locatable by the mnemonic "WPCONV". The binary-to-packed routine
-family is labelled `PACK` (entry octal `002065`) / `PACKBCD_1` (octal `021775`).
-Correspondence WPCONV==PACK is INFERRED from the "convert binary to packed"
-description and is NOT byte-verified against the opcode dispatch table - treat
-the microcode citation as unverified. (`ST,SAVB` = "save BCD status" was NOT
-found in the grepped PACK region.)
-
-STATUS FLAGS (Manual 17.10 explicitly documents all four):
-
-| Flag | Effect | Source |
-|------|--------|--------|
-| K | CONDITIONAL(set if BO occurred) | Manual 17.10 "BO -> K" |
-| Z | CONDITIONAL(set if value == 0) | Manual 17.10 "value = 0 -> Z" |
-| C | UNKNOWN (needs verification) | Not documented |
-| O | UNKNOWN (needs verification) | Manual 17.10 documents BCD overflow (BO), not integer O |
-| S | CONDITIONAL(set to value sign bit) | Manual 17.10 "value.signbit -> S" |
-| BO | CONDITIONAL(set on BCD overflow) | Manual 17.10 "BCD overflow -> BO" |
-
-TRAP conditions (Manual 17.10): Addressing traps, BCD overflow (BO).
+TRAP CONDITIONS: Addressing traps; Integer Overflow (O) if value does not fit in a
+signed halfword.
+CITATION: microcode HCONVBI @ 001536, HCONVBY @ 001542, HCONVW @ 001545, HCONVF @
+002700, HCONVD @ 002704 -> CTHW @ 026145; manual section 15.2.
 
 ---
 
-# Summary of unresolved / needs-verification items
+## 17. WCONV - Convert to word
 
-1. K flag for ALL Chapter-12 mathematical functions (SQRT, POLY, SIN, ASIN,
-   ACOS, COS, TAN, ATAN, ATAN2, EXP, ALOG, ALOG2, ALOG10) and for the CONV/CONR
-   families: the manual does not document K and no defining K micro-op was
-   isolated in the traced routines. Report as UNKNOWN.
+- Opcode: BI WCONV 0xFD46 (176506B); BY WCONV 0xFD4B (176513B); H WCONV 0xFD50
+  (176520B); F WCONV 0xFD5B (176533B); D WCONV 0xFD60 (176540B).
 
-2. C (carry) flag for every FLOAT_MATH instruction: never documented by the
-   manual. The float/CONV finalize micro-op `ST,SAVA` physically writes C, but
-   its post-condition is architecturally undefined for these results. UNKNOWN.
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(t1)
+2. case t1:
+     BI:  dest = src ? 1 : 0                     ; WCONVBI @ 001547
+     BY:  dest = sign_extend_8_to_32(src)        ; WCONVBY @ 001553
+     H:   dest = sign_extend_16_to_32(src)       ; WCONVH @ 001556
+     F,D: dest = trunc_toward_zero(src) as int32 ; WCONVF @ 002711 uses AAP2,CTF entry
+          then integer-part; WCONVD @ 002714. Overflow beyond +/-2^31 -> IOV (CTW @ 026167)
+3. dest stored (word)
+```
+OPERANDS: `<source/r/t1>, <dest/w/W>`. t1 in {BI,BY,H,F,D}. Result -> dest word.
+RESULT: source value as a signed 32-bit word; float/double truncated toward zero;
+integer widening is by sign extension. Value outside word range raises IOV.
 
-3. O (overflow) for the Chapter-12 functions: not documented (only FO/FU appear,
-   and only for POLY). UNKNOWN for the transcendentals.
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CONDITIONAL: SET on integer overflow (float/double outside word range) else CLEARED | result sign bit (CONDITIONAL) |
 
-4. SQRT S flag: Manual 12.4 lists ONLY Z (not S), unlike every other Chapter-12
-   function. Whether S is set to the (always-non-negative) result sign is not
-   stated. UNKNOWN per the manual.
+TRAP CONDITIONS: Addressing traps; Integer Overflow (O) if the (float/double) value does
+not fit in a signed word.
+CITATION: microcode WCONVBI @ 001547, WCONVBY @ 001553, WCONVH @ 001556, WCONVF @
+002711, WCONVD @ 002714 -> FL_INT @ 022652 / CTW @ 026167; manual section 15.2.
 
-5. PWCONV / WPCONV microcode entry points: the mnemonics do not appear literally
-   in MICRO-5800-A30.md. The BINC / PACK routine families are the inferred
-   implementation but the opcode->microcode-address mapping was not byte-verified
-   against the dispatch table. Needs verification.
+---
 
-6. Manual OCR artifacts noted and reconciled against the authoritative OCTAL
-   codes: ATAN float hex "0FFC6H" (should be 0FF6CH = 177554B), EXP float hex
-   "0FF7U4" (should be 0FF74H = 177564B), PWCONV hex "0FBECH" (should be
-   0FEBCH = 177274B). In every case the octal code and the nd500x source opcode
-   agree; the printed hex is a scan error.
+## 18. FCONV - Convert to float
+
+- Opcode: BI FCONV 0xFD47 (176507B); BY FCONV 0xFD4C (176514B); H FCONV 0xFD51
+  (176521B); W FCONV 0xFD56 (176526B); D FCONV 0xFD61 (176541B).
+
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(t1)
+2. case t1:
+     BI/BY/H/W: dest = float(int_value(src))     ; AAP2,CTF (convert to floating),
+                                                    FCONVBI @ 001561, ..., WCONVF-style
+     D:         dest = double_to_float(src)       ; FCONVD @ 001565, AAP2,CBF (convert
+                                                    between float formats), may lose precision
+3. dest stored (single float)                     ; CTF finalizer @ 002672 ST,SAVF, WRITE
+```
+OPERANDS: `<source/r/t1>, <dest/w/F>`. t1 in {BI,BY,H,W,D}. Result -> dest single float.
+RESULT: source converted to single-precision float (not rounded - truncation of the
+mantissa; the rounded form is FCONR).
+
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED (result is floating) | result sign bit (CONDITIONAL) |
+
+TRAP CONDITIONS: Addressing traps. (Integer->float and double->float without rounding
+per 15.2 list only Integer Overflow (O) generically for the CONV family; producing a
+float cannot integer-overflow, so effectively addressing traps only for these directions.)
+CITATION: microcode FCONVBI @ 001561, FCONVD @ 001565 -> CTF @ 002672 (ST,SAVF); manual
+section 15.2 (Data type conversion).
+
+---
+
+## 19. DCONV - Convert to double float
+
+- Opcode: BI DCONV 0xFD48 (176510B); BY DCONV 0xFD4D (176515B); H DCONV 0xFD52
+  (176522B); W DCONV 0xFD57 (176527B); F DCONV 0xFD5C (176534B).
+
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(t1)
+2. case t1:
+     BI/BY/H/W: dest = double(int_value(src))     ; AAP2,CTF -> CTDF finalizer @ 002676
+     F:         dest = float_to_double(src)        ; DCONVF @ 001574, AAP2,CBF (exact widening)
+3. dest stored (double float)                      ; CTDF: ST,SAVF, WRITE (2 words)
+```
+OPERANDS: `<source/r/t1>, <dest/w/D>`. t1 in {BI,BY,H,W,F}. Result -> dest double float.
+RESULT: source converted to double-precision float. Float->double is exact.
+
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED (result is floating) | result sign bit (CONDITIONAL) |
+
+TRAP CONDITIONS: Addressing traps.
+CITATION: microcode DCONVBI @ 001570, DCONVF @ 001574 -> CTDF @ 002676 (ST,SAVF);
+manual section 15.2.
+
+---
+
+## 20. BYCONR - Convert to byte, rounded
+
+- Opcode: F BYCONR 0xFE70 (177160B); D BYCONR 0xFE71 (177161B).
+
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(F or D)                    ; FCONRBY @ 002750 / DCONRBY @ 002756
+2. rounded = round_to_nearest(src)               ; add rounding const A,BM26 then integer part
+3. if rounded outside -128..127: IOV trap
+4. dest = (byte) rounded                          ; RDF_INT @ 022755 range/overflow check
+```
+OPERANDS: `<source/r/t1>, <dest/w/BY>`. t1 in {F,D}. Result -> dest byte.
+RESULT: source rounded to nearest and stored as a signed byte; out of range -> IOV.
+
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CONDITIONAL: SET on integer overflow else CLEARED | result sign bit (CONDITIONAL) |
+
+TRAP CONDITIONS: Addressing traps; Floating Overflow (FO); Integer Overflow (O).
+CITATION: microcode FCONRBY @ 002750, DCONRBY @ 002756 -> RDF_INT @ 022755 / CTBY;
+manual section 15.3 (Data type conversion with rounding).
+
+---
+
+## 21. HCONR - Convert to halfword, rounded
+
+- Opcode: F HCONR 0xFE72 (177162B); D HCONR 0xFE73 (177163B).
+
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(F or D)                    ; FCONRH @ 002752 / DCONRH @ 002761
+2. rounded = round_to_nearest(src)               ; A,BM26 rounding then integer part
+3. if rounded outside -32768..32767: IOV trap
+4. dest = (halfword) rounded                      ; RDF_INT / CTHW range check
+```
+OPERANDS: `<source/r/t1>, <dest/w/H>`. t1 in {F,D}. Result -> dest halfword.
+RESULT: source rounded to nearest and stored as a signed halfword; out of range -> IOV.
+
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CONDITIONAL: SET on integer overflow else CLEARED | result sign bit (CONDITIONAL) |
+
+TRAP CONDITIONS: Addressing traps; Floating Overflow (FO); Integer Overflow (O).
+CITATION: microcode FCONRH @ 002752, DCONRH @ 002761 -> RDF_INT @ 022755 / CTHW @
+026145; manual section 15.3.
+
+---
+
+## 22. WCONR - Convert to word, rounded
+
+- Opcode: F WCONR 0xFE74 (177164B); D WCONR 0xFE75 (177165B).
+
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(F or D)                    ; FCONRW @ 002754 / DCONRW @ 002764
+2. rounded = round_to_nearest(src)               ; A,BM26 rounding then integer part
+3. if rounded outside signed-word range: IOV trap
+4. dest = (word) rounded                          ; RDF_INT @ 022755 / CTW @ 026167
+```
+OPERANDS: `<source/r/t1>, <dest/w/W>`. t1 in {F,D}. Result -> dest word.
+RESULT: source rounded to nearest and stored as a signed 32-bit word; out of range -> IOV.
+
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CONDITIONAL: SET on integer overflow else CLEARED | result sign bit (CONDITIONAL) |
+
+TRAP CONDITIONS: Addressing traps; Floating Overflow (FO); Integer Overflow (O).
+CITATION: microcode FCONRW @ 002754, DCONRW @ 002764 -> RDF_INT @ 022755 / CTW @
+026167; manual section 15.3.
+
+---
+
+## 23. FCONR - Convert to float, rounded
+
+- Opcode: W FCONR 0xFE83 (177203B); D FCONR 0xFE84 (177204B).
+
+FUNCTIONAL PSEUDOCODE:
+```
+1. src = read_operand(W or D)                    ; WCONRF @ 002744 / DCONRF @ 002767
+2. case source:
+     W: dest = round_to_float(word_value)          ; AAP2,CTF with rounding (WCONRF path)
+     D: dest = double_to_float_rounded(src)         ; AAP2,CBF (DCONRF @ 002767 -> CTF)
+3. if magnitude too large for float: FO trap
+4. dest stored (single float)                      ; CTF @ 002672 ST,SAVF, WRITE
+```
+OPERANDS: `<source/r/t1>, <dest/w/F>`. t1 in {W,D}. Result -> dest single float.
+RESULT: source converted to single float with rounding (word->float rounds the low
+mantissa bits; double->float rounds to single precision).
+
+STATUS FLAGS:
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| UNCHANGED | SET if result==0 else CLEARED | CLEARED | CLEARED (result is floating) | result sign bit (CONDITIONAL) |
+
+TRAP CONDITIONS: Addressing traps; Floating Overflow (FO); Integer Overflow (O)
+(the O case does not arise producing a float, but is listed for the CONR family).
+CITATION: microcode WCONRF @ 002744, DCONRF @ 002767 -> CTF @ 002672 (ST,SAVF); manual
+section 15.3 (Data type conversion with rounding).
+
+---
+
+## 24. PWCONV - Convert packed decimal to binary word
+
+- Opcode: Wn PWCONV 0xFEBC-0xFEBF (177274B+(n-1)).
+  (Manual prints hex "0FBECH" - an OCR transposition; octal 177274B = 0xFEBC, which
+  matches the emulator source. Octal is authoritative.)
+
+FUNCTIONAL PSEUDOCODE:
+```
+1. read packed-decimal <source> descriptor (field width, sign, digits)
+2. validate BCD descriptor / digits ; on bad digit or bad field -> IVO (invalid operation)
+3. bin = 0
+   for each BCD digit d (most significant first):        ; BCD_BIN @ 022317
+       bin = bin*10 + d           ; microcode does *10 via shift/add (A+B,*2 etc.)
+   the fractional part is discarded (no rounding)
+4. if bin does not fit in 32 bits: keep least-significant 32 bits ; set O
+5. Rn = bin
+```
+OPERANDS: `<source/r/BCD>` packed decimal -> Wn (word register, n from opcode).
+RESULT: integer value of the packed-decimal source, fractional part dropped, low 32
+bits on overflow.
+
+STATUS FLAGS (manual is explicit here):
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| SET if IVO or O occurred (`IVO or O -> K`) | SET if value==0 else CLEARED | CLEARED | CONDITIONAL: SET on integer overflow | result sign bit (CONDITIONAL) |
+
+TRAP CONDITIONS: Addressing traps; Integer Overflow (O); Invalid Operation (IVO)
+(bad BCD digit/descriptor). Requires the optional BCD hardware.
+CITATION: BCD hardware routine BCD_BIN @ 022317 (packed->binary, *10 accumulation);
+manual section 17.9 (Convert packed to binary word). PARTIAL: the exact opcode->micro
+entry for PWCONV is not a named label in this listing (the opcode-to-microaddress map
+is external); mechanism resolved to the BCD_BIN routine. See unresolved list.
+
+---
+
+## 25. WPCONV - Convert binary word to packed decimal
+
+- Opcode: Wn WPCONV 0xFEB8-0xFEBB (177270B+(n-1)).
+
+FUNCTIONAL PSEUDOCODE:
+```
+1. read word register Rn (source)
+2. read <dest> packed-decimal descriptor (field width, scaling factor)
+3. digits = decimal_expand(|Rn|)                      ; repeated /10, remainder = digit
+4. apply scaling: if scale < 0 drop least-significant digits; pad with high/low zeros
+5. if the destination field is too narrow to hold the result: BO (BCD overflow)
+6. store packed digits + sign nibble into <dest>       ; PACK / BCD_ADD hardware path
+```
+OPERANDS: Wn (word register) -> `<dest/w/BCD>` packed decimal.
+RESULT: packed-decimal representation of the word register, fitted to the destination
+field per its scaling factor.
+
+STATUS FLAGS (manual is explicit here):
+| K | Z | C | O | S |
+|---|---|---|---|---|
+| SET if BCD overflow occurred (`BO -> K`) | SET if value==0 else CLEARED | CLEARED | CLEARED (O is integer overflow; not this instruction's condition) | result sign bit (CONDITIONAL) |
+| additionally: BO SET on BCD overflow |
+
+TRAP CONDITIONS: Addressing traps; BCD Overflow (BO). Requires the optional BCD hardware.
+CITATION: BCD hardware pack routines (PACK @ ..., BCD_ADD family); manual section 17.10
+(Convert binary word to packed). PARTIAL: like PWCONV, the exact opcode->micro entry
+for WPCONV is not a named label in this listing; mechanism resolved to the PACK/BCD
+routines. See unresolved list.
+
+---
+
+## Appendix: cross-check summary (microcode vs manual)
+
+- Every transcendental function's manual "Data status bits" list (Z, and S except EXP
+  which forces `0 -> S`, and SQRT which lists Z only) is consistent with the traced
+  `ST,SAVF` floating-status save in FWRITE_AAP/DWRITE_AAP. The manual's "unmentioned
+  bits are reset" rule resolves C and O to CLEARED for all of them - confirmed by the
+  microcode using floating ops (no integer carry/overflow generated).
+- Opcode OCR discrepancies found in the manual, resolved against the octal codes and
+  the emulator sources (octal wins): ATAN float "0FFC6H" -> 0xFF6C (177554B); EXP float
+  "0FF7U4" -> 0xFF74 (177564B); PWCONV "0FBECH" -> 0xFEBC (177274B).
+- TAN and EXP: emulator sources reference FO/FU trap helpers that the manual documents
+  as IVO (with clamped results). This is an emulator/manual wording difference, not a
+  microcode contradiction - the microcode range guards jump to the IVO/clamp path.
+```
