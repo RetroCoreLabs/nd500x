@@ -160,14 +160,30 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
 
     mon_log(MON_LOG_DEBUG, MON_ID_256B ": OUT: FullName='%s'", full_name);
 
-    /* DEABF must signal success to the linker via K=SET (RETK convention), not
-     * K=0. The linker resolves file names with `callg <256B>; if k go <success>`
-     * (B004DA08 / B004DA13); a clear K there is read as failure, so LOAD B:NRF
-     * aborted with error 52 before ever opening B.NRF even though the name
-     * resolved. Per the ND-500 ABI (Ref Manual: monitor calls are domain calls;
-     * RET clears K, RETK sets K), a successful domain call leaves K set.
-     * mon_set_success clears error_flag/error_code but sets K=0 (our default MON
-     * convention), so restore K=1 here for this call's if-k caller. */
+    /* K=CLEAR on success. An earlier revision set K=1 here, justified by reading
+     * `callg ...; if k go <target>` at B004DA08/B004DA13 as a jump-if-success.
+     * That reading was wrong on two counts, both byte-verified in
+     * /mnt/d/ND/500/nd-linker/linker-b01.dom.asm:
+     *
+     *   1. B004D9E6-B004DA5B is the linker's GENERIC indirect MON trampoline
+     *      (one `callg b.0x40,$N,...` per arity 1..6). It is not DEABF-specific,
+     *      so it says nothing about this call's private convention.
+     *   2. In that trampoline the if-k target is the ERROR arm:
+     *        B004DBF1: w move b.0x44,b.0xC   <- returned W1 into the error slot
+     *      while the fall-through (K clear) arm is the SUCCESS one:
+     *        B004DBED: w stz b.0xC           <- error slot zeroed
+     *      The wrapper at B004D8DE treats a NONZERO b.0xC as an error code.
+     *
+     * The OPEN-DOMAIN call site agrees and tests K directly with no masking:
+     *   B0000A6D: call $0xFFFFFFFFF80000AE,$0x3   ; MON 256B DEABF
+     *   B0000A76: if k go $0x3                    ; -> B0000A79 ... retk (error)
+     *   B0000A78: ret                             ; K clear = success
+     * With K=1 the linker took the error arm out of OPEN-DOMAIN and reported
+     * "SINTRAN (0000:00)" even though every MON call had succeeded. The old K=1
+     * was invisible at the LOAD site only because the companion I1=0 below makes
+     * the error arm copy 0 into b.0xC, which the wrapper reads as "no error".
+     *
+     * So: K clear on success, which is what mon_set_success already does. */
     mon_set_success(ctx);
     /* Success return value: W1/i1 = 0. The linker's generic MON trampoline
      * (callg at B004DA08; B004DA11 `w1 =: b.0x44`) copies our returned I1 into
@@ -182,9 +198,6 @@ MonResult mon_256B_FullFileName(MonContext* ctx) {
      * (see 256B_FULLFILENAME.yaml return_contract), so set it here. */
     if (ctx->set_i1) {
         ctx->set_i1(ctx->cpu, 0);
-    }
-    if (ctx->set_k_flag) {
-        ctx->set_k_flag(ctx->cpu, 1);
     }
     return MON_SUCCESS;
 }
