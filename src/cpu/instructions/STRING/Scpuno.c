@@ -5,106 +5,47 @@
 #include <stdbool.h>
 
 /**
- * SCPUNO instruction - STRING class
+ * SCPUNO instruction - STRING class (opcode block), but NOT a string loop.
  *
- * SCPUNO - String copy until
+ * SCPUNO - Store CPU number ('87 extension)
  *
- * Format: BY SCPUNO <src>, <dest>, <test>
+ * Format: SCPUNO <destination/w>          (Manual 16.36)
+ * Opcode: 0xFF7CC / 177774B  (dispatch entry uses 0xFFFC, operand_count = 1)
  *
- * Assembly:
- *   BY SCPUNO (string copy until)  Hex 0xFFFC
- *
- * Operation:
- *   while not end of strings and S(I1) != <test> do:
- *     S(I1) -> D(I2)
- *     I1 + 1 -> I1
- *     I2 + 1 -> I2
- *   endwhile
+ * Operation: <CPUNO> -> <destination>
  *
  * Description:
- *   Copies bytes from source string to destination string, stopping when
- *   a byte matching the test value is encountered or end of string is reached.
- *   The delimiter is not copied.
+ *   Store the CPU number in the destination address. This emulator models a
+ *   single ND-500/ND-5000 CPU, so the CPU number is 0 (same convention as the
+ *   RetroCore C# emulator: "Returns 0 (single CPU)").
  *
- * Reference: ND-500 Reference Manual, Section 14 (String operations)
+ * Data Status Bits:
+ *   Manual 16.36: "Status bit set according to CPU number." The microcode
+ *   (SCPUNO_1 @011021 -> SAVE_RES @011025) writes the arithmetic status
+ *   (ST,SAVA) from the stored CPU-number value. For value 0 that is Z=1, S=0;
+ *   C and O are not named for this instruction and are cleared (rule 4040).
+ *
+ * Reference: ND-500 Reference Manual, Section 16.36.
+ *            Microcode SCPUNO 001047 / SCPUNO_1 011021 (SAMSON_CPU, SAVE_RES 011025).
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Scpuno.cs
  */
 void nd500_instr_Scpuno(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    if (fi->operand_count != 3) {
-        printf("[ERROR] SCPUNO at PC=0x%08X: Expected 3 operands, got %u\n",
+    if (fi->operand_count != 1) {
+        printf("[ERROR] SCPUNO at PC=0x%08X: Expected 1 operand, got %u\n",
                fi->address, fi->operand_count);
         trap_illegal_operand(cpu, fi->address);
         return;
     }
 
-    /* Get descriptor addresses and test byte */
-    uint32_t source_desc_addr = fi->operands[0].effective_address;
-    uint32_t dest_desc_addr = fi->operands[1].effective_address;
-    uint32_t test_value = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], fi->data_type);
+    /* Single-CPU emulation: CPU number is 0 */
+    uint32_t cpuno = 0;
 
-    /* Load string descriptors */
-    Nd500StringDescriptor source_desc, dest_desc;
-    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, true, &source_desc)) {
-        return;
-    }
-    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, true, &dest_desc)) {
-        return;
-    }
+    /* <CPUNO> -> <destination> (destination is a WORD write operand) */
+    nd500_write_operand_value(cpu, &fi->operands[0], cpuno, ND500_DTYPE_WORD);
 
-    /* Get starting indices */
-    uint32_t src_index = cpu->I[0];
-    uint32_t dest_index = cpu->I[1];
-
-    /* Copy until test byte or end */
-    bool test_found = false;
-    bool src_exhausted = false;
-    bool dest_full = false;
-
-    while (src_index < source_desc.element_count && dest_index < dest_desc.element_count) {
-        uint32_t src_addr = source_desc.base_address + src_index;
-        uint8_t element = nd500_read_memory_8(cpu, src_addr);
-
-        /* Check for test byte (delimiter) */
-        if (element == (test_value & 0xFF)) {
-            test_found = true;
-            break;
-        }
-
-        /* Copy to destination */
-        uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_write_memory_8(cpu, dest_addr, element);
-
-        src_index++;
-        dest_index++;
-    }
-
-    /* Check termination */
-    if (src_index >= source_desc.element_count) {
-        src_exhausted = true;
-    }
-    if (dest_index >= dest_desc.element_count) {
-        dest_full = true;
-    }
-
-    /* Update index registers */
-    cpu->I[0] = src_index;
-    cpu->I[1] = dest_index;
-
-    /* K=1 if test byte found OR source exhausted, K=0 if destination full */
-    if (test_found || src_exhausted) {
-        nd500_set_flag(cpu, ND500_FLAG_K);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_K);
-    }
-
-    /* Set Z if test byte found */
-    if (test_found) {
-        nd500_set_flag(cpu, ND500_FLAG_Z);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_Z);
-    }
-
-    nd500_clear_flag(cpu, ND500_FLAG_S);
+    /* Status per the stored CPU-number value (ST,SAVA): Z if zero, S if sign
+     * bit set. C and O not named for SCPUNO -> cleared (rule 4040). */
+    nd500_set_flags_zs(cpu, cpuno, ND500_DTYPE_WORD);
     nd500_clear_flag(cpu, ND500_FLAG_C);
     nd500_clear_flag(cpu, ND500_FLAG_O);
 }
