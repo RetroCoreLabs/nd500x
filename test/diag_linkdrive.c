@@ -28,6 +28,7 @@
 #include "../src/libmon/mon.h"
 #include "../src/libmon/mon_log.h"
 #include "../src/libmon/mon_file_table.h"
+#include "../src/disasm/nd500_disasm.h"
 
 #define MEMSZ (16u*1024u*1024u)
 #define MAX_LINES 64
@@ -145,9 +146,24 @@ int main(int argc, char** argv) {
         if (getenv("ND500X_FTRACE_LO")) ft_lo=strtoull(getenv("ND500X_FTRACE_LO"),0,0);
         if (getenv("ND500X_FTRACE_HI")) ft_hi=strtoull(getenv("ND500X_FTRACE_HI"),0,0);
         if (getenv("ND500X_FTRACE_VAL")) ft_val=(uint32_t)strtoul(getenv("ND500X_FTRACE_VAL"),0,0);
+        /* ND500X_DISASM_AT=<pc>: when this PC is first reached (after all feeds),
+         * disassemble ND500X_DISASM_LEN bytes from ND500X_DISASM_BASE (default the
+         * hit PC) once, to inspect a code region on the fed path. */
+        static uint32_t disasm_at=0, disasm_base=0, disasm_len=64; static int disasm_done=0;
+        if (getenv("ND500X_DISASM_AT")) disasm_at=(uint32_t)strtoul(getenv("ND500X_DISASM_AT"),0,0);
+        if (getenv("ND500X_DISASM_BASE")) disasm_base=(uint32_t)strtoul(getenv("ND500X_DISASM_BASE"),0,0);
+        if (getenv("ND500X_DISASM_LEN")) disasm_len=(uint32_t)strtoul(getenv("ND500X_DISASM_LEN"),0,0);
         for (; s<maxsteps && m.run_flag; s++) {
             uint32_t watch_pc_before = c.PC;
             uint32_t k_before = c.ST1 & 0x100u;
+            if (disasm_at && !disasm_done && c.PC==disasm_at) {
+                disasm_done=1;
+                uint32_t base = disasm_base ? disasm_base : c.PC;
+                static char dbuf[8192];
+                nd500_disasm_format_range(&m, base, disasm_len, dbuf, sizeof(dbuf));
+                fprintf(stderr,"=== DISASM @%08X len=%u (hit PC=%08X instr=%llu) ===\n%s\n=== END DISASM ===\n",
+                        base, disasm_len, c.PC, (unsigned long long)c.instruction_count, dbuf);
+            }
             if (break_pc && c.PC == break_pc) {
                 fprintf(stderr, "[BREAK] PC=%08X instr=%llu B=%08X R=%08X I1=%08X I2=%08X I3=%08X I4=%08X ST1=%08X\n",
                         c.PC, (unsigned long long)c.instruction_count, c.B, c.R, c.I[0], c.I[1], c.I[2], c.I[3], c.ST1);

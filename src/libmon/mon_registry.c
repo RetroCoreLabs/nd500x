@@ -1450,7 +1450,7 @@ void mon_register_all_handlers(void) {
         "Gets information about an open file. You specify the file name. The monitor call returns the file nu",  /* Description */
         "[I] FileName (STRING): File name.\\n[I] FileType (STRING): File type.\\n[O] FileNo (INTEGER2): File number. If error return, this parameter contains the Logical Device Number (LDN) of peripheral device (only for peripheral files).\\n[O] AccessCode (INTEGER2): Access code. 0 means read. 1 means write. 2 means read and write.\\n[O] DevNo (INTEGER2): Logical device number of peripheral device. This is only relevant for peripheral files.\\n[O] ErrCode (INTEGER2): Standard Error Code. See appendix A.",  /* Parameter details */
         mon_257B_OpenFileInfo,  /* Handler */
-        MON_STATUS_NOT_IMPLEMENTED,    /* Status */
+        MON_STATUS_IN_PROGRESS,    /* Status */
         6             /* Param count */
     );
     mon_register_ex(

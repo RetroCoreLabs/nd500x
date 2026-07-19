@@ -340,3 +340,63 @@ ND500X_PIN_CLOCK=1 ../bin/diag_linkdrive /mnt/d/ND/500/nd-linker/linker-b01.dom 
 ND500X_PIN_CLOCK=1 ND500X_NOLOG=1 ND500X_BREAK_PC=0xB0040D75 \
   ND500X_BREAK_DUMP_BREL=0x44 ND500X_BREAK_DUMPLEN=16 ../bin/diag_linkdrive ... 
 ```
+
+---
+
+## UPDATE 2026-07-19b: 257B FOPEN ruled OUT as the blocker; gate + control flow pinned
+
+Investigated the "no current domain" blocker fresh with the diag_linkdrive
+disassembler (new ND500X_DISASM_AT/BASE/LEN feature) and calltrace.
+
+### Real, carve-grounded side-finding (LANDED, see SYNC-MON-257B-FOPEN-PRESENT-IN-SINTRAN-L.md)
+During OPEN-DOMAIN, after creating the .DOM the linker does `312B MOINF` on
+**257B** and, if present, CALLS `257B FOPEN`. Carve PROVED 257B IS present in
+SINTRAN L: `MCTAB[257B] @ 044-S3IDPIT (L-VSX-500) = 0x928A (0111212B), non-zero`.
+We were reporting it absent (STUB). Implemented FOPEN + flipped status + MOINF
+now reports present. 40061/40061 + nc 4/4 pass. BUT this is the error-message-file
+lookup path (FOPEN queries UE-ERMSG-EN-C:ERR), and LOAD STILL fails (0054:67).
+So FOPEN is ORTHOGONAL to current-domain. Ruled out.
+
+### The current-domain check is a PURE IN-LINKER MEMORY VARIABLE (no MON call)
+Extracted the MON calls the LOAD command makes: `256B DEABF` (B:NRF;1) ->
+`50B OPEN` B.NRF (file 102) -> `263B GDEVT` -> `76B SETBS 4000` -> `43B CLOSE`
+file 102 -> `71B DESCF` -> error. LOAD opens+validates+closes the object, then
+checks current-domain and errors BEFORE loading. NO MON call queries or sets
+current-domain. So OPEN-DOMAIN must set an in-linker memory variable that LOAD
+reads, and our run leaves it zero/unset.
+
+### Gate mechanism pinned (disasm)
+Command dispatcher region (disasm of B003D0A0..):
+```
+B003D0E2: call  0xB0040C3C   ; LOAD command handler
+B003D0E8: if-kgo +8          ; if K SET -> skip error (go B003D0F2)
+B003D0EA: call  0xB003CFDA   ; ELSE -> error handler (K clear == failure)
+```
+So LOAD errors iff the handler path returns K clear. B0040C3C is the command-line
+PARSER (ents #256; scans for ';' 59, ')' 41, ':' 58, '.' 46). It returns fine;
+execution then flows PARSER -> `B0040D5C call B004D4F4` (universal MON dispatcher,
+runs the DEABF/OPEN/SETBS/CLOSE above) -> `B0040D75` -> scanner loop
+`B0040DAA->B0040DCE->B0040E53(127-byte scan)->B0040D89` (~5 passes) ->
+`B0040E6D ret -> B003D0E8` -> `B003D100 ret -> B0034AF1` (error region) ->
+`B0034AF1 -> B0036ACD -> B0040711 -> B0049903` (error-message FORMATTER, fills a
+156-byte line). Confirms the doc's earlier tail mapping.
+
+### NEXT PROBE (for a fresh session - this is a multi-layer disasm job)
+The current-domain FAILURE is decided somewhere in the B0040D75 / B004D4F4
+region BEFORE the scanner unwinds to B0034AF1. Two concrete tasks:
+1. Disassemble the OPEN-DOMAIN command handler's SUCCESS tail (the create path,
+   around B004CAxx after the create/WFILE/CLOSE) and find the STORE to the
+   current-domain variable - confirm whether that store executes in our run and
+   what value it writes. Leading hypothesis (candidate b): the linker derives the
+   current-domain id/pointer from the domain header, and our header is 4096 zeros
+   -> derived id 0 -> LOAD's "!= 0" gate fails. A real create assigns a non-zero
+   domain number even for empty content.
+2. Disassemble the LOAD-side current-domain test (in B0040D75/B004D4F4 region) to
+   get the EXACT data address it reads, then diff that address between
+   "OPEN-DOMAIN;LOAD" and bare-"LOAD" runs. If identical (zero) in both,
+   OPEN-DOMAIN's set-current never executed -> find why (early branch / value
+   from the empty header).
+Tooling: diag_linkdrive now has ND500X_DISASM_AT=<pc> ND500X_DISASM_BASE=<pc>
+ND500X_DISASM_LEN=<n> (one-shot disasm on first PC hit, after feeds) and
+ND500X_CALLTRACE_LO/HI (prints PC discontinuities in an instr window). Rebuild
+diag_linkdrive with gcc (NOT make) against build/lib/*.a.

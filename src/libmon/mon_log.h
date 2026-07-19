@@ -75,6 +75,7 @@ typedef enum {
 #define MON_ID_162B   MON_ID("162B", "OUTST", "OutString")
 #define MON_ID_221B   MON_ID("221B", "CRALF", "CreateFile")
 #define MON_ID_256B   MON_ID("256B", "DEABF", "FullFileName")
+#define MON_ID_257B   MON_ID("257B", "FOPEN", "OpenFileInfo")
 #define MON_ID_262B   MON_ID("262B", "CPUST", "GetSystemInfo")
 #define MON_ID_214B   MON_ID("214B", "GUSNA", "GetUserName")
 #define MON_ID_312B   MON_ID("312B", "MOINF", "CheckMonCall")
