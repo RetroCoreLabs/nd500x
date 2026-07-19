@@ -104,6 +104,123 @@ three carve questions above, plus:
    `b.0x49==4`, or is B0040C3C a pre-parse whose error-52 is caught/retried by a
    caller we have not traced? Where is the `50B OPEN` of the object `.NRF`?
 
+## Session 2026-07-19 — independent re-derivation + Loader/Linker manual located
+Re-verified the whole chain from scratch (fresh disasm of the loaded
+`linker-b01.dom`, virtual addresses via `nd500x --debug` `d 0x...`); every step
+matches the round-2 analysis above. Nothing new is broken; the contradiction is
+confirmed a THIRD independent way.
+
+- LOAD handler dispatcher call + gate, disassembled directly:
+  ```
+  B0040D44: w move   #174,b.216            ; b.216 = 0xAE = 256B = DEABF routine no.
+  B0040D5C: call     B004D4F4,$10,b.216,IND(b.196),...   ; universal MON-invoke helper
+  B0040D75: if-kgo   $8   -> B0040D7D      ; if NOT K -> b.0x49 check
+  B0040D77: call     B0040C44,$0           ; K SET -> PROCEED (load the object)
+  B0040D7D: by comp2 b.73(=0x49),$4        ; K CLEAR -> need b.0x49 == 4, else err 52
+  ```
+  There is NO instruction between the call (D5C) and the gate (D75) that could set
+  K from the returned W1. The gate reads K exactly as the dispatcher leaves it.
+- Dispatcher `B004D4F4` slot for this callg is `B004DA08`; `B004DA13 if k go
+  B004DBF1 / B004DBD0`, both converge to `B004DBF6: w1:=b.12; w1=:r.12; ret` (K
+  clear). The K-set arm (B004DBF1) returns b.68 (DEABF's W1) as an error code; the
+  K-clear arm (B004DBED `w stz b.12`) returns 0. So with our DEABF returning K=1 +
+  W1=0 the dispatcher returns 0/K-clear regardless — i.e. the DEABF K flag alone
+  does NOT change the error-52 outcome (both polarities give K-clear at D75).
+  => The DEABF success K polarity is a red herring for error 52; the gate needs
+     `b.0x49 == 4`, which is set ONLY by a `.` in the pre-DEABF command-line scan.
+
+- LOADER/LINKER MANUAL LOCATED: `/mnt/e/Dev/Ronny/NDInsight/Reference-Manuals/
+  ND-60.136.04A ND-500 Loader Monitor.md`. It documents the OLD Linkage-Loader
+  (NLL: `SET-DOMAIN`, `LOAD-SEGMENT`). Our binary is the NEW NDL (`- ND LINKER,
+  Version B01  10. January 1989 -`, internal version 66.251), whose verbs are
+  `OPEN-DOMAIN` / `LOAD` (confirmed in this binary's own
+  `build/link_sandbox/GUEST/LINKER.HELP`; the manual lists `LOAD-SEGMENT` as the
+  "Related old Linkage-Loader command"). The manual does NOT document the NDL's
+  internal `b.0x49` command parser, so it does not resolve the gate. A successful
+  LOAD is documented (LINKER.HELP LOAD example) to print
+  `Program:.....B Pxx  Data:.....B Dxx`.
+
+- OPEN-DOMAIN behaviour fully traced (fresh domain, stale A-TEST.DOM removed):
+  `50B OPEN "A-TEST":DOM` (create, quoted) -> `120B WFILE` 4096-byte header page
+  -> `256B DEABF` echo -> `43B CLOSE`. Domain state is kept internally; the .DOM
+  file is closed between commands. This all SUCCEEDS. Note: our quoted-create
+  returns 076B "already exists" if `A-TEST.DOM` is present, but the NDL
+  OPEN-DOMAIN spec (LINKER.HELP) says an existing domain is ERASED — a separate,
+  lower-priority correctness gap (only bites on re-link of an existing domain).
+
+- LOAD path (fresh domain): reads `LOAD B` via 511B DVIO -> `256B DEABF` resolves
+  `B`->`B:NRF` (K=1, i1=0, host `./GUEST/B.NRF` found) -> error `(-677:52)`. It
+  never `50B OPEN`s `B.NRF`. The `117B RFILE FileNo=65 block 4` seen next is the
+  linker reading the still-open error-message file `UE-ERMSG-EN-C.ERR` to format
+  the (blank) error text, NOT reading B.NRF.
+
+### What `b.0x49 == 4` MEANS (new, ruled a dead end)
+Tested `LOAD B.NRF` (period) fresh. The `(-677:52)` is GONE — the period sets
+`b.0x49 = 4` and the gate passes — but the linker then prints
+`*** ERROR - Remote file-name ...`. So the `.` is NOT a type separator: the NDL
+reads `B.NRF` as ND COSMOS **remote-file syntax** (remote system `B`, file
+`NRF`). Confirmed by planting `GUEST/B.NRF.NRF` so our (colon-based) DEABF
+resolves `B.NRF`->`B.NRF:NRF`: the linker still rejects it as a remote name.
+=> `b.0x49 == 4` is the REMOTE-FILE branch, irrelevant to a local object. `:` is
+the correct type separator; `LOAD B` / `LOAD B:NRF` are the correct forms. The
+period is definitively NOT a fix.
+
+### Microcode check — the K-flag hypothesis is CLOSED (ND-5000 microcode)
+Checked the ND-5000 microcode directly (`/mnt/e/Dev/Ronny/ND5000UC/microcode/
+MICRO-5800-A30.md`, opcode table):
+```
+000701 RET   | ... D,SC14 K,ZRO ... |  -> RET  clears K   (micro-op K,ZRO)
+000702 RETK  | ... D,SC14 K,ONE ... |  -> RETK sets   K   (micro-op K,ONE)
+000706 RETB  | ... K,ZRO ...        |  -> clears K
+000707 RETBK | ... K,ONE ...        |  -> sets   K
+000774 SETK=K,ONE  000775 CLRK=K,ZRO
+```
+So `RET` genuinely CLEARS K on real hardware — our `Ret.c` is correct, and the
+dispatcher `B004D4F4` really does return K-clear on every arm on real HW too.
+=> K being clear at B0040D75 is NORMAL, not a divergence. The whole "why is K set
+on real HW" question is a DEAD END: it is not set, and is not supposed to be.
+
+### Re-read of the gate with K ruled out (corrects the earlier framing)
+With K-clear being correct, re-disassembling the branch targets shows B0040D75/
+B0040D7D is NOT the error-52 emitter:
+```
+B0040D75: if-kgo -> B0040D7D     ; K-clear (normal) path
+B0040D77: call B0040C44          ; K-set only: entd; l=:b.184; w1=:b.12; ret  (setup, then falls to D7D)
+B0040D7D: by comp2 b.73,$4       ; b.0x49 == 4 (REMOTE) -> B0040D83 bi1 clr; ret (early return)
+B0040D81: if>< -> B0040D85       ; b.0x49 != 4 (NORMAL) -> CONTINUES into the parser stage-machine
+```
+B0040D85+ is the command-line PARSER continuation (scans `;`=59, `:`=58, `)`=41,
+`'`=39 via `jumpg b.73`), i.e. the same stage machine as B0040C3C. So for a normal
+`LOAD B:NRF` the handler PROCEEDS past B0040D75; error 52 is emitted somewhere
+DOWNSTREAM of the parser, not at this gate. The prior "B0040D75 gate => error 52"
+framing is therefore imprecise: the gate is passed; the fault is later.
+
+### Corrected next step
+Runtime-trace the ACTUAL executed instruction path from the DEABF return through
+to where error code 52 is produced (the diag BREAK/trace harness can do this,
+non-destructively) instead of static branch-reading. The K-flag and both manuals
+are exhausted; the remaining work is a linear trace of the parser/load
+continuation to the exact instruction that sets error 52.
+
+### (superseded) earlier framing: the single K question
+The `b.0x49 == 4` route is now RULED OUT (it is the remote-file branch, see
+above). So on real hardware, for a local `LOAD B` / `LOAD B:NRF`, the ONLY way
+past B0040D75 is **K SET**. The universal MON dispatcher `B004D4F4` (which invokes
+DEABF at slot `B004DA08`) structurally ends in `ret` (K clear) on every arm, so
+in our model K is always clear at the gate. The whole blocker therefore reduces
+to one question for the S3FS carve / a real-HW trace:
+
+> After `call B004D4F4` returns to the LOAD handler at B0040D75, why is K SET on
+> real hardware for a successful DEABF? Does the dispatcher's success arm actually
+> `retk` (not `ret`)? Does the LOAD handler set K from the returned W1 in a way we
+> mis-decoded? Or does DEABF itself return via a path that leaves K set through
+> the dispatcher?
+
+Concretely, a real-HW trace need only report, at `B0040D75` for `LOAD B:NRF`:
+`ST1` (is K set?), `b.0x49`, and `I1`. Everything reachable from the emulator +
+both ND manuals (Loader/Monitor ND-60.136.04A and Monitor Calls ND-860228.2) is
+now exhausted.
+
 ## Reproduce
 ```
 cd /home/ronny/repos/nd500x/build/link_sandbox && rm -f GUEST/A-TEST.DOM
