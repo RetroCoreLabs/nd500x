@@ -72,23 +72,32 @@ void nd500_instr_Shr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Perform circular shift (like C# Shr.cs lines 47-57)
-     * Positive count = rotate RIGHT, negative = rotate LEFT */
+    /* Perform circular rotate.
+     * Microcode: positive count -> SHR_PSC branch (Q,Q*ROT @003334) = rotate LEFT;
+     * negative count -> SHR_NSC branch (Q,Q/ROT @003330) = rotate RIGHT. Manual:
+     * "Positive <shiftcount> implies left shift, negative implies right." The prior
+     * code had the direction reversed. count == 0 leaves the operand unchanged. */
     uint64_t result;
-    if (shift_count >= 0) {
-        /* Rotate right: (value >> shift) | (value << (bits - shift)) */
-        result = (value >> shift) | (value << (bits - shift));
-    } else {
-        /* Rotate left: (value << shift) | (value >> (bits - shift)) */
+    if (shift == 0) {
+        result = value;
+    } else if (shift_count > 0) {
+        /* Rotate LEFT: (value << shift) | (value >> (bits - shift)) */
         result = (value << shift) | (value >> (bits - shift));
+    } else {
+        /* Rotate RIGHT: (value >> shift) | (value << (bits - shift)) */
+        result = (value >> shift) | (value << (bits - shift));
     }
 
-    /* Mask to data type (like C# line 59) */
+    /* Mask to data type */
     uint32_t masked_result = nd500_mask_to_datatype(result, fi->data_type);
 
-    /* Write back to operand (like C# line 60) */
+    /* Write back to operand */
     nd500_write_operand_value(cpu, &fi->operands[0], masked_result, fi->data_type);
 
-    /* Update status flags: Z and S (like C# line 61) */
+    /* Status: Z and S from the result; K, C, O cleared (rule 4040 - only Z and S
+     * are named for SHR). */
     nd500_set_flags_zs(cpu, masked_result, fi->data_type);
+    nd500_clear_flag(cpu, ND500_FLAG_K);
+    nd500_clear_flag(cpu, ND500_FLAG_C);
+    nd500_clear_flag(cpu, ND500_FLAG_O);
 }
