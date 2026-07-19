@@ -75,7 +75,56 @@ using `nd500_read_operand_as_ieee_float` / `nd500_write_operand_from_ieee_float`
   0 fail (Sub2 86, Mulad 71, Test 3648, etc.). The F/D variants have NO existing test
   coverage (the generator never emitted them) - see below.
 
-## RetroCore (C#) TODO - keep identical
+## RetroCore (C#) emulator mirror - DONE (2026-07-19, not yet committed pending regen)
+
+Applied the identical float paths to the C# emulator, keeping instruction files
+PORTABLE (no C#-framework APIs in instruction files; BitConverter/Math confined to the
+helper layer, mirroring the C `union`/`isinf`/`fabs` boundary).
+
+- Helper added: `Emulated.HW/ND/CPU/ND500/Instructions/InstructionHelpers.cs`
+  - `ulong FloatFinish(double result, bool isDouble)` - mirror of `nd500_float_finish`
+    (Z,S from result; C,O cleared; FU/FO conditional + trap; returns raw IEEE bits).
+  - `double ReadRegisterAsIeeeFloat(byte regNum, bool isDouble)` - register-as-IEEE read
+    for MULAD (uses BitConverter in the helper layer only).
+- Instruction files rewritten to call ONLY helpers
+  (`ReadOperandAsIeeeFloat`/`WriteOperandAsIeeeFloat`/`FloatFinish`), dead
+  `ND500Float`/`ND500Double` switch cases and float trap tails removed:
+  ARITHMETIC/{Add3,Sub2,Sub3,Mul2,Mul3,Mulad,Div2,Div3}.cs, MOVE/Set1.cs, COMPARE/Test.cs.
+- Verified: `grep` confirms no `BitConverter|Math.|IsInfinity|ND500Float|ND500Double`
+  remain in any of the 10 instruction files.
+
+KEY REPRESENTATION FACT (proven, do not regress): float operands/registers are stored as
+RAW IEEE-754 bits, NOT ND-500 native bias-256. Evidence: validation case
+`FloatAbs_F_1_40400000` stores `a1 = 0x40400000` = IEEE 3.0. Both emulators now use the
+raw-IEEE path; the old C# `ND500Float.FromIeee754Single` native conversion was the bug.
+
+## ST flag bit encoding (both emulators + test `st` field) - verified
+
+`Registers.cs` ToStatusWord / FlagCalculator: Z=1<<5 (0x20), C=1<<6 (0x40), S=1<<7 (0x80),
+O=1<<9 (0x200), DZ=1<<12 (0x1000), FU=1<<13 (0x2000), FO=1<<14 (0x4000). Identical to
+nd500x `ND500_FLAG_*`.
+
+## Generator extension spec (39k suite must exercise F/D + negatives)
+
+Float register encoding in scenarios (pattern from ComprehensiveFloatGenerator.cs):
+- F: `InitialRegisters["a1"] = (uint)ieeeBits`; assembly uses A registers, e.g.
+  `F ADD3 A1,A2,A3`.
+- D: split - `a1 = (uint)(bits & 0xFFFFFFFF)`, `e1 = (uint)(bits >> 32)` (low->An, high->En).
+Expected result bits = `BitConverter.SingleToInt32Bits(aIeee OP bIeee)` (F) /
+`DoubleToInt64Bits` (D). Expected `st` per FloatFinish: Z if result==0, S if signbit,
+C=O=0, FU/FO per |r|<1e-38 / isinf-isnan; DIV DZ (0x1000) + ExpectedTrap DivideByZero
+when divisor==0.
+Negative/edge cases required (per user directive - exercise every fixed instruction):
+FO (e.g. max_float * max_float -> inf, ExpectedTrap FloatingOverflow, st FO),
+FU (tiny * tiny -> underflow, st FU), DZ (x / 0 -> ExpectedTrap DivideByZero, st DZ),
+SET1 F/D produces 1.0 (a1 = 0x3F800000 for F; a1/e1 for D=1.0), F/D TEST of
++0.0/-0.0/positive/negative -> correct Z/S.
+Files: ComprehensiveArithmeticGenerator.cs (Add3/Sub2/Sub3/Mul2/Mul3/Mulad/Div2/Div3 -
+add float branch in each Create*Scenario keyed on dataType F/D), and the CONTROL/COMPARE
+generators for SET1 and TEST. Ensure the orchestrator actually routes the F/D variants to
+these generators (currently no float ADD3 cases are emitted at all).
+
+## RetroCore (C#) remaining TODO
 
 1. Apply the same float/double paths to
    `/mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/`
