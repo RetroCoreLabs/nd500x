@@ -400,3 +400,57 @@ Tooling: diag_linkdrive now has ND500X_DISASM_AT=<pc> ND500X_DISASM_BASE=<pc>
 ND500X_DISASM_LEN=<n> (one-shot disasm on first PC hit, after feeds) and
 ND500X_CALLTRACE_LO/HI (prints PC discontinuities in an instr window). Rebuild
 diag_linkdrive with gcc (NOT make) against build/lib/*.a.
+
+---
+
+## UPDATE 2026-07-19c: banner formatter is SHARED (success+error); decision is upstream in the frame
+
+Kept hunting the current-domain variable with the diag_linkdrive disassembler +
+BREAK_PC frame/global dumps. New concrete facts:
+
+### The command executive B0034AF1 and the SHARED banner formatter
+After a command handler returns, control reaches the command executive at
+**B0034AF1**. Relevant disasm:
+```
+B0034AFC: w1 =: <abs 0xB0048F60>     ; store W1 to a linker global
+B0034B02: test W1 ; if!=0 go +311
+B0034B07: comp2 <abs 0xB0048CE0>, $11 ; if==go ...
+B0034B10: comp2 <abs 0xB0048CE0>, $13 ; if!=go +135
+B0034B1A: test b.144 ; if=go +59 -> B0034B57
+B0034B57: bmove b.80,r.20 ; call 0xB0036ACD   ; <-- SINTRAN result banner formatter
+```
+CRITICAL: BREAK_PC=B0034B57 fires on BOTH commands - OPEN-DOMAIN (instr 123040,
+prints "(0000:00)") AND LOAD (instr 191660, prints "(0054:67)"). So B0034B57 ->
+B0036ACD is the SHARED "(NNNN:NN)" banner formatter, NOT an error-only path. The
+earlier assumption that reaching B0036ACD == error was WRONG.
+
+### The success/error distinction is in the FRAME/regs, not the globals
+Dumped the linker global control block 0xB0048C80..0xB0048DC0 at BOTH B0034B57
+hits: BYTE-IDENTICAL between the success (OPEN-DOMAIN) and error (LOAD) runs.
+So the "(0000:00)" vs "(0054:67)" code is carried per-call, not in a global:
+  - OPEN-DOMAIN: B=B0001BD4  b.140=0x0C(12)  I2=0x12(18) I4=0x0C(12)
+  - LOAD:        B=B0002274  b.140=0x05(5)   I2=0x04(4)  I4=0x03(3)
+The "no current domain" (0054:67) status is therefore DECIDED inside the LOAD
+command handler (upstream of B0034AF1) and passed down as the status code the
+banner formats. 0054B=44dec, 67B=55dec - not yet found verbatim in a reg/frame,
+so it is looked-up/computed, not a raw field.
+
+### Linker global control block map (0xB0048Cxx, byte-verified)
+```
+0xB0048CA0: "ERROR-CODE:VAR" ... "LANGUAGE:VAR"   (config-variable name strings)
+0xB0048CE0: 0x0000000D (=13)   command code (comp'd to 11/13 in the executive)
+0xB0048CEC: 0x00000001
+0xB0048CFC: 0x0000001F (31)  0xB0048CF3: 0x00000028 (40)
+0xB0048D68: ptr 0xB0048D18   0xB0048D74: ptr 0xB0048D18   (list head/tail, cnt 0x4F)
+```
+These are the SAME in both runs (OPEN-DOMAIN did persist some state, but none of
+it is the success/error discriminator).
+
+### NEXT (fresh session): find the conditional that sets status 67 inside LOAD
+The current-domain test + status assignment is inside the LOAD handler between
+its entry and the return to the executive - i.e. in the B0040C3C-parse ->
+B004D4F4-MON-dispatch -> B0040D75-scanner flow, or a sub-call thereof. Probe:
+BREAK at the LOAD-handler return and walk backwards, or watch for the first write
+of 0x37(55)/0x2C(44) or an error-index into the frame during the LOAD window
+[173830,191660]. The current-domain "handle" the handler reads is the real
+target; OPEN-DOMAIN must set it and our create path does not.
