@@ -327,6 +327,14 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
 
             if (!l1_pte.valid) {
+                /* A MON-connected segment (412B FSCNT / 422B GSWSP) is grown on
+                 * demand, matching the manual's paged segment model - allocate
+                 * the missing L2 table + page and re-read rather than trapping. */
+                if (!is_instruction && nd500_segment_grow_on_fault(cpu, virtual_addr, domain)) {
+                    l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
+                }
+            }
+            if (!l1_pte.valid) {
                 MMU_ERR("[MMU] TRAP: PS_ADI L1 page not valid! vaddr=0x%08X l1_pte_addr=0x%08X\n", virtual_addr, l1_pte_addr);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
@@ -339,6 +347,12 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             /* Read L2 PTE */
             PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
 
+            if (!l2_pte.valid) {
+                /* Same demand-growth path as the L1 miss above. */
+                if (!is_instruction && nd500_segment_grow_on_fault(cpu, virtual_addr, domain)) {
+                    l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
+                }
+            }
             if (!l2_pte.valid) {
                 MMU_ERR("[MMU] TRAP: PS_ADI L2 page not valid! vaddr=0x%08X l2_pte_addr=0x%08X\n", virtual_addr, l2_pte_addr);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);

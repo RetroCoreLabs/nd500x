@@ -201,6 +201,12 @@ int nd500_mmu_is_enabled(Nd500Cpu* cpu);
 /* MMU Address Translation */
 uint32_t nd500_mmu_translate(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction);
 uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction, uint8_t domain);
+
+/* Demand-growth for MON-connected segments (412B FSCNT / 422B GSWSP).
+ * Called from the PS_ADI translation path when a page is missing: allocates the
+ * absent L2 table and/or data page so the access can be retried. Returns 1 if
+ * the fault was resolved, 0 to trap as usual. Defined in nd500_segment_alloc.c. */
+int nd500_segment_grow_on_fault(void* cpu_ptr, uint32_t virtual_addr, uint8_t domain);
 /* Trap-free read-only translate for diagnostics; 0xFFFFFFFF if unmapped. Never perturbs state. */
 uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr);
 uint32_t nd500_mmu_phyladr(Nd500Cpu* cpu, uint32_t virtual_addr);
