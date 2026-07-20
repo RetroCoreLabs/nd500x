@@ -63,6 +63,32 @@ MonResult mon_43B_CloseFile(MonContext* ctx) {
         return MON_ERROR;
     }
 
+    /* If the file is still connected as a segment, flush it back to disk first.
+     * Closing a connected file implicitly disconnects it (SINTRAN: "The file is
+     * disconnected when it is closed"), and a connected file is MAPPED rather
+     * than copied - the program writes the FILE through memory accesses to the
+     * segment. Without this, everything built in the mapping is lost at CLOSE.
+     * See the 413B handler for the same flush on an explicit disconnect. */
+    {
+        OpenFileEntry* seg_entry = mon_file_table_get(file_number);
+        if (seg_entry && seg_entry->in_use && seg_entry->mapped_as_segment
+            && ctx->writeback_file_segment && seg_entry->host_path[0]) {
+            uint32_t seg = seg_entry->mapped_segment_no;
+            int wrc = ctx->writeback_file_segment(ctx->cpu, 0xFF /* CED */, seg,
+                                                 seg_entry->host_path);
+            if (wrc < 0) {
+                mon_log(MON_LOG_WARN, MON_ID_43B
+                        ": write-back of segment %o to '%s' FAILED", seg, seg_entry->host_path);
+            } else if (wrc > 0) {
+                mon_log(MON_LOG_INFO, MON_ID_43B
+                        ": segment %o written back to '%s'", seg, seg_entry->host_path);
+            }   /* wrc == 0: read-only mapping, nothing to write - say nothing */
+            if (ctx->release_file_segment) {
+                ctx->release_file_segment(0xFF /* CED */, seg);
+            }
+        }
+    }
+
     /* Close file via file table API */
     int result = mon_file_close(file_number);
 

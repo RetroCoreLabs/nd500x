@@ -102,6 +102,17 @@ typedef struct MonContext {
         const char* host_path, uint32_t file_size_bytes,
         uint32_t* out_assigned_segment);
 
+    /* Flush a connected WRITABLE segment back to its host file, then drop the
+     * mapping (413B FSCDNT, or closing a file that is still connected).
+     * "Connect a file as a segment" is a mapping, not a copy: a program writes
+     * the FILE through ordinary memory accesses, so without this everything it
+     * builds there is lost. The ND Linker builds a whole :DOM this way and
+     * issues no 120B WFILE for the domain body at all.
+     * domain 0xFF means "the current executing domain (CED)". */
+    int (*writeback_file_segment)(void* cpu, uint8_t domain, uint32_t segment,
+        const char* host_path);
+    void (*release_file_segment)(uint8_t domain, uint32_t segment);
+
     /* Control flow signals (set by handler or dispatcher) */
     int halt_requested;         /* Request CPU halt (MON 0B LEAVE) */
     int break_requested;        /* Request debugger break */

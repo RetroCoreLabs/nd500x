@@ -24,6 +24,18 @@ extern int nd500_mon_connect_file_as_segment(void* cpu, void* machine, uint8_t d
     uint32_t requested_segment, uint32_t access_type, int writable,
     const char* host_path, uint32_t file_size_bytes,
     uint32_t* out_assigned_segment);
+extern int nd500_segment_writeback(void* cpu, uint8_t domain, uint32_t segment,
+    const char* host_path);
+extern void nd500_segment_release(uint8_t domain, uint32_t segment);
+
+/* Adapter: resolve the 0xFF "current domain" sentinel before flushing. */
+static int mon_writeback_file_segment(void* cpu_ptr, uint8_t domain, uint32_t segment,
+                                      const char* host_path)
+{
+    Nd500Cpu* c = (Nd500Cpu*)cpu_ptr;
+    if (domain == 0xFF && c) domain = (uint8_t)c->CED;
+    return nd500_segment_writeback(cpu_ptr, domain, segment, host_path);
+}
 
 /* =========================================================================
  * INTERNAL CONSTANTS
@@ -251,6 +263,8 @@ int nd500_check_indirect_call(
         /* Setup segment allocation callbacks */
         ctx.allocate_segment = nd500_mon_allocate_segment;
         ctx.connect_file_as_segment = nd500_mon_connect_file_as_segment;
+        ctx.writeback_file_segment = mon_writeback_file_segment;
+        ctx.release_file_segment = nd500_segment_release;
 
         /* Dispatch MON call */
         MonResult result = mon_dispatch(&ctx);

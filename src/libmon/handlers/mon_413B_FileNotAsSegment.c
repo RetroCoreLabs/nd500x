@@ -79,6 +79,28 @@ MonResult mon_413B_FileNotAsSegment(MonContext* ctx) {
 
     uint32_t disconnected_from = entry->mapped_segment_no;
 
+    /* Flush the segment back to the host file BEFORE dropping the mapping.
+     * A connected file is MAPPED, not copied: the program reads and writes the
+     * file through ordinary memory accesses to the segment, so everything it
+     * built there exists only in the segment's pages until now. The ND Linker
+     * constructs an entire :DOM this way and never issues a 120B WFILE for the
+     * domain body - without this flush a linked domain was written out as
+     * megabytes of zeros with a null start address, and would not run. */
+    if (ctx->writeback_file_segment && entry->host_path[0]) {
+        int wrc = ctx->writeback_file_segment(ctx->cpu, 0xFF /* CED */,
+                                              disconnected_from, entry->host_path);
+        if (wrc < 0) {
+            mon_log(MON_LOG_WARN, MON_ID_413B ": write-back of segment %o to '%s' FAILED",
+                    disconnected_from, entry->host_path);
+        } else if (wrc > 0) {
+            mon_log(MON_LOG_INFO, MON_ID_413B ": segment %o written back to '%s'",
+                    disconnected_from, entry->host_path);
+        }   /* wrc == 0: read-only mapping, nothing to write - say nothing */
+    }
+    if (ctx->release_file_segment) {
+        ctx->release_file_segment(0xFF /* CED */, disconnected_from);
+    }
+
     /* Clear segment mapping state. The file itself stays open. */
     entry->mapped_as_segment = false;
     entry->mapped_segment_no = 0;

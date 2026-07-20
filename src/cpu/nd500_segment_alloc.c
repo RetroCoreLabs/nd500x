@@ -231,6 +231,84 @@ int nd500_segment_grow_on_fault(void* cpu_ptr, uint32_t virtual_addr, uint8_t do
 }
 
 /**
+ * Write a connected segment's contents back to its host file (MON 413B FSCDNT,
+ * and file close while still connected).
+ *
+ * SINTRAN's "connect a file as a segment" is a MAPPING, not a copy: the program
+ * reads and writes the FILE through ordinary memory accesses to the segment.
+ * Without a write-back, everything a program builds in a writable mapped file is
+ * lost. The ND Linker builds an entire :DOM that way - LOAD/CLOSE never issue a
+ * single 120B WFILE for the domain body - so before this existed a linked domain
+ * came out as 6,312,168 bytes containing just 8 non-zero bytes, and would not
+ * run because even its start-address field at header offset 0xD8 was zero.
+ *
+ * Only pages that are actually mapped are written; a demand-grown segment's
+ * untouched pages stay holes, so the file keeps the sparse shape the program
+ * built. The file is extended to cover the highest mapped page.
+ *
+ * Returns 1 if the segment was flushed, 0 if there was nothing to flush (not a
+ * tracked segment, or mapped read-only), negative on a write error. Callers must
+ * distinguish 1 from 0 before reporting a write-back - saying "written back" for
+ * a read-only mapping is a false report.
+ */
+int nd500_segment_writeback(void* cpu_ptr, uint8_t domain, uint32_t segment,
+                            const char* host_path)
+{
+    Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
+    if (!cpu || !cpu->machine || !host_path) return 0;
+    Nd500Machine* m = cpu->machine;
+
+    GrowableSegment* g = growable_find(domain, segment);
+    if (!g || !g->writable) return 0;   /* not ours, or read-only: nothing to flush */
+
+    FILE* fp = fopen(host_path, "r+b");
+    if (!fp) {
+        fp = fopen(host_path, "w+b");
+        if (!fp) return -1;
+    }
+
+    /* Walk the two-level tables and write every mapped page at its file offset. */
+    for (uint32_t l1 = 0; l1 <= L1_INDEX_MASK; l1++) {
+        uint32_t l2_pfn = read_pte_pfn(m, g->l1_table_base, l1);
+        if (l2_pfn == 0) continue;                  /* whole 1 MB range unmapped */
+        uint32_t l2_base = l2_pfn << PGSHIFT;
+
+        for (uint32_t l2 = 0; l2 <= L2_INDEX_MASK; l2++) {
+            uint32_t pfn = read_pte_pfn(m, l2_base, l2);
+            if (pfn == 0) continue;                 /* page never touched */
+
+            uint32_t page_index = (l1 << 9) | l2;
+            long     offset = (long)page_index * NBPG;
+            uint32_t phys = pfn << PGSHIFT;
+
+            uint8_t buf[NBPG];
+            for (uint32_t i = 0; i < NBPG; i++) {
+                buf[i] = nd500_bus_read8(m, phys + i);
+            }
+            if (fseek(fp, offset, SEEK_SET) != 0 ||
+                fwrite(buf, 1, NBPG, fp) != NBPG) {
+                fclose(fp);
+                return -1;
+            }
+        }
+    }
+
+    fflush(fp);
+    fclose(fp);
+    return 1;
+}
+
+/**
+ * Release a connected segment's registry slot. Call after the write-back when a
+ * file is disconnected, so the logical segment number can be reused.
+ */
+void nd500_segment_release(uint8_t domain, uint32_t segment)
+{
+    GrowableSegment* g = growable_find(domain, segment);
+    if (g) g->in_use = 0;
+}
+
+/**
  * Find a free PSN starting from start_psn.
  * Returns the first free PSN found, or -1 if none available.
  */
