@@ -121,6 +121,52 @@ is 'no longer supported'".
 **That is now false.** The ND Linker (`linker-b01.dom`) calls 321B directly with 3 arguments
 from `PC=0xB004D37A`. Its `observed_calls` section should record this caller.
 
+## UPDATE 2026-07-20 — three-agent carve + a live test that narrows the gap
+
+Three subagents decoded the carved worker (`003-S3CP`). Reconciled, byte-proven
+result for the selector the linker uses:
+
+- **Selector = arg[0] = 1** is in range `[1..8]` (worker range-check
+  `065461B-065467B`; out of range stores `124B` into the selector slot).
+- The computed jump `065600B: LDA ,B -170 / RADD SA DP` lands selector V at word
+  `065602B + V`. Selector 1 -> `065603B` (`JMP I 32` -> ptr@`065635B` = `066455B`).
+  Cross-checked: the selector-8 special case at `065512B` jumps to the same
+  target the table gives for slot 8, which only holds if word = `065602B + V`.
+- Routine `066455B` (present in the carve at `003-S3CP.asm` line 16708; the
+  "outside the carved window" claim was wrong) funnels to the shared epilogue at
+  `066644B`, whose only success/error distinction is `066644 MIN ,B -167` — a
+  **skip-return => the MON returns with the ERROR (K) flag CLEAR**. So selector 1
+  SUCCEEDS. At EXIT `A` = the param-block base, not a status number.
+- **No file I/O**: the worker body `065453B-065747B` has no MON/OPEN/RFILE, and
+  no `UE-ERMSG` reference exists in the carve tree. The `030130B` helper is
+  `CCBRS`, a reserve/critical-section lock. The per-user table read by `LDATX`
+  has base/descriptor at resident `004321B`/`004320B`, stride `074B` = 60 words.
+
+### The live test that matters (do not skip this when reopening)
+
+Implementing exactly the byte-proven disposition — selector `[1..8]` -> success
+(K clear), `w1 = 0`, error `124B` only when out of range — was built and tested.
+**It is NECESSARY but NOT SUFFICIENT.** With all UEADM calls succeeding (HELP
+issues three: selectors 1, 1, 2), the linker STILL traps at `B0036975`.
+
+Therefore the remaining cause is not the K flag or `w1`: **UEADM must WRITE
+per-user data into a caller buffer that the linker later walks**, and leaving it
+empty produces the null string descriptor. This is the exact pattern the YAML
+already noted for NC ("probes 321B, then walks a NULL and crashes" if the list
+is empty). The carve does NOT prove the buffer's layout or content: the
+selector-1 arm's body does file housekeeping and a skip-return, not an obvious
+param-block payload write.
+
+### Sharpened remaining question
+
+What does UEADM sub-function 1 (and 2) write back into the caller's parameter
+block / by-reference buffers? Concretely, trace where the null pointer consumed
+at `B0036975` (`by comp2 IND(b.20)(r1),W2`) originates, back through the linker's
+command/entry list, to the UEADM output buffer whose address the wrapper passes
+as arg[1] (and the `(b.36+1)*2 = 48`-byte length in arg[2]). That buffer's
+required contents are the last unknown; everything else about this call is now
+byte-proven.
+
 ## Do not disturb
 
 `/home/ronny/repos/nd500x/src/libmon/handlers/mon_312B_CheckMonCall.c` carries a deliberate

@@ -1773,10 +1773,10 @@ void mon_register_all_handlers(void) {
         "321B",         /* Octal string */
         "UEADM",    /* Short name */
         "UEAdministrator",          /* Long name */
-        "DEPRECATED: This MON call is no longer supported.",  /* Description */
-        "",  /* Parameter details */
+        "User Environment administrator. Sub-function selector in arg[0], range [1..8].",  /* Description */
+        "[IO] Selector (INTEGER): sub-function 1..8; set to 124B on range error.",  /* Parameter details */
         mon_321B_UEAdministrator,  /* Handler */
-        MON_STATUS_DEPRECATED,    /* Handler runs (error 52), MOINF returns 0 */
+        MON_STATUS_VALIDATED,    /* Live carved worker (003-S3CP); 312B still hard-codes presence */
         0             /* Param count */
     );
     mon_register_ex(
