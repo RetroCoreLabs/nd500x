@@ -227,17 +227,33 @@ void nd500_instr_Loopi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         should_loop = (fp_index <= fp_limit);
         (void)index_bits;  // Suppress unused variable warning
     } else {
-        // Integer variants
-        // IMPORTANT: Read/write full register width (WORD), data type only affects comparison
-        // The increment operates on full 32-bit value, data type is for signed comparison
-        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        // Integer variants.
+        //
+        // The index MUST be read and written at the instruction's own data type,
+        // not forced to WORD. Per the ND-500 Reference Manual (13.4 Loop with
+        // increment): "The <index> and <limit> operands are of the same data
+        // type, which may be BY, H, W, F or D."
+        //
+        // Forcing WORD is wrong for any operand in MEMORY. The ND linker's NRF
+        // record scanner runs
+        //     B001D816: h stz    b.0x14        ; index = 0   (2 bytes)
+        //     B001D813: by2 =:   b.0x16        ; unrelated byte, adjacent
+        //     B001D891: FC DF 45 48 93         ; H LOOPI:B b.0x14, b.0x20, -109
+        // A WORD read of b.0x14 also swallows b.0x16, so the index came back as
+        // 0x00000800 instead of 0, incremented to 0x0801, and (int16_t)0x0801 =
+        // 2049 > limit 1 ended the loop after ONE iteration instead of two. The
+        // scanner then consumed one length byte too few, desynchronised from the
+        // record stream, and the linker rejected every object file with
+        // '*** ERROR - "4" in module  is illegal control byte. (0054:16)'.
+        // The WORD write-back additionally clobbered the neighbouring b.0x16.
+        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
         uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
-        // Increment index by 1 (full 32-bit operation)
+        // Increment index by 1
         index++;
 
-        // Write incremented index back (full 32-bit)
-        nd500_write_operand_value(cpu, &fi->operands[0], index, ND500_DTYPE_WORD);
+        // Write incremented index back at the instruction's data type
+        nd500_write_operand_value(cpu, &fi->operands[0], index, fi->data_type);
 
         // Perform signed comparison based on data type (compare low bits only)
         switch (fi->data_type) {
