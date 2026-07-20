@@ -65,3 +65,9 @@ SCRATCH-*.dat
 *.bak
 *.bak-*
 *.patch
+
+# Python bytecode from tools/
+__pycache__/
+
+# CTest scratch
+Testing/
