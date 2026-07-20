@@ -30,7 +30,7 @@ file. `LOOP`/`LOOPD` are fixed here pre-emptively, by the same manual sentences.
 
 `<step>` and `<limit>` already used the correct data type; only `<index>` was wrong.
 
-## Part 2 - two test expectations are wrong (deliberately left failing)
+## Part 2 - two test expectations were wrong (NOW FIXED, see Part 4)
 
 The change makes exactly 2 of the 40,061 validation cases fail:
 
@@ -67,15 +67,16 @@ Per the project rule ("The C# code is not a reference implementation... the
 ND-500 CPU, linker, and assembler reference manuals are the TRUTH"), the code was
 kept matching the manual and the two cases are left failing on purpose.
 
-### New ctest baseline
+### ctest baseline
 
-**15/18**, with these known-failing tests:
+This was briefly 15/18 while the generator still emitted the wrong expectations.
+After the generator fix and corpus regeneration (Part 4) it is back to **16/18**:
 
 | test | status |
 |------|--------|
 | `float_arithmetic` | pre-existing, unrelated |
 | `mon_calls` | pre-existing, exactly 3 sub-failures |
-| `instruction_validation` | **new**, exactly 2 sub-failures, both the LOOPD cases above - test file wrong, not the emulator |
+| `instruction_validation` | **ALL TESTS PASSED** |
 
 Anything beyond those numbers is a real regression.
 
@@ -90,17 +91,7 @@ Anything beyond those numbers is a real regression.
   still reports `Program:.......2466B P01   Data:..........1220B D01`.
 - `instruction_validation`: 2 failures, both listed above, both BY/H LOOPD.
 
-## What the C# side must do
-
-1. Apply the same fix: LOOP, LOOPI and LOOPD must read AND write `<index>` at the
-   instruction's own data type, never forced to 32-bit.
-2. **Fix the test generator.** For BY/H/BI results written to an integer register,
-   the upper part of the register is ZERO-FILLED, not sign-extended
-   (ND-05.009.4 line 2718). The two `Loopd_Index0_Limit0_Exit` expectations in
-   `test/nd500_tests.json` are wrong today. Regenerating with the corrected rule
-   should bring nd500x back to a clean instruction-validation run.
-3. Check whether the same sign-extend-instead-of-zero-fill assumption leaks into
-   other generated expectations for BY/H register results.
+## What the C# side must do - DONE, see Part 4
 
 ## Part 3 - microcode confirmation (ND-5800-B30)
 
@@ -143,3 +134,64 @@ Two conclusions, both byte-level:
    an explicit widening step would have to appear here; it does not. That is
    consistent with ND-05.009.4 line 2718 (zero-fill) and therefore with leaving
    the two `Loopd_Index0_Limit0_Exit` expectations failing as wrong.
+
+## Part 4 - the C# side is fixed too (both emulator and generator)
+
+All changes applied in `/mnt/e/Dev/Repos/Ronny/RetroCore`, built clean, corpus
+regenerated, and re-validated against nd500x.
+
+### Emulator
+
+| file | change |
+|------|--------|
+| `Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/Loopi.cs` | index read/write `DataType.W, 4` -> the instruction's `dataType` / `GetDataWidth(dataType)` |
+| `Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/Loopd.cs` | same |
+| `Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/Loop.cs` | same |
+
+Note on how the bug got there: `Loop.cs` carried the comment *"This was the root
+cause of the index write-back bug: the old code used fi.DataType/fi.DataWidth for
+the index too, so a BY LOOP wrote back only 1 byte via the wrong (integer)
+register width path."* That reasoning was mistaken - writing only the low byte
+IS the architecture. `WriteRegisterValue` in
+`Emulated.HW/ND/CPU/ND500/Instructions/InstructionHelpers.cs` already implements
+it correctly:
+
+```csharp
+// Zero-fill upper bits for BI, BY, and H data types
+DataType.BI => (uint)(value & 0x1),
+DataType.BY => (uint)(value & 0xFF),
+DataType.H  => (uint)(value & 0xFFFF),
+_           => (uint)(value & 0xFFFFFFFF)  // W
+```
+
+So the C# register path already agreed with ND-05.009.4 line 2718; forcing
+`DataType.W` bypassed its own correct masking.
+
+### Test generator
+
+`Emulated.Tests.ND500/Validation/Generators/ComprehensiveBranchGenerator.cs`
+hardcoded `0xFFFFFFFF` as the post-decrement index for **every** data type. Now
+width-dependent:
+
+```csharp
+uint expectedAfterDecrement = dataType.ToUpperInvariant() switch
+{
+    "BY" => 0x000000FFu,
+    "H"  => 0x0000FFFFu,
+    _    => 0xFFFFFFFFu,   // W
+};
+```
+
+### Result
+
+```
+dotnet build Emulated.HW           -> 0 Errors
+dotnet build Emulated.Tests.ND500  -> 0 Errors
+dotnet test --filter Generate_Master_JSON -> Passed
+cp .../nd500_tests.json -> nd500x/test/nd500_tests.json ; make
+./build/bin/test_instruction_validation --continue -> ALL TESTS PASSED
+ctest -> 16/18 (only the two pre-existing failures)
+linker -> Program:.......2466B P01   Data:..........1220B D01
+```
+
+Both emulators and the shared corpus now agree with the manual and the microcode.
