@@ -157,15 +157,30 @@ is empty). The carve does NOT prove the buffer's layout or content: the
 selector-1 arm's body does file housekeeping and a skip-return, not an obvious
 param-block payload write.
 
-### Sharpened remaining question
+### CORRECTION 2026-07-20 (later same day): UEADM does NOT cause the crash
 
-What does UEADM sub-function 1 (and 2) write back into the caller's parameter
-block / by-reference buffers? Concretely, trace where the null pointer consumed
-at `B0036975` (`by comp2 IND(b.20)(r1),W2`) originates, back through the linker's
-command/entry list, to the UEADM output buffer whose address the wrapper passes
-as arg[1] (and the `(b.36+1)*2 = 48`-byte length in arg[2]). That buffer's
-required contents are the last unknown; everything else about this call is now
-byte-proven.
+The question that stood here assumed the crash came from an empty UEADM output
+buffer. That assumption is FALSE. Three independent proofs:
+
+1. With the handler returning ERROR (old stub) vs SUCCESS (implemented), the trap
+   occurs at the IDENTICAL instruction count (269466) and address (B0036975).
+   UEADM's return has zero effect on the crash.
+2. The linker's UEADM wrapper at B004D366 reads back ONLY the scalar w1 status;
+   it never dereferences UEADM's by-reference buffer.
+3. The carve shows UEADM's only caller-visible write is param[12] = status; its
+   other stores go INTO the resident user table, not a caller buffer.
+
+Real cause (unrelated to UEADM): a command-table walk - loop in routine B00367B8,
+driven by the iterator B0040A89 (called at B0036810) - over-reads by one entry
+and hands a zero-filled terminator descriptor to the string matcher B0036950,
+which dereferences the null name pointer. B0036975 is a HOT matcher that runs
+cleanly thousands of times; only the abbreviation/HELP scan path reaches the
+terminator (full REFER-ENTRY matches exactly and stops early). Tracked in the
+task "Command-table walk over-reads by one".
+
+The UEADM handler implemented here stands on its own as the byte-proven
+disposition (selector [1..8] -> success); it does not, and never could, fix the
+HELP/REFER crash.
 
 ## Do not disturb
 
