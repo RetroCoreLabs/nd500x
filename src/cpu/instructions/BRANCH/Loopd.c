@@ -215,17 +215,22 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         should_loop = (fp_index >= fp_limit);
         (void)index_bits;  // Suppress unused variable warning
     } else {
-        // Integer variants
-        // IMPORTANT: Read/write full register width (WORD), data type only affects comparison
-        // The decrement operates on full 32-bit value, data type is for signed comparison
-        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        // Integer variants.
+        //
+        // The index is read and written at the instruction's own data type, not
+        // forced to WORD. ND-05.009.4 section 13.5: "The <index> and <limit>
+        // operands are of the same data type, which may be BY, H, W, F or D."
+        // Forcing WORD corrupts neighbouring bytes whenever the index is a
+        // memory operand - see docs/HANDOFF_LOOPI_INDEX_DATATYPE.md, where
+        // exactly that desynchronised the ND linker's NRF record scanner.
+        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
         uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
-        // Decrement index by 1 (full 32-bit operation)
+        // Decrement index by 1
         index--;
 
-        // Write decremented index back (full 32-bit)
-        nd500_write_operand_value(cpu, &fi->operands[0], index, ND500_DTYPE_WORD);
+        // Write decremented index back at the instruction's data type
+        nd500_write_operand_value(cpu, &fi->operands[0], index, fi->data_type);
 
         // Perform signed comparison based on data type (compare low bits only)
         switch (fi->data_type) {

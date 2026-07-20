@@ -292,10 +292,16 @@ void nd500_instr_Loop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         bool exit_loop = (fp_step > 0 && diff > 0) || (fp_step < 0 && diff < 0);
         should_loop = !exit_loop;
     } else {
-        // Integer variants
-        // IMPORTANT: Read/write index in full register width (WORD), data type only affects comparison
-        // The add operation uses full 32-bit value, data type is for signed comparison
-        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        // Integer variants.
+        //
+        // The index is read and written at the instruction's own data type, like
+        // <step> and <limit> below. ND-05.009.4 section 13.6: "The <index>,
+        // <step> and <limit> operands are of the same data type, which may be
+        // BY, H, W, F or D." Forcing WORD corrupts neighbouring bytes whenever
+        // the index is a memory operand - see the LOOPI fix and
+        // docs/HANDOFF_LOOPI_INDEX_DATATYPE.md, where exactly that desynchronised
+        // the ND linker's NRF record scanner.
+        uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], data_type);
         uint64_t step = nd500_read_operand_value(cpu, &fi->operands[1], data_type);
         uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[2], data_type);
 
@@ -324,8 +330,8 @@ void nd500_instr_Loop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         // Add step to index (full 32-bit operation)
         uint64_t new_index = index + step;
 
-        // Write updated index back (full 32-bit)
-        nd500_write_operand_value(cpu, &fi->operands[0], new_index, ND500_DTYPE_WORD);
+        // Write updated index back at the instruction's data type
+        nd500_write_operand_value(cpu, &fi->operands[0], new_index, data_type);
 
         // Per C# reference:
         // exit if (step > 0 && newIndex > limit) || (step < 0 && newIndex < limit)
