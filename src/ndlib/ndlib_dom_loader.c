@@ -45,6 +45,18 @@
 
 /* SINTRAN Window configuration */
 #define SINTRAN_WINDOW_PAGES  8   /* 8 pages = 16KB */
+
+/* Extra zeroed pages reserved ABOVE a segment's initialized DATA for the
+ * program's stack/heap/bss growth at runtime. The DOM segment descriptor
+ * carries only the initialized (file) data size (SEG_OFF_SZ); the uninitialized
+ * growth region that the program's stack (frame register B) and heap expand into
+ * is NOT described (FLA/FUA/MINP/MAXP are 0 in the vendor DOMs). Without this
+ * reserve a program with deep recursion or a large heap - e.g. the NC C compiler
+ * during code generation - grows its stack past the last mapped data page and
+ * takes a page fault (VA just above data_size), then its own page-fault handler
+ * faults again on unmapped work-segments -> fatal. 512 pages = 1MB is generous
+ * for the ND-500 toolchain and fits comfortably in the 16MB machine. */
+#define DATA_GROWTH_RESERVE_PAGES  512
 #define SINTRAN_WINDOW_SIZE   (SINTRAN_WINDOW_PAGES * 2048)
 
 /*
@@ -435,18 +447,30 @@ int ndlib_dom_load_to_machine(
             uint32_t data_pages = (seg_info[i].data_size + 2047) / 2048;
             if (data_pages == 0) data_pages = 1;
 
-            /* Allocate page table */
+            /* Reserve extra pages above the initialized data for stack/heap/bss
+             * growth (see DATA_GROWTH_RESERVE_PAGES). These map to fresh physical
+             * pages taken from the allocation cursor; machine memory is zeroed at
+             * init, so they read as 0 (correct for bss/fresh stack). */
+            uint32_t reserve_pages = DATA_GROWTH_RESERVE_PAGES;
+            uint32_t total_pages = data_pages + reserve_pages;
+
+            uint32_t reserve_phys_base = pt_alloc_base;
+            pt_alloc_base = (pt_alloc_base + reserve_pages * 2048 + 2047) & ~2047u;
+
+            /* Allocate page table sized for the initialized data + reserve */
             uint32_t pt_base = pt_alloc_base;
-            pt_alloc_base = (pt_alloc_base + data_pages * 4 + 2047) & ~2047u;
+            pt_alloc_base = (pt_alloc_base + total_pages * 4 + 2047) & ~2047u;
 
-            /* Fill page table - PTEs for DATA pages
-             * Page table maps to where DATA was actually copied (data_phys_base)
-             */
+            /* Fill page table: initialized-data PTEs point at data_phys_base;
+             * reserve PTEs point at the fresh zeroed physical block. */
             uint32_t data_base_pfn = seg_info[i].data_phys_base >> 11;
+            uint32_t reserve_base_pfn = reserve_phys_base >> 11;
 
-            for (uint32_t p = 0; p < data_pages; p++) {
+            for (uint32_t p = 0; p < total_pages; p++) {
                 uint32_t pte_addr = pt_base + p * 4;
-                uint32_t pfn = data_base_pfn + p;
+                uint32_t pfn = (p < data_pages)
+                                 ? (data_base_pfn + p)
+                                 : (reserve_base_pfn + (p - data_pages));
                 uint32_t pte = (pfn << 2) | 0;  /* protection=0 for RW data */
                 nd500_bus_write32(m, pte_addr, pte);
             }
