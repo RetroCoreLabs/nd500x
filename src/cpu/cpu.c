@@ -367,6 +367,39 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		        (unsigned long long)cpu->instruction_count);
 	}
 
+	/* Runaway-trap-loop guard. A program whose data/stack segment is not mapped
+	 * (e.g. a DOM whose runtime expects DSEG at segment 30 / 0xF0000000 that the
+	 * loader never mapped) re-faults on the IDENTICAL (trapPC, dataAddr) forever:
+	 * the trap dispatches to the program's handler, the handler retries the
+	 * faulting instruction, and it faults again - an infinite loop that also
+	 * floods the MMU error log. Legitimate page-fault handling makes progress
+	 * (the retry succeeds, so the identical trap does not repeat), so a long run
+	 * of identical consecutive traps only happens in a genuine dead loop. Detect
+	 * it and HALT instead of spinning. */
+	if (trapBit & TRAP_INTERRUPT_MASK) {
+		static uint32_t last_pc = 0xFFFFFFFFu, last_data = 0xFFFFFFFFu;
+		static uint64_t last_bit = 0;
+		static uint32_t rep = 0;
+		if (trapPC == last_pc && dataAddr == last_data && trapBit == last_bit) {
+			if (++rep > 500) {
+				fprintf(stderr, "[TRAP] Runaway trap loop: %s at PC=0x%08X data=0x%08X "
+				        "repeated - HALTING (likely an unmapped data/stack segment)\n",
+				        nd500_stop_reason_str(trap_to_stop_reason(trapBit)), trapPC, dataAddr);
+				nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
+				if (cpu->machine) {
+					cpu->machine->run_flag = 0;
+					cpu->machine->stop_reason = trap_to_stop_reason(trapBit);
+					cpu->machine->stop_addr = trapPC;
+					cpu->machine->stop_data = dataAddr;
+				}
+				rep = 0; last_pc = 0xFFFFFFFFu;
+				return;
+			}
+		} else {
+			rep = 0; last_pc = trapPC; last_data = dataAddr; last_bit = trapBit;
+		}
+	}
+
 	/* Set the corresponding bit in ST1/ST2 status registers */
 	if (trapBit & 0xFFFFFFFF) {
 		cpu->ST1 |= (uint32_t)(trapBit & 0xFFFFFFFF);
