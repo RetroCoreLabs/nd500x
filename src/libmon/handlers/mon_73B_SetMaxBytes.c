@@ -79,6 +79,17 @@ MonResult mon_73B_SetMaxBytes(MonContext* ctx) {
      * here shortens a scratch file under the program's feet and makes a later
      * read-back deliver a truncated image. So just record the logical length; do
      * NOT touch the host file. (CLOSE/43B applies it.) */
+    /* MaxBytePointer == 0xFFFFFFFF is the SINTRAN "unlimited / do not limit"
+     * sentinel. new_size = ptr + 1 would overflow to 0 here, and CLOSE would
+     * then truncate the file to zero bytes (silently destroying a just-written
+     * object). Treat the sentinel as "no logical max": leave the file's actual
+     * length alone and do NOT arm the CLOSE-time truncation. */
+    if (max_byte_ptr == 0xFFFFFFFFu) {
+        mon_log(MON_LOG_DEBUG, MON_ID_73B ": File %o max=unlimited (0xFFFFFFFF) - no truncation", file_no);
+        mon_set_success(ctx);
+        return MON_SUCCESS;
+    }
+
     uint32_t new_size = max_byte_ptr + 1;
     entry->object_entry.bytes_in_file = new_size;
     entry->max_bytes_set = true;  /* CLOSE applies this logical length to the host file */
