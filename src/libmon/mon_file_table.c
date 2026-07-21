@@ -341,6 +341,14 @@ static int sintran_resolve_abbrev(const char* host_path, char* resolved, size_t 
     return 0;
 }
 
+/* Public wrapper: given a literal host path <dir>/<NAME>.<TYPE> that does not
+ * exist verbatim, scan its directory for a SINTRAN abbreviated-name match using
+ * the carved COMPS/GOBJI rules. Returns 0 and fills resolved[] on a unique hit,
+ * -46 (no such file) if nothing matched, -47 (ambiguous) if more than one did. */
+int mon_resolve_abbrev(const char* host_path, char* resolved, size_t resolved_size) {
+    return sintran_resolve_abbrev(host_path, resolved, resolved_size);
+}
+
 int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_mode, int requested_file_no) {
     int free_slot = -1;
     bool is_scratch = false;
@@ -935,6 +943,22 @@ size_t mon_get_console_input_remaining(void) {
     return g_queued_console.input_count;
 }
 
+/* Bytes from the read position up to and including the first break character
+ * (CR = 0x0D), or 0 if no break character is queued. This is the SINTRAN
+ * "NoUntilBreak" value reported by 313B IBRISZ: it lets a caller know whether a
+ * complete line (terminated by a break) is available. Returns 0 for an empty or
+ * unterminated buffer - which is also the correct value for our live
+ * interactive console, where nothing is queued (input is read char-by-char). */
+size_t mon_get_console_input_until_break(void) {
+    size_t pos = g_queued_console.input_read_pos;
+    for (size_t i = 0; i < g_queued_console.input_count; i++) {
+        char c = g_queued_console.input_buffer[pos];
+        if (c == '\r') return i + 1;   /* through the break char */
+        pos = (pos + 1) % QUEUED_CONSOLE_MAX;
+    }
+    return 0;   /* no break character in the buffer */
+}
+
 /* ============================================================
  * Standard I/O Console
  *
@@ -1021,28 +1045,29 @@ static int stdio_read_char(void* ctx) {
     return EOF;
 }
 
-/* Track last written char to avoid CR LF -> CR LF LF */
-static int g_stdio_last_char = 0;
-
 static void stdio_write_char(void* ctx, int ch) {
     (void)ctx;
     unsigned char c = (unsigned char)ch;
 
-    /* If we just wrote CR (which output CR LF) and now get LF, skip it */
-    if (g_stdio_last_char == '\r' && ch == '\n') {
-        g_stdio_last_char = ch;
-        return;  /* Already sent LF after CR */
-    }
+    /* Drop NUL (0x00). SINTRAN/VT100 programs emit NUL as fill/timing padding
+     * after a clear-screen (real terminals ignore it). Some terminal emulators
+     * instead advance the cursor or print a glyph for NUL, which shifts the
+     * whole screen one column and corrupts the layout. It carries no display
+     * meaning, so never forward it. */
+    if (c == 0x00) return;
 
+    /* Write the byte VERBATIM - the real SINTRAN terminal driver does not
+     * expand a bare CR into CR+LF on output. The Monitor Calls manual
+     * (ND-860228.2 EN) shows every language example emitting a newline as
+     * TWO explicit OutByte calls, CR (13) then LF (10):
+     *     OutByte(FileNo, 13);   (* Out carriage return *)
+     *     OutByte(FileNo, 10);   (* Out line feed *)
+     * A well-behaved program (NC, CAT) sends its own LF; a full-screen VT100
+     * program (LINKER, CONVERT-DOMAIN) sends a bare CR to return to column 1
+     * of the SAME line and positions rows with absolute ESC[r;cH. Injecting an
+     * LF after CR scrolled the screen and corrupted those cursor-addressed
+     * forms - the "odd characters" symptom. Emulate the driver: pass through. */
     write(STDOUT_FILENO, &c, 1);
-
-    /* Translate CR to CRLF for Unix terminal */
-    if (ch == '\r') {
-        c = '\n';
-        write(STDOUT_FILENO, &c, 1);
-    }
-
-    g_stdio_last_char = ch;
 }
 
 static ConsoleIO g_stdio_console = {

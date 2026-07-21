@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * Init instruction - CONTROL class
@@ -97,6 +98,10 @@ void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * We omit argument copying to strictly follow the manual specification.
      */
 
-    printf("[INIT] Stack initialized at B=0x%08X, TOS=0x%08X, SP=0x%08X\n",
-           cpu->B, cpu->TOS, bottom_of_stack + stack_demand_main);
+    /* Diagnostic only - gated so it never leaks onto the SINTRAN console.
+     * Set ND500X_INITLOG=1 to see the stack setup each INIT performs. */
+    if (getenv("ND500X_INITLOG")) {
+        printf("[INIT] Stack initialized at B=0x%08X, TOS=0x%08X, SP=0x%08X\n",
+               cpu->B, cpu->TOS, bottom_of_stack + stack_demand_main);
+    }
 }

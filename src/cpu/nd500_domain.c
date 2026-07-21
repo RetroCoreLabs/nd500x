@@ -48,7 +48,7 @@ void nd500_domain_setup_dit(Nd500Cpu* cpu, uint32_t ditbase) {
         nd500_bus_write8(cpu->machine, ditbase + i, 0);
     }
 
-    printf("ND-500: DIT setup at 0x%08X (%d domains, %d bytes)\n",
+    if (!nd500_quiet) printf("ND-500: DIT setup at 0x%08X (%d domains, %d bytes)\n",
            ditbase, MAX_DOMAINS, dit_size);
 }
 
@@ -316,7 +316,7 @@ void nd500_domain_switch(Nd500Cpu* cpu, uint8_t target_domain, uint32_t entry_po
 
     cpu->PC = entry_point;
 
-    printf("ND-500: Domain switch %d → %d at PC=0x%08X\n",
+    if (!nd500_quiet) printf("ND-500: Domain switch %d -> %d at PC=0x%08X\n",
            calling_domain, target_domain, entry_point);
 }
 
@@ -379,7 +379,7 @@ void nd500_domain_return(Nd500Cpu* cpu) {
     DomainCallState empty = {0, 0, 0, 0};
     nd500_domain_write_call_state(cpu, current_domain, empty);
 
-    printf("ND-500: Domain return %d → %d at PC=0x%08X\n",
+    if (!nd500_quiet) printf("ND-500: Domain return %d -> %d at PC=0x%08X\n",
            current_domain, calling_domain, cpu->PC);
 }
 
@@ -479,7 +479,7 @@ int nd500_domain_allocate(Nd500Cpu* cpu) {
     for (int domain = 1; domain < MAX_DOMAINS; domain++) {
         if (!cpu->domains_in_use[domain]) {
             cpu->domains_in_use[domain] = 1;
-            printf("ND-500: Allocated domain %d\n", domain);
+            if (!nd500_quiet) printf("ND-500: Allocated domain %d\n", domain);
             return domain;
         }
     }
@@ -508,7 +508,7 @@ void nd500_domain_free(Nd500Cpu* cpu, uint8_t domain) {
     }
 
     cpu->domains_in_use[domain] = 0;
-    printf("ND-500: Freed domain %d\n", domain);
+    if (!nd500_quiet) printf("ND-500: Freed domain %d\n", domain);
 }
 
 /**

@@ -37,10 +37,12 @@ MonResult mon_313B_InBufferState(MonContext* ctx) {
     if (ctx->arg_count >= 2) {
         mon_write_param_word(ctx, 1, remaining);
     }
-    /* arg2 = NoUntilBreak (3-arg form). Our queued input is line-oriented and
-     * terminated by CR, so a break is present whenever there is any input. */
+    /* arg2 = NoUntilBreak (3-arg form). Per the carved manual contract
+     * (ND-860228 lines 14054-14056): "Number of bytes before break (zero if no
+     * break character in the buffer)." NOT the same as NoInBuffer - a buffer
+     * with no CR yet must report 0. */
     if (ctx->arg_count >= 3) {
-        mon_write_param_word(ctx, 2, remaining);
+        mon_write_param_word(ctx, 2, (uint32_t)mon_get_console_input_until_break());
     }
 
     /* Also return the count in W1. The ND LINKER reads its input-buffer length

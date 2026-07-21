@@ -163,5 +163,12 @@ MonResult mon_336B_Terminal(MonContext* ctx) {
     if (ctx->arg_count >= 4)
         iomty_write_word(ctx, ctx->arg_addresses[3], (r == MON_SUCCESS) ? 0u : 1u);
 
+    /* W1 = Status1 (ND-860228 line 22542: "W1 =: Status1" on the OK return).
+     * mon_set_success only clears K; without an explicit W1 the linker reads a
+     * stale value (the CALLG target address) as Status1 - the 144B MAGTP / 412B
+     * FSCNT stale-value defect class. Set W1=0 on success so Status1 reads OK. */
+    if (r == MON_SUCCESS)
+        ctx->set_error_code(ctx->cpu, 0);
+
     return r;
 }

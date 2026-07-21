@@ -32,6 +32,7 @@ ND500X is an emulator for the Norsk Data ND-500 architecture, featuring:
   - [WebAssembly Build](#webassembly-build)
 - [Testing](#testing)
 - [Usage](#usage)
+  - [SINTRAN Shell (Monitor Mode)](#sintran-shell-monitor-mode)
 - [Architecture](#architecture)
 - [Dependencies](#dependencies)
 - [Platform Support](#platform-support)
@@ -251,6 +252,12 @@ For negative tests, additional fields mark expected failures:
 
 | Option | Description |
 |--------|-------------|
+| `--monitor` | Start the SINTRAN-flavoured shell (log in, run DOM programs by name) |
+| `--telnet <port>` | Serve the SINTRAN shell over TCP/telnet on `<port>` (implies `--monitor`) |
+| `--script <path>` | Feed shell commands from a file, then continue interactively (with `--monitor`) |
+| `--config <path>` | Load settings from an ini file (else `./nd500x.ini` if present) |
+| `--sintran-root <path>` | SINTRAN file-system root directory (default: current directory) |
+| `--user <name>` | Current SINTRAN user (auto-logged-in by the shell) |
 | `--debug` | Start interactive debugger REPL |
 | `--dap [port]` | Start DAP server for IDE debugging (default port 4500) |
 | `-i <path>` | Load ND-500 a.out file at startup |
@@ -310,6 +317,82 @@ Trace format:
 - **White** - Operands and registers
 - **Cyan** - Labels and symbols
 - **Blue** - Comments
+
+### SINTRAN Shell (Monitor Mode)
+
+`--monitor` starts a SINTRAN-flavoured command shell: an `@` prompt you log in to,
+run DOM (`:DOM`) programs from by name, and log out of. The command surface is
+sourced from the ND-60.128.5 SINTRAN III Reference Manual; see
+[`docs/SINTRAN-SHELL-SPEC.md`](docs/SINTRAN-SHELL-SPEC.md).
+
+```bash
+# Local terminal, pointing at a directory that holds your programs
+./build/bin/nd500x --monitor --sintran-root ./sintran
+```
+
+**Where programs live.** The shell resolves a program name under the SINTRAN root
+(`--sintran-root`, default: the directory you launch from):
+
+```
+<root>/<USER>/<NAME>.DOM     (searched first, after you log in)
+<root>/SYSTEM/<NAME>.DOM      (searched next)
+```
+
+So put your `.DOM` files in `<root>/SYSTEM/` or `<root>/<USER>/` and run them by
+name. Example against the bundled sandbox:
+
+```
+$ ./build/bin/nd500x --monitor --sintran-root build/link_sandbox
+SINTRAN III (nd500x) - user SYSTEM. Type HELP for commands.
+@ login GUEST
+User GUEST logged in.
+@ list-files
+@ recover-domain BPROG        # or just: BPROG
+-- program exited (15374 instructions) --
+@ logout
+```
+
+**Commands** (abbreviate to any unique prefix, e.g. `LI-FI` for `LIST-FILES`;
+type `HELP` for the list):
+
+| Command | Purpose |
+|---------|---------|
+| `LOGIN <user>` | Log in (simplified; switches the current user) |
+| `LOGOUT` | End the session |
+| `RECOVER-DOMAIN <name>` / `<name>` | Load and run a DOM by name |
+| `LIST-FILES` | List files in the current user's and SYSTEM's directories |
+| `SET-TERMINAL-TYPE [<term>],<type>` | Set the terminal type; with no type, lists the types defined in the system's `.VTM` file |
+| `GET-TERMINAL-TYPE` | Show the current terminal type |
+| `HELP [<command>]` | List commands |
+| `EXIT` | Leave the emulator |
+
+The terminal type is stored in the emulator's per-terminal state (the same value
+`SET-TERMINAL-TYPE`/`GET-TERMINAL-TYPE` monitor calls use), so a running program
+that queries it sees what you set. Type names are read from the system's `.VTM`
+file, never hardcoded.
+
+**Telnet (connect a TDV/VT terminal over TCP):**
+
+```bash
+./build/bin/nd500x --telnet 4600 --sintran-root ./sintran
+# then from anywhere:
+telnet <host> 4600
+```
+
+**Config file.** Instead of flags, put settings in `nd500x.ini` (auto-loaded from
+the current directory, or pass `--config <path>`). Command-line flags override it:
+
+```ini
+# nd500x.ini
+sintran-root  = ./sintran
+user          = GUEST
+terminal-type = 6
+telnet-port   = 4600
+```
+
+**Scripted / batch:** `--script <file>` feeds shell commands from a file (one per
+line, a leading `@` is allowed) before returning to interactive input — useful for
+reproducible sessions.
 
 ### Debugger Commands
 

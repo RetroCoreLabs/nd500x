@@ -347,14 +347,25 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {
  *   - If enabled in OTE but no handler: stop execution
  *   - If not enabled in OTE: just set status bit, continue execution
  */
+/* When set (by the shell for a clean prompt), suppress informational CPU-side
+ * printf output (domain allocation, MMU-enable, MON-halt notices). Default 0
+ * keeps existing behaviour for the debugger, --run and tests. */
+int nd500_quiet = 0;
+
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
 	if (!cpu) return;
 
-	/* DEBUG: Print when trap is raised with more context */
-	fprintf(stderr, "[DEBUG] raise_trap: trapBit=0x%llX trapPC=0x%08X dataAddr=0x%08X INTERRUPT=%d instr_count=%llu\n",
-	        (unsigned long long)trapBit, trapPC, dataAddr,
-	        (trapBit & TRAP_INTERRUPT_MASK) ? 1 : 0,
-	        (unsigned long long)cpu->instruction_count);
+	/* Trap tracing, off by default - it was firing on every ignorable trap (AZ,
+	 * stack-overflow, ...) and polluting normal program output. Enable with
+	 * ND500X_TRAPLOG=1 when debugging traps. */
+	static int traplog = -1;
+	if (traplog < 0) { const char* e = getenv("ND500X_TRAPLOG"); traplog = (e && e[0] && e[0] != '0') ? 1 : 0; }
+	if (traplog) {
+		fprintf(stderr, "[DEBUG] raise_trap: trapBit=0x%llX trapPC=0x%08X dataAddr=0x%08X INTERRUPT=%d instr_count=%llu\n",
+		        (unsigned long long)trapBit, trapPC, dataAddr,
+		        (trapBit & TRAP_INTERRUPT_MASK) ? 1 : 0,
+		        (unsigned long long)cpu->instruction_count);
+	}
 
 	/* Set the corresponding bit in ST1/ST2 status registers */
 	if (trapBit & 0xFFFFFFFF) {
@@ -672,16 +683,16 @@ int nd500_cpu_run(Nd500Cpu* cpu, int steps) {
  * Read a word from ND-100 I/O processor memory space via RIOM/DMA
  *
  * @param cpu        CPU structure containing bridge configuration
- * @param nd100_addr ND-100 physical word address (24-bit, 0x000000-0x3FFFFF)
+ * @param nd100_addr ND-100 physical word address (24-bit, 0x000000-0xFFFFFF)
  * @return           Halfword value read from ND-100 memory
  *
  * ND-100 Physical Memory Architecture:
  *
- * ND-100 uses 24-bit word addressing (22-bit physical addresses):
+ * ND-100 uses 24-bit word addressing (24-bit physical addresses):
  *   0x000000 - 0x00FFFF (64K words, 128KB)  : Low RAM (boot, kernel, RT programs)
  *   0x010000 - 0x03FFFF (192K words, 384KB) : Extended RAM (programs, buffers)
  *   0x040000 - 0x05FFFF (128K words, 256KB) : 5MPM (shared multiport memory)
- *   0x060000 - 0x3FFFFF (remaining space)   : Additional RAM (system dependent)
+ *   0x060000 - 0xFFFFFF (remaining space)   : Additional RAM (system dependent)
  *
  * Address Translation:
  * - ND-100 uses word addressing (address × 2 = byte offset)
@@ -714,10 +725,10 @@ uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr) {
 		return 0;
 	}
 
-	/* Validate ND-100 address range (22-bit physical: 0x000000-0x3FFFFF)
+	/* Validate ND-100 address range (24-bit physical: 0x000000-0xFFFFFF)
 	 * This is 4M words = 8MB byte addressing */
-	if (nd100_addr > 0x3FFFFF) {
-		printf("[ERROR] ND-100 Bridge: Address 0x%08X exceeds ND-100 physical range (max 0x3FFFFF)\n",
+	if (nd100_addr > 0xFFFFFF) {
+		printf("[ERROR] ND-100 Bridge: Address 0x%08X exceeds ND-100 physical range (max 0xFFFFFF)\n",
 		       nd100_addr);
 		return 0;
 	}
@@ -742,7 +753,7 @@ uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr) {
  * Write a word to ND-100 I/O processor memory space
  *
  * @param cpu        CPU structure containing bridge configuration
- * @param nd100_addr ND-100 physical word address (24-bit, 0x000000-0x3FFFFF)
+ * @param nd100_addr ND-100 physical word address (24-bit, 0x000000-0xFFFFFF)
  * @param data       Halfword value to write to ND-100 memory
  *
  * Address Translation:
@@ -771,9 +782,9 @@ void nd500_write_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr, uint16_t data) {
 		return;
 	}
 
-	/* Validate ND-100 address range (22-bit physical: 0x000000-0x3FFFFF) */
-	if (nd100_addr > 0x3FFFFF) {
-		printf("[ERROR] ND-100 Bridge: Address 0x%08X exceeds ND-100 physical range (max 0x3FFFFF)\n",
+	/* Validate ND-100 address range (24-bit physical: 0x000000-0xFFFFFF) */
+	if (nd100_addr > 0xFFFFFF) {
+		printf("[ERROR] ND-100 Bridge: Address 0x%08X exceeds ND-100 physical range (max 0xFFFFFF)\n",
 		       nd100_addr);
 		return;
 	}

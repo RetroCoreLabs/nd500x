@@ -78,7 +78,7 @@ void nd500_mmu_enable_data(Nd500Cpu* cpu) {
     g_mmu_data_enabled = 1;
     /* Also set machine->mmu_enabled so data access uses MMU translation */
     if (cpu->machine) cpu->machine->mmu_enabled = 1;
-    printf("ND-500: Data MMU enabled (DMON)\n");
+    if (!nd500_quiet) printf("ND-500: Data MMU enabled (DMON)\n");
 }
 
 void nd500_mmu_disable_data(Nd500Cpu* cpu) {
@@ -86,7 +86,7 @@ void nd500_mmu_disable_data(Nd500Cpu* cpu) {
     g_mmu_data_enabled = 0;
     /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
     if (cpu->machine && !g_mmu_program_enabled) cpu->machine->mmu_enabled = 0;
-    printf("ND-500: Data MMU disabled (DMOF)\n");
+    if (!nd500_quiet) printf("ND-500: Data MMU disabled (DMOF)\n");
 }
 
 int nd500_mmu_is_data_enabled(Nd500Cpu* cpu) {
@@ -102,7 +102,7 @@ void nd500_mmu_enable_program(Nd500Cpu* cpu) {
     g_mmu_program_enabled = 1;
     /* Also set machine->mmu_enabled so instruction decode uses MMU translation */
     if (cpu->machine) cpu->machine->mmu_enabled = 1;
-    printf("ND-500: Program MMU enabled (PMON)\n");
+    if (!nd500_quiet) printf("ND-500: Program MMU enabled (PMON)\n");
 }
 
 void nd500_mmu_disable_program(Nd500Cpu* cpu) {
@@ -110,7 +110,7 @@ void nd500_mmu_disable_program(Nd500Cpu* cpu) {
     g_mmu_program_enabled = 0;
     /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
     if (cpu->machine && !g_mmu_data_enabled) cpu->machine->mmu_enabled = 0;
-    printf("ND-500: Program MMU disabled (PMOF)\n");
+    if (!nd500_quiet) printf("ND-500: Program MMU disabled (PMOF)\n");
 }
 
 int nd500_mmu_is_program_enabled(Nd500Cpu* cpu) {
@@ -224,6 +224,27 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
 
     /* Check if capability is valid (non-zero) */
     if (capability == 0) {
+        /* Null-pointer DATA read/write (effective address == 0) is NOT a protect
+         * violation on real ND-500. Per the ND-500 Reference Manual (ND-05.009.4
+         * p73): "An address equal to zero will cause an Address Zero trap
+         * condition." AZ (status bit 24) is IGNORABLE (p63): if it is not enabled
+         * in the domain's Own Trap Enable, the condition is merely recorded and
+         * execution continues - the access completes. Real ND software relies on
+         * this: the ND Linker's HELP command sorts its command table and, for an
+         * empty command slot, dereferences a null name pointer (reads data VA 0);
+         * that domain has AZ disabled (OTE bit 24 clear) so real hardware
+         * continues. raise_trap() with an ignorable, OTE-disabled bit only sets
+         * the status bit and returns without stopping. We map the access to
+         * physical 0 (the unused low page: reads as 0, writes are discarded). See
+         * /home/ronny/repos/nd500x/docs/HELP-CRASH-ADVANCED-CMD-REGISTRATION.md.
+         *
+         * NOTE: an absent capability for a NON-zero address remains handled as a
+         * protect violation below (unchanged); the manual-correct trap there is a
+         * page fault, tracked as a separate cleanup, not applied here. */
+        if (!is_instruction && virtual_addr == 0) {
+            raise_trap(cpu, TRAP_AZ, cpu->PC, virtual_addr);
+            return 0;
+        }
         MMU_ERR("[MMU] TRAP: No %s capability! domain=%d segment=%d vaddr=0x%08X\n",
               is_instruction ? "program" : "data", domain, segment, virtual_addr);
         trap_protect_violation(cpu, cpu->PC, virtual_addr);
@@ -615,7 +636,7 @@ void nd500_mmu_clear_data_cache_tsb(Nd500Cpu* cpu) {
     /* In a full implementation, this would clear TLB entries */
     /* For now, it's a no-op since we don't cache translations */
     if (cpu) {
-        printf("ND-500: DCTSB - Data cache TSB cleared\n");
+        if (!nd500_quiet) printf("ND-500: DCTSB - Data cache TSB cleared\n");
     }
 }
 
@@ -627,6 +648,6 @@ void nd500_mmu_clear_data_cache_tsb(Nd500Cpu* cpu) {
 void nd500_mmu_clear_program_cache_tsb(Nd500Cpu* cpu) {
     /* In a full implementation, this would clear instruction TLB */
     if (cpu) {
-        printf("ND-500: PCTSB - Program cache TSB cleared\n");
+        if (!nd500_quiet) printf("ND-500: PCTSB - Program cache TSB cleared\n");
     }
 }

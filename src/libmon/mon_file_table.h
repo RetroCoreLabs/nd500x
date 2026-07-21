@@ -127,6 +127,12 @@ int mon_reserve_device(uint32_t device_no, uint8_t io_flag, bool wait);
 int mon_release_device(uint32_t device_no, uint8_t io_flag);
 bool mon_is_device_reserved(uint32_t device_no, uint8_t io_flag);
 
+/* SINTRAN abbreviated-name resolution (carved COMPS/GOBJI rules).
+ * Given a literal host path <dir>/<NAME>.<TYPE> that does not exist verbatim,
+ * scan its directory for a unique abbreviation match. Returns 0 and fills
+ * resolved[] on a unique hit, -46 (no such file), or -47 (ambiguous). */
+int mon_resolve_abbrev(const char* host_path, char* resolved, size_t resolved_size);
+
 /* Open File API (MON 50/43) */
 int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_mode, int requested_file_no);
 int mon_file_open(const char* filename, const char* filetype, uint8_t access_mode);
@@ -195,6 +201,10 @@ size_t mon_get_console_output_len(void);
 
 /* Get remaining chars in input queue (for debugging) */
 size_t mon_get_console_input_remaining(void);
+
+/* Bytes up to and including the first queued break char (CR), 0 if none.
+ * SINTRAN 313B IBRISZ "NoUntilBreak". */
+size_t mon_get_console_input_until_break(void);
 
 /* Standard I/O Console - uses stdin/stdout for interactive mode */
 void mon_install_stdio_console(void);

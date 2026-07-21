@@ -4,6 +4,8 @@
 #include "../machine/machine_types.h"
 
 void nd500_log(const char* fmt, ...);
+/* Set non-zero to suppress nd500_log() informational output (shell clean mode). */
+extern int nd500_log_quiet;
 
 /* ND-500 a.out loader */
 int ndlib_loadaout_file(Nd500Machine* m, const char* path, unsigned int* out_entry);

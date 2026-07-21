@@ -11,6 +11,7 @@
 #include "nd500_indirect.h"
 #include "nd500_mmu.h"
 #include "instruction_helpers.h"
+#include "cpu_protos.h"   /* nd500_quiet */
 #include "../machine/machine_protos.h"
 #include "../libmon/mon.h"
 #include <stdio.h>
@@ -300,7 +301,7 @@ int nd500_check_indirect_call(
             cpu->machine->stop_addr = cpu->PC;
             cpu->machine->stop_data = ctx.mon_number;
             nd500_dbg_flush_console_output();
-            printf("[STOP] MON halt: %s\n",
+            if (!nd500_quiet) printf("[STOP] MON halt: %s\n",
                    ctx.halt_reason ? ctx.halt_reason : "unknown reason");
             *out_resolved = ctx.return_address;
             return INDIRECT_ERROR;

@@ -9,11 +9,13 @@
 #include "../../cpu/nd500_domain.h"
 #include "../../debugger/debugger.h"
 #include "../../debugger/commands.h"
+#include "nd500x_shell.h"
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
 #include "../../libmon/mon.h"
 #include "../../libmon/mon_file_table.h"
 #include "../../libmon/mon_config.h"
+#include "../../libmon/mon_terminal_state.h"
 #include "nd500_dom.h"
 
 static void print_usage(const char* prog) {
@@ -21,6 +23,11 @@ static void print_usage(const char* prog) {
     printf("Usage: %s [options]\n\n", prog);
     printf("Options:\n");
     printf("  --debug                  Enter interactive debugger REPL\n");
+    printf("  --monitor                Enter the SINTRAN-flavoured shell (login, run domains)\n");
+    printf("  --script <path>          Feed shell commands from a file (with --monitor)\n");
+    printf("  --telnet <port>          Serve the SINTRAN shell over TCP/telnet on <port>\n");
+    printf("  --config <path>          Load settings from an ini file (else ./nd500x.ini)\n");
+    printf("                           keys: sintran-root, user, terminal-type, telnet-port, monitor\n");
     printf("  -i <path>                Load a.out file (legacy)\n");
     printf("  --aout <path>            Load a.out file\n");
     printf("  --pseg <path>            Load PSEG binary (auto-detects kernel/user mode)\n");
@@ -56,9 +63,59 @@ static void print_usage(const char* prog) {
     printf("  %s --dom program.dom --run --max-steps 10000 --trace-file trace.txt\n", prog);
     printf("  %s --dom program.dom --args \"input.txt\" --run\n", prog);
     printf("\n");
+    printf("SINTRAN shell (--monitor):\n");
+    printf("  Programs are found under the SINTRAN root (--sintran-root, default '.'):\n");
+    printf("      <root>/<USER>/<NAME>.DOM     (searched first, after you LOGIN)\n");
+    printf("      <root>/SYSTEM/<NAME>.DOM     (searched next)\n");
+    printf("  So put your .DOM files in <root>/SYSTEM/ or <root>/<USER>/ and run them by\n");
+    printf("  name. With no --sintran-root, <root> is the directory you launch from.\n");
+    printf("  %s --monitor --sintran-root ./sintran\n", prog);
+    printf("  %s --monitor --sintran-root build/link_sandbox --script session.cmd\n", prog);
+    printf("\n");
+}
+
+/* Trim leading/trailing ASCII whitespace in place; returns the trimmed start. */
+static char* ini_trim(char* s) {
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') s++;
+    char* e = s + strlen(s);
+    while (e > s && (e[-1]==' '||e[-1]=='\t'||e[-1]=='\r'||e[-1]=='\n')) *--e = '\0';
+    return s;
+}
+
+/* Load an ini/config file: simple "key = value" lines, '#'/';' comments,
+ * '[section]' lines ignored. Recognised keys: sintran-root, user,
+ * terminal-type, telnet-port, monitor. Command-line flags override these
+ * because the ini is applied before the argument loop. Returns 0 if loaded. */
+static int load_config(const char* path, int* telnet_port, int* monitor_mode, int* user_set) {
+    FILE* f = fopen(path, "r");
+    if (!f) return -1;
+    char line[512];
+    while (fgets(line, sizeof line, f)) {
+        char* p = ini_trim(line);
+        if (*p == '\0' || *p == '#' || *p == ';' || *p == '[') continue;
+        char* eq = strchr(p, '=');
+        if (!eq) continue;
+        *eq = '\0';
+        char* key = ini_trim(p);
+        char* val = ini_trim(eq + 1);
+        if (strcasecmp(key, "sintran-root") == 0)      mon_config_set_sintran_root(val);
+        else if (strcasecmp(key, "user") == 0)       { mon_config_set_current_user(val); if (user_set) *user_set = 1; }
+        else if (strcasecmp(key, "terminal-type") == 0) mon_set_terminal_type(1, atoi(val));
+        else if (strcasecmp(key, "telnet-port") == 0) { *telnet_port = atoi(val); *monitor_mode = 1; }
+        else if (strcasecmp(key, "monitor") == 0)      { if (atoi(val)) *monitor_mode = 1; }
+    }
+    fclose(f);
+    fprintf(stderr, "Loaded config: %s\n", path);
+    return 0;
 }
 
 int main(int argc, char** argv) {
+    /* No arguments: show the full usage rather than starting headless. */
+    if (argc == 1) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
     int debug = 0;
     const char* input_path = NULL;
     const char* aout_path = NULL;
@@ -75,9 +132,22 @@ int main(int argc, char** argv) {
     int ansi_flag = 0; /* 0=auto, 1=force-enable, -1=force-disable */
     const char* radix_str = NULL;
     int run_mode = 0;  /* Non-interactive run */
+    int monitor_mode = 0;  /* SINTRAN-flavoured interactive shell */
+    const char* script_path = NULL;  /* optional shell command script */
+    int telnet_port = 0;   /* >0: serve the shell over TCP/telnet */
     uint64_t max_steps = 0;  /* 0 = unlimited */
     const char* trace_file_path = NULL;
     int dap_port = 0;  /* 0 = DAP server not requested */
+
+    /* Load a config file BEFORE parsing flags so command-line flags override it.
+     * Use --config <path> if given, else ./nd500x.ini if present. */
+    const char* config_path = NULL;
+    int user_set = 0;   /* did ini or --user set an explicit user? */
+    for (int i = 1; i < argc - 1; ++i) {
+        if (strcmp(argv[i], "--config") == 0) { config_path = argv[i + 1]; break; }
+    }
+    if (config_path) load_config(config_path, &telnet_port, &monitor_mode, &user_set);
+    else             load_config("./nd500x.ini", &telnet_port, &monitor_mode, &user_set);
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -120,6 +190,15 @@ int main(int argc, char** argv) {
                 dap_port = atoi(argv[++i]);
             }
             if (dap_port <= 0) dap_port = 4500;
+        } else if (strcmp(argv[i], "--monitor") == 0 || strcmp(argv[i], "--shell") == 0) {
+            monitor_mode = 1;
+        } else if (strcmp(argv[i], "--script") == 0 && i + 1 < argc) {
+            script_path = argv[++i];
+        } else if (strcmp(argv[i], "--config") == 0 && i + 1 < argc) {
+            ++i;   /* already handled in the pre-parse pass above */
+        } else if (strcmp(argv[i], "--telnet") == 0 && i + 1 < argc) {
+            telnet_port = atoi(argv[++i]);
+            monitor_mode = 1;   /* telnet implies the shell */
         } else if (strcmp(argv[i], "--run") == 0) {
             run_mode = 1;
         } else if (strcmp(argv[i], "--max-steps") == 0 && i + 1 < argc) {
@@ -130,6 +209,7 @@ int main(int argc, char** argv) {
             mon_config_set_sintran_root(argv[++i]);
         } else if (strcmp(argv[i], "--user") == 0 && i + 1 < argc) {
             mon_config_set_current_user(argv[++i]);
+            user_set = 1;
         } else if (strcmp(argv[i], "--no-scratch-64") == 0) {
             mon_config_set_auto_scratch_64(0);
         }
@@ -337,6 +417,12 @@ int main(int argc, char** argv) {
 		return nd500_debugger_repl(&machine);
 	}
 
+	if (monitor_mode) {
+		/* Spec decision: default shell user is SYSTEM unless ini/--user set one. */
+		if (!user_set) mon_config_set_current_user("SYSTEM");
+		return nd500x_shell_run(&machine, &cpu, script_path, telnet_port);
+	}
+
     /* Non-interactive run mode */
     if (run_mode) {
         /* Install stdio console for interactive I/O */
@@ -448,6 +534,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-	printf("nd500x running (no UI). Use --debug for REPL.\n");
+	printf("nd500x: nothing to do. Use --monitor for the SINTRAN shell, --debug for the\n");
+	printf("low-level debugger, or --run to execute a loaded program. See --help.\n");
 	return 0;
 }
