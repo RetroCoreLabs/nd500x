@@ -29,6 +29,20 @@
 static PhysicalSegmentTableEntry* g_pst = NULL;
 static ProcessControlBlock* g_pcb_table = NULL;
 
+/* Segment-level demand mapping: when a DATA access references a work segment
+ * that has no capability, allocate a backed (PS_ADI, demand-grown) segment on
+ * the fly, mirroring how SINTRAN maps scratch segments on first use. The NC C
+ * compiler's code generator references more work-segments (2..6) than it
+ * explicitly allocates via GSWSP, and relies on this. Bounded to a plausible
+ * work-segment range and gated so genuinely-wild accesses still trap. */
+extern int nd500_mon_allocate_segment(void* cpu, void* machine, uint8_t domain,
+    uint32_t requested_segment, uint32_t segment_size_bytes,
+    uint32_t* out_assigned_segment);
+#define DEMAND_SEG_MIN_SEGMENT   2       /* 0=alias,1=prog/data,31=SINTRAN window */
+#define DEMAND_SEG_MAX_SEGMENT   24
+#define DEMAND_SEG_INIT_BYTES    (128u*1024u)  /* grows on demand beyond this */
+static int mmu_demand_segments = -1;    /* -1 = read env once; default ON */
+
 // Separate I&D (Instruction & Data) MMU enable flags
 // The ND-500 has independent MMU control for instruction and data accesses
 static int g_mmu_data_enabled = 0;     // Controlled by DMON/DMOF instructions
@@ -245,10 +259,34 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             raise_trap(cpu, TRAP_AZ, cpu->PC, virtual_addr);
             return 0;
         }
-        MMU_ERR("[MMU] TRAP: No %s capability! domain=%d segment=%d vaddr=0x%08X\n",
-              is_instruction ? "program" : "data", domain, segment, virtual_addr);
-        trap_protect_violation(cpu, cpu->PC, virtual_addr);
-        return virtual_addr;  /* Return virtual address, trap will stop execution */
+        /* Segment-level demand mapping (data work-segments only). SINTRAN maps a
+         * scratch segment on first use; NC codegen touches work-segments it did
+         * not explicitly GSWSP-allocate and relies on this. Allocate a backed
+         * PS_ADI segment for this segment number, then re-read the capability and
+         * fall through to translate. Bounded + logged so wild pointers to other
+         * segments still trap. */
+        if (mmu_demand_segments < 0) {
+            const char* e = getenv("ND500X_NO_DEMAND_SEGMENTS");
+            mmu_demand_segments = (e && e[0] && e[0] != '0') ? 0 : 1;
+        }
+        if (!is_instruction && mmu_demand_segments && cpu->machine &&
+            segment >= DEMAND_SEG_MIN_SEGMENT && segment <= DEMAND_SEG_MAX_SEGMENT) {
+            uint32_t assigned = 0;
+            int rc = nd500_mon_allocate_segment(cpu, cpu->machine, domain,
+                        (uint32_t)segment, DEMAND_SEG_INIT_BYTES, &assigned);
+            if (rc == 0) {
+                capability = g_pcb_table[domain].data_capabilities[segment];
+                if (!nd500_quiet)
+                    printf("ND-500: demand-mapped data segment %d (domain %d, vaddr=0x%08X)\n",
+                           segment, domain, virtual_addr);
+            }
+        }
+        if (capability == 0) {
+            MMU_ERR("[MMU] TRAP: No %s capability! domain=%d segment=%d vaddr=0x%08X\n",
+                  is_instruction ? "program" : "data", domain, segment, virtual_addr);
+            trap_protect_violation(cpu, cpu->PC, virtual_addr);
+            return virtual_addr;  /* Return virtual address, trap will stop execution */
+        }
     }
 
     /* ─────────────────────────────────────────────────────────
