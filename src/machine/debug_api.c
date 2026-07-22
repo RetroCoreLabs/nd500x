@@ -11,8 +11,8 @@
 #include "../cpu/cpu_protos.h"
 #include "../ndlib/ndlib.h"
 #include "../ndlib/ndlib_color.h"
-#include "../libmon/mon.h"
-#include "../libmon/mon_file_table.h"
+#include <ndmon/mon.h>
+#include <ndmon/mon_file_table.h>
 
 static const char* reg_names[] = {"r1", "r2", "r3", "r4"};
 

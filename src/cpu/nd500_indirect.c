@@ -13,7 +13,7 @@
 #include "instruction_helpers.h"
 #include "cpu_protos.h"   /* nd500_quiet */
 #include "../machine/machine_protos.h"
-#include "../libmon/mon.h"
+#include <ndmon/mon.h>
 #include <stdio.h>
 #include <string.h>
 

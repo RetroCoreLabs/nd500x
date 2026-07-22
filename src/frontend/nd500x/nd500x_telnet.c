@@ -74,6 +74,19 @@ static int in_pop(void) {
     return r;
 }
 
+/* Return the next queued byte without consuming it, or -1 if the ring is empty.
+ * Used by the async ESCAPE user-break poll; a following in_pop() returns the
+ * same byte, so a non-break char is left intact for the program. */
+static int in_peek(void) {
+    int r = -1;
+    pthread_mutex_lock(&g_in_mtx);
+    if (g_in_tail != g_in_head) {
+        r = g_in[g_in_tail];
+    }
+    pthread_mutex_unlock(&g_in_mtx);
+    return r;
+}
+
 static int in_available(void) {
     pthread_mutex_lock(&g_in_mtx);
     int a = (g_in_tail != g_in_head);
@@ -211,6 +224,7 @@ static int tel_read_char(void* ctx) {
 }
 static bool tel_char_avail(void* ctx) { (void)ctx; return in_available() != 0; }
 static int tel_wait_input(void* ctx) { (void)ctx; return in_wait(); }
+static int tel_peek_char(void* ctx) { (void)ctx; return in_peek(); }
 
 static void tel_write_char(void* ctx, int ch) {
     (void)ctx;
@@ -237,6 +251,7 @@ static ConsoleIO g_tel_console = {
     .context = NULL,
     .user_break = NULL,
     .wait_for_input = tel_wait_input,
+    .peek_char = tel_peek_char,
 };
 
 ConsoleIO* nd500x_telnet_console(void) { return &g_tel_console; }
@@ -248,18 +263,48 @@ void nd500x_telnet_write(const char* s) {
 }
 
 int nd500x_telnet_readline(char* out, int len) {
+    /* Drop an LF that pairs with the CR we just returned on (CR LF from the
+     * client is ONE Enter); persists across calls since each call is one line. */
+    static int swallow_lf = 0;
     int n = 0;
+    out[0] = '\0';
     for (;;) {
         if (!in_wait()) return -1;             /* disconnected */
         int c = in_pop();
         if (c < 0) continue;
-        if (c == '\r' || c == '\n') {
-            if (n == 0) continue;              /* swallow blank line / paired CR LF */
+        if (c == 0) continue;                  /* CR NUL / padding: ignore the NUL */
+        if (swallow_lf) {                      /* second half of a CR LF pair */
+            swallow_lf = 0;
+            if (c == '\n') continue;
+        }
+        if (c == 27) {                         /* ESC */
+            /* An ESC that introduces a CSI/SS3 sequence (arrow/function keys:
+             * ESC '[' ... or ESC 'O' ...) is NOT an abort - drain and ignore it.
+             * The reader thread pushes a key's whole sequence at once, so the
+             * introducer is already queued by the time we pop the ESC. */
+            if (in_available()) {
+                int nx = in_peek();
+                if (nx == '[' || nx == 'O') {
+                    in_pop();                  /* consume introducer */
+                    int f;                     /* consume up to the final byte */
+                    while (in_available() && (f = in_peek()) >= 0 &&
+                           !(f >= 0x40 && f <= 0x7E)) in_pop();
+                    if (in_available()) in_pop();  /* the final byte */
+                    continue;
+                }
+            }
+            /* Lone ESC: abort the current command line (SINTRAN user-break on the
+             * command processor). Discard any typed input and give a fresh line. */
+            nd500x_telnet_write("\r\nABORTED\r\n");
+            out[0] = '\0';
+            return 0;
+        }
+        if (c == '\r' || c == '\n') {          /* Enter: emit newline, return line */
+            if (c == '\r') swallow_lf = 1;     /* a following LF is its pair */
             nd500x_telnet_write("\r\n");
             out[n] = '\0';
-            return n;
+            return n;                          /* even n==0: empty Enter -> new line */
         }
-        if (c == 0) continue;                  /* CR NUL: ignore the NUL */
         if (c == 8 || c == 127) {              /* backspace / DEL */
             if (n > 0) { n--; nd500x_telnet_write("\b \b"); }
             continue;

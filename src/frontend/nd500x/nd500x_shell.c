@@ -40,11 +40,11 @@
 #include <readline/history.h>
 #endif
 
-#include "../../libmon/mon.h"
-#include "../../libmon/mon_log.h"
-#include "../../libmon/mon_file_table.h"
-#include "../../libmon/mon_config.h"
-#include "../../libmon/mon_terminal_state.h"
+#include <ndmon/mon.h>
+#include <ndmon/mon_log.h>
+#include <ndmon/mon_file_table.h>
+#include <ndmon/mon_config.h>
+#include <ndmon/mon_terminal_state.h>
 #include "../../ndlib/ndlib.h"
 #include "nd500_dom.h"
 #include "nd500x_telnet.h"
@@ -339,6 +339,18 @@ static void run_domain(const char* name, const char* args) {
         if (steps >= SHELL_MAX_STEPS) { printf("\n-- step limit reached --\n"); break; }
         int ok = nd500_cpu_step(g_cpu);
         steps++;
+        /* Asynchronous ESCAPE user-break: a compute-bound program never issues a
+         * terminal read, so the INBT/DVINST escape check can't fire. Poll the
+         * console every so often; if the user pressed ESCAPE and escape is
+         * enabled on the terminal, abort back to the '@' prompt like real
+         * SINTRAN's driver-level user-break. Poll interval keeps overhead
+         * negligible while staying responsive. */
+        if ((steps & 0x3FFF) == 0 && mon_console_poll_user_break()) {
+            g_machine->run_flag = 0;
+            g_machine->stop_reason = STOP_USER_REQUESTED;
+            printf("\n-- aborted (ESCAPE user break) --\n");
+            break;
+        }
         /* Interactive terminal read with no input: the MON call suspended the
          * process (STOP_WAIT_INPUT) - block for the user's line, then resume and
          * retry the read. This MUST be checked regardless of cpu_step's return:
@@ -449,7 +461,7 @@ static void host_to_sintran_name(const char* host, char* out, size_t n) {
     if (dot) *dot = ':';
 }
 
-static void list_dir(const char* label, const char* dir) {
+static void list_dir(const char* label, const char* dir, const char* pattern) {
     DIR* d = opendir(dir);
     if (!d) return;
     printf("  (%s)\n", label);
@@ -457,6 +469,9 @@ static void list_dir(const char* label, const char* dir) {
     int n = 0;
     while ((e = readdir(d)) != NULL) {
         if (e->d_name[0] == '.') continue;
+        /* Filter the SINTRAN way: COMPS-match the host name against the
+         * NAME:TYPE pattern (e.g. ":DOM" lists only type-DOM files). */
+        if (pattern && !mon_sintran_name_matches(pattern, e->d_name)) continue;
         char sname[280];
         host_to_sintran_name(e->d_name, sname, sizeof(sname));
         printf("    %3d  %s\n", ++n, sname);
@@ -466,15 +481,18 @@ static void list_dir(const char* label, const char* dir) {
 }
 
 static void cmd_list_files(int argc, char** argv) {
-    (void)argc; (void)argv;
+    /* Optional SINTRAN file-spec argument filters the listing (NAME:TYPE, with
+     * empty parts = "any"): e.g. LIST-FILES :DOM lists only type-DOM files,
+     * LIST-FILES LINK* only names starting LINK. No argument lists everything. */
+    const char* pattern = (argc >= 2) ? argv[1] : NULL;
     const char* root = mon_config_get_sintran_root();
     const char* user = mon_config_get_current_user();
     char dir[1024];
     if (!root || !*root) root = ".";
     snprintf(dir, sizeof(dir), "%s/%s", root, user && *user ? user : "SYSTEM");
-    list_dir(user && *user ? user : "SYSTEM", dir);
+    list_dir(user && *user ? user : "SYSTEM", dir, pattern);
     snprintf(dir, sizeof(dir), "%s/SYSTEM", root);
-    if (!(user && strcasecmp(user, "SYSTEM") == 0)) list_dir("SYSTEM", dir);
+    if (!(user && strcasecmp(user, "SYSTEM") == 0)) list_dir("SYSTEM", dir, pattern);
 }
 
 static void cmd_set_term(int argc, char** argv) {

@@ -12,7 +12,7 @@
 #ifndef ND500X_TELNET_H
 #define ND500X_TELNET_H
 
-#include "../../libmon/mon_file_table.h"   /* ConsoleIO */
+#include <ndmon/mon_file_table.h>   /* ConsoleIO */
 
 /* Start listening on TCP <port>. Returns 0 on success, -1 on error. */
 int nd500x_telnet_start(int port);

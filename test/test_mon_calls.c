@@ -14,9 +14,9 @@
 #include "../src/cpu/nd500_mmu.h"
 #include "../src/cpu/nd500_domain.h"
 #include "../src/cpu/instruction_helpers.h"
-#include "../src/libmon/mon.h"
-#include "../src/libmon/mon_errors.h"
-#include "../src/libmon/mon_file_table.h"
+#include <ndmon/mon.h>
+#include <ndmon/mon_errors.h>
+#include <ndmon/mon_file_table.h>
 
 /* Test counters */
 static int tests_passed = 0;

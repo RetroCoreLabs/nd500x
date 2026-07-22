@@ -16,7 +16,7 @@
 #include "../src/cpu/nd500_mmu.h"
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
-#include "../src/libmon/mon.h"
+#include <ndmon/mon.h>
 
 #define MEMSZ (16u*1024u*1024u)
 

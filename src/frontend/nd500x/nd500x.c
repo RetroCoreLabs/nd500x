@@ -12,10 +12,10 @@
 #include "nd500x_shell.h"
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
-#include "../../libmon/mon.h"
-#include "../../libmon/mon_file_table.h"
-#include "../../libmon/mon_config.h"
-#include "../../libmon/mon_terminal_state.h"
+#include <ndmon/mon.h>
+#include <ndmon/mon_file_table.h>
+#include <ndmon/mon_config.h>
+#include <ndmon/mon_terminal_state.h>
 #include "nd500_dom.h"
 
 static void print_usage(const char* prog) {

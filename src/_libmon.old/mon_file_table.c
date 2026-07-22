@@ -10,6 +10,7 @@
 #include "mon.h"
 #include "mon_path.h"
 #include "mon_clock.h"
+#include "mon_terminal_state.h"  /* mon_is_escape_break for the async user-break poll */
 #include <string.h>
 #include <stdlib.h>
 #include <strings.h>  /* strcasecmp */
@@ -347,6 +348,53 @@ static int sintran_resolve_abbrev(const char* host_path, char* resolved, size_t 
  * -46 (no such file) if nothing matched, -47 (ambiguous) if more than one did. */
 int mon_resolve_abbrev(const char* host_path, char* resolved, size_t resolved_size) {
     return sintran_resolve_abbrev(host_path, resolved, resolved_size);
+}
+
+/* Upshift in place (SINTRAN upshifts supplied file names; on-disk names are
+ * already upper - do both so a lowercase pattern like ":dom" still matches). */
+static void sintran_upshift(char* s) {
+    for (; *s; s++) if (*s >= 'a' && *s <= 'z') *s -= 32;
+}
+
+/* Does host filename `host_base` (e.g. "LINKER.DOM") match the SINTRAN file-spec
+ * pattern `pattern` (e.g. ":DOM", "LI:DOM", "LINK*", "LINKER") under the carved
+ * COMPS rules? Pattern is split on ':' into NAME:TYPE, the host name on its last
+ * '.'; an EMPTY name or type matches ANY (COMPS treats an exhausted supplied
+ * string as a prefix match). NULL/empty pattern matches everything. Returns 1 on
+ * match, 0 otherwise. This is the same comparator the scanner (GOBJI) applies. */
+int mon_sintran_name_matches(const char* pattern, const char* host_base) {
+    if (!pattern || !*pattern) return 1;
+
+    char wname[128], wtype[32];
+    const char* colon = strchr(pattern, ':');
+    if (colon) {
+        size_t nlen = (size_t)(colon - pattern);
+        if (nlen >= sizeof(wname)) nlen = sizeof(wname) - 1;
+        memcpy(wname, pattern, nlen); wname[nlen] = '\0';
+        snprintf(wtype, sizeof(wtype), "%s", colon + 1);
+    } else {
+        snprintf(wname, sizeof(wname), "%s", pattern);
+        wtype[0] = '\0';
+    }
+
+    char hname[128], htype[32];
+    const char* dot = strrchr(host_base, '.');
+    if (dot) {
+        size_t nlen = (size_t)(dot - host_base);
+        if (nlen >= sizeof(hname)) nlen = sizeof(hname) - 1;
+        memcpy(hname, host_base, nlen); hname[nlen] = '\0';
+        snprintf(htype, sizeof(htype), "%s", dot + 1);
+    } else {
+        snprintf(hname, sizeof(hname), "%s", host_base);
+        htype[0] = '\0';
+    }
+
+    sintran_upshift(wname); sintran_upshift(wtype);
+    sintran_upshift(hname); sintran_upshift(htype);
+
+    if (sintran_comps(wname, hname) == SINTRAN_NO_MATCH) return 0;
+    if (sintran_comps(wtype, htype) == SINTRAN_NO_MATCH) return 0;
+    return 1;
 }
 
 int mon_file_open_ex(const char* filename, const char* filetype, uint8_t access_mode, int requested_file_no) {
@@ -860,6 +908,19 @@ int mon_console_wait_for_input(void) {
     return 0;  /* Headless/scripted console cannot block; host decides */
 }
 
+int mon_console_poll_user_break(void) {
+    if (!console_io || !console_io->peek_char) return 0;
+    int c = console_io->peek_char(console_io->context);
+    if (c < 0) return 0;
+    /* The interactive user terminal is SINTRAN logical device 1; escape enable/
+     * disable (71B DESCF / 72B EESCF) is tracked per device on that number. */
+    if (mon_is_escape_break(1, (uint8_t)c)) {
+        if (console_io->read_char) console_io->read_char(console_io->context);  /* consume ESC */
+        return 1;
+    }
+    return 0;  /* not a break (or escape disabled) - leave the byte for the program */
+}
+
 /* ============================================================
  * Queued Console I/O Support
  *
@@ -895,6 +956,12 @@ static int queued_console_read_char(void* ctx) {
     return (unsigned char)ch;
 }
 
+static int queued_console_peek_char(void* ctx) {
+    (void)ctx;
+    if (g_queued_console.input_count == 0) return -1;
+    return (unsigned char)g_queued_console.input_buffer[g_queued_console.input_read_pos];
+}
+
 static void queued_console_write_char(void* ctx, int ch) {
     (void)ctx;
     if (g_queued_console.output_len < QUEUED_CONSOLE_MAX - 1) {
@@ -908,6 +975,7 @@ static ConsoleIO g_queued_console_io = {
     .read_char = queued_console_read_char,
     .write_char = queued_console_write_char,
     .char_available = queued_console_char_available,
+    .peek_char = queued_console_peek_char,
     .context = NULL
 };
 
@@ -1011,8 +1079,14 @@ static void stdio_setup_terminal(void) {
     }
 }
 
+/* One-byte pushback for stdio, so peek_char can look ahead one byte (for async
+ * ESCAPE detection) without consuming it. Holds the byte AFTER LF->CR
+ * translation, -1 when empty. read_char returns it first. */
+static int g_stdio_pushback = -1;
+
 static bool stdio_char_available(void* ctx) {
     (void)ctx;
+    if (g_stdio_pushback >= 0) return true;
     /* Use select() to check if stdin has data available */
     fd_set fds;
     struct timeval tv = {0, 0};  /* No wait */
@@ -1034,6 +1108,13 @@ static int stdio_wait_for_input(void* ctx) {
 
 static int stdio_read_char(void* ctx) {
     (void)ctx;
+    /* A byte peeked earlier (for async ESCAPE detection) is returned first, as
+     * already-translated, so no double LF->CR translation. */
+    if (g_stdio_pushback >= 0) {
+        int c = g_stdio_pushback;
+        g_stdio_pushback = -1;
+        return c;
+    }
     unsigned char ch;
     if (read(STDIN_FILENO, &ch, 1) == 1) {
         /* Translate Unix LF (Enter key) to CR for SINTRAN */
@@ -1043,6 +1124,19 @@ static int stdio_read_char(void* ctx) {
         return ch;
     }
     return EOF;
+}
+
+static int stdio_peek_char(void* ctx) {
+    (void)ctx;
+    if (g_stdio_pushback >= 0) return g_stdio_pushback;
+    if (!stdio_char_available(ctx)) return -1;
+    unsigned char ch;
+    if (read(STDIN_FILENO, &ch, 1) == 1) {
+        if (ch == '\n') ch = '\r';   /* same translation read_char applies */
+        g_stdio_pushback = ch;
+        return ch;
+    }
+    return -1;
 }
 
 static void stdio_write_char(void* ctx, int ch) {
@@ -1075,6 +1169,7 @@ static ConsoleIO g_stdio_console = {
     .write_char = stdio_write_char,
     .char_available = stdio_char_available,
     .wait_for_input = stdio_wait_for_input,
+    .peek_char = stdio_peek_char,
     .context = NULL
 };
 

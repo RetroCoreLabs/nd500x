@@ -110,6 +110,13 @@ MonResult mon_1B_InByte(MonContext* ctx) {
             if (console->user_break) {
                 console->user_break(console->context, device_no);
             }
+            /* SINTRAN user-break: the ESCAPE key aborts the running program and
+             * returns control to the command processor (the '@' shell). Request
+             * the standard halt so the run loop stops back at the prompt, exactly
+             * as a real terminal's ESCAPE user-break does. (Programs that own the
+             * key call 71B DESCF first, so mon_is_escape_break is false and we
+             * never reach here - they are unaffected.) */
+            mon_request_halt(ctx, "User break (ESCAPE)");
             mon_set_error(ctx, MON_ERR_END_OF_FILE);  /* signal break/EOF to caller */
             return MON_ERROR;
         }

@@ -77,6 +77,14 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libsymbols")
     add_subdirectory(external/libsymbols)
 endif()
 
+# MON call library (ndmonlib) - essential for SINTRAN support
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/ndmonlib/CMakeLists.txt")
+    add_subdirectory(external/ndmonlib)
+else()
+    message(WARNING "ndmonlib submodule not found at external/ndmonlib")
+    message(WARNING "Run: git submodule update --init external/ndmonlib")
+endif()
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -86,7 +94,7 @@ add_subdirectory(src/ndlib)
 add_subdirectory(src/disasm)
 add_subdirectory(src/machine)
 add_subdirectory(src/cpu)
-add_subdirectory(src/libmon)
+# MON library now comes from external/ndmonlib (added above)
 add_subdirectory(src/debugger)
 
 if(BUILD_WASM)

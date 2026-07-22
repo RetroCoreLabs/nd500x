@@ -33,16 +33,55 @@
  *
  * Address Spaces:
  * - ND-500 uses 32-bit byte addressing (4GB address space)
- * - ND-100 uses 16-bit word addressing (128KB address space)
+ * - RIOM addresses ND-100 memory by PHYSICAL word address, 24 bits
+ *   (0x000000-0xFFFFFF). It is NOT limited to the ND-100's 64 KW logical
+ *   window: manual ND-05.009.4 section 16.23 says the operand "specifies the
+ *   physical ND-100 address and is usually private ND-100 memory".
  * - Hardware bridge translates between address spaces
  * - _private offset (typically 0x40000) maps ND-100 space into physical RAM
  *
- * Transfer Mechanism:
- * 1. ND-500 issues RIOM instruction with ND-100 source address
- * 2. Hardware DMA controller reads from ND-100 memory space
- * 3. Data is transferred directly to ND-500 memory (no ND-100 interruption)
- * 4. ND-500 continues execution after transfer completes
- * 5. Efficient bulk transfer without CPU intervention
+ * HOW THE REAL HARDWARE DOES IT (decoded from the ND-5000 B30 microcode, 2026-07-20):
+ *
+ * RIOM is NOT a DMA engine with a descriptor and a word counter. It is a MICROCODED
+ * COPY LOOP: the CPU's own microprogram issues ordinary physical memory reads, one
+ * halfword per iteration, through its own memory port. Routine RIOM_0..RIOM_3:
+ *
+ *   012255 RIOM_0:  SC2 := BM01                    ; mask, bit 1
+ *   012256          ALU,AND A,MIC,STS B,SC2        ; test MIC status bit 1
+ *   012257          C,SEQ COND,MZRO -> ILLEG       ; not privileged -> IIC trap
+ *   012261          ... G,OPS LADDR EA2SAVE ADACT  ; operand 2's ADDRESS -> EA2
+ *   012262          ... D,LC   READ ADACT          ; operand 3 (count) -> LC
+ *   012263          D,DAC,DPA := SC1               ; operand 1 VALUE -> DAC phys addr reg
+ *   012266 RIOM_2:  LCDECR C,SEQ INVSEQ COND,LCZ   ; decrement, exit when zero
+ *   012270 RIOM_3:  SC1 := DATA (TYP,HW)  RD,POF   ; read halfword from ND-100
+ *   012272          <SC1>                 WRITE    ; write halfword to ND-500, loop
+ *
+ * The entire ND-100 access is the single field RD,POF. The ND-5000 Microprogram Guide
+ * (ND-05.022.1:2467) defines it as "PERFORM A PHYSICAL READ WITH MMS", and the Hardware
+ * Description (ND-05.020.01:5777) names the bus request RPOFF, "paging off read memory -
+ * physical address translation". So the halfword is fetched by an ordinary memory read
+ * with paging OFF, at a raw physical address. Note "with MMS": paging is off but the
+ * memory management system still performs a physical translation, so POF is NOT the same
+ * as the raw RD,PHYS/WR,PHYS pair.
+ *
+ * That is why the manual can say the transfer "does not interrupt the ND-100 program
+ * execution" (section 16.23): it is DMA only from the ND-100's point of view. The ND-100
+ * CPU is never involved because the ND-500 reaches shared/multiport memory through its
+ * own port (on ND-5000, the MFbus channel interface MPCC on the mother board). The ACCP
+ * is NOT on this path - its multiport commands WMPM/RMPM/TESTMPM are documented as
+ * illegal while the microprogram is running.
+ *
+ * There is no descriptor, no controller command and no interface word-counter: the
+ * counter is the microcode's own LC register, the pointers its own EA1/EA2.
+ *
+ * NOTE: there is no "WIOM" write counterpart - it appears in no manual, no manual index
+ * entry and no opcode table (cpu.c also states this). The ND-500 writes back to the
+ * ND-100 by (1) ordinary stores into SHARED memory, which IS directly addressable by the
+ * ND-500 - hence the "usually PRIVATE ... not directly addressable" qualifier on RIOM's
+ * source; (2) microcode writing the mailbox answer into the 5MPM block plus a level-12
+ * interrupt; or (3) trapping outward via MON and letting the ND-100, the master I/O
+ * processor, do the work. RIOM exists only for the case none of those covers: reading
+ * memory the ND-500 cannot address at all.
  *
  * Operand Structure:
  * - Operand[0]: ND-100 source address (read, word)
@@ -51,10 +90,32 @@
  *   - Addressing modes: LOCAL, RECORD, CONSTANT, REGISTER, PRE_INDEXED, ABSOLUTE
  *   - Data type: Word (physical ND-100 address)
  *
- * - Operand[1]: ND-500 destination buffer (write, halfword)
+ * - Operand[1]: ND-500 destination buffer (WRITE, halfword)
+ *   - The operand EFFECTIVE ADDRESS is the ND-500 destination buffer address;
+ *     the operand is NOT dereferenced. Manual ND-05.009.4 EN section 16.23
+ *     declares operand 2 as <buffer/w/H>. Confirmed against the real ND-5000
+ *     microcode (RIOM_0..RIOM_3), which saves operand 2 effective address as
+ *     the destination pointer.
  *   - Destination buffer in ND-500 memory (logical address)
- *   - Addressing modes: LOCAL, RECORD, REGISTER, PRE_INDEXED, ABSOLUTE
+ *   - Addressing modes: LOCAL, RECORD, PRE_INDEXED, ABSOLUTE.
+ *     REGISTER and CONSTANT are ILLEGAL for this operand.
  *   - Data type: Same as instruction prefix (halfword with H prefix)
+ *
+ *   WHY REGISTER AND CONSTANT ARE ILLEGAL HERE [settled 2026-07-20]:
+ *     The microcode fetches this operand with a LADDR request (CS 012261,
+ *     "LADDR EA2SAVE ADACT"). LADDR is value 1 of the microword MEMORY field -
+ *     "perform a LADDR request" - the same field position that otherwise holds
+ *     READ / WRITE / RD,POF. So operand 2 is resolved by a LOAD-ADDRESS request,
+ *     not a data access. The manual's rule for that request is explicit, manual
+ *     ND-05.009.4 section 15.4 (line 9435):
+ *       "The address of the operand is loaded into the specified register.
+ *        Registers and constants have no address in memory and are illegal as
+ *        operands."
+ *     A register has no address to load, so REGISTER cannot satisfy the request.
+ *     This is also an independent second confirmation for CONSTANT, which the IOS
+ *     definition already forbids as a destination.
+ *     This was NOT decided from the manual's per-instruction addressing-mode table:
+ *     that table exists but OCR has destroyed its column alignment. Do not cite it.
  *
  * - Operand[2]: Count (read, halfword)
  *   - Number of halfwords to transfer (0-65535)
@@ -64,31 +125,52 @@
  * Operation Steps:
  * 1. Validate operand count (must be 3)
  * 2. Check supervisor mode (PIA bit must be set)
- * 3. Read ND-100 source address from operand[0] (word)
- * 4. Read ND-500 destination address from operand[1] (word)
+ * 3. Read ND-100 source address from operand[0] as a full 32-bit WORD
+ *    (manual section 16.23: operand 1 data type is W, regardless of the H prefix)
+ * 4. ND-500 destination address = EFFECTIVE ADDRESS of operand[1] (not its value)
  * 5. Read transfer count from operand[2] (halfword)
  * 6. Validate count (must fit in 16 bits)
- * 7. Validate ND-100 address (must fit in 16 bits)
+ * 7. Validate ND-100 address (must fit in the 24-bit physical range 0xFFFFFF)
  * 8. For i = 0 to count-1:
- *    a. Calculate ND-100 address = nd100_addr + i (word address, wraps at 16-bit)
+ *    a. Calculate ND-100 address = nd100_addr + i (word address, 24-bit range)
+ *       NOTE: the 24-bit ceiling is an EMULATOR CONVENTION agreed across the
+ *       C and C# emulators, not a manual fact - ND-05.009.4 section 16.23 states no
+ *       address width for the RIOM path. The real microcode masks nothing.
  *    b. Calculate ND-500 address = nd500_addr + i×2 (byte address)
  *    c. Read halfword from ND-100 memory[nd100_addr]
  *    d. Write halfword to ND-500 memory[nd500_addr]
- * 9. Update Z flag based on count
+ * 9. Do NOT touch any status flag (see Flag Behavior below)
  *
  * Memory Access Pattern:
  * - ND-100 source: Word address (multiply by 2 for byte offset)
  * - ND-500 dest: Byte address (increment by 2 for each halfword)
- * - Hardware DMA controller handles address translation and endianness
+ * - The ND-100 side is a PHYSICAL access (microcode RD,POF), the ND-500 side a
+ *   LOGICAL one (plain WRITE) - the asymmetry is intentional and matches the manual:
+ *   "the <ND-100 addr> specifies the physical ND-100 address ... <buffer> is a
+ *   logical ND-500 address". The bridge applies the offset and big-endian assembly.
  *
  * Flag Behavior:
- * - Z (Zero): Set if count == 0 (no data transferred), cleared otherwise
- * - S, C, O, K: Unaffected
+ * - Manual section 16.23: "Data status bits: Unaffected".
+ *   RIOM must not modify Z or any other status flag on ANY path, including the
+ *   count == 0 path. (A previous implementation wrongly set Z when count == 0.)
  *
  * Trap Conditions:
  * - Addressing traps: Invalid address, page fault, protection violation
- * - Illegal instruction code (IIC): Not in supervisor mode (requires PIA bit set)
- * - Illegal operand value (IOV): Invalid count or address
+ * - Illegal instruction code (IIC): Not in supervisor mode (requires PIA bit set).
+ *   Microcode equivalent: CS 012256-012257 ANDs MIC,STS with bit 1, jumps to ILLEG.
+ * - Illegal operand value (IOV, trap 16): "Operand values exceeding the legal range"
+ *   (manual line 2132) - a VALUE check. Used here for the address-range guard.
+ * - Illegal operand specifier (IOS, trap 34): the correct trap for a REGISTER or
+ *   CONSTANT buffer operand. Its definition (manual line 2215) covers "constant
+ *   operands as destination" and instructions that "do not allow register or constant
+ *   operands". Do NOT use IOV for that case - IOV is about values, IOS about
+ *   specifiers.
+ *   IMPLEMENTED 2026-07-20: the executor now raises IOS for a REGISTER / CONSTANT /
+ *   CONSTANT_SHORT buffer operand (guard at the top of the transfer body, mirrors
+ *   RetroCore Riom.cs commit 84ca6098d). The manual lists IOS per-instruction inconsistently - section 15.4's
+ *   own trap line omits it despite the prose forbidding registers - because IOS is
+ *   raised by the operand decode generally, so its absence from section 16.23's trap
+ *   list is not evidence that RIOM cannot raise it.
  *
  * Performance:
  * - Execution: Variable, depends on transfer size
@@ -130,7 +212,7 @@
  * Notes:
  * - RIOM must be preceded by H prefix (halfword operations)
  * - Transfers are always in halfword (16-bit) units
- * - ND-100 address space wraps at 16-bit boundary (0x0000-0xFFFF)
+ * - ND-100 physical word addresses are 24-bit (0x000000-0xFFFFFF), not 16-bit
  * - ND-500 address space is full 32-bit
  * - Requires supervisor mode (PIA bit set in status register)
  * - Use for inter-processor communication in dual-processor ND-500 systems
@@ -144,9 +226,9 @@
  * - Flag updates and validation
  *
  * Future enhancements:
- * 1. DMA controller simulation with cycle counting
- * 2. Endianness conversion (ND-100 is big-endian)
- * 3. Supervisor mode validation (PIA bit checking)
+ * 1. Cycle-accurate timing for the transfer loop (there is no DMA controller to model -
+ *    the microcode does the copy itself, one halfword per iteration)
+ * 2. (DONE 2026-07-20) IOS for a REGISTER/CONSTANT buffer operand - see Trap Conditions
  *
  * Related Instructions:
  * - RIOM: Read I/O processor memory (ND-100 → ND-500) [this instruction]
@@ -163,17 +245,44 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Check supervisor mode - RIOM is a privileged instruction */
-    /* PIA (Privileged Instruction Allowed) bit must be set */
-    /* TODO: Implement PIA bit checking when status register is fully implemented */
-    /* For now, we allow the instruction to execute */
+    /* RIOM is a PRIVILEGED instruction (manual section 16.23: "Privileged
+     * instruction", trap condition "Illegal instruction code (IIC)"). The real
+     * ND-5000 microcode ANDs the MIC status register with bit 1 and branches to
+     * ILLEG when the bit is clear. Use the established repo-wide helper, the
+     * same pattern as RWIP and the other privileged SYSTEM instructions. */
+    if (!nd500_require_privilege(cpu, fi->address)) {
+        return;  /* IIC trap already raised; abort the instruction */
+    }
 
     /* Read operands using nd500_read_operand_value for proper addressing mode support */
     /* Operand 0: ND-100 source address (word address in I/O processor space) */
-    uint32_t nd100_source_addr = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* Manual section 16.23 declares operand 1 as <ND-100 addr/r/W>: a full 32-bit
+     * WORD, independent of the H instruction prefix. Reading it with fi->data_type
+     * (H) truncated real SINTRAN pointers above 0xFFFF. */
+    uint32_t nd100_source_addr = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
 
-    /* Operand 1: ND-500 destination address (byte address in main processor space) */
-    uint32_t nd500_dest_addr = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* Operand 1 (second operand): ND-500 destination buffer. This is a WRITE
+     * operand whose EFFECTIVE ADDRESS is the buffer (manual section 16.23), so it
+     * must not be dereferenced. Same convention used by the STRING instructions. */
+    /* Operand 1 buffer: REGISTER and CONSTANT (both forms) are ILLEGAL here. The
+     * microcode fetches this operand with a LADDR (load-address) request at CS 012261,
+     * and manual ND-05.009.4 section 15.4 states the rule for that request verbatim:
+     * "Registers and constants have no address in memory and are illegal as operands."
+     * A register/constant has no effective address to write into, so raise IOS (trap 34,
+     * the illegal-operand-SPECIFIER trap via trap_illegal_operand), NOT IOV (a value
+     * check). Mirrors RetroCore Riom.cs (commit 84ca6098d). Closes the [OPEN] note above. */
+    Nd500AddrMode buf_mode = fi->operands[1].mode;
+    if (buf_mode == ND500_ADDR_REGISTER ||
+        buf_mode == ND500_ADDR_CONSTANT ||
+        buf_mode == ND500_ADDR_CONSTANT_SHORT) {
+        printf("[ERROR] RIOM buffer operand has illegal addressing mode %d "
+               "(a register or constant has no address in memory; ND-05.009.4 section 15.4) "
+               "at PC=0x%08X\n", (int)buf_mode, fi->address);
+        trap_illegal_operand(cpu, fi->address);
+        return;
+    }
+
+    uint32_t nd500_dest_addr = fi->operands[1].effective_address;
 
     /* Operand 2: Count of halfwords to transfer */
     uint32_t count = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], fi->data_type);
@@ -185,19 +294,26 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Validate ND-100 address - must fit in 22 bits (ND-100 physical address space)
-     * ND-100 physical addressing: 24-bit word addresses (22-bit physical: 0x000000-0x3FFFFF)
-     * Reference: ND100Bridge.md line 130 */
-    if (nd100_source_addr > 0x3FFFFF) {
-        printf("[ERROR] RIOM invalid ND-100 address 0x%08X at PC=0x%08X (max 0x3FFFFF)\n",
+    /* Validate the ND-100 source against the PHYSICAL word-address space.
+     * The 24-bit ceiling is an EMULATOR CONVENTION, matched deliberately with the C#
+     * RetroCore emulator so the two agree. It is NOT a hardware fact: manual section
+     * 16.23 states no address width for the RIOM path, and the real microcode masks
+     * nothing at all. If a real width is ever established, change it here, in
+     * src/cpu/cpu.c, AND in RetroCore Riom.cs together. */
+    if (nd100_source_addr > 0xFFFFFF) {
+        printf("[ERROR] RIOM invalid ND-100 address 0x%08X at PC=0x%08X (max 0xFFFFFF)\n",
                nd100_source_addr, fi->address);
         trap_illegal_operand(cpu, fi->address);
         return;
     }
 
-    /* Check for potential address wraparound in ND-100 space */
-    /* ND-100 has 22-bit physical address space (0x000000-0x3FFFFF) */
-    if (nd100_source_addr + count > 0x400000) {
+    /* Check for potential address wraparound in ND-100 space.
+     * ND-100 physical word-address space here is 24-bit (0x000000-0xFFFFFF), so the
+     * boundary is 0x1000000. (This constant previously read 0x400000, the old 22-bit
+     * boundary, and was missed when the ceiling was widened - it warned on every
+     * transfer above 4 MW.) Purely diagnostic: the real microcode neither checks nor
+     * masks, it just walks EA1 with LC. */
+    if ((uint64_t)nd100_source_addr + count > 0x1000000ULL) {
         printf("[WARNING] RIOM transfer wraps ND-100 address space at PC=0x%08X\n",
                fi->address);
         /* This is allowed but logged for debugging */
@@ -216,20 +332,22 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * - ND-100 source: Word address (multiply by 2 for byte offset)
      * - ND-500 dest: Byte address (increment by 2 for each halfword)
      *
-     * Hardware DMA controller handles:
-     * - Address translation via _private offset
-     * - Endianness conversion (ND-100 is big-endian)
-     * - Concurrent ND-100 execution (no interruption)
+     * Mirrors microcode RIOM_2/RIOM_3 (CS 012266-012272): read halfword via RD,POF,
+     * write halfword via plain WRITE, LCDECR / COND,LCZ to terminate. There is no DMA
+     * controller involved on the ND-500 side; the ND-100 is undisturbed because the
+     * memory is reached through a second port, not because its bus cycles are stolen.
      *
-     * SIMULATED implementation:
-     * - Writes zeros to destination (no actual ND-100 memory to read from)
-     * - Real implementation would use nd100_bridge functions
+     * Emulator implementation (this is a REAL transfer, not a stub - an older comment
+     * here claimed it "writes zeros to destination", which has not been true since the
+     * bridge landed):
+     * - nd500_read_nd100_word() applies nd100_memory_offset and big-endian assembly
+     * - nd500_write_memory_16() goes through the normal ND-500 MMU path
      * ======================================================================== */
 
     for (uint32_t i = 0; i < count; i++) {
         /* Calculate addresses for this transfer iteration */
-        /* ND-100 address: word-based, wraps at 22-bit boundary (0x000000-0x3FFFFF) */
-        uint32_t nd100_addr = (nd100_source_addr + i) & 0x3FFFFF;
+        /* ND-100 address: word-based, wraps at 24-bit boundary (0x000000-0xFFFFFF) */
+        uint32_t nd100_addr = (nd100_source_addr + i) & 0xFFFFFF;
 
         /* ND-500 address: byte-based, each halfword is 2 bytes */
         uint32_t nd500_addr = nd500_dest_addr + (i * 2);
@@ -252,22 +370,19 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
     }
 
-    /* Update status flags per ND-500 Reference Manual §16.23 */
-    /* Z (Zero): Set if count == 0 (no data transferred) */
-    /* All other flags (S, C, O, K) unaffected */
-    if (count == 0) {
-        nd500_set_flag(cpu, ND500_FLAG_Z);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_Z);
-    }
+    /* Status flags: manual section 16.23 says "Data status bits: Unaffected".
+     * Deliberately NO flag update here, not even on the count == 0 path. */
 
-    printf("[RIOM] Completed: %u halfwords transferred, Z=%d at PC=0x%08X\n",
-           count, (count == 0), fi->address);
+    printf("[RIOM] Completed: %u halfwords transferred (status bits unaffected) at PC=0x%08X\n",
+           count, fi->address);
 
-    /* NOTE: In real hardware, this would be a DMA operation:
-     * - ND-500 blocks until transfer completes (~10 + 2×count cycles)
+    /* NOTE on "DMA": the manual calls this a DMA access that "does not interrupt the
+     * ND-100 program execution", and that is true - but only from the ND-100's point of
+     * view. On the ND-500 side there is no DMA controller: the microprogram itself
+     * issues the reads one halfword at a time through its own memory port (on ND-5000,
+     * the MFbus channel interface MPCC).
+     * - ND-500 blocks until the transfer completes (~10 + 2*count cycles)
      * - ND-100 continues executing (no interruption)
-     * - Hardware DMA controller manages the transfer
      *
      * In emulator:
      * - Transfer is immediate (no cycle counting)

@@ -6885,8 +6885,8 @@
       "variantNumber": 0,
       "totalVariants": 1,
       "operandTemplates": ["0x0001FFE8", "0x0001FFEF", "0x0001FFEF"],
-      "allowedModes": ["AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE"],
-      "metadata": ["new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"]
+      "allowedModes": ["AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE", "AddressingModes.LOCAL | AddressingModes.RECORD | AddressingModes.CONSTANT | AddressingModes.REGISTER | AddressingModes.PRE_INDEXED | AddressingModes.ABSOLUTE"],
+      "metadata": ["new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.WordOnly)", "new(OperandRole.Destination, OperandAccess.Write, OperandDataTypeConstraint.SameAsInstruction)", "new(OperandRole.Source, OperandAccess.Read, OperandDataTypeConstraint.SameAsInstruction)"]
     },
     {
       "opcode": "0xFF1C",

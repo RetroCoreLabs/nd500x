@@ -12,9 +12,9 @@
 #include "../cpu/nd500_mmu.h"
 #include "../cpu/nd500_domain.h"
 #include "../cpu/instruction_helpers.h"
-#include "../libmon/mon.h"
-#include "../libmon/mon_file_table.h"
-#include "../libmon/mon_config.h"
+#include <ndmon/mon.h>
+#include <ndmon/mon_file_table.h>
+#include <ndmon/mon_config.h>
 #include "nd500_dom.h"
 #include <stdio.h>
 #include <stdlib.h>

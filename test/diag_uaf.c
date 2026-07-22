@@ -8,9 +8,9 @@
 #include "../src/cpu/nd500_mmu.h"
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
-#include "../src/libmon/mon.h"
-#include "../src/libmon/mon_file_table.h"
-#include "../src/libmon/mon_clock.h"
+#include <ndmon/mon.h>
+#include <ndmon/mon_file_table.h>
+#include <ndmon/mon_clock.h>
 #define MEMSZ (16u*1024u*1024u)
 #define TARGET 0x1802A1B0u
 int main(int argc,char**argv){

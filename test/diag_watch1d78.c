@@ -9,7 +9,7 @@
 #include "../src/cpu/nd500_mmu.h"
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
-#include "../src/libmon/mon.h"
+#include <ndmon/mon.h>
 #define MEMSZ (16u*1024u*1024u)
 int main(int argc,char**argv){
     const char* dom=(argc>1)?argv[1]:"/mnt/d/ND/500/nd-linker/linker-b01.dom";

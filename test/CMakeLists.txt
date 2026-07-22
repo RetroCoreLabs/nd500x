@@ -20,6 +20,11 @@ add_executable(test_source_mapping
 )
 target_link_libraries(test_source_mapping PRIVATE nd500_ndlib nd500_machine)
 
+add_executable(test_riom
+    test_riom.c
+)
+target_link_libraries(test_riom PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 add_executable(test_lget_instruction
     test_lget_instruction.c
 )
@@ -159,6 +164,7 @@ add_test(NAME ote_instructions COMMAND test_ote_instructions)
 add_test(NAME stack_overflow COMMAND test_stack_overflow)
 add_test(NAME unsigned_displacement COMMAND test_unsigned_displacement)
 add_test(NAME bit_addressing COMMAND test_bit_addressing)
+add_test(NAME riom COMMAND test_riom)
 add_test(NAME mon_calls COMMAND test_mon_calls)
 add_test(NAME bmove_overlap COMMAND test_bmove_overlap)
 add_test(NAME alt_prefix COMMAND test_alt_prefix)

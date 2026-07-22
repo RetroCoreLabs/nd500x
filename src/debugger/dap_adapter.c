@@ -41,7 +41,7 @@
 #include "../cpu/nd500_mmu.h"
 #include "../disasm/nd500_disasm.h"
 #include "../ndlib/ndlib.h"
-#include "../libmon/mon_file_table.h"
+#include <ndmon/mon_file_table.h>
 #include "../../external/libdap/libdap/include/dap_server.h"
 #include "../../external/libdap/libdap/include/dap_server_cmds.h"
 

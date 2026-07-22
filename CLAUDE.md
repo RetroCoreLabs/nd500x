@@ -6,6 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ND500X is a Norsk Data ND-500 CPU emulator written in C (C11). It emulates the ND-500 architecture with byte-addressed memory, CPU state, and provides both native and WebAssembly (WASM) build targets.
 
+## Setup
+
+### Initialize Git Submodules
+
+The optional DAP support requires the external libdap library:
+
+```bash
+# Initialize submodules (required for `make with-dap` builds)
+git submodule update --init external/libdap
+```
+
+Without this, `make with-dap` and `make dap-sanitizer` will fail. Regular `make` (auto-detect mode) will build without DAP if the submodule is missing.
+
 ## Build Commands
 
 ### Native Build
@@ -67,6 +80,18 @@ cd build && ctest -R disasm
 - **Build output locations**: Binaries go to `build/bin/`, libraries to `build/lib/`
 - **Dispatch table**: Pre-generated `src/cpu/nd500_instructions.{c,h}` files are committed (1,078 instruction mappings)
 
+## Build Directory Reference
+
+| Directory | Purpose |
+|-----------|---------|
+| `build/` | Primary native build output (default target for `make`); contains `bin/`, `lib/`, test executables |
+| `build_wasm/` | WebAssembly build output (created by `make wasm` or `make wasm-serve`) |
+| `build/nc_sandbox/` | Sandbox directory for ND-500 compiler (CAT-500/NC) testing with isolated SYSTEM files |
+| `build/link_sandbox/` | Sandbox directory for ND linker testing with isolated SYSTEM files and DDBTABLES |
+| `build-ubsan/`, `build-sanitizer/` | Alternative build directories (if using different sanitizer variants) |
+
+**Note:** After `make`, test binaries and the JSON test data (`nd500_tests.json`) are copied to `build/bin/` by CMake; the test runner auto-locates them in its executable directory.
+
 ## Architecture & Code Organization
 
 ### Core Components
@@ -101,9 +126,13 @@ cd build && ctest -R disasm
 - `commands.c`: 60+ debugger command implementations
 - `dap_adapter.c`: Debug Adapter Protocol support (requires external/libdap)
 
-**src/frontend/** - Entry points
-- `nd500x/`: Native executable entry point
+**src/frontend/** - Entry points (choose based on debugging needs)
+- `nd500x/`: Native executable entry point with integrated CLI debugger (`./build/bin/nd500x --debug` opens REPL)
+  - Best for: Interactive debugging, rapid iteration, command-line control
+  - Run with `make run` or `./build/bin/nd500x --debug`
 - `nd500wasm/`: WebAssembly entry with JSON debug exports
+  - Best for: Browser-based UI, remote debugging, embedded environments
+  - Run with `make wasm-serve` (includes web server and example kernel)
 
 ### Key Data Flow
 
@@ -136,6 +165,16 @@ The domain system provides process isolation (`src/cpu/nd500_domain.c`):
 - **PCB** (Process Control Block): Per-domain capability tables
 
 Debugger commands: `domain`, `domain <n>`, `domain switch <n>`, `domain symbols <n>`, `unload <n>`
+
+### Debug Adapter Protocol (DAP)
+
+Optional DAP server for IDE integration (`src/debugger/dap_adapter.c`):
+- **Port**: 4500 (ND500X; ND100X uses 4711)
+- **Protocol**: Debug Adapter Protocol (RFC 8879)
+- **Clients**: VS Code, Neovim DAP, and other DAP-compatible IDEs
+- **Features**: Breakpoints, data breakpoints (memory/register watchpoints), variable inspection, memory read/write, disassembly, console I/O
+- **Build requirement**: `git submodule update --init external/libdap` then `make with-dap`
+- **Reference**: See `docs/DAP_INTEGRATION.md` for complete setup and usage
 
 ## Dependencies
 
@@ -184,6 +223,73 @@ Run with: `./build/bin/nd500x --debug`
 - `symb`: List symbols
 - `q`: Quit
 
+## Common Debugging Workflows
+
+### Testing Instruction Implementations
+
+```bash
+# Build and run instruction validation tests
+make
+./build/bin/test_instruction_validation
+
+# Run tests for a specific instruction (e.g., MUL, ADD)
+./build/bin/test_instruction_validation --filter mul
+
+# Run all tests without stopping on first failure (comprehensive check)
+./build/bin/test_instruction_validation --continue
+
+# Run a subset of tests
+./build/bin/test_instruction_validation --start 100 --count 50
+```
+
+### Interactive Debugging
+
+```bash
+# Launch the CLI debugger
+make run
+
+# Or manually:
+./build/bin/nd500x --debug
+
+# In the debugger:
+load <path>              # Load a.out binary
+step 10                  # Single-step 10 instructions
+d 0x1000                 # Disassemble at address 0x1000
+m 0x2000 32              # Display 32 bytes of memory (data space)
+mp 0x1000 32             # Display 32 bytes of program space
+regs                     # Show all CPU registers
+bp 0x1234                # Set breakpoint at 0x1234
+show trace on            # Enable instruction tracing
+show memtrace all        # Enable memory access tracing
+```
+
+### Debugging with IDE (DAP)
+
+If built with DAP support (`make with-dap` or `make dap-sanitizer`):
+
+```bash
+# Build with DAP enabled
+make with-dap
+
+# Run the emulator (DAP server listens on port 4500)
+./build/bin/nd500x --debug
+
+# In VS Code or another DAP client, attach to localhost:4500
+# Full ND-500 register file, breakpoints, memory inspection, and disassembly available
+```
+
+See `docs/DAP_INTEGRATION.md` for detailed DAP setup instructions.
+
+### WASM Web Debugger
+
+```bash
+# Build WASM debugger and start server
+make wasm-serve
+
+# Open http://localhost:8000 in browser
+# Load a kernel.zip or debug program through the web UI
+```
+
 ## Code Style
 
 - C11 standard with standard compliance required
@@ -192,6 +298,29 @@ Run with: `./build/bin/nd500x --debug`
 - Instruction implementations in `src/cpu/instructions/<CLASS>/<FunctionName>.c`
 - No Python/JS/TypeScript for core emulator (JavaScript only for WASM frontend)
 - **Never use Unicode** in code comments or strings - the ND-500 toolchain is from the late 80s
+
+## Examples
+
+The `examples/` directory contains runnable ND-500 program examples:
+
+| Example | Path | Purpose |
+|---------|------|---------|
+| Hello World | `examples/01-hello/` | Basic program with simple output |
+| Addressing Modes | `examples/03-addressing-modes/` | Demonstrates all 14 ND-500 addressing modes |
+| C Math | `examples/04-c-math/` | Floating-point and integer arithmetic examples |
+| C Kernel | `examples/05-c-kernel/` | Full C kernel build system; compiles to `kernel.zip` for WASM debugger |
+
+**C Kernel Workflow:**
+```bash
+# Build the C kernel example (compile → assemble → link → ZIP)
+make kernel-example
+# Creates: examples/05-c-kernel/kernel.zip
+
+# Build WASM debugger and serve with kernel example
+make wasm-serve
+# Opens http://localhost:8000 in browser with ND500X Web Debugger
+# Load kernel.zip in the web UI to debug
+```
 
 ## Reference Documentation
 
@@ -325,3 +454,40 @@ When implementing ND-500 instructions:
 - The C# code is not a reference implementation. It is just another emulator with bugs. The ND-500 CPU, linker, and
   assembler reference manuals are the TRUTH. Make sure to never assume anything - verify against documentation.
 - NEVER mention Claude or AI assistants in git commit messages
+
+## MON Call Development
+
+The MON subsystem (`src/libmon/`) emulates SINTRAN operating system calls:
+
+- **Architecture**: Dispatcher routes MON numbers to per-handler files (`handlers/mon_*B_*.c`)
+- **Parameter access**: Use helper functions in `mon_context.h` to read/write parameters from machine state
+- **Testing**: MON call handlers must match SINTRAN semantics exactly
+  - Test against real SINTRAN output when possible
+  - Use debugger `mon` commands to inspect: `mon log`, `mon status`, `mon list`, `mon info`
+- **Reference**: See `docs/HANDOFF_CSHARP_FILE_TABLE_SINTRAN_SEMANTICS.md` for file table semantics
+- **Completeness audit**: `docs/MON_COMPLETENESS_AUDIT.md` lists which MON calls are implemented and their status
+- **Key MON calls** needing careful implementation:
+  - 1B (INBT): Blocking input on device (suspends on empty input)
+  - 41B/42B (OPEN): File open with SINTRAN path semantics (own-dir fallback to SYSTEM)
+  - 43B (CLOSE): File close and descriptor cleanup
+  - 117B/120B (READ/WRITE): Buffered file I/O
+  - 3B (EXIT): Process termination
+
+## Notes on Entry Points and Frontends
+
+**nd500x --debug** (Native CLI debugger):
+- Interactive REPL with tab completion (requires libreadline)
+- Persistent command history
+- Full breakpoint and watchpoint support
+- Best for rapid development and real-time experimentation
+
+**nd500wasm** (WebAssembly + Web UI):
+- JSON-based communication with browser frontend
+- No external dependencies for frontend
+- Portable across platforms
+- Best for demonstrations and documentation
+
+**DAP Server** (IDE integration):
+- Listens on port 4500 when built with DAP support
+- Integrates with VS Code, Neovim, and other DAP clients
+- Best for development in preferred IDE with familiar debugging workflows

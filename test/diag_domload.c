@@ -11,10 +11,10 @@
 #include "../src/cpu/nd500_mmu.h"
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
-#include "../src/libmon/mon.h"
-#include "../src/libmon/mon_log.h"
-#include "../src/libmon/mon_file_table.h"
-#include "../src/libmon/mon_clock.h"
+#include <ndmon/mon.h>
+#include <ndmon/mon_log.h>
+#include <ndmon/mon_file_table.h>
+#include <ndmon/mon_clock.h>
 #define MEMSZ (16u*1024u*1024u)
 
 static int mon_seen=0;

@@ -4,7 +4,7 @@
 #include "machine_protos.h"
 #include "breakpoints.h"
 #include "../cpu/nd500_mmu.h"
-#include "../libmon/mon_file_table.h"
+#include <ndmon/mon_file_table.h>
 
 /* Convert stop reason enum to string */
 const char* nd500_stop_reason_str(StopReason reason) {

@@ -2,3 +2,6 @@
 	path = external/libdap
 	url = https://github.com/HackerCorpLabs/libdap.git
 	branch = main
+[submodule "external/ndmonlib"]
+	path = external/ndmonlib
+	url = https://github.com/HackerCorpLabs/ndmonlib.git

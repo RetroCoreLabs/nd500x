@@ -173,7 +173,28 @@ typedef struct {
      * 0 if no input can ever arrive (e.g. EOF on a redirected stdin). NULL for
      * scripted/headless consoles, where the host decides on STOP_WAIT_INPUT. */
     int (*wait_for_input)(void* ctx);
+    /* Optional: return the next available input byte WITHOUT consuming it, or
+     * -1 if none is available right now (never blocks). Used by the run loop to
+     * detect an asynchronous ESCAPE user-break while the program is computing
+     * (not reading). A subsequent read_char must still return this same byte, so
+     * that when ESCAPE is DISABLED the character stays in the stream as data.
+     * NULL for consoles that cannot peek (no async break on those). */
+    int (*peek_char)(void* ctx);
 } ConsoleIO;
+
+/* Poll the installed console for an asynchronous ESCAPE user-break. If the next
+ * pending input byte is the interactive terminal's escape char AND escape is
+ * ENABLED, consume it and return 1 (the run loop then aborts back to '@'). If
+ * escape is disabled, or the pending byte is not the escape char, or nothing is
+ * pending, the byte is LEFT in the stream and 0 is returned. Requires the
+ * console to implement peek_char; returns 0 otherwise. */
+int mon_console_poll_user_break(void);
+
+/* Match a host filename (e.g. "LINKER.DOM") against a SINTRAN NAME:TYPE file-spec
+ * pattern (e.g. ":DOM", "LI:DOM", "LINK*") using the carved COMPS comparator - an
+ * empty name or type matches any, '*' matches one char. NULL/empty pattern -> 1.
+ * Used by LIST-FILES to filter the listing the SINTRAN way. */
+int mon_sintran_name_matches(const char* pattern, const char* host_base);
 
 /* Block until the currently-installed console has input, honouring a blocking
  * terminal read. Returns 1 if input is now available, 0 if the console cannot

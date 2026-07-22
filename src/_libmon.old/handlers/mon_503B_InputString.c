@@ -320,6 +320,17 @@ MonResult mon_dvinst_read(MonContext* ctx, uint32_t device_no,
                 break;
             }
 
+            /* SINTRAN user-break: if ESCAPE is enabled on this terminal and this
+             * is its escape char, it aborts the running program back to the '@'
+             * command processor - it is NOT input data. Programs that own the key
+             * call 71B DESCF first, so mon_is_escape_break is false for them and
+             * ESCAPE is read as an ordinary line terminator/byte as before. */
+            if (mon_is_escape_break(device_no, (uint8_t)ch)) {
+                mon_log(MON_LOG_DEBUG, MON_ID_503B ": ESCAPE (user break) on device %u", device_no);
+                mon_request_halt(ctx, "User break (ESCAPE)");
+                break;
+            }
+
             buffer[bytes_read++] = (uint8_t)ch;
 
             /* Echo based on strategy */

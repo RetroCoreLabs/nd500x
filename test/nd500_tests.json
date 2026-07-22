@@ -543959,21 +543959,24 @@
   },
   {
     "name": "Riom_Transfer4Words",
-    "assembly": "H RIOM I1,I2,I3",
+    "assembly": "H RIOM I1,$8192,I3",
     "bytes": [
       254,
       118,
       208,
-      209,
+      196,
+      0,
+      0,
+      32,
+      0,
       210
     ],
     "initial": {
       "regs": {
         "i1": 4096,
-        "i2": 8192,
         "i3": 4,
         "pc": 4096,
-        "st": 0
+        "st": 2
       },
       "ram": [
         [
@@ -544046,8 +544049,8 @@
     },
     "final": {
       "regs": {
-        "pc": 4101,
-        "st": 0
+        "pc": 4105,
+        "st": 2
       },
       "ram": [
         [
@@ -544106,21 +544109,24 @@
   },
   {
     "name": "Riom_Transfer1Word",
-    "assembly": "H RIOM I1,I2,I3",
+    "assembly": "H RIOM I1,$12288,I3",
     "bytes": [
       254,
       118,
       208,
-      209,
+      196,
+      0,
+      0,
+      48,
+      0,
       210
     ],
     "initial": {
       "regs": {
         "i1": 8192,
-        "i2": 12288,
         "i3": 1,
         "pc": 4096,
-        "st": 0
+        "st": 2
       },
       "ram": [
         [
@@ -544157,8 +544163,8 @@
     },
     "final": {
       "regs": {
-        "pc": 4101,
-        "st": 0
+        "pc": 4105,
+        "st": 2
       },
       "ram": [
         [
@@ -1085014,21 +1085020,24 @@
   },
   {
     "name": "Riom_Transfer4Words_NegativeTest_WrongZFlag",
-    "assembly": "H RIOM I1,I2,I3",
+    "assembly": "H RIOM I1,$8192,I3",
     "bytes": [
       254,
       118,
       208,
-      209,
+      196,
+      0,
+      0,
+      32,
+      0,
       210
     ],
     "initial": {
       "regs": {
         "i1": 4096,
-        "i2": 8192,
         "i3": 4,
         "pc": 4096,
-        "st": 0
+        "st": 2
       },
       "ram": [
         [
@@ -1085101,7 +1085110,7 @@
     },
     "final": {
       "regs": {
-        "pc": 4101,
+        "pc": 4105,
         "st": 32
       },
       "ram": [

@@ -111,7 +111,7 @@ Value / Specifier) - a different trap vector.
 | BYCONR | FLOAT_MATH | operation | "Rounded" convert actually TRUNCATES toward zero (2.6->2) - the whole point of *CONR | `src/cpu/instructions/FLOAT_MATH/Byconr.c:47` |
 | HCONR | FLOAT_MATH | operation | Rounded convert truncates instead of round-to-nearest | `src/cpu/instructions/FLOAT_MATH/Hconr.c:47` |
 | WCONR | FLOAT_MATH | operation | Rounded convert truncates; float>2^31 no range check/IOV | `src/cpu/instructions/FLOAT_MATH/Wconr.c:48` |
-| RIOM | IO | operand | Dest buffer uses operand VALUE not effective ADDRESS; ND-100 src read as H (16-bit) truncating a W address; privileged IIC check missing | `src/cpu/instructions/IO/Riom.c:176,173,167` |
+| ~~RIOM~~ | IO | operand | **RESOLVED (2026-07-20)** - dest buffer now uses `fi->operands[1].effective_address`; ND-100 source read as full W (`ND500_DTYPE_WORD`); privileged check via `nd500_require_privilege()` (IIC); and the bogus Z-on-count==0 removed (manual sec 16.23: "Data status bits: Unaffected"). Covered by `test/test_riom.c`. | `src/cpu/instructions/IO/Riom.c:177,186,191` |
 | OR (BI) | LOGICAL | operation | BI datatype: upper 31 bits not zero-filled -> wrong register result | `src/cpu/instructions/LOGICAL/Or.c:53` |
 | XOR (BI) | LOGICAL | operation | BI datatype: upper 31 bits not zero-filled -> wrong register result | `src/cpu/instructions/LOGICAL/Xor.c:53` |
 | INV (BI) | LOGICAL | operation | BI datatype: full 32-bit complement, upper bits not cleared | `src/cpu/instructions/LOGICAL/Inv.c:54` |

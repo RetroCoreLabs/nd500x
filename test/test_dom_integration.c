@@ -23,9 +23,9 @@
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
 #include "../src/debugger/debugger.h"
-#include "../src/libmon/mon.h"
-#include "../src/libmon/mon_file_table.h"
-#include "../src/libmon/mon_log.h"
+#include <ndmon/mon.h>
+#include <ndmon/mon_file_table.h>
+#include <ndmon/mon_log.h>
 
 #define DEFAULT_MAX_STEPS 10000
 #define MEMORY_SIZE (16 * 1024 * 1024)  /* 16MB - same as debugger */

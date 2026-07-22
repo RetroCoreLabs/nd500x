@@ -26,9 +26,9 @@
 #include "../src/cpu/nd500_mmu.h"
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
-#include "../src/libmon/mon.h"
-#include "../src/libmon/mon_file_table.h"
-#include "../src/libmon/mon_clock.h"
+#include <ndmon/mon.h>
+#include <ndmon/mon_file_table.h>
+#include <ndmon/mon_clock.h>
 
 #define MEMORY_SIZE   (16u * 1024u * 1024u)
 #define CMP_PC        0x0802BA89u    /* w comp2 r1.27,W2 (terminal-loop exit test) */
