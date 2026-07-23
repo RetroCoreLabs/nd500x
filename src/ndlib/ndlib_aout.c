@@ -367,6 +367,15 @@ void ndlib_aout_get_segment_info(uint32_t* text_base, uint32_t* text_size,
     if (bss_size) *bss_size = g_bss_size;
 }
 
+/* Physical base where the flat a.out loader placed the DATA section (= a_text).
+ * The ND-500 has separate I-space (program/text) and D-space (data): a data
+ * access to a segment-0 virtual address V targets physical (data_base + V), while
+ * a program fetch of V targets physical V (text). The MMU uses this to keep the
+ * two spaces from aliasing. Returns 0 when no a.out is loaded. */
+uint32_t ndlib_aout_get_data_base(void) {
+    return g_data_base;
+}
+
 /* Helper: Read entire file into dynamically allocated string */
 static char* read_file_contents(const char* path) {
     FILE* f = fopen(path, "rb");

@@ -15,6 +15,12 @@
 #include <string.h>
 #include <stdio.h>
 
+/* Physical base where the flat a.out loader placed the DATA section (= a_text).
+ * Declared here (not via ndlib.h) to keep the MMU free of a loader header
+ * dependency. Used to de-alias I-space and D-space in the segment-0 identity
+ * fallback below. [I/D-space fix] */
+extern uint32_t ndlib_aout_get_data_base(void);
+
 /*
  * ND-500 MMU Implementation
  * Based on C# RetroCore emulator CpuND500.MMU.cs
@@ -299,6 +305,25 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
              * legitimate read of a kernel constant (e.g. vaddr 0x00022924) would
              * spuriously protect-fault the moment the data MMU is enabled. */
             if (cpu->machine && virtual_addr < cpu->machine->memory_size) {
+                /* Separate I-space / D-space de-aliasing. The flat a.out loader
+                 * places TEXT at physical 0 and DATA at physical data_base
+                 * (= a_text). A DATA access (is_instruction == 0) to segment-0
+                 * virtual V must therefore target physical (data_base + V) - the
+                 * D-space image - while a program fetch stays identity (V, the
+                 * I-space text). Without this, data reads of a text-range virtual
+                 * address return code bytes instead of the intended data, which
+                 * surfaces as garbage pointers (e.g. 0xFC16C51C in _strlen).
+                 * Falls back to identity when no a.out is loaded (data_base == 0)
+                 * or the offset would leave physical memory. [I/D-space fix] */
+                if (!is_instruction) {
+                    uint32_t data_base = ndlib_aout_get_data_base();
+                    if (data_base != 0) {
+                        uint32_t phys = virtual_addr + data_base;
+                        if (phys < cpu->machine->memory_size) {
+                            return phys;
+                        }
+                    }
+                }
                 return virtual_addr;
             }
             MMU_ERR("[MMU] TRAP: No %s capability! domain=%d segment=%d vaddr=0x%08X\n",
