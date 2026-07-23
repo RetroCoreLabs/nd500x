@@ -227,7 +227,15 @@ int nd500_check_indirect_call(
      * The offset IS the MON number (not divided by 4).
      * ═══════════════════════════════════════════════════════════════════════ */
 
-    if (target_segment == SINTRAN_SEGMENT) {
+    /* A CALLG *into* the segment-31 window is a SINTRAN monitor call by
+     * architecture, regardless of what the (possibly OMC/ND-100-configured)
+     * capability resolves target_segment to. The NDIX kernel's MON 600 fecall is
+     * CALLG 0xF8000180 (segment 31, offset 0x180 = 384 = MON 600 octal); with
+     * mmusetup pointing segment 31 at "domain 0 segment 1 + OMC", target_segment
+     * came out 1, so this MON dispatch was skipped and the call fell into the
+     * unimplemented domain-switch branch. Gate on the SOURCE segment too so the
+     * monitor call dispatches (the offset is the MON number). [NDIX MON 600 fix] */
+    if (segment == SINTRAN_SEGMENT || target_segment == SINTRAN_SEGMENT) {
         /* MON number is the offset directly (from assembly analysis) */
         uint32_t mon_number = offset;
 
