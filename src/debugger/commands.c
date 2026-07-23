@@ -2896,8 +2896,8 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 		 * The OTHER data segments keep the demo mapping: they carry loaded DSEG
 		 * data the kernel reads early, so we must NOT replace them with zeroed
 		 * demand pages - just make them writable (DC_WRP). */
-		if (seg == 0 || seg == 29) {
-			continue;
+		if (seg == 0 || seg == 24 || seg == 29) {
+			continue;  /* seg 24 = runtime kernel segment (0xC3000000) - demand-back PS_ADI too */
 		}
 		nd500_mmu_set_data_capability(m->cpu, 0, seg, (128 + seg) | DC_WRP);
 	}

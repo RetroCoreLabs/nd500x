@@ -326,6 +326,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 			printf("[STOP] %s at PC=0x%08X data=0x%08X\n",
 			       nd500_stop_reason_str(cpu->machine->stop_reason),
 			       trap->trap_pc, trap->trap_data_addr);
+			nd500_dump_stop_ring("trap-exec");
 			return false;
 		}
 	}
