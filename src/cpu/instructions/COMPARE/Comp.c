@@ -118,6 +118,12 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     reg_value = nd500_mask_to_datatype(reg_value, fi->data_type);
     operand   = nd500_mask_to_datatype(operand, fi->data_type);
 
+    /* BI (bit) COMPARE: isolate BOTH inputs to bit 0 (the single-bit value 0/1). The generic
+     * mask_to_datatype leaves BI unmasked, so a register like 0xAAAAAAAA would compare its full
+     * width instead of just its LSB. Mirrors RetroCore Comp.cs (mask = DataTypeWidthMask(BI) =
+     * 0x01) so the executed-functional golden and this C core isolate the SAME bit. */
+    if (fi->data_type == ND500_DTYPE_BIT) { reg_value &= 0x1ULL; operand &= 0x1ULL; }
+
     /* Perform subtraction (result not stored, only flags updated) */
     uint64_t result = reg_value - operand;
 
@@ -130,7 +136,13 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t masked_result = nd500_mask_to_datatype(result, fi->data_type);
 
     /* Determine sign bit from masked result */
-    bool sign_bit = nd500_is_negative(masked_result, fi->data_type);
+    /* BI COMPARE sign = BYTE sign (0x80) of the RAW single-bit diff reg-op in {-1,0,+1}: the
+     * microword COMP_BI @003234 / COMP2_BI @003241 subtract TYP,BY, so +1 (byte 0x01) -> S=0 and
+     * -1 (byte 0xFF) -> S=1 = (reg<op). Taken from the unmasked , NOT masked_result (which
+     * is bit-narrow), exactly as RetroCore Comp.cs uses (result & 0x80) for BI. */
+    bool sign_bit = (fi->data_type == ND500_DTYPE_BIT)
+                        ? ((result & 0x80ULL) != 0)
+                        : nd500_is_negative(masked_result, fi->data_type);
 
     /* Update status flags: Z, S (XOR overflow for true comparison), C */
     /* Note: Result is NOT written back to register */

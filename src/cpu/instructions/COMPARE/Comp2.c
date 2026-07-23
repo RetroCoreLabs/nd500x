@@ -89,6 +89,12 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     op1 &= width_mask;
     op2 &= width_mask;
 
+    /* BI (bit) COMPARE: isolate BOTH operands to bit 0. The width_mask default leaves BI
+     * full-width, so a register/operand like 0xAAAAAAAA would compare its whole width instead of
+     * just its LSB. Mirrors RetroCore Comp2.cs (DataTypeWidthMask(BI)=0x01). The subtraction below
+     * keeps the FULL width (result byte sign) so the true-comparison sign works. */
+    if (fi->data_type == ND500_DTYPE_BIT) { op1 &= 0x1ull; op2 &= 0x1ull; }
+
     /* Perform subtraction (result not stored) (like C# line 53) */
     uint64_t result = (op1 - op2) & width_mask;
 
@@ -152,6 +158,9 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         case ND500_DTYPE_HALFWORD:  sign_bit = (result & 0x8000) != 0; break;
         case ND500_DTYPE_WORD:      sign_bit = (result & 0x80000000ULL) != 0; break;
         case ND500_DTYPE_DOUBLEWORD: sign_bit = (result & 0x8000000000000000ULL) != 0; break;
+        /* BI COMPARE sign = BYTE sign of the raw single-bit diff op1-op2 (microword COMP2_BI
+         * @003241 subtracts TYP,BY): -1 -> byte 0xFF -> S=1=(op1<op2); +1 -> 0x01 -> S=0. */
+        case ND500_DTYPE_BIT:       sign_bit = (result & 0x80) != 0; break;
     }
 
     /* S = sign_bit XOR overflow (like C# line 74) */
