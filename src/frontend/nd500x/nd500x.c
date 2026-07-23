@@ -7,6 +7,7 @@
 #include "../../cpu/cpu_protos.h"
 #include "../../cpu/nd500_mmu.h"
 #include "../../cpu/nd500_domain.h"
+#include "../../cpu/nd500_indirect.h"
 #include "../../debugger/debugger.h"
 #include "../../debugger/commands.h"
 #include "nd500x_shell.h"
@@ -264,6 +265,9 @@ int main(int argc, char** argv) {
 		if (ndlib_load_aout_with_debug(&machine, input_path, 1, &entry, &pc) == 0) {
 			printf("loaded: %s (entry=0x%08X, PC=0x%08X)\n", input_path, entry, pc);
 			(void)ndlib_aout_dump_metadata(input_path);
+			/* Setup segment 31 (SINTRAN MON calls) as indirect segment
+			 * This is normally done by SINTRAN firmware before jumping to kernel */
+			nd500_setup_sintran_segment(&cpu, 0);  /* domain 0 = kernel domain */
 		} else {
 			printf("load failed: %s\n", input_path);
 		}
@@ -296,6 +300,11 @@ int main(int argc, char** argv) {
             printf("loaded: %s (entry=0x%08X, PC=0x%08X)\n", aout_path, entry, pc);
             (void)ndlib_aout_dump_metadata(aout_path);
             if (has_start_pc) cpu.PC = start_pc;  /* Override PC if specified */
+            /* Setup segment 31 (SINTRAN MON calls) as indirect segment
+             * This is normally done by SINTRAN firmware before jumping to kernel */
+            nd500_setup_sintran_segment(&cpu, 0);  /* domain 0 = kernel domain */
+            /* Enable MMU (required for indirect calls to work) */
+            machine.mmu_enabled = 1;
         } else {
             printf("load failed: %s\n", aout_path);
         }
