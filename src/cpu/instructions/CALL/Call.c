@@ -122,7 +122,15 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     if (indirect_result == INDIRECT_HANDLED) {
-        /* SINTRAN MON call completed - return to caller, don't jump to entry */
+        /* SINTRAN MON call completed - return to caller, don't jump to entry.
+         * No entry-point ENTS runs for a MON call, so clear the pending-call state
+         * here (a normal CALL/ENTS pair clears it in ENTS step 11). Otherwise the
+         * next real ENTS writes this stale return address + arg count into its
+         * frame's RETA/N and copies stale arg EAs, corrupting the frame chain.
+         * Mirrors the CALLG fix (f7b7176) - same latent bug on the direct-CALL
+         * path. [MON pending-state fix] */
+        cpu->pending_call_return_address = 0;
+        cpu->pending_call_arg_count = 0;
         cpu->PC = resolved_addr;  /* = return_address */
         return;
     }
