@@ -61,6 +61,27 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
         }
 
+        /* FLOAT (not double) COMPARE = INTEGER BIT-PATTERN compare. The ND-5000 dispatches F COMP
+         * to the SHARED INTEGER compare microcode (DispatchMapB30 opcode 56-59 -> entry 161, the
+         * same cell as W COMP), so the 32-bit float words are subtracted as integers - it does NOT
+         * do an IEEE numeric compare. ND float is bitpattern-monotonic over the common range, so
+         * this still yields the numeric ordering, and it is exactly what the real microcode (and
+         * RetroCore Comp.cs, which reads the float register BITS) does: result = regbits - opbits,
+         * C = regbits >= opbits (no borrow), Z = result==0, S = result bit31. DOUBLE is different
+         * (COMPD @002147 does a real AAP2,SUBBA numeric subtract) and is handled below. */
+        if (!is_double) {
+            uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
+            uint32_t op_bits  = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            uint64_t fresult = (uint64_t)reg_bits - (uint64_t)op_bits;
+            bool fcarry = (reg_bits >= op_bits);
+            bool fsign  = (fresult & 0x80000000ULL) != 0;   /* overflow=0 for the compare sign */
+            if ((uint32_t)fresult == 0) nd500_set_flag(cpu, ND500_FLAG_Z); else nd500_clear_flag(cpu, ND500_FLAG_Z);
+            if (fcarry) nd500_set_flag(cpu, ND500_FLAG_C); else nd500_clear_flag(cpu, ND500_FLAG_C);
+            if (fsign)  nd500_set_flag(cpu, ND500_FLAG_S); else nd500_clear_flag(cpu, ND500_FLAG_S);
+            /* O, K unaffected (mirrors Comp.cs, which writes only Z/C/S for the integer path) */
+            return;
+        }
+
         /* Read register and operand */
         double reg_value = 0.0;
         double operand_value = 0.0;
