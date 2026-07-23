@@ -39,7 +39,7 @@ extern int nd500_mon_allocate_segment(void* cpu, void* machine, uint8_t domain,
     uint32_t requested_segment, uint32_t segment_size_bytes,
     uint32_t* out_assigned_segment);
 #define DEMAND_SEG_MIN_SEGMENT   2       /* 0=alias,1=prog/data,31=SINTRAN window */
-#define DEMAND_SEG_MAX_SEGMENT   24
+#define DEMAND_SEG_MAX_SEGMENT   30    /* incl. 29=_Kstack/u-area, 30=UDATA; 31=SINTRAN window stays special */
 #define DEMAND_SEG_INIT_BYTES    (128u*1024u)  /* grows on demand beyond this */
 static int mmu_demand_segments = -1;    /* -1 = read env once; default ON */
 
@@ -282,6 +282,25 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             }
         }
         if (capability == 0) {
+            /* Directly-loaded kernel image fallback (identity mapping).
+             *
+             * The NDIX kernel is loaded flat into low physical memory (text at 0x0,
+             * plus its rodata/const pool). Those low-segment (0/1) DATA accesses have
+             * no PCB capability because firmware/SINTRAN never set one up in this
+             * emulator - on real hardware they are covered by a direct (PS_AZI)
+             * kernel-text/data capability installed at boot.
+             *
+             * When the referenced virtual address already lies inside the physical
+             * RAM we hold the loaded image in, map it identity (virtual == physical)
+             * instead of trapping. This mirrors the pre-MMU identity behaviour the
+             * emulator relied on for low addresses, while high kernel segments (e.g.
+             * segment 29 = _Kstack/u-area at 0xE8000000, far beyond physical RAM)
+             * still go through the demand-segment allocator above. Without this, a
+             * legitimate read of a kernel constant (e.g. vaddr 0x00022924) would
+             * spuriously protect-fault the moment the data MMU is enabled. */
+            if (cpu->machine && virtual_addr < cpu->machine->memory_size) {
+                return virtual_addr;
+            }
             MMU_ERR("[MMU] TRAP: No %s capability! domain=%d segment=%d vaddr=0x%08X\n",
                   is_instruction ? "program" : "data", domain, segment, virtual_addr);
             trap_protect_violation(cpu, cpu->PC, virtual_addr);

@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * Ents instruction - CALL class
@@ -69,6 +70,12 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read old B.SP to get new B */
     uint32_t old_b = cpu->B;
     uint32_t new_b = nd500_read_memory_32(cpu, old_b + OFFSET_SP);
+
+    /* Frame trace (env-gated) - shows where new_b comes from */
+    if (getenv("ND500X_FRAMELOG")) {
+        printf("[ENTS] PC=0x%08X old_b=0x%08X read[old_b+8=0x%08X]=new_b=0x%08X L=0x%08X\n",
+               fi->address, old_b, old_b + OFFSET_SP, new_b, cpu->L);
+    }
 
     /* Check for stack overflow BEFORE modifying anything */
     if (new_b + stack_demand >= cpu->TOS) {

@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * Ret instruction - CALL class
@@ -46,6 +47,12 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read PREVB and RETA from current stack frame */
     uint32_t prev_b = nd500_read_memory_32(cpu, cpu->B + OFFSET_PREVB);
     uint32_t ret_addr = nd500_read_memory_32(cpu, cpu->B + OFFSET_RETA);
+
+    /* Frame trace (env-gated) */
+    if (getenv("ND500X_FRAMELOG")) {
+        printf("[RET ] PC=0x%08X B=0x%08X read[B+0]=prevb=0x%08X read[B+4]=reta=0x%08X\n",
+               fi->address, cpu->B, prev_b, ret_addr);
+    }
 
     /*
      * CRITICAL: Domain boundary detection must happen BEFORE stack underflow check!

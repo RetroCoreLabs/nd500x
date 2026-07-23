@@ -305,6 +305,11 @@ int main(int argc, char** argv) {
             nd500_setup_sintran_segment(&cpu, 0);  /* domain 0 = kernel domain */
             /* Enable MMU (required for indirect calls to work) */
             machine.mmu_enabled = 1;
+            /* EXPERIMENT: enable data MMU so kernel data/stack segment (0xE8000000,
+             * segment 29) is translated + demand-backed instead of falling through
+             * to identity beyond physical RAM. */
+            nd500_mmu_init(&cpu);
+            nd500_mmu_enable_data(&cpu);
         } else {
             printf("load failed: %s\n", aout_path);
         }
