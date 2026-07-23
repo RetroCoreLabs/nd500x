@@ -93,7 +93,14 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             nd500_clear_flag(cpu, ND500_FLAG_S);
         }
 
-        /* C flag unaffected for float comparison */
+        /* DOUBLE compare CLEARS C: the real COMPD @002147 saves flags via ST,SAVF, which
+         * clears carry - Ronny-adjudicated against the RetroCore microword COMPD (C=0 wins).
+         * Ported from RetroCore Emulated.HW COMPARE/Comp.cs. Scoped to double; FLOAT (COMPF)
+         * still shares the integer compare path in the RetroCore microword today, so its C is
+         * left unaffected here to keep the two engines in agreement. */
+        if (is_double) {
+            nd500_clear_flag(cpu, ND500_FLAG_C);
+        }
         /* O flag unaffected (overflow handled by FO/FU traps) */
         return;
     }
