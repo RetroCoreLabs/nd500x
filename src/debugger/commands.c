@@ -2866,11 +2866,42 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	}
 	output(ctx, "  Prog segments [0-127]   → PSN [0-127]   (virtual 0x00000000-0x3F800000)");
 
-	/* Data segments 0-127: Each segment i maps to PSN 128+i (phys 0x00040000+) */
+	/* Data segments 0-127: Each segment i maps to PSN 128+i (phys 0x00040000+).
+	 * Kernel data is READ/WRITE, so grant DC_WRP - without it every kernel data
+	 * store (including the stack-frame [B+8] SP write the NDIX kernel does in
+	 * INIT/ENTS) hits "WRITE DENIED! missing DC_WRP flag".
+	 *
+	 * Two segments must NOT be pre-mapped with the demo's single 2KB PS_AZI page,
+	 * because their real extents exceed 2KB (an access past offset 0x7FF faults
+	 * with "PS_AZI page fault L2!=0"):
+	 *   - segment 0  = the flat-loaded kernel image (text+data+const, virtual
+	 *     0x0..< physRAM). Leaving its data capability 0 lets the identity
+	 *     fallback back it (virtual == physical, writes allowed) - exactly what
+	 *     the PROGRAM side already does (program cap 0 -> identity), so kernel
+	 *     globals/consts above 2KB (e.g. vaddr 0x00022924) resolve.
+	 *   - segment 29 = the u-area / kernel stack (virtual 0xE8000000, 8KB, beyond
+	 *     physRAM). Leaving its capability 0 lets the segment-demand allocator
+	 *     back it as a writable, paged PS_ADI segment big enough for the stack. */
 	for (uint32_t seg = 0; seg < 128; seg++) {
-		nd500_mmu_set_data_capability(m->cpu, 0, seg, (128 + seg));
+		/* Leave two segments capability 0 so the correct fallback backs them
+		 * instead of the demo's too-small 2KB PS_AZI page:
+		 *   seg 0  = flat-loaded kernel image (text+data+const, virtual 0x0 ..
+		 *            < physRAM) -> identity fallback (virtual == physical, writes
+		 *            allowed) - exactly what the PROGRAM side already does, so
+		 *            kernel globals/consts above 2KB (e.g. vaddr 0x00022924) resolve.
+		 *   seg 29 = the u-area / kernel stack (virtual 0xE8000000, 8KB, beyond
+		 *            physRAM) -> segment-demand allocator backs it writable + paged
+		 *            (PS_ADI) big enough for the whole stack. Fixes the reported
+		 *            [B+8] SP write dropping and the RET PREVB=0 stack underflow.
+		 * The OTHER data segments keep the demo mapping: they carry loaded DSEG
+		 * data the kernel reads early, so we must NOT replace them with zeroed
+		 * demand pages - just make them writable (DC_WRP). */
+		if (seg == 0 || seg == 29) {
+			continue;
+		}
+		nd500_mmu_set_data_capability(m->cpu, 0, seg, (128 + seg) | DC_WRP);
 	}
-	output(ctx, "  Data segments [0-127]   → PSN [128-255] (virtual 0x00000000-0x3F800000)");
+	output(ctx, "  Data segments   → RW (seg 0 = identity image, seg 29 = demand-backed u-area)");
 
 	/* Special: Segment 31 for Domain 0 = ND-100 Other Machine (INDIRECT + OMC) */
 	/* Bit 15 = 1 (INDIRECT), Bit 14 = 1 (OMC), Domain=0, Segment=1 */
