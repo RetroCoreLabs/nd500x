@@ -288,6 +288,15 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (indirect_result == INDIRECT_HANDLED) {
         /* SINTRAN MON call completed - return to caller, don't jump to entry */
         cpu->PC = resolved_addr;  /* = return_address */
+        /* The MON call was serviced by the emulator, so NO entry-point ENTS ran to
+         * consume the pending-call state. A normal CALL/ENTS pair clears it in
+         * ENTS step 11; here we must clear it too. Otherwise the NEXT real ENTS
+         * reads this stale return address + arg count and writes them into its
+         * frame's RETA/N (and copies stale arg EAs), corrupting the frame chain -
+         * observed as the stack leaking (frames never fully deallocate) since the
+         * MON-heavy console-output path runs one MON per character. [leak fix] */
+        cpu->pending_call_return_address = 0;
+        cpu->pending_call_arg_count = 0;
         if (do_trace) {
             printf("[CALLG] MON call completed, returning to 0x%08X\n", resolved_addr);
         }

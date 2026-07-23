@@ -110,6 +110,20 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Update B register to new stack frame */
     cpu->B = new_b;
 
+    /* STKDBG: report each time the stack reaches a NEW high-water mark. If frames
+     * were properly reused (alloc/dealloc balanced), the HWM would settle; a HWM
+     * that keeps climbing pinpoints the call sites whose frames leak. Env-gated. */
+    {
+        static uint32_t hwm = 0;
+        static int stkdbg = -1;
+        if (stkdbg < 0) { const char* e = getenv("ND500X_STKDBG"); stkdbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (stkdbg && new_b > hwm) {
+            hwm = new_b;
+            fprintf(stderr, "[STKDBG] stack HWM new_b=0x%08X depth=0x%X at PC=0x%08X (old_b=0x%08X)\n",
+                    new_b, new_b - 0xE8000F00u, fi->address, old_b);
+        }
+    }
+
     /* Update L register with return address */
     cpu->L = cpu->pending_call_return_address;
 
