@@ -13,6 +13,25 @@
 /* Global trap state */
 Nd500TrapState g_trap_state = {0};
 
+/* Stop-diagnostics ring buffer: the last N instruction PCs, so any run-ending
+ * path (trap, breakpoint, invalid opcode, decode failure) can print how
+ * execution got there. Populated at the top of every nd500_cpu_step; dumped to
+ * stderr when ND500X_STOPDBG is set. Cheap and off the hot path unless enabled. */
+#define ND500_PC_RING_LEN 32
+static uint32_t g_pc_ring[ND500_PC_RING_LEN];
+static uint32_t g_pc_ring_pos = 0;
+
+static void nd500_dump_stop_ring(const char* tag) {
+	const char* e = getenv("ND500X_STOPDBG");
+	if (!(e && e[0] && e[0] != '0')) return;
+	fprintf(stderr, "[STOPDBG] %s - last %d instruction PCs (oldest -> newest):\n",
+	        tag, ND500_PC_RING_LEN);
+	for (uint32_t k = 0; k < ND500_PC_RING_LEN; k++) {
+		uint32_t p = g_pc_ring[(g_pc_ring_pos + k) % ND500_PC_RING_LEN];
+		fprintf(stderr, "  %2u: 0x%08X\n", k, p);
+	}
+}
+
 /* Convert trap condition to StopReason enum */
 static StopReason trap_to_stop_reason(uint64_t trap_condition) {
 	if (trap_condition & TRAP_PGF)  return STOP_TRAP_PAGE_FAULT;
@@ -86,6 +105,10 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 bool nd500_cpu_step(Nd500Cpu* cpu) {
 	if (!cpu || !cpu->machine) return false;
 
+	/* Record this PC in the stop-diagnostics ring before any stop check below. */
+	g_pc_ring[g_pc_ring_pos] = cpu->PC;
+	g_pc_ring_pos = (g_pc_ring_pos + 1u) % ND500_PC_RING_LEN;
+
 	/* Check for pending traps before executing instruction */
 	if (nd500_trap_occurred()) {
 		const Nd500TrapState* trap = nd500_trap_get_state();
@@ -96,6 +119,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 		printf("[STOP] %s at PC=0x%08X data=0x%08X\n",
 		       nd500_stop_reason_str(cpu->machine->stop_reason),
 		       cpu->machine->stop_addr, cpu->machine->stop_data);
+		nd500_dump_stop_ring("trap");
 		nd500_trap_clear();
 		return false;
 	}
@@ -133,6 +157,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 			cpu->machine->stop_reason = STOP_INVALID_INSTRUCTION_00;
 			cpu->machine->stop_addr = cpu->PC;
 			printf("[STOP] Invalid instruction 0x00 at PC=0x%08X (uninitialized memory)\n", cpu->PC);
+			nd500_dump_stop_ring("invalid-00");
 			return false;
 		}
 	}
@@ -140,7 +165,20 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 	/* Decode, execute, then advance PC by decoded length */
 	Nd500FetchedInstruction fi;
 	uint32_t old_pc = cpu->PC;
-	if (nd500_decode_at(cpu->machine, old_pc, &fi) != 0) return false;
+	if (nd500_decode_at(cpu->machine, old_pc, &fi) != 0) {
+		/* Instruction decode failed. This was previously a SILENT run-ending
+		 * path (return false with no message) - the reason `run` appeared to
+		 * "just stop" with no [STOP] line. Report it loudly, and on ND500X_STOPDBG
+		 * dump the last PCs that led here so the real stopping point is visible
+		 * (works around the debug prompt's buffered/reset register view). */
+		cpu->machine->run_flag = 0;
+		cpu->machine->stop_reason = STOP_TRAP_OTHER;
+		cpu->machine->stop_addr = old_pc;
+		cpu->machine->stop_data = 0;
+		printf("[STOP] decode failed at PC=0x%08X (bad opcode or unmapped instruction fetch)\n", old_pc);
+		nd500_dump_stop_ring("decode-failed");
+		return false;
+	}
 
 	/* Trace instruction execution if enabled - save state before execution */
 	static uint32_t saved_regs[10];
