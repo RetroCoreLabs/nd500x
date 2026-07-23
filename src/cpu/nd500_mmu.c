@@ -38,7 +38,7 @@ static ProcessControlBlock* g_pcb_table = NULL;
 extern int nd500_mon_allocate_segment(void* cpu, void* machine, uint8_t domain,
     uint32_t requested_segment, uint32_t segment_size_bytes,
     uint32_t* out_assigned_segment);
-#define DEMAND_SEG_MIN_SEGMENT   2       /* 0=alias,1=prog/data,31=SINTRAN window */
+#define DEMAND_SEG_MIN_SEGMENT   1       /* 0=alias (identity-backed image); 1..30 demand-backed; 31=SINTRAN window */
 #define DEMAND_SEG_MAX_SEGMENT   30    /* incl. 29=_Kstack/u-area, 30=UDATA; 31=SINTRAN window stays special */
 #define DEMAND_SEG_INIT_BYTES    (128u*1024u)  /* grows on demand beyond this */
 static int mmu_demand_segments = -1;    /* -1 = read env once; default ON */
