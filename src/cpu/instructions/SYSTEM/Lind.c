@@ -65,6 +65,16 @@ void nd500_instr_Lind(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Load index into target register (like C# line 67) */
     nd500_write_integer_register(cpu, fi->target_register, (uint32_t)index);
 
+    /* Data status bits per ND-500 Reference Manual, Chapter 15.8 ("LIND"):
+     *   <index> = 0     -> Z
+     *   <index>.signbit -> S
+     * The bounds check drives K/IX; the LOADED index value also drives the
+     * arithmetic Z and S flags (like a plain typed load). This was previously
+     * omitted, making LIND the largest diverging family (~648 vectors) vs the
+     * microword ND-5000, whose real B30 microcode (@001576 LIND ... ST,SAVA)
+     * latches Z/S here. Mirrors the C# fix in Lind.cs (2026-07-23). */
+    nd500_set_flags_zs(cpu, index, fi->data_type);
+
     /* For signed comparison, sign-extend based on data type */
     int64_t sindex = nd500_sign_extend_by_dtype(index, fi->data_type);
     int64_t slower = nd500_sign_extend_by_dtype(lower, fi->data_type);
