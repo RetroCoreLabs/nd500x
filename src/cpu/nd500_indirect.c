@@ -206,8 +206,16 @@ int nd500_check_indirect_call(
     /* Get program capability for this segment in current executing domain */
     uint16_t pc = nd500_mmu_get_program_capability(cpu, cpu->CED, segment);
 
-    /* Check PC_IND flag (bit 15) - if clear, this is a direct call */
-    if ((pc & PC_IND) == 0) {
+    /* Check PC_IND flag (bit 15) - if clear, this is a direct call.
+     * EXCEPTION: a CALLG into the segment-31 SINTRAN window is ALWAYS a monitor
+     * call, whatever the program capability says - the emulator has no real
+     * SINTRAN code at segment 31 to jump to, so it must be serviced as a MON
+     * dispatch (segment-31 block below). Without this, a MON 600 fecall whose
+     * seg-31 capability lacks PC_IND (e.g. the executing domain/CED never had it
+     * installed, or mmusetup's OMC/ND-100 capability is what's active) falls
+     * through to direct-call entry-point validation and traps "not an entry
+     * point" at the fecall. [MON 600 fix] */
+    if ((pc & PC_IND) == 0 && segment != SINTRAN_SEGMENT) {
         *out_resolved = target_addr;
         return INDIRECT_DIRECT;
     }
