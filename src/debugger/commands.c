@@ -1211,12 +1211,19 @@ static int cmd_load_dseg(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return -1;
 	}
 
-	/* When loading PSEG/DSEG separately with segment 0 identity fallback:
-	 * The mmusetup command INTENTIONALLY leaves segment 0's data capability
-	 * as 0 so the identity fallback handles it: virtual == physical, no offset.
-	 * Set data_base = 0 for identity mapping (data_base + virtual = physical).
-	 * This matches how mmusetup expects segment 0 to work. */
-	ndlib_aout_set_data_base(0);
+	/* Separate I&D de-aliasing for the PSEG/DSEG load path (a.out magic 0411 =
+	 * separate instruction & data). The kernel's DATA lives in D-space virtual
+	 * [0, a_data+a_bss), NOT contiguous after the text - so a segment-0 DATA read of
+	 * D-space virtual V must resolve to the physical address where the DSEG was
+	 * actually loaded, i.e. (base_addr + V), while program fetches stay identity
+	 * (text at physical == virtual). The segment-0 identity fallback in nd500_mmu.c
+	 * offsets data accesses by exactly this data_base. Setting it to 0 (the old value)
+	 * made every kernel data read alias into the TEXT region: e.g. slpque[] (bss) read
+	 * text bytes instead of its zero-filled image, so wakeup() saw a non-null non-proc
+	 * entry and paniced - the NDIX boot panic loop (ND500X_BUG_REPORT.md section 5).
+	 * base_addr is where load-dseg placed the DSEG (0x41a94 = a_text for a contiguous
+	 * pseg+dseg load). Mirrors the --aout path's g_data_base = a_text. */
+	ndlib_aout_set_data_base(base_addr);
 
 	output(ctx, "loaded DSEG: %s at 0x%08X", filepath, base_addr);
 	return 0;
