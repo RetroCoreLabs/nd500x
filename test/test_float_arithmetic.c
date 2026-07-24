@@ -407,13 +407,30 @@ static void test_double_single_conversion(void) {
 static void test_exponent_edges(void) {
     printf("\n=== Exponent Edge Tests ===\n");
 
-    /* IEEE value too small for ND (ND min exponent 1 - 256 = -255 for the
-     * 0.5..1 mantissa; IEEE denormals are far below) -> flush to zero */
+    /* The ND-500 single exponent is 9 bits, bias 256 -> e in [1-256, 511-256] =
+     * [-255, 255], so the smallest representable magnitude is 2^(1-256) * 0.5 =
+     * 2^-256 (~8.6e-78). That is FAR BELOW the smallest IEEE-754 single denormal
+     * (2^-149 ~ 1.4e-45): a float can never be small enough to underflow the ND
+     * single format. So the smallest IEEE denormal must convert to a NORMAL,
+     * NON-ZERO ND value (frexp gives e=-148 -> e_field=108, well inside [1,511]).
+     * (The previous version of this test asserted flush-to-zero here; that premise
+     * was backwards - IEEE denormals sit far ABOVE the ND underflow floor, not
+     * below it - and a float input cannot reach ND single's underflow threshold.) */
     union { uint32_t u; float f; } denorm;
-    denorm.u = 0x00000001u; /* smallest IEEE denormal */
+    denorm.u = 0x00000001u; /* smallest IEEE denormal = 2^-149 */
     uint32_t nd_small = nd500_float_from_ieee754(denorm.f);
-    test_result("underflow flushes to zero", nd500_float_is_zero(nd_small),
-                "denormal did not flush to zero");
+    test_result("smallest IEEE denormal is representable (no underflow)",
+                !nd500_float_is_zero(nd_small),
+                "2^-149 wrongly flushed to zero (it is well within ND single range)");
+
+    /* Genuine ND single underflow: only a value below 2^-256 flushes to zero, and
+     * that is only reachable through the double-input native codec (a float cannot
+     * hold it). 1e-100 ~ 2^-332 -> e_field = -332 + 256 = -76 < 1 -> flush. */
+    bool unfl = false;
+    uint32_t nd_tiny = nd500_native_single_from_double(1e-100, NULL, &unfl);
+    test_result("value below 2^-256 flushes to zero", nd500_float_is_zero(nd_tiny),
+                "sub-2^-256 magnitude did not flush to zero");
+    test_result("underflow flag set on flush", unfl, "underflow flag not reported");
 
     /* IEEE infinity saturates to ND max (exponent field all ones) */
     union { uint32_t u; float f; } inf;
