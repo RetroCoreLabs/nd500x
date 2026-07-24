@@ -1018,6 +1018,7 @@ static int cmd_set(Nd500Machine* m, CmdContext* ctx, char* args) {
 		error(ctx, "usage: set <register> <value>");
 		error(ctx, "       set radix [decimal|hex|octal]");
 		error(ctx, "registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2");
+		error(ctx, "           OTE1, OTE2, CTE1, CTE2, MTE1, MTE2, TEMM1, TEMM2 (trap enable/mask)");
 		error(ctx, "           PSTP, DITBASE, CED, CAD, PS");
 		return -1;
 	}
@@ -1030,6 +1031,7 @@ static int cmd_set(Nd500Machine* m, CmdContext* ctx, char* args) {
 	} else {
 		error(ctx, "unknown register: %s", reg_name);
 		error(ctx, "registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2");
+		error(ctx, "           OTE1, OTE2, CTE1, CTE2, MTE1, MTE2, TEMM1, TEMM2 (trap enable/mask)");
 		error(ctx, "           PSTP, DITBASE, CED, CAD, PS");
 		return -1;
 	}
@@ -1208,6 +1210,13 @@ static int cmd_load_dseg(Nd500Machine* m, CmdContext* ctx, char* args) {
 		error(ctx, "failed to load DSEG '%s': %s", filepath, errmsg);
 		return -1;
 	}
+
+	/* When loading PSEG/DSEG separately with segment 0 identity fallback:
+	 * The mmusetup command INTENTIONALLY leaves segment 0's data capability
+	 * as 0 so the identity fallback handles it: virtual == physical, no offset.
+	 * Set data_base = 0 for identity mapping (data_base + virtual = physical).
+	 * This matches how mmusetup expects segment 0 to work. */
+	ndlib_aout_set_data_base(0);
 
 	output(ctx, "loaded DSEG: %s at 0x%08X", filepath, base_addr);
 	return 0;
