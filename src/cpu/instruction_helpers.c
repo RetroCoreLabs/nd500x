@@ -783,6 +783,14 @@ bool nd500_detect_carry_add(uint64_t result, Nd500DataType dtype) {
 
 uint32_t nd500_mask_to_datatype(uint64_t value, Nd500DataType dtype) {
     switch (dtype) {
+        case ND500_DTYPE_BIT:
+            /* BI (bit): a bit result written to an I register keeps ONLY bit 0, upper bits
+             * zero-filled (ND-500: "Bit -> I registers, only LSB significant, zero-fill upper").
+             * Was falling through to the unmasked default, so BI AND/OR/XOR wrote the full 32-bit
+             * value instead of 0/1 (e.g. BI1 AND /bin/bashx55555555 left 0x55555555 instead of 1). Matches
+             * the C# functional MaskToDataType(BI). Comp/Comp2 do NOT rely on this (Comp2 has its own
+             * width_mask; Comp takes the BI sign from the raw result, Z from the masked result). */
+            return (uint32_t)(value & 0x1);
         case ND500_DTYPE_BYTE:
             return (uint32_t)(value & 0xFF);
         case ND500_DTYPE_HALFWORD:
