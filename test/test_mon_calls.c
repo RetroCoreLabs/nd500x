@@ -414,44 +414,49 @@ static void test_mon_312B_moinf(void) {
         return;
     }
 
-    /* Implemented call: entry address is the shared emulator convention
-     * 0xF8000000 + mon_number (segment 31 + call number). MON 0 -> 0xF8000000.
-     * Provenance: convention (agreed with the C# emulator), not manual text. */
+    /* Implemented call: MOINF returns the real carved MCTAB[N] entry, NOT a
+     * fabricated 0xF8000000+n sentinel (the old fake, retired per the L07 oracle
+     * mon-oracle-for-NC/312B-MOINF_317B-UECOM.md). MON 0 (LEAVE) -> MCTAB[0] =
+     * 035673B = 0x35BB (carved from segment 044-S3IDPIT). */
     uint32_t check_result = test_read_word(&cpu, result_loc);
-    if (check_result == 0xF8000000u) {
-        TEST_PASS("MON 312B implemented call returns entry 0xF8000000+n");
+    if (check_result == 0x35BBu) {
+        TEST_PASS("MON 312B implemented call returns real MCTAB entry (0x35BB)");
     } else {
         char msg[64];
-        snprintf(msg, sizeof(msg), "result=0x%08X (expected 0xF8000000)", check_result);
-        TEST_FAIL("MON 312B implemented call returns entry 0xF8000000+n", msg);
+        snprintf(msg, sizeof(msg), "result=0x%08X (expected 0x35BB)", check_result);
+        TEST_FAIL("MON 312B implemented call returns real MCTAB entry (0x35BB)", msg);
     }
 
-    /* Non-existent call (200B = 128 decimal, unused) must return 0 */
+    /* Not generated into this system (200B = 128 decimal): MCTAB[200B] = 0 in the
+     * carved L07 image, so MOINF returns 0 (call not present). */
     test_write_word(&cpu, mon_number_loc, 128);
     test_write_word(&cpu, result_loc, 0xFFFFFFFF);
     setup_mon_context(&ctx, 202, 2, args);
     result = mon_dispatch(&ctx);
     check_result = test_read_word(&cpu, result_loc);
     if (result == MON_SUCCESS && check_result == 0) {
-        TEST_PASS("MON 312B non-existent call returns 0");
+        TEST_PASS("MON 312B not-generated call returns 0");
     } else {
         char msg[64];
         snprintf(msg, sizeof(msg), "result=0x%08X (expected 0)", check_result);
-        TEST_FAIL("MON 312B non-existent call returns 0", msg);
+        TEST_FAIL("MON 312B not-generated call returns 0", msg);
     }
 
-    /* Deprecated call (321B = 209 decimal) must also return 0 */
+    /* 321B UEADM (209 decimal): the L07 oracle proves this call IS generated into
+     * VSX-500 - MCTAB[321B] = 065453B = 0x6B2B (worker UEADM). MOINF must report it
+     * PRESENT (non-zero), which is exactly what NC's UEADM-available path needs.
+     * (The old test expected 0 here; that contradicted the carved MCTAB.) */
     test_write_word(&cpu, mon_number_loc, 209);
     test_write_word(&cpu, result_loc, 0xFFFFFFFF);
     setup_mon_context(&ctx, 202, 2, args);
     result = mon_dispatch(&ctx);
     check_result = test_read_word(&cpu, result_loc);
-    if (result == MON_SUCCESS && check_result == 0) {
-        TEST_PASS("MON 312B deprecated call returns 0");
+    if (result == MON_SUCCESS && check_result == 0x6B2Bu) {
+        TEST_PASS("MON 312B 321B UEADM present (MCTAB=0x6B2B)");
     } else {
         char msg[64];
-        snprintf(msg, sizeof(msg), "result=0x%08X (expected 0)", check_result);
-        TEST_FAIL("MON 312B deprecated call returns 0", msg);
+        snprintf(msg, sizeof(msg), "result=0x%08X (expected 0x6B2B)", check_result);
+        TEST_FAIL("MON 312B 321B UEADM present (MCTAB=0x6B2B)", msg);
     }
 
     teardown();
@@ -556,12 +561,19 @@ static void test_mon_256B_deabf(void) {
     printf("\nTesting MON 256B DEABF (FullFileName)...\n");
     setup();
 
+    /* DEABF's verified L07 contract (tier3 oracle + 006-S3FS carve): resolve the
+     * abbreviated name to an existing file and return its expanded name; on a name
+     * that matches NO file, set K and return error 46 (056B NO SUCH FILE NAME).
+     * That error is exactly what NC keys on to CREATE the file. An always-succeed
+     * echo (the old handler) would break NC's create-if-missing logic, so the
+     * correct behaviour for a name with no backing file is error 46, NOT success. */
+
     /* Set up memory for strings */
     uint32_t abbrev_addr = 0x1000;
     uint32_t output_addr = 0x1100;
     uint32_t type_addr = 0x1200;
 
-    /* Write abbreviated filename (0x27 terminated) */
+    /* Write abbreviated filename (0x27 terminated) - no such file in the sandbox */
     const char* abbrev = "MYFILE";
     for (size_t i = 0; i < strlen(abbrev); i++) {
         nd500_bus_write8(&machine, abbrev_addr + i, (uint8_t)abbrev[i]);
@@ -581,39 +593,29 @@ static void test_mon_256B_deabf(void) {
 
     MonResult result = mon_dispatch(&ctx);
 
-    if (result == MON_SUCCESS) {
-        TEST_PASS("MON 256B returns success");
+    /* Nonexistent file -> error 46 (the create trigger), NOT success. */
+    if (result == MON_ERROR) {
+        TEST_PASS("MON 256B nonexistent name returns error (create trigger)");
     } else {
-        TEST_FAIL("MON 256B returns success", "returned error");
+        TEST_FAIL("MON 256B nonexistent name returns error (create trigger)", "returned success");
         teardown();
         return;
     }
 
-    /* Read output string */
-    char output[128];
-    size_t i = 0;
-    while (i < sizeof(output) - 1) {
-        uint8_t ch = nd500_bus_read8(&machine, output_addr + i);
-        if (ch == 0x27) break;  /* SINTRAN terminator */
-        output[i] = (char)ch;
-        i++;
-    }
-    output[i] = '\0';
-
-    /* Verify output contains filename.type */
-    if (strcmp(output, "MYFILE.TXT") == 0) {
-        TEST_PASS("Full filename is MYFILE.TXT");
+    if (cpu.I[0] == MON_ERR_NO_SUCH_FILE_NAME) {
+        TEST_PASS("MON 256B error code is 46 (No such file name)");
     } else {
-        char msg[128];
-        snprintf(msg, sizeof(msg), "got '%s'", output);
-        TEST_FAIL("Full filename is MYFILE.TXT", msg);
+        char msg[64];
+        snprintf(msg, sizeof(msg), "got %u (expected %u)", cpu.I[0], MON_ERR_NO_SUCH_FILE_NAME);
+        TEST_FAIL("MON 256B error code is 46 (No such file name)", msg);
     }
 
     teardown();
 }
 
 /*
- * Test MON 256B DEABF with existing type in filename
+ * Test MON 256B DEABF with existing type in filename - still not-found (no
+ * backing file in the sandbox), so the create-trigger error path applies.
  */
 static void test_mon_256B_deabf_with_existing_type(void) {
     printf("\nTesting MON 256B DEABF with existing type...\n");
@@ -631,7 +633,7 @@ static void test_mon_256B_deabf_with_existing_type(void) {
     }
     nd500_bus_write8(&machine, abbrev_addr + strlen(abbrev), 0x27);
 
-    /* Write default file type (should be ignored) */
+    /* Write default file type (should be ignored - name already carries a type) */
     const char* type = "TXT";
     for (size_t i = 0; i < strlen(type); i++) {
         nd500_bus_write8(&machine, type_addr + i, (uint8_t)type[i]);
@@ -644,32 +646,13 @@ static void test_mon_256B_deabf_with_existing_type(void) {
 
     MonResult result = mon_dispatch(&ctx);
 
-    if (result == MON_SUCCESS) {
-        TEST_PASS("MON 256B returns success");
+    /* MYFILE:DAT does not exist in the sandbox -> error 46 (create trigger). */
+    if (result == MON_ERROR && cpu.I[0] == MON_ERR_NO_SUCH_FILE_NAME) {
+        TEST_PASS("MON 256B existing-type nonexistent name returns error 46");
     } else {
-        TEST_FAIL("MON 256B returns success", "returned error");
-        teardown();
-        return;
-    }
-
-    /* Read output string */
-    char output[128];
-    size_t i = 0;
-    while (i < sizeof(output) - 1) {
-        uint8_t ch = nd500_bus_read8(&machine, output_addr + i);
-        if (ch == 0x27) break;
-        output[i] = (char)ch;
-        i++;
-    }
-    output[i] = '\0';
-
-    /* Existing type should be preserved */
-    if (strcmp(output, "MYFILE.DAT") == 0) {
-        TEST_PASS("Existing type preserved: MYFILE.DAT");
-    } else {
-        char msg[128];
-        snprintf(msg, sizeof(msg), "got '%s'", output);
-        TEST_FAIL("Existing type preserved: MYFILE.DAT", msg);
+        char msg[80];
+        snprintf(msg, sizeof(msg), "result=%d err=%u (expected error 46)", result, cpu.I[0]);
+        TEST_FAIL("MON 256B existing-type nonexistent name returns error 46", msg);
     }
 
     teardown();
