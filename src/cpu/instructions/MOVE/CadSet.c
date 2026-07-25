@@ -46,16 +46,7 @@ void nd500_instr_CadSet(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t value = nd500_read_operand_word(cpu, &fi->operands[0]);
     cpu->CAD = value;
 
-    // Set Z and S flags based on the value
-    if (value == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;
-    }
-
-    if ((value & 0x80000000) != 0) {
-        cpu->ST1 |= ND500_FLAG_S;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_S;
-    }
+    // cad:= sets NO data-status: control-register/alternative-domain install; microcode LOACAD
+    // 001024-001025 -> LOADCAD1 004610 carry no ST,SAVA (ND-500 Ref 16.33; MOVE.md:567). Removed
+    // the Z/S set to sync all three cores (microword+functional+nd500x). [cad:= data-status 2026-07-25]
 }
