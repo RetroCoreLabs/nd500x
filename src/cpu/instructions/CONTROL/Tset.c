@@ -190,6 +190,18 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
+    // TSET requires a MEMORY operand. Register and constant operands are illegal and raise an
+    // Illegal-Operand-Specifier (IOS) trap - ND-500 Reference Manual s16.3: "Register and constant
+    // operands are illegal, and will cause an illegal operand specifier trap condition." The atomic
+    // read-modify-write only has meaning against a main-memory cell (the bus lock protects memory,
+    // not a CPU register). [TSET IOS 2026-07-25]
+    if (fi->operands[0].mode == ND500_ADDR_REGISTER ||
+        fi->operands[0].mode == ND500_ADDR_CONSTANT ||
+        fi->operands[0].mode == ND500_ADDR_CONSTANT_SHORT) {
+        trap_illegal_operand(cpu, fi->address);
+        return;
+    }
+
     // Read current value (atomically in hardware)
     // TSET uses the data type from the instruction (typically BYTE with BY prefix)
     uint64_t old_value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
@@ -225,5 +237,21 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         cpu->ST1 &= ~ND500_FLAG_Z;  // Clear Z flag
     }
 
-    // Note: Other flags (S, C, V, K) are not modified by TSET
+    // Set S flag from the OLD value sign bit (before the store). ND-500 Ref s16.3 data status:
+    // "operand was negative before store -> S". The sign bit is the top bit of the operand WIDTH
+    // (BY: bit7, H: bit15, W: bit31). This matches the functional CpuND500 Tset.cs. [TSET S-flag 2026-07-25]
+    uint64_t sign_mask;
+    switch (fi->data_type) {
+        case ND500_DTYPE_BYTE:     sign_mask = 0x80;       break;
+        case ND500_DTYPE_HALFWORD: sign_mask = 0x8000;     break;
+        case ND500_DTYPE_WORD:
+        default:                   sign_mask = 0x80000000; break;
+    }
+    if ((old_value & sign_mask) != 0) {
+        cpu->ST1 |= ND500_FLAG_S;   // Set S flag (old value negative)
+    } else {
+        cpu->ST1 &= ~ND500_FLAG_S;  // Clear S flag
+    }
+
+    // Note: Other flags (C, V, K) are not modified by TSET
 }
