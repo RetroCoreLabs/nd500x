@@ -57,9 +57,13 @@ void nd500_instr_Hconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint64_t w_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
         int32_t signed_w = (int32_t)w_val;
         source_value = signed_w;
-        if (signed_w < -32768 || signed_w > 32767) {
-            overflow = true;
-        }
+        /* W HCONV TRUNCATES to the low 16 bits - it does NOT raise IOV on an
+         * out-of-range word. The cross-core oracle (functional CpuND500 AND the
+         * microword CpuND5000, which runs the actual microcode) both give
+         * i1=0x12345678 -> i2=0x5678 and i1=0xABCD -> i2=0xABCD with no trap and
+         * pc advancing normally. The earlier IOV check killed the destination
+         * write (i2 stayed 0) on any value >= 0x8000. Truncation is done by the
+         * (uint16_t) cast at the common write below. */
     } else if (fi->opcode == 0xFD5A) {
         /* F HCONV (0xFD5A per manual 15.2): FLOAT to halfword convert.
          * (Previously misread as word source.) Convert the 32-bit float operand to
