@@ -45,15 +45,30 @@ void nd500_instr_Hconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         int8_t signed_byte = (int8_t)byte_val;
         source_value = signed_byte;  /* Sign extend */
     } else if (fi->opcode == 0xFD55) {
-        /* H HCONV: Halfword to halfword (direct copy) */
-        uint64_t h_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_HALFWORD);
-        source_value = (int16_t)h_val;
-    } else if (fi->opcode == 0xFD5A) {
-        /* W HCONV: Word to halfword (truncate, check overflow) */
+        /* W HCONV (0xFD55 per ND-500 Ref Manual 15.2): WORD to halfword convert.
+         * Source is a full 32-bit WORD; truncate to signed halfword with IOV check.
+         * NOTE: this was previously (incorrectly) read as a HALFWORD source. On the
+         * big-endian ND-500 a halfword read of a word-granular operand slot returns
+         * the MOST-significant 16 bits, so any small int came back as 0. That broke
+         * every (ushort) cast compiled to W HCONV - notably resume()'s
+         * _resume((ushort)pstindex, &u.u_ssave), which always received pstindex=0
+         * and made swtch() resume a bogus u-area (panic: sleep on every context
+         * switch). See ND500X_MMU_REDESIGN_PLAN.md. */
         uint64_t w_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
         int32_t signed_w = (int32_t)w_val;
         source_value = signed_w;
         if (signed_w < -32768 || signed_w > 32767) {
+            overflow = true;
+        }
+    } else if (fi->opcode == 0xFD5A) {
+        /* F HCONV (0xFD5A per manual 15.2): FLOAT to halfword convert.
+         * (Previously misread as word source.) Convert the 32-bit float operand to
+         * an integer, then truncate to halfword with IOV check. Not on the boot
+         * path; see plan doc for the full CONV-family opcode-table correction. */
+        uint64_t f_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
+        int64_t int_val = (int64_t)nd500_float_to_int32((uint32_t)f_bits);
+        source_value = int_val;
+        if (int_val < -32768 || int_val > 32767) {
             overflow = true;
         }
     } else if (fi->opcode == 0xFD5F) {
