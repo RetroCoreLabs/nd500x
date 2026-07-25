@@ -168,24 +168,20 @@ void nd500_instr_Getbf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t bits = is_register ? 32 : (fi->data_type == ND500_DTYPE_BYTE ? 8 :
                                         fi->data_type == ND500_DTYPE_HALFWORD ? 16 : 32);
 
-    // Validate field parameters
-    if (field_size == 0) {
-        printf("[ERROR] GETBF at PC=0x%08X: Field size must be > 0\n", fi->address);
-        trap_invalid_operation(cpu, fi->address);
-        return;
-    }
-
-    if (bit_number >= bits) {
-        printf("[ERROR] GETBF at PC=0x%08X: Bit number %u out of range (max: %u)\n",
-               fi->address, bit_number, bits - 1);
-        trap_invalid_operation(cpu, fi->address);
-        return;
-    }
-
-    if ((bit_number + field_size) > bits) {
-        printf("[ERROR] GETBF at PC=0x%08X: Field extends beyond operand (bit %u + size %u > %u bits)\n",
-               fi->address, bit_number, field_size, bits);
-        trap_invalid_operation(cpu, fi->address);
+    // GETBF index/field-out-of-range (IOV) - matched to the B30 microcode GETBF_IOV path
+    // (003353 ALU,FZRO ... ST,SAVA -> SET_IOV 003132/003133 ALU,OR A,BM20 B,SC5 D,MIC,STS): the
+    // microword FORCES the destination to 0, ST,SAVA's that zero (Z=1, S=0, C=0, O=0), sets the
+    // internal IOV trap-pending bit (MIC,STS bit 16 = BM20) and RETIRES - it does NOT hard-trap
+    // unless the IOV trap is enabled. field_size is a 5-BIT value (max 31), so field_size > 31 (a
+    // 32-bit "whole word" field) is itself an IOV. Verified by a microword single-step trace of
+    // W1 getbf i1,$0,$32 (value 0 -> dest 0, Z=1) vs $0,$8 (normal path). Guarding field_size > 31
+    // also makes the (1 << field_size) below always safe.
+    if (field_size == 0 || field_size > 31 || bit_number >= bits || (bit_number + field_size) > bits) {
+        nd500_write_integer_register(cpu, fi->target_register, 0);
+        nd500_set_flag(cpu, ND500_FLAG_Z);      // ST,SAVA of the forced-zero result
+        nd500_clear_flag(cpu, ND500_FLAG_S);
+        nd500_clear_flag(cpu, ND500_FLAG_C);
+        nd500_clear_flag(cpu, ND500_FLAG_O);
         return;
     }
 
