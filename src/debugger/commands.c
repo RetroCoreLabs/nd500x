@@ -2309,9 +2309,9 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 				uint32_t page_num = seg_start_page + i;
 				uint32_t pte_addr = page_table_addr + (i * 4);
 
-				/* PTE format: [31:2]=PFN, [1]=valid/present, [0]=protection */
+				/* PTE hardware format (pte.h): pg_prot@31, pg_pfnum@[29:0] */
 				uint8_t protection = (has_write) ? 0 : 1;  /* 0=writable, 1=read-only */
-				uint32_t pte_value = (page_num << 2) | (1 << 1) | protection;  /* Set valid bit */
+				uint32_t pte_value = ((uint32_t)protection << 31) | (page_num & 0x3FFFFFFF);
 
 				/* Write PTE to physical memory (big-endian via bus_write32) */
 				nd500_bus_write32(m, pte_addr, pte_value);
@@ -2420,9 +2420,9 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
 				uint32_t phys_page_num = seg_start_ppage + i;
 				uint32_t pte_addr = page_table_addr + (i * 4);
 
-				/* PTE format: [31:2]=PFN, [1]=valid/present, [0]=protection */
+				/* PTE hardware format (pte.h): pg_prot@31, pg_pfnum@[29:0] */
 				uint8_t protection = (has_write) ? 0 : 1;  /* 0=writable, 1=read-only */
-				uint32_t pte_value = (phys_page_num << 2) | (1 << 1) | protection;  /* Set valid bit */
+				uint32_t pte_value = ((uint32_t)protection << 31) | (phys_page_num & 0x3FFFFFFF);
 
 				/* Write PTE to physical memory (big-endian via bus_write32) */
 				nd500_bus_write32(m, pte_addr, pte_value);

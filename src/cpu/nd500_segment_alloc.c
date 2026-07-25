@@ -62,8 +62,8 @@ static uint32_t find_highest_used_pfn(Nd500Cpu* cpu) {
                 uint8_t b3 = nd500_bus_read8(cpu->machine, pte_addr + 3);
                 uint32_t pte_value = (uint32_t)((b0 << 24) | (b1 << 16) | (b2 << 8) | b3);
 
-                /* Extract PFN from PTE (bits 31:2) */
-                uint32_t pte_pfn = (pte_value >> 2) & 0x3FFFFFFF;
+                /* Extract PFN from PTE (hardware pte.h format: pg_pfnum = bits 29:0) */
+                uint32_t pte_pfn = pte_value & 0x3FFFFFFF;
 
                 /* Stop at first invalid entry - prevents reading garbage */
                 if (pte_pfn == 0) {
@@ -156,11 +156,12 @@ static uint32_t watermark_alloc_page(Nd500Machine* m) {
     return pfn;
 }
 
-/* Install a PTE. PTE format: [31:2]=PFN, [0]=protection (0=RW, 1=RO);
+/* Install a PTE. Hardware pte.h format: pg_prot@31, pg_pfnum@[29:0] (0=RW,1=RO);
  * a PFN of 0 means "not present". */
 static void write_pte(Nd500Machine* m, uint32_t table_base, uint32_t index,
                       uint32_t pfn, uint32_t prot) {
-    nd500_bus_write32(m, table_base + (index * 4), (pfn << 2) | prot);
+    nd500_bus_write32(m, table_base + (index * 4),
+                      ((prot & 1u) << 31) | (pfn & 0x3FFFFFFFu));
 }
 
 static uint32_t read_pte_pfn(Nd500Machine* m, uint32_t table_base, uint32_t index) {
@@ -169,7 +170,32 @@ static uint32_t read_pte_pfn(Nd500Machine* m, uint32_t table_base, uint32_t inde
                | ((uint32_t)nd500_bus_read8(m, pte_addr + 1) << 16)
                | ((uint32_t)nd500_bus_read8(m, pte_addr + 2) << 8)
                |  (uint32_t)nd500_bus_read8(m, pte_addr + 3);
-    return (v >> 2) & 0x3FFFFFFFu;
+    return v & 0x3FFFFFFFu;
+}
+
+/* ---- HEAP AUDIT (env ND500X_HEAPAUDIT, TEMP - revert) --------------------
+ * Detect physical-page ALIASING in the growable/adopt path: a physical PFN
+ * handed to two different owners (segment/kind) means a write to one heap/stack
+ * address silently corrupts another - the exact failure that would make my
+ * PS_ADI fix, not CAT-500, responsible for the downstream crash. */
+static uint32_t* g_audit_owner = NULL;   /* per-PFN owner tag, 0 = unowned */
+static uint32_t  g_audit_n = 0;
+static int       g_audit_on = -1;
+static void heap_audit(Nd500Machine* m, uint32_t pfn, uint32_t owner, const char* kind) {
+    if (g_audit_on < 0) { const char* e = getenv("ND500X_HEAPAUDIT"); g_audit_on = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    if (!g_audit_on || pfn == 0) return;
+    if (!g_audit_owner) {
+        g_audit_n = (uint32_t)(m->memory_size >> PGSHIFT) + 1;
+        g_audit_owner = (uint32_t*)calloc(g_audit_n, sizeof(uint32_t));
+        if (!g_audit_owner) { g_audit_on = 0; return; }
+    }
+    if (pfn >= g_audit_n) return;
+    uint32_t prev = g_audit_owner[pfn];
+    if (prev != 0 && prev != owner) {
+        fprintf(stderr, "[HEAPAUDIT] ALIAS! pfn=0x%X (%s) owner=0x%08X already owned by 0x%08X\n",
+                pfn, kind, owner, prev);
+    }
+    g_audit_owner[pfn] = owner;
 }
 
 /* Map one page of a growable segment, creating its L2 table if needed.
@@ -177,6 +203,7 @@ static uint32_t read_pte_pfn(Nd500Machine* m, uint32_t table_base, uint32_t inde
 static uint32_t growable_map_page(Nd500Machine* m, GrowableSegment* g,
                                   uint32_t l1_index, uint32_t l2_index) {
     uint32_t prot = g->writable ? 0u : 1u;
+    uint32_t owner_base = ((uint32_t)g->domain << 16) | (g->segment << 8);
 
     uint32_t l2_pfn = read_pte_pfn(m, g->l1_table_base, l1_index);
     if (l2_pfn == 0) {
@@ -186,6 +213,7 @@ static uint32_t growable_map_page(Nd500Machine* m, GrowableSegment* g,
          * protection: PS_ADI checks BOTH levels' protection bits on a write,
          * so a read-only L1 entry would deny writes to every page beneath it. */
         write_pte(m, g->l1_table_base, l1_index, l2_pfn, 0);
+        heap_audit(m, l2_pfn, owner_base | 0x02, "L2table");
     }
 
     uint32_t l2_table_base = l2_pfn << PGSHIFT;
@@ -194,6 +222,7 @@ static uint32_t growable_map_page(Nd500Machine* m, GrowableSegment* g,
         data_pfn = watermark_alloc_page(m);
         if (data_pfn == 0) return 0;
         write_pte(m, l2_table_base, l2_index, data_pfn, prot);
+        heap_audit(m, data_pfn, owner_base | 0x01, "grown-data");
     }
     return data_pfn;
 }
@@ -228,6 +257,103 @@ int nd500_segment_grow_on_fault(void* cpu_ptr, uint32_t virtual_addr, uint8_t do
     if (!g) return 0;
 
     return growable_map_page(m, g, l1_index, l2_index) != 0;
+}
+
+/**
+ * Build a DOM DATA segment as PS_ADI (two-level) + demand-growable, ADOPTING the
+ * loader's already-loaded initialized pages. See the header for the full
+ * rationale (PS_ASI capped DATA at 1 MB and crashed the NC/CAT-500 code gen).
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
+    uint8_t domain, uint32_t segment, int psn,
+    uint32_t data_phys_base, uint32_t data_pages,
+    uint32_t watermark_floor_base)
+{
+    if (!cpu_ptr || !machine_ptr) return -1;
+    Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
+    Nd500Machine* m = (Nd500Machine*)machine_ptr;
+
+    watermark_init(cpu, m);
+    /* Seed the allocator ABOVE the DOM's own allocations - the critical anti-
+     * collision step (PS_ADI pages are invisible to find_highest_used_pfn). */
+    uint32_t floor_pfn = (watermark_floor_base + NBPG - 1) >> PGSHIFT;
+    if (g_next_free_pfn < floor_pfn) g_next_free_pfn = floor_pfn;
+
+    /* Claim a growable slot. */
+    GrowableSegment* g = NULL;
+    for (int i = 0; i < GROWABLE_MAX_SEGMENTS; i++) {
+        if (!g_growable[i].in_use) { g = &g_growable[i]; break; }
+    }
+    if (!g) return -1;
+
+    uint32_t l1_pfn = watermark_alloc_page(m);
+    if (l1_pfn == 0) return -1;
+
+    g->in_use = 1;
+    g->domain = domain;
+    g->segment = segment;
+    g->l1_table_base = l1_pfn << PGSHIFT;
+    g->writable = 1;   /* DATA is RW */
+
+    uint32_t owner_base = ((uint32_t)domain << 16) | (segment << 8);
+    heap_audit(m, l1_pfn, owner_base | 0x04, "L1table");
+
+    /* Map the already-loaded initialized pages by ADOPTING their existing PFNs
+     * (do NOT allocate fresh pages - the bytes are already in place). Pages the
+     * program touches beyond data_pages are demand-mapped by grow_on_fault. */
+    uint32_t data_base_pfn = data_phys_base >> PGSHIFT;
+    for (uint32_t p = 0; p < data_pages; p++) {
+        uint32_t l1_index = (p >> 9) & L1_INDEX_MASK;
+        uint32_t l2_index = p & L2_INDEX_MASK;
+
+        uint32_t l2_pfn = read_pte_pfn(m, g->l1_table_base, l1_index);
+        if (l2_pfn == 0) {
+            l2_pfn = watermark_alloc_page(m);   /* one page = 512 L2 entries */
+            if (l2_pfn == 0) { g->in_use = 0; return -1; }
+            /* L1 entry stays writable: PS_ADI checks BOTH levels on a write. */
+            write_pte(m, g->l1_table_base, l1_index, l2_pfn, 0);
+            heap_audit(m, l2_pfn, owner_base | 0x02, "L2table");
+        }
+        uint32_t l2_base = l2_pfn << PGSHIFT;
+        write_pte(m, l2_base, l2_index, data_base_pfn + p, 0 /*RW*/);
+        heap_audit(m, data_base_pfn + p, owner_base | 0x01, "adopted-data");
+    }
+
+    nd500_mmu_set_pst_entry(cpu, psn, PS_ADI, l1_pfn);
+    return 0;
+}
+
+/**
+ * Register a growable ALIAS: make demand-growth for `alias_segment` reuse the
+ * SAME two-level tables as an existing growable `source_segment`. Needed for the
+ * DOM loader's FORTRAN/compiler compatibility alias, where segment 0 is capability
+ * aliased to segment 1's DATA and the program addresses it via segment-0 VAs
+ * (0x00xxxxxx / 0x02xxxxxx). grow_on_fault() keys on the VA's segment field, so
+ * without this the alias segment has no growable slot and a fault past the loaded
+ * pages cannot be resolved. Returns 0 on success, -1 if source not found / full.
+ */
+int nd500_segment_register_growable_alias(uint8_t domain, uint32_t alias_segment,
+                                          uint32_t source_segment)
+{
+    GrowableSegment* src = growable_find(domain, source_segment);
+    if (!src) return -1;
+
+    /* If an alias slot already exists (idempotent), just refresh it. */
+    GrowableSegment* g = growable_find(domain, alias_segment);
+    if (!g) {
+        for (int i = 0; i < GROWABLE_MAX_SEGMENTS; i++) {
+            if (!g_growable[i].in_use) { g = &g_growable[i]; break; }
+        }
+        if (!g) return -1;
+    }
+    g->in_use        = 1;
+    g->domain        = domain;
+    g->segment       = alias_segment;
+    g->l1_table_base = src->l1_table_base;  /* SAME tables - true alias */
+    g->writable      = src->writable;
+    return 0;
 }
 
 /**

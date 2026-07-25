@@ -669,14 +669,14 @@ PageTableEntry nd500_mmu_read_pte(Nd500Cpu* cpu, uint32_t physical_addr) {
 
     uint32_t pte_value = (uint32_t)((b0 << 24) | (b1 << 16) | (b2 << 8) | b3);
 
-    /* PTE format (matches C# CpuND500.MMU.cs):
-     * [31:2] = Physical Page Frame Number (30 bits)
-     * [1]    = unused
-     * [0]    = Protection (0=RW, 1=RO)
-     * Valid = (PFN != 0) - there is no separate valid bit
+    /* PTE format (ND-500 hardware, struct pte in machine/pte.h, big-endian):
+     * [31]   = pg_prot  write protection (PR_RO=0x80000000; 1=read-only)
+     * [30]   = reserved
+     * [29:0] = pg_pfnum physical page frame number (PR_PPN=0x3FFFFFFF)
+     * A zero entry means "no mapping" -> valid = (pfnum != 0).
      */
-    pte.protection = (uint8_t)(pte_value & 0x1);
-    pte.physical_pfn = (pte_value >> 2) & 0x3FFFFFFF;
+    pte.protection = (uint8_t)((pte_value >> 31) & 0x1);
+    pte.physical_pfn = pte_value & 0x3FFFFFFF;
     pte.valid = (pte.physical_pfn != 0) ? 1 : 0;  /* Valid if PFN is non-zero */
 
     return pte;
@@ -695,8 +695,9 @@ void nd500_mmu_write_pte(Nd500Cpu* cpu, uint32_t physical_addr, PageTableEntry p
         return;
     }
 
-    uint32_t pte_value = ((pte.physical_pfn & 0x3FFFFFFF) << 2) |
-                         (uint32_t)pte.protection;
+    /* ND-500 hardware format (machine/pte.h): pg_prot@31, pg_pfnum@[29:0]. */
+    uint32_t pte_value = ((uint32_t)(pte.protection & 1) << 31) |
+                         (pte.physical_pfn & 0x3FFFFFFF);
 
     /* Write big-endian */
     nd500_bus_write8(cpu->machine, physical_addr, (uint8_t)((pte_value >> 24) & 0xFF));
