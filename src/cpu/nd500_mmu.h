@@ -207,6 +207,29 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
  * absent L2 table and/or data page so the access can be retried. Returns 1 if
  * the fault was resolved, 0 to trap as usual. Defined in nd500_segment_alloc.c. */
 int nd500_segment_grow_on_fault(void* cpu_ptr, uint32_t virtual_addr, uint8_t domain);
+
+/* Build a DOM DATA segment as a PS_ADI (two-level) GROWABLE segment that ADOPTS
+ * the loader's already-loaded, physically contiguous initialized pages (PFNs
+ * data_phys_base.. for data_pages pages) and registers it demand-growable.
+ * Replaces the old PS_ASI DATA setup, which capped a DATA segment at 1 MB (L1
+ * must be 0) and crashed large programs (e.g. the NC/CAT-500 C code generator)
+ * that write past 1 MB into their DSEG.
+ * watermark_floor_base MUST be the loader's FINAL physical allocation cursor:
+ * all new pages (L1/L2 tables, grown data) are taken strictly above it, because
+ * PS_ADI pages are invisible to find_highest_used_pfn() and would otherwise be
+ * re-handed-out over the DOM image. Returns 0 on success, -1 on failure.
+ * Defined in nd500_segment_alloc.c. */
+int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
+    uint8_t domain, uint32_t segment, int psn,
+    uint32_t data_phys_base, uint32_t data_pages,
+    uint32_t watermark_floor_base);
+
+/* Register a growable ALIAS so demand-growth for alias_segment reuses the same
+ * two-level tables as source_segment (the DOM loader's FORTRAN/compiler
+ * segment-0 -> segment-1 DATA alias). Defined in nd500_segment_alloc.c. */
+int nd500_segment_register_growable_alias(uint8_t domain, uint32_t alias_segment,
+                                          uint32_t source_segment);
+
 /* Trap-free read-only translate for diagnostics; 0xFFFFFFFF if unmapped. Never perturbs state. */
 uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr);
 uint32_t nd500_mmu_phyladr(Nd500Cpu* cpu, uint32_t virtual_addr);

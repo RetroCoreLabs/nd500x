@@ -376,6 +376,11 @@ uint32_t ndlib_aout_get_data_base(void) {
     return g_data_base;
 }
 
+/* Set data base explicitly when loading PSEG/DSEG separately */
+void ndlib_aout_set_data_base(uint32_t data_base) {
+    g_data_base = data_base;
+}
+
 /* Helper: Read entire file into dynamically allocated string */
 static char* read_file_contents(const char* path) {
     FILE* f = fopen(path, "rb");

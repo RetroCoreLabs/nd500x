@@ -16,6 +16,8 @@ const char* ndlib_aout_get_loaded_path(void);
 void ndlib_aout_get_segment_info(uint32_t* text_base, uint32_t* text_size,
                                   uint32_t* data_base, uint32_t* data_size,
                                   uint32_t* bss_base, uint32_t* bss_size);
+uint32_t ndlib_aout_get_data_base(void);
+void ndlib_aout_set_data_base(uint32_t data_base);
 
 /* Symbols (optional, requires libsymbols) */
 int ndlib_symbols_load(const char* aout_path);

@@ -173,37 +173,11 @@ static uint32_t read_pte_pfn(Nd500Machine* m, uint32_t table_base, uint32_t inde
     return v & 0x3FFFFFFFu;
 }
 
-/* ---- HEAP AUDIT (env ND500X_HEAPAUDIT, TEMP - revert) --------------------
- * Detect physical-page ALIASING in the growable/adopt path: a physical PFN
- * handed to two different owners (segment/kind) means a write to one heap/stack
- * address silently corrupts another - the exact failure that would make my
- * PS_ADI fix, not CAT-500, responsible for the downstream crash. */
-static uint32_t* g_audit_owner = NULL;   /* per-PFN owner tag, 0 = unowned */
-static uint32_t  g_audit_n = 0;
-static int       g_audit_on = -1;
-static void heap_audit(Nd500Machine* m, uint32_t pfn, uint32_t owner, const char* kind) {
-    if (g_audit_on < 0) { const char* e = getenv("ND500X_HEAPAUDIT"); g_audit_on = (e && e[0] && e[0] != '0') ? 1 : 0; }
-    if (!g_audit_on || pfn == 0) return;
-    if (!g_audit_owner) {
-        g_audit_n = (uint32_t)(m->memory_size >> PGSHIFT) + 1;
-        g_audit_owner = (uint32_t*)calloc(g_audit_n, sizeof(uint32_t));
-        if (!g_audit_owner) { g_audit_on = 0; return; }
-    }
-    if (pfn >= g_audit_n) return;
-    uint32_t prev = g_audit_owner[pfn];
-    if (prev != 0 && prev != owner) {
-        fprintf(stderr, "[HEAPAUDIT] ALIAS! pfn=0x%X (%s) owner=0x%08X already owned by 0x%08X\n",
-                pfn, kind, owner, prev);
-    }
-    g_audit_owner[pfn] = owner;
-}
-
 /* Map one page of a growable segment, creating its L2 table if needed.
  * Returns the physical PFN mapped, or 0 on failure. */
 static uint32_t growable_map_page(Nd500Machine* m, GrowableSegment* g,
                                   uint32_t l1_index, uint32_t l2_index) {
     uint32_t prot = g->writable ? 0u : 1u;
-    uint32_t owner_base = ((uint32_t)g->domain << 16) | (g->segment << 8);
 
     uint32_t l2_pfn = read_pte_pfn(m, g->l1_table_base, l1_index);
     if (l2_pfn == 0) {
@@ -213,7 +187,6 @@ static uint32_t growable_map_page(Nd500Machine* m, GrowableSegment* g,
          * protection: PS_ADI checks BOTH levels' protection bits on a write,
          * so a read-only L1 entry would deny writes to every page beneath it. */
         write_pte(m, g->l1_table_base, l1_index, l2_pfn, 0);
-        heap_audit(m, l2_pfn, owner_base | 0x02, "L2table");
     }
 
     uint32_t l2_table_base = l2_pfn << PGSHIFT;
@@ -222,7 +195,6 @@ static uint32_t growable_map_page(Nd500Machine* m, GrowableSegment* g,
         data_pfn = watermark_alloc_page(m);
         if (data_pfn == 0) return 0;
         write_pte(m, l2_table_base, l2_index, data_pfn, prot);
-        heap_audit(m, data_pfn, owner_base | 0x01, "grown-data");
     }
     return data_pfn;
 }
@@ -297,9 +269,6 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
     g->l1_table_base = l1_pfn << PGSHIFT;
     g->writable = 1;   /* DATA is RW */
 
-    uint32_t owner_base = ((uint32_t)domain << 16) | (segment << 8);
-    heap_audit(m, l1_pfn, owner_base | 0x04, "L1table");
-
     /* Map the already-loaded initialized pages by ADOPTING their existing PFNs
      * (do NOT allocate fresh pages - the bytes are already in place). Pages the
      * program touches beyond data_pages are demand-mapped by grow_on_fault. */
@@ -314,11 +283,9 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
             if (l2_pfn == 0) { g->in_use = 0; return -1; }
             /* L1 entry stays writable: PS_ADI checks BOTH levels on a write. */
             write_pte(m, g->l1_table_base, l1_index, l2_pfn, 0);
-            heap_audit(m, l2_pfn, owner_base | 0x02, "L2table");
         }
         uint32_t l2_base = l2_pfn << PGSHIFT;
         write_pte(m, l2_base, l2_index, data_base_pfn + p, 0 /*RW*/);
-        heap_audit(m, data_base_pfn + p, owner_base | 0x01, "adopted-data");
     }
 
     nd500_mmu_set_pst_entry(cpu, psn, PS_ADI, l1_pfn);
