@@ -111,6 +111,18 @@ static void mon_write_phys_word_cb(void* m, uint32_t phys, uint32_t val) {
     nd500_bus_write8(machine, phys + 3, (uint8_t)val);
 }
 
+static uint8_t mon_read_phys_byte_cb(void* m, uint32_t phys) {
+    Nd500Machine* machine = (Nd500Machine*)m;
+    if (!machine) return 0;
+    return nd500_bus_read8(machine, phys);
+}
+
+static void mon_write_phys_byte_cb(void* m, uint32_t phys, uint8_t val) {
+    Nd500Machine* machine = (Nd500Machine*)m;
+    if (!machine) return;
+    nd500_bus_write8(machine, phys, val);
+}
+
 static uint8_t mon_read_byte_cb(void* cpu_ptr, uint32_t addr) {
     Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
     if (!cpu || !cpu->machine) return 0;
@@ -295,6 +307,8 @@ int nd500_check_indirect_call(
         ctx.write_byte = mon_write_byte_cb;
         ctx.read_phys_word = mon_read_phys_word_cb;
         ctx.write_phys_word = mon_write_phys_word_cb;
+        ctx.read_phys_byte = mon_read_phys_byte_cb;
+        ctx.write_phys_byte = mon_write_phys_byte_cb;
 
         /* Setup flag/register callbacks */
         ctx.set_k_flag = mon_set_k_flag_cb;
