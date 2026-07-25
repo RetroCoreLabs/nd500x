@@ -248,6 +248,17 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
     /* Domain parameter is now passed explicitly - no need to read from cpu->CAD */
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, so domain < MAXDOM is always true */
 
+    /* Read the guest's REAL tables ONLY for the per-process segments that
+     * __resume remaps (locore.c:920): 26=_Utext, 29=_u/Kstack, 30=_Udata,
+     * 31=_Ustack. This makes the u-area remap (and thus per-process context
+     * switch / u.u_procp) resolve correctly - the fix for `panic: sleep` -
+     * while the kernel's self-referential phys-map bootstrap (seg 2) and the
+     * other kernel segments stay on the emulator's proven management, avoiding
+     * the early page-fault-during-bootstrap problem. Full guest-table mode
+     * (all segments) remains available but needs the PGF->kernel dispatch. */
+    int use_guest = mmu_use_guest_tables() && cpu->machine && cpu->DITBASE
+                 && (segment == 26 || segment == 29 || segment == 30 || segment == 31);
+
     /* Get capability by reading the guest's REAL Domain Information Table at
      * DITBASE (like the hardware): DIT stride 256 bytes/domain; program table at
      * +0, data table at +64; each capability a 16-bit big-endian halfword indexed
@@ -255,7 +266,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
      * (kpcbinit, __resume u-area remap, newproc) take effect. mmusetup mirrors its
      * initial setup and the demand allocator its segments into this same table. */
     uint16_t capability;
-    if (mmu_use_guest_tables() && cpu->machine && cpu->DITBASE) {
+    if (use_guest) {
         uint32_t cap_addr = cpu->DITBASE + (uint32_t)domain * 256u
                           + (is_instruction ? 0u : 64u) + (uint32_t)segment * 2u;
         capability = (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
@@ -387,7 +398,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
      * extends this table at runtime (newproc writes Pst[p_addr]); reading it here
      * is what lets __resume's u-area remap resolve to the new process. */
     PhysicalSegmentTableEntry pst_entry;
-    if (mmu_use_guest_tables() && cpu->machine && cpu->PSTP) {
+    if (use_guest && cpu->PSTP) {
         uint32_t pa = cpu->PSTP + (uint32_t)psn * 4u;
         uint32_t w = ((uint32_t)nd500_bus_read8(cpu->machine, pa)     << 24)
                    | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 1) << 16)
