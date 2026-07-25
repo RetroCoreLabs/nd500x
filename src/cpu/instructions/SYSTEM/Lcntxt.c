@@ -61,7 +61,9 @@ void nd500_instr_Lcntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Load registers based on mask bits (like C# lines 67-120) */
     for (int reg_num = 1; reg_num <= 37; reg_num++) {
         if ((mask & (1u << (reg_num - 1))) != 0) {
-            uint32_t reg_value = nd500_read_memory_32(cpu, current_address);
+            /* Context-block address is PHYSICAL (kernel phyladr) - bypass MMU,
+             * matching Scntxt and RetroCore ProcessControl ReadPhysical32. */
+            uint32_t reg_value = nd500_bus_read32(cpu->machine, current_address);
 
             /* Map register number to actual register */
             switch (reg_num) {

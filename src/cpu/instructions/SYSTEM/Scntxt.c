@@ -100,8 +100,13 @@ void nd500_instr_Scntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 default: continue;
             }
 
-            /* Write register value to context memory */
-            nd500_write_memory_32(cpu, current_address, reg_value);
+            /* Write register value to context memory. The context-block address
+             * is PHYSICAL: the kernel passes phyladr(_cxbtab)+ipl*256 (splx4,
+             * intvec, locore.c), so this must bypass the data MMU. Using the
+             * MMU path (nd500_write_memory_32) mis-writes the block and the
+             * saved CX_B reads back 0 -> intvec "kernel stack underflow" panic.
+             * Matches RetroCore CpuND500.ProcessControl ReadPhysical32/WritePhysical32. */
+            nd500_bus_write32(cpu->machine, current_address, reg_value);
             current_address += 4; /* Each register is 4 bytes */
         }
     }
