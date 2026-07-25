@@ -2841,6 +2841,35 @@ static void sintran_init_xmsg_ringbuffers(Nd500Cpu* cpu) {
 	sintran_write_halfword(cpu, 0x30000804u, 113);  /* xmsg_resp_buf.mp = NXMSGRESP */
 }
 
+/* Write a big-endian 32-bit word to an ND-500 virtual address through the DATA
+ * MMU (same demand-alloc path as sintran_write_halfword). */
+static void sintran_write_word(Nd500Cpu* cpu, uint32_t vaddr, uint32_t val) {
+	sintran_write_halfword(cpu, vaddr,     (uint16_t)(val >> 16));
+	sintran_write_halfword(cpu, vaddr + 2, (uint16_t)val);
+}
+
+/* SINTRAN shared-memory init: the IPL (Interrupt Priority Level) record,
+ * struct ipl_rec, at the fixed shared-segment address _iplrec = 0x30001000
+ * (locore.c:116). Layout (icb.h:31, offsets in bytes):
+ *   ip_next   @0 (long)  : outstanding-interrupt descriptor, ND-100 word addr;
+ *                          -1 (0xFFFFFFFF) means "none pending"
+ *   ip_current@4 (short) : current IPL
+ *   ip_mask   @6 (short) : IPL mask
+ *   ip_lock   @8 (short) : spinlock byte
+ *
+ * On real hardware SINTRAN owns this record and queues interrupt descriptors
+ * into ip_next; when idle it holds -1. The NDIX kernel never initializes it
+ * (machdep.c:834 only does `iplp = &iplrec`); _splx and _intvec (locore.c:1413,
+ * 791) only READ ip_next, short-circuiting on -1. Segment 6 is demand-allocated
+ * ZEROED, so ip_next=0, which _splx treats as a real descriptor pointer:
+ *   r3 = ip_next<<1 - shseg + sharebase = 0 - 0x30000800 + 0x30000000 = -0x800
+ *   deref [r3+4] = 0xFFFFF804  -> PS_AZI page fault (verified: exact fault addr).
+ * ip_current/ip_mask/ip_lock are correctly 0 from the demand-zero, so only
+ * ip_next needs the -1 sentinel. (shseg = htob(sharedseg)+NBPG = 0x30000800.) */
+static void sintran_init_iplrec(Nd500Cpu* cpu) {
+	sintran_write_word(cpu, 0x30001000u, 0xFFFFFFFFu);  /* iplrec.ip_next = -1 (none) */
+}
+
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	if (!m || !m->cpu) {
 		error(ctx, "no cpu linked");
@@ -3026,6 +3055,12 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	 * addresses/values (_R_init disasm at 0x3EF42). */
 	sintran_init_xmsg_ringbuffers(m->cpu);
 	output(ctx, "Xmsg ring buffers initialized (cmd.mp=102, resp.mp=113 @ seg 6)");
+
+	/* Also SINTRAN's job: seed the IPL record's ip_next to -1 ("no interrupt
+	 * pending"). Without it _splx derefs a zeroed ip_next as a descriptor
+	 * pointer and page-faults at 0xFFFFF804. See helper above. */
+	sintran_init_iplrec(m->cpu);
+	output(ctx, "IPL record initialized (iplrec.ip_next = -1 @ 0x30001000)");
 
 	output(ctx, "");
 	output(ctx, "Virtual Memory Layout (each domain has 256KB code + 256KB data):");
