@@ -69,11 +69,15 @@ void nd500_instr_Neg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Perform negation (like C# lines 58-91) */
     if (fi->uses_float_registers) {
         /* Float: just invert sign bit (like C# lines 60-70) */
+        /* NEG of RAW-ZERO float/double yields +0.0, NOT -0.0. ND-5000 microcode NEG_F @003244 is a
+         * conditional ALU (C,ALU ALU,FZRO ALUF,XOR ... COND,MZRO): a zero operand is FORCED to +0.0
+         * (FZRO); only non-zero operands take the XOR sign-flip. Keeps all 3 cores in sync
+         * (microword + C# functional Neg.cs + this). [NEG zero +0.0 2026-07-25] */
         if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_WORD) { /* Float (F) */
-            result = value ^ 0x80000000;  /* Flip sign bit */
+            result = (value == 0) ? 0u : (value ^ 0x80000000);
             nd500_write_float_register(cpu, fi->target_register, (uint32_t)result);
         } else { /* Double (D) */
-            result = value ^ 0x8000000000000000ULL;  /* Flip sign bit */
+            result = (value == 0) ? 0ull : (value ^ 0x8000000000000000ULL);
             nd500_write_double_register(cpu, fi->target_register, result);
         }
     } else {
