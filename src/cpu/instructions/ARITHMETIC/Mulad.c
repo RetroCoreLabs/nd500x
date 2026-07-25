@@ -89,51 +89,82 @@ void nd500_instr_Mulad(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read operand y (like C# line 148) */
     uint64_t y = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
-    /* Perform: Rn * x + y (like C# lines 150-191) */
+    /* Perform: Rn * x + y, MODELLING THE HARDWARE'S TWO SEPARATE STEPS.
+     *
+     * The product is TRUNCATED TO THE DATA-TYPE WIDTH BEFORE the addend is added,
+     * because that is what the machine does: MICRO-5800-B30 MULADW (002627..002631)
+     * issues AAP2,IMUL with the product landing in the 32-bit scratch SC7, saves the
+     * multiply status with ST,SAVM, and only then adds - ALU,A+B A,SC7 B,SC5.
+     * Computing it all in wider arithmetic and truncating once at the end gives a
+     * different carry.
+     *
+     * CARRY IS THE ADD'S CARRY-OUT, NOT "the true result exceeded the width".
+     * [CORRECTED 2026-07-25 - this was carry = (temp > 0xFFFFFFFF) over the
+     * full-precision product+addend, which attributes the MULTIPLY excess to C.
+     * The ND-500 Reference Manual settles it by comparison:
+     *     11.1  ADD   - "carry from most significant bit -> C (integer)"   C present
+     *     11.7  MUL   - Z, S, O, FU, FO only                              C ABSENT
+     *     11.19 MULAD - "carry from most significant bit -> C (integer)"   C present
+     * MULAD is MUL followed by ADD; C is absent from MUL, present in ADD, and appears
+     * in MULAD with ADD's exact wording - so C comes from the ADD. The multiply excess
+     * is already reported through O, so folding it into C double-counted it. The old
+     * form also never set C at all for BY/H, though the manual scopes C to every
+     * integer type. Confirmed against the real B30 microcode by the differential
+     * oracle. Mirrors the C# fix in
+     * Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Mulad.cs. */
     uint64_t result = 0;
     bool overflow = false;
     bool carry = false;
+    int width;
 
     switch (fi->data_type) {
-        case ND500_DTYPE_BYTE: {
-            /* Signed byte multiply and add (like C# lines 157-166) */
-            int8_t reg = (int8_t)(regValue & 0xFF);
-            int8_t xVal = (int8_t)(x & 0xFF);
-            int8_t yVal = (int8_t)(y & 0xFF);
-            int32_t temp = reg * xVal + yVal;    /* (like C# line 162) */
-            result = (uint64_t)(uint8_t)temp;    /* (like C# line 163) */
-            overflow = (temp < INT8_MIN || temp > INT8_MAX);  /* (like C# line 164) */
-            break;
-        }
-
-        case ND500_DTYPE_HALFWORD: {
-            /* Signed halfword multiply and add (like C# lines 167-176) */
-            int16_t reg = (int16_t)(regValue & 0xFFFF);
-            int16_t xVal = (int16_t)(x & 0xFFFF);
-            int16_t yVal = (int16_t)(y & 0xFFFF);
-            int32_t temp = reg * xVal + yVal;    /* (like C# line 172) */
-            result = (uint64_t)(uint16_t)temp;   /* (like C# line 173) */
-            overflow = (temp < INT16_MIN || temp > INT16_MAX);  /* (like C# line 174) */
-            break;
-        }
-
-        case ND500_DTYPE_WORD: {
-            /* Signed word multiply and add (like C# lines 177-187) */
-            int32_t reg = (int32_t)(regValue & 0xFFFFFFFF);
-            int32_t xVal = (int32_t)(x & 0xFFFFFFFF);
-            int32_t yVal = (int32_t)(y & 0xFFFFFFFF);
-            int64_t temp = (int64_t)reg * (int64_t)xVal + (int64_t)yVal;  /* (like C# line 182) */
-            result = (uint64_t)(uint32_t)temp;   /* (like C# line 183) */
-            overflow = (temp < INT32_MIN || temp > INT32_MAX);  /* (like C# line 184) */
-            carry = (temp > 0xFFFFFFFF);         /* (like C# line 185) */
-            break;
-        }
-
+        case ND500_DTYPE_BYTE:     width = 1; break;
+        case ND500_DTYPE_HALFWORD: width = 2; break;
+        case ND500_DTYPE_WORD:     width = 4; break;
         default:
             printf("[ERROR] MULAD at PC=0x%08X: Unsupported data type %d\n",
                    fi->address, fi->data_type);
             trap_illegal_operand(cpu, fi->address);
             return;
+    }
+
+    {
+        int type_bits = width * 8;
+        uint64_t width_mask = ((uint64_t)1 << type_bits) - 1;
+
+        /* Sign-extend the three inputs from their data-type width. */
+        int64_t reg  = nd500_sign_extend_by_dtype(regValue, fi->data_type);
+        int64_t xVal = nd500_sign_extend_by_dtype(x, fi->data_type);
+        int64_t yVal = nd500_sign_extend_by_dtype(y, fi->data_type);
+
+        /* Step 1: multiply. Overflow if the true product does not fit the SIGNED
+         * width - the AAP multiply-overflow latch that ST,SAVM captures. */
+        int64_t true_product = reg * xVal;
+        int64_t signed_min = -((int64_t)1 << (type_bits - 1));
+        int64_t signed_max = ((int64_t)1 << (type_bits - 1)) - 1;
+        bool mul_overflow = (true_product < signed_min || true_product > signed_max);
+
+        /* The truncated product is what actually reaches the adder. */
+        uint64_t product = (uint64_t)true_product & width_mask;
+        uint64_t addend  = (uint64_t)yVal & width_mask;
+
+        /* Step 2: add at the data-type width. C is the carry OUT of the most
+         * significant bit - a property of this binary addition, independent of
+         * whether the true value fit. */
+        uint64_t sum = product + addend;
+        carry = ((sum & ~width_mask) != 0);
+        result = sum & width_mask;
+
+        /* Signed overflow of the ADD: both addends share a sign that differs from
+         * the result sign. */
+        int64_t signed_product = nd500_sign_extend_by_dtype(product, fi->data_type);
+        int64_t signed_sum = nd500_sign_extend_by_dtype(result, fi->data_type);
+        bool add_overflow = ((signed_product < 0) == (yVal < 0)) &&
+                            ((signed_sum < 0) != (signed_product < 0));
+
+        /* O is STICKY across the two steps: ST,SAVM saves the multiply status and
+         * ST,ACCA then ACCUMULATES the add status, so an overflow in EITHER shows. */
+        overflow = mul_overflow || add_overflow;
     }
 
     /* Mask and write result (like C# lines 194-195) */
@@ -168,7 +199,7 @@ void nd500_instr_Mulad(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         cpu->ST1 &= ~ND500_FLAG_S;
     }
 
-    /* Set C flag (only for word operations) */
+    /* Set C flag - carry out of the add MSB, for EVERY integer width */
     if (carry) {
         cpu->ST1 |= ND500_FLAG_C;
     } else {
