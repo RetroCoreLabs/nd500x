@@ -196,7 +196,19 @@ void nd500_instr_Getbf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Write bit field value to target register
     nd500_write_integer_register(cpu, fi->target_register, bit_field);
 
-    // Update status flags: Z and S based on result and data_type (not field_size)
-    // Matches C# SetStatusZS - S flag uses data_type MSB, not field MSB
-    nd500_set_flags_zs(cpu, (uint64_t)bit_field, fi->data_type);
+    // Status flags matched to the REAL B30 microcode (microword-accurate CpuND5000), which is the
+    // authority over the manual here (this file previously flagged getbf S as UNRESOLVED). Raw
+    // decode of the getbf completion words settles it:
+    //   * BYTE/HALF getbf finish at GET_BIT_F -> 003444 ALU,A A,Q D,SC6 ST,SAVA with DataType=0
+    //     (32-bit) over the zero-filled right-aligned field, so Z = (field == 0) and S = bit 31 = 0
+    //     (getbf does NOT sign-extend, so S is always 0 unless field_size == 32); C and O cleared.
+    //     The manual's 'S = field leftmost bit' is NOT what B30 does.
+    //   * WORD getbf runs GETBFW 000506 -> the BFW rotate table -> BFW_END 003431 -> 003436
+    //     (ST,LOAD + G,OOPS). That path has NO ST,SAVA, so WORD getbf leaves Z/S/C/O UNCHANGED.
+    if (fi->data_type != ND500_DTYPE_WORD) {
+        if (bit_field == 0) nd500_set_flag(cpu, ND500_FLAG_Z); else nd500_clear_flag(cpu, ND500_FLAG_Z);
+        if (bit_field & 0x80000000u) nd500_set_flag(cpu, ND500_FLAG_S); else nd500_clear_flag(cpu, ND500_FLAG_S);
+        nd500_clear_flag(cpu, ND500_FLAG_C);
+        nd500_clear_flag(cpu, ND500_FLAG_O);
+    }
 }
