@@ -35,6 +35,22 @@ extern uint32_t ndlib_aout_get_data_base(void);
 static PhysicalSegmentTableEntry* g_pst = NULL;
 static ProcessControlBlock* g_pcb_table = NULL;
 
+/* When enabled (ND500X_MMU_GUEST_TABLES=1), translate() reads capabilities/PST
+ * entries from the guest's REAL in-memory tables at DITBASE/PSTP instead of the
+ * emulator shadow arrays - the architecturally-correct behaviour that lets the
+ * kernel's runtime table edits (kpcbinit, __resume u-area remap, newproc) take
+ * effect. Still WIP: it shifts demand-paging/page-fault handling to the kernel
+ * (via the PGF trap + THA), which needs the trap/u-area path to work. Default
+ * OFF so the current boot (mounts root) is unchanged. */
+static int g_mmu_guest_tables = -1;
+static int mmu_use_guest_tables(void) {
+    if (g_mmu_guest_tables < 0) {
+        const char* e = getenv("ND500X_MMU_GUEST_TABLES");
+        g_mmu_guest_tables = (e && e[0] && e[0] != '0') ? 1 : 0;
+    }
+    return g_mmu_guest_tables;
+}
+
 /* Segment-level demand mapping: when a DATA access references a work segment
  * that has no capability, allocate a backed (PS_ADI, demand-grown) segment on
  * the fly, mirroring how SINTRAN maps scratch segments on first use. The NC C
@@ -232,14 +248,23 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
     /* Domain parameter is now passed explicitly - no need to read from cpu->CAD */
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, so domain < MAXDOM is always true */
 
-    /* Get capability from PCB */
+    /* Get capability by reading the guest's REAL Domain Information Table at
+     * DITBASE (like the hardware): DIT stride 256 bytes/domain; program table at
+     * +0, data table at +64; each capability a 16-bit big-endian halfword indexed
+     * by segment*2. This is what makes the kernel's runtime capability edits
+     * (kpcbinit, __resume u-area remap, newproc) take effect. mmusetup mirrors its
+     * initial setup and the demand allocator its segments into this same table. */
     uint16_t capability;
-    if (is_instruction) {
-        /* Instruction fetch: use program capability */
-        capability = g_pcb_table[domain].program_capabilities[segment];
+    if (mmu_use_guest_tables() && cpu->machine && cpu->DITBASE) {
+        uint32_t cap_addr = cpu->DITBASE + (uint32_t)domain * 256u
+                          + (is_instruction ? 0u : 64u) + (uint32_t)segment * 2u;
+        capability = (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
+                              |  (uint32_t)nd500_bus_read8(cpu->machine, cap_addr + 1));
     } else {
-        /* Data access: use data capability */
-        capability = g_pcb_table[domain].data_capabilities[segment];
+        /* Emulator-side shadow tables (default). */
+        capability = is_instruction
+            ? g_pcb_table[domain].program_capabilities[segment]
+            : g_pcb_table[domain].data_capabilities[segment];
     }
 
     /* Check if capability is valid (non-zero) */
@@ -357,8 +382,22 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         }
     }
 
-    /* Get PST entry */
-    PhysicalSegmentTableEntry pst_entry = g_pst[psn];
+    /* Get PST entry by reading the guest's REAL Physical Segment Table at PSTP
+     * (struct pste, big-endian: ps_index@[31:30], ps_pfnum@[29:0]). The kernel
+     * extends this table at runtime (newproc writes Pst[p_addr]); reading it here
+     * is what lets __resume's u-area remap resolve to the new process. */
+    PhysicalSegmentTableEntry pst_entry;
+    if (mmu_use_guest_tables() && cpu->machine && cpu->PSTP) {
+        uint32_t pa = cpu->PSTP + (uint32_t)psn * 4u;
+        uint32_t w = ((uint32_t)nd500_bus_read8(cpu->machine, pa)     << 24)
+                   | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 1) << 16)
+                   | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 2) << 8)
+                   |  (uint32_t)nd500_bus_read8(cpu->machine, pa + 3);
+        pst_entry.index_mode   = (uint8_t)(w >> 30);
+        pst_entry.physical_pfn = w & 0x3FFFFFFF;
+    } else {
+        pst_entry = g_pst[psn];
+    }
 
     /* ─────────────────────────────────────────────────────────
      * LEVEL 3: PST Entry → Physical Address
@@ -597,6 +636,28 @@ void nd500_mmu_set_pst_entry(Nd500Cpu* cpu, int psn, uint8_t index_mode, uint32_
 
     g_pst[psn].index_mode = index_mode;
     g_pst[psn].physical_pfn = pfn & 0x3FFFFFFF;  /* 30 bits */
+
+    /* Mirror into the GUEST Physical Segment Table at PSTP so translate() can
+     * read the real table (struct pste: ps_index@[31:30], ps_pfnum@[29:0]). */
+    if (cpu && cpu->machine && cpu->PSTP) {
+        uint32_t v = ((uint32_t)(index_mode & 0x3) << 30) | (pfn & 0x3FFFFFFF);
+        uint32_t a = cpu->PSTP + (uint32_t)psn * 4u;
+        nd500_bus_write8(cpu->machine, a,   (uint8_t)(v >> 24));
+        nd500_bus_write8(cpu->machine, a+1, (uint8_t)(v >> 16));
+        nd500_bus_write8(cpu->machine, a+2, (uint8_t)(v >> 8));
+        nd500_bus_write8(cpu->machine, a+3, (uint8_t)v);
+    }
+}
+
+/* Write a 16-bit capability into the GUEST Domain Information Table at DITBASE.
+ * DIT stride 256 bytes/domain; data table at +64, program at +0; segno*2. */
+static void mirror_capability_to_dit(Nd500Cpu* cpu, uint8_t domain, int segment,
+                                     int is_data, uint16_t capability) {
+    if (!cpu || !cpu->machine || !cpu->DITBASE) return;
+    uint32_t a = cpu->DITBASE + (uint32_t)domain * 256u + (is_data ? 64u : 0u)
+               + (uint32_t)segment * 2u;
+    nd500_bus_write8(cpu->machine, a,   (uint8_t)(capability >> 8));
+    nd500_bus_write8(cpu->machine, a+1, (uint8_t)capability);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -636,6 +697,7 @@ void nd500_mmu_set_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment
     }
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
     g_pcb_table[domain].program_capabilities[segment] = capability;
+    mirror_capability_to_dit(cpu, domain, segment, 0 /*program*/, capability);
 }
 
 void nd500_mmu_set_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment, uint16_t capability) {
@@ -644,6 +706,7 @@ void nd500_mmu_set_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment, u
     }
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
     g_pcb_table[domain].data_capabilities[segment] = capability;
+    mirror_capability_to_dit(cpu, domain, segment, 1 /*data*/, capability);
 }
 
 // ═══════════════════════════════════════════════════════

@@ -2870,6 +2870,26 @@ static void sintran_init_iplrec(Nd500Cpu* cpu) {
 	sintran_write_word(cpu, 0x30001000u, 0xFFFFFFFFu);  /* iplrec.ip_next = -1 (none) */
 }
 
+/* Map domain-0 logical segment `seg` to a contiguous physical region
+ * [phys_base, phys_base + npages*2048) via a PS_ASI page table at pt_phys, using
+ * PST index `psn`, as a writable data segment. Used to make _Pst/_pcbtab reach
+ * the physical PST/DIT the emulator MMU reads. Page-table entries and the PST
+ * entry are written in the hardware pte.h format (pg_pfnum@[29:0]). */
+static void sintran_map_segment_to_phys(Nd500Machine* m, int seg, uint32_t phys_base,
+                                        uint32_t npages, uint32_t psn, uint32_t pt_phys) {
+	for (uint32_t i = 0; i < npages; i++) {
+		uint32_t pfn = (phys_base >> PGSHIFT) + i;      /* prot 0 = read/write */
+		uint32_t pte = pfn & 0x3FFFFFFFu;
+		uint32_t a = pt_phys + i * 4u;
+		nd500_bus_write8(m, a,   (uint8_t)(pte >> 24));
+		nd500_bus_write8(m, a+1, (uint8_t)(pte >> 16));
+		nd500_bus_write8(m, a+2, (uint8_t)(pte >> 8));
+		nd500_bus_write8(m, a+3, (uint8_t)pte);
+	}
+	nd500_mmu_set_pst_entry(m->cpu, (int)psn, PS_ASI, pt_phys >> PGSHIFT);
+	nd500_mmu_set_data_capability(m->cpu, 0, seg, (uint16_t)(psn | DC_WRP));
+}
+
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	if (!m || !m->cpu) {
 		error(ctx, "no cpu linked");
@@ -2888,6 +2908,18 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "  0x00140000-0x0017FFFF: Domain 2 (User2) Data (256KB = 128 pages)");
 	output(ctx, "  0x00180000-0x00FFFFFF: Available (~14.5 MB)");
 	output(ctx, "");
+
+	/* Set the guest MMU-table base registers BEFORE any capability/PST setup so
+	 * the set_* mirroring lands in the right physical tables. The tables live in
+	 * the free gap between the kernel image+bss (ends ~0x80000) and kernel free
+	 * memory (firstaddr, phys 0x100000): PST at 0x80000 (32KB), DIT at 0x90000
+	 * (64KB), seg 27/28 page tables at 0xA0000. translate() reads these. */
+	m->cpu->PSTP    = 0x00080000;
+	m->cpu->DITBASE = 0x00090000;
+	/* Zero the PST (32KB) and DIT (64KB) so unset segments read capability 0
+	 * (=> demand-map / identity fallback) instead of stale RAM garbage. */
+	for (uint32_t a = 0x00080000; a < 0x000A0000; a++)
+		nd500_bus_write8(m, a, 0);
 
 	/* ═══════════════════════════════════════════════════════
 	 * PST CONFIGURATION - Create 128 contiguous pages per region
@@ -3030,10 +3062,17 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	nd500_mmu_set_program_capability(m->cpu, 2, 31, PC_IND | (0 << 5) | 1);
 	output(ctx, "  Prog segment 31         → INDIRECT Domain=0 Seg=1 (→ Kernel)");
 
+	/* Map the kernel's own table-access segments so _Pst (seg 27, 0xd8000000)
+	 * reaches physical PSTP and _pcbtab (seg 28, 0xe0000000) reaches physical
+	 * DITBASE. Without this the kernel's writes to kern_dcap/Pst (kpcbinit,
+	 * __resume, newproc) land in demand pages the MMU never reads. PS_ASI page
+	 * tables at 0xA0000 / 0xA1000; high PSNs to avoid the demo's 0-767. */
+	sintran_map_segment_to_phys(m, 27, m->cpu->PSTP,    16, 800, 0x000A0000); /* _Pst */
+	sintran_map_segment_to_phys(m, 28, m->cpu->DITBASE, 32, 801, 0x000A1000); /* _pcbtab */
+	output(ctx, "Mapped seg 27 -> PSTP (0x80000), seg 28 -> DITBASE (0x90000)");
+
 	output(ctx, "");
 	output(ctx, "=== MMU Registers ===");
-	m->cpu->PSTP = 0x00100000;
-	m->cpu->DITBASE = 0x00200000;
 	m->cpu->CAD = 0;
 	m->cpu->CED = 0;
 	m->cpu->PS = 0;
