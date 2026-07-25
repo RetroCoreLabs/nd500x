@@ -2805,6 +2805,42 @@ static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args) {
 	return 0;
 }
 
+/* Write a big-endian halfword to an ND-500 virtual address through the DATA
+ * MMU, mirroring mon_write_halfword_cb (src/cpu/nd500_indirect.c). Passing
+ * is_write=1 makes a cap-0 segment demand-allocate exactly as a kernel data
+ * write would, so segment 6 gets backed and the bytes are visible to BOTH the
+ * kernel and the MON handlers (which translate through the same MMU). */
+static void sintran_write_halfword(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) {
+	uint32_t phys = vaddr;
+	if (cpu->machine && cpu->machine->mmu_enabled)
+		phys = nd500_mmu_translate(cpu, vaddr, 1, 0);  /* is_write, data */
+	nd500_bus_write8(cpu->machine, phys,     (uint8_t)(val >> 8));  /* BE hi byte */
+	nd500_bus_write8(cpu->machine, phys + 1, (uint8_t)val);         /* BE lo byte */
+}
+
+/* SINTRAN shared-memory init: Xmsg ring-buffer descriptors (segment 6).
+ *
+ * On real hardware SINTRAN (the ND-100 side) sets up the ND-100<->ND-500
+ * shared segment before the NDIX kernel runs. The kernel's R_init()
+ * (if/xg.c:399) REQUIRES the two ring-buffer headers to be pre-initialized and
+ * panics ("Xmsg command/response buffer not initialized") otherwise:
+ *
+ *   xmsg_cmd_buf  @ 0x30000000 : p=0, k=0, mp=NXMSGCMD  (102)
+ *   xmsg_resp_buf @ 0x30000800 : p=0, k=0, mp=NXMSGRESP (113)
+ *
+ * p (offset 0) and k (offset 2) are already 0 because segment 6 is
+ * demand-allocated zeroed, so only the mp field (offset 4, a big-endian short)
+ * needs writing. Addresses AND values were verified by disassembling _R_init at
+ * 0x3EF42: "h comp2 $0x30000004,#102" and "h comp2 $0x30000804,#113". Note the
+ * response struct is UNPADDED on the ND-500 compiler, so
+ * NXMSGRESP=(0x800-6)/sizeof(xmsg_resp=18)=113 (NOT 102 - the command struct is
+ * 20 bytes -> 102). These match the RetroCore NDSharedMemory reference
+ * (XMSG_CMD_BUFFER=0x30000000, XMSG_RESP_BUFFER=0x30000800). */
+static void sintran_init_xmsg_ringbuffers(Nd500Cpu* cpu) {
+	sintran_write_halfword(cpu, 0x30000004u, 102);  /* xmsg_cmd_buf.mp  = NXMSGCMD  */
+	sintran_write_halfword(cpu, 0x30000804u, 113);  /* xmsg_resp_buf.mp = NXMSGRESP */
+}
+
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	if (!m || !m->cpu) {
 		error(ctx, "no cpu linked");
@@ -2982,6 +3018,14 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "");
 	nd500_machine_enable_mmu(m);
 	output(ctx, "MMU ENABLED - Virtual memory now active!");
+
+	/* SINTRAN's job on context load: initialize the Xmsg ring-buffer
+	 * descriptors in the shared segment so the NDIX kernel's R_init() does
+	 * not panic. Done after MMU enable so the write translates through the
+	 * data MMU and demand-backs segment 6. See helper above for the verified
+	 * addresses/values (_R_init disasm at 0x3EF42). */
+	sintran_init_xmsg_ringbuffers(m->cpu);
+	output(ctx, "Xmsg ring buffers initialized (cmd.mp=102, resp.mp=113 @ seg 6)");
 
 	output(ctx, "");
 	output(ctx, "Virtual Memory Layout (each domain has 256KB code + 256KB data):");

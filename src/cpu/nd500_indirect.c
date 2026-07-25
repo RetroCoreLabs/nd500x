@@ -88,6 +88,29 @@ static void mon_write_word_cb(void* cpu_ptr, uint32_t addr, uint32_t val) {
     nd500_bus_write8(cpu->machine, phys_addr + 3, (uint8_t)val);
 }
 
+/* Physical-memory word access (bypasses the MMU) for fecall packets, which are
+ * addressed by ND-100 word address (ND-500 byte = word<<1 - private). Operates
+ * on `machine` directly. Big-endian, matching ND-500 memory order. */
+static uint32_t mon_read_phys_word_cb(void* m, uint32_t phys) {
+    Nd500Machine* machine = (Nd500Machine*)m;
+    if (!machine) return 0;
+    uint32_t v = 0;
+    v |= (uint32_t)nd500_bus_read8(machine, phys)     << 24;
+    v |= (uint32_t)nd500_bus_read8(machine, phys + 1) << 16;
+    v |= (uint32_t)nd500_bus_read8(machine, phys + 2) << 8;
+    v |= (uint32_t)nd500_bus_read8(machine, phys + 3);
+    return v;
+}
+
+static void mon_write_phys_word_cb(void* m, uint32_t phys, uint32_t val) {
+    Nd500Machine* machine = (Nd500Machine*)m;
+    if (!machine) return;
+    nd500_bus_write8(machine, phys,     (uint8_t)(val >> 24));
+    nd500_bus_write8(machine, phys + 1, (uint8_t)(val >> 16));
+    nd500_bus_write8(machine, phys + 2, (uint8_t)(val >> 8));
+    nd500_bus_write8(machine, phys + 3, (uint8_t)val);
+}
+
 static uint8_t mon_read_byte_cb(void* cpu_ptr, uint32_t addr) {
     Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
     if (!cpu || !cpu->machine) return 0;
@@ -270,6 +293,8 @@ int nd500_check_indirect_call(
         ctx.write_halfword = mon_write_halfword_cb;
         ctx.read_byte = mon_read_byte_cb;
         ctx.write_byte = mon_write_byte_cb;
+        ctx.read_phys_word = mon_read_phys_word_cb;
+        ctx.write_phys_word = mon_write_phys_word_cb;
 
         /* Setup flag/register callbacks */
         ctx.set_k_flag = mon_set_k_flag_cb;
