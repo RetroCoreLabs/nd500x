@@ -196,58 +196,139 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
 
         /* ---------------------------------------------------------------
-         * DOUBLE-precision divide (DIV_64 microcode). Still uses the host
-         * double path below; its low 1-2 mantissa bits do NOT match the
-         * microcode's reciprocal/SRT long-division on inexact quotients, so
-         * ~12 cross-core DoubleDiv cases remain red pending a bit-level
-         * DIV_64 port. Left unchanged here to avoid regressing the exact
-         * cases the host path already gets right.
+         * DOUBLE-precision divide (DIV_64 microcode @023414). Exact-integer
+         * model, NOT a host double division.
+         *
+         * DIV_64 is a NON-RESTORING binary long-division (loops DIV64L1
+         * @023424 and DIV64L2 @023454, each `Q,Q*DIV ... LCDECR ... COND,AQSLZ`,
+         * with LC loaded from SARG=27o=23 then SARG=36o=30). The two loops
+         * generate 23+30 = 53 significand bits, so the quotient carries only
+         * 53 bits of precision: the result significand is the exact quotient
+         * ROUNDED TO THE NEAREST MULTIPLE OF 4 (its low two bits are zero).
+         * That single fact reproduces the whole cross-core DoubleDiv oracle
+         * bit-for-bit (e.g. 2/3 -> ...5554, 0.3 -> ...cccc, 0.1 -> ...6668),
+         * which no simple round-to-nearest/truncate of a 55-bit quotient does
+         * (they miss by a non-monotone {-1,0,+2} ULP).
+         *
+         * ND-500 double format: sign b63 | 9-bit exp (bias 256, b62-54) |
+         * 54-bit mantissa; value = +/-(2^54+mant)/2^55 * 2^(efield-256), with
+         * an implicit leading 1 at bit 54 (significand in [0.5,1)). The 64-bit
+         * value is (E_reg high32 << 32) | A_reg low32.
          * ------------------------------------------------------------- */
-        double reg_value = 0.0;
-        double operand_value = 0.0;
+        uint64_t nb = nd500_read_double_register(cpu, reg_num);
+        uint64_t db = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
 
-        uint64_t reg_bits = nd500_read_double_register(cpu, reg_num);
-        reg_value = nd500_double_to_ieee754(reg_bits);
-        uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
-        operand_value = nd500_double_to_ieee754(op_bits);
+        uint32_t en = (uint32_t)((nb >> 54) & 0x1FF);
+        uint64_t mn = nb & (((uint64_t)1 << 54) - 1);
+        uint32_t ed = (uint32_t)((db >> 54) & 0x1FF);
+        uint64_t md = db & (((uint64_t)1 << 54) - 1);
+        uint32_t dsign = (uint32_t)(((nb >> 63) & 1) ^ ((db >> 63) & 1));
 
-        /* Check for divide by zero */
-        if (operand_value == 0.0) {
+        /* Divide-by-zero: divisor bits exactly zero only. Register unchanged. */
+        if (ed == 0 && md == 0) {
             cpu->ST1 |= ND500_FLAG_DZ;
             trap_divide_by_zero(cpu, fi->address);
             return;
         }
-        cpu->ST1 &= ~ND500_FLAG_DZ;
 
-        /* Perform division */
-        double result = reg_value / operand_value;
+        /* True-zero dividend: 0.0 / x = 0.0, Z set (double result flags come
+         * from DNZRO64's ST,SAVA, which unlike the single path DOES set Z). */
+        if (en == 0 && mn == 0) {
+            nd500_write_double_register(cpu, reg_num, 0);
+            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+                          ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
+            cpu->ST1 |= ND500_FLAG_Z;
+            return;
+        }
 
-        /* Check for overflow/underflow */
-        if (isinf(result) || isnan(result)) {
+        /* Unnormalised (denormal) dividend, efield==0 with a nonzero mantissa.
+         * DIV_64 does not renormalise it; the result is forced to zero and the
+         * flag depends on whether the DIVISOR is normalised (cross-core oracle,
+         * dividend 0x000000003FF00000):
+         *   - normalised divisor (ed != 0): the tiny dividend underflows to a
+         *     clean zero -> Z set (st=0x20).
+         *   - unnormalised divisor (ed == 0, md != 0): both operands are
+         *     unnormalised -> S set (st=0x80), the ND "unnormalised operand"
+         *     marker rather than a true-zero Z.
+         * (The exact-zero divisor was already handled as DZ above.) NOTE: all
+         * oracle cases share the one dividend 0x3FF00000, so the value/threshold
+         * details of the general denormal path are not fully pinned - only the
+         * ed==0-vs-ed!=0 flag split is verified. */
+        if (en == 0) {
+            nd500_write_double_register(cpu, reg_num, 0);
+            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+                          ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
+            cpu->ST1 |= (ed != 0) ? ND500_FLAG_Z : ND500_FLAG_S;
+            return;
+        }
+
+        /* Normalised operands: exact long-divide with round-to-nearest-mult-4.
+         * N,D are the 55-bit significands (implicit leading 1 at bit 54). */
+        unsigned __int128 N = (unsigned __int128)(((uint64_t)1 << 54) | mn);
+        unsigned __int128 D = (unsigned __int128)(((uint64_t)1 << 54) | md);
+        unsigned __int128 QQ = (N << 57) / D;   /* ratio_sig * 2^57 */
+        unsigned __int128 RR = (N << 57) % D;    /* stickiness -> nonzero remainder */
+
+        /* Bit length of QQ (positive, < 2^112). */
+        uint64_t qq_hi = (uint64_t)(QQ >> 64);
+        uint64_t qq_lo = (uint64_t)QQ;
+        int bitlen = qq_hi ? (128 - __builtin_clzll(qq_hi)) : (64 - __builtin_clzll(qq_lo));
+        int top = bitlen - 1;
+        int shift = top - 54;                    /* in {2,3} -> shift-2 >= 0 */
+
+        uint64_t fq = (uint64_t)(QQ >> shift);   /* 55-bit floor significand */
+        unsigned __int128 fracbits = QQ & ((((unsigned __int128)1) << shift) - 1);
+
+        /* Round the 55-bit significand to the nearest multiple of 4 (the 53-bit
+         * grid the two DIV_64 loops produce). Half rounds up when any lower bit
+         * or the division remainder is nonzero (sticky). */
+        uint64_t q4 = fq >> 2;
+        uint64_t r4 = fq & 3;
+        unsigned __int128 frac_num = ((unsigned __int128)r4 << shift) + fracbits;
+        unsigned __int128 denom = (unsigned __int128)4 << shift;
+        int sticky = (fracbits != 0 || RR != 0);
+        if (2 * frac_num > denom || (2 * frac_num == denom && sticky)) {
+            q4++;
+        }
+        uint64_t sres = q4 << 2;
+        if (sres >= ((uint64_t)1 << 55)) { sres >>= 1; shift++; }   /* carried up a binade */
+
+        /* value = sig * 2^(en - ed + shift - 2); efield = that + bias 256. */
+        int efield = (int)en - (int)ed + shift - 2 + 256;
+
+        /* Floating overflow: same architectural sub-9-bit threshold as single;
+         * no double case exercises it so this is by analogy, not verified. */
+        if (efield > 384) {
+            nd500_write_double_register(cpu, reg_num, 0);
+            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+                          ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
+            cpu->ST1 |= ND500_FLAG_FO | ND500_FLAG_O | ND500_FLAG_Z;
             trap_floating_overflow(cpu, fi->address);
-        } else if (result != 0.0 && fabs(result) < 1e-38) {
-            /* Underflow - result too small */
+            return;
+        }
+        if (efield < 128) {
+            nd500_write_double_register(cpu, reg_num, 0);
+            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+                          ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
+            cpu->ST1 |= ND500_FLAG_FU | ND500_FLAG_Z;
             trap_floating_underflow(cpu, fi->address);
+            return;
         }
 
-        /* Convert result back to ND-500 format */
-        uint64_t result_bits = nd500_double_from_ieee754(result);
-        nd500_write_double_register(cpu, reg_num, result_bits);
+        uint64_t mant = sres & (((uint64_t)1 << 54) - 1);
+        uint64_t out = ((uint64_t)dsign << 63) |
+                       ((uint64_t)((uint32_t)efield & 0x1FF) << 54) | mant;
+        nd500_write_double_register(cpu, reg_num, out);
 
-        /* Update flags: Z (zero), S (sign) */
-        if (nd500_double_is_zero(result_bits)) {
-            nd500_set_flag(cpu, ND500_FLAG_Z);
-        } else {
-            nd500_clear_flag(cpu, ND500_FLAG_Z);
+        /* Normal result flags (DNZRO64 ST,SAVA): Z if the result is zero,
+         * else S from the result sign. */
+        cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+                      ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
+        if ((out & 0x7FFFFFFFFFFFFFFFULL) == 0) {
+            cpu->ST1 |= ND500_FLAG_Z;
+        } else if (dsign) {
+            cpu->ST1 |= ND500_FLAG_S;
         }
-        if (nd500_double_is_negative(result_bits)) {
-            nd500_set_flag(cpu, ND500_FLAG_S);
-        } else {
-            nd500_clear_flag(cpu, ND500_FLAG_S);
-        }
-
-        /* C flag unaffected for float operations */
-        /* O flag unaffected (overflow handled by FO trap) */
         return;
     }
 
