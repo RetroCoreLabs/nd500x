@@ -31,7 +31,12 @@
  *
  * Trap conditions: Addressing traps, Illegal operand specifier (IOS)
  *
- * Data status bits: None affected
+ * Data status bits: Z and S are set from the loaded value (like a normal load).
+ *   The RDUS microcode ends in ST,SAVA (RDUS_1 @004515, RDUSBI_1 @004505), so Z
+ *   = (value == 0) and S = sign bit at the operand width. For the BI (bit)
+ *   variant S is always 0 - a single bit has no sign. This matches both the
+ *   functional CpuND500 and the microword CpuND5000 (cross-core cases, nd500x
+ *   commit 36d5111); the earlier "None affected" note was wrong.
  *
  * Reference: ND-500 Reference Manual, Chapter 16.25
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Rdus.cs
@@ -73,5 +78,7 @@ void nd500_instr_Rdus(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Store loaded value into target register */
     nd500_write_integer_register(cpu, fi->target_register, (uint32_t)value);
 
-    /* No status bits affected for this instruction */
+    /* Set Z/S from the loaded value (microcode ST,SAVA). BI variant -> S=0,
+     * handled inside nd500_set_flags_zs via the BIT data type. */
+    nd500_set_flags_zs(cpu, value, fi->data_type);
 }
