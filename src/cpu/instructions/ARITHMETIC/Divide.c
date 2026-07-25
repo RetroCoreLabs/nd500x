@@ -154,6 +154,19 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     // Check for divide by zero
     if (divisor == 0) {
+        /* Non-restoring integer divide hardware leaves the quotient SATURATED at
+         * the datatype's maximum positive value before the DZ trap is taken
+         * (BY->0x7F, H->0x7FFF, W->0x7FFFFFFF). Match the functional CpuND500 and
+         * the microword CpuND5000 (cross-core cases, nd500x commit 778d44e) - the
+         * register must NOT keep its original dividend. */
+        uint32_t sat;
+        switch (fi->data_type) {
+            case ND500_DTYPE_BYTE:     sat = 0x0000007Fu; break;
+            case ND500_DTYPE_HALFWORD: sat = 0x00007FFFu; break;
+            case ND500_DTYPE_WORD:     sat = 0x7FFFFFFFu; break;
+            default:                   sat = 0x7FFFFFFFu; break;
+        }
+        nd500_write_integer_register(cpu, fi->target_register, sat);
         cpu->ST1 |= ND500_FLAG_DZ;
         trap_divide_by_zero(cpu, fi->address);
         return;
