@@ -45,16 +45,9 @@ void nd500_instr_St1Get(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t value = cpu->ST1;
     nd500_write_operand_word(cpu, &fi->operands[0], value);
 
-    // Set Z and S flags based on the value
-    if (value == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;
-    }
-
-    if ((value & 0x80000000) != 0) {
-        cpu->ST1 |= ND500_FLAG_S;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_S;
-    }
+    // NO status update. Storing ST1 to memory leaves the condition flags unchanged, matched to the
+    // REAL B30 microcode: the store path STORST1 001107 -> 001110 -> READST1 (015017-015025) ->
+    // 001112 (G,OOPS) runs with Status=0 on every word - there is no ST,SAVA anywhere (verified by a
+    // microword single-step trace). Was setting Z/S from the stored value, which cleared Z whenever
+    // ST1 was non-zero and diverged from the microword on every store-ST1.
 }
