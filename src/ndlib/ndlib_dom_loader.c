@@ -406,12 +406,37 @@ int ndlib_dom_load_to_machine(
     uint32_t pt_alloc_base = (phys_base + total_loaded + 2047) & ~2047u;
     int next_psn = 100;  /* Start allocating PST entries from 100 */
 
-    /* DATA segments are built PS_ADI (growable) in a SECOND pass, after
-     * pt_alloc_base reaches its final high-water mark, so the growable watermark
-     * can be seeded above every DOM allocation. Record them here in pass 1. */
-    struct { uint32_t seg; int psn; uint32_t data_phys_base; uint32_t data_pages; }
-        pending_data[32];
-    int pending_data_count = 0;
+    /* DATA segments are built PS_ASI (single-level) with a fixed page reserve,
+     * in-line below. This is the proven-good aa5cd5e mapping, restored after the
+     * PS_ADI "growable DATA" rewrite (commit 951237d) regressed the real NC C
+     * compiler (codegen crash -> jumpg -> PC=0).
+     *
+     * ROOT CAUSE (reproduced GOOD-vs-BAD): the divergence is TRAP-vs-SILENT-MAP,
+     * NOT a data-content difference. NC's codegen deliberately runs PAST the end
+     * of its owned DATA region (e.g. seg-0 VA 0x02200000, ~34 MB) and RELIES on
+     * the resulting PAGE FAULT being dispatched to NC's OWN PGF trap handler
+     * (via its THA), which it recovers from - PS_ASI faults there (L1 != 0 is
+     * unmapped) and NC exits cleanly. The growable rewrite instead SILENTLY grew
+     * a zeroed page for that access (through the seg-0->seg-1 growable alias), so
+     * NC's handler never ran, NC diverged, and it crashed. The earlier "zeroed vs
+     * mapped content" theory was wrong: the seg-4 MON-scratch grow is byte-
+     * identical GOOD and BAD. PTE encoding kept in the current hardware format
+     * (pg_prot@31, pg_pfnum@[29:0]).
+     *
+     * LIMITATION: PS_ASI forces L1==0, so a single DATA segment here is capped at
+     * 1 MB (512 pages). This is adequate in practice - NC's ~34 MB scratch and
+     * the ND linker's ~4 MB output both live in MON-CONNECTED segments (2+/seg 3),
+     * which are demand-growable and unaffected by this cap; no known program needs
+     * >1 MB of seg-0/1 DSEG. The cap only bites a hypothetical large seg-0/1 DSEG.
+     *
+     * HOW TO EXTEND (>1 MB seg-0/1 without re-regressing NC): build seg-0/1 DATA
+     * as PS_ADI two-level, EAGERLY mapping the adopted contiguous init data + a
+     * bounded contiguous zeroed reserve, and do NOT register seg-0/1 in
+     * g_growable - so an access past the owned extent still TRAPS (preserving NC's
+     * fault boundary) while the reserve may span L1>0. No MMU-core change needed
+     * (the PS_ADI path already traps when grow_on_fault declines). Full design +
+     * change sites + acceptance test:
+     *   /mnt/e/Dev/Ronny/NDInsight/SINTRAN/ND500/PLAN-nd500x-growable-DATA-option2-redesign-2026-07-26.md */
 
     /* Process each segment - create page tables and PST entries */
     for (int i = 0; i < max_segs; i++) {
@@ -450,29 +475,52 @@ int ndlib_dom_load_to_machine(
             }
         }
 
-        /* Record DATA (if segment has data) - built PS_ADI growable in pass 2.
-         * The old code built a flat PS_ASI page table + a fixed 512-page reserve,
-         * which capped the segment at 1 MB (PS_ASI requires L1==0) and crashed
-         * large programs (NC/CAT-500 code gen wrote ~34 MB into its DSEG). */
+        /* Create SEPARATE page table and PST entry for DATA (if segment has data).
+         * PS_ASI single-level + fixed reserve (restored from aa5cd5e; see the
+         * block comment above for why the PS_ADI growable rewrite was reverted). */
         if (seg_info[i].has_data) {
             uint32_t data_pages = (seg_info[i].data_size + 2047) / 2048;
             if (data_pages == 0) data_pages = 1;
 
-            /* Allocate the PST index now; the PS_ADI tables are built in pass 2. */
-            seg_info[i].psn_data = next_psn++;
+            /* Reserve extra pages above the initialized data for stack/heap/bss
+             * growth (see DATA_GROWTH_RESERVE_PAGES). These map to fresh physical
+             * pages taken from the allocation cursor; machine memory is zeroed at
+             * init, so they read as 0 (correct for bss/fresh stack). */
+            uint32_t reserve_pages = DATA_GROWTH_RESERVE_PAGES;
+            uint32_t total_pages = data_pages + reserve_pages;
 
-            /* Set data capability now (write-permitted) so PC caps are complete. */
+            uint32_t reserve_phys_base = pt_alloc_base;
+            pt_alloc_base = (pt_alloc_base + reserve_pages * 2048 + 2047) & ~2047u;
+
+            /* Allocate page table sized for the initialized data + reserve */
+            uint32_t pt_base = pt_alloc_base;
+            pt_alloc_base = (pt_alloc_base + total_pages * 4 + 2047) & ~2047u;
+
+            /* Fill page table: initialized-data PTEs point at data_phys_base;
+             * reserve PTEs point at the fresh zeroed physical block.
+             * ND-500 hardware pte.h format (commit 6b3d4fb): pg_prot@31, pg_pfnum@[29:0]. */
+            uint32_t data_base_pfn = seg_info[i].data_phys_base >> 11;
+            uint32_t reserve_base_pfn = reserve_phys_base >> 11;
+
+            for (uint32_t p = 0; p < total_pages; p++) {
+                uint32_t pte_addr = pt_base + p * 4;
+                uint32_t pfn = (p < data_pages)
+                                 ? (data_base_pfn + p)
+                                 : (reserve_base_pfn + (p - data_pages));
+                uint32_t pte = (pfn & 0x3FFFFFFFu);  /* prot=0 (RW data) */
+                nd500_bus_write32(m, pte_addr, pte);
+            }
+
+            /* Allocate PST entry and set up */
+            seg_info[i].psn_data = next_psn++;
+            nd500_mmu_set_pst_entry(cpu, seg_info[i].psn_data, PS_ASI, pt_base >> 11);
+
+            /* Set data capability for this segment (write-permitted) */
             nd500_mmu_set_data_capability(cpu, domain, i, seg_info[i].psn_data | DC_WRP);
 
-            pending_data[pending_data_count].seg            = (uint32_t)i;
-            pending_data[pending_data_count].psn            = seg_info[i].psn_data;
-            pending_data[pending_data_count].data_phys_base = seg_info[i].data_phys_base;
-            pending_data[pending_data_count].data_pages     = data_pages;
-            pending_data_count++;
-
             if (log_callback) {
-                log_callback(log_context, "  Seg %d DATA: %u pages (PS_ADI growable), PSN %d",
-                             i, data_pages, seg_info[i].psn_data);
+                log_callback(log_context, "  Seg %d DATA: %u pages, PT @ 0x%08X, PSN %d",
+                             i, data_pages, pt_base, seg_info[i].psn_data);
             }
         }
 
@@ -496,35 +544,8 @@ int ndlib_dom_load_to_machine(
         }
     }
 
-    /* ========================================================================
-     * PASS 2: build every DATA segment PS_ADI (two-level) + demand-growable.
-     * pt_alloc_base is now final, so it is the correct watermark floor: all
-     * pages the growable allocator hands out land strictly above the DOM image.
-     * ======================================================================== */
-    {
-        uint32_t watermark_floor = pt_alloc_base;
-        for (int k = 0; k < pending_data_count; k++) {
-            if (nd500_segment_adopt_growable_data(cpu, m, domain,
-                    pending_data[k].seg, pending_data[k].psn,
-                    pending_data[k].data_phys_base, pending_data[k].data_pages,
-                    watermark_floor) != 0) {
-                if (log_callback) {
-                    log_callback(log_context,
-                                 "  ERROR: PS_ADI DATA setup failed for seg %u",
-                                 pending_data[k].seg);
-                }
-            }
-        }
-
-        /* If the FORTRAN/compiler alias set DC[0] -> segment 1's DATA above, the
-         * program addresses that segment via segment-0 VAs. grow_on_fault() keys
-         * on the VA segment field, so register segment 0 as a growable alias of
-         * segment 1's now-PS_ADI tables - else a write past the loaded pages
-         * (e.g. the NC/CAT-500 code gen at 0x02200000) cannot be demand-grown. */
-        if (seg_info[0].seg_type == SEG_TYPE_UNUSED && seg_info[1].has_data) {
-            nd500_segment_register_growable_alias(domain, 0, 1);
-        }
-    }
+    /* (PS_ADI growable pass-2 removed with the 951237d revert - DATA segments are
+     * now built PS_ASI + reserve in the per-segment loop above.) */
 
     /* ========================================================================
      * SEGMENT 31: SINTRAN III Monitor Call Interception + Data Window
