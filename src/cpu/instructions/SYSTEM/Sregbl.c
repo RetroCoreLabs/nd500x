@@ -60,7 +60,9 @@ void nd500_instr_Sregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Address calculation: <address> + register_number*4 */
     for (int reg_num = 1; reg_num <= 37; reg_num++) {
         if ((mask & (1u << (reg_num - 1))) != 0) {
-            uint32_t reg_address = address + (uint32_t)(reg_num * 4);
+            /* Register N is saved at address + (N-1)*4 (reg 1 = P at offset 0),
+             * matching lregbl and the manual register-block layout (Fig.2). */
+            uint32_t reg_address = address + (uint32_t)((reg_num - 1) * 4);
             uint32_t reg_value = 0;
 
             /* Map register number to actual register */

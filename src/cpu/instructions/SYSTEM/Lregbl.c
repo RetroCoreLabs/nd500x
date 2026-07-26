@@ -55,7 +55,21 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * behaviour, so the loop is capped at reg_num 32. Registers 33..37
      * (CTE2/MTE1/MTE2/TEMM1/TEMM2) are not reachable by a 32-bit mask.
      *
-     * Address calculation: <address> + register_number*4 */
+     * Address calculation: <address> + register_number*4
+     *
+     * TWO-PHASE (read-all-then-apply) is REQUIRED for correctness: the block
+     * reads translate through the MMU using the CURRENT domain (cpu->CED). If we
+     * applied each register the moment we read it, loading register 24 (CED)
+     * would switch the addressing domain MID-INSTRUCTION, so the very next slot
+     * (register 25 = CAD) would be translated under the NEW domain. In NDIX the
+     * register block lives in the kernel u-area (segment 29, e.g. 0xE800xxxx),
+     * which is accessible under the kernel domain (0) but NOT under the restored
+     * user domain (1): the CAD read then protect-faults at base+96. On real
+     * ND-500 lregbl is atomic - CED/CAD take architectural effect only at the
+     * instruction boundary - so all reads must use one consistent domain. We read
+     * every selected register value first (domain unchanged), then apply. */
+    uint32_t vals[33];
+    bool     has[33] = { false };
     for (int reg_num = 1; reg_num <= 32; reg_num++) {
         if ((mask & (1u << (reg_num - 1))) != 0) {
             /* Privilege restriction (manual 16.27.2): in non-privileged mode
@@ -69,8 +83,23 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                     continue;
                 }
             }
-            uint32_t reg_address = address + (uint32_t)(reg_num * 4);
-            uint32_t reg_value = nd500_read_memory_32(cpu, reg_address);
+            /* Register N is stored at address + (N-1)*4: the base `address`
+             * operand points at the FIRST selected register (reg 1 = P) itself,
+             * i.e. reg 1 is at offset 0. (Manual ND-05.009.4 Fig.2 register
+             * block: P,L,B,R,I1..; NDIX passes address = the arg2/P slot of the
+             * ENTT frame, so reg 1 must read from base+0, not base+4.) sregbl
+             * uses the identical convention so the save/load pair stays consistent. */
+            uint32_t reg_address = address + (uint32_t)((reg_num - 1) * 4);
+            vals[reg_num] = nd500_read_memory_32(cpu, reg_address);
+            if (nd500_trap_occurred()) return;  /* block read faulted - abort */
+            has[reg_num] = true;
+        }
+    }
+
+    /* PHASE 2: apply the buffered values now that all block reads are done. */
+    for (int reg_num = 1; reg_num <= 32; reg_num++) {
+        if (has[reg_num]) {
+            uint32_t reg_value = vals[reg_num];
 
             /* Map register number to actual register */
             switch (reg_num) {
@@ -111,6 +140,20 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 default: break;
             }
         }
+    }
+
+    /* NDIX returns from a trap handler with `lregbl $CNTXMASK,r3` (machine/
+     * locore.c trapex, CNTXMASK=0x1C3FFFF) rather than RETT: the block reloads
+     * P (reg 1), ST1 (with PiA), CED and CAD - the architectural trap-return.
+     * RETT is what normally clears the emulator's in_trap_handler guard (and
+     * trap_cross_domain); since NDIX never executes RETT for kernel traps, an
+     * lregbl that reloads the program counter WHILE a handler is active IS the
+     * handler return. Clear the guard here, otherwise it stays set and the
+     * returned-to program's next legitimate page fault is misdetected as a
+     * double fault and halts (observed: init's PC=8 stack write PGF). PiA is
+     * already correct because ST1 (reg 17) was reloaded from the saved block. */
+    if (has[1] && cpu->in_trap_handler) {
+        cpu->in_trap_handler = false;
     }
 
     /* No status bits affected for this instruction */
