@@ -3,6 +3,7 @@
 #include "nd500_mmu.h"
 #include "../machine/machine_protos.h"
 #include <stdio.h>
+#include <stdlib.h>   /* getenv - implicit-int prototype truncates the char* -> wild-pointer crash */
 #include <math.h>
 
 /* ============================================================================
@@ -71,6 +72,8 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
     }
 
     MEMTRACE_WR("[MEMTRACE] write_8: vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
+    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
+      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 8); }
     nd500_bus_write8(cpu->machine, paddr, value);
 }
 
@@ -103,6 +106,8 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
     }
 
     MEMTRACE_WR("[MEMTRACE] write_16: vaddr=0x%08X paddr=0x%08X value=0x%04X\n", vaddr, paddr, value);
+    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
+      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 16); }
     // Write two bytes BIG-ENDIAN to physical address (ND-500 spec)
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 8) & 0xFF));
     nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)(value & 0xFF));
@@ -126,6 +131,25 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t value = ((uint32_t)b0 << 24) | ((uint32_t)b1 << 16) |
                      ((uint32_t)b2 << 8) | (uint32_t)b3;
     MEMTRACE_RD("[MEMTRACE] read_32: vaddr=0x%08X paddr=0x%08X value=0x%08X\n", vaddr, paddr, value);
+    /* _Udata-window read trace (env ND500X_UDATADBG): the kernel reads user syscall
+     * args via fuword = *(_Udata(0xF0000000)+uaddr). For init's execve the syscall code
+     * is at user B+20=0x08000014 -> _Udata window 0xF8000014. Log reads in that window
+     * (CED==0) to see whether fuword resolves init's args (code should be 0x3B=59). */
+    {
+        static int udbg = -1;
+        if (udbg < 0) { const char* e = getenv("ND500X_UDATADBG"); udbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (udbg && cpu->CED == 0 && vaddr >= 0xF0000000u)
+            fprintf(stderr, "[UDATA] read vaddr=0x%08X paddr=0x%08X value=0x%08X (fuword) B=0x%08X\n", vaddr, paddr, value, cpu->B);
+    }
+    /* PTE read-watch (env ND500X_PTEWATCH): the kernel READS init's stack pte
+     * (pg_pfnum in low 30 bits) through the usrpt KVA window; logging that read
+     * reveals the PHYSICAL address the kernel's pte actually lives at, to compare
+     * against the emulator's PST->L1->L2 slot (0x48A000). If they differ, the
+     * usrpt-window mapping and the L1 walk have diverged - the coherence bug. */
+    {
+        extern void nd500_ptewatch_read(uint32_t vaddr, uint32_t paddr, uint32_t value);
+        nd500_ptewatch_read(vaddr, paddr, value);
+    }
     return value;
 }
 
@@ -150,6 +174,21 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
     }
 
     MEMTRACE_WR("[MEMTRACE] write_32: vaddr=0x%08X paddr=0x%08X value=0x%08X\n", vaddr, paddr, value);
+
+    /* PTE write-watch at the CPU-store level (env ND500X_PTEWATCH). CPU stores
+     * go byte-wise through bus_write8, so the value-level watch in io.c never
+     * sees them - catch them here with full context (vaddr AND paddr). Logs any
+     * store whose low-30-bits (the ND-500 real-pte pg_pfnum field) equals the
+     * watched frame, or whose paddr lands in the watched L2 page. This reveals
+     * WHICH kernel virtual address (usrpt window 0x20000000+off?) the kernel
+     * writes init's stack pte to, and WHICH physical page that translates to -
+     * to compare against the emulator's PST->L1->L2 slot (0x48A000). */
+    {
+        extern void nd500_ptewatch_store(uint32_t vaddr, uint32_t paddr, uint32_t value);
+        extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
+        nd500_ptewatch_store(vaddr, paddr, value);
+        nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 32);
+    }
 
     // Write four bytes BIG-ENDIAN to physical address (ND-500 spec)
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 24) & 0xFF));
@@ -210,10 +249,43 @@ int nd500_heap_alloc_block(Nd500Cpu* cpu, uint8_t log_size, uint32_t pc,
          * the program's own trap handler can seed/extend the heap. GETB/ENTB
          * must never touch STAH/ENDH (section 3.3: reserved for trap
          * handlers); re-seeding here would hand out blocks that overlap live
-         * allocations and corrupt the heap. */
+         * allocations and corrupt the heap.
+         *
+         * NOTE (2026-07-26): an emulator "grow the heap here when the program has
+         * no trap-27 handler" fallback was tried for vendor DOMs like NC-A06 that
+         * install no STO handler. It REGRESSED the working compile (NRF 933->0):
+         * with nested UECOM programs each establishing their own heaps at the same
+         * segment VAs, plus the RAM snapshot/restore around the nested run, the
+         * heap-vars get written from several sources and the injected heap
+         * conflicts. Reverted - see NC_CRASH_...md UPDATE 76c. The overflow stays
+         * cosmetic (the :NRF is written before it and the process exits). */
         if (block_addr == 0) {
+            if (getenv("ND500X_HEAPDBG")) {
+                uint32_t stah = nd500_read_memory_32(cpu, heap_vars_addr + 4);
+                uint32_t endh = nd500_read_memory_32(cpu, heap_vars_addr + 8);
+                fprintf(stderr, "[HEAPDBG] STO(exhausted) PC=0x%08X req_log=%u max_log=%u "
+                        "TOS=0x%08X STAH=0x%08X ENDH=0x%08X freelists:",
+                        pc, log_size, max_log, cpu->TOS, stah, endh);
+                for (uint8_t q = 0; q <= max_log && q < 32; q++) {
+                    uint32_t fa = heap_vars_addr + 12 + (uint32_t)q * 4;
+                    fprintf(stderr, " [%u]=0x%08X", q, nd500_read_memory_32(cpu, fa));
+                }
+                fprintf(stderr, "\n");
+            }
             trap_stack_overflow(cpu, pc);
             return 0;
+        }
+    }
+
+    if (getenv("ND500X_HEAPDBG")) {
+        static uint32_t last_tos = 0xFFFFFFFF;
+        if (heap_vars_addr != last_tos) {
+            last_tos = heap_vars_addr;
+            uint32_t stah = nd500_read_memory_32(cpu, heap_vars_addr + 4);
+            uint32_t endh = nd500_read_memory_32(cpu, heap_vars_addr + 8);
+            fprintf(stderr, "[HEAPDBG] GETB-OK PC=0x%08X block=0x%08X req_log=%u TOS=0x%08X "
+                    "STAH=0x%08X ENDH=0x%08X (first success for this heap)\n",
+                    pc, block_addr, log_size, heap_vars_addr, stah, endh);
         }
     }
 
@@ -337,6 +409,8 @@ void nd500_write_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value,
 
     MEMTRACE_WR("[MEMTRACE] write_32_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%08X\n",
                 vaddr, paddr, domain, value);
+    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
+      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 32); }
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 24) & 0xFF));
     nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)((value >> 16) & 0xFF));
     nd500_bus_write8(cpu->machine, paddr + 2, (uint8_t)((value >> 8) & 0xFF));

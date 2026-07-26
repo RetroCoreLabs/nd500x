@@ -2,9 +2,12 @@
 
 Full path of this document: `/home/ronny/repos/nd500x/docs/SINTRAN-SHELL-SPEC.md`
 
-Written 2026-07-20. This is a SPEC ONLY - no code has been written. Every
-behaviour below is cited to a real ND manual or to a byte-level reverse
-engineering; anything we could not source is called out as **UNVERIFIED / GAP**.
+Written 2026-07-20 as a spec. UPDATE 2026-07-26: the shell IS now implemented in
+`src/frontend/nd500x/nd500x_shell.c` (run via `nd500x --monitor`). See the
+**"IMPLEMENTED shell (as built)"** section below for the actual command set,
+`TYPE`/`EDIT`/`MODE`, and the C compile+link+run workflow; the spec sections
+remain as the sourcing/rationale. Every behaviour below is cited to a real ND
+manual or byte-level reverse engineering; anything unsourced is **UNVERIFIED / GAP**.
 
 Goal: a faithful in-emulator SINTRAN shell - the `@`-prompt you log in to, run
 programs from, and log out of - so you can drop copies of `:PROG`/`:DOM`
@@ -158,6 +161,97 @@ Tier-2 (file maintenance, sourced, later): CREATE-FILE (RefMan 2132),
 DELETE-FILE (2787), RENAME-FILE (7595), COPY-FILE (2031), SET-FILE-ACCESS (8844),
 CREATE-USER (2246), LIST-USERS (6318).
 
+
+## IMPLEMENTED shell (as built) - `src/frontend/nd500x/nd500x_shell.c`
+
+Run it with `nd500x --monitor --config <ini>` (the `run_500.sh` path). Auto-logs in
+as the configured user (default `GUEST`); the `@` prompt reads commands, resolves a
+typed program name to `<user>/<NAME>.DOM` then `SYSTEM/<NAME>.DOM` and runs it. All
+commands abbreviate to a unique prefix per hyphen-word (`LIST-F` -> LIST-FILES);
+ambiguous -> `AMBIGUOUS COMMAND`; a leading `@` herald is tolerated.
+
+### Command table (A = authentic SINTRAN, X = nd500x convenience)
+
+| Command | Kind | Purpose |
+|---|---|---|
+| `HELP [<cmd>]` | A | list commands + one-line help |
+| `LOGIN <user>` | X | log in (real SINTRAN is the ESC-driven "User Name" flow) |
+| `LOGOUT` | A | end the session |
+| `EXIT` | X | leave the emulator |
+| `LIST-FILES [<pattern>]` | A | list files in the current user's directory |
+| `SET-TERMINAL-TYPE [<term>],<type>` / `GET-TERMINAL-TYPE` | A | terminal type (from the VTM file) |
+| `RECOVER-DOMAIN <name>` (or just type `<name>`) | A | load + run a `:DOM` / `:PROG` |
+| `CREATE-FILE <name>[:<type>]` | A | create an empty file (default type `:DATA`) |
+| `DELETE-FILE <name>:<type>` | A | delete a file |
+| `RENAME-FILE <old>,<new>` | A | rename a file |
+| `COPY-FILE <destination>,<source>` | A | copy a file (SINTRAN dest,source order) |
+| `LIST-USERS` / `CREATE-USER <name>` | A | user directories under the SINTRAN root |
+| `TYPE <name>:<type>` | X | copy a file's contents to the terminal (SINTRAN COPY-TERMINAL, shortened; CR->LF for display; searches current user then SYSTEM) |
+| `EDIT <name>:<type>` | X | open the file in VS Code on the host (`code`; new buffer if absent) |
+| `MODE <file>` | A | run a script of commands from `<file>:MODE` then `:SYMB` (SINTRAN `@MODE`) |
+
+### MODE files (SINTRAN `@MODE`)
+
+A MODE file is a script of shell command lines, and it may INTERLEAVE shell commands
+with input consumed by programs the script starts - both read from the ONE script
+stream, exactly like piping the lines to stdin. Faithful to real SINTRAN: **NO
+parameters** (one literal file per task; real SINTRAN needs the separate PERFORM
+subsystem for parameter substitution), `@CC <text>` comment lines, EOF ends the mode,
+nesting to depth 10. Default type `:MODE` then `:SYMB`.
+
+### C compile + link + run (worked example)
+
+The vendor toolchain (`(SYSTEM)NC-A06.DOM`, `LINKER-B01.DOM`, C libs `USLIB3`,
+`NC-LIB`, `CAT-LIB`) runs in-shell. Two literal MODE files (in `GUEST/`):
+
+`COMPILE-HELLO:MODE`
+```
+@CC compile HELLO:C -> HELLO:NRF
+CREATE-FILE HELLO:CAT
+CREATE-FILE HELLO:LIST
+CREATE-FILE HELLO:NRF
+NC-A06
+CHECK HELLO,HELLO,HELLO
+GENERATE-CODE HELLO,HELLO
+EXIT
+```
+`LINK-HELLO:MODE`
+```
+@CC link HELLO:NRF -> HELLO:DOM
+LINKER-B01
+OPEN-DOMAIN "HELLO"
+LOAD HELLO
+SPECIAL-LOAD USLIB3,LIBRARY
+SPECIAL-LOAD NC-LIB,LIBRARY
+SPECIAL-LOAD CAT-LIB,LIBRARY
+CLOSE
+EXIT
+```
+Then, at the `@` prompt:
+```
+@MODE compile-hello        (HELLO:C  -> HELLO:NRF, 933 bytes)
+@MODE link-hello           (HELLO:NRF -> HELLO:DOM, 6.3 MB, 0 undefined)
+@HELLO                     ->  Hello world
+```
+Notes: the intermediate `:CAT` file MUST be pre-created (NC cannot create it). The C
+runtime is pulled with explicit `SPECIAL-LOAD` because CLOSE's auto-job picks the
+FORTRAN job, not `-C` (see NC_CRASH_...md). Run compile and link as SEPARATE `MODE`
+invocations, not one combined file.
+
+### Diagnostic environment variables
+
+- `ND500X_MONLOG=1..4` - MON-call tracing to stderr (4 = debug, shows every OPEN/READ/WRITE/CLOSE etc.).
+- `ND500X_HEAPDBG=1` - C-runtime heap (GETB/FREEB) trace: allocations, frees, and STO/exhaustion.
+- `ND500X_CARVE_BOUT=1` - dump the ND-500 frame chain at object WFILEs (BOUT-empty investigation).
+
+### Known cosmetic limitation
+
+After a successful C compile, NC-A06 exits with a heap-exhaustion trap
+(`No trap handler at THA[27]` / "stack overflow") because it is a vendor DOM that
+lacks the C-runtime heap-grow handler our linked programs have. The `:NRF` is fully
+written before this and the process exits, so compile/link/run all work; the message
+is cosmetic. Full analysis + why the emulator-side fix was reverted: UPDATE 76/76a-c
+in `docs/NC_CRASH_0x08023EA4_ROOTCAUSE.md`.
 ## What nd500x already has (so this is mostly wiring)
 
 - Current user + FS root config with defaults: `src/libmon/mon_config.c`

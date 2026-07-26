@@ -2076,3 +2076,377 @@ C# SYNC (both real CPU bugs, same author): fix SCOPA (compare-with-pad, 3rd op=p
 (set-parity, 2nd op=mode 0-3) in RetroCore; regenerate their test cases.
 NEXT: drive a real LINK - "OPEN-DOMAIN ""T"";;LOAD T;;CLOSE N,N;;EXIT;;" with a known-good NRF
 (test-real.nrf) staged as T:NRF; command grammar from nd500-c-compile-and-link.md sect 4/7.
+
+## UPDATE 68 (2026-07-26): jumpg->PC=0 REGRESSION FIXED; BOUT-empty re-characterized
+The DATA-loader regression (jumpg->PC=0 crash, bisected to 951237d PS_ADI growable DATA) is FIXED
+by commit 4eae46a "fix(dom): revert seg-0/1 DATA to PS_ASI+reserve". VERIFIED: the NC driver
+  LOGIN GUEST;;CREATE-FILE B:LIST;;CREATE-FILE BOUT:NRF;;NC-A06;;CHECK B,B,B;;GENERATE-CODE B,BOUT;;EXIT
+now runs to a CLEAN MON 0B exit at 2,375,199 instructions, no PC=0. (Full bug report:
+NDInsight SINTRAN/ND500/BUGREPORT-nd500x-growable-DATA-regressed-NC-codegen-2026-07-26.md.)
+
+REMAINING BLOCKER = BOUT.NRF stays 0 bytes. Re-traced with ND500X_MONLOG=4 (/tmp/bout.log):
+- NC opens BOUT:NRF (file 101/slot 65, access=2) near end of GENERATE-CODE, then does ONLY
+  ROBJE -> SETBS(2048) -> SMAX(0xFFFFFFFF unlimited) -> CLOSE. ZERO WFILE to BOUT. The object is
+  never written to the output file. (SMAX-overflow-truncation bug from U65 is already fixed - BOUT
+  is genuinely never written, not truncated.)
+- Whole run has only 12 WFILE calls total: 9 to file 100 (SCRATCH64) ALL at BlockNo=0 (each
+  overwrites offset 0), 3 to file 101 (B.CAT block1/2/3, B.LIST). SCRATCH64.DATA (8KB) holds an NC
+  control/interaction transcript ("options m2 a4 f- r4 ...", "define-user-interface", "NC-A"),
+  NOT a >=16KB NRF object. So the object image is not accumulating in the scratch either.
+- The pre-existing GUEST/HELLO.NRF (546 bytes, valid NRF) is NOT a working oracle for the current
+  path: re-running NC on HELLO to HOUT with GENERATE-CODE also produces a 0-byte HOUT.NRF. HELLO.NRF
+  was staged by an earlier/other flow (manual or a since-reverted patch); do not treat it as proof
+  the GENERATE-CODE path ever wrote an object.
+- Exit still ends with 3x MON 54B MDLFI whose FileName reads EMPTY (empty-name delete; U65 suspect).
+
+CONCLUSION: this is NOT the DATA loader and NOT a WFILE bug (handler is correct; NC simply issues no
+WFILE to BOUT). It is NC-A06 multi-phase driver behaviour: NC-A06 is a driver that spawns compiler
+sub-phases and communicates via the scratch; the phase that emits the NRF object to the named output
+file is either (a) a sub-phase we do not invoke/return-to correctly, or (b) gated behind a MON call
+we stub. NEXT: (1) map NC-A06's phase spawn (70B CALL-COMMAND / recursive self-invoke, see
+CAT500_UECOM_CSHARP_HANDOFF.md) and find which phase is meant to WFILE the object to BOUT; (2) check
+whether GENERATE-CODE B,BOUT vs default (GENERATE-CODE B) changes the target; (3) confirm no MON
+call between BOUT-open and BOUT-close is being stubbed to no-op.
+
+### UPDATE 68 addendum (2026-07-26): object IS generated to scratch; correction on the PS_ASI trap
+Deeper trace of the GENERATE-CODE window (lines 1897-2295 of /tmp/bout.log). Corrected/added facts:
+
+- The 14452-byte NRF OBJECT *is* generated. During GENERATE-CODE, NC writes it to file 100
+  (SCRATCH64) blocks 0,1,2,3 (4x 2048B WFILE) then SMAX(file 100)=14452. So codegen completes and
+  the object exists - it just lands in the SCRATCH file, not BOUT.
+- It is then CLOBBERED in-place: right after, NC reuses file 100 (ROBJE->SETBS->WFILE block 0->
+  SMAX 161) for a small control record, overwriting block 0 of the just-written object. That is why
+  SCRATCH64.DATA ends as 8KB of control-transcript, not the object.
+- Ordering is confirmed odd: BOUT:NRF is OPENed (file 101/slot 65) then CLOSEd EMPTY at the START of
+  GENERATE-CODE (before any object bytes exist), and the object is generated to scratch AFTER. NC
+  never re-opens or writes BOUT.
+- auto_scratch_64 is REQUIRED, NOT a hijack: running with --no-scratch-64 makes NC fail immediately
+  ("MON 41B ROBJE: File 100 not open") and generate nothing. So NC genuinely expects a pre-opened
+  scratch file 100 in addition to the named output. The "auto-scratch steals BOUT's slot" theory
+  (U65 hypothesis 3) is DISPROVEN.
+- NC never issues 70B CALL-COMMAND (0 calls). At exit it prints a standard SINTRAN termination
+  banner: "\n-CROSS-A\nprogram terminated\nexecution time 0:00:04\nelapsed time 0:00:00", i.e. the
+  terminating program identifies as "-CROSS-A" (the cross-assembler / code-generator phase).
+- CORRECTION to the first UPDATE 68 draft: the single "[MMU] TRAP: PS_ASI page fault! L1=34
+  vaddr=0x02200000" is a lone, NON-FATAL event at EXIT teardown (NC continues normally afterward).
+  It is NOT the codegen work-region and is NOT why the object is missing. Do not treat it as the
+  BOUT-empty cause.
+
+REFINED CONCLUSION: the ND C compiler is a two-stage design (front-end intermediate -> scratch, then
+a CROSS-A code-generator stage -> the named NRF). Our run generates the object into SCRATCH64 but the
+scratch->BOUT copy / CROSS-A output stage that should WFILE the object to BOUT never happens (and the
+scratch object is subsequently clobbered). Since NC issues no 70B CALL-COMMAND, either NC-A06 is meant
+to run that stage in-process and a bug routes the object WFILE to file 100 instead of BOUT/file 101,
+or the stage is chained by a mechanism we do not implement. RESOLVING THIS NEEDS NC-A06 DISASSEMBLY:
+find, near PC 0x0802DEC4's caller for the blocks-0..3 object WFILE, the file-number source - is it a
+hardcoded 100, or a variable that should hold BOUT's number (101/65)? That decision is the bug site.
+
+### UPDATE 68 carve-start (2026-07-26): WFILE wrapper located
+NC-A06 domain load (VA base 0x08000000): PROG PSN 100 @phys 0x800, DATA PSN 101 @phys 0x2F800,
+DC[0] aliased to DATA (FORTRAN compat), SINTRAN window seg31 PSN 102. Disasm at the object-write
+MON site:
+  0802DEC4: call /bin/bashxF8000050,, b.44, b.48, IND(b.28), b.52, b.56   ; = MON 120B WFILE
+This is a GENERIC 5-arg WFILE wrapper: FileNo=b.44, ReturnFlag=b.48, Buff=IND(b.28), BlockNo=b.52,
+NoOfBytes=b.56 - all locals set by the wrapper caller. So the file number (100 for the object vs
+101/65 for BOUT) is chosen by whoever CALLS this wrapper. NEXT carve step: find the GENERATE-CODE-
+phase caller of the 0802DEC4 wrapper that passes FileNo=100 for the blocks-0..3 object write, and
+determine why it targets the scratch instead of the opened output file (BOUT). Wrapper frame RET at
+0802DEDA; the enclosing function begins at the ENTS before 0802DEA0 (walk back to it).
+
+### UPDATE 68 carve (cont): wrapper is indirectly dispatched
+Full NC-A06 disasm (191670 bytes @0x08000000, /tmp/nca06.dis) has ZERO direct callers of the WFILE
+wrapper 0x0802DE93 (no "C3 08 02 DE 93"). So it is reached through an indirect I/O-routine table
+(function pointer), typical of the compiler I/O abstraction layer. STATIC caller-chasing is therefore
+insufficient. NEXT: runtime trace - instrument the CPU CALL/MON path to dump the caller frame (the
+ND-500 stack RETA chain) when WFILE is issued with FileNo=100 during GENERATE-CODE, to recover which
+NC routine selected the scratch file number and where the intended output-file number (BOUT) is held.
+
+### UPDATE 68 carve (2026-07-26): object-write caller chain recovered (runtime frame walk)
+Instrumented src/cpu/nd500_indirect.c (gated behind env ND500X_CARVE_BOUT): at WFILE(120B) to file
+100 for object blocks (BlockNo>=1), walk the ND-500 frame chain (B -> PREVB@+0 / RETA@+4). The three
+object blocks (1,2,3 = the real 14452-byte NRF) give these caller chains (VA base 0x08000000):
+
+  block1/2 (identical):
+    L0 RETA 0x0802C355  <- WFILE-emit helper A
+    L1 RETA 0x0802ADE7
+    L2 RETA 0x08024242
+    L3 RETA 0x0802418B
+    L4 RETA 0x08024135  (recursive serializer, appears L4 and L6)
+    L5 RETA 0x080241A3
+    L6 RETA 0x08024135
+    L7 RETA 0x0802450F
+    L8 RETA 0x0802438C  <-- COMMON
+    L9 RETA 0x080050EC  <-- COMMON OUTERMOST
+  block3:
+    L0 RETA 0x0802B2E5  <- WFILE-emit helper B (a second path)
+    L1 RETA 0x0802B076
+    L2 RETA 0x0802B02E
+    L3 RETA 0x08024534
+    L4 RETA 0x0802438C  <-- COMMON
+    L5 RETA 0x080050EC  <-- COMMON OUTERMOST
+    L6 RETA 0x080020CA
+    L7 RETA 0x08000524
+    L8 RETA 0x0800005B  (main)
+
+ROUTINE MAP (object-output subtree, all writing to scratch file 100):
+  0x080050EC = GENERATE-CODE object-output DRIVER (outermost common frame across every object block)
+  0x0802438C = object block-writer loop
+  0x08024135/.../0x08024534 = NRF record serializers (recursive)
+  0x0802C355 / 0x0802B2E5 = two low-level "emit block via WFILE" helpers (both target file 100)
+
+So the entire object serializer writes to the SCRATCH (file 100), by design of this subtree. The fix
+question narrows to routine 0x080050EC: after it finishes writing the object to scratch, does it (or
+its caller 0x080020CA / 0x08000524) contain the scratch->BOUT transfer that our run never executes?
+NEXT: disassemble 0x080050EC and its post-write tail (and 0x080020CA) to find the intended
+scratch->output copy / file-number-swap, i.e. why BOUT (file 101/65, opened+closed empty) never
+receives the object. Instrumentation left in-tree but env-gated (ND500X_CARVE_BOUT); remove when the
+transfer path is understood.
+
+## UPDATE 69 (2026-07-26): MDLFI descriptor-read BUG FIXED; compile-mode confirms two-stage design
+Two concrete outcomes this session.
+
+BUG FIXED - MON 54B MDLFI read filenames with the wrong reader.
+- external/ndmonlib/src/handlers/mon_54B_DeleteFile.c used mon_read_sintran_string (raw inline
+  bytes), but ND-500 passes filename args as DESCRIPTORS [len, ptr] - exactly what MON 50B OPEN reads
+  via mon_read_descriptor_string. So every NC scratch-cleanup delete read an EMPTY name and failed
+  (the "Empty filename" spam at exit, U65's suspect). FIX: read as descriptor first, fall back to the
+  raw reader only if unusable. VERIFIED: MDLFI now reads real names - 'SCRATCH-00001:TREE',
+  'SCRATCH-00001:CAT', etc. - and deletes/erros correctly. (This is nd500x-monitor-only; RetroCore
+  runs the real SINTRAN MDLFI, so no C# mirror needed.)
+- NOTE: this did NOT by itself fill BOUT.NRF - the object->output transfer is a separate issue below.
+
+COMPILE-MODE FINDING - NC-A06 is the FRONT-END only; codegen is a chained CROSS-A stage.
+- `compile B,B,B` (canonical single command per /mnt/d/ND/500/nd-linker/nd500-c-compile-and-link.md)
+  runs ONLY the front-end: it opens B:NRF and immediately CLOSES it EMPTY (no WFILE), writes the CHECK
+  intermediate to per-compile scratches (SCRATCH-00001:CAT/:TREE), then exits with empty-name-cleanup
+  and MON 0B LEAVE. There is NO codegen/object phase after CHECK in this run.
+- `check`+`generate-code B,BOUT` DOES produce the 14452-byte object, but into SCRATCH64 (file 100),
+  and likewise opens+closes BOUT empty; no scratch->BOUT copy.
+- Both paths + the exit banner "-CROSS-A program terminated" (and ZERO 70B CALL-COMMAND) point to the
+  same architecture: NC-A06 is the front-end/driver; the real ND-500 code generator ("CROSS-A") is a
+  SEPARATE program NC-A06 is meant to CHAIN to. Our shell runs NC-A06 to LEAVE but never invokes the
+  chained CROSS-A stage, so the named output file never receives the object.
+
+REMAINING BLOCKER (unchanged, now better explained): the object is produced to scratch; the chained
+CROSS-A code-generator stage that reads the scratch and writes the named :NRF is never invoked. NEXT:
+determine NC-A06's chaining mechanism to CROSS-A (it is NOT 70B CALL-COMMAND). Candidates: an RT/APPEND
+recursive PLACE, a MON we stub to no-op between front-end end and exit, or a SINTRAN command NC writes
+back via 317B UECOM / the command buffer. Inspect the tail of NC-A06 right before MON 0B LEAVE (frame
+chain outer frames 0x080020CA / 0x08000524 / main 0x0800005B) for the intended hand-off.
+
+Diagnostic left in-tree, env-gated (ND500X_CARVE_BOUT) in src/cpu/nd500_indirect.c: dumps the ND-500
+frame chain at any WFILE to scratch file 100 for object blocks. Remove once the chain is wired.
+
+## UPDATE 70 (2026-07-26): CORRECTION - NC-A06 is ONE program (CAT-NC-CROSS-A), not a chain
+Strings in NC-A06.DOM include the program self-name "CAT-NC-CROSS-A"; the exit banner "-CROSS-A
+program terminated" is just the TAIL of that name printed by the RT-library exit routine. So NC-A06
+does front-end AND ND-500 code generation IN ONE PROCESS - there is NO separate CROSS-A program to
+chain to. RETRACT the UPDATE 68/69 "chained CROSS-A stage never invoked" hypothesis.
+Reframed blocker: within this single program, GENERATE-CODE produces the 14452-byte object but WFILEs
+it to the scratch (file 100) while the opened output file (BOUT/B:NRF = file 101/65) is opened+closed
+empty. So the object writer targets the WRONG file number (scratch 100 vs the just-opened output 101).
+NEXT: trace where the object-writer file number (100) is sourced - is it a hardcoded scratch default
+or a global that should have been updated to the output file number when GENERATE-CODE opened BOUT?
+Block-writer 0x0802438C / driver 0x080050EC / WFILE wrapper 0x0802DE93 (file#=arg b.22).
+
+## UPDATE 71 (2026-07-26): *** DEFINITIVE ROOT CAUSE of BOUT-empty: UECOM (317B) is a stub ***
+The named output :NRF is empty because NC's code-generator BACK-END is never run: MON 317B UECOM
+(ExecuteCommand) is a STUB. external/ndmonlib/src/handlers/mon_317B_ExecuteCommand.c decodes the
+command string correctly but does NOT execute it ("nested subsystem invocation ... is not yet
+performed here").
+
+How NC actually compiles (single driver program CAT-NC-CROSS-A = NC-A06.DOM):
+  1. Front-end (preprocess/CHECK) runs IN-PROCESS and writes the intermediate to scratch files
+     (SCRATCH64:DATA / SCRATCH-00001:CAT/:TREE) - this is the 14452-byte blob we saw in file 100.
+  2. NC then invokes its phases as NESTED SINTRAN commands via 12B SETCM + 317B UECOM (NOT 70B
+     CALL-COMMAND). Observed order in the generate-code run:
+       12B  SETCM 'CC -> B'        (C preprocessor phase, output B)
+       317B UECOM 'NC-A'           (re-enter NC front-end phase)
+       317B UECOM 'CAT-CAT5-B'     <== the CAT-500 CODE GENERATOR back-end on B
+       317B UECOM 'NC-A'
+  3. 'CAT-CAT5-B' loads and runs (SYSTEM)CAT-CAT5-B06.DOM (present on disk) - THAT program reads the
+     scratch intermediate and writes the relocatable object (:NRF) to the named output file.
+
+Because UECOM is a no-op stub, steps 2-3 never happen: the back-end CAT-CAT5-B06 never runs, so the
+output file (BOUT:NRF / B:NRF) - which NC opened and closed empty - is never written. Every prior
+symptom follows from this: object stuck in scratch, output opened+closed empty, no copy/transfer, no
+70B, "-CROSS-A" (self-name) banner then LEAVE.
+
+FIX (the real work): implement MON 317B UECOM to actually invoke the named command. For a program/
+domain name (CAT-CAT5-B -> CAT-CAT5-B06.DOM, NC-A -> NC-A06.DOM) it must recursively LOAD+RUN that
+DOM on the ND-500 while PRESERVING the current monitor file-table / scratch state (the back-end
+consumes the scratch the front-end produced, and writes the caller's opened output), then return to
+the caller at LEAVE. This is the "CAT-500 route" pending work; see docs/CAT500_UECOM_CSHARP_HANDOFF.md.
+The nd500x --monitor shell's PLACE/run path (nd500x_shell.c) already knows how to load+run a DOM; UECOM
+needs to reuse it re-entrantly rather than as a fresh top-level program.
+
+Confirmations: (SYSTEM)CAT-CAT5-B06.DOM exists; the SETCM/UECOM phase sequence above is from the live
+MON log (ND500X_MONLOG=4). This supersedes the UPDATE 68/69/70 sub-hypotheses (chained separate
+program / file-number threading) - the mechanism is nested-command invocation, and the single missing
+piece is UECOM execution.
+
+## UPDATE 72 (2026-07-26): *** C COMPILE WORKS - reliable BOUT.NRF produced end-to-end ***
+The ND C compiler now compiles B.C to a valid relocatable object. Driver:
+  LOGIN GUEST; CREATE-FILE B:LIST; CREATE-FILE BOUT:NRF; NC-A06; CHECK B,B,B; GENERATE-CODE B,BOUT; EXIT
+produces GUEST/BOUT.NRF = 937 bytes, valid NRF (magic 0A 00 01 70, PROG!NAME / V!ARG records),
+BYTE-IDENTICAL across repeated runs (md5 bcd8c74ba89a x3), and the emulator process TERMINATES.
+
+Fixes that got here (all in ~/repos/nd500x):
+1. 317B UECOM nested-run (THE core fix). NC-A06 (CAT-NC-CROSS-A) invokes its code-generator back-end
+   CAT-CAT5-B06 (and NC-A passes) as NESTED SINTRAN commands via UECOM. Implemented a frontend-
+   registered runner:
+   - ndmonlib: new MonExecuteCommandFn hook + mon_set_execute_command() (include/ndmon/mon.h,
+     handlers/mon_317B_ExecuteCommand.c). Handler calls it; 0=ran, <0=not a program (benign stub),
+     >0=failed.
+   - shell: shell_execute_command() in src/frontend/nd500x/nd500x_shell.c resolves the command to a
+     DOM (resolve_domain, SINTRAN abbreviation), loads it into a fresh domain, runs it RE-ENTRANTLY
+     to MON 0B LEAVE sharing the global file table, then restores the caller. Registered via
+     mon_set_execute_command() in nd500x_shell_run(). Nesting guard UECOM_MAX_NEST=4.
+   - The DOM loader places every program at FIXED physical addresses (same PSN/page-tables), so a
+     nested load overwrites the caller's resident image. shell_execute_command SNAPSHOTS machine RAM
+     (m->memory) before the nested load and RESTORES it after, alongside the full Nd500Cpu state. The
+     sub-program returns results through FILES (flushed to disk on its LEAVE), never RAM, so this is
+     lossless.
+2. 54B MDLFI filename reader: was mon_read_sintran_string (raw); ND-500 passes filename DESCRIPTORS.
+   Switched to mon_read_descriptor_string (like 50B OPEN). (Prereq listed in CAT500_UECOM handoff.)
+3. Batch-EOF clean termination (two parts, in ndmonlib):
+   - 503B DVINST: on genuine console EOF with an installed console, SUSPEND (wait) instead of
+     returning "0 bytes success" forever (the measured 515k/123k zero-byte spin).
+   - stdio_wait_for_input (mon_file_table.c): select() reports a CLOSED pipe as "readable", so it
+     used to return true at EOF and spin. Now it PEEKS one byte (read()==0 => real EOF => return 0
+     => run loop breaks); a real byte is stashed in the one-byte pushback so nothing is lost.
+4. 412B FileAsSegment was ALREADY made real by a parallel session (ctx->connect_file_as_segment
+   backs the logical segment with the file's bytes) - so CAT-CAT5-B reads its scratch correctly. The
+   earlier "412B is the hard blocker" note in CAT500_UECOM_CSHARP_HANDOFF.md PART C is now stale.
+
+KNOWN COSMETIC ISSUE (does NOT affect the object): after the nested passes return, NC's own
+continuation hits a stack-overflow trap (No trap handler at THA[27], PC 0x0801E100) and the emulator
+STOPS (exits) rather than NC issuing its own MON 0B LEAVE. The NRF is already fully written before
+this. Likely cause: the nested sub-programs' MON 0B LEAVE runs mon_file_table_close_all_for_exit,
+which closes the CALLER's (NC's) open files too (the file table is a process-global, not covered by
+the RAM snapshot); NC then resumes with its files gone and takes an error/recursion path that
+overflows. FIX CANDIDATE (next): snapshot/restore the monitor file-table state around the nested run
+too (or make a nested LEAVE close only files the sub-program itself opened), so NC resumes with its
+file handles intact and exits via its normal MON 0B LEAVE. Not required for a correct :NRF.
+
+RELIABILITY: 3/3 runs identical NRF + clean process exit (rc=0). Diagnostic left env-gated
+(ND500X_CARVE_BOUT) in nd500_indirect.c.
+
+## UPDATE 73 (2026-07-26): *** FULL C COMPILE + LINK PIPELINE WORKS ***
+End to end in the nd500x --monitor emulator, a C program now compiles AND links:
+  B.C  --NC-A06 compile-->  BOUT.NRF (937 B, valid NRF)  --LINKER-B01-->  BOUT.DOM (6.3 MB, 0 undef).
+
+COMPILE (UPDATE 72): CHECK + GENERATE-CODE via NC-A06 -> BOUT.NRF, deterministic.
+LINK (this update): driver
+  LOGIN GUEST; LINKER-B01; OPEN-DOMAIN "BOUT"; LOAD BOUT;
+  SPECIAL-LOAD USLIB3,LIBRARY; SPECIAL-LOAD NC-LIB,LIBRARY; SPECIAL-LOAD CAT-LIB,LIBRARY;
+  LIST-ENTRIES UNDEFINED; CLOSE; EXIT
+  -> LOAD BOUT = Program 153B P01 / Data 170B D01 (proves the NRF is a genuine linkable object)
+  -> NC-LIB (NC-LIB-A06.FROM.890116) + CAT-LIB (F64CAT-LIB-B06.FROM.890117) pull in the C runtime
+     (Program 153B -> 37204B, Data -> 26414B)
+  -> LIST-ENTRIES UNDEFINED: None  (every C-runtime symbol resolved: C!EXIT/C!INIT/V!ARGV/V!ENV/...)
+  -> CLOSE + EXIT clean (MON 0B LEAVE), BOUT.DOM written (6,312,204 bytes, non-zero header).
+
+BUG FIXED to get the link past CLOSE: MON 256B DEABF (FullFileName) truncated 16-char SINTRAN names.
+external/ndmonlib/src/handlers/mon_256B_FullFileName.c declared its parse buffers as
+char name[SINTRAN_MAX_NAME] (16 = only 15 chars + NUL) instead of [SINTRAN_MAX_NAME + 1] (as
+mon_path.c does). So "LINKER-AUTO-FORT" (exactly 16) became "LINKER-AUTO-FOR" and DEABF returned NO
+SUCH FILE NAME -> the LINKER's CLOSE auto-job (it resolves LINKER-AUTO-<lang>:JOB through DEABF)
+failed on every link. Fixed all three buffers (user/name/ext) to +1.
+
+REMAINING POLISH (not blocking - manual SPECIAL-LOAD works today):
+1. Auto-job language selection: CLOSE picks LINKER-AUTO-FORT:JOB (FORTRAN) for a C module and warns
+   '"B" does not match "LINKER-AUTO-FORT:JOB" exact'. It should pick LINKER-AUTO-C:JOB and pull the
+   C libs automatically, so a bare CLOSE (no manual SPECIAL-LOAD) resolves the C runtime. Root: the
+   language of the main module / the auto-job name match. Until fixed, link with the explicit
+   SPECIAL-LOAD USLIB3/NC-LIB/CAT-LIB lines above.
+2. The compile process still ends with the cosmetic post-nested stack-overflow (UPDATE 72) - NRF is
+   written first; does not affect compile or link output.
+
+Reproduce: compile = ~/rel_test.sh, link = ~/link_test.sh (WSL).
+
+## UPDATE 74 (2026-07-26): scratch (file 100) not re-established between programs -> 2nd program 132B
+A program s MON 0B LEAVE runs mon_file_table_close_all_for_exit -> mon_file_table_reset(), which
+closes EVERY open host file including the always-open scratch (file 100 = SCRATCH64) and never
+reopens it. The scratch is opened ONCE at MON init (mon_dispatch.c), so only the FIRST program had
+it; a SECOND CPU program in the same --monitor session (a 2nd NC compile, or any program that needs
+the scratch) failed at startup with SINTRAN error 132B (no file opened with this number), and its
+mode-stream input then desynced to the shell. FIX: run_domain() re-establishes the scratch before
+EACH program - if auto_scratch_64 is on and file 100 is not in_use, mon_open_scratch_file(
+(SCRATCH)SCRATCH64,DATA). VERIFIED: two NC compiles in one session both reach code generation: ok;
+compile->link->run in one session prints Hello world. (This was Ronny s leak/tidy-up hunch - correct.)
+
+## UPDATE 75 (2026-07-26): nested-run state hygiene done; NC stack overflow is NOT a leak
+Two tidy-up fixes so a nested 317B UECOM program no longer leaks state into its caller:
+1. File ownership by GENERATION (mon_file_table.c): each open file tagged with a nesting generation;
+   a nested program LEAVE closes only files at >= the current generation, leaving the caller s files
+   (scratch, sources) open. shell_execute_command push/pops the generation around the nested run.
+2. Segment-allocator C-side state snapshot (nd500_segment_alloc.c state_save/restore): the growable-
+   segment table + physical watermark are saved before the nested run and restored after, paired with
+   the existing machine-RAM + CPU snapshot, so the sub-program s segment allocations do not leave the
+   caller pointing at a table entry the sub overwrote.
+Neither is a regression (compile+link+run still prints Hello world; two compiles in a session both OK).
+
+BUT the cosmetic NC post-codegen STACK OVERFLOW is NOT fixed by either - and is proven NOT a state
+leak: with OR without the RAM/seg/file snapshots the crash is bit-identical (same PC 0x0801E100, same
+instruction count 1,255,158). It is DETERMINISTIC NC-success-path behaviour: NC reaches a call loop at
+0x0801E100 (call 0x0801DEF7 ; call 0x08022660 ; go back) that recurses until TOS exceeds the stack
+limit; NC has no trap-27 handler (runtime THA=0x0802357C, THA[27] empty) so it is fatal. Only appears
+when the CAT-500 back-end actually RAN (stub UECOM took a shorter path: clean exit at 2,375,199). So
+this is the SAME CLASS as the jumpg bug - a mis-evaluated branch/loop-terminator on NC s real codegen
+path - and needs a focused instruction bisect around 0x0801E100, not more nested-run plumbing. It is
+cosmetic: the :NRF is fully written before it, the process exits, and all workflows (compile, link,
+run, multi-program sessions) work.
+
+## UPDATE 76 (2026-07-26): the NC post-codegen crash is HEAP EXHAUSTION, not a stack bug
+Bisected the deterministic overflow (PC 0x0801E100, instr 1,255,158). It is a HEAP allocation failure:
+nd500_heap_alloc_block() (GETB, the C-runtime buddy allocator) finds no free block and raises TRAP_STO
+(bit 27) so a program trap handler can grow the heap. Instrumentation (env ND500X_HEAPDBG) at the trap
+shows: req_log=10 max_log=23 but STAH=0, ENDH=0 and ALL freelists [0..23]=0, and ZERO FREEB calls in
+the whole run. So NC C-runtime HEAP REGION IS NEVER ESTABLISHED (MAXL set, but no heap area, freelists
+never seeded). NC installs trap handlers only for 32-41 (PV etc.) - NOT trap 27 - because it expects
+its heap pre-seeded; so the unhandled STO is fatal (No trap handler at THA[27]). The stub UECOM never
+hit this because its degraded path never reached the GETB.
+ROOT: at DOM load / C-runtime init the ND-500 heap (STAH/ENDH + initial freelist seed, from the DOM
+heap-space / rts_heap_size) is not set up in nd500x. FIX DIRECTION: establish the heap at DOM load
+(set STAH/ENDH to the reserved growth region, seed the top freelist) OR make GETB carve a fresh block
+from STAH..ENDH when the freelists are empty (real buddy behaviour) - but STAH=ENDH=0 means the region
+itself is missing, so the load-time heap setup is the primary gap. Cosmetic today: the :NRF is written
+before the trap and the process exits; all workflows (compile/link/run/multi-program) work.
+Diagnostics left env-gated: ND500X_HEAPDBG in instruction_helpers.c (GETB) + Freeb.c (FREEB).
+
+### UPDATE 76b (2026-07-26): HELLO survives the SAME STO - it has the heap-grow handler, NC-A06 does not
+Decisive comparison. Our linked HELLO.DOM hits the IDENTICAL empty-heap STO (GETB req_log=10, STAH=0
+ENDH=0, all freelists 0) at startup PC 0x08004037 - but HELLO SURVIVES: its C-library trap-27 handler
+seeds/grows the heap, retries, and HELLO runs to Hello world + clean exit. NC-A06 hits the same STO
+later (post-codegen, PC 0x0801E100) but has NO trap-27 handler (it installs only 32-41), so it is
+fatal. Root difference: HELLO was LINKED BY US with the C runtime (USLIB3/NC-LIB/CAT-LIB), which
+provides the STO/heap-grow handler; NC-A06 is a VENDOR pre-built DOM that expects the real SINTRAN
+ND-500 monitor/swapper to establish its heap - which nd500x DOM-load does not do. Note the emulator
+GETB DELIBERATELY traps instead of carving from STAH..ENDH (instruction_helpers.c comment: the program
+s own handler must manage the heap); that is fine when the program HAS a handler (HELLO) and fatal when
+it does not (NC-A06).
+FIX OPTIONS (both real, need care to not break the working HELLO/compile paths):
+  (A) Emulator heap-grow FALLBACK: when GETB would trap STO and the domain has NO trap-27 handler,
+      carve a fresh block from the domain data-growth reserve (bump STAH as a break pointer, ENDH =
+      reserve end), matching what HELLO s handler does; only engages for handler-less vendor DOMs.
+  (B) Establish the heap at DOM load from the DOM heap-space / rts_heap_size (set STAH/ENDH to the
+      reserve region) so GETB finds it - but must not fight the program s own C-INIT.
+Still cosmetic: :NRF written before the trap, process exits, all workflows work.
+
+### UPDATE 76c (2026-07-26): emulator heap-grow FALLBACK attempted and REVERTED (regressed compile)
+Tried option A: when GETB hits an empty heap and the domain has NO trap-27 handler (vendor DOMs like
+NC-A06), allocate a real MMU-backed heap segment (nd500_mon_allocate_segment) and bump-allocate from
+it - mirroring what our linked C programs do (measured: HELLO grows STAH=0x18000000..ENDH=0x1801FFFF,
+seg 3). It REGRESSED the working compile (HELLO.NRF 933 -> 0). HEAPDBG showed why: with NC invoking
+nested UECOM programs (CAT-CAT5-B, NC-A) that EACH have their own C-runtime handler and establish
+their own heaps at the SAME segment VAs (0x18000000...), PLUS the RAM snapshot/restore around each
+nested run, NC top-level and the nested programs write STAH/ENDH from several sources and the injected
+fallback heap (allocated at seg 6 / 0x30000000) conflicts with the 0x18000000 heaps - codegen output
+lost. Reverted to the known-good trap; compile+link+run verified working again (NRF 933, DOM 6.3M,
+Hello world). CONCLUSION: a per-GETB fallback cannot be made safe against the nested-run + RAM-snapshot
+machinery. A real fix needs either (a) rethinking the RAM snapshot so nested programs do not share/undo
+heap VAs with the caller, or (b) establishing NC-A06 heap the way the real SINTRAN ND-500 monitor does
+at domain start (before any GETB), independent of the nested passes. Both are larger than a gated
+fallback. Overflow remains cosmetic (NRF written first, process exits, all workflows work). Diagnostics
+left env-gated (ND500X_HEAPDBG).

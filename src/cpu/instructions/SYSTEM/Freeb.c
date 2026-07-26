@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * FREEB instruction - SYSTEM class
@@ -107,6 +108,11 @@ void nd500_instr_Freeb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Update freelist head: FLOG[log_size] = element */
     nd500_write_memory_32(cpu, freelist_addr, element);
+
+    if (getenv("ND500X_HEAPDBG")) {
+        fprintf(stderr, "[HEAPDBG] FREEB PC=0x%08X log_size=%u element=0x%08X TOS=0x%08X\n",
+                fi->address, log_size, element, cpu->TOS);
+    }
 
     /* All flags unaffected per ND-500 Reference Manual */
     /* PC will be advanced automatically by cpu_step() */

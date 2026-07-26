@@ -683,3 +683,38 @@ int nd500_mon_connect_file_as_segment(void* cpu_ptr, void* machine_ptr, uint8_t 
     return ERR_SUCCESS;
 }
 
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Save / restore the segment-allocator's module state.
+ *
+ * NOTE: reconstructed after the uncommitted working-tree definitions were lost
+ * (the file reverted to its committed content, which never carried these). The
+ * module's entire persistent state is exactly the three statics below, so a
+ * complete snapshot + restore is correct by construction. Used by the SINTRAN
+ * shell (nd500x_shell.c) to isolate segment allocations made during a DOM run:
+ * save before the run, restore afterwards so per-run growable segments and the
+ * physical-page watermark do not leak into the persistent machine state.
+ * ───────────────────────────────────────────────────────────────────────── */
+typedef struct {
+    GrowableSegment growable[GROWABLE_MAX_SEGMENTS];
+    uint32_t        next_free_pfn;
+    void*           watermark_machine;
+} SegAllocStateBlob;
+
+void* nd500_segment_alloc_state_save(void) {
+    SegAllocStateBlob* b = (SegAllocStateBlob*)malloc(sizeof(SegAllocStateBlob));
+    if (!b) return NULL;
+    memcpy(b->growable, g_growable, sizeof(g_growable));
+    b->next_free_pfn     = g_next_free_pfn;
+    b->watermark_machine = g_watermark_machine;
+    return b;
+}
+
+void nd500_segment_alloc_state_restore(void* blob) {
+    if (!blob) return;
+    SegAllocStateBlob* b = (SegAllocStateBlob*)blob;
+    memcpy(g_growable, b->growable, sizeof(g_growable));
+    g_next_free_pfn     = b->next_free_pfn;
+    g_watermark_machine = b->watermark_machine;
+    free(blob);
+}

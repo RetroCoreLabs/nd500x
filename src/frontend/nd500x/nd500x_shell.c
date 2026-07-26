@@ -33,6 +33,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <termios.h>
 
 #ifdef HAVE_READLINE
@@ -48,6 +49,11 @@
 #include "../../ndlib/ndlib.h"
 #include "nd500_dom.h"
 #include "nd500x_telnet.h"
+
+/* Segment-allocator C-side state snapshot (nd500_segment_alloc.c) - used to make
+ * a nested 317B UECOM program run transparent to its caller. */
+void* nd500_segment_alloc_state_save(void);
+void  nd500_segment_alloc_state_restore(void* blob);
 
 /* Transport: shell output/input goes to the local console or a telnet client.
  * All shell text below uses printf, which is routed via shell_printf(). */
@@ -82,6 +88,63 @@ static int           g_have_cooked = 0;
 
 /* Generous safety cap so a runaway DOM cannot wedge the shell forever. */
 #define SHELL_MAX_STEPS 2000000000ULL
+
+/* ---- MODE (script) execution -------------------------------------------
+ * A MODE file is a script of shell command lines, optionally INTERLEAVED with
+ * input consumed by programs the script starts (e.g. NC-A06 then its own
+ * CHECK / GENERATE-CODE / EXIT lines) - exactly like piping the lines to stdin.
+ * We feed the whole (parameter-substituted) file through ONE console so that
+ * the mode line-reader AND any program started mid-script draw from the SAME
+ * stream, matching real SINTRAN @MODE semantics (ND-60.128.5 p200, ND-60.050.06
+ * section 3.3.8). Command echo + program output go to the terminal (this is why
+ * we cannot reuse the capture-to-buffer queued console). g_mode_active tells
+ * run_domain to keep this console instead of reinstalling the stdio one. */
+static char*  g_mode_buf    = NULL;   /* parameter-substituted script text */
+static size_t g_mode_len    = 0;
+static size_t g_mode_pos    = 0;
+static int    g_mode_active = 0;      /* >0 while a MODE script is running */
+static int    g_mode_depth  = 0;      /* nesting depth (SINTRAN max 10) */
+
+static int mode_read_char(void* ctx) {
+    (void)ctx;
+    if (g_mode_pos >= g_mode_len) return -1;              /* EOF ends the mode */
+    char c = g_mode_buf[g_mode_pos++];
+    return (c == '\n') ? '\r' : (int)(unsigned char)c;    /* SINTRAN line break = CR */
+}
+static int mode_peek_char(void* ctx) {
+    (void)ctx;
+    if (g_mode_pos >= g_mode_len) return -1;
+    char c = g_mode_buf[g_mode_pos];
+    return (c == '\n') ? '\r' : (int)(unsigned char)c;
+}
+static bool mode_char_available(void* ctx) { (void)ctx; return g_mode_pos < g_mode_len; }
+static int  mode_wait_for_input(void* ctx) { (void)ctx; return g_mode_pos < g_mode_len ? 1 : 0; }
+static void mode_write_char(void* ctx, int ch) {
+    (void)ctx;
+    if (g_use_telnet) { char s[2] = { (char)ch, 0 }; nd500x_telnet_write(s); }
+    else { putchar(ch); fflush(stdout); }
+}
+static ConsoleIO g_mode_console = {
+    .read_char      = mode_read_char,
+    .write_char     = mode_write_char,
+    .char_available = mode_char_available,
+    .peek_char      = mode_peek_char,
+    .wait_for_input = mode_wait_for_input,
+    .context        = NULL,
+};
+
+/* Read one line (up to CR) from the mode stream into out; -1 at end of stream. */
+static int mode_getline(char* out, size_t n) {
+    size_t i = 0;
+    for (;;) {
+        int c = mode_read_char(NULL);
+        if (c < 0) { if (i == 0) return -1; break; }     /* EOF */
+        if (c == '\r' || c == '\n') break;               /* end of line */
+        if (i < n - 1) out[i++] = (char)c;
+    }
+    out[i] = '\0';
+    return (int)i;
+}
 
 /* Terminal-type names are NOT hardcoded - they are read from the real VTM
  * terminal-definition file (e.g. DDBTABLES-*.VTM) that ships with the system,
@@ -295,6 +358,140 @@ static void restore_cooked(void) {
     }
 }
 
+/* Nested command runner for MON 317B UECOM (registered via mon_set_execute_command).
+ * NC-A06 (CAT-NC-CROSS-A) invokes its code-generator back-end CAT-CAT5-B06 - and
+ * other passes - as NESTED SINTRAN commands via UECOM. We resolve the command to
+ * a program, run it RE-ENTRANTLY sharing the global monitor file table (so the
+ * back-end reads the scratch the front-end produced and writes the caller's
+ * opened output), then restore the caller and return so it resumes after UECOM.
+ * Return: 0 ran ok; -1 not a known program (caller keeps benign stub); >0 failed. */
+#define UECOM_MAX_NEST 4
+static int g_uecom_nest = 0;
+
+static int shell_execute_command(void* cpu_v, void* machine_v, const char* command) {
+    (void)cpu_v; (void)machine_v;   /* use the shell globals g_cpu / g_machine */
+    if (!command || !*command) return -1;
+
+    /* Split "NAME <args...>" - first whitespace-delimited token is the program. */
+    char name[128];
+    const char* p = command;
+    while (*p == ' ' || *p == '\t') p++;
+    int ni = 0;
+    while (*p && *p != ' ' && *p != '\t' && ni < (int)sizeof(name) - 1) name[ni++] = *p++;
+    name[ni] = '\0';
+    while (*p == ' ' || *p == '\t') p++;
+    const char* args = p;   /* remainder (may be empty) */
+    if (name[0] == '\0') return -1;
+
+    char path[1024];
+    if (resolve_domain(name, path, sizeof(path)) != 1)
+        return -1;          /* not a known program -> benign stub in the handler */
+
+    if (g_uecom_nest >= UECOM_MAX_NEST) {
+        mon_log(MON_LOG_WARN, "UECOM: nesting too deep, refusing '%s'", name);
+        return 1;
+    }
+
+    /* Save the caller's FULL CPU state (registers, PC, domain, MMU regs, trap +
+     * pending-call state). The nested run intentionally KEEPS its changes to
+     * machine MEMORY and the FILE TABLE (that is how the back-end's output
+     * survives); only the caller's CPU context must be restored so it resumes
+     * exactly after its UECOM MON call. The caller's domain register bank
+     * (TOS/LL/HL/THA in its DIT slot) is untouched by the sub-program's own
+     * freshly-allocated domain. */
+    Nd500Cpu saved_cpu = *g_cpu;
+    int saved_run  = g_machine->run_flag;
+    int saved_stop = g_machine->stop_reason;
+
+    /* Snapshot the caller's physical RAM too. The DOM loader places every
+     * program at FIXED physical addresses (same PSN/page-tables as the caller),
+     * so a nested load OVERWRITES the caller's resident image - without this the
+     * caller resumes on the sub-program's page tables and hangs/crashes. The
+     * sub-program returns its results through FILES (scratch + output, flushed
+     * to the host disk on its LEAVE), NOT through RAM, so restoring RAM after
+     * the nested run preserves the caller's image without losing any output. */
+    uint8_t* mem_backup = NULL;
+    if (g_machine->memory && g_machine->memory_size) {
+        mem_backup = (uint8_t*)malloc(g_machine->memory_size);
+        if (mem_backup) memcpy(mem_backup, g_machine->memory, g_machine->memory_size);
+    }
+
+    /* Also snapshot the segment allocator's C-side state (growable-segment table
+     * + physical watermark): the sub-program allocates segments at the same
+     * fixed physical addresses as the caller, and restoring machine RAM without
+     * this leaves the caller pointing at a growable-segment table entry the
+     * sub-program overwrote - which surfaced as a spurious stack overflow in NC
+     * right after its codegen pass. */
+    void* seg_backup = nd500_segment_alloc_state_save();
+
+    g_uecom_nest++;
+
+    int rc = ndlib_load_dom_header(path);
+    if (rc == 0) rc = ndlib_load_dom_segments();
+    uint32_t start_addr = 0;
+    int loaded_domain = -1;
+    if (rc == 0)
+        rc = ndlib_dom_load_to_machine(g_machine, g_cpu, -1, NULL, NULL,
+                                       &start_addr, &loaded_domain);
+    if (rc != 0) {
+        if (mem_backup) { memcpy(g_machine->memory, mem_backup, g_machine->memory_size); free(mem_backup); }
+        nd500_segment_alloc_state_restore(seg_backup);
+        *g_cpu = saved_cpu;
+        g_machine->run_flag  = saved_run;
+        g_machine->stop_reason = saved_stop;
+        g_uecom_nest--;
+        mon_log(MON_LOG_WARN, "UECOM: failed to load '%s' (%s)", name, path);
+        return 1;
+    }
+
+    mon_set_command_buffer(args ? args : "");
+
+    /* Tag files the sub-program opens at a raised generation so its MON 0B LEAVE
+     * closes only its OWN files and leaves the caller's (scratch, sources) open,
+     * so the caller resumes cleanly (fixes NC's post-codegen stack overflow). */
+    mon_file_table_push_generation();
+
+    /* Nested execution loop - mirrors run_domain's, minus banners/console setup
+     * (the console is already bridged by the outer run). Runs until the sub-
+     * program issues MON 0B LEAVE (clears run_flag / sets STOP_MON_HALT). */
+    g_machine->run_flag = 1;
+    g_machine->stop_reason = STOP_NONE;
+    uint64_t steps = 0;
+    while (g_machine->run_flag) {
+        if (steps >= SHELL_MAX_STEPS) break;
+        int ok = nd500_cpu_step(g_cpu);
+        steps++;
+        if (g_machine->stop_reason == STOP_WAIT_INPUT) {
+            if (mon_console_wait_for_input()) {
+                g_machine->stop_reason = STOP_NONE;
+                g_machine->run_flag = 1;
+                continue;
+            }
+            break;
+        }
+        if (g_machine->stop_reason == STOP_MON_HALT) break;
+        if (!ok) break;
+    }
+
+    /* Sub-program done: drop back to the caller's file generation (its LEAVE
+     * already closed only its own files). */
+    mon_file_table_pop_generation();
+
+    /* Restore the caller so it resumes right after its UECOM call: physical RAM
+     * (undo the sub-program's clobber of the caller's resident image) then the
+     * full CPU context. The sub-program's file output already persisted to disk. */
+    if (mem_backup) { memcpy(g_machine->memory, mem_backup, g_machine->memory_size); free(mem_backup); }
+    nd500_segment_alloc_state_restore(seg_backup);
+    *g_cpu = saved_cpu;
+    g_machine->run_flag  = saved_run;
+    g_machine->stop_reason = saved_stop;
+    g_uecom_nest--;
+
+    mon_log(MON_LOG_INFO, "UECOM: nested '%s' ran %llu instrs (domain %d)",
+            name, (unsigned long long)steps, loaded_domain);
+    return 0;
+}
+
 /* Load and execute a DOM, bridging its terminal I/O to the host console. */
 /* args = the text typed after the program name (e.g. "TEST" in "NC TEST").
  * SINTRAN passes this to the program via the command buffer (MON 12B SETCM);
@@ -329,9 +526,28 @@ static void run_domain(const char* name, const char* args) {
     printf("-- %s placed (domain %d, start 0x%08X)%s%s --\n", name, loaded_domain, g_cpu->PC,
            (args && *args) ? " args=" : "", (args && *args) ? args : "");
 
-    /* Bridge terminal I/O to the active transport; run until the program exits. */
-    if (g_use_telnet) mon_file_table_set_console(nd500x_telnet_console());
-    else              mon_install_stdio_console();
+    /* Bridge terminal I/O to the active transport; run until the program exits.
+     * Inside a MODE script keep the mode console so the program reads its input
+     * (CHECK/GENERATE-CODE/EXIT...) from the same script stream, not the tty. */
+    if (g_mode_active)     { /* keep g_mode_console */ }
+    else if (g_use_telnet) mon_file_table_set_console(nd500x_telnet_console());
+    else                   mon_install_stdio_console();
+
+    /* Re-establish the always-open scratch (file 100 = SCRATCH64) before EACH
+     * program. A program's MON 0B LEAVE runs close_all_for_exit -> file-table
+     * reset, which closes EVERY open file including the scratch and never
+     * reopens it. It is opened once at MON init, so only the FIRST program had
+     * it; a SECOND program in the same session (a 2nd compile, or the linker
+     * after NC) then failed at startup with SINTRAN error 132B (no file opened
+     * with this number). Reopen it here if it is gone so every program starts
+     * with a fresh scratch, exactly as the first one did. */
+    if (mon_config_get_auto_scratch_64()) {
+        OpenFileEntry* scr = mon_file_table_get(64 /* file 100 octal */);
+        if (!scr || !scr->in_use) {
+            mon_open_scratch_file("(SCRATCH)SCRATCH64", "DATA");
+        }
+    }
+
     g_machine->run_flag = 1;
     g_machine->stop_reason = STOP_NONE;
     uint64_t steps = 0;
@@ -384,6 +600,9 @@ static void cmd_set_term(int argc, char** argv);
 static void cmd_get_term(int argc, char** argv);
 static void cmd_recover_domain(int argc, char** argv);
 static void cmd_create_file(int argc, char** argv);
+static void cmd_type(int argc, char** argv);
+static void cmd_edit(int argc, char** argv);
+static void cmd_mode(int argc, char** argv);
 static void cmd_delete_file(int argc, char** argv);
 static void cmd_rename_file(int argc, char** argv);
 static void cmd_copy_file(int argc, char** argv);
@@ -405,6 +624,9 @@ static const struct {
     { "GET-TERMINAL-TYPE",cmd_get_term,       0, "GET-TERMINAL-TYPE - show current terminal type" },
     { "RECOVER-DOMAIN",   cmd_recover_domain, 1, "RECOVER-DOMAIN <name> - load and run a domain" },
     { "CREATE-FILE",      cmd_create_file,    1, "CREATE-FILE <name> - create an empty file (default type :DATA)" },
+    { "TYPE",             cmd_type,           1, "TYPE <name>:<type> - copy a file's contents to the terminal" },
+    { "EDIT",             cmd_edit,           1, "EDIT <name>:<type> - open the file in VS Code on the host" },
+    { "MODE",             cmd_mode,           1, "MODE <file> - run a script of commands from <file>:MODE (SINTRAN @MODE)" },
     { "DELETE-FILE",      cmd_delete_file,    1, "DELETE-FILE <name>:<type> - delete a file" },
     { "RENAME-FILE",      cmd_rename_file,    1, "RENAME-FILE <old>,<new> - rename a file" },
     { "COPY-FILE",        cmd_copy_file,      1, "COPY-FILE <destination>,<source> - copy a file" },
@@ -577,6 +799,86 @@ static void cmd_delete_file(int argc, char** argv) {
     printf("Deleted %s\n", argv[1]);
 }
 
+/* Resolve a SINTRAN file name to a host path, current user's directory first
+ * then SYSTEM (so TYPE/EDIT reach shared files too). Returns 1 if the file
+ * exists (out = the existing path); 0 if not (out = the current-user candidate,
+ * so EDIT can still open it as a new file). */
+static int sh_resolve_file(const char* name, char* out, size_t n) {
+    sh_user_path(name, NULL, out, n);
+    if (access(out, F_OK) == 0) return 1;
+    const char* root = mon_config_get_sintran_root();
+    if (!root || !*root) root = ".";
+    char base[192];
+    sh_basename(name, NULL, base, sizeof base);
+    char sys[1024];
+    snprintf(sys, sizeof sys, "%s/SYSTEM/%s", root, base);
+    if (access(sys, F_OK) == 0) { snprintf(out, n, "%s", sys); return 1; }
+    return 0;
+}
+
+/* TYPE <name>:<type> - copy a file's contents to the terminal (SINTRAN
+ * COPY-TERMINAL, shortened). SINTRAN text files terminate lines with CR (0x0D);
+ * translate CR / CRLF to LF so the host terminal renders them correctly. */
+static void cmd_type(int argc, char** argv) {
+    if (argc < 2) { printf("FILE NAME MISSING\n"); return; }
+    char path[1024];
+    if (!sh_resolve_file(argv[1], path, sizeof path)) { printf("NO SUCH FILE NAME\n"); return; }
+    FILE* f = fopen(path, "rb");
+    if (!f) { printf("NO SUCH FILE NAME\n"); return; }
+    unsigned char buf[4096];
+    char out[8193];
+    size_t k;
+    while ((k = fread(buf, 1, sizeof buf, f)) > 0) {
+        size_t o = 0;
+        for (size_t i = 0; i < k; i++) {
+            unsigned char c = buf[i];
+            if (c == '\r') {
+                out[o++] = '\n';
+                if (i + 1 < k && buf[i + 1] == '\n') i++;  /* collapse CRLF */
+            } else if (c == '\0') {
+                continue;                                  /* skip NUL padding */
+            } else {
+                out[o++] = (char)c;
+            }
+        }
+        out[o] = '\0';
+        sh_puts(out);
+    }
+    fclose(f);
+    sh_puts("\n");   /* leave the next @ prompt on its own line */
+}
+
+/* EDIT <name>:<type> - open the file in VS Code on the host. `code` hands the
+ * path to the running VS Code instance and returns immediately; a non-existent
+ * file opens as a new buffer that is created on first save. */
+static void cmd_edit(int argc, char** argv) {
+    if (argc < 2) { printf("FILE NAME MISSING\n"); return; }
+    char path[1024];
+    sh_resolve_file(argv[1], path, sizeof path);  /* out is set even when absent */
+
+    /* Need `code` on PATH (VS Code + Remote-WSL). Check first so we can tell the
+     * user instead of silently doing nothing. */
+    if (system("command -v code >/dev/null 2>&1") != 0) {
+        printf("'code' not found on PATH - install VS Code / the Remote-WSL 'code' shim.\n");
+        return;
+    }
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        /* Child: detach from the terminal and exec VS Code (no shell, so the
+         * host path is passed verbatim - no injection from the file name). */
+        setsid();
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) { dup2(devnull, 0); dup2(devnull, 1); dup2(devnull, 2); }
+        execlp("code", "code", path, (char*)NULL);
+        _exit(127);
+    } else if (pid > 0) {
+        printf("Opening %s in VS Code...\n", path);
+    } else {
+        printf("Could not launch editor (fork failed)\n");
+    }
+}
+
 static void cmd_rename_file(int argc, char** argv) {
     if (argc < 3) { printf("USAGE: RENAME-FILE <old>,<new>\n"); return; }
     char op[1024], np[1024];
@@ -674,6 +976,80 @@ static void dispatch(char* line) {
     run_domain(tok[0], tail);
 }
 
+/* MODE <file> - run a script of shell commands from a mode file (SINTRAN @MODE).
+ * The file may interleave shell commands with input consumed by programs it
+ * starts; both read from the one script stream (see g_mode_console). Faithful to
+ * real SINTRAN @MODE: NO parameters (one literal file per task, e.g.
+ * COMPILE-HELLO:MODE), @CC comment lines, a leading @ herald is tolerated, EOF
+ * ends the mode, nesting to depth 10. Default file type :MODE, then :SYMB (the
+ * real SINTRAN default). */
+static void cmd_mode(int argc, char** argv) {
+    if (argc < 2) { printf("FILE NAME MISSING\n"); return; }
+    if (g_mode_depth >= 10) { printf("MODE NESTING TOO DEEP (max 10)\n"); return; }
+
+    /* Resolve the script to a host path: an explicit :type wins, else try
+     * :MODE then :SYMB; current user's directory first, then SYSTEM. */
+    char path[1024];
+    int found = 0;
+    if (strchr(argv[1], ':')) {
+        found = sh_resolve_file(argv[1], path, sizeof path);
+    } else {
+        char nm[192];
+        snprintf(nm, sizeof nm, "%s:MODE", argv[1]);
+        found = sh_resolve_file(nm, path, sizeof path);
+        if (!found) { snprintf(nm, sizeof nm, "%s:SYMB", argv[1]); found = sh_resolve_file(nm, path, sizeof path); }
+    }
+    if (!found) { printf("NO SUCH FILE NAME\n"); return; }
+
+    FILE* f = fopen(path, "rb");
+    if (!f) { printf("NO SUCH FILE NAME\n"); return; }
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz < 0 || sz > 4 * 1024 * 1024) { fclose(f); printf("CANNOT READ FILE\n"); return; }
+    char* raw = (char*)malloc((size_t)sz + 1);
+    if (!raw) { fclose(f); printf("OUT OF MEMORY\n"); return; }
+    size_t got = fread(raw, 1, (size_t)sz, f);
+    fclose(f);
+    raw[got] = '\0';
+
+    /* Save the outer input state (supports nesting), install this script
+     * VERBATIM - real SINTRAN mode files take no parameters. */
+    ConsoleIO* prev_console = mon_file_table_get_console();
+    char*  save_buf = g_mode_buf;
+    size_t save_len = g_mode_len, save_pos = g_mode_pos;
+    g_mode_buf = raw; g_mode_len = got; g_mode_pos = 0;
+    mon_file_table_set_console(&g_mode_console);
+    g_mode_active++; g_mode_depth++;
+
+    /* Read shell command lines from the script and dispatch them; a line that
+     * starts a program lets that program consume the following lines from the
+     * same stream. */
+    char line[2048];
+    while (g_running) {
+        int n = mode_getline(line, sizeof line);
+        if (n < 0) break;                                /* end of script */
+        char* s = line;
+        while (*s == ' ' || *s == '\t') s++;
+        if (*s == '\0') continue;                        /* blank line */
+        if (*s == '@') s++;                              /* tolerate the @ herald */
+        /* Comments: @CC <text> (SINTRAN), or a leading % / ; (convenience). */
+        if (s[0] == '%' || s[0] == ';') continue;
+        if ((s[0] == 'C' || s[0] == 'c') && (s[1] == 'C' || s[1] == 'c') &&
+            (s[2] == ' ' || s[2] == '\t' || s[2] == '\0')) continue;
+        printf("@%s\n", s);                              /* echo like SINTRAN does */
+        char work[2048];
+        snprintf(work, sizeof work, "%s", s);
+        dispatch(work);
+    }
+
+    /* Restore the outer input state. */
+    g_mode_active--; g_mode_depth--;
+    mon_file_table_set_console(prev_console);
+    free(raw);
+    g_mode_buf = save_buf; g_mode_len = save_len; g_mode_pos = save_pos;
+}
+
 static char* shell_readline(const char* prompt) {
     if (g_use_telnet) {
         static char tbuf[1024];
@@ -703,6 +1079,10 @@ int nd500x_shell_run(Nd500Machine* machine, Nd500Cpu* cpu, const char* script_pa
     g_cpu = cpu;
     g_logged_in = 0;
     g_running = 1;
+
+    /* Let MON 317B UECOM actually run nested programs (NC's CAT-500 back-end,
+     * other passes) re-entrantly via this shell's DOM load+run path. */
+    mon_set_execute_command(shell_execute_command);
 
     /* ND500X_MONLOG=1 enables MON-call tracing to stderr (debugging the shell)
      * and keeps the emulator's informational output; otherwise the shell runs
