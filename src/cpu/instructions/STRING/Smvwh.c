@@ -89,13 +89,13 @@ void nd500_instr_Smvwh(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_clear_flag(cpu, ND500_FLAG_K);
         nd500_clear_flag(cpu, ND500_FLAG_Z);
     } else if (src_index >= source_desc.element_count) {
-        /* Source empty */
+        /* Source empty -> K=0. Z stays 0 (microcode ALU,A A,BM00 ST,SAVA; reason carried in K). */
         nd500_clear_flag(cpu, ND500_FLAG_K);
-        nd500_set_flag(cpu, ND500_FLAG_Z);
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
     } else if (dest_index >= dest_desc.element_count) {
-        /* Dest full */
+        /* Dest full -> K=1. Z stays 0. */
         nd500_set_flag(cpu, ND500_FLAG_K);
-        nd500_set_flag(cpu, ND500_FLAG_Z);
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
     }
 
     nd500_clear_flag(cpu, ND500_FLAG_S);

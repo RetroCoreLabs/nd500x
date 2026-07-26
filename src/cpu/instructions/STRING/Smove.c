@@ -80,14 +80,17 @@ void nd500_instr_Smove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     cpu->I[1] = dest_index;
 
     /* Set status flags */
+    /* Z is left 0 on completion. The real B30 microcode terminator is ALU,A A,BM00 B,X1 ST,SAVA
+       (A,BM00 = 1<<0 = 1) -> Z=0; the termination REASON is carried in K (SOUR_RANGE @003117 K,ZRO ->
+       source exhausted K=0, DEST_RANGE @003122 K,ONE -> dest full K=1), never re-latching Z. The green
+       SFILL follows this; setting Z=1 diverged from the microword on every completed move. */
+    nd500_clear_flag(cpu, ND500_FLAG_Z);
     if (src_index >= source_desc.element_count) {
-        /* Source empty */
-        nd500_set_flag(cpu, ND500_FLAG_Z);
+        /* Source exhausted -> K=0 */
         nd500_clear_flag(cpu, ND500_FLAG_K);
     } else if (dest_index >= dest_desc.element_count) {
-        /* Destination full */
+        /* Destination full -> K=1 */
         nd500_set_flag(cpu, ND500_FLAG_K);
-        nd500_clear_flag(cpu, ND500_FLAG_Z);
     }
 
     nd500_string_clear_unused_flags(cpu);  /* Clears S, C, O */
