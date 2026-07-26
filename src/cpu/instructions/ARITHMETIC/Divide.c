@@ -338,19 +338,41 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     // Check for divide by zero
     if (divisor == 0) {
-        /* Non-restoring integer divide hardware leaves the quotient SATURATED at
-         * the datatype's maximum positive value before the DZ trap is taken
-         * (BY->0x7F, H->0x7FFF, W->0x7FFFFFFF). Match the functional CpuND500 and
-         * the microword CpuND5000 (cross-core cases, nd500x commit 778d44e) - the
-         * register must NOT keep its original dividend. */
+        /* Non-restoring integer divide hardware leaves the quotient SATURATED at the
+         * LARGEST-MAGNITUDE value OF THE DIVIDEND'S SIGN before the DZ trap is taken -
+         * NOT unconditionally max positive. Adjudicated against the real B30 microcode
+         * (2026-07-26): divide-by-zero BRANCHES on the dividend sign at @024133
+         * (COND,MSGN -> INTDN):
+         *   - POSITIVE dividend -> @024134-024135 (OR A,BM14=DZ bit12 ST,LOAD):
+         *     quotient = max positive (BY 0x7F, H 0x7FFF, W 0x7FFFFFFF), S = 0.
+         *   - NEGATIVE dividend -> INTDN @024136-024140 (OR A,SARG=010200 = DZ bit12 +
+         *     S bit7 ST,LOAD): quotient = MIN (BY 0x80, H 0x8000, W 0x80000000), S = 1.
+         * Traced microword: -12/0 -> 0x80000000 S=1; +5/0 -> 0x7FFFFFFF S=0. The earlier
+         * "always max positive" fix (commit ddda6ea/778d44e) only covered positive
+         * dividends. S follows the saturated quotient's sign (= the dividend sign). */
+        bool dividend_negative;
         uint32_t sat;
         switch (fi->data_type) {
-            case ND500_DTYPE_BYTE:     sat = 0x0000007Fu; break;
-            case ND500_DTYPE_HALFWORD: sat = 0x00007FFFu; break;
-            case ND500_DTYPE_WORD:     sat = 0x7FFFFFFFu; break;
-            default:                   sat = 0x7FFFFFFFu; break;
+            case ND500_DTYPE_BYTE:
+                dividend_negative = (reg_value & 0x80u) != 0;
+                sat = dividend_negative ? 0x00000080u : 0x0000007Fu;
+                break;
+            case ND500_DTYPE_HALFWORD:
+                dividend_negative = (reg_value & 0x8000u) != 0;
+                sat = dividend_negative ? 0x00008000u : 0x00007FFFu;
+                break;
+            case ND500_DTYPE_WORD:
+            default:
+                dividend_negative = (reg_value & 0x80000000u) != 0;
+                sat = dividend_negative ? 0x80000000u : 0x7FFFFFFFu;
+                break;
         }
         nd500_write_integer_register(cpu, fi->target_register, sat);
+        if (dividend_negative) {
+            cpu->ST1 |= ND500_FLAG_S;   /* microcode INTDN ST,LOAD SARG=010200 sets S */
+        } else {
+            cpu->ST1 &= ~ND500_FLAG_S;
+        }
         cpu->ST1 |= ND500_FLAG_DZ;
         trap_divide_by_zero(cpu, fi->address);
         return;
