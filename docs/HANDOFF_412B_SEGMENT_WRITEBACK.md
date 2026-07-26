@@ -109,6 +109,16 @@ Regression: `ctest` 16/18, the two long-standing failures only; `diag_fscnt`
 still reports `PASS: mapped segment bytes match the file`; input libraries
 verified byte-identical by md5.
 
+## Follow-up (2026-07-25)
+
+Two more call sites were found that ALSO needed to write back before dropping
+a segment mapping - `MON 0B LEAVE` (program exit) and `43B CLOSE`'s
+`FileNumber=-1`/`-2` bulk-close path - both of which skipped write-back
+entirely until fixed. See
+`/home/ronny/repos/nd500x/docs/HANDOFF_MON_0B_LEAVE_FILE_CLOSE_WRITEBACK.md`.
+The "Still open" issue below is STILL open as of that follow-up, now
+reproduced on a second program (`HELLO`).
+
 ## Still open
 
 The linked program executes its entry stub and then calls address 0:

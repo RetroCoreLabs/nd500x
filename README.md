@@ -339,7 +339,10 @@ sourced from the ND-60.128.5 SINTRAN III Reference Manual; see
 ```
 
 So put your `.DOM` files in `<root>/SYSTEM/` or `<root>/<USER>/` and run them by
-name. Example against the bundled sandbox:
+name. Example against a sandbox with staged programs (`build/link_sandbox` in
+this transcript; note that directory is a `build/` artifact and is NOT
+committed - see "Convenience launcher" below for a root-level alternative that
+does not depend on it):
 
 ```
 $ ./build/bin/nd500x --monitor --sintran-root build/link_sandbox
@@ -393,6 +396,40 @@ telnet-port   = 4600
 **Scripted / batch:** `--script <file>` feeds shell commands from a file (one per
 line, a leading `@` is allowed) before returning to interactive input — useful for
 reproducible sessions.
+
+**Convenience launcher (`~/run_500.sh`).** A wrapper script outside the repo
+that always runs the current build against a fixed config:
+
+```bash
+#!/usr/bin/env bash
+ND500X=/home/ronny/repos/nd500x/build/bin/nd500x
+CONFIG=/home/ronny/repos/nd500x/build/test_sintran/nd500x.ini
+[ -n "$1" ] && exec "$ND500X" --telnet "$1" --config "$CONFIG" \
+           || exec "$ND500X" --monitor --config "$CONFIG"
+```
+
+Usage: `~/run_500.sh` (local terminal) or `~/run_500.sh <port>` (telnet, then
+`telnet localhost <port>`). Its config,
+`/home/ronny/repos/nd500x/build/test_sintran/nd500x.ini`, is NOT committed
+(everything under `build/` is a build artifact) — if it's missing, rebuild it
+from the ini format above. A working example, using the repo root itself as
+`sintran-root` (it already has live `GUEST/`, `SYSTEM/`, `SCRATCH/` dirs):
+
+```ini
+# build/test_sintran/nd500x.ini
+sintran-root  = /home/ronny/repos/nd500x
+user          = GUEST
+terminal-type = 53
+```
+
+Note: with `sintran-root` pointed at the repo root, `SYSTEM/` there is empty
+by default, so name-based `RECOVER-DOMAIN`/`@<name>` lookups against
+`<root>/SYSTEM/` won't resolve until you stage `.DOM` files there (or point
+`sintran-root` at a sandbox that already has them, e.g. a repopulated
+`build/link_sandbox` — see
+[`docs/RUN_500_SH_CONFIG_RECONSTRUCTION.md`](docs/RUN_500_SH_CONFIG_RECONSTRUCTION.md)
+for the full story and current state). `<root>/GUEST/` files (like `A.C`,
+`B.C`) resolve fine as-is once logged in as `GUEST`.
 
 ### Debugger Commands
 
