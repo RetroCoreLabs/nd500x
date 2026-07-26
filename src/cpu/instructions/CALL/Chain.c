@@ -164,8 +164,30 @@ void nd500_instr_Chain(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ========================================================================
      * STEP 2-4: READ OPERANDS
      * ======================================================================== */
-    /* Operand 0: Starting address (usually current B register) */
-    uint32_t start_address = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* Operand 0: Starting address. Per the manual (section 15.7) this is typed <address/aa/W> -
+     * an ADDRESS operand, exactly like LADDR's operand. CHAIN's operation is "<address> -> Wn"
+     * then follow the chain, so operand 0 contributes its EFFECTIVE ADDRESS, not the memory value
+     * stored at it. This used to call nd500_read_operand_value (read the value AT the address = 0),
+     * so I1 came out 0 while the microword (correct) loaded the EA, e.g. B+100 = 0x2064. Resolve
+     * the address operand exactly as Laddr.c does (constant modes carry the value, memory modes use
+     * effective_address). */
+    uint32_t start_address;
+    {
+        const Nd500OperandDecoded* op0 = &fi->operands[0];
+        if (op0->mode == ND500_ADDR_CONSTANT_SHORT) {
+            start_address = op0->address_code & 0x3F;
+        } else if (op0->mode == ND500_ADDR_CONSTANT) {
+            switch (op0->data_len) {
+                case 1: start_address = op0->data[0]; break;
+                case 2: start_address = (uint32_t)((op0->data[0] << 8) | op0->data[1]); break;
+                case 4: start_address = (uint32_t)((op0->data[0] << 24) | (op0->data[1] << 16) |
+                                                    (op0->data[2] << 8) | op0->data[3]); break;
+                default: start_address = 0; break;
+            }
+        } else {
+            start_address = op0->effective_address;
+        }
+    }
 
     /* Operand 1: Offset to static link field within frame */
     uint32_t static_link_offset = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
