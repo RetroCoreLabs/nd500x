@@ -2450,3 +2450,38 @@ heap VAs with the caller, or (b) establishing NC-A06 heap the way the real SINTR
 at domain start (before any GETB), independent of the nested passes. Both are larger than a gated
 fallback. Overflow remains cosmetic (NRF written first, process exits, all workflows work). Diagnostics
 left env-gated (ND500X_HEAPDBG).
+
+### UPDATE 77 (2026-07-27): GETB-side fallback is ARCHITECTURALLY WRONG (section 3.3); reverted
+Re-attempted the fix as a properly-GATED GETB fallback and learned decisively why it cannot live in
+GETB. What was built + measured, then reverted:
+  - heap_establish_handlerless() at the TOP of nd500_heap_alloc_block(): for a DOM with THA[27]==0
+    (no STO handler) and an unestablished heap (STAH==ENDH), allocate a 2 MB MMU-backed segment
+    (nd500_mon_allocate_segment) and set MAXL=23, STAH=vbase, ENDH=vbase+2MB. Then an exhaustion
+    break-pointer CARVE hands out [STAH,STAH+size) and advances STAH, gated on THA[27]==0.
+  - RESULT: the original STO crash (PC=0x0801E100, "No trap handler at THA[27]") DID disappear, and
+    the gate correctly protected the CAT-CAT5-B codegen program (THA[27]=0x0802CF71 -> never carved).
+FOUR findings that stop this approach:
+  1. **It violates the ND-500 architecture and Ronny's own unit test.** `test/test_stack_overflow`
+     Test 2 asserts: "GETB exhaustion sets STO, no allocation ... freelist NOT re-seeded from
+     STAH/ENDH (section 3.3)". GETB carving from STAH/ENDH is exactly what section 3.3 reserves for the
+     TRAP HANDLER. My carve broke that test; reverting restored it. GETB must stay pure. The correct
+     actor is the monitor (at domain start) or a trap-27 handler - NOT GETB.
+  2. **The gate discriminator is THA[27]==0, NOT nesting depth.** The crashing GETB runs at UECOM
+     nest depth 2 (not top-level as UPDATE 76 assumed); a depth==0 gate blocks the exact case that
+     needs fixing. THA[27]==0 (handler-less) is the sound, sufficient discriminator - it is what keeps
+     the fallback off the codegen program (which HAS a handler and manages its own STAH..ENDH; carving
+     from that region is precisely the 76c corruption).
+  3. **A heap alone does NOT give a clean exit.** With the STO papered over, NC-A06 proceeds and then
+     jumps to PC=0 ("Invalid instruction 0x00 at PC=0x00000000"). So the vendor DOM needs more of the
+     real monitor's domain/teardown semantics than just a heap; fixing the heap only moves the failure.
+  4. **The shared branch was UNVALIDATABLE at the time.** Concurrent teams' uncommitted work had
+     regressed the compile itself (HELLO.NRF 933 -> 0) and left two unrelated unit tests failing
+     (ote_instructions, mon_calls); committed HEAD does not even build standalone (instruction_helpers.c
+     references nd500_ptewatch_wr, defined only in a teammate's uncommitted io.c). So a real end-to-end
+     "NRF still 933 + clean exit" check was impossible - do NOT trust any NRF byte-count taken in that
+     window.
+DECISION (Ronny): HOLD. Reverted both files to committed state (stack_overflow passes again). Redo
+when the tree is healthy, as the SPEC-COMPLIANT fix: seed the heap FREELISTS at DOM load for
+handler-less DOMs (so GETB merely UNLINKS a freelist entry - pure, test-safe), or install a synthetic
+trap-27 handler that does the monitor's heap-grow. Expect finding #3 (PC=0 downstream gap) to be the
+next blocker even after the heap is correct.
