@@ -257,7 +257,40 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
      * the early page-fault-during-bootstrap problem. Full guest-table mode
      * (all segments) remains available but needs the PGF->kernel dispatch. */
     int use_guest = mmu_use_guest_tables() && cpu->machine && cpu->DITBASE
-                 && (segment == 26 || segment == 29 || segment == 30 || segment == 31);
+                 && (/* User domains (domain != KDOM=0) have NO direct-loaded image:
+                      * every segment of a user process is mapped only by the guest
+                      * capability tables (pcbfork sets pcb_pc[0]/pcb_dc[0]/stack etc.,
+                      * the icode is placed by vmemall+copyiout into proc[1]'s real
+                      * physical text page). The kernel's selective set below covers
+                      * only domain 0, whose low segments (0=ktext,1) are the flat
+                      * direct-loaded kernel image. So for domain != 0, route ALL
+                      * segments through the guest DIT/PST. Without this the /etc/init
+                      * launch fetches domain-1 seg-0 VA=4 through the emulator's stale
+                      * demo shadow (mmusetup) at physical 0x80000 (empty) -> 0x00. */
+                     domain != 0
+                     || segment == 26 || segment == 29 || segment == 30 || segment == 31
+                     /* Page-table window segments the kernel manages recursively:
+                      * 3=_usrpi1 (0x18000000), 4=_usrpt (0x20000000), 5=_susrpt
+                      * (0x28000000). vgetpt writes new-process u-area/data PTEs
+                      * through usrpt (seg 4) via Usrptmap; the flat shadow mapping
+                      * sent those writes to the wrong physical page, so Pst[38]'s
+                      * page table stayed empty and __resume page-faulted. Routing
+                      * these through the guest tables makes PTE writes/reads land
+                      * where the PST entries point. */
+                     || segment == 3 || segment == 4 || segment == 5
+                     /* 2 = Physbase (_Physbase, virtual 0x10000000, DC_PHYS). The
+                      * kernel builds seg-2 as a self-referential IDENTITY map of all
+                      * physical memory (machdep.c startup: PS_AZI->PS_ASI->PS_ADI,
+                      * pte->pg_pfnum = i). It writes the ADI page-table PAGES *through
+                      * Physbase itself*, and sets Pst[physindex]/DIT[dom0 seg2] via the
+                      * seg 27/28 windows onto PSTP/DITBASE. If seg-2 translates through
+                      * the emulator SHADOW tables instead, those self-referential
+                      * writes land in demand-allocated pages (a fixed page skew), so a
+                      * later usrpt L1 PTE the kernel wrote via Physbase reads back 0 and
+                      * page-faults. Routing seg-2 through the guest tables (like the
+                      * hardware, which has no shadow) makes the identity map coincide
+                      * with raw physical memory: kernel-pfnum P == physical page P. */
+                     || segment == 2);
 
     /* Get capability by reading the guest's REAL Domain Information Table at
      * DITBASE (like the hardware): DIT stride 256 bytes/domain; program table at
@@ -276,6 +309,23 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         capability = is_instruction
             ? g_pcb_table[domain].program_capabilities[segment]
             : g_pcb_table[domain].data_capabilities[segment];
+    }
+
+    /* Kernel DATA-segment-aliased-as-segment-1 (domain 0). The NDIX kernel builds
+     * its syscall Start Address Vector + low-level _domain_call code into its DATA
+     * segment at offset 0 and maps that data segment as SEGMENT 1 (0x08000000) so the
+     * user seg-31 syscall gate (PC_IND|1 -> dom0 seg1) resolves through it (locore.c
+     * ZERO: SAV[0]=1, SAV[1]=_domain_call+0x08000000). The emulator's shadow/mmusetup
+     * capability for dom0 seg1 points elsewhere (empty), so force the alias: dom0 seg1
+     * offset X -> physical data_base + X, for BOTH the SAV data read AND the
+     * _domain_call program fetch. This is the same physical data the kernel reads via
+     * seg-0 (data_base+X), so it is consistent. [syscall seg1 alias] */
+    if (domain == 0 && segment == 1 && cpu->machine) {
+        uint32_t data_base = ndlib_aout_get_data_base();
+        if (data_base != 0) {
+            uint32_t phys = data_base + (virtual_addr & 0x07FFFFFFu);
+            if (phys < cpu->machine->memory_size) return phys;
+        }
     }
 
     /* Check if capability is valid (non-zero) */
@@ -410,6 +460,20 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         pst_entry = g_pst[psn];
     }
 
+    /* A ZERO PST ENTRY IS A PAGE FAULT - not a direct mapping of physical page 0.
+     * ND-05.009.4 section 4.3: "If the Physical Segment Table entry is 0, this means
+     * that no mapping exists for the logical address that needs translation. This is
+     * a page fault trap condition."  Without this a zero entry decodes as PS_AZI with
+     * pfn 0 and silently translates to physical page 0, which is never mappable.
+     * Mirrors CpuND500.MMU.cs ReadPstEntry/pstEntryIsZero. [PST zero entry 2026-07-27] */
+    if (pst_entry.index_mode == PS_AZI && pst_entry.physical_pfn == 0) {
+        MMU_ERR("[MMU] TRAP: PST entry %d is ZERO - no mapping exists! vaddr=0x%08X
+",
+                psn, virtual_addr);
+        trap_page_fault(cpu, cpu->PC, virtual_addr);
+        return virtual_addr;
+    }
+
     /* ─────────────────────────────────────────────────────────
      * LEVEL 3: PST Entry → Physical Address
      * Mode-dependent translation (AZI, ASI, ADI)
@@ -489,6 +553,39 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             }
             if (!l1_pte.valid) {
                 MMU_ERR("[MMU] TRAP: PS_ADI L1 page not valid! vaddr=0x%08X l1_pte_addr=0x%08X\n", virtual_addr, l1_pte_addr);
+                /* PTWDBG: prove/refute the Physbase-linear-map (seg 2) round-trip.
+                 * The kernel writes this very L1 table THROUGH the seg-2 linear map
+                 * at virtual (Physbase + l1_table_base). If seg-2 maps that back to
+                 * physical l1_table_base, the write and this read agree; if not, the
+                 * kernel's PTE writes are landing on the wrong page - the real root. */
+                {
+                    const char* e = getenv("ND500X_PTWDBG");
+                    if (e && e[0] && e[0] != '0') {
+                        uint32_t phys_l1  = nd500_bus_read32(cpu->machine, l1_pte_addr);
+                        uint32_t alias_va = 0x10000000u + l1_table_base; /* Physbase(seg2)+X */
+                        /* Walk the GUEST seg-2 tables (DIT->PST->ADI) exactly as the
+                         * CPU does - NOT nd500_mmu_peek (that reads the shadow tables). */
+                        uint32_t s2 = (alias_va >> SGSHIFT) & 0x1F;
+                        uint32_t s2_l1 = (alias_va >> L1_INDEX_SHIFT) & L1_INDEX_MASK;
+                        uint32_t s2_l2 = (alias_va >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
+                        uint32_t s2_off = alias_va & (NBPG - 1);
+                        uint32_t capA = cpu->DITBASE + 0u*256u + 64u + s2*2u;
+                        uint16_t cap  = (uint16_t)((nd500_bus_read8(cpu->machine, capA) << 8)
+                                                 |  nd500_bus_read8(cpu->machine, capA + 1));
+                        uint32_t psn  = cap & PC_PSN;
+                        uint32_t pstw = nd500_bus_read32(cpu->machine, cpu->PSTP + psn*4u);
+                        uint32_t pmode = pstw >> 30, ppfn = pstw & 0x3FFFFFFF;
+                        uint32_t l1w = nd500_bus_read32(cpu->machine, (ppfn<<PGSHIFT) + s2_l1*4u);
+                        uint32_t l2base = (l1w & 0x3FFFFFFF);
+                        uint32_t l2w = nd500_bus_read32(cpu->machine, (l2base<<PGSHIFT) + s2_l2*4u);
+                        uint32_t gphys = ((l2w & 0x3FFFFFFF)<<PGSHIFT) + s2_off;
+                        uint32_t gval  = nd500_bus_read32(cpu->machine, gphys);
+                        fprintf(stderr, "[PTWDBG] seg=%d usrpt L1@phys0x%08X=0x%08X | seg2 GUEST-walk "
+                                "va=0x%08X cap=0x%04X psn=%u mode=%u l1=0x%08X l2=0x%08X -> gphys=0x%08X val=0x%08X\n",
+                                segment, l1_pte_addr, phys_l1, alias_va, cap, psn, pmode, l1w, l2w, gphys, gval);
+                    }
+                }
+                cpu->mmu_pgf_where = 0xEu; /* PFZ1: zero 1st-level page-table entry */
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
             }
@@ -508,6 +605,23 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             }
             if (!l2_pte.valid) {
                 MMU_ERR("[MMU] TRAP: PS_ADI L2 page not valid! vaddr=0x%08X l2_pte_addr=0x%08X\n", virtual_addr, l2_pte_addr);
+                {
+                    const char* e = getenv("ND500X_PTWDBG");
+                    if (e && e[0] && e[0] != '0') {
+                        fprintf(stderr, "[PTWDBG-L2] seg=%d va=0x%08X psn=%d pst_pfn=0x%X l1_pte@0x%08X=pfn0x%X "
+                                "l2_pte_addr=0x%08X raw=0x%08X\n", segment, virtual_addr, psn,
+                                pst_entry.physical_pfn, l1_pte_addr, l1_pte.physical_pfn, l2_pte_addr,
+                                nd500_bus_read32(cpu->machine, l2_pte_addr));
+                        fprintf(stderr, "[PTWDBG-L2] guest PST[13..21]:");
+                        for (int q = 13; q <= 21; q++)
+                            fprintf(stderr, " [%d]=0x%08X", q, nd500_bus_read32(cpu->machine, cpu->PSTP + q*4u));
+                        fprintf(stderr, "\n[PTWDBG-L2] guest DIT dom0 seg2 data@0x%08X=0x%04X\n",
+                                cpu->DITBASE + 64u + 2u*2u,
+                                (nd500_bus_read8(cpu->machine, cpu->DITBASE+64u+4u)<<8)
+                                | nd500_bus_read8(cpu->machine, cpu->DITBASE+64u+5u));
+                    }
+                }
+                cpu->mmu_pgf_where = 0xFu; /* PFZ2: zero 2nd-level page-table entry (demand page) */
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }
@@ -519,6 +633,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* Write to read-only page - return virtual address, trap will stop execution */
             }
+
 
             physical_pfn = l2_pte.physical_pfn;
             break;
@@ -807,4 +922,42 @@ void nd500_mmu_clear_program_cache_tsb(Nd500Cpu* cpu) {
     if (cpu) {
         if (!nd500_quiet) printf("ND-500: PCTSB - Program cache TSB cleared\n");
     }
+}
+
+// ═══════════════════════════════════════════════════════
+// MMU TABLE STATE SNAPSHOT (for nested UECOM runs)
+// ═══════════════════════════════════════════════════════
+
+/* Snapshot/restore of the C-side MMU tables (g_pst + g_pcb_table), mirroring
+ * nd500_segment_alloc_state_save/_restore. A nested 317B UECOM DOM load
+ * overwrites PST entries and capabilities the CALLER's domain still
+ * references; the caller's RAM/CPU snapshot alone does not cover these
+ * tables, so without this the caller resumes with a wrong virtual-to-
+ * physical translation (heap vars, THA vector, stack limits all read from
+ * another domain's pages). See
+ * docs/HANDOFF-NC-HEAP-CRASH-2026-07-27.md section 2c. */
+
+typedef struct {
+    PhysicalSegmentTableEntry pst[MAX_PST];
+    ProcessControlBlock       pcb[MAXDOM];
+} MmuStateBlob;
+
+void* nd500_mmu_state_save(void) {
+    ensure_mmu_tables();
+    if (!g_pst || !g_pcb_table) return NULL;
+    MmuStateBlob* b = (MmuStateBlob*)malloc(sizeof(MmuStateBlob));
+    if (!b) return NULL;
+    memcpy(b->pst, g_pst, MAX_PST * sizeof(PhysicalSegmentTableEntry));
+    memcpy(b->pcb, g_pcb_table, MAXDOM * sizeof(ProcessControlBlock));
+    return b;
+}
+
+void nd500_mmu_state_restore(void* blob) {
+    if (!blob) return;
+    MmuStateBlob* b = (MmuStateBlob*)blob;
+    if (g_pst)
+        memcpy(g_pst, b->pst, MAX_PST * sizeof(PhysicalSegmentTableEntry));
+    if (g_pcb_table)
+        memcpy(g_pcb_table, b->pcb, MAXDOM * sizeof(ProcessControlBlock));
+    free(blob);
 }
