@@ -55,6 +55,18 @@
 void* nd500_segment_alloc_state_save(void);
 void  nd500_segment_alloc_state_restore(void* blob);
 
+/* ND500X_STODBG helper (nd500_mmu.h is not pulled in by cpu_protos.h). */
+uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr);
+
+/* MMU-table snapshot (nd500_mmu.c) - the nested UECOM DOM load overwrites
+ * PST entries / capabilities the caller's domain still references; without
+ * restoring these the caller resumes on a WRONG virtual-to-physical mapping
+ * (its heap vars, THA vector and stack limits all read from another domain's
+ * pages -> the NC exit "No trap handler at THA[27]" stack-overflow crash).
+ * See docs/HANDOFF-NC-HEAP-CRASH-2026-07-27.md section 2c. */
+void* nd500_mmu_state_save(void);
+void  nd500_mmu_state_restore(void* blob);
+
 /* Transport: shell output/input goes to the local console or a telnet client.
  * All shell text below uses printf, which is routed via shell_printf(). */
 static int g_use_telnet = 0;
@@ -399,6 +411,30 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
      * exactly after its UECOM MON call. The caller's domain register bank
      * (TOS/LL/HL/THA in its DIT slot) is untouched by the sub-program's own
      * freshly-allocated domain. */
+    /* ND500X_STODBG: dump the caller's heap-vars (at TOS) at the snapshot and
+     * restore boundaries - discriminating experiment for the NC exit crash,
+     * see docs/HANDOFF-NC-HEAP-CRASH-2026-07-27.md section 2b. */
+    if (getenv("ND500X_STODBG")) {
+        uint32_t hv[3] = { 0xDEADBEEFu, 0xDEADBEEFu, 0xDEADBEEFu };
+        for (int i = 0; i < 3; i++) {
+            uint32_t pa = nd500_mmu_peek(g_cpu, g_cpu->TOS + (uint32_t)i * 4u);
+            if (pa != 0xFFFFFFFFu) hv[i] = nd500_bus_read32(g_machine, pa);
+        }
+        fprintf(stderr, "[STODBG] UECOM pre-snapshot '%s' nest=%d TOS=0x%08X "
+                "MAXL=0x%08X STAH=0x%08X ENDH=0x%08X THA=0x%08X OTE1=0x%08X CED=%u\n",
+                name, g_uecom_nest, g_cpu->TOS, hv[0], hv[1], hv[2],
+                g_cpu->THA, g_cpu->OTE1, g_cpu->CED);
+        /* Fixed probe addresses for the CAT-CAT5-B exit crash: heap-vars MAXL at
+         * VA 0x08022B8C and the THA[27] vector slot at VA 0x080235E8 (both in
+         * CAT's seg-1 data space), with their physical translations. */
+        uint32_t pa_hv  = nd500_mmu_peek(g_cpu, 0x08022B8Cu);
+        uint32_t pa_tha = nd500_mmu_peek(g_cpu, 0x080235E8u);
+        fprintf(stderr, "[STODBG]   probe pre  va08022B8C pa=0x%08X val=0x%08X | "
+                "va080235E8 pa=0x%08X val=0x%08X\n",
+                pa_hv,  (pa_hv  != 0xFFFFFFFFu) ? nd500_bus_read32(g_machine, pa_hv)  : 0xDEADBEEFu,
+                pa_tha, (pa_tha != 0xFFFFFFFFu) ? nd500_bus_read32(g_machine, pa_tha) : 0xDEADBEEFu);
+    }
+
     Nd500Cpu saved_cpu = *g_cpu;
     int saved_run  = g_machine->run_flag;
     int saved_stop = g_machine->stop_reason;
@@ -424,6 +460,12 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
      * right after its codegen pass. */
     void* seg_backup = nd500_segment_alloc_state_save();
 
+    /* And the C-side MMU tables (global PST + per-domain capabilities): the
+     * nested DOM load overwrites PST entries the caller's domain still
+     * references, so without this the restored caller translates its VAs
+     * through the sub-program's page tables (wrong physical pages). */
+    void* mmu_backup = nd500_mmu_state_save();
+
     g_uecom_nest++;
 
     int rc = ndlib_load_dom_header(path);
@@ -436,6 +478,7 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
     if (rc != 0) {
         if (mem_backup) { memcpy(g_machine->memory, mem_backup, g_machine->memory_size); free(mem_backup); }
         nd500_segment_alloc_state_restore(seg_backup);
+        nd500_mmu_state_restore(mmu_backup);
         *g_cpu = saved_cpu;
         g_machine->run_flag  = saved_run;
         g_machine->stop_reason = saved_stop;
@@ -482,10 +525,29 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
      * full CPU context. The sub-program's file output already persisted to disk. */
     if (mem_backup) { memcpy(g_machine->memory, mem_backup, g_machine->memory_size); free(mem_backup); }
     nd500_segment_alloc_state_restore(seg_backup);
+    nd500_mmu_state_restore(mmu_backup);
     *g_cpu = saved_cpu;
     g_machine->run_flag  = saved_run;
     g_machine->stop_reason = saved_stop;
     g_uecom_nest--;
+
+    if (getenv("ND500X_STODBG")) {
+        uint32_t hv[3] = { 0xDEADBEEFu, 0xDEADBEEFu, 0xDEADBEEFu };
+        for (int i = 0; i < 3; i++) {
+            uint32_t pa = nd500_mmu_peek(g_cpu, g_cpu->TOS + (uint32_t)i * 4u);
+            if (pa != 0xFFFFFFFFu) hv[i] = nd500_bus_read32(g_machine, pa);
+        }
+        fprintf(stderr, "[STODBG] UECOM post-restore '%s' nest=%d TOS=0x%08X "
+                "MAXL=0x%08X STAH=0x%08X ENDH=0x%08X THA=0x%08X OTE1=0x%08X CED=%u\n",
+                name, g_uecom_nest, g_cpu->TOS, hv[0], hv[1], hv[2],
+                g_cpu->THA, g_cpu->OTE1, g_cpu->CED);
+        uint32_t pa_hv  = nd500_mmu_peek(g_cpu, 0x08022B8Cu);
+        uint32_t pa_tha = nd500_mmu_peek(g_cpu, 0x080235E8u);
+        fprintf(stderr, "[STODBG]   probe post va08022B8C pa=0x%08X val=0x%08X | "
+                "va080235E8 pa=0x%08X val=0x%08X\n",
+                pa_hv,  (pa_hv  != 0xFFFFFFFFu) ? nd500_bus_read32(g_machine, pa_hv)  : 0xDEADBEEFu,
+                pa_tha, (pa_tha != 0xFFFFFFFFu) ? nd500_bus_read32(g_machine, pa_tha) : 0xDEADBEEFu);
+    }
 
     mon_log(MON_LOG_INFO, "UECOM: nested '%s' ran %llu instrs (domain %d)",
             name, (unsigned long long)steps, loaded_domain);

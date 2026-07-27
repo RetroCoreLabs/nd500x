@@ -252,3 +252,9 @@ void nd500_mmu_write_pte(Nd500Cpu* cpu, uint32_t physical_addr, PageTableEntry p
 /* Cache Control */
 void nd500_mmu_clear_data_cache_tsb(Nd500Cpu* cpu);
 void nd500_mmu_clear_program_cache_tsb(Nd500Cpu* cpu);
+
+/* Snapshot/restore the C-side MMU tables (PST + PCB capabilities) around a
+ * nested 317B UECOM run - the nested DOM load overwrites entries the caller's
+ * domain still references. Pairs with nd500_segment_alloc_state_save/_restore. */
+void* nd500_mmu_state_save(void);
+void  nd500_mmu_state_restore(void* blob);

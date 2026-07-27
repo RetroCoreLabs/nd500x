@@ -647,6 +647,26 @@ void trap_invalid_operation(Nd500Cpu* cpu, uint32_t pc) {
 }
 
 void trap_stack_overflow(Nd500Cpu* cpu, uint32_t pc) {
+	/* ND500X_STODBG: log the full dispatch-relevant state at every STO raise
+	 * (heap vars at TOS, THA[27], OTE bit 27, handler nesting) - discriminating
+	 * experiment for the NC exit crash, see
+	 * docs/HANDOFF-NC-HEAP-CRASH-2026-07-27.md section 2b. */
+	if (getenv("ND500X_STODBG")) {
+		uint32_t hv[3] = { 0xDEADBEEFu, 0xDEADBEEFu, 0xDEADBEEFu };
+		for (int i = 0; i < 3; i++) {
+			uint32_t pa = nd500_mmu_peek(cpu, cpu->TOS + (uint32_t)i * 4u);
+			if (pa != 0xFFFFFFFFu) hv[i] = nd500_bus_read32(cpu->machine, pa);
+		}
+		uint32_t pth = nd500_mmu_peek(cpu, cpu->THA + 27u * 4u);
+		uint32_t h27 = (pth != 0xFFFFFFFFu) ? nd500_bus_read32(cpu->machine, pth)
+		                                    : 0xDEADBEEFu;
+		fprintf(stderr, "[STODBG] raise PC=0x%08X TOS=0x%08X MAXL=0x%08X "
+		        "STAH=0x%08X ENDH=0x%08X THA=0x%08X THA[27]=0x%08X OTE27=%d "
+		        "inH=%d CED=%u\n",
+		        pc, cpu->TOS, hv[0], hv[1], hv[2], cpu->THA, h27,
+		        (int)((cpu->OTE1 >> 27) & 1u), cpu->in_trap_handler ? 1 : 0,
+		        cpu->CED);
+	}
 	raise_trap(cpu, TRAP_STO, pc, 0);
 }
 
