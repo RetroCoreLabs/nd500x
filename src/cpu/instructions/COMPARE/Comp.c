@@ -74,7 +74,16 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             uint32_t op_bits  = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
             uint64_t fresult = (uint64_t)reg_bits - (uint64_t)op_bits;
             bool fcarry = (reg_bits >= op_bits);
-            bool fsign  = (fresult & 0x80000000ULL) != 0;   /* overflow=0 for the compare sign */
+            /* F COMP runs on the SHARED INTEGER (W-width) compare microcode (entry 161 = W COMP
+             * @000241, ST,SAVC), so the true-comparison sign is bit31 XOR 32-bit-subtract overflow,
+             * NOT raw bit31. The earlier "overflow=0 for the compare sign" was wrong: the traced real
+             * B30 microcode gives MSgn=0, MOvfl=1 -> S=1 for e.g. -1.0 vs a large +float. Adjudicated
+             * vs the microword, Ronny 2026-07-27. (Matches RetroCore Comp.cs treating F as W.) */
+            bool fa_sign = (reg_bits & 0x80000000U) != 0;
+            bool fb_sign = (op_bits  & 0x80000000U) != 0;
+            bool fr_sign = (fresult  & 0x80000000ULL) != 0;
+            bool foverflow = (fa_sign != fb_sign) && (fa_sign != fr_sign);
+            bool fsign = fr_sign ^ foverflow;
             if ((uint32_t)fresult == 0) nd500_set_flag(cpu, ND500_FLAG_Z); else nd500_clear_flag(cpu, ND500_FLAG_Z);
             if (fcarry) nd500_set_flag(cpu, ND500_FLAG_C); else nd500_clear_flag(cpu, ND500_FLAG_C);
             if (fsign)  nd500_set_flag(cpu, ND500_FLAG_S); else nd500_clear_flag(cpu, ND500_FLAG_S);
