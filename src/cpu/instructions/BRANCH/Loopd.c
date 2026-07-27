@@ -232,6 +232,12 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         // Write decremented index back at the instruction's data type
         nd500_write_operand_value(cpu, &fi->operands[0], index, fi->data_type);
 
+        // Integer LOOPD DOES set Z/S from the decremented index at the datatype width: the
+        // microcode LOOPDB @000615 / LOOPDH @000621 run ST,SAVA. (The earlier code left the flags.)
+        // Adjudicated microword-right; matches RetroCore Loopd.cs SetStatusZS(index, dataType).
+        // [LOOPD Z/S 2026-07-27]
+        nd500_set_flags_zs(cpu, index, fi->data_type);
+
         // Perform signed comparison based on data type (compare low bits only)
         switch (fi->data_type) {
             case ND500_DTYPE_BYTE:
