@@ -239,10 +239,13 @@ void nd500_instr_Putbf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Write result back to first operand
     nd500_write_operand_value(cpu, &fi->operands[0], masked_result, fi->data_type);
 
-    // Extract the field value that was actually inserted (for flag setting)
-    uint32_t inserted_value = reg_value & (uint32_t)mask;
-
-    // Update status flags: Z and S based on inserted field value
-    // Use nd500_set_flags_zs which checks sign based on datatype, not field size
-    nd500_set_flags_zs(cpu, inserted_value, fi->data_type);
+    // Z/S come from the inserted field placed AT its destination bit offset, evaluated as a full
+    // 32-bit word (bit 31) - NOT the un-shifted field, and NOT at the datatype width. This is what
+    // the real B30 microcode does: PUTBF_TAB @003503 \"ALU,AND A,Q B,SC3 ST,SAVA\" latches the flags
+    // from the field masked AND shifted into position, taking the 32-bit register sign. Traced both
+    // widths: W of 0xFF @bit24 -> 0xFF000000 -> S=1; BY of 0xA @bit4 -> 0x000000A0 -> S=0 (NOT byte
+    // bit7). The earlier \"inserted field value at datatype width\" was wrong. Adjudicated
+    // microword-right (matches RetroCore Putbf.cs SetStatusZS(positioned, W)). [PUTBF S 2026-07-27]
+    uint32_t positioned_field = (uint32_t)((reg_value & (uint32_t)mask) << bit_number);
+    nd500_set_flags_zs(cpu, positioned_field, ND500_DTYPE_WORD);
 }
