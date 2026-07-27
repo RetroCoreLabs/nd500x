@@ -256,8 +256,6 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 return;
         }
 
-        // Note: LOOPD does NOT modify status flags per ND-500 Reference Manual
-        // "Data status bits: Unaffected"
     }
 
     // Displacement size is determined by the opcode variant:

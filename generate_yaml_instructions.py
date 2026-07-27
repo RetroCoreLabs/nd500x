@@ -271,7 +271,9 @@ def instruction_group_to_yaml(instruction_group, group_key):
     # Variants section
     yaml_lines.append(f'  variants:')
 
-    # FIX: Use actual index in group, not JSON's variantNumber (which is wrong!)
+    # The JSON's variantNumber is now correct (displacement-major, fixed in the nd500-opcodes
+    # exporter). For the human-readable N/M display we still want the sequential in-group
+    # position (1/10, 2/10, ...), which is not the same as the semantic variantNumber.
     total_in_group = len(instruction_group)
 
     for variant_idx, instruction in enumerate(instruction_group):
