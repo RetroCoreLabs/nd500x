@@ -105,6 +105,13 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 bool nd500_cpu_step(Nd500Cpu* cpu) {
 	if (!cpu || !cpu->machine) return false;
 
+	/* Clear the previous instruction's abort flag at the TOP of the step -
+	 * BEFORE fetch/decode. The guarded mmu_read/write helpers refuse access
+	 * while instr_aborted is set; clearing it only just before execute (as
+	 * before) made the fetch of the instruction FOLLOWING an aborted one read
+	 * all-zero bytes -> bogus illegal-instruction stop. */
+	cpu->instr_aborted = 0;
+
 	/* Record this PC in the stop-diagnostics ring before any stop check below. */
 	g_pc_ring[g_pc_ring_pos] = cpu->PC;
 	g_pc_ring_pos = (g_pc_ring_pos + 1u) % ND500_PC_RING_LEN;
@@ -402,7 +409,7 @@ invalid00_done: ;
 	 * PC advance below moves cpu->PC past this instruction before execute,
 	 * but a page fault must restart THIS instruction (see raise_trap). */
 	cpu->cur_instr_pc = old_pc;
-	cpu->instr_aborted = 0;   /* set by raise_trap on a mid-instruction trap */
+	/* (instr_aborted is cleared at the top of the step, before fetch/decode) */
 
 	/* Advance PC BEFORE execution (like C# implementation)
 	 * Branch/jump instructions will overwrite PC as needed */
@@ -755,12 +762,16 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		}
 	}
 
-	/* Signal the currently-executing instruction to ABORT (no destination
-	 * commit): invoke_trap_handler clears the global trap state synchronously,
-	 * so this flag is the only reliable mid-instruction fault indicator left
-	 * when control returns into the instruction implementation. Cleared by
-	 * cpu_step before each execute. */
-	cpu->instr_aborted = 1;
+	/* NOTE on cpu->instr_aborted: it signals the currently-executing
+	 * instruction to ABORT (no destination commit) - invoke_trap_handler
+	 * clears the global trap state synchronously, so the flag is the only
+	 * reliable mid-instruction fault indicator left when control returns
+	 * into the instruction implementation. It is set ONLY on the paths
+	 * below that actually dispatch or halt: an IGNORABLE trap that is not
+	 * OTE-enabled merely records a status bit and the instruction MUST
+	 * complete normally (setting the flag there made the guarded
+	 * mmu_write helpers drop legitimate stores). Cleared at the top of
+	 * cpu_step. */
 
 	/* Remember the faulting logical address for ENTT to place in the trap frame's
 	 * N field (B+16), which the NDIX kernel (locore entrap) copies to cx_vaddr and
@@ -852,6 +863,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 
 	/* Check if this is a non-ignorable/fatal trap (bits 32+) */
 	if (trapBit & TRAP_INTERRUPT_MASK) {
+		cpu->instr_aborted = 1;   /* dispatch or halt - the instruction aborts */
 		/* ---- Mother-domain trap dispatch (manual 4.2.5.3 + ch.6 Fig.18) ----
 		 * When a trap in the current (child) domain is NOT own-handled there but a
 		 * mother domain has a handler, switch to the handling mother domain so its
@@ -969,7 +981,12 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	/* Ignorable trap (bits 11-29): check if enabled in OTE mask */
 	uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
 	if (trapBit & ote & TRAP_IGNORABLE_MASK) {
-		/* Trap is enabled - set trap state and invoke handler */
+		/* Trap is enabled - set trap state and invoke handler. Do NOT set
+		 * instr_aborted here: ignorable (arithmetic-class) traps on the
+		 * ND-500 are post-completion - the instruction finishes its stores
+		 * and THEN the handler runs (setting the flag suppressed those
+		 * stores via the guarded mmu_write helpers and shifted NC's
+		 * instruction count). Only the non-ignorable/MMU class aborts. */
 		nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
 		/* Pass trapPC (the trapping instruction's address) so RETT can retry it */
 		invoke_trap_handler(cpu, trapBit, trapPC);

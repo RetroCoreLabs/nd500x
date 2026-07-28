@@ -75,7 +75,7 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
-        if (nd500_trap_occurred()) return;  // Trap occurred during translation
+        if (nd500_trap_occurred() || cpu->instr_aborted) return;  // translation faulted (handler may have cleared trap state - check abort flag too)
     }
 
     MEMTRACE_WR("[MEMTRACE] write_8: vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
@@ -123,7 +123,7 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
-        if (nd500_trap_occurred()) return;  // Trap occurred during translation
+        if (nd500_trap_occurred() || cpu->instr_aborted) return;  // translation faulted (handler may have cleared trap state - check abort flag too)
     }
 
     MEMTRACE_WR("[MEMTRACE] write_16: vaddr=0x%08X paddr=0x%08X value=0x%04X\n", vaddr, paddr, value);
@@ -194,9 +194,9 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
-        if (nd500_trap_occurred()) {
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
             MEMTRACE_WR("[MEMTRACE] write_32: MMU trap! vaddr=0x%08X value=0x%08X\n", vaddr, value);
-            return;  // Trap occurred during translation
+            return;  // translation faulted (handler may have cleared trap state)
         }
     }
 
@@ -375,7 +375,7 @@ void nd500_write_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value, u
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate_domain(cpu, vaddr, 1, 0, domain);
-        if (nd500_trap_occurred()) return;
+        if (nd500_trap_occurred() || cpu->instr_aborted) return;
     }
 
     MEMTRACE_WR("[MEMTRACE] write_8_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%02X\n",
@@ -429,7 +429,7 @@ void nd500_write_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value,
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate_domain(cpu, vaddr, 1, 0, domain);
-        if (nd500_trap_occurred()) return;
+        if (nd500_trap_occurred() || cpu->instr_aborted) return;
     }
 
     MEMTRACE_WR("[MEMTRACE] write_16_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%04X\n",
@@ -483,7 +483,7 @@ void nd500_write_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value,
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate_domain(cpu, vaddr, 1, 0, domain);
-        if (nd500_trap_occurred()) return;
+        if (nd500_trap_occurred() || cpu->instr_aborted) return;
     }
 
     MEMTRACE_WR("[MEMTRACE] write_32_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%08X\n",

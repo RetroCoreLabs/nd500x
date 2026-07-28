@@ -76,6 +76,13 @@ static inline void mmu_write8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t val) {
 	uint32_t paddr = vaddr;
 	if (cpu->machine->mmu_enabled) {
 		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); /* is_write=1, is_instruction=0 */
+		/* Translation fault: MUST NOT commit - paddr == vaddr here, so the
+		 * store would land at the untranslated address AS PHYSICAL memory.
+		 * (Root cause of the exec-argv byte corrupting a context block:
+		 * a demand-fault mid arg-copy fell through and wrote the argument
+		 * byte at phys=vaddr.) Handler clears trap state synchronously,
+		 * so check the per-instruction abort flag too. */
+		if (nd500_trap_occurred() || cpu->instr_aborted) return;
 	}
 
 	{ extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
@@ -121,6 +128,7 @@ static inline void mmu_write16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) {
 	uint32_t paddr = vaddr;
 	if (cpu->machine->mmu_enabled) {
 		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
+		if (nd500_trap_occurred() || cpu->instr_aborted) return;  /* see mmu_write8 */
 	}
 
 	{ extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
@@ -155,6 +163,7 @@ static inline void mmu_write32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t val) {
 	uint32_t paddr = vaddr;
 	if (cpu->machine->mmu_enabled) {
 		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
+		if (nd500_trap_occurred() || cpu->instr_aborted) return;  /* see mmu_write8 */
 	}
 
 	nd500_bus_write32(cpu->machine, paddr, val);
