@@ -186,7 +186,21 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	 * - Debugger for direct memory modification
 	 */
 
-	if (!in_range(m, addr, 1)) return;
+	if (!in_range(m, addr, 1)) {
+		/* Out-of-range physical writes were dropped SILENTLY, which hid a
+		 * class of translation bugs (a bogus PTE sends a kernel store past
+		 * memory_size and the data just vanishes - reads then return 0).
+		 * Log the first few drops (env ND500X_DROPDBG). */
+		static int dropd = -1;
+		if (dropd < 0) { const char* e = getenv("ND500X_DROPDBG"); dropd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (dropd) {
+			static unsigned n = 0;
+			if (n++ < 40)
+				fprintf(stderr, "[DROP] w8 phys=0x%08X val=0x%02X beyond memory_size=0x%X\n",
+				        addr, val, m ? m->memory_size : 0);
+		}
+		return;
+	}
 
 	/* DIT1DBG: watch writes to the domain-1 DIT (DITBASE=0x90000, +256..+512 =
 	 * domain-1 program+data capabilities). newproc must populate these when it

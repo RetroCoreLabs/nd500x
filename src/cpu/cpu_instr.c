@@ -80,6 +80,17 @@ static inline void mmu_write8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t val) {
 
 	{ extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
 	  nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 8); }
+	/* Kernel path-copy tracer (env ND500X_SLASHDBG) - see write_memory_8. */
+	{
+		static int sld = -1;
+		if (sld < 0) { const char* e = getenv("ND500X_SLASHDBG"); sld = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (sld && cpu->CED == 0 && val == 0x2F) {
+			static unsigned n = 0;
+			if (n++ < 60)
+				fprintf(stderr, "[SLASH] mmu_w8 vaddr=0x%08X paddr=0x%08X PC=0x%08X\n",
+				        vaddr, paddr, cpu->PC);
+		}
+	}
 	nd500_bus_write8(cpu->machine, paddr, val);
 }
 

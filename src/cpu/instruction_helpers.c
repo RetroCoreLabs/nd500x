@@ -34,7 +34,7 @@ uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
      * exec path "/etc/init" from user data via the _Udata(seg-30, 0xF0000000)
      * window. Log the bytes the kernel actually gets, with the translated paddr,
      * to see if the seg-30 page maps init's real dcode or returns 0. */
-    if (vaddr >= 0xF0000000u && vaddr < 0xF0000040u && cpu->CED == 0 && getenv("ND500X_PATHDBG"))
+    if (vaddr >= 0xF0000000u && vaddr < 0xF0000100u && cpu->CED == 0 && getenv("ND500X_PATHDBG"))
         fprintf(stderr, "[PATHDBG] read8 Udata[0x%08X] pa=0x%08X = 0x%02X '%c' @PC=0x%08X\n",
                 vaddr, paddr, value, (value>=32&&value<127)?value:'.', cpu->PC);
     MEMTRACE_RD("[MEMTRACE] read_8:  vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
@@ -81,6 +81,20 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
     MEMTRACE_WR("[MEMTRACE] write_8: vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
     { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
       nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 8); }
+    /* Kernel path-copy tracer (env ND500X_SLASHDBG): log CED=0 byte stores of
+     * '/' - the first byte of every path namei copies into its geteblk buffer.
+     * Reveals WHICH virtual address the name buffer really is and where it
+     * translates physically (the post-exec namei-ENOENT hunt). */
+    {
+        static int sld = -1;
+        if (sld < 0) { const char* e = getenv("ND500X_SLASHDBG"); sld = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (sld && cpu->CED == 0 && value == 0x2F) {
+            static unsigned n = 0;
+            if (n++ < 60)
+                fprintf(stderr, "[SLASH] w8 vaddr=0x%08X paddr=0x%08X PC=0x%08X\n",
+                        vaddr, paddr, cpu->PC);
+        }
+    }
     nd500_bus_write8(cpu->machine, paddr, value);
 }
 
@@ -347,7 +361,7 @@ uint8_t nd500_read_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain
     }
 
     uint8_t value = nd500_bus_read8(cpu->machine, paddr);
-    if (vaddr >= 0xF0000000u && vaddr < 0xF0000020u && getenv("ND500X_PATHDBG"))
+    if (vaddr >= 0xF0000000u && vaddr < 0xF0000100u && getenv("ND500X_PATHDBG"))
         fprintf(stderr, "[PATHDBG] read Udata[0x%08X] pa=0x%08X = 0x%02X '%c' @PC=0x%08X\n",
                 vaddr, paddr, value, (value>=32&&value<127)?value:'.', cpu->PC);
     MEMTRACE_RD("[MEMTRACE] read_8_domain:  vaddr=0x%08X paddr=0x%08X domain=%d value=0x%02X\n",
@@ -366,6 +380,17 @@ void nd500_write_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value, u
 
     MEMTRACE_WR("[MEMTRACE] write_8_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%02X\n",
                 vaddr, paddr, domain, value);
+    /* Kernel path-copy tracer (env ND500X_SLASHDBG) - see write_memory_8. */
+    {
+        static int sld = -1;
+        if (sld < 0) { const char* e = getenv("ND500X_SLASHDBG"); sld = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (sld && domain == 0 && value == 0x2F) {
+            static unsigned n = 0;
+            if (n++ < 60)
+                fprintf(stderr, "[SLASH] w8dom vaddr=0x%08X paddr=0x%08X PC=0x%08X\n",
+                        vaddr, paddr, cpu->PC);
+        }
+    }
     /* _Udata window WRITE trace (env ND500X_UDATADBG): where does the kernel's
      * copyout of init's dcode ("/etc/init") land physically? */
     {

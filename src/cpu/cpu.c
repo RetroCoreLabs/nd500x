@@ -191,9 +191,19 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 	if (nd500_dbg_get_trap_invalid()) {
 		/* Use MMU-aware read for instruction fetch */
 		uint8_t opcode_byte;
+		uint32_t paddr = cpu->PC;
+		uint32_t fetch_pc = cpu->PC;
 		if (cpu->machine->mmu_enabled) {
 			/* Translate virtual -> physical address */
-			uint32_t paddr = nd500_mmu_translate(cpu, cpu->PC, 0, 1); /* is_write=0, is_instruction=1 */
+			paddr = nd500_mmu_translate(cpu, cpu->PC, 0, 1); /* is_write=0, is_instruction=1 */
+			if (cpu->PC != fetch_pc) {
+				/* The translate FAULTED and the trap already vectored
+				 * (PC now points at the handler; on a demand fetch fault
+				 * this is the normal pagein path). The byte we would
+				 * read is meaningless - skip the invalid-00 heuristic
+				 * and let the next step fetch the handler. */
+				goto invalid00_done;
+			}
 			opcode_byte = nd500_bus_read8(cpu->machine, paddr);
 			if (getenv("ND500X_ICODEDBG") && cpu->CED != 0) {
 				uint32_t cap_addr = cpu->DITBASE + (uint32_t)cpu->CED * 256u + 0u
@@ -212,12 +222,16 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 			cpu->machine->stop_addr = cpu->PC;
 			{
 				uint32_t pa = cpu->machine->mmu_enabled ? nd500_mmu_translate(cpu, cpu->PC, 0, 1) : cpu->PC;
-				printf("[STOP] Invalid instruction 0x00 at PC=0x%08X (uninitialized memory) CED=%u CAD=%u B=0x%08X paddr=0x%08X\n",
-				       cpu->PC, cpu->CED, cpu->CAD, cpu->B, pa);
+				printf("[STOP] Invalid instruction 0x00 at PC=0x%08X (uninitialized memory) CED=%u CAD=%u B=0x%08X paddr=0x%08X "
+				       "fetch_paddr=0x%08X byte_at_repaddr=0x%02X in_trap=%d\n",
+				       cpu->PC, cpu->CED, cpu->CAD, cpu->B, pa,
+				       paddr, nd500_bus_read8(cpu->machine, pa),
+				       (int)cpu->in_trap_handler);
 			}
 			nd500_dump_stop_ring("invalid-00");
 			return false;
 		}
+invalid00_done: ;
 	}
 
 	/* ND-100 front-end interrupt tick: at the kernel base level, deliver a
