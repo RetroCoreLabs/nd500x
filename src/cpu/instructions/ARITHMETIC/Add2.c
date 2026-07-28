@@ -159,7 +159,10 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int32_t sum = (int32_t)aByte + (int32_t)bByte;
             result = (uint64_t)(uint8_t)(sum & 0xFF);
             overflow = (sum < -128 || sum > 127);
-            carry = ((sum & 0x100) != 0);
+            /* Carry is UNSIGNED overflow of the operands - the signed sum
+             * sign-extends and fakes a carry for negative results (the Add3
+             * fuword/copyout _Udata bug, same class). */
+            carry = ((((uint32_t)(uint8_t)aByte + (uint32_t)(uint8_t)bByte) & 0x100u) != 0);
             break;
         }
 
@@ -170,7 +173,7 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int32_t sum = (int32_t)aHalf + (int32_t)bHalf;
             result = (uint64_t)(uint16_t)(sum & 0xFFFF);
             overflow = (sum < -32768 || sum > 32767);
-            carry = ((sum & 0x10000) != 0);
+            carry = ((((uint32_t)(uint16_t)aHalf + (uint32_t)(uint16_t)bHalf) & 0x10000u) != 0);
             break;
         }
 
@@ -181,7 +184,7 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int64_t sum = (int64_t)aWord + (int64_t)bWord;
             result = (uint64_t)(uint32_t)(sum & 0xFFFFFFFF);
             overflow = (sum < INT32_MIN || sum > INT32_MAX);
-            carry = ((sum & 0x100000000LL) != 0);
+            carry = ((((uint64_t)(uint32_t)aWord + (uint64_t)(uint32_t)bWord) & 0x100000000ULL) != 0);
             break;
         }
 

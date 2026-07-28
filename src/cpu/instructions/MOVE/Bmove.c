@@ -115,9 +115,15 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                     break;
             }
 
-            /* Check for trap after read (e.g., MMU page fault) */
-            if (cpu->machine && !cpu->machine->run_flag) {
-                break;  /* Trap occurred - stop iteration */
+            /* Check for trap after read (e.g., MMU page fault). run_flag only
+             * catches a machine HALT; a trap DISPATCHED to a handler leaves
+             * run_flag set - instr_aborted is the mid-instruction signal. The
+             * whole BMOVE restarts after the pagein (locore copyout: "we
+             * assume that the bmove instruction is interruptible and
+             * resumable"); restart-from-scratch is equivalent since operands
+             * are re-read and no register state is modified. */
+            if ((cpu->machine && !cpu->machine->run_flag) || cpu->instr_aborted) {
+                return;  /* Trap occurred - abort instruction (restart re-runs it) */
             }
         }
 
@@ -137,9 +143,11 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 break;
         }
 
-        /* Check for trap after write (e.g., MMU page fault, protection violation) */
-        if (cpu->machine && !cpu->machine->run_flag) {
-            break;  /* Trap occurred - stop iteration */
+        /* Check for trap after write (e.g., MMU page fault, protection
+         * violation). See the read-side check: instr_aborted catches a
+         * DISPATCHED trap; the restart re-runs the whole (idempotent) BMOVE. */
+        if ((cpu->machine && !cpu->machine->run_flag) || cpu->instr_aborted) {
+            return;  /* Trap occurred - abort instruction (restart re-runs it) */
         }
     }
 

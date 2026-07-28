@@ -88,7 +88,10 @@ void nd500_instr_Add3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int32_t sum = (int32_t)aByte + (int32_t)bByte;
             result = (uint64_t)(uint8_t)(sum & 0xFF);
             overflow = (sum < -128 || sum > 127);
-            carry = ((sum & 0x100) != 0);
+            /* Carry is UNSIGNED overflow - must use the unsigned operands, not
+             * the signed sum (a negative signed sum is sign-extended, so its
+             * bit 8 would be set even with no real unsigned carry). */
+            carry = (((uint32_t)(aValue & 0xFF) + (uint32_t)(bValue & 0xFF)) & 0x100u) != 0;
             break;
         }
 
@@ -99,7 +102,8 @@ void nd500_instr_Add3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int32_t sum = (int32_t)aHalf + (int32_t)bHalf;
             result = (uint64_t)(uint16_t)(sum & 0xFFFF);
             overflow = (sum < -32768 || sum > 32767);
-            carry = ((sum & 0x10000) != 0);
+            /* Carry from UNSIGNED addition (see BYTE case). */
+            carry = (((uint32_t)(aValue & 0xFFFF) + (uint32_t)(bValue & 0xFFFF)) & 0x10000u) != 0;
             break;
         }
 
@@ -110,7 +114,14 @@ void nd500_instr_Add3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int64_t sum = (int64_t)aWord + (int64_t)bWord;
             result = (uint64_t)(uint32_t)(sum & 0xFFFFFFFF);
             overflow = (sum < INT32_MIN || sum > INT32_MAX);
-            carry = ((sum & 0x100000000LL) != 0);
+            /* Carry from UNSIGNED addition (see BYTE case). Using the signed
+             * sum broke the NDIX kernel's fuword: add3 $_Udata(0xF0000000),
+             * uaddr -> 0xF8000014 has NO unsigned carry, but the signed sum is
+             * negative and its bit 32 (sign extension) set a false carry, so
+             * `if >>= go _fuerror` wrongly took the fault path and every
+             * syscall arg read returned EFAULT. */
+            carry = (((uint64_t)(uint32_t)(aValue & 0xFFFFFFFF)
+                    + (uint64_t)(uint32_t)(bValue & 0xFFFFFFFF)) & 0x100000000ULL) != 0;
             break;
         }
 

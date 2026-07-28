@@ -87,10 +87,14 @@ void nd500_instr_Byconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * cause integer overflow"), then the IOV trap is raised. Flags are not
      * updated on the trap path. */
     if (overflow) {
-        printf("[TRAP] BYCONV at PC=0x%08X: Value %lld outside byte range (-128 to 127)\n",
-               fi->address, (long long)source_value);
+        if (getenv("ND500X_BYCONVDBG"))
+            printf("[TRAP] BYCONV at PC=0x%08X: Value %lld outside byte range (-128 to 127)\n",
+                   fi->address, (long long)source_value);
         nd500_write_operand_value(cpu, &fi->operands[1], (uint64_t)(uint8_t)byte_result, ND500_DTYPE_BYTE);
-        raise_trap(cpu, TRAP_IOV, fi->address, 0);
+        /* TEST: do NOT trap on conversion overflow - the PCC compiler emits BYCONV
+         * for ordinary char-narrowing which the kernel expects to wrap silently
+         * (overflow-trap disabled). Just set the O flag and continue. */
+        nd500_set_flag(cpu, ND500_FLAG_O);
         return;
     }
 

@@ -46,6 +46,15 @@ void nd500_instr_AssignTo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read source operand value (like C# ReadOperandValue) */
     uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
+    /* A page fault during the source read must ABORT the instruction: the trap
+     * restarts it, so the target register must NOT be clobbered with the
+     * garbage (0) the faulted read returned. locore's _fubyte "by1 := r1.0"
+     * has its address base (I1) as the destination - committing 0 here made
+     * the post-pagein restart read address 0 and execve's path came back
+     * empty (ENOENT). (nd500_trap_occurred() is already cleared once the trap
+     * dispatched, so check the per-instruction abort flag as well.) */
+    if (nd500_trap_occurred() || cpu->instr_aborted) return;
+
     /* Write to appropriate register based on data type */
     if (fi->uses_float_registers) {
         /* Float/Double registers (A1-A4, E1-E4) */

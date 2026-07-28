@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * Tset instruction - CONTROL class
@@ -206,6 +207,7 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // TSET uses the data type from the instruction (typically BYTE with BY prefix)
     uint64_t old_value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
 
+
     // Write all-ones to operand based on data type
     // For BYTE (BY prefix): write 0xFF
     // For WORD: write 0xFFFFFFFF
@@ -254,4 +256,18 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     // Note: Other flags (C, V, K) are not modified by TSET
+
+    if (getenv("ND500X_TSETDBG") && fi->address >= 0x83Au && fi->address <= 0x852u) {
+        static uint64_t n = 0;
+        if ((n++ % 200000) == 0) {
+            uint64_t readback = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+            fprintf(stderr, "[TSETDBG] tset@0x%08X dtype=%d old=0x%llX -> wrote=0x%llX readback=0x%llX "
+                    "Z=%d ST1=0x%08X R=0x%08X opmode=%d (n=%llu)\n",
+                    fi->address, (int)fi->data_type,
+                    (unsigned long long)old_value, (unsigned long long)set_value,
+                    (unsigned long long)readback,
+                    (cpu->ST1 & ND500_FLAG_Z) ? 1 : 0, cpu->ST1, cpu->R,
+                    (int)fi->operands[0].mode, (unsigned long long)n);
+        }
+    }
 }

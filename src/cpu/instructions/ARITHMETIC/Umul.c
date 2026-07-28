@@ -89,10 +89,17 @@ void nd500_instr_Umul(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Clear carry flag - unsigned multiplication doesn't set carry */
     cpu->ST1 &= ~ND500_FLAG_C;
 
-    /* Handle trap on overflow */
-    if (overflow) {
-        printf("[TRAP] UMUL at PC=0x%08X: Integer overflow\n", fi->address);
-        trap_invalid_operation(cpu, fi->address);
-        return;
+    /* TEST: do NOT trap on UMUL overflow. UMUL is a WIDENING unsigned multiply -
+     * the low 32 bits go to <c> and the HIGH 32 bits are delivered to register Rn
+     * BY DESIGN (line 64). A non-zero upper half is the intended result, not an
+     * error. The ND-500 overflow trap is ignorable (gated by the domain's Own Trap
+     * Enable); the NDIX kernel does ordinary unsigned multiplies (e.g. nelem*size)
+     * expecting the high half in Rn and NO trap. Unconditionally trapping here
+     * raised a spurious invalid-operation trap that aborted the init-creation path,
+     * leaving the run queue empty and idling forever at text 0x844. Same class as
+     * the BYCONV overflow-trap fix. Just leave the O flag set (above) and continue. */
+    if (overflow && getenv("ND500X_UMULDBG")) {
+        printf("[UMUL] PC=0x%08X: overflow (upper=0x%08X delivered to Rn) - O flag set, no trap\n",
+               fi->address, upperHalf);
     }
 }
