@@ -291,3 +291,83 @@ conversion cannot proceed regardless of how the inputs are named.
 - Registry: `/home/ronny/repos/nd500x/external/ndmonlib/src/core/mon_registry.c`
 - Dispatch trap: `/home/ronny/repos/nd500x/external/ndmonlib/src/core/mon_dispatch.c:173`
 - Name-length limits (the bug): `/home/ronny/repos/nd500x/external/ndmonlib/include/ndmon/mon_path.h:19-21`
+
+--------------------------------------------------------------------------------
+## 8. UPDATE 2026-07-28: fix (1) LANDED - truncation gone; next blocker = EASSERT via ENTF
+
+### Where the truncation actually lived (corrects section 1's attribution)
+
+The `mon_path.h` macros themselves were NOT the live bug on the current
+`ndix-mon600` branch: every parse buffer is declared `[SINTRAN_MAX_* + 1]`
+(17/17/5 bytes), which already holds full 16-char names and 4-char types (the
+DEABF-side `+1` fix landed in ndmonlib commit `b6fe237`). The remaining real
+truncation was in the FILE-TABLE OBJECT-ENTRY storage in
+`/home/ronny/repos/nd500x/external/ndmonlib/src/support/mon_file_table.c`:
+
+- `mon_populate_object_entry_from_host()` capped the name at 15 chars + 0x27
+  and the type at 3 chars + 0x27.
+- `object_entry_init_terminal()` / `object_entry_init_file()` did
+  `strncpy(...,15)` + forced NUL at `[15]`, and type `strncpy(...,3)` + NUL at
+  `[3]`.
+
+The `ObjectEntry` struct fields (`object_name[16]` at offset 2, `type[4]` at
+offset 18, `/home/ronny/repos/nd500x/external/ndmonlib/include/ndmon/mon_file_table.h:78-79`)
+are the GUEST-VISIBLE 64-byte SINTRAN object-entry layout and must NOT be
+widened. Per that layout a full-length name fills all 16 bytes with NO
+terminator; the 0x27 terminator appears only when the name is shorter.
+
+### The fix (in ndmonlib, branch ndix-mon600)
+
+- `mon_populate_object_entry_from_host()`: name up to 16 chars, type up to 4,
+  0x27 terminator only when shorter than the field.
+- `object_entry_init_terminal()` / `object_entry_init_file()`: same pattern.
+- `write_sintran_string()`: bounded scan stopping at NUL or 0x27 instead of
+  `strlen()` (the source may now legitimately be a full, unterminated field).
+- `mon_41B_ReadObjectEntry.c` log line: `%.16s`/`%.4s` instead of `%s`.
+- Audited consumers: `mon_257B_OpenFileInfo.c` `name_eq()` and the debugger
+  `files` display (`/home/ronny/repos/nd500x/src/debugger/commands.c:4793`)
+  were already bounded and 0x27-aware; no other C-string consumers found.
+
+### Verified result (fresh sandbox run, same recipe as section 4)
+
+```
+[MON:DEBUG] MON 256B [DEABF/FullFileName]: IN: AbbrevName='DESCRIPTION-FILE:DESC', FileType='(none)'
+[MON:DEBUG] Path translation: 'DESCRIPTION-FILE' + 'DESC' -> '<sandbox>/GUEST/DESCRIPTION-FILE.DESC'
+[MON:DEBUG] MON 256B [DEABF/FullFileName]: OUT: FullName='DESCRIPTION-FILE:DESC;1'
+[MON:INFO ] EXIT 256B DEABF -> SUCCESS
+```
+
+The section-4 abort (error 56, no output) is GONE.
+
+### Regression checks (all green)
+
+- Full C pipeline re-verified after the change: `MODE COMPILE-HELLO` produces a
+  fresh 933-byte `HELLO.NRF` (mtime-verified), zero traps; `@HELLO` prints
+  "Hello world".
+- `stack_overflow` test passes.
+- `mon_calls` test fails IDENTICALLY with the change stashed and restored
+  (A/B-verified): its failure is the pre-existing "MON 413B FSCDNT ... could
+  not open scratch file", unrelated to this fix.
+
+### NEW blocker: EASSERT VIOLATION right after DEABF succeeds
+
+With the name resolved, CONVERT-DOM-A03 immediately prints
+`EASSERT VIOLATION AT 01000022731` and LEAVEs after only 2,835 instructions.
+Octal `01000022731` = 0x080025D9, which is exactly the `ret=` address in the
+emulator's own workaround line printed at that moment:
+
+```
+[ENTF] Using fixed data area at B=0x08024120, args=0, ret=0x080025D9
+```
+
+So the assert is tied to the emulator's ENTF "fixed data area" fallback path
+(an instruction-handling gap, NOT a MON/file issue). Next step: investigate the
+ENTF implementation (grep `Using fixed data area` in
+`/home/ronny/repos/nd500x/src/cpu/`) against the ENTF spec in
+`/home/ronny/repos/nd500x/docs/instructions/asm/` before implementing any of
+the section-6 MON calls - none of them was reached.
+
+Repro sandbox for this update (session scratchpad, regenerate as needed):
+`/tmp/claude-1000/-home-ronny-repos-nd500x/c79ab8e4-280a-4a44-a1dc-de912b970903/scratchpad/cdsandbox/`
+(`run.out.txt`, `run.monlog.txt`; staged from `/mnt/d/ND/500/LED/x/` and
+`/home/ronny/ND500USERS/SYSTEM`).
