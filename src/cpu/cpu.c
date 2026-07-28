@@ -248,6 +248,20 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 			opcode_byte = nd500_bus_read8(cpu->machine, cpu->PC);
 		}
 		if (opcode_byte == 0x00) {
+			/* ND500X_NO_INVALID00=1: report but keep running. The heuristic
+			 * assumes a zero opcode means uninitialized memory, but a
+			 * demand-paged text page can legitimately read as zero for a
+			 * moment while its disk read is in flight - halting there hides
+			 * whether the page arrives. */
+			static int nz = -1;
+			if (nz < 0) { const char* e = getenv("ND500X_NO_INVALID00"); nz = (e && e[0] && e[0] != '0') ? 1 : 0; }
+			if (nz) {
+				static unsigned zc = 0;
+				if (zc++ < 40)
+					fprintf(stderr, "[ZEROFETCH] PC=0x%08X CED=%u paddr=0x%08X (continuing)\n",
+					        cpu->PC, cpu->CED, paddr);
+				goto invalid00_done;
+			}
 			cpu->machine->run_flag = 0;
 			cpu->machine->stop_reason = STOP_INVALID_INSTRUCTION_00;
 			cpu->machine->stop_addr = cpu->PC;
