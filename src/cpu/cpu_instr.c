@@ -78,6 +78,8 @@ static inline void mmu_write8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t val) {
 		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); /* is_write=1, is_instruction=0 */
 	}
 
+	{ extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
+	  nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 8); }
 	nd500_bus_write8(cpu->machine, paddr, val);
 }
 
@@ -92,6 +94,9 @@ static inline uint16_t mmu_read16(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
 		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
 	}
 
+	if (cpu->CED == 0 && vaddr >= 0xF0000000u && getenv("ND500X_UDATADBG"))
+		printf("[UDATA16] PC=0x%08X CED=0 read16 vaddr=0x%08X paddr=0x%08X\n",
+		       cpu->PC, vaddr, paddr);
 	return nd500_bus_read16(cpu->machine, paddr);
 }
 
@@ -107,6 +112,8 @@ static inline void mmu_write16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) {
 		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
 	}
 
+	{ extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
+	  nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 16); }
 	nd500_bus_write16(cpu->machine, paddr, val);
 }
 
@@ -121,6 +128,9 @@ static inline uint32_t mmu_read32(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
 		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
 	}
 
+	if (cpu->CED == 0 && vaddr >= 0xF0000000u && getenv("ND500X_UDATADBG"))
+		printf("[UDATA32] PC=0x%08X CED=0 read32 vaddr=0x%08X paddr=0x%08X\n",
+		       cpu->PC, vaddr, paddr);
 	return nd500_bus_read32(cpu->machine, paddr);
 }
 

@@ -56,11 +56,18 @@ void nd500_instr_Lcntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Calculate context save area address: (process_number+1)*400B + OS_address */
     /* Octal 400B = 256 decimal (like C# line 61) */
     uint32_t context_address = (process_number + 1) * 256 + address;
-    uint32_t current_address = context_address;
 
     /* Load registers based on mask bits (like C# lines 67-120) */
     for (int reg_num = 1; reg_num <= 37; reg_num++) {
         if ((mask & (1u << (reg_num - 1))) != 0) {
+            /* Register N lives at a FIXED slot (reg_num-1)*4 in the context
+             * block, NOT packed consecutively by mask. The kernel accesses the
+             * SAME block via fixed CX_ offsets (CX_ST1=64=(17-1)*4, CX_CED=92=
+             * (24-1)*4; machine/locore.h), and _intvec reads CX_CED at entry
+             * then lcntxt-restores at exit on the same block - so a sparse mask
+             * (e.g. CNTXMASK=0x1c3ffff: regs 1-18 + 23-25) must land THA/CED/CAD
+             * at 88/92/96, not the consecutive 72/76/80. Same fix as lregbl. */
+            uint32_t current_address = context_address + (uint32_t)(reg_num - 1) * 4u;
             /* Context-block address is PHYSICAL (kernel phyladr) - bypass MMU,
              * matching Scntxt and RetroCore ProcessControl ReadPhysical32. */
             uint32_t reg_value = nd500_bus_read32(cpu->machine, current_address);
@@ -103,8 +110,6 @@ void nd500_instr_Lcntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 case 37: cpu->TEMM2 = reg_value; break;     /* TEMM2 register */
                 default: break;
             }
-
-            current_address += 4; /* Each register is 4 bytes */
         }
     }
 

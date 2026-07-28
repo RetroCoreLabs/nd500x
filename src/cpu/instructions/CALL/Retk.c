@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>   /* getenv - implicit-int prototype truncates the char* -> crash */
 
 /**
  * RETK instruction - CALL class
@@ -90,12 +91,34 @@ void nd500_instr_Retk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* STEP 3: Read RETA from B+4 (return address) */
     uint32_t ret_addr = nd500_read_memory_32(cpu, cpu->B + OFFSET_RETA);
 
-    /* STEP 4: Check for domain boundary (PREVB == 0 or RETA == 0) */
+    /* STEP 4: Check for domain boundary (PREVB == 0 or RETA == 0). Same cross-domain
+     * return as Ret.c (RET), but the K flag stays SET (set at STEP 1) so the returned-
+     * to program sees the syscall's error indication. This is the NDIX syscall error
+     * return path: _domain_call ends `if k go k_is1: ret ; k_is1: retk` (locore.c:422),
+     * so a syscall that set K returns to the user via RETK. The caller's CED/CAD/P/B
+     * are loaded from the OLD (=CED) domain's DIT call area, which the kernel's
+     * _domain_call restored to the (execve-modified) user P/B. */
     if ((prev_b == 0 || ret_addr == 0) && (cpu->CAD != cpu->CED) && (cpu->CAD != 0)) {
-        /* DOMAIN BOUNDARY - cross-domain return not implemented */
-        printf("[TODO] RETK at PC=0x%08X: Domain return from domain %u to %u not yet implemented\n",
-               fi->address, cpu->CED, cpu->CAD);
-        trap_stack_underflow(cpu, fi->address);
+        uint32_t old_base = cpu->DITBASE + (uint32_t)cpu->CED * 256u;
+        uint8_t  new_ced = nd500_bus_read8(cpu->machine, old_base + 128);   /* call_ce */
+        uint8_t  new_cad = nd500_bus_read8(cpu->machine, old_base + 129);   /* call_ca */
+        uint32_t new_p   = nd500_bus_read32(cpu->machine, old_base + 131);  /* call_p  */
+        uint32_t new_b   = nd500_bus_read32(cpu->machine, old_base + 135);  /* call_b  */
+
+        cpu->CED = new_ced;
+        cpu->CAD = new_cad;
+        cpu->PC  = new_p;
+        cpu->L   = new_p;
+        cpu->B   = new_b;
+        nd500_apply_domain_pia(cpu, new_ced);
+
+        /* Zeroize call_p/call_b in the old DIT so the domain may be called again. */
+        nd500_bus_write32(cpu->machine, old_base + 131, 0);
+        nd500_bus_write32(cpu->machine, old_base + 135, 0);
+
+        if (getenv("ND500X_DOMDBG"))
+            printf("[DOMRETK] RETK@0x%08X: domain %u -> %u  P=0x%08X B=0x%08X CAD=%u (K set)\n",
+                   fi->address, (unsigned)new_cad, new_ced, new_p, new_b, new_cad);
         return;
     }
 

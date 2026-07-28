@@ -2,6 +2,9 @@
 #include "machine_protos.h"
 #include "nd500_mmu.h"
 #include <stdio.h>
+#include <stdlib.h>   /* getenv() - without this the implicit int prototype
+                       * truncates the returned char* to 32 bits and the env
+                       * check derefs a wild pointer (SIGSEGV in ENTT). */
 
 /**
  * ENTT instruction - CALL class
@@ -281,11 +284,38 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 8, 1, 0),
                       trap_frame_base + local_data_size);
 
-    /* B+12: AUX = 0 (auxiliary, used for protect violation info) */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 12, 1, 0), 0);
-
-    /* B+16: N = 50 (argument count - matches register block layout) */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 16, 1, 0), 50);
+    /* Trap-frame heading fields B+12 (AUX) and B+16 (N).
+     *
+     * On the NDIX multi-domain (mother-domain) trap path the ND-500 microcode
+     * overloads these heading slots with the fault info and the FAULTING LOGICAL
+     * ADDRESS: entrap (machine/locore.c:461-462) does
+     *     w move b.12, b.24+CX_INFO      # fault info
+     *     w move b.16, b.24+CX_VADDR     # fault address
+     * and pagein() faults the address in. Writing the literal arg-count 50 at B+16
+     * made the kernel page in address 0x32 (=50) forever (panic: pagein valid page).
+     *
+     * SINTRAN's own trap handling instead reads B+16 as the register-block arg
+     * count (N=50) and hangs / errors (NC prints [SINTRAN ERROR 132B]) if it sees a
+     * fault address there. NDIX is the guest-tables MMU regime (ND500X_MMU_GUEST_
+     * TABLES=1, the same gate the rest of the NDIX-specific MMU code uses); SINTRAN
+     * (incl. NC codegen) never sets it. So deliver the fault address/info only under
+     * guest-tables mode and keep the classic N=50 heading otherwise. (trap_cross_
+     * domain alone is NOT sufficient: NC also takes cross-domain traps.) */
+    static int ndix_regime = -1;
+    if (ndix_regime < 0) {
+        const char* e = getenv("ND500X_MMU_GUEST_TABLES");
+        ndix_regime = (e && e[0] && e[0] != '0') ? 1 : 0;
+    }
+    if (ndix_regime) {
+        nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 12, 1, 0),
+                          cpu->trap_saved_info);
+        nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 16, 1, 0),
+                          cpu->trap_saved_fault_addr);
+    } else {
+        /* B+12: AUX = 0 ; B+16: N = 50 (argument count - register block layout). */
+        nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 12, 1, 0), 0);
+        nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 16, 1, 0), 50);
+    }
 
     /* ========================================================================
      * Write register block (args 1-40 at B+20..B+179)
@@ -341,9 +371,16 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* arg24 (B+112): THA */
     nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 112, 1, 0), cpu->THA);
 
-    /* arg25-26 (B+116..B+120): CED, CAD */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 116, 1, 0), cpu->CED);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 120, 1, 0), cpu->CAD);
+    /* arg25-26 (B+116..B+120): CED, CAD.
+     * For a cross-domain (mother-domain) trap, raise_trap already switched the
+     * live CED/CAD to the HANDLER domain, but the register block must record the
+     * TRAPPING domain's CED/CAD so RETT returns control to the trapping domain
+     * (manual 4.2.5.3). raise_trap stashed those in trap_saved_CED/CAD. For a
+     * same-domain trap trap_cross_domain==0 and these equal the live values. */
+    uint32_t entt_ced = cpu->trap_cross_domain ? cpu->trap_saved_CED : cpu->CED;
+    uint32_t entt_cad = cpu->trap_cross_domain ? cpu->trap_saved_CAD : cpu->CAD;
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 116, 1, 0), entt_ced);
+    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 120, 1, 0), entt_cad);
 
     /* arg27-30 (B+124..B+136): mic scratch - set to 0 */
     nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 124, 1, 0), 0);

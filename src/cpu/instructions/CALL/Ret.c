@@ -84,30 +84,70 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Check for DOMAIN BOUNDARY first (before stack underflow) */
     if ((prev_b == 0 || ret_addr == 0) && (cpu->CAD != cpu->CED) && (cpu->CAD != 0)) {
         /*
-         * DOMAIN BOUNDARY DETECTED
+         * DOMAIN BOUNDARY DETECTED - perform a cross-domain return.
          *
-         * This is a cross-domain return. The zero values in PREVB/RETA
-         * indicate we're returning from a called domain back to the caller.
+         * ND-500 Reference Manual (ND-05.009.4) section 4.2.5.2:
+         *   "On return from a domain call, the registers CED, CAD, P and B are
+         *    loaded from the old domain information table."
+         *   "The memory management system will zeroize the return address and B
+         *    register value in the domain information table at a domain call
+         *    return to indicate that a call to the domain may be done."
          *
-         * Domain return requires:
-         * 1. Load caller context from PCB.pcb_call structure
-         * 2. Save current domain state to DIT (Domain Information Table)
-         * 3. Restore calling domain state from DIT
-         * 4. Update CAD and CED to calling domain
-         * 5. Restore B and P from saved context
+         * The "old" domain is the one we are returning FROM = the current CED.
+         * Its DIT entry lives at DITBASE + CED*256 (PCBSIZ). The domain-call
+         * save area (kernel struct pcb_call, verified against pcb.h and the
+         * manual's octal offsets) is:
+         *   call_ce (Calling Domain)            @ 128 (200B) 1 byte
+         *   call_ca (Alternative of caller)     @ 129 (201B) 1 byte
+         *   call_p  (P of caller)               @ 131 (203B) 4 bytes
+         *   call_b  (B of caller)               @ 135 (207B) 4 bytes
+         * DITBASE is a physical address, so use the physical bus accessors.
          *
-         * NOTE: Domain switching is deferred to Phase 4.
-         * For now, we treat this as an error to avoid incorrect behavior.
+         * TOS/THA/LL/HL loads from the NEW domain's DIT (also mandated by the
+         * manual) are intentionally deferred until proven necessary by a fault.
          */
-        printf("[TODO] RET at PC=0x%08X: Domain return from domain %u to %u not yet implemented\n",
-               fi->address, cpu->CED, cpu->CAD);
-        printf("       PREVB=0x%08X, RETA=0x%08X (domain boundary detected)\n",
-               prev_b, ret_addr);
+        uint32_t old_base = cpu->DITBASE + (uint32_t)cpu->CED * 256u;
+        uint8_t  new_ced = nd500_bus_read8(cpu->machine, old_base + 128);
+        uint8_t  new_cad = nd500_bus_read8(cpu->machine, old_base + 129);
+        uint32_t new_p   = nd500_bus_read32(cpu->machine, old_base + 131);
+        uint32_t new_b   = nd500_bus_read32(cpu->machine, old_base + 135);
 
-        /* TODO: Call nd500_domain_return(cpu) when domain switching is implemented */
-        /* For now, we cannot safely proceed, so we trap */
-        trap_stack_underflow(cpu, fi->address);
+        cpu->CED = new_ced;
+        cpu->CAD = new_cad;
+        cpu->PC  = new_p;
+        cpu->L   = new_p;
+        cpu->B   = new_b;
+
+        /* Privilege follows the domain being entered (e.g. /etc/init in domain 1
+         * runs non-privileged, pcb_pia=0), independent of the kernel's live PiA. */
+        nd500_apply_domain_pia(cpu, new_ced);
+
+        /* Zeroize return address (P) and B in the old DIT: marks the call as
+         * completed so the domain may be called again (manual 4.2.5.2). */
+        nd500_bus_write32(cpu->machine, old_base + 131, 0);
+        nd500_bus_write32(cpu->machine, old_base + 135, 0);
+
+        if (getenv("ND500X_DOMDBG")) {
+            printf("[DOMRET] RET@0x%08X: domain %u -> %u  P=0x%08X B=0x%08X CAD=%u\n",
+                   fi->address, new_cad /*caller alt was old CED path*/, new_ced,
+                   new_p, new_b, new_cad);
+        }
         return;
+    }
+
+    /* One-shot DIT call-area dump at the /etc/init launch RET (PC=0x29).
+     * Verifies the real kernel DIT layout (256B/domain, call area at octal
+     * 200B=128) is visible at DITBASE + CED*256. Env-gated ND500X_DITDBG. */
+    if (getenv("ND500X_DITDBG") && fi->address == 0x29) {
+        uint32_t base = cpu->DITBASE + (uint32_t)cpu->CED * 256u;
+        printf("[DITDBG] PC=0x29 DITBASE=0x%08X CED=%u CAD=%u base=0x%08X\n",
+               cpu->DITBASE, cpu->CED, cpu->CAD, base);
+        printf("[DITDBG]   call_ce@128=%u call_ca@129=%u call_x@130=%u call_p@131=0x%08X call_b@135=0x%08X\n",
+               nd500_bus_read8(cpu->machine, base + 128),
+               nd500_bus_read8(cpu->machine, base + 129),
+               nd500_bus_read8(cpu->machine, base + 130),
+               nd500_bus_read32(cpu->machine, base + 131),
+               nd500_bus_read32(cpu->machine, base + 135));
     }
 
     /* Check for STACK UNDERFLOW (after ruling out domain boundary) */

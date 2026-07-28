@@ -54,7 +54,6 @@ void nd500_instr_Scntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* For SCNTXT, address is the base address directly (like C# line 62) */
     uint32_t context_address = address;
-    uint32_t current_address = context_address;
 
     /* Save registers based on mask bits (like C# lines 68-125) */
     for (int reg_num = 1; reg_num <= 37; reg_num++) {
@@ -105,9 +104,11 @@ void nd500_instr_Scntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
              * intvec, locore.c), so this must bypass the data MMU. Using the
              * MMU path (nd500_write_memory_32) mis-writes the block and the
              * saved CX_B reads back 0 -> intvec "kernel stack underflow" panic.
-             * Matches RetroCore CpuND500.ProcessControl ReadPhysical32/WritePhysical32. */
+             * Matches RetroCore CpuND500.ProcessControl ReadPhysical32/WritePhysical32.
+             * Register N is at a FIXED slot (reg_num-1)*4, matching the kernel's
+             * fixed CX_ offsets and lregbl/Lcntxt (NOT consecutive mask packing). */
+            uint32_t current_address = context_address + (uint32_t)(reg_num - 1) * 4u;
             nd500_bus_write32(cpu->machine, current_address, reg_value);
-            current_address += 4; /* Each register is 4 bytes */
         }
     }
 

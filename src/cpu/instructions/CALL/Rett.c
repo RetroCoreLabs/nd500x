@@ -370,6 +370,16 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ======================================================================== */
     cpu->PC = saved_PC;
 
-    /* Clear trap handler flag */
+    /* Clear trap handler flag + cross-domain trap marker. For a cross-domain
+     * (mother-domain) trap, CED/CAD were just restored from the register block
+     * (arg25/26 = the trapping domain that ENTT recorded), so control returns to
+     * the domain that faulted. */
     cpu->in_trap_handler = false;
+    cpu->trap_cross_domain = 0;
+
+    /* Privilege follows the executing domain: re-derive PiA from the domain we
+     * just returned into (CED restored from the reg block above), so a return to
+     * a user domain drops privilege even though the saved ST1 carried the
+     * handler-domain PiA. No-op without a DIT (single-domain SINTRAN). */
+    nd500_apply_domain_pia(cpu, cpu->CED);
 }

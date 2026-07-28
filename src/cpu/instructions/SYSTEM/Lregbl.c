@@ -150,10 +150,25 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * lregbl that reloads the program counter WHILE a handler is active IS the
      * handler return. Clear the guard here, otherwise it stays set and the
      * returned-to program's next legitimate page fault is misdetected as a
-     * double fault and halts (observed: init's PC=8 stack write PGF). PiA is
-     * already correct because ST1 (reg 17) was reloaded from the saved block. */
+     * double fault and halts (observed: init's PC=8 stack write PGF). */
     if (has[1] && cpu->in_trap_handler) {
         cpu->in_trap_handler = false;
+    }
+
+    /* PiA is a DOMAIN attribute (see nd500_apply_domain_pia / cpu.c), not a
+     * freely-saved status bit: it must follow the executing domain across a
+     * domain transition, and an lregbl trap-return that reloads P + CED IS such
+     * a transition. Reloading ST1 (reg 17) from the saved block can restore a
+     * STALE PiA - e.g. a kernel fu/su probe (fubyte@0x675) faults while its
+     * saved context block carries PiA=0; lregbl-returning into domain 0 (the
+     * privileged kernel) with that stale PiA=0 then makes entrap's next
+     * privileged instruction (tutti/dcc) trap IIC -> double fault. Reapply the
+     * restored domain's PiA so privilege matches the domain being resumed. This
+     * is a no-op without a real DIT (single-domain SINTRAN) and a no-op when the
+     * saved PiA already matched the domain (the normal kernel-trap return). */
+    if (has[1] && cpu->DITBASE) {
+        extern void nd500_apply_domain_pia(Nd500Cpu* cpu, uint32_t domain);
+        nd500_apply_domain_pia(cpu, cpu->CED);
     }
 
     /* No status bits affected for this instruction */
