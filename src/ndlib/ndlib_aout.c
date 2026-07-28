@@ -5,6 +5,16 @@
 #include <errno.h>
 #include "../machine/machine_protos.h"
 #include "ndlib.h"
+#include <stdlib.h>
+
+/* Loader chatter is diagnostic, not user-facing: gate it behind
+ * ND500X_LOADDBG so a normal boot shows only real information. */
+static int ndlib_loaddbg(void) {
+    static int v = -1;
+    if (v < 0) { const char* e = getenv("ND500X_LOADDBG"); v = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return v;
+}
+
 
 /* Minimal ND-500 a.out header and symbol structures based on ragge/pcc-nd500
  *
@@ -154,7 +164,7 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
 		entry_point = hdr.a_entry;
 		printf("File Type:      EXECUTABLE (ready to run)\n");
 		printf("Entry point:    0x%08X\n", entry_point);
-		printf("[DEBUG ndlib_loadaout_file_ex] hdr.a_entry=0x%x, setting entry_point=0x%x\n", hdr.a_entry, entry_point);
+		if (ndlib_loaddbg()) printf("[DEBUG ndlib_loadaout_file_ex] hdr.a_entry=0x%x, setting entry_point=0x%x\n", hdr.a_entry, entry_point);
 	}
 	
 	/* Text immediately after header, per nd500 a.out */
@@ -184,7 +194,7 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
 	}
 	if (out_entry) {
 		*out_entry = entry_point;
-		printf("[DEBUG ndlib_loadaout_file_ex] Setting *out_entry = 0x%x\n", entry_point);
+		if (ndlib_loaddbg()) printf("[DEBUG ndlib_loadaout_file_ex] Setting *out_entry = 0x%x\n", entry_point);
 	}
 	if (out_text_size) *out_text_size = hdr.a_text;
 	fclose(f);
@@ -515,20 +525,20 @@ int ndlib_load_aout_with_debug(Nd500Machine* m, const char* aout_path,
         /* Object file (no entry point) - use first instruction from map */
         uint32_t first_instr = ndlib_symbols_first_instruction_addr();
         pc = (first_instr > 0) ? first_instr : 0;
-        printf("[ndlib_load_aout_with_debug] Object file: entry=0, using first_instr=0x%x as PC\n", pc);
+        if (ndlib_loaddbg()) printf("[ndlib_load_aout_with_debug] Object file: entry=0, using first_instr=0x%x as PC\n", pc);
     } else {
         /* Executable - use entry point (even if it's 4) */
         pc = entry;
-        printf("[ndlib_load_aout_with_debug] Executable: entry=0x%x, setting PC=0x%x\n", entry, pc);
+        if (ndlib_loaddbg()) printf("[ndlib_load_aout_with_debug] Executable: entry=0x%x, setting PC=0x%x\n", entry, pc);
     }
 
     /* Set PC on machine's CPU */
     if (m->cpu) {
-        printf("[ndlib_load_aout_with_debug] Setting m->cpu->PC = 0x%x (was 0x%x)\n", pc, m->cpu->PC);
+        if (ndlib_loaddbg()) printf("[ndlib_load_aout_with_debug] Setting m->cpu->PC = 0x%x (was 0x%x)\n", pc, m->cpu->PC);
         m->cpu->PC = pc;
-        printf("[ndlib_load_aout_with_debug] After set: m->cpu->PC = 0x%x\n", m->cpu->PC);
+        if (ndlib_loaddbg()) printf("[ndlib_load_aout_with_debug] After set: m->cpu->PC = 0x%x\n", m->cpu->PC);
     } else {
-        printf("[ndlib_load_aout_with_debug] WARNING: m->cpu is NULL, cannot set PC!\n");
+        if (ndlib_loaddbg()) printf("[ndlib_load_aout_with_debug] WARNING: m->cpu is NULL, cannot set PC!\n");
     }
 
     /* Return values */

@@ -3,6 +3,16 @@
 #include <string.h>
 #include <stdint.h>
 #include "ndlib.h"
+#include <stdlib.h>
+
+/* Loader chatter is diagnostic, not user-facing: gate it behind
+ * ND500X_LOADDBG so a normal boot shows only real information. */
+static int ndlib_loaddbg(void) {
+    static int v = -1;
+    if (v < 0) { const char* e = getenv("ND500X_LOADDBG"); v = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return v;
+}
+
 
 /* Symbol cache for fast lookup */
 typedef struct {
@@ -233,7 +243,7 @@ int ndlib_symbols_load(const char* aout_path) {
 
         const char* name = strings + symbols[i].n_strx;
         if (i < 3) {  /* Debug first 3 symbols */
-            fprintf(stderr, "[DEBUG] Symbol %d: n_strx=%d n_type=0x%02x n_value=0x%08x name='%s'\n",
+            if (ndlib_loaddbg()) fprintf(stderr, "[DEBUG] Symbol %d: n_strx=%d n_type=0x%02x n_value=0x%08x name='%s'\n",
                     i, symbols[i].n_strx, symbols[i].n_type, symbols[i].n_value, name);
         }
         g_symbols[idx].name = strdup(name);

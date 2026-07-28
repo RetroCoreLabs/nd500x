@@ -328,6 +328,20 @@ int nd500_debugger_repl(Nd500Machine* m) {
 			 * whole emulator down mid-boot. Linger until the machine stops
 			 * on its own, then exit as before. */
 			if (console_stdin && m && m->run_flag) {
+				/* Ctrl-D at a live guest shell means EOF *to the guest*, not
+				 * "kill the emulator": push EOT into the console input ring
+				 * so the shell sees end-of-file (and, in single user, exits
+				 * so init can move on). Only the SECOND consecutive EOF ends
+				 * the session, matching how a terminal behaves. */
+				extern void nd500_fecall_console_input(const char* buf, int len);
+				static int eof_seen = 0;
+				if (!eof_seen++) {
+					const char eot = 0x04;
+					nd500_fecall_console_input(&eot, 1);
+					fprintf(stderr, "\n[repl] Ctrl-D sent to the guest console "
+					        "(press again to detach)\n");
+					continue;
+				}
 				fprintf(stderr, "[repl] stdin closed - console input ended; "
 				        "machine keeps running (Ctrl-C to stop)\n");
 				while (m->run_flag) {
