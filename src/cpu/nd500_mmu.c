@@ -390,6 +390,16 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             mmu_demand_segments = (e && e[0] && e[0] != '0') ? 0 : 1;
         }
         if (!is_instruction && mmu_demand_segments && cpu->machine &&
+            /* KERNEL DOMAIN ONLY. User-domain (domain != 0) segments are
+             * managed exclusively by the NDIX kernel's paging - a missing
+             * capability there is a WILD POINTER and must fault to the
+             * kernel (pagein -> SIGSEGV), not be silently backed. During the
+             * ls -l crash the allocator quietly mapped 'data segment 13
+             * (domain 4, vaddr=0x6C656182)' - ASCII garbage as an address -
+             * masking the real corruption. Domain 0 keeps demand mapping
+             * (seg 29 u-area & friends rely on it before the kernel tables
+             * exist), as does single-domain SINTRAN (CED always 0). */
+            domain == 0 &&
             segment >= DEMAND_SEG_MIN_SEGMENT && segment <= DEMAND_SEG_MAX_SEGMENT) {
             uint32_t assigned = 0;
             int rc = nd500_mon_allocate_segment(cpu, cpu->machine, domain,

@@ -17,7 +17,7 @@ Nd500TrapState g_trap_state = {0};
  * path (trap, breakpoint, invalid opcode, decode failure) can print how
  * execution got there. Populated at the top of every nd500_cpu_step; dumped to
  * stderr when ND500X_STOPDBG is set. Cheap and off the hot path unless enabled. */
-#define ND500_PC_RING_LEN 32
+#define ND500_PC_RING_LEN 256
 static uint32_t g_pc_ring[ND500_PC_RING_LEN];
 static uint32_t g_pc_ring_pos = 0;
 

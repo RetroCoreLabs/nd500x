@@ -123,6 +123,24 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint32_t new_p   = nd500_bus_read32(cpu->machine, old_base + 131);
         uint32_t new_b   = nd500_bus_read32(cpu->machine, old_base + 135);
 
+        /* Diagnostic: a domain return whose saved P/B are ZERO means the DIT
+         * call area was never (re)filled - the RET was NOT the kernel's
+         * domain-call tail (locore 0x76E/0x76F) but some other frame whose
+         * prevb/reta happened to be 0. Jumping to user P=0/B=0 from there is
+         * catastrophic (crt0 runs with B=0). Log it loudly with the frame. */
+        if (new_p == 0 && new_b == 0) {
+            fprintf(stderr, "[DOMRET-BOGUS] ret@0x%08X CED=%u CAD=%u B=0x%08X prevb=0x%08X reta=0x%08X L=0x%08X -> call area EMPTY (P=0,B=0)\n",
+                    fi->address, cpu->CED, cpu->CAD, cpu->B, prev_b, ret_addr, cpu->L);
+            uint32_t fb = cpu->B;
+            for (int lvl = 0; lvl < 8 && fb; lvl++) {
+                uint32_t pb = nd500_read_memory_32(cpu, fb + 0);
+                uint32_t ra = nd500_read_memory_32(cpu, fb + 4);
+                fprintf(stderr, "[DOMRET-BOGUS]   frame L%d B=0x%08X prevb=0x%08X reta=0x%08X\n", lvl, fb, pb, ra);
+                if (pb == fb) break;
+                fb = pb;
+            }
+        }
+
         cpu->CED = new_ced;
         cpu->CAD = new_cad;
         cpu->PC  = new_p;
