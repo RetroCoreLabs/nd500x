@@ -223,3 +223,66 @@ The ND linker uses a **DUAL input source**: it reads the command line once via
 only one of the two channels sends it down an unreachable path and produces a
 completely convincing FALSE blocker - this cost days on the nd500x side. Any C#
 test harness driving the linker must feed BOTH.
+
+---
+
+# ITEM 3 - Object-entry name/type are FIXED SINTRAN FIELDS, not C/.NET strings (ndmonlib `9db1961`, 2026-07-28)
+
+Applies to whichever C# code eventually implements the file table and these MON
+calls (none of this exists on the C# side yet - this item is FORWARD guidance
+for the catch-up implementation, written down now so the semantics are not
+rediscovered the hard way):
+
+- **MON 41B ROBJE (ReadObjectEntry)** - THE call this rule is about: it
+  serializes the 64-byte object entry into guest memory.
+- **MON 215B (GetObjectEntry) / 216B (SetObjectEntry)** - same 64-byte
+  structure, same field rules, both directions.
+- **MON 256B DEABF (FullFileName)** - only the SYMPTOM site: any name that was
+  stored truncated comes back out truncated here and lookups then miss.
+
+## The rule
+
+The guest-visible 64-byte SINTRAN object entry contains:
+
+| Offset | Size | Field |
+|--------|------|-------|
+| 2      | 16   | file name |
+| 18     | 4    | file type |
+
+A full-length value **fills the entire field with NO terminator**. The 0x27
+(apostrophe) terminator is present **only when the value is shorter than the
+field**. So:
+
+- `DESCRIPTION-FILE` (16 chars) occupies all 16 bytes, no terminator.
+- `HELLO` (5 chars) is `HELLO` + 0x27 + don't-care padding.
+- `DESC` / `PSEG` / `DSEG` / `LINK` (4 chars) fill the type field exactly, no
+  terminator.
+- `NRF` (3 chars) is `NRF` + 0x27.
+
+## What went wrong on the C side (do not repeat)
+
+The nd500x-side store code treated the fields as NUL-terminated C strings and
+capped them at field-size-minus-one: names stored as 15 chars max
+(`DESCRIPTION-FILE` -> `DESCRIPTION-FIL`) and types as 3
+(`DESC` -> `DES`, `PSEG` -> `PSE`). Result: CONVERT-DOM-A03's old-format
+domain lookup (via DEABF) failed with SINTRAN error 56 (NO SUCH FILE NAME)
+against a correctly-named file, before doing any conversion work.
+
+## Implementation rules for the C# side
+
+1. **Store**: copy up to 16 (name) / 4 (type) characters; write 0x27 after the
+   value ONLY if it is shorter than the field. Never reserve a byte for a
+   terminator inside the field.
+2. **Read/compare**: scan bounded by the field width, stopping at 0x27 (and
+   defensively at 0x00); never assume termination. In C# this means slicing the
+   byte field and scanning, not `Encoding.GetString` + `TrimEnd('\0')`
+   patterns that assume a terminator exists.
+3. **Log/display**: length-bound every formatting of these fields (the C side
+   had a `%s` on the raw 16-byte field in the 41B log - fine until a 16-char
+   name made it read into the next field).
+
+Fix commit on the C side: ndmonlib `9db1961` ("file table: object-entry
+name/type are fixed SINTRAN fields, not C strings"), files
+`src/support/mon_file_table.c` (store paths + bounded serializer) and
+`src/handlers/mon_41B_ReadObjectEntry.c` (log). Verified by CONVERT-DOM-A03
+resolving `DESCRIPTION-FILE:DESC` and by full NC compile/link/run regression.
