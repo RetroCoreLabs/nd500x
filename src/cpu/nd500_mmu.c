@@ -278,6 +278,16 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                       * these through the guest tables makes PTE writes/reads land
                       * where the PST entries point. */
                      || segment == 3 || segment == 4 || segment == 5
+                     /* 7 = the no-cache segment (NO_CACHE_SEG_START 0x38000000,
+                      * machine/param.h): the kernel maps the DISK BUFFER pool
+                      * here (machdep startup, ncsize += MAXBSIZE*nbuf) with its
+                      * own PTEs. Through the shadow tables the buffer window
+                      * diverged from the kernel's mapping after exec recycled
+                      * buffers: namei's geteblk name buffer and dirlookup's
+                      * bread buffers read back stale/garbage bytes, so EVERY
+                      * post-exec lookup died with "/: bad dir ino 2 at offset
+                      * 0: mangled entry" -> ENOENT. */
+                     || segment == 7
                      /* 2 = Physbase (_Physbase, virtual 0x10000000, DC_PHYS). The
                       * kernel builds seg-2 as a self-referential IDENTITY map of all
                       * physical memory (machdep.c startup: PS_AZI->PS_ASI->PS_ADI,
