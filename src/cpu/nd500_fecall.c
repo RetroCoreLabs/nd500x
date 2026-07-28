@@ -469,6 +469,20 @@ void nd500_fecall_console_input(const char* buf, int len) {
 static void fe_conq_drain(Nd500Cpu* cpu) {
     Nd500Machine* m = cpu->machine;
     if (!m) return;
+    /* Diagnostic (FEDBG): the ring address was captured from dton(&mx_bin) at
+     * FE_READ time. _mx_bin lives at kernel VA 0x3801A480 (locore.s PARTS
+     * block, segment 7) - verify the CURRENT guest translation still points
+     * at the captured physical page; if not, the cached address is stale and
+     * ring writes would corrupt whatever now owns that page. */
+    if (fedbg()) {
+        uint32_t now = nd500_mmu_translate_domain(cpu, 0x3801A800u, 0, 0, 0);
+        static uint32_t last_warn = 0;
+        if (now != g_termin_ring && now != last_warn) {
+            last_warn = now;
+            fprintf(stderr, "[FECALL] mx_bin phys MOVED: cached=0x%08X live=0x%08X\n",
+                    g_termin_ring, now);
+        }
+    }
     pthread_mutex_lock(&g_conq_mtx);
     uint16_t head = nd500_bus_read16(m, g_termin_ring + 6);
     uint16_t bfree = nd500_bus_read16(m, g_termin_ring + 8);

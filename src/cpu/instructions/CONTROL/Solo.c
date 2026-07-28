@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * Solo instruction - CONTROL class
@@ -232,9 +233,16 @@ void nd500_instr_Solo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // - Monitor for conditional branch instructions
     // - Clear solo_mode when conditional branch encountered
     //
-    // For now, just log that SOLO was executed
-    printf("[SOLO] Process switching disabled at PC=0x%08X (ends at next conditional branch)\n",
-           fi->address);
+    // For now, just log that SOLO was executed (env-gated: the NDIX kernel
+    // executes SOLO in its idle spin, flooding the console at ~25 lines/sec
+    // and shredding interactive shell output).
+    {
+        static int dbg = -1;
+        if (dbg < 0) { const char* e = getenv("ND500X_SOLODBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (dbg)
+            printf("[SOLO] Process switching disabled at PC=0x%08X (ends at next conditional branch)\n",
+                   fi->address);
+    }
 
     // No status flags are modified by SOLO instruction
 }
