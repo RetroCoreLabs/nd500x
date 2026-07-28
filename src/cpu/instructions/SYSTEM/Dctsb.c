@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * DCTSB instruction - SYSTEM class
@@ -175,7 +176,12 @@ void nd500_instr_Dctsb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * - But still validates privilege level for OS correctness
      */
 
-    printf("[DCTSB] Data TLB clear (emulator no-op) at PC=0x%08X\n", fi->address);
+    {
+        static int dbg = -1;
+        if (dbg < 0) { const char* e = getenv("ND500X_TSBDBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (dbg)
+            printf("[DCTSB] Data TLB clear (emulator no-op) at PC=0x%08X\n", fi->address);
+    }
 
     /* ========================================================================
      * WHY IS TLB CLEARING A NO-OP IN THE EMULATOR?

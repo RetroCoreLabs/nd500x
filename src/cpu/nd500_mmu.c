@@ -667,7 +667,12 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                 }
             }
             if (!l2_pte.valid) {
-                MMU_ERR("[MMU] TRAP: PS_ADI L2 page not valid! vaddr=0x%08X l2_pte_addr=0x%08X\n", virtual_addr, l2_pte_addr);
+                /* A zero L2 PTE is the ROUTINE demand-paging fault in a paging
+                 * OS (every text/data page of every exec'd program) - log it
+                 * only at TRACE, not at the default ERRORS level, or the
+                 * console drowns during normal NDIX operation. */
+                if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_TRACE)
+                    fprintf(stderr, "[MMU] TRAP: PS_ADI L2 page not valid! vaddr=0x%08X l2_pte_addr=0x%08X\n", virtual_addr, l2_pte_addr);
                 {
                     const char* e = getenv("ND500X_PTWDBG");
                     if (e && e[0] && e[0] != '0') {
@@ -871,6 +876,29 @@ uint16_t nd500_mmu_get_program_capability(Nd500Cpu* cpu, uint8_t domain, int seg
     }
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
     return g_pcb_table[domain].program_capabilities[segment];
+}
+
+/* Active program capability as the TRANSLATE path sees it: the guest DIT in
+ * memory when guest-table routing applies to (domain, segment), else the
+ * emulator shadow. The indirect CALL/CALLG dispatch must use this - a fork
+ * child's new domain exists ONLY in the kernel-written DIT (kpcbinit/newproc
+ * write _pcbtab through the seg-28 window onto DITBASE), so reading the
+ * mmusetup shadow returned capability 0 for the child's seg-31 syscall gate
+ * and its first syscall fell into the SINTRAN MON path (bogus MON LEAVE). */
+uint16_t nd500_mmu_get_active_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
+    ensure_mmu_tables();
+    if (segment < 0 || segment >= MAXSEG) return 0;
+    int use_guest = mmu_use_guest_tables() && cpu && cpu->machine && cpu->DITBASE
+                 && (domain != 0
+                     || segment == 2 || segment == 3 || segment == 4 || segment == 5
+                     || segment == 7 || segment == 26 || segment == 29
+                     || segment == 30 || segment == 31);
+    if (use_guest) {
+        uint32_t cap_addr = cpu->DITBASE + (uint32_t)domain * 256u + (uint32_t)segment * 2u;
+        return (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
+                        |  (uint32_t)nd500_bus_read8(cpu->machine, cap_addr + 1));
+    }
+    return g_pcb_table ? g_pcb_table[domain].program_capabilities[segment] : 0;
 }
 
 uint16_t nd500_mmu_get_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
