@@ -84,6 +84,31 @@ typedef struct Nd500Cpu {
 	uint32_t trap_saved_OTE1;       /* Saved OTE1 for restoration by RETT */
 	uint32_t trap_saved_OTE2;       /* Saved OTE2 for restoration by RETT */
 	int trap_number;                /* Current trap being handled (bit position) */
+	/* Cross-domain (mother-domain) trap dispatch state. When a trap in a child
+	 * domain is handled by a mother domain (manual 4.2.5.3 / ch.6), raise_trap
+	 * switches live CED/CAD to the handler domain and stashes the TRAPPING
+	 * domain's CED/CAD here so ENTT saves them into the register block and RETT
+	 * returns to the trapping domain. trap_cross_domain=0 for same-domain traps
+	 * (unchanged single-domain SINTRAN behaviour). */
+	uint32_t trap_saved_CED;        /* Trapping domain's CED (for ENTT reg-block arg25) */
+	uint32_t trap_saved_CAD;        /* Trapping domain's CAD (for ENTT reg-block arg26) */
+	int trap_cross_domain;          /* 1 if the current trap switched domains */
+	/* Faulting logical address + info for the current trap. On a trap the ND-500
+	 * microcode places the faulting address in the ENTT frame heading N field
+	 * (B+16) and the fault info in AUX (B+12); NDIX's entrap copies them to
+	 * cx_vaddr/cx_info and pagein() uses cx_vaddr. Saved here by raise_trap so ENTT
+	 * can write them (previously ENTT wrote the literal arg count 50 = 0x32 at B+16,
+	 * so pagein faulted address 0x32 and never mapped the real page). Placed at the
+	 * struct tail so adding them does not shift any earlier field's offset. */
+	uint32_t trap_saved_fault_addr;
+	uint32_t trap_saved_info;
+	/* MMU page-fault location code (MMWHERE nibble) for the CURRENT page fault,
+	 * set by the MMU walk just before trap_page_fault(): PFZPST(0xD)=zero PST
+	 * entry, PFZ1(0xE)=zero 1st-level PTE, PFZ2(0xF)=zero 2nd-level PTE. raise_trap
+	 * copies it into trap_saved_info->cx_info so NDIX's kernel PGF handler
+	 * (machine/trap.c) recognises a demand-paging fault ((info&MMWHERE)==PFZ2) and
+	 * calls pagein() instead of panic("Kernel Page Fault"). 0 => default PFZ2. */
+	uint32_t mmu_pgf_where;
 
 	/* Variable operand buffer for CALL/CALLG/POLY (all operands including fixed) */
 	Nd500OperandDecoded extra_operands[ND500_MAX_OPERANDS];
@@ -94,6 +119,32 @@ typedef struct Nd500Cpu {
 
 	/* Instruction counter for TIME MON call (MON 11B) */
 	uint64_t instruction_count;  /* Total instructions executed since startup */
+
+	/* Start PC of the instruction currently being executed (= old_pc in
+	 * cpu_step, set BEFORE the pre-execute PC advance). A page fault must
+	 * restart the FAULTING instruction, but cpu->PC is already advanced to
+	 * the next instruction during execute; raise_trap uses this for the
+	 * restartable-fault (PGF) saved PC so the instruction re-executes. */
+	uint32_t cur_instr_pc;
+
+	/* Pending ND-100 front-end (fecall) completion interrupt. An async FE_READ/
+	 * FE_WRIT/FE_DCTL fills its response packet immediately but the kernel blocks
+	 * in biowait() until a completion INTERRUPT drives diintr()->iodone(). The
+	 * fecall handler sets these; cpu_step delivers the interrupt (vector to
+	 * _intvec) at the next safe boundary once the CPU drops below IPL_DK. */
+	int      fe_int_pending;
+	uint32_t fe_int_gen;    /* generic device (DISK=1) */
+	uint32_t fe_int_sub;    /* sub-device */
+	uint32_t fe_int_rpk;    /* response-packet ND-100 word address */
+
+	/* Set by raise_trap when a trap fires MID-instruction; cleared by cpu_step
+	 * before each execute. Instruction implementations must check it after any
+	 * operand memory access and ABORT (no destination commit) when set: the
+	 * trap restarts the instruction, so committing a result computed from the
+	 * faulted (garbage) read corrupts restart state. (invoke_trap_handler
+	 * clears the global trap state synchronously, so nd500_trap_occurred() is
+	 * already 0 back in the instruction - this flag is the reliable signal.) */
+	uint32_t instr_aborted;
 
 	Nd500Machine* machine;
 } Nd500Cpu;
@@ -177,6 +228,9 @@ int nd500_cpu_run(Nd500Cpu* cpu, int steps);
 
 /* Trap system functions */
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr);
+/* Apply a domain's PiA (privilege) to live ST1; privilege follows CED across
+ * domain transitions (trap dispatch, RETT, domain return). No-op without a DIT. */
+void nd500_apply_domain_pia(Nd500Cpu* cpu, uint32_t domain);
 /* Set non-zero to suppress informational CPU-side printf output (shell clean mode). */
 extern int nd500_quiet;
 void check_pending_traps(Nd500Cpu* cpu, uint32_t trappingPC);
