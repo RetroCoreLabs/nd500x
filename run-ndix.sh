@@ -9,8 +9,8 @@
 # commands (e.g. "echo hello"); a line starting with '~' goes to the
 # emulator debugger instead. End with Ctrl-D.
 #
-#   -d <image>    Root disk image (default: /mnt/e/Dev/Ronny/NDIX-C/rootfs_shell.img
-#                 = real init + Bourne sh + /bin/echo + full /dev)
+#   -d <image>    Root disk image (default: /mnt/e/Dev/Ronny/NDIX-C/rootfs_full.img
+#                 = init + sh + 42 /bin utilities + full /dev)
 #                 Other images:
 #                   /mnt/e/Dev/Ronny/NDIX-C/rootfs_hello.img (echo-test init)
 #                   /mnt/e/Dev/Ronny/NDIX-C/rootfs_init.img  (stub init)
@@ -36,7 +36,7 @@ SINTRAN_ROOT=/mnt/e/Dev/Ronny/NDIX-C
 ND500X_BIN=/home/ronny/repos/nd500x/build/bin/nd500x
 
 # Disk image: -d wins, then a pre-set ND500X_DISK, then the default.
-DISK=${ND500X_DISK:-/mnt/e/Dev/Ronny/NDIX-C/rootfs_shell.img}
+DISK=${ND500X_DISK:-/mnt/e/Dev/Ronny/NDIX-C/rootfs_full.img}
 RUNTIME=45
 LOGFILE=
 
