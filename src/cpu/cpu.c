@@ -21,6 +21,7 @@ Nd500TrapState g_trap_state = {0};
 static uint32_t g_pc_ring[ND500_PC_RING_LEN];
 static uint32_t g_pc_ring_pos = 0;
 
+void nd500_dump_pc_ring(const char* tag);
 static void nd500_dump_stop_ring(const char* tag) {
 	const char* e = getenv("ND500X_STOPDBG");
 	if (!(e && e[0] && e[0] != '0')) return;
@@ -121,6 +122,18 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 	 * before) made the fetch of the instruction FOLLOWING an aborted one read
 	 * all-zero bytes -> bogus illegal-instruction stop. */
 	cpu->instr_aborted = 0;
+
+	/* Post-trap step trace (ND500X_PTDBG=<hexPC>): once a trap is raised at
+	 * that PC, log PC/CED/B for the following instructions - shows exactly
+	 * where the kernel handler goes and where it resumes. */
+	{
+		extern unsigned long g_ptdbg_target, g_ptdbg_count;
+		if (g_ptdbg_count) {
+			g_ptdbg_count--;
+			fprintf(stderr, "[PTDBG] PC=0x%08X CED=%u CAD=%u B=0x%08X inTrap=%d\n",
+			        cpu->PC, cpu->CED, cpu->CAD, cpu->B, cpu->in_trap_handler);
+		}
+	}
 
 	/* Record this PC in the stop-diagnostics ring before any stop check below. */
 	g_pc_ring[g_pc_ring_pos] = cpu->PC;
@@ -290,6 +303,10 @@ invalid00_done: ;
 	/* Decode, execute, then advance PC by decoded length */
 	Nd500FetchedInstruction fi;
 	uint32_t old_pc = cpu->PC;
+	/* Name the instruction being fetched BEFORE decode: a page fault raised
+	 * while fetching it must restart at ITS start, and decode is where such a
+	 * fault happens. (Set again after decode, harmlessly.) */
+	cpu->cur_instr_pc = old_pc;
 	if (nd500_decode_at(cpu->machine, old_pc, &fi) != 0) {
 		/* Instruction decode failed. This was previously a SILENT run-ending
 		 * path (return false with no message) - the reason `run` appeared to
@@ -426,6 +443,20 @@ invalid00_done: ;
 	cpu->cur_instr_pc = old_pc;
 	/* (instr_aborted is cleared at the top of the step, before fetch/decode) */
 
+	/* A fault raised during FETCH/DECODE has already vectored cpu->PC at the
+	 * trap handler. Advancing the PC below (and executing the half-decoded
+	 * instruction) would DESTROY that vector. This bites whenever an
+	 * instruction straddles a page boundary and only its tail bytes are
+	 * missing: the decode completes from garbage, PC becomes old_pc+len, the
+	 * handler never runs, and the program silently continues in the middle of
+	 * a page it does not have - the ls -l failure (instruction at 0x0FFC
+	 * spanning into the unmapped page at 0x1000 resumed at 0x1003, in kernel
+	 * text, with the user's B). Faults at the FIRST byte were unaffected,
+	 * which is why most demand paging worked. */
+	if (cpu->instr_aborted) {
+		return true;
+	}
+
 	/* Advance PC BEFORE execution (like C# implementation)
 	 * Branch/jump instructions will overwrite PC as needed */
 	cpu->PC = old_pc + (fi.total_len ? fi.total_len : fi.opcode_len);
@@ -499,6 +530,45 @@ invalid00_done: ;
 		       old_pc, cpu->PC, cpu->B);
 	}
 
+	/* ioctl-path trace (env ND500X_IOCDBG): which kernel routines a user ioctl
+	 * actually reaches. Addresses from the parsed vmunix symbol table (only
+	 * locore + properly relocated symbols; verified against _splx@0x83A). */
+	{
+		static int iod = -1;
+		if (iod < 0) { const char* e = getenv("ND500X_IOCDBG"); iod = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (iod && cpu->CED == 0) {
+			const char* n =
+			    old_pc == 0x173B4u ? "ioctl(syscall)" :
+			    old_pc == 0x18C0Au ? "ino_ioctl"      :
+			    old_pc == 0x3DDA6u ? "mxioctl"        :
+			    old_pc == 0x1A336u ? "ttioctl"        :
+			    old_pc == 0x19C55u ? "soo_ioctl"      :
+			    old_pc == 0x00F75u ? "ifioctl"        :
+			    old_pc == 0x1CE36u ? "nullioctl"      :
+			    old_pc == 0x0DA10u ? "getf"           : NULL;
+			if (n) {
+				static unsigned k = 0;
+				if (k++ < 200)
+					fprintf(stderr, "[IOCDBG] %-14s B=0x%08X I1=0x%08X I2=0x%08X I3=0x%08X\n",
+					        n, cpu->B, cpu->I[0], cpu->I[1], cpu->I[2]);
+			}
+		}
+	}
+
+	/* ttioctl compare-chain window (env ND500X_TTYDBG): the kernel's ttioctl
+	 * dispatch on the ioctl command, to see which arm it takes / where it
+	 * falls through to the ENOTTY default. Window covers the embedded
+	 * TIOCGETD/TIOCGETP constants at 0x1AB61/0x1AB90. */
+	{
+		static int td2 = -1;
+		if (td2 < 0) { const char* e = getenv("ND500X_TTYDBG"); td2 = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (td2 && cpu->CED == 0 && old_pc >= 0x1AB30u && old_pc <= 0x1ABE0u) {
+			static unsigned q = 0;
+			if (q++ < 300)
+				fprintf(stderr, "[TTYDBG] PC=0x%05X I1=0x%08X B=0x%08X\n", old_pc, cpu->I[0], cpu->B);
+		}
+	}
+
 	/* Syscall-path trace (env ND500X_SYSDBG): log kernel (CED==0) entry to the
 	 * syscall dispatcher / fuword / execve / nosys to see how init's execve
 	 * syscall is decoded and where it errors. */
@@ -512,6 +582,22 @@ invalid00_done: ;
 		if (nm)
 			printf("[SYSDBG] enter %s  B=0x%08X L=0x%08X R=0x%08X I1=0x%08X I2=0x%08X\n",
 			       nm, cpu->B, cpu->L, cpu->R, cpu->I[0], cpu->I[1]);
+		/* ND500X_SYSCNO: at the syscall dispatcher, print the SYSCALL NUMBER the
+		 * kernel decoded (locore's _domain_call stores the user's code in the
+		 * kernel frame; syscall() reads it) plus the frame, so a failing call can
+		 * be named instead of guessed. Bounded. */
+		{
+			static int scn = -1;
+			if (scn < 0) { const char* e = getenv("ND500X_SYSCNO"); scn = (e && e[0] && e[0] != '0') ? 1 : 0; }
+			if (scn && old_pc == 0x38f7a) {
+				static unsigned n = 0;
+				if (n++ < 4000) {
+					uint32_t code = nd500_read_memory_32(cpu, cpu->B + 20);
+					fprintf(stderr, "[SYSCNO] syscall code=%u (0x%X) B=0x%08X CAD=%u\n",
+					        code, code, cpu->B, cpu->CAD);
+				}
+			}
+		}
 		/* Execution-window trace (env ND500X_EXEDBG): every CED=0 instruction
 		 * in the fu*-routine window [0x640,0x6C0] - shows whether the faulting
 		 * fubyte at ~0x678 is re-executed after the _Udata pagein. */
@@ -744,8 +830,14 @@ void nd500_apply_domain_pia(Nd500Cpu* cpu, uint32_t domain) {
 	else          cpu->ST1 &= ~(1u << ND500_ST_BIT_PIA);
 }
 
+unsigned long g_ptdbg_target = 0, g_ptdbg_count = 0;
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
 	if (!cpu) return;
+	{ static int init = 0;
+	  if (!init) { const char* e = getenv("ND500X_PTDBG"); init = 1;
+	               g_ptdbg_target = e ? strtoul(e, NULL, 16) : 0; }
+	  if (g_ptdbg_target && dataAddr == (uint32_t)g_ptdbg_target && !g_ptdbg_count)
+	      g_ptdbg_count = 60; }
 
 	/* A PAGE FAULT is restartable: after the missing page is mapped, the
 	 * faulting instruction must RE-EXECUTE (so its memory access completes).
@@ -765,6 +857,11 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	 * responsible was at 0x08009137 - four bytes earlier - which sent the
 	 * investigation to the wrong instruction entirely. */
 	if ((trapBit & (TRAP_PGF | TRAP_PV)) && cpu->cur_instr_pc != 0) {
+		/* cur_instr_pc is now set BEFORE decode, so it always names the
+		 * instruction that faulted - including the first fetch after a
+		 * domain return, and a fetch that straddles a page boundary (where
+		 * dataAddr is the NEXT page, not the instruction start). Use the
+		 * fault address only when it IS the instruction start. */
 		if ((trapBit & TRAP_PGF) && (cpu->mmu_pgf_where & 0x40u /*MMINST*/)
 		    && !cpu->in_execute) {
 			/* INSTRUCTION-FETCH fault: the faulting fetch address IS the
@@ -977,6 +1074,10 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 			int tn = 0; for (int i = 0; i < 64; i++) { if ((trapBit >> i) & 1) { tn = i; break; } }
 			uint32_t hp = nd500_mmu_translate(cpu, cpu->THA + tn * 4, 0, 0);
 			uint32_t haddr = nd500_trap_occurred() ? 0 : nd500_bus_read32(cpu->machine, hp);
+			{ static int thd = -1;
+			  if (thd < 0) { const char* e = getenv("ND500X_THADBG"); thd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+			  if (thd) fprintf(stderr, "[THADBG] trap %d trapPC=0x%08X data=0x%08X CED=%u CAD=%u THA=0x%08X slot@0x%08X haddr=0x%08X xdom=%d\n",
+			                   tn, trapPC, dataAddr, cpu->CED, cpu->CAD, cpu->THA, hp, haddr, cpu->trap_cross_domain); }
 			if (haddr != 0) {
 				nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
 				invoke_trap_handler(cpu, trapBit, trapPC);
@@ -1425,3 +1526,7 @@ void nd500_write_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr, uint16_t data) {
 }
 
 
+
+/* Public wrapper so other translation units (e.g. Ret.c's bogus-domain-return
+ * diagnostic) can dump the recent-PC ring. */
+void nd500_dump_pc_ring(const char* tag) { nd500_dump_stop_ring(tag); }

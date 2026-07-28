@@ -139,6 +139,14 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 if (pb == fb) break;
                 fb = pb;
             }
+            { /* Which IMAGE is executing? Kernel text is loaded flat at
+               * physical 0..a_text; user text is demand-paged elsewhere. The
+               * physical address of the RET settles kernel-vs-user for good. */
+              uint32_t pa = nd500_mmu_translate(cpu, fi->address, 0, 1);
+              fprintf(stderr, "[DOMRET-BOGUS]   PC=0x%08X -> paddr=0x%08X byte=0x%02X (kernel text ends ~0x41A8C)\n",
+                      fi->address, pa, nd500_bus_read8(cpu->machine, pa));
+              extern void nd500_dump_pc_ring(const char*);
+              nd500_dump_pc_ring("domret-bogus"); }
         }
 
         cpu->CED = new_ced;
