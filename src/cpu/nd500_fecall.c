@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 /* ---- FE request codes (machine/if.h) ---- */
 #define FE_INIT 0x1
@@ -430,12 +431,76 @@ static void fe_deliver(Nd500Cpu* cpu, uint32_t iplrec, uint16_t ip_cur, uint32_t
     cpu->PC = K_INTVEC;          /* vector to the interrupt handler */
 }
 
+/* ---- console INPUT: host stdin -> guest mx_bin ring ------------------------
+ * io/mx.c struct b_ex_h (all 16-bit fields): bx_sem@0 bx_status@2 bx_control@4
+ * bx_head@6 bx_free@8 bx_max@10 bx_buf@12 (BEX_TTY=1000 shorts). Element =
+ * (sub<<8)|char. The front-end (us) is the PRODUCER: deposit at bx_buf[bx_free]
+ * and advance bx_free mod bx_max; mxpoll() (run off every clock tick) is the
+ * consumer draining bx_head -> bx_free into the tty line discipline. mx.c does
+ * no overflow test ("in fact no test is done about overflow"), so the producer
+ * must stop at head == (free+1) mod max. The ring's location arrives in the
+ * held TERM_IN FE_READ cpk: physaddr@4 = dton(&mx_bin) (ND-100 word addr).
+ * No completion interrupt is needed for data - the FE_READ rpk is only for
+ * carrier/error events (mxrintr SD_READ), and consumption rides the clock.
+ *
+ * Host side: the debugger REPL thread pushes bytes with
+ * nd500_fecall_console_input(); the CPU thread drains them into the guest ring
+ * from nd500_fecall_tick(). The queue is mutex-protected; g_conq_avail is a
+ * lock-free fast-path hint so the per-instruction tick stays cheap. */
+static uint32_t g_termin_ring = 0;   /* physical byte addr of mx_bin (0 = none) */
+static volatile int g_conq_avail = 0;
+static char g_conq[4096];
+static int  g_conq_head = 0, g_conq_tail = 0;
+static pthread_mutex_t g_conq_mtx = PTHREAD_MUTEX_INITIALIZER;
+
+void nd500_fecall_console_input(const char* buf, int len) {
+    int i;
+    pthread_mutex_lock(&g_conq_mtx);
+    for (i = 0; i < len; i++) {
+        int nt = (g_conq_tail + 1) % (int)sizeof(g_conq);
+        if (nt == g_conq_head) break;          /* host queue full - drop rest */
+        g_conq[g_conq_tail] = buf[i];
+        g_conq_tail = nt;
+    }
+    g_conq_avail = (g_conq_tail != g_conq_head);
+    pthread_mutex_unlock(&g_conq_mtx);
+}
+
+static void fe_conq_drain(Nd500Cpu* cpu) {
+    Nd500Machine* m = cpu->machine;
+    if (!m) return;
+    pthread_mutex_lock(&g_conq_mtx);
+    uint16_t head = nd500_bus_read16(m, g_termin_ring + 6);
+    uint16_t bfree = nd500_bus_read16(m, g_termin_ring + 8);
+    uint16_t max  = nd500_bus_read16(m, g_termin_ring + 10);
+    if (max == 0 || max > 1000 || head >= max || bfree >= max) {
+        pthread_mutex_unlock(&g_conq_mtx);    /* ring not initialised yet */
+        return;
+    }
+    while (g_conq_head != g_conq_tail) {
+        uint16_t nf = (uint16_t)((bfree + 1) % max);
+        if (nf == head) break;                 /* guest ring full - retry later */
+        uint16_t el = (uint16_t)((FE_CONDEV << 8) | (uint8_t)g_conq[g_conq_head]);
+        nd500_bus_write16(m, g_termin_ring + 12u + 2u * bfree, el);
+        bfree = nf;
+        g_conq_head = (g_conq_head + 1) % (int)sizeof(g_conq);
+    }
+    nd500_bus_write16(m, g_termin_ring + 8, bfree);
+    g_conq_avail = (g_conq_tail != g_conq_head);
+    pthread_mutex_unlock(&g_conq_mtx);
+}
+
 /* Called every instruction from cpu_step. Delivers, at the kernel base level
  * (spl0, idle/biowait), either a pending disk/dctl completion interrupt or a
  * periodic clock tick (bumping the ND-100 tick count first) so hardclock() runs
  * and drives timekeeping + the scheduler. */
 void nd500_fecall_tick(Nd500Cpu* cpu) {
-    if (!cpu || cpu->CED != 0) return;
+    if (!cpu) return;
+    /* Front-end "DMA" of queued console input into the mx_bin ring: pure
+     * physical-memory writes, safe at any instruction boundary (the real
+     * ND-100 wrote this ring concurrently with ND-500 execution). */
+    if (g_conq_avail && g_termin_ring) fe_conq_drain(cpu);
+    if (cpu->CED != 0) return;
     /* in_trap_handler alone must NOT block delivery: NDIX sleeps INSIDE trap
      * context (pagein -> biowait -> swtch to idle) and spins at 0x844 with the
      * emulator's in_trap_handler still set - the trap only "returns" (lregbl)
@@ -589,10 +654,16 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                  * ND-100 word addr of the mx_bin input ring}). It completes
                  * only when console input ARRIVES - there is none yet, so
                  * leave the request outstanding: no rpk write, no interrupt.
-                 * (Input plumbing: poll stdin, fill mx_bin, deliver INT gen 3.)
                  * Treating this as a DISK read DMA'd disk sectors into the tty
-                 * ring and caused a completion-interrupt storm. */
-                if (fedbg()) fprintf(stderr, "[FECALL] FE_READ TERM_IN -> held pending (no console input)\n");
+                 * ring and caused a completion-interrupt storm.
+                 * Record where mx_bin lives so fe_conq_drain() can deposit
+                 * host stdin bytes (see console INPUT block above). */
+                Pkt cpk = pkt_word(cpu, cpk_arg);
+                uint32_t waddr = pkt_rd32(&cpk, 4);
+                g_termin_ring = waddr * 2u - FE_PRIVATE;
+                if (fedbg())
+                    fprintf(stderr, "[FECALL] FE_READ TERM_IN sub=%u -> held pending; mx_bin ring @phys 0x%08X\n",
+                            device & 0xFFFF, g_termin_ring);
                 break;
             }
             Pkt rpk = pkt_word(cpu, rpk_arg);

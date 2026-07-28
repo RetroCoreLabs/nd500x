@@ -311,8 +311,26 @@ int nd500_debugger_repl(Nd500Machine* m) {
 		.context = NULL
 	};
 
+	/* Console-forwarding mode: with ND500X_CONSOLE_STDIN=1, lines typed while
+	 * the machine is running are sent to the guest console (mx_bin input ring
+	 * via nd500_fecall_console_input) instead of being parsed as debugger
+	 * commands. Prefix a line with '~' to force it to the debugger. */
+	const char* cse = getenv("ND500X_CONSOLE_STDIN");
+	int console_stdin = (cse && cse[0] && cse[0] != '0') ? 1 : 0;
+
 	/* Main REPL loop */
 	while (read_line_with_completion(line, sizeof(line), m && m->cpu ? m->cpu->PC : 0)) {
+		if (console_stdin && m && m->run_flag) {
+			if (line[0] == '~') {
+				memmove(line, line + 1, strlen(line));   /* strip escape */
+			} else {
+				extern void nd500_fecall_console_input(const char* buf, int len);
+				size_t n = strlen(line);
+				if (n < sizeof(line) - 1) line[n++] = '\n';
+				nd500_fecall_console_input(line, (int)n);
+				continue;
+			}
+		}
 		/* Check if execution stopped since last prompt */
 		if (was_running && m && !m->run_flag) {
 			if (m->stop_reason != STOP_NONE) {
