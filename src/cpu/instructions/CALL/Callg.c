@@ -325,9 +325,12 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read opcode from PROGRAM space (not data space!) */
     uint8_t entry_opcode = nd500_fetch_memory_8(cpu, resolved_addr);
 
-    /* Check if a trap occurred during the fetch (e.g., page fault) */
-    if (nd500_trap_occurred()) {
-        printf("[CALLG] Failed to fetch entry opcode from 0x%08X (program space)\n", resolved_addr);
+    /* Check if a trap occurred during the fetch (e.g., page fault). The trap
+     * handler is invoked synchronously and clears the trap state, so also
+     * check the per-instruction abort flag - otherwise a demand-paging fault
+     * on the entry fetch falls through with the UNTRANSLATED address's bytes
+     * (kernel physical memory) and raises a bogus ISE on a valid target. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
         return;
     }
 

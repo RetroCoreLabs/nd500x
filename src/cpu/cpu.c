@@ -508,7 +508,9 @@ invalid00_done: ;
 		}
 	}
 
+	cpu->in_execute = 1;
 	nd500_execute_decoded(cpu, &fi);
+	cpu->in_execute = 0;
 
 	/* -------------------------------------------------------------------
 	 * CAD-change trace (opt-in via ND500X_CADDBG). Prints every time the
@@ -736,13 +738,17 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	 * responsible was at 0x08009137 - four bytes earlier - which sent the
 	 * investigation to the wrong instruction entirely. */
 	if ((trapBit & (TRAP_PGF | TRAP_PV)) && cpu->cur_instr_pc != 0) {
-		if ((trapBit & TRAP_PGF) && (cpu->mmu_pgf_where & 0x40u /*MMINST*/)) {
+		if ((trapBit & TRAP_PGF) && (cpu->mmu_pgf_where & 0x40u /*MMINST*/)
+		    && !cpu->in_execute) {
 			/* INSTRUCTION-FETCH fault: the faulting fetch address IS the
 			 * restart point. cur_instr_pc still names the PREVIOUS
 			 * instruction - across a domain boundary (RET domain-return
 			 * to a user entry whose text page is not yet in) that is the
 			 * OLD domain's RET, and restoring it as the restart P resumed
-			 * init at the kernel RET address inside domain 1 (PV). */
+			 * init at the kernel RET address inside domain 1 (PV).
+			 * in_execute excludes program-space reads made WHILE an
+			 * instruction executes (CALL/CALLG entry-point check): those
+			 * must restart the instruction, not jump to its target. */
 			trapPC = dataAddr;
 		} else {
 			trapPC = cpu->cur_instr_pc;

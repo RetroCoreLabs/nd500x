@@ -146,6 +146,15 @@ typedef struct Nd500Cpu {
 	 * already 0 back in the instruction - this flag is the reliable signal.) */
 	uint32_t instr_aborted;
 
+	/* 1 while nd500_execute_decoded runs the current instruction; 0 during
+	 * instruction fetch/decode. Lets raise_trap tell an instruction-FETCH
+	 * page fault (restart at the fetch address, since cur_instr_pc still
+	 * names the previous instruction) from a mid-EXECUTE program-space read
+	 * fault such as CALL's entry-point check (restart at the instruction
+	 * itself, or the restarted CALL resumes at its TARGET and the ENTS
+	 * faults with "no preceding CALL"). */
+	uint32_t in_execute;
+
 	Nd500Machine* machine;
 } Nd500Cpu;
 
