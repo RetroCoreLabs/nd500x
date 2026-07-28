@@ -77,6 +77,10 @@ export ND500X_DISK="$DISK"
 # sleeps forever).
 export ND500X_MMU_GUEST_TABLES=1
 export ND500X_NOXMSG=1
+# Copy-on-write disk: all reads/writes go to <image>.session (fresh copy each
+# boot); the master image stays pristine. Promote a good session with:
+#   cp <image>.session <image>
+export ND500X_DISK_RW=1
 # Lines typed while the machine runs go to the GUEST console (mx_bin input
 # ring) instead of the debugger; prefix a line with '~' for the debugger.
 export ND500X_CONSOLE_STDIN=1

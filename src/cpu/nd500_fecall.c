@@ -116,6 +116,7 @@ static const char* FE_DISK_PATH = "/mnt/e/Dev/Ronny/NDIX-C/rootfs.img";
 
 static FILE*    g_disk = NULL;
 static long     g_disk_size = 0;
+static int      g_disk_rw = 0;   /* 1 = COW session open r+b, honor FE_WRIT */
 static uint32_t g_ssize = FE_SECSIZE;   /* sector size, confirmed by FE_OPEN */
 
 static int fedbg(void) {
@@ -611,7 +612,33 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
     if (!g_disk) {
         const char* disk_path = getenv("ND500X_DISK");
         if (!disk_path || !disk_path[0]) disk_path = FE_DISK_PATH;
-        g_disk = fopen(disk_path, "rb");
+        /* ND500X_DISK_RW=1: copy-on-write session. The MASTER image is copied
+         * to <image>.session (overwriting any previous session) and all reads
+         * AND writes go to the session copy - the master stays pristine. A
+         * good session can be promoted by copying it over the master by hand.
+         * Without the env var the master opens read-only and FE_WRIT is a
+         * fake-success no-op (historic behavior). */
+        static int rw = -1;
+        if (rw < 0) { const char* e = getenv("ND500X_DISK_RW"); rw = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        g_disk_rw = rw;
+        if (rw) {
+            static char spath[1100];
+            snprintf(spath, sizeof(spath), "%s.session", disk_path);
+            FILE* src = fopen(disk_path, "rb");
+            FILE* dst = src ? fopen(spath, "wb") : NULL;
+            if (src && dst) {
+                char buf[65536]; size_t n;
+                while ((n = fread(buf, 1, sizeof(buf), src)) > 0) fwrite(buf, 1, n, dst);
+            }
+            if (src) fclose(src);
+            if (dst) fclose(dst);
+            g_disk = dst ? fopen(spath, "r+b") : NULL;
+            if (fedbg() || g_disk)
+                fprintf(stderr, "[FECALL] COW session: %s -> %s (%s)\n",
+                        disk_path, spath, g_disk ? "writable" : "FAILED - no disk");
+        } else {
+            g_disk = fopen(disk_path, "rb");
+        }
         if (g_disk) { fseek(g_disk, 0, SEEK_END); g_disk_size = ftell(g_disk); fseek(g_disk, 0, SEEK_SET); }
         if (fedbg())
             fprintf(stderr, "[FECALL] disk image: %s (%ld bytes)\n", disk_path, g_disk ? g_disk_size : -1L);
@@ -722,18 +749,38 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                 break;
             }
             /* writ_cpk_disk {nbytes@0, physaddr@4, devaddr@8}; writ_rpk {completion@0,
-             * status@2}. Async. NON-DESTRUCTIVE for now: complete successfully (so
-             * the mount proceeds) WITHOUT writing rootfs.img. Deliver the completion
-             * interrupt on the disk's gen like FE_READ. */
+             * status@2}. Async. With ND500X_DISK_RW (COW session, opened r+b) the
+             * sector data is DMA'd from ND-500 memory into the session image -
+             * the mirror of fe_read_disk. Without it: fake success, image
+             * untouched (historic behavior). Deliver the completion interrupt on
+             * the disk's gen like FE_READ. */
             Pkt cpk = pkt_word(cpu, cpk_arg);
-            uint32_t nbytes  = pkt_rd32(&cpk, 0);
-            uint32_t devaddr = pkt_rd32(&cpk, 8);
+            uint32_t nbytes   = pkt_rd32(&cpk, 0);
+            uint32_t physaddr = pkt_rd32(&cpk, 4);   /* ND-100 word addr */
+            uint32_t devaddr  = pkt_rd32(&cpk, 8);   /* sector index */
             Pkt rpk = pkt_word(cpu, rpk_arg);
-            pkt_wr16(&rpk, 0, 0);   /* completion = success */
-            pkt_wr16(&rpk, 2, 0);   /* status */
-            if (fedbg())
+            uint16_t completion = 0;
+            if (g_disk_rw && g_disk) {
+                uint32_t src_phys = physaddr * 2u - FE_PRIVATE;
+                long img_off = (long)devaddr * (long)g_ssize;
+                if (img_off < 0 || img_off + (long)nbytes > g_disk_size) {
+                    completion = 1;   /* out of range */
+                } else {
+                    uint32_t i;
+                    fseek(g_disk, img_off, SEEK_SET);
+                    for (i = 0; i < nbytes; i++)
+                        fputc((int)nd500_bus_read8(cpu->machine, src_phys + i), g_disk);
+                    fflush(g_disk);
+                }
+                if (fedbg())
+                    fprintf(stderr, "[FECALL] FE_WRIT nbytes=%u devaddr=%u img_off=0x%lX src_phys=0x%08X -> session (compl=%u)\n",
+                            nbytes, devaddr, (long)devaddr * (long)g_ssize, physaddr * 2u - FE_PRIVATE, completion);
+            } else if (fedbg()) {
                 fprintf(stderr, "[FECALL] FE_WRIT nbytes=%u devaddr=%u -> success (no-op, image unmodified)\n",
                         nbytes, devaddr);
+            }
+            pkt_wr16(&rpk, 0, completion);
+            pkt_wr16(&rpk, 2, 0);   /* status */
             cpu->fe_int_pending = 1;
             cpu->fe_int_gen = (device >> 16) & 0xFFFF;
             cpu->fe_int_sub = device & 0xFFFF;
