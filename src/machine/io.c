@@ -177,6 +177,21 @@ uint8_t nd500_bus_read8(Nd500Machine* m, uint32_t addr) {
 }
 
 void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
+	/* ND500X_FRAMEWATCH=<hex page base>: log every physical write into that
+	 * 2KB page, with the CPU PC. Written to find WHO zeroes a text frame
+	 * after its pagein DMA has already filled it. */
+	{
+		static int fw_init = 0; static uint32_t fw_base = 0; static unsigned fw_n = 0;
+		if (!fw_init) { const char* e = getenv("ND500X_FRAMEWATCH"); fw_init = 1;
+		                fw_base = e ? (uint32_t)strtoul(e, NULL, 16) : 0; }
+		if (fw_base && addr >= fw_base && addr < fw_base + 2048 && val == 0 && fw_n < 4000) {
+			Nd500Cpu* c = m ? m->cpu : 0;
+			fw_n++;
+			fprintf(stderr, "[FRAMEWATCH] phys 0x%08X <- 0x%02X  PC=0x%08X CED=%u\n",
+			        addr, val, c ? c->PC : 0, c ? c->CED : 0);
+		}
+	}
+
 	/*
 	 * NOTE: MMU translation for CPU-initiated accesses should happen BEFORE
 	 * calling this function (in the CPU instruction implementations).

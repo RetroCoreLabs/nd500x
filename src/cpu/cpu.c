@@ -116,6 +116,14 @@ static int env_flag(const char* name, int* latch) {
 bool nd500_cpu_step(Nd500Cpu* cpu) {
 	if (!cpu || !cpu->machine) return false;
 
+	/* Name the instruction about to be fetched BEFORE anything can fault -
+	 * including the invalid-00 heuristic's own translate below. A page fault
+	 * raised while fetching an instruction must restart at ITS START, and for
+	 * an instruction straddling a page boundary the fault address is the NEXT
+	 * page, not the instruction. Setting this later left it naming the
+	 * PREVIOUS instruction during those faults. */
+	cpu->cur_instr_pc = cpu->PC;
+
 	/* Clear the previous instruction's abort flag at the TOP of the step -
 	 * BEFORE fetch/decode. The guarded mmu_read/write helpers refuse access
 	 * while instr_aborted is set; clearing it only just before execute (as
@@ -317,10 +325,6 @@ invalid00_done: ;
 	/* Decode, execute, then advance PC by decoded length */
 	Nd500FetchedInstruction fi;
 	uint32_t old_pc = cpu->PC;
-	/* Name the instruction being fetched BEFORE decode: a page fault raised
-	 * while fetching it must restart at ITS start, and decode is where such a
-	 * fault happens. (Set again after decode, harmlessly.) */
-	cpu->cur_instr_pc = old_pc;
 	if (nd500_decode_at(cpu->machine, old_pc, &fi) != 0) {
 		/* Instruction decode failed. This was previously a SILENT run-ending
 		 * path (return false with no message) - the reason `run` appeared to
@@ -877,7 +881,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		 * dataAddr is the NEXT page, not the instruction start). Use the
 		 * fault address only when it IS the instruction start. */
 		if ((trapBit & TRAP_PGF) && (cpu->mmu_pgf_where & 0x40u /*MMINST*/)
-		    && !cpu->in_execute) {
+		    && !cpu->in_execute && dataAddr == cpu->cur_instr_pc) {
 			/* INSTRUCTION-FETCH fault: the faulting fetch address IS the
 			 * restart point. cur_instr_pc still names the PREVIOUS
 			 * instruction - across a domain boundary (RET domain-return
