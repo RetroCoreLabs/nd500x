@@ -4,6 +4,15 @@
 #include <stdio.h>
 #include <stdlib.h>   /* getenv - implicit-int prototype truncates the char* -> crash */
 
+/* Once-latched env flag: getenv() on the CPU run path races readline's
+ * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
+static int nd_env_flag(const char* name, int* latch) {
+    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return *latch;
+}
+static int g_envf_domdbg = -1;
+
+
 /**
  * RETK instruction - CALL class
  *
@@ -116,7 +125,7 @@ void nd500_instr_Retk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_bus_write32(cpu->machine, old_base + 131, 0);
         nd500_bus_write32(cpu->machine, old_base + 135, 0);
 
-        if (getenv("ND500X_DOMDBG"))
+        if (nd_env_flag("ND500X_DOMDBG", &g_envf_domdbg))
             /* I1 carries the syscall error code on a K-set return (libc
              * _syscall: "if k go cerror"; cerror stores W1 into _errno). */
             printf("[DOMRETK] RETK@0x%08X: domain %u -> %u  P=0x%08X B=0x%08X CAD=%u (K set) errno(I1)=%u\n",

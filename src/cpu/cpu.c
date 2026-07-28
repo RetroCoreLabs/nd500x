@@ -102,6 +102,16 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	nd500_trap_clear();
 }
 
+
+/* Once-latched env flag. getenv() every instruction is not only slow - it is
+ * a CRASH: readline on the main thread setenv()s LINES/COLUMNS (reallocating
+ * environ) while the CPU thread scans it -> SIGSEGV in getenv. Every env
+ * probe on the run path must latch its value once. */
+static int env_flag(const char* name, int* latch) {
+	if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
+	return *latch;
+}
+
 bool nd500_cpu_step(Nd500Cpu* cpu) {
 	if (!cpu || !cpu->machine) return false;
 
@@ -212,7 +222,8 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 				goto invalid00_done;
 			}
 			opcode_byte = nd500_bus_read8(cpu->machine, paddr);
-			if (getenv("ND500X_ICODEDBG") && cpu->CED != 0) {
+			static int env_icodedbg = -1;
+			if (env_flag("ND500X_ICODEDBG", &env_icodedbg) && cpu->CED != 0) {
 				uint32_t cap_addr = cpu->DITBASE + (uint32_t)cpu->CED * 256u + 0u
 				                  + ((uint32_t)((cpu->PC >> SGSHIFT) & 0x1F)) * 2u;
 				uint16_t gcap = (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
@@ -251,7 +262,8 @@ invalid00_done: ;
 		nd500_fecall_tick(cpu);
 	}
 
-	if (getenv("ND500X_PIADBG")) {
+	static int env_piadbg = -1;
+	if (env_flag("ND500X_PIADBG", &env_piadbg)) {
 		static int prev_pia = -1;
 		static uint32_t prev_pc = 0;
 		int pia = (cpu->ST1 >> 1) & 1;   /* PIA = ST1 bit 1 */
@@ -261,7 +273,8 @@ invalid00_done: ;
 		prev_pia = pia; prev_pc = cpu->PC;
 	}
 
-	if (getenv("ND500X_PCSAMPLE")) {
+	static int env_pcsample = -1;
+	if (env_flag("ND500X_PCSAMPLE", &env_pcsample)) {
 		static uint64_t pcn = 0;
 		if ((pcn++ % 500000) == 0) {
 			uint32_t iplp = nd500_bus_read32(cpu->machine, 0x1cb20u); /* *_iplp = iplrec ptr */
@@ -292,7 +305,8 @@ invalid00_done: ;
 		return false;
 	}
 
-	if (getenv("ND500X_D1DBG") && cpu->CED == 1 && old_pc <= 0x40) {
+	static int env_d1dbg = -1;
+	if (env_flag("ND500X_D1DBG", &env_d1dbg) && cpu->CED == 1 && old_pc <= 0x40) {
 		static uint64_t d1n = 0;
 		if (d1n++ < 8) {
 			uint32_t pa = nd500_mmu_translate(cpu, old_pc, 0, 1);
@@ -377,7 +391,8 @@ invalid00_done: ;
 	/* Bounded trap-handler control-flow trace (env ND500X_HDLRTRACE): prints the
 	 * PC sequence executed while inside a trap handler, to see where the NDIX
 	 * kernel PGF stub branches (the PC=0x93 mid-instruction blocker). */
-	if (getenv("ND500X_HDLRTRACE") && cpu->in_trap_handler) {
+	static int env_hdlrtrace = -1;
+	if (env_flag("ND500X_HDLRTRACE", &env_hdlrtrace) && cpu->in_trap_handler) {
 		/* Log only taken control transfers: whenever this PC is not the sequential
 		 * successor of the previous instruction, print from->to with the SOURCE
 		 * instruction bytes. Directly exposes the branch that reaches PC=0x04. */
@@ -418,7 +433,8 @@ invalid00_done: ;
 	/* Boot-flow trace (env ND500X_BOOTDBG): log kernel (CED==0) entry to key
 	 * scheduling / mount / I/O functions to map where the boot stalls and what
 	 * proc[0] sleeps on. sleep()'s wchan is arg1 (register I1 at entry). */
-	if (getenv("ND500X_BOOTDBG") && cpu->CED == 0) {
+	static int env_bootdbg = -1;
+	if (env_flag("ND500X_BOOTDBG", &env_bootdbg) && cpu->CED == 0) {
 		const char* nm =
 		    old_pc == 0x2319du ? "mountfs" :
 		    old_pc == 0x0f578u ? "newproc" :
@@ -456,7 +472,8 @@ invalid00_done: ;
 	/* One-shot frame-chain dump at the swtch() idle loop (env ND500X_SWTCHDBG):
 	 * walk B -> PREVB(@0)/RETA(@4) to reveal who called swtch() and thus what
 	 * proc[0] is waiting on when the scheduler goes idle with no runnable proc. */
-	if (getenv("ND500X_SWTCHDBG") && cpu->CED == 0 && old_pc == 0x844u) {
+	static int env_swtchdbg = -1;
+	if (env_flag("ND500X_SWTCHDBG", &env_swtchdbg) && cpu->CED == 0 && old_pc == 0x844u) {
 		static int done = 0;
 		if (!done) {
 			done = 1;
@@ -476,7 +493,8 @@ invalid00_done: ;
 	 * execution of its low pcode + the current value of its syscall-code slot
 	 * b.0x14, to see whether the page-faulting instruction (PC=4, sets code
 	 * 0x3B) re-executes after the pagein or is skipped by the restart P. */
-	if (cpu->CED == 1 && old_pc < 0x40 && getenv("ND500X_INITDBG")) {
+	static int env_initdbg = -1;
+	if (cpu->CED == 1 && old_pc < 0x40 && env_flag("ND500X_INITDBG", &env_initdbg)) {
 		printf("[INITDBG] CED=1 old_pc=0x%08X newPC=0x%08X B=0x%08X\n",
 		       old_pc, cpu->PC, cpu->B);
 	}
@@ -484,7 +502,8 @@ invalid00_done: ;
 	/* Syscall-path trace (env ND500X_SYSDBG): log kernel (CED==0) entry to the
 	 * syscall dispatcher / fuword / execve / nosys to see how init's execve
 	 * syscall is decoded and where it errors. */
-	if (cpu->CED == 0 && getenv("ND500X_SYSDBG")) {
+	static int env_sysdbg = -1;
+	if (cpu->CED == 0 && env_flag("ND500X_SYSDBG", &env_sysdbg)) {
 		const char* nm = (old_pc == 0x38f7a) ? "_syscall"
 		               : (old_pc == 0x655)   ? "_fuword"
 		               : (old_pc == 0xdba6)  ? "_execve"
@@ -510,8 +529,9 @@ invalid00_done: ;
 		if (old_pc == 0x657) {
 			uint32_t a24 = nd500_read_memory_32(cpu, cpu->B + 24);
 			uint32_t a20 = nd500_read_memory_32(cpu, cpu->B + 20);
-			printf("[SYSDBG] fuword add3: B=0x%08X [B+20]=0x%08X [B+24]=0x%08X (uaddr) -> _Udata+uaddr=0x%08X\n",
-			       cpu->B, a20, a24, 0xF0000000u + a24);
+			uint32_t uval = nd500_read_memory_32(cpu, 0xF0000000u + a24);
+			printf("[SYSDBG] fuword add3: B=0x%08X [B+20]=0x%08X [B+24]=0x%08X (uaddr) -> _Udata+uaddr=0x%08X *uaddr=0x%08X\n",
+			       cpu->B, a20, a24, 0xF0000000u + a24, uval);
 		}
 	}
 
@@ -793,7 +813,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	 * _Udata/_Ustack window address (>=0xF0000000) is the fuword() read of a
 	 * user syscall arg faulting because domain-0 seg 30/31 DATA capability is
 	 * not mapped to the current user's data/stack. */
-	if ((trapBit & TRAP_INTERRUPT_MASK) && cpu->CED == 0 && dataAddr >= 0xF0000000u && getenv("ND500X_FUWDBG"))
+	if ((trapBit & TRAP_INTERRUPT_MASK) && cpu->CED == 0 && dataAddr >= 0xF0000000u && ({ static int env_fuwdbg = -1; env_flag("ND500X_FUWDBG", &env_fuwdbg); }))
 		printf("[FUWDBG] kernel trap bit=%d trapPC=0x%08X faultaddr=0x%08X B=0x%08X CAD=%u\n",
 		       __builtin_ctzll(trapBit), trapPC, dataAddr, cpu->B, cpu->CAD);
 
@@ -922,7 +942,8 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 				 * handler can run privileged instructions (e.g. entrap's dcc/pctsb). */
 				nd500_apply_domain_pia(cpu, handler);
 				cpu->trap_cross_domain = 1;
-				if (getenv("ND500X_DOMDBG")) {
+				static int env_domdbg2 = -1;
+				if (env_flag("ND500X_DOMDBG", &env_domdbg2)) {
 					printf("[DOMTRAP] trap bit %d in domain %u -> mother domain %u  DIT.THA=0x%08X  live.THA(pre)=0x%08X\n",
 					       tn2, cpu->CAD, cpu->CED, cpu->THA, old_tha);
 					for (int s = tn2 - 1; s <= tn2 + 1; s++) {

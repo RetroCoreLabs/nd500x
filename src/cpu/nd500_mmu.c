@@ -15,6 +15,16 @@
 #include <string.h>
 #include <stdio.h>
 
+/* Once-latched env flag: getenv() on the CPU run path races readline's
+ * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
+static int nd_env_flag(const char* name, int* latch) {
+    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return *latch;
+}
+static int g_envf_pst47dbg = -1;
+static int g_envf_seg30dbg = -1;
+
+
 /* Physical base where the flat a.out loader placed the DATA section (= a_text).
  * Declared here (not via ndlib.h) to keep the MMU free of a loader header
  * dependency. Used to de-alias I-space and D-space in the segment-0 identity
@@ -321,7 +331,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             : g_pcb_table[domain].data_capabilities[segment];
     }
 
-    if (getenv("ND500X_SEG30DBG") && domain == 0 && segment == 30 && !is_instruction) {
+    if (nd_env_flag("ND500X_SEG30DBG", &g_envf_seg30dbg) && domain == 0 && segment == 30 && !is_instruction) {
         static uint64_t n = 0;
         if (n++ < 12)
             fprintf(stderr, "[SEG30DBG] dom0 seg30 vaddr=0x%08X use_guest=%d cap=0x%04X (PSN=%u ind=%d) @PC=0x%08X\n",
@@ -644,7 +654,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             /* PST47DBG: full walk chain for the shared user-data segment (PSN 47 =
              * icode p_addr+1). Shows whether PST[47] -> L1 -> L2 resolves to a page
              * or where the chain is empty (the _Udata / seg-30 boot blocker). */
-            if (getenv("ND500X_PST47DBG") && psn == 47) {
+            if (nd_env_flag("ND500X_PST47DBG", &g_envf_pst47dbg) && psn == 47) {
                 static uint64_t n47 = 0;
                 if (n47++ < 40) {
                     uint32_t l1w = nd500_bus_read32(cpu->machine, l1_pte_addr);

@@ -6,6 +6,19 @@
 #include <stdlib.h>   /* getenv - implicit-int prototype truncates the char* -> wild-pointer crash */
 #include <math.h>
 
+/* Once-latched env flag: getenv() on the CPU run path races readline's
+ * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
+static int nd_env_flag(const char* name, int* latch) {
+    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return *latch;
+}
+static int g_envf_heapdbg = -1;
+static int g_envf_ipcurdbg = -1;
+static int g_envf_pathdbg = -1;
+static int g_envf_privdbg = -1;
+static int g_envf_uptwdbg = -1;
+
+
 /* ============================================================================
  * INTERNAL HELPER: MMU-Aware Memory Access via bus functions
  * ============================================================================
@@ -34,7 +47,7 @@ uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
      * exec path "/etc/init" from user data via the _Udata(seg-30, 0xF0000000)
      * window. Log the bytes the kernel actually gets, with the translated paddr,
      * to see if the seg-30 page maps init's real dcode or returns 0. */
-    if (vaddr >= 0xF0000000u && vaddr < 0xF0000100u && cpu->CED == 0 && getenv("ND500X_PATHDBG"))
+    if (vaddr >= 0xF0000000u && vaddr < 0xF0000100u && cpu->CED == 0 && nd_env_flag("ND500X_PATHDBG", &g_envf_pathdbg))
         fprintf(stderr, "[PATHDBG] read8 Udata[0x%08X] pa=0x%08X = 0x%02X '%c' @PC=0x%08X\n",
                 vaddr, paddr, value, (value>=32&&value<127)?value:'.', cpu->PC);
     MEMTRACE_RD("[MEMTRACE] read_8:  vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
@@ -134,11 +147,11 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
      * window [0x20000000..0x28000000). Log vaddr->paddr->pfn so we can see where
      * the data-page-0 PTE lands physically vs the emulator's seg-30 L2 (0x489000). */
     if (vaddr >= 0x20000000u && vaddr < 0x20008000u && value != 0 && value < 0x2000u
-        && cpu->CED == 0 && getenv("ND500X_UPTWDBG")) {
+        && cpu->CED == 0 && nd_env_flag("ND500X_UPTWDBG", &g_envf_uptwdbg)) {
         fprintf(stderr, "[UPTWDBG] usrpt write vaddr=0x%08X -> paddr=0x%08X pfn=0x%04X @PC=0x%08X\n",
                 vaddr, paddr, value, cpu->PC);
     }
-    if (vaddr == 0x30001004u && getenv("ND500X_IPCURDBG")) {
+    if (vaddr == 0x30001004u && nd_env_flag("ND500X_IPCURDBG", &g_envf_ipcurdbg)) {
         fprintf(stderr, "[IPCURDBG] ip_current := %u  @PC=0x%08X L=0x%08X B=0x%08X R=0x%08X\n",
                 value, cpu->PC, cpu->L, cpu->B, cpu->R);
     }
@@ -294,7 +307,7 @@ int nd500_heap_alloc_block(Nd500Cpu* cpu, uint8_t log_size, uint32_t pc,
          * conflicts. Reverted - see NC_CRASH_...md UPDATE 76c. The overflow stays
          * cosmetic (the :NRF is written before it and the process exits). */
         if (block_addr == 0) {
-            if (getenv("ND500X_HEAPDBG")) {
+            if (nd_env_flag("ND500X_HEAPDBG", &g_envf_heapdbg)) {
                 uint32_t stah = nd500_read_memory_32(cpu, heap_vars_addr + 4);
                 uint32_t endh = nd500_read_memory_32(cpu, heap_vars_addr + 8);
                 fprintf(stderr, "[HEAPDBG] STO(exhausted) PC=0x%08X req_log=%u max_log=%u "
@@ -311,7 +324,7 @@ int nd500_heap_alloc_block(Nd500Cpu* cpu, uint8_t log_size, uint32_t pc,
         }
     }
 
-    if (getenv("ND500X_HEAPDBG")) {
+    if (nd_env_flag("ND500X_HEAPDBG", &g_envf_heapdbg)) {
         static uint32_t last_tos = 0xFFFFFFFF;
         if (heap_vars_addr != last_tos) {
             last_tos = heap_vars_addr;
@@ -361,7 +374,7 @@ uint8_t nd500_read_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain
     }
 
     uint8_t value = nd500_bus_read8(cpu->machine, paddr);
-    if (vaddr >= 0xF0000000u && vaddr < 0xF0000100u && getenv("ND500X_PATHDBG"))
+    if (vaddr >= 0xF0000000u && vaddr < 0xF0000100u && nd_env_flag("ND500X_PATHDBG", &g_envf_pathdbg))
         fprintf(stderr, "[PATHDBG] read Udata[0x%08X] pa=0x%08X = 0x%02X '%c' @PC=0x%08X\n",
                 vaddr, paddr, value, (value>=32&&value<127)?value:'.', cpu->PC);
     MEMTRACE_RD("[MEMTRACE] read_8_domain:  vaddr=0x%08X paddr=0x%08X domain=%d value=0x%02X\n",
@@ -434,7 +447,7 @@ void nd500_write_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value,
 
     MEMTRACE_WR("[MEMTRACE] write_16_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%04X\n",
                 vaddr, paddr, domain, value);
-    if (vaddr == 0x30001004u && value != 0 && getenv("ND500X_IPCURDBG")) {
+    if (vaddr == 0x30001004u && value != 0 && nd_env_flag("ND500X_IPCURDBG", &g_envf_ipcurdbg)) {
         static uint64_t wn = 0;
         if (wn++ < 40)
             fprintf(stderr, "[IPCURDBG-D] ip_current := %u  @PC=0x%08X L=0x%08X dom=%d B=0x%08X\n",
@@ -1466,7 +1479,7 @@ void nd500_clear_status_bit(Nd500Cpu* cpu, uint8_t bit_number) {
  */
 bool nd500_require_privilege(Nd500Cpu* cpu, uint32_t pc) {
     if (!cpu) return false;
-    if (!nd500_is_privileged(cpu) && getenv("ND500X_PRIVDBG"))
+    if (!nd500_is_privileged(cpu) && nd_env_flag("ND500X_PRIVDBG", &g_envf_privdbg))
         fprintf(stderr, "[PRIVDBG] require_privilege FAIL @PC=0x%08X ST1=0x%08X CED=%u CAD=%u inH=%d\n",
                 pc, cpu->ST1, cpu->CED, cpu->CAD, cpu->in_trap_handler);
 

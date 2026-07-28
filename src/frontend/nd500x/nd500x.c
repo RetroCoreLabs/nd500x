@@ -428,6 +428,27 @@ int main(int argc, char** argv) {
     }
 
 	if (debug) {
+		/* --script with --debug: execute each line as a debugger command
+		 * BEFORE the interactive REPL (e.g. "load vmunix" + "run"), so a
+		 * boot script can keep stdin connected to the real terminal for
+		 * guest console input instead of feeding commands through a
+		 * fragile printf|cat pipe. */
+		if (script_path) {
+			FILE* sf = fopen(script_path, "r");
+			if (!sf) {
+				fprintf(stderr, "error: cannot open --script file %s\n", script_path);
+				return 1;
+			}
+			char sline[256];
+			CmdContext sctx = {0};
+			while (fgets(sline, sizeof(sline), sf)) {
+				sline[strcspn(sline, "\r\n")] = '\0';
+				if (!sline[0] || sline[0] == '#') continue;
+				printf("[script] %s\n", sline);
+				nd500_cmd_execute(&machine, sline, &sctx);
+			}
+			fclose(sf);
+		}
 		return nd500_debugger_repl(&machine);
 	}
 

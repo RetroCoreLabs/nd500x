@@ -85,10 +85,14 @@ TIMEOUT=$((RUNTIME + 25))
 
 boot() {
     if [ -t 0 ]; then
-        # Interactive: issue load+run, then hand stdin to the user - typed
-        # lines reach the NDIX shell on /dev/console. Ctrl-D exits.
-        ( printf 'load vmunix\nrun\n'; cat ) | \
-            "$ND500X_BIN" --debug --sintran-root "$SINTRAN_ROOT"
+        # Interactive: the boot commands come from a --script file, so stdin
+        # stays connected to YOUR terminal - typed lines reach the NDIX shell
+        # on /dev/console directly (no printf|cat pipe to die under us).
+        # Ctrl-D no longer kills a running machine (the REPL lingers).
+        BOOTCMDS=$(mktemp)
+        printf 'load vmunix\nrun\n' > "$BOOTCMDS"
+        "$ND500X_BIN" --debug --sintran-root "$SINTRAN_ROOT" --script "$BOOTCMDS"
+        rm -f "$BOOTCMDS"
     else
         # Scripted: keep stdin open exactly RUNTIME seconds after 'run'.
         ( printf 'load vmunix\nrun\n'; sleep "$RUNTIME" ) | timeout "$TIMEOUT" \

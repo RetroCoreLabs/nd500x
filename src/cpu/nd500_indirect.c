@@ -18,6 +18,16 @@
 #include <stdlib.h>   /* getenv */
 #include <string.h>
 
+/* Once-latched env flag: getenv() on the CPU run path races readline's
+ * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
+static int nd_env_flag(const char* name, int* latch) {
+    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return *latch;
+}
+static int g_envf_carve_bout = -1;
+static int g_envf_inddbg = -1;
+
+
 /* Forward declaration for segment allocation callback */
 extern int nd500_mon_allocate_segment(void* cpu, void* machine, uint8_t domain,
     uint32_t requested_segment, uint32_t segment_size_bytes,
@@ -239,8 +249,12 @@ int nd500_check_indirect_call(
         return INDIRECT_DIRECT;
     }
 
-    /* Get program capability for this segment in current executing domain */
-    uint16_t pc = nd500_mmu_get_program_capability(cpu, cpu->CED, segment);
+    /* Get program capability for this segment in the current executing domain.
+     * Must be the ACTIVE capability (guest DIT memory when guest-table routing
+     * applies): a fork child's fresh domain exists only in the kernel-written
+     * DIT, and the shadow-table lookup returned 0 there, sending the child's
+     * first syscall gate into the SINTRAN MON path (bogus MON LEAVE halt). */
+    uint16_t pc = nd500_mmu_get_active_program_capability(cpu, cpu->CED, segment);
 
     /* Check PC_IND flag (bit 15) - if clear, this is a direct call.
      * EXCEPTION: a CALLG into the segment-31 SINTRAN window is ALWAYS a monitor
@@ -358,7 +372,7 @@ int nd500_check_indirect_call(
              * domain-return that Ret.c performs when prev_b==0 && CAD!=CED. [dom call] */
             cpu->B = 0;
 
-            if (getenv("ND500X_INDDBG"))
+            if (nd_env_flag("ND500X_INDDBG", &g_envf_inddbg))
                 fprintf(stderr, "[SYSCALL] cross-domain CALL caller_dom=%u -> dom%u entry=0x%08X (retP=0x%08X B=0x%08X)\n",
                         caller_ced, target_domain, entry, cpu->pending_call_return_address, cpu->B);
 
@@ -425,7 +439,7 @@ int nd500_check_indirect_call(
          * 100 (octal, =64 dec), walk the ND-500 frame chain (B -> PREVB/RETA) to
          * recover which routine chose the scratch file number for the object
          * write. RETA is at frame+4, PREVB at frame+0 (see Ents.c). */
-        if (getenv("ND500X_CARVE_BOUT") && mon_number == 80 /* 120B WFILE */ && arg_count >= 1) {
+        if (nd_env_flag("ND500X_CARVE_BOUT", &g_envf_carve_bout) && mon_number == 80 /* 120B WFILE */ && arg_count >= 1) {
             uint32_t fno = ctx.read_word ? ctx.read_word(cpu, ctx.arg_addresses[0]) : 0xFFFFFFFF;
             uint32_t blk = (arg_count >= 4 && ctx.read_word) ? ctx.read_word(cpu, ctx.arg_addresses[3]) : 0xFFFFFFFF;
             if (fno == 64 /* file 100 octal */ && blk >= 1 && blk <= 8 /* object blocks only */) {

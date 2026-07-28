@@ -31,6 +31,16 @@
 #include <string.h>
 #include <pthread.h>
 
+/* Once-latched env flag: getenv() on the CPU run path races readline's
+ * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
+static int nd_env_flag(const char* name, int* latch) {
+    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return *latch;
+}
+static int g_envf_gatedbg = -1;
+static int g_envf_inodedbg = -1;
+
+
 /* ---- FE request codes (machine/if.h) ---- */
 #define FE_INIT 0x1
 #define FE_IDEV 0x2
@@ -304,7 +314,7 @@ static void fe_read_disk(Nd500Cpu* cpu, uint32_t device, uint32_t cpk_word, uint
     /* Diagnostic: when the inode block (devaddr 122 = fs_iblkno) is DMA'd, dump
      * root inode 2's i_db[0] (dinode offset 40, inode 2 at block offset 2*128)
      * as the kernel will read it, to check the root-dir block pointer. */
-    if (getenv("ND500X_INODEDBG") && devaddr == 122) {
+    if (nd_env_flag("ND500X_INODEDBG", &g_envf_inodedbg) && devaddr == 122) {
         uint32_t o = dst_phys + 2u*128u + 40u;
         uint32_t v = ((uint32_t)nd500_bus_read8(cpu->machine,o)<<24)
                    | ((uint32_t)nd500_bus_read8(cpu->machine,o+1)<<16)
@@ -545,7 +555,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
     uint32_t iplrec = nd500_read_memory_32(cpu, K_IPLP);
     if (iplrec == 0) return;
     uint16_t ip_cur = nd500_read_memory_16(cpu, iplrec + IP_CURR_OFF);
-    if (getenv("ND500X_GATEDBG")) {
+    if (nd_env_flag("ND500X_GATEDBG", &g_envf_gatedbg)) {
         static uint64_t gn = 0;
         if (gn++ < 25) {
             uint32_t rpaddr = nd500_mmu_translate(cpu, iplrec + IP_CURR_OFF, 0, 0);

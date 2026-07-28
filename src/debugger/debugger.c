@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <time.h>
 #ifdef HAVE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -319,7 +320,23 @@ int nd500_debugger_repl(Nd500Machine* m) {
 	int console_stdin = (cse && cse[0] && cse[0] != '0') ? 1 : 0;
 
 	/* Main REPL loop */
-	while (read_line_with_completion(line, sizeof(line), m && m->cpu ? m->cpu->PC : 0)) {
+	for (;;) {
+		if (!read_line_with_completion(line, sizeof(line), m && m->cpu ? m->cpu->PC : 0)) {
+			/* stdin EOF. In console-forwarding mode do NOT kill a running
+			 * machine: the boot pipeline's input feeder closing (subshell
+			 * exit, cat dying, redirected stdin draining) used to take the
+			 * whole emulator down mid-boot. Linger until the machine stops
+			 * on its own, then exit as before. */
+			if (console_stdin && m && m->run_flag) {
+				fprintf(stderr, "[repl] stdin closed - console input ended; "
+				        "machine keeps running (Ctrl-C to stop)\n");
+				while (m->run_flag) {
+					struct timespec ts = {0, 200000000}; /* 200ms */
+					nanosleep(&ts, NULL);
+				}
+			}
+			break;
+		}
 		if (console_stdin && m && m->run_flag) {
 			if (line[0] == '~') {
 				memmove(line, line + 1, strlen(line));   /* strip escape */

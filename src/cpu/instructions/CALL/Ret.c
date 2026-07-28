@@ -4,6 +4,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* Once-latched env flag: getenv() on the CPU run path races readline's
+ * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
+static int nd_env_flag(const char* name, int* latch) {
+    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return *latch;
+}
+static int g_envf_ditdbg = -1;
+static int g_envf_domdbg = -1;
+static int g_envf_framelog = -1;
+
+
 /**
  * Ret instruction - CALL class
  *
@@ -49,7 +60,7 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t ret_addr = nd500_read_memory_32(cpu, cpu->B + OFFSET_RETA);
 
     /* Frame trace (env-gated) */
-    if (getenv("ND500X_FRAMELOG")) {
+    if (nd_env_flag("ND500X_FRAMELOG", &g_envf_framelog)) {
         printf("[RET ] PC=0x%08X B=0x%08X read[B+0]=prevb=0x%08X read[B+4]=reta=0x%08X\n",
                fi->address, cpu->B, prev_b, ret_addr);
     }
@@ -127,7 +138,7 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_bus_write32(cpu->machine, old_base + 131, 0);
         nd500_bus_write32(cpu->machine, old_base + 135, 0);
 
-        if (getenv("ND500X_DOMDBG")) {
+        if (nd_env_flag("ND500X_DOMDBG", &g_envf_domdbg)) {
             printf("[DOMRET] RET@0x%08X: domain %u -> %u  P=0x%08X B=0x%08X CAD=%u\n",
                    fi->address, new_cad /*caller alt was old CED path*/, new_ced,
                    new_p, new_b, new_cad);
@@ -138,7 +149,7 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* One-shot DIT call-area dump at the /etc/init launch RET (PC=0x29).
      * Verifies the real kernel DIT layout (256B/domain, call area at octal
      * 200B=128) is visible at DITBASE + CED*256. Env-gated ND500X_DITDBG. */
-    if (getenv("ND500X_DITDBG") && fi->address == 0x29) {
+    if (nd_env_flag("ND500X_DITDBG", &g_envf_ditdbg) && fi->address == 0x29) {
         uint32_t base = cpu->DITBASE + (uint32_t)cpu->CED * 256u;
         printf("[DITDBG] PC=0x29 DITBASE=0x%08X CED=%u CAD=%u base=0x%08X\n",
                cpu->DITBASE, cpu->CED, cpu->CAD, base);
