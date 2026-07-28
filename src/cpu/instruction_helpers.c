@@ -30,6 +30,13 @@ uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
     }
 
     uint8_t value = nd500_bus_read8(cpu->machine, paddr);
+    /* _Udata path-read trace (env ND500X_PATHDBG): namei/copyinstr reads init's
+     * exec path "/etc/init" from user data via the _Udata(seg-30, 0xF0000000)
+     * window. Log the bytes the kernel actually gets, with the translated paddr,
+     * to see if the seg-30 page maps init's real dcode or returns 0. */
+    if (vaddr >= 0xF0000000u && vaddr < 0xF0000040u && cpu->CED == 0 && getenv("ND500X_PATHDBG"))
+        fprintf(stderr, "[PATHDBG] read8 Udata[0x%08X] pa=0x%08X = 0x%02X '%c' @PC=0x%08X\n",
+                vaddr, paddr, value, (value>=32&&value<127)?value:'.', cpu->PC);
     MEMTRACE_RD("[MEMTRACE] read_8:  vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
     return value;
 }
@@ -108,6 +115,19 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
     MEMTRACE_WR("[MEMTRACE] write_16: vaddr=0x%08X paddr=0x%08X value=0x%04X\n", vaddr, paddr, value);
     { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
       nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 16); }
+    /* usrpt-window PTE-write trace (env ND500X_UPTWDBG): the kernel writes user
+     * page-table entries (pfns) as halfword stores through the usrpt(seg-4) KVA
+     * window [0x20000000..0x28000000). Log vaddr->paddr->pfn so we can see where
+     * the data-page-0 PTE lands physically vs the emulator's seg-30 L2 (0x489000). */
+    if (vaddr >= 0x20000000u && vaddr < 0x20008000u && value != 0 && value < 0x2000u
+        && cpu->CED == 0 && getenv("ND500X_UPTWDBG")) {
+        fprintf(stderr, "[UPTWDBG] usrpt write vaddr=0x%08X -> paddr=0x%08X pfn=0x%04X @PC=0x%08X\n",
+                vaddr, paddr, value, cpu->PC);
+    }
+    if (vaddr == 0x30001004u && getenv("ND500X_IPCURDBG")) {
+        fprintf(stderr, "[IPCURDBG] ip_current := %u  @PC=0x%08X L=0x%08X B=0x%08X R=0x%08X\n",
+                value, cpu->PC, cpu->L, cpu->B, cpu->R);
+    }
     // Write two bytes BIG-ENDIAN to physical address (ND-500 spec)
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 8) & 0xFF));
     nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)(value & 0xFF));
@@ -327,6 +347,9 @@ uint8_t nd500_read_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain
     }
 
     uint8_t value = nd500_bus_read8(cpu->machine, paddr);
+    if (vaddr >= 0xF0000000u && vaddr < 0xF0000020u && getenv("ND500X_PATHDBG"))
+        fprintf(stderr, "[PATHDBG] read Udata[0x%08X] pa=0x%08X = 0x%02X '%c' @PC=0x%08X\n",
+                vaddr, paddr, value, (value>=32&&value<127)?value:'.', cpu->PC);
     MEMTRACE_RD("[MEMTRACE] read_8_domain:  vaddr=0x%08X paddr=0x%08X domain=%d value=0x%02X\n",
                 vaddr, paddr, domain, value);
     return value;
@@ -343,6 +366,18 @@ void nd500_write_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value, u
 
     MEMTRACE_WR("[MEMTRACE] write_8_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%02X\n",
                 vaddr, paddr, domain, value);
+    /* _Udata window WRITE trace (env ND500X_UDATADBG): where does the kernel's
+     * copyout of init's dcode ("/etc/init") land physically? */
+    {
+        static int udbg = -1;
+        if (udbg < 0) { const char* e = getenv("ND500X_UDATADBG"); udbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (udbg && vaddr >= 0xF0000000u && vaddr < 0xF8000000u) {
+            static uint64_t n = 0;
+            if (n++ < 200)
+                fprintf(stderr, "[UDATA8DW] write vaddr=0x%08X paddr=0x%08X val=0x%02X '%c' PC=0x%08X\n",
+                        vaddr, paddr, value, (value >= 32 && value < 127) ? value : '.', cpu->PC);
+        }
+    }
     nd500_bus_write8(cpu->machine, paddr, value);
 }
 
@@ -374,6 +409,12 @@ void nd500_write_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value,
 
     MEMTRACE_WR("[MEMTRACE] write_16_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%04X\n",
                 vaddr, paddr, domain, value);
+    if (vaddr == 0x30001004u && value != 0 && getenv("ND500X_IPCURDBG")) {
+        static uint64_t wn = 0;
+        if (wn++ < 40)
+            fprintf(stderr, "[IPCURDBG-D] ip_current := %u  @PC=0x%08X L=0x%08X dom=%d B=0x%08X\n",
+                    value, cpu->PC, cpu->L, domain, cpu->B);
+    }
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 8) & 0xFF));
     nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)(value & 0xFF));
 }
@@ -395,6 +436,19 @@ uint32_t nd500_read_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t doma
                      ((uint32_t)b2 << 8) | (uint32_t)b3;
     MEMTRACE_RD("[MEMTRACE] read_32_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%08X\n",
                 vaddr, paddr, domain, value);
+    /* _Udata/_Ustack window read trace (env ND500X_UDATADBG): fuword and the
+     * execve path read user memory through seg 30/31 via THIS domain variant
+     * (the non-domain read_memory_32 probe never fires). */
+    {
+        static int udbg = -1;
+        if (udbg < 0) { const char* e = getenv("ND500X_UDATADBG"); udbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (udbg && domain == 0 && vaddr >= 0xF0000000u) {
+            static uint64_t n = 0;
+            if (n++ < 200)
+                fprintf(stderr, "[UDATA32D] read vaddr=0x%08X paddr=0x%08X value=0x%08X PC=0x%08X\n",
+                        vaddr, paddr, value, cpu->PC);
+        }
+    }
     return value;
 }
 
@@ -411,6 +465,17 @@ void nd500_write_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value,
                 vaddr, paddr, domain, value);
     { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
       nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 32); }
+    /* _Udata window WRITE trace (env ND500X_UDATADBG) - see write_8_domain. */
+    {
+        static int udbg = -1;
+        if (udbg < 0) { const char* e = getenv("ND500X_UDATADBG"); udbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (udbg && vaddr >= 0xF0000000u && vaddr < 0xF8000000u) {
+            static uint64_t n = 0;
+            if (n++ < 200)
+                fprintf(stderr, "[UDATA32DW] write vaddr=0x%08X paddr=0x%08X val=0x%08X PC=0x%08X\n",
+                        vaddr, paddr, value, cpu->PC);
+        }
+    }
     nd500_bus_write8(cpu->machine, paddr,     (uint8_t)((value >> 24) & 0xFF));
     nd500_bus_write8(cpu->machine, paddr + 1, (uint8_t)((value >> 16) & 0xFF));
     nd500_bus_write8(cpu->machine, paddr + 2, (uint8_t)((value >> 8) & 0xFF));
@@ -1376,6 +1441,9 @@ void nd500_clear_status_bit(Nd500Cpu* cpu, uint8_t bit_number) {
  */
 bool nd500_require_privilege(Nd500Cpu* cpu, uint32_t pc) {
     if (!cpu) return false;
+    if (!nd500_is_privileged(cpu) && getenv("ND500X_PRIVDBG"))
+        fprintf(stderr, "[PRIVDBG] require_privilege FAIL @PC=0x%08X ST1=0x%08X CED=%u CAD=%u inH=%d\n",
+                pc, cpu->ST1, cpu->CED, cpu->CAD, cpu->in_trap_handler);
 
     /* Check PIA bit (bit 1 in ST1) */
     if (!nd500_is_privileged(cpu)) {
