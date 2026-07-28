@@ -70,6 +70,55 @@ static int bad_magic(unsigned int m) {
     return !(m == OMAGIC || m == NMAGIC || m == ZMAGIC || m == IMAGIC);
 }
 
+/*
+ * ND-500 a.out metadata (header, symbol table, relocations) is stored
+ * big-endian on disk. This emulator runs on a little-endian host, so the
+ * multi-byte fields must be decoded big-endian rather than read raw.
+ */
+static uint16_t sym_be16(const unsigned char *p) {
+    return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
+}
+static uint32_t sym_be32(const unsigned char *p) {
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8)  |  (uint32_t)p[3];
+}
+/* Read the fixed 32-byte exec header big-endian. All eight fields are 32-bit
+ * big-endian at offsets 0,4,8,12,16,20,24,28 (the magic is a 32-bit field at
+ * offset 0, matching the kernel's int Ux_mag in h/user.h). */
+static uint32_t sym_le32(const unsigned char *p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+static uint16_t sym_le16(const unsigned char *p) {
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+/* out_le (may be NULL) reports the detected byte order so the symbol/string
+ * decode below uses the SAME order as the header (the records are in the same
+ * endianness as the exec header, not always big-endian). */
+static int sym_read_exec_be(FILE *f, struct nd500_exec *h, int *out_le) {
+    unsigned char b[32];
+    if (fread(b, 1, sizeof(b), f) != sizeof(b))
+        return -1;
+    /* Big-endian is the current on-disk format. Legacy pre-flip images (an
+     * older LE-built vmunix, magic bytes 09 01 00 00) are little-endian;
+     * auto-detect so both load. Mirrors read_exec_be in ndlib_aout.c. */
+    uint32_t (*rd)(const unsigned char *) = sym_be32;
+    int is_le = 0;
+    if (bad_magic(sym_be32(b + 0)) && !bad_magic(sym_le32(b + 0))) {
+        rd = sym_le32; is_le = 1;
+    }
+    if (out_le) *out_le = is_le;
+    h->a_magic  = rd(b + 0);
+    h->a_text   = rd(b + 4);
+    h->a_data   = rd(b + 8);
+    h->a_bss    = rd(b + 12);
+    h->a_syms   = rd(b + 16);
+    h->a_entry  = rd(b + 20);
+    h->a_trsize = rd(b + 24);
+    h->a_drsize = rd(b + 28);
+    return 0;
+}
+
 void ndlib_symbols_clear(void) {
     if (g_symbols) {
         for (int i = 0; i < g_symbol_count; i++) {
@@ -119,10 +168,14 @@ int ndlib_symbols_load(const char* aout_path) {
     if (!f) return -1;
     
     struct nd500_exec hdr;
-    if (fread(&hdr, 1, sizeof(hdr), f) != sizeof(hdr) || bad_magic(hdr.a_magic)) {
+    int is_le = 0;
+    if (sym_read_exec_be(f, &hdr, &is_le) != 0 || bad_magic(hdr.a_magic)) {
         fclose(f);
         return -1;
     }
+    /* Symbol/string records share the header's byte order. */
+    uint32_t (*rd32)(const unsigned char *) = is_le ? sym_le32 : sym_be32;
+    uint16_t (*rd16)(const unsigned char *) = is_le ? sym_le16 : sym_be16;
     
     if (hdr.a_syms == 0) {
         fclose(f);
@@ -141,13 +194,25 @@ int ndlib_symbols_load(const char* aout_path) {
     if (fread(symbols, 1, hdr.a_syms, f) != hdr.a_syms) {
         free(symbols); fclose(f); return -1;
     }
-    
-    /* Read string table */
+
+    /* Symbol records are stored big-endian; decode the multi-byte fields.
+     * n_type and n_other are single bytes and need no swapping. */
+    for (int i = 0; i < nsyms; i++) {
+        unsigned char *sb = (unsigned char *)&symbols[i];
+        symbols[i].n_strx  = (int32_t)rd32(sb + 0);
+        symbols[i].n_desc  = (int16_t)rd16(sb + 6);
+        symbols[i].n_value = rd32(sb + 8);
+    }
+
+
+    /* Read string table size prefix (stored big-endian, target order) */
     unsigned int strsize = 0;
+    unsigned char strszbuf[4];
     fseek(f, str_off, SEEK_SET);
-    if (fread(&strsize, 1, 4, f) != 4) {
+    if (fread(strszbuf, 1, 4, f) != 4) {
         free(symbols); fclose(f); return -1;
     }
+    strsize = rd32(strszbuf);
     char* strings = malloc(strsize);
     if (!strings) { free(symbols); fclose(f); return -1; }
     fseek(f, str_off, SEEK_SET);
@@ -198,6 +263,19 @@ int ndlib_symbols_load(const char* aout_path) {
             if (f2) {
                 fseek(f2, reloc_off, SEEK_SET);
                 if (fread(reloc_table, 1, hdr.a_trsize, f2) == hdr.a_trsize) {
+                    /* Relocations are stored big-endian: r_address (32) then a
+                     * big-endian MSB-first bitfield word (symbolnum in bits
+                     * 31..8, pcrel bit 7, length bits 6..5, extern bit 4). */
+                    for (int i = 0; i < nrelocs; i++) {
+                        unsigned char *rb = (unsigned char *)&reloc_table[i];
+                        uint32_t w = sym_be32(rb + 4);
+                        reloc_table[i].r_address   = sym_be32(rb + 0);
+                        reloc_table[i].r_symbolnum = (w >> 8) & 0xFFFFFF;
+                        reloc_table[i].r_pcrel     = (w >> 7) & 0x1;
+                        reloc_table[i].r_length    = (w >> 5) & 0x3;
+                        reloc_table[i].r_extern    = (w >> 4) & 0x1;
+                        reloc_table[i].r_pad       = w & 0xF;
+                    }
                     /* Build relocation array */
                     g_text_relocs = calloc(nrelocs, sizeof(RelocationEntry));
                     if (g_text_relocs) {

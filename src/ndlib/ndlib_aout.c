@@ -18,8 +18,7 @@
  * See: /home/ronny/repos/ragge/pcc-nd500/docs/toolchain/OBJECT_VS_EXECUTABLE_DETECTION.md
  */
 struct nd500_exec {
-	uint16_t   a_magic;     /* Magic number (2 bytes) - offset 0 */
-	uint16_t   a_pad;       /* Padding (2 bytes) - offset 2 */
+	uint32_t   a_magic;     /* Magic number (32-bit, = kernel Ux_mag) - offset 0 */
 	uint32_t   a_text;      /* Size of text segment (4 bytes) - offset 4 */
 	uint32_t   a_data;      /* Size of initialized data (4 bytes) - offset 8 */
 	uint32_t   a_bss;       /* Size of uninitialized data (4 bytes) - offset 12 */
@@ -49,6 +48,49 @@ static int bad_magic(unsigned int m) {
 	return !(m == OMAGIC || m == NMAGIC || m == ZMAGIC || m == IMAGIC);
 }
 
+/*
+ * The ND-500 is a BIG-ENDIAN machine and its a.out metadata (the exec
+ * header) is stored big-endian on disk. This emulator runs on a
+ * little-endian host, so a raw fread() of the packed struct would see a
+ * byte-swapped magic (e.g. 0x0b01 instead of 0x010b) and reject the file.
+ * Read the fixed 32-byte header and decode each field big-endian.
+ */
+static uint16_t nd_be16(const unsigned char *p) {
+	return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
+}
+static uint32_t nd_be32(const unsigned char *p) {
+	return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+	       ((uint32_t)p[2] << 8)  |  (uint32_t)p[3];
+}
+static uint32_t nd_le32(const unsigned char *p) {
+	return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+	       ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+static int read_exec_be(FILE *f, struct nd500_exec *hdr) {
+	unsigned char buf[32];
+	if (fread(buf, 1, sizeof(buf), f) != sizeof(buf))
+		return -1;
+	/*
+	 * ND-500 a.out metadata is big-endian. Legacy pre-flip images (e.g. an
+	 * older LE-built vmunix, magic bytes 09 01 00 00) are little-endian.
+	 * Auto-detect: if the big-endian magic is invalid but the little-endian
+	 * magic is valid, decode the whole header little-endian. BE files are
+	 * unaffected (the fallback only fires on otherwise-rejected headers).
+	 */
+	uint32_t (*rd)(const unsigned char *) = nd_be32;
+	if (bad_magic(nd_be32(buf + 0)) && !bad_magic(nd_le32(buf + 0)))
+		rd = nd_le32;
+	hdr->a_magic  = rd(buf + 0);
+	hdr->a_text   = rd(buf + 4);
+	hdr->a_data   = rd(buf + 8);
+	hdr->a_bss    = rd(buf + 12);
+	hdr->a_syms   = rd(buf + 16);
+	hdr->a_entry  = rd(buf + 20);
+	hdr->a_trsize = rd(buf + 24);
+	hdr->a_drsize = rd(buf + 28);
+	return 0;
+}
+
 static const char* loaded_aout_path = NULL;
 
 /* Segment layout tracking for absolute address calculation */
@@ -64,7 +106,7 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
 	FILE* f = fopen(path, "rb");
 	if (!f) return -1;
 	struct nd500_exec hdr;
-	if (fread(&hdr, 1, sizeof(hdr), f) != sizeof(hdr)) {
+	if (read_exec_be(f, &hdr) != 0) {
 		fclose(f); return -1;
 	}
 	if (bad_magic(hdr.a_magic)) { fclose(f); return -1; }
@@ -175,7 +217,7 @@ int ndlib_aout_dump_metadata(const char* path) {
     FILE* f = fopen(path, "rb");
     if (!f) return -1;
     struct nd500_exec hdr;
-    if (fread(&hdr, 1, sizeof(hdr), f) != sizeof(hdr)) { fclose(f); return -1; }
+    if (read_exec_be(f, &hdr) != 0) { fclose(f); return -1; }
     if (bad_magic(hdr.a_magic)) { fclose(f); return -1; }
     
     /* Detect file type by relocations and entry point */
@@ -216,7 +258,7 @@ int ndlib_aout_dump_metadata_old(const char* path) {
     FILE* f = fopen(path, "rb");
     if (!f) return -1;
     struct nd500_exec hdr;
-    if (fread(&hdr, 1, sizeof(hdr), f) != sizeof(hdr)) { fclose(f); return -1; }
+    if (read_exec_be(f, &hdr) != 0) { fclose(f); return -1; }
     if (bad_magic(hdr.a_magic)) { fclose(f); return -1; }
     
     /* Detect file type by relocations and entry point */
@@ -272,7 +314,7 @@ void ndlib_aout_dump_symbols(const char* path) {
     if (!f) return;
     
     struct nd500_exec hdr;
-    if (fread(&hdr, 1, sizeof(hdr), f) != sizeof(hdr)) { fclose(f); return; }
+    if (read_exec_be(f, &hdr) != 0) { fclose(f); return; }
     if (bad_magic(hdr.a_magic)) { fclose(f); return; }
     
     if (hdr.a_syms == 0) {
@@ -293,14 +335,25 @@ void ndlib_aout_dump_symbols(const char* path) {
     if (fread(symbols, 1, hdr.a_syms, f) != hdr.a_syms) {
         free(symbols); fclose(f); return;
     }
-    
-    /* Read string table size */
+
+    /* Symbol records are stored big-endian; decode the multi-byte fields.
+     * n_type and n_other are single bytes and need no swapping. */
+    for (int i = 0; i < nsyms; i++) {
+        unsigned char *sb = (unsigned char *)&symbols[i];
+        symbols[i].n_strx  = (int32_t)nd_be32(sb + 0);
+        symbols[i].n_desc  = (int16_t)nd_be16(sb + 6);
+        symbols[i].n_value = nd_be32(sb + 8);
+    }
+
+    /* Read string table size prefix (stored big-endian, target order) */
     unsigned int strsize = 0;
+    unsigned char strszbuf[4];
     fseek(f, str_off, SEEK_SET);
-    if (fread(&strsize, 1, 4, f) != 4) {
+    if (fread(strszbuf, 1, 4, f) != 4) {
         free(symbols); fclose(f); return;
     }
-    
+    strsize = nd_be32(strszbuf);
+
     /* Read string table */
     char* strings = malloc(strsize);
     if (!strings) { free(symbols); fclose(f); return; }

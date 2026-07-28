@@ -311,6 +311,14 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             : g_pcb_table[domain].data_capabilities[segment];
     }
 
+    if (getenv("ND500X_SEG30DBG") && domain == 0 && segment == 30 && !is_instruction) {
+        static uint64_t n = 0;
+        if (n++ < 12)
+            fprintf(stderr, "[SEG30DBG] dom0 seg30 vaddr=0x%08X use_guest=%d cap=0x%04X (PSN=%u ind=%d) @PC=0x%08X\n",
+                    virtual_addr, use_guest, capability, capability & 0x7FF,
+                    (capability & 0x8000) ? 1 : 0, cpu->PC);
+    }
+
     /* Kernel DATA-segment-aliased-as-segment-1 (domain 0). The NDIX kernel builds
      * its syscall Start Address Vector + low-level _domain_call code into its DATA
      * segment at offset 0 and maps that data segment as SEGMENT 1 (0x08000000) so the
@@ -467,9 +475,15 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
      * pfn 0 and silently translates to physical page 0, which is never mappable.
      * Mirrors CpuND500.MMU.cs ReadPstEntry/pstEntryIsZero. [PST zero entry 2026-07-27] */
     if (pst_entry.index_mode == PS_AZI && pst_entry.physical_pfn == 0) {
-        MMU_ERR("[MMU] TRAP: PST entry %d is ZERO - no mapping exists! vaddr=0x%08X
-",
+        MMU_ERR("[MMU] TRAP: PST entry %d is ZERO - no mapping exists! vaddr=0x%08X\n",
                 psn, virtual_addr);
+        {   /* branch tag (env ND500X_PGFDBG): identify WHICH mmu branch raised
+             * the silent second _Udata fault (no PTWDBG-L2/PST47 line). */
+            static int pgfd = -1;
+            if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+            if (pgfd) fprintf(stderr, "[PGFSITE] PST-ZERO dom=%d seg=%d psn=%d va=0x%08X use_guest=%d\n",
+                              domain, segment, psn, virtual_addr, use_guest);
+        }
         trap_page_fault(cpu, cpu->PC, virtual_addr);
         return virtual_addr;
     }
@@ -488,6 +502,11 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             if (l1_index != 0 || l2_index != 0) {
                 MMU_ERR("[MMU] TRAP: PS_AZI page fault! L1=%d L2=%d must be 0! vaddr=0x%08X\n",
                       l1_index, l2_index, virtual_addr);
+                {   static int pgfd = -1;
+                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+                    if (pgfd) fprintf(stderr, "[PGFSITE] AZI-IDX dom=%d seg=%d psn=%d va=0x%08X pfn=0x%X\n",
+                                      domain, segment, psn, virtual_addr, pst_entry.physical_pfn);
+                }
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;
             }
@@ -502,6 +521,11 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             if (l1_index != 0) {
                 MMU_ERR("[MMU] TRAP: PS_ASI page fault! L1=%d must be 0! vaddr=0x%08X\n",
                       l1_index, virtual_addr);
+                {   static int pgfd = -1;
+                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+                    if (pgfd) fprintf(stderr, "[PGFSITE] ASI-IDX dom=%d seg=%d psn=%d va=0x%08X\n",
+                                      domain, segment, psn, virtual_addr);
+                }
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;
             }
@@ -515,6 +539,11 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             /* Check if page is present (valid bit must be set) */
             if (!pte.valid) {
                 MMU_ERR("[MMU] TRAP: PS_ASI page not valid! vaddr=0x%08X pte_addr=0x%08X\n", virtual_addr, pte_addr);
+                {   static int pgfd = -1;
+                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+                    if (pgfd) fprintf(stderr, "[PGFSITE] ASI-PTE dom=%d seg=%d psn=%d va=0x%08X pte@0x%08X\n",
+                                      domain, segment, psn, virtual_addr, pte_addr);
+                }
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
             }
@@ -585,7 +614,12 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                                 segment, l1_pte_addr, phys_l1, alias_va, cap, psn, pmode, l1w, l2w, gphys, gval);
                     }
                 }
-                cpu->mmu_pgf_where = 0xEu; /* PFZ1: zero 1st-level page-table entry */
+                /* PFZ1: zero 1st-level page-table entry. MMINST (0x40) marks an
+                 * I-channel (instruction fetch) fault - the NDIX kernel derives
+                 * the fault SPACE from it (trap.c T_PGF+USER: access=(info&
+                 * MMINST)>>5; segno+access classifies text vs data). Without it
+                 * a text-fetch fault at va 0 pages in DATA page 0 instead. */
+                cpu->mmu_pgf_where = 0xEu | (is_instruction ? 0x40u : 0u);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
             }
@@ -596,6 +630,25 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
 
             /* Read L2 PTE */
             PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
+
+            /* PST47DBG: full walk chain for the shared user-data segment (PSN 47 =
+             * icode p_addr+1). Shows whether PST[47] -> L1 -> L2 resolves to a page
+             * or where the chain is empty (the _Udata / seg-30 boot blocker). */
+            if (getenv("ND500X_PST47DBG") && psn == 47) {
+                static uint64_t n47 = 0;
+                if (n47++ < 40) {
+                    uint32_t l1w = nd500_bus_read32(cpu->machine, l1_pte_addr);
+                    uint32_t l2w = nd500_bus_read32(cpu->machine, l2_pte_addr);
+                    fprintf(stderr,
+                        "[PST47] dom=%d seg=%d va=0x%08X L1i=%d L2i=%d PC=0x%08X | "
+                        "PST47{mode=%u pfn=0x%X} l1@0x%08X=0x%08X(pfn0x%X v=%d) "
+                        "l2base=0x%08X l2@0x%08X=0x%08X(v=%d)\n",
+                        domain, segment, virtual_addr, l1_index, l2_index, cpu->PC,
+                        pst_entry.index_mode, pst_entry.physical_pfn,
+                        l1_pte_addr, l1w, l1_pte.physical_pfn, l1_pte.valid,
+                        l2_table_base, l2_pte_addr, l2w, l2_pte.valid);
+                }
+            }
 
             if (!l2_pte.valid) {
                 /* Same demand-growth path as the L1 miss above. */
@@ -621,7 +674,9 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                                 | nd500_bus_read8(cpu->machine, cpu->DITBASE+64u+5u));
                     }
                 }
-                cpu->mmu_pgf_where = 0xFu; /* PFZ2: zero 2nd-level page-table entry (demand page) */
+                /* PFZ2: zero 2nd-level page-table entry (demand page). MMINST
+                 * (0x40) marks an I-channel fault - see the PFZ1 site above. */
+                cpu->mmu_pgf_where = 0xFu | (is_instruction ? 0x40u : 0u);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }

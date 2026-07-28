@@ -2911,11 +2911,29 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 
 	/* Set the guest MMU-table base registers BEFORE any capability/PST setup so
 	 * the set_* mirroring lands in the right physical tables. The tables live in
-	 * the free gap between the kernel image+bss (ends ~0x80000) and kernel free
-	 * memory (firstaddr, phys 0x100000): PST at 0x80000 (32KB), DIT at 0x90000
-	 * (64KB), seg 27/28 page tables at 0xA0000. translate() reads these. */
-	m->cpu->PSTP    = 0x00080000;
+	 * the free gap between the kernel image and kernel free memory (firstaddr,
+	 * phys 0x100000): PST at 0x84000, DIT at 0x90000 (64KB), seg 27/28 page
+	 * tables at 0xA0000. translate() reads these.
+	 *
+	 * PSTP MUST sit ABOVE the loaded DSEG. The kernel image is loaded flat as one
+	 * contiguous block: PSEG at raw 0 (size 0x41a94) + DSEG at raw 0x41a94 (size
+	 * 0x3E800), so kernel data actually extends to raw 0x8028C - PAST the old
+	 * 0x80000 PST base. load-dseg (run AFTER mmusetup) therefore zeroed the low
+	 * ~163 PST entries, including Pst[FIRST_PHYS_SEG=13]. The kernel reads
+	 * first_phys_seg = Pst[13].ps_pfnum (machdep.c:181); with it clobbered to 0,
+	 * every derived index collapsed (physindex 19->6, pstindex 17->4, ...) and
+	 * the kernel then dereferenced Pst[pstindex].ps_pfnum==0 as Physbase+0 (the
+	 * "inaccessible" physical page 0), page-faulting at PC 0x3621C. Placing PSTP
+	 * at 0x84000 (above 0x8028C) keeps the synthetic identity PST entries intact,
+	 * so first_phys_seg=13 and the SINTRAN-provided entries (dataindex, pstindex,
+	 * psindex) survive with their valid identity values. Verified via ND500X_PTWDBG. */
+	m->cpu->PSTP    = 0x00084000;
 	m->cpu->DITBASE = 0x00090000;
+	/* NOTE: boot-time live CAD = 1 (the /etc/init domain) is established from
+	 * vmunix.init via `set CAD 1`, NOT here: the load-pseg/load-dseg steps run
+	 * after mmusetup and would wipe a value set at this point. See the comment
+	 * in kernel/MASTER/GENERIC/vmunix.init for the full rationale (it is what
+	 * lets the /etc/init launch RET at PC=0x29 switch domains, manual 4.2.5.2). */
 	/* Zero the PST (32KB) and DIT (64KB) so unset segments read capability 0
 	 * (=> demand-map / identity fallback) instead of stale RAM garbage. */
 	for (uint32_t a = 0x00080000; a < 0x000A0000; a++)
