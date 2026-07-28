@@ -583,11 +583,49 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             break;
         }
         case FE_READ: {
+            if (gen == 3 /* TERM_IN */) {
+                /* Console INPUT poll (io/mx.c mxopen tail: the one outstanding
+                 * async FE_READ; cpk = read_cpk_term {dummy@0, physaddr@4 =
+                 * ND-100 word addr of the mx_bin input ring}). It completes
+                 * only when console input ARRIVES - there is none yet, so
+                 * leave the request outstanding: no rpk write, no interrupt.
+                 * (Input plumbing: poll stdin, fill mx_bin, deliver INT gen 3.)
+                 * Treating this as a DISK read DMA'd disk sectors into the tty
+                 * ring and caused a completion-interrupt storm. */
+                if (fedbg()) fprintf(stderr, "[FECALL] FE_READ TERM_IN -> held pending (no console input)\n");
+                break;
+            }
             Pkt rpk = pkt_word(cpu, rpk_arg);
             fe_read_disk(cpu, device, cpk_arg, rpk_arg, &rpk);
             break;
         }
         case FE_WRIT: {
+            if (gen == 4 /* TERM_OUT */) {
+                /* Console OUTPUT (io/mx.c mxstart): writ_cpk_term {nbytes@0,
+                 * physaddr@4 = ND-100 word addr of the output bytes};
+                 * writ_rpk_term {completion@0}. Copy the bytes to stdout and
+                 * deliver the async completion interrupt (gen 4 -> mxxintr
+                 * wakes the writer / sends the next chunk). */
+                Pkt cpk = pkt_word(cpu, cpk_arg);
+                uint32_t nbytes = pkt_rd32(&cpk, 0);
+                uint32_t waddr  = pkt_rd32(&cpk, 4);
+                uint32_t phys   = waddr * 2u - FE_PRIVATE;
+                uint32_t i;
+                if (nbytes > 4096u) nbytes = 4096u;   /* sanity clamp */
+                for (i = 0; i < nbytes; i++)
+                    putchar((int)nd500_bus_read8(cpu->machine, phys + i));
+                fflush(stdout);
+                Pkt rpk = pkt_word(cpu, rpk_arg);
+                pkt_wr16(&rpk, 0, 0);   /* completion = success */
+                if (fedbg())
+                    fprintf(stderr, "[FECALL] FE_WRIT TERM_OUT nbytes=%u phys=0x%08X -> stdout\n",
+                            nbytes, phys);
+                cpu->fe_int_pending = 1;
+                cpu->fe_int_gen = gen;
+                cpu->fe_int_sub = device & 0xFFFF;
+                cpu->fe_int_rpk = rpk_arg;
+                break;
+            }
             /* writ_cpk_disk {nbytes@0, physaddr@4, devaddr@8}; writ_rpk {completion@0,
              * status@2}. Async. NON-DESTRUCTIVE for now: complete successfully (so
              * the mount proceeds) WITHOUT writing rootfs.img. Deliver the completion
@@ -611,11 +649,15 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             Pkt rpk = pkt_word(cpu, rpk_arg);
             pkt_wr16(&rpk, 0, 0);   /* completion */
             pkt_wr16(&rpk, 2, 0);   /* status */
-            /* async: queue a completion interrupt like FE_READ. */
-            cpu->fe_int_pending = 1;
-            cpu->fe_int_gen = gen;
-            cpu->fe_int_sub = device & 0xFFFF;
-            cpu->fe_int_rpk = rpk_arg;
+            /* SYNC calls (qualifier 1, e.g. mxparam's terminal DCTL) must NOT
+             * get a completion interrupt - the kernel does not sleep on them.
+             * Async DCTL queues a completion interrupt like FE_READ. */
+            if (((request >> 16) & 0xFFFF) != 1 /* !QF_SYNC */) {
+                cpu->fe_int_pending = 1;
+                cpu->fe_int_gen = gen;
+                cpu->fe_int_sub = device & 0xFFFF;
+                cpu->fe_int_rpk = rpk_arg;
+            }
             break;
         }
         case FE_EXIT: {

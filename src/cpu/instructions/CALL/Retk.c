@@ -117,8 +117,11 @@ void nd500_instr_Retk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_bus_write32(cpu->machine, old_base + 135, 0);
 
         if (getenv("ND500X_DOMDBG"))
-            printf("[DOMRETK] RETK@0x%08X: domain %u -> %u  P=0x%08X B=0x%08X CAD=%u (K set)\n",
-                   fi->address, (unsigned)new_cad, new_ced, new_p, new_b, new_cad);
+            /* I1 carries the syscall error code on a K-set return (libc
+             * _syscall: "if k go cerror"; cerror stores W1 into _errno). */
+            printf("[DOMRETK] RETK@0x%08X: domain %u -> %u  P=0x%08X B=0x%08X CAD=%u (K set) errno(I1)=%u\n",
+                   fi->address, (unsigned)new_cad, new_ced, new_p, new_b, new_cad,
+                   cpu->I[0]);
         return;
     }
 
