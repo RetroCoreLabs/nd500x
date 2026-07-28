@@ -74,6 +74,12 @@ void nd500_instr_Smvwh(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Move element to destination */
         uint32_t dest_addr = dest_desc.base_address + dest_index;
         nd500_write_memory_8(cpu, dest_addr, element);
+        /* Fault mid-instruction: leave the index registers naming only the
+         * COMPLETED elements so the restart redoes this one (see Smvun). */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            cpu->I[0] = src_index; cpu->I[1] = dest_index;
+            return;
+        }
 
         src_index++;
         dest_index++;

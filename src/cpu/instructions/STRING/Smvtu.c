@@ -92,6 +92,12 @@ void nd500_instr_Smvtu(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (translated != 0) {
             uint32_t dest_addr = dest_desc.base_address + dest_index;
             nd500_write_memory_8(cpu, dest_addr, translated);
+            /* Fault mid-instruction: indices must name only COMPLETED
+             * elements so the restart redoes this one (see Smvun). */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                cpu->I[0] = src_index; cpu->I[1] = dest_index;
+                return;
+            }
             dest_index++;
         }
 

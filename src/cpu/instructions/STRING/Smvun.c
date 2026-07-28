@@ -65,6 +65,20 @@ void nd500_instr_Smvun(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Read source element */
         uint32_t src_addr = source_desc.base_address + src_index;
         uint8_t element = nd500_read_memory_8(cpu, src_addr);
+        /* A page fault on this element ABORTS the instruction. The index
+         * registers must name the elements actually COMPLETED so the restart
+         * redoes exactly this one - advancing past a byte whose store never
+         * committed loses it forever. That is how strcpy() (a single `smvun`)
+         * dropped the FIRST character of every copy into a fresh page: the
+         * destination's first touch faulted, the store was suppressed, yet
+         * the indices moved on. Symptoms it caused: rindex("/etc",'/')
+         * returning NULL (buf held "\0etc"), du ignoring its path argument,
+         * ls -l truncating an entry, the first typed console character
+         * disappearing. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            cpu->I[0] = src_index; cpu->I[1] = dest_index;
+            return;
+        }
 
         /* Check until condition: (element AND mask) == test */
         if ((element & mask) == test) {
@@ -75,6 +89,10 @@ void nd500_instr_Smvun(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Move element to destination */
         uint32_t dest_addr = dest_desc.base_address + dest_index;
         nd500_write_memory_8(cpu, dest_addr, element);
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            cpu->I[0] = src_index; cpu->I[1] = dest_index;   /* NOT advanced */
+            return;
+        }
 
         src_index++;
         dest_index++;
