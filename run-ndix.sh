@@ -11,13 +11,22 @@
 # from any directory.
 #
 # Usage: run-ndix.sh [-d <disk-image>] [-k <kernel>] [-t <seconds>]
-#                    [-l <logfile>] [-T] [-p <port>] [-h]
+#                    [-l <logfile>] [-p <port>] [-N] [-h]
 #
 # With stdin on a terminal this boots MULTIUSER to a login prompt: real
 # /etc/init runs /etc/rc, then getty on /dev/console prints the banner and
 # "login:". Log in as root (no password) to get the real Bourne /bin/sh - then
 # type commands (e.g. "echo hello", "ls -l", "ps -ax"). A line starting with
 # '~' goes to the emulator debugger instead. End with Ctrl-D.
+#
+# The guest terminals are ALSO served over telnet on port 5000 by default, so
+# you can reach the same machine from another window with any telnet client:
+#
+#     telnet localhost 5000
+#
+# which offers a menu of the guest's terminals (console, tty01, tty02, tty81).
+# The local terminal keeps working at the same time; console output is mirrored
+# to both. Use -p to change the port, or -N to not listen at all.
 #
 #   -d <image>    Root disk image. Default: $ND500X_DISK, else $NDIX_ROOT/rootfs_full.img.
 #   -k <kernel>   NDIX kernel image. Default: nd500x's own search, which is
@@ -28,8 +37,8 @@
 #   -l <logfile>  Also tee output to <logfile>.
 #                 NOTE: boot logs contain binary/control bytes - use 'grep -a'
 #                 when searching the log file.
-#   -T            Also serve the guest terminals over telnet (default port 5000).
-#   -p <port>     Telnet port to use (implies -T).
+#   -p <port>     Telnet port to listen on (default 5000).
+#   -N            Do not start the telnet server.
 #   -h            Show this usage.
 #
 # Environment:
@@ -66,21 +75,22 @@ DISK=${ND500X_DISK:-}
 KERNEL=
 RUNTIME=45
 LOGFILE=
-TELNET=
+# Telnet console is ON by default, port 5000.
+TELNET=--telnet
 
 usage() {
-    sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,55p' "$0" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
-while getopts "d:k:t:l:p:Th" opt; do
+while getopts "d:k:t:l:p:Nh" opt; do
     case $opt in
         d) DISK=$OPTARG ;;
         k) KERNEL=$OPTARG ;;
         t) RUNTIME=$OPTARG ;;
         l) LOGFILE=$OPTARG ;;
-        T) TELNET=${TELNET:---telnet} ;;
         p) TELNET=--telnet=$OPTARG ;;
+        N) TELNET= ;;
         h) usage 0 ;;
         *) usage 1 ;;
     esac
