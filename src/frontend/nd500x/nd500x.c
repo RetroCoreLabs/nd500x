@@ -493,6 +493,12 @@ int main(int argc, char** argv) {
 			if (nd500x_ndix_telnet_start(telnet_port) != 0) return 1;
 			nd500_debugger_set_stdin_eof_quiet(1);
 		}
+		/* In --ndix mode the user is talking to NDIX, not to the debugger -
+		 * the REPL is only here because the boot sequence runs through it.
+		 * Silence its banner and its per-read PC prompt so guest output is
+		 * not interleaved with emulator chrome. '~' still reaches the
+		 * debugger. */
+		if (ndix_image) nd500_debugger_set_quiet_banner(1);
 		/* --ndix: boot the kernel exactly as the old shell wrapper did -
 		 * "load <kernel>" (which auto-sources <kernel>.init) then "run" -
 		 * while stdin stays on the terminal for guest console input. */

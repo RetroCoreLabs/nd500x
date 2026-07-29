@@ -186,10 +186,19 @@ static int execute_history_command(const char* line, char* output, size_t max_le
 }
 
 /* Read line with readline and tab completion */
-static int read_line_with_completion(char* line, size_t max_len, uint32_t pc) {
-	/* Create dynamic prompt with current PC */
+static int read_line_with_completion(char* line, size_t max_len, uint32_t pc, int quiet) {
+	/* The PC prompt belongs to the DEBUGGER. When the line we are about to read
+	 * is destined for the guest console (--ndix / ND500X_CONSOLE_STDIN with the
+	 * machine running), printing it interleaves emulator state with NDIX's own
+	 * output - you get "[0000080C] root" in the middle of a login session. The
+	 * prompt used to be unconditional because it is emitted BEFORE the line is
+	 * read, and the guest-vs-debugger decision is only made afterwards; quiet
+	 * lets the caller say up front where the line is going. */
 	char prompt[64];
-	snprintf(prompt, sizeof(prompt), "\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
+	if (quiet)
+		prompt[0] = '\0';
+	else
+		snprintf(prompt, sizeof(prompt), "\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
 
 	char* input = readline(prompt);
 	if (input == NULL) {
@@ -223,9 +232,11 @@ static int read_line_with_completion(char* line, size_t max_len, uint32_t pc) {
 #else /* !HAVE_READLINE */
 
 /* Fallback without readline */
-static int read_line_with_completion(char* line, size_t max_len, uint32_t pc) {
-	printf("\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
-	fflush(stdout);
+static int read_line_with_completion(char* line, size_t max_len, uint32_t pc, int quiet) {
+	if (!quiet) {
+		printf("\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
+		fflush(stdout);
+	}
 
 	if (fgets(line, max_len, stdin) == NULL) {
 		return 0;
@@ -285,15 +296,26 @@ static int g_stdin_eof_quiet = 0;
 
 void nd500_debugger_set_stdin_eof_quiet(int quiet) { g_stdin_eof_quiet = quiet; }
 
+/* --ndix runs the machine inside this REPL only because that is where the boot
+ * sequence lives; the user is talking to NDIX, not to the debugger. Suppress
+ * the debugger's own chrome (banner, readline help) in that mode - the '~'
+ * escape still reaches the debugger. */
+static int g_quiet_banner = 0;
+
+void nd500_debugger_set_quiet_banner(int quiet) { g_quiet_banner = quiet; }
+
 /* Main debugger REPL */
 int nd500_debugger_repl(Nd500Machine* m) {
 	char line[256];
 	int was_running = 0;  /* Track if we were running to detect stops */
-	printf("nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, show, bp, wp, continue, help, q\n");
+	if (!g_quiet_banner)
+		printf("nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, show, bp, wp, continue, help, q\n");
 
 #ifdef HAVE_READLINE
-	printf("Tab completion and command history enabled - press TAB to complete, UP/DOWN for history\n");
-	printf("History commands: !! (last), !nnn (number), !string (search), history (list)\n");
+	if (!g_quiet_banner) {
+		printf("Tab completion and command history enabled - press TAB to complete, UP/DOWN for history\n");
+		printf("History commands: !! (last), !nnn (number), !string (search), history (list)\n");
+	}
 
 	/* Initialize readline completion */
 	rl_attempted_completion_function = command_completion;
@@ -327,7 +349,11 @@ int nd500_debugger_repl(Nd500Machine* m) {
 
 	/* Main REPL loop */
 	for (;;) {
-		if (!read_line_with_completion(line, sizeof(line), m && m->cpu ? m->cpu->PC : 0)) {
+		/* Lines go to the guest console while it is running in console-stdin
+		 * mode, so suppress the debugger's PC prompt for those reads. */
+		int to_guest = console_stdin && m && m->run_flag;
+		if (!read_line_with_completion(line, sizeof(line),
+		                               m && m->cpu ? m->cpu->PC : 0, to_guest)) {
 			/* stdin EOF. In console-forwarding mode do NOT kill a running
 			 * machine: the boot pipeline's input feeder closing (subshell
 			 * exit, cat dying, redirected stdin draining) used to take the
