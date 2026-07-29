@@ -4,14 +4,19 @@
 #
 # Usage: run-ndix.sh [-d <disk-image>] [-t <seconds>] [-l <logfile>] [-h]
 #
-# With stdin on a terminal this boots to the INTERACTIVE single-user shell:
-# real /etc/init forks the real Bourne /bin/sh on /dev/console - type
-# commands (e.g. "echo hello"); a line starting with '~' goes to the
-# emulator debugger instead. End with Ctrl-D.
+# With stdin on a terminal this boots MULTIUSER to a login prompt:
+# real /etc/init runs /etc/rc, then getty on /dev/console prints the banner
+# and "login:". Log in as root (no password) to get the real Bourne /bin/sh -
+# then type commands (e.g. "echo hello", "ls -l", "ps -ax"). A line starting
+# with '~' goes to the emulator debugger instead. End with Ctrl-D.
 #
 #   -d <image>    Root disk image (default: /mnt/e/Dev/Ronny/NDIX-C/rootfs_full.img
-#                 = init + sh + 42 /bin utilities + full /dev)
+#                 = init + getty + login + sh + 42 /bin utilities + full /dev,
+#                 /etc/ttys "12console" so init goes multiuser)
 #                 Other images:
+#                   /mnt/e/Dev/Ronny/NDIX-C/rootfs_single.img (same tree but
+#                     /etc/ttys "02console" - boots straight to a single-user
+#                     shell with no login)
 #                   /mnt/e/Dev/Ronny/NDIX-C/rootfs_hello.img (echo-test init)
 #                   /mnt/e/Dev/Ronny/NDIX-C/rootfs_init.img  (stub init)
 #                   /mnt/e/Dev/Ronny/NDIX-C/rootfs.img       (empty fs)
