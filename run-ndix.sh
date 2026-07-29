@@ -106,6 +106,15 @@ if [ -z "$DISK" ]; then
     fi
 fi
 
+# nd500x looks for the kernel next to the DISK IMAGE. That is right for the
+# shipped layout, but wrong the moment -d points at an image kept elsewhere
+# (a test build in a scratch directory, say) while the kernel still lives in
+# the NDIX tree. If NDIX_ROOT names a tree that has one, use it.
+if [ -z "$KERNEL" ] && [ -n "${NDIX_ROOT:-}" ] \
+   && [ -f "$NDIX_ROOT/kernel/MASTER/GENERIC/vmunix" ]; then
+    KERNEL=$NDIX_ROOT/kernel/MASTER/GENERIC/vmunix
+fi
+
 if [ ! -x "$ND500X_BIN" ]; then
     echo "error: $ND500X_BIN not found" >&2
     echo "build it with: cmake --build $REPO_ROOT/build --target nd500x -j4" >&2
