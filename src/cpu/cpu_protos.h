@@ -80,7 +80,10 @@ typedef struct Nd500Cpu {
 
 	/* Trap handler state (for ENTT/RETT) */
 	bool in_trap_handler;           /* True while executing trap handler */
-	uint32_t trap_saved_PC;         /* PC to return to after RETT (trapping instruction) */
+	uint32_t trap_saved_PC;         /* Trapping P: address of the instruction that trapped (frame arg1) */
+	uint32_t trap_resume_PC;        /* P to resume at after RETT (frame arg2): equals trap_saved_PC
+	                                 * for Before/During-class traps (retry), but the NEXT instruction
+	                                 * for After-class traps (manual ND-05.009.4 Table 10 + page 79) */
 	uint32_t trap_saved_OTE1;       /* Saved OTE1 for restoration by RETT */
 	uint32_t trap_saved_OTE2;       /* Saved OTE2 for restoration by RETT */
 	int trap_number;                /* Current trap being handled (bit position) */
@@ -203,6 +206,14 @@ typedef struct Nd500Cpu {
 
 /* Mask for ignorable traps only (bits 11-29) */
 #define TRAP_IGNORABLE_MASK 0x3FFFF800ULL
+
+/* Traps handled AFTER the instruction completes (manual ND-05.009.4 Table 10,
+ * "Status bits survey", column B/D/A): O(9), IVO..CT(11-19), ATF..AZ(21-24),
+ * DT(30), DE(31), PWF(39). For these the saved P register (trap frame arg2,
+ * what RETT returns to) points to the NEXT instruction; Trapping P (arg1)
+ * still names the trapping instruction. All other traps are Before/During
+ * class: arg2 == arg1 and RETT retries the trapping instruction. */
+#define TRAP_AFTER_MASK 0x80C1EFFA00ULL
 
 /* Trap system state */
 typedef struct {

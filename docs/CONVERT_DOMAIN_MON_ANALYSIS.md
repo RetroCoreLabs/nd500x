@@ -450,3 +450,47 @@ PC=0x08035621 after ~1.25M instructions, after loading `DDBTABLES-G06.VTM`
 staged as `DDBTABLES-E:VTM` (LED-B03 asks for revision D or E tables; only
 G06 exists on the disks). Unknown whether this is a table-revision mismatch
 or an emulator gap - next investigation.
+
+---
+
+## 10. UPDATE 2026-07-29: LED RUNS - CHAIN zero-link trap semantics + MON 52B TERMO
+
+The open CHAIN-loop issue from section 9 is FIXED. It was never a DDBTABLES
+revision problem: staging the real `DDBTABLES-D11/E11.VTM` (found in
+`F:\RC\RonnyTest\HDLC3\vdm`, copied into the sandbox SYSTEM) changed nothing.
+The real causes were two CPU trap bugs plus one missing MON call:
+
+1. **CHAIN zero-link must raise IOV (bit 16, ignorable), not IOS (bit 34).**
+   ND-05.009.4 section 15.7: zero link terminates the operation, Wn keeps the
+   last element, K is set, and an *illegal operand value* trap condition is
+   raised. LED walks a possibly-empty list with levels=0x7FFFFFFF and uses
+   exactly this to find the end. File:
+   `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/Chain.c` (traversal
+   prints now gated behind env `ND500X_CHAINDBG`).
+
+2. **After-class traps resume at the NEXT instruction.** ND-05.009.4 page 79
+   + Table 10: traps classed "A" complete the instruction; the trap frame's
+   saved P (arg2, B+24 - what RETT returns to) points to the next
+   instruction, while Trapping P (arg1, B+20) names the trapping one. We
+   always wrote arg2 = trapping P, so LED's handler RETTed back into the same
+   CHAIN forever ("TRAP. Trap no: 42B" storm, runaway-loop halt at
+   PC=0x08035621). New `TRAP_AFTER_MASK` (0x80C1EFFA00) in
+   `/home/ronny/repos/nd500x/src/cpu/cpu_protos.h`; `trap_resume_PC` set in
+   `invoke_trap_handler` (`/home/ronny/repos/nd500x/src/cpu/cpu.c`) and
+   written as arg2 by `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/Entt.c`.
+
+3. **MON 52B TERMO implemented** (was a dying stub): stores mode bits per
+   device, returns success. Files:
+   `/home/ronny/repos/nd500x/external/ndmonlib/src/handlers/mon_52B_TerminalMode.c`,
+   `/home/ronny/repos/nd500x/external/ndmonlib/src/support/mon_terminal_state.c` (+ header, registry, mon_log.h).
+
+**Result:** `LED-NEW` (converted from LED-B03 :PSEG/:DSEG by CONVERT-DOM-A03)
+now boots its full VT100 UI - "Main" title bar, box-drawing frame, "LED:"
+prompt, "August 24, 1988." - 507,595 instructions, no traps, then exits on
+stdin EOF (interactive editor, no input supplied). Regression: HELLO.DOM
+still prints "Hello world" (16,579 instructions) and the 46k
+instruction-validation results are byte-identical before/after the trap
+change (the double-register failures visible there are pre-existing from the
+concurrent Dn work, verified by stash-rebuild-compare).
+
+C# handoff: item 8 in the shared file (see section 9 note for its location).

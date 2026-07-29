@@ -325,9 +325,11 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 20, 1, 0),
                       cpu->trap_saved_PC);
 
-    /* arg2 (B+24): P register - return PC (same as trapping P for retry) */
+    /* arg2 (B+24): P register - the resume address RETT returns to. Equals the
+     * trapping P for Before/During-class traps (retry) but the NEXT instruction
+     * for After-class traps (manual ND-05.009.4 page 79 + Table 10). */
     nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 24, 1, 0),
-                      cpu->trap_saved_PC);
+                      cpu->trap_resume_PC);
 
     /* arg3 (B+28): L register (link/return address) - CRITICAL for subroutine returns */
     nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 28, 1, 0), saved_L);

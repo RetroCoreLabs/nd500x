@@ -1235,8 +1235,18 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 		return;
 	}
 
-	/* Save state for RETT to restore */
-	cpu->trap_saved_PC = trappingP;      /* Return to trapping instruction */
+	/* Save state for RETT to restore. Trapping P (frame arg1) is always the
+	 * trapping instruction. The RESUME P (frame arg2, what RETT returns to)
+	 * depends on the trap's timing class (manual ND-05.009.4 Table 10):
+	 * After-class traps (O, IVO, DZ, FU, FO, BO, IOV, SIT, BT, CT, ATF, ATR,
+	 * ATW, AZ, DT, DE, PWF) complete the instruction first, so the handler
+	 * returns to the NEXT instruction - cpu->PC is already advanced past the
+	 * trapping instruction both when raised mid-execute and when dispatched
+	 * from check_pending_traps. Before/During-class traps retry the trapping
+	 * instruction. (LED's runtime looped forever on a CHAIN zero-link IOV
+	 * because the handler RETTed back into the same CHAIN.) */
+	cpu->trap_saved_PC = trappingP;
+	cpu->trap_resume_PC = (trapBit & TRAP_AFTER_MASK) ? cpu->PC : trappingP;
 	cpu->trap_saved_OTE1 = cpu->OTE1;    /* Save trap enable state */
 	cpu->trap_saved_OTE2 = cpu->OTE2;
 	cpu->trap_number = trapNumber;

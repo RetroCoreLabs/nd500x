@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * CHAIN instruction - CALL class
@@ -150,6 +151,16 @@
  * Reference: ND-500 Reference Manual, Section 15.7
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Chain.cs (fixed)
  */
+/* Once-latched env flag for CHAIN tracing (ND500X_CHAINDBG). The traversal
+ * prints used to be unconditional, but a zero link is a NORMAL runtime event
+ * (end-of-list walk with a large level count, e.g. LED) - unconditional
+ * prints flooded program output. */
+static int chain_dbg(void) {
+    static int latch = -1;
+    if (latch < 0) { const char* e = getenv("ND500X_CHAINDBG"); latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return latch;
+}
+
 void nd500_instr_Chain(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ========================================================================
      * STEP 1: VALIDATE OPERAND COUNT
@@ -195,16 +206,19 @@ void nd500_instr_Chain(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Operand 2: Number of levels to traverse */
     int32_t levels = (int32_t)nd500_read_operand_value(cpu, &fi->operands[2], fi->data_type);
 
-    printf("[CHAIN] Start: addr=0x%08X, offset=%u, levels=%d, target=W%u at PC=0x%08X\n",
+    if (chain_dbg()) printf("[CHAIN] Start: addr=0x%08X, offset=%u, levels=%d, target=W%u at PC=0x%08X\n",
            start_address, static_link_offset, levels, fi->target_register, fi->address);
 
     /* ========================================================================
      * STEP 5: VALIDATE LEVELS (must be >= 0)
      * ======================================================================== */
     if (levels < 0) {
-        printf("[ERROR] CHAIN illegal operand - negative levels %d at PC=0x%08X\n",
+        if (chain_dbg()) printf("[CHAIN] illegal operand value - negative levels %d at PC=0x%08X\n",
                levels, fi->address);
-        trap_illegal_operand(cpu, fi->address);
+        /* Illegal operand VALUE (IOV, bit 16) - an ignorable After-class trap,
+         * not IOS: the operand specifier is fine, its VALUE is out of range
+         * (manual ND-05.009.4 section 15.7 + Table 10). */
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
     }
 
@@ -222,7 +236,7 @@ void nd500_instr_Chain(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             nd500_clear_flag(cpu, ND500_FLAG_S);
         }
 
-        printf("[CHAIN] levels=0 (LADDR equivalent): loaded 0x%08X to W%u at PC=0x%08X\n",
+        if (chain_dbg()) printf("[CHAIN] levels=0 (LADDR equivalent): loaded 0x%08X to W%u at PC=0x%08X\n",
                start_address, fi->target_register, fi->address);
         return;
     }
@@ -236,12 +250,19 @@ void nd500_instr_Chain(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Read the static link: memory[currentAddr + offset] */
         uint32_t next_link = nd500_read_memory_32(cpu, current_addr + static_link_offset);
 
-        printf("  CHAIN level %d/%d: addr=0x%08X, link@0x%08X = 0x%08X\n",
+        if (chain_dbg()) printf("  CHAIN level %d/%d: addr=0x%08X, link@0x%08X = 0x%08X\n",
                i + 1, levels, current_addr, current_addr + static_link_offset, next_link);
 
-        /* Check for zero link (premature chain termination) */
+        /* Check for zero link (premature chain termination). Manual 15.7:
+         * "If the next link in the chain is zero, the operation is terminated,
+         * Wn will contain the last element in the link (pointing to a zero
+         * location) and the K flag is set. This will also cause an illegal
+         * operand value trap condition." IOV is an ignorable After-class trap:
+         * the instruction COMPLETES (register written, K set) and execution
+         * resumes at the next instruction - LED walks a possibly-empty list
+         * with levels=0x7FFFFFFF and relies on exactly this to detect the end. */
         if (next_link == 0) {
-            printf("[ERROR] CHAIN encountered zero link at level %d/%d at PC=0x%08X\n",
+            if (chain_dbg()) printf("[CHAIN] zero link at level %d/%d at PC=0x%08X\n",
                    i + 1, levels, fi->address);
 
             /* Set K flag to indicate zero link encountered */
@@ -250,8 +271,7 @@ void nd500_instr_Chain(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             /* Store current address (pointing to zero link location) in target register */
             nd500_write_integer_register(cpu, fi->target_register, current_addr);
 
-            /* Trap with illegal operand value */
-            trap_illegal_operand(cpu, fi->address);
+            raise_trap(cpu, TRAP_IOV, fi->address, 0);
             return;
         }
 
@@ -275,7 +295,7 @@ void nd500_instr_Chain(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Clear K flag (successful traversal, no zero links) */
     nd500_clear_flag(cpu, ND500_FLAG_K);
 
-    printf("[CHAIN] Completed: traversed %d levels, final addr=0x%08X in W%u, S=%d at PC=0x%08X\n",
+    if (chain_dbg()) printf("[CHAIN] Completed: traversed %d levels, final addr=0x%08X in W%u, S=%d at PC=0x%08X\n",
            levels, current_addr, fi->target_register,
            (current_addr & 0x80000000) ? 1 : 0, fi->address);
 }
