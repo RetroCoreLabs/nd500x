@@ -33,7 +33,7 @@ void nd500_instr_Wconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read source operand based on opcode */
     if (fi->opcode == 0xFD46) {
         /* BI WCONV: Bit to word */
-        uint64_t bit_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
+        uint64_t bit_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BIT);
         word_result = (bit_val & 1) ? 1 : 0;
     } else if (fi->opcode == 0xFD4B) {
         /* BY WCONV: Byte to word (sign extend) */

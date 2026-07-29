@@ -192,6 +192,24 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 		}
 	}
 
+	/* ND500X_PWATCH=<hex phys addr>[:<len>]: log EVERY physical byte write in
+	 * that range, whatever the source (CPU store through any window, MMU, DMA
+	 * that funnels through the bus). Unlike FRAMEWATCH this does not filter on
+	 * value, so it catches a partial overwrite of a live word. */
+	{
+		static int pw_init = 0; static uint32_t pw_base = 0, pw_len = 0; static unsigned pw_n = 0;
+		if (!pw_init) { const char* e = getenv("ND500X_PWATCH"); pw_init = 1;
+		                if (e && e[0]) { char* end; pw_base = (uint32_t)strtoul(e, &end, 16);
+		                                 pw_len = (*end == ':') ? (uint32_t)strtoul(end + 1, NULL, 0) : 16; } }
+		if (pw_len && addr >= pw_base && addr < pw_base + pw_len && pw_n < 4000) {
+			Nd500Cpu* c = m ? m->cpu : 0;
+			pw_n++;
+			fprintf(stderr, "[PWATCH] phys 0x%08X <- 0x%02X (was 0x%02X)  PC=0x%08X CED=%u B=0x%08X\n",
+			        addr, val, in_range(m, addr, 1) ? m->memory[addr] : 0xFF,
+			        c ? c->PC : 0, c ? c->CED : 0, c ? c->B : 0);
+		}
+	}
+
 	/*
 	 * NOTE: MMU translation for CPU-initiated accesses should happen BEFORE
 	 * calling this function (in the CPU instruction implementations).

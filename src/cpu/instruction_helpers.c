@@ -6,6 +6,78 @@
 #include <stdlib.h>   /* getenv - implicit-int prototype truncates the char* -> wild-pointer crash */
 #include <math.h>
 
+/* ND500X_UWATCH=1: log any write to the FIRST 12 BYTES (u_pcb, u_how, u_procp)
+ * of EVERY u-area window the kernel owns. Those two pointers were found
+ * corrupted for init when the kernel died in setprt(); this names the writer.
+ *
+ * Window addresses come from kernel/MASTER/machine/locore.c (.set directives)
+ * with MAXUSERS=32 -> NPROC=256, UPAGES=4, NBPG=2048, _Sysbase=0x18000000:
+ *   _u        0xE8000000  (segment 29, the RUNNING process' u-area)
+ *   _forkutl  0x18180000  (_Sysbase + NPROC*3*NBPG)
+ *   _xswaputl 0x18182000  _xswap2utl 0x18184000
+ *   _swaputl  0x18186000  _pushutl   0x18188000
+ */
+static void nd_uwatch(Nd500Cpu* cpu, uint32_t vaddr, uint32_t paddr, uint32_t value, int width)
+{
+    static const struct { uint32_t base; const char* name; } win[] = {
+        { 0xE8000000u, "u"        },
+        { 0x18180000u, "forkutl"  },
+        { 0x18182000u, "xswaputl" },
+        { 0x18184000u, "xswap2utl"},
+        { 0x18186000u, "swaputl"  },
+        { 0x18188000u, "pushutl"  },
+    };
+    static int on = -1;
+    if (on < 0) { const char* e = getenv("ND500X_UWATCH"); on = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    if (!on) return;
+    /* A store whose bytes cross a 2KB page boundary is translated ONCE, for
+     * its first byte, then written at paddr+1..3 - so the tail bytes land in
+     * whatever frame physically follows, not in the frame the NEXT virtual
+     * page is mapped to. Log every straddling store in the u-area window. */
+    if (vaddr >= 0xE8000000u && vaddr < 0xE8002000u) {
+        uint32_t span = (uint32_t)(width / 8);
+        if (span > 1 && ((vaddr & 0x7FFu) + span) > 0x800u) {
+            static unsigned ns = 0;
+            if (ns++ < 100)
+                fprintf(stderr, "[UWATCH-STRADDLE] w%-2d va=0x%08X pa=0x%08X <- 0x%08X  PC=0x%08X CED=%u B=0x%08X\n",
+                        width, vaddr, paddr, value, cpu->PC, cpu->CED, cpu->B);
+        }
+    }
+    for (unsigned i = 0; i < sizeof(win)/sizeof(win[0]); i++) {
+        if (vaddr >= win[i].base && vaddr < win[i].base + 12u) {
+            static unsigned n = 0;
+            if (n++ < 400)
+                fprintf(stderr, "[UWATCH] %-9s+%u w%-2d va=0x%08X pa=0x%08X <- 0x%08X  PC=0x%08X CED=%u B=0x%08X\n",
+                        win[i].name, vaddr - win[i].base, width, vaddr, paddr,
+                        value, cpu->PC, cpu->CED, cpu->B);
+            return;
+        }
+    }
+}
+
+
+/*
+ * A multi-byte access is translated ONCE, for its first byte, and the tail
+ * bytes are then read/written at paddr+1..N-1. That is only valid while the
+ * whole access stays inside one NBPG (2KB) page: consecutive virtual pages are
+ * NOT physically contiguous, so a straddling access must be split and each
+ * half translated on its own.
+ *
+ * Found in NDIX multiuser boot: ino_close()'s `cfunc = cdevsw[major(dev)].d_close`
+ * stores a word to the kernel stack at u-area VA 0xE8000FFE. The tail two bytes
+ * landed in the frame that physically FOLLOWS 0xE8000800's frame instead of the
+ * frame VA 0xE8001000 maps to - which was another process' u-area page 0 - and
+ * shredded the high half of its u_pcb (0xE0000300 -> 0xD5640300). setprt() then
+ * dereferenced the wild pointer and the kernel died.
+ *
+ * Splitting into per-byte accesses is restart-safe: if the second page faults,
+ * the instruction is re-executed and stores the same bytes again.
+ */
+static int nd_crosses_page(const Nd500Cpu* cpu, uint32_t vaddr, uint32_t span) {
+    return cpu && cpu->machine && cpu->machine->mmu_enabled &&
+           ((vaddr & (uint32_t)(NBPG - 1)) + span) > (uint32_t)NBPG;
+}
+
 /* Once-latched env flag: getenv() on the CPU run path races readline's
  * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
 static int nd_env_flag(const char* name, int* latch) {
@@ -90,6 +162,7 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
         paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); // is_write=1, is_instruction=0
         if (nd500_trap_occurred() || cpu->instr_aborted) return;  // translation faulted (handler may have cleared trap state - check abort flag too)
     }
+    nd_uwatch(cpu, vaddr, paddr, (uint32_t)value, 8);
 
     MEMTRACE_WR("[MEMTRACE] write_8: vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
     { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
@@ -114,6 +187,12 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
 uint16_t nd500_read_memory_16(Nd500Cpu* cpu, uint32_t vaddr) {
     if (!cpu || !cpu->machine) return 0;
 
+    if (nd_crosses_page(cpu, vaddr, 2)) {   /* see nd_crosses_page */
+        uint8_t b0 = nd500_read_memory_8(cpu, vaddr);
+        uint8_t b1 = nd500_read_memory_8(cpu, vaddr + 1);
+        return (uint16_t)(((uint16_t)b0 << 8) | (uint16_t)b1);
+    }
+
     // Translate virtual to physical address if MMU is enabled
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
@@ -131,6 +210,12 @@ uint16_t nd500_read_memory_16(Nd500Cpu* cpu, uint32_t vaddr) {
 
 void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
     if (!cpu || !cpu->machine) return;
+
+    if (nd_crosses_page(cpu, vaddr, 2)) {   /* see nd_crosses_page */
+        nd500_write_memory_8(cpu, vaddr,     (uint8_t)((value >> 8) & 0xFF));
+        nd500_write_memory_8(cpu, vaddr + 1, (uint8_t)(value & 0xFF));
+        return;
+    }
 
     // Translate virtual to physical address if MMU is enabled
     uint32_t paddr = vaddr;
@@ -162,6 +247,13 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
 
 uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
     if (!cpu || !cpu->machine) return 0;
+
+    if (nd_crosses_page(cpu, vaddr, 4)) {   /* see nd_crosses_page */
+        uint32_t v = 0;
+        for (int i = 0; i < 4; i++)
+            v = (v << 8) | (uint32_t)nd500_read_memory_8(cpu, vaddr + i);
+        return v;
+    }
 
     // Translate virtual to physical address if MMU is enabled
     uint32_t paddr = vaddr;
@@ -203,6 +295,12 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
 void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
     if (!cpu || !cpu->machine) return;
 
+    if (nd_crosses_page(cpu, vaddr, 4)) {   /* see nd_crosses_page */
+        for (int i = 0; i < 4; i++)
+            nd500_write_memory_8(cpu, vaddr + i, (uint8_t)((value >> (24 - 8 * i)) & 0xFF));
+        return;
+    }
+
     // Translate virtual to physical address if MMU is enabled
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
@@ -212,6 +310,7 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
             return;  // translation faulted (handler may have cleared trap state)
         }
     }
+    nd_uwatch(cpu, vaddr, paddr, value, 32);
 
     // Debug: warn if writing to address beyond physical memory
     if (paddr >= cpu->machine->memory_size) {
@@ -390,6 +489,7 @@ void nd500_write_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value, u
         paddr = nd500_mmu_translate_domain(cpu, vaddr, 1, 0, domain);
         if (nd500_trap_occurred() || cpu->instr_aborted) return;
     }
+    nd_uwatch(cpu, vaddr, paddr, (uint32_t)value, 8);
 
     MEMTRACE_WR("[MEMTRACE] write_8_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%02X\n",
                 vaddr, paddr, domain, value);
@@ -422,6 +522,12 @@ void nd500_write_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value, u
 uint16_t nd500_read_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain) {
     if (!cpu || !cpu->machine) return 0;
 
+    if (nd_crosses_page(cpu, vaddr, 2)) {   /* see nd_crosses_page */
+        uint8_t b0 = nd500_read_memory_8_domain(cpu, vaddr, domain);
+        uint8_t b1 = nd500_read_memory_8_domain(cpu, vaddr + 1, domain);
+        return (uint16_t)(((uint16_t)b0 << 8) | (uint16_t)b1);
+    }
+
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate_domain(cpu, vaddr, 0, 0, domain);
@@ -438,6 +544,12 @@ uint16_t nd500_read_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t doma
 
 void nd500_write_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value, uint8_t domain) {
     if (!cpu || !cpu->machine) return;
+
+    if (nd_crosses_page(cpu, vaddr, 2)) {   /* see nd_crosses_page */
+        nd500_write_memory_8_domain(cpu, vaddr,     (uint8_t)((value >> 8) & 0xFF), domain);
+        nd500_write_memory_8_domain(cpu, vaddr + 1, (uint8_t)(value & 0xFF), domain);
+        return;
+    }
 
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
@@ -459,6 +571,13 @@ void nd500_write_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value,
 
 uint32_t nd500_read_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain) {
     if (!cpu || !cpu->machine) return 0;
+
+    if (nd_crosses_page(cpu, vaddr, 4)) {   /* see nd_crosses_page */
+        uint32_t v = 0;
+        for (int i = 0; i < 4; i++)
+            v = (v << 8) | (uint32_t)nd500_read_memory_8_domain(cpu, vaddr + i, domain);
+        return v;
+    }
 
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
@@ -493,11 +612,19 @@ uint32_t nd500_read_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t doma
 void nd500_write_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value, uint8_t domain) {
     if (!cpu || !cpu->machine) return;
 
+    if (nd_crosses_page(cpu, vaddr, 4)) {   /* see nd_crosses_page */
+        for (int i = 0; i < 4; i++)
+            nd500_write_memory_8_domain(cpu, vaddr + i,
+                                        (uint8_t)((value >> (24 - 8 * i)) & 0xFF), domain);
+        return;
+    }
+
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate_domain(cpu, vaddr, 1, 0, domain);
         if (nd500_trap_occurred() || cpu->instr_aborted) return;
     }
+    nd_uwatch(cpu, vaddr, paddr, value, 32);
 
     MEMTRACE_WR("[MEMTRACE] write_32_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%08X\n",
                 vaddr, paddr, domain, value);

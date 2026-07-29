@@ -38,7 +38,7 @@ extern int nd500_mon_connect_file_as_segment(void* cpu, void* machine, uint8_t d
     uint32_t* out_assigned_segment);
 extern int nd500_segment_writeback(void* cpu, uint8_t domain, uint32_t segment,
     const char* host_path);
-extern void nd500_segment_release(uint8_t domain, uint32_t segment);
+extern void nd500_segment_release(void* cpu, uint8_t domain, uint32_t segment);
 
 /* Adapter: resolve the 0xFF "current domain" sentinel before flushing. */
 static int mon_writeback_file_segment(void* cpu_ptr, uint8_t domain, uint32_t segment,

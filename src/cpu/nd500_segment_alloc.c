@@ -392,13 +392,38 @@ int nd500_segment_writeback(void* cpu_ptr, uint8_t domain, uint32_t segment,
 }
 
 /**
- * Release a connected segment's registry slot. Call after the write-back when a
- * file is disconnected, so the logical segment number can be reused.
+ * Release a connected segment. Call after the write-back when a file is
+ * disconnected, so the logical segment number can be reused.
+ *
+ * Clears the domain's DATA CAPABILITY and the PST entry as well as the
+ * registry slot: a later re-connect of the same (or another) file to the same
+ * logical segment goes through alloc_backed_segment(), which refuses any
+ * segment whose capability is still set. CONVERT-DOM-A03 closes and re-opens
+ * LED-B03:LINK mid-conversion and re-connects it to the SAME logical segment;
+ * without the capability clear the second FSCNT failed with 371B (ILLEGAL
+ * SEGMENT) and the conversion aborted with Sintran error 174B.
+ *
+ * domain 0xFF means "current executing domain" (the callers are MON handlers
+ * that do not know the domain) - resolve it here; the registry stores the
+ * REAL domain, so an unresolved 0xFF also never matched the slot and leaked it.
  */
-void nd500_segment_release(uint8_t domain, uint32_t segment)
+void nd500_segment_release(void* cpu_ptr, uint8_t domain, uint32_t segment)
 {
+    Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
+    if (cpu && (domain == 0xFF || domain >= MAXDOM)) {
+        domain = (uint8_t)cpu->CED;
+    }
     GrowableSegment* g = growable_find(domain, segment);
     if (g) g->in_use = 0;
+
+    if (cpu) {
+        uint16_t dc = nd500_mmu_get_data_capability(cpu, domain, segment);
+        if (dc != 0) {
+            uint32_t psn = dc & DC_PSN;
+            nd500_mmu_set_pst_entry(cpu, (int)psn, 0, 0);
+            nd500_mmu_set_data_capability(cpu, domain, segment, 0);
+        }
+    }
 }
 
 /**

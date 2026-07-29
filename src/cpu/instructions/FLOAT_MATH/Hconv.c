@@ -37,7 +37,7 @@ void nd500_instr_Hconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read source operand based on opcode */
     if (fi->opcode == 0xFD45) {
         /* BI HCONV: Zero extension (bit to halfword) */
-        uint64_t bit_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
+        uint64_t bit_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BIT);
         source_value = (bit_val & 1) ? 1 : 0;  /* Extract LSB */
     } else if (fi->opcode == 0xFD4A) {
         /* BY HCONV: Byte to halfword (sign extension) */

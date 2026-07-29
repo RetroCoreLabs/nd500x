@@ -371,3 +371,82 @@ Repro sandbox for this update (session scratchpad, regenerate as needed):
 `/tmp/claude-1000/-home-ronny-repos-nd500x/c79ab8e4-280a-4a44-a1dc-de912b970903/scratchpad/cdsandbox/`
 (`run.out.txt`, `run.monlog.txt`; staged from `/mnt/d/ND/500/LED/x/` and
 `/home/ronny/ND500USERS/SYSTEM`).
+
+--------------------------------------------------------------------------------
+## 9. UPDATE 2026-07-28 (later): CONVERSION WORKS - LED-B03 :PSEG/:DSEG -> runnable LED-NEW:DOM
+
+`CONVERT-DOM-A03 LED-NEW LED-B03 NO YES` now runs to `>> Finished <<` and
+produces a real 625,949-byte `LED-NEW.DOM` (header + 223,695-byte PSEG +
+394,525-byte DSEG), which LOADS AND RUNS in the shell (executes 1.25M
+instructions into LED's screen setup). Four fixes, in the order the blockers
+appeared; each was verified by rerunning the conversion:
+
+1. **DEABF must return the FULLY QUALIFIED name** `(DIR:USER)NAME:TYPE;VERSION`
+   even for an unqualified input
+   (`/home/ronny/repos/nd500x/external/ndmonlib/src/handlers/mon_256B_FullFileName.c`).
+   The section-8 EASSERT was CONVERT-DOM-A03 scanning DEABF's reply for the
+   `(DIR:USER)` prefix (check at 0x080025B6..D1, assert call at 0x080025D3) -
+   proven by dumping the scanned string at assert time: it was exactly DEABF's
+   unqualified reply. Directory name used: `PACK-ONE` (no directory level
+   exists in the host mapping); the USER is the one the lookup resolved to.
+2. **Path parser: `(DIR:USER)` split + `;VERSION` strip**
+   (`/home/ronny/repos/nd500x/external/ndmonlib/src/support/mon_path.c`).
+   Both forms are real SINTRAN syntax that the qualified names produce; before
+   this, OPEN of a DEABF-returned name translated to a bogus host path ending
+   `.DOM;`.
+3. **CPU: `BI WCONV/HCONV/BYCONV/FCONV/DCONV` read their source as a BYTE and
+   took bit 0, ignoring the decoded bit position**
+   (5 files in `/home/ronny/repos/nd500x/src/cpu/instructions/FLOAT_MATH/`).
+   CONVERT-DOM-A03's "is segment present" check (subroutine 0x08002CE0) tests
+   domain-entry segment bitmaps via `bi wconv IND(...)(rN)`; with the bitmap
+   byte 0x02 and bit position 1 the buggy read returned 0 for EVERY segment ->
+   "IKonvDom: No segments on source domain!". Fixed to read ND500_DTYPE_BIT.
+   All 16k+ instruction-validation tests still pass.
+4. **`nd500_segment_release()` now clears the domain DATA CAPABILITY and the
+   PST entry, and resolves the 0xFF current-domain sentinel**
+   (`/home/ronny/repos/nd500x/src/cpu/nd500_segment_alloc.c`; callback
+   signature gained the cpu pointer in
+   `external/ndmonlib/include/ndmon/mon_types.h` + the three call sites).
+   CONVERT-DOM-A03 closes and re-connects `LED-B03:LINK` to the SAME logical
+   segment mid-conversion; the stale capability made the second FSCNT fail
+   371B -> Sintran error 174B. (The unresolved 0xFF also meant release never
+   matched the registry slot at all - every disconnect leaked its slot.)
+
+Sandbox layout that converts successfully (per the description file, the
+segment files must be staged under the FLOPPY-USER directory it names):
+
+```
+<root>/SYSTEM/CONVERT-DOM-A03.DOM (+ .INIT/.HELP), DDBTABLES-G06.VTM
+<root>/GUEST/DESCRIPTION-FILE.DESC          (from /mnt/d/ND/500/LED/x/)
+<root>/FLOPPY-USER/LED-B03.PSEG/.DSEG/.LINK (from /mnt/d/ND/500/LED/x/)
+```
+
+### Knock-on: LINKER-AUTO-FORT:JOB now actually runs (site config edited)
+
+With DEABF's reply correctly qualified, the ND Linker's auto-job name check
+passes (it previously failed by accident and the job was skipped - the old
+`"B" does not match "LINKER-AUTO-FORT:JOB" exact` warning). The job then
+demanded `(SYSTEM)FORTRAN-LIB`, which exists nowhere on the disks, and its
+interactive prompt swallowed the MODE script's EXIT - the link ended with a
+4,096-byte stub DOM. Per the job file's own header ("the file should, if
+used, be edited to reflect the wanted environment"), the two live
+`SPECIAL-LOAD (SYSTEM)FORTRAN-LIB/EXCEPT-LIB LIBRARY` lines in
+`/home/ronny/ND500USERS/SYSTEM/LINKER-AUTO-FORT.JOB` were commented out
+(0xA5 '%' prefix, parity encoding preserved); the untouched original is kept
+as `LINKER-AUTO-FORT.JOB.ORIG-PRE-SITE-EDIT` alongside it.
+
+### Regression status (all green)
+
+- NC compile: fresh `HELLO.NRF`, now 947 bytes (was 933 - the BI-conversion
+  CPU fix changes NC's codegen output; the result links and runs).
+- Link: `HELLO.DOM` 6,313,424 bytes; `@HELLO` prints "Hello world".
+- `test_instruction_validation --continue`: ALL TESTS PASSED (16k+).
+- `stack_overflow` test green.
+
+### Still open
+
+`LED-NEW.DOM` runs into a CHAIN-instruction loop on a zero link at
+PC=0x08035621 after ~1.25M instructions, after loading `DDBTABLES-G06.VTM`
+staged as `DDBTABLES-E:VTM` (LED-B03 asks for revision D or E tables; only
+G06 exists on the disks). Unknown whether this is a table-revision mismatch
+or an emulator gap - next investigation.

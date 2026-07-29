@@ -241,6 +241,9 @@ void nd500_mmu_set_pst_entry(Nd500Cpu* cpu, int psn, uint8_t index_mode, uint32_
 /* PCB Accessors */
 ProcessControlBlock* nd500_mmu_get_pcb(Nd500Cpu* cpu, uint8_t domain);
 uint16_t nd500_mmu_get_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment);
+/* Capability as the translate path resolves it (guest DIT memory when guest-
+ * table routing applies, else the shadow) - use for CALL/CALLG dispatch. */
+uint16_t nd500_mmu_get_active_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment);
 uint16_t nd500_mmu_get_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment);
 void nd500_mmu_set_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment, uint16_t capability);
 void nd500_mmu_set_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment, uint16_t capability);

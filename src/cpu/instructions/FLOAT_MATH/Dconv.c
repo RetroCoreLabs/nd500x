@@ -33,7 +33,7 @@ void nd500_instr_Dconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read source operand based on opcode */
     if (fi->opcode == 0xFD48) {
         /* BI DCONV: Bit to double */
-        uint64_t bit_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
+        uint64_t bit_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BIT);
         int64_t int_val = (bit_val & 1) ? 1 : 0;
         double_result = nd500_double_from_int64(int_val);
     } else if (fi->opcode == 0xFD4D) {
