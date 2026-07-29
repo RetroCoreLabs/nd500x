@@ -143,6 +143,25 @@ add_executable(test_alt_prefix
 target_link_libraries(test_alt_prefix PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
 
+# Page-straddling memory access tests
+# A 16/32-bit access crossing a 2KB (NBPG) page boundary must be split and each
+# page translated on its own. Before the fix the tail bytes were written at
+# paddr+1..N-1, i.e. into the frame that physically FOLLOWS the first one.
+add_executable(test_page_straddle
+    test_page_straddle.c
+)
+target_link_libraries(test_page_straddle PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
+# Double register (Dn = An:En) tests
+# An is the HIGH half and En the low half; they used to be packed the other way
+# round, which made D NEG flip a mantissa bit instead of the sign bit.
+add_executable(test_double_register
+    test_double_register.c
+)
+target_link_libraries(test_double_register PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+target_link_libraries(test_double_register PRIVATE m)  # Link math library
+
+
 # ---------------------------------------------------------------------------
 # CTest registration
 # enable_testing() is called in the top-level CMakeLists.txt.
@@ -168,6 +187,8 @@ add_test(NAME riom COMMAND test_riom)
 add_test(NAME mon_calls COMMAND test_mon_calls)
 add_test(NAME bmove_overlap COMMAND test_bmove_overlap)
 add_test(NAME alt_prefix COMMAND test_alt_prefix)
+add_test(NAME page_straddle COMMAND test_page_straddle)
+add_test(NAME double_register COMMAND test_double_register)
 
 if(TARGET dap_objects)
     add_test(NAME dap_adapter COMMAND test_dap_adapter)
