@@ -490,8 +490,16 @@ int main(int argc, char** argv) {
 		 * local stdio console keeps its copy of unit 0 either way, so nothing
 		 * is lost whether or not anyone connects. */
 		if (ndix_image && telnet_port > 0) {
-			if (nd500x_ndix_telnet_start(telnet_port) != 0) return 1;
-			nd500_debugger_set_stdin_eof_quiet(1);
+			/* A busy port must not stop the machine booting: the local
+			 * console is still perfectly usable, and refusing to run because
+			 * something else holds the port (often a previous run that has
+			 * not exited yet) is worse than losing the telnet listener. Warn
+			 * loudly and carry on. */
+			if (nd500x_ndix_telnet_start(telnet_port) != 0)
+				fprintf(stderr, "[telnet] continuing without the telnet server "
+				        "- local console only\n");
+			else
+				nd500_debugger_set_stdin_eof_quiet(1);
 		}
 		/* In --ndix mode the user is talking to NDIX, not to the debugger -
 		 * the REPL is only here because the boot sequence runs through it.

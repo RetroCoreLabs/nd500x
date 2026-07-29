@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <time.h>
+#include <unistd.h>
+#include <termios.h>
+#include <sys/select.h>
 #ifdef HAVE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -304,6 +307,78 @@ static int g_quiet_banner = 0;
 
 void nd500_debugger_set_quiet_banner(int quiet) { g_quiet_banner = quiet; }
 
+/* ---------------------------------------------------------------------------
+ * Guest terminal passthrough.
+ *
+ * While the machine is running in console-stdin mode the terminal belongs to
+ * NDIX, not to the debugger. Reading those lines with readline() echoed them
+ * LOCALLY, and the guest's own tty driver echoed them again, so every command
+ * appeared twice:
+ *
+ *     # pwd
+ *     pwd
+ *     /
+ *
+ * A real terminal on a serial line does not echo itself; the host at the other
+ * end does. So put the tty in raw mode, turn local echo off, and forward each
+ * keystroke as it is typed - exactly one echo, produced by the guest.
+ *
+ * Character-at-a-time forwarding is also what the guest expects: its tty driver
+ * does the line editing (erase, kill, EOT) that readline was intercepting, so
+ * Ctrl-D now reaches it as a plain 0x04 and works mid-session.
+ *
+ * ISIG is deliberately left ON so Ctrl-C still stops the emulator the way it
+ * always has, rather than being swallowed by the guest. Ctrl-] drops to one
+ * debugger command line and returns.
+ *
+ * Returns 1 while stdin is alive, 0 on EOF. *want_debugger is set if the user
+ * pressed the escape.
+ * --------------------------------------------------------------------------- */
+#define GUEST_ESCAPE 0x1D   /* Ctrl-] - the escape telnet has used forever */
+
+static int guest_passthrough(Nd500Machine* m, int* want_debugger)
+{
+    extern void nd500_fecall_console_input(const char* buf, int len);
+    struct termios saved, raw;
+
+    *want_debugger = 0;
+    if (!isatty(STDIN_FILENO)) return 1;          /* scripted: leave as-is */
+    if (tcgetattr(STDIN_FILENO, &saved) != 0) return 1;
+
+    raw = saved;
+    raw.c_lflag &= ~(ICANON | ECHO);              /* no line buffer, no local echo */
+    raw.c_cc[VMIN]  = 1;
+    raw.c_cc[VTIME] = 0;
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) != 0) return 1;
+
+    int rc = 1;
+    while (m && m->run_flag) {
+        fd_set rf;
+        struct timeval tv = {0, 200000};          /* 200ms: notice the machine stopping */
+        FD_ZERO(&rf);
+        FD_SET(STDIN_FILENO, &rf);
+        int n = select(STDIN_FILENO + 1, &rf, NULL, NULL, &tv);
+        if (n < 0) break;
+        if (n == 0) continue;
+
+        char buf[256];
+        ssize_t got = read(STDIN_FILENO, buf, sizeof(buf));
+        if (got <= 0) { rc = 0; break; }           /* EOF */
+
+        ssize_t esc = -1;
+        for (ssize_t i = 0; i < got; i++)
+            if (buf[i] == GUEST_ESCAPE) { esc = i; break; }
+        if (esc >= 0) {
+            if (esc > 0) nd500_fecall_console_input(buf, (int)esc);
+            *want_debugger = 1;
+            break;
+        }
+        nd500_fecall_console_input(buf, (int)got);
+    }
+    tcsetattr(STDIN_FILENO, TCSANOW, &saved);
+    return rc;
+}
+
 /* Main debugger REPL */
 int nd500_debugger_repl(Nd500Machine* m) {
 	char line[256];
@@ -347,11 +422,26 @@ int nd500_debugger_repl(Nd500Machine* m) {
 	const char* cse = getenv("ND500X_CONSOLE_STDIN");
 	int console_stdin = (cse && cse[0] && cse[0] != '0') ? 1 : 0;
 
+	if (console_stdin && isatty(STDIN_FILENO))
+		printf("[repl] terminal connected to the guest - Ctrl-] for the debugger\n");
+
 	/* Main REPL loop */
 	for (;;) {
-		/* Lines go to the guest console while it is running in console-stdin
-		 * mode, so suppress the debugger's PC prompt for those reads. */
+		/* While the guest runs, the terminal is ITS terminal: forward
+		 * keystrokes raw so only the guest echoes them. Returns when the
+		 * machine stops, on Ctrl-], or on EOF. */
 		int to_guest = console_stdin && m && m->run_flag;
+		/* Raw passthrough only applies to a real terminal. With stdin on a
+		 * pipe (scripted boots) there is nothing to put in raw mode, and the
+		 * line-based path below already does the right thing - taking the
+		 * passthrough branch there would spin without ever reading. */
+		if (to_guest && isatty(STDIN_FILENO)) {
+			int want_debugger = 0;
+			int alive = guest_passthrough(m, &want_debugger);
+			if (alive && !want_debugger)
+				continue;       /* machine stopped - loop and re-evaluate */
+			to_guest = 0;       /* Ctrl-] or EOF: this read is the debugger's */
+		}
 		if (!read_line_with_completion(line, sizeof(line),
 		                               m && m->cpu ? m->cpu->PC : 0, to_guest)) {
 			/* stdin EOF. In console-forwarding mode do NOT kill a running
