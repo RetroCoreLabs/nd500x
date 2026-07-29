@@ -14,8 +14,10 @@
  * Opcodes:
  *   0xFD45 (hconv) - BI HCONV (bit to halfword)
  *   0xFD4A (hconv) - BY HCONV (byte to halfword)
- *   0xFD55 (hconv) - H HCONV (halfword to halfword - no-op)
- *   0xFD5A (hconv) - W HCONV (word to halfword)
+ *   0xFD55 (hconv) - W HCONV (word to halfword, low-16 truncate, no IOV trap)
+ *   0xFD5A (hconv) - F HCONV (float to halfword) -- source-major packed grid, target H
+ *                    removed, so sources are [BI,BY,W,F,D]; there is no H->H self-convert.
+ *                    Matches the B30 microcode (LABE HCONVF, no HCONVH) and RetroCore.
  *   0xFD5F (hconv) - D HCONV (double to halfword)
  *
  * Converts source operand to 16-bit signed halfword (-32768 to 32767).
