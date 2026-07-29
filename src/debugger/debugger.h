@@ -3,6 +3,12 @@
 #include "../machine/machine_types.h"
 
 int nd500_debugger_repl(Nd500Machine* m);
+
+/* When the guest console also lives somewhere other than stdin (a telnet
+ * terminal), EOF on stdin is just "nobody is typing here any more" - it must
+ * NOT be turned into an EOT for the guest, which would close a shell the
+ * remote user is still holding. Call with 1 to suppress that EOT. */
+void nd500_debugger_set_stdin_eof_quiet(int quiet);
 #ifdef DAP_ENABLED
 struct DAPServer;
 int nd500_dap_start(Nd500Machine* m, int port);

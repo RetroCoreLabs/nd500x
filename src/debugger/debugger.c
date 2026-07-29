@@ -279,6 +279,12 @@ static int handle_special_commands(Nd500Machine* m, const char* line) {
 	return 0; /* Not a special command */
 }
 
+/* Set when another transport (telnet) also carries the guest console; see
+ * nd500_debugger_set_stdin_eof_quiet() in debugger.h. */
+static int g_stdin_eof_quiet = 0;
+
+void nd500_debugger_set_stdin_eof_quiet(int quiet) { g_stdin_eof_quiet = quiet; }
+
 /* Main debugger REPL */
 int nd500_debugger_repl(Nd500Machine* m) {
 	char line[256];
@@ -335,6 +341,15 @@ int nd500_debugger_repl(Nd500Machine* m) {
 				 * the session, matching how a terminal behaves. */
 				extern void nd500_fecall_console_input(const char* buf, int len);
 				static int eof_seen = 0;
+				if (g_stdin_eof_quiet) {
+					fprintf(stderr, "[repl] stdin closed - guest console still "
+					        "served over telnet; machine keeps running\n");
+					while (m->run_flag) {
+						struct timespec ts = {0, 200000000}; /* 200ms */
+						nanosleep(&ts, NULL);
+					}
+					break;
+				}
 				if (!eof_seen++) {
 					const char eot = 0x04;
 					nd500_fecall_console_input(&eot, 1);

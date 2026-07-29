@@ -1,31 +1,42 @@
 #!/bin/bash
 #
-# run-ndix.sh - Boot the NDIX kernel (Norsk Data 4.3BSD for ND-500) on nd500x.
+# run-ndix.sh - thin wrapper around "nd500x --ndix".
 #
-# Usage: run-ndix.sh [-d <disk-image>] [-t <seconds>] [-l <logfile>] [-h]
+# Everything this script used to do by hand (kernel directory, boot script,
+# ND500X_* environment, cd into the kernel build dir) now lives inside nd500x
+# itself. It is kept so existing callers keep working; new callers can just run
 #
-# With stdin on a terminal this boots MULTIUSER to a login prompt:
-# real /etc/init runs /etc/rc, then getty on /dev/console prints the banner
-# and "login:". Log in as root (no password) to get the real Bourne /bin/sh -
-# then type commands (e.g. "echo hello", "ls -l", "ps -ax"). A line starting
-# with '~' goes to the emulator debugger instead. End with Ctrl-D.
+#     nd500x --ndix <root-disk-image> [--telnet]
 #
-#   -d <image>    Root disk image (default: /mnt/e/Dev/Ronny/NDIX-C/rootfs_full.img
-#                 = init + getty + login + sh + 42 /bin utilities + full /dev,
-#                 /etc/ttys "12console" so init goes multiuser)
-#                 Other images:
-#                   /mnt/e/Dev/Ronny/NDIX-C/rootfs_single.img (same tree but
-#                     /etc/ttys "02console" - boots straight to a single-user
-#                     shell with no login)
-#                   /mnt/e/Dev/Ronny/NDIX-C/rootfs_hello.img (echo-test init)
-#                   /mnt/e/Dev/Ronny/NDIX-C/rootfs_init.img  (stub init)
-#                   /mnt/e/Dev/Ronny/NDIX-C/rootfs.img       (empty fs)
-#   -t <seconds>  Run duration after 'run' is issued (default: 45).
+# from any directory.
+#
+# Usage: run-ndix.sh [-d <disk-image>] [-k <kernel>] [-t <seconds>]
+#                    [-l <logfile>] [-T] [-p <port>] [-h]
+#
+# With stdin on a terminal this boots MULTIUSER to a login prompt: real
+# /etc/init runs /etc/rc, then getty on /dev/console prints the banner and
+# "login:". Log in as root (no password) to get the real Bourne /bin/sh - then
+# type commands (e.g. "echo hello", "ls -l", "ps -ax"). A line starting with
+# '~' goes to the emulator debugger instead. End with Ctrl-D.
+#
+#   -d <image>    Root disk image. Default: $ND500X_DISK, else $NDIX_ROOT/rootfs_full.img.
+#   -k <kernel>   NDIX kernel image. Default: nd500x's own search, which is
+#                 <root>/kernel/MASTER/GENERIC/vmunix then <root>/vmunix, where
+#                 <root> is the directory holding the disk image.
+#   -t <seconds>  Run duration when stdin is NOT a terminal (default: 45).
 #                 The outer timeout is <seconds> + 25.
 #   -l <logfile>  Also tee output to <logfile>.
 #                 NOTE: boot logs contain binary/control bytes - use 'grep -a'
 #                 when searching the log file.
+#   -T            Also serve the guest terminals over telnet (default port 5000).
+#   -p <port>     Telnet port to use (implies -T).
 #   -h            Show this usage.
+#
+# Environment:
+#   NDIX_ROOT     Directory holding the NDIX tree (disk images + kernel/).
+#                 Required unless -d gives a full path to the disk image.
+#   ND500X_DISK, ND500X_DISK_RW, ND500X_MMU_GUEST_TABLES, ND500X_NOXMSG,
+#   ND500X_CONSOLE_STDIN - still honoured; --ndix only sets defaults.
 #
 # Optional debug env vars (export before running, all default OFF):
 #   ND500X_DOMDBG   domain switches + syscall returns with errno
@@ -36,33 +47,58 @@
 
 set -u
 
-KERNEL_DIR=/mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/GENERIC
-SINTRAN_ROOT=/mnt/e/Dev/Ronny/NDIX-C
-ND500X_BIN=/home/ronny/repos/nd500x/build/bin/nd500x
+# Repo root is derived from this script's own location - never hardcoded.
+REPO_ROOT=$(cd "$(dirname "$0")" && pwd)
+ND500X_BIN=${ND500X_BIN:-$REPO_ROOT/build/bin/nd500x}
 
-# Disk image: -d wins, then a pre-set ND500X_DISK, then the default.
-DISK=${ND500X_DISK:-/mnt/e/Dev/Ronny/NDIX-C/rootfs_full.img}
+# Machine-local settings live in an UNTRACKED file next to this script, so the
+# repository itself stays free of absolute paths while a plain "./run-ndix.sh"
+# still works on a machine that has been set up once. Create it with e.g.
+#   echo 'NDIX_ROOT=/path/to/NDIX-C' > run-ndix.local
+# Anything it sets (NDIX_ROOT, ND500X_DISK, ND500X_KERNEL, ...) acts as a
+# default; a real environment variable or a command-line flag still wins.
+if [ -f "$REPO_ROOT/run-ndix.local" ]; then
+    # shellcheck disable=SC1090
+    . "$REPO_ROOT/run-ndix.local"
+fi
+
+DISK=${ND500X_DISK:-}
+KERNEL=
 RUNTIME=45
 LOGFILE=
+TELNET=
 
 usage() {
-    sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
-while getopts "d:t:l:h" opt; do
+while getopts "d:k:t:l:p:Th" opt; do
     case $opt in
         d) DISK=$OPTARG ;;
+        k) KERNEL=$OPTARG ;;
         t) RUNTIME=$OPTARG ;;
         l) LOGFILE=$OPTARG ;;
+        T) TELNET=${TELNET:---telnet} ;;
+        p) TELNET=--telnet=$OPTARG ;;
         h) usage 0 ;;
         *) usage 1 ;;
     esac
 done
 
+if [ -z "$DISK" ]; then
+    if [ -n "${NDIX_ROOT:-}" ]; then
+        DISK=$NDIX_ROOT/rootfs_full.img
+    else
+        echo "error: no disk image. Use -d <image>, or export NDIX_ROOT (the" >&2
+        echo "       directory holding the NDIX tree) or ND500X_DISK." >&2
+        exit 1
+    fi
+fi
+
 if [ ! -x "$ND500X_BIN" ]; then
     echo "error: $ND500X_BIN not found" >&2
-    echo "build it with: cmake --build /home/ronny/repos/nd500x/build --target nd500x -j4" >&2
+    echo "build it with: cmake --build $REPO_ROOT/build --target nd500x -j4" >&2
     exit 1
 fi
 
@@ -71,41 +107,18 @@ if [ ! -f "$DISK" ]; then
     exit 1
 fi
 
-# cwd MUST be the kernel build dir: the debugger's 'load vmunix' resolves
-# vmunix relative to cwd and auto-sources vmunix.init from there
-# (mmusetup, load-pseg/load-dseg, THA/CTE1/CTE2/CAD register setup).
-cd "$KERNEL_DIR" || exit 1
-
-# ND500X_DISK is the disk-image env var (NDIX_DISK_IMAGE is silently ignored).
-export ND500X_DISK="$DISK"
-# Both REQUIRED: guest MMU routing; XMSG bypass (without NOXMSG proc0
-# sleeps forever).
-export ND500X_MMU_GUEST_TABLES=1
-export ND500X_NOXMSG=1
-# Copy-on-write disk: all reads/writes go to <image>.session (fresh copy each
-# boot); the master image stays pristine. Promote a good session with:
-#   cp <image>.session <image>
-export ND500X_DISK_RW=1
-# Lines typed while the machine runs go to the GUEST console (mx_bin input
-# ring) instead of the debugger; prefix a line with '~' for the debugger.
-export ND500X_CONSOLE_STDIN=1
-
-TIMEOUT=$((RUNTIME + 25))
+ARGS=(--ndix "$DISK")
+[ -n "$KERNEL" ] && ARGS+=(--kernel "$KERNEL")
+[ -n "$TELNET" ] && ARGS+=("$TELNET")
 
 boot() {
     if [ -t 0 ]; then
-        # Interactive: the boot commands come from a --script file, so stdin
-        # stays connected to YOUR terminal - typed lines reach the NDIX shell
-        # on /dev/console directly (no printf|cat pipe to die under us).
-        # Ctrl-D no longer kills a running machine (the REPL lingers).
-        BOOTCMDS=$(mktemp)
-        printf 'load vmunix\nrun\n' > "$BOOTCMDS"
-        "$ND500X_BIN" --debug --sintran-root "$SINTRAN_ROOT" --script "$BOOTCMDS"
-        rm -f "$BOOTCMDS"
+        # Interactive: stdin stays on YOUR terminal, so typed lines reach the
+        # NDIX console directly.
+        "$ND500X_BIN" "${ARGS[@]}"
     else
-        # Scripted: keep stdin open exactly RUNTIME seconds after 'run'.
-        ( printf 'load vmunix\nrun\n'; sleep "$RUNTIME" ) | timeout "$TIMEOUT" \
-            "$ND500X_BIN" --debug --sintran-root "$SINTRAN_ROOT"
+        # Scripted: hold stdin open exactly RUNTIME seconds, then let go.
+        sleep "$RUNTIME" | timeout $((RUNTIME + 25)) "$ND500X_BIN" "${ARGS[@]}"
     fi
 }
 

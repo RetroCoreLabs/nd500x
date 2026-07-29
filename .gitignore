@@ -71,3 +71,6 @@ __pycache__/
 
 # CTest scratch
 Testing/
+
+# machine-local run-ndix settings (absolute paths must not be committed)
+run-ndix.local

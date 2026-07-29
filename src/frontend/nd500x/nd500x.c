@@ -3,6 +3,7 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <time.h>
+#include <limits.h>
 #include "../../machine/machine_protos.h"
 #include "../../cpu/cpu_protos.h"
 #include "../../cpu/nd500_mmu.h"
@@ -11,6 +12,7 @@
 #include "../../debugger/debugger.h"
 #include "../../debugger/commands.h"
 #include "nd500x_shell.h"
+#include "nd500x_ndix.h"
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
 #include <ndmon/mon.h>
@@ -26,7 +28,10 @@ static void print_usage(const char* prog) {
     printf("  --debug                  Enter interactive debugger REPL\n");
     printf("  --monitor                Enter the SINTRAN-flavoured shell (login, run domains)\n");
     printf("  --script <path>          Feed shell commands from a file (with --monitor)\n");
-    printf("  --telnet <port>          Serve the SINTRAN shell over TCP/telnet on <port>\n");
+    printf("  --ndix <disk-image>      Boot the NDIX kernel with <disk-image> as root disk\n");
+    printf("  --kernel <path>          NDIX kernel image for --ndix (default: see below)\n");
+    printf("  --telnet[=<port>]        Serve terminals over TCP/telnet (default port 5000).\n");
+    printf("                           With --ndix: the guest ttys. Otherwise: the SINTRAN shell.\n");
     printf("  --config <path>          Load settings from an ini file (else ./nd500x.ini)\n");
     printf("                           keys: sintran-root, user, terminal-type, telnet-port, monitor\n");
     printf("  -i <path>                Load a.out file (legacy)\n");
@@ -72,6 +77,21 @@ static void print_usage(const char* prog) {
     printf("  name. With no --sintran-root, <root> is the directory you launch from.\n");
     printf("  %s --monitor --sintran-root ./sintran\n", prog);
     printf("  %s --monitor --sintran-root build/link_sandbox --script session.cmd\n", prog);
+    printf("\n");
+    printf("NDIX boot (--ndix):\n");
+    printf("  %s --ndix <root-disk-image>\n", prog);
+    printf("  %s --ndix <root-disk-image> --telnet\n", prog);
+    printf("  Boots multiuser to a login prompt (root, no password). Typed lines go to\n");
+    printf("  the guest console; a line starting with '~' goes to the debugger instead.\n");
+    printf("  The kernel image is looked up in this order:\n");
+    printf("      --kernel <path>\n");
+    printf("      $ND500X_KERNEL\n");
+    printf("      <root>/kernel/MASTER/GENERIC/vmunix\n");
+    printf("      <root>/vmunix\n");
+    printf("  where <root> is --sintran-root if given, else the directory holding the\n");
+    printf("  disk image. --ndix only sets DEFAULTS for ND500X_DISK, ND500X_DISK_RW,\n");
+    printf("  ND500X_MMU_GUEST_TABLES, ND500X_NOXMSG and ND500X_CONSOLE_STDIN - any of\n");
+    printf("  them exported beforehand still wins.\n");
     printf("\n");
 }
 
@@ -135,7 +155,10 @@ int main(int argc, char** argv) {
     int run_mode = 0;  /* Non-interactive run */
     int monitor_mode = 0;  /* SINTRAN-flavoured interactive shell */
     const char* script_path = NULL;  /* optional shell command script */
-    int telnet_port = 0;   /* >0: serve the shell over TCP/telnet */
+    int telnet_port = 0;   /* >0: serve terminals over TCP/telnet */
+    const char* ndix_image = NULL;   /* --ndix root disk image */
+    const char* ndix_kernel = NULL;  /* --kernel override */
+    const char* sintran_root_opt = NULL;  /* --sintran-root as typed */
     uint64_t max_steps = 0;  /* 0 = unlimited */
     const char* trace_file_path = NULL;
     int dap_port = 0;  /* 0 = DAP server not requested */
@@ -197,9 +220,24 @@ int main(int argc, char** argv) {
             script_path = argv[++i];
         } else if (strcmp(argv[i], "--config") == 0 && i + 1 < argc) {
             ++i;   /* already handled in the pre-parse pass above */
-        } else if (strcmp(argv[i], "--telnet") == 0 && i + 1 < argc) {
-            telnet_port = atoi(argv[++i]);
-            monitor_mode = 1;   /* telnet implies the shell */
+        } else if (strcmp(argv[i], "--telnet") == 0 ||
+                   strncmp(argv[i], "--telnet=", 9) == 0) {
+            /* Three accepted forms, all meaning "serve terminals over telnet":
+             *   --telnet          default port 5000
+             *   --telnet=<port>   explicit port
+             *   --telnet <port>   explicit port (the original spelling)
+             * 5000 avoids the DAP ports (4500 here, 4711 in nd100x). */
+            const char* eq = strchr(argv[i], '=');
+            if (eq) {
+                telnet_port = atoi(eq + 1);
+            } else if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9') {
+                telnet_port = atoi(argv[++i]);
+            }
+            if (telnet_port <= 0) telnet_port = 5000;
+        } else if (strcmp(argv[i], "--ndix") == 0 && i + 1 < argc) {
+            ndix_image = argv[++i];
+        } else if (strcmp(argv[i], "--kernel") == 0 && i + 1 < argc) {
+            ndix_kernel = argv[++i];
         } else if (strcmp(argv[i], "--run") == 0) {
             run_mode = 1;
         } else if (strcmp(argv[i], "--max-steps") == 0 && i + 1 < argc) {
@@ -207,13 +245,32 @@ int main(int argc, char** argv) {
         } else if (strcmp(argv[i], "--trace-file") == 0 && i + 1 < argc) {
             trace_file_path = argv[++i];
         } else if (strcmp(argv[i], "--sintran-root") == 0 && i + 1 < argc) {
-            mon_config_set_sintran_root(argv[++i]);
+            sintran_root_opt = argv[++i];
+            mon_config_set_sintran_root(sintran_root_opt);
         } else if (strcmp(argv[i], "--user") == 0 && i + 1 < argc) {
             mon_config_set_current_user(argv[++i]);
             user_set = 1;
         } else if (strcmp(argv[i], "--no-scratch-64") == 0) {
             mon_config_set_auto_scratch_64(0);
         }
+    }
+
+    /* --ndix: resolve paths, export the boot environment defaults and move to
+     * the kernel directory. Must run BEFORE the machine is built and before
+     * anything reads ND500X_*. It implies the debugger REPL, which is what
+     * drives the boot script and carries console input. */
+    char ndix_load_cmd[PATH_MAX + 8];
+    if (ndix_image) {
+        if (nd500x_ndix_setup(ndix_image, ndix_kernel, sintran_root_opt,
+                              ndix_load_cmd, (int)sizeof ndix_load_cmd) != 0) {
+            return 1;
+        }
+        debug = 1;
+        monitor_mode = 0;
+    } else if (telnet_port > 0) {
+        /* Without --ndix, telnet still means what it always did: serve the
+         * SINTRAN shell. (An ini telnet-port already set monitor_mode.) */
+        monitor_mode = 1;
     }
 
     /* Initialize color system based on flags */
@@ -428,6 +485,24 @@ int main(int argc, char** argv) {
     }
 
 	if (debug) {
+		/* Guest terminals over telnet. Started before the boot script so the
+		 * very first console bytes reach an already-connected client; the
+		 * local stdio console keeps its copy of unit 0 either way, so nothing
+		 * is lost whether or not anyone connects. */
+		if (ndix_image && telnet_port > 0) {
+			if (nd500x_ndix_telnet_start(telnet_port) != 0) return 1;
+			nd500_debugger_set_stdin_eof_quiet(1);
+		}
+		/* --ndix: boot the kernel exactly as the old shell wrapper did -
+		 * "load <kernel>" (which auto-sources <kernel>.init) then "run" -
+		 * while stdin stays on the terminal for guest console input. */
+		if (ndix_image) {
+			CmdContext bctx = {0};
+			printf("[ndix] %s\n", ndix_load_cmd);
+			nd500_cmd_execute(&machine, ndix_load_cmd, &bctx);
+			printf("[ndix] run\n");
+			nd500_cmd_execute(&machine, "run", &bctx);
+		}
 		/* --script with --debug: execute each line as a debugger command
 		 * BEFORE the interactive REPL (e.g. "load vmunix" + "run"), so a
 		 * boot script can keep stdin connected to the real terminal for
@@ -449,7 +524,9 @@ int main(int argc, char** argv) {
 			}
 			fclose(sf);
 		}
-		return nd500_debugger_repl(&machine);
+		int rc = nd500_debugger_repl(&machine);
+		nd500x_ndix_telnet_stop();
+		return rc;
 	}
 
 	if (monitor_mode) {

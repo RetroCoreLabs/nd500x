@@ -25,6 +25,7 @@
 #include "cpu_protos.h"
 #include "instruction_helpers.h"
 #include "nd500_mmu.h"
+#include "nd500_fecall.h"
 #include "../machine/machine_protos.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,7 +113,9 @@ static int g_envf_inodedbg = -1;
 #define FE_CONDEV    0            /* console minor device */
 #define FE_SECSIZE   512u         /* disk sector size (bytes) */
 
-static const char* FE_DISK_PATH = "/mnt/e/Dev/Ronny/NDIX-C/rootfs.img";
+/* No built-in disk path. A root-anchored default belongs to whoever ran the
+ * build, not to the repository - the image location comes from --ndix (which
+ * exports ND500X_DISK) or from ND500X_DISK directly. */
 
 static FILE*    g_disk = NULL;
 static long     g_disk_size = 0;
@@ -252,13 +255,17 @@ static void fe_open_disk(Pkt* rpk) {
 /* ═══════════════════════════════════════════════════════════════════════════
  * FE_WCON / FE_RCON - synchronous console I/O. The physaddr points at ONE byte.
  * ═══════════════════════════════════════════════════════════════════════════ */
+static void fe_tty_out(int unit, const unsigned char* buf, int len);
+
 static void fe_wcon(Nd500Cpu* cpu, uint32_t physaddr_word, Pkt* rpk) {
     /* The char lives in the global `cout = (long)(*cp)` (basic.c:fewcon): a
      * 32-bit big-endian long whose low byte (phys+3) holds the character. */
     uint32_t phys = physaddr_word * 2u - FE_PRIVATE;
     uint8_t ch = nd500_bus_read8(cpu->machine, phys + 3);
-    putchar((int)ch);
-    fflush(stdout);
+    /* Synchronous console write: same emit point as the async TERM_OUT path,
+     * so it reaches a telnet terminal too. It is unit 0 by definition (the
+     * FE_WCON packet carries no unit). */
+    fe_tty_out(FE_CONDEV, &ch, 1);
     pkt_wr16(rpk, 0, 0);  /* completion */
 }
 
@@ -460,21 +467,65 @@ static void fe_deliver(Nd500Cpu* cpu, uint32_t iplrec, uint16_t ip_cur, uint32_t
  * lock-free fast-path hint so the per-instruction tick stays cheap. */
 static uint32_t g_termin_ring = 0;   /* physical byte addr of mx_bin (0 = none) */
 static volatile int g_conq_avail = 0;
-static char g_conq[4096];
+
+/* One host queue serves every unit, because the GUEST ring is also shared:
+ * mx_bin elements are (unit << 8) | char, so the unit has to travel with the
+ * byte instead of living in a per-unit queue that would then have to be
+ * re-interleaved. Keeping one FIFO also preserves the typing order between
+ * lines that arrive on different terminals. */
+#define FE_CONQ_SIZE 4096
+typedef struct { uint8_t unit; char ch; } FeConqEntry;
+static FeConqEntry g_conq[FE_CONQ_SIZE];
 static int  g_conq_head = 0, g_conq_tail = 0;
 static pthread_mutex_t g_conq_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-void nd500_fecall_console_input(const char* buf, int len) {
+void nd500_fecall_tty_input(int unit, const char* buf, int len) {
     int i;
+    if (unit < 0 || unit > 255) return;        /* element field is 8 bits */
     pthread_mutex_lock(&g_conq_mtx);
     for (i = 0; i < len; i++) {
-        int nt = (g_conq_tail + 1) % (int)sizeof(g_conq);
+        int nt = (g_conq_tail + 1) % FE_CONQ_SIZE;
         if (nt == g_conq_head) break;          /* host queue full - drop rest */
-        g_conq[g_conq_tail] = buf[i];
+        g_conq[g_conq_tail].unit = (uint8_t)unit;
+        g_conq[g_conq_tail].ch   = buf[i];
         g_conq_tail = nt;
     }
     g_conq_avail = (g_conq_tail != g_conq_head);
     pthread_mutex_unlock(&g_conq_mtx);
+}
+
+void nd500_fecall_console_input(const char* buf, int len) {
+    nd500_fecall_tty_input(FE_CONDEV, buf, len);
+}
+
+/* ---- console OUTPUT: guest -> host sinks ---------------------------------
+ * Guest tty output arrives one FE_WRIT chunk at a time on a known unit. The
+ * local stdout copy is unconditional for unit 0 (so a boot log keeps working
+ * even with a telnet client attached) and suppressed for other units once a
+ * sink owns them. */
+static Nd500TtyOutFunc g_tty_out[ND500_TTY_MAX_UNITS];
+static void*           g_tty_out_ctx[ND500_TTY_MAX_UNITS];
+
+void nd500_fecall_set_tty_output(int unit, Nd500TtyOutFunc fn, void* ctx) {
+    if (unit < 0 || unit >= ND500_TTY_MAX_UNITS) return;
+    g_tty_out[unit] = fn;
+    g_tty_out_ctx[unit] = ctx;
+}
+
+/* Emit one already-masked chunk of guest output for <unit>. */
+static void fe_tty_out(int unit, const unsigned char* buf, int len) {
+    Nd500TtyOutFunc fn = NULL;
+    void* ctx = NULL;
+    if (unit >= 0 && unit < ND500_TTY_MAX_UNITS) {
+        fn = g_tty_out[unit];
+        ctx = g_tty_out_ctx[unit];
+    }
+    if (fn) fn(unit, buf, len, ctx);
+    if (unit == FE_CONDEV || !fn) {
+        int i;
+        for (i = 0; i < len; i++) putchar((int)buf[i]);
+        fflush(stdout);
+    }
 }
 
 /* The emulated console is a 7-bit ASCII terminal, so bit 7 of an outgoing byte
@@ -541,10 +592,11 @@ static void fe_conq_drain(Nd500Cpu* cpu) {
     while (g_conq_head != g_conq_tail) {
         uint16_t nf = (uint16_t)((bfree + 1) % max);
         if (nf == head) break;                 /* guest ring full - retry later */
-        uint16_t el = (uint16_t)((FE_CONDEV << 8) | (uint8_t)g_conq[g_conq_head]);
+        uint16_t el = (uint16_t)((g_conq[g_conq_head].unit << 8) |
+                                 (uint8_t)g_conq[g_conq_head].ch);
         nd500_bus_write16(m, g_termin_ring + 12u + 2u * bfree, el);
         bfree = nf;
-        g_conq_head = (g_conq_head + 1) % (int)sizeof(g_conq);
+        g_conq_head = (g_conq_head + 1) % FE_CONQ_SIZE;
     }
     nd500_bus_write16(m, g_termin_ring + 8, bfree);
     g_conq_avail = (g_conq_tail != g_conq_head);
@@ -647,7 +699,11 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
 
     if (!g_disk) {
         const char* disk_path = getenv("ND500X_DISK");
-        if (!disk_path || !disk_path[0]) disk_path = FE_DISK_PATH;
+        if (!disk_path || !disk_path[0]) {
+            fprintf(stderr, "[FECALL] no root disk image: pass --ndix <image> "
+                            "or set ND500X_DISK\n");
+            return -1;
+        }
         /* ND500X_DISK_RW=1: copy-on-write session. The MASTER image is copied
          * to <image>.session (overwriting any previous session) and all reads
          * AND writes go to the session copy - the master stays pristine. A
@@ -771,12 +827,15 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                 uint32_t i;
                 if (nbytes > 4096u) nbytes = 4096u;   /* sanity clamp */
                 int strip = !fe_console_8bit();
+                unsigned char obuf[4096];
                 for (i = 0; i < nbytes; i++) {
                     uint8_t ch = nd500_bus_read8(cpu->machine, phys + i);
                     if (strip) ch &= 0x7F;   /* the UART consumes the parity bit */
-                    putchar((int)ch);
+                    obuf[i] = ch;
                 }
-                fflush(stdout);
+                /* One emit point for stdout AND any host sink, so a telnet
+                 * terminal sees exactly the masked bytes stdout sees. */
+                fe_tty_out((int)(device & 0xFFFF), obuf, (int)nbytes);
                 Pkt rpk = pkt_word(cpu, rpk_arg);
                 pkt_wr16(&rpk, 0, 0);   /* completion = success */
                 if (fedbg())
