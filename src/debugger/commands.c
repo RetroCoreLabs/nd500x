@@ -117,6 +117,7 @@ static int cmd_showpst(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_showpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_map_kdata(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_dumppt(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -193,6 +194,7 @@ static const CmdEntry g_commands[] = {
 	{"showpcb",     cmd_showpcb,      "Show PCB capabilities"},
 	{"phyladr",     cmd_phyladr,      "Translate virtual to physical address"},
 	{"mmusetup",    cmd_mmusetup,     "Setup demo MMU configuration"},
+	{"map-kdata",   cmd_map_kdata,    "Describe kernel data seg 0 in the guest PST/DIT (for kernacc)"},
 	{"listpst",     cmd_listpst,      "List configured PST entries"},
 	{"listpcb",     cmd_listpcb,      "List configured PCB domains"},
 	{"dumppt",      cmd_dumppt,       "Dump page table entries for PSN"},
@@ -2888,6 +2890,102 @@ static void sintran_map_segment_to_phys(Nd500Machine* m, int seg, uint32_t phys_
 	}
 	nd500_mmu_set_pst_entry(m->cpu, (int)psn, PS_ASI, pt_phys >> PGSHIFT);
 	nd500_mmu_set_data_capability(m->cpu, 0, seg, (uint16_t)(psn | DC_WRP));
+}
+
+/*
+ * map-kdata <phys_base> <size_bytes> [psn] [pt_phys]
+ *
+ * Describe the kernel's OWN data segment (domain 0, segment 0) in the GUEST
+ * page tables, so the kernel's software checks can see it.
+ *
+ * Why this is needed: nothing in NDIX ever writes pcbtab[KDOM].pcb_dc[DC_KDATA].
+ * On real hardware the ND-100/SINTRAN context load installs the kernel domain's
+ * own segment capabilities before the ND-500 kernel starts - the same class of
+ * gap as THA/CTE1/CTE2, which vmunix.init already hand-installs. Without it
+ * kernacc() (machdep.c) reads capability 0 for segment 0 and refuses every
+ * access, so io/mem.c mmrw() minor 1 returns EFAULT and /dev/kmem is unusable:
+ * "ps" dies with "error reading nswap from /dev/kmem", and w/vmstat/pstat/
+ * netstat fail the same way.
+ *
+ * This deliberately writes ONLY the guest tables (PST at PSTP and the DIT at
+ * DITBASE). It does NOT touch the emulator's shadow capability table, because
+ * translate() reads the shadow - not the DIT - for domain 0 segment 0 (that
+ * segment is not in the use_guest set). Address translation therefore keeps
+ * using the proven segment-0 data fallback (virtual + data_base) and is
+ * completely unaffected; only kernacc()/getpte() start seeing the truth.
+ *
+ * phys_base MUST be page aligned, because a page table can only express a
+ * page-granular mapping. vmunix.init loads the DSEG at 0x00042000 for exactly
+ * this reason (a_text 0x41a94 is not a multiple of NBPG).
+ */
+static int cmd_map_kdata(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+	if (!m->cpu->PSTP || !m->cpu->DITBASE) {
+		error(ctx, "map-kdata: run mmusetup first (PSTP/DITBASE unset)");
+		return -1;
+	}
+
+	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
+	char* a2 = strtok(NULL, " \t\r\n");
+	char* a3 = strtok(NULL, " \t\r\n");
+	char* a4 = strtok(NULL, " \t\r\n");
+	if (!a1 || !a2) {
+		error(ctx, "usage: map-kdata <phys_base> <size_bytes> [psn] [pt_phys]");
+		return -1;
+	}
+
+	uint32_t phys_base = (uint32_t)strtoul(a1, NULL, 0);
+	uint32_t size      = (uint32_t)strtoul(a2, NULL, 0);
+	uint32_t psn       = a3 ? (uint32_t)strtoul(a3, NULL, 0) : 802u;
+	uint32_t pt_phys   = a4 ? (uint32_t)strtoul(a4, NULL, 0) : 0x000A2000u;
+
+	if (phys_base & PGOFSET) {
+		error(ctx, "map-kdata: phys_base 0x%08X is not page aligned (NBPG=%d)",
+		      phys_base, 1 << PGSHIFT);
+		return -1;
+	}
+	uint32_t npages = (size + (uint32_t)PGOFSET) >> PGSHIFT;
+	if (npages == 0) {
+		error(ctx, "map-kdata: size must be non-zero");
+		return -1;
+	}
+	/* PS_ASI is a single index level: at most NPTEPG entries (one page of PTEs). */
+	if (npages > 512u) {
+		error(ctx, "map-kdata: %u pages exceeds the PS_ASI limit of 512", npages);
+		return -1;
+	}
+	if (psn == 0) {
+		error(ctx, "map-kdata: psn 0 means 'no capability' - pick a non-zero PSN");
+		return -1;
+	}
+
+	/* Page table: entry k maps segment page k to phys_base + k*NBPG.
+	 * struct pte is pg_prot@31, pg_xx@30, pg_pfnum@[29:0]; prot 0 = read/write. */
+	for (uint32_t i = 0; i < npages; i++) {
+		uint32_t pte = ((phys_base >> PGSHIFT) + i) & 0x3FFFFFFFu;
+		uint32_t a = pt_phys + i * 4u;
+		nd500_bus_write8(m, a,   (uint8_t)(pte >> 24));
+		nd500_bus_write8(m, a+1, (uint8_t)(pte >> 16));
+		nd500_bus_write8(m, a+2, (uint8_t)(pte >> 8));
+		nd500_bus_write8(m, a+3, (uint8_t)pte);
+	}
+
+	nd500_mmu_set_pst_entry(m->cpu, (int)psn, PS_ASI, pt_phys >> PGSHIFT);
+
+	/* Guest DIT ONLY: domain 0, data table (+64), segment 0 (+0), 16-bit BE.
+	 * Deliberately not nd500_mmu_set_data_capability() - see the note above. */
+	uint16_t cap = (uint16_t)((psn & DC_PSN) | DC_WRP);
+	uint32_t cap_addr = m->cpu->DITBASE + 0u * 256u + 64u + 0u * 2u;
+	nd500_bus_write8(m, cap_addr,     (uint8_t)(cap >> 8));
+	nd500_bus_write8(m, cap_addr + 1, (uint8_t)cap);
+
+	output(ctx, "kernel data seg 0: phys 0x%08X..0x%08X (%u pages) -> PSN %u, "
+	            "PS_ASI page table at 0x%08X, DIT cap 0x%04X",
+	       phys_base, phys_base + (npages << PGSHIFT) - 1, npages, psn, pt_phys, cap);
+	return 0;
 }
 
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {

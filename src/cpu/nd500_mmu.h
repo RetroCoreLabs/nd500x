@@ -27,6 +27,7 @@
 
 #define NBPG            2048        /* Bytes per page (2KB) */
 #define PGSHIFT         11          /* LOG2(NBPG) */
+#define PGOFSET         (NBPG - 1)  /* byte offset within a page */
 #define NBSG            0x8000000   /* Bytes per segment (128MB) */
 #define SGSHIFT         27          /* LOG2(NBSG) */
 
