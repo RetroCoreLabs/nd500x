@@ -739,10 +739,26 @@ uint64_t nd500_read_double_register(Nd500Cpu* cpu, uint8_t reg_num) {
         fprintf(stderr, "ND-500: Invalid double register number %u\n", reg_num);
         return 0;
     }
-    // D1 = A1:E1 (A is low 32 bits, E is high 32 bits)
+    /* Dn = An:En with An the HIGH half and En the low half.
+     *
+     * Evidence (primary, 1988): the dbx opcode table
+     * baseline/ucb/dbx/ops.nd500 gives "neg f" and "neg d" the SAME octal
+     * opcode 0224 (0x94) - one instruction serves both.  That is only
+     * possible if a float and a double keep their sign bit in the same
+     * physical register, i.e. An.  It also matches the data formats: an
+     * ND-500 single (sign|exp9|mant22) is bit-for-bit the top 32 bits of an
+     * ND-500 double (sign|exp9|mant54) - verified against the 1988 libc,
+     * where genlib/atof.o stores 10.0 as 0x4110000000000000 and the
+     * assembler emits .float 10.0 as 0x41100000.
+     *
+     * With the halves swapped, "neg" on a negative double flipped a bit in
+     * the mantissa's low word instead of the sign, so libc's iszero_d()
+     * never took the absolute value and ecvt() decided every value was
+     * "close enough" to every power of ten - printf("%f") printed a 170-digit
+     * run of 1000...000 for any double. */
     uint32_t a_val = cpu->A[reg_num - 1];
     uint32_t e_val = cpu->E[reg_num - 1];
-    return (uint64_t)a_val | ((uint64_t)e_val << 32);
+    return ((uint64_t)a_val << 32) | (uint64_t)e_val;
 }
 
 void nd500_write_double_register(Nd500Cpu* cpu, uint8_t reg_num, uint64_t value) {
@@ -750,9 +766,10 @@ void nd500_write_double_register(Nd500Cpu* cpu, uint8_t reg_num, uint64_t value)
         fprintf(stderr, "ND-500: Invalid double register number %u\n", reg_num);
         return;
     }
-    // Split 64-bit value into A and E registers
-    cpu->A[reg_num - 1] = (uint32_t)(value & 0xFFFFFFFF);
-    cpu->E[reg_num - 1] = (uint32_t)((value >> 32) & 0xFFFFFFFF);
+    /* Split 64-bit value into A (high half) and E (low half) - see
+     * nd500_read_double_register for why An is the high half. */
+    cpu->A[reg_num - 1] = (uint32_t)((value >> 32) & 0xFFFFFFFF);
+    cpu->E[reg_num - 1] = (uint32_t)(value & 0xFFFFFFFF);
 }
 
 

@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * Comp2 instruction - COMPARE class
@@ -60,6 +61,20 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         } else {
             a = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT));
             b = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_FLOAT));
+        }
+        {   /* ND500X_FCMPDBG=1: log every float/double compare with the
+             * decoded values and operand modes.  This is what showed that
+             * libc's iszero_d() was comparing an un-negated -8.5 - the trail
+             * that led to the swapped A/E double-register halves. */
+            static int on = -1;
+            if (on < 0) { const char* e = getenv("ND500X_FCMPDBG"); on = (e && e[0] && e[0] != '0') ? 1 : 0; }
+            if (on) {
+                static unsigned n = 0;
+                if (n++ < 200)
+                    fprintf(stderr, "[FCMP] PC=0x%08X CED=%u a=%g (mode=%u reg=%u) b=%g (mode=%u reg=%u)\n",
+                            fi->address, cpu->CED, a, fi->operands[0].mode, fi->operands[0].reg,
+                            b, fi->operands[1].mode, fi->operands[1].reg);
+            }
         }
         /* op1 - op2: Z = equal, S = op1 < op2 (result sign), C = no borrow (op1 >= op2) */
         if (a == b) nd500_set_flag(cpu, ND500_FLAG_Z); else nd500_clear_flag(cpu, ND500_FLAG_Z);
