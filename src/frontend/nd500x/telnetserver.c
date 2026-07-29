@@ -823,7 +823,12 @@ static void *accept_thread_func(void *arg)
                     } else if (byte >= '1' && byte <= '9') {
                         selection = byte - '1';
                     } else if (byte == '\r' || byte == '\n') {
-                        selection = 0;  // First available terminal
+                        /* ND-500: a bare ENTER means "first available", but it
+                         * must not OVERRIDE a digit typed in the same packet.
+                         * Line-mode telnet clients send "2\r\n" as one read, so
+                         * unconditionally assigning 0 here discarded every
+                         * explicit choice and always connected to terminal 1. */
+                        if (selection < 0) selection = 0;
                     }
                     break;
                 case TELNET_STATE_IAC:

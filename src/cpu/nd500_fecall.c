@@ -229,6 +229,32 @@ static void fe_idev(uint32_t gen, Pkt* rpk) {
         return;
     }
     pkt_wr16(rpk, ID_RPK_COMPLETION, 0);
+
+    /* Terminals answer with a DIFFERENT packet shape. machine/if.h:
+     *     struct _idev_rpk_xxxx { short completion; short subdevc; }
+     *     struct _idev_rpk_term { short completion; long locdevm; short remdevc; }
+     * so for a terminal generic there is no subdevc field at all - offset 2 is
+     * the TOP HALF of locdevm. Writing the generic subdevc=1 there set
+     * locdevm = 0x00010000.
+     *
+     * io/mx.c miattach() walks i = 0 .. devtab.subdevc (MAXTTY = 256, fixed in
+     * GENERIC/ioconf.c) and admits line i when
+     *     i == 0, or (i <= MAXLOCALTTY && (locdevm & (1 << (31 - (i-1)/4))))
+     * - four minors per mask bit, counting down from bit 31. Bit 16 therefore
+     * enabled minors 61-64 and nothing else, which is why /dev/console worked
+     * while init reported "/dev/tty01: No such device or address".
+     *
+     * Enable the first 16 local lines (bits 31-28) so tty01..tty16 exist.
+     * remdevc stays 0: remote lines (minor 129+) would need the ND-100 side. */
+    if (gen == 3 /* TERM_IN */ || gen == 4 /* TERM_OUT */) {
+        pkt_wr32(rpk, 2, 0xF0000000u);      /* locdevm: minors 1-16 */
+        pkt_wr16(rpk, 6, 0);                /* remdevc: no remote lines */
+        if (fedbg())
+            fprintf(stderr, "[FECALL] FE_IDEV gen=%u (terminal) -> locdevm=0xF0000000 "
+                            "(local minors 1-16), remdevc=0\n", gen);
+        return;
+    }
+
     pkt_wr16(rpk, ID_RPK_SUBDEVC, 1);       /* one sub-device */
     if (fedbg()) fprintf(stderr, "[FECALL] FE_IDEV gen=%u -> subdevc=1\n", gen);
 }
