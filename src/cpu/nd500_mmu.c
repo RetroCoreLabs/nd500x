@@ -578,10 +578,18 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                 return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
             }
 
-            /* PTE protection check - only applies to INSTRUCTION fetch, not data access.
-             * For data writes, permission is controlled by DC_WRP capability flag (already checked above).
-             * C# reference creates all PTEs with protection=1, data writes work via DC_WRP. */
-            if (is_instruction && is_write && pte.protection != 0) {
+            /* PTE bit 31 is DATA-PAGE write protection on the LAST indexing
+             * level, and in PS_ASI the single level IS the last level.
+             * ND-05.009.4 Figure 14: "Bit 31 in an index page table entry is
+             * reserved except on the last indexing level. That is, when the
+             * page number part of the entry specifies a data page, then bit 31
+             * is used for data page write protection."
+             * It was previously gated on is_instruction, so a data write to a
+             * read-only page succeeded here while the PS_ADI branch below
+             * correctly rejected it - the two paths disagreed. The old comment
+             * justified this with "C# reference creates all PTEs with
+             * protection=1", which is no longer true of that code. */
+            if (is_write && pte.protection != 0) {
                 MMU_ERR("[MMU] TRAP: Instruction write to read-only page! vaddr=0x%08X pte_addr=0x%08X prot=%d\n",
                       virtual_addr, pte_addr, pte.protection);
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
@@ -716,8 +724,14 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                 return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }
 
-            /* Check write permission */
-            if (is_write && (l1_pte.protection != 0 || l2_pte.protection != 0)) {
+            /* Write permission comes from the L2 entry only. ND-05.009.4
+             * Figure 14: "Bit 31 in an index page table entry is reserved
+             * except on the last indexing level." The L1 entry addresses
+             * another table, not a data page, so its bit 31 is not a
+             * protection bit. Checking it denied writes to every page beneath
+             * a read-only L1 entry - nd500_segment_alloc.c had to force L1
+             * entries writable to work around exactly that. */
+            if (is_write && l2_pte.protection != 0) {
                 MMU_ERR("[MMU] TRAP: PS_ADI write to read-only page! vaddr=0x%08X l1_prot=%d l2_prot=%d\n",
                       virtual_addr, l1_pte.protection, l2_pte.protection);
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
