@@ -477,6 +477,42 @@ void nd500_fecall_console_input(const char* buf, int len) {
     pthread_mutex_unlock(&g_conq_mtx);
 }
 
+/* The emulated console is a 7-bit ASCII terminal, so bit 7 of an outgoing byte
+ * is a parity bit, not data - mask it off.
+ *
+ * This is a POLICY choice about what is on the other end of the line, not a
+ * fact derived from the guest, so here is the evidence behind it.
+ *
+ * 4.3BSD getty generates parity IN SOFTWARE and UNCONDITIONALLY -
+ * baseline/etc/getty/main.c putchr():
+ *     c |= partab[c&0177] & 0200;
+ *     if (OP) c ^= 0200;
+ * Nothing suppresses it: setflags() has cases for ap/op/ep but none for np, and
+ * putchr does not consult the tty mode at all. Captured from the wire, getty's
+ * banner is
+ *     8D 0A 8D 0A 4E 44 C9 D8 2D C3 A0 28 6C A9 ... 6C 6F E7 69 EE 3A A0
+ * = "\r\n\r\nNDIX-C (l)\r\n\r\r\n\rlogin: " with bit 7 set on exactly those
+ * characters whose low 7 bits have odd population. login and the shell were
+ * clean because they do not do this.
+ *
+ * Keying the mask on the line configuration does NOT work. io/mx.c mxparam()
+ * reports the mode via FE_DCTL DCTL_CHG_FLGS (DCTL_PAR_EVEN/ODD/RAW), but getty
+ * sets the line RAW before printing its prompt, so the very output that carries
+ * software parity arrives on a line advertised as 8-bit clean. That was measured,
+ * not assumed: the kernel's own "NDIX startup: /etc/rc running" went out on a
+ * cooked line and getty's banner on a raw one, in the same boot.
+ *
+ * Masking is safe for everything else on this path: cooked output is already
+ * 7-bit by construction (sys/tty.c ttyoutput() starts with "c &= 0177"), and the
+ * console is an ASCII terminal with no 8-bit traffic. Set ND500X_CONSOLE_8BIT=1
+ * to pass all eight bits through if you ever need binary console output.
+ */
+static int fe_console_8bit(void) {
+    static int on = -1;
+    if (on < 0) { const char* e = getenv("ND500X_CONSOLE_8BIT"); on = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return on;
+}
+
 static void fe_conq_drain(Nd500Cpu* cpu) {
     Nd500Machine* m = cpu->machine;
     if (!m) return;
@@ -734,14 +770,25 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                 uint32_t phys   = waddr * 2u - FE_PRIVATE;
                 uint32_t i;
                 if (nbytes > 4096u) nbytes = 4096u;   /* sanity clamp */
-                for (i = 0; i < nbytes; i++)
-                    putchar((int)nd500_bus_read8(cpu->machine, phys + i));
+                int strip = !fe_console_8bit();
+                for (i = 0; i < nbytes; i++) {
+                    uint8_t ch = nd500_bus_read8(cpu->machine, phys + i);
+                    if (strip) ch &= 0x7F;   /* the UART consumes the parity bit */
+                    putchar((int)ch);
+                }
                 fflush(stdout);
                 Pkt rpk = pkt_word(cpu, rpk_arg);
                 pkt_wr16(&rpk, 0, 0);   /* completion = success */
                 if (fedbg())
-                    fprintf(stderr, "[FECALL] FE_WRIT TERM_OUT nbytes=%u phys=0x%08X -> stdout\n",
-                            nbytes, phys);
+                {
+                    char hex[3*48+1]; unsigned hn = 0, k;
+                    for (k = 0; k < nbytes && k < 48; k++)
+                        hn += (unsigned)snprintf(hex+hn, sizeof(hex)-hn, "%02X ",
+                                                 nd500_bus_read8(cpu->machine, phys + k));
+                    hex[hn] = 0;
+                    fprintf(stderr, "[FECALL] FE_WRIT TERM_OUT unit=%u strip=%d nbytes=%u phys=0x%08X raw=[%s]\n",
+                            device & 0xFFFF, strip, nbytes, phys, hex);
+                }
                 cpu->fe_int_pending = 1;
                 cpu->fe_int_gen = gen;
                 cpu->fe_int_sub = device & 0xFFFF;
@@ -791,6 +838,17 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             Pkt rpk = pkt_word(cpu, rpk_arg);
             pkt_wr16(&rpk, 0, 0);   /* completion */
             pkt_wr16(&rpk, 2, 0);   /* status */
+            /* Terminal DCTL_CHG_FLGS reports the line mode (machine/if.h
+             * dctl_cpk_term: operation@0, parameter@2, both BE16). Logged only -
+             * console output masking is NOT driven from it, see fe_console_8bit(). */
+            if (fedbg() && (gen == 3 /* TERM_IN */ || gen == 4 /* TERM_OUT */)) {
+                Pkt dcpk = pkt_word(cpu, cpk_arg);
+                uint16_t operation = pkt_rd16(&dcpk, 0);
+                uint16_t parameter = pkt_rd16(&dcpk, 2);
+                if (operation == 3 /* DCTL_CHG_FLGS */)
+                    fprintf(stderr, "[FECALL] FE_DCTL CHG_FLGS gen=%u unit=%u param=0x%04X\n",
+                            gen, device & 0xFFFF, parameter);
+            }
             /* SYNC calls (qualifier 1, e.g. mxparam's terminal DCTL) must NOT
              * get a completion interrupt - the kernel does not sleep on them.
              * Async DCTL queues a completion interrupt like FE_READ. */
