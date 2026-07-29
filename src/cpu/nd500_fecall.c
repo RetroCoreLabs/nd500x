@@ -269,13 +269,29 @@ static void fe_open_disk(Pkt* rpk) {
      * dsize=69530 1K-blocks. Returning devsiz=1 makes diopen use di70 geometry
      * and set blkzero=dist[1].nspc=90 - matching the FFS placed at raw sector 90.
      * frmsiz is only consulted for scsi (type>=128); set it to the total 1K
-     * blocks anyway. secsiz must be 1024 (dist[1].ssize) so devaddr = daddr. */
+     * blocks anyway. secsiz must be 1024 (dist[1].ssize) so devaddr = daddr.
+     *
+     * Bit 6 (BSD_PART = 64, machine/disizes.h) selects WHICH of the two
+     * partition tables dist[1] carries:
+     *     struct dist { ... struct size *sizes[2]; ... }   sizes[0] = logical
+     *                                                      sizes[1] = berkeley
+     *     io/di.c:203  partition[unit] = ((devsiz & BSD_PART) >> 6);
+     *     io/di.c:418  daddr = b_blkno + blkzero[unit]
+     *                        + st->sizes[ptype][partno].cyloff * st->nspc;
+     * Sending 1|64 = 65 therefore picks di70_sizes (Berkeley), which is what an
+     * NDIX /etc/fstab naming /dev/di0a and /dev/di0e describes. For dist[1] the
+     * two tables are IDENTICAL for partitions a,b,c,d,e (a=7942@0, b=16720@89,
+     * e=27968@364) and differ only in f,g,h - so this bit is not load-bearing
+     * for the shipped root+/usr layout, but it states the intent correctly.
+     *
+     * The EMULATOR does no partition arithmetic at all: the kernel hands us an
+     * absolute sector number and we read/write that offset in one flat image. */
     pkt_wr16(rpk, OP_RPK_COMPLETION, 0);
-    pkt_wr32(rpk, OP_RPK_DEVSIZ, 1);            /* dist[1] = di70 */
+    pkt_wr32(rpk, OP_RPK_DEVSIZ, 1 | 64);       /* dist[1] = di70, BSD_PART */
     pkt_wr32(rpk, OP_RPK_FRMSIZ, 69530);       /* di70 dsize (1K blocks) */
     pkt_wr16(rpk, OP_RPK_SECSIZ, 1024);
     g_ssize = 1024;                             /* match dist[1].ssize for FE_READ */
-    if (fedbg()) fprintf(stderr, "[FECALL] FE_OPEN disk: devsiz=1(di70) secsiz=1024\n");
+    if (fedbg()) fprintf(stderr, "[FECALL] FE_OPEN disk: devsiz=65(di70,BSD) secsiz=1024\n");
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
