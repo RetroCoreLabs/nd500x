@@ -157,6 +157,24 @@ void nd500_instr_Jumpg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t address_raw = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
     uint32_t target_address = (uint32_t)(address_raw & 0xFFFFFFFF);
 
+    /* The target lives in DATA memory, so this read can page-fault. raise_trap
+     * dispatches the fault synchronously: it installs the handler PC and clears
+     * the trap state. Writing cpu->PC below would then OVERWRITE the handler's
+     * PC with a garbage target read from an unmapped page, and the CPU would
+     * execute that address in KERNEL context with in_trap_handler set.
+     *
+     * This was the native assembler's "ENTS at PC=0x0001595E: Must be preceded
+     * by CALL/CALLG" halt. The PC ring (ND500X_STOPDBG) showed user PC 0x309D
+     * (CED=6, inH=0) - a JUMPG whose operand faulted at 0x1E28 - stepping
+     * straight to 0x1595E (CED=0, CAD=6, inH=1) even though the dispatch had
+     * set PC=0x381. The ENTS then raised a FALSE ISE because trap dispatch had
+     * cleared the CALL/ENT sequence interlock.
+     *
+     * Aborting here lets the handler run; the jump re-executes after RETT. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     // Set PC to absolute address (unconditional jump)
     cpu->PC = target_address;
 
