@@ -78,6 +78,32 @@ static int nd_crosses_page(const Nd500Cpu* cpu, uint32_t vaddr, uint32_t span) {
            ((vaddr & (uint32_t)(NBPG - 1)) + span) > (uint32_t)NBPG;
 }
 
+/*
+ * True once the current byte of a split access has faulted, so the split loop
+ * must stop immediately.
+ *
+ * Getting this wrong is fatal, not merely wasteful. When the byte landing in
+ * the second page faults, raise_trap DISPATCHES to the guest handler: it sets
+ * in_trap_handler, points PC at the handler and CLEARS the global trap state.
+ * A loop that kept going would then access the still-unmapped remaining
+ * byte(s) while already inside the handler - a double fault, which raise_trap
+ * cannot nest and therefore halts the machine on. That is why the halt was
+ * always reported at the LAST byte of the access (0x157FE+3 = 0x15801 in
+ * cc1's pftn.c stab[] init, 0xC7FE+3 = 0xC801 in the ptest2 reducer) rather
+ * than at the first byte that actually faulted.
+ *
+ * Stopping at the first fault is correct because the split is restartable:
+ * the bytes already written to the first page get written again, identically,
+ * when the kernel's pagein returns and the instruction re-executes.
+ *
+ * instr_aborted is checked as well as nd500_trap_occurred() because a
+ * dispatched handler clears the trap state synchronously - see the
+ * instr_aborted comment in cpu_protos.h.
+ */
+static int nd_split_faulted(const Nd500Cpu* cpu) {
+    return nd500_trap_occurred() || (cpu && cpu->instr_aborted);
+}
+
 /* Once-latched env flag: getenv() on the CPU run path races readline's
  * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
 static int nd_env_flag(const char* name, int* latch) {
@@ -189,6 +215,7 @@ uint16_t nd500_read_memory_16(Nd500Cpu* cpu, uint32_t vaddr) {
 
     if (nd_crosses_page(cpu, vaddr, 2)) {   /* see nd_crosses_page */
         uint8_t b0 = nd500_read_memory_8(cpu, vaddr);
+        if (nd_split_faulted(cpu)) return 0;   /* see nd_split_faulted */
         uint8_t b1 = nd500_read_memory_8(cpu, vaddr + 1);
         return (uint16_t)(((uint16_t)b0 << 8) | (uint16_t)b1);
     }
@@ -213,6 +240,7 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
 
     if (nd_crosses_page(cpu, vaddr, 2)) {   /* see nd_crosses_page */
         nd500_write_memory_8(cpu, vaddr,     (uint8_t)((value >> 8) & 0xFF));
+        if (nd_split_faulted(cpu)) return;   /* see nd_split_faulted */
         nd500_write_memory_8(cpu, vaddr + 1, (uint8_t)(value & 0xFF));
         return;
     }
@@ -250,8 +278,10 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
 
     if (nd_crosses_page(cpu, vaddr, 4)) {   /* see nd_crosses_page */
         uint32_t v = 0;
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 4; i++) {
             v = (v << 8) | (uint32_t)nd500_read_memory_8(cpu, vaddr + i);
+            if (nd_split_faulted(cpu)) return 0;   /* see nd_split_faulted */
+        }
         return v;
     }
 
@@ -296,8 +326,10 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
     if (!cpu || !cpu->machine) return;
 
     if (nd_crosses_page(cpu, vaddr, 4)) {   /* see nd_crosses_page */
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 4; i++) {
             nd500_write_memory_8(cpu, vaddr + i, (uint8_t)((value >> (24 - 8 * i)) & 0xFF));
+            if (nd_split_faulted(cpu)) return;   /* see nd_split_faulted */
+        }
         return;
     }
 
@@ -439,9 +471,19 @@ int nd500_heap_alloc_block(Nd500Cpu* cpu, uint8_t log_size, uint32_t pc,
     return 1;
 }
 
+/*
+ * A 64-bit access is two 32-bit halves, and the second must NOT be attempted
+ * once the first has faulted - see nd_split_faulted. Both halves usually sit
+ * in the SAME page, so this is a distinct bug from the straddle case: any
+ * 64-bit access to a not-yet-resident page faulted on the low half, got the
+ * handler dispatched, then ran the high half from inside the handler and
+ * double-faulted. Seen as the native /lib/as dying at PC=0x4799 - the fault
+ * was dispatched for 0x13990 and the machine then halted on 0x13994.
+ */
 uint64_t nd500_read_memory_64(Nd500Cpu* cpu, uint32_t vaddr) {
     // Read eight bytes BIG-ENDIAN (ND-500 spec)
     uint32_t high = nd500_read_memory_32(cpu, vaddr);
+    if (nd_split_faulted(cpu)) return 0;
     uint32_t low  = nd500_read_memory_32(cpu, vaddr + 4);
     return ((uint64_t)high << 32) | (uint64_t)low;
 }
@@ -449,6 +491,7 @@ uint64_t nd500_read_memory_64(Nd500Cpu* cpu, uint32_t vaddr) {
 void nd500_write_memory_64(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value) {
     // Write eight bytes BIG-ENDIAN (ND-500 spec)
     nd500_write_memory_32(cpu, vaddr,     (uint32_t)((value >> 32) & 0xFFFFFFFF));
+    if (nd_split_faulted(cpu)) return;
     nd500_write_memory_32(cpu, vaddr + 4, (uint32_t)(value & 0xFFFFFFFF));
 }
 
@@ -524,6 +567,7 @@ uint16_t nd500_read_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t doma
 
     if (nd_crosses_page(cpu, vaddr, 2)) {   /* see nd_crosses_page */
         uint8_t b0 = nd500_read_memory_8_domain(cpu, vaddr, domain);
+        if (nd_split_faulted(cpu)) return 0;   /* see nd_split_faulted */
         uint8_t b1 = nd500_read_memory_8_domain(cpu, vaddr + 1, domain);
         return (uint16_t)(((uint16_t)b0 << 8) | (uint16_t)b1);
     }
@@ -547,6 +591,7 @@ void nd500_write_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value,
 
     if (nd_crosses_page(cpu, vaddr, 2)) {   /* see nd_crosses_page */
         nd500_write_memory_8_domain(cpu, vaddr,     (uint8_t)((value >> 8) & 0xFF), domain);
+        if (nd_split_faulted(cpu)) return;   /* see nd_split_faulted */
         nd500_write_memory_8_domain(cpu, vaddr + 1, (uint8_t)(value & 0xFF), domain);
         return;
     }
@@ -574,8 +619,10 @@ uint32_t nd500_read_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t doma
 
     if (nd_crosses_page(cpu, vaddr, 4)) {   /* see nd_crosses_page */
         uint32_t v = 0;
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 4; i++) {
             v = (v << 8) | (uint32_t)nd500_read_memory_8_domain(cpu, vaddr + i, domain);
+            if (nd_split_faulted(cpu)) return 0;   /* see nd_split_faulted */
+        }
         return v;
     }
 
@@ -613,9 +660,11 @@ void nd500_write_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value,
     if (!cpu || !cpu->machine) return;
 
     if (nd_crosses_page(cpu, vaddr, 4)) {   /* see nd_crosses_page */
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 4; i++) {
             nd500_write_memory_8_domain(cpu, vaddr + i,
                                         (uint8_t)((value >> (24 - 8 * i)) & 0xFF), domain);
+            if (nd_split_faulted(cpu)) return;   /* see nd_split_faulted */
+        }
         return;
     }
 
@@ -649,12 +698,14 @@ void nd500_write_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value,
 
 uint64_t nd500_read_memory_64_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain) {
     uint32_t high = nd500_read_memory_32_domain(cpu, vaddr, domain);
+    if (nd_split_faulted(cpu)) return 0;   /* see nd500_read_memory_64 */
     uint32_t low  = nd500_read_memory_32_domain(cpu, vaddr + 4, domain);
     return ((uint64_t)high << 32) | (uint64_t)low;
 }
 
 void nd500_write_memory_64_domain(Nd500Cpu* cpu, uint32_t vaddr, uint64_t value, uint8_t domain) {
     nd500_write_memory_32_domain(cpu, vaddr,     (uint32_t)((value >> 32) & 0xFFFFFFFF), domain);
+    if (nd_split_faulted(cpu)) return;   /* see nd500_read_memory_64 */
     nd500_write_memory_32_domain(cpu, vaddr + 4, (uint32_t)(value & 0xFFFFFFFF), domain);
 }
 
