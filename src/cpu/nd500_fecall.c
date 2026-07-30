@@ -720,6 +720,19 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
 
     /* Pending disk/dctl completion takes priority over the periodic clock. */
     if (cpu->fe_int_pending) {
+        /* SIINTR delivery trace (env ND500X_SIDBG). NOTE the IPL: every queued
+         * completion is delivered at FE_IPL_DK (4), but SIINTR's own priority is
+         * IPL_SI = 3 (machine/icb.h:87) - the value siattach puts in
+         * Idev_cpk.ipl. So a software-interrupt completion currently arrives at
+         * DISK priority. The clock already passes its IPL_CL explicitly below,
+         * so carrying the per-device IPL captured at FE_IDEV time is the fix. */
+        if (cpu->fe_int_gen == GEN_SIINTR) {
+            static int sidbg = -1;
+            if (sidbg < 0) { const char* e = getenv("ND500X_SIDBG"); sidbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+            if (sidbg)
+                fprintf(stderr, "[SIDBG] deliver interrupt gen=8 sub=%u rpk=0x%08X ipl=%d (IPL_SI would be 3) PC=0x%08X CED=%u\n",
+                        cpu->fe_int_sub, cpu->fe_int_rpk, FE_IPL_DK, cpu->PC, cpu->CED);
+        }
         fe_deliver(cpu, iplrec, ip_cur, shseg,
                    cpu->fe_int_gen, cpu->fe_int_sub, cpu->fe_int_rpk, FE_IPL_DK);
         cpu->fe_int_pending = 0;
@@ -789,6 +802,41 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
     if (fedbg())
         fprintf(stderr, "[FECALL] device=0x%08X (gen=%u) request=0x%08X (req=%u) rpk=0x%08X cpk=0x%08X\n",
                 device, gen, request, req, rpk_arg, cpk_arg);
+
+    /* SIINTR tracing (env ND500X_SIDBG) - generic 8 only, so it can be left on
+     * without drowning in disk and console traffic.
+     *
+     * SIINTR is NOT related to SINTRAN despite the name: it is the 4.3BSD
+     * "software interrupt" (netisr) channel. if/si.c is headed "software
+     * interrupt handler", and siintr() clears NETISR_RAW / NETISR_IP / NETISR_NS
+     * and dispatches rawintr() / ipintr() / nsintr(). It is how the kernel defers
+     * network protocol processing out of the hardware interrupt, by asking the
+     * ND-100 front end to interrupt it back at a lower priority.
+     *
+     * Only two requests ever arrive here:
+     *   FE_IDEV, QF_SYNC  - siattach (if/si.c:133), command packet carries
+     *                       ipl = IPL_SI (3, machine/icb.h:87)
+     *   FE_DCTL, QF_ASYNC - setsoftnet/schednetisr (machine/basic.c:38-51),
+     *                       command packet is _dctl_cpk_si = { int dummy; },
+     *                       i.e. no payload - the request IS the signal
+     * Anything else on generic 8 is unexpected and worth seeing. */
+    if (gen == GEN_SIINTR) {
+        static int sidbg = -1;
+        if (sidbg < 0) { const char* e = getenv("ND500X_SIDBG"); sidbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (sidbg) {
+            uint32_t qual = (request >> 16) & 0xFFFF;
+            const char* rname = (req == FE_IDEV) ? "FE_IDEV" :
+                                (req == FE_DCTL) ? "FE_DCTL" : "OTHER";
+            Pkt cpk = pkt_word(cpu, cpk_arg);
+            fprintf(stderr,
+                "[SIDBG] gen=8 SIINTR %s(%u) qual=%u(%s) sub=%u cpk=0x%08X cpk[0..3]=%04X %04X "
+                "rpk=0x%08X PC=0x%08X CED=%u instr=%llu\n",
+                rname, req, qual, (qual == 1) ? "QF_SYNC" : "QF_ASYNC",
+                device & 0xFFFF, cpk_arg, pkt_rd16(&cpk, 0), pkt_rd16(&cpk, 2),
+                rpk_arg, cpu->PC, cpu->CED,
+                (unsigned long long)cpu->instruction_count);
+        }
+    }
 
     switch (req) {
         case FE_INIT: {
