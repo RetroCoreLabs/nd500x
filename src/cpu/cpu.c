@@ -19,6 +19,12 @@ Nd500TrapState g_trap_state = {0};
  * stderr when ND500X_STOPDBG is set. Cheap and off the hot path unless enabled. */
 #define ND500_PC_RING_LEN 256
 static uint32_t g_pc_ring[ND500_PC_RING_LEN];
+/* Domain/handler context of each recorded PC. Without it the ring cannot tell a
+ * user-domain PC from a kernel one, and the two look identical in the dump -
+ * which is exactly the ambiguity that stalled the ENTS/ISE hunt. */
+static uint8_t  g_pc_ring_ced[ND500_PC_RING_LEN];
+static uint8_t  g_pc_ring_cad[ND500_PC_RING_LEN];
+static uint8_t  g_pc_ring_inh[ND500_PC_RING_LEN];
 static uint32_t g_pc_ring_pos = 0;
 
 void nd500_dump_pc_ring(const char* tag);
@@ -28,8 +34,9 @@ static void nd500_dump_stop_ring(const char* tag) {
 	fprintf(stderr, "[STOPDBG] %s - last %d instruction PCs (oldest -> newest):\n",
 	        tag, ND500_PC_RING_LEN);
 	for (uint32_t k = 0; k < ND500_PC_RING_LEN; k++) {
-		uint32_t p = g_pc_ring[(g_pc_ring_pos + k) % ND500_PC_RING_LEN];
-		fprintf(stderr, "  %2u: 0x%08X\n", k, p);
+		uint32_t i = (g_pc_ring_pos + k) % ND500_PC_RING_LEN;
+		fprintf(stderr, "  %2u: 0x%08X  CED=%u CAD=%u inH=%u\n", k, g_pc_ring[i],
+		        g_pc_ring_ced[i], g_pc_ring_cad[i], g_pc_ring_inh[i]);
 	}
 }
 
@@ -145,6 +152,9 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 
 	/* Record this PC in the stop-diagnostics ring before any stop check below. */
 	g_pc_ring[g_pc_ring_pos] = cpu->PC;
+	g_pc_ring_ced[g_pc_ring_pos] = (uint8_t)cpu->CED;
+	g_pc_ring_cad[g_pc_ring_pos] = (uint8_t)cpu->CAD;
+	g_pc_ring_inh[g_pc_ring_pos] = (uint8_t)(cpu->in_trap_handler ? 1 : 0);
 	g_pc_ring_pos = (g_pc_ring_pos + 1u) % ND500_PC_RING_LEN;
 
 	/* SLPDBG: env-gated probe at the panic("sleep") call site in _sleep
