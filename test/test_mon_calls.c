@@ -1751,6 +1751,73 @@ static void test_mon_413B_fscdnt_segment_mismatch(void) {
     teardown();
 }
 
+/* ND-500 tool-support calls added 2026-07-30: 45B GTYPR, 320B UELOG, 327B FSMTY.
+ * See Developer/MON/calls/{45B_GetTypeRing,320B_UELogin,327B_FileSystemFunction}.yaml */
+static void test_mon_nd500_tool_calls(void) {
+    printf("\nTesting MON 45B GTYPR / 320B UELOG / 327B FSMTY...\n");
+    setup();
+
+    /* 45B GTYPR (37 decimal): unit in arg0; sintran-file-number returned in arg3.
+     * On nd500x the file number is the identity of the input unit. */
+    uint32_t unit_loc = 0x2000, typ_loc = 0x2004, sta_loc = 0x2008, sfn_loc = 0x200C;
+    test_write_word(&cpu, unit_loc, 100);
+    test_write_word(&cpu, sfn_loc, 0xFFFFFFFF);
+    uint32_t g_args[4] = { unit_loc, typ_loc, sta_loc, sfn_loc };
+    MonContext ctx;
+    setup_mon_context(&ctx, 37, 4, g_args);
+    MonResult r = mon_dispatch(&ctx);
+    uint32_t sfn = test_read_word(&cpu, sfn_loc);
+    if (r == MON_SUCCESS && sfn == 100) {
+        TEST_PASS("MON 45B GTYPR returns SINTRAN file number = input unit");
+    } else {
+        char m[64]; snprintf(m, sizeof m, "r=%d sfn=%u (expected success,100)", r, sfn);
+        TEST_FAIL("MON 45B GTYPR returns SINTRAN file number = input unit", m);
+    }
+
+    /* 320B UELOG (208 decimal): benign success stub. */
+    uint32_t u_arg[1] = { 0x2010 };
+    test_write_word(&cpu, 0x2010, 0x24);
+    setup_mon_context(&ctx, 208, 1, u_arg);
+    r = mon_dispatch(&ctx);
+    if (r == MON_SUCCESS) TEST_PASS("MON 320B UELOG returns success (stub)");
+    else TEST_FAIL("MON 320B UELOG returns success (stub)", "returned error");
+
+    /* 327B FSMTY (215 decimal) function 2: block size of an (unopened) file ->
+     * default 512 bytes. func in arg0, file no in arg1, block size out arg2. */
+    uint32_t f_func = 0x2020, f_fil = 0x2024, f_bs = 0x2028;
+    test_write_word(&cpu, f_func, 2);
+    test_write_word(&cpu, f_fil, 7);
+    test_write_word(&cpu, f_bs, 0xFFFFFFFF);
+    uint32_t f_args[3] = { f_func, f_fil, f_bs };
+    setup_mon_context(&ctx, 215, 3, f_args);
+    r = mon_dispatch(&ctx);
+    uint32_t bs = test_read_word(&cpu, f_bs);
+    if (r == MON_SUCCESS && bs == 512) {
+        TEST_PASS("MON 327B FSMTY fn 2 returns default block size 512");
+    } else {
+        char m[64]; snprintf(m, sizeof m, "r=%d bs=%u (expected success,512)", r, bs);
+        TEST_FAIL("MON 327B FSMTY fn 2 returns default block size 512", m);
+    }
+
+    /* 327B FSMTY function 4 == GTYPR: unit in arg1, sfn returned in arg4 (identity). */
+    uint32_t x_func = 0x2030, x_unit = 0x2034, x_typ = 0x2038, x_sta = 0x203C, x_sfn = 0x2040;
+    test_write_word(&cpu, x_func, 4);
+    test_write_word(&cpu, x_unit, 55);
+    test_write_word(&cpu, x_sfn, 0xFFFFFFFF);
+    uint32_t x_args[5] = { x_func, x_unit, x_typ, x_sta, x_sfn };
+    setup_mon_context(&ctx, 215, 5, x_args);
+    r = mon_dispatch(&ctx);
+    uint32_t xsfn = test_read_word(&cpu, x_sfn);
+    if (r == MON_SUCCESS && xsfn == 55) {
+        TEST_PASS("MON 327B FSMTY fn 4 (GTYPR) returns file number = input unit");
+    } else {
+        char m[64]; snprintf(m, sizeof m, "r=%d sfn=%u (expected success,55)", r, xsfn);
+        TEST_FAIL("MON 327B FSMTY fn 4 (GTYPR) returns file number = input unit", m);
+    }
+
+    teardown();
+}
+
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
@@ -1791,6 +1858,7 @@ int main(int argc, char* argv[]) {
     test_mon_413B_fscdnt_missing_args();
     test_mon_413B_fscdnt_optional_segment_no();
     test_mon_413B_fscdnt_segment_mismatch();
+    test_mon_nd500_tool_calls();
 
     /* Summary */
     printf("\n=== Test Summary ===\n");
