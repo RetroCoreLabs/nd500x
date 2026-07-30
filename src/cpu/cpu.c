@@ -26,8 +26,6 @@ static uint8_t  g_pc_ring_ced[ND500_PC_RING_LEN];
 static uint8_t  g_pc_ring_cad[ND500_PC_RING_LEN];
 static uint8_t  g_pc_ring_inh[ND500_PC_RING_LEN];
 static uint32_t g_pc_ring_pos = 0;
-
-void nd500_dump_pc_ring(const char* tag);
 static void nd500_dump_stop_ring(const char* tag) {
 	const char* e = getenv("ND500X_STOPDBG");
 	if (!(e && e[0] && e[0] != '0')) return;
@@ -102,6 +100,10 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	cpu->pending_call_return_address = 0;
 	cpu->pending_call_arg_count = 0;
 	memset(cpu->pending_call_arg_addresses, 0, sizeof(cpu->pending_call_arg_addresses));
+	/* ...and the trap-nesting save stack for it (cpu_protos.h trap_seq). */
+	cpu->trap_seq_head = 0;
+	cpu->trap_seq_count = 0;
+	memset(cpu->trap_seq, 0, sizeof(cpu->trap_seq));
 
 	/* Clear variable operand buffer */
 	cpu->extra_operand_count = 0;
@@ -157,6 +159,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 	g_pc_ring_cad[g_pc_ring_pos] = (uint8_t)cpu->CAD;
 	g_pc_ring_inh[g_pc_ring_pos] = (uint8_t)(cpu->in_trap_handler ? 1 : 0);
 	g_pc_ring_pos = (g_pc_ring_pos + 1u) % ND500_PC_RING_LEN;
+
 
 	/* SLPDBG: env-gated probe at the panic("sleep") call site in _sleep
 	 * (kern_synch.c:121). PC 0x11F75 is the `call _panic` for "sleep"; at that
@@ -973,6 +976,70 @@ static void nd500_trap_maybe_cross_domain(Nd500Cpu* cpu, uint64_t trapBit) {
 	}
 }
 
+/* CALL/ENT* sequence-interlock save stack. See the long note in cpu_protos.h for
+ * why this is a keyed ring and not a single slot or a plain depth counter.
+ * RetroCore CpuND500.Trap.cs must match this exactly. */
+void nd500_trap_seq_push(Nd500Cpu* cpu, uint32_t frame_base) {
+	uint32_t slot = cpu->trap_seq_head;
+	cpu->trap_seq[slot].frame_base     = frame_base;
+	cpu->trap_seq[slot].return_address = cpu->pending_call_return_address;
+	uint32_t n = cpu->pending_call_arg_count;
+	if (n > TRAP_SEQ_MAXARG) n = TRAP_SEQ_MAXARG;
+	cpu->trap_seq[slot].arg_count = n;
+	for (uint32_t i = 0; i < n; i++)
+		cpu->trap_seq[slot].arg_addresses[i] = cpu->pending_call_arg_addresses[i];
+
+	cpu->trap_seq_head = (slot + 1u) % TRAP_SEQ_RING;
+	if (cpu->trap_seq_count < TRAP_SEQ_RING)
+		cpu->trap_seq_count++;
+	/* else: the oldest entry has just been overwritten. Nesting that deep means
+	 * the guest is not unwinding, so the oldest is the least likely to be wanted. */
+}
+
+/* Restore the interlock belonging to the trap frame at frame_base. Searches
+ * newest-first, so properly nested traps match their own dispatch. On a hit,
+ * everything pushed after it is discarded - those are frames the guest abandoned
+ * (a process killed by SIGSEGV never runs its RETT), and keeping them would let
+ * the ring fill with corpses. No match restores a cleared interlock, which is the
+ * old single-slot behaviour and the safe direction. */
+void nd500_trap_seq_pop(Nd500Cpu* cpu, uint32_t frame_base) {
+	for (uint32_t back = 1; back <= cpu->trap_seq_count; back++) {
+		uint32_t slot = (cpu->trap_seq_head + TRAP_SEQ_RING - back) % TRAP_SEQ_RING;
+		if (cpu->trap_seq[slot].frame_base != frame_base)
+			continue;
+
+		cpu->pending_call_return_address = cpu->trap_seq[slot].return_address;
+		cpu->pending_call_arg_count      = cpu->trap_seq[slot].arg_count;
+		for (uint32_t i = 0; i < cpu->trap_seq[slot].arg_count; i++)
+			cpu->pending_call_arg_addresses[i] = cpu->trap_seq[slot].arg_addresses[i];
+
+		cpu->trap_seq_head   = slot;            /* drop this entry and any above it */
+		cpu->trap_seq_count -= back;
+		return;
+	}
+	cpu->pending_call_return_address = 0;
+	cpu->pending_call_arg_count = 0;
+}
+
+/* Restore the interlock from the NEWEST entry, whatever frame it belongs to.
+ *
+ * NDIX does not return from a kernel trap with RETT: machine/locore.c trapex ends
+ * the handler with `lregbl $CNTXMASK,r3`, reloading P/ST1/CED/CAD straight out of
+ * the saved context block (see the note in SYSTEM/Lregbl.c). So the frame-keyed
+ * pop above never runs under NDIX - measured 132 pushes and 0 pops across one boot,
+ * which left the ring saturated and every interlock lost. An lregbl trap-return
+ * carries no frame address to key on, but handler entry/exit is strictly nested,
+ * so the newest entry is by definition the one this return belongs to. */
+void nd500_trap_seq_pop_top(Nd500Cpu* cpu) {
+	if (cpu->trap_seq_count == 0) {
+		cpu->pending_call_return_address = 0;
+		cpu->pending_call_arg_count = 0;
+		return;
+	}
+	uint32_t slot = (cpu->trap_seq_head + TRAP_SEQ_RING - 1u) % TRAP_SEQ_RING;
+	nd500_trap_seq_pop(cpu, cpu->trap_seq[slot].frame_base);
+}
+
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
 	if (!cpu) return;
 	{ static int init = 0;
@@ -1375,22 +1442,11 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 	cpu->in_trap_handler = true;
 	cpu->trap_dispatch_pending = 1;   /* cleared by the handler's ENTT - see cpu_protos.h */
 
-	/* Save the pending CALL/ENT* sequence-interlock state into the trap context and
-	 * clear the live fields, so the handler starts with a clean interlock and a page
-	 * fault during a callee's entry instruction does not resume with the interlock
-	 * trampled by the kernel handler's own CALL/ENT* pairs (which would raise a FALSE
-	 * ISE). Restored by the RETT instruction. See cpu_protos.h for the microcode ref. */
-	cpu->trap_saved_pending_call_return_address = cpu->pending_call_return_address;
-	cpu->trap_saved_pending_call_arg_count = cpu->pending_call_arg_count;
-	{
-		uint32_t n = cpu->pending_call_arg_count;
-		if (n > 256) n = 256;
-		for (uint32_t i = 0; i < n; i++) {
-			cpu->trap_saved_pending_call_arg_addresses[i] = cpu->pending_call_arg_addresses[i];
-		}
-	}
-	cpu->pending_call_return_address = 0;
-	cpu->pending_call_arg_count = 0;
+	/* The pending CALL/ENT* sequence interlock is saved and cleared by the handler's
+	 * ENTT, not here: ENTT is verified above to be the handler's first instruction
+	 * (byte0 == 0xBC), so nothing executes in between, and ENTT is where the trap
+	 * frame address that keys the save is computed (THA+256). Keying it there also
+	 * survives a domain switch reloading THA between this dispatch and the ENTT. */
 
 	/* Clear OTE to prevent recursive traps during handler execution */
 	cpu->OTE1 = 0;

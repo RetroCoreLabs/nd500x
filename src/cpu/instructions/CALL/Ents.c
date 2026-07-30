@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "nd500_mmu.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -71,6 +72,11 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t old_b = cpu->B;
     uint32_t new_b = nd500_read_memory_32(cpu, old_b + OFFSET_SP);
 
+    /* A fault on that read leaves new_b garbage; abort before it is used. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     /* Frame trace (env-gated) - shows where new_b comes from */
     if (getenv("ND500X_FRAMELOG")) {
         printf("[ENTS] PC=0x%08X old_b=0x%08X read[old_b+8=0x%08X]=new_b=0x%08X L=0x%08X\n",
@@ -105,6 +111,26 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     for (uint32_t i = 0; i < cpu->pending_call_arg_count && i < ND500_MAX_OPERANDS; i++) {
         nd500_write_memory_32(cpu, new_b + OFFSET_ARG1 + (i * 4),
                              cpu->pending_call_arg_addresses[i]);
+    }
+
+    /* A memory fault on ANY of the frame writes above must abort the instruction
+     * BEFORE the commit below - it must not load L and must not release the
+     * CALL/ENT* sequence interlock.
+     *
+     * MICRO-5800-B30 puts both of those in the TERMINAL microword, together with
+     * the final WRITE and the exit to the next instruction:
+     *   ENTS_END  @004206  ... D,DAC,REG05 ... WRITE ... ADDR=GET_NEXT
+     *   ENTSN_3   @004254  ... C,SEQ ... F,RETURN INVSEQ ... WRITE ...
+     * The earlier frame writes are separate microwords (ENTS_N1 @004176,
+     * ENTS_3 @004216), so a fault on one of those traps out before the machine
+     * ever loads L or asserts INVSEQ, and the retried ENTS still sees its CALL.
+     *
+     * Running on regardless is what killed vi: the ENTS at 0x0000FC15 faulted on
+     * a frame write, fell through to set L = 0x0000F9EE and clear the interlock,
+     * and the retry after pagein raised a false ISE ("Memory fault - core
+     * dumped"). Same defect class as the Call.c entry-fetch guard. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
     }
 
     /* Update B register to new stack frame */

@@ -257,6 +257,11 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read old B.SP to know where to save old TOS */
     uint32_t old_sp = nd500_read_memory_32(cpu, old_b + OFFSET_SP);
 
+    /* A fault on that read leaves the value garbage; abort before it is used. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     /* Save old TOS at old SP location */
     nd500_write_memory_32(cpu, old_sp, old_tos);
 
@@ -277,7 +282,6 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_write_memory_32(cpu, new_b + OFFSET_RETA, return_addr);
 
     /* Update L register with return address (standard calling convention) */
-    cpu->L = return_addr;
 
     /* B.SP = bottom of stack + stack demand main */
     nd500_write_memory_32(cpu, new_b + OFFSET_SP, bottom_of_stack + stack_demand_main);
@@ -314,7 +318,23 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ========================================================================
      * STEP 11: UPDATE B REGISTER
      * ======================================================================== */
+
+    /* A memory fault on any access above must abort BEFORE the commit below: the
+     * real machine loads L and releases the CALL/ENT* sequence interlock only in
+     * the TERMINAL microword (MICRO-5800-B30 ENTS_END @004206 loads L via
+     * D,DAC,REG05; ENTSN_3 @004254 asserts C,SEQ / INVSEQ), both alongside the
+     * final WRITE and the exit to the next instruction. Earlier frame writes are
+     * separate microwords, so a fault there leaves L and the interlock untouched
+     * and the retried entry instruction still sees its CALL. Without this the
+     * retry raises a FALSE ISE - the defect that killed vi through ENTS. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     cpu->B = new_b;
+
+    /* L is a terminal-microword effect - committed here, not at the RETA write. */
+    cpu->L = return_addr;
 
     /* ========================================================================
      * STEP 12: CLEAR PENDING CALL STATE

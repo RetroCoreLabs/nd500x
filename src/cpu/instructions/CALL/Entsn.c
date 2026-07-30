@@ -82,6 +82,11 @@ void nd500_instr_Entsn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t old_b = cpu->B;
     uint32_t new_b = nd500_read_memory_32(cpu, old_b + OFFSET_SP);
 
+    /* A fault on that read leaves the value garbage; abort before it is used. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     /* Check for stack overflow BEFORE modifying anything */
     if (new_b + stack_demand >= cpu->TOS) {
         printf("[TRAP] ENTSN at PC=0x%08X: Stack overflow (newB=0x%08X, demand=0x%08X, TOS=0x%08X)\n",
@@ -117,6 +122,19 @@ void nd500_instr_Entsn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* Update B register to new stack frame */
+
+    /* A memory fault on any access above must abort BEFORE the commit below: the
+     * real machine loads L and releases the CALL/ENT* sequence interlock only in
+     * the TERMINAL microword (MICRO-5800-B30 ENTS_END @004206 loads L via
+     * D,DAC,REG05; ENTSN_3 @004254 asserts C,SEQ / INVSEQ), both alongside the
+     * final WRITE and the exit to the next instruction. Earlier frame writes are
+     * separate microwords, so a fault there leaves L and the interlock untouched
+     * and the retried entry instruction still sees its CALL. Without this the
+     * retry raises a FALSE ISE - the defect that killed vi through ENTS. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     cpu->B = new_b;
 
     /* Update L register with return address */

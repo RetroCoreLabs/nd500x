@@ -111,10 +111,46 @@ typedef struct Nd500Cpu {
 	 * carries C,SEQ). So when a CALL's callee ENT* page-faults, the pending-call state
 	 * must be SAVED here on dispatch and RESTORED by RETT - otherwise the kernel
 	 * handler's own CALL/ENT* pairs clear the naked pending_call_* fields and the
-	 * resumed ENTS sees pending_call_return_address == 0 and raises a FALSE ISE. */
-	uint32_t trap_saved_pending_call_return_address;
-	uint32_t trap_saved_pending_call_arg_count;
-	uint32_t trap_saved_pending_call_arg_addresses[256];
+	 * resumed ENTS sees pending_call_return_address == 0 and raises a FALSE ISE.
+	 *
+	 * ONE SLOT IS NOT ENOUGH. Traps nest: a page fault during a callee's ENT*
+	 * saves the interlock, and then the kernel's page-fault handler takes its own
+	 * page fault. With a single slot the inner dispatch overwrote it with the
+	 * already-cleared live value, so the outer RETT restored 0 and the resumed
+	 * ENT* raised a FALSE ISE anyway. MEASURED 2026-07-30: 14 such nested
+	 * discards in one ordinary NDIX boot (all trap 38, all CED 0); vi is simply
+	 * the first program demand-paged heavily enough to land the resume on an
+	 * actual ENT* and die with "Memory fault - core dumped".
+	 *
+	 * So each handler ENTT pushes its own entry, keyed by the trap frame address
+	 * (THA+256) it builds. The key is NOT the resume PC: the kernel rewrites that
+	 * (machine/trap.c:430 and :472 set ap->cx_p = &fuerror when pagein() fails).
+	 * A pop searches newest-first for its key; on a hit it restores that entry and
+	 * drops everything above it, which is what makes an ABANDONED frame harmless -
+	 * a process killed by SIGSEGV never returns from its handler, and a plain depth
+	 * counter would drift upward forever on exactly the failure this fixes. The
+	 * ring evicts oldest-first so the depth is bounded whatever the guest does.
+	 *
+	 * THE POP IS NOT (ONLY) IN RETT. NDIX never executes RETT for kernel traps -
+	 * machine/locore.c trapex returns with `lregbl $CNTXMASK,r3` (see the note in
+	 * SYSTEM/Lregbl.c), so an lregbl that reloads P while a handler is active IS
+	 * the trap return and pops the newest entry. MEASURED 2026-07-30 before this
+	 * was wired up: 132 pushes and 0 pops in one boot, ring permanently saturated,
+	 * every interlock lost - which is why vi died with "Memory fault - core dumped"
+	 * on a false ISE after a page fault on its own ENTS at 0x0000FC15.
+	 *
+	 * RetroCore CpuND500.Trap.cs carries the identical structure and policy -
+	 * these two must not diverge. */
+#define TRAP_SEQ_RING   16      /* nesting depth kept; oldest evicted beyond it */
+#define TRAP_SEQ_MAXARG 256     /* matches pending_call_arg_addresses */
+	struct {
+		uint32_t frame_base;    /* key: trap frame address (THA+256) ENTT built */
+		uint32_t return_address;
+		uint32_t arg_count;
+		uint32_t arg_addresses[TRAP_SEQ_MAXARG];
+	} trap_seq[TRAP_SEQ_RING];
+	uint32_t trap_seq_head;     /* index one past the newest entry, mod TRAP_SEQ_RING */
+	uint32_t trap_seq_count;    /* live entries, <= TRAP_SEQ_RING */
 	/* Cross-domain (mother-domain) trap dispatch state. When a trap in a child
 	 * domain is handled by a mother domain (manual 4.2.5.3 / ch.6), raise_trap
 	 * switches live CED/CAD to the handler domain and stashes the TRAPPING
@@ -284,6 +320,15 @@ int nd500_cpu_run(Nd500Cpu* cpu, int steps);
 
 /* Trap system functions */
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr);
+
+/* CALL/ENT* sequence-interlock save stack: pushed by the trap dispatch, popped by
+ * RETT, keyed on the trap frame address (THA+256). Not on the resume PC: the
+ * kernel rewrites that (machine/trap.c:430,472 set cx_p = &fuerror on a failed
+ * pagein), so a PC key misses and the interlock is lost. See trap_seq above. */
+void nd500_trap_seq_push(Nd500Cpu* cpu, uint32_t frame_base);
+void nd500_trap_seq_pop(Nd500Cpu* cpu, uint32_t frame_base);
+/* LIFO pop for the lregbl trap-return NDIX uses instead of RETT. */
+void nd500_trap_seq_pop_top(Nd500Cpu* cpu);
 /* Apply a domain's PiA (privilege) to live ST1; privilege follows CED across
  * domain transitions (trap dispatch, RETT, domain return). No-op without a DIT. */
 void nd500_apply_domain_pia(Nd500Cpu* cpu, uint32_t domain);

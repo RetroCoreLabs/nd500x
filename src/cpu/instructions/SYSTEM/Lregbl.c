@@ -153,6 +153,12 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * double fault and halts (observed: init's PC=8 stack write PGF). */
     if (has[1] && cpu->in_trap_handler) {
         cpu->in_trap_handler = false;
+        /* This IS the trap return, so it is also where the CALL/ENT* sequence
+         * interlock saved by the handler's ENTT must come back. Without it the
+         * resumed program's pending CALL is gone and its retried ENTS raises a
+         * false ISE - which is how vi died after a page fault on its own ENTS. */
+        extern void nd500_trap_seq_pop_top(Nd500Cpu* cpu);
+        nd500_trap_seq_pop_top(cpu);
     }
 
     /* PiA is a DOMAIN attribute (see nd500_apply_domain_pia / cpu.c), not a

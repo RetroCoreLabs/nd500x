@@ -108,6 +108,89 @@ static void set_pending_call(Nd500Cpu* cpu) {
     cpu->pending_call_arg_addresses[0] = SAVED_ARG0;
 }
 
+
+/* LREGBL with an immediate mask and an immediate block address, mirroring NDIX's
+ * `lregbl $CNTXMASK,r3` trap-return in machine/locore.c:535. */
+static Nd500FetchedInstruction make_lregbl(uint32_t mask, uint32_t block_addr) {
+    Nd500FetchedInstruction fi;
+    memset(&fi, 0, sizeof(fi));
+    fi.address = HANDLER_ADDR + 16;
+    fi.opcode = 0x00A4;               /* LREGBL */
+    fi.operand_count = 2;
+    fi.data_type = ND500_DTYPE_WORD;
+
+    fi.operands[0].mode = ND500_ADDR_CONSTANT;
+    fi.operands[0].data_len = 4;
+    fi.operands[0].data[0] = (uint8_t)(mask >> 24);
+    fi.operands[0].data[1] = (uint8_t)(mask >> 16);
+    fi.operands[0].data[2] = (uint8_t)(mask >> 8);
+    fi.operands[0].data[3] = (uint8_t)mask;
+
+    fi.operands[1].mode = ND500_ADDR_CONSTANT;
+    fi.operands[1].data_len = 4;
+    fi.operands[1].data[0] = (uint8_t)(block_addr >> 24);
+    fi.operands[1].data[1] = (uint8_t)(block_addr >> 16);
+    fi.operands[1].data[2] = (uint8_t)(block_addr >> 8);
+    fi.operands[1].data[3] = (uint8_t)block_addr;
+    return fi;
+}
+
+/* ---- NDIX's REAL trap return: lregbl, not RETT ----
+ *
+ * NDIX never executes RETT for a kernel trap; machine/locore.c trapex ends the
+ * handler with `lregbl $CNTXMASK,r3`. Before this path popped the interlock,
+ * ONE NDIX BOOT MEASURED 132 ENTT pushes and 0 pops - the ring saturated and
+ * every saved interlock was lost, so a page fault taken on a user program's own
+ * ENTS resumed with pending_call_return_address == 0 and the retried ENTS died
+ * with a false ISE ("Memory fault - core dumped" running vi at PC=0x0000FC15). */
+static void test_lregbl_trap_return_restores(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\n=== NDIX trap return via LREGBL (not RETT) restores the interlock ===\n");
+
+    const uint32_t BLOCK = 0x00030000u;   /* saved context block trapex reloads from */
+    const uint32_t RESUME_PC = 0x00002000u;
+
+    cpu->THA = THA_BASE;
+    nd500_bus_write32(m, THA_BASE + PGF_TRAP_NUM * 4, HANDLER_ADDR);
+    nd500_bus_write8(m, HANDLER_ADDR, 0xBC);
+
+    setup_ents_frame_state(m, cpu);
+    set_pending_call(cpu);
+
+    cpu->cur_instr_pc = ENTS_PC;
+    invoke_trap_handler(cpu, TRAP_PGF, ENTS_PC);
+
+    Nd500FetchedInstruction entt = make_entt(0x20, 0x100);
+    nd500_instr_Entt(cpu, &entt);
+    CHECK(cpu->pending_call_return_address == 0, "ENTT cleared the live interlock");
+    CHECK(cpu->in_trap_handler, "ENTT marked us inside the handler");
+
+    /* The kernel handler runs its own CALL/ENT* pairs, trampling the live field. */
+    cpu->pending_call_return_address = 0;
+    cpu->pending_call_arg_count = 0;
+
+    /* trapex: reload P (reg 1) from the saved context block. This IS the return. */
+    nd500_bus_write32(m, BLOCK + 1 * 4, RESUME_PC);
+    Nd500FetchedInstruction lregbl = make_lregbl(0x1u, BLOCK);
+    nd500_instr_Lregbl(cpu, &lregbl);
+
+    CHECK(!cpu->in_trap_handler, "lregbl reloading P ends the handler");
+    CHECK(cpu->pending_call_return_address == SAVED_RETADDR,
+          "lregbl trap-return restores the pending-call return address");
+    CHECK(cpu->pending_call_arg_count == 1,
+          "lregbl trap-return restores the pending arg count");
+    CHECK(cpu->pending_call_arg_addresses[0] == SAVED_ARG0,
+          "lregbl trap-return restores the pending arg EAs");
+
+    /* And the resumed ENTS must NOT raise a false ISE. */
+    cpu->THA = 0;
+    cpu->B = OLD_B;
+    cpu->ST1 = 0;
+    Nd500FetchedInstruction ents = make_ents(STACK_DEMAND);
+    nd500_instr_Ents(cpu, &ents);
+    CHECK((cpu->ST1 & (1u << 35)) == 0 || cpu->B == NEW_B,
+          "the resumed ENTS raises no false ISE after an lregbl trap return");
+}
+
 /* ---- The fix: pending-call state survives trap -> handler -> RETT ---- */
 static void test_survives_trap(Nd500Machine* m, Nd500Cpu* cpu) {
     printf("\n=== ENTS pending-CALL survives a page-fault trap + handler + RETT ===\n");
@@ -125,12 +208,18 @@ static void test_survives_trap(Nd500Machine* m, Nd500Cpu* cpu) {
     invoke_trap_handler(cpu, TRAP_PGF, ENTS_PC);
 
     CHECK(cpu->PC == HANDLER_ADDR, "PGF dispatches to the THA[38] handler");
-    CHECK(cpu->pending_call_return_address == 0,
-          "dispatch clears the naked pending-call field (state moved into trap ctx)");
+    CHECK(cpu->pending_call_return_address == SAVED_RETADDR,
+          "dispatch itself does not touch the interlock (ENTT owns save+clear)");
 
-    /* Handler prologue: ENTT builds the trap frame at THA+256. */
+    /* Handler prologue: ENTT builds the trap frame at THA+256, and saves+clears the
+     * interlock under that frame's address. Dispatch verifies ENTT is the handler's
+     * first instruction, so nothing runs in between and the guest cannot tell the
+     * difference between clearing here and clearing at dispatch. */
     Nd500FetchedInstruction entt = make_entt(0x20, 0x100);
     nd500_instr_Entt(cpu, &entt);
+
+    CHECK(cpu->pending_call_return_address == 0,
+          "ENTT clears the naked pending-call field (state moved into the trap ctx)");
 
     /* Simulate the kernel handler running its OWN CALL/ENT* pair (clears field). */
     cpu->pending_call_return_address = 0;
@@ -209,6 +298,9 @@ int main(void) {
     nd500_cpu_init(&cpu, &m);
 
     test_survives_trap(&m, &cpu);
+
+    nd500_cpu_init(&cpu, &m);
+    test_lregbl_trap_return_restores(&m, &cpu);
 
     /* Fresh CPU state for the controls. */
     nd500_cpu_init(&cpu, &m);

@@ -382,16 +382,16 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * entry instruction (ENTS/ENTM/...) would resume with the interlock cleared by the
      * kernel handler's own CALL/ENT* pairs, and the retried entry instruction would
      * raise a FALSE Instruction-Sequence-Error. The interlock is genuine hardware state
-     * carried in the trap-saved IDU status (MICRO-5800-B30, C,SEQ via ENTT1 @014042). */
-    cpu->pending_call_return_address = cpu->trap_saved_pending_call_return_address;
-    cpu->pending_call_arg_count = cpu->trap_saved_pending_call_arg_count;
-    {
-        uint32_t n = cpu->trap_saved_pending_call_arg_count;
-        if (n > 256) n = 256;
-        for (uint32_t i = 0; i < n; i++) {
-            cpu->pending_call_arg_addresses[i] = cpu->trap_saved_pending_call_arg_addresses[i];
-        }
-    }
+     * carried in the trap-saved IDU status (MICRO-5800-B30, C,SEQ via ENTT1 @014042).
+     *
+     * Keyed on trap_frame_base (THA+256), the address of the frame this RETT is
+     * restoring from - the same value the matching ENTT computed and pushed under.
+     * The key must NOT be the resume PC (frame arg2): the kernel legitimately
+     * rewrites it, e.g. machine/trap.c:430 and :472 set ap->cx_p = &fuerror when
+     * pagein() fails, so a PC-keyed lookup misses and the interlock is thrown away.
+     * That is exactly how vi died on a false ISE - a page fault on the ENTS at
+     * 0x0000FC15 resumed with pending_call_return_address == 0. */
+    nd500_trap_seq_pop(cpu, trap_frame_base);
 
     /* Privilege follows the executing domain: re-derive PiA from the domain we
      * just returned into (CED restored from the reg block above), so a return to

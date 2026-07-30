@@ -268,6 +268,16 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* The local data field follows immediately after the vector table */
     uint32_t trap_frame_base = cpu->THA + 256;
 
+    /* Save the pending CALL/ENT* sequence-interlock state under this frame's
+     * address and clear the live fields, so the handler starts with a clean
+     * interlock and the trapped code resumes with its own. The matching RETT
+     * pops using the same key. Without this a page fault taken on a callee's
+     * entry instruction resumes with the interlock cleared by the handler's own
+     * CALL/ENT* pairs, and the retried entry instruction raises a false ISE. */
+    nd500_trap_seq_push(cpu, trap_frame_base);
+    cpu->pending_call_return_address = 0;
+    cpu->pending_call_arg_count = 0;
+
     /* ========================================================================
      * Set up new B register to point to trap handler local data field
      * ======================================================================== */

@@ -204,10 +204,14 @@ void nd500_instr_Entb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* B.RETA = return address; also copied to L */
     uint32_t return_addr = cpu->pending_call_return_address;
     nd500_write_memory_32(cpu, block_address + OFFSET_RETA, return_addr);
-    cpu->L = return_addr;
 
     /* B.SP inherited from old frame (oldB.SP -> newBlock.SP) */
     uint32_t old_sp = nd500_read_memory_32(cpu, old_b + OFFSET_SP);
+
+    /* A fault on that read leaves the value garbage; abort before it is used. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     nd500_write_memory_32(cpu, block_address + OFFSET_SP, old_sp);
 
     /* B.AUX/LOG = block log size */
@@ -224,7 +228,23 @@ void nd500_instr_Entb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* Update B to the new heap block frame */
+
+    /* A memory fault on any access above must abort BEFORE the commit below: the
+     * real machine loads L and releases the CALL/ENT* sequence interlock only in
+     * the TERMINAL microword (MICRO-5800-B30 ENTS_END @004206 loads L via
+     * D,DAC,REG05; ENTSN_3 @004254 asserts C,SEQ / INVSEQ), both alongside the
+     * final WRITE and the exit to the next instruction. Earlier frame writes are
+     * separate microwords, so a fault there leaves L and the interlock untouched
+     * and the retried entry instruction still sees its CALL. Without this the
+     * retry raises a FALSE ISE - the defect that killed vi through ENTS. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     cpu->B = block_address;
+
+    /* L is a terminal-microword effect - committed here, not at the RETA write. */
+    cpu->L = return_addr;
 
     /* Clear pending call state (consumed by ENTB) */
     cpu->pending_call_return_address = 0;
