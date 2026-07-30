@@ -166,6 +166,16 @@ void nd500_instr_Jumps(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     // Read absolute target address (always word-sized)
     uint64_t address_raw = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+
+    /* The target lives in DATA memory, so this read can page-fault. raise_trap
+     * dispatches the fault synchronously - installing the handler PC and
+     * clearing the trap state - so writing cpu->PC below would overwrite the
+     * handler's PC with a garbage target read from an unmapped page, and the
+     * CPU would execute it in kernel context. Identical defect to JUMPG, which
+     * was proven to kill the native assembler; fixed there in dc2640c. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     uint32_t target_address = (uint32_t)(address_raw & 0xFFFFFFFF);
 
     // Set PC to absolute address (unconditional jump)

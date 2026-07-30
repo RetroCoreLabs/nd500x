@@ -59,6 +59,21 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t prev_b = nd500_read_memory_32(cpu, cpu->B + OFFSET_PREVB);
     uint32_t ret_addr = nd500_read_memory_32(cpu, cpu->B + OFFSET_RETA);
 
+    /* Both reads come from the caller's frame, which lives on the USER STACK
+     * and is therefore pageable. If either faults, raise_trap dispatches
+     * synchronously - installing the handler PC and clearing the trap state -
+     * and continuing would overwrite that handler PC (and B, and L) with
+     * garbage read from an unmapped page. Same defect as JUMPG (dc2640c), and
+     * RET is on one of the hottest paths in the machine.
+     *
+     * Aborting is restart-safe: RET re-reads the frame after the handler
+     * RETTs, and it has committed nothing at this point - the only earlier
+     * side effect is clearing the K flag, which RET does unconditionally on
+     * every execution anyway. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     /* Frame trace (env-gated) */
     if (nd_env_flag("ND500X_FRAMELOG", &g_envf_framelog)) {
         printf("[RET ] PC=0x%08X B=0x%08X read[B+0]=prevb=0x%08X read[B+4]=reta=0x%08X\n",
