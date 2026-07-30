@@ -53,6 +53,26 @@ void nd500_instr_Cind(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint64_t lower = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
     uint64_t upper = nd500_read_operand_value(cpu, &fi->operands[2], fi->data_type);
 
+    /* MULTI-DIMENSIONAL INDEX ACCUMULATION (the part the functional core was
+     * missing): In := In*(upper-lower+1) + index, In being the accumulator held
+     * in the target register Rn. Mirrors the real B30 microcode CIND_W
+     * (@027116-027121): SC7 = upper-lower+1; SC5 = In*SC7 (AAP2,IMUL); SC5 += index
+     * (A+B) -> written back to In; the final ST,SAVA/ACCM/ACCA latch Z/S. The
+     * functional core previously computed no result and set no Z/S, leaving every
+     * CIND golden's In and status stale (SYSTEM_cind sweep). Mirrors Cind.cs.
+     * [CIND @027116-027121] */
+    if (fi->target_register >= 1 && fi->target_register <= 4) {
+        uint64_t in_acc = nd500_read_integer_register(cpu, fi->target_register);
+        uint64_t range  = upper - lower + 1;
+        uint64_t result = in_acc * range + index;
+        /* MASK the result to the datatype before writing In (verified vs microword:
+         * BY CIND 0x55555555 -> In=0x00000055, H CIND -> 0x00005555). CIND masks its
+         * typed D,ALU,REG37 write, unlike LIND which stores verbatim. [CIND @027116-027121] */
+        uint32_t masked = nd500_mask_to_datatype(result, fi->data_type);
+        nd500_write_integer_register(cpu, fi->target_register, masked);
+        nd500_set_flags_zs(cpu, masked, fi->data_type);
+    }
+
     /* For signed comparison, sign-extend based on data type */
     int64_t sindex = nd500_sign_extend_by_dtype(index, fi->data_type);
     int64_t slower = nd500_sign_extend_by_dtype(lower, fi->data_type);

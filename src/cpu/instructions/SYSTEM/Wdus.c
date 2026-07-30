@@ -72,5 +72,12 @@ void nd500_instr_Wdus(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* In emulator with no cache, this is identical to normal write */
     nd500_write_operand_value(cpu, op, value, fi->data_type);
 
-    /* No status bits affected for this instruction */
+    /* Data status per the microcode ST,SAVA on the STORED value. The old "None
+     * affected" note was WRONG (mirroring the RDUS fix): the real B30 microcode
+     * WDUS_1 tail runs ST,SAVA @004503 (ALU,A A,SC12 ... ST,SAVA ... WRITE) on the
+     * value being stored, so Z=(value==0) and S=value.signbit are latched exactly
+     * like a typed store, C/O cleared. BI variant -> S=0 (handled inside
+     * nd500_set_flags_zs). Matches the functional CpuND500 (Wdus.cs) and the
+     * microword CpuND5000 (SYSTEM_wdus sweep). [WDUS @004502-004503] */
+    nd500_set_flags_zs(cpu, value, fi->data_type);
 }
