@@ -174,6 +174,13 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Operand 1: Argument count (byte value) */
     uint8_t arg_count = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_BYTE);
 
+    /* Abort if either operand read page-faulted - see the identical guard and
+     * the full explanation in Call.c. Continuing would clobber the freshly
+     * installed trap-handler PC with a garbage target. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     if (do_trace) {
         printf("[CALLG] Address=0x%08X (via general operand), args=%u at PC=0x%08X\n",
                subroutine_addr, arg_count, fi->address);

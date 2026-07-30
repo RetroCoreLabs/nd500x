@@ -50,6 +50,24 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read argument count (operand 1 - byte) */
     uint8_t arg_count = nd500_read_operand_byte(cpu, &fi->operands[1]);
 
+    /* Either operand read can page-fault when the target/count lives in memory
+     * that is not resident. raise_trap dispatches the fault synchronously - it
+     * installs the handler PC and clears the trap state - so without this check
+     * we would carry on with a GARBAGE subroutine_addr and, at the end of this
+     * function, overwrite the handler's PC with it. The CPU then executes the
+     * bogus target in KERNEL context with in_trap_handler set, and its ENTS
+     * raises a false ISE because the trap dispatch cleared the CALL/ENT
+     * sequence interlock.
+     *
+     * Seen as the native assembler dying with "ENTS at PC=0x0001595E: Must be
+     * preceded by CALL/CALLG": the PC ring showed user PC 0x309D (CED=6, inH=0)
+     * stepping straight to 0x1595E (CED=0, CAD=6, inH=1) even though the
+     * dispatch had set PC=0x381. Same failure shape as the entry-point fetch
+     * guard further down, which was already present. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     /* Validate extra operand count matches arg_count */
     if (cpu->extra_operand_count != arg_count) {
         printf("[ERROR] CALL at PC=0x%08X: Expected %u extra operands, got %u\n",
