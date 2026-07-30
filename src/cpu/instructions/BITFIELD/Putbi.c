@@ -193,10 +193,13 @@ void nd500_instr_Putbi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Write result back to first operand
     nd500_write_operand_value(cpu, &fi->operands[0], masked_result, fi->data_type);
 
-    // Update status flags: Z based on bit value written
+    // Update status flags per ND-500 rule 4040: all data status bits not mentioned are
+    // cleared. The microcode PUT_BIT_1 runs ST,SAVA which sets Z from the bit AND clears S/C/O.
+    // Previously only Z was touched, leaving S/C/O stale and diverging from the microword.
     if (bit_value == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;   // Set Z if bit was cleared
+        cpu->ST1 |= ND500_FLAG_Z;   // Set Z if bit value is 0
     } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;  // Clear Z if bit was set
+        cpu->ST1 &= ~ND500_FLAG_Z;  // Clear Z if bit value is 1
     }
+    cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
 }

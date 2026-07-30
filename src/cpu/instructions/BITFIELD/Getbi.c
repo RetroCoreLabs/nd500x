@@ -172,10 +172,13 @@ void nd500_instr_Getbi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Write bit value (0 or 1) to target register
     nd500_write_integer_register(cpu, fi->target_register, bit_value);
 
-    // Update status flags: Z based on bit value
+    // Update status flags per ND-500 rule 4040: all data status bits not mentioned are
+    // cleared. The microcode GET_BIT_1 runs ST,SAVA which sets Z from the bit AND clears S/C/O.
+    // Previously only Z was touched, leaving S/C/O stale and diverging from the microword.
     if (bit_value == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;   // Set Z if bit is 0
+        cpu->ST1 |= ND500_FLAG_Z;   // Set Z if bit value is 0
     } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;  // Clear Z if bit is 1
+        cpu->ST1 &= ~ND500_FLAG_Z;  // Clear Z if bit value is 1
     }
+    cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
 }
