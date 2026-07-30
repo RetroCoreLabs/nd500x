@@ -103,9 +103,13 @@ static uint32_t growable_map_page(Nd500Machine* m, GrowableSegment* g,
     if (l2_pfn == 0) {
         l2_pfn = alloc_page(m);   /* 512 entries * 4B = one page exactly */
         if (l2_pfn == 0) return 0;
-        /* The L1 entry must stay writable regardless of the segment's data
-         * protection: PS_ADI checks BOTH levels' protection bits on a write,
-         * so a read-only L1 entry would deny writes to every page beneath it. */
+        /* Bit 31 of an L1 entry is RESERVED and must be 0. ND-05.009.4 Figure
+         * 14: "Bit 31 in an index page table entry is reserved except on the
+         * last indexing level" - the L1 entry addresses another table, not a
+         * data page, so it carries no protection. (This used to be described as
+         * forcing the entry writable to work around the PS_ADI walk consulting
+         * both levels; that walk was corrected in 5dabb1d and now takes write
+         * permission from the L2 entry alone. The value written is unchanged.) */
         write_pte(m, g->l1_table_base, l1_index, l2_pfn, 0);
     }
 
@@ -216,7 +220,8 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
         if (l2_pfn == 0) {
             l2_pfn = alloc_page(m);   /* one page = 512 L2 entries */
             if (l2_pfn == 0) { g->in_use = 0; return -1; }
-            /* L1 entry stays writable: PS_ADI checks BOTH levels on a write. */
+            /* Bit 31 of an L1 entry is reserved and must be 0 - it addresses a
+             * table, not a data page. See growable_map_page. */
             write_pte(m, g->l1_table_base, l1_index, l2_pfn, 0);
         }
         uint32_t l2_base = l2_pfn << PGSHIFT;
@@ -273,7 +278,8 @@ uint32_t nd500_segment_map_bounded_data(void* cpu_ptr, void* machine_ptr,
         if (l2_pfn == 0) {
             l2_pfn = alloc_page(m);   /* one page = 512 L2 entries */
             if (l2_pfn == 0) return 0;
-            /* L1 entry stays writable: PS_ADI checks BOTH levels on a write. */
+            /* Bit 31 of an L1 entry is reserved and must be 0 - it addresses a
+             * table, not a data page. See growable_map_page. */
             write_pte(m, l1_base, l1_index, l2_pfn, 0);
         }
         uint32_t pfn;
