@@ -95,6 +95,10 @@ void nd500_instr_Laddr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         cpu->ST1 &= ~ND500_FLAG_Z;
     }
 
-    /* Clear S, C, O flags */
+    /* S from the RESOLVED-ADDRESS sign via the microcode ST,SAVA. ADJUDICATED against the real
+     * B30 microcode LADDRN @000762 ("ALU,A A,DAC,EAO ... ST,SAVA"): the address is passed through
+     * the ALU and all four data-status bits are latched, so S = address bit31 (NOT a forced 0).
+     * The manual lists only "address==0 -> Z". C,O = 0. Matches RetroCore Laddr.cs. */
     cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
+    if (address & 0x80000000u) cpu->ST1 |= ND500_FLAG_S;
 }

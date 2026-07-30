@@ -64,5 +64,9 @@ void nd500_instr_Bladdr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else {
         cpu->ST1 &= ~ND500_FLAG_Z;
     }
+    /* S from the RESOLVED-ADDRESS sign via the microcode ST,SAVA (BLADDR @000772,
+     * "ALU,A A,DAC,EAO ... ST,SAVA"). Matches RetroCore Bladdr.cs; the manual lists only
+     * "address==0 -> Z". C,O = 0. */
     cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
+    if (operand_address & 0x80000000u) cpu->ST1 |= ND500_FLAG_S;
 }

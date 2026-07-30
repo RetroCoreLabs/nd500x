@@ -107,10 +107,14 @@ void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
 
         if (isMinNegative) {
-            /* Most negative value overflows: set O flag only.
-             * Per ND-500 Reference Manual Section 10.15: "0 -> S" unconditionally.
-             * S should ALWAYS be 0 for ABS, even on overflow. */
+            /* Greatest-negative integer negated overflows: result KEEPS bit(width-1) set.
+             * S comes from the RESULT sign via the microcode ST,SAVA, NOT a forced 0.
+             * ADJUDICATED against the real B30 microcode ABS completion @000264
+             * ("ALU,A-B ... D,ALU,REG37 ST,SAVA") / ABSF @000265 ("ALU,ANDCA ... ST,SAVA"),
+             * which latch all four data-status bits from the result. The manual Sec 10.15
+             * "0 -> S" prose is WRONG. Matches RetroCore Abs.cs. */
             cpu->ST1 |= ND500_FLAG_O;
+            cpu->ST1 |= ND500_FLAG_S;
         }
 
         return;
