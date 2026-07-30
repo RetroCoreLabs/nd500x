@@ -65,6 +65,15 @@ static uint32_t find_highest_used_pfn(Nd500Cpu* cpu) {
                 /* Extract PFN from PTE (hardware pte.h format: pg_pfnum = bits 29:0) */
                 uint32_t pte_pfn = pte_value & 0x3FFFFFFF;
 
+                /* A PFN beyond physical memory is not a page table entry at
+                 * all - it is leftover data being misread (page tables used to
+                 * be filled without zeroing their page first). Treat it like
+                 * the zero terminator; anything derived from it would seed the
+                 * allocator past the end of memory. */
+                if (cpu->machine && pte_pfn >= (uint32_t)(cpu->machine->memory_size >> PGSHIFT)) {
+                    break;
+                }
+
                 /* Stop at first invalid entry - prevents reading garbage */
                 if (pte_pfn == 0) {
                     break;
@@ -322,6 +331,13 @@ uint32_t nd500_segment_map_bounded_data(void* cpu_ptr, void* machine_ptr,
      * growable adopt path above. */
     uint32_t floor_pfn = (watermark_floor_base + NBPG - 1) >> PGSHIFT;
     if (g_next_free_pfn < floor_pfn) g_next_free_pfn = floor_pfn;
+
+    static int bmdbg = -1;
+    if (bmdbg < 0) { const char* e = getenv("ND500X_ALLOCDBG"); bmdbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    if (bmdbg)
+        fprintf(stderr, "[BMDBG] psn=%d data_pages=%u reserve=%u floor_pfn=%u next_free_pfn=%u mem_pages=%u\n",
+                psn, data_pages, reserve_pages, floor_pfn, g_next_free_pfn,
+                (uint32_t)(m->memory_size >> PGSHIFT));
 
     uint32_t l1_pfn = watermark_alloc_page(m);
     if (l1_pfn == 0) return 0;

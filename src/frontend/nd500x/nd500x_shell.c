@@ -58,6 +58,21 @@ void  nd500_segment_alloc_state_restore(void* blob);
 /* ND500X_STODBG helper (nd500_mmu.h is not pulled in by cpu_protos.h). */
 uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr);
 
+/* ND500X_LOADDBG=1: forward DOM-loader log lines to stderr, so a silent
+ * "DOM configuration failed" can be diagnosed (the loader reports its
+ * specific failure only through this callback). */
+static void loaddbg_cb(void* ctx, const char* fmt, ...) {
+    (void)ctx;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fputc('\n', stderr);
+}
+
+/* Post-run cleanup helper (nd500_domain.c - same reason). */
+void nd500_domain_free(Nd500Cpu* cpu, uint8_t domain);
+
 /* MMU-table snapshot (nd500_mmu.c) - the nested UECOM DOM load overwrites
  * PST entries / capabilities the caller's domain still references; without
  * restoring these the caller resumes on a WRONG virtual-to-physical mapping
@@ -640,13 +655,35 @@ static void run_domain(const char* name, const char* args) {
     if (rc != 0) { printf("DOM load failed: %s\n", path); return; }
     if (ndlib_load_dom_segments() != 0) { printf("DOM segment load failed\n"); return; }
 
+    /* Snapshot the physical-page allocator AND the MMU tables (PST +
+     * capabilities). Every program run consumes fresh watermark pages
+     * (bounded-DATA reserve + page tables + MON segments, ~1 MB+) that were
+     * never reclaimed when the program exited - after ~11 runs in one session
+     * the 16 MB machine was exhausted and every further load failed with
+     * "DOM configuration failed". Restoring the allocator alone is not
+     * enough: the dead run's PST entries still reference its pages, so
+     * find_highest_used_pfn re-seeds the watermark ABOVE them and the leak
+     * ratchets on. A run leaves nothing live behind (files are written back
+     * at MON 0B LEAVE), so roll BOTH back when the program exits - exactly
+     * what the nested UECOM path (shell_execute_command) has done all along. */
+    void* seg_backup = nd500_segment_alloc_state_save();
+    void* mmu_backup = nd500_mmu_state_save();
+
     uint32_t start_addr = 0;
     int loaded_domain = -1;
     /* NULL log callback: keep the shell clean (no MMU/segment dump per run).
-     * Set ND500X_MONLOG for diagnostics instead. */
-    rc = ndlib_dom_load_to_machine(g_machine, g_cpu, -1, NULL, NULL,
+     * Set ND500X_LOADDBG=1 for the loader's own diagnostics on stderr. */
+    static int loaddbg = -1;
+    if (loaddbg < 0) { const char* e = getenv("ND500X_LOADDBG"); loaddbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    rc = ndlib_dom_load_to_machine(g_machine, g_cpu, -1,
+                                   loaddbg ? loaddbg_cb : NULL, NULL,
                                    &start_addr, &loaded_domain);
-    if (rc != 0) { printf("DOM configuration failed\n"); return; }
+    if (rc != 0) {
+        nd500_mmu_state_restore(mmu_backup);
+        nd500_segment_alloc_state_restore(seg_backup);
+        printf("DOM configuration failed\n");
+        return;
+    }
 
     /* Hand the typed arguments to the program the SINTRAN way. */
     mon_set_command_buffer(args ? args : "");
@@ -713,6 +750,17 @@ static void run_domain(const char* name, const char* args) {
     }
     if (!g_use_telnet) restore_cooked();
     printf("\n-- program exited (%llu instructions) --\n", (unsigned long long)steps);
+
+    /* Release the run's resources so a long session does not exhaust the
+     * machine: restore the MMU tables (drops the dead run's PST entries and
+     * capabilities - domain numbers are reused now, so stale entries must
+     * not leak into the next occupant), reclaim its watermark pages, and
+     * free the domain number. */
+    nd500_mmu_state_restore(mmu_backup);
+    nd500_segment_alloc_state_restore(seg_backup);
+    if (loaded_domain > 0) {
+        nd500_domain_free(g_cpu, (uint8_t)loaded_domain);
+    }
 }
 
 /* --------------------------------------------------------------- commands */

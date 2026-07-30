@@ -124,9 +124,14 @@ static int setup_sintran_window(
         nd500_bus_write8(m, sintran_phys_base + j, 0);
     }
 
-    /* Create page table for SINTRAN window */
+    /* Create page table for SINTRAN window. Zero the allocated area first -
+     * same leftover-memory hazard as the PROG page tables (see the PROG PT
+     * comment in ndlib_dom_load_to_machine). */
     uint32_t sintran_pt_base = alloc_base;
     alloc_base = (alloc_base + SINTRAN_WINDOW_PAGES * 4 + 2047) & ~2047u;
+    for (uint32_t z = sintran_pt_base; z < alloc_base; z += 4) {
+        nd500_bus_write32(m, z, 0);
+    }
 
     /* Fill page table with PTEs for SINTRAN window pages.
      * ND-500 hardware pte.h format (per commit 6b3d4fb): pg_prot@31, pg_pfnum@[29:0].
@@ -465,9 +470,19 @@ int ndlib_dom_load_to_machine(
             uint32_t prog_pages = (seg_info[i].prog_size + 2047) / 2048;
             if (prog_pages == 0) prog_pages = 1;
 
-            /* Allocate page table */
+            /* Allocate page table. ZERO the whole allocated area first: memory
+             * here may hold a PREVIOUS run's data (the machine is only zeroed
+             * at power-on, and program loads land at fixed physical bases).
+             * Consumers scan a PS_ASI page table "until the first zero PTE"
+             * (find_highest_used_pfn), so a non-zero leftover after the last
+             * real PTE reads as a garbage PFN - which seeded the watermark
+             * allocator beyond the end of memory and made every DOM load
+             * after a large program (the linker) fail. */
             uint32_t pt_base = pt_alloc_base;
             pt_alloc_base = (pt_alloc_base + prog_pages * 4 + 2047) & ~2047u;
+            for (uint32_t z = pt_base; z < pt_alloc_base; z += 4) {
+                nd500_bus_write32(m, z, 0);
+            }
 
             /* Fill page table - PTEs for PROG pages.
              * ND-500 hardware pte.h format (commit 6b3d4fb): pg_prot@31, pg_pfnum@[29:0]. */
