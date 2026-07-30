@@ -405,6 +405,10 @@ int ndlib_dom_load_to_machine(
     cpu->ST1 = 0;
     cpu->ST2 = 0;
     cpu->in_trap_handler = false;
+    /* Same reasoning for the dispatch->ENTT interlock: a stale value would make
+     * the new program's first ENTT look valid, and would block cross-domain trap
+     * dispatch until something cleared it. */
+    cpu->trap_dispatch_pending = 0;
 
     /* ========================================================================
      * Set up MMU page tables using PS_ASI (single-level paging)

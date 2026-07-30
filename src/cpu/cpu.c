@@ -93,6 +93,7 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	 * User programs must explicitly set PIA=0 before returning to user space. */
 	cpu->ST1 = (1u << ND500_ST_BIT_PIA);  /* Set PIA bit - privileged mode */
 	cpu->ST2 = 0;
+	cpu->trap_dispatch_pending = 0;       /* dispatch->ENTT interlock, see cpu_protos.h */
 
 	/* Initialize MMU registers */
 	cpu->PSTP = cpu->DITBASE = cpu->CED = cpu->CAD = cpu->PS = 0;
