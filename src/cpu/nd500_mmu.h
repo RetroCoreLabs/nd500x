@@ -215,15 +215,13 @@ int nd500_segment_grow_on_fault(void* cpu_ptr, uint32_t virtual_addr, uint8_t do
  * Replaces the old PS_ASI DATA setup, which capped a DATA segment at 1 MB (L1
  * must be 0) and crashed large programs (e.g. the NC/CAT-500 C code generator)
  * that write past 1 MB into their DSEG.
- * watermark_floor_base MUST be the loader's FINAL physical allocation cursor:
- * all new pages (L1/L2 tables, grown data) are taken strictly above it, because
- * PS_ADI pages are invisible to find_highest_used_pfn() and would otherwise be
- * re-handed-out over the DOM image. Returns 0 on success, -1 on failure.
+ * New pages (L1/L2 tables, grown data) come from the machine's physical page
+ * allocator, which owns every frame - there is no floor to pass and no way to
+ * collide with the DOM image. Returns 0 on success, -1 on failure.
  * Defined in nd500_segment_alloc.c. */
 int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
     uint8_t domain, uint32_t segment, int psn,
-    uint32_t data_phys_base, uint32_t data_pages,
-    uint32_t watermark_floor_base);
+    uint32_t data_phys_base, uint32_t data_pages);
 
 /* Build a DOM DATA segment as BOUNDED PS_ADI two-level: adopt the loaded
  * initialized pages (data_pages from data_phys_base) + eagerly map
@@ -236,7 +234,7 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
  * Design: PLAN-nd500x-growable-DATA-option2-redesign-2026-07-26.md option b. */
 uint32_t nd500_segment_map_bounded_data(void* cpu_ptr, void* machine_ptr,
     int psn, uint32_t data_phys_base, uint32_t data_pages,
-    uint32_t reserve_pages, uint32_t watermark_floor_base);
+    uint32_t reserve_pages);
 
 /* Register a growable ALIAS so demand-growth for alias_segment reuses the same
  * two-level tables as source_segment (the DOM loader's FORTRAN/compiler
@@ -275,3 +273,10 @@ void nd500_mmu_clear_program_cache_tsb(Nd500Cpu* cpu);
  * domain still references. Pairs with nd500_segment_alloc_state_save/_restore. */
 void* nd500_mmu_state_save(void);
 void  nd500_mmu_state_restore(void* blob);
+
+/* Open / close a per-run allocation scope (nd500_segment_alloc.c). Save before
+ * a DOM is loaded, restore when it exits: the restore frees every physical page
+ * the run allocated and puts the growable-segment registry back, so a nested
+ * run cannot leak into - or over - its caller. */
+void* nd500_segment_alloc_state_save(void* machine_ptr);
+void  nd500_segment_alloc_state_restore(void* blob);

@@ -111,6 +111,14 @@ add_executable(test_dom_integration
 )
 target_link_libraries(test_dom_integration PRIVATE nd500_machine nd500_cpu nd500_ndlib nd500_debugger mon)
 
+# Physical allocator + concurrent-domain residency test
+# Checks page ownership/arena scoping, and that loading a second DOM leaves the
+# first one's resident image intact (what makes nested DOM runs possible).
+add_executable(test_phys_alloc
+    test_phys_alloc.c
+)
+target_link_libraries(test_phys_alloc PRIVATE nd500_machine nd500_cpu nd500_ndlib nd500_debugger mon)
+
 # BIT addressing tests
 # Tests BI-prefixed instructions and bit addressing mode
 # Verifies fix for bug where bit index was treated as byte offset

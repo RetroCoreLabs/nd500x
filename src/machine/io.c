@@ -4,6 +4,7 @@
 #include "machine_protos.h"
 #include "breakpoints.h"
 #include "../cpu/nd500_mmu.h"
+#include "../cpu/nd500_phys_alloc.h"
 #include <ndmon/mon_file_table.h>
 
 /* ------------------------------------------------------------------ *
@@ -134,6 +135,7 @@ void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
 
 void nd500_machine_free(Nd500Machine* m) {
 	if (!m) return;
+	nd500_phys_alloc_reset(m);   /* drop the page-ownership map */
 	free(m->memory);
 	m->memory = NULL;
 	m->memory_size = 0;

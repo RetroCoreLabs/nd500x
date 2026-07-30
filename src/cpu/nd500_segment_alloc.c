@@ -10,6 +10,7 @@
  */
 
 #include "nd500_mmu.h"
+#include "nd500_phys_alloc.h"
 #include "cpu_protos.h"
 #include "../machine/machine_protos.h"
 #include <stdio.h>
@@ -21,73 +22,6 @@
 #define ERR_NO_PST_INDEX          248  /* 370 octal */
 #define ERR_ILLEGAL_SEGMENT       249  /* 371 octal */
 #define ERR_ILLEGAL_ADDRESS       250  /* 372 octal */
-
-/**
- * Find the highest physical page frame number used in PST entries.
- * Returns the highest PFN found, or 0 if no entries are used.
- */
-static uint32_t find_highest_used_pfn(Nd500Cpu* cpu) {
-    uint32_t highest_pfn = 0;
-
-    for (int psn = 0; psn < MAX_PST; psn++) {
-        PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(cpu, psn);
-        
-        /* Skip empty entries */
-        if (pst.index_mode == 0 && pst.physical_pfn == 0) {
-            continue;
-        }
-
-        /* For PS_ASI mode, the PFN points to a page table.
-         * We need to scan the page table to find the highest physical page.
-         * For simplicity, we'll use the page table PFN itself as a lower bound.
-         */
-        if (pst.physical_pfn > highest_pfn) {
-            highest_pfn = pst.physical_pfn;
-        }
-
-        /* If this is PS_ASI, scan the page table for actual page PFNs */
-        if (pst.index_mode == PS_ASI) {
-            uint32_t page_table_base = pst.physical_pfn << PGSHIFT;
-
-            /* Scan page table entries - stop at first invalid (zero) entry.
-             * Valid PTEs are contiguous from start; unused slots are zero.
-             * In ND-500 PTE format, PFN=0 indicates invalid/unmapped page. */
-            for (uint32_t i = 0; i < NPTEPG; i++) {
-                uint32_t pte_addr = page_table_base + (i * 4);
-
-                /* Read PTE */
-                uint8_t b0 = nd500_bus_read8(cpu->machine, pte_addr);
-                uint8_t b1 = nd500_bus_read8(cpu->machine, pte_addr + 1);
-                uint8_t b2 = nd500_bus_read8(cpu->machine, pte_addr + 2);
-                uint8_t b3 = nd500_bus_read8(cpu->machine, pte_addr + 3);
-                uint32_t pte_value = (uint32_t)((b0 << 24) | (b1 << 16) | (b2 << 8) | b3);
-
-                /* Extract PFN from PTE (hardware pte.h format: pg_pfnum = bits 29:0) */
-                uint32_t pte_pfn = pte_value & 0x3FFFFFFF;
-
-                /* A PFN beyond physical memory is not a page table entry at
-                 * all - it is leftover data being misread (page tables used to
-                 * be filled without zeroing their page first). Treat it like
-                 * the zero terminator; anything derived from it would seed the
-                 * allocator past the end of memory. */
-                if (cpu->machine && pte_pfn >= (uint32_t)(cpu->machine->memory_size >> PGSHIFT)) {
-                    break;
-                }
-
-                /* Stop at first invalid entry - prevents reading garbage */
-                if (pte_pfn == 0) {
-                    break;
-                }
-
-                if (pte_pfn > highest_pfn) {
-                    highest_pfn = pte_pfn;
-                }
-            }
-        }
-    }
-
-    return highest_pfn;
-}
 
 /* ─────────────────────────────────────────────────────────────────────────
  * Demand-grown segments (MON 412B FSCNT / 422B GSWSP)
@@ -122,47 +56,24 @@ typedef struct {
     uint32_t segment;        /* logical segment number within the domain */
     uint32_t l1_table_base;  /* physical byte address of the L1 table */
     int      writable;       /* PTE protection to install on grown pages */
+    /* 1 when every page reachable through l1_table_base was allocated by this
+     * module and may be freed on release; 0 when the segment adopted pages it
+     * does not own (loader DATA) or aliases another slot's tables. */
+    int      owns_pages;
 } GrowableSegment;
 
 static GrowableSegment g_growable[GROWABLE_MAX_SEGMENTS];
 
-/* Monotonic physical page watermark.
+/* Take one free physical page, zeroed, charged to the innermost allocation
+ * arena (see nd500_phys_alloc.h). Returns 0 if memory is exhausted - PFN 0 is
+ * never a valid allocation, the PTE format uses PFN==0 to mean "not present".
  *
- * find_highest_used_pfn() only walks PS_ASI page tables, so it cannot see the
- * data pages of a PS_ADI segment and would happily hand the same physical page
- * out twice. Every allocation below therefore comes from this watermark, which
- * only ever moves up. It is (re)seeded from find_highest_used_pfn() the first
- * time it is used for a given machine, so a fresh machine starts clean. */
-static uint32_t g_next_free_pfn;
-static void*    g_watermark_machine;
-
-static void watermark_init(Nd500Cpu* cpu, Nd500Machine* m) {
-    if (g_watermark_machine == (void*)m && g_next_free_pfn != 0) {
-        return;  /* already seeded for this machine */
-    }
-    uint32_t highest = find_highest_used_pfn(cpu);
-    uint32_t start = highest + 1;
-    if (start < 1000) {
-        start = 1000;  /* stay clear of the DOM loader's allocations */
-    }
-    g_next_free_pfn = start;
-    g_watermark_machine = (void*)m;
-    memset(g_growable, 0, sizeof(g_growable));
-}
-
-/* Take the next free physical page, zeroed. Returns 0 if memory is exhausted
- * (PFN 0 is never a valid allocation - the PTE format uses PFN==0 as invalid). */
-static uint32_t watermark_alloc_page(Nd500Machine* m) {
-    uint32_t pfn = g_next_free_pfn;
-    uint32_t base = pfn << PGSHIFT;
-    if (base + NBPG > m->memory_size) {
-        return 0;
-    }
-    g_next_free_pfn++;
-    for (uint32_t i = 0; i < NBPG; i++) {
-        nd500_bus_write8(m, base + i, 0);
-    }
-    return pfn;
+ * This used to be a module-private monotonic watermark that had no record of
+ * what the DOM loader had already taken, and therefore re-derived a starting
+ * point by scanning guest page tables. The allocator now owns every page, so
+ * there is nothing to derive and nothing to guess. */
+static uint32_t alloc_page(Nd500Machine* m) {
+    return nd500_phys_alloc_pages(m, 1, /*zero=*/1);
 }
 
 /* Install a PTE. Hardware pte.h format: pg_prot@31, pg_pfnum@[29:0] (0=RW,1=RO);
@@ -190,7 +101,7 @@ static uint32_t growable_map_page(Nd500Machine* m, GrowableSegment* g,
 
     uint32_t l2_pfn = read_pte_pfn(m, g->l1_table_base, l1_index);
     if (l2_pfn == 0) {
-        l2_pfn = watermark_alloc_page(m);   /* 512 entries * 4B = one page exactly */
+        l2_pfn = alloc_page(m);   /* 512 entries * 4B = one page exactly */
         if (l2_pfn == 0) return 0;
         /* The L1 entry must stay writable regardless of the segment's data
          * protection: PS_ADI checks BOTH levels' protection bits on a write,
@@ -201,11 +112,32 @@ static uint32_t growable_map_page(Nd500Machine* m, GrowableSegment* g,
     uint32_t l2_table_base = l2_pfn << PGSHIFT;
     uint32_t data_pfn = read_pte_pfn(m, l2_table_base, l2_index);
     if (data_pfn == 0) {
-        data_pfn = watermark_alloc_page(m);
+        data_pfn = alloc_page(m);
         if (data_pfn == 0) return 0;
         write_pte(m, l2_table_base, l2_index, data_pfn, prot);
     }
     return data_pfn;
+}
+
+/* Free every page a self-owned segment holds: the mapped data pages, then the
+ * L2 tables that described them, then the L1 table. Walked from the tables
+ * themselves, so demand-grown pages are covered without a separate record. */
+static void growable_free_pages(Nd500Machine* m, GrowableSegment* g) {
+    if (!m || !g || g->l1_table_base == 0) return;
+
+    for (uint32_t l1 = 0; l1 <= L1_INDEX_MASK; l1++) {
+        uint32_t l2_pfn = read_pte_pfn(m, g->l1_table_base, l1);
+        if (l2_pfn == 0) continue;              /* whole 1 MB range unmapped */
+        uint32_t l2_base = l2_pfn << PGSHIFT;
+
+        for (uint32_t l2 = 0; l2 <= L2_INDEX_MASK; l2++) {
+            uint32_t pfn = read_pte_pfn(m, l2_base, l2);
+            if (pfn != 0) nd500_phys_free_pages(m, pfn, 1);
+        }
+        nd500_phys_free_pages(m, l2_pfn, 1);
+    }
+    nd500_phys_free_pages(m, g->l1_table_base >> PGSHIFT, 1);
+    g->l1_table_base = 0;
 }
 
 static GrowableSegment* growable_find(uint8_t domain, uint32_t segment) {
@@ -249,18 +181,11 @@ int nd500_segment_grow_on_fault(void* cpu_ptr, uint32_t virtual_addr, uint8_t do
  */
 int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
     uint8_t domain, uint32_t segment, int psn,
-    uint32_t data_phys_base, uint32_t data_pages,
-    uint32_t watermark_floor_base)
+    uint32_t data_phys_base, uint32_t data_pages)
 {
     if (!cpu_ptr || !machine_ptr) return -1;
     Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
     Nd500Machine* m = (Nd500Machine*)machine_ptr;
-
-    watermark_init(cpu, m);
-    /* Seed the allocator ABOVE the DOM's own allocations - the critical anti-
-     * collision step (PS_ADI pages are invisible to find_highest_used_pfn). */
-    uint32_t floor_pfn = (watermark_floor_base + NBPG - 1) >> PGSHIFT;
-    if (g_next_free_pfn < floor_pfn) g_next_free_pfn = floor_pfn;
 
     /* Claim a growable slot. */
     GrowableSegment* g = NULL;
@@ -269,7 +194,7 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
     }
     if (!g) return -1;
 
-    uint32_t l1_pfn = watermark_alloc_page(m);
+    uint32_t l1_pfn = alloc_page(m);
     if (l1_pfn == 0) return -1;
 
     g->in_use = 1;
@@ -277,6 +202,7 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
     g->segment = segment;
     g->l1_table_base = l1_pfn << PGSHIFT;
     g->writable = 1;   /* DATA is RW */
+    g->owns_pages = 0; /* the initialized DATA pages belong to the loader */
 
     /* Map the already-loaded initialized pages by ADOPTING their existing PFNs
      * (do NOT allocate fresh pages - the bytes are already in place). Pages the
@@ -288,7 +214,7 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
 
         uint32_t l2_pfn = read_pte_pfn(m, g->l1_table_base, l1_index);
         if (l2_pfn == 0) {
-            l2_pfn = watermark_alloc_page(m);   /* one page = 512 L2 entries */
+            l2_pfn = alloc_page(m);   /* one page = 512 L2 entries */
             if (l2_pfn == 0) { g->in_use = 0; return -1; }
             /* L1 entry stays writable: PS_ADI checks BOTH levels on a write. */
             write_pte(m, g->l1_table_base, l1_index, l2_pfn, 0);
@@ -319,27 +245,20 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
  */
 uint32_t nd500_segment_map_bounded_data(void* cpu_ptr, void* machine_ptr,
     int psn, uint32_t data_phys_base, uint32_t data_pages,
-    uint32_t reserve_pages, uint32_t watermark_floor_base)
+    uint32_t reserve_pages)
 {
     if (!cpu_ptr || !machine_ptr) return 0;
     Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
     Nd500Machine* m = (Nd500Machine*)machine_ptr;
 
-    watermark_init(cpu, m);
-    /* Seed the allocator ABOVE the DOM's own allocations (PS_ADI pages are
-     * invisible to find_highest_used_pfn) - same anti-collision step as the
-     * growable adopt path above. */
-    uint32_t floor_pfn = (watermark_floor_base + NBPG - 1) >> PGSHIFT;
-    if (g_next_free_pfn < floor_pfn) g_next_free_pfn = floor_pfn;
-
     static int bmdbg = -1;
     if (bmdbg < 0) { const char* e = getenv("ND500X_ALLOCDBG"); bmdbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
     if (bmdbg)
-        fprintf(stderr, "[BMDBG] psn=%d data_pages=%u reserve=%u floor_pfn=%u next_free_pfn=%u mem_pages=%u\n",
-                psn, data_pages, reserve_pages, floor_pfn, g_next_free_pfn,
+        fprintf(stderr, "[BMDBG] psn=%d data_pages=%u reserve=%u free_pages=%u mem_pages=%u\n",
+                psn, data_pages, reserve_pages, nd500_phys_pages_free(m),
                 (uint32_t)(m->memory_size >> PGSHIFT));
 
-    uint32_t l1_pfn = watermark_alloc_page(m);
+    uint32_t l1_pfn = alloc_page(m);
     if (l1_pfn == 0) return 0;
     uint32_t l1_base = l1_pfn << PGSHIFT;
 
@@ -352,7 +271,7 @@ uint32_t nd500_segment_map_bounded_data(void* cpu_ptr, void* machine_ptr,
 
         uint32_t l2_pfn = read_pte_pfn(m, l1_base, l1_index);
         if (l2_pfn == 0) {
-            l2_pfn = watermark_alloc_page(m);   /* one page = 512 L2 entries */
+            l2_pfn = alloc_page(m);   /* one page = 512 L2 entries */
             if (l2_pfn == 0) return 0;
             /* L1 entry stays writable: PS_ADI checks BOTH levels on a write. */
             write_pte(m, l1_base, l1_index, l2_pfn, 0);
@@ -361,7 +280,7 @@ uint32_t nd500_segment_map_bounded_data(void* cpu_ptr, void* machine_ptr,
         if (p < data_pages) {
             pfn = data_base_pfn + p;            /* adopt loaded content */
         } else {
-            pfn = watermark_alloc_page(m);      /* fresh zeroed reserve page */
+            pfn = alloc_page(m);      /* fresh zeroed reserve page */
             if (pfn == 0) return 0;
         }
         write_pte(m, l2_pfn << PGSHIFT, l2_index, pfn, 0 /*RW*/);
@@ -400,6 +319,7 @@ int nd500_segment_register_growable_alias(uint8_t domain, uint32_t alias_segment
     g->domain        = domain;
     g->segment       = alias_segment;
     g->l1_table_base = src->l1_table_base;  /* SAME tables - true alias */
+    g->owns_pages    = 0;  /* the source slot owns them; never free through an alias */
     g->writable      = src->writable;
     return 0;
 }
@@ -495,7 +415,18 @@ void nd500_segment_release(void* cpu_ptr, uint8_t domain, uint32_t segment)
         domain = (uint8_t)cpu->CED;
     }
     GrowableSegment* g = growable_find(domain, segment);
-    if (g) g->in_use = 0;
+    if (g) {
+        /* Return the segment's physical pages. Only for segments this module
+         * built from scratch (MON GSWSP/FSCNT): a segment that ADOPTED the DOM
+         * loader's initialized DATA pages does not own them, and an alias shares
+         * another slot's tables - freeing either would pull memory out from
+         * under a live domain. Those are reclaimed when their arena is popped. */
+        if (g->owns_pages && cpu && cpu->machine) {
+            growable_free_pages(cpu->machine, g);
+        }
+        g->in_use = 0;
+        g->owns_pages = 0;
+    }
 
     if (cpu) {
         uint16_t dc = nd500_mmu_get_data_capability(cpu, domain, segment);
@@ -602,8 +533,6 @@ static int alloc_backed_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain
     uint32_t num_pages = rounded_size / NBPG;
     if (num_pages == 0) num_pages = 1;
 
-    watermark_init(cpu, m);
-
     /* Claim a growable-segment slot before committing any memory. */
     GrowableSegment* g = NULL;
     for (int i = 0; i < GROWABLE_MAX_SEGMENTS; i++) {
@@ -622,7 +551,7 @@ static int alloc_backed_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain
     /* PS_ADI (two-level) so the segment can reach the architectural 128 MB:
      * L1 = 7 bits (128 tables) x L2 = 9 bits (512 pages) x 2 KB. The L1 table
      * is 128 entries * 4 bytes = 512 bytes, so one page holds it. */
-    uint32_t l1_pfn = watermark_alloc_page(m);
+    uint32_t l1_pfn = alloc_page(m);
     if (l1_pfn == 0) {
         return ERR_NO_PHYS_MEM;
     }
@@ -632,13 +561,16 @@ static int alloc_backed_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain
     g->segment = assigned_segment;
     g->l1_table_base = l1_pfn << PGSHIFT;
     g->writable = writable;
+    g->owns_pages = 1;  /* built entirely from allocator pages - freeable */
 
     /* Map the initial pages. */
     for (uint32_t i = 0; i < num_pages; i++) {
         uint32_t l1_index = (i >> 9) & L1_INDEX_MASK;
         uint32_t l2_index = i & L2_INDEX_MASK;
         if (growable_map_page(m, g, l1_index, l2_index) == 0) {
+            growable_free_pages(m, g);   /* undo the partial mapping */
             g->in_use = 0;
+            g->owns_pages = 0;
             return ERR_NO_PHYS_MEM;
         }
     }
@@ -662,10 +594,10 @@ static int alloc_backed_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain
         if (dbg) {
             uint32_t vbase = (uint32_t)assigned_segment << 27; /* VA seg field */
             fprintf(stderr, "[SEG] ic=%llu CED=%u dom=%u seg=%u vbase=%08X reqBytes=%u rounded=%u initPages=%u "
-                    "mode=ADI l1tbl=%08X psn=%d nextFreePfn=%u\n",
+                    "mode=ADI l1tbl=%08X psn=%d freePages=%u\n",
                     (unsigned long long)cpu->instruction_count, (unsigned)cpu->CED, domain, assigned_segment, vbase,
                     segment_size_bytes, rounded_size, num_pages,
-                    g->l1_table_base, psn, g_next_free_pfn); (void)0;
+                    g->l1_table_base, psn, nd500_phys_pages_free(m)); (void)0;
             fflush(stderr);
         }
     }
@@ -791,36 +723,41 @@ int nd500_mon_connect_file_as_segment(void* cpu_ptr, void* machine_ptr, uint8_t 
 
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Save / restore the segment-allocator's module state.
+ * Per-run allocation scope.
  *
- * NOTE: reconstructed after the uncommitted working-tree definitions were lost
- * (the file reverted to its committed content, which never carried these). The
- * module's entire persistent state is exactly the three statics below, so a
- * complete snapshot + restore is correct by construction. Used by the SINTRAN
- * shell (nd500x_shell.c) to isolate segment allocations made during a DOM run:
- * save before the run, restore afterwards so per-run growable segments and the
- * physical-page watermark do not leak into the persistent machine state.
+ * A DOM run (and a nested DOM started with MON 317B UECOM, or a new command)
+ * opens a scope before it loads and closes it when it exits. Closing frees
+ * every physical page the run took - loader segments, page tables and MON
+ * segments alike - and restores the growable-segment registry to what the
+ * caller had, so nothing the run created survives into its caller.
+ *
+ * The registry snapshot is a plain copy because scopes strictly nest: an inner
+ * run can only add slots on top of the outer run's, so restoring the outer
+ * copy is exactly right. The pages themselves are reclaimed by arena id, not
+ * by copying a counter back - the previous version restored a watermark and
+ * left the pages above it still described by live page tables.
  * ───────────────────────────────────────────────────────────────────────── */
 typedef struct {
     GrowableSegment growable[GROWABLE_MAX_SEGMENTS];
-    uint32_t        next_free_pfn;
-    void*           watermark_machine;
+    Nd500Machine*   machine;
+    uint32_t        arena;
 } SegAllocStateBlob;
 
-void* nd500_segment_alloc_state_save(void) {
+void* nd500_segment_alloc_state_save(void* machine_ptr) {
     SegAllocStateBlob* b = (SegAllocStateBlob*)malloc(sizeof(SegAllocStateBlob));
     if (!b) return NULL;
     memcpy(b->growable, g_growable, sizeof(g_growable));
-    b->next_free_pfn     = g_next_free_pfn;
-    b->watermark_machine = g_watermark_machine;
+    b->machine = (Nd500Machine*)machine_ptr;
+    b->arena   = b->machine ? nd500_phys_arena_push(b->machine) : 0;
     return b;
 }
 
 void nd500_segment_alloc_state_restore(void* blob) {
     if (!blob) return;
     SegAllocStateBlob* b = (SegAllocStateBlob*)blob;
+    if (b->machine && b->arena) {
+        nd500_phys_arena_pop(b->machine, b->arena);
+    }
     memcpy(g_growable, b->growable, sizeof(g_growable));
-    g_next_free_pfn     = b->next_free_pfn;
-    g_watermark_machine = b->watermark_machine;
     free(blob);
 }

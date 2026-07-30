@@ -52,7 +52,7 @@
 
 /* Segment-allocator C-side state snapshot (nd500_segment_alloc.c) - used to make
  * a nested 317B UECOM program run transparent to its caller. */
-void* nd500_segment_alloc_state_save(void);
+void* nd500_segment_alloc_state_save(void* machine_ptr);
 void  nd500_segment_alloc_state_restore(void* blob);
 
 /* ND500X_STODBG helper (nd500_mmu.h is not pulled in by cpu_protos.h). */
@@ -520,26 +520,19 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
     int saved_run  = g_machine->run_flag;
     int saved_stop = g_machine->stop_reason;
 
-    /* Snapshot the caller's physical RAM too. The DOM loader places every
-     * program at FIXED physical addresses (same PSN/page-tables as the caller),
-     * so a nested load OVERWRITES the caller's resident image - without this the
-     * caller resumes on the sub-program's page tables and hangs/crashes. The
-     * sub-program returns its results through FILES (scratch + output, flushed
-     * to the host disk on its LEAVE), NOT through RAM, so restoring RAM after
-     * the nested run preserves the caller's image without losing any output. */
-    uint8_t* mem_backup = NULL;
-    if (g_machine->memory && g_machine->memory_size) {
-        mem_backup = (uint8_t*)malloc(g_machine->memory_size);
-        if (mem_backup) memcpy(mem_backup, g_machine->memory, g_machine->memory_size);
-    }
-
-    /* Also snapshot the segment allocator's C-side state (growable-segment table
-     * + physical watermark): the sub-program allocates segments at the same
-     * fixed physical addresses as the caller, and restoring machine RAM without
-     * this leaves the caller pointing at a growable-segment table entry the
-     * sub-program overwrote - which surfaced as a spurious stack overflow in NC
-     * right after its codegen pass. */
-    void* seg_backup = nd500_segment_alloc_state_save();
+    /* Open a nested allocation scope. The sub-program's segments, page tables
+     * and MON segments come from physical pages the caller does not own, so
+     * BOTH domains stay resident at once and the sub-program cannot touch the
+     * caller's image. Closing the scope after the run frees exactly what the
+     * sub-program took.
+     *
+     * This replaces a copy of ALL of physical memory taken around every nested
+     * run: the loader used to place every program at the same fixed physical
+     * base, so a nested load overwrote the caller outright and the only way
+     * back was to restore the whole machine. That is also why a sub-program
+     * could only return results through FILES - anything it left in memory was
+     * discarded by the restore. It no longer is. */
+    void* seg_backup = nd500_segment_alloc_state_save(g_machine);
 
     /* And the C-side MMU tables (global PST + per-domain capabilities): the
      * nested DOM load overwrites PST entries the caller's domain still
@@ -557,7 +550,6 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
         rc = ndlib_dom_load_to_machine(g_machine, g_cpu, -1, NULL, NULL,
                                        &start_addr, &loaded_domain);
     if (rc != 0) {
-        if (mem_backup) { memcpy(g_machine->memory, mem_backup, g_machine->memory_size); free(mem_backup); }
         nd500_segment_alloc_state_restore(seg_backup);
         nd500_mmu_state_restore(mmu_backup);
         *g_cpu = saved_cpu;
@@ -601,10 +593,9 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
      * already closed only its own files). */
     mon_file_table_pop_generation();
 
-    /* Restore the caller so it resumes right after its UECOM call: physical RAM
-     * (undo the sub-program's clobber of the caller's resident image) then the
-     * full CPU context. The sub-program's file output already persisted to disk. */
-    if (mem_backup) { memcpy(g_machine->memory, mem_backup, g_machine->memory_size); free(mem_backup); }
+    /* Restore the caller so it resumes right after its UECOM call: free the
+     * sub-program's pages and drop its MMU entries, then reinstate the full CPU
+     * context. The caller's own memory was never touched. */
     nd500_segment_alloc_state_restore(seg_backup);
     nd500_mmu_state_restore(mmu_backup);
     *g_cpu = saved_cpu;
@@ -666,7 +657,7 @@ static void run_domain(const char* name, const char* args) {
      * ratchets on. A run leaves nothing live behind (files are written back
      * at MON 0B LEAVE), so roll BOTH back when the program exits - exactly
      * what the nested UECOM path (shell_execute_command) has done all along. */
-    void* seg_backup = nd500_segment_alloc_state_save();
+    void* seg_backup = nd500_segment_alloc_state_save(g_machine);
     void* mmu_backup = nd500_mmu_state_save();
 
     uint32_t start_addr = 0;

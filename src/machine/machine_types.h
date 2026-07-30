@@ -45,6 +45,10 @@ typedef struct Nd500Machine {
 	 * (set by nd500_dbg_run/nd500_dbg_step, consumed by nd500_cpu_step) */
 	uint32_t bp_resume_pc;
 	volatile int bp_resume_skip;
+	/* Physical page allocator bookkeeping (nd500_phys_alloc.c). Opaque here so
+	 * the machine layer does not depend on the allocator; built lazily on first
+	 * use and released by nd500_phys_alloc_reset(). */
+	void* phys_alloc;
 } Nd500Machine;
 
 /* Get human-readable stop reason string */

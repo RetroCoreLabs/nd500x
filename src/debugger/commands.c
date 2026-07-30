@@ -10,6 +10,7 @@
 #include "../ndlib/ndlib.h"
 #include "../cpu/cpu_protos.h"
 #include "../cpu/nd500_mmu.h"
+#include "../cpu/nd500_phys_alloc.h"
 #include "../cpu/nd500_domain.h"
 #include "../cpu/instruction_helpers.h"
 #include <ndmon/mon.h>
@@ -1133,6 +1134,25 @@ static int cmd_load(Nd500Machine* m, CmdContext* ctx, char* args) {
 #define DSEG_KERNEL_BASE 0x08000000
 #define DSEG_USER_BASE   0xD0000000
 
+/* Mark a hand-loaded image's pages as permanently in use. The file's size is
+ * the extent actually written; a failure here only means some page is already
+ * held by a live domain, which is worth saying out loud rather than ignoring. */
+static void reserve_loaded_image(Nd500Machine* m, CmdContext* ctx,
+                                 uint32_t base_addr, const char* filepath,
+                                 const char* what) {
+	FILE* f = fopen(filepath, "rb");
+	if (!f) return;
+	long sz = -1;
+	if (fseek(f, 0, SEEK_END) == 0) sz = ftell(f);
+	fclose(f);
+	if (sz <= 0) return;
+
+	if (nd500_phys_reserve(m, base_addr, (uint32_t)sz) != 0) {
+		error(ctx, "warning: %s at 0x%08X overlaps memory a loaded domain owns",
+		      what, base_addr);
+	}
+}
+
 static int cmd_load_pseg(Nd500Machine* m, CmdContext* ctx, char* args) {
 	if (!m || !m->cpu) {
 		error(ctx, "no machine or cpu");
@@ -1170,6 +1190,11 @@ static int cmd_load_pseg(Nd500Machine* m, CmdContext* ctx, char* args) {
 		error(ctx, "failed to load PSEG '%s': %s", filepath, errmsg);
 		return -1;
 	}
+
+	/* Claim the loaded extent so the page allocator never hands these frames to
+	 * a domain loaded later. Independent of mmusetup, which reserves its own
+	 * fixed layout - reserving the same pages twice is harmless. */
+	reserve_loaded_image(m, ctx, base_addr, filepath, "PSEG");
 
 	output(ctx, "loaded PSEG: %s at 0x%08X", filepath, base_addr);
 	return 0;
@@ -1226,6 +1251,8 @@ static int cmd_load_dseg(Nd500Machine* m, CmdContext* ctx, char* args) {
 	 * base_addr is where load-dseg placed the DSEG (0x41a94 = a_text for a contiguous
 	 * pseg+dseg load). Mirrors the --aout path's g_data_base = a_text. */
 	ndlib_aout_set_data_base(base_addr);
+
+	reserve_loaded_image(m, ctx, base_addr, filepath, "DSEG");
 
 	output(ctx, "loaded DSEG: %s at 0x%08X", filepath, base_addr);
 	return 0;
@@ -3032,6 +3059,14 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	 * after mmusetup and would wipe a value set at this point. See the comment
 	 * in kernel/MASTER/GENERIC/vmunix.init for the full rationale (it is what
 	 * lets the /etc/init launch RET at PC=0x29 switch domains, manual 4.2.5.2). */
+	/* Tell the physical page allocator that this whole region is spoken for.
+	 * The layout above is hand-built at fixed addresses and never passes through
+	 * the allocator, so without this a DOM loaded afterwards would be handed the
+	 * kernel's own pages. Reserved pages are permanent: no arena pop frees them. */
+	if (nd500_phys_reserve(m, 0x00000000, 0x00180000) != 0) {
+		error(ctx, "warning: could not reserve 0x000000-0x17FFFF - a domain may already hold part of it");
+	}
+
 	/* Zero the PST (32KB) and DIT (64KB) so unset segments read capability 0
 	 * (=> demand-map / identity fallback) instead of stale RAM garbage. */
 	for (uint32_t a = 0x00080000; a < 0x000A0000; a++)

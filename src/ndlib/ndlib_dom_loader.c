@@ -30,6 +30,7 @@
 #include "ndlib.h"
 #include "nd500_dom.h"
 #include "../cpu/nd500_mmu.h"
+#include "../cpu/nd500_phys_alloc.h"
 #include "../cpu/nd500_domain.h"
 #include "../machine/machine_protos.h"
 #include "../debugger/debugger.h"
@@ -91,47 +92,54 @@
  *   m              - Machine for memory allocation
  *   cpu            - CPU to configure MMU
  *   domain         - Domain to set DC[31] for
- *   pt_alloc_base  - Physical address to allocate from (updated on return)
  *   next_psn       - Next available PST number (updated on return)
  *   log_callback   - Optional logging callback
  *   log_context    - Context for logging
  *
  * Returns: 0 on success, -1 on error
  */
+/* Claim the next FREE PST entry at or after *from (which is advanced past it).
+ * A PST entry is free when it describes nothing: index_mode 0 and PFN 0.
+ * Returns -1 when the table is full. */
+static int alloc_free_psn(Nd500Cpu* cpu, int* from) {
+    for (int psn = *from; psn < MAX_PST; psn++) {
+        PhysicalSegmentTableEntry e = nd500_mmu_get_pst_entry(cpu, psn);
+        if (e.index_mode == 0 && e.physical_pfn == 0) {
+            *from = psn + 1;
+            return psn;
+        }
+    }
+    return -1;
+}
+
 static int setup_sintran_window(
     Nd500Machine* m,
     Nd500Cpu* cpu,
     int domain,
-    uint32_t* pt_alloc_base,
     int* next_psn,
     void (*log_callback)(void* ctx, const char* fmt, ...),
     void* log_context)
 {
-    if (!m || !cpu || !pt_alloc_base || !next_psn) {
+    if (!m || !cpu || !next_psn) {
         return -1;
     }
 
-    uint32_t alloc_base = *pt_alloc_base;
+    /* Window pages and the page table describing them both come from the
+     * machine's page allocator, zeroed: a recycled page still holds the
+     * previous owner's bytes, and a page table with leftovers after its last
+     * real entry maps garbage instead of faulting. */
+    uint32_t win_pages = (SINTRAN_WINDOW_SIZE + 2047) / 2048;
+    uint32_t win_pfn = nd500_phys_alloc_pages(m, win_pages, /*zero=*/1);
+    if (win_pfn == 0) return -1;
+    uint32_t sintran_phys_base = win_pfn << 11;
 
-    /* Allocate physical memory for SINTRAN window */
-    uint32_t sintran_phys_base = alloc_base;
-    alloc_base = (alloc_base + SINTRAN_WINDOW_SIZE + 2047) & ~2047u;
-
-    /* Zero-initialize the SINTRAN window
-     * This ensures clean state for RT descriptions and system tables
-     */
-    for (uint32_t j = 0; j < SINTRAN_WINDOW_SIZE; j++) {
-        nd500_bus_write8(m, sintran_phys_base + j, 0);
+    uint32_t pt_pages = (SINTRAN_WINDOW_PAGES * 4 + 2047) / 2048;
+    uint32_t pt_pfn = nd500_phys_alloc_pages(m, pt_pages, /*zero=*/1);
+    if (pt_pfn == 0) {
+        nd500_phys_free_pages(m, win_pfn, win_pages);
+        return -1;
     }
-
-    /* Create page table for SINTRAN window. Zero the allocated area first -
-     * same leftover-memory hazard as the PROG page tables (see the PROG PT
-     * comment in ndlib_dom_load_to_machine). */
-    uint32_t sintran_pt_base = alloc_base;
-    alloc_base = (alloc_base + SINTRAN_WINDOW_PAGES * 4 + 2047) & ~2047u;
-    for (uint32_t z = sintran_pt_base; z < alloc_base; z += 4) {
-        nd500_bus_write32(m, z, 0);
-    }
+    uint32_t sintran_pt_base = pt_pfn << 11;
 
     /* Fill page table with PTEs for SINTRAN window pages.
      * ND-500 hardware pte.h format (per commit 6b3d4fb): pg_prot@31, pg_pfnum@[29:0].
@@ -145,7 +153,12 @@ static int setup_sintran_window(
     }
 
     /* Allocate PST entry for SINTRAN window */
-    int sintran_psn = (*next_psn)++;
+    int sintran_psn = alloc_free_psn(cpu, next_psn);
+    if (sintran_psn < 0) {
+        nd500_phys_free_pages(m, pt_pfn, pt_pages);
+        nd500_phys_free_pages(m, win_pfn, win_pages);
+        return -1;
+    }
     nd500_mmu_set_pst_entry(cpu, sintran_psn, PS_ASI, sintran_pt_base >> 11);
 
     /* Set DC[31] to allow data access to SINTRAN window */
@@ -155,9 +168,6 @@ static int setup_sintran_window(
         log_callback(log_context, "  Seg 31 SINTRAN Window: %u pages @ phys 0x%08X, PSN %d",
                      SINTRAN_WINDOW_PAGES, sintran_phys_base, sintran_psn);
     }
-
-    /* Update allocation pointer */
-    *pt_alloc_base = alloc_base;
 
     return 0;
 }
@@ -280,9 +290,6 @@ int ndlib_dom_load_to_machine(
 
     int max_segs = is_dom ? 32 : 1;
     int found = 0;
-    /* Start at page 1 (0x800) to avoid PFN 0 which is used as "invalid PTE" marker */
-    uint32_t phys_base = 0x00000800;  /* Page 1 = physical address 0x800 (2KB) */
-    uint32_t total_loaded = 0;
 
     /* Per-segment tracking array */
     SegmentInfo seg_info[32];
@@ -308,8 +315,34 @@ int ndlib_dom_load_to_machine(
             continue;  /* Skip empty segments */
         }
 
-        /* Calculate base physical address for this segment (page-aligned) */
-        uint32_t seg_phys_base = (phys_base + total_loaded + 0x7FF) & ~0x7FFu;
+        /* Take this segment's physical pages from the machine's allocator.
+         *
+         * Every DOM used to be placed at the SAME fixed base (phys 0x800) off a
+         * bump cursor, so loading a second domain wrote over the first one's
+         * resident image - which is why a nested UECOM run had to copy all of
+         * physical memory out and back around itself, and why a sub-program
+         * could only return results through files. With real allocation each
+         * domain gets its own frames and several can be live at once.
+         *
+         * PROG and DATA stay in ONE contiguous block per segment: DATA is
+         * placed at a page boundary after PROG and the DATA mapping adopts a
+         * contiguous PFN run from there. */
+        uint32_t prog_bytes = (prog_data && prog_size) ? prog_size : 0;
+        uint32_t data_bytes = (dat_data && data_size) ? data_size : 0;
+        uint32_t seg_pages = ((prog_bytes + 2047) / 2048)
+                           + ((data_bytes + 2047) / 2048);
+        if (seg_pages == 0) seg_pages = 1;
+
+        uint32_t seg_pfn = nd500_phys_alloc_pages(m, seg_pages, /*zero=*/1);
+        if (seg_pfn == 0) {
+            if (log_callback) {
+                log_callback(log_context,
+                    "  Segment %d: out of physical memory (%u pages needed, %u free)",
+                    i, seg_pages, nd500_phys_pages_free(m));
+            }
+            return -1;
+        }
+        uint32_t seg_phys_base = seg_pfn << 11;
         uint32_t prog_pages = 0;
         uint32_t byte_offset = 0;
 
@@ -355,9 +388,7 @@ int ndlib_dom_load_to_machine(
             byte_offset = aligned_offset + data_size;
             found++;
         }
-
-        /* Update total loaded: round up to page boundary for next segment */
-        total_loaded = (seg_phys_base - phys_base) + ((byte_offset + 2047) & ~2047u);
+        (void)byte_offset;   /* segments no longer share one bump cursor */
     }
 
     /* Determine segment types */
@@ -423,9 +454,11 @@ int ndlib_dom_load_to_machine(
      * This matches the C# RetroCore implementation.
      * ======================================================================== */
 
-    /* Track where to allocate page tables (after all segment data) */
-    uint32_t pt_alloc_base = (phys_base + total_loaded + 2047) & ~2047u;
-    int next_psn = 100;  /* Start allocating PST entries from 100 */
+    /* PST entries are claimed by SEARCHING for free ones rather than counting up
+     * from a fixed index: with more than one domain resident (a DOM that starts
+     * another DOM, or a new command), a fixed start would hand the second load
+     * the entries the first one is still translating through. */
+    int next_psn = 100;  /* first index considered, not a running counter */
 
     /* DATA segments are built PS_ASI (single-level) with a fixed page reserve,
      * in-line below. This is the proven-good aa5cd5e mapping, restored after the
@@ -470,19 +503,20 @@ int ndlib_dom_load_to_machine(
             uint32_t prog_pages = (seg_info[i].prog_size + 2047) / 2048;
             if (prog_pages == 0) prog_pages = 1;
 
-            /* Allocate page table. ZERO the whole allocated area first: memory
-             * here may hold a PREVIOUS run's data (the machine is only zeroed
-             * at power-on, and program loads land at fixed physical bases).
-             * Consumers scan a PS_ASI page table "until the first zero PTE"
-             * (find_highest_used_pfn), so a non-zero leftover after the last
-             * real PTE reads as a garbage PFN - which seeded the watermark
-             * allocator beyond the end of memory and made every DOM load
-             * after a large program (the linker) fail. */
-            uint32_t pt_base = pt_alloc_base;
-            pt_alloc_base = (pt_alloc_base + prog_pages * 4 + 2047) & ~2047u;
-            for (uint32_t z = pt_base; z < pt_alloc_base; z += 4) {
-                nd500_bus_write32(m, z, 0);
+            /* Allocate the page table, ZEROED. A recycled page still holds the
+             * previous owner's bytes, and PTE validity here is "PFN != 0", so
+             * leftovers after the last real entry would MAP GARBAGE instead of
+             * faulting on an access past the segment's pages. */
+            uint32_t pt_pages = (prog_pages * 4 + 2047) / 2048;
+            uint32_t pt_pfn = nd500_phys_alloc_pages(m, pt_pages, /*zero=*/1);
+            if (pt_pfn == 0) {
+                if (log_callback) {
+                    log_callback(log_context,
+                        "  Seg %d PROG: out of physical memory for page table", i);
+                }
+                return -1;
             }
+            uint32_t pt_base = pt_pfn << 11;
 
             /* Fill page table - PTEs for PROG pages.
              * ND-500 hardware pte.h format (commit 6b3d4fb): pg_prot@31, pg_pfnum@[29:0]. */
@@ -494,7 +528,8 @@ int ndlib_dom_load_to_machine(
             }
 
             /* Allocate PST entry and set up */
-            seg_info[i].psn_prog = next_psn++;
+            seg_info[i].psn_prog = alloc_free_psn(cpu, &next_psn);
+            if (seg_info[i].psn_prog < 0) return -1;
             nd500_mmu_set_pst_entry(cpu, seg_info[i].psn_prog, PS_ASI, pt_base >> 11);
 
             /* Set program capability for this segment */
@@ -507,18 +542,17 @@ int ndlib_dom_load_to_machine(
         }
 
         /* Create SEPARATE PST entry + data capability for DATA (if segment has
-         * data). The page tables themselves are built in PASS 2 below (after
-         * setup_sintran_window) as BOUNDED PS_ADI two-level: the builder's
-         * watermark allocator must start above the loader's FINAL cursor, and
-         * the SINTRAN window still allocates from pt_alloc_base after this
-         * loop. PS_ADI lifts the PS_ASI 1 MB cap that truncated real DOMs
+         * data). The page tables themselves are built in PASS 2 below, as
+         * BOUNDED PS_ADI two-level.
+         * PS_ADI lifts the PS_ASI 1 MB cap that truncated real DOMs
          * (FILE-COMPARE ships 1003 pages / 2 MB of initialized seg-1 DATA,
          * its THA vector in the unreachable upper half), while staying
          * NON-growable so an access past data+reserve still traps to the
          * guest THA exactly like PS_ASI did (the fault boundary NC's codegen
          * relies on - see the block comment above). */
         if (seg_info[i].has_data) {
-            seg_info[i].psn_data = next_psn++;
+            seg_info[i].psn_data = alloc_free_psn(cpu, &next_psn);
+            if (seg_info[i].psn_data < 0) return -1;
             nd500_mmu_set_data_capability(cpu, domain, i, seg_info[i].psn_data | DC_WRP);
         }
 
@@ -595,7 +629,7 @@ int ndlib_dom_load_to_machine(
     /* DC[31]: SINTRAN Window - allocate physical memory for system data
      * See setup_sintran_window() for architectural details and future ND-100 integration notes.
      */
-    if (setup_sintran_window(m, cpu, domain, &pt_alloc_base, &next_psn, log_callback, log_context) != 0) {
+    if (setup_sintran_window(m, cpu, domain, &next_psn, log_callback, log_context) != 0) {
         if (log_callback) {
             log_callback(log_context, "Warning: Failed to setup SINTRAN window (DC[31])");
         }
@@ -603,9 +637,7 @@ int ndlib_dom_load_to_machine(
 
     /* ========================================================================
      * PASS 2: build the DATA page tables (bounded PS_ADI two-level).
-     * Runs after every pt_alloc_base allocation is done, so the builder's
-     * watermark pages (L1/L2 tables + zeroed reserve) sit strictly above the
-     * loader's final cursor. Adopts the loaded initialized pages, eagerly maps
+     * Adopts the loaded initialized pages, eagerly maps
      * DATA_GROWTH_RESERVE_PAGES of zeroed reserve for stack/heap/bss, and does
      * NOT register the segment growable - past the owned extent the MMU traps
      * to the guest THA exactly like the old PS_ASI mapping (NC's fault
@@ -621,7 +653,7 @@ int ndlib_dom_load_to_machine(
 
         uint32_t l1_pfn = nd500_segment_map_bounded_data(cpu, m,
             seg_info[i].psn_data, seg_info[i].data_phys_base, data_pages,
-            DATA_GROWTH_RESERVE_PAGES, pt_alloc_base);
+            DATA_GROWTH_RESERVE_PAGES);
         if (l1_pfn == 0) {
             if (log_callback) {
                 log_callback(log_context, "ERROR: bounded DATA mapping failed for seg %d", i);
@@ -642,14 +674,15 @@ int ndlib_dom_load_to_machine(
     if (log_callback) {
         log_callback(log_context, "");
         log_callback(log_context, "MMU Configuration:");
-        log_callback(log_context, "  PSN range: 100-%d", next_psn - 1);
+        log_callback(log_context, "  Highest PSN claimed: %d", next_psn - 1);
         log_callback(log_context, "  Segment 31: SINTRAN MON calls (indirect)");
         log_callback(log_context, "  MMU enabled (Program and Data)");
         if (tha != 0) {
             log_callback(log_context, "  THA: 0x%08X", tha);
         }
         log_callback(log_context, "");
-        log_callback(log_context, "Total loaded: %u bytes", total_loaded);
+        log_callback(log_context, "Physical pages still free: %u of %u",
+                     nd500_phys_pages_free(m), nd500_phys_pages_total(m));
     }
 
     /* Set PC to start address */
