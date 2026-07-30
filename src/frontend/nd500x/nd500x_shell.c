@@ -380,6 +380,57 @@ static void restore_cooked(void) {
 #define UECOM_MAX_NEST 4
 static int g_uecom_nest = 0;
 
+/* A program suspended on a DEVICE-0 read (MON 1B INBT, logical device 0 = the
+ * SINTRAN command buffer). The command buffer only ever held the invocation
+ * arguments, so once exhausted the program could never see anything the user
+ * typed: the run loop's mon_console_wait_for_input() confirmed a console byte,
+ * but the retried INBT re-read the (still empty) command buffer and suspended
+ * again, forever (CODE-COVERAGE and the PLANC compiler prompt-read this way).
+ * Real SINTRAN refills a background program's command buffer with the next
+ * line from the command input device - the terminal. Model that: read ONE
+ * line from the active console (echoing it), load it as the new command
+ * buffer content, and let the caller resume the program. Deliberately NOT a
+ * fallthrough to console reads inside INBT itself: that would steal bytes
+ * from programs that interleave device-0 polls with device-1/DVINST reads
+ * (the ND linker) and from MODE script streams.
+ * Returns 1 when a line was fed, 0 on EOF (nothing can ever arrive). */
+static int shell_feed_command_line(void) {
+    ConsoleIO* con = mon_file_table_get_console();
+    if (!con || !con->read_char) return 0;
+    char line[256];
+    size_t n = 0;
+    if (!mon_console_wait_for_input()) return 0;
+    for (;;) {
+        int c = con->read_char(con->context);
+        if (c < 0) {                       /* EOF mid-line */
+            if (n == 0) return 0;
+            break;                         /* deliver what we have */
+        }
+        if (c == '\r' || c == '\n') break;
+        if (n < sizeof(line) - 1) line[n++] = (char)c;
+        if (con->write_char) con->write_char(con->context, c);   /* echo */
+        if (con->char_available && !con->char_available(con->context)) {
+            if (!mon_console_wait_for_input()) break;
+        }
+    }
+    line[n] = '\0';
+    if (con->write_char) {                 /* echo the line terminator */
+        con->write_char(con->context, '\r');
+        con->write_char(con->context, '\n');
+    }
+    mon_set_command_buffer(line);          /* resets read pos; INBT retry reads it */
+    return 1;
+}
+
+/* Resume decision for a STOP_WAIT_INPUT suspend: device 0 refills the command
+ * buffer from the console; any other device just blocks for console input
+ * (the retried read consumes it directly). */
+static int shell_wait_input_resume(void) {
+    if (g_machine->stop_data == 0)
+        return shell_feed_command_line();
+    return mon_console_wait_for_input();
+}
+
 static int shell_execute_command(void* cpu_v, void* machine_v, const char* command) {
     (void)cpu_v; (void)machine_v;   /* use the shell globals g_cpu / g_machine */
     if (!command || !*command) return -1;
@@ -505,7 +556,7 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
         int ok = nd500_cpu_step(g_cpu);
         steps++;
         if (g_machine->stop_reason == STOP_WAIT_INPUT) {
-            if (mon_console_wait_for_input()) {
+            if (shell_wait_input_resume()) {
                 g_machine->stop_reason = STOP_NONE;
                 g_machine->run_flag = 1;
                 continue;
@@ -635,7 +686,7 @@ static void run_domain(const char* name, const char* args) {
          * a suspended step returns "ok" while clearing run_flag, so checking it
          * only on the failure branch would let the program fall out and exit. */
         if (g_machine->stop_reason == STOP_WAIT_INPUT) {
-            if (mon_console_wait_for_input()) {
+            if (shell_wait_input_resume()) {
                 g_machine->stop_reason = STOP_NONE;
                 g_machine->run_flag = 1;
                 continue;
