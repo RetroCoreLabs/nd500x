@@ -293,6 +293,71 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
 }
 
 /**
+ * Map a DOM DATA segment as BOUNDED PS_ADI two-level: adopt the loaded
+ * initialized pages + eagerly map a contiguous zeroed reserve, and do NOT
+ * register the segment as growable. Any access past data_pages+reserve_pages
+ * then TRAPS (TRAP_PGF to the guest THA) exactly like the old PS_ASI path -
+ * the fault boundary NC's codegen deliberately relies on (it probes seg-0 at
+ * 34 MB and recovers in its own PGF handler; silently demand-growing there
+ * was the 951237d regression). Unlike PS_ASI the owned extent may exceed 512
+ * pages (L1 > 0), which real DOMs need: FILE-COMPARE ships 1003 pages (2 MB)
+ * of initialized seg-1 DATA whose upper half (including its THA vector) was
+ * unreachable under the PS_ASI cap. Design + evidence:
+ * PLAN-nd500x-growable-DATA-option2-redesign-2026-07-26.md (option b).
+ *
+ * Returns the PS_ADI L1 table PFN (>0) on success so the caller can share the
+ * tables via a plain capability alias, or 0 on failure.
+ */
+uint32_t nd500_segment_map_bounded_data(void* cpu_ptr, void* machine_ptr,
+    int psn, uint32_t data_phys_base, uint32_t data_pages,
+    uint32_t reserve_pages, uint32_t watermark_floor_base)
+{
+    if (!cpu_ptr || !machine_ptr) return 0;
+    Nd500Cpu* cpu = (Nd500Cpu*)cpu_ptr;
+    Nd500Machine* m = (Nd500Machine*)machine_ptr;
+
+    watermark_init(cpu, m);
+    /* Seed the allocator ABOVE the DOM's own allocations (PS_ADI pages are
+     * invisible to find_highest_used_pfn) - same anti-collision step as the
+     * growable adopt path above. */
+    uint32_t floor_pfn = (watermark_floor_base + NBPG - 1) >> PGSHIFT;
+    if (g_next_free_pfn < floor_pfn) g_next_free_pfn = floor_pfn;
+
+    uint32_t l1_pfn = watermark_alloc_page(m);
+    if (l1_pfn == 0) return 0;
+    uint32_t l1_base = l1_pfn << PGSHIFT;
+
+    uint32_t data_base_pfn = data_phys_base >> PGSHIFT;
+    uint32_t total_pages = data_pages + reserve_pages;
+
+    for (uint32_t p = 0; p < total_pages; p++) {
+        uint32_t l1_index = (p >> 9) & L1_INDEX_MASK;
+        uint32_t l2_index = p & L2_INDEX_MASK;
+
+        uint32_t l2_pfn = read_pte_pfn(m, l1_base, l1_index);
+        if (l2_pfn == 0) {
+            l2_pfn = watermark_alloc_page(m);   /* one page = 512 L2 entries */
+            if (l2_pfn == 0) return 0;
+            /* L1 entry stays writable: PS_ADI checks BOTH levels on a write. */
+            write_pte(m, l1_base, l1_index, l2_pfn, 0);
+        }
+        uint32_t pfn;
+        if (p < data_pages) {
+            pfn = data_base_pfn + p;            /* adopt loaded content */
+        } else {
+            pfn = watermark_alloc_page(m);      /* fresh zeroed reserve page */
+            if (pfn == 0) return 0;
+        }
+        write_pte(m, l2_pfn << PGSHIFT, l2_index, pfn, 0 /*RW*/);
+    }
+
+    nd500_mmu_set_pst_entry(cpu, psn, PS_ADI, l1_pfn);
+    /* Deliberately NO g_growable entry: growable_find() must fail for this
+     * segment so grow_on_fault declines and the MMU traps past the bound. */
+    return l1_pfn;
+}
+
+/**
  * Register a growable ALIAS: make demand-growth for `alias_segment` reuse the
  * SAME two-level tables as an existing growable `source_segment`. Needed for the
  * DOM loader's FORTRAN/compiler compatibility alias, where segment 0 is capability

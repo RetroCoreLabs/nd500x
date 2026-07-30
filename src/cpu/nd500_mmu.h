@@ -225,6 +225,19 @@ int nd500_segment_adopt_growable_data(void* cpu_ptr, void* machine_ptr,
     uint32_t data_phys_base, uint32_t data_pages,
     uint32_t watermark_floor_base);
 
+/* Build a DOM DATA segment as BOUNDED PS_ADI two-level: adopt the loaded
+ * initialized pages (data_pages from data_phys_base) + eagerly map
+ * reserve_pages of fresh zeroed pages, and do NOT register it growable, so an
+ * access past the owned extent TRAPS to the guest THA exactly like the old
+ * PS_ASI path (the fault boundary NC's codegen relies on) while the owned
+ * extent may exceed the PS_ASI 1 MB cap (FILE-COMPARE ships a 2 MB DSEG).
+ * Returns the L1 table PFN (>0) so the caller can share the tables via a
+ * plain capability alias, or 0 on failure. Defined in nd500_segment_alloc.c.
+ * Design: PLAN-nd500x-growable-DATA-option2-redesign-2026-07-26.md option b. */
+uint32_t nd500_segment_map_bounded_data(void* cpu_ptr, void* machine_ptr,
+    int psn, uint32_t data_phys_base, uint32_t data_pages,
+    uint32_t reserve_pages, uint32_t watermark_floor_base);
+
 /* Register a growable ALIAS so demand-growth for alias_segment reuses the same
  * two-level tables as source_segment (the DOM loader's FORTRAN/compiler
  * segment-0 -> segment-1 DATA alias). Defined in nd500_segment_alloc.c. */

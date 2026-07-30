@@ -394,6 +394,18 @@ int ndlib_dom_load_to_machine(
     cpu->CTE1  = cte1;  cpu->CTE2  = cte2;
     cpu->TEMM1 = temm1; cpu->TEMM2 = temm2;
 
+    /* A freshly placed program starts with a CLEAN status register. ST1/ST2
+     * carry sticky trap-status bits (Table 10) that the previous program in
+     * this session may have left set (e.g. an ignorable trap it never enabled
+     * in OTE). Combined with the NEW program's OTE from the header, a stale
+     * bit dispatched a spurious trap on the program's FIRST instruction
+     * (check_pending_traps fires on ST & OTE): PLANC left a pending bit and
+     * the next FILE-COMPARE stormed reading its THA vector before executing
+     * anything. Same for a stale in-trap-handler flag. */
+    cpu->ST1 = 0;
+    cpu->ST2 = 0;
+    cpu->in_trap_handler = false;
+
     /* ========================================================================
      * Set up MMU page tables using PS_ASI (single-level paging)
      *
@@ -475,53 +487,20 @@ int ndlib_dom_load_to_machine(
             }
         }
 
-        /* Create SEPARATE page table and PST entry for DATA (if segment has data).
-         * PS_ASI single-level + fixed reserve (restored from aa5cd5e; see the
-         * block comment above for why the PS_ADI growable rewrite was reverted). */
+        /* Create SEPARATE PST entry + data capability for DATA (if segment has
+         * data). The page tables themselves are built in PASS 2 below (after
+         * setup_sintran_window) as BOUNDED PS_ADI two-level: the builder's
+         * watermark allocator must start above the loader's FINAL cursor, and
+         * the SINTRAN window still allocates from pt_alloc_base after this
+         * loop. PS_ADI lifts the PS_ASI 1 MB cap that truncated real DOMs
+         * (FILE-COMPARE ships 1003 pages / 2 MB of initialized seg-1 DATA,
+         * its THA vector in the unreachable upper half), while staying
+         * NON-growable so an access past data+reserve still traps to the
+         * guest THA exactly like PS_ASI did (the fault boundary NC's codegen
+         * relies on - see the block comment above). */
         if (seg_info[i].has_data) {
-            uint32_t data_pages = (seg_info[i].data_size + 2047) / 2048;
-            if (data_pages == 0) data_pages = 1;
-
-            /* Reserve extra pages above the initialized data for stack/heap/bss
-             * growth (see DATA_GROWTH_RESERVE_PAGES). These map to fresh physical
-             * pages taken from the allocation cursor; machine memory is zeroed at
-             * init, so they read as 0 (correct for bss/fresh stack). */
-            uint32_t reserve_pages = DATA_GROWTH_RESERVE_PAGES;
-            uint32_t total_pages = data_pages + reserve_pages;
-
-            uint32_t reserve_phys_base = pt_alloc_base;
-            pt_alloc_base = (pt_alloc_base + reserve_pages * 2048 + 2047) & ~2047u;
-
-            /* Allocate page table sized for the initialized data + reserve */
-            uint32_t pt_base = pt_alloc_base;
-            pt_alloc_base = (pt_alloc_base + total_pages * 4 + 2047) & ~2047u;
-
-            /* Fill page table: initialized-data PTEs point at data_phys_base;
-             * reserve PTEs point at the fresh zeroed physical block.
-             * ND-500 hardware pte.h format (commit 6b3d4fb): pg_prot@31, pg_pfnum@[29:0]. */
-            uint32_t data_base_pfn = seg_info[i].data_phys_base >> 11;
-            uint32_t reserve_base_pfn = reserve_phys_base >> 11;
-
-            for (uint32_t p = 0; p < total_pages; p++) {
-                uint32_t pte_addr = pt_base + p * 4;
-                uint32_t pfn = (p < data_pages)
-                                 ? (data_base_pfn + p)
-                                 : (reserve_base_pfn + (p - data_pages));
-                uint32_t pte = (pfn & 0x3FFFFFFFu);  /* prot=0 (RW data) */
-                nd500_bus_write32(m, pte_addr, pte);
-            }
-
-            /* Allocate PST entry and set up */
             seg_info[i].psn_data = next_psn++;
-            nd500_mmu_set_pst_entry(cpu, seg_info[i].psn_data, PS_ASI, pt_base >> 11);
-
-            /* Set data capability for this segment (write-permitted) */
             nd500_mmu_set_data_capability(cpu, domain, i, seg_info[i].psn_data | DC_WRP);
-
-            if (log_callback) {
-                log_callback(log_context, "  Seg %d DATA: %u pages, PT @ 0x%08X, PSN %d",
-                             i, data_pages, pt_base, seg_info[i].psn_data);
-            }
         }
 
         /* ProgramOnly segments: set DC to same as PC for read-only data access */
@@ -544,8 +523,9 @@ int ndlib_dom_load_to_machine(
         }
     }
 
-    /* (PS_ADI growable pass-2 removed with the 951237d revert - DATA segments are
-     * now built PS_ASI + reserve in the per-segment loop above.) */
+    /* (DATA page tables are built in PASS 2 after setup_sintran_window below,
+     * so the bounded-PS_ADI builder's watermark pages land above the loader's
+     * final allocation cursor.) */
 
     /* ========================================================================
      * SEGMENT 31: SINTRAN III Monitor Call Interception + Data Window
@@ -599,6 +579,40 @@ int ndlib_dom_load_to_machine(
     if (setup_sintran_window(m, cpu, domain, &pt_alloc_base, &next_psn, log_callback, log_context) != 0) {
         if (log_callback) {
             log_callback(log_context, "Warning: Failed to setup SINTRAN window (DC[31])");
+        }
+    }
+
+    /* ========================================================================
+     * PASS 2: build the DATA page tables (bounded PS_ADI two-level).
+     * Runs after every pt_alloc_base allocation is done, so the builder's
+     * watermark pages (L1/L2 tables + zeroed reserve) sit strictly above the
+     * loader's final cursor. Adopts the loaded initialized pages, eagerly maps
+     * DATA_GROWTH_RESERVE_PAGES of zeroed reserve for stack/heap/bss, and does
+     * NOT register the segment growable - past the owned extent the MMU traps
+     * to the guest THA exactly like the old PS_ASI mapping (NC's fault
+     * boundary), but the owned extent may now exceed 512 pages / 1 MB.
+     * Design: PLAN-nd500x-growable-DATA-option2-redesign-2026-07-26.md (b).
+     * ======================================================================== */
+    for (int i = 0; i < max_segs; i++) {
+        if (seg_info[i].seg_type == SEG_TYPE_UNUSED || !seg_info[i].has_data) {
+            continue;
+        }
+        uint32_t data_pages = (seg_info[i].data_size + 2047) / 2048;
+        if (data_pages == 0) data_pages = 1;
+
+        uint32_t l1_pfn = nd500_segment_map_bounded_data(cpu, m,
+            seg_info[i].psn_data, seg_info[i].data_phys_base, data_pages,
+            DATA_GROWTH_RESERVE_PAGES, pt_alloc_base);
+        if (l1_pfn == 0) {
+            if (log_callback) {
+                log_callback(log_context, "ERROR: bounded DATA mapping failed for seg %d", i);
+            }
+            return -1;
+        }
+        if (log_callback) {
+            log_callback(log_context, "  Seg %d DATA: %u pages + %u reserve, PS_ADI L1 @ PFN %u, PSN %d",
+                         i, data_pages, (uint32_t)DATA_GROWTH_RESERVE_PAGES,
+                         l1_pfn, seg_info[i].psn_data);
         }
     }
 
