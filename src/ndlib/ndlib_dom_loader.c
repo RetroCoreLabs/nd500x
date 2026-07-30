@@ -489,8 +489,8 @@ int ndlib_dom_load_to_machine(
      * g_growable - so an access past the owned extent still TRAPS (preserving NC's
      * fault boundary) while the reserve may span L1>0. No MMU-core change needed
      * (the PS_ADI path already traps when grow_on_fault declines). Full design +
-     * change sites + acceptance test:
-     *   /mnt/e/Dev/Ronny/NDInsight/SINTRAN/ND500/PLAN-nd500x-growable-DATA-option2-redesign-2026-07-26.md */
+     * change sites + acceptance test are in the NDInsight notes, under
+     * SINTRAN/ND500, "PLAN-nd500x-growable-DATA-option2-redesign-2026-07-26.md". */
 
     /* Process each segment - create page tables and PST entries */
     for (int i = 0; i < max_segs; i++) {

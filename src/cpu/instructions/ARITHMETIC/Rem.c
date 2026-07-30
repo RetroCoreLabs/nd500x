@@ -45,7 +45,7 @@
  *   Divide by zero (DZ)
  *
  * Reference: ND-500 Reference Manual, section 10.33 (Floating point remainder)
- *            /home/ronny/repos/nd500x/docs/instructions/asm/rem.md
+ *            docs/instructions/asm/rem.md
  */
 void nd500_instr_Rem(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Validate operand count and target register (n from opcode low bits)

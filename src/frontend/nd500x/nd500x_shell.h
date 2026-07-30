@@ -4,7 +4,7 @@
  * A faithful-surface reimplementation of the SINTRAN III command prompt: an
  * "@" prompt you log in to, run DOM programs from by name, and log out of.
  * Command surface and behaviour are sourced from the ND manuals - see
- * /home/ronny/repos/nd500x/docs/SINTRAN-SHELL-SPEC.md.
+ * docs/SINTRAN-SHELL-SPEC.md.
  *
  * Phase 1 (this file): local terminal, login/logout/help/exit, list-files,
  * set-/get-terminal-type, and run-a-DOM-by-name (RECOVER-DOMAIN). Telnet

@@ -2,7 +2,7 @@
  * nd500x_shell.c - SINTRAN-flavoured interactive shell (--monitor mode).
  *
  * Phase 1: local terminal. Command surface sourced from the ND manuals; see
- * /home/ronny/repos/nd500x/docs/SINTRAN-SHELL-SPEC.md for every citation.
+ * docs/SINTRAN-SHELL-SPEC.md for every citation.
  *
  * Faithful bits reproduced here:
  *  - "@" command prompt (ND-60.128.5 line 158).

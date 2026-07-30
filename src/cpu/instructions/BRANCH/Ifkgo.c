@@ -113,7 +113,7 @@
  *   - Other conditional branches: IF=GO, IF><GO, IF<GO, IF>GO, IF<=GO, IF>=GO
  *
  * Reference: ND-500 Reference Manual, §13.x (Conditional Branches)
- *            /home/ronny/repos/nd500x/docs/instructions/asm/ifkgo.md
+ *            docs/instructions/asm/ifkgo.md
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/Ifkgo.cs
  */
 void nd500_instr_Ifkgo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {

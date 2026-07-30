@@ -76,7 +76,7 @@
  *   - Worst case: 9+ cycles (memory to memory)
  *
  * Reference: ND-500 Reference Manual, §11.13 (Multiply with overflow)
- *            /home/ronny/repos/nd500x/docs/instructions/asm/mul4.md
+ *            docs/instructions/asm/mul4.md
  *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Mul4.cs
  */
 void nd500_instr_Mul4(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {

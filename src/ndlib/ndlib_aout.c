@@ -24,8 +24,8 @@ static int ndlib_loaddbg(void) {
  * Magic field is 2 bytes + 2 bytes padding to maintain 4-byte alignment.
  * All size fields are 4 bytes (uint32_t).
  *
- * See: /home/ronny/repos/ragge/pcc-nd500/src/include/nd500/a.out.h
- * See: /home/ronny/repos/ragge/pcc-nd500/docs/toolchain/OBJECT_VS_EXECUTABLE_DETECTION.md
+ * See: pcc-nd500 repo: src/include/nd500/a.out.h
+ * See: pcc-nd500 repo: docs/toolchain/OBJECT_VS_EXECUTABLE_DETECTION.md
  */
 struct nd500_exec {
 	uint32_t   a_magic;     /* Magic number (32-bit, = kernel Ux_mag) - offset 0 */
