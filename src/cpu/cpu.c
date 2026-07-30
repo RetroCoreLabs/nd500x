@@ -1252,6 +1252,23 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 	cpu->trap_number = trapNumber;
 	cpu->in_trap_handler = true;
 
+	/* Save the pending CALL/ENT* sequence-interlock state into the trap context and
+	 * clear the live fields, so the handler starts with a clean interlock and a page
+	 * fault during a callee's entry instruction does not resume with the interlock
+	 * trampled by the kernel handler's own CALL/ENT* pairs (which would raise a FALSE
+	 * ISE). Restored by the RETT instruction. See cpu_protos.h for the microcode ref. */
+	cpu->trap_saved_pending_call_return_address = cpu->pending_call_return_address;
+	cpu->trap_saved_pending_call_arg_count = cpu->pending_call_arg_count;
+	{
+		uint32_t n = cpu->pending_call_arg_count;
+		if (n > 256) n = 256;
+		for (uint32_t i = 0; i < n; i++) {
+			cpu->trap_saved_pending_call_arg_addresses[i] = cpu->pending_call_arg_addresses[i];
+		}
+	}
+	cpu->pending_call_return_address = 0;
+	cpu->pending_call_arg_count = 0;
+
 	/* Clear OTE to prevent recursive traps during handler execution */
 	cpu->OTE1 = 0;
 	cpu->OTE2 = 0;

@@ -161,6 +161,15 @@ add_executable(test_double_register
 target_link_libraries(test_double_register PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 target_link_libraries(test_double_register PRIVATE m)  # Link math library
 
+# ENTS pending-CALL interlock must survive a trap dispatch + handler + RETT.
+# Guards the fix where the CALL/ENT* sequence state is saved into the trap
+# context on dispatch and restored by RETT (was a naked field the kernel
+# handler's own CALL/ENT* pairs trampled -> false ISE on the resumed ENTS).
+add_executable(test_ents_pending_call_trap
+    test_ents_pending_call_trap.c
+)
+target_link_libraries(test_ents_pending_call_trap PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 
 # ---------------------------------------------------------------------------
 # CTest registration
@@ -189,6 +198,7 @@ add_test(NAME bmove_overlap COMMAND test_bmove_overlap)
 add_test(NAME alt_prefix COMMAND test_alt_prefix)
 add_test(NAME page_straddle COMMAND test_page_straddle)
 add_test(NAME double_register COMMAND test_double_register)
+add_test(NAME ents_pending_call_trap COMMAND test_ents_pending_call_trap)
 
 if(TARGET dap_objects)
     add_test(NAME dap_adapter COMMAND test_dap_adapter)

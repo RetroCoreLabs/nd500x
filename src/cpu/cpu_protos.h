@@ -87,6 +87,19 @@ typedef struct Nd500Cpu {
 	uint32_t trap_saved_OTE1;       /* Saved OTE1 for restoration by RETT */
 	uint32_t trap_saved_OTE2;       /* Saved OTE2 for restoration by RETT */
 	int trap_number;                /* Current trap being handled (bit position) */
+
+	/* Saved CALL/ENT* sequence-interlock state across a trap-and-restart.
+	 * The "an ENT* must be preceded by CALL/CALLG" precondition is a REAL hardware
+	 * interlock (microword C,SEQ / INVSEQ; MICRO-5800-B30 CALL @000646, CALLG @000652
+	 * set it; ENTD @000660 -> INS_SEQ_ERR @003141 reads IDU,STS). The sequence state
+	 * lives in the IDU status, which is part of the trap-saved context (ENTT1 @014042
+	 * carries C,SEQ). So when a CALL's callee ENT* page-faults, the pending-call state
+	 * must be SAVED here on dispatch and RESTORED by RETT - otherwise the kernel
+	 * handler's own CALL/ENT* pairs clear the naked pending_call_* fields and the
+	 * resumed ENTS sees pending_call_return_address == 0 and raises a FALSE ISE. */
+	uint32_t trap_saved_pending_call_return_address;
+	uint32_t trap_saved_pending_call_arg_count;
+	uint32_t trap_saved_pending_call_arg_addresses[256];
 	/* Cross-domain (mother-domain) trap dispatch state. When a trap in a child
 	 * domain is handled by a mother domain (manual 4.2.5.3 / ch.6), raise_trap
 	 * switches live CED/CAD to the handler domain and stashes the TRAPPING

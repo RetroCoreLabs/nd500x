@@ -377,6 +377,22 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     cpu->in_trap_handler = false;
     cpu->trap_cross_domain = 0;
 
+    /* Restore the pending CALL/ENT* sequence-interlock state saved when this trap was
+     * dispatched (invoke_trap_handler). Without this, a page fault during a callee's
+     * entry instruction (ENTS/ENTM/...) would resume with the interlock cleared by the
+     * kernel handler's own CALL/ENT* pairs, and the retried entry instruction would
+     * raise a FALSE Instruction-Sequence-Error. The interlock is genuine hardware state
+     * carried in the trap-saved IDU status (MICRO-5800-B30, C,SEQ via ENTT1 @014042). */
+    cpu->pending_call_return_address = cpu->trap_saved_pending_call_return_address;
+    cpu->pending_call_arg_count = cpu->trap_saved_pending_call_arg_count;
+    {
+        uint32_t n = cpu->trap_saved_pending_call_arg_count;
+        if (n > 256) n = 256;
+        for (uint32_t i = 0; i < n; i++) {
+            cpu->pending_call_arg_addresses[i] = cpu->trap_saved_pending_call_arg_addresses[i];
+        }
+    }
+
     /* Privilege follows the executing domain: re-derive PiA from the domain we
      * just returned into (CED restored from the reg block above), so a return to
      * a user domain drops privilege even though the saved ST1 carried the
