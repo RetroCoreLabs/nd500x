@@ -226,6 +226,14 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
         uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
+        // Either read can page-fault when the operand lives in memory. The fault
+        // is dispatched synchronously, so continuing would write a garbage index
+        // BACK TO MEMORY below and then clobber the installed trap-handler PC.
+        // Restart-safe: nothing committed yet. Proven case: JUMPG (dc2640c).
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
+
         // Decrement index by 1
         index--;
 

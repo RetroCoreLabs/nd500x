@@ -281,6 +281,15 @@ void nd500_instr_Loop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             fp_limit = nd500_read_operand_as_ieee_float(cpu, &fi->operands[2], is_double);
         }
 
+        // Any of the three operand reads above can page-fault when the operand
+        // lives in memory. raise_trap dispatches the fault synchronously, so
+        // continuing would write a garbage index BACK TO MEMORY and then clobber
+        // the freshly installed trap-handler PC. See the same guard on the
+        // integer path below, and JUMPG (dc2640c) for the proven case.
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
+
         // Add step to index
         double fp_new_index = fp_index + fp_step;
 
@@ -304,6 +313,16 @@ void nd500_instr_Loop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint64_t index = nd500_read_operand_value(cpu, &fi->operands[0], data_type);
         uint64_t step = nd500_read_operand_value(cpu, &fi->operands[1], data_type);
         uint64_t limit = nd500_read_operand_value(cpu, &fi->operands[2], data_type);
+
+        // Any of the three reads above can page-fault when the operand lives in
+        // memory. raise_trap dispatches the fault synchronously - installing the
+        // handler PC and clearing the trap state - so continuing would write a
+        // garbage index BACK TO MEMORY below and then clobber that handler PC.
+        // Aborting is restart-safe: nothing has been committed yet and LOOP
+        // re-executes after the handler RETTs. Proven case: JUMPG (dc2640c).
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
 
         // step == 0 -> Illegal Operand Value (IOV) trap, then fall through to the
         // next instruction (no index update, no loop-back). Manual 13.6; microcode
