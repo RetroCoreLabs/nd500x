@@ -117,10 +117,14 @@
  *     This was NOT decided from the manual's per-instruction addressing-mode table:
  *     that table exists but OCR has destroyed its column alignment. Do not cite it.
  *
- * - Operand[2]: Count (read, halfword)
+ * - Operand[2]: Count (read, WORD)
  *   - Number of halfwords to transfer (0-65535)
  *   - Addressing modes: LOCAL, RECORD, CONSTANT, REGISTER, PRE_INDEXED, ABSOLUTE
- *   - Data type: Same as instruction prefix (halfword with H prefix)
+ *   - Data type: WORD. CORRECTED 2026-07-29 - it is NOT the instruction prefix type.
+ *     The manual annotates operands 1 and 2 explicitly (/W and /H) and annotates
+ *     operand 3 not at all; "no of halfwords" is the value's MEANING, not its type.
+ *     This matters because the data type also sets the post-index scale - see the
+ *     detailed note at the operand read in the body.
  *
  * Operation Steps:
  * 1. Validate operand count (must be 3)
@@ -284,8 +288,32 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     uint32_t nd500_dest_addr = fi->operands[1].effective_address;
 
-    /* Operand 2: Count of halfwords to transfer */
-    uint32_t count = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], fi->data_type);
+    /* Operand 2: Count of halfwords to transfer - a WORD, not a halfword.
+     * CORRECTED 2026-07-29, mirrored from RetroCore Riom.cs / Instructionset.Init.cs.
+     *
+     * The manual's format line types operands 1 and 2 EXPLICITLY and gives operand 3
+     * no type at all:
+     *     H RIOM <ND-100 addr/r/W>,<buffer/w/H>,<no of halfwords>
+     * (ND-05.009.4 section 16.23). "no of halfwords" names what the value MEANS, not its
+     * data type. It is a plain count, and the natural ND-500 integer is a word - exactly
+     * like the address in operand 1, which is already read as ND500_DTYPE_WORD above.
+     *
+     * The dtype passed here drives TWO things: the width of the value read AND the
+     * POST-INDEX SCALE. Both were wrong with fi->data_type (H).
+     *
+     * Measured on the live ND-500 swapper (RetroCore octobus harness), which takes its
+     * count from a post-indexed table that is an array of 32-BIT WORDS at VA 0x0802403C:
+     *     [0]=0x0D [1]=0x0A [2]=0x0F [3]=0x8A [4]=0x09 [5]=0x46 [6]=0x08 ...
+     *   H (scale 2), index 5 -> address 0x24046, MISALIGNED across two entries, and it
+     *                           returned the low halfword of [2] = 15. Plausible-looking
+     *                           and pure coincidence; it stopped the transfer 106 bytes
+     *                           short and left the swapper's base pointer zero, which is
+     *                           what produced SWPFATAL 0o201.
+     *   W (scale 4), index 5 -> address 0x24050, [5] = 0x46 = 70 halfwords = 140 bytes,
+     *                           which covers the field the swapper actually reads.
+     * Reading as H was also wrong on its own: a 2-byte big-endian read of 0x00000046
+     * yields 0x0000, i.e. it transfers nothing. */
+    uint32_t count = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_WORD);
 
     /* Validate count - must fit in 16 bits (halfword range 0-65535) */
     if (count > 0xFFFF) {
