@@ -859,6 +859,119 @@ void nd500_apply_domain_pia(Nd500Cpu* cpu, uint32_t domain) {
 }
 
 unsigned long g_ptdbg_target = 0, g_ptdbg_count = 0;
+/*
+ * Mother-domain trap dispatch, factored out of raise_trap so BOTH the
+ * non-ignorable path and the ignorable path can use it.
+ *
+ * MTE (Mother Trap Enable) means "this trap is handled by the mother domain",
+ * so an MTE-enabled trap MUST switch domains before the handler vector is
+ * read - THA points into the kernel's u-area (segment 29, 0xE8000000), which a
+ * user domain has no data capability for. Dispatching PRT without this switch
+ * produced, from user domain 3:
+ *     [MMU] TRAP: No data capability! domain=3 segment=29 vaddr=0xE80007B0
+ *     [TRAP] No trap handler at THA[29] (THA=0xE800073C, ptr=0xE80007B0)
+ */
+static void nd500_trap_maybe_cross_domain(Nd500Cpu* cpu, uint64_t trapBit) {
+	cpu->trap_cross_domain = 0;
+	/* Env-gated PRT dispatch probe (ND500X_PRTDBG). */
+	{	static int prtdbg = -1; static unsigned n = 0;
+		if (prtdbg < 0) { const char* e = getenv("ND500X_PRTDBG"); prtdbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (prtdbg && (trapBit & TRAP_PRT) && n++ < 12)
+			fprintf(stderr, "[PRTDBG] xdom entry: DITBASE=0x%08X inH=%d CED=%u MD(CED)=%u\n",
+			        cpu->DITBASE, cpu->in_trap_handler, cpu->CED,
+			        cpu->DITBASE ? ndix_dit_r8(cpu, cpu->CED, DIT_OFF_MD) : 0);
+	}
+	if (cpu->DITBASE && !cpu->in_trap_handler) {
+		int tn2 = 0; for (int i = 0; i < 64; i++) { if ((trapBit >> i) & 1) { tn2 = i; break; } }
+		uint32_t d = cpu->CED, handler = 0xFFFFFFFFu;
+		for (int hops = 0; hops < 64; hops++) {
+			uint64_t ote = (uint64_t)ndix_dit_r32(cpu, d, DIT_OFF_OTE1)
+			             | ((uint64_t)ndix_dit_r32(cpu, d, DIT_OFF_OTE2) << 32);
+			uint8_t ith = ndix_dit_r8(cpu, d, DIT_OFF_ITH);
+			if (((ote >> tn2) & 1) && !ith) { handler = d; break; }
+			uint64_t mte = (uint64_t)ndix_dit_r32(cpu, d, DIT_OFF_MTE1)
+			             | ((uint64_t)ndix_dit_r32(cpu, d, DIT_OFF_MTE2) << 32);
+			if ((mte >> tn2) & 1) {
+				uint32_t mother = ndix_dit_r8(cpu, d, DIT_OFF_MD);
+				if (mother == d) break;      /* reached the top of the tree */
+				/* MTE means "MY MOTHER HANDLES THIS" - the mother does NOT have
+				 * to own-enable it as well. Requiring an OTE match somewhere up
+				 * the chain made three traps undispatchable under NDIX, because
+				 * user PCBs own-enable NOTHING (machine/vm_machdep.c:53 sets
+				 * pcb_ote1 = pcb_ote2 = 0) and the kernel's own mask
+				 * T_KOTE1 = 0xD601D800 lacks exactly SIT, BPT and PRT while the
+				 * child's T_CMTE1 = 0xF413D800 delegates all three.
+				 *
+				 * PRT is the load-bearing one: it is how NDIX delivers every
+				 * pending signal, profiling tick and reschedule, so with it
+				 * undispatchable a process that should die from SIGSEGV instead
+				 * refaulted forever and halted the machine.
+				 *
+				 * Traps the kernel DOES own-enable (page fault 38 via
+				 * T_KOTE2 = 0x5F, etc.) still match on OTE at the top of this
+				 * loop and are completely unaffected. */
+				d = mother;
+				handler = d;
+				continue;
+			}
+			break;                            /* not enabled anywhere up the chain */
+		}
+		if (handler != 0xFFFFFFFFu && handler != cpu->CED) {
+			/* Save the trapping context into the handler domain's DIT trap area */
+			ndix_dit_w8 (cpu, handler, DIT_OFF_TRAPPED,  (uint8_t)cpu->CED);
+			ndix_dit_w8 (cpu, handler, DIT_OFF_TRAP_ALT, (uint8_t)cpu->CAD);
+			ndix_dit_w32(cpu, handler, DIT_OFF_TRAP_ST1, cpu->ST1);
+			ndix_dit_w32(cpu, handler, DIT_OFF_TRAP_ST2, cpu->ST2);
+			/* Stash trapping CED/CAD so ENTT records them (arg25/26) for RETT */
+			cpu->trap_saved_CED = cpu->CED;
+			cpu->trap_saved_CAD = cpu->CAD;
+			/* Switch: CAD <- trapping domain (manual: "CAD is loaded with CED of
+			 * the trapping domain"), CED <- handling mother domain. */
+			cpu->CAD = cpu->CED;
+			cpu->CED = handler;
+			/* Load ONLY the handler domain's THA from its DIT (needed to locate
+			 * the handler vector). Deliberately leave TOS/LL/HL as the trapping
+			 * program's live values so the register block that ENTT saves - and
+			 * RETT restores - carries the trapping domain's stack registers, not
+			 * the handler's. (If the kernel handler proves to need its own TOS,
+			 * add DIT save/restore of TOS/LL/HL across the switch here + in RETT.) */
+			/* Do NOT load THA from the mother's DIT pcb_tha here. In NDIX the
+			 * trap-handler vector is per-process/per-nesting-level and is set up
+			 * LIVE by the kernel's __resume (THA = _u + U_CXB0 + traplev*496),
+			 * pointing into the current process's u-area; the static pcb_tha in
+			 * the DIT (kpcbinit's &Ktrap) is 6 bytes off (U_CXB0 vs _Ktrap) and
+			 * yields a misaligned garbage vector. Only the kernel ever sets THA,
+			 * and a user domain never overwrites it, so the live THA is already
+			 * the correct kernel handler vector at trap time - keep it. */
+			uint32_t old_tha = cpu->THA;  /* == live/kept THA (for debug below) */
+			/* Privilege follows the handler domain (kernel pcb_pia=1) so its
+			 * handler can run privileged instructions (e.g. entrap's dcc/pctsb). */
+			nd500_apply_domain_pia(cpu, handler);
+			cpu->trap_cross_domain = 1;
+			static int env_domdbg2 = -1;
+			if (env_flag("ND500X_DOMDBG", &env_domdbg2)) {
+				printf("[DOMTRAP] trap bit %d in domain %u -> mother domain %u  DIT.THA=0x%08X  live.THA(pre)=0x%08X\n",
+				       tn2, cpu->CAD, cpu->CED, cpu->THA, old_tha);
+				for (int s = tn2 - 1; s <= tn2 + 1; s++) {
+					uint32_t va = old_tha + (uint32_t)s * 4u;
+					uint32_t pa = nd500_mmu_translate(cpu, va, 0, 0);
+					printf("[DOMTRAP]   live.THA[%d] @va=0x%08X pa=0x%08X = 0x%08X\n",
+					       s, va, pa, nd500_bus_read32(cpu->machine, pa));
+				}
+				/* Dump the handler-vector slots around this trap number so we
+				 * can see whether THA points at a valid start-address vector. */
+				for (int s = tn2 - 2; s <= tn2 + 1; s++) {
+					if (s < 0) continue;
+					uint32_t va = cpu->THA + (uint32_t)s * 4u;
+					uint32_t pa = nd500_mmu_translate(cpu, va, 0, 0);
+					printf("[DOMTRAP]   THA[%d] @va=0x%08X pa=0x%08X = 0x%08X\n",
+					       s, va, pa, nd500_bus_read32(cpu->machine, pa));
+				}
+			}
+		}
+	}
+}
+
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
 	if (!cpu) return;
 	{ static int init = 0;
@@ -1017,78 +1130,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		 * keeps its existing live-THA dispatch untouched (trap_cross_domain stays 0).
 		 * Search follows the pcb_md chain: own-enabled (OTE & !inside-handler) wins
 		 * locally; else mother-enabled (MTE) propagates up; else stop. */
-		cpu->trap_cross_domain = 0;
-		if (cpu->DITBASE && !cpu->in_trap_handler) {
-			int tn2 = 0; for (int i = 0; i < 64; i++) { if ((trapBit >> i) & 1) { tn2 = i; break; } }
-			uint32_t d = cpu->CED, handler = 0xFFFFFFFFu;
-			for (int hops = 0; hops < 64; hops++) {
-				uint64_t ote = (uint64_t)ndix_dit_r32(cpu, d, DIT_OFF_OTE1)
-				             | ((uint64_t)ndix_dit_r32(cpu, d, DIT_OFF_OTE2) << 32);
-				uint8_t ith = ndix_dit_r8(cpu, d, DIT_OFF_ITH);
-				if (((ote >> tn2) & 1) && !ith) { handler = d; break; }
-				uint64_t mte = (uint64_t)ndix_dit_r32(cpu, d, DIT_OFF_MTE1)
-				             | ((uint64_t)ndix_dit_r32(cpu, d, DIT_OFF_MTE2) << 32);
-				if ((mte >> tn2) & 1) {
-					uint32_t mother = ndix_dit_r8(cpu, d, DIT_OFF_MD);
-					if (mother == d) break;      /* reached the top of the tree */
-					d = mother; continue;
-				}
-				break;                            /* not enabled anywhere up the chain */
-			}
-			if (handler != 0xFFFFFFFFu && handler != cpu->CED) {
-				/* Save the trapping context into the handler domain's DIT trap area */
-				ndix_dit_w8 (cpu, handler, DIT_OFF_TRAPPED,  (uint8_t)cpu->CED);
-				ndix_dit_w8 (cpu, handler, DIT_OFF_TRAP_ALT, (uint8_t)cpu->CAD);
-				ndix_dit_w32(cpu, handler, DIT_OFF_TRAP_ST1, cpu->ST1);
-				ndix_dit_w32(cpu, handler, DIT_OFF_TRAP_ST2, cpu->ST2);
-				/* Stash trapping CED/CAD so ENTT records them (arg25/26) for RETT */
-				cpu->trap_saved_CED = cpu->CED;
-				cpu->trap_saved_CAD = cpu->CAD;
-				/* Switch: CAD <- trapping domain (manual: "CAD is loaded with CED of
-				 * the trapping domain"), CED <- handling mother domain. */
-				cpu->CAD = cpu->CED;
-				cpu->CED = handler;
-				/* Load ONLY the handler domain's THA from its DIT (needed to locate
-				 * the handler vector). Deliberately leave TOS/LL/HL as the trapping
-				 * program's live values so the register block that ENTT saves - and
-				 * RETT restores - carries the trapping domain's stack registers, not
-				 * the handler's. (If the kernel handler proves to need its own TOS,
-				 * add DIT save/restore of TOS/LL/HL across the switch here + in RETT.) */
-				/* Do NOT load THA from the mother's DIT pcb_tha here. In NDIX the
-				 * trap-handler vector is per-process/per-nesting-level and is set up
-				 * LIVE by the kernel's __resume (THA = _u + U_CXB0 + traplev*496),
-				 * pointing into the current process's u-area; the static pcb_tha in
-				 * the DIT (kpcbinit's &Ktrap) is 6 bytes off (U_CXB0 vs _Ktrap) and
-				 * yields a misaligned garbage vector. Only the kernel ever sets THA,
-				 * and a user domain never overwrites it, so the live THA is already
-				 * the correct kernel handler vector at trap time - keep it. */
-				uint32_t old_tha = cpu->THA;  /* == live/kept THA (for debug below) */
-				/* Privilege follows the handler domain (kernel pcb_pia=1) so its
-				 * handler can run privileged instructions (e.g. entrap's dcc/pctsb). */
-				nd500_apply_domain_pia(cpu, handler);
-				cpu->trap_cross_domain = 1;
-				static int env_domdbg2 = -1;
-				if (env_flag("ND500X_DOMDBG", &env_domdbg2)) {
-					printf("[DOMTRAP] trap bit %d in domain %u -> mother domain %u  DIT.THA=0x%08X  live.THA(pre)=0x%08X\n",
-					       tn2, cpu->CAD, cpu->CED, cpu->THA, old_tha);
-					for (int s = tn2 - 1; s <= tn2 + 1; s++) {
-						uint32_t va = old_tha + (uint32_t)s * 4u;
-						uint32_t pa = nd500_mmu_translate(cpu, va, 0, 0);
-						printf("[DOMTRAP]   live.THA[%d] @va=0x%08X pa=0x%08X = 0x%08X\n",
-						       s, va, pa, nd500_bus_read32(cpu->machine, pa));
-					}
-					/* Dump the handler-vector slots around this trap number so we
-					 * can see whether THA points at a valid start-address vector. */
-					for (int s = tn2 - 2; s <= tn2 + 1; s++) {
-						if (s < 0) continue;
-						uint32_t va = cpu->THA + (uint32_t)s * 4u;
-						uint32_t pa = nd500_mmu_translate(cpu, va, 0, 0);
-						printf("[DOMTRAP]   THA[%d] @va=0x%08X pa=0x%08X = 0x%08X\n",
-						       s, va, pa, nd500_bus_read32(cpu->machine, pa));
-					}
-				}
-			}
-		}
+		nd500_trap_maybe_cross_domain(cpu, trapBit);
 		/* Non-ignorable traps (bits 32-41: PV, ISE, THM, PGF, ...) are still delivered to the
 		 * PROGRAM via its THA vector on the ND-500 - a program installs handlers precisely to
 		 * receive them (NC sets THA[36]=PV handler 0x0802D817, and handlers for 32-41). The
@@ -1128,9 +1170,16 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		return;
 	}
 
-	/* Ignorable trap (bits 11-29): check if enabled in OTE mask */
+	/* Ignorable trap (bits 11-29): enabled by EITHER the own-domain mask (OTE)
+	 * or the mother-domain mask (MTE) - see the same combination and its
+	 * rationale in check_pending_traps(). */
 	uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
-	if (trapBit & ote & TRAP_IGNORABLE_MASK) {
+	uint64_t mte = ((uint64_t)cpu->MTE2 << 32) | cpu->MTE1;
+	if ((trapBit & TRAP_IGNORABLE_MASK) && cpu->DITBASE) {
+		mte |= (uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE1)
+		     | ((uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE2) << 32);
+	}
+	if (trapBit & (ote | mte) & TRAP_IGNORABLE_MASK) {
 		/* Trap is enabled - set trap state and invoke handler. Do NOT set
 		 * instr_aborted here: ignorable (arithmetic-class) traps on the
 		 * ND-500 are post-completion - the instruction finishes its stores
@@ -1138,6 +1187,10 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		 * stores via the guarded mmu_write helpers and shifted NC's
 		 * instruction count). Only the non-ignorable/MMU class aborts. */
 		nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
+		/* An MTE-delegated trap is handled by the MOTHER domain, so switch there
+		 * before invoke_trap_handler reads the vector: THA points into the kernel
+		 * u-area (segment 29), which a user domain has no capability for. */
+		nd500_trap_maybe_cross_domain(cpu, trapBit);
 		/* Pass trapPC (the trapping instruction's address) so RETT can retry it */
 		invoke_trap_handler(cpu, trapBit, trapPC);
 		/* If invoke_trap_handler succeeded, execution continues in handler */
@@ -1160,16 +1213,54 @@ void check_pending_traps(Nd500Cpu* cpu, uint32_t trappingPC) {
 
 	/* Combine ST1 and ST2 into 64-bit status */
 	uint64_t st = ((uint64_t)cpu->ST2 << 32) | cpu->ST1;
+
+	/* A trap is enabled if EITHER the own-domain mask (OTE) or the mother-domain
+	 * mask (MTE) has its bit set - OTE means "handle it here", MTE means "the
+	 * mother domain handles it". Consulting OTE alone made every MTE-only trap
+	 * invisible, and NDIX arms exactly this way: pcb_mte1 = T_CMTE1 (0xF413D800)
+	 * covers IVO DZ FO BO IOV SIT BPT IX STU, and PRT is armed on demand at
+	 * machine/machdep.c:1273 with  u.u_pcb->pcb_mte1 |= (1 << T_PRT).
+	 *
+	 * PRT (Programmed Trap, bit 29) is how NDIX delivers ALL pending signals,
+	 * profiling ticks and rescheduling: machine/trap.c:718-731 sets the PRT bit
+	 * in the SAVED context status so that returning to the user domain traps
+	 * immediately, and its handler (trap.c:246) falls through to psig(). With
+	 * PRT invisible, a page fault that should kill a process only QUEUED the
+	 * signal (trap.c:544-550 returns early for T_PGF, deliberately skipping
+	 * psig()), so the instruction retried, refaulted, and the runaway guard
+	 * halted the whole machine instead of the process dying. */
+	/* Fast path: nothing pending in the ignorable range, so do not touch the DIT.
+	 * This runs after EVERY instruction and the DIT read below is guest memory. */
+	uint64_t st_ign = st & TRAP_IGNORABLE_MASK;
+	if (st_ign == 0) return;
+
+	/* A trap is enabled by EITHER the own-domain mask (OTE) or the mother-domain
+	 * mask (MTE). The LIVE OTE/MTE registers are never loaded under NDIX -
+	 * measured with ND500X_PRTDBG, both read 0 for an entire boot - so nothing in
+	 * the ignorable range could ever fire. Only the kernel's DIT carries the real
+	 * per-domain enables, and raise_trap's cross-domain dispatch already sources
+	 * MTE from there; do the same here so both paths agree. */
 	uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
+	uint64_t mte = ((uint64_t)cpu->MTE2 << 32) | cpu->MTE1;
+	if (cpu->DITBASE) {
+		mte |= (uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE1)
+		     | ((uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE2) << 32);
+	}
 
 	/* Find pending ignorable traps that are enabled */
-	uint64_t pending = st & ote & TRAP_IGNORABLE_MASK;
+	uint64_t pending = st_ign & (ote | mte);
 
 	if (pending != 0) {
 		/* Find highest priority trap (highest bit number) */
 		for (int bit = 29; bit >= 11; bit--) {
 			uint64_t trapBit = 1ULL << bit;
 			if (pending & trapBit) {
+				/* MTE-delegated traps are handled by the MOTHER domain, so switch
+				 * there BEFORE the handler vector is read - THA points into the
+				 * kernel u-area (segment 29), unreadable from a user domain.
+				 * This path reaches invoke_trap_handler directly, so it needs the
+				 * same switch raise_trap's non-ignorable path performs. */
+				nd500_trap_maybe_cross_domain(cpu, trapBit);
 				invoke_trap_handler(cpu, trapBit, trappingPC);
 				break;  /* Only handle one trap at a time */
 			}
@@ -1256,7 +1347,15 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 	 * instruction. (LED's runtime looped forever on a CHAIN zero-link IOV
 	 * because the handler RETTed back into the same CHAIN.) */
 	cpu->trap_saved_PC = trappingP;
-	cpu->trap_resume_PC = (trapBit & TRAP_AFTER_MASK) ? cpu->PC : trappingP;
+	/* PRT is ASYNCHRONOUS - not caused by the instruction it interrupts. It fires
+	 * because the status bit was set, normally by RETT restoring a context whose
+	 * saved ST1 carries it (machine/trap.c:729). The instruction that just
+	 * completed did so successfully and must NOT be re-executed: that would
+	 * repeat its side effects, and in the common case it IS the RETT, which would
+	 * re-restore the same context and re-fire PRT forever. Treat it as
+	 * after-class regardless of TRAP_AFTER_MASK, which lists only
+	 * instruction-caused traps (manual ND-05.009.4 Table 10). */
+	cpu->trap_resume_PC = (trapBit & (TRAP_AFTER_MASK | TRAP_PRT)) ? cpu->PC : trappingP;
 	cpu->trap_saved_OTE1 = cpu->OTE1;    /* Save trap enable state */
 	cpu->trap_saved_OTE2 = cpu->OTE2;
 	cpu->trap_number = trapNumber;
