@@ -1815,6 +1815,20 @@ static void test_mon_nd500_tool_calls(void) {
         TEST_FAIL("MON 327B FSMTY fn 4 (GTYPR) returns file number = input unit", m);
     }
 
+    /* 416B WSEGN (270 decimal): save/flush modified segment pages to disk.
+     * With no file connected as the requested segment there is nothing dirty to
+     * force (writes are write-through), so it must still report success - this is
+     * what unblocks BM-FILERE-B02 past step 667. LogSegmentNo=0 = flush all. */
+    uint32_t w_seg = 0x2050, w_fp = 0x2054, w_lp = 0x2058;
+    test_write_word(&cpu, w_seg, 0);   /* all segments */
+    test_write_word(&cpu, w_fp, 0);
+    test_write_word(&cpu, w_lp, 0);
+    uint32_t w_args[3] = { w_seg, w_fp, w_lp };
+    setup_mon_context(&ctx, 270, 3, w_args);
+    r = mon_dispatch(&ctx);
+    if (r == MON_SUCCESS) TEST_PASS("MON 416B WSEGN returns success (write-through flush)");
+    else TEST_FAIL("MON 416B WSEGN returns success (write-through flush)", "returned error");
+
     teardown();
 }
 
