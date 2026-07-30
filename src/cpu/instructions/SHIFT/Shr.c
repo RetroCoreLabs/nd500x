@@ -6,9 +6,17 @@
 /**
  * Shr instruction - SHIFT class
  *
- * Shift Rotate (circular shift). Positive count rotates RIGHT, negative
- * rotates LEFT (empirically verified against nd500-as; note the manual
- * 10.26 says positive implies left - see docs/instructions/asm/shr.md).
+ * Shift Rotate (circular shift). Positive count rotates LEFT, negative
+ * rotates RIGHT - per manual 10.26 ("positive shiftcount implies left shift,
+ * negative implies right") AND the microcode (SHR_PSC Q,Q*ROT @003334 /
+ * SHR_NSC Q,Q/ROT @003330), which the body below already implements.
+ *
+ * CORRECTED 2026-07-30: this header used to claim the OPPOSITE, citing
+ * "empirically verified against nd500-as". The body had already been fixed to
+ * follow the manual and microcode, so the comment contradicted the code it
+ * documented. RetroCore Shr.cs carried the identical stale comment and got the
+ * same correction; its unit tests encoded the reversed direction too and were
+ * fixed with it (SHR_ShouldRotateBits / SHR_SimpleRotation).
  *
  * Variants: 3 (by data type: BY, H, W; no BI/F/D variants exist)
  * Mnemonics: BY SHR, H SHR, W SHR
@@ -20,8 +28,9 @@
  *   0xFCB0 (W SHR)  - Word rotate
  *
  * Operation:
- *   If shift_count >= 0: rotate right (bits wrap around)
- *   If shift_count < 0:  rotate left (bits wrap around)
+ *   If shift_count > 0:  rotate LEFT  (bits wrap around)
+ *   If shift_count < 0:  rotate RIGHT (bits wrap around)
+ *   If shift_count == 0: operand unchanged
  *
  * Description:
  *   Circular shift (rotate) operand. Bits shifted out on one end
