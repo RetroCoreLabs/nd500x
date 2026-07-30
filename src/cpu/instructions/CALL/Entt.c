@@ -240,8 +240,12 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      *   B+180+ Local data area for handler
      * ======================================================================== */
 
-    /* Verify we're in trap handler context (set by invoke_trap_handler) */
-    if (!cpu->in_trap_handler) {
+    /* Verify a trap dispatch is awaiting its ENTT (set by invoke_trap_handler).
+     * Deliberately NOT in_trap_handler: with nested traps allowed, a deeper
+     * handler's ENTT runs while the outer handler is still active, so
+     * in_trap_handler stays set across levels and cannot mark "this dispatch
+     * has not been consumed yet". See cpu_protos.h trap_dispatch_pending. */
+    if (!cpu->trap_dispatch_pending) {
         printf("[ERROR] ENTT at PC=0x%08X: Not in trap handler context\n",
                fi->address);
         trap_instruction_sequence_error(cpu, fi->address);
@@ -448,6 +452,13 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_bus_write32(cpu->machine,
             nd500_mmu_translate(cpu, trap_frame_base + 180 + i * 4, 1, 0), 0);
     }
+
+    /* The trap context is now entirely in the guest-memory frame at THA, so the
+     * emulator's single-level trap_saved_* fields are free to be reused. Release
+     * the nesting interlock: from here on a fault inside this handler can be
+     * dispatched normally (NDIX expects that - psig() touches the _Udata window
+     * and legitimately page-faults), and RETT rebuilds state from this frame. */
+    cpu->trap_dispatch_pending = 0;
 
     /* PC continues to next instruction (trap handler body) */
 }

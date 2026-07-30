@@ -74,6 +74,21 @@ typedef struct Nd500Cpu {
 	uint8_t symbol_domain;
 
 	/* CALL/ENT handshake state (internal CPU state not visible to programs) */
+	/* Set by invoke_trap_handler, cleared by the handler's ENTT once it has
+	 * copied the trap context into the guest-memory trap frame.
+	 *
+	 * Nesting is ONLY unsafe in that window. ENTT writes 48 context fields to
+	 * the frame at THA and RETT reads them back, so once ENTT has run, level N's
+	 * state lives in guest memory and the emulator's single-level trap_saved_*
+	 * fields are free to be reused by a deeper trap. NDIX is built for exactly
+	 * this - it keeps per-level context blocks and computes
+	 * THA = _u + U_CXB0 + traplevel*496.
+	 *
+	 * Blocking dispatch for the WHOLE handler (the old use of in_trap_handler)
+	 * made any fault inside a handler a hard halt, which is what stopped PRT:
+	 * psig() legitimately touches the _Udata window and page-faults. */
+	uint32_t trap_dispatch_pending;
+
 	uint32_t pending_call_return_address;  /* Return address from CALL to pass to ENT */
 	uint32_t pending_call_arg_count;       /* Number of arguments from CALL */
 	uint32_t pending_call_arg_addresses[256]; /* Effective addresses of arguments */

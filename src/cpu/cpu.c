@@ -881,7 +881,7 @@ static void nd500_trap_maybe_cross_domain(Nd500Cpu* cpu, uint64_t trapBit) {
 			        cpu->DITBASE, cpu->in_trap_handler, cpu->CED,
 			        cpu->DITBASE ? ndix_dit_r8(cpu, cpu->CED, DIT_OFF_MD) : 0);
 	}
-	if (cpu->DITBASE && !cpu->in_trap_handler) {
+	if (cpu->DITBASE && !cpu->trap_dispatch_pending) {
 		int tn2 = 0; for (int i = 0; i < 64; i++) { if ((trapBit >> i) & 1) { tn2 = i; break; } }
 		uint32_t d = cpu->CED, handler = 0xFFFFFFFFu;
 		for (int hops = 0; hops < 64; hops++) {
@@ -1140,7 +1140,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		 * Opt out with ND500X_NO_TRAP_DISPATCH=1 to restore the old always-halt behavior. */
 		static int td = -1;
 		if (td < 0) { const char* e = getenv("ND500X_NO_TRAP_DISPATCH"); td = (e && e[0] && e[0] != '0') ? 0 : 1; }
-		if (td && cpu->THA != 0 && !cpu->in_trap_handler) {
+		if (td && cpu->THA != 0 && !cpu->trap_dispatch_pending) {
 			int tn = 0; for (int i = 0; i < 64; i++) { if ((trapBit >> i) & 1) { tn = i; break; } }
 			uint32_t hp = nd500_mmu_translate(cpu, cpu->THA + tn * 4, 0, 0);
 			uint32_t haddr = nd500_trap_occurred() ? 0 : nd500_bus_read32(cpu->machine, hp);
@@ -1360,6 +1360,7 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 	cpu->trap_saved_OTE2 = cpu->OTE2;
 	cpu->trap_number = trapNumber;
 	cpu->in_trap_handler = true;
+	cpu->trap_dispatch_pending = 1;   /* cleared by the handler's ENTT - see cpu_protos.h */
 
 	/* Save the pending CALL/ENT* sequence-interlock state into the trap context and
 	 * clear the live fields, so the handler starts with a clean interlock and a page
