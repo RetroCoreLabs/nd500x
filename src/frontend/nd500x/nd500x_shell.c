@@ -393,7 +393,8 @@ static int g_uecom_nest = 0;
  * fallthrough to console reads inside INBT itself: that would steal bytes
  * from programs that interleave device-0 polls with device-1/DVINST reads
  * (the ND linker) and from MODE script streams.
- * Returns 1 when a line was fed, 0 on EOF (nothing can ever arrive). */
+ * Returns 1 when a line was fed, 0 on EOF (nothing can ever arrive), and -1
+ * on an ESCAPE user break (the caller aborts the program back to '@'). */
 static int shell_feed_command_line(void) {
     ConsoleIO* con = mon_file_table_get_console();
     if (!con || !con->read_char) return 0;
@@ -406,6 +407,12 @@ static int shell_feed_command_line(void) {
             if (n == 0) return 0;
             break;                         /* deliver what we have */
         }
+        /* ESCAPE user break: while blocked here the run loop's async break
+         * poll is not running, so the check must happen on the byte itself -
+         * otherwise ESC was swallowed as ordinary line input and a program
+         * reading device 0 (CODE-COVERAGE, PLANC) could not be aborted.
+         * Honors 71B DESCF / 72B EESCF via mon_is_escape_break. */
+        if (mon_is_escape_break(1, (uint8_t)c)) return -1;
         if (c == '\r' || c == '\n') break;
         if (n < sizeof(line) - 1) line[n++] = (char)c;
         if (con->write_char) con->write_char(con->context, c);   /* echo */
@@ -424,10 +431,18 @@ static int shell_feed_command_line(void) {
 
 /* Resume decision for a STOP_WAIT_INPUT suspend: device 0 refills the command
  * buffer from the console; any other device just blocks for console input
- * (the retried read consumes it directly). */
+ * (the retried read consumes it directly). Returns 1 to resume, 0 to end the
+ * run (EOF, or ESCAPE user break - reported like the async break poll). */
 static int shell_wait_input_resume(void) {
-    if (g_machine->stop_data == 0)
-        return shell_feed_command_line();
+    if (g_machine->stop_data == 0) {
+        int r = shell_feed_command_line();
+        if (r < 0) {
+            g_machine->stop_reason = STOP_USER_REQUESTED;
+            printf("\n-- aborted (ESCAPE user break) --\n");
+            return 0;
+        }
+        return r;
+    }
     return mon_console_wait_for_input();
 }
 
