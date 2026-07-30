@@ -1044,6 +1044,18 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	 * zero PTE (PFZ2 for the common 2nd-level miss); default to PFZ2 when unset. */
 	if (trapBit & TRAP_PGF)
 		cpu->trap_saved_info = cpu->mmu_pgf_where ? cpu->mmu_pgf_where : 0xFu /*PFZ2*/;
+	else if (trapBit & TRAP_PV)
+		/* A PROTECT VIOLATION carries a fault-location code too, and the kernel
+		 * needs it: machine/trap.c gates BOTH T_PV (:314) and T_PV+USER (:360)
+		 * on (info&MMWHERE)==PVWVIOL && (info&MMINST)==0 before calling
+		 * pagein(). With cx_info left at 0 that gate never fired, so a write to
+		 * a write-protected page - the one protect violation NDIX recovers from
+		 * - went straight to panic("Kernel Protect Violation") in kernel mode
+		 * and SIGSEGV in user mode, and fuword/suword could never fault a user
+		 * page in. The MMU walk records which check rejected the access
+		 * (MMW_PVWVIOL / MMW_ZEROCAP / MMW_INDEXERR / MMW_IND_*); 0 when the
+		 * violation came from somewhere other than the walk. */
+		cpu->trap_saved_info = cpu->mmu_pgf_where;
 	else
 		cpu->trap_saved_info = 0;
 	cpu->mmu_pgf_where = 0;

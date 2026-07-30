@@ -58,6 +58,26 @@
 #define PC_DOM          0x1FE0      /* Domain Number mask */
 #define PC_SEG          0x001F      /* Segment Number mask */
 
+/* MMU status "where the fault occurred" codes (MMWHERE nibble of the fault
+ * information word, plus MMINST for an I-channel access). Ground truth is the
+ * NDIX kernel: machine/icb.h defines MMWHERE/MMINST/PVWVIOL/PFZPST/PFZ1/PFZ2,
+ * and machine/trap.c:decodetrap()'s mmtraptype[] names every value. The kernel
+ * reads this out of the trap frame as cx_info and branches on it - T_PV only
+ * attempts pagein() when (info&MMWHERE)==PVWVIOL and MMINST is clear, and
+ * T_PGF only services PFZ2 - so the code the MMU records here decides whether
+ * a fault is recovered or panics. */
+#define MMW_MASK        0xF         /* MMWHERE nibble */
+#define MMW_ALTVIOL     0x1         /* alt protect violation */
+#define MMW_PVWVIOL     0x2         /* write protect violation */
+#define MMW_INDEXERR    0x3         /* index error (PSN out of range) */
+#define MMW_IND_OTHER   0x6         /* indirect capability to another machine */
+#define MMW_IND_SAME    0x7         /* indirect capability within the machine */
+#define MMW_ZEROCAP     0x8         /* zero in the capability */
+#define MMW_PFZPST      0xD         /* 0 in PST entry */
+#define MMW_PFZ1        0xE         /* 0 in second level index entry */
+#define MMW_PFZ2        0xF         /* 0 in last level index entry */
+#define MMW_INST        0x40        /* MMINST: fault on an I-channel access */
+
 /* Capability Masks (Data Capability) */
 #define DC_WRP          0x8000      /* Write Permitted */
 #define DC_PAC          0x4000      /* Parameter Access (user mode) */

@@ -216,7 +216,22 @@ static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
 /* ═══════════════════════════════════════════════════════════════════════════
  * FE_IDEV - initialise a generic device. Return one sub-device.
  * ═══════════════════════════════════════════════════════════════════════════ */
-static void fe_idev(uint32_t gen, Pkt* rpk) {
+static void fe_idev(Nd500Cpu* cpu, uint32_t gen, Pkt* cpk, Pkt* rpk) {
+    /* Record this device's interrupt priority. machine/if.h: every _idev_cpk
+     * variant starts with "short ipl", and each driver fills it in before the
+     * call - if/si.c:39 does `Idev_cpk(*si_pkt).ipl = IPL_SI` (3). Completion
+     * interrupts for the device must then be delivered at THAT level, not at the
+     * disk level everything used to get. Range-checked because a driver that
+     * leaves the field uninitialised would otherwise index cxbtab[] with
+     * garbage; 0 keeps the caller's default. */
+    if (gen < (sizeof cpu->fe_dev_ipl / sizeof cpu->fe_dev_ipl[0])) {
+        uint16_t ipl = pkt_rd16(cpk, 0);
+        cpu->fe_dev_ipl[gen] = (ipl >= 1 && ipl <= 15) ? (uint8_t)ipl : 0;
+        if (fedbg())
+            fprintf(stderr, "[FECALL] FE_IDEV gen=%u ipl=%u%s\n", gen, ipl,
+                    (ipl >= 1 && ipl <= 15) ? "" : " (out of range - using default)");
+    }
+
     /* EXPERIMENT (ND500X_NOXMSG): fail the XMSG (gen 7) device init so xgattach
      * bails early (xg.c:137) and never issues the DCTL_WAIT / sleep(&xwbuf) that
      * currently deadlocks the boot - to see whether the cross-message subsystem
@@ -720,21 +735,28 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
 
     /* Pending disk/dctl completion takes priority over the periodic clock. */
     if (cpu->fe_int_pending) {
-        /* SIINTR delivery trace (env ND500X_SIDBG). NOTE the IPL: every queued
-         * completion is delivered at FE_IPL_DK (4), but SIINTR's own priority is
-         * IPL_SI = 3 (machine/icb.h:87) - the value siattach puts in
-         * Idev_cpk.ipl. So a software-interrupt completion currently arrives at
-         * DISK priority. The clock already passes its IPL_CL explicitly below,
-         * so carrying the per-device IPL captured at FE_IDEV time is the fix. */
+        /* Deliver at the priority the DEVICE asked for at connect time, not at
+         * the disk level. Every completion used to go out at FE_IPL_DK (4),
+         * while SIINTR's own priority is IPL_SI = 3 (machine/icb.h:87) - the
+         * value if/si.c:39 puts in Idev_cpk.ipl before calling FE_IDEV. The
+         * clock has always passed its IPL_CL explicitly (below); this makes
+         * every other device do the same. Devices that never went through
+         * FE_IDEV, or whose ipl field was out of range, keep the old default. */
+        uint32_t ipl = FE_IPL_DK;
+        if (cpu->fe_int_gen < (sizeof cpu->fe_dev_ipl / sizeof cpu->fe_dev_ipl[0])
+            && cpu->fe_dev_ipl[cpu->fe_int_gen] != 0)
+            ipl = cpu->fe_dev_ipl[cpu->fe_int_gen];
+
+        /* SIINTR delivery trace (env ND500X_SIDBG). */
         if (cpu->fe_int_gen == GEN_SIINTR) {
             static int sidbg = -1;
             if (sidbg < 0) { const char* e = getenv("ND500X_SIDBG"); sidbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
             if (sidbg)
-                fprintf(stderr, "[SIDBG] deliver interrupt gen=8 sub=%u rpk=0x%08X ipl=%d (IPL_SI would be 3) PC=0x%08X CED=%u\n",
-                        cpu->fe_int_sub, cpu->fe_int_rpk, FE_IPL_DK, cpu->PC, cpu->CED);
+                fprintf(stderr, "[SIDBG] deliver interrupt gen=8 sub=%u rpk=0x%08X ipl=%u (IPL_SI=3) PC=0x%08X CED=%u\n",
+                        cpu->fe_int_sub, cpu->fe_int_rpk, ipl, cpu->PC, cpu->CED);
         }
         fe_deliver(cpu, iplrec, ip_cur, shseg,
-                   cpu->fe_int_gen, cpu->fe_int_sub, cpu->fe_int_rpk, FE_IPL_DK);
+                   cpu->fe_int_gen, cpu->fe_int_sub, cpu->fe_int_rpk, ipl);
         cpu->fe_int_pending = 0;
         return;
     }
@@ -847,7 +869,8 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
         }
         case FE_IDEV: {
             Pkt rpk = pkt_word(cpu, rpk_arg);
-            fe_idev(gen, &rpk);
+            Pkt cpk = pkt_word(cpu, cpk_arg);
+            fe_idev(cpu, gen, &cpk, &rpk);
             break;
         }
         case FE_OPEN: {

@@ -133,13 +133,21 @@ typedef struct Nd500Cpu {
 	 * struct tail so adding them does not shift any earlier field's offset. */
 	uint32_t trap_saved_fault_addr;
 	uint32_t trap_saved_info;
-	/* MMU page-fault location code (MMWHERE nibble) for the CURRENT page fault,
-	 * set by the MMU walk just before trap_page_fault(): PFZPST(0xD)=zero PST
-	 * entry, PFZ1(0xE)=zero 1st-level PTE, PFZ2(0xF)=zero 2nd-level PTE. raise_trap
-	 * copies it into trap_saved_info->cx_info so NDIX's kernel PGF handler
-	 * (machine/trap.c) recognises a demand-paging fault ((info&MMWHERE)==PFZ2) and
-	 * calls pagein() instead of panic("Kernel Page Fault"). 0 => default PFZ2. */
+	/* MMU fault-location code (MMWHERE nibble, plus MMINST 0x40 for an I-channel
+	 * access) for the CURRENT fault, set by the MMU walk just before it calls
+	 * trap_page_fault() or trap_protect_violation(). Values are the MMW_* defines
+	 * in nd500_mmu.h. raise_trap copies it into trap_saved_info -> cx_info, which
+	 * the NDIX kernel branches on (machine/trap.c): the PGF handler services only
+	 * PFZ2, and both protect-violation handlers attempt pagein() only for
+	 * PVWVIOL with MMINST clear. For a page fault, 0 => default PFZ2. */
 	uint32_t mmu_pgf_where;
+
+	/* Per-generic-device interrupt priority, captured from the FE_IDEV command
+	 * packet (machine/if.h: every _idev_cpk variant begins with "short ipl") and
+	 * used when that device's completion interrupt is delivered. Indexed by
+	 * generic device number; 0 = never connected, use the default. Without it
+	 * every completion went out at IPL_DK - see fe_deliver's caller. */
+	uint8_t fe_dev_ipl[16];
 
 	/* Variable operand buffer for CALL/CALLG/POLY (all operands including fixed) */
 	Nd500OperandDecoded extra_operands[ND500_MAX_OPERANDS];

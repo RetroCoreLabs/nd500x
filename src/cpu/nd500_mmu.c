@@ -370,7 +370,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
          * continues. raise_trap() with an ignorable, OTE-disabled bit only sets
          * the status bit and returns without stopping. We map the access to
          * physical 0 (the unused low page: reads as 0, writes are discarded). See
-         * /home/ronny/repos/nd500x/docs/HELP-CRASH-ADVANCED-CMD-REGISTRATION.md.
+         * docs/HELP-CRASH-ADVANCED-CMD-REGISTRATION.md.
          *
          * NOTE: an absent capability for a NON-zero address remains handled as a
          * protect violation below (unchanged); the manual-correct trap there is a
@@ -452,6 +452,12 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             }
             MMU_ERR("[MMU] TRAP: No %s capability! domain=%d segment=%d vaddr=0x%08X\n",
                   is_instruction ? "program" : "data", domain, segment, virtual_addr);
+            /* "Zero in the capability" - NOT a write protect violation. The NDIX
+             * T_PV handler only attempts pagein() for PVWVIOL, so reporting the
+             * truth here keeps a zero capability on the panic/SIGSEGV path where
+             * it belongs (machine/trap.c: "the capability ... is zero" is listed
+             * as a separate cause from a write protected page). */
+            cpu->mmu_pgf_where = MMW_ZEROCAP | (is_instruction ? MMW_INST : 0u);
             trap_protect_violation(cpu, cpu->PC, virtual_addr);
             return virtual_addr;  /* Return virtual address, trap will stop execution */
         }
@@ -461,11 +467,37 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
      * LEVEL 2: Capability → PST Entry
      * ───────────────────────────────────────────────────────── */
 
+    /* An INDIRECT program capability is not a PSN. Bit 15 of a PROGRAM capability
+     * is PC_IND: the remaining bits are a target domain (PC_DOM) and segment
+     * (PC_SEG) to be resolved by the CALL/CALLG indirect dispatch
+     * (nd500_indirect.c), NOT a physical segment number. Reaching the translate
+     * path with one set means an ordinary fetch is running through a gate
+     * capability - the call resolution did not happen. Masking it with PC_PSN and
+     * walking the PST is a garbage walk into whatever entry the domain/segment
+     * bits happen to spell. The hardware traps, and the NDIX kernel names the two
+     * cases in machine/trap.c mmtraptype[]: 6 = "Indirect capability to another
+     * machine" (PC_OMC set, the SINTRAN/ND-100 side), 7 = "Indirect capability
+     * within the machine".
+     *
+     * DATA capabilities are excluded on purpose: bit 15 of a data capability is
+     * DC_WRP (write permitted), not an indirect-type bit, so a writable data
+     * segment must not be diverted here. */
+    if (is_instruction && (capability & PC_IND)) {
+        MMU_ERR("[MMU] TRAP: indirect program capability on a plain fetch! "
+                "domain=%d segment=%d cap=0x%04X vaddr=0x%08X\n",
+                domain, segment, capability, virtual_addr);
+        cpu->mmu_pgf_where = ((capability & PC_OMC) ? MMW_IND_OTHER : MMW_IND_SAME)
+                           | MMW_INST;
+        trap_protect_violation(cpu, cpu->PC, virtual_addr);
+        return virtual_addr;
+    }
+
     /* Extract PSN (Physical Segment Number) from capability */
     int psn = capability & PC_PSN;  /* Lower 13 bits */
 
     if (psn >= MAX_PST) {
         MMU_ERR("[MMU] TRAP: PSN %d >= MAX_PST %d! vaddr=0x%08X\n", psn, MAX_PST, virtual_addr);
+        cpu->mmu_pgf_where = MMW_INDEXERR | (is_instruction ? MMW_INST : 0u);
         trap_protect_violation(cpu, cpu->PC, virtual_addr);
         return virtual_addr;  /* Invalid PSN - return virtual address, trap will stop execution */
     }
@@ -476,6 +508,12 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         if (!(capability & DC_WRP)) {
             MMU_ERR("[MMU] TRAP: WRITE DENIED! segment=%d missing DC_WRP flag! cap=0x%04X vaddr=0x%08X\n",
                   segment, capability, virtual_addr);
+            /* PVWVIOL, MMINST clear (a data write by definition): this is the ONE
+             * protect violation the NDIX kernel tries to recover from - T_PV and
+             * T_PV+USER both call pagein() for it and only signal when that fails
+             * (machine/trap.c:314, :360). Leaving cx_info at 0 made every such
+             * write panic("Kernel Protect Violation") or SIGSEGV outright. */
+            cpu->mmu_pgf_where = MMW_PVWVIOL;
             trap_protect_violation(cpu, cpu->PC, virtual_addr);
             return virtual_addr;  /* Write to read-only segment - return virtual address, trap will stop execution */
         }
@@ -592,6 +630,9 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             if (is_write && pte.protection != 0) {
                 MMU_ERR("[MMU] TRAP: Instruction write to read-only page! vaddr=0x%08X pte_addr=0x%08X prot=%d\n",
                       virtual_addr, pte_addr, pte.protection);
+                /* PVWVIOL: a write-protected PAGE, the recoverable case (see the
+                 * DC_WRP site above). MMINST stays clear - this is a data write. */
+                cpu->mmu_pgf_where = MMW_PVWVIOL;
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;
             }
@@ -657,7 +698,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                  * the fault SPACE from it (trap.c T_PGF+USER: access=(info&
                  * MMINST)>>5; segno+access classifies text vs data). Without it
                  * a text-fetch fault at va 0 pages in DATA page 0 instead. */
-                cpu->mmu_pgf_where = 0xEu | (is_instruction ? 0x40u : 0u);
+                cpu->mmu_pgf_where = MMW_PFZ1 | (is_instruction ? MMW_INST : 0u);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
             }
@@ -719,7 +760,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                 }
                 /* PFZ2: zero 2nd-level page-table entry (demand page). MMINST
                  * (0x40) marks an I-channel fault - see the PFZ1 site above. */
-                cpu->mmu_pgf_where = 0xFu | (is_instruction ? 0x40u : 0u);
+                cpu->mmu_pgf_where = MMW_PFZ2 | (is_instruction ? MMW_INST : 0u);
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }
@@ -734,6 +775,8 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             if (is_write && l2_pte.protection != 0) {
                 MMU_ERR("[MMU] TRAP: PS_ADI write to read-only page! vaddr=0x%08X l1_prot=%d l2_prot=%d\n",
                       virtual_addr, l1_pte.protection, l2_pte.protection);
+                /* PVWVIOL: write-protected data page (recoverable - see above). */
+                cpu->mmu_pgf_where = MMW_PVWVIOL;
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* Write to read-only page - return virtual address, trap will stop execution */
             }
