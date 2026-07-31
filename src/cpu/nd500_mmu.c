@@ -409,6 +409,44 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                 if (!nd500_quiet)
                     printf("ND-500: demand-mapped data segment %d (domain %d, vaddr=0x%08X)\n",
                            segment, domain, virtual_addr);
+
+                /* Publish the kernel u-area in the PST slot NDIX expects.
+                 *
+                 * On real hardware the ND-100 loads the kernel and fills the
+                 * segment table entries Pst[first_phys_seg+1 .. +12] (machdep.c
+                 * "the 100 has loaded the kernel ... left us with a single
+                 * contiguous area"). NDIX only DERIVES those indices - machdep.c:184
+                 * computes stackindex and never assigns it - and
+                 * sys/init_main.c:74 then makes proc0's u-area
+                 *     p_addr = Pst[FIRST_PHYS_SEG].ps_pfnum + STACKINDEX
+                 * nd500x has no ND-100 loader, so that slot kept mmusetup's identity
+                 * value (pfn == psn) and resolved to kernel low memory. _resume
+                 * (locore.c:960-970) swaps segment 29's capability for
+                 * pstindex|0x8000, so it read B/L out of phys 0x8000 and its `retd`
+                 * jumped to garbage - the intermittent 0x4700204D halt.
+                 *
+                 * Segment 29 IS the kernel u-area (`_u` at 0xE8000000), so once it is
+                 * backed here, alias the same PST entry into Pst[stackindex]. Both
+                 * the normal demand-backed capability and _resume's PST lookup then
+                 * reach the same physical pages. */
+                if (segment == 29 && cpu->PSTP) {
+                    uint32_t fps = nd500_bus_read32(cpu->machine,
+                                       cpu->PSTP + (uint32_t)FIRST_PHYS_SEG * 4u)
+                                   & 0x3FFFFFFFu;
+                    uint32_t stack_psn = fps + STACKINDEX;
+                    uint32_t alloc_psn = (uint32_t)(capability & DC_PSN);
+                    if (stack_psn && stack_psn < MAX_PST && alloc_psn < MAX_PST) {
+                        uint32_t w = nd500_bus_read32(cpu->machine,
+                                         cpu->PSTP + alloc_psn * 4u);
+                        nd500_mmu_set_pst_entry(cpu, (int)stack_psn,
+                                                (uint8_t)(w >> 30),
+                                                w & 0x3FFFFFFFu);
+                        if (!nd500_quiet)
+                            printf("ND-500: kernel u-area published to PST[%u] "
+                                   "(first_phys_seg=%u) from PSN %u = 0x%08X\n",
+                                   stack_psn, fps, alloc_psn, w);
+                    }
+                }
             }
         }
         if (capability == 0) {
