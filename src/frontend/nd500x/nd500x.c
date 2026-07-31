@@ -130,6 +130,13 @@ static int load_config(const char* path, int* telnet_port, int* monitor_mode, in
     return 0;
 }
 
+/* Adapter: nd500x_ndix_autoboot emits debugger commands without needing to know
+ * the CmdContext type. */
+static int ndix_autoboot_run(Nd500Machine* m, const char* cmd, void* ctx) {
+	printf("[ndix] %s\n", cmd);
+	return nd500_cmd_execute(m, cmd, (CmdContext*)ctx);
+}
+
 int main(int argc, char** argv) {
     /* No arguments: show the full usage rather than starting headless. */
     if (argc == 1) {
@@ -512,8 +519,16 @@ int main(int argc, char** argv) {
 		 * while stdin stays on the terminal for guest console input. */
 		if (ndix_image) {
 			CmdContext bctx = {0};
-			printf("[ndix] %s\n", ndix_load_cmd);
-			nd500_cmd_execute(&machine, ndix_load_cmd, &bctx);
+			if (nd500x_ndix_autoboot_needed()) {
+				/* No <kernel>.init beside the kernel: do the setup ourselves,
+				 * deriving the load addresses from the .pseg/.dseg files. An
+				 * .init, when present, still wins via `load` auto-sourcing it. */
+				if (nd500x_ndix_autoboot(&machine, ndix_autoboot_run, &bctx) != 0)
+					return 1;
+			} else {
+				printf("[ndix] %s\n", ndix_load_cmd);
+				nd500_cmd_execute(&machine, ndix_load_cmd, &bctx);
+			}
 			printf("[ndix] run\n");
 			nd500_cmd_execute(&machine, "run", &bctx);
 		}

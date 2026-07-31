@@ -27,6 +27,12 @@
 
 #include <ndmon/mon_config.h>
 
+/* Set by nd500x_ndix_setup: the kernel path, and whether no <kernel>.init exists
+ * so we have to do the boot setup ourselves. */
+static char g_auto_kernel[PATH_MAX];
+static int  g_auto_boot;
+
+
 /* ------------------------------------------------------------ boot setup -- */
 
 /* setenv only if the caller has not already chosen a value: --ndix supplies
@@ -144,11 +150,80 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
 
     char base[PATH_MAX];
     snprintf(base, sizeof base, "%s", kern);
+
+    /* An <kernel>.init next to the kernel WINS: `load` auto-sources it, and any
+     * existing setup keeps working untouched. Only when there is none do we boot
+     * the kernel ourselves from values derived off the files (see
+     * nd500x_ndix_autoboot). */
+    snprintf(g_auto_kernel, sizeof g_auto_kernel, "%s", kern);
+    {
+        char initf[PATH_MAX];
+        snprintf(initf, sizeof initf, "%s.init", basename(base));
+        g_auto_boot = is_file(initf) ? 0 : 1;
+    }
     snprintf(load_cmd, (size_t)load_cmd_len, "load %s", basename(base));
 
     fprintf(stderr, "[ndix] disk   : %s\n", abs_image);
     fprintf(stderr, "[ndix] root   : %s\n", root);
     fprintf(stderr, "[ndix] kernel : %s\n", kern);
+    return 0;
+}
+
+/* ---------------------------------------------------------- auto boot ------ */
+int nd500x_ndix_autoboot_needed(void) { return g_auto_boot; }
+
+/* Boot the kernel without an .init file.
+ *
+ * Everything the old vmunix.init hand-wrote is derived from the files here, so a
+ * rebuilt kernel cannot silently desync:
+ *   - the .pseg / .dseg paths come from the --kernel path
+ *   - the .dseg load address is the .pseg size rounded to a 2 KB page
+ *   - map-kdata gets that same address and the real .dseg size
+ * (verified against the shipped kernel: pseg 0x42000, dseg 0x3E800, matching the
+ * 0x42000 / 0x3E800 constants the init file carried by hand).
+ *
+ * THA/CTE1/CTE2/CAD stand in for what SINTRAN's context load would have set. */
+int nd500x_ndix_autoboot(struct Nd500Machine* m,
+                         int (*run)(struct Nd500Machine*, const char*, void*),
+                         void* ctx) {
+    char pseg[PATH_MAX], dseg[PATH_MAX], cmd[PATH_MAX + 64];
+    struct stat sp, sd;
+
+    snprintf(pseg, sizeof pseg, "%s.pseg", g_auto_kernel);
+    snprintf(dseg, sizeof dseg, "%s.dseg", g_auto_kernel);
+    if (stat(pseg, &sp) != 0 || stat(dseg, &sd) != 0) {
+        fprintf(stderr, "error: --ndix needs %s and %s beside the kernel\n", pseg, dseg);
+        return -1;
+    }
+
+    /* .dseg follows .pseg, page-aligned (NBPG = 2048). */
+    unsigned long dseg_load = ((unsigned long)sp.st_size + 0x7FFUL) & ~0x7FFUL;
+    unsigned long dseg_size = (unsigned long)sd.st_size;
+
+    fprintf(stderr, "[ndix] auto-boot: pseg=%lu dseg=%lu -> dseg@0x%08lX kdata 0x%08lX+0x%lX\n",
+            (unsigned long)sp.st_size, dseg_size, dseg_load, dseg_load, dseg_size);
+
+    /* `load` first: it reads the a.out and SETS THE ENTRY PC from the header.
+     * The normal path gets this because the debugger's `load` auto-sources
+     * <name>.init AFTER loading; here there is no .init, so we issue the same
+     * load and then do by hand what that .init would have done. Without this the
+     * machine starts at PC=0 and immediately stops on an invalid instruction. */
+    {
+        char kbase[PATH_MAX];
+        snprintf(kbase, sizeof kbase, "%s", g_auto_kernel);
+        snprintf(cmd, sizeof cmd, "load %s", basename(kbase));
+        run(m, cmd, ctx);
+    }
+
+    run(m, "mmusetup", ctx);
+    snprintf(cmd, sizeof cmd, "load-pseg %s 0x00000000", pseg);          run(m, cmd, ctx);
+    snprintf(cmd, sizeof cmd, "load-dseg %s 0x%08lX", dseg, dseg_load);  run(m, cmd, ctx);
+    snprintf(cmd, sizeof cmd, "map-kdata 0x%08lX 0x%08lX", dseg_load, dseg_size);
+    run(m, cmd, ctx);
+    run(m, "set THA 0xE8000736", ctx);
+    run(m, "set CTE1 0xF413D800", ctx);
+    run(m, "set CTE2 0x0000005F", ctx);
+    run(m, "set CAD 1", ctx);
     return 0;
 }
 

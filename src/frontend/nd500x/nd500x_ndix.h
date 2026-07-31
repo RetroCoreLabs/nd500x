@@ -23,6 +23,14 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
 
 /* Start the terminal server on <port> and register the NDIX guest ttys.
  * Returns 0 on success, -1 on error. */
+struct Nd500Machine;
+/* Non-zero when no <kernel>.init exists, so --ndix must do the boot setup itself. */
+int nd500x_ndix_autoboot_needed(void);
+/* Run that setup, deriving load addresses from the .pseg/.dseg files. */
+int nd500x_ndix_autoboot(struct Nd500Machine* m,
+                         int (*run)(struct Nd500Machine*, const char*, void*),
+                         void* ctx);
+
 int nd500x_ndix_telnet_start(int port);
 
 /* Stop the terminal server (safe if it was never started). */
