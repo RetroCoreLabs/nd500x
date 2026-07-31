@@ -590,6 +590,14 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             if (pgfd) fprintf(stderr, "[PGFSITE] PST-ZERO dom=%d seg=%d psn=%d va=0x%08X use_guest=%d\n",
                               domain, segment, psn, virtual_addr, use_guest);
         }
+        /* MMS fault location: zero PST entry is PFZPST (NDIX machine/icb.h:76
+         * "0 in PST entry for page fault" = 0xD), NOT the PFZ1/PFZ2 page-table
+         * codes. Without setting it the previous fault's code was left in place -
+         * usually PFZ2 from the routine demand-paging path - and NDIX's trap.c
+         * (:510-511 test MMWHERE against PFZ2 and PFZ1) then classified a missing
+         * segment as a second-level page-table miss. Matches CpuND500.MMU.cs
+         * MM_PFZPST; these two must not diverge. */
+        cpu->mmu_pgf_where = MMW_PFZPST | (is_instruction ? MMW_INST : 0u);
         trap_page_fault(cpu, cpu->PC, virtual_addr);
         return virtual_addr;
     }
