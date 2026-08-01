@@ -78,6 +78,8 @@ void nd500_instr_Rwip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;  /* The operand read faulted - commit nothing */
     }
 
+    nd500_page_bits_count(ND500_PAGE_OP_RWIP);
+
     uint32_t result;
     if (fi->opcode >= RWIP_GROUP_FORM_FIRST) {
         result = nd500_page_bits_read_group(cpu->machine, ND500_PAGE_TABLE_WIP, operand);

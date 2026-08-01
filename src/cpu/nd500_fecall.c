@@ -169,6 +169,35 @@ static uint32_t pkt_rd32(Pkt* p, uint32_t off) {
 static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
     uint32_t memtop = cpu->machine ? cpu->machine->memory_size : 0x1000000u;
 
+    /* ND500X_MEMTOP caps the top of memory REPORTED to NDIX, in bytes (a plain
+     * or 0x-prefixed number). Real emulator RAM is untouched - the kernel
+     * simply believes it has less, which is what puts freemem under lotsfree
+     * and starts the pageout daemon (sys/vm_sched.c:416,
+     * lotsfree = LOOPPAGES / LOTSFREEFRACT). That is the only way to exercise
+     * the swap path, and therefore RPGU/RWIP, on a machine with 16 MB of RAM
+     * and a kernel that fits in 1 MB.
+     *
+     * Ignored unless it leaves at least one page above sfree, so a mistyped
+     * value cannot produce a kernel with zero page frames. */
+    {
+        static long capped = -2;   /* -2 = not yet read, -1 = unset/invalid */
+        if (capped == -2) {
+            const char* e = getenv("ND500X_MEMTOP");
+            capped = -1;
+            if (e && e[0]) {
+                char* end = NULL;
+                long v = strtol(e, &end, 0);
+                if (end && *end == '\0' && v > 0) capped = v;
+            }
+        }
+        if (capped > 0 && (uint32_t)capped < memtop &&
+            (uint32_t)capped > 0x00100000u + 2048u) {
+            fprintf(stderr, "[FECALL] FE_INIT: reporting memtop 0x%lX instead of 0x%X"
+                            " (ND500X_MEMTOP)\n", capped, memtop);
+            memtop = (uint32_t)capped;
+        }
+    }
+
     /* Physical layout (bytes): kernel image + emulator PST(0x84000)/DIT(0x90000)
      * live below sfree; free RAM from 1 MB to the top of memory. */
     uint32_t scont_phys = 0x00000000u;   /* first physical addr NDIX uses */

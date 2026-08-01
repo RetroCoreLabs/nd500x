@@ -5,6 +5,8 @@
 #include "nd500_page_bits.h"
 #include "../machine/machine_types.h"
 
+#include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,6 +26,43 @@ typedef struct {
     uint32_t* word[2];      /* indexed by Nd500PageTable; 32 pages per word */
     uint32_t  words;
 } PageBits;
+
+/* ND500X_PGUDBG prints the summary at process exit. It is armed here rather
+ * than only at nd500_machine_free() because the --ndix and --debug paths leave
+ * through the debugger REPL, which never frees the machine - hooking teardown
+ * alone produced no output at all on exactly the runs worth measuring. */
+static Nd500Machine* g_report_machine = NULL;
+
+static void pb_atexit_report(void) {
+    if (g_report_machine) nd500_page_bits_report(g_report_machine);
+}
+
+/* A scripted boot is normally ended by `timeout`, i.e. SIGTERM, which runs no
+ * atexit handler - the first two measurement runs produced no output at all for
+ * exactly that reason. Report from the signal too, then re-raise with the
+ * default disposition so the exit status still says "killed by SIGTERM".
+ *
+ * fprintf is not async-signal-safe. That is tolerated here because the whole
+ * facility only exists when ND500X_PGUDBG is set: with the flag unset no
+ * handler is installed and the emulator's signal behaviour is untouched. */
+static void pb_signal_report(int sig) {
+    if (g_report_machine) nd500_page_bits_report(g_report_machine);
+    g_report_machine = NULL;           /* do not report twice via atexit */
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+static void pb_arm_report(Nd500Machine* m) {
+    static int armed = 0;
+    if (armed) { g_report_machine = m; return; }
+    const char* e = getenv("ND500X_PGUDBG");
+    if (!e || !e[0] || e[0] == '0') return;
+    g_report_machine = m;
+    armed = 1;
+    atexit(pb_atexit_report);
+    signal(SIGTERM, pb_signal_report);
+    signal(SIGINT, pb_signal_report);
+}
 
 /* Lazily build the bitmaps from the machine's current memory size. Returns NULL
  * if the machine has no memory yet. */
@@ -63,6 +102,7 @@ static PageBits* pb_get(Nd500Machine* m) {
     pb->page_count = pages;
     pb->words = words;
     m->page_bits = pb;
+    pb_arm_report(m);
     return pb;
 }
 
@@ -123,6 +163,39 @@ void nd500_page_bits_clear_all(Nd500Machine* m, Nd500PageTable table) {
     memset(pb->word[table], 0, pb->words * sizeof(uint32_t));
 }
 
+/* Instruction-execution counters. Process-wide rather than per-machine: they
+ * answer "did this run reach the swap path", and a run has one machine. */
+static unsigned long g_op_count[ND500_PAGE_OP_COUNT];
+
+static const char* const g_op_name[ND500_PAGE_OP_COUNT] = {
+    "RPGU", "RWIP", "ZPGU", "ZWIP", "CPGU", "CWIP"
+};
+
+void nd500_page_bits_count(Nd500PageOp op) {
+    if ((int)op >= 0 && (int)op < ND500_PAGE_OP_COUNT) g_op_count[op]++;
+}
+
+void nd500_page_bits_report(Nd500Machine* m) {
+    unsigned long set[2] = { 0, 0 };
+    PageBits* pb = pb_get(m);
+    if (pb) {
+        for (int t = 0; t < 2; t++) {
+            for (uint32_t w = 0; w < pb->words; w++) {
+                uint32_t v = pb->word[t][w];
+                while (v) { set[t]++; v &= v - 1u; }
+            }
+        }
+    }
+
+    fprintf(stderr, "[PGU] instruction counts:");
+    for (int i = 0; i < ND500_PAGE_OP_COUNT; i++) {
+        fprintf(stderr, " %s=%lu", g_op_name[i], g_op_count[i]);
+    }
+    fprintf(stderr, "\n[PGU] pages marked: PGU=%lu WIP=%lu of %lu frames\n",
+            set[ND500_PAGE_TABLE_PGU], set[ND500_PAGE_TABLE_WIP],
+            pb ? (unsigned long)pb->page_count : 0ul);
+}
+
 void nd500_page_bits_reset(Nd500Machine* m) {
     if (!m || !m->page_bits) return;
 
@@ -131,4 +204,5 @@ void nd500_page_bits_reset(Nd500Machine* m) {
     free(pb->word[1]);
     free(pb);
     m->page_bits = NULL;
+    if (g_report_machine == m) g_report_machine = NULL;   /* no use-after-free at exit */
 }

@@ -55,6 +55,7 @@ void nd500_instr_Zpgu(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;  /* The operand read faulted - commit nothing */
     }
 
+    nd500_page_bits_count(ND500_PAGE_OP_ZPGU);
     nd500_page_bits_clear_bit(cpu->machine, ND500_PAGE_TABLE_PGU, page);
 
     /* Data status bits: Unaffected (ND-05.009.4 16.21) */

@@ -137,6 +137,14 @@ void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
 void nd500_machine_free(Nd500Machine* m) {
 	if (!m) return;
 	nd500_phys_alloc_reset(m);   /* drop the page-ownership map */
+	{
+		/* Did this run reach the swap path at all? NDIX calls rpgu/rwip only
+		 * from the pageout daemon and dirty(), so all-zero counts mean it
+		 * never paged - see ND500X_MEMTOP in nd500_fecall.c for the knob that
+		 * makes it. */
+		const char* e = getenv("ND500X_PGUDBG");
+		if (e && e[0] && e[0] != '0') nd500_page_bits_report(m);
+	}
 	nd500_page_bits_reset(m);    /* drop the PGU/WIP bitmaps */
 	free(m->memory);
 	m->memory = NULL;

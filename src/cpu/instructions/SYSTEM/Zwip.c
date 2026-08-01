@@ -57,6 +57,7 @@ void nd500_instr_Zwip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;  /* The operand read faulted - commit nothing */
     }
 
+    nd500_page_bits_count(ND500_PAGE_OP_ZWIP);
     nd500_page_bits_clear_bit(cpu->machine, ND500_PAGE_TABLE_WIP, page);
 
     /* Data status bits: Unaffected (ND-05.009.4 16.18) */

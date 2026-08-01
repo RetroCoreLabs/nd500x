@@ -45,6 +45,7 @@ void nd500_instr_Cpgu(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;  /* Trap raised, instruction aborted */
     }
 
+    nd500_page_bits_count(ND500_PAGE_OP_CPGU);
     nd500_page_bits_clear_all(cpu->machine, ND500_PAGE_TABLE_PGU);
 
     /* Data status bits: Unaffected (ND-05.009.4 16.22) */

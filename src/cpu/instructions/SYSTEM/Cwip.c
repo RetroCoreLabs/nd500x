@@ -45,6 +45,7 @@ void nd500_instr_Cwip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;  /* Trap raised, instruction aborted */
     }
 
+    nd500_page_bits_count(ND500_PAGE_OP_CWIP);
     nd500_page_bits_clear_all(cpu->machine, ND500_PAGE_TABLE_WIP);
 
     /* Data status bits: Unaffected (ND-05.009.4 16.19) */

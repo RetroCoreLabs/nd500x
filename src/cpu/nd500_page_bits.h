@@ -75,4 +75,25 @@ void nd500_page_bits_clear_all(struct Nd500Machine* m, Nd500PageTable table);
  * destroyed or its memory re-sized; they rebuild lazily from memory_size. */
 void nd500_page_bits_reset(struct Nd500Machine* m);
 
+/* How many times each of the six instructions has executed, and how many pages
+ * are currently marked. Counting them is the only way to tell whether a boot
+ * reached the swap path at all: NDIX calls rpgu/rwip only from the pageout
+ * daemon and dirty(), so a run that never pages leaves every count at zero.
+ * Pass NULL for anything not wanted. */
+typedef enum {
+    ND500_PAGE_OP_RPGU = 0,
+    ND500_PAGE_OP_RWIP,
+    ND500_PAGE_OP_ZPGU,
+    ND500_PAGE_OP_ZWIP,
+    ND500_PAGE_OP_CPGU,
+    ND500_PAGE_OP_CWIP,
+    ND500_PAGE_OP_COUNT
+} Nd500PageOp;
+
+void nd500_page_bits_count(Nd500PageOp op);
+
+/* Print the counts and the current set-bit totals to stderr. Called at machine
+ * teardown when ND500X_PGUDBG is set; safe to call at any time. */
+void nd500_page_bits_report(struct Nd500Machine* m);
+
 #endif /* ND500_PAGE_BITS_H */
