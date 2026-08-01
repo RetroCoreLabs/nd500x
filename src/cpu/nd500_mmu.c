@@ -835,6 +835,23 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             if (is_write && l2_pte.protection != 0) {
                 MMU_ERR("[MMU] TRAP: PS_ADI write to read-only page! vaddr=0x%08X l1_prot=%d l2_prot=%d\n",
                       virtual_addr, l1_pte.protection, l2_pte.protection);
+                /* Same detail the L2-not-valid branch prints. Knowing WHICH
+                 * table entry carries the read-only bit is the whole question
+                 * when a segment the guest believes is SG_RW refuses a write:
+                 * with ND500X_MMU_GUEST_TABLES these are the GUEST's tables,
+                 * so the address identifies whose PTE it is. */
+                {
+                    const char* e = getenv("ND500X_PTWDBG");
+                    if (e && e[0] && e[0] != '0') {
+                        fprintf(stderr, "[PTWDBG-RO] seg=%d va=0x%08X psn=%d pst_pfn=0x%X "
+                                "l1_pte@0x%08X=pfn0x%X raw=0x%08X  l2_pte@0x%08X raw=0x%08X pfn=0x%X\n",
+                                segment, virtual_addr, psn, pst_entry.physical_pfn,
+                                l1_pte_addr, l1_pte.physical_pfn,
+                                nd500_bus_read32(cpu->machine, l1_pte_addr),
+                                l2_pte_addr, nd500_bus_read32(cpu->machine, l2_pte_addr),
+                                l2_pte.physical_pfn);
+                    }
+                }
                 /* PVWVIOL: write-protected data page (recoverable - see above). */
                 cpu->mmu_pgf_where = MMW_PVWVIOL;
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
