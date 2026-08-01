@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "nd500_page_bits.h"
 #include <stdio.h>
 
 /**
@@ -21,9 +22,7 @@
  *   since the last time the bit was cleared. This instruction is used
  *   by the swapping routines to reset the PGU tracking state.
  *
- *   EMULATOR NOTE: PGU tracking is not implemented in the emulator as it's
- *   primarily used by the OS page swapping system. This instruction is a
- *   no-op that succeeds without error.
+ *   Clears every bit of the PGU table kept in nd500_page_bits.c.
  *
  * Trap conditions: Illegal instruction code (IIC) if not privileged
  *
@@ -46,13 +45,7 @@ void nd500_instr_Cpgu(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;  /* Trap raised, instruction aborted */
     }
 
-    /* EMULATOR NO-OP: Clear entire Page Used table */
-    /* Reference: instructions.md Chapter 16.22 */
-    /*
-     * In real hardware, this clears all bits in the PGU table.
-     * In the emulator, we don't track page usage for swapping purposes,
-     * so this is a no-op.
-     */
+    nd500_page_bits_clear_all(cpu->machine, ND500_PAGE_TABLE_PGU);
 
-    /* No status bits affected for this instruction */
+    /* Data status bits: Unaffected (ND-05.009.4 16.22) */
 }

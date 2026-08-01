@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "nd500_page_bits.h"
 #include <stdio.h>
 
 /**
@@ -21,9 +22,7 @@
  *   written back to disk before being replaced. This instruction is used
  *   by the swapper routines to reset the WIP tracking state.
  *
- *   EMULATOR NOTE: WIP tracking is not implemented in the emulator as it's
- *   primarily used by the OS page swapping system. This instruction is a
- *   no-op that succeeds without error.
+ *   Clears every bit of the WIP table kept in nd500_page_bits.c.
  *
  * Trap conditions: Illegal instruction code (IIC) if not privileged
  *
@@ -46,13 +45,7 @@ void nd500_instr_Cwip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;  /* Trap raised, instruction aborted */
     }
 
-    /* EMULATOR NO-OP: Clear entire Written In Page table */
-    /* Reference: instructions.md Chapter 16.19 */
-    /*
-     * In real hardware, this clears all bits in the WIP table.
-     * In the emulator, we don't track dirty pages for swapping purposes,
-     * so this is a no-op.
-     */
+    nd500_page_bits_clear_all(cpu->machine, ND500_PAGE_TABLE_WIP);
 
-    /* No status bits affected for this instruction */
+    /* Data status bits: Unaffected (ND-05.009.4 16.19) */
 }

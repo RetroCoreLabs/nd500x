@@ -178,6 +178,14 @@ add_executable(test_ents_pending_call_trap
 )
 target_link_libraries(test_ents_pending_call_trap PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# PGU / WIP page tables. Both used to read back a hardwired zero, which is the
+# aggressive answer for NDIX's pageout clock hand (sys/vm_page.c:547) and for
+# dirty() (machine/pte.h:93), not the safe one.
+add_executable(test_page_bits
+    test_page_bits.c
+)
+target_link_libraries(test_page_bits PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 
 # ---------------------------------------------------------------------------
 # CTest registration
@@ -207,6 +215,7 @@ add_test(NAME alt_prefix COMMAND test_alt_prefix)
 add_test(NAME page_straddle COMMAND test_page_straddle)
 add_test(NAME double_register COMMAND test_double_register)
 add_test(NAME ents_pending_call_trap COMMAND test_ents_pending_call_trap)
+add_test(NAME page_bits COMMAND test_page_bits)
 
 if(TARGET dap_objects)
     add_test(NAME dap_adapter COMMAND test_dap_adapter)

@@ -10,6 +10,7 @@
     if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) fprintf(stderr, __VA_ARGS__); \
 } while (0)
 #include "cpu_protos.h"
+#include "nd500_page_bits.h"
 #include "../machine/machine_protos.h"
 #include <stdlib.h>
 #include <string.h>
@@ -845,6 +846,18 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
      * ───────────────────────────────────────────────────────── */
 
     uint32_t physical_addr = (physical_pfn << PGSHIFT) | offset;
+
+    /* Hardware sets Page Used on any access and Written In Page on a write
+     * (ND-05.009.4 16.17, 16.20). The swapper reads them back through
+     * RPGU/RWIP. Marked here, at the one exit where a page walk actually
+     * produced a physical address - every fault path returns before this, so a
+     * page that was never reached is never marked.
+     *
+     * DELIBERATE LIMIT: the MMU-disabled and segment-alias exits earlier in
+     * this function return without marking. NDIX only ever asks about page
+     * frames it owns in its own page tables, and it reaches those through this
+     * path, so the untranslated exits cannot change a swapper decision. */
+    nd500_page_bits_mark(cpu->machine, physical_addr, is_write);
 
     /* Debug: show translation for high addresses (controlled by show mmu level) */
     if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ALL && virtual_addr >= 0x08000000) {

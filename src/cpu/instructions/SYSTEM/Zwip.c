@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "nd500_page_bits.h"
 #include <stdio.h>
 
 /**
@@ -25,8 +26,9 @@
  *   installation dependent; using it requires knowledge of the physical memory
  *   configuration.
  *
- *   EMULATOR NOTE: WIP tracking is not implemented in the emulator.
- *   This instruction is a no-op that succeeds without error.
+ *   The single WIP table kept in nd500_page_bits.c stands in for both the
+ *   hardware program and data tables, so clearing the bit once matches the
+ *   "ZWIP will clear both tables" wording.
  *
  * Trap conditions: Illegal instruction code (IIC), Illegal operand value (IOV)
  *
@@ -49,18 +51,13 @@ void nd500_instr_Zwip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;  /* Trap raised, instruction aborted */
     }
 
-    /* Read operand (bit number / physical page number) - but we don't use it */
-    /* since we don't track WIP state */
-    /* uint32_t bit_number = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type); */
+    /* Read operand: the physical page number whose WIP bit is to be cleared */
+    uint32_t page = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;  /* The operand read faulted - commit nothing */
+    }
 
-    /* EMULATOR NO-OP: Clear specified WIP bit */
-    /* Reference: instructions.md Chapter 16.18 */
-    /*
-     * In real hardware, this clears the specified bit in both program
-     * and data WIP tables.
-     * In the emulator, we don't track dirty pages for swapping purposes,
-     * so this is a no-op.
-     */
+    nd500_page_bits_clear_bit(cpu->machine, ND500_PAGE_TABLE_WIP, page);
 
-    /* No status bits affected for this instruction */
+    /* Data status bits: Unaffected (ND-05.009.4 16.18) */
 }

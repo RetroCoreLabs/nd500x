@@ -49,6 +49,10 @@ typedef struct Nd500Machine {
 	 * the machine layer does not depend on the allocator; built lazily on first
 	 * use and released by nd500_phys_alloc_reset(). */
 	void* phys_alloc;
+	/* PGU / WIP page bitmaps (nd500_page_bits.c). Opaque here for the same
+	 * reason as phys_alloc; built lazily on first use and released by
+	 * nd500_page_bits_reset(). */
+	void* page_bits;
 } Nd500Machine;
 
 /* Get human-readable stop reason string */
