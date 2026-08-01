@@ -202,6 +202,42 @@ static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
      * live below sfree; free RAM from 1 MB to the top of memory. */
     uint32_t scont_phys = 0x00000000u;   /* first physical addr NDIX uses */
     uint32_t sfree_phys = 0x00100000u;   /* start of free RAM (past image+tables) */
+
+    /* ND500X_SFREE overrides where NDIX's free pool starts, in bytes.
+     *
+     * The default 0x00100000 is KNOWN to overlap the emulator's own
+     * allocations and is left unchanged only because moving it changes the
+     * guest's view of memory. mmusetup reserves just 0x0-0x180000
+     * (src/debugger/commands.c:3066), so demand segments land above that -
+     * measured at 0x00180000 (seg 6), 0x001A1000 (seg 29), 0x001C2000 (seg 8),
+     * with an ND500X_PHYSDBG high-water of 0x001E3000 that does not vary with
+     * guest memory size. All of that sits inside the pool NDIX is told it owns,
+     * nothing informs NDIX, and under memory pressure NDIX reuses and zeroes
+     * those pages - destroying the segment-8 page table and faulting the
+     * cxbtab (see the ROOT CAUSE notes on this in git log).
+     *
+     * Setting ND500X_SFREE=0x280000 puts the pool above the high-water with
+     * headroom. Kept as an override rather than a new default so the shipped
+     * behaviour is unchanged until the tradeoff (half a megabyte of guest
+     * memory) is chosen deliberately. */
+    {
+        static long sfree_override = -2;
+        if (sfree_override == -2) {
+            const char* e = getenv("ND500X_SFREE");
+            sfree_override = -1;
+            if (e && e[0]) {
+                char* end = NULL;
+                long v = strtol(e, &end, 0);
+                if (end && *end == '\0' && v > 0) sfree_override = v;
+            }
+        }
+        if (sfree_override > 0 && (uint32_t)sfree_override < memtop) {
+            fprintf(stderr, "[FECALL] FE_INIT: sfree 0x%lX instead of 0x%X"
+                            " (ND500X_SFREE)\n", sfree_override, sfree_phys);
+            sfree_phys = (uint32_t)sfree_override;
+        }
+    }
+
     uint32_t sphys_phys = memtop;        /* top of physical memory */
     uint32_t stext_phys = 0x00000000u;
     uint32_t sdata_phys = 0x00041a94u;   /* = a_text (data base) */
