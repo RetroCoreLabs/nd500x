@@ -220,7 +220,25 @@ int nd500x_ndix_autoboot(struct Nd500Machine* m,
     snprintf(cmd, sizeof cmd, "load-dseg %s 0x%08lX", dseg, dseg_load);  run(m, cmd, ctx);
     snprintf(cmd, sizeof cmd, "map-kdata 0x%08lX 0x%08lX", dseg_load, dseg_size);
     run(m, cmd, ctx);
-    run(m, "set THA 0xE8000736", ctx);
+    /* THA = _u + U_CXB0, NOT _u + _Ktrap.
+     *
+     * The runtime trap vector is set LIVE by the kernel's __resume
+     * (machine/locore.c:964-966): tha := _u + U_CXB0 + traplev*496, and
+     * U_CXB0 = 1852 = 0x73C (machine/locore.h:66). At traplev 0 that is
+     * 0xE800073C. The static _Ktrap = _u+0x736 (locore.c:183), which
+     * kpcbinit stores in pcb_tha, is 6 bytes LOWER and is not 4-byte aligned;
+     * cpu.c:942-949 already documents that it yields a misaligned vector.
+     *
+     * Measured: with 0xE8000736 a trap 38 reads its slot at 0xE80007CE, so the
+     * big-endian word straddles THA[36]=0x00000365 and THA[37]=0x00000373 and
+     * returns 0x03650000 - a garbage handler address. With 0xE800073C the same
+     * slot is 0xE80007D4 and holds the real page-fault handler 0x00000381.
+     *
+     * This bootstrap value only matters for a trap raised in domain 0 before
+     * the first __resume/domain switch, since a switch reloads THA. A healthy
+     * boot never traps that early, which is why the wrong value went unnoticed;
+     * a memory-starved boot does, and died here. */
+    run(m, "set THA 0xE800073C", ctx);
     run(m, "set CTE1 0xF413D800", ctx);
     run(m, "set CTE2 0x0000005F", ctx);
     run(m, "set CAD 1", ctx);
