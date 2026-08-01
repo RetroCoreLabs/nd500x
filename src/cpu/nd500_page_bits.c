@@ -3,6 +3,7 @@
  */
 
 #include "nd500_page_bits.h"
+#include "nd500_phys_alloc.h"
 #include "../machine/machine_types.h"
 
 #include <signal.h>
@@ -33,8 +34,20 @@ typedef struct {
  * alone produced no output at all on exactly the runs worth measuring. */
 static Nd500Machine* g_report_machine = NULL;
 
+/* One exit reporter for both diagnostics. They are separate concerns but share
+ * a single atexit/signal registration on purpose: two handlers would each
+ * install themselves with signal() and the second would silently replace the
+ * first, so whichever armed last would be the only one to report. */
+static void pb_emit_reports(void) {
+    if (!g_report_machine) return;
+    const char* e = getenv("ND500X_PGUDBG");
+    if (e && e[0] && e[0] != '0') nd500_page_bits_report(g_report_machine);
+    e = getenv("ND500X_PHYSDBG");
+    if (e && e[0] && e[0] != '0') nd500_phys_alloc_report(g_report_machine);
+}
+
 static void pb_atexit_report(void) {
-    if (g_report_machine) nd500_page_bits_report(g_report_machine);
+    pb_emit_reports();
 }
 
 /* A scripted boot is normally ended by `timeout`, i.e. SIGTERM, which runs no
@@ -43,10 +56,11 @@ static void pb_atexit_report(void) {
  * default disposition so the exit status still says "killed by SIGTERM".
  *
  * fprintf is not async-signal-safe. That is tolerated here because the whole
- * facility only exists when ND500X_PGUDBG is set: with the flag unset no
- * handler is installed and the emulator's signal behaviour is untouched. */
+ * facility only exists when ND500X_PGUDBG or ND500X_PHYSDBG is set: with both
+ * unset no handler is installed and the emulator's signal behaviour is
+ * untouched. */
 static void pb_signal_report(int sig) {
-    if (g_report_machine) nd500_page_bits_report(g_report_machine);
+    pb_emit_reports();
     g_report_machine = NULL;           /* do not report twice via atexit */
     signal(sig, SIG_DFL);
     raise(sig);
@@ -55,8 +69,11 @@ static void pb_signal_report(int sig) {
 static void pb_arm_report(Nd500Machine* m) {
     static int armed = 0;
     if (armed) { g_report_machine = m; return; }
-    const char* e = getenv("ND500X_PGUDBG");
-    if (!e || !e[0] || e[0] == '0') return;
+    const char* pgu  = getenv("ND500X_PGUDBG");
+    const char* phys = getenv("ND500X_PHYSDBG");
+    int want = ((pgu  && pgu[0]  && pgu[0]  != '0') ||
+                (phys && phys[0] && phys[0] != '0'));
+    if (!want) return;
     g_report_machine = m;
     armed = 1;
     atexit(pb_atexit_report);

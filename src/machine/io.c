@@ -145,6 +145,14 @@ void nd500_machine_free(Nd500Machine* m) {
 		const char* e = getenv("ND500X_PGUDBG");
 		if (e && e[0] && e[0] != '0') nd500_page_bits_report(m);
 	}
+	{
+		/* How much physical memory did the emulator itself take? Demand
+		 * segments grow on fault, so the answer is not the initial
+		 * allocation - and it decides how much must be withheld from a guest
+		 * that does its own allocation over the same range. */
+		const char* e = getenv("ND500X_PHYSDBG");
+		if (e && e[0] && e[0] != '0') nd500_phys_alloc_report(m);
+	}
 	nd500_page_bits_reset(m);    /* drop the PGU/WIP bitmaps */
 	free(m->memory);
 	m->memory = NULL;

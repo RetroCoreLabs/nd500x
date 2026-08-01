@@ -208,3 +208,33 @@ uint32_t nd500_phys_page_owner(Nd500Machine* m, uint32_t pfn) {
     if (!pa || pfn >= pa->page_count) return ND500_PHYS_FREE;
     return pa->owner[pfn];
 }
+
+uint32_t nd500_phys_high_water_pfn(Nd500Machine* m) {
+    PhysAlloc* pa = pa_get(m);
+    if (!pa) return 0;
+    /* Scan down for the topmost page that is not free. A freed page below it
+     * still counts as territory the emulator has used, which is the point:
+     * the reservation has to cover the peak, not the current occupancy. */
+    for (uint32_t p = pa->page_count; p > 0; p--) {
+        if (pa->owner[p - 1] != ND500_PHYS_FREE) return p;
+    }
+    return 0;
+}
+
+void nd500_phys_alloc_report(Nd500Machine* m) {
+    PhysAlloc* pa = pa_get(m);
+    if (!pa) { fprintf(stderr, "[PHYS] allocator not initialised\n"); return; }
+
+    uint32_t used = 0, perm = 0;
+    for (uint32_t p = 0; p < pa->page_count; p++) {
+        if (pa->owner[p] == ND500_PHYS_FREE) continue;
+        used++;
+        if (pa->owner[p] == ND500_PHYS_PERM) perm++;
+    }
+    uint32_t hw = nd500_phys_high_water_pfn(m);
+    fprintf(stderr,
+            "[PHYS] pages: %u used (%u permanent) of %u; high-water pfn %u"
+            " = phys 0x%08X (%u KB)\n",
+            used, perm, pa->page_count, hw, hw << PGSHIFT,
+            (hw << PGSHIFT) / 1024u);
+}

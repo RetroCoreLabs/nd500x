@@ -77,4 +77,16 @@ uint32_t nd500_phys_pages_total(struct Nd500Machine* m);
 /* Owner tag of a page, for diagnostics and tests. */
 uint32_t nd500_phys_page_owner(struct Nd500Machine* m, uint32_t pfn);
 
+/* Highest page frame the allocator has ever handed out, +1 (0 if none). This is
+ * the number that matters when deciding how much physical memory to withhold
+ * from a guest that does its own allocation: demand segments GROW on fault
+ * (nd500_segment_grow_on_fault), so the initial allocation is not the footprint.
+ * NDIX is told it owns sfree..sphys and will reuse anything in that range the
+ * emulator has quietly taken. */
+uint32_t nd500_phys_high_water_pfn(struct Nd500Machine* m);
+
+/* Print pages used/free and the high-water mark to stderr. Called at machine
+ * teardown when ND500X_PHYSDBG is set; safe to call at any time. */
+void nd500_phys_alloc_report(struct Nd500Machine* m);
+
 #endif /* ND500_PHYS_ALLOC_H */
