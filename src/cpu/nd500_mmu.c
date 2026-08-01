@@ -407,9 +407,22 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                         (uint32_t)segment, DEMAND_SEG_INIT_BYTES, &assigned);
             if (rc == 0) {
                 capability = g_pcb_table[domain].data_capabilities[segment];
-                if (!nd500_quiet)
-                    printf("ND-500: demand-mapped data segment %d (domain %d, vaddr=0x%08X)\n",
-                           segment, domain, virtual_addr);
+                if (!nd500_quiet) {
+                    /* Report the PSN and the physical page the segment landed
+                     * on. Without it there is no way to tell whether the guest
+                     * later reuses those pages for something else - the
+                     * emulator allocates them from the same physical range
+                     * FE_INIT hands NDIX as its free pool (sfree..sphys), and
+                     * nothing arbitrates between the two. */
+                    uint32_t psn = (uint32_t)(capability & DC_PSN);
+                    uint32_t pfn = 0;
+                    if (cpu->PSTP && psn < MAX_PST)
+                        pfn = nd500_bus_read32(cpu->machine, cpu->PSTP + psn * 4u)
+                              & 0x3FFFFFFFu;
+                    printf("ND-500: demand-mapped data segment %d (domain %d, vaddr=0x%08X)"
+                           " psn=%u pfn=0x%X phys=0x%08X\n",
+                           segment, domain, virtual_addr, psn, pfn, pfn << PGSHIFT);
+                }
 
                 /* Publish the kernel u-area in the PST slot NDIX expects.
                  *
