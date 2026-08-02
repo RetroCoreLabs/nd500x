@@ -26,8 +26,17 @@
 typedef struct {
     uint32_t  page_count;
     uint32_t* word[2];      /* indexed by Nd500PageTable; 32 pages per word */
+    uint32_t* queried;      /* pages RPGU/RWIP have asked about at least once */
     uint32_t  words;
 } PageBits;
+
+/* Query bookkeeping. "Every query answers 1" has two very different causes:
+ * the sweep only ever visited each page once (so 1 is the honest answer for a
+ * freshly cleared page), or it visited pages twice and something re-marked
+ * them in between. Distinct-vs-total separates those without guessing. */
+static unsigned long g_query_total = 0;
+static unsigned long g_query_repeat = 0;
+static unsigned long g_query_distinct = 0;
 
 /* Lowest and highest page ever marked, per table (defined early so the query
  * log in nd500_page_bits_read_bit can print the range). */
@@ -122,6 +131,8 @@ static PageBits* pb_get(Nd500Machine* m) {
             return NULL;
         }
     }
+    pb->queried = (uint32_t*)calloc(words, sizeof(uint32_t));
+    if (!pb->queried) { free(pb->word[0]); free(pb->word[1]); free(pb); return NULL; }
     pb->page_count = pages;
     pb->words = words;
     m->page_bits = pb;
@@ -177,6 +188,16 @@ uint32_t nd500_page_bits_read_bit(Nd500Machine* m, Nd500PageTable table, uint32_
     uint32_t out = (page >= pb->page_count)
                  ? 0u
                  : ((pb->word[table][page >> 5] >> (page & 31u)) & 1u);
+
+    if (page < pb->page_count && pb->queried) {
+        g_query_total++;
+        if ((pb->queried[page >> 5] >> (page & 31u)) & 1u) {
+            g_query_repeat++;
+        } else {
+            pb->queried[page >> 5] |= 1u << (page & 31u);
+            g_query_distinct++;
+        }
+    }
 
     /* The guest asking about page numbers the emulator never marks is
      * indistinguishable, from the outside, from the guest asking about pages
@@ -261,7 +282,9 @@ void nd500_page_bits_report(Nd500Machine* m) {
     for (int i = 0; i < ND500_PAGE_OP_COUNT; i++) {
         fprintf(stderr, " %s=%lu", g_op_name[i], g_op_count[i]);
     }
-    fprintf(stderr, "\n[PGU] pages marked: PGU=%lu WIP=%lu of %lu frames\n",
+    fprintf(stderr, "\n[PGU] queries: %lu total, %lu distinct pages, %lu repeats\n",
+            g_query_total, g_query_distinct, g_query_repeat);
+    fprintf(stderr, "[PGU] pages marked: PGU=%lu WIP=%lu of %lu frames\n",
             set[ND500_PAGE_TABLE_PGU], set[ND500_PAGE_TABLE_WIP],
             pb ? (unsigned long)pb->page_count : 0ul);
 }
@@ -272,6 +295,7 @@ void nd500_page_bits_reset(Nd500Machine* m) {
     PageBits* pb = (PageBits*)m->page_bits;
     free(pb->word[0]);
     free(pb->word[1]);
+    free(pb->queried);
     free(pb);
     m->page_bits = NULL;
     if (g_report_machine == m) g_report_machine = NULL;   /* no use-after-free at exit */
