@@ -94,6 +94,13 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
              * ------------------------------------------------------------- */
             uint32_t nb = nd500_read_float_register(cpu, reg_num);
             uint32_t db = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
 
             uint32_t en = (nb >> 22) & 0x1FF, mn = nb & 0x3FFFFF;
             uint32_t ed = (db >> 22) & 0x1FF, md = db & 0x3FFFFF;
@@ -335,6 +342,13 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Integer division
     uint32_t reg_value = nd500_read_integer_register(cpu, fi->target_register);
     uint64_t divisor = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     // Check for divide by zero
     if (divisor == 0) {

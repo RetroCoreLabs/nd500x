@@ -34,19 +34,47 @@ void nd500_instr_Wconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->opcode == 0xFD46) {
         /* BI WCONV: Bit to word */
         uint64_t bit_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BIT);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         word_result = (bit_val & 1) ? 1 : 0;
     } else if (fi->opcode == 0xFD4B) {
         /* BY WCONV: Byte to word (sign extend) */
         uint64_t byte_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         word_result = (int32_t)(int8_t)byte_val;
     } else if (fi->opcode == 0xFD50) {
         /* H WCONV: Halfword to word (sign extend) */
         uint64_t h_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_HALFWORD);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         word_result = (int32_t)(int16_t)h_val;
     } else if (fi->opcode == 0xFD5B) {
         /* F WCONV: Float to word (truncate toward zero).
          * Read as FLOAT so a register operand comes from A1-A4, not I1-I4. */
         uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         word_result = nd500_float_to_int32(float_bits);
     } else if (fi->opcode == 0xFD60) {
         /* D WCONV: Double to word (truncate toward zero) */

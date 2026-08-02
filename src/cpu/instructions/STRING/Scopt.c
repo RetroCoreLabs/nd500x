@@ -60,6 +60,13 @@ void nd500_instr_Scopt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
     uint32_t table_addr = fi->operands[2].effective_address;
     uint8_t pad = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[3], ND500_DTYPE_BYTE);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     uint32_t index1 = cpu->I[0];  /* I1 */
     uint32_t index2 = cpu->I[1];  /* I2 */

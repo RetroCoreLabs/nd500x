@@ -53,6 +53,13 @@ void nd500_instr_Rphs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read parameters (like C# lines 57-60) */
     uint32_t source_address = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     /* uint32_t physical_segment = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD); */
     uint32_t byte_count = cpu->I[0];   /* I1 = byte count */
     uint32_t dest_address = cpu->I[1]; /* I2 = destination pointer */

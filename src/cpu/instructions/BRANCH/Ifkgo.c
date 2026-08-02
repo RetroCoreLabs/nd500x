@@ -128,6 +128,13 @@ void nd500_instr_Ifkgo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Read the displacement operand (signed byte or halfword)
     // The displacement is a direct operand (part of instruction encoding)
     int32_t displacement = (int32_t)nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     // Sign-extend displacement based on data type
     if (fi->data_type == ND500_DTYPE_BYTE) {

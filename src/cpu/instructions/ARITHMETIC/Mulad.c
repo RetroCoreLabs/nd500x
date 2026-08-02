@@ -68,6 +68,13 @@ void nd500_instr_Mulad(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
         double x = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
         double y = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         double fresult = regValue * x + y;
         uint64_t bits = nd500_float_finish(cpu, fi->address, fresult, is_double);
         if (is_double) {
@@ -88,6 +95,13 @@ void nd500_instr_Mulad(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read operand y (like C# line 148) */
     uint64_t y = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Perform: Rn * x + y, MODELLING THE HARDWARE'S TWO SEPARATE STEPS.
      *

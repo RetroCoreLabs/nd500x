@@ -38,6 +38,13 @@ void nd500_instr_Fconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else {
         /* W FCONR: Word to float */
         int32_t word_val = (int32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         float_result = nd500_float_from_int32(word_val);
     }
 

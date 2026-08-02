@@ -61,6 +61,13 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         } else {
             a = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT));
             b = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_FLOAT));
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
         }
         {   /* ND500X_FCMPDBG=1: log every float/double compare with the
              * decoded values and operand modes.  This is what showed that
@@ -86,6 +93,13 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read both operands (like C# lines 49-50) */
     uint64_t op1 = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     uint64_t op2 = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Normalise both operands to the datatype width before comparing. The
      * operand fetch may deliver the two operands with different extensions - a

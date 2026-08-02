@@ -45,6 +45,13 @@ void nd500_instr_Wconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* F WCONR: Float to word (truncate toward zero).
          * Read as FLOAT so a register operand comes from A1-A4, not I1-I4. */
         uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         int32_t int_val = nd500_float_to_int32(float_bits);
         source_value = int_val;
         /* Float to int32 can't overflow int32 range */

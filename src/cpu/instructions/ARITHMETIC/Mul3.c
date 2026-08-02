@@ -56,6 +56,13 @@ void nd500_instr_Mul3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
         double aValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
         double bValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         double fresult = aValue * bValue;
         nd500_write_operand_from_ieee_float(cpu, &fi->operands[2], fresult, is_double);
         nd500_float_finish(cpu, fi->address, fresult, is_double);
@@ -70,6 +77,13 @@ void nd500_instr_Mul3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read operand b value (like C# line 64) */
     bValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Perform multiplication: a * b (like C# lines 66-99) */
     switch (fi->data_type) {

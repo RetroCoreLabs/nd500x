@@ -49,6 +49,13 @@ void nd500_instr_Subc(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read operand value */
     uint32_t subtrahend = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Get carry in - the current C flag value (0 or 1) */
     uint32_t carryIn = ((cpu->ST1 & ND500_FLAG_C) != 0) ? 1 : 0;

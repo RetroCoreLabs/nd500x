@@ -79,6 +79,25 @@ static void seed_memory(Nd500Machine* m, Nd500Cpu* cpu) {
     (void)m;
 }
 
+/* Put the CPU into the state nd500_cpu_step guarantees at the top of every
+ * instruction. This test drives nd500_instr_Riom directly, so nothing else
+ * restores that invariant between cases:
+ *
+ *   - cpu->instr_aborted is cleared at the top of each step (src/cpu/cpu.c).
+ *   - A trap left pending from the previous instruction HALTS the machine
+ *     before another instruction executes (src/cpu/cpu.c, the
+ *     nd500_trap_occurred() check ahead of execute), so the global trap state
+ *     is likewise clear whenever an instruction begins.
+ *
+ * Case 1 raises IIC on purpose. Without this reset that abort state leaked
+ * into every later case, and RIOM's operand-abort guard correctly refused to
+ * run - the instruction was fine, the harness was carrying stale state.
+ */
+static void begin_instruction(Nd500Cpu* cpu) {
+    nd500_trap_clear();
+    cpu->instr_aborted = 0;
+}
+
 int main(void) {
     printf("ND-500 RIOM Tests\n=================\n");
 
@@ -91,6 +110,7 @@ int main(void) {
     seed_memory(&m, &cpu);
 
     /* ---- Case 1: not privileged -> IIC trap, no transfer -------------- */
+    begin_instruction(&cpu);
     cpu.ST1 = 0;                       /* PIA clear */
     nd500_instr_Riom(&cpu, &fi);
     bool untouched = true;
@@ -100,6 +120,7 @@ int main(void) {
                 "destination buffer was modified without PIA");
 
     /* ---- Case 2: privileged transfer, EA destination, W source -------- */
+    begin_instruction(&cpu);
     cpu.ST1 = (1U << ND500_ST_BIT_PIA);
     uint32_t st1_before = cpu.ST1, st2_before = cpu.ST2;
     nd500_instr_Riom(&cpu, &fi);
@@ -119,6 +140,7 @@ int main(void) {
                 "ST1/ST2 changed - manual says data status bits are unaffected");
 
     /* ---- Case 3: count == 0 must NOT set Z ---------------------------- */
+    begin_instruction(&cpu);
     fi.operands[2].data[0] = 0; fi.operands[2].data[1] = 0;
     cpu.ST1 = (1U << ND500_ST_BIT_PIA);   /* Z deliberately clear */
     cpu.ST2 = 0;
@@ -131,7 +153,7 @@ int main(void) {
     /* A register has no address in memory (manual section 15.4), so a register
      * buffer operand must raise IOS (trap 34), not perform a transfer. Mirrors
      * RetroCore Test_RIOM_RegisterBuffer_RaisesIos. */
-    nd500_trap_clear();
+    begin_instruction(&cpu);
     build_riom(&fi);                              /* clean instruction */
     fi.operands[1].mode = ND500_ADDR_REGISTER;    /* illegal buffer mode */
     cpu.ST1 = (1U << ND500_ST_BIT_PIA);           /* privileged: reach operand decode */
@@ -146,7 +168,7 @@ int main(void) {
     /* ---- Case 5: CONSTANT buffer operand -> IOS trap ----------------- */
     /* A constant has no address in memory either; same rule. Mirrors
      * RetroCore Test_RIOM_ConstantBuffer_RaisesIos. */
-    nd500_trap_clear();
+    begin_instruction(&cpu);
     build_riom(&fi);
     fi.operands[1].mode = ND500_ADDR_CONSTANT;    /* illegal buffer mode */
     cpu.ST1 = (1U << ND500_ST_BIT_PIA);

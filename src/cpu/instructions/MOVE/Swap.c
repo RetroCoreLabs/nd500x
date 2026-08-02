@@ -67,6 +67,13 @@ void nd500_instr_Swap(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Read both operands
     uint64_t value1 = nd500_read_operand_value(cpu, &fi->operands[0], dtype);
     uint64_t value2 = nd500_read_operand_value(cpu, &fi->operands[1], dtype);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     // Write swapped values
     nd500_write_operand_value(cpu, &fi->operands[0], value2, dtype);

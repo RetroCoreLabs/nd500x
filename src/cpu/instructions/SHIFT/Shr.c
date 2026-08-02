@@ -59,6 +59,13 @@ void nd500_instr_Shr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read operands (like C# Shr.cs lines 33-34) */
     uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     int8_t shift_count = (int8_t)nd500_read_operand_byte(cpu, &fi->operands[1]); /* Signed byte */
 
     /* Calculate bit width from data type (like C# line 35) */

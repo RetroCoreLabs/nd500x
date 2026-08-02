@@ -205,6 +205,13 @@ void nd500_instr_Chain(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Operand 2: Number of levels to traverse */
     int32_t levels = (int32_t)nd500_read_operand_value(cpu, &fi->operands[2], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     if (chain_dbg()) printf("[CHAIN] Start: addr=0x%08X, offset=%u, levels=%d, target=W%u at PC=0x%08X\n",
            start_address, static_link_offset, levels, fi->target_register, fi->address);

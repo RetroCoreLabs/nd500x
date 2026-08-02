@@ -74,6 +74,13 @@ void nd500_instr_Rdus(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Load operand from main memory bypassing cache (like C# lines 60-61) */
     /* In emulator without cache, this is identical to normal load */
     uint64_t value = nd500_read_operand_value(cpu, op, fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Store loaded value into target register */
     nd500_write_integer_register(cpu, fi->target_register, (uint32_t)value);

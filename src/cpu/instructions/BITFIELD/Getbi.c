@@ -139,6 +139,13 @@ void nd500_instr_Getbi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     // Read bit number from second operand (always byte-sized)
     uint64_t bit_number_raw = nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_BYTE);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     uint8_t bit_number = (uint8_t)(bit_number_raw & 0xFF);
 
     // Calculate maximum valid bit number for this data type

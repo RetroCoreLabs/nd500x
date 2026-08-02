@@ -264,6 +264,13 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * WORD, independent of the H instruction prefix. Reading it with fi->data_type
      * (H) truncated real SINTRAN pointers above 0xFFFF. */
     uint32_t nd100_source_addr = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Operand 1 (second operand): ND-500 destination buffer. This is a WRITE
      * operand whose EFFECTIVE ADDRESS is the buffer (manual section 16.23), so it
@@ -314,6 +321,13 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * Reading as H was also wrong on its own: a 2-byte big-endian read of 0x00000046
      * yields 0x0000, i.e. it transfers nothing. */
     uint32_t count = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Validate count - must fit in 16 bits (halfword range 0-65535) */
     if (count > 0xFFFF) {

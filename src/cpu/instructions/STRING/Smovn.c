@@ -43,6 +43,13 @@ void nd500_instr_Smovn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t source_desc_addr = fi->operands[0].effective_address;
     uint32_t dest_desc_addr = fi->operands[1].effective_address;
     uint32_t count = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Load string descriptors */
     Nd500StringDescriptor source_desc, dest_desc;

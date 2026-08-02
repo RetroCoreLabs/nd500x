@@ -74,6 +74,13 @@ void nd500_instr_Freeb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read operands */
     uint8_t log_size = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
     uint32_t element = nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Read heap variables from TOS register */
     uint32_t heap_vars_addr = cpu->TOS;

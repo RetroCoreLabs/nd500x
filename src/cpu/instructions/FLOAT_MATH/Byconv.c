@@ -38,10 +38,24 @@ void nd500_instr_Byconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->opcode == 0xFD44) {
         /* BI BYCONV: Zero extension (bit to byte) */
         uint64_t bit_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BIT);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         source_value = (bit_val & 1) ? 1 : 0;  /* Extract LSB */
     } else if (fi->opcode == 0xFD4F) {
         /* H BYCONV: Halfword to byte */
         uint64_t h_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_HALFWORD);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         int16_t signed_h = (int16_t)h_val;
         source_value = signed_h;
         if (signed_h < -128 || signed_h > 127) {
@@ -50,6 +64,13 @@ void nd500_instr_Byconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else if (fi->opcode == 0xFD54) {
         /* W BYCONV: Word to byte */
         uint64_t w_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         int32_t signed_w = (int32_t)w_val;
         source_value = signed_w;
         if (signed_w < -128 || signed_w > 127) {
@@ -59,6 +80,13 @@ void nd500_instr_Byconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* F BYCONV: Float to byte (truncate toward zero).
          * Read as FLOAT so a register operand comes from A1-A4, not I1-I4. */
         uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         int32_t int_val = nd500_float_to_int32(float_bits);
         source_value = int_val;
         if (int_val < -128 || int_val > 127) {

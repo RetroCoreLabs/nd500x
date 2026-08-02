@@ -58,6 +58,13 @@ void nd500_instr_Div2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
         double aValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
         double bValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         if (bValue == 0.0) {
             cpu->ST1 |= ND500_FLAG_DZ;
             trap_divide_by_zero(cpu, fi->address);
@@ -79,6 +86,13 @@ void nd500_instr_Div2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read divisor from source operand (operands[1]) */
     registerValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Check for divide by zero (like C# lines 67-73) */
     if (registerValue == 0) {

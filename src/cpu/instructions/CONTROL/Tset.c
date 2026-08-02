@@ -206,6 +206,13 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Read current value (atomically in hardware)
     // TSET uses the data type from the instruction (typically BYTE with BY prefix)
     uint64_t old_value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
 
     // Write all-ones to operand based on data type
@@ -261,6 +268,13 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         static uint64_t n = 0;
         if ((n++ % 200000) == 0) {
             uint64_t readback = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
             fprintf(stderr, "[TSETDBG] tset@0x%08X dtype=%d old=0x%llX -> wrote=0x%llX readback=0x%llX "
                     "Z=%d ST1=0x%08X R=0x%08X opmode=%d (n=%llu)\n",
                     fi->address, (int)fi->data_type,

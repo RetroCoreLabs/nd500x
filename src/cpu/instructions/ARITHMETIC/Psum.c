@@ -66,6 +66,13 @@ void nd500_instr_Psum(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Read operands */
         uint64_t x_bits = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
         uint64_t y_bits = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
 
         /* Read current register value */
         uint64_t reg_bits;
@@ -135,6 +142,13 @@ void nd500_instr_Psum(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read operands */
     uint64_t x_raw = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     uint64_t y_raw = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Read current register value */
     uint32_t reg_raw = nd500_read_integer_register(cpu, reg_num);

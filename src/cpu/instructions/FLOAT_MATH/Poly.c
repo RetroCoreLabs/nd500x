@@ -46,6 +46,13 @@ void nd500_instr_Poly(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* 3. Read X value (operand 0) */
     uint64_t x_bits = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* 4. Read degree m (operand 1 - must be constant byte) */
     uint8_t m = nd500_read_operand_byte(cpu, &fi->operands[1]);
@@ -83,6 +90,13 @@ void nd500_instr_Poly(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Read coefficient from extra_operands */
         uint64_t coeff_bits = nd500_read_operand_value(cpu,
             &cpu->extra_operands[i], fi->data_type);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
 
         double coeff;
         if (is_double) {

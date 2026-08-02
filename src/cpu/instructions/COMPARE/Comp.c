@@ -72,6 +72,13 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (!is_double) {
             uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
             uint32_t op_bits  = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
             uint64_t fresult = (uint64_t)reg_bits - (uint64_t)op_bits;
             bool fcarry = (reg_bits >= op_bits);
             /* F COMP runs on the SHARED INTEGER (W-width) compare microcode (entry 161 = W COMP
@@ -104,6 +111,13 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
             reg_value = (double)nd500_float_to_ieee754(reg_bits);
             uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
             operand_value = (double)nd500_float_to_ieee754(op_bits);
         }
 
@@ -138,6 +152,13 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read register and operand (like C# ReadIntegerRegister + ReadOperandValue) */
     uint64_t reg_value = nd500_read_integer_register(cpu, fi->target_register);
     uint64_t operand = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Normalise both to the datatype width before comparing. The register read
      * delivers the full register while the operand may be sign- or zero-extended

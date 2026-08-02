@@ -43,6 +43,13 @@ void nd500_instr_Sskip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Get descriptor address and test value */
     uint32_t source_desc_addr = fi->operands[0].effective_address;
     uint32_t test_value = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Load string descriptor */
     Nd500StringDescriptor source_desc;

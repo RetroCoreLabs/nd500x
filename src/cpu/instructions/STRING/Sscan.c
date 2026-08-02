@@ -49,6 +49,13 @@ void nd500_instr_Sscan(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * Operand 2: translate table base (256-byte table, absolute address). */
     uint32_t source_desc_addr = fi->operands[0].effective_address;
     uint8_t  mask = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     uint32_t table_addr = fi->operands[2].effective_address;
 
     Nd500StringDescriptor source_desc;

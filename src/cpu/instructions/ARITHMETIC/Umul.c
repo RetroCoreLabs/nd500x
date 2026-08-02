@@ -49,6 +49,13 @@ void nd500_instr_Umul(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* UMUL is always word-sized regardless of fi->data_type */
     uint32_t a = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
     uint32_t b = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Perform unsigned multiplication (64-bit result) (like C# line 59) */
     uint64_t product = (uint64_t)a * (uint64_t)b;

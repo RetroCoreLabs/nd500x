@@ -58,6 +58,13 @@ void nd500_instr_Axi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read floating-point operand a and integer operand i */
     uint64_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     int32_t exponent_i = (int32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     double result = 0.0;
     bool overflow = false;

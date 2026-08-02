@@ -48,6 +48,13 @@ void nd500_instr_Tan(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         argument = nd500_double_to_ieee754(arg_bits);
     } else {
         uint32_t arg_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         argument = (double)nd500_float_to_ieee754(arg_bits);
     }
 

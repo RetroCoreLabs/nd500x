@@ -40,10 +40,24 @@ void nd500_instr_Hconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->opcode == 0xFD45) {
         /* BI HCONV: Zero extension (bit to halfword) */
         uint64_t bit_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BIT);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         source_value = (bit_val & 1) ? 1 : 0;  /* Extract LSB */
     } else if (fi->opcode == 0xFD4A) {
         /* BY HCONV: Byte to halfword (sign extension) */
         uint64_t byte_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         int8_t signed_byte = (int8_t)byte_val;
         source_value = signed_byte;  /* Sign extend */
     } else if (fi->opcode == 0xFD55) {
@@ -57,6 +71,13 @@ void nd500_instr_Hconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * and made swtch() resume a bogus u-area (panic: sleep on every context
          * switch). See ND500X_MMU_REDESIGN_PLAN.md. */
         uint64_t w_val = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         int32_t signed_w = (int32_t)w_val;
         source_value = signed_w;
         /* W HCONV TRUNCATES to the low 16 bits - it does NOT raise IOV on an
@@ -72,6 +93,13 @@ void nd500_instr_Hconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * an integer, then truncate to halfword with IOV check. Not on the boot
          * path; see plan doc for the full CONV-family opcode-table correction. */
         uint64_t f_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         int64_t int_val = (int64_t)nd500_float_to_int32((uint32_t)f_bits);
         source_value = int_val;
         if (int_val < -32768 || int_val > 32767) {

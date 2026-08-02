@@ -96,6 +96,13 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             /* Single precision (F ADD2): a + b -> a */
             uint32_t a_bits = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
             uint32_t b_bits = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
 
             float a_ieee = nd500_float_to_ieee754(a_bits);
             float b_ieee = nd500_float_to_ieee754(b_bits);
@@ -149,6 +156,13 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read operand b (second operand - source only) - C# line 63 */
     bValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Perform addition: a + b (like C# lines 66-103) */
     switch (fi->data_type) {

@@ -133,6 +133,13 @@ void nd500_instr_IfUnsignedLessEqualGo(Nd500Cpu* cpu, const Nd500FetchedInstruct
     if (carry_clear || zero_set) {
         // Read displacement value and sign-extend based on data type
         uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         int64_t displacement = nd500_sign_extend_by_dtype(value, fi->data_type);
 
         // Update PC (relative branch from instruction start)

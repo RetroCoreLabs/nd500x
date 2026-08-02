@@ -56,6 +56,13 @@ void nd500_instr_Decr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             value = nd500_double_to_ieee754(op_bits);
         } else {
             uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
             value = (double)nd500_float_to_ieee754(op_bits);
         }
 
@@ -107,6 +114,13 @@ void nd500_instr_Decr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read operand value (like C# ReadOperandValue) */
     uint64_t value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Perform decrement */
     uint64_t result = value - 1;
