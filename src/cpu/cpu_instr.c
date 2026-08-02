@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "cpu_protos.h"
 #include "../machine/machine_protos.h"
 #include "nd500_instructions.h"
@@ -445,7 +446,24 @@ static uint8_t read_data_part(Nd500Machine* m, uint32_t base, uint8_t addr_code,
 
 int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) {
 	if (!m || !out) return -1;
-	memset(out, 0, sizeof(*out));
+
+	/* Zeroing all of *out per decode was 55.96% of the emulator's entire host
+	 * instruction count in a callgrind profile of an NDIX boot: 1.42 million
+	 * decodes x 7392 bytes. 97.7% of the struct is operands[258], sized for
+	 * CALL's worst case, while ordinary instructions have at most three
+	 * operands - so nearly all of that zeroing was of slots nothing would read.
+	 *
+	 * Clear the fixed fields on either side of the operand array here, and only
+	 * the operand slots this opcode actually uses further down, once
+	 * operand_count is known. Slots appended later by the variable-operand path
+	 * are whole-struct assignments (operands[n] = temp_op), so they carry no
+	 * stale bytes and need no pre-clearing. */
+	{
+		const size_t ops_off = offsetof(Nd500FetchedInstruction, operands);
+		const size_t ops_end = ops_off + sizeof(out->operands);
+		memset(out, 0, ops_off);
+		memset((unsigned char*)out + ops_end, 0, sizeof(*out) - ops_end);
+	}
 	out->address = pc;
 
 	/* Always reset extra_operand_count - prevents stale operands from previous CALL/CALLG */
@@ -482,6 +500,17 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     if (oplen == 2) out->bytes[1] = b1;
     /* Set operand_count from table */
     out->operand_count = (uint8_t)nd500_instr_operand_count(opcode);
+
+    /* Clear the operand slots this instruction will use (see the note at the
+     * top of this function). Always clear at least four, so a handler that
+     * reaches for a fixed slot without consulting operand_count still sees
+     * zeros rather than the previous instruction's operand - that costs 112
+     * bytes against the 7224 the unconditional memset used to write. */
+    {
+        size_t nclr = out->operand_count < 4u ? 4u : (size_t)out->operand_count;
+        if (nclr > ND500_MAX_OPERANDS) nclr = ND500_MAX_OPERANDS;
+        memset(out->operands, 0, nclr * sizeof(out->operands[0]));
+    }
     /* For unknown/invalid opcodes, treat as 1 or 2-byte unknown based on opcode_len and return early */
     if (opcode == 0 || !out->mnemonic || strcmp(out->mnemonic, "???") == 0) {
         out->total_len = out->opcode_len;
