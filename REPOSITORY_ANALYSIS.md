@@ -194,7 +194,14 @@ The ND500X repository is a comprehensive Norsk Data ND-500 CPU emulator with **c
 
 ### 4. AI-Generated Documentation
 
-**Location**: `docs/AI_Generated/` (516 KB total)
+> **MOVED OUT OF THE REPOSITORY.** These are working notes, not repository
+> content, and now live at `$NDIX/notes/docs/AI_Generated/` - see
+> `docs/PATH_CONVENTIONS.md`. The inventory below is kept as a record of what
+> was produced and where it went; the paths in it are historical. The same
+> applies to the `HANDOFF_*`, `BUGREPORT_*`, `SESSION_*` and `*_COMPLETE` files
+> listed elsewhere in this document.
+
+**Location**: `$NDIX/notes/docs/AI_Generated/` (516 KB total, formerly `docs/AI_Generated/`)
 
 **Organization**: Previously in `docs/` root, now separated into `AI_Generated/` subdirectory
 

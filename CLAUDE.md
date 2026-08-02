@@ -464,7 +464,7 @@ The MON subsystem (`src/libmon/`) emulates SINTRAN operating system calls:
 - **Testing**: MON call handlers must match SINTRAN semantics exactly
   - Test against real SINTRAN output when possible
   - Use debugger `mon` commands to inspect: `mon log`, `mon status`, `mon list`, `mon info`
-- **Reference**: See `docs/HANDOFF_CSHARP_FILE_TABLE_SINTRAN_SEMANTICS.md` for file table semantics
+- **Reference**: See `$NDIX/notes/docs/HANDOFF_CSHARP_FILE_TABLE_SINTRAN_SEMANTICS.md` for file table semantics (working notes, kept outside this repo - see docs/PATH_CONVENTIONS.md)
 - **Completeness audit**: `docs/MON_COMPLETENESS_AUDIT.md` lists which MON calls are implemented and their status
 - **Key MON calls** needing careful implementation:
   - 1B (INBT): Blocking input on device (suspends on empty input)
