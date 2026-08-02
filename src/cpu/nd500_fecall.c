@@ -59,6 +59,46 @@ static int g_envf_inodedbg = -1;
 #define GEN_DISK   0x1
 #define GEN_XMSG   0x7
 #define GEN_SIINTR 0x8
+#define GEN_TAPE   0x2
+
+/* Debug-logging predicate, defined further down; forward-declared so the
+ * order of the handlers below does not depend on where it happens to sit. */
+static int fedbg(void);
+
+/* ---- tape (generic 2) ----------------------------------------------------
+ * io/mt.c drives this. The interface is RECORD-structured, not block-
+ * structured: FE_READ says "give me up to maxbytes, tell me how long this
+ * record actually was", and FE_DCTL does space-record / space-file / rewind.
+ * A flat image cannot express variable-length records or filemarks, so the
+ * backing store is a SIMH .tap:
+ *
+ *   record : <4-byte LE length N> <N bytes, padded to even> <4-byte LE N>
+ *   N == 0          tape mark (filemark)
+ *   N == 0xFFFFFFFF end of medium
+ *   N == 0xFFFFFFFE erase gap - skipped
+ *   bit 31 set      error record; the low 24 bits are still the length
+ *
+ * The trailing length is what makes backspacing possible: BSR reads the
+ * 4 bytes before the current position to learn how far to step back.
+ *
+ * Read-only, per the tracked scope of the task. FE_WRIT and DCTL_WEOF report
+ * an error rather than silently pretending to have written - a tape driver
+ * that thinks it wrote a filemark and did not would corrupt whatever the
+ * guest builds on top of it.
+ * ------------------------------------------------------------------------- */
+#define TAPE_MARK      0x00000000u
+#define TAPE_EOM       0xFFFFFFFFu
+#define TAPE_ERASE_GAP 0xFFFFFFFEu
+
+/* DCTL operations (machine/if.h:324-332) */
+#define DCTL_FSF      1   /* forward space file    */
+#define DCTL_BSF      2   /* backward space file   */
+#define DCTL_FSR      3   /* forward space record  */
+#define DCTL_BSR      4   /* backward space record */
+#define DCTL_REW      5   /* rewind                */
+#define DCTL_REW_UNL  6   /* rewind + unload       */
+#define DCTL_STAT     7   /* status                */
+#define DCTL_WEOF     8   /* write end-of-file     */
 
 /* ---- init_rpk field byte offsets (machine/if.h, byte-packed) ---- */
 #define IR_COMPLETION 0
@@ -122,13 +162,90 @@ static long     g_disk_size = 0;
 static int      g_disk_rw = 0;   /* 1 = COW session open r+b, honor FE_WRIT */
 static uint32_t g_ssize = FE_SECSIZE;   /* sector size, confirmed by FE_OPEN */
 
-static int fedbg(void) {
-    static int v = -1;
-    if (v < 0) { const char* e = getenv("ND500X_FEDBG"); v = (e && e[0] && e[0] != '0') ? 1 : 0; }
-    return v;
+/* ---- tape state (SIMH .tap, read-only) ---- */
+static FILE* g_tape       = NULL;
+static long  g_tape_size  = 0;
+static long  g_tape_pos   = 0;   /* byte offset of the NEXT record header */
+static int   g_tape_init  = 0;
+
+/* Attach the tape image named by ND500X_TAPE, once. No built-in default: a
+ * root-anchored path belongs to whoever ran the build, not to the repo. */
+static FILE* fe_tape_open(void) {
+    if (g_tape_init) return g_tape;
+    g_tape_init = 1;
+    const char* p = getenv("ND500X_TAPE");
+    if (!p || !p[0]) return NULL;
+    g_tape = fopen(p, "rb");
+    if (!g_tape) {
+        fprintf(stderr, "[FECALL] tape: cannot open %s\n", p);
+        return NULL;
+    }
+    fseek(g_tape, 0, SEEK_END);
+    g_tape_size = ftell(g_tape);
+    fseek(g_tape, 0, SEEK_SET);
+    g_tape_pos = 0;
+    fprintf(stderr, "[FECALL] tape image: %s (%ld bytes)\n", p, g_tape_size);
+    return g_tape;
 }
 
-/* ---- packet field access: logical (FE_INIT) or physical (ND-100 word) ---- */
+/* SIMH .tap length words are LITTLE-endian, unlike everything else the guest
+ * touches - the format is defined that way, so read them explicitly rather
+ * than reusing any of the big-endian packet helpers. */
+static int fe_tape_rd_len(long off, uint32_t* out) {
+    unsigned char b[4];
+    if (off < 0 || off + 4 > g_tape_size) return 0;
+    if (fseek(g_tape, off, SEEK_SET) != 0) return 0;
+    if (fread(b, 1, 4, g_tape) != 4) return 0;
+    *out = (uint32_t)b[0] | ((uint32_t)b[1] << 8)
+         | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
+    return 1;
+}
+
+/* Payload bytes actually occupied on the medium: data padded to an even count. */
+static long fe_tape_padded(uint32_t len) {
+    return (long)len + (long)(len & 1u);
+}
+
+/* Data length carried by a header word, ignoring the error flag in bit 31. */
+static uint32_t fe_tape_datalen(uint32_t hdr) {
+    return hdr & 0x00FFFFFFu;
+}
+
+/* Step forward over one record. Returns 1 and sets *hdr to the header word
+ * that was stepped over; 0 at end of medium or on a malformed image. */
+static int fe_tape_fwd(uint32_t* hdr) {
+    uint32_t h;
+    if (!fe_tape_rd_len(g_tape_pos, &h)) return 0;
+    if (h == TAPE_EOM) return 0;
+    if (h == TAPE_ERASE_GAP) {          /* not a record - skip the word and retry */
+        g_tape_pos += 4;
+        return fe_tape_fwd(hdr);
+    }
+    /* header + payload(padded) + trailer, or just the header for a tape mark */
+    g_tape_pos += (h == TAPE_MARK) ? 4 : (4 + fe_tape_padded(fe_tape_datalen(h)) + 4);
+    if (hdr) *hdr = h;
+    return 1;
+}
+
+/* Step back over one record, using the TRAILING length word that precedes the
+ * current position. Returns 1 and sets *hdr; 0 at BOT or on a malformed image. */
+static int fe_tape_back(uint32_t* hdr) {
+    uint32_t h;
+    if (g_tape_pos <= 0) return 0;
+    /* A tape mark is a bare 4-byte zero: no trailer to distinguish, but its
+     * value is 0 either way, so reading the preceding word covers both cases. */
+    if (!fe_tape_rd_len(g_tape_pos - 4, &h)) return 0;
+    if (h == TAPE_MARK) {
+        g_tape_pos -= 4;
+    } else {
+        long span = 4 + fe_tape_padded(fe_tape_datalen(h)) + 4;
+        if (g_tape_pos - span < 0) return 0;
+        g_tape_pos -= span;
+    }
+    if (hdr) *hdr = h;
+    return 1;
+}
+
 typedef struct {
     Nd500Cpu* cpu;
     int       logical;   /* 1: base is a logical kernel addr; 0: base is a physical byte addr */
@@ -308,6 +425,15 @@ static void fe_idev(Nd500Cpu* cpu, uint32_t gen, Pkt* cpk, Pkt* rpk) {
         if (fedbg()) fprintf(stderr, "[FECALL] FE_IDEV gen=%u -> FAIL (NOXMSG)\n", gen);
         return;
     }
+    /* Tape: only present when an image is attached. Answering success with no
+     * medium would let mtattach create /dev/mt* that fail on every access;
+     * failing here is what a drive-less machine looks like. */
+    if (gen == GEN_TAPE && !fe_tape_open()) {
+        pkt_wr16(rpk, ID_RPK_COMPLETION, 1);
+        if (fedbg()) fprintf(stderr, "[FECALL] FE_IDEV gen=2 (tape) -> FAIL (no ND500X_TAPE)\n");
+        return;
+    }
+
     pkt_wr16(rpk, ID_RPK_COMPLETION, 0);
 
     /* Terminals answer with a DIFFERENT packet shape. machine/if.h:
@@ -398,6 +524,160 @@ static void fe_rcon(Nd500Cpu* cpu, uint32_t physaddr_word, Pkt* rpk) {
     if (c == EOF) { pkt_wr16(rpk, 0, 1); return; }  /* completion != 0 = no data */
     nd500_bus_write8(cpu->machine, phys + 3, (uint8_t)c);
     pkt_wr16(rpk, 0, 0);
+}
+
+static int fedbg(void) {
+    static int v = -1;
+    if (v < 0) { const char* e = getenv("ND500X_FEDBG"); v = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    return v;
+}
+
+/* ---- packet field access: logical (FE_INIT) or physical (ND-100 word) ---- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FE_READ, generic 2 - read ONE tape record into ND-500 memory.
+ * cpk _read_cpk_tape (if.h:223): maxbytes@0 (long), physaddr@4 (naddr_t).
+ * rpk _read_rpk_xxxx (if.h:236): completion@0, status@2, nbytes@4 (long).
+ * The ACTUAL record length goes back in nbytes, which is how the driver
+ * learns a short record; a tape mark reads as zero bytes (EOF to the guest).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static void fe_read_tape(Nd500Cpu* cpu, uint32_t cpk_word, Pkt* rpk) {
+    Pkt cpk = pkt_word(cpu, cpk_word);
+    uint32_t maxbytes = pkt_rd32(&cpk, 0);
+    uint32_t physaddr = pkt_rd32(&cpk, 4);          /* ND-100 word address */
+    uint32_t dst_phys = physaddr * 2u - FE_PRIVATE;
+
+    uint16_t completion = 0, status = 0;
+    uint32_t got = 0;
+
+    if (!fe_tape_open()) {
+        completion = 1;                              /* no medium loaded */
+    } else {
+        uint32_t h;
+        if (!fe_tape_rd_len(g_tape_pos, &h) || h == TAPE_EOM) {
+            completion = 1;                          /* end of medium */
+            status = 1;
+        } else if (h == TAPE_ERASE_GAP) {
+            g_tape_pos += 4;                         /* skip and report 0 bytes */
+        } else if (h == TAPE_MARK) {
+            g_tape_pos += 4;                         /* filemark: 0 bytes, no error */
+        } else {
+            uint32_t len = fe_tape_datalen(h);
+            uint32_t want = (len < maxbytes) ? len : maxbytes;
+            if (fseek(g_tape, g_tape_pos + 4, SEEK_SET) == 0) {
+                uint8_t buf[4096];
+                uint32_t done = 0;
+                while (done < want) {
+                    uint32_t chunk = want - done;
+                    if (chunk > sizeof(buf)) chunk = sizeof(buf);
+                    size_t n = fread(buf, 1, chunk, g_tape);
+                    if (n == 0) break;
+                    for (size_t i = 0; i < n; i++)
+                        nd500_bus_write8(cpu->machine, dst_phys + done + (uint32_t)i, buf[i]);
+                    done += (uint32_t)n;
+                }
+                got = done;
+            }
+            /* The record is consumed whether or not the guest's buffer took all
+             * of it - that is what a real drive does; the remainder is lost and
+             * the driver sees it as a short read via nbytes. */
+            if (h & 0x80000000u) status = 1;         /* error record flagged in the image */
+            g_tape_pos += 4 + fe_tape_padded(len) + 4;
+        }
+    }
+
+    if (fedbg())
+        fprintf(stderr, "[FECALL] FE_READ tape: maxbytes=%u -> %u bytes, pos=%ld, compl=%u\n",
+                maxbytes, got, g_tape_pos, completion);
+
+    pkt_wr16(rpk, 0, completion);
+    pkt_wr16(rpk, 2, status);
+    pkt_wr32(rpk, 4, got);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FE_DCTL, generic 2 - tape motion.
+ * cpk _dctl_cpk_tape (if.h:323): operation@0, parameter@2 (both short).
+ * rpk _dctl_rpk_tape (if.h:386): completion@0, status@2, ops@4.
+ * mt.c:434-435 fills operation from b_command and parameter from b_repcnt,
+ * so the space operations repeat `parameter` times.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+static void fe_dctl_tape(Nd500Cpu* cpu, uint32_t cpk_word, Pkt* rpk) {
+    Pkt cpk = pkt_word(cpu, cpk_word);
+    uint16_t op    = pkt_rd16(&cpk, 0);
+    uint16_t count = pkt_rd16(&cpk, 2);
+    uint16_t completion = 0, status = 0;
+    uint32_t n = (count == 0) ? 1u : (uint32_t)count;
+    uint32_t i;
+    uint32_t h;
+
+    if (!fe_tape_open()) {
+        pkt_wr16(rpk, 0, 1);
+        pkt_wr16(rpk, 2, 0);
+        pkt_wr16(rpk, 4, 0);
+        return;
+    }
+
+    switch (op) {
+        case DCTL_REW:
+        case DCTL_REW_UNL:
+            g_tape_pos = 0;
+            break;
+
+        case DCTL_FSR:                                   /* forward space record */
+            for (i = 0; i < n; i++)
+                if (!fe_tape_fwd(&h)) { completion = 1; break; }
+            break;
+
+        case DCTL_BSR:                                   /* backward space record */
+            for (i = 0; i < n; i++)
+                if (!fe_tape_back(&h)) { completion = 1; break; }
+            break;
+
+        case DCTL_FSF:                                   /* forward space file */
+            for (i = 0; i < n; i++) {
+                for (;;) {
+                    if (!fe_tape_fwd(&h)) { completion = 1; break; }
+                    if (h == TAPE_MARK) break;           /* the mark is consumed */
+                }
+                if (completion) break;
+            }
+            break;
+
+        case DCTL_BSF:                                   /* backward space file */
+            for (i = 0; i < n; i++) {
+                for (;;) {
+                    if (!fe_tape_back(&h)) { completion = 1; break; }
+                    if (h == TAPE_MARK) break;
+                }
+                if (completion) break;
+            }
+            break;
+
+        case DCTL_STAT:
+            /* Report position, not motion. status bit 0 = at BOT. */
+            status = (g_tape_pos == 0) ? 1 : 0;
+            break;
+
+        case DCTL_WEOF:
+            /* Read-only backing store. Reporting success here would tell the
+             * driver a filemark exists where none does. */
+            completion = 1;
+            if (fedbg())
+                fprintf(stderr, "[FECALL] FE_DCTL tape: WEOF refused (image is read-only)\n");
+            break;
+
+        default:
+            completion = 1;
+            break;
+    }
+
+    if (fedbg())
+        fprintf(stderr, "[FECALL] FE_DCTL tape: op=%u count=%u -> pos=%ld compl=%u status=%u\n",
+                op, count, g_tape_pos, completion, status);
+
+    pkt_wr16(rpk, 0, completion);
+    pkt_wr16(rpk, 2, status);
+    pkt_wr16(rpk, 4, (uint16_t)n);      /* ops actually attempted */
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -942,6 +1222,18 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             Pkt rpk = pkt_word(cpu, rpk_arg);
             if (gen == GEN_DISK) {
                 fe_open_disk(&rpk);      /* disk: return geometry */
+            } else if (gen == GEN_TAPE) {
+                /* _open_rpk_tape (if.h:191): completion@0, status@2 - no
+                 * geometry, a tape has none. Deliberately does NOT rewind:
+                 * BSD distinguishes rewind from no-rewind tape devices by
+                 * minor number, and the driver issues DCTL_REW explicitly when
+                 * it wants BOT. A fresh attach already starts at BOT. */
+                int ok = (fe_tape_open() != NULL);
+                pkt_wr16(&rpk, 0, ok ? 0 : 1);
+                pkt_wr16(&rpk, 2, 0);
+                if (fedbg())
+                    fprintf(stderr, "[FECALL] FE_OPEN tape -> %s (pos=%ld)\n",
+                            ok ? "success" : "no medium", g_tape_pos);
             } else {
                 pkt_wr16(&rpk, 0, 0);    /* other devices (e.g. XMSG): success */
                 if (fedbg()) fprintf(stderr, "[FECALL] FE_OPEN gen=%u -> success (non-disk)\n", gen);
@@ -988,6 +1280,14 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                 break;
             }
             Pkt rpk = pkt_word(cpu, rpk_arg);
+            if (gen == GEN_TAPE) {
+                fe_read_tape(cpu, cpk_arg, &rpk);
+                cpu->fe_int_pending = 1;      /* async, like the disk path */
+                cpu->fe_int_gen = gen;
+                cpu->fe_int_sub = device & 0xFFFF;
+                cpu->fe_int_rpk = rpk_arg;
+                break;
+            }
             fe_read_disk(cpu, device, cpk_arg, rpk_arg, &rpk);
             break;
         }
@@ -1026,6 +1326,20 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                     fprintf(stderr, "[FECALL] FE_WRIT TERM_OUT unit=%u strip=%d nbytes=%u phys=0x%08X raw=[%s]\n",
                             device & 0xFFFF, strip, nbytes, phys, hex);
                 }
+                cpu->fe_int_pending = 1;
+                cpu->fe_int_gen = gen;
+                cpu->fe_int_sub = device & 0xFFFF;
+                cpu->fe_int_rpk = rpk_arg;
+                break;
+            }
+            if (gen == GEN_TAPE) {
+                /* Read-only backing store (tracked scope). Report the failure
+                 * rather than fake success - see fe_dctl_tape's WEOF. */
+                Pkt rpk = pkt_word(cpu, rpk_arg);
+                pkt_wr16(&rpk, 0, 1);   /* completion = error */
+                pkt_wr16(&rpk, 2, 0);
+                if (fedbg())
+                    fprintf(stderr, "[FECALL] FE_WRIT tape refused (image is read-only)\n");
                 cpu->fe_int_pending = 1;
                 cpu->fe_int_gen = gen;
                 cpu->fe_int_sub = device & 0xFFFF;
@@ -1073,6 +1387,14 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
         }
         case FE_DCTL: {
             Pkt rpk = pkt_word(cpu, rpk_arg);
+            if (gen == GEN_TAPE) {
+                fe_dctl_tape(cpu, cpk_arg, &rpk);
+                cpu->fe_int_pending = 1;
+                cpu->fe_int_gen = gen;
+                cpu->fe_int_sub = device & 0xFFFF;
+                cpu->fe_int_rpk = rpk_arg;
+                break;
+            }
             pkt_wr16(&rpk, 0, 0);   /* completion */
             pkt_wr16(&rpk, 2, 0);   /* status */
             /* Terminal DCTL_CHG_FLGS reports the line mode (machine/if.h
