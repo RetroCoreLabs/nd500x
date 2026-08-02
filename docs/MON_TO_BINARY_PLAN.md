@@ -1,10 +1,10 @@
 # Plan: from here to a linked ND-500 binary (MON work is NOT done until this passes)
 
-**Full path:** `/home/ronny/repos/nd500x/docs/MON_TO_BINARY_PLAN.md`
+**Full path:** `docs/MON_TO_BINARY_PLAN.md`
 Date opened: 2026-07-14
-Related: `/home/ronny/repos/nd500x/docs/MON_COMPLETENESS_MATRIX.md`,
-`/home/ronny/repos/nd500x/docs/MON_CSHARP_SYNC_HANDOFF.md` (HELD - do not send until Phase 5),
-`/home/ronny/repos/nd500x/docs/HANDOFF_MON_COMPLETENESS.md`.
+Related: `docs/MON_COMPLETENESS_MATRIX.md`,
+`docs/MON_CSHARP_SYNC_HANDOFF.md` (HELD - do not send until Phase 5),
+`docs/HANDOFF_MON_COMPLETENESS.md`.
 
 ## Definition of DONE (the only thing that counts)
 
@@ -89,12 +89,12 @@ NRF validation - IMPORTANT corrections (2026-07-14):
   be regenerated from a real NRF (or deleted) - do NOT byte-diff NC output against them.
 - A GENUINE NRF is a control-group byte stream starting `0A 00`; each control field is a 5-bit
   control number + 3-bit numeric-length. Format spec: the linker manual
-  `/home/ronny/repos/nd500x/docs/ND-860289-2-EN ND Linker User Guide and Reference Manual.md`
+  `docs/ND-860289-2-EN ND Linker User Guide and Reference Manual.md`
   section "THE ND RELOCATABLE FORMAT" + "SUMMARY OF NRF-CONTROL NUMBERS" (~lines 8085-8180).
-  Reference genuine objects to study: `/mnt/d/ND/500/FraTor/test-real/test-real.nrf`,
-  `/mnt/d/ND/500/ND-500 Symbolic Debugger/debugger-b.nrf`.
+  Reference genuine objects to study: `$ND500_TESTDATA/FraTor/test-real/test-real.nrf`,
+  `$ND500_TESTDATA/ND-500 Symbolic Debugger/debugger-b.nrf`.
 
-Phase 1 pre-step: DONE + VERIFIED - NRF VALIDATOR built at `/home/ronny/repos/nd500x/test/nrf_validate.c`
+Phase 1 pre-step: DONE + VERIFIED - NRF VALIDATOR built at `test/nrf_validate.c`
 (full NRF spec encoded as enums/structs with per-item manual page cites; build
 `gcc -std=c11 -o build/bin/nrf_validate test/nrf_validate.c`). It walks the control-group stream
 and validates: BALANCED BEG(1)/END(2), well-formed control fields, no truncation, no BEG nesting,
@@ -122,8 +122,8 @@ Objective: `linker-b01.dom` runs under nd500x far enough to attempt a link. ~20 
 Strategy: decouple from Phase 1 by using a KNOWN-GOOD NRF (from the real toolchain, or Phase 1's
 output) as linker input, so linker progress is not blocked on NC codegen.
 
-Drive harness: adapt `test/diag_monlog.c` to load `/mnt/d/ND/500/nd-linker/linker-b01.dom`,
-feed a link job (ref `/mnt/d/ND/500/nd-linker/linker-auto-c.job`), mon-log every call.
+Drive harness: adapt `test/diag_monlog.c` to load `$ND500_TESTDATA/nd-linker/linker-b01.dom`,
+feed a link job (ref `$ND500_TESTDATA/nd-linker/linker-auto-c.job`), mon-log every call.
 
 Implement in tiers; build + drive the linker after EACH tier and diff the MON log against the
 previous run (each tier should let the linker reach a later MON call / further PC).
@@ -160,7 +160,7 @@ Validation gate:
   error while reading NC's object (this is also the acceptance test for Phase 1's NRF).
 - Output binary is non-zero. The binary is a DOM/domain (`nd500-dis -a` DOES understand DOM, per
   the linker analysis notes) - validate header magic (DOM `0x4aa0`), code+data sections, entry
-  point; compare structure against the known-good `/mnt/d/ND/500/nd-linker/linker-b01.dom` shape.
+  point; compare structure against the known-good `$ND500_TESTDATA/nd-linker/linker-b01.dom` shape.
 Exit criteria: a linked binary file on disk that loads under nd500x (Phase 4 runs it).
 Continue: if the linker errors mid-link, the failing MON call or link step is the next target -
 loop back to Phase 2 for that call.
@@ -181,7 +181,7 @@ Exit criteria: green end-to-end run recorded with the actual output bytes.
 Only after Phase 4 is green:
 1. Confirm every Verification Tracker row is VERIFIED.
 2. Regenerate the 11 SCOMP ByteDiff test cases (they encode the old inverted convention) in
-   `/mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.Tests.ND500/Validation/`.
+   `$RETROCORE/Emulated.Tests.ND500/Validation/`.
 3. Consolidate the verified changelog into `MON_CSHARP_SYNC_HANDOFF.md`, mark it RELEASED, and
    send to the C# LLM - CPU fixes, MON contract fixes, and the new linker handlers, all now
    backed by an end-to-end run, not code reads.
@@ -206,7 +206,7 @@ linker directly instead.
 - NEW HARNESS: `test/diag_linkmon.c` -> `build/bin/diag_linkmon <dom> "<cmd>" [max_steps]`
   (diag_monlog HARDCODES the NC dom + ignores argv - do NOT use it for the linker).
   Build line = standard diag static-lib group.
-- Linker `/mnt/d/ND/500/nd-linker/linker-b01.dom` LOADS + BOOTS (Seg[22], prog 354165 / data
+- Linker `$ND500_TESTDATA/nd-linker/linker-b01.dom` LOADS + BOOTS (Seg[22], prog 354165 / data
   365580). Startup MON calls succeed: 143B RSIO, 74B SETBT, 50B OPEN, 262B CPUST, 16B MGTTY,
   13B CIBUF.
 - FIRST BLOCKER: MON 144B (MAGTP / DeviceFunction) at instr 5419, return PC 0xB004E9C8, 5 args
@@ -217,7 +217,7 @@ linker directly instead.
   get PAST startup, re-drive with diag_linkmon, diff the MON tail vs this run to find the next
   blocker. Then work down the Tier 2a-2d list (matrix "Work remaining for the LINKER"). Use a
   known-good NRF as link input once it reaches the read-object stage:
-  `/mnt/d/ND/500/FraTor/test-real/test-real.nrf` (staged as build/link_sandbox/GUEST/TEST.NRF).
+  `$ND500_TESTDATA/FraTor/test-real/test-real.nrf` (staged as build/link_sandbox/GUEST/TEST.NRF).
   Linker command syntax still TBD (job files linker-auto-*.job are binary/encoded; need the ND
   Linker manual command grammar - check docs/ND-860289-2-EN...).
 
@@ -244,7 +244,7 @@ linker directly instead.
     5 args b.20,IND(b.52),b.36,b.56,b.44).
 - NEXT: (1) disassemble the linker startup around the empty OPEN to see how it builds the filename
   descriptor (and whether 144B's output buffer feeds it - our stub writes nothing); (2) determine
-  the linker's required startup file(s) (in-link-xx-b01.init/.prog/.xcom exist in /mnt/d/ND/500/
+  the linker's required startup file(s) (in-link-xx-b01.init/.prog/.xcom exist in $ND500_TESTDATA/
   nd-linker/); (3) get the ND Linker command grammar (docs/ND-860289-2-EN...) to drive a real link.
 Working-tree changes this session (all marked): nd500_mmu_peek (mmu.c/.h, diagnostic), 144B stub +
 registry status, harnesses diag_linkmon.c/diag_codegen_loop.c. 76B reverted.
@@ -264,7 +264,7 @@ Fault chain at linker instr ~9432 (startup, before any command):
 
 INTERPRETATION: the linker faults during its OWN startup init, before reading any command, because
 its runtime environment is incomplete - it expects startup/config files (candidates in
-/mnt/d/ND/500/nd-linker/: in-link-xx-b01.init/.prog/.xcom) and/or a real interactive terminal, and
+$ND500_TESTDATA/nd-linker/: in-link-xx-b01.init/.prog/.xcom) and/or a real interactive terminal, and
 possibly a specific SINTRAN user/context. Distinguishing "our bug" from "missing env" needs either
 the ND Linker User Guide (docs/ND-860289-2-EN...) startup/command grammar OR the ND-500 manual's
 SCOPA + string-descriptor semantics as an oracle. This is the same manual/oracle/environment
@@ -442,7 +442,7 @@ and OPEN-DOMAIN/LOAD/CLOSE can produce a DOM.
 
 ### Phase 2 (2026-07-14): 503B layout - YAML matches NC, linker uses a DIVERGENT variant (WALL)
 
-Read the authoritative YAML /mnt/e/Dev/Ronny/NDInsight/Developer/MON/calls/503B_InputString.yaml:
+Read the authoritative YAML $NDINSIGHT/Developer/MON/calls/503B_InputString.yaml:
 standard 14-arg order is DevNo, MaxNo, NoOfBytesRet(O), Buff(O), BreakStrat, EchoStrat, BreakT1-4,
 EchoT1-4 - EXACTLY what our handler assumes, and we DO write NoOfBytesRet to arg2 (line 340).
 NC uses this layout and works. But the LINKER's actual arg VALUES do not fit it: arg1=0xF80000CB is
@@ -498,7 +498,7 @@ Session arc: linker crash->boots->interactive->reads commands->EXECUTES commands
 
 Replaced the earlier benign-no-op 71B/72B with real per-terminal escape state, modeled on SINTRAN's
 terminal input datafield 5TTIFIELD.DFLAG.5IESC (inhibit-escape bit) found in the NPL source
-(/mnt/e/Dev/Ronny/NDInsight/SINTRAN/NPL-SOURCE/NPL/: MP-P2-TERM-DRIV.NPL VESCAPE=033B escape char;
+($NDINSIGHT/SINTRAN/NPL-SOURCE/NPL/: MP-P2-TERM-DRIV.NPL VESCAPE=033B escape char;
 RP-P2-SEGADM.NPL "DFLAG BONE 5IESC = DISABLE ESCAPE"; MP-P2-TAD.NPL "DFLAG BZERO 5IESC = ENABLE").
 Changes:
 - src/libmon/mon_terminal_state.{h,c}: TerminalState gains escape_inhibited (5IESC; default 0 =
@@ -557,7 +557,7 @@ The batch-abortion is driven by the linker building GARBAGE / EMPTY filenames fo
   50B OPEN '<garbage>'       type 'INIT'
   50B OPEN ''  (empty) x several
   50B OPEN 'Linker'
-Placing the real error-message file (/mnt/d/ND/c3/2024/x/UE-ERMSG-EN-B06:ERR) and the help file at
+Placing the real error-message file ($ND500_TESTDATA/ND/c3/2024/x/UE-ERMSG-EN-B06:ERR) and the help file at
 the exact host paths did NOT clear it - the linker keeps producing empty/garbage names.
 ROOT: the linker composes these names from SINTRAN USER/SYSTEM PROFILE fields (language code, product
 version, user name) read from system datafields our emulator does not provide. With those empty, the
@@ -610,7 +610,7 @@ side at the time of the change).
     % format to :DOM/:SEG format. If you need help, press the help key.
 
 LED - the editor we want next - ships ONLY as `:PSEG`/`:DSEG`/`:LINK`
-(`/mnt/d/ND/500/LED/x/led-b03.{pseg,dseg,link}`). We have no `led-b03.dom`. So
+(`$ND500_TESTDATA/LED/x/led-b03.{pseg,dseg,link}`). We have no `led-b03.dom`. So
 CONVERT-DOMAIN is not a side quest: it is how LED (and any other old-format
 program) becomes runnable at all.
 
@@ -618,7 +618,7 @@ program) becomes runnable at all.
 
 ## PHASE 6 - CONVERT-DOMAIN: understand it, then run it
 
-Target: `/mnt/d/ND/500/CONVERT-DOMAIN/`
+Target: `$ND500_TESTDATA/CONVERT-DOMAIN/`
 - `convert-dom-a03.dom`  (339,968 bytes) - the program, ALREADY :DOM, so runnable now
 - `convert-dom-a03.help` (16,159)
 - `convert-dom-a03.init` (144)
@@ -632,7 +632,7 @@ Target: `/mnt/d/ND/500/CONVERT-DOMAIN/`
   that set against what libmon implements. That list IS the Phase 6 work item -
   the same method that made the linker tractable.
 - Identify its startup file opens (init/help/error-message files), as was done in
-  `/mnt/d/ND/500/nd-linker/linker-b01-startup-filenames.md`.
+  `$ND500_TESTDATA/nd-linker/linker-b01-startup-filenames.md`.
 
 ### 6.2 Run it
 - Sandbox `build/convert_sandbox/` mirroring `build/link_sandbox/`
@@ -651,13 +651,13 @@ Target: `/mnt/d/ND/500/CONVERT-DOMAIN/`
 ### 6.3 Learn the :PSEG/:DSEG/:LINK -> :DOM format
 - Drive CONVERT-DOMAIN to convert a KNOWN pair and diff the output against a
   known-good `:DOM` (we have several) to learn the mapping.
-- Document the format in `/mnt/d/ND/500/` next to the binaries.
+- Document the format in `$ND500_TESTDATA/` next to the binaries.
 - DONE when: CONVERT-DOMAIN runs to a clean MON 0B LEAVE and emits a `:DOM` we
   can load.
 
 ## PHASE 7 - LED (the editor)
 
-Target: `/mnt/d/ND/500/LED/x/` - `led-b03.pseg` (223,695), `led-b03.dseg`
+Target: `$ND500_TESTDATA/LED/x/` - `led-b03.pseg` (223,695), `led-b03.dseg`
 (394,525), `led-b03.link` (0 bytes), `description-file.desc` (22,528),
 `scratch-seg-01.dseg`.
 
@@ -724,7 +724,7 @@ inventing new ones:
 ```json
 {
   "filesystem": {
-    "root": "/home/ronny/nd500/fs",
+    "root": "$ND500_FS",
     "defaultUser": "GUEST",
     "users": ["SYSTEM", "GUEST", "RONNY"],
     "scratch": "SCRATCH"
@@ -793,7 +793,7 @@ linker needed ~20. The method that works, proven three times now:
 
 ## PHASE 9 - Terminal / connectivity
 
-**The client is known: RetroTerm** (`/mnt/e/Dev/Ronny/RetroTerm`, C# / .NET 9 /
+**The client is known: RetroTerm** (`$RETROTERM`, C# / .NET 9 /
 Avalonia, 2069 tests). This ANSWERS two questions that were open when Part II was
 first drafted - they are facts now, not guesses:
 
@@ -815,7 +815,7 @@ Point libmon's `ConsoleIO` (already an interface) at a socket instead of stdio;
 that indirection existing is what makes this cheap.
 
 **Prior art to read first - do NOT reinvent the negotiation:**
-`/mnt/e/Dev/Ronny/RetroTerm/src/RetroTerm.Core.Protocols.TelnetServer/`
+`$RETROTERM/src/RetroTerm.Core.Protocols.TelnetServer/`
 - `Telnet/TelnetNegotiator.cs` - sends `WILL ECHO`, `DO NAWS`, parses
   `IAC SB TERMINAL_TYPE IS "..." IAC SE`
 - `Telnet/TelnetCodec.cs` - the IAC/option constants
@@ -874,7 +874,7 @@ compile and run them?"**
 real 1988-89 ND binary.** Nothing here needs writing from scratch; it needs the
 MON contract underneath it to be honest. The loop is:
 
-    LED          edit  A:C           (/mnt/d/ND/500/LED/x, needs Phase 6 conversion)
+    LED          edit  A:C           ($ND500_TESTDATA/LED/x, needs Phase 6 conversion)
       |
     NC           compile A:C -> A:NRF   (nc-a06.dom, works today - Phase 1)
       |  (NC internally invokes CAT-500 via MON 317B)
@@ -972,7 +972,7 @@ before that abstraction exists means building it twice.
 
 ### 11.1 Starting position - better than it looks
 
-- **nd500x ALREADY has a WASM target**: `/home/ronny/repos/nd500x/src/frontend/nd500wasm/`
+- **nd500x ALREADY has a WASM target**: `src/frontend/nd500wasm/`
   (`main.c`, `CMakeLists.txt`, `web/`), and `make wasm` / `make wasm-serve` exist.
   This phase is not a from-scratch port; it is bringing that target up to the glass
   standard.
@@ -982,7 +982,7 @@ before that abstraction exists means building it twice.
 
 ### 11.2 Learn from nd100x - the prior art is a working system
 
-`/home/ronny/repos/nd100x/`:
+`$ND100X/`:
 - `GLASS.md` - the architecture reference for `template-glass/`. **Read this first.**
 - `docs/HOWTO_BUILD_WASM.md`
 - `template-glass/js/` - the pattern to copy:
@@ -997,9 +997,9 @@ before that abstraction exists means building it twice.
 
 ### 11.3 The terminal: RetroTermWeb
 
-**`/home/ronny/repos/nd100x/template-glass/external/RetroTermWeb/`** - this is the
+**`$ND100X/template-glass/external/RetroTermWeb/`** - this is the
 "extern library with tdv2200 emulator and virtual keyboard" the user means. It is
-the WEB sibling of the Avalonia RetroTerm (`/mnt/e/Dev/Ronny/RetroTerm`), already
+the WEB sibling of the Avalonia RetroTerm (`$RETROTERM`), already
 integrated into nd100x's glass UI (`retroterm-build` target, `terminal-popout.html`).
 
 So the browser terminal is SOLVED prior art - hook RetroTermWeb's input/output to
@@ -1021,7 +1021,7 @@ code become load-bearing in the shared path.
 
 ### 11.5 webfs - getting the files in
 
-The browser has no `/home/ronny/nd500/fs`. The 8b JSON config's filesystem root has
+The browser has no `$ND500_FS`. The 8b JSON config's filesystem root has
 to become a browser FS (Emscripten MEMFS/IDBFS), populated by upload. What must get
 in there, and it is more than "a program":
 
@@ -1045,7 +1045,7 @@ keyboard talking to the ND-500, and run the linker - no install, no toolchain.
 
 ## Open questions for the user (do NOT guess these)
 
-RESOLVED 2026-07-17 - the client is RetroTerm (`/mnt/e/Dev/Ronny/RetroTerm`):
+RESOLVED 2026-07-17 - the client is RetroTerm (`$RETROTERM`):
 - ~~Which TDV emulator, and which terminal type?~~ -> TDV1200 / TDV2215 /
   TDV2200/9 fully implemented; VT100 only partial. See Phase 9.3.
 - ~~Telnet proper or raw TCP?~~ -> real Telnet (RFC 854), NAWS + TERMINAL-TYPE.

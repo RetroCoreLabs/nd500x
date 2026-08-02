@@ -1,9 +1,9 @@
 # Carve analysis: MON 60B / N500M gateway + the CAT-500 handshake levers
 
-Full path: /home/ronny/repos/nd500x/docs/CARVE_ANALYSIS_MON60_AND_HANDSHAKE.md
+Full path: docs/CARVE_ANALYSIS_MON60_AND_HANDSHAKE.md
 
 Source of truth analysed: the byte-verified SINTRAN III L-VSX-500 (L07) segment carve at
-`/mnt/e/Dev/Ronny/NDInsight/tools/sintran-segment-carver/versions/L-VSX-500/`
+`$NDINSIGHT/tools/sintran-segment-carver/versions/L-VSX-500/`
 (the `re/mon-analysis/` and `re/ND500-SYSTEM-MONITOR/` trees).
 
 This document records (b) what I learned going deeper into the MON 60B / N500M gateway,
@@ -75,7 +75,7 @@ whether returning batch mode makes CAT-500 skip the `Cat-500:` prompt and instea
 command non-interactively (from the command channel / scratch).
 
 Needs:
-1. The CAT-500 binary: `/mnt/d/ND/500/CAT5-CAT/cat-cat5-b06.dom`.
+1. The CAT-500 binary: `$ND500_TESTDATA/CAT5-CAT/cat-cat5-b06.dom`.
 2. nd500x built with a way to make 143B RSIO return mode=1 (batch). Simplest: an env-gated
    override in `mon_143B_ExecutionInfo.c` (e.g. `ND500X_EXEC_MODE`), so the experiment does
    NOT hardcode a behavioural change before we know it is correct. (ASSUME NOTHING: prove
@@ -131,7 +131,7 @@ Only once a real command record is known can code-gen (120B WFILE -> BOUT.NRF) b
 
 The handshake question is ANSWERED, and not by guessing: NC's own output contains the command.
 
-**/home/ronny/repos/nd500x/build/nc_sandbox/SCRATCH/SCRATCH64.DATA (8192 bytes) is NOT the
+**build/nc_sandbox/SCRATCH/SCRATCH64.DATA (8192 bytes) is NOT the
 program - it is NC's CONTROL/COMMAND stream for CAT-500**, in plain text. Verbatim content:
 
 ```
@@ -146,7 +146,7 @@ generate-code,SCRATCH-00001:CAT,B:NRF          <-- THE COMMAND
 
 - **The CAT-500 command is `generate-code,<CAT input>,<NRF output>`** - here
   `generate-code,SCRATCH-00001:CAT,B:NRF`. Earlier guesses ("COMPILE", "SCRATCH") were wrong.
-- **/home/ronny/repos/nd500x/build/nc_sandbox/GUEST/B.CAT (2048 bytes)** is the separate CAT-code
+- **build/nc_sandbox/GUEST/B.CAT (2048 bytes)** is the separate CAT-code
   PROGRAM (type dictionary CHARPTR/INT/... then binary records incl. MAIN, PROG, ARGV, C!INIT).
 - So CAT-500 needs TWO inputs: the control/command stream (SCRATCH64) + the CAT program.
 
@@ -242,7 +242,7 @@ even on genuine NC output. **Leading suspicion (UNVERIFIED - do not act on it as
 version skew - NC is **A06 (1989-01-10)** but CAT-500 is **B06 (1988-01-05)**, and the CAT
 header's byte 1 differs between artifacts (`d6` in NC's SCRATCH-00001.CAT vs `d0` in
 GUEST/B.CAT), which may be a CAT format/version field. Only ONE CAT-500 exists on disk
-(/mnt/d/ND/500/CAT5-CAT/cat-cat5-b06.dom); no newer back-end is available to test against.
+($ND500_TESTDATA/CAT5-CAT/cat-cat5-b06.dom); no newer back-end is available to test against.
 
 **Next steps (in order):** (1) find the branch that selects "can't generate code" (data VA
 ~0x0802324E) and identify the exact predicate it tests; (2) determine whether the CAT header
@@ -358,5 +358,5 @@ that predicate is known.
   level-12 return ISR: all irrelevant to the single-CPU nd500x experiment. Documented here
   only so a future ND-100-host emulation effort has the pointer.
 
-Related: /home/ronny/repos/nd500x/docs/CSHARP_HANDOFF_BLOCKING_READ_SESSION.md ,
+Related: docs/CSHARP_HANDOFF_BLOCKING_READ_SESSION.md ,
 memory cat500-route.md , blocking-read-semantics.md .

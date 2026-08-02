@@ -60,7 +60,7 @@ void Xor() {
 
 ### 1. Enhanced Nd500FetchedInstruction Structure
 
-**File:** `/home/ronny/repos/nd500x/src/cpu/cpu_protos.h`
+**File:** `src/cpu/cpu_protos.h`
 
 Added three metadata fields extracted during instruction decode:
 
@@ -84,7 +84,7 @@ typedef struct Nd500FetchedInstruction {
 
 ### 2. Decoder Metadata Extraction
 
-**File:** `/home/ronny/repos/nd500x/src/cpu/cpu_instr.c` (lines 330-356)
+**File:** `src/cpu/cpu_instr.c` (lines 330-356)
 
 The decoder now extracts metadata from the `InstrMeta` table:
 
@@ -114,7 +114,7 @@ if (instr_meta) {
 
 ### 3. C# Compatibility Helper Functions
 
-**Files:** `/home/ronny/repos/nd500x/src/cpu/instruction_helpers.{h,c}`
+**Files:** `src/cpu/instruction_helpers.{h,c}`
 
 New unified helper functions matching C# InstructionHelpers.cs:
 

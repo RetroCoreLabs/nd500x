@@ -5,26 +5,26 @@ It **supersedes** the prior flags-only report. Every claim below is anchored to 
 source file and line and to the per-category reference documents.
 
 Per-category reference documents live under:
-`/home/ronny/repos/nd500x/docs/instruction-reference/`
+`docs/instruction-reference/`
 
 | Category | Reference |
 |----------|-----------|
-| ARITHMETIC | `/home/ronny/repos/nd500x/docs/instruction-reference/ARITHMETIC.md` |
-| BITFIELD | `/home/ronny/repos/nd500x/docs/instruction-reference/BITFIELD.md` |
-| BRANCH | `/home/ronny/repos/nd500x/docs/instruction-reference/BRANCH.md` |
-| CALL | `/home/ronny/repos/nd500x/docs/instruction-reference/CALL.md` |
-| COMPARE | `/home/ronny/repos/nd500x/docs/instruction-reference/COMPARE.md` |
-| CONTROL | `/home/ronny/repos/nd500x/docs/instruction-reference/CONTROL.md` |
-| FLOAT_MATH | `/home/ronny/repos/nd500x/docs/instruction-reference/FLOAT_MATH.md` |
-| IO | `/home/ronny/repos/nd500x/docs/instruction-reference/IO.md` |
-| LOGICAL | `/home/ronny/repos/nd500x/docs/instruction-reference/LOGICAL.md` |
-| MOVE | `/home/ronny/repos/nd500x/docs/instruction-reference/MOVE.md` |
-| SHIFT | `/home/ronny/repos/nd500x/docs/instruction-reference/SHIFT.md` |
-| STRING | `/home/ronny/repos/nd500x/docs/instruction-reference/STRING.md` |
-| SYSTEM | `/home/ronny/repos/nd500x/docs/instruction-reference/SYSTEM.md` |
+| ARITHMETIC | `docs/instruction-reference/ARITHMETIC.md` |
+| BITFIELD | `docs/instruction-reference/BITFIELD.md` |
+| BRANCH | `docs/instruction-reference/BRANCH.md` |
+| CALL | `docs/instruction-reference/CALL.md` |
+| COMPARE | `docs/instruction-reference/COMPARE.md` |
+| CONTROL | `docs/instruction-reference/CONTROL.md` |
+| FLOAT_MATH | `docs/instruction-reference/FLOAT_MATH.md` |
+| IO | `docs/instruction-reference/IO.md` |
+| LOGICAL | `docs/instruction-reference/LOGICAL.md` |
+| MOVE | `docs/instruction-reference/MOVE.md` |
+| SHIFT | `docs/instruction-reference/SHIFT.md` |
+| STRING | `docs/instruction-reference/STRING.md` |
+| SYSTEM | `docs/instruction-reference/SYSTEM.md` |
 
 Instruction implementation files are under:
-`/home/ronny/repos/nd500x/src/cpu/instructions/<CATEGORY>/`
+`src/cpu/instructions/<CATEGORY>/`
 
 ---
 
@@ -74,7 +74,7 @@ actually corrupt guest computation.
 
 The dominant *systemic* flag defect: handlers that call `nd500_set_flags_zs` /
 `nd500_set_flags_zsc` (in
-`/home/ronny/repos/nd500x/src/cpu/instructions/instruction_helpers.c:460`) write only
+`src/cpu/instructions/instruction_helpers.c:460`) write only
 Z/S and **leave C and O holding the previous instruction's values**. The reference
 "unlisted-bit" rule (rule 4040 / `ST,SAVA`) requires every data-status bit not named by
 the instruction to be CLEARED. There is no central per-instruction flag reset (verified

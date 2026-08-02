@@ -1,11 +1,11 @@
 # NC codegen crash 0x08023EA4 - root cause: node use-after-free / reuse
 
-**Full path:** `/home/ronny/repos/nd500x/docs/NC_CRASH_0x08023EA4_ROOTCAUSE.md`
+**Full path:** `docs/NC_CRASH_0x08023EA4_ROOTCAUSE.md`
 Date: 2026-07-11. Established on the nd500x (C) side with a purpose-built
 synchronous diagnostic, reproduced in-sandbox (no DAP server needed).
 
 ## Tool
-`/home/ronny/repos/nd500x/test/diag_nc_writer_watch.c` - standalone, links the
+`test/diag_nc_writer_watch.c` - standalone, links the
 built static libs, drives the real NC compiler (nc-a06.dom) with
 `COMPILE A,A,A\r` from `build/nc_sandbox`, and captures CPU registers + memory
 at chosen PCs WITHOUT perturbing the run (probe reads clear any trap they raise).
@@ -361,7 +361,7 @@ nd500x time-source audit and fix (this session):
 Exact pinned values handed to C# (must match, esp. the ROBJE date encoding):
  114B=0; 113B=[2160000,0,0,12,1,1,90]; 41B ROBJE date word=0xA042C000
  (year-offset-from-1950 6b | month 4b | day 5b | hour 5b | min 6b | sec 6b).
-Handoff: /mnt/d/ND/500/nc-crash-0x08023EA4-ND500X-clock-pinned-ANSWER.md
+Handoff: $ND500_TESTDATA/nc-crash-0x08023EA4-ND500X-clock-pinned-ANSWER.md
 
 NEXT (both sides): confirm C#'s pinned 113B/114B/41B equal the table (watch the
 ROBJE bit layout), then diff the checkpoint traces. The first divergent PC after
@@ -374,7 +374,7 @@ full-run checkpoint trace to run the PC-diff.
 
 Delivered: new NON-PERTURBING tracer test/diag_nc_checkpoints.c (does NOT probe
 memory or clear traps, unlike diag_nc_writer_watch). Emits `instr PC B I1 I2 I3 I4`
-(hex, stride 5000, from instr 0) -> /mnt/d/ND/500/nd500x-fullrun-checkpoints.txt.
+(hex, stride 5000, from instr 0) -> $ND500_TESTDATA/nd500x-fullrun-checkpoints.txt.
 Run pinned (ND500X_PIN_CLOCK=1) from the fixture sandbox; bit-reproducible.
 
 Authoritative CLEAN crash count = 1,492,885 (PC 0x08023EA4, wild I1=0xA1B8A1A8).
@@ -396,7 +396,7 @@ Deterministic clock + tracer committed to main (4fa340a).
 NEXT: C# runs the line diff by instruction number; the first divergent checkpoint
 window brackets the split, then a per-instruction trace over that window (both
 sides) pins the exact first divergent PC = the genuine emulator bug.
-Handoff: /mnt/d/ND/500/nc-crash-0x08023EA4-ND500X-checkpoints-ready.md
+Handoff: $ND500_TESTDATA/nc-crash-0x08023EA4-ND500X-checkpoints-ready.md
 
 ## UPDATE 12: FIRST DIVERGENCE PINNED AND FIXED - comp2 halfword Z-flag bug
 The C# checkpoint diff showed a split before instr 5000, but that was a FIXTURE
@@ -426,7 +426,7 @@ crashes at 0x08023EA4 (now 1,492,266). With the aligned setit fixture, nd500x
 1,870,520 - a NEW later divergence to chase. Protocol continues: re-diff full
 checkpoints, pin divergence #2, fix whichever side the manual says is wrong.
 Tools: test/diag_nc_pctrace.c (per-instruction window), diag_nc_checkpoints.c.
-Handoff: /mnt/d/ND/500/nc-crash-0x08023EA4-FIRST-BUG-FOUND-comp2.md
+Handoff: $ND500_TESTDATA/nc-crash-0x08023EA4-FIRST-BUG-FOUND-comp2.md
 
 ## UPDATE 13: comp2 fix converges to instr ~1.095M; divergence #2 bracketed
 Committed the prior TEMM/LREGBL + shift-doc work (87015f3) and MON 413B test
@@ -445,9 +445,9 @@ Committed the prior TEMM/LREGBL + shift-doc work (87015f3) and MON 413B test
    (by comp2 b.55,#127). comp2 BYTE path already masked to 0xFF by the fix, so the
    split is likely a small earlier instruction-count offset, not this compare.
 Delivered nd500x per-instruction window trace
-/mnt/d/ND/500/nd500x-window2-1095k-1100k.txt; awaiting C#'s matching window trace
+$ND500_TESTDATA/nd500x-window2-1095k-1100k.txt; awaiting C#'s matching window trace
 to pin the exact first divergent instruction. Checkpoint tool ";;" fix committed.
-Handoff: /mnt/d/ND/500/nc-crash-0x08023EA4-DIVERGENCE2-window-1095k.md
+Handoff: $ND500_TESTDATA/nc-crash-0x08023EA4-DIVERGENCE2-window-1095k.md
 
 ## UPDATE 14: divergence #2 = MON 117B RFILE EOF-on-short-block (nd500x manual-grounded)
 C# pinned divergence #2 at step 1,096,233, PC 0802DE7C (a 117B RFILE call) + `if -k
@@ -475,7 +475,7 @@ Also answered C#'s Comp.c question and FIXED it (commit 98dbb6a): Comp masked th
 RESULT for Z/sign (Z was correct) but compared raw 64-bit register+operand for
 carry - masked both to datatype width now (same class as the Comp2 fix). 39,598
 validation + ctest 18/18 pass.
-Handoff: /mnt/d/ND/500/nc-crash-0x08023EA4-RFILE-EOF-answer.md
+Handoff: $ND500_TESTDATA/nc-crash-0x08023EA4-RFILE-EOF-answer.md
 
 ## UPDATE 15: CONVERGENCE ACHIEVED - both emulators crash identically => NC-internal
 Divergence #3 was nd500x's Scomp reading string bytes with nd500_bus_read8 (raw
@@ -511,7 +511,7 @@ not how NC is meant to be driven; (c) a gap BOTH emulators share (a MON call bot
 handle identically-wrong, or an instruction both treat the same). Also outstanding:
 ~16 other STRING instructions + Ppack/Ppackr still use nd500_bus_read8 (same latent
 MMU-bypass) - to fix as NC exercises them.
-Handoff: /mnt/d/ND/500/nc-crash-0x08023EA4-CONVERGED.md
+Handoff: $ND500_TESTDATA/nc-crash-0x08023EA4-CONVERGED.md
 
 ## UPDATE 16: post-convergence (a) MMU sweep + (b) NC-invocation/node-lifecycle
 (a) Swept the remaining STRING (Schpar/Scopa/Scopt/Scotr/Scpuno/Sfilln/Smatch/
@@ -565,7 +565,7 @@ CORRECT at all three crash-related sites:
  - 0x08024884: list allocation w/ post-increment. Normal.
 So NC applies correct code to state already wrong upstream.
 
-Captured full nd500x MON trace (101 calls, /mnt/d/ND/500/nd500x-montrace-full.txt)
+Captured full nd500x MON trace (101 calls, $ND500_TESTDATA/nd500x-montrace-full.txt)
 for the cross-diff. PRIME SHARED-DEFECT SUSPECTS = MON calls we STUB/canned (both
 emulators fake identically -> invisible to cross-diff, wrong vs real SINTRAN):
  - MON 317B ExecuteCommand: STUB - "doesn't execute it, just return success"
@@ -1481,7 +1481,7 @@ manuals on the relevant NC operation, or real hardware. This is the wall.
 ## UPDATE 50 (2026-07-14): MON audit + C# ANSWER doc converge on 422B GSWSP as the cause
 Spun 6 agents comparing our MON handlers to the carved L07 oracle (the REAL SINTRAN code, a true
 oracle unlike the sibling emulator). Also found the C# side's own conclusion at
-/mnt/d/ND/500/FraTor/nc/ANSWER-no-rewrite-analysis.md.
+$ND500_TESTDATA/FraTor/nc/ANSWER-no-rewrite-analysis.md.
 
 Key results:
 - 321B UEADM: our return (success vs error 52B/174B) makes NO difference to the crash - tested
@@ -2057,7 +2057,7 @@ too (mirror the manual: compare-with-pad, 3rd operand = pad byte value).
 Linker NEXT blocker: unimplemented MON 313B (IBRISZ), 2 args, at instr 11703 / PC 0xB004DA96.
 
 ## UPDATE 67 (2026-07-14): *** ND LINKER NOW BOOTS + EXITS CLEAN *** (2nd STRING bug + 2 handlers)
-Using the user-provided linker docs (/mnt/d/ND/500/nd-linker/: linker-b01.help, .analysis.md,
+Using the user-provided linker docs ($ND500_TESTDATA/nd-linker/: linker-b01.help, .analysis.md,
 nd500-c-compile-and-link.md), drove the REAL linker (linker-b01.dom) via test/diag_linkmon.
 Fixes this session that got it from "faults at instr 5419" to a CLEAN MON 0B exit at instr 58264:
   1. 144B MAGTP: provisional benign-success stub + registry status IN_PROGRESS (unblock startup).
@@ -2216,7 +2216,7 @@ BUG FIXED - MON 54B MDLFI read filenames with the wrong reader.
 - NOTE: this did NOT by itself fill BOUT.NRF - the object->output transfer is a separate issue below.
 
 COMPILE-MODE FINDING - NC-A06 is the FRONT-END only; codegen is a chained CROSS-A stage.
-- `compile B,B,B` (canonical single command per /mnt/d/ND/500/nd-linker/nd500-c-compile-and-link.md)
+- `compile B,B,B` (canonical single command per $ND500_TESTDATA/nd-linker/nd500-c-compile-and-link.md)
   runs ONLY the front-end: it opens B:NRF and immediately CLOSES it EMPTY (no WFILE), writes the CHECK
   intermediate to per-compile scratches (SCRATCH-00001:CAT/:TREE), then exits with empty-name-cleanup
   and MON 0B LEAVE. There is NO codegen/object phase after CHECK in this run.

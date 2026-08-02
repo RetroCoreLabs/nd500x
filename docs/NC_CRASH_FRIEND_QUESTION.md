@@ -1,6 +1,6 @@
 # Question for a working NC: is one specific heap free legitimate?
 
-**Full path of this document:** `/home/ronny/repos/nd500x/docs/NC_CRASH_FRIEND_QUESTION.md`
+**Full path of this document:** `docs/NC_CRASH_FRIEND_QUESTION.md`
 Date: 2026-07-14
 
 ## TL;DR — the one thing I need from a working NC

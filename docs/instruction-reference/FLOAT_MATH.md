@@ -4,10 +4,10 @@ Functional behaviour reference for the FLOAT_MATH instruction category, built by
 tracing the ND-5000/5800 microcode and cross-checking the ND-500 Reference Manual.
 
 Sources:
-- Microcode: `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-- Field decode: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
-- Manual: `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-- Emulator sources: `/home/ronny/repos/nd500x/src/cpu/instructions/FLOAT_MATH/*.c`
+- Microcode: `$ND5000UC/microcode/MICRO-5800-A30.md`
+- Field decode: `$ND5000UC/manual/mnemonics.md`
+- Manual: `docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+- Emulator sources: `src/cpu/instructions/FLOAT_MATH/*.c`
 
 Note on evidence: everything below is read directly from the microcode listing,
 the field-decode table, or the manual. Items that could not be resolved from

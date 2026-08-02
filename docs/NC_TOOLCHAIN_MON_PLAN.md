@@ -11,7 +11,7 @@ trusted for this and cannot produce DOM files.
 1. **NC needs exactly 34 MON calls** (static analysis of nc-a06.asm, 50 call
    sites, all in the runtime wrapper section 0x0802DBxx-DExx). A data-segment
    scan of nc-a06.dom found no hidden indirect MON targets. The list matches
-   /mnt/d/ND/500/FraTor/nc/mon-calls-described.md 1:1.
+   $ND500_TESTDATA/FraTor/nc/mon-calls-described.md 1:1.
 2. **nd500x already implements all 34** (libmon's 35 VALIDATED handlers were
    built from this binary). GUEST/A.O and B.O were produced by the emulator -
    NC already compiles simple files under nd500x. There are NO missing MON
@@ -23,7 +23,7 @@ trusted for this and cannot produce DOM files.
    its 209 handler files, 160 are throw-NotImplemented skeletons; the ~40
    real handlers are the same set as C's 40 (35 validated + 5 in-progress).
    Nothing significant to migrate C# -> C; the work is VERIFICATION.
-4. **The ND Linker exists as a DOM**: /mnt/d/ND/500/nd-linker/linker-b01.dom
+4. **The ND Linker exists as a DOM**: $ND500_TESTDATA/nd-linker/linker-b01.dom
    (724,992 bytes), with job scripts incl. linker-auto-c.job. A raw byte scan
    shows it uses the NC set PLUS roughly 25-30 more MON numbers, notably:
    162B OUTST (7 uses, C status IN_PROGRESS), 513B (14 hits - undocumented,
@@ -35,7 +35,7 @@ trusted for this and cannot produce DOM files.
    proven by the phantom "MON 400B" in nc-a06 which was address+constant
    coincidence).
 5. **Documentation is sufficient**: 231 structured YAML files in
-   /mnt/e/Dev/Ronny/NDInsight/Developer/MON/calls/ (parameters with
+   $NDINSIGHT/Developer/MON/calls/ (parameters with
    types/directions, ND-500 CALLG conventions, error-in-W1/K-flag), the full
    ND-860228.2 manual OCR with complete error-code appendix (A), plus
    kernel-side dispatch analysis (GOTAB) in NDInsight/SINTRAN/OS/.
@@ -81,7 +81,7 @@ trusted for this and cannot produce DOM files.
      not object code. B.O is the C source with the VALUE macro expanded
      ("x = 42;") plus a trailing 0x0D 0x13 terminator - 30 ASCII bytes.
      A real NRF object file is BINARY: see the genuine ND-produced sample
-     /mnt/d/ND/500/FraTor/test-real/test-real.nrf (4677 bytes, dated
+     $ND500_TESTDATA/FraTor/test-real/test-real.nrf (4677 bytes, dated
      1991-03-18, from test-real.pasc) - it starts 0A 00 01 70 44 ... with
      NRF control bytes and embedded symbol names (TEST_REAL, INPUT,
      OUTPUT). So the current regression baselines validate the
@@ -90,7 +90,7 @@ trusted for this and cannot produce DOM files.
      " terminated"; the "generate-code" phase (string present in the DOM)
      is never reached. NC tries to open NC-A:INIT (the compiler config /
      init file) and fails with error -46 (no such file); no NC-A:INIT
-     exists anywhere on /mnt/d. Hypothesis: without the init file the
+     exists anywhere on the ND-500 disk images ($ND500_TESTDATA). Hypothesis: without the init file the
      compiler runs preprocess-only and terminates. Next: find or
      reconstruct NC-A:INIT, or determine the command/option that drives
      code generation ("generate-code" option is in the string table).
@@ -105,7 +105,7 @@ against GUEST/A.O + B.O is SELF-REFERENTIAL - those baselines were produced
 by this same emulator, so this is a regression test, not ground truth. Both
 emulators could share a bug and stay green. Label the ctest accordingly
 ("emulator-regression baseline"). If real ND-produced .O files turn up on
-the /mnt/d disk images, promote those to golden. The REAL Phase 1 exit
+the ND-500 disk images ($ND500_TESTDATA), promote those to golden. The REAL Phase 1 exit
 criterion is CROSS-EMULATOR agreement: the C# emulator compiling the same
 .C to byte-identical .O (that task is assigned to the C# side and accepted).
 
@@ -166,7 +166,7 @@ infra), consumed by BOTH the C test runner and a C# xunit harness.
 ### Phase 4 - Continuous parity
 - Both repos run the shared MON spec in CI/ctest.
 - New SINTRAN binaries (assembler, PLANC, BASIC, backup-manager - DOMs exist
-  under /mnt/d/ND/500/) get the same treatment: scan, confirm, gap-fill.
+  under $ND500_TESTDATA/) get the same treatment: scan, confirm, gap-fill.
 
 ## Division of labor (user-confirmed)
 - **C side (nd500x)**: Phase 1 entirely; Phase 2 C runner; Phase 3 items

@@ -2,17 +2,17 @@
 
 ## Overview
 
-This document analyzes the NDIX-C kernel bootstrap process from `/mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/` to understand how a production ND-500 kernel properly handles startup. This analysis will guide future integration of the full vmunix kernel into the ND500X emulator.
+This document analyzes the NDIX-C kernel bootstrap process from `$NDIX/kernel/MASTER/` to understand how a production ND-500 kernel properly handles startup. This analysis will guide future integration of the full vmunix kernel into the ND500X emulator.
 
 ## Key Finding: Assembly-in-C Approach
 
 NDIX uses **locore.c** (not locore.s) - a C file containing inline assembly directives. This solves the "ENTS-without-INIT" problem we encountered with our demo kernel.
 
-### File: `/mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/machine/locore.c`
+### File: `$NDIX/kernel/MASTER/machine/locore.c`
 
 ## Build Process
 
-### Makefile Analysis (`/mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/GENERIC/Makefile`)
+### Makefile Analysis (`$NDIX/kernel/MASTER/GENERIC/Makefile`)
 
 **Line 203: Link Command**
 ```makefile
@@ -129,7 +129,7 @@ If `_main()` returns (shouldn't happen in normal operation):
 
 ### Our Demo Kernel Problem
 
-**File: `/home/ronny/repos/nd500x/examples/05-c-kernel/kernel.c`**
+**File: `examples/05-c-kernel/kernel.c`**
 
 ```c
 void start()
@@ -161,7 +161,7 @@ _start:
 
 ### NDIX Solution
 
-**File: `/mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/machine/locore.c`**
+**File: `$NDIX/kernel/MASTER/machine/locore.c`**
 
 Uses **assembly-in-C** (locore.c is C preprocessor input with assembly directives):
 
@@ -306,7 +306,7 @@ halt_loop:
 - Implement full MMU with PST/PCB support
 - Support domain-based memory protection
 - Handle capability-based addressing
-- Implement AZI/ASI/ADI addressing modes (already in MMU code at `/home/ronny/repos/nd500x/src/cpu/nd500_mmu.c`)
+- Implement AZI/ASI/ADI addressing modes (already in MMU code at `src/cpu/nd500_mmu.c`)
 
 ### 4. Cache Operations
 
@@ -399,7 +399,7 @@ Build: kernel.c → kernel.s → kernel.o → kernel → kernel.{pseg,dseg}
 ### Phase 3: Full vmunix Source Integration
 
 1. **Import NDIX source tree**:
-   - Copy `/mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/` tree
+   - Copy `$NDIX/kernel/MASTER/` tree
    - Adapt Makefile for pcc-nd500 toolchain paths
    - Build with existing NDIX locore.c
 
@@ -489,7 +489,7 @@ Our demo kernel encountered ENTS-without-INIT trap because:
 
 ## References
 
-- NDIX-C Release 3 kernel source: `/mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/`
-- Demo kernel: `/home/ronny/repos/nd500x/examples/05-c-kernel/`
+- NDIX-C Release 3 kernel source: `$NDIX/kernel/MASTER/`
+- Demo kernel: `examples/05-c-kernel/`
 - ND-500 Reference Manual: Page 230 (ENTS instruction specification)
 - Bootstrap issue documentation: `KERNEL_STACK_INIT.md`, `BOOTSTRAP_EXPLAINED.md`

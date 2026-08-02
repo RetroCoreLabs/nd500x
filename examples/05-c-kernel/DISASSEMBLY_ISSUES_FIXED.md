@@ -25,7 +25,7 @@ Disassembly starting at 0x00000000:
 
 ### Root Cause
 
-**File:** `/home/ronny/repos/nd500x/src/ndlib/ndlib_aout.c` (Line 442)
+**File:** `src/ndlib/ndlib_aout.c` (Line 442)
 
 **Buggy code:**
 ```c
@@ -47,7 +47,7 @@ if (entry == 0 || entry == 4) {
 
 ### Fix
 
-**File:** `/home/ronny/repos/nd500x/src/ndlib/ndlib_aout.c` (Line 442-449)
+**File:** `src/ndlib/ndlib_aout.c` (Line 442-449)
 
 **Fixed code:**
 ```c
@@ -165,7 +165,7 @@ Disassembly shows:
 
 ```bash
 # Rebuild WASM with PC fix
-cd /home/ronny/repos/nd500x
+cd .
 make wasm
 
 # Start web server
@@ -338,14 +338,14 @@ Or with both address and symbol:
 | PC set to 0 instead of 4 | ✓ FIXED | Critical - allows proper execution from entry point |
 | Addresses shown as signed decimal | ⚠ Identified | Minor - cosmetic, doesn't affect functionality |
 
-**Fix deployed:** WASM build updated with PC fix in `/home/ronny/repos/nd500x/build_wasm/bin/`
+**Fix deployed:** WASM build updated with PC fix in `build_wasm/bin/`
 
 **Remaining work:** Update disassembler to show hex addresses (cosmetic improvement)
 
 ---
 
 **Files Modified:**
-- `/home/ronny/repos/nd500x/src/ndlib/ndlib_aout.c` (Line 442: Fixed PC initialization logic)
+- `src/ndlib/ndlib_aout.c` (Line 442: Fixed PC initialization logic)
 
 **Build command:**
 ```bash

@@ -2,9 +2,9 @@
 
 Reference for implementing the ND-100 front-end (fe) call interface as MON 600 (octal, =0x180=384 dec)
 in the nd500x emulator, so the NDIX kernel can do disk / console / init I/O backed by
-`/mnt/e/Dev/Ronny/NDIX-C/rootfs.img`.
+`$NDIX/rootfs.img`.
 
-Kernel source: `/mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/`. All facts source-cited.
+Kernel source: `$NDIX/kernel/MASTER/`. All facts source-cited.
 
 ## 0. Type sizes / struct packing (pcc-nd500 macdefs.h)
 
@@ -161,7 +161,7 @@ Disk reads are proven correct (superblock + inode + data DMA from the image).
 
 ### Disk image selection (IMPORTANT)
 - Env var is **`ND500X_DISK`** (`nd500_fecall.c:516`), opened **read-only** (`"rb"`). Default is the
-  hardcoded `FE_DISK_PATH` = `/mnt/e/Dev/Ronny/NDIX-C/rootfs.img` (`:104`). **`NDIX_DISK_IMAGE` is NOT
+  hardcoded `FE_DISK_PATH` = `$NDIX/rootfs.img` (`:104`). **`NDIX_DISK_IMAGE` is NOT
   read** - older recipes using it silently booted the empty default image.
 - Images (di70 FFS, big-endian, 8 MB): `rootfs.img` = empty (only `lost+found`); `rootfs_init.img`
   and `rootfs_mkproto.img` = populated (`/etc/init`, `/dev`, ...). FE_OPEN returns devsiz=1 -> di70
@@ -169,10 +169,10 @@ Disk reads are proven correct (superblock + inode + data DMA from the image).
 
 ### Correct boot recipe
 ```
-cd /mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/GENERIC
-ND500X_DISK=/mnt/e/Dev/Ronny/NDIX-C/rootfs_init.img ND500X_MMU_GUEST_TABLES=1 ND500X_NOXMSG=1 \
+cd $NDIX/kernel/MASTER/GENERIC
+ND500X_DISK=$NDIX/rootfs_init.img ND500X_MMU_GUEST_TABLES=1 ND500X_NOXMSG=1 \
   ( printf 'load vmunix\nrun\n'; sleep 45 ) | timeout 70 \
-  /home/ronny/repos/nd500x/build/bin/nd500x --debug --sintran-root /mnt/e/Dev/Ronny/NDIX-C
+  build/bin/nd500x --debug --sintran-root $NDIX
 ```
 (`ND500X_NOXMSG=1` REQUIRED - else xgattach's synchronous XMSG probe succeeds and proc0 sleeps at the
 `0x844` idle forever. Add `ND500X_DOMDBG=1` to SEE domain progress; the `0x844` idle is normal, not a

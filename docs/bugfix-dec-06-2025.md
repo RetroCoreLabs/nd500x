@@ -31,7 +31,7 @@ This caused:
 - Post-indexed modes using wrong index registers
 
 ### File
-`/home/ronny/repos/nd500x/src/cpu/cpu_instr.c`
+`src/cpu/cpu_instr.c`
 
 ### C# Equivalent
 Check `/Emulated.HW/ND/CPU/ND500/` for similar register access patterns.
@@ -114,7 +114,7 @@ The instruction `IF -K GO` (opcodes 0x00D2, 0x00D3) was branching when K=1.
 It should branch when K=0 (the `-K` means "NOT K").
 
 ### File
-`/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfKeyGo.c`
+`src/cpu/instructions/BRANCH/IfKeyGo.c`
 
 ### C# Equivalent
 `/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/IfKeyGo.cs`
@@ -160,7 +160,7 @@ The carry flag after COMP2 (compare) was set incorrectly.
 The ND-500 uses the same carry convention as ARM and 6502 processors.
 
 ### File
-`/home/ronny/repos/nd500x/src/cpu/instructions/COMPARE/Comp2.c`
+`src/cpu/instructions/COMPARE/Comp2.c`
 
 ### C# Equivalent
 `/Emulated.HW/ND/CPU/ND500/Instructions/COMPARE/Comp2.cs`
@@ -198,7 +198,7 @@ Per ND-500 Reference Manual section 6.5.3.1, IOV is an IGNORABLE trap.
 When ignored, the instruction should act as a NOOP (not modify destination).
 
 ### File
-`/home/ronny/repos/nd500x/src/cpu/instructions/SHIFT/Shl.c`
+`src/cpu/instructions/SHIFT/Shl.c`
 
 ### C# Equivalent
 `/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Shl.cs`
@@ -241,7 +241,7 @@ The disassembler was producing incorrect output:
 - PREINDEXED: Using `offset(IN)` format instead of `rN.(disp)` format
 
 ### File
-`/home/ronny/repos/nd500x/src/machine/debug_api.c`
+`src/machine/debug_api.c`
 
 ### Fix Details
 

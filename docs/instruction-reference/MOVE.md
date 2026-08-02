@@ -6,10 +6,10 @@ TRACING THE 5000/5800 MICROCODE and cross-checking against the ND-500 Reference 
 Nothing here is assumed. Every operation, memory effect and flag effect below is read
 directly from:
 
-- Microcode: `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-- Field decode: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
-- Documented intent: `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-- Emulator source (opcodes): `/home/ronny/repos/nd500x/src/cpu/instructions/MOVE/*.c`
+- Microcode: `$ND5000UC/microcode/MICRO-5800-A30.md`
+- Field decode: `$ND5000UC/manual/mnemonics.md`
+- Documented intent: `docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+- Emulator source (opcodes): `src/cpu/instructions/MOVE/*.c`
 
 Items that could not be resolved from the above are marked `UNKNOWN (needs deeper microtrace)`.
 

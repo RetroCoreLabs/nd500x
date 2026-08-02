@@ -2,11 +2,11 @@
 
 Date: 2026-07-19
 Repos to keep identical:
-- nd500x (C):        `/home/ronny/repos/nd500x`
-- RetroCore (C#):    `/mnt/e/Dev/Repos/Ronny/RetroCore`
+- nd500x (C):        `.`
+- RetroCore (C#):    `$RETROCORE`
 
 Ground truth: ND-5000 microcode `MICRO-5800-A30.md` + ND-500 Reference Manual
-(`/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`).
+(`docs/ND-05.009.4 EN ND-500 Reference Manual.md`).
 The C# emulator is NOT the reference; both emulators are corrected to the manual/microcode.
 
 ## Root cause
@@ -46,13 +46,13 @@ Divide-by-zero (DZ).
 ## nd500x changes (committed)
 
 Shared helper added (avoids duplicating the flags/trap tail in 8 files):
-- `/home/ronny/repos/nd500x/src/cpu/instruction_helpers.c`
+- `src/cpu/instruction_helpers.c`
   `uint64_t nd500_float_finish(Nd500Cpu* cpu, uint32_t pc, double result, bool is_double)`
   Converts IEEE result to ND-500 bits, sets Z/S (via `nd500_set_flags_zs_float`),
   clears C/O, sets FU/FO conditionally, raises FO/FU trap, returns result bits.
   FO detect: `isinf||isnan`; FU detect: `result!=0 && fabs(result)<1e-38` (mirrors the
   existing Add.c float path).
-- Declared in `/home/ronny/repos/nd500x/src/cpu/instruction_helpers.h`.
+- Declared in `src/cpu/instruction_helpers.h`.
 
 Instruction files (each replaced the `[DEFERRED]` block with a real float/double path
 using `nd500_read_operand_as_ieee_float` / `nd500_write_operand_from_ieee_float` /
@@ -154,10 +154,10 @@ emulators read Rn as raw IEEE, they could be strengthened to validate the result
 
 ## Regen commands (USER runs - heavy dotnet step)
 ```
-cd /mnt/e/Dev/Repos/Ronny/RetroCore
+cd $RETROCORE
 dotnet test Emulated.Tests.ND500 --filter "Generate_Master_JSON"
-cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json /home/ronny/repos/nd500x/test/nd500_tests.json
-cd /home/ronny/repos/nd500x && make
+cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json test/nd500_tests.json
+cd . && make
 ./build/bin/test_instruction_validation --continue
 ```
 If green: commit RetroCore (emulator instruction files + InstructionHelpers.cs + 3 generators)
@@ -166,20 +166,20 @@ and the refreshed nd500x test/nd500_tests.json.
 ## RetroCore (C#) remaining TODO
 
 1. Apply the same float/double paths to
-   `/mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/`
+   `$RETROCORE/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/`
    {Add3,Sub2,Sub3,Mul2,Mul3,Mulad,Div2,Div3}.cs, and CONTROL/Set1.cs, COMPARE/Test.cs.
    Same flag rule: Z,S set; C,O cleared; FU,FO conditional; DIV DZ on zero divisor.
 2. Extend the test generators so the 39,598-case suite COVERS the F/D variants (it
    currently emits only BY/H/W for these) with MANUAL-derived expected results and flags,
    plus NEGATIVE tests (FO on overflow, FU on underflow, DZ on divide-by-zero, SET1 F/D
    produces 1.0, F/D TEST Z/S on +0.0/-0.0/positive/negative):
-   `/mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.Tests.ND500/Validation/Generators/ComprehensiveArithmeticGenerator.cs`
+   `$RETROCORE/Emulated.Tests.ND500/Validation/Generators/ComprehensiveArithmeticGenerator.cs`
    (GenerateAdd3Scenarios etc.), and the CONTROL/COMPARE generators for SET1/TEST.
 3. Regenerate + copy + validate (this runs `dotnet test`, a heavy step - run explicitly):
    ```
-   cd /mnt/e/Dev/Repos/Ronny/RetroCore
+   cd $RETROCORE
    dotnet test Emulated.Tests.ND500 --filter "Generate_Master_JSON"
-   cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json /home/ronny/repos/nd500x/test/nd500_tests.json
-   cd /home/ronny/repos/nd500x && make
+   cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json test/nd500_tests.json
+   cd . && make
    ./build/bin/test_instruction_validation --continue
    ```

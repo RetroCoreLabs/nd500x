@@ -4,16 +4,16 @@
 
 `~/run_500.sh` launches:
 ```
-/home/ronny/repos/nd500x/build/bin/nd500x --monitor \
-    --config /home/ronny/repos/nd500x/build/test_sintran/nd500x.ini
+build/bin/nd500x --monitor \
+    --config build/test_sintran/nd500x.ini
 ```
 (or `--telnet <port> --config ...` if a port arg is given).
 
-`/home/ronny/repos/nd500x/build/test_sintran/nd500x.ini` was **missing**. It
+`build/test_sintran/nd500x.ini` was **missing**. It
 was never committed to git (it lived only under the gitignored `build/`
 tree), and no copy or historical trace of it was found:
 - `git log --all --oneline -- '*.ini'` — no hits, repo-wide.
-- No other `.ini` file anywhere under `/home/ronny/repos/nd500x`.
+- No other `.ini` file anywhere under `.`.
 
 Nothing recreates `build/test_sintran/` on a fresh build or `make clean` —
 unlike `build/nc_sandbox`, which has a CTest fixture
@@ -25,13 +25,13 @@ destroys hand-set-up sandbox state.
 ## What was reconstructed
 
 The ini format itself is documented in source, not lost: `load_config()` in
-`/home/ronny/repos/nd500x/src/frontend/nd500x/nd500x.c` (around line 86)
+`src/frontend/nd500x/nd500x.c` (around line 86)
 parses simple `key = value` lines and recognizes exactly five keys:
 `sintran-root`, `user`, `terminal-type`, `telnet-port`, `monitor`.
 
-Rebuilt file, `/home/ronny/repos/nd500x/build/test_sintran/nd500x.ini`:
+Rebuilt file, `build/test_sintran/nd500x.ini`:
 ```
-sintran-root = /home/ronny/repos/nd500x
+sintran-root = .
 user = GUEST
 terminal-type = 53
 ```
@@ -50,7 +50,7 @@ terminal-type = 53
 
 Checked and confirmed empty:
 ```
-$ ls -la /home/ronny/repos/nd500x/SYSTEM
+$ ls -la SYSTEM
 total 8
 drwxr-xr-x  2 ronny ronny 4096 Jul 20 01:31 .
 drwxr-xr-x 19 ronny ronny 4096 Jul 23 17:27 ..
@@ -60,7 +60,7 @@ The documented ND LINKER workflow (`docs/` via the `nd500-linker` skill)
 needs `SYSTEM/LINKER.DOM` + `DDBTABLES` + `LINKER.INIT` under `sintran-root`
 for the SINTRAN shell's `@lin` abbreviation to resolve. Those files are not
 at the repo root, and the sandbox that used to have them —
-`/home/ronny/repos/nd500x/build/link_sandbox` — **does not currently exist**
+`build/link_sandbox` — **does not currently exist**
 (confirmed via `ls`, no such directory). It was presumably lost the same way
 as `test_sintran/` — never committed, wiped by a clean/rebuild.
 
@@ -72,13 +72,13 @@ and the ini repointed at it.
 
 ## Verified working
 
-- `/home/ronny/repos/nd500x/build/bin/nd500x` exists (already built).
+- `build/bin/nd500x` exists (already built).
 - `~/run_500.sh` (no args) now loads the ini and starts `--monitor` mode
   rooted at the repo root as user GUEST.
 
 ## Related
 
-- `/home/ronny/repos/nd500x/README.md`, "SINTRAN Shell (Monitor Mode)" section
+- `README.md`, "SINTRAN Shell (Monitor Mode)" section
   — has the general `--monitor`/`--config` usage docs, plus a "Convenience
   launcher (`~/run_500.sh`)" subsection added 2026-07-24 with this exact
   ini and the same repo-root-vs-link_sandbox caveat.

@@ -3,13 +3,13 @@
 Source of truth for this document:
 
 - Microcode (ground-truth mechanism):
-  `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
+  `$ND5000UC/microcode/MICRO-5800-A30.md`
 - Microcode field mnemonics:
-  `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
+  `$ND5000UC/manual/mnemonics.md`
 - Reference Manual (documented intent):
-  `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+  `docs/ND-05.009.4 EN ND-500 Reference Manual.md`
 - Emulator C sources traced for opcode/operand shape:
-  `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/*.c`
+  `src/cpu/instructions/BRANCH/*.c`
 
 This file was rebuilt by tracing each instruction's microcode routine. Where the
 microcode, the manual, and the committed C implementation disagree, the

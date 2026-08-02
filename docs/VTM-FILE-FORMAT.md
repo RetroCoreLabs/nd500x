@@ -1,10 +1,10 @@
 # SINTRAN III VTM terminal-table file format (reverse engineered)
 
-Full path: `/home/ronny/repos/nd500x/docs/VTM-FILE-FORMAT.md`. Written 2026-07-21.
+Full path: `docs/VTM-FILE-FORMAT.md`. Written 2026-07-21.
 
 Byte-level RE of the VTM (VDU terminal-module) file, so nd500x can DUMP each
 terminal type's capabilities and escape sequences. Reference binary:
-`/home/ronny/repos/nd500x/build/link_sandbox/GUEST/DDBTABLES-G06.VTM` (72185 bytes).
+`build/link_sandbox/GUEST/DDBTABLES-G06.VTM` (72185 bytes).
 
 No ND manual on disk specifies the VTM FILE layout - `ND-60.151.3` explicitly
 defers VTM-COMPOUND to product sheet **ND 210455** (not scanned). So everything

@@ -91,8 +91,8 @@ To integrate this into your project:
 
 ## Documentation
 
-- **Tool documentation**: `/home/ronny/repos/nd500x/tools/gen-asm-map.md`
-- **Implementation**: `/home/ronny/repos/nd500x/tools/gen-asm-map`
+- **Tool documentation**: `tools/gen-asm-map.md`
+- **Implementation**: `tools/gen-asm-map`
 - **Examples**: This Makefile
 
 ## Benefits
@@ -105,5 +105,5 @@ To integrate this into your project:
 
 ## See Also
 
-- `/home/ronny/repos/nd500x/tools/README.md` - Tools overview
-- `/home/ronny/repos/nd500x/tools/gen-asm-map.md` - Complete documentation
+- `tools/README.md` - Tools overview
+- `tools/gen-asm-map.md` - Complete documentation

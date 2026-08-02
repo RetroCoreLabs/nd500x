@@ -2,10 +2,10 @@
 
 Date: 2026-07-19
 Repos to keep identical:
-- nd500x (C):     /home/ronny/repos/nd500x
-- RetroCore (C#): /mnt/e/Dev/Repos/Ronny/RetroCore
+- nd500x (C):     .
+- RetroCore (C#): $RETROCORE
 
-Ground truth: ND-500 Reference Manual /home/ronny/repos/nd500x/docs/ND-05.009.4 EN
+Ground truth: ND-500 Reference Manual docs/ND-05.009.4 EN
 ND-500 Reference Manual.md (verified below), which matches the ND-5000 microcode carve.
 The docs/instructions/asm/*.md notes and the prior C/C# code described the WRONG
 instructions and are NOT authoritative.
@@ -73,10 +73,10 @@ per the nd500x oracle. scpuno/scotr paths left intact.
 
 ## Regen (USER runs - heavy dotnet step; also settles the encoding open item)
 ```
-cd /mnt/e/Dev/Repos/Ronny/RetroCore
+cd $RETROCORE
 dotnet test Emulated.Tests.ND500 --filter "Generate_Master_JSON"
-cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json /home/ronny/repos/nd500x/test/nd500_tests.json
-cd /home/ronny/repos/nd500x && make
+cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json test/nd500_tests.json
+cd . && make
 ./build/bin/test_instruction_validation --continue
 ```
 Expected: new SSCAN/SSPAN/SMATCH/SCOPT/SCPUNO cases assemble and PASS. If some fail to

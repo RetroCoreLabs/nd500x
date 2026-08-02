@@ -6,7 +6,7 @@ labor). Shape and values here may still change before either runner treats
 this file as a locked contract. See "Open items" below for what is
 specifically unsettled.
 
-Location: `~/repos/nd500x/test/mon_tests.json` (`/home/ronny/repos/nd500x/test/mon_tests.json`
+Location: `~/repos/nd500x/test/mon_tests.json` (`test/mon_tests.json`
 on the WSL box this was generated on). This doc lives at
 `~/repos/nd500x/docs/mon_tests_SCHEMA.md`, next to `NC_TOOLCHAIN_MON_PLAN.md`.
 
@@ -15,7 +15,7 @@ Originally generated mechanically by a Python script (not committed - see
 
 - the 33 YAML files under `NDInsight/Developer/MON/calls/` for the 34 NC MON
   calls (321B UEADM has no YAML - its description comes from
-  `/mnt/d/ND/500/FraTor/nc/mon-calls-described.md`'s "NOT FOUND" section,
+  `$ND500_TESTDATA/FraTor/nc/mon-calls-described.md`'s "NOT FOUND" section,
   which itself quotes manual text),
 - the ND-860228.2 EN manual OCR, Appendix A error-code table
   (`NDInsight/Developer/MON/Monitor Calls.md`, "APPENDIX A: ERROR MESSAGES"

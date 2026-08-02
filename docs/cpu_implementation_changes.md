@@ -1040,7 +1040,7 @@ This correctly indexes through the available prefixes for each instruction class
 
 ### Verification Test
 
-Created test file `/home/ronny/repos/nd500x/test/disasm_mul_abs_test.s`:
+Created test file `test/disasm_mul_abs_test.s`:
 
 ```asm
 .text
@@ -1107,7 +1107,7 @@ During testing, the following nd500-as bugs were identified:
 1. **Shift instructions crash**: SHL, SHA, SHR cause assembler segfaults
 2. **Bitfield instructions crash**: GETBI, PUTBI, CLEBI, SETBI, GETBF, PUTBF all segfault
 
-These bugs are documented in `/home/ronny/repos/ragge/pcc-nd500/tests/asm_generated/phase2_intermediate/`.
+These bugs are documented in `$PCC_ND500/tests/asm_generated/phase2_intermediate/`.
 
 Because of these assembler limitations, full verification of shift and bitfield instruction disassembly requires:
 - Using the nd500x debug mode to manually enter opcodes, OR
@@ -1119,8 +1119,8 @@ Because of these assembler limitations, full verification of shift and bitfield 
 
 ### Test Files Created
 
-- `/home/ronny/repos/nd500x/test/disasm_mul_abs_test.s` - MUL and ABS data type prefix test
-- `/home/ronny/repos/nd500x/test/disasm_mul_abs_test.bin` - Assembled binary
+- `test/disasm_mul_abs_test.s` - MUL and ABS data type prefix test
+- `test/disasm_mul_abs_test.bin` - Assembled binary
 
 ---
 

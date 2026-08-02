@@ -1,9 +1,9 @@
 # HELP-command crash: advanced-mode command-registration leaves entry 41 unfilled
 
-Full path of this document: `/home/ronny/repos/nd500x/docs/HELP-CRASH-ADVANCED-CMD-REGISTRATION.md`
+Full path of this document: `docs/HELP-CRASH-ADVANCED-CMD-REGISTRATION.md`
 
 Written 2026-07-20. Supersedes the crash-cause sections of
-`/home/ronny/repos/nd500x/docs/CARVE-QUESTION-321B-UEADM.md` (UEADM) and the
+`docs/CARVE-QUESTION-321B-UEADM.md` (UEADM) and the
 "command-table walk over-reads by one" framing. Both of those were disproven by
 direct measurement, recorded below so the wrong turns are not repeated.
 
@@ -21,12 +21,12 @@ trap PROTECT VIOLATION, `trapPC=0xB0036975`, `dataAddr=0x00000000`,
 `B0036975: 2D E4 14 D1  by comp2 IND(b.20)(r1),W2` dereferences a name pointer
 read from a command-table entry. On the crashing run that pointer is null.
 
-Reproduce from `/home/ronny/repos/nd500x/build/link_sandbox` (relink
+Reproduce from `build/link_sandbox` (relink
 `diag_linkdrive` first - it is not built by `make`, see
-`/home/ronny/repos/nd500x/docs`-tracked stale-artifact note):
+`docs`-tracked stale-artifact note):
 
 ```
-../bin/diag_linkdrive /mnt/d/ND/500/nd-linker/linker-b01.dom \
+../bin/diag_linkdrive $ND500_TESTDATA/nd-linker/linker-b01.dom \
   'OPEN-DOMAIN "RTEST";;HELP;;EXIT' 300000000
 ```
 
@@ -38,9 +38,9 @@ Reproduce from `/home/ronny/repos/nd500x/build/link_sandbox` (relink
 
 2. **Not a LOOP/LOOPI/LOOPD CPU bug.** A three-way audit of the manual
    (ND-05.009.4 sections 13.4/13.5/13.6), our C
-   (`/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/{Loop,Loopi,Loopd}.c`)
+   (`src/cpu/instructions/BRANCH/{Loop,Loopi,Loopd}.c`)
    and C#
-   (`/mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/{Loop,Loopi,Loopd}.cs`)
+   (`$RETROCORE/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/{Loop,Loopi,Loopd}.cs`)
    found increment-order, comparison operator, signedness and operand data-type
    all in agreement. The old forced-WORD width bug is already fixed. The loop
    that walks the table (`w loopi b.52,b.80` at B003685E, limit b.80 = 41) is
@@ -126,7 +126,7 @@ divergence is inside `B0031FA4` / `B003A617`. Candidate mechanisms, unresolved:
 
 Whatever single instruction is found to diverge from the manual, the fix must be
 mirrored in RetroCore C#
-(`/mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/`).
+(`$RETROCORE/Emulated.HW/ND/CPU/ND500/Instructions/`).
 
 ## ROOT CAUSE (manual-grounded, 2026-07-20 later): wrong trap type on address-0 read
 

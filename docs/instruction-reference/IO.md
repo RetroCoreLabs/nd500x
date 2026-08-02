@@ -1,15 +1,15 @@
 # ND-500 Instruction Category: IO
 
 Functional behavior reference built by TRACING THE 5800 MICROCODE
-(`/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`), decoding fields via
-`/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`, and cross-checking documented
+(`$ND5000UC/microcode/MICRO-5800-A30.md`), decoding fields via
+`$ND5000UC/manual/mnemonics.md`, and cross-checking documented
 intent against the ND-500 Reference Manual
-(`/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`).
+(`docs/ND-05.009.4 EN ND-500 Reference Manual.md`).
 
 Rule of evidence: statements below are taken from the actual microcells and the
 manual. Anything not directly derivable from those is marked UNKNOWN or inferred.
 
-Category source directory: `/home/ronny/repos/nd500x/src/cpu/instructions/IO/`
+Category source directory: `src/cpu/instructions/IO/`
 Instructions in this category (one .c file each):
 
 - `Riom.c` -> RIOM
@@ -166,7 +166,7 @@ confirms by never issuing a status-save, so every bit is preserved, not cleared.
   copy from I/O processor memory to an ND-500 buffer, all data status bits
   Unaffected.
 - DISAGREEMENT with the C emulator source
-  `/home/ronny/repos/nd500x/src/cpu/instructions/IO/Riom.c`:
+  `src/cpu/instructions/IO/Riom.c`:
   1. Riom.c SETS Z if count==0 and CLEARS Z otherwise (lines ~258-262). This
      contradicts BOTH the microcode (no ST,SAV*) and the manual ("Data status bits:
      Unaffected"). Per ground truth, RIOM must leave Z (and all flags) UNCHANGED.
@@ -181,11 +181,11 @@ confirms by never issuing a status-save, so every bit is preserved, not cleared.
 
 - Microcode: label RIOM at octal 000745 / 000746; RIOM_0 011271; RIOM_1 011274;
   RIOM_2 011302; RIOM_3 011304-011306; ILLEG 000200; GET_NEXT 003231.
-  File: `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md` (lines 499-500,
+  File: `$ND5000UC/microcode/MICRO-5800-A30.md` (lines 499-500,
   4806-4820, 142, 1703).
-- Field decode: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
+- Field decode: `$ND5000UC/manual/mnemonics.md`
   (STATUS/ST,SAVA table ~line 646-665; MEMORY READ/WRITE/RD,POF ~885-901;
   LC_DECR ~683; COND,LCZ ~784; EA_SAVE ~903-912; TYP,HW ~234).
 - Manual: ND-500 Reference Manual section 16.23 "Read I/O processor memory",
-  `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+  `docs/ND-05.009.4 EN ND-500 Reference Manual.md`
   (lines 10826-10852; flag table line ~15046).

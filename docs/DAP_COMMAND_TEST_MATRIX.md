@@ -1,6 +1,6 @@
 # nd500x DAP command test matrix
 
-**Full path of this document:** `/home/ronny/repos/nd500x/docs/DAP_COMMAND_TEST_MATRIX.md`
+**Full path of this document:** `docs/DAP_COMMAND_TEST_MATRIX.md`
 
 Every DAP command supported by the nd500x adapter, its usage (following the
 nd100x conventions), and the live test result. All live tests were run against
@@ -8,11 +8,11 @@ the NC compiler DOM:
 
 ```
 cd build/nc_sandbox
-../bin/nd500x --dom /mnt/d/ND/500/FraTor/nc/nc-a06.dom --dap 4500
+../bin/nd500x --dom $ND500_TESTDATA/FraTor/nc/nc-a06.dom --dap 4500
 ```
 
 driven by the dap-debugger MCP client, on 2026-07-11. Unit-level coverage is
-in `/home/ronny/repos/nd500x/test/test_dap_adapter.c` (ctest name
+in `test/test_dap_adapter.c` (ctest name
 `dap_adapter`, 103 checks).
 
 ## Session control

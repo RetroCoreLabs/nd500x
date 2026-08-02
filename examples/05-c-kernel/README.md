@@ -323,7 +323,7 @@ $ bin/nd500-dump -s kernel.o | grep start
 
 ### NDIX-C Documentation
 
-See `/mnt/e/Dev/Ronny/NDIX-C/NDIX_BUILD_MEMORY_LAYOUT.md` for:
+See `$NDIX/NDIX_BUILD_MEMORY_LAYOUT.md` for:
 - Complete NDIX-C build system documentation
 - Memory layout architecture
 - splitseg algorithm details

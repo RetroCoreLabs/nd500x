@@ -8,7 +8,7 @@ name, the file type, AND the version." Appending the default version `;1` to FOU
 files (`B:NRF;1`) makes the linker **open the object** (`50B OPEN ./GUEST/B.NRF` as file
 102) and proceed — the days-old `(-677:52)` is gone.
 
-- Fix: `/home/ronny/repos/nd500x/src/libmon/handlers/mon_256B_FullFileName.c` — the four
+- Fix: `src/libmon/handlers/mon_256B_FullFileName.c` — the four
   found-file `snprintf` branches now append `;1`. Only FOUND files get it (a not-yet-
   created file still returns not-found/err-46, so NC's create-if-missing is unchanged).
 - Verified: NC gate `dom_nc_compile` 4/4 still pass. `mon_calls` unit test fails but that
@@ -59,10 +59,10 @@ domain create). The `0xB0048CC8` global (=1) is not this state.
 ### (historical) original error-52 investigation follows
 
 
-Full path: `/home/ronny/repos/nd500x/docs/LINKER-LOAD-ERROR52-INVESTIGATION.md`
+Full path: `docs/LINKER-LOAD-ERROR52-INVESTIGATION.md`
 Date: 2026-07-18
-Run from: `/home/ronny/repos/nd500x/build/link_sandbox` (NOT nc_sandbox)
-Driver: `../bin/diag_linkdrive /mnt/d/ND/500/nd-linker/linker-b01.dom 'OPEN-DOMAIN "A-TEST";;LOAD B:NRF;;EXIT;;'`
+Run from: `build/link_sandbox` (NOT nc_sandbox)
+Driver: `../bin/diag_linkdrive $ND500_TESTDATA/nd-linker/linker-b01.dom 'OPEN-DOMAIN "A-TEST";;LOAD B:NRF;;EXIT;;'`
 (delete `GUEST/A-TEST.DOM` between runs — quoted OPEN-DOMAIN create errors -62 if it already exists)
 
 ## Status
@@ -71,7 +71,7 @@ Driver: `../bin/diag_linkdrive /mnt/d/ND/500/nd-linker/linker-b01.dom 'OPEN-DOMA
   the MON trampoline's leftover call-target `0xF80000AE` (0xF8000000 + 0xAE;
   0xAE = 256B octal = DEABF's own routine number), which the linker read as a
   nonzero error code. Fix: `ctx->set_i1(ctx->cpu, 0)` on success in
-  `/home/ronny/repos/nd500x/src/libmon/handlers/mon_256B_FullFileName.c`.
+  `src/libmon/handlers/mon_256B_FullFileName.c`.
   Verified: OPEN-DOMAIN still creates+reads the domain; EXIT exits cleanly
   (MON 0B LEAVE); no infinite re-prompt.
 - STILL BLOCKED: `LOAD B:NRF` never `50B OPEN`s `B.NRF`. After DEABF resolves the
@@ -188,7 +188,7 @@ confirmed a THIRD independent way.
   => The DEABF success K polarity is a red herring for error 52; the gate needs
      `b.0x49 == 4`, which is set ONLY by a `.` in the pre-DEABF command-line scan.
 
-- LOADER/LINKER MANUAL LOCATED: `/mnt/e/Dev/Ronny/NDInsight/Reference-Manuals/
+- LOADER/LINKER MANUAL LOCATED: `$NDINSIGHT/Reference-Manuals/
   ND-60.136.04A ND-500 Loader Monitor.md`. It documents the OLD Linkage-Loader
   (NLL: `SET-DOMAIN`, `LOAD-SEGMENT`). Our binary is the NEW NDL (`- ND LINKER,
   Version B01  10. January 1989 -`, internal version 66.251), whose verbs are
@@ -225,7 +225,7 @@ the correct type separator; `LOAD B` / `LOAD B:NRF` are the correct forms. The
 period is definitively NOT a fix.
 
 ### Microcode check — the K-flag hypothesis is CLOSED (ND-5000 microcode)
-Checked the ND-5000 microcode directly (`/mnt/e/Dev/Ronny/ND5000UC/microcode/
+Checked the ND-5000 microcode directly (`$ND5000UC/microcode/
 MICRO-5800-A30.md`, opcode table):
 ```
 000701 RET   | ... D,SC14 K,ZRO ... |  -> RET  clears K   (micro-op K,ZRO)
@@ -333,8 +333,8 @@ command-buffer length semantics.
 
 ## Reproduce
 ```
-cd /home/ronny/repos/nd500x/build/link_sandbox && rm -f GUEST/A-TEST.DOM
-ND500X_PIN_CLOCK=1 ../bin/diag_linkdrive /mnt/d/ND/500/nd-linker/linker-b01.dom \
+cd build/link_sandbox && rm -f GUEST/A-TEST.DOM
+ND500X_PIN_CLOCK=1 ../bin/diag_linkdrive $ND500_TESTDATA/nd-linker/linker-b01.dom \
   'OPEN-DOMAIN "A-TEST";;LOAD B:NRF;;EXIT;;' 2>&1 | grep -iE 'DEABF|\(-677|round='
 # BREAK at the gate:
 ND500X_PIN_CLOCK=1 ND500X_NOLOG=1 ND500X_BREAK_PC=0xB0040D75 \

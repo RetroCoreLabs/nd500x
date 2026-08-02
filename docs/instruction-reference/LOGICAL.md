@@ -3,10 +3,10 @@
 FUNCTIONAL behavior reference built by TRACING THE MICROCODE.
 
 Sources of truth (full absolute paths):
-- Microcode ROM:  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
-- Field decode:   /mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md
-- Reference:      /home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md
-- Emulator C:     /home/ronny/repos/nd500x/src/cpu/instructions/LOGICAL/*.c
+- Microcode ROM:  $ND5000UC/microcode/MICRO-5800-A30.md
+- Field decode:   $ND5000UC/manual/mnemonics.md
+- Reference:      docs/ND-05.009.4 EN ND-500 Reference Manual.md
+- Emulator C:     src/cpu/instructions/LOGICAL/*.c
 
 Category members (from ls of the LOGICAL directory): AND, INV, INVC, OR, XOR.
 
@@ -14,7 +14,7 @@ Category members (from ls of the LOGICAL directory): AND, INV, INVC, OR, XOR.
 
 ## Conventions used below
 
-Decoded microcode fields (from /mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md):
+Decoded microcode fields (from $ND5000UC/manual/mnemonics.md):
 
 - `ALU,AND` / `ALU,OR` / `ALU,XOR` = the bitwise ALU function A op B.
 - `ALU,ADIRC` = "ALU OUTPUT COMPLEMENTED" (one's-complement / NOT of the A input).
@@ -56,7 +56,7 @@ Flag columns in the tables: K, Z, C, O, S.
 
 Bit / BY / H datatypes: for the BI (single-bit) datatype the main opcode dispatches (via ORCON)
 to a separate bit tail (AND_BI 003250, OR_BI 003252, XOR_BI 003255, INV_BI 003247, all in
-/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md). Those tails extract the single bit,
+$ND5000UC/microcode/MICRO-5800-A30.md). Those tails extract the single bit,
 apply the logical function to it, write the low bit back, zero-fill the upper register (the
 `CLEAR_SIGN` continuation), and set Z/S via ST,SAVA. The BY and H widths run the SAME main cell
 with `TYP,DR` selecting the width; the "upper part zero filled" behaviour is the register-file
@@ -76,7 +76,7 @@ Opcode (octal / hex, n = 1..4):
 - Wn  AND: 000344B + (n-1)  (0E4H)
 
 Microcode routine: label **AND**, octal address 000341
-(/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md):
+($ND5000UC/microcode/MICRO-5800-A30.md):
 `ALU,AND TYP,DR A,ALU,REG37 ORB,IN D,ALU,REG37 ST,SAVA T,JMP COND,MSEXO TBC,NEXT G,OOPS READ ADACT [ADDR=ORBI] ORCON=04`
 BI-datatype tail: **AND_BI** 003250 -> 003251 -> CLEAR_SIGN.
 
@@ -114,7 +114,7 @@ BI-datatype tail: **AND_BI** 003250 -> 003251 -> CLEAR_SIGN.
 
 ### Citation
 - Microcode: **AND** @ 000341 (main), **AND_BI** @ 003250 in
-  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+  $ND5000UC/microcode/MICRO-5800-A30.md
 - Manual: section 10.21 "And", Reference Manual page 157.
 - Manual/microcode agree: op = Rn AND operand; status = Z, S (C, O cleared by rule 4040).
 
@@ -169,7 +169,7 @@ BI-datatype tail: **OR_BI** 003252 -> 003253 -> 003254 -> CLEAR_SIGN.
 
 ### Citation
 - Microcode: **OR** @ 000344, **OR_BI** @ 003252 in
-  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+  $ND5000UC/microcode/MICRO-5800-A30.md
 - Manual: section 10.22 "Or", page 158.
 - Manual/microcode agree: op = Rn OR operand; status = Z, S (C, O cleared).
 
@@ -225,7 +225,7 @@ BI-datatype tail: **XOR_BI** 003255 -> 003256 -> 003257 -> CLEAR_SIGN.
 
 ### Citation
 - Microcode: **XOR** @ 000347, **XOR_BI** @ 003255 in
-  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+  $ND5000UC/microcode/MICRO-5800-A30.md
 - Manual: section 10.23 "Exclusive or", page 159.
 - Manual/microcode agree: op = Rn XOR operand; status = Z, S (C, O cleared).
 
@@ -281,7 +281,7 @@ INV completes in this single microinstruction.)
 
 ### Citation
 - Microcode: **INV** @ 000260, **INV_BI** @ 003247 (via INVBI @ 000257) in
-  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+  $ND5000UC/microcode/MICRO-5800-A30.md
 - Manual: section 10.13 "Invert", page 149.
 - Manual/microcode agree: op = one's complement; status = Z, S (C, O cleared, no traps).
 
@@ -341,10 +341,10 @@ Notes on the trace:
 - Integer overflow (O) - manual 10.14; microcode's arithmetic A-B can raise overflow.
 
 ### Citation
-- Microcode: **INVC** @ 000261 in /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+- Microcode: **INVC** @ 000261 in $ND5000UC/microcode/MICRO-5800-A30.md
 - Manual: section 10.14 "Invert with carry add", page 150.
 - Manual/microcode agree: op = ~Rn + C; status Z, S, C, O; trap = integer overflow.
-- Note vs emulator: /home/ronny/repos/nd500x/src/cpu/instructions/LOGICAL/Invc.c computes
+- Note vs emulator: src/cpu/instructions/LOGICAL/Invc.c computes
   ~value + C and sets C on carry-out, but does NOT set O (overflow) nor raise the integer-overflow
   trap that both the manual and the microcode (ST,SAVA on an arithmetic A-B) specify. Flagged as
   an emulator gap, not a microcode ambiguity.
@@ -353,7 +353,7 @@ Notes on the trace:
 
 ## Emulator cross-check summary
 
-The C implementations in /home/ronny/repos/nd500x/src/cpu/instructions/LOGICAL/ match the traced
+The C implementations in src/cpu/instructions/LOGICAL/ match the traced
 microcode for AND, OR, XOR, INV (Z/S set via nd500_set_flags_zs; C/O cleared implicitly by the
 flag helper; upper bits cleared via nd500_mask_to_datatype). The one divergence found:
 
@@ -364,7 +364,7 @@ flag helper; upper bits cleared via nd500_mask_to_datatype). The one divergence 
 ## Residual UNKNOWNs (needs deeper microtrace / doc)
 
 - `A,ALU,REG37` / `D,ALU,REG37` are labelled "[UNDOCUMENTED GUESS]" in
-  /mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md. Their identification as the instruction-selected
+  $ND5000UC/manual/mnemonics.md. Their identification as the instruction-selected
   register Rn is INFERRED from routine structure and the documented per-instruction operation, not
   read from a field definition. UNKNOWN until the register-file addressing (ICA -> register port)
   is decoded.

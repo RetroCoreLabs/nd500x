@@ -1,6 +1,6 @@
 # SYNC: MON 257B FOPEN is PRESENT in SINTRAN L - implement it + report it present
 
-Full path: /home/ronny/repos/nd500x/docs/SYNC-MON-257B-FOPEN-PRESENT-IN-SINTRAN-L.md
+Full path: docs/SYNC-MON-257B-FOPEN-PRESENT-IN-SINTRAN-L.md
 
 ## Ground truth (carve-verified, not inferred)
 
@@ -20,9 +20,9 @@ table directly from the carved segment:
 - Table: `MCTAB / 9MCTA @ 005620B`, 256 16-bit words indexed by MON#, in segment
   `044-S3IDPIT`. `0` = call not generated into this system; non-zero = present,
   the word IS the dispatch entry. (Mechanism carve:
-  /mnt/e/Dev/Ronny/NDInsight/SINTRAN/ND500/mon-oracle-for-NC/312B-MOINF_317B-UECOM.md)
+  $NDINSIGHT/SINTRAN/ND500/mon-oracle-for-NC/312B-MOINF_317B-UECOM.md)
 - Segment file:
-  /mnt/e/Dev/Ronny/NDInsight/tools/sintran-segment-carver/versions/L-VSX-500/segments/044-S3IDPIT.bin
+  $NDINSIGHT/tools/sintran-segment-carver/versions/L-VSX-500/segments/044-S3IDPIT.bin
 - dd formula (byte offset of MCTAB[N] = 1824 + N_decimal*2; verified against the
   oracle's own 312B/317B reads):
     * MCTAB[312B] (N=202): `dd bs=1 skip=2228 count=2` -> `35 80` = 032600B = MOINF (matches oracle)
@@ -75,4 +75,4 @@ It does NOT fix the linker's post-OPEN-DOMAIN blocker. `LOAD B:NRF` after
 `OPEN-DOMAIN "A-TEST"` still fails with `*** ERROR - Command not valid when no
 current domain or segment exists. (0054:67)`. FOPEN is error-message-file
 infrastructure, orthogonal to current-domain state. See the current-domain
-findings in /home/ronny/repos/nd500x/docs/LINKER-LOAD-ERROR52-INVESTIGATION.md.
+findings in docs/LINKER-LOAD-ERROR52-INVESTIGATION.md.

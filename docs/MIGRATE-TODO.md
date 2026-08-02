@@ -495,7 +495,7 @@ For each instruction implementation:
 
 ### Bug Tracking
 
-Document any issues in `/home/ronny/repos/nd500x/docs/C#_BUGS_FOUND.md`
+Document any issues in `docs/C#_BUGS_FOUND.md`
 
 ---
 

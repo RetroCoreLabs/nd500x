@@ -31,7 +31,7 @@ When C code is compiled with `-g`, the assembler converts stabs to C mappings bu
 ### Setup
 ```bash
 # Tool is located in the nd500x repository
-cd /home/ronny/repos/nd500x/tools
+cd tools
 
 # Make executable (if not already)
 chmod +x gen-asm-map
@@ -267,7 +267,7 @@ nd500-ld -m -o kernel locore.o kernel.o
 
 ### Example 3: Automated Build (Makefile)
 
-See complete working example: `/home/ronny/repos/nd500x/examples/05-c-kernel/Makefile`
+See complete working example: `examples/05-c-kernel/Makefile`
 
 Key excerpt:
 ```makefile

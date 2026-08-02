@@ -1802,6 +1802,6 @@ ENTT <stack_demand>, <max_args>
   - Table 12: Special Instructions and Opcodes
 
 ### Source Code References
-- `/home/ronny/repos/nd500x/src/cpu/instructions/BITFIELD/Getb.c`
-- `/home/ronny/repos/nd500x/src/cpu/instructions/SYSTEM/Freeb.c`
-- `/home/ronny/repos/nd500x/src/cpu/cpu.c` (trap handling implementation)
+- `src/cpu/instructions/BITFIELD/Getb.c`
+- `src/cpu/instructions/SYSTEM/Freeb.c`
+- `src/cpu/cpu.c` (trap handling implementation)

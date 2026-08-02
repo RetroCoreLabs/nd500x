@@ -13,19 +13,19 @@ check that would confirm it.
 
 Primary sources actually read for this report (full absolute paths):
 
-- `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.help`  (the program's own HELP text, NUL-stripped)
-- `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.init`  (the program's startup banner text, NUL-stripped)
-- `/home/ronny/repos/nd500x/docs/ND-860289-2-EN ND Linker User Guide and Reference Manual.md`  (Appendix E "The New Domain Format", Appendix F "The CONVERT-DOMAIN Program", chapter 3.1)
-- `/mnt/e/Dev/Ronny/NDInsight/Operations/SINTRAN/ND-30.003.007 EN SINTRAN III System Supervisor.md`  (old domain format / description file, pages ~120-122)
-- `/mnt/e/Dev/Ronny/NDInsight/Developer/Workflow/CONVERT-DOMAIN-PSEG-DSEG-TO-DOM.md`  (an existing workflow note in the doc repo)
-- The LED example file set in `/mnt/d/ND/500/LED/x/`
+- `$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.help`  (the program's own HELP text, NUL-stripped)
+- `$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.init`  (the program's startup banner text, NUL-stripped)
+- `docs/ND-860289-2-EN ND Linker User Guide and Reference Manual.md`  (Appendix E "The New Domain Format", Appendix F "The CONVERT-DOMAIN Program", chapter 3.1)
+- `$NDINSIGHT/Operations/SINTRAN/ND-30.003.007 EN SINTRAN III System Supervisor.md`  (old domain format / description file, pages ~120-122)
+- `$NDINSIGHT/Developer/Workflow/CONVERT-DOMAIN-PSEG-DSEG-TO-DOM.md`  (an existing workflow note in the doc repo)
+- The LED example file set in `$ND500_TESTDATA/LED/x/`
 
 ---
 
 ## A. What CONVERT-DOMAIN does (verified)
 
 From the program's own startup banner,
-`/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.init` (NUL-stripped) reads
+`$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.init` (NUL-stripped) reads
 verbatim:
 
 ```
@@ -34,7 +34,7 @@ verbatim:
 ```
 
 From the program's HELP text,
-`/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.help` (NUL-stripped), the top
+`$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.help` (NUL-stripped), the top
 banner and the HELP topic read verbatim:
 
 ```
@@ -45,7 +45,7 @@ The main difference between the formats is that the old domain format
 has a description file, while the new format does not.
 ```
 
-Corroborated by `/home/ronny/repos/nd500x/docs/ND-860289-2-EN ND Linker User
+Corroborated by `docs/ND-860289-2-EN ND Linker User
 Guide and Reference Manual.md`, Appendix F body, which states verbatim:
 
 > "The introduction of the new domain format has necessitated the development
@@ -64,7 +64,7 @@ It does NOT compile and does NOT re-link from object code (see section F).
 
 ### Old format (what the source files are)
 
-From `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.help`, topic
+From `$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.help`, topic
 OLD-DOMAIN-FORMAT, verbatim:
 
 ```
@@ -76,7 +76,7 @@ The contents  of each segment is stored in three files with file types
 :PSEG, :DSEG and :LINK.
 ```
 
-From `/mnt/e/Dev/Ronny/NDInsight/Operations/SINTRAN/ND-30.003.007 EN SINTRAN
+From `$NDINSIGHT/Operations/SINTRAN/ND-30.003.007 EN SINTRAN
 III System Supervisor.md`, verbatim (lines ~4536-4568):
 
 > "A domain can consist of up to 32 program segments and 32 data segments.
@@ -118,7 +118,7 @@ number 20B)."
 
 ### New format (what CONVERT-DOMAIN produces)
 
-From `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.help`, topic
+From `$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.help`, topic
 NEW-DOMAIN-FORMAT, verbatim:
 
 ```
@@ -137,7 +137,7 @@ information about them is stored at the beginning of the file where it
 is stored.
 ```
 
-From `/home/ronny/repos/nd500x/docs/ND-860289-2-EN ND Linker User Guide and
+From `docs/ND-860289-2-EN ND Linker User Guide and
 Reference Manual.md`, Appendix E, verbatim:
 
 > "Whereas previously the domain consisted of at least three files (file types
@@ -199,7 +199,7 @@ domain, or find a `:DESC` layout appendix).
 
 ## C. Exact CONVERT-DOMAIN command syntax and every prompt (verified)
 
-Read in full from `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.help`, topic
+Read in full from `$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.help`, topic
 CONVERT-DOMAIN, verbatim command shape:
 
 ```
@@ -334,23 +334,23 @@ Conversion is ONE-WAY: no command exists to turn a `:DOM` back into
 
 ---
 
-## E. The LED example at /mnt/d/ND/500/LED/x/
+## E. The LED example at $ND500_TESTDATA/LED/x/
 
 Directory listing actually read (sizes in bytes):
 
 ```
-/mnt/d/ND/500/LED/x/description-file.desc     22528
-/mnt/d/ND/500/LED/x/led-b03.pseg             223695
-/mnt/d/ND/500/LED/x/led-b03.dseg             394525
-/mnt/d/ND/500/LED/x/led-b03.link                  0   (empty)
-/mnt/d/ND/500/LED/x/scratch-seg-01.pseg           5   (5 NUL bytes)
-/mnt/d/ND/500/LED/x/scratch-seg-01.dseg        1029
-/mnt/d/ND/500/LED/x/scratch-seg-01.link           0   (empty)
-/mnt/d/ND/500/LED/x/upk-if.defs                4770
+$ND500_TESTDATA/LED/x/description-file.desc     22528
+$ND500_TESTDATA/LED/x/led-b03.pseg             223695
+$ND500_TESTDATA/LED/x/led-b03.dseg             394525
+$ND500_TESTDATA/LED/x/led-b03.link                  0   (empty)
+$ND500_TESTDATA/LED/x/scratch-seg-01.pseg           5   (5 NUL bytes)
+$ND500_TESTDATA/LED/x/scratch-seg-01.dseg        1029
+$ND500_TESTDATA/LED/x/scratch-seg-01.link           0   (empty)
+$ND500_TESTDATA/LED/x/upk-if.defs                4770
 ```
 
 Printable strings actually read out of
-`/mnt/d/ND/500/LED/x/description-file.desc`:
+`$ND500_TESTDATA/LED/x/description-file.desc`:
 
 ```
 SCRATCH-DOMAIN
@@ -449,7 +449,7 @@ Both can end up producing a `:DOM`, but they start from DIFFERENT inputs and
 do different work. This is verified, not assumed:
 
 - The ND LINKER builds a `:DOM` from NRF object modules (a fresh link). From
-  `/home/ronny/repos/nd500x/docs/ND-860289-2-EN ND Linker User Guide and
+  `docs/ND-860289-2-EN ND Linker User Guide and
   Reference Manual.md`, verbatim: "The main purpose of the ND Linker is to
   collect ND-500(0) program modules existing in NRF format and convert them
   into an executable program." The Linker reads `:NRF`, resolves symbols, and
@@ -458,7 +458,7 @@ do different work. This is verified, not assumed:
 - CONVERT-DOMAIN does NOT link and does NOT read NRF. It takes an
   already-built OLD-format domain (`:PSEG`/`:DSEG`/`:LINK` + `:DESC`) and
   re-packages the SAME already-loaded segment bytes into a `:DOM`. From
-  `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.init`, verbatim: "This program
+  `$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.init`, verbatim: "This program
   converts domains and segments from :PSEG/:DSEG/:LINK format to :DOM/:SEG
   format."
 
@@ -473,7 +473,7 @@ So:
   `:DESC`) and no NRF, CONVERT-DOMAIN is the tool -- it is the ONLY documented
   path that turns `:PSEG`/`:DSEG` bytes into a `:DOM` without the object code.
 
-For the LED example: there are no `.nrf` files in `/mnt/d/ND/500/LED/x/`, only
+For the LED example: there are no `.nrf` files in `$ND500_TESTDATA/LED/x/`, only
 the old-format triple + desc, so CONVERT-DOMAIN (not the Linker) is the
 applicable tool for that specific file set.
 

@@ -16,7 +16,7 @@ The ND-500 demo kernel now uses the **NDIX-C assembly-in-C bootstrap pattern** t
 
 Adopted the **NDIX-C locore.c pattern** from the production ND-500 vmunix kernel:
 
-### 1. Created `/home/ronny/repos/nd500x/examples/05-c-kernel/locore.c`
+### 1. Created `examples/05-c-kernel/locore.c`
 
 Assembly-in-C file with proper bootstrap sequence:
 
@@ -38,7 +38,7 @@ halt_loop:
 - **INIT is first instruction** - sets B, TOS, SP registers
 - Uses C preprocessor (-E -DLOCORE) to expand constants, then assembles
 
-### 2. Modified `/home/ronny/repos/nd500x/examples/05-c-kernel/kernel.c`
+### 2. Modified `examples/05-c-kernel/kernel.c`
 
 Renamed entry point to avoid conflict:
 
@@ -54,7 +54,7 @@ void kernel_main()
 }
 ```
 
-### 3. Updated `/home/ronny/repos/nd500x/examples/05-c-kernel/Makefile`
+### 3. Updated `examples/05-c-kernel/Makefile`
 
 New build sequence matching NDIX-C:
 
@@ -140,9 +140,9 @@ TOS=E8005000
 The new kernel has been deployed to all locations:
 
 ```
-/home/ronny/repos/nd500x/examples/05-c-kernel/kernel.zip
-/home/ronny/repos/nd500x/src/frontend/nd500wasm/web/demo/kernel.zip
-/home/ronny/repos/nd500x/build_wasm/bin/kernel.zip
+examples/05-c-kernel/kernel.zip
+src/frontend/nd500wasm/web/demo/kernel.zip
+build_wasm/bin/kernel.zip
 ```
 
 **Checksum:** `fc9d81e044fb831a6d3c50901d55725e` (all locations match)
@@ -250,7 +250,7 @@ cat bootstrap.s kernel.s > combined.s
 
 ## References
 
-- **NDIX-C kernel source:** `/mnt/e/Dev/Ronny/NDIX-C/kernel/MASTER/machine/locore.c`
+- **NDIX-C kernel source:** `$NDIX/kernel/MASTER/machine/locore.c`
 - **ND-500 Reference Manual:** Page 230 (ENTS instruction specification)
 - **Analysis document:** `NDIX_VMUNIX_BOOTSTRAP_ANALYSIS.md`
 - **Issue documentation:** `KERNEL_STACK_INIT.md`, `BOOTSTRAP_EXPLAINED.md`
@@ -259,14 +259,14 @@ cat bootstrap.s kernel.s > combined.s
 
 ### Rebuild Kernel
 ```bash
-cd /home/ronny/repos/nd500x/examples/05-c-kernel
+cd examples/05-c-kernel
 make clean
 make all
 ```
 
 ### Test in Debugger
 ```bash
-cd /home/ronny/repos/nd500x
+cd .
 ./build/bin/nd500x --debug
 > load examples/05-c-kernel/kernel
 > set PC 4

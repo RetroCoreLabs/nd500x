@@ -12,7 +12,7 @@
 > `.../L-VSX-500/re/segments-ref/006-S3FS/CARVE-ANSWER-UNQUALIFIED-OPEN-USER-SYSTEM-FALLBACK.md`
 > and `GFILI-COMPLETE-CARVE.md`.
 > Implemented as `mon_translate_path_lookup()` in
-> `/home/ronny/repos/nd500x/src/libmon/mon_path.c`, wired into `50B OPEN`
+> `src/libmon/mon_path.c`, wired into `50B OPEN`
 > (lookup, not create) and `256B DEABF`. SYSTEM modelled as a fixed `(SYSTEM)`
 > directory. Verified 5/5 (own-dir hit, SYSTEM fallback for CAT-LIB/NC-LIB,
 > named-user suppression, not-found -> own dir) with no linker-startup regression.
@@ -23,7 +23,7 @@
 
 
 
-Full path of this file: `/home/ronny/repos/nd500x/docs/CARVE-QUESTION-USER-SYSTEM-FILE-LOOKUP.md`
+Full path of this file: `docs/CARVE-QUESTION-USER-SYSTEM-FILE-LOOKUP.md`
 Date: 2026-07-18
 Target carve: SINTRAN III L-VSX-500 monitor (segment 006-S3FS), file-name
 resolver family (`GFILI` unquoted lookup @057173B, `GCFIL`/`CROBJ`
@@ -65,10 +65,10 @@ Our sandbox splits files by SINTRAN user into host directories:
   (C/CAT runtime libraries the linked program needs).
 
 nd500x's current path translator
-(`/home/ronny/repos/nd500x/src/libmon/mon_path.c`) maps an unqualified name to
+(`src/libmon/mon_path.c`) maps an unqualified name to
 **exactly one** directory: `<root>/<CURRENT_USER>/<name>.<ext>`, where
 `CURRENT_USER` defaults to `GUEST`
-(`/home/ronny/repos/nd500x/src/libmon/mon_config.c:15`). There is **no SYSTEM
+(`src/libmon/mon_config.c:15`). There is **no SYSTEM
 fallback**. So an unqualified open of `CAT-LIB:NRF` becomes
 `./GUEST/CAT-LIB.NRF` and will **fail -46**, even though the library exists at
 `./SYSTEM/CAT-LIB.NRF`.

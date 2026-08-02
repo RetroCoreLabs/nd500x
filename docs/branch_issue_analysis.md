@@ -1,6 +1,6 @@
 # Deep Analysis of 16 Potential Branch Issues
 
-Generated from analysis of `/mnt/d/nd-trace-500x.txt`
+Generated from analysis of `$ND500X_WORK/nd-trace-500x.txt`
 
 ## Executive Summary
 
@@ -288,14 +288,14 @@ if=go        $0xD             ; Branch if Z=1
 ## Implementation Verification
 
 ### comp2 Implementation (Comp2.c)
-Reviewed at `/home/ronny/repos/nd500x/src/cpu/instructions/COMPARE/Comp2.c`:
+Reviewed at `src/cpu/instructions/COMPARE/Comp2.c`:
 - Correctly performs `op1 - op2`
 - Sets Z=1 if result is zero (operands equal)
 - Sets C=1 if no borrow (op1 >= op2 unsigned)
 - Sets S = sign_bit XOR overflow (proper signed comparison)
 
 ### test Implementation (Test.c)
-Reviewed at `/home/ronny/repos/nd500x/src/cpu/instructions/COMPARE/Test.c`:
+Reviewed at `src/cpu/instructions/COMPARE/Test.c`:
 - Correctly compares operand against implicit zero
 - Sets Z=1 if operand is zero
 - Sets S=1 if operand sign bit is set

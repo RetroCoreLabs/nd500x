@@ -8,7 +8,7 @@ The WASM build system now **automatically copies kernel.zip** from the source ex
 
 ### 1. Root Makefile
 
-**File:** `/home/ronny/repos/nd500x/Makefile`
+**File:** `Makefile`
 
 **Target:** `wasm-serve`
 
@@ -28,7 +28,7 @@ wasm-serve: wasm
 
 ### 2. CMakeLists.txt
 
-**File:** `/home/ronny/repos/nd500x/src/frontend/nd500wasm/CMakeLists.txt`
+**File:** `src/frontend/nd500wasm/CMakeLists.txt`
 
 **Changed from:**
 ```cmake
@@ -52,7 +52,7 @@ COMMAND ${CMAKE_COMMAND} -E copy
 
 ### 3. JavaScript Cache Busting
 
-**File:** `/home/ronny/repos/nd500x/src/frontend/nd500wasm/web/debugger.js`
+**File:** `src/frontend/nd500wasm/web/debugger.js`
 
 **Line 1935:**
 
@@ -70,7 +70,7 @@ const zipResponse = await fetch('kernel.zip?v=' + Date.now());
 ### Clean Build (Recommended)
 
 ```bash
-cd /home/ronny/repos/nd500x
+cd .
 make wasm
 ```
 
@@ -166,7 +166,7 @@ kernel.zip found, loading with source files...
 
 **kernel.zip is built and stored at:**
 ```
-/home/ronny/repos/nd500x/examples/05-c-kernel/kernel.zip
+examples/05-c-kernel/kernel.zip
 ```
 
 **Built by:**
@@ -186,7 +186,7 @@ src/frontend/nd500wasm/web/demo/kernel.zip  (manual copy if needed)
 ### Step 1: Rebuild Kernel
 
 ```bash
-cd /home/ronny/repos/nd500x/examples/05-c-kernel
+cd examples/05-c-kernel
 make clean
 make all
 ```
@@ -196,7 +196,7 @@ This creates fresh `kernel.zip` with all 6 files.
 ### Step 2: Rebuild WASM (Automatic Copy)
 
 ```bash
-cd /home/ronny/repos/nd500x
+cd .
 make wasm
 ```
 
@@ -244,7 +244,7 @@ Open DevTools → Application → Clear Storage → Clear Site Data
 
 **Option 3: Rebuild Everything**
 ```bash
-cd /home/ronny/repos/nd500x
+cd .
 rm -rf build_wasm
 make wasm
 make wasm-serve

@@ -1,9 +1,9 @@
 # SYNC: Float-arithmetic cluster + LOOP rebased from IEEE-reinterpret to ND-500 NATIVE (bias-256)
 
-Full path: /home/ronny/repos/nd500x/docs/SYNC-FLOAT-NATIVE-REBASE.md
+Full path: docs/SYNC-FLOAT-NATIVE-REBASE.md
 
 Supersedes the "RAW IEEE-754" assumption documented in
-/home/ronny/repos/nd500x/docs/SYNC-FLOAT-ARITHMETIC-FIXES.md for the instructions
+docs/SYNC-FLOAT-ARITHMETIC-FIXES.md for the instructions
 listed below. Everything else in that earlier doc still stands.
 
 ## Ground truth
@@ -37,7 +37,7 @@ made in the HELPERS (no per-instruction duplication).
 
 ## nd500x (C) changes
 
-File: /home/ronny/repos/nd500x/src/cpu/instruction_helpers.c
+File: src/cpu/instruction_helpers.c
 
 1. `nd500_read_operand_as_ieee_float()` -- was: reinterpret raw bits as IEEE.
    Now: read native bits then `nd500_float_to_ieee754` / `nd500_double_to_ieee754`.
@@ -50,7 +50,7 @@ File: /home/ronny/repos/nd500x/src/cpu/instruction_helpers.c
    helper (previously the value stored by the instruction was IEEE while the flags were
    computed from native bits -- an internal contradiction, now resolved).
 
-File: /home/ronny/repos/nd500x/src/cpu/instructions/ARITHMETIC/Mulad.c
+File: src/cpu/instructions/ARITHMETIC/Mulad.c
    The float path read Rn via a raw `union` reinterpret. Now reads Rn via
    `nd500_float_to_ieee754(nd500_read_float_register(...))` /
    `nd500_double_to_ieee754(nd500_read_double_register(...))`. x, y already went
@@ -61,14 +61,14 @@ Loop.c/Loopi.c/Loopd.c -- they only call the helpers.
 
 ## RetroCore (C#) changes
 
-File: /mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/InstructionHelpers.cs
+File: $RETROCORE/Emulated.HW/ND/CPU/ND500/Instructions/InstructionHelpers.cs
 
 - `ReadOperandAsIeeeFloat`  : BitConverter reinterpret -> `((ND500Float)bits).ToIeee754Single()` / `((ND500Double)bits).ToIeee754Double()`
 - `WriteOperandAsIeeeFloat` : BitConverter reinterpret -> `ND500Float.FromIeee754Single((float)value)` / `ND500Double.FromIeee754Double(value)`
 - `ReadRegisterAsIeeeFloat` : same native conversion (used by MULAD)
 - `FloatFinish`            : result bits via `ND500Float.FromIeee754Single` / `ND500Double.FromIeee754Double`; Z/S taken from those native bits (bit masks unchanged: native zero == all-zero, native sign == top bit)
 
-File: /mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Mulad.cs
+File: $RETROCORE/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Mulad.cs
    Comment corrected (Rn/x/y are native); code already used the helpers above.
 
 The instruction .cs files (Add3/Sub2/.../Loop/Set1) are UNCHANGED -- helper-layer fix.
@@ -164,8 +164,8 @@ Result: 40061/40061 pass (was 40045/40067), 3663 negatives correctly fail, nc ga
 
 ## Validation (USER-gated: dotnet regen + make + test)
 
-1. cd /mnt/e/Dev/Repos/Ronny/RetroCore && dotnet test Emulated.Tests.ND500 --filter "Generate_Master_JSON"
-2. cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json /home/ronny/repos/nd500x/test/nd500_tests.json
-3. cd /home/ronny/repos/nd500x && make
+1. cd $RETROCORE && dotnet test Emulated.Tests.ND500 --filter "Generate_Master_JSON"
+2. cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json test/nd500_tests.json
+3. cd . && make
 4. ./build/bin/test_instruction_validation --continue   (expect ALL PASSED)
 5. cd build && ctest -R dom_nc_compile                   (nc gate, expect 4/4)

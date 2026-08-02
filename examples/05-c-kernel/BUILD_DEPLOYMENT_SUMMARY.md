@@ -10,7 +10,7 @@
 ### Makefile Build Process
 
 ```bash
-cd /home/ronny/repos/nd500x/examples/05-c-kernel
+cd examples/05-c-kernel
 make clean
 make all
 ```
@@ -65,9 +65,9 @@ Archive Contents:
 The kernel.zip file has been copied to all required locations:
 
 ```
-✓ /home/ronny/repos/nd500x/examples/05-c-kernel/kernel.zip
-✓ /home/ronny/repos/nd500x/src/frontend/nd500wasm/web/demo/kernel.zip
-✓ /home/ronny/repos/nd500x/build_wasm/bin/kernel.zip
+✓ examples/05-c-kernel/kernel.zip
+✓ src/frontend/nd500wasm/web/demo/kernel.zip
+✓ build_wasm/bin/kernel.zip
 ```
 
 **Checksum:** `2c5fa9bcd8db8a80892e57e65ad95405` (all locations verified)
@@ -92,7 +92,7 @@ md5sum examples/05-c-kernel/kernel.zip \
 ### Debugger Test
 
 ```bash
-cd /home/ronny/repos/nd500x
+cd .
 ./build/bin/nd500x --debug
 
 > load examples/05-c-kernel/kernel
@@ -314,7 +314,7 @@ The kernel is a **standalone package** built with external pcc-nd500 toolchain.
 ### Quick Test
 
 ```bash
-cd /home/ronny/repos/nd500x/examples/05-c-kernel
+cd examples/05-c-kernel
 make clean
 make all
 make test
@@ -376,7 +376,7 @@ Look for:
 ### Rebuilding Kernel
 
 ```bash
-cd /home/ronny/repos/nd500x/examples/05-c-kernel
+cd examples/05-c-kernel
 make clean
 make all
 ```
@@ -423,7 +423,7 @@ This is incorrect - the kernel IS an executable (IMAGIC format 0411, all symbols
 
 **Workaround:** Use `set PC 4` before running.
 
-**Fix needed:** Update `/home/ronny/repos/nd500x/src/ndlib/ndlib_aout.c` loader to correctly identify IMAGIC executables.
+**Fix needed:** Update `src/ndlib/ndlib_aout.c` loader to correctly identify IMAGIC executables.
 
 ### Cache Operations (Not Critical)
 

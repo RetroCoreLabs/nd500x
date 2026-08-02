@@ -29,7 +29,7 @@ The demo kernel is built with complete source line mapping (C + assembly) and de
 ## Deployment Locations
 
 ### 1. Build Directory
-**Location:** `/home/ronny/repos/nd500x/examples/05-c-kernel/`
+**Location:** `examples/05-c-kernel/`
 
 **Files:**
 ```
@@ -43,7 +43,7 @@ kernel.zip       - Distribution package
 
 **Usage:**
 ```bash
-cd /home/ronny/repos/nd500x/examples/05-c-kernel
+cd examples/05-c-kernel
 ../../build/bin/nd500x --debug
 > load kernel
 > symb
@@ -52,12 +52,12 @@ cd /home/ronny/repos/nd500x/examples/05-c-kernel
 ```
 
 ### 2. Web Debugger
-**Location:** `/home/ronny/repos/nd500x/src/frontend/nd500wasm/web/kernel.zip`
+**Location:** `src/frontend/nd500wasm/web/kernel.zip`
 
 **Access:**
 ```bash
 # Start web server
-cd /home/ronny/repos/nd500x
+cd .
 make wasm-serve
 
 # Open browser to http://localhost:8000
@@ -73,7 +73,7 @@ make wasm-serve
 - Cross-reference between sources
 
 ### 3. WASM Build Output
-**Location:** `/home/ronny/repos/nd500x/build_wasm/bin/kernel.zip` (if WASM built)
+**Location:** `build_wasm/bin/kernel.zip` (if WASM built)
 
 **Usage:**
 ```bash
@@ -123,7 +123,7 @@ head -20 /tmp/test.map  # Should show proper format with both .c and .s entries
 ### Test in Native Debugger
 
 ```bash
-cd /home/ronny/repos/nd500x/examples/05-c-kernel
+cd examples/05-c-kernel
 ../../build/bin/nd500x --debug
 
 # In debugger:
@@ -146,7 +146,7 @@ cd /home/ronny/repos/nd500x/examples/05-c-kernel
 To rebuild with updated sources:
 
 ```bash
-cd /home/ronny/repos/nd500x/examples/05-c-kernel
+cd examples/05-c-kernel
 
 # Clean build
 make clean
@@ -170,7 +170,7 @@ To use this build system in your project:
 
 1. **Copy tools:**
    ```bash
-   cp -r /home/ronny/repos/nd500x/tools /your/project/
+   cp -r tools /your/project/
    ```
 
 2. **Update Makefile:**
@@ -257,9 +257,9 @@ kernel.s:200 (T) -> 000100  # TEXT             ← Assembly entry
 ## See Also
 
 - **Build system:** `Makefile` - Complete build integration
-- **Tool docs:** `/home/ronny/repos/nd500x/tools/gen-asm-map.md`
+- **Tool docs:** `tools/gen-asm-map.md`
 - **Integration guide:** `README_MAP_GENERATION.md`
-- **Web debugger:** `/home/ronny/repos/nd500x/src/frontend/nd500wasm/web/`
+- **Web debugger:** `src/frontend/nd500wasm/web/`
 
 ## Status
 

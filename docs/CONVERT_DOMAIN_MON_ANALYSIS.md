@@ -1,15 +1,15 @@
 # CONVERT-DOMAIN (convert-dom-a03) MON-call analysis under nd500x
 
-Program under test: `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.dom`
-(same binary staged in SYSTEM as `/home/ronny/ND500USERS/SYSTEM/CONVERT-DOM-A03.DOM`).
-Purpose (from `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.init` and `.help`):
+Program under test: `$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.dom`
+(same binary staged in SYSTEM as `$ND500USERS/SYSTEM/CONVERT-DOM-A03.DOM`).
+Purpose (from `$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.init` and `.help`):
 convert old-format domains (`:PSEG` / `:DSEG` / `:LINK` + a `:DESC` description file)
 into new-format `:DOM` / `:SEG` files.
 
-Emulator: `/home/ronny/repos/nd500x/build/bin/nd500x` (used as-is, NOT rebuilt).
-MON handlers audited: `/home/ronny/repos/nd500x/external/ndmonlib/src/handlers/*.c`
-Registry / status: `/home/ronny/repos/nd500x/external/ndmonlib/src/core/mon_registry.c`
-Dispatch trap: `/home/ronny/repos/nd500x/external/ndmonlib/src/core/mon_dispatch.c:173`
+Emulator: `build/bin/nd500x` (used as-is, NOT rebuilt).
+MON handlers audited: `external/ndmonlib/src/handlers/*.c`
+Registry / status: `external/ndmonlib/src/core/mon_registry.c`
+Dispatch trap: `external/ndmonlib/src/core/mon_dispatch.c:173`
 
 --------------------------------------------------------------------------------
 ## 1. Headline result
@@ -23,7 +23,7 @@ Dispatch trap: `/home/ronny/repos/nd500x/external/ndmonlib/src/core/mon_dispatch
     `DESCRIPTION-FILE` to `DESCRIPTION-FIL`.
   - `SINTRAN_MAX_TYPE = 4` holds only 3 chars, truncating the 4-char type
     `DESC` to `DES` (this also truncates `PSEG/DSEG/LINK`).
-  - Defined at `/home/ronny/repos/nd500x/external/ndmonlib/include/ndmon/mon_path.h:19-21`.
+  - Defined at `external/ndmonlib/include/ndmon/mon_path.h:19-21`.
 - The set of MON calls that WOULD still need implementing (referenced in the
   binary, currently unimplemented) is listed in section 3, but none of them is
   reached before the truncation bug aborts the run.
@@ -150,12 +150,12 @@ the DAP/CLI debugger and read the effective target register.
 --------------------------------------------------------------------------------
 ## 4. Dynamic run
 
-### Sandbox (never touches /home/ronny/ND500USERS)
+### Sandbox (never touches $ND500USERS)
 
 Root: `sandbox` (session scratch, not preserved)
-- `SYSTEM/` = copy of `/home/ronny/ND500USERS/SYSTEM` (holds `CONVERT-DOM-A03.DOM`,
+- `SYSTEM/` = copy of `$ND500USERS/SYSTEM` (holds `CONVERT-DOM-A03.DOM`,
   `.HELP`, `.INIT`, `LED-B03.PSEG/.DSEG`, VTM/ERR support).
-- `GUEST/` = the old LED domain to convert, copied from `/mnt/d/ND/500/LED/x/`:
+- `GUEST/` = the old LED domain to convert, copied from `$ND500_TESTDATA/LED/x/`:
   `LED-B03.PSEG`, `LED-B03.DSEG`, `LED-B03.LINK`, `DESCRIPTION-FILE.DESC`.
 - `nd500x.ini` -> `sintran-root = <sandbox>`, `user = GUEST`.
 
@@ -163,7 +163,7 @@ Root: `sandbox` (session scratch, not preserved)
 
 ```
 printf 'CONVERT-DOM-A03 LED-NEW LED-B03 NO YES\nEXIT\n' \
-  | ND500X_MONLOG=1 /home/ronny/repos/nd500x/build/bin/nd500x \
+  | ND500X_MONLOG=1 build/bin/nd500x \
       --monitor --config ./nd500x.ini > run3.out.txt 2> run3.monlog.txt
 ```
 Args: destination `LED-NEW`, source `LED-B03`, include-linked `NO`,
@@ -248,7 +248,7 @@ conversion cannot proceed regardless of how the inputs are named.
 ## 6. Prioritized fix list
 
 1. FIX (blocks everything): widen the SINTRAN name/type buffers in
-   `/home/ronny/repos/nd500x/external/ndmonlib/include/ndmon/mon_path.h`:
+   `external/ndmonlib/include/ndmon/mon_path.h`:
    - `SINTRAN_MAX_NAME 16` -> at least `17` (SINTRAN III allows 16-char names;
      buffer must hold name + NUL).
    - `SINTRAN_MAX_TYPE 4`  -> at least `5` (4-char types DESC/PSEG/DSEG/LINK +
@@ -281,16 +281,16 @@ conversion cannot proceed regardless of how the inputs are named.
 --------------------------------------------------------------------------------
 ## 7. Reproduction summary (paths)
 
-- DOM: `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.dom`
+- DOM: `$ND500_TESTDATA/CONVERT-DOMAIN/convert-dom-a03.dom`
 - Extracted PROG for static scan:
   `work/prog.bin` (session scratch, not preserved)
 - Sandbox root:
   `sandbox` (session scratch, not preserved)
 - Run logs: `<sandbox>/run{1,2,3,4}.out.txt` and `<sandbox>/run{1,2,3,4}.monlog.txt`
-- Handlers: `/home/ronny/repos/nd500x/external/ndmonlib/src/handlers/`
-- Registry: `/home/ronny/repos/nd500x/external/ndmonlib/src/core/mon_registry.c`
-- Dispatch trap: `/home/ronny/repos/nd500x/external/ndmonlib/src/core/mon_dispatch.c:173`
-- Name-length limits (the bug): `/home/ronny/repos/nd500x/external/ndmonlib/include/ndmon/mon_path.h:19-21`
+- Handlers: `external/ndmonlib/src/handlers/`
+- Registry: `external/ndmonlib/src/core/mon_registry.c`
+- Dispatch trap: `external/ndmonlib/src/core/mon_dispatch.c:173`
+- Name-length limits (the bug): `external/ndmonlib/include/ndmon/mon_path.h:19-21`
 
 --------------------------------------------------------------------------------
 ## 8. UPDATE 2026-07-28: fix (1) LANDED - truncation gone; next blocker = EASSERT via ENTF
@@ -302,7 +302,7 @@ The `mon_path.h` macros themselves were NOT the live bug on the current
 (17/17/5 bytes), which already holds full 16-char names and 4-char types (the
 DEABF-side `+1` fix landed in ndmonlib commit `b6fe237`). The remaining real
 truncation was in the FILE-TABLE OBJECT-ENTRY storage in
-`/home/ronny/repos/nd500x/external/ndmonlib/src/support/mon_file_table.c`:
+`external/ndmonlib/src/support/mon_file_table.c`:
 
 - `mon_populate_object_entry_from_host()` capped the name at 15 chars + 0x27
   and the type at 3 chars + 0x27.
@@ -311,7 +311,7 @@ truncation was in the FILE-TABLE OBJECT-ENTRY storage in
   `[3]`.
 
 The `ObjectEntry` struct fields (`object_name[16]` at offset 2, `type[4]` at
-offset 18, `/home/ronny/repos/nd500x/external/ndmonlib/include/ndmon/mon_file_table.h:78-79`)
+offset 18, `external/ndmonlib/include/ndmon/mon_file_table.h:78-79`)
 are the GUEST-VISIBLE 64-byte SINTRAN object-entry layout and must NOT be
 widened. Per that layout a full-length name fills all 16 bytes with NO
 terminator; the 0x27 terminator appears only when the name is shorter.
@@ -325,7 +325,7 @@ terminator; the 0x27 terminator appears only when the name is shorter.
   `strlen()` (the source may now legitimately be a full, unterminated field).
 - `mon_41B_ReadObjectEntry.c` log line: `%.16s`/`%.4s` instead of `%s`.
 - Audited consumers: `mon_257B_OpenFileInfo.c` `name_eq()` and the debugger
-  `files` display (`/home/ronny/repos/nd500x/src/debugger/commands.c:4793`)
+  `files` display (`src/debugger/commands.c:4793`)
   were already bounded and 0x27-aware; no other C-string consumers found.
 
 ### Verified result (fresh sandbox run, same recipe as section 4)
@@ -363,14 +363,14 @@ emulator's own workaround line printed at that moment:
 So the assert is tied to the emulator's ENTF "fixed data area" fallback path
 (an instruction-handling gap, NOT a MON/file issue). Next step: investigate the
 ENTF implementation (grep `Using fixed data area` in
-`/home/ronny/repos/nd500x/src/cpu/`) against the ENTF spec in
-`/home/ronny/repos/nd500x/docs/instructions/asm/` before implementing any of
+`src/cpu/`) against the ENTF spec in
+`docs/instructions/asm/` before implementing any of
 the section-6 MON calls - none of them was reached.
 
 Repro sandbox for this update (session scratchpad, regenerate as needed):
 `cdsandbox/` (session scratch, not preserved)
-(`run.out.txt`, `run.monlog.txt`; staged from `/mnt/d/ND/500/LED/x/` and
-`/home/ronny/ND500USERS/SYSTEM`).
+(`run.out.txt`, `run.monlog.txt`; staged from `$ND500_TESTDATA/LED/x/` and
+`$ND500USERS/SYSTEM`).
 
 --------------------------------------------------------------------------------
 ## 9. UPDATE 2026-07-28 (later): CONVERSION WORKS - LED-B03 :PSEG/:DSEG -> runnable LED-NEW:DOM
@@ -383,20 +383,20 @@ appeared; each was verified by rerunning the conversion:
 
 1. **DEABF must return the FULLY QUALIFIED name** `(DIR:USER)NAME:TYPE;VERSION`
    even for an unqualified input
-   (`/home/ronny/repos/nd500x/external/ndmonlib/src/handlers/mon_256B_FullFileName.c`).
+   (`external/ndmonlib/src/handlers/mon_256B_FullFileName.c`).
    The section-8 EASSERT was CONVERT-DOM-A03 scanning DEABF's reply for the
    `(DIR:USER)` prefix (check at 0x080025B6..D1, assert call at 0x080025D3) -
    proven by dumping the scanned string at assert time: it was exactly DEABF's
    unqualified reply. Directory name used: `PACK-ONE` (no directory level
    exists in the host mapping); the USER is the one the lookup resolved to.
 2. **Path parser: `(DIR:USER)` split + `;VERSION` strip**
-   (`/home/ronny/repos/nd500x/external/ndmonlib/src/support/mon_path.c`).
+   (`external/ndmonlib/src/support/mon_path.c`).
    Both forms are real SINTRAN syntax that the qualified names produce; before
    this, OPEN of a DEABF-returned name translated to a bogus host path ending
    `.DOM;`.
 3. **CPU: `BI WCONV/HCONV/BYCONV/FCONV/DCONV` read their source as a BYTE and
    took bit 0, ignoring the decoded bit position**
-   (5 files in `/home/ronny/repos/nd500x/src/cpu/instructions/FLOAT_MATH/`).
+   (5 files in `src/cpu/instructions/FLOAT_MATH/`).
    CONVERT-DOM-A03's "is segment present" check (subroutine 0x08002CE0) tests
    domain-entry segment bitmaps via `bi wconv IND(...)(rN)`; with the bitmap
    byte 0x02 and bit position 1 the buggy read returned 0 for EVERY segment ->
@@ -404,7 +404,7 @@ appeared; each was verified by rerunning the conversion:
    All 16k+ instruction-validation tests still pass.
 4. **`nd500_segment_release()` now clears the domain DATA CAPABILITY and the
    PST entry, and resolves the 0xFF current-domain sentinel**
-   (`/home/ronny/repos/nd500x/src/cpu/nd500_segment_alloc.c`; callback
+   (`src/cpu/nd500_segment_alloc.c`; callback
    signature gained the cpu pointer in
    `external/ndmonlib/include/ndmon/mon_types.h` + the three call sites).
    CONVERT-DOM-A03 closes and re-connects `LED-B03:LINK` to the SAME logical
@@ -417,8 +417,8 @@ segment files must be staged under the FLOPPY-USER directory it names):
 
 ```
 <root>/SYSTEM/CONVERT-DOM-A03.DOM (+ .INIT/.HELP), DDBTABLES-G06.VTM
-<root>/GUEST/DESCRIPTION-FILE.DESC          (from /mnt/d/ND/500/LED/x/)
-<root>/FLOPPY-USER/LED-B03.PSEG/.DSEG/.LINK (from /mnt/d/ND/500/LED/x/)
+<root>/GUEST/DESCRIPTION-FILE.DESC          (from $ND500_TESTDATA/LED/x/)
+<root>/FLOPPY-USER/LED-B03.PSEG/.DSEG/.LINK (from $ND500_TESTDATA/LED/x/)
 ```
 
 ### Knock-on: LINKER-AUTO-FORT:JOB now actually runs (site config edited)
@@ -431,7 +431,7 @@ interactive prompt swallowed the MODE script's EXIT - the link ended with a
 4,096-byte stub DOM. Per the job file's own header ("the file should, if
 used, be edited to reflect the wanted environment"), the two live
 `SPECIAL-LOAD (SYSTEM)FORTRAN-LIB/EXCEPT-LIB LIBRARY` lines in
-`/home/ronny/ND500USERS/SYSTEM/LINKER-AUTO-FORT.JOB` were commented out
+`$ND500USERS/SYSTEM/LINKER-AUTO-FORT.JOB` were commented out
 (0xA5 '%' prefix, parity encoding preserved); the untouched original is kept
 as `LINKER-AUTO-FORT.JOB.ORIG-PRE-SITE-EDIT` alongside it.
 
@@ -465,7 +465,7 @@ The real causes were two CPU trap bugs plus one missing MON call:
    last element, K is set, and an *illegal operand value* trap condition is
    raised. LED walks a possibly-empty list with levels=0x7FFFFFFF and uses
    exactly this to find the end. File:
-   `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/Chain.c` (traversal
+   `src/cpu/instructions/CALL/Chain.c` (traversal
    prints now gated behind env `ND500X_CHAINDBG`).
 
 2. **After-class traps resume at the NEXT instruction.** ND-05.009.4 page 79
@@ -475,14 +475,14 @@ The real causes were two CPU trap bugs plus one missing MON call:
    always wrote arg2 = trapping P, so LED's handler RETTed back into the same
    CHAIN forever ("TRAP. Trap no: 42B" storm, runaway-loop halt at
    PC=0x08035621). New `TRAP_AFTER_MASK` (0x80C1EFFA00) in
-   `/home/ronny/repos/nd500x/src/cpu/cpu_protos.h`; `trap_resume_PC` set in
-   `invoke_trap_handler` (`/home/ronny/repos/nd500x/src/cpu/cpu.c`) and
-   written as arg2 by `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/Entt.c`.
+   `src/cpu/cpu_protos.h`; `trap_resume_PC` set in
+   `invoke_trap_handler` (`src/cpu/cpu.c`) and
+   written as arg2 by `src/cpu/instructions/CALL/Entt.c`.
 
 3. **MON 52B TERMO implemented** (was a dying stub): stores mode bits per
    device, returns success. Files:
-   `/home/ronny/repos/nd500x/external/ndmonlib/src/handlers/mon_52B_TerminalMode.c`,
-   `/home/ronny/repos/nd500x/external/ndmonlib/src/support/mon_terminal_state.c` (+ header, registry, mon_log.h).
+   `external/ndmonlib/src/handlers/mon_52B_TerminalMode.c`,
+   `external/ndmonlib/src/support/mon_terminal_state.c` (+ header, registry, mon_log.h).
 
 **Result:** `LED-NEW` (converted from LED-B03 :PSEG/:DSEG by CONVERT-DOM-A03)
 now boots its full VT100 UI - "Main" title bar, box-drawing frame, "LED:"

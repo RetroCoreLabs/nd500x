@@ -8,7 +8,7 @@ This directory contains tools for building and processing ND-500 binaries.
 
 **Purpose:** Generate assembly source line to address mappings for source-level debugging.
 
-**Location:** `/home/ronny/repos/nd500x/tools/gen-asm-map`
+**Location:** `tools/gen-asm-map`
 
 **Full Documentation:** See [gen-asm-map.md](gen-asm-map.md)
 

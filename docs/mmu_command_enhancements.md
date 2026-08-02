@@ -246,7 +246,7 @@ After implementing these enhancements, verify with:
 
 ## Reference Files
 
-- C implementation: `/home/ronny/repos/nd500x/src/debugger/commands.c`
-- MMU header: `/home/ronny/repos/nd500x/src/cpu/nd500_mmu.h`
-- MMU core: `/home/ronny/repos/nd500x/src/cpu/nd500_mmu.c`
-- Original fix documentation: `/mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.HW/ND/CPU/ND500/docs/ND500_MMU_ADDRESS_DECOMPOSITION_FIX.md`
+- C implementation: `src/debugger/commands.c`
+- MMU header: `src/cpu/nd500_mmu.h`
+- MMU core: `src/cpu/nd500_mmu.c`
+- Original fix documentation: `$RETROCORE/Emulated.HW/ND/CPU/ND500/docs/ND500_MMU_ADDRESS_DECOMPOSITION_FIX.md`

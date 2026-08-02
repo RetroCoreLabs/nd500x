@@ -341,7 +341,7 @@ instructions.json ──► Orchestrator ──► 14 Generators ──► 39,59
 
 ### C# Generator Location
 
-`/mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.Tests.ND500/Validation/`
+`$RETROCORE/Emulated.Tests.ND500/Validation/`
 
 | File | Purpose |
 |------|---------|
@@ -366,15 +366,15 @@ instructions.json ──► Orchestrator ──► 14 Generators ──► 39,59
 
 ```bash
 # In RetroCore directory
-cd /mnt/e/Dev/Repos/Ronny/RetroCore
+cd $RETROCORE
 dotnet test Emulated.Tests.ND500 --filter "Generate_Master_JSON"
 
 # Copy to nd500x
 cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json \
-   /home/ronny/repos/nd500x/test/nd500_tests.json
+   test/nd500_tests.json
 
 # Rebuild (CMake copies to build/bin/)
-cd /home/ronny/repos/nd500x && make
+cd . && make
 
 # Run tests
 ./build/bin/test_instruction_validation --continue
@@ -406,7 +406,7 @@ The test runner automatically finds `nd500_tests.json` in its executable directo
 
 When implementing ND-500 instructions:
 - Reference implementations should match the C# emulator code as closely as possible
-- C# reference location: `/mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/`
+- C# reference location: `$RETROCORE/Emulated.HW/ND/CPU/ND500/Instructions/`
 - Run `./build/bin/test_instruction_validation --filter <instruction>` to validate against reference
 - See `docs/cpu_implementation_changes.md` for known issues and fixes
 - If missing helper functions or decoding logic, create them rather than duplicating code

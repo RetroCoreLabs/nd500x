@@ -1,9 +1,9 @@
 # ND-500 Instruction Category: SYSTEM - Functional Behavior Reference
 
 Ground-truth source: microcode disassembly
-`/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-Field decode: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
-Documented intent: `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+`$ND5000UC/microcode/MICRO-5800-A30.md`
+Field decode: `$ND5000UC/manual/mnemonics.md`
+Documented intent: `docs/ND-05.009.4 EN ND-500 Reference Manual.md`
 
 This file was produced by TRACING each instruction's microcode routine (following
 each microcell's `ADDR=`/`T,RETURN` chain, decoding ALU/A/B/D/K/ST/READ/WRITE
@@ -12,7 +12,7 @@ what the microcode/manual actually show; items that could not be resolved from
 the traced routine are marked `UNKNOWN (needs deeper microtrace)`.
 
 Instruction set = the 35 `.c` files in
-`/home/ronny/repos/nd500x/src/cpu/instructions/SYSTEM/`.
+`src/cpu/instructions/SYSTEM/`.
 
 ---
 

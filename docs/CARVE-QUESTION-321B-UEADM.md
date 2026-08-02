@@ -1,8 +1,8 @@
 # Carve question: MON 321B UEADM sub-function semantics
 
-Full path of this document: `/home/ronny/repos/nd500x/docs/CARVE-QUESTION-321B-UEADM.md`
+Full path of this document: `docs/CARVE-QUESTION-321B-UEADM.md`
 
-Written 2026-07-20. Blocks: implementing `/home/ronny/repos/nd500x/src/libmon/handlers/mon_321B_UEAdministrator.c`.
+Written 2026-07-20. Blocks: implementing `src/libmon/handlers/mon_321B_UEAdministrator.c`.
 
 ## Why this matters now
 
@@ -17,10 +17,10 @@ address 26000664565B = `0xB0036975`.
 
 ## Evidence chain (all reproduced 2026-07-20 on a freshly relinked harness)
 
-Run from `/home/ronny/repos/nd500x/build/link_sandbox`:
+Run from `build/link_sandbox`:
 
 ```
-../bin/diag_linkdrive /mnt/d/ND/500/nd-linker/linker-b01.dom \
+../bin/diag_linkdrive $ND500_TESTDATA/nd-linker/linker-b01.dom \
   'OPEN-DOMAIN "RTEST";;HELP;;EXIT' 300000000
 ```
 
@@ -43,7 +43,7 @@ Run from `/home/ronny/repos/nd500x/build/link_sandbox`:
    never supposed to hand it an empty descriptor.
 
 3. **The linker's UEADM wrapper.** Disassembled from `linker-b01.dom` (decode the bytes -
-   the `.asm` dump in `/mnt/d/ND/500/nd-linker/linker-b01.dom.asm` is not reliable):
+   the `.asm` dump in `$ND500_TESTDATA/nd-linker/linker-b01.dom.asm` is not reliable):
 
 ```
 B004D366: 4A 4C                 w stz     b.48              ; result slot := 0
@@ -82,7 +82,7 @@ selector range-checked to `[1..8]`.
 
 ## What the carve already proves
 
-From `/mnt/e/Dev/Ronny/NDInsight/tools/sintran-segment-carver/versions/L-VSX-500/re/mon-analysis/321B-UEAdministrator/README.md`
+From `$NDINSIGHT/tools/sintran-segment-carver/versions/L-VSX-500/re/mon-analysis/321B-UEAdministrator/README.md`
 (status: byte-verified, dispatch + worker body):
 
 - `MCTAB[321B] = 065453B = UEADM`; worker carved in `003-S3CP` at `065453B-065642B`.
@@ -109,13 +109,13 @@ is 'no longer supported'".
    `n = 23` 16-bit words. Confirm whether the third parameter is a buffer length, and if so
    where the buffer itself is passed.
 4. **Does sub-function 1 read the `UE-ERMSG-*` files?** The sandbox holds
-   `/home/ronny/repos/nd500x/build/link_sandbox/GUEST/UE-ERMSG--C.ERR` and
-   `/home/ronny/repos/nd500x/build/link_sandbox/GUEST/UE-ERMSG-EN-C06.ERR`, which is what
+   `build/link_sandbox/GUEST/UE-ERMSG--C.ERR` and
+   `build/link_sandbox/GUEST/UE-ERMSG-EN-C06.ERR`, which is what
    made a message/help-text role plausible - but that is an inference, not evidence.
 
 ## Correction to feed back into the YAML
 
-`/mnt/e/Dev/Ronny/NDInsight/Developer/MON/calls/321B_UEAdministrator.yaml` says under
+`$NDINSIGHT/Developer/MON/calls/321B_UEAdministrator.yaml` says under
 `emulation.unverified`: *"Nothing observed actually CALLS 321B - only 312B probes for it."*
 
 **That is now false.** The ND Linker (`linker-b01.dom`) calls 321B directly with 3 arguments
@@ -184,7 +184,7 @@ HELP/REFER crash.
 
 ## Do not disturb
 
-`/home/ronny/repos/nd500x/src/libmon/handlers/mon_312B_CheckMonCall.c` carries a deliberate
+`src/libmon/handlers/mon_312B_CheckMonCall.c` carries a deliberate
 hard-coded exception, above the registry lookup, that reports 321B as PRESENT
 (`MCTAB[321B] = 065453B`) because the NC C front-end requires it. Changing 321B's own
 registration must not change that answer.

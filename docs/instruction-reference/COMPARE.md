@@ -8,7 +8,7 @@ Nothing is assumed; anything not resolvable from the traced routine is marked
 
 ## Instruction set (enumerated from the source tree)
 
-From `/home/ronny/repos/nd500x/src/cpu/instructions/COMPARE/*.c`:
+From `src/cpu/instructions/COMPARE/*.c`:
 
 - `Comp.c`   -> COMP   (register compare: Rn - operand)
 - `Comp2.c`  -> COMP2  (compare two operands: op1 - op2)
@@ -19,11 +19,11 @@ From `/home/ronny/repos/nd500x/src/cpu/instructions/COMPARE/*.c`:
 ## Sources (full absolute paths)
 
 - PRIMARY spec (documented intent):
-  `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+  `docs/ND-05.009.4 EN ND-500 Reference Manual.md`
 - GROUND-TRUTH microcode (ND-5000 / 5800-A30):
-  `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
+  `$ND5000UC/microcode/MICRO-5800-A30.md`
 - Micro-op field decoder:
-  `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
+  `$ND5000UC/manual/mnemonics.md`
 
 Microcode cells are quoted as `octal-address: field field field ...`. Field
 meanings come from `mnemonics.md` and are noted inline the first time they appear.
@@ -149,7 +149,7 @@ Traced - COMPF `002143` (single float), COMPD `002147` (double):
 ### Citation
 - Microcode: COMP `000241`; COMPBI `000237`->`000240`->COMP_BI `003232`;
   COMPF `002143`-`002146`; COMPD `002147`-`002154`
-  (`/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`).
+  (`$ND5000UC/microcode/MICRO-5800-A30.md`).
 - Manual: section 10.9, lines 4485-4519.
 
 ---

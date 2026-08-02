@@ -305,7 +305,7 @@ python3 -m http.server 8000
 
 Run the test suite to verify all functionality:
 ```bash
-cd /home/ronny/repos/nd500x
+cd .
 ./bin/test_source_mapping
 ```
 

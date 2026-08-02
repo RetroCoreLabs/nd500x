@@ -6,16 +6,16 @@ ND-5800 microstore and cross-checked against the printed manual.
 
 Sources of truth (full absolute paths):
 - Microcode (ground truth mechanism):
-  /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
+  $ND5000UC/microcode/MICRO-5800-A30.md
 - Microcode field decoding:
-  /mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md
+  $ND5000UC/manual/mnemonics.md
 - ND-500 Reference Manual (documented intent):
-  /home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md
+  docs/ND-05.009.4 EN ND-500 Reference Manual.md
 - Emulator implementations:
-  /home/ronny/repos/nd500x/src/cpu/instructions/CONTROL/*.c
+  src/cpu/instructions/CONTROL/*.c
 
 Category enumerated from:
-  /home/ronny/repos/nd500x/src/cpu/instructions/CONTROL/
+  src/cpu/instructions/CONTROL/
   Bp.c Clte.c Init.c Noop.c Set1.c Sete.c Setk.c Solo.c Tset.c  (9 instructions)
 
 ## Notation and conventions

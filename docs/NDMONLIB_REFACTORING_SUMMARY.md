@@ -12,7 +12,7 @@ The SINTRAN MON (Monitor Call) emulation layer has been successfully extracted f
 
 ### 1. ndmonlib Repository Creation
 
-**Location:** `/home/ronny/repos/ndmonlib` → https://github.com/HackerCorpLabs/ndmonlib
+**Location:** `$NDMONLIB` → https://github.com/HackerCorpLabs/ndmonlib
 
 **Structure:**
 ```
@@ -61,7 +61,7 @@ ndmonlib/
 - Archived original MON source to `src/_libmon.old/` (preserved for reference, not deleted)
 - Updated CMakeLists.txt to use `add_subdirectory(external/ndmonlib)`
 - Updated all include paths: `#include "../libmon/mon.h"` → `#include <ndmon/mon.h>` (110+ files)
-- MON call dispatch in `/home/ronny/repos/nd500x/src/cpu/nd500_indirect.c:230-335`
+- MON call dispatch in `src/cpu/nd500_indirect.c:230-335`
 
 **Architecture:**
 ```
@@ -309,10 +309,10 @@ This callback was added to support MON 11B without direct CPU header includes.
 ## References
 
 - **ndmonlib repository:** https://github.com/HackerCorpLabs/ndmonlib
-- **nd500x MON dispatcher:** `/home/ronny/repos/nd500x/src/cpu/nd500_indirect.c:230-335`
-- **ndmonlib callbacks:** `/home/ronny/repos/ndmonlib/include/ndmon/mon_types.h:62-136`
+- **nd500x MON dispatcher:** `src/cpu/nd500_indirect.c:230-335`
+- **ndmonlib callbacks:** `$NDMONLIB/include/ndmon/mon_types.h:62-136`
 - **MON reference:** ND-860228.2 EN (SINTRAN III Monitor Calls manual)
-- **Original nd500x MON source:** `/home/ronny/repos/nd500x/src/_libmon.old/` (archived)
+- **Original nd500x MON source:** `src/_libmon.old/` (archived)
 
 ## Metrics
 

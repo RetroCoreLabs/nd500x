@@ -1,6 +1,6 @@
 # DAP (Debug Adapter Protocol) integration in nd500x
 
-**Full path of this document:** `/home/ronny/repos/nd500x/docs/DAP_INTEGRATION.md`
+**Full path of this document:** `docs/DAP_INTEGRATION.md`
 
 nd500x has a working DAP server so the emulator can be driven from VS Code or
 any DAP client (including the dap-debugger MCP server). The integration
@@ -29,11 +29,11 @@ With `--dap` the CPU does not start running until the client sends
 
 | Piece | Full path |
 |---|---|
-| DAP adapter (all command callbacks) | `/home/ronny/repos/nd500x/src/debugger/dap_adapter.c` |
-| Protocol library (vendored submodule) | `/home/ronny/repos/nd500x/external/libdap/` |
-| Breakpoint/watchpoint engine (shared with CLI) | `/home/ronny/repos/nd500x/src/machine/breakpoints.c` |
-| Register-name table (shared with CLI `set`) | `/home/ronny/repos/nd500x/src/machine/debug_api.c` |
-| Unit tests | `/home/ronny/repos/nd500x/test/test_dap_adapter.c` |
+| DAP adapter (all command callbacks) | `src/debugger/dap_adapter.c` |
+| Protocol library (vendored submodule) | `external/libdap/` |
+| Breakpoint/watchpoint engine (shared with CLI) | `src/machine/breakpoints.c` |
+| Register-name table (shared with CLI `set`) | `src/machine/debug_api.c` |
+| Unit tests | `test/test_dap_adapter.c` |
 
 - libdap owns the TCP transport, JSON parsing and response serialization.
   The adapter only implements `static int cmd_xxx(DAPServer*)` callbacks that
@@ -110,7 +110,7 @@ the CPU step loop.
 
 `setVariable` writes registers by name; `evaluate` accepts a register name,
 a symbol, or a numeric literal. The name-to-storage mapping lives in one
-table in `/home/ronny/repos/nd500x/src/machine/debug_api.c`
+table in `src/machine/debug_api.c`
 (`nd500_dbg_reg_set_by_name` etc.), shared with the CLI `set` command.
 
 ## Console I/O (custom commands, nd100x convention)
@@ -142,6 +142,6 @@ compiler crash at PC=0x08023EA4 (protection violation, wild pointer in a
 heap linked list) as a live `stopped` event with reason `exception`.
 
 The complete per-command test matrix (usage variants and results) is in
-`/home/ronny/repos/nd500x/docs/DAP_COMMAND_TEST_MATRIX.md`. Behaviour bug
+`docs/DAP_COMMAND_TEST_MATRIX.md`. Behaviour bug
 reports from client-side sessions go to
-`/home/ronny/repos/nd500x/docs/DAP_BUG_REPORTS.md`.
+`docs/DAP_BUG_REPORTS.md`.

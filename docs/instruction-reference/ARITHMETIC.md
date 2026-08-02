@@ -1,10 +1,10 @@
 # ND-500 ARITHMETIC Instruction Category - Functional Behavior Reference
 
-Ground-truth source: microcode trace of `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-(field mnemonics decoded via `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`),
-cross-checked against `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`.
+Ground-truth source: microcode trace of `$ND5000UC/microcode/MICRO-5800-A30.md`
+(field mnemonics decoded via `$ND5000UC/manual/mnemonics.md`),
+cross-checked against `docs/ND-05.009.4 EN ND-500 Reference Manual.md`.
 
-Implementation files: `/home/ronny/repos/nd500x/src/cpu/instructions/ARITHMETIC/*.c`
+Implementation files: `src/cpu/instructions/ARITHMETIC/*.c`
 
 This document is a FUNCTIONAL reference (data-path pseudocode), not a flags-only summary.
 Every statement is either read directly from the microcode/manual or explicitly marked

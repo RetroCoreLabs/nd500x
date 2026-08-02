@@ -1,7 +1,7 @@
 # NC (Norsk Data C, A06) Interactive Command Interface - Probe Results
 
 Date: 2026-07-09
-Binary: /mnt/d/ND/500/FraTor/nc/nc-a06.dom (Version A06, 1989-01-10)
+Binary: $ND500_TESTDATA/FraTor/nc/nc-a06.dom (Version A06, 1989-01-10)
 Driven under: nd500x emulator, via test_dom_integration --input and the
 debugger `input` command (queued console -> MON 503B DVINST / 504B DVOUTS).
 
@@ -208,4 +208,4 @@ Queued input uses `\r` for CR. Always send a leading `\r` to reach the
    compile driver - our all-in-one COMPILE may not be the path that
    invokes codegen.
 4. Golden reference for the eventual binary NRF:
-   /mnt/d/ND/500/FraTor/test-real/test-real.nrf (real ND-produced, 1991).
+   $ND500_TESTDATA/FraTor/test-real/test-real.nrf (real ND-produced, 1991).

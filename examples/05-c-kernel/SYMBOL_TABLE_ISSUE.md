@@ -201,7 +201,7 @@ kernel.zip contains:
 
 ### WASM Debugger Loading
 
-**File:** `/home/ronny/repos/nd500x/src/frontend/nd500wasm/web/debugger.js`
+**File:** `src/frontend/nd500wasm/web/debugger.js`
 
 ```javascript
 async handleZipUpload(file) {
@@ -218,7 +218,7 @@ async handleZipUpload(file) {
 
 ### Native Debugger Loading
 
-**File:** `/home/ronny/repos/nd500x/src/ndlib/ndlib_aout.c`
+**File:** `src/ndlib/ndlib_aout.c`
 
 ```c
 int ndlib_load_aout_with_debug(Nd500Machine* m, const char* aout_path, ...) {
@@ -350,13 +350,13 @@ The kernel works correctly, debugging works correctly, symbols resolve correctly
 ---
 
 **Files:**
-- `/home/ronny/repos/nd500x/examples/05-c-kernel/Makefile` - Builds with .map generation
-- `/home/ronny/repos/nd500x/examples/05-c-kernel/kernel.map` - Symbol map (good symbols)
-- `/home/ronny/repos/nd500x/examples/05-c-kernel/kernel` - Executable (corrupted symbols - ignored)
+- `examples/05-c-kernel/Makefile` - Builds with .map generation
+- `examples/05-c-kernel/kernel.map` - Symbol map (good symbols)
+- `examples/05-c-kernel/kernel` - Executable (corrupted symbols - ignored)
 
 **Build command:**
 ```bash
-cd /home/ronny/repos/nd500x/examples/05-c-kernel
+cd examples/05-c-kernel
 make clean
 make all
 ```

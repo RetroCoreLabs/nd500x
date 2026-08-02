@@ -8,12 +8,12 @@ This document provides comprehensive test procedures for all advanced debugging 
 
 ### Prerequisites
 - Built nd500x emulator: `./build/bin/nd500x`
-- Test binary: `/home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o`
+- Test binary: `$PCC_ND500/examples/04-c-math/math.o`
 - Terminal with ANSI color support
 
 ### Basic Test Commands
 ```bash
-cd /home/ronny/repos/nd500x
+cd .
 ./build/bin/nd500x --debug
 ```
 
@@ -25,7 +25,7 @@ cd /home/ronny/repos/nd500x
 **Purpose**: Test effective address breakdown in disassembly
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 show ea
 d 0x59 16
 show ea on
@@ -44,7 +44,7 @@ d 0x59 16
 **Purpose**: Test C symbol demangling (strip leading underscore)
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 show demangle
 d 0x59 16
 show demangle on
@@ -60,7 +60,7 @@ show demangle off
 **Purpose**: Test improved memory dump with ASCII and colors
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 m 0x59 32
 m 0x100 64
 ```
@@ -76,7 +76,7 @@ m 0x100 64
 **Purpose**: Test conditional breakpoint creation and listing
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 bp cond 0x100 "I1 == 0x42"
 bp cond 0x200 "PC > 0x1000"
 bp cond 0x300 "L != 0"
@@ -109,7 +109,7 @@ bp list
 **Purpose**: Test instruction execution tracing
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 show trace
 step 5
 show trace on
@@ -139,7 +139,7 @@ ND500X_TRACE=1 ./build/bin/nd500x --debug
 **Purpose**: Test instruction execution profiling
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 show profile
 step 10
 profile show
@@ -171,7 +171,7 @@ ND500X_PROFILE=1 ./build/bin/nd500x --debug
 **Purpose**: Test call stack display
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 backtrace
 bt
 ```
@@ -184,7 +184,7 @@ bt
 **Purpose**: Test call stack during execution
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 step 5
 backtrace
 step 10
@@ -200,7 +200,7 @@ backtrace
 **Purpose**: Test register value change watchpoints
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 wp reg I1
 wp reg PC
 wp reg L
@@ -231,7 +231,7 @@ wp list
 **Purpose**: Test register watchpoint triggering
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 wp reg I1
 step 10
 ```
@@ -246,7 +246,7 @@ step 10
 **Purpose**: Test different memory watchpoint types
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 wp 0x1000 4 read
 wp 0x2000 8 write
 wp 0x3000 4 change
@@ -261,7 +261,7 @@ wp list
 **Purpose**: Test memory watchpoint triggering
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 wp 0x1000 4 write
 step 10
 ```
@@ -276,7 +276,7 @@ step 10
 **Purpose**: Test multiple features working together
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 show ea on
 show demangle on
 show trace on
@@ -305,7 +305,7 @@ wp list
 **Purpose**: Test error handling for invalid commands
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 bp cond 0x100 "invalid condition"
 wp reg INVALID
 show invalid_option
@@ -320,7 +320,7 @@ profile invalid_command
 **Purpose**: Test edge cases and limits
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 # Test maximum breakpoints
 for i in {0..63}; do bp $((0x1000 + i)); done
 bp list
@@ -356,7 +356,7 @@ ND500X_TRACE=1 ./build/bin/nd500x --debug
 **Purpose**: Verify features don't significantly impact performance
 **Commands**:
 ```
-load /home/ronny/repos/ragge/pcc-nd500/examples/04-c-math/math.o
+load $PCC_ND500/examples/04-c-math/math.o
 time step 100
 show trace on
 time step 100

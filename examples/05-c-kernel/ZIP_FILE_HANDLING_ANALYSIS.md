@@ -8,7 +8,7 @@ The JavaScript code in the WASM frontend **correctly handles all .c and .s files
 
 ### 1. Loading kernel.zip
 
-**File:** `/home/ronny/repos/nd500x/src/frontend/nd500wasm/web/debugger.js`
+**File:** `src/frontend/nd500wasm/web/debugger.js`
 
 **Function:** `loadDemoKernel()` (Lines 1933-1940)
 
@@ -146,7 +146,7 @@ showSourceFile(filename) {
 
 ## Current kernel.zip Contents
 
-**Location:** `/home/ronny/repos/nd500x/src/frontend/nd500wasm/web/demo/kernel.zip`
+**Location:** `src/frontend/nd500wasm/web/demo/kernel.zip`
 
 **Contents (6 files, 40,431 bytes):**
 
@@ -284,7 +284,7 @@ Must export these functions:
 
 ### Test File
 
-**Location:** `/home/ronny/repos/nd500x/src/frontend/nd500wasm/web/test_zip_loading.html`
+**Location:** `src/frontend/nd500wasm/web/test_zip_loading.html`
 
 Validates:
 - ZIP extraction

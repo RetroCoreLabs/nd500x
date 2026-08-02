@@ -1,6 +1,6 @@
 # SINTRAN III shell for nd500x - Phase 0 spec (sourced from the real manuals)
 
-Full path of this document: `/home/ronny/repos/nd500x/docs/SINTRAN-SHELL-SPEC.md`
+Full path of this document: `docs/SINTRAN-SHELL-SPEC.md`
 
 Written 2026-07-20 as a spec. UPDATE 2026-07-26: the shell IS now implemented in
 `src/frontend/nd500x/nd500x_shell.c` (run via `nd500x --monitor`). See the
@@ -15,10 +15,10 @@ programs under a user directory and run them by name, with `HELP`.
 
 ## Sources (all real, on disk)
 
-- **RefMan** = `/mnt/e/Dev/Ronny/NDInsight/Reference-Manuals/ND-60.128.5 EN SINTRAN III Reference Manual.md` (the definitive per-command reference)
-- **Batch Guide** = `/mnt/e/Dev/Ronny/NDInsight/Reference-Manuals/ND-60.132.03 SINTRAN III Timesharing Batch Guide.md`
-- **User's Guide** = `/mnt/e/Dev/Ronny/NDInsight/Reference-Manuals/ND-60.050.06 SINTRAN III Users Guide.md` (file-system chapter 3.2/3.3, error codes D.2.1)
-- **Password RE** = `/mnt/e/Dev/Ronny/NDInsight/tools/sintran-segment-carver/versions/L-VSX-500/re/PASSWORD-ALGORITHM.md` (byte-proven login fold)
+- **RefMan** = `$NDINSIGHT/Reference-Manuals/ND-60.128.5 EN SINTRAN III Reference Manual.md` (the definitive per-command reference)
+- **Batch Guide** = `$NDINSIGHT/Reference-Manuals/ND-60.132.03 SINTRAN III Timesharing Batch Guide.md`
+- **User's Guide** = `$NDINSIGHT/Reference-Manuals/ND-60.050.06 SINTRAN III Users Guide.md` (file-system chapter 3.2/3.3, error codes D.2.1)
+- **Password RE** = `$NDINSIGHT/tools/sintran-segment-carver/versions/L-VSX-500/re/PASSWORD-ALGORITHM.md` (byte-proven login fold)
 
 ## THE decision that reshapes the request: two shells, not one
 

@@ -1,10 +1,10 @@
 # ND-500 Instruction Category: SHIFT - Functional Behavior Reference
 
 Ground-truth source: microcode listing
-`/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-Field decode: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
-Documented intent: `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-nd500x C sources: `/home/ronny/repos/nd500x/src/cpu/instructions/SHIFT/*.c`
+`$ND5000UC/microcode/MICRO-5800-A30.md`
+Field decode: `$ND5000UC/manual/mnemonics.md`
+Documented intent: `docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+nd500x C sources: `src/cpu/instructions/SHIFT/*.c`
 
 This document was built by TRACING THE MICROCODE routine for each instruction,
 decoding the fields, and cross-checking against the ND-500 Reference Manual.
@@ -126,7 +126,7 @@ On IOV the destination is not modified.
 Microcode: SHLW 000360 -> SHL_C_1 003260 -> SHL_PSC_2 003276 (Q*LOG) /
 SHL_NSC_2 003272 (Q/LOG); IOV 003132/003131.
 Manual: section 10.24 "Logical shift" (data status bits: Z, S). Rule 4040 (line 4040).
-nd500x: `/home/ronny/repos/nd500x/src/cpu/instructions/SHIFT/Shl.c`.
+nd500x: `src/cpu/instructions/SHIFT/Shl.c`.
 
 CROSS-CHECK: microcode, manual, and Shl.c AGREE (positive = left, negative = right
 logical; Z and S only). Shl.c raises TRAP_IOV and does not modify the destination.
@@ -186,7 +186,7 @@ On IOV the destination is not modified.
 Microcode: SHAW 000374 -> SHA_C_1 003277 -> SHA_PSC_2 003315 (Q*LOG left) /
 SHA_NSC_2 003311 (Q/ARI, arithmetic right, sign-extend); IOV 003132/003131.
 Manual: section 10.25 "Arithmetical shift" (data status bits: Z, S). Rule 4040.
-nd500x: `/home/ronny/repos/nd500x/src/cpu/instructions/SHIFT/Sha.c`.
+nd500x: `src/cpu/instructions/SHIFT/Sha.c`.
 
 CROSS-CHECK: microcode, manual, and Sha.c AGREE (positive = logical left, negative =
 sign-extending right; Z and S only). Sha.c raises TRAP_IOV.
@@ -246,7 +246,7 @@ SHR_NSC_2 003330 (Q,Q/ROT = rotate RIGHT); Q-field decode mnemonics.md 116-121;
 IOV 003132/003131.
 Manual: section 10.26 "Rotational shift" (line 5214: "Positive <shiftcount> implies
 left shift, negative implies right"; data status bits: Z, S). Rule 4040.
-nd500x: `/home/ronny/repos/nd500x/src/cpu/instructions/SHIFT/Shr.c`.
+nd500x: `src/cpu/instructions/SHIFT/Shr.c`.
 
 CROSS-CHECK - DISAGREEMENT (direction):
 - MICROCODE ground-truth: positive count -> SHR_PSC -> Q,Q*ROT -> ROTATE LEFT.
@@ -323,7 +323,7 @@ decimal scaling is performed by the shared descriptor-shift engine `DES_SHIFT`
 BCDC 002077). A clean single-entry microtrace for opcode 177262B is NOT available
 from this listing (the opcode->microaddress dispatch ROM is not represented as a
 followable label). See UNKNOWN below.
-nd500x: `/home/ronny/repos/nd500x/src/cpu/instructions/SHIFT/Pshift.c`.
+nd500x: `src/cpu/instructions/SHIFT/Pshift.c`.
 
 CROSS-CHECK: the nd500x Pshift.c models this as a packed-BCD scale shift
 (load descriptors, read BCD, shift = dest.scaling - source.scaling, write BCD),
@@ -394,7 +394,7 @@ Microcode: NO standalone `PSHIFTR` entry label exists; same shared BCD descripto
 shift machinery as PSHIFT (DES_SHIFT 023561 etc.). The rounding step is expected to
 use the BCD rounding cells (`BCD_ADD_RND` 020733), but this could NOT be tied to a
 PSHIFTR entry from this listing.
-nd500x: `/home/ronny/repos/nd500x/src/cpu/instructions/SHIFT/Pshiftr.c`.
+nd500x: `src/cpu/instructions/SHIFT/Pshiftr.c`.
 
 CROSS-CHECK - DISAGREEMENT (semantics): nd500x Pshiftr.c implements a binary logical
 right shift on an integer operand and calls it "Packed Shift Right". The MANUAL says

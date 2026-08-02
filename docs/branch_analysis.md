@@ -1,6 +1,6 @@
 # Branch Instruction Analysis Report
 
-Analysis of trace file `/mnt/d/nd-trace-500x.txt` containing 6,429 instructions.
+Analysis of trace file `$ND500X_WORK/nd-trace-500x.txt` containing 6,429 instructions.
 
 ## Summary
 
@@ -109,11 +109,11 @@ The header documentation in the branch instruction C files has **incorrect comme
 
 ### Files with incorrect header comments:
 
-1. `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfUnsignedGreaterEqualGo.c`
+1. `src/cpu/instructions/BRANCH/IfUnsignedGreaterEqualGo.c`
    - Header says: "C=0 (no borrow) means A >= B" - **WRONG**
    - Should say: "C=1 (no borrow) means A >= B"
 
-2. `/home/ronny/repos/nd500x/src/cpu/instructions/BRANCH/IfUnsignedLessGo.c`
+2. `src/cpu/instructions/BRANCH/IfUnsignedLessGo.c`
    - Header says: "C=1 (borrow occurred) means A < B" - **WRONG**
    - Should say: "C=0 (borrow) means A < B"
 

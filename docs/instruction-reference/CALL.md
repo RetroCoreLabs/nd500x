@@ -5,10 +5,10 @@ against the printed manual. Ground-truth mechanism = microcode; documented
 intent = manual. Disagreements are called out per-instruction.
 
 Sources traced:
-- Microcode: `/mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md`
-- Field mnemonics: `/mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md`
-- Manual: `/home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md`
-- Emulator sources: `/home/ronny/repos/nd500x/src/cpu/instructions/CALL/*.c`
+- Microcode: `$ND5000UC/microcode/MICRO-5800-A30.md`
+- Field mnemonics: `$ND5000UC/manual/mnemonics.md`
+- Manual: `docs/ND-05.009.4 EN ND-500 Reference Manual.md`
+- Emulator sources: `src/cpu/instructions/CALL/*.c`
 
 Category members (18 files): CALL, CALLG, CHAIN, ENTB, ENTD, ENTF, ENTFN,
 ENTM, ENTS, ENTSN, ENTT, IFKRET (IF K RET), RET, RETB, RETBK, RETD, RETK, RETT.

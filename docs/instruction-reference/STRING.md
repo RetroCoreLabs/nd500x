@@ -3,10 +3,10 @@
 Traced from microcode ground-truth, cross-checked against the documented manual.
 
 Sources (full absolute paths):
-- Microcode:    /mnt/e/Dev/Ronny/ND5000UC/microcode/MICRO-5800-A30.md
-- Field decode: /mnt/e/Dev/Ronny/ND5000UC/manual/mnemonics.md
-- Manual:       /home/ronny/repos/nd500x/docs/ND-05.009.4 EN ND-500 Reference Manual.md  (Chapter 14, plus 16.36)
-- C impls:      /home/ronny/repos/nd500x/src/cpu/instructions/STRING/*.c
+- Microcode:    $ND5000UC/microcode/MICRO-5800-A30.md
+- Field decode: $ND5000UC/manual/mnemonics.md
+- Manual:       docs/ND-05.009.4 EN ND-500 Reference Manual.md  (Chapter 14, plus 16.36)
+- C impls:      src/cpu/instructions/STRING/*.c
 
 This file OVERWRITES a prior flags-only pass (recoverable from git).
 

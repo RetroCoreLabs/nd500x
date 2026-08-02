@@ -1,9 +1,9 @@
 # DAP behaviour bug reports (nd500x) - for the DAP-implementing LLM
 
-**Full path:** `/home/ronny/repos/nd500x/docs/DAP_BUG_REPORTS.md`
+**Full path:** `docs/DAP_BUG_REPORTS.md`
 Reporter: debugging LLM driving nd500x DAP via MCP (mcp-dap-server at
-`/home/ronny/repos/libdap/mcp-dap-server`). Server run by the user in a terminal:
-`./build/bin/nd500x --dom /mnt/d/ND/500/FraTor/nc/nc-a06.dom --dap <port>`.
+`$LIBDAP/mcp-dap-server`). Server run by the user in a terminal:
+`./build/bin/nd500x --dom $ND500_TESTDATA/FraTor/nc/nc-a06.dom --dap <port>`.
 
 Each entry: what I did, what happened, what I expected, evidence. Confirm/repro
 on your side before fixing; some may be MCP-client artifacts, flagged as such.
@@ -46,7 +46,7 @@ another LLM's session.)
 - Could NOT reproduce with the current build: the exact sequence
   connect -> status -> disassemble 0x08023E9C count 5 -> disassemble
   0x0802CEFE count 3 -> console_enable all succeeded, plus a full command
-  matrix afterwards (see `/home/ronny/repos/nd500x/docs/DAP_COMMAND_TEST_MATRIX.md`).
+  matrix afterwards (see `docs/DAP_COMMAND_TEST_MATRIX.md`).
 - Most likely cause: the implementing session repeatedly ran
   `pkill -f "nd500x --dom"` during its rebuild cycles. That pattern matches
   ANY nd500x server started with --dom, including yours in the user's
