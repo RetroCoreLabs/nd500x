@@ -35,7 +35,35 @@
 #define KERNEL_DOMAIN       0           /* Domain 0 is always kernel */
 #define MAX_DOMAINS         256         /* Maximum domains per process */
 
-/* DIT (Domain Information Table) Structure */
+/* DIT (Domain Information Table) Structure
+ *
+ * WARNING - these constants describe a DIFFERENT table from the one the live
+ * MMU reads, and the two disagree about the stride off the SAME DITBASE
+ * register:
+ *
+ *   here                    16 bytes per domain, fields TOS/LL/HL/THA
+ *   nd500_mmu.c capability
+ *   read (and RetroCore
+ *   CpuND500.Domain.cs)     256 bytes per domain, program capabilities at
+ *                           +0, data capabilities at +64, two big-endian
+ *                           bytes per segment
+ *
+ * The 256-byte layout is the one documented in ND-05.009.4 section 4.2.3.3
+ * Table 6, and it is the one an actual NDIX guest is served by.
+ *
+ * Nothing is broken today only because every accessor below that uses
+ * DIT_ENTRY_SIZE - nd500_domain_setup_dit, nd500_domain_{read,write}_{tos,ll,
+ * hl,tha} - has ZERO callers anywhere in the tree (verified by grep over all
+ * .c/.h outside this file). nd500_domain_init does not call setup_dit either;
+ * only domain_init/allocate/free are actually used, and they never touch the
+ * DIT. So this is a trap rather than a live defect: wiring any of these
+ * accessors up would write 16-byte-strided fields on top of a guest's
+ * 256-byte-strided capability table and corrupt it silently.
+ *
+ * Do not "fix" the constant to 256 without first establishing what structure
+ * the TOS/LL/HL/THA layout was meant to describe - the two are not the same
+ * table with a wrong number, they are two different tables.
+ */
 #define DIT_ENTRY_SIZE      16          /* 16 bytes per domain entry */
 #define DIT_TOS_OFFSET      0           /* Top of Stack offset */
 #define DIT_LL_OFFSET       4           /* Lower Limit offset */
