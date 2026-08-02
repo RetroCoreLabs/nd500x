@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "../cpu/nd500_tlb.h"
 #include <stdlib.h>
 #include <string.h>
 #include "machine_protos.h"
@@ -16,6 +17,8 @@ int nd500_dbg_load_aout_buffer(Nd500Machine* m, const uint8_t* data, size_t size
 	/* Placeholder: copy to base and set entry 0 */
 #endif
 	if (size > m->memory_size) size = m->memory_size;
+	/* Bypasses nd500_bus_write8, so flush by hand - a fresh image replaces everything the cache could describe. */
+	nd500_mmu_tlb_flush();
 	memcpy(m->memory, data, size);
 	if (out_entry_pc) *out_entry_pc = 0;
 	return 0;

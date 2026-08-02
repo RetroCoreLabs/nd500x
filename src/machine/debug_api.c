@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "../cpu/nd500_tlb.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -584,6 +585,8 @@ size_t nd500_dbg_mem_write_raw(Nd500Machine* m, uint32_t addr, const uint8_t* da
 	if (!m || !m->memory || !data) return 0;
 	if (addr >= m->memory_size) return 0;
 	uint32_t max = (uint32_t)((addr + len) > m->memory_size ? (m->memory_size - addr) : len);
+	/* Bypasses nd500_bus_write8, so flush by hand - the debugger can overwrite a page table by hand. */
+	nd500_mmu_tlb_flush();
 	memcpy(m->memory + addr, data, max);
 	return max;
 }

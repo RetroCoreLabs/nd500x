@@ -6,6 +6,7 @@
 #include "../cpu/nd500_mmu.h"
 #include "../cpu/nd500_phys_alloc.h"
 #include "../cpu/nd500_page_bits.h"
+#include "../cpu/nd500_tlb.h"
 #include <ndmon/mon_file_table.h>
 
 /* ------------------------------------------------------------------ *
@@ -264,6 +265,13 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 		}
 		return;
 	}
+
+	/* If this store lands on a page some translation walk read a DIT entry,
+	 * PST entry or PTE out of, every cached translation may now be stale -
+	 * drop them all. This is what makes the translation cache correct without
+	 * trusting the guest to issue dctsb/pctsb. Every physical store in the
+	 * emulator reaches here, so there is no way around it. */
+	nd500_tlb_on_phys_write(addr);
 
 	/* DIT1DBG: watch writes to the domain-1 DIT (DITBASE=0x90000, +256..+512 =
 	 * domain-1 program+data capabilities). newproc must populate these when it

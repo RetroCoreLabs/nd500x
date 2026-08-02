@@ -3,6 +3,7 @@
  */
 
 #include "nd500_phys_alloc.h"
+#include "nd500_tlb.h"
 #include "../machine/machine_types.h"
 
 #include <stdio.h>
@@ -92,6 +93,8 @@ static void pa_zero_pages(Nd500Machine* m, uint32_t base_pfn, uint32_t count) {
     uint64_t base = (uint64_t)base_pfn << PGSHIFT;
     uint64_t len  = (uint64_t)count * NBPG;
     if (base + len > m->memory_size) return;   /* caller already bounds-checked */
+    /* Bypasses nd500_bus_write8, so flush by hand - the page being zeroed may be a table a walk already read. */
+    nd500_mmu_tlb_flush();
     memset(m->memory + base, 0, (size_t)len);
 }
 

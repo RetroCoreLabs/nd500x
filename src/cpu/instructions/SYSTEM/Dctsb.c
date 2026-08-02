@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "nd500_tlb.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -160,6 +161,14 @@ void nd500_instr_Dctsb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         trap_illegal_instruction(cpu, fi->address, fi->opcode);
         return;
     }
+
+    /* nd500x now HAS a translation cache (src/cpu/nd500_tlb.h), so this
+     * is no longer a no-op: honour the instruction and drop every cached
+     * translation. The cache also self-invalidates on writes to any page
+     * a walk read a table from, so this is belt-and-braces rather than
+     * the sole guarantee - which matters, because locore.s admits the
+     * kernel's own dctsb placement was "not consistent". */
+    nd500_mmu_tlb_flush();
 
     /* EMULATOR NO-OP: Clear data translation speedup buffer
      *

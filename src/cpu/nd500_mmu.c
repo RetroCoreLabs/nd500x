@@ -11,6 +11,9 @@
 } while (0)
 #include "cpu_protos.h"
 #include "nd500_page_bits.h"
+#include "nd500_tlb.h"
+extern unsigned long long g_tlb_hits, g_tlb_misses, g_tlb_flushes;
+void nd500_mmu_tlb_stat_install(void);
 #include "../machine/machine_protos.h"
 #include <stdlib.h>
 #include <string.h>
@@ -121,6 +124,7 @@ void nd500_mmu_init(Nd500Cpu* cpu) {
 // ═══════════════════════════════════════════════════════
 
 void nd500_mmu_enable_data(Nd500Cpu* cpu) {
+    nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
     if (!cpu) return;
     g_mmu_data_enabled = 1;
     /* Also set machine->mmu_enabled so data access uses MMU translation */
@@ -129,6 +133,7 @@ void nd500_mmu_enable_data(Nd500Cpu* cpu) {
 }
 
 void nd500_mmu_disable_data(Nd500Cpu* cpu) {
+    nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
     if (!cpu) return;
     g_mmu_data_enabled = 0;
     /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
@@ -145,6 +150,7 @@ int nd500_mmu_is_data_enabled(Nd500Cpu* cpu) {
 // ═══════════════════════════════════════════════════════
 
 void nd500_mmu_enable_program(Nd500Cpu* cpu) {
+    nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
     if (!cpu) return;
     g_mmu_program_enabled = 1;
     /* Also set machine->mmu_enabled so instruction decode uses MMU translation */
@@ -153,6 +159,7 @@ void nd500_mmu_enable_program(Nd500Cpu* cpu) {
 }
 
 void nd500_mmu_disable_program(Nd500Cpu* cpu) {
+    nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
     if (!cpu) return;
     g_mmu_program_enabled = 0;
     /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
@@ -245,6 +252,28 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         return virtual_addr;  /* MMU not initialized */
     }
 
+    /* ── Translation cache lookup ────────────────────────────────
+     * Only fully-walked successes are ever stored (see the fill at the end),
+     * so a hit means this exact (page, domain, space) resolved cleanly before
+     * and nothing has written to any table page since. A write needs an entry
+     * that was itself validated for writing, otherwise we re-walk so the
+     * DC_WRP and PTE-protection checks actually run. */
+    const uint32_t tlb_key  = nd500_tlb_tag(virtual_addr, domain, is_instruction);
+    const uint32_t tlb_idx  = nd500_tlb_slot(tlb_key);
+    if (!g_nd500_tlb_init) nd500_mmu_tlb_init_once();
+    if (g_nd500_tlb_on) {
+        const TlbEntry* te = &g_nd500_tlb[tlb_idx];
+        if (te->tag == tlb_key && (!is_write || te->writable)) {
+            uint32_t hit_phys = (te->pfn << PGSHIFT) | (virtual_addr & (NBPG - 1));
+            /* Page Used / Written In Page must still be set on a cache hit -
+             * the swapper reads them back through RPGU/RWIP and a translation
+             * that came from the cache is still an access to that page. */
+            g_tlb_hits++;
+            nd500_page_bits_mark(cpu->machine, hit_phys, is_write);
+            return hit_phys;
+        }
+    }
+
     /* ─────────────────────────────────────────────────────────
      * LEVEL 1: Virtual Address → Capability
      * ───────────────────────────────────────────────────────── */
@@ -323,6 +352,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
     if (use_guest) {
         uint32_t cap_addr = cpu->DITBASE + (uint32_t)domain * 256u
                           + (is_instruction ? 0u : 64u) + (uint32_t)segment * 2u;
+        nd500_tlb_note_xlat_page(cap_addr);       /* guest DIT - invalidate on write */
         capability = (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
                               |  (uint32_t)nd500_bus_read8(cpu->machine, cap_addr + 1));
     } else {
@@ -578,6 +608,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
     PhysicalSegmentTableEntry pst_entry;
     if (use_guest && cpu->PSTP) {
         uint32_t pa = cpu->PSTP + (uint32_t)psn * 4u;
+        nd500_tlb_note_xlat_page(pa);             /* guest PST - invalidate on write */
         uint32_t w = ((uint32_t)nd500_bus_read8(cpu->machine, pa)     << 24)
                    | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 1) << 16)
                    | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 2) << 8)
@@ -662,6 +693,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             uint32_t pte_addr = page_table_base + (l2_index * 4);  /* Use L2 index */
 
             /* Read PTE from memory */
+            nd500_tlb_note_xlat_page(pte_addr);   /* PS_ASI page table - invalidate on write */
             PageTableEntry pte = nd500_mmu_read_pte(cpu, pte_addr);
 
             /* Check if page is present (valid bit must be set) */
@@ -709,6 +741,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
 
             /* Read L1 PTE using l1_index */
             uint32_t l1_pte_addr = l1_table_base + (l1_index * 4);
+            nd500_tlb_note_xlat_page(l1_pte_addr);  /* PS_ADI L1 table - invalidate on write */
             PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
 
             if (!l1_pte.valid) {
@@ -768,6 +801,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             uint32_t l2_pte_addr = l2_table_base + (l2_index * 4);
 
             /* Read L2 PTE */
+            nd500_tlb_note_xlat_page(l2_pte_addr);  /* PS_ADI L2 table - invalidate on write */
             PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
 
             /* PST47DBG: full walk chain for the shared user-data segment (PSN 47 =
@@ -876,6 +910,20 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
      * ───────────────────────────────────────────────────────── */
 
     uint32_t physical_addr = (physical_pfn << PGSHIFT) | offset;
+
+    /* Cache this translation. Reached only by a walk that produced a physical
+     * address - every fault path returned above - so nothing that traps is
+     * ever cached. `writable` records whether the DC_WRP and PTE-protection
+     * checks were actually satisfied on this pass: a read-only page cached by
+     * a read must not let a later write through, so the lookup re-walks in
+     * that case and the trap is raised properly. */
+    if (g_nd500_tlb_on) {
+        g_tlb_misses++;
+        TlbEntry* te = &g_nd500_tlb[tlb_idx];
+        te->tag      = tlb_key;
+        te->pfn      = physical_pfn;
+        te->writable = (uint8_t)(is_write != 0);
+    }
 
     /* Hardware sets Page Used on any access and Written In Page on a write
      * (ND-05.009.4 16.17, 16.20). The swapper reads them back through
@@ -991,6 +1039,7 @@ PhysicalSegmentTableEntry nd500_mmu_get_pst_entry(Nd500Cpu* cpu, int psn) {
 }
 
 void nd500_mmu_set_pst_entry(Nd500Cpu* cpu, int psn, uint8_t index_mode, uint32_t pfn) {
+    nd500_mmu_tlb_flush();   /* shadow-table edit - drop cached translations */
     ensure_mmu_tables();
     if (!g_pst || psn < 0 || psn >= MAX_PST) {
         return;
@@ -1077,6 +1126,7 @@ uint16_t nd500_mmu_get_data_capability(Nd500Cpu* cpu, uint8_t domain, int segmen
 }
 
 void nd500_mmu_set_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment, uint16_t capability) {
+    nd500_mmu_tlb_flush();   /* shadow-table edit - drop cached translations */
     if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
         return;
     }
@@ -1086,6 +1136,7 @@ void nd500_mmu_set_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment
 }
 
 void nd500_mmu_set_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment, uint16_t capability) {
+    nd500_mmu_tlb_flush();   /* shadow-table edit - drop cached translations */
     if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
         return;
     }
@@ -1139,6 +1190,7 @@ PageTableEntry nd500_mmu_read_pte(Nd500Cpu* cpu, uint32_t physical_addr) {
  * Written in big-endian (ND-500 native byte order)
  */
 void nd500_mmu_write_pte(Nd500Cpu* cpu, uint32_t physical_addr, PageTableEntry pte) {
+    nd500_mmu_tlb_flush();   /* shadow-table edit - drop cached translations */
     if (!cpu || !cpu->machine) {
         return;
     }
@@ -1213,6 +1265,9 @@ void* nd500_mmu_state_save(void) {
 
 void nd500_mmu_state_restore(void* blob) {
     if (!blob) return;
+    /* A nested UECOM run puts back a whole different PST + capability set;
+     * every cached translation belongs to the other one. */
+    nd500_mmu_tlb_flush();
     MmuStateBlob* b = (MmuStateBlob*)blob;
     if (g_pst)
         memcpy(g_pst, b->pst, MAX_PST * sizeof(PhysicalSegmentTableEntry));
