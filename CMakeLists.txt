@@ -6,6 +6,19 @@ endif()
 
 project(nd500x VERSION 0.1.0 LANGUAGES C)
 
+# With no CMAKE_BUILD_TYPE, CMake passes no -O flag at all and GCC/Clang default
+# to -O0. Every file of the emulator was being built unoptimized, which for an
+# instruction interpreter is the dominant cost - it also stops trivial helpers
+# like io.c's in_range() from being inlined, so they show up as real calls on
+# every memory access. RelWithDebInfo keeps -g, so the debugger and DAP work
+# exactly as before. Pass -DCMAKE_BUILD_TYPE=Debug explicitly for an -O0 build.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+                 Debug Release RelWithDebInfo MinSizeRel)
+    message(STATUS "No CMAKE_BUILD_TYPE given - defaulting to RelWithDebInfo (-O2 -g)")
+endif()
+
 option(BUILD_WASM "Build WebAssembly frontend with Emscripten" OFF)
 option(DEBUGGER_ENABLED "Enable debugger support" ON)
 
