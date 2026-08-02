@@ -113,9 +113,17 @@ static inline uint16_t mmu_read16(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
 		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
 	}
 
-	if (cpu->CED == 0 && vaddr >= 0xF0000000u && getenv("ND500X_UDATADBG"))
-		printf("[UDATA16] PC=0x%08X CED=0 read16 vaddr=0x%08X paddr=0x%08X\n",
-		       cpu->PC, vaddr, paddr);
+	/* Latched like every other ND500X_UDATADBG site (instruction_helpers.c
+	 * 309/554/648/685). Unlatched, this ran a full getenv - environment scan
+	 * plus strcmp per entry - on every kernel-domain read of the _Udata
+	 * window, which NDIX does constantly. */
+	{
+		static int udbg = -1;
+		if (udbg < 0) { const char* e = getenv("ND500X_UDATADBG"); udbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (udbg && cpu->CED == 0 && vaddr >= 0xF0000000u)
+			printf("[UDATA16] PC=0x%08X CED=0 read16 vaddr=0x%08X paddr=0x%08X\n",
+			       cpu->PC, vaddr, paddr);
+	}
 	return nd500_bus_read16(cpu->machine, paddr);
 }
 
@@ -148,9 +156,14 @@ static inline uint32_t mmu_read32(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
 		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
 	}
 
-	if (cpu->CED == 0 && vaddr >= 0xF0000000u && getenv("ND500X_UDATADBG"))
-		printf("[UDATA32] PC=0x%08X CED=0 read32 vaddr=0x%08X paddr=0x%08X\n",
-		       cpu->PC, vaddr, paddr);
+	/* Latched - see mmu_read16 above. */
+	{
+		static int udbg = -1;
+		if (udbg < 0) { const char* e = getenv("ND500X_UDATADBG"); udbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (udbg && cpu->CED == 0 && vaddr >= 0xF0000000u)
+			printf("[UDATA32] PC=0x%08X CED=0 read32 vaddr=0x%08X paddr=0x%08X\n",
+			       cpu->PC, vaddr, paddr);
+	}
 	return nd500_bus_read32(cpu->machine, paddr);
 }
 
