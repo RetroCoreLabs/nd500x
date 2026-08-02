@@ -3220,15 +3220,16 @@ static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
 	 * tables at 0xA0000 / 0xA1000; high PSNs to avoid the demo's 0-767. */
 	sintran_map_segment_to_phys(m, 27, m->cpu->PSTP,    16, 800, 0x000A0000); /* _Pst */
 	sintran_map_segment_to_phys(m, 28, m->cpu->DITBASE, 32, 801, 0x000A1000); /* _pcbtab */
-	output(ctx, "Mapped seg 27 -> PSTP (0x80000), seg 28 -> DITBASE (0x90000)");
+	output(ctx, "Mapped seg 27 -> PSTP (0x%X), seg 28 -> DITBASE (0x%X)",
+	       m->cpu->PSTP, m->cpu->DITBASE);
 
 	output(ctx, "");
 	output(ctx, "=== MMU Registers ===");
 	m->cpu->CAD = 0;
 	m->cpu->CED = 0;
 	m->cpu->PS = 0;
-	output(ctx, "PSTP    = 0x00100000");
-	output(ctx, "DITBASE = 0x00200000");
+	output(ctx, "PSTP    = 0x%08X", m->cpu->PSTP);
+	output(ctx, "DITBASE = 0x%08X", m->cpu->DITBASE);
 	output(ctx, "CAD     = 0 (Alternative Domain - kernel)");
 	output(ctx, "CED     = 0 (Executing Domain - kernel)");
 	output(ctx, "PS      = 0 (Process Segment)");
