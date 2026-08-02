@@ -5,6 +5,7 @@
 #include "nd500_page_bits.h"
 #include "nd500_phys_alloc.h"
 #include "../machine/machine_types.h"
+#include "cpu_protos.h"    /* Nd500Cpu, for the PC in the PGUWATCH log */
 
 #include <signal.h>
 #include <stdio.h>
@@ -134,6 +135,25 @@ void nd500_page_bits_mark(Nd500Machine* m, uint32_t phys_addr, int is_write) {
 
     uint32_t page = phys_addr >> PGSHIFT;
     if (page >= pb->page_count) return;
+
+    /* ND500X_PGUWATCH=<decimal pfn>: report every mark of one page, with the
+     * PC that caused it. "Who re-sets this bit after ZPGU cleared it" cannot be
+     * answered any other way - the counters only say that it happened. */
+    {
+        static long watch = -2;
+        static unsigned shown = 0;
+        if (watch == -2) {
+            const char* e = getenv("ND500X_PGUWATCH");
+            watch = (e && e[0]) ? strtol(e, NULL, 0) : -1;
+        }
+        if (watch >= 0 && (uint32_t)watch == page && shown < 40u) {
+            shown++;
+            Nd500Cpu* c = m->cpu;
+            fprintf(stderr, "[PGUMARK] page=%u %s PC=0x%08X CED=%u CAD=%u\n",
+                    page, is_write ? "W" : "R",
+                    c ? c->PC : 0u, c ? c->CED : 0u, c ? c->CAD : 0u);
+        }
+    }
 
     pb->word[ND500_PAGE_TABLE_PGU][page >> 5] |= 1u << (page & 31u);
     if (g_marked_lo[ND500_PAGE_TABLE_PGU] == 0xFFFFFFFFu ||
