@@ -242,6 +242,43 @@ int nd500_instr_load_default(void) {
 
 static InstrMeta g_fallback_unknown = {0xFFFF, "???", 0, 0};
 
+/* Direct-mapped opcode -> metadata index, the same shape as the exec dispatch
+ * table g_instr_exec_table[65536] in nd500_instructions.c.
+ *
+ * lookup() used to scan all 1078 rows linearly, and it is called about four
+ * times per emulated instruction (mnemonic, operand count, has_rn, ...). A
+ * callgrind profile of an NDIX boot put lookup at 64.9% of ALL executed host
+ * instructions - 20.8 billion of 32 billion - far and away the hottest thing
+ * in the emulator.
+ *
+ * Measured on the real table, 20M lookups, against the linear scan:
+ *
+ *   pattern    scan       this      binary search   compact 2-range index
+ *   skewed     39.08 ns   1.51 ns   37.88 ns        4.25 ns
+ *   uniform   189.31 ns   1.64 ns   62.45 ns        4.06 ns
+ *
+ * The 512 KB of pointers costs nothing in practice: only the opcodes real code
+ * executes are ever touched, so the resident working set is a few cache lines.
+ * A 2 KB index covering just the two live opcode ranges (0x00xx and
+ * 0xFCxx-0xFFxx, which is where all 1048 of them are) was 2.8x SLOWER despite
+ * fitting in L1, because it needs a range branch that mispredicts, while this
+ * is a single branch-free load.
+ *
+ * FIRST row wins, exactly as the linear scan did. 22 opcodes appear more than
+ * once in the table (clr, neg, laddr, rladdr); the duplicate rows differ only
+ * in the variant field, so this preserves the previous behaviour byte for
+ * byte. */
+static const InstrMeta* g_meta_index[65536];
+static int g_meta_index_built;
+
+static void build_meta_index(void) {
+    for (size_t i = 0; i < g_table_count; ++i) {
+        uint16_t op = g_table[i].opcode;
+        if (!g_meta_index[op]) g_meta_index[op] = &g_table[i];
+    }
+    g_meta_index_built = 1;
+}
+
 static const InstrMeta* lookup(uint16_t opcode) {
     if (!g_table) {
         /* Map generated table to our simple view */
@@ -261,11 +298,10 @@ static const InstrMeta* lookup(uint16_t opcode) {
             for (int j = 0; j < 4; j++) g_table[i].op_templates[j] = g_nd500_instrs[i].op_templates[j];
         }
     }
-    /* Linear scan for now */
-    for (size_t i = 0; i < g_table_count; ++i) {
-        if (g_table[i].opcode == opcode) return &g_table[i];
-    }
-    return &g_fallback_unknown;
+    if (!g_meta_index_built) build_meta_index();
+
+    const InstrMeta* m = g_meta_index[opcode];
+    return m ? m : &g_fallback_unknown;
 }
 
 const char* nd500_instr_mnemonic(uint16_t opcode) {
