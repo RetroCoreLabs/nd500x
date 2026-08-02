@@ -20,6 +20,13 @@ add_executable(test_source_mapping
 )
 target_link_libraries(test_source_mapping PRIVATE nd500_ndlib nd500_machine)
 
+# Tape record layer. Links only nd500_cpu: nd500_tape.c is deliberately free of
+# machine/CPU dependencies so the format logic can be tested on its own.
+add_executable(test_tape
+    test_tape.c
+)
+target_link_libraries(test_tape PRIVATE nd500_cpu)
+
 add_executable(test_riom
     test_riom.c
 )
@@ -222,6 +229,7 @@ add_test(NAME ote_instructions COMMAND test_ote_instructions)
 add_test(NAME stack_overflow COMMAND test_stack_overflow)
 add_test(NAME unsigned_displacement COMMAND test_unsigned_displacement)
 add_test(NAME bit_addressing COMMAND test_bit_addressing)
+add_test(NAME tape COMMAND test_tape)
 add_test(NAME riom COMMAND test_riom)
 add_test(NAME mon_calls COMMAND test_mon_calls)
 add_test(NAME bmove_overlap COMMAND test_bmove_overlap)
