@@ -28,6 +28,11 @@ typedef struct {
     uint32_t  words;
 } PageBits;
 
+/* Lowest and highest page ever marked, per table (defined early so the query
+ * log in nd500_page_bits_read_bit can print the range). */
+static uint32_t g_marked_lo[2] = { 0xFFFFFFFFu, 0xFFFFFFFFu };
+static uint32_t g_marked_hi[2] = { 0, 0 };
+
 /* ND500X_PGUDBG prints the summary at process exit. It is armed here rather
  * than only at nd500_machine_free() because the --ndix and --debug paths leave
  * through the debugger REPL, which never frees the machine - hooking teardown
@@ -131,8 +136,14 @@ void nd500_page_bits_mark(Nd500Machine* m, uint32_t phys_addr, int is_write) {
     if (page >= pb->page_count) return;
 
     pb->word[ND500_PAGE_TABLE_PGU][page >> 5] |= 1u << (page & 31u);
+    if (g_marked_lo[ND500_PAGE_TABLE_PGU] == 0xFFFFFFFFu ||
+        page < g_marked_lo[ND500_PAGE_TABLE_PGU]) g_marked_lo[ND500_PAGE_TABLE_PGU] = page;
+    if (page > g_marked_hi[ND500_PAGE_TABLE_PGU]) g_marked_hi[ND500_PAGE_TABLE_PGU] = page;
     if (is_write) {
         pb->word[ND500_PAGE_TABLE_WIP][page >> 5] |= 1u << (page & 31u);
+        if (g_marked_lo[ND500_PAGE_TABLE_WIP] == 0xFFFFFFFFu ||
+            page < g_marked_lo[ND500_PAGE_TABLE_WIP]) g_marked_lo[ND500_PAGE_TABLE_WIP] = page;
+        if (page > g_marked_hi[ND500_PAGE_TABLE_WIP]) g_marked_hi[ND500_PAGE_TABLE_WIP] = page;
     }
 }
 
@@ -140,11 +151,33 @@ uint32_t nd500_page_bits_read_bit(Nd500Machine* m, Nd500PageTable table, uint32_
     PageBits* pb = pb_get(m);
     if (!pb) return 0;
 
+    uint32_t raw = page;
     page &= PAGE_NO_MASK;
     /* "Reading bits representing non-existing memory will give a zero result." */
-    if (page >= pb->page_count) return 0;
+    uint32_t out = (page >= pb->page_count)
+                 ? 0u
+                 : ((pb->word[table][page >> 5] >> (page & 31u)) & 1u);
 
-    return (pb->word[table][page >> 5] >> (page & 31u)) & 1u;
+    /* The guest asking about page numbers the emulator never marks is
+     * indistinguishable, from the outside, from the guest asking about pages
+     * that genuinely were not used - both answer 0. Logging the queried number
+     * is the only way to tell those apart, and the answer decides whether the
+     * tables are wired to the right page-number space at all. */
+    {
+        static int dbg = -1;
+        static unsigned long shown = 0;
+        if (dbg < 0) {
+            const char* e = getenv("ND500X_PGUDBG");
+            dbg = (e && e[0] && e[0] != '0') ? 1 : 0;
+        }
+        if (dbg && shown < 24u) {
+            shown++;
+            fprintf(stderr, "[PGUQ] %s page=%u (raw 0x%X) -> %u  [marked range %u..%u]\n",
+                    table == ND500_PAGE_TABLE_PGU ? "RPGU" : "RWIP",
+                    page, raw, out, g_marked_lo[table], g_marked_hi[table]);
+        }
+    }
+    return out;
 }
 
 uint32_t nd500_page_bits_read_group(Nd500Machine* m, Nd500PageTable table, uint32_t group) {
