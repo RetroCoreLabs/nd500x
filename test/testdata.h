@@ -3,7 +3,7 @@
  * machine-specific path in the repository.
  *
  * The diag_* harnesses used to carry absolute literals like
- * "/mnt/d/ND/500/FraTor/nc/nc-a06.dom". A repo that hardcodes a drive letter
+ * a drive-letter path to FraTor/nc/nc-a06.dom. A repo that hardcodes a drive letter
  * or a home directory only works on the machine it was written on, and these
  * files are checked in.
  *

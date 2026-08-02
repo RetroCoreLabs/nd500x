@@ -4,7 +4,14 @@ set -e
 
 OBJFILES=("$@")
 if [ ${#OBJFILES[@]} -eq 0 ]; then
-    OBJFILES=(/mnt/f/add.o /mnt/f/multiply.o)
+    # No default object list: the old one named a drive letter on one machine.
+    # Pass the .o files to compare, or point ND500_OBJDIR at a directory of them.
+    if [ -n "${ND500_OBJDIR:-}" ]; then
+        OBJFILES=("$ND500_OBJDIR"/*.o)
+    else
+        echo "usage: $0 <file.o> [file.o ...]   (or set ND500_OBJDIR)" >&2
+        exit 2
+    fi
 fi
 
 TMPDIR=$(mktemp -d)

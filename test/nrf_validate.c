@@ -30,8 +30,8 @@
  * Exit codes: 0 = valid & complete; 1 = malformed/incomplete; 2 = usage/IO error.
  *
  * REFERENCE OBJECTS to study (genuine NRFs; all begin with a BEG control byte 0x0A):
- *   /mnt/d/ND/500/FraTor/test-real/test-real.nrf
- *   /mnt/d/ND/500/ND-500 Symbolic Debugger/debugger-b.nrf
+ *   $ND500_TESTDATA/FraTor/test-real/test-real.nrf
+ *   $ND500_TESTDATA/ND-500 Symbolic Debugger/debugger-b.nrf
  * NOTE: test/nc_fixtures/expected/*.NRF are NOT objects -
  *       they contain C SOURCE text and must not be used as golden references.
  *
@@ -342,8 +342,8 @@ int main(int argc, char** argv) {
      * did not run off the end, and had no BEG nesting. (Manual Pages 234-242.)
      *
      * NOTE: EOF(26) is NOT required. Verified against genuine objects - both
-     * /mnt/d/ND/500/FraTor/test-real/test-real.nrf (1 module) and
-     * /mnt/d/ND/500/ND-500 Symbolic Debugger/debugger-b.nrf (23-module library)
+     * $ND500_TESTDATA/FraTor/test-real/test-real.nrf (1 module) and
+     * $ND500_TESTDATA/ND-500 Symbolic Debugger/debugger-b.nrf (23-module library)
      * simply END and stop; neither emits an EOF group. EOF presence is reported
      * as informational only, not a validity requirement. */
     int valid = (w.begin_count > 0) && (w.end_count == w.begin_count) &&
