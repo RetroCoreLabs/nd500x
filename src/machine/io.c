@@ -173,6 +173,16 @@ static inline int in_range(Nd500Machine* m, uint32_t addr, uint32_t size) {
 	return m && m->memory && (addr + size) <= m->memory_size;
 }
 
+/* wp_should_break_on_{read,write} walk mgr->watchpoints[] and return false
+ * immediately when wp_count is 0 - which is every access of a normal run, since
+ * watchpoints only exist while someone is debugging. Testing wp_count here is
+ * exactly equivalent (an empty loop cannot match) but keeps it a load and a
+ * branch instead of a cross-translation-unit call on every single byte of
+ * memory traffic. */
+static inline int wp_any(Nd500Machine* m) {
+	return m->bp_mgr && m->bp_mgr->wp_count > 0;
+}
+
 uint8_t nd500_bus_read8(Nd500Machine* m, uint32_t addr) {
 	/*
 	 * NOTE: MMU translation for CPU-initiated accesses should happen BEFORE
@@ -186,7 +196,7 @@ uint8_t nd500_bus_read8(Nd500Machine* m, uint32_t addr) {
 	if (!in_range(m, addr, 1)) return 0;
 
 	/* Check watchpoints on read */
-	if (m->bp_mgr && wp_should_break_on_read(m->bp_mgr, addr)) {
+	if (wp_any(m) && wp_should_break_on_read(m->bp_mgr, addr)) {
 		m->run_flag = 0;
 		m->stop_reason = STOP_WATCHPOINT_READ;
 		m->stop_addr = addr;
@@ -291,7 +301,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	}
 
 	/* Check watchpoints on write */
-	if (m->bp_mgr && wp_should_break_on_write(m->bp_mgr, addr, val)) {
+	if (wp_any(m) && wp_should_break_on_write(m->bp_mgr, addr, val)) {
 		m->run_flag = 0;
 		m->stop_reason = STOP_WATCHPOINT_WRITE;
 		m->stop_addr = addr;
