@@ -79,6 +79,22 @@ void nd500_instr_Add3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read operand b value (like C# line 64) */
     bValue = nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
 
+    /* An operand read that page-faulted leaves aValue/bValue undefined, and
+     * the instruction must commit NOTHING: no result write, no flags, and
+     * above all no second trap. Without this guard ADD3 ran on to write a
+     * garbage result and then raise "Integer overflow" on top of the pending
+     * page fault, and NDIX panicked "pagein valid page" (sys/vm_page.c:118)
+     * the moment cc was run in the guest - pagein() was entered for a page
+     * whose pte already had a frame, because the spurious second trap arrived
+     * against a fault the kernel had already serviced.
+     *
+     * Same defect class as the ENT* abort guards (see the CALL/ENT* interlock
+     * work): a faulting mid-instruction access must abort the instruction, not
+     * merely record a trap and carry on. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
     /* Perform addition: a + b (like C# lines 66-103) */
     switch (fi->data_type) {
         case ND500_DTYPE_BYTE: {
