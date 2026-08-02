@@ -44,6 +44,13 @@ void nd500_instr_Exp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read argument operand */
     if (is_double) {
         uint64_t arg_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         argument = nd500_double_to_ieee754(arg_bits);
     } else {
         uint32_t arg_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);

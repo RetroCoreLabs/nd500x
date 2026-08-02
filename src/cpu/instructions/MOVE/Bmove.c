@@ -39,6 +39,13 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read count (operand 2, always Word) */
     uint32_t count = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Get element size from data type */
     uint32_t element_size;
@@ -64,6 +71,13 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fill_mode) {
         /* Fill mode: source is the value to fill with */
         fill_value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+    return;
+    }
     } else {
         /* Copy mode: source is memory address */
         src_base = fi->operands[0].effective_address;

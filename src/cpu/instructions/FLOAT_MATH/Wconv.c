@@ -79,6 +79,13 @@ void nd500_instr_Wconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else if (fi->opcode == 0xFD60) {
         /* D WCONV: Double to word (truncate toward zero) */
         uint64_t double_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         int64_t int64_result = nd500_double_to_int64(double_bits);
         /* Clamp to int32 range */
         if (int64_result > INT32_MAX) {

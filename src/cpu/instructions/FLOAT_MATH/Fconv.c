@@ -82,6 +82,13 @@ void nd500_instr_Fconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else if (fi->opcode == 0xFD61) {
         /* D FCONV: Double to float */
         uint64_t double_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         float_result = nd500_double_to_single(double_bits);
     } else {
         printf("[ERROR] FCONV at PC=0x%08X: Unknown opcode 0x%04X\n",

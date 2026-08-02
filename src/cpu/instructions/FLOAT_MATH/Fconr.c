@@ -33,6 +33,13 @@ void nd500_instr_Fconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (is_double_source) {
         /* D FCONR: Double to float */
         uint64_t double_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         double ieee_val = nd500_double_to_ieee754(double_bits);
         float_result = nd500_float_from_ieee754((float)ieee_val);
     } else {

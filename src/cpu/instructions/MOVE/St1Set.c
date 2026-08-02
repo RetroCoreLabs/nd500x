@@ -54,6 +54,13 @@ void nd500_instr_St1Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // has ST,SAVA - st1:= deliberately does not), so the macro-visible Z/C/S/O are untouched.
     // The old code recomputed Z/S from value-as-a-number, which was wrong twice over.
     uint32_t value = nd500_read_operand_word(cpu, &fi->operands[0]);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     const uint32_t COND_FLAGS = ND500_FLAG_Z | ND500_FLAG_C | ND500_FLAG_S | ND500_FLAG_O;
     uint32_t old_flags = cpu->ST1 & COND_FLAGS;                     // preserve the live condition flags
     cpu->ST1 = ((value & 0x3FEFFFE0u) & ~COND_FLAGS) | old_flags;   // load masked word, keep Z/C/S/O

@@ -54,19 +54,26 @@ void nd500_instr_Schpar(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         fi->operands[0].mode == ND500_ADDR_CONSTANT_SHORT) {
         /* For constant addressing, the descriptor address IS the constant value */
         string_desc_addr = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
-        /* A faulting operand read must abort the instruction: commit nothing,
-         * and raise no second trap on top of the fault the kernel is already
-         * about to service. See the ADD3 guard (commit a351296) for the panic
-         * this prevents. */
-        if (nd500_trap_occurred() || cpu->instr_aborted) {
-            return;
-        }
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+    return;
+    }
     } else {
         string_desc_addr = fi->operands[0].effective_address;
     }
 
     /* Second operand: mode value (0-3) */
     uint8_t mode = nd500_read_operand_byte(cpu, &fi->operands[1]);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Validate mode */
     if (mode > 3) {

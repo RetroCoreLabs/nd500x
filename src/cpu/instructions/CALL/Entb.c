@@ -169,6 +169,13 @@ void nd500_instr_Entb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ======================================================================== */
     /* Read log size (byte value - logarithm base 2 of block size in words) */
     uint32_t log_size = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     printf("[ENTB] Request: log_size=%u (2^%u = %u words = %u bytes) at PC=0x%08X\n",
            log_size, log_size, (1u << log_size), (1u << (log_size + 2)), fi->address);

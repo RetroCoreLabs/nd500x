@@ -64,6 +64,13 @@ void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t bottom_of_stack = nd500_read_operand_word(cpu, &fi->operands[0]);
     uint32_t stack_demand_main = nd500_read_operand_word(cpu, &fi->operands[1]);
     uint32_t total_stack_demand = nd500_read_operand_word(cpu, &fi->operands[2]);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
 
     /* Check for stack overflow in specification (like C#) */

@@ -256,6 +256,13 @@ void nd500_instr_Loop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         // For F/D LOOP, index is read as float from register/memory
         // but step and limit may be integer constants that need conversion
         double fp_index = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
 
         // Step and limit: if constant operand, convert integer to float
         double fp_step, fp_limit;
@@ -265,9 +272,23 @@ void nd500_instr_Loop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int64_t step_int = nd500_sign_extend_by_dtype(
                 nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD),
                 ND500_DTYPE_WORD);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+            }
             fp_step = (double)step_int;
         } else {
             fp_step = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
         }
 
         if (fi->operands[2].mode == ND500_ADDR_CONSTANT_SHORT ||
@@ -276,9 +297,23 @@ void nd500_instr_Loop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int64_t limit_int = nd500_sign_extend_by_dtype(
                 nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_WORD),
                 ND500_DTYPE_WORD);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+            }
             fp_limit = (double)limit_int;
         } else {
             fp_limit = nd500_read_operand_as_ieee_float(cpu, &fi->operands[2], is_double);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
         }
 
         // Any of the three operand reads above can page-fault when the operand

@@ -224,6 +224,13 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Operand 2: Total stack demand (maximum stack size, TOS limit) */
     uint32_t total_stack_demand = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     if (do_trace) {
         printf("[ENTM] bottom=0x%08X, demand_main=0x%08X, total=0x%08X at PC=0x%08X\n",

@@ -132,6 +132,13 @@ void nd500_instr_Entfn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read operands */
     uint32_t data_area_addr = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     uint32_t max_args = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], fi->data_type);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Save old B */
     uint32_t old_b = cpu->B;

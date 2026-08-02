@@ -79,6 +79,13 @@ void nd500_instr_Add(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             uint64_t reg_bits = nd500_read_double_register(cpu, reg_num);
             reg_value = nd500_double_to_ieee754(reg_bits);
             uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+            /* A faulting operand read must abort the instruction: commit nothing,
+             * and raise no second trap on top of the fault the kernel is already
+             * about to service. See the ADD3 guard (commit a351296) for the panic
+             * this prevents. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
             operand_value = nd500_double_to_ieee754(op_bits);
         } else {
             uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);

@@ -47,6 +47,13 @@ void nd500_instr_Atan2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (is_double) {
         uint64_t y_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
         uint64_t x_bits = nd500_read_operand_doubleword(cpu, &fi->operands[1]);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         y = nd500_double_to_ieee754(y_bits);
         x = nd500_double_to_ieee754(x_bits);
     } else {

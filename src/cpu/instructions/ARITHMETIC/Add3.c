@@ -61,6 +61,13 @@ void nd500_instr_Add3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* READ operand a and operand b as IEEE doubles */
         double aValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
         double bValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
 
         /* a + b -> <c>; shared tail sets Z,S / clears C,O / sets+traps FU,FO */
         double fresult = aValue + bValue;

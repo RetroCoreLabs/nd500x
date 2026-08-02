@@ -55,6 +55,13 @@ void nd500_instr_Shl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
     int8_t raw_shift = (int8_t)nd500_read_operand_byte(cpu, &fi->operands[1]); /* Signed byte */
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Calculate bit width from data type (like C# line 21) */
     uint32_t bits;

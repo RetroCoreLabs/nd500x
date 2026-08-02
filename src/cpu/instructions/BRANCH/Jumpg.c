@@ -155,6 +155,13 @@ void nd500_instr_Jumpg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     // Read absolute target address (always word-sized)
     uint64_t address_raw = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     uint32_t target_address = (uint32_t)(address_raw & 0xFFFFFFFF);
 
     /* The target lives in DATA memory, so this read can page-fault. raise_trap

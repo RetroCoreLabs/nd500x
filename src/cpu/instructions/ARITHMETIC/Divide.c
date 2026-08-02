@@ -224,6 +224,13 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * ------------------------------------------------------------- */
         uint64_t nb = nd500_read_double_register(cpu, reg_num);
         uint64_t db = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
 
         uint32_t en = (uint32_t)((nb >> 54) & 0x1FF);
         uint64_t mn = nb & (((uint64_t)1 << 54) - 1);

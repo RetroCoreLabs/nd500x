@@ -77,6 +77,13 @@ void nd500_instr_Entsn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read maximum argument count (operand 1) */
     uint32_t max_args = nd500_read_operand_word(cpu, &fi->operands[1]);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* Read old B.SP to get new B */
     uint32_t old_b = cpu->B;

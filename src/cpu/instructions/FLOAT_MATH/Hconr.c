@@ -36,6 +36,13 @@ void nd500_instr_Hconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (is_double) {
         /* D HCONR: Double to halfword (truncate toward zero) */
         uint64_t double_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         source_value = nd500_double_to_int64(double_bits);
         if (source_value < -32768 || source_value > 32767) {
             overflow = true;

@@ -56,6 +56,13 @@ void nd500_instr_Poly(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* 4. Read degree m (operand 1 - must be constant byte) */
     uint8_t m = nd500_read_operand_byte(cpu, &fi->operands[1]);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
 
     /* 5. Validate coefficient count (m+1 coefficients expected) */
     uint16_t expected_coeffs = (uint16_t)m + 1;

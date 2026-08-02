@@ -58,6 +58,13 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (fi->data_type == ND500_DTYPE_DOUBLEWORD) {
             a = nd500_double_to_ieee754(nd500_read_operand_doubleword(cpu, &fi->operands[0]));
             b = nd500_double_to_ieee754(nd500_read_operand_doubleword(cpu, &fi->operands[1]));
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+        }
         } else {
             a = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT));
             b = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_FLOAT));

@@ -38,6 +38,13 @@ void nd500_instr_A3Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     uint32_t value = nd500_read_operand_word(cpu, &fi->operands[0]);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     nd500_write_float_register(cpu, 3, value);
 
     if (value == 0) {
