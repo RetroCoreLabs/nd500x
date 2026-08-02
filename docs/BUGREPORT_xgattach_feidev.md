@@ -55,7 +55,7 @@ with a hung boot. That trade is strictly worse.
 
 Implement MON 600 generic 7 (XMSG). This is already tracked as the third item
 of the SIINTR/TAPE task, and the groundwork notes are in
-`docs/NDIX_SIINTR_TAPE_SPEC.md`.
+`$NDIX/notes/NDIX_SIINTR_TAPE_SPEC.md` (working notes, kept outside this repo).
 
 Relevant facts already established:
 - XMSG gates ALL networking: `$NDIX/kernel/MASTER/if/if_et.c`

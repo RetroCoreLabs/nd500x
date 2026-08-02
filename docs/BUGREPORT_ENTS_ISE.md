@@ -27,7 +27,7 @@ cd <nd500x repo root>
 Scripted equivalent (pty harness, drives login + commands):
 
 ```
-python3 tools/ptyboot.py \
+python3 tools/ndix/ptyboot.py \
         <logfile> "root" "/lib/as -o /tmp/h.o /usr/src/hello.s; echo AS=\$?"
 ```
 
