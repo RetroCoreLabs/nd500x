@@ -10,9 +10,10 @@
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
 #include <ndmon/mon.h>
+#include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
 int main(int argc,char**argv){
-    const char* dom=(argc>1)?argv[1]:"/mnt/d/ND/500/nd-linker/linker-b01.dom";
+    const char* dom=(argc>1)?argv[1]:nd500_testdata("nd-linker/linker-b01.dom");
     const char* cmd=(argc>2)?argv[2]:"LIST-STATUS;;EXIT;;";
     uint32_t watch=(argc>3)?(uint32_t)strtoul(argv[3],NULL,0):0xB0001D78u;
     if(ndlib_load_dom_header(dom)||ndlib_load_dom_segments()){fprintf(stderr,"load fail\n");return 2;}

@@ -15,13 +15,14 @@
 #include <ndmon/mon_log.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
 
 static int mon_seen=0;
 static void mon_cb(MonLogLevel l,const char* m){ (void)l; if(strstr(m,"CALL ")&&mon_seen<60){ printf("  %s\n",m); mon_seen++; } }
 
 int main(int argc,char**argv){
-    const char* dom=(argc>1)?argv[1]:"/mnt/d/ND/500/CAT5-CAT/cat-cat5-b06.dom";
+    const char* dom=(argc>1)?argv[1]:nd500_testdata("CAT5-CAT/cat-cat5-b06.dom");
     const char* cmd=(argc>2)?argv[2]:"";
     long maxsteps=(argc>3)?atol(argv[3]):3000000;
     if(ndlib_load_dom_header(dom)||ndlib_load_dom_segments()){fprintf(stderr,"load fail: %s\n",dom);return 2;}

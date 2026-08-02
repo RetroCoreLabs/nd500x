@@ -238,7 +238,17 @@ endif()
 # DOM integration smoke test: load and run a real 1990 SINTRAN-linked binary
 # (the NC compiler domain). Skipped when the external file is not present so
 # fresh checkouts and CI do not fail.
-set(NC_COMPILER_DOM "/mnt/d/ND/500/FraTor/nc/nc-a06.dom"
+# The data tree is large and lives outside this repo, so it is located through
+# ND500_TESTDATA (the same variable the diag_* harnesses use via testdata.h)
+# rather than a hardcoded drive letter that only resolves on one machine.
+# Unset simply leaves the path non-existent, and the EXISTS check below skips
+# the test exactly as it does for a missing file.
+if(DEFINED ENV{ND500_TESTDATA})
+    set(_nd500_testdata "$ENV{ND500_TESTDATA}")
+else()
+    set(_nd500_testdata "ND500_TESTDATA-NOTSET")
+endif()
+set(NC_COMPILER_DOM "${_nd500_testdata}/FraTor/nc/nc-a06.dom"
     CACHE FILEPATH "Path to NC compiler DOM binary for the integration smoke test")
 if(EXISTS ${NC_COMPILER_DOM})
     add_test(NAME dom_nc_compiler COMMAND test_dom_integration ${NC_COMPILER_DOM} 100000)

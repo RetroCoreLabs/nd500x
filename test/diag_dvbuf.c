@@ -30,6 +30,7 @@
 #include <ndmon/mon.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
 #define WINMAX 256
@@ -40,7 +41,7 @@ static uint32_t xlate(Nd500Cpu* c, uint32_t va) {
 }
 
 int main(int argc, char** argv) {
-    const char* dom = (argc > 1) ? argv[1] : "/mnt/d/ND/500/nd-linker/linker-b01.dom";
+    const char* dom = (argc > 1) ? argv[1] : nd500_testdata("nd-linker/linker-b01.dom");
     uint32_t WATCH   = (argc > 2) ? (uint32_t)strtoul(argv[2], 0, 0) : 0xB0049430u;
     uint32_t WINDOW  = (argc > 3) ? (uint32_t)strtoul(argv[3], 0, 0) : 64u;
     long maxsteps    = (argc > 4) ? atol(argv[4]) : 400000L;

@@ -29,6 +29,7 @@
 #include <ndmon/mon.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 
 #define MEMORY_SIZE   (16u * 1024u * 1024u)
 #define CMP_PC        0x0802BA89u    /* w comp2 r1.27,W2 (terminal-loop exit test) */
@@ -37,7 +38,7 @@
 #define MAX_HITS      8
 
 int main(int argc, char** argv) {
-    const char* dom = (argc > 1) ? argv[1] : "/mnt/d/ND/500/FraTor/nc/nc-a06.dom";
+    const char* dom = (argc > 1) ? argv[1] : nd500_testdata("FraTor/nc/nc-a06.dom");
     const char* cmd = "COMPILE A,A,A\r";
 
     if (ndlib_load_dom_header(dom) != 0) { fprintf(stderr, "header load failed\n"); return 2; }

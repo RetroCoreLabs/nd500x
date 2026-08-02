@@ -20,12 +20,13 @@
 #include "../src/ndlib/ndlib.h"
 #include <ndmon/mon.h>
 #include <ndmon/mon_log.h>
+#include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
 #define SCOPA_PC 0xB0041CF2u
 
 int main(int argc,char**argv){
-    const char* dom = (argc>1)?argv[1]:"/mnt/d/ND/500/nd-linker/linker-b01.dom";
+    const char* dom = (argc>1)?argv[1]:nd500_testdata("nd-linker/linker-b01.dom");
     const char* cmd = (argc>2)?argv[2]:"EXIT;;";
     if(ndlib_load_dom_header(dom)||ndlib_load_dom_segments()){fprintf(stderr,"load fail\n");return 2;}
     Nd500Machine m; Nd500Cpu c;

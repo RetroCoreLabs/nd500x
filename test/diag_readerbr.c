@@ -10,6 +10,7 @@
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
 #include "../src/disasm/nd500_disasm.h"
+#include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
 
 #define RLO 0x08005024u
@@ -17,7 +18,7 @@
 #define MAILBOX 0x08000200u
 
 int main(int argc,char**argv){
-    const char* dom="/mnt/d/ND/500/FraTor/nc/nc-a06.dom";
+    const char* dom=nd500_testdata("FraTor/nc/nc-a06.dom");
     const char* cmd=(argc>1)?argv[1]:"CHECK B,B,B\r";
     if(ndlib_load_dom_header(dom)||ndlib_load_dom_segments())return 2;
     Nd500Machine m; Nd500Cpu c; nd500_machine_init(&m,MEMSZ); nd500_cpu_init(&c,&m); nd500_cpu_reset(&c);

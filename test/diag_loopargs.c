@@ -31,6 +31,7 @@
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
 #include <ndmon/mon.h>
+#include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
 
@@ -52,7 +53,7 @@ static int rd32(Nd500Cpu* c, Nd500Machine* m, uint32_t va, uint32_t* out) {
 }
 
 int main(int argc, char** argv) {
-    const char* dom = (argc > 1) ? argv[1] : "/mnt/d/ND/500/nd-linker/linker-b01.dom";
+    const char* dom = (argc > 1) ? argv[1] : nd500_testdata("nd-linker/linker-b01.dom");
     uint32_t stop_pc = (argc > 2) ? (uint32_t)strtoul(argv[2], 0, 0) : 0xB0047150u;
     long maxsteps    = (argc > 3) ? atol(argv[3]) : 30000000L;
     int  maxhits     = (argc > 4) ? atoi(argv[4]) : 40;

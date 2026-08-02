@@ -21,11 +21,12 @@
 #include <ndmon/mon.h>
 #include <ndmon/mon_log.h>
 #include <ndmon/mon_file_table.h>
+#include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
 
 int main(int argc,char**argv){
-    const char* dom = (argc>1)?argv[1]:"/mnt/d/ND/500/nd-linker/linker-b01.dom";
+    const char* dom = (argc>1)?argv[1]:nd500_testdata("nd-linker/linker-b01.dom");
     const char* cmd = (argc>2)?argv[2]:"EXIT;;";
     long max_steps  = (argc>3)?strtol(argv[3],NULL,0):3000000L;
 

@@ -32,6 +32,7 @@
 #include <ndmon/mon.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 
 #define MEMORY_SIZE   (16u * 1024u * 1024u)
 
@@ -52,7 +53,7 @@ static void build_input(const char* spec, char* out, size_t outsz) {
 }
 
 int main(int argc, char** argv) {
-    const char* dom = (argc > 1) ? argv[1] : "/mnt/d/ND/500/FraTor/nc/nc-a06.dom";
+    const char* dom = (argc > 1) ? argv[1] : nd500_testdata("FraTor/nc/nc-a06.dom");
     const char* cmd = (argc > 2) ? argv[2] : "COMPILE A,A,A";
     long max_steps  = (argc > 3) ? strtol(argv[3], NULL, 0) : 6001L;
     const char* out = (argc > 4) ? argv[4] : NULL;

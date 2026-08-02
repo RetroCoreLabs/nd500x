@@ -12,12 +12,13 @@
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
 #include "../src/disasm/nd500_disasm.h"
+#include "testdata.h"
 
 #define MEMORY_SIZE (16u*1024u*1024u)
 #define TARGET 0x54312D42u
 
 int main(void){
-    const char* DOM="/mnt/d/ND/500/FraTor/nc/nc-a06.dom";
+    const char* DOM=nd500_testdata("FraTor/nc/nc-a06.dom");
     if (ndlib_load_dom_header(DOM)||ndlib_load_dom_segments()){fprintf(stderr,"load fail\n");return 2;}
     Nd500Machine m; Nd500Cpu c;
     nd500_machine_init(&m,MEMORY_SIZE);

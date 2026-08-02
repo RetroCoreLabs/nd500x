@@ -28,6 +28,7 @@
 #include "../src/ndlib/ndlib.h"
 #include <ndmon/mon.h>
 #include <ndmon/mon_file_table.h>
+#include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
 #define HSIZE 65536u          /* open-addressed PC histogram */
@@ -45,7 +46,7 @@ static void h_add(uint32_t pc) {
 }
 
 int main(int argc, char** argv) {
-    const char* dom = (argc > 1) ? argv[1] : "/mnt/d/ND/500/nd-linker/linker-b01.dom";
+    const char* dom = (argc > 1) ? argv[1] : nd500_testdata("nd-linker/linker-b01.dom");
     long skip   = (argc > 2) ? atol(argv[2]) : 1000000L;
     long window = (argc > 3) ? atol(argv[3]) : 2000000L;
 

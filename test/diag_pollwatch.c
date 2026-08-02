@@ -33,11 +33,12 @@
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
 #include <ndmon/mon.h>
+#include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
 
 int main(int argc, char** argv) {
-    const char* dom = (argc > 1) ? argv[1] : "/mnt/d/ND/500/nd-linker/linker-b01.dom";
+    const char* dom = (argc > 1) ? argv[1] : nd500_testdata("nd-linker/linker-b01.dom");
     long skip   = (argc > 2) ? atol(argv[2]) : 36020L;
     long window = (argc > 3) ? atol(argv[3]) : 937L;
 

@@ -32,11 +32,12 @@
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
 #include "../src/disasm/nd500_disasm.h"
+#include "testdata.h"
 
 #define MEMORY_SIZE   (16u * 1024u * 1024u)
 #define MAX_STEPS     2000000L
 
-static const char* DOM = "/mnt/d/ND/500/FraTor/nc/nc-a06.dom";
+static const char* DOM = nd500_testdata("FraTor/nc/nc-a06.dom");
 static const char* CMD = "COMPILE A,A,A\r";
 
 static void prime_input(void) {

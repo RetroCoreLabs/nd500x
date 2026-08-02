@@ -15,8 +15,9 @@
 #include <ndmon/mon.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
-static const char* DOM="/mnt/d/ND/500/FraTor/nc/nc-a06.dom";
+static const char* DOM=nd500_testdata("FraTor/nc/nc-a06.dom");
 
 static long filesize(const char* p){ FILE* f=fopen(p,"rb"); if(!f)return -1; fseek(f,0,SEEK_END); long n=ftell(f); fclose(f); return n; }
 

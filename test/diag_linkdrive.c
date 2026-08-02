@@ -29,6 +29,7 @@
 #include <ndmon/mon_log.h>
 #include <ndmon/mon_file_table.h>
 #include "../src/disasm/nd500_disasm.h"
+#include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
 #define MAX_LINES 64
@@ -53,7 +54,7 @@ static size_t dump_console_delta(size_t from, const char* tag) {
 }
 
 int main(int argc, char** argv) {
-    const char* dom = (argc>1)?argv[1]:"/mnt/d/ND/500/nd-linker/linker-b01.dom";
+    const char* dom = (argc>1)?argv[1]:nd500_testdata("nd-linker/linker-b01.dom");
     const char* script = (argc>2)?argv[2]:"EXIT;;";
     long maxsteps = getenv("ND500X_MAXSTEPS") ? strtol(getenv("ND500X_MAXSTEPS"),NULL,0) : 8000000L;
 

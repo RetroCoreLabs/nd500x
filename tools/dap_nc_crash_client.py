@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """Drive nd500x DAP: catch the NC codegen crash live, dump state."""
-import asyncio, sys, socket, time
-sys.path.insert(0, "/home/ronny/repos/libdap/mcp-dap-server")
+import asyncio, os, sys, socket, time
+
+# mcp-dap-server lives outside this repo, so its location comes from the
+# environment rather than a hardcoded path that only works on one machine:
+#   export MCP_DAP_SERVER=/path/to/libdap/mcp-dap-server
+_dap = os.environ.get("MCP_DAP_SERVER")
+if not _dap:
+    sys.exit("error: set MCP_DAP_SERVER to your mcp-dap-server checkout "
+             "(the directory containing mcp_dap_server/)")
+sys.path.insert(0, _dap)
 from mcp_dap_server.dap_connection import DAPConnection
 
 PORT = 4655

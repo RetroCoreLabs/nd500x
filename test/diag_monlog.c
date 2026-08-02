@@ -11,8 +11,9 @@
 #include <ndmon/mon_log.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
-static const char* DOM="/mnt/d/ND/500/FraTor/nc/nc-a06.dom";
+static const char* DOM=nd500_testdata("FraTor/nc/nc-a06.dom");
 int main(int argc,char**argv){
     const char* cmd=(argc>1)?argv[1]:"CHECK B,B,B\r";
     if(ndlib_load_dom_header(DOM)||ndlib_load_dom_segments()){fprintf(stderr,"load fail\n");return 2;}

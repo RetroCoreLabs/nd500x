@@ -26,6 +26,7 @@
 #include <ndmon/mon_log.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
 
 /* Print whatever the guest has written since the last call.
@@ -67,7 +68,7 @@ static void show_console(const char* tag) {
 }
 
 int main(int argc, char** argv) {
-    const char* dom = (argc > 1) ? argv[1] : "/mnt/d/ND/500/nd-linker/linker-b01.dom";
+    const char* dom = (argc > 1) ? argv[1] : nd500_testdata("nd-linker/linker-b01.dom");
     const char* cmds = (argc > 2) ? argv[2] : "LIST-STATUS";
     long maxsteps = (argc > 3) ? atol(argv[3]) : 2000000;
 

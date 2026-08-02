@@ -17,6 +17,7 @@
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
 #include <ndmon/mon.h>
+#include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
 
@@ -25,7 +26,7 @@ extern int nd500_mon_connect_file_as_segment(void* cpu, void* machine, uint8_t d
     const char* host_path, uint32_t file_size_bytes, uint32_t* out_assigned_segment);
 
 int main(int argc, char** argv) {
-    const char* path = (argc > 1) ? argv[1] : "/mnt/d/ND/500/FraTor/test-real/test-real.nrf";
+    const char* path = (argc > 1) ? argv[1] : nd500_testdata("FraTor/test-real/test-real.nrf");
 
     Nd500Machine m; Nd500Cpu c;
     nd500_machine_init(&m, MEMSZ);

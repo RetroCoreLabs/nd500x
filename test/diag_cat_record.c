@@ -23,6 +23,7 @@
 #include <ndmon/mon_log.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
 #define RECPTR 0x080232BCu
 
@@ -68,7 +69,7 @@ static void dump_at(Nd500Cpu* c, uint32_t addr, const char* label) {
 }
 
 int main(int argc, char** argv) {
-    const char* dom = (argc > 1) ? argv[1] : "/mnt/d/ND/500/CAT5-CAT/cat-cat5-b06.dom";
+    const char* dom = (argc > 1) ? argv[1] : nd500_testdata("CAT5-CAT/cat-cat5-b06.dom");
     const char* cmd = (argc > 2) ? argv[2] : "generate-code,SCRATCH-00001:CAT,B:NRF\r";
     long maxsteps = (argc > 3) ? atol(argv[3]) : 3000000;
 

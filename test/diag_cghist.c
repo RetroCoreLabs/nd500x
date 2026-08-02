@@ -26,9 +26,10 @@
 #include <ndmon/mon_log.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
-static const char* DOM="/mnt/d/ND/500/FraTor/nc/nc-a06.dom";
+static const char* DOM=nd500_testdata("FraTor/nc/nc-a06.dom");
 
 /* Codegen region per handoff: 0x0802B000 - 0x0802E000 */
 #define CG_LO 0x0802B000u

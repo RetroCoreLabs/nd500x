@@ -17,6 +17,7 @@
 #include <ndmon/mon.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_clock.h>
+#include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
 #define BASE 0x08000000u
 #define SPAN 0x00040000u
@@ -34,7 +35,7 @@ static void setup(Nd500Machine*m,Nd500Cpu*c,const char*cmd){
     m->run_flag=1; m->stop_reason=STOP_NONE;
 }
 int main(int argc,char**argv){
-    const char* dom="/mnt/d/ND/500/FraTor/nc/nc-a06.dom";
+    const char* dom=nd500_testdata("FraTor/nc/nc-a06.dom");
     const char* cmd=(argc>1)?argv[1]:"CHECK B,B,B\r";
     if(ndlib_load_dom_header(dom)||ndlib_load_dom_segments())return 2;
     /* ---- Pass 1: collect branch sites + their two next-PCs ---- */
