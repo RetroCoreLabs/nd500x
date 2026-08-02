@@ -51,8 +51,23 @@ void nd500_instr_Zwip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;  /* Trap raised, instruction aborted */
     }
 
-    /* Read operand: the physical page number whose WIP bit is to be cleared */
-    uint32_t page = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
+    /* The operand is a PAGE NUMBER and must be read as a word.
+     *
+     * The "BI" in "BIn RPGU" names the TABLE being addressed - a bit in the
+     * PGU/WIP table - not the width of the operand that selects it.
+     * ND-05.009.4 16.20 is explicit: "The operand specifies the physical memory
+     * page number (BIn RPGU) or physical page number/16 (Hn RPGU)", and 16.17
+     * adds "Only the lower 25 bits of the bit number are significant" - a
+     * 25-bit-significant number cannot travel in a bit.
+     *
+     * The decoder types the BI prefix as ND500_DTYPE_BIT (1 bit), which is
+     * correct for genuine bit-addressing instructions but wrong here: reading
+     * fi->data_type gave a 1-bit value, so under a real NDIX paging load every
+     * query arrived as page 0 while 1482 pages were marked in the range
+     * 17..3071, and the pageout clock hand took every page it inspected.
+     * NDIX passes the number as a plain 32-bit frame argument
+     * ("bi1 rpgu b.20", machine/locore.c:1218). */
+    uint32_t page = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
     if (nd500_trap_occurred() || cpu->instr_aborted) {
         return;  /* The operand read faulted - commit nothing */
     }
