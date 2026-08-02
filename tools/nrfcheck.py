@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify NRF module checksums.
 
-Full path: /home/ronny/repos/nd500x/tools/nrfcheck.py
+Full path: tools/nrfcheck.py
 
 Appendix D of the ND Linker manual, END group:
   "The numeric length (NL) specifies the size of the checksum in bytes.

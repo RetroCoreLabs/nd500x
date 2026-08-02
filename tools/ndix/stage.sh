@@ -10,7 +10,9 @@ REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 # stage.sh - build the host staging trees for the new NDIX disk image.
 #   $SP/stage/root -> partition a      $SP/stage/usr -> partition e
 set -e
-SP=/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad
+# Scratch/work area. Override with ND500X_WORK; defaults inside the repo.
+SP="${ND500X_WORK:-$REPO_ROOT/work}"
+mkdir -p "$SP"
 B=${PCC_ND500:?set PCC_ND500}/bin
 NB=${NDIX_B:?set NDIX_B}
 NC=$NDIX

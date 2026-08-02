@@ -11,7 +11,9 @@ REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 # externals from the extracted 1988 libc member index (symindex.txt).
 # Preference order when a symbol has multiple definers: syslib, gen, stdio,
 # compat-4.1, compat-sys5 (first match in that order).
-SP=/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad
+# Scratch/work area. Override with ND500X_WORK; defaults inside the repo.
+SP="${ND500X_WORK:-$REPO_ROOT/work}"
+mkdir -p "$SP"
 B=${PCC_ND500:?set PCC_ND500}/bin
 OUT=$1; shift
 OBJS="$*"

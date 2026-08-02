@@ -3,7 +3,7 @@
 // Add ListPST and ListPCB commands to CpuND500.Console.cs
 // ============================================================================
 //
-// Location: /mnt/e/Dev/Repos/Ronny/RetroCore/Emulated.HW/ND/CPU/ND500/CpuND500.Console.cs
+// Location: <RetroCore>/Emulated.HW/ND/CPU/ND500/CpuND500.Console.cs
 //
 // Instructions:
 // 1. Add command registrations in RegisterConsoleCommands() method

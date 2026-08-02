@@ -48,7 +48,8 @@ q
 EOF
 
 # Run test
-cd /home/ronny/repos/nd500x
+# Derive the repo root from this script's own location.
+cd "$(dirname "$0")/.."
 ./build/bin/nd500x --debug < /tmp/nd500x_test_bp.txt
 
 # Cleanup

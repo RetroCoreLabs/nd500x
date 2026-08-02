@@ -190,7 +190,7 @@ stands), and the PC=0 follow-on gap (section 3 finding 3) is still real.
 
 Trace files from the re-analysis (session scratchpad, may be gone later; the
 repro commands in section 6 regenerate them):
-`/tmp/claude-1000/-home-ronny-repos-nd500x/c79ab8e4-280a-4a44-a1dc-de912b970903/scratchpad/heapdbg_mode.log`
+`heapdbg_mode.log` (session scratch, not preserved)
 (HEAPDBG only, clean stderr ordering) and `.../heapdbg_mon.log` (HEAPDBG +
 MONLOG=1, UECOM markers; stdout/stderr interleaving NOT time-accurate).
 

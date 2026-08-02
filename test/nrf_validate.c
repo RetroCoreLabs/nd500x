@@ -1,7 +1,7 @@
 /*
  * nrf_validate.c - Validator / dumper for ND Relocatable Format (NRF) object files.
  *
- * FULL PATH: /home/ronny/repos/nd500x/test/nrf_validate.c
+ * FULL PATH: test/nrf_validate.c
  *
  * WHY THIS EXISTS
  * ---------------
@@ -11,19 +11,19 @@
  * This standalone tool walks the NRF control-group stream and reports whether
  * the object is well-formed and COMPLETE (see the IHB check below), which is the
  * validation gate for Phase 1 of
- *   /home/ronny/repos/nd500x/docs/MON_TO_BINARY_PLAN.md
+ *   docs/MON_TO_BINARY_PLAN.md
  * ("NC compiles C to a valid NRF object").
  *
  * The format tables below are transcribed byte-for-byte from the reference
  * manual so this file can later be lifted into nd500-dis / nd500-dump as the
  * canonical NRF decoder:
- *   /home/ronny/repos/nd500x/docs/ND-860289-2-EN ND Linker User Guide and
+ *   docs/ND-860289-2-EN ND Linker User Guide and
  *   Reference Manual.md  -> APPENDIX D "The ND Relocatable Format",
  *   pages 233-243 (markdown lines ~8102-8489). Page citations are on each item.
  *
  * BUILD (standalone, no project deps):
- *   gcc -std=c11 -Wall -Wextra -o /home/ronny/repos/nd500x/build/bin/nrf_validate \
- *       /home/ronny/repos/nd500x/test/nrf_validate.c
+ *   gcc -std=c11 -Wall -Wextra -o build/bin/nrf_validate \
+ *       test/nrf_validate.c
  * USE:
  *   nrf_validate <file.nrf>          # validate, exit 0 = valid+complete
  *   nrf_validate -d <file.nrf>       # also dump every control group
@@ -32,7 +32,7 @@
  * REFERENCE OBJECTS to study (genuine NRFs; all begin with a BEG control byte 0x0A):
  *   /mnt/d/ND/500/FraTor/test-real/test-real.nrf
  *   /mnt/d/ND/500/ND-500 Symbolic Debugger/debugger-b.nrf
- * NOTE: /home/ronny/repos/nd500x/test/nc_fixtures/expected/*.NRF are NOT objects -
+ * NOTE: test/nc_fixtures/expected/*.NRF are NOT objects -
  *       they contain C SOURCE text and must not be used as golden references.
  *
  * ASSUME-NOTHING CAVEATS (not fully pinned by the manual, flagged for future work):

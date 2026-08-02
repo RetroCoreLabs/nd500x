@@ -296,7 +296,7 @@ cd /tmp; /lib/as -o h.o /usr/src/hello.s; echo AS=$?
 Expected: `AS=0`, `LD=0`, then `HELLO-FROM-NATIVE-ND500-TOOLCHAIN` / `2+2 = 4`.
 
 Scripted driver (handles login):
-`/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad/ptyboot.py`
+`tools/ptyboot.py`
 
 ## Suggested order of work
 

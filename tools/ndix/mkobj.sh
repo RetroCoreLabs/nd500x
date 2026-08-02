@@ -8,7 +8,9 @@ REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 : "${NDIX:?set NDIX to your NDIX-C checkout}"
 
 # mkobj.sh <out.o> <src.c>  - compile ONE file with $CPPFLAGS to a named object.
-SP=/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad
+# Scratch/work area. Override with ND500X_WORK; defaults inside the repo.
+SP="${ND500X_WORK:-$REPO_ROOT/work}"
+mkdir -p "$SP"
 B=${PCC_ND500:?set PCC_ND500}/bin
 O=$1; SRC=$2
 W=$(dirname "$O"); mkdir -p "$W"

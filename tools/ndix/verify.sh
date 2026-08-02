@@ -7,7 +7,9 @@
 REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 : "${NDIX:?set NDIX to your NDIX-C checkout}"
 
-S=/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad
+# Scratch/work area. Override with ND500X_WORK; defaults inside the repo.
+S="${ND500X_WORK:-$REPO_ROOT/work}"
+mkdir -p "$S"
 cd "$REPO_ROOT"
 hits=0
 for i in 1 2 3; do

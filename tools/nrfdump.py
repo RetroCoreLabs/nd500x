@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Sequential NRF (ND Relocatable Format) dumper.
 
-Full path: /home/ronny/repos/nd500x/tools/nrfdump.py
+Full path: tools/nrfdump.py
 
 Decodes an NRF file strictly per Appendix D of
-/home/ronny/repos/nd500x/docs/ND-860289-2-EN ND Linker User Guide and Reference Manual.md
+docs/ND-860289-2-EN ND Linker User Guide and Reference Manual.md
 
 Control field = one byte: high 5 bits = control number, low 3 bits = numeric
 length NL (0..7).  Numeric field = NL bytes, 2's complement.  Symbolic field,

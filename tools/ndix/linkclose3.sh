@@ -14,7 +14,9 @@ REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 # so every object carries them as commons; ld -d allocates them at the end,
 # but mid-closure they list as undefined and _tmpnam matched a libc member,
 # producing a multiply-defined clash.
-SP=/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad
+# Scratch/work area. Override with ND500X_WORK; defaults inside the repo.
+SP="${ND500X_WORK:-$REPO_ROOT/work}"
+mkdir -p "$SP"
 B=${PCC_ND500:?set PCC_ND500}/bin
 OUT=$1; shift
 PROGOBJS="$*"

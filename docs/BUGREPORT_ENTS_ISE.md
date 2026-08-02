@@ -27,15 +27,15 @@ cd <nd500x repo root>
 Scripted equivalent (pty harness, drives login + commands):
 
 ```
-python3 /tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad/ptyboot.py \
+python3 tools/ptyboot.py \
         <logfile> "root" "/lib/as -o /tmp/h.o /usr/src/hello.s; echo AS=\$?"
 ```
 
 Set `ND500X_THADBG=1` to see the trap dispatches that precede it.
 
 Captured logs:
-- `/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad/as_ents.log` (with THADBG)
-- `/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad/as_fix.log`
+- `as_ents.log` (session scratch, not preserved) (with THADBG)
+- `as_fix.log` (session scratch, not preserved)
 
 Disk image: `$NDIX/rootfs_full.img`
 Kernel: `$NDIX/kernel/MASTER/GENERIC/vmunix`

@@ -15,7 +15,8 @@ filesystem.  An executable is installed only if its a.out magic is 0x010b
 """
 import json, os, shutil, struct, subprocess, sys
 
-SP = "/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad"
+SP = os.environ.get("ND500X_WORK",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "work"))
 NB = os.environ["NDIX_B"]
 NC = os.environ["NDIX"]
 R = SP + "/stage/root"

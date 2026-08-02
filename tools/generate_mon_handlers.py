@@ -10,7 +10,7 @@ Usage:
     python3 generate_mon_handlers.py [yaml_dir] [output_dir]
 
 Default:
-    yaml_dir = /mnt/e/Dev/Ronny/NDInsight/Developer/MON/calls
+    yaml_dir = $NDINSIGHT_MON_CALLS
     output_dir = src/libmon/handlers
 """
 
@@ -250,7 +250,7 @@ void mon_register_all_handlers(void) {
 
 def main():
     # Default paths
-    yaml_dir = '/mnt/e/Dev/Ronny/NDInsight/Developer/MON/calls'
+    yaml_dir = os.environ.get('NDINSIGHT_MON_CALLS', '<NDInsight>/Developer/MON/calls')
     output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                               'src', 'libmon', 'handlers')
 

@@ -40,7 +40,7 @@ Dispatch trap: `/home/ronny/repos/nd500x/external/ndmonlib/src/core/mon_dispatch
    virtual base `0x08000000` (kernel-mode DOM: PROG VA base 0x08000000).
 2. Extract raw PROG bytes:
    `dd if=<dom> of=prog.bin bs=1 skip=$((0x1000)) count=185492`
-   -> `/tmp/claude-1000/-home-ronny/f76efa13-08bc-459d-93ae-d4c66176fb10/scratchpad/work/prog.bin`
+   -> `work/prog.bin` (session scratch, not preserved)
    (prog.bin offset N == virtual address 0x08000000 + N).
 3. A SINTRAN MON call on ND-500 is a CALL into the "SINTRAN window" at absolute
    address `0xF8000000 + N`, where N is the MON number. Two encodings occur in
@@ -152,7 +152,7 @@ the DAP/CLI debugger and read the effective target register.
 
 ### Sandbox (never touches /home/ronny/ND500USERS)
 
-Root: `/tmp/claude-1000/-home-ronny/f76efa13-08bc-459d-93ae-d4c66176fb10/scratchpad/sandbox`
+Root: `sandbox` (session scratch, not preserved)
 - `SYSTEM/` = copy of `/home/ronny/ND500USERS/SYSTEM` (holds `CONVERT-DOM-A03.DOM`,
   `.HELP`, `.INIT`, `LED-B03.PSEG/.DSEG`, VTM/ERR support).
 - `GUEST/` = the old LED domain to convert, copied from `/mnt/d/ND/500/LED/x/`:
@@ -189,7 +189,7 @@ Distinct MON exits observed:
 
 ### Decisive lines (run3, command-line form) - the abort
 
-From `/tmp/claude-1000/-home-ronny/f76efa13-08bc-459d-93ae-d4c66176fb10/scratchpad/sandbox/run3.monlog.txt`:
+From `sandbox/run3.monlog.txt` (session scratch, not preserved):
 
 ```
 [MON:INFO ] CALL 256B DEABF (3 args) at PC=0x08005F85
@@ -228,7 +228,7 @@ inputs under exactly the truncated names the emulator looks for
 (`GUEST/DESCRIPTION-FIL.DES`, `LED-B03.PSE/.DSE/.LIN`) and reran the same
 command-line invocation:
 
-`/tmp/claude-1000/-home-ronny/f76efa13-08bc-459d-93ae-d4c66176fb10/scratchpad/sandbox/run4.monlog.txt`:
+`sandbox/run4.monlog.txt` (session scratch, not preserved):
 ```
 [MON:DEBUG] MON 256B [DEABF/FullFileName]: OUT: FullName='DESCRIPTION-FIL:DES;1'
 [MON:INFO ] EXIT 256B DEABF -> SUCCESS
@@ -283,9 +283,9 @@ conversion cannot proceed regardless of how the inputs are named.
 
 - DOM: `/mnt/d/ND/500/CONVERT-DOMAIN/convert-dom-a03.dom`
 - Extracted PROG for static scan:
-  `/tmp/claude-1000/-home-ronny/f76efa13-08bc-459d-93ae-d4c66176fb10/scratchpad/work/prog.bin`
+  `work/prog.bin` (session scratch, not preserved)
 - Sandbox root:
-  `/tmp/claude-1000/-home-ronny/f76efa13-08bc-459d-93ae-d4c66176fb10/scratchpad/sandbox`
+  `sandbox` (session scratch, not preserved)
 - Run logs: `<sandbox>/run{1,2,3,4}.out.txt` and `<sandbox>/run{1,2,3,4}.monlog.txt`
 - Handlers: `/home/ronny/repos/nd500x/external/ndmonlib/src/handlers/`
 - Registry: `/home/ronny/repos/nd500x/external/ndmonlib/src/core/mon_registry.c`
@@ -368,7 +368,7 @@ ENTF implementation (grep `Using fixed data area` in
 the section-6 MON calls - none of them was reached.
 
 Repro sandbox for this update (session scratchpad, regenerate as needed):
-`/tmp/claude-1000/-home-ronny-repos-nd500x/c79ab8e4-280a-4a44-a1dc-de912b970903/scratchpad/cdsandbox/`
+`cdsandbox/` (session scratch, not preserved)
 (`run.out.txt`, `run.monlog.txt`; staged from `/mnt/d/ND/500/LED/x/` and
 `/home/ronny/ND500USERS/SYSTEM`).
 

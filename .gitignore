@@ -74,3 +74,8 @@ Testing/
 
 # machine-local run-ndix settings (absolute paths must not be committed)
 run-ndix.local
+
+# Scratch/work area used by tools/ndix scripts (ND500X_WORK default)
+work/
+build-opt/
+build-base/

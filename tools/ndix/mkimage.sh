@@ -17,7 +17,9 @@ REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 # The image is assembled on local disk and copied to the destination once -
 # writing it block by block onto the Windows mount takes many minutes.
 set -e
-SP=/tmp/claude-1000/-home-ronny-repos-ragge-pcc-nd500/430a9137-7e6f-464c-b827-658eaac82a1c/scratchpad
+# Scratch/work area. Override with ND500X_WORK; defaults inside the repo.
+SP="${ND500X_WORK:-$REPO_ROOT/work}"
+mkdir -p "$SP"
 B=${PCC_ND500:?set PCC_ND500}/bin
 RPROTO=$1; UPROTO=$2; OUT=$3
 W=$SP/imgbuild
