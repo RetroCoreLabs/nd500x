@@ -954,6 +954,7 @@ static void fe_conq_drain(Nd500Cpu* cpu) {
  * periodic clock tick (bumping the ND-100 tick count first) so hardclock() runs
  * and drives timekeeping + the scheduler. */
 unsigned long long g_tick_gated = 0, g_tick_seen = 0;
+unsigned long long g_tick_due_any = 0, g_tick_user = 0;
 static void tick_report(void) {
     const char* e = getenv("ND500X_TICKSTAT");
     if (!e || !e[0] || e[0]=='0') return;
@@ -968,6 +969,22 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
      * physical-memory writes, safe at any instruction boundary (the real
      * ND-100 wrote this ring concurrently with ND-500 execution). */
     if (g_conq_avail && g_termin_ring) fe_conq_drain(cpu);
+    /* Counted ABOVE the CED gate on purpose: the counter below it can only ever
+     * agree with the gate, so it cannot tell us whether ticks are DUE while a
+     * user process runs. This one can. */
+    {
+        extern unsigned long long g_tick_due_any, g_tick_user;
+        static int st2 = -1;
+        if (st2 < 0) { const char* e = getenv("ND500X_TICKSTAT"); st2 = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (st2 && cpu->instruction_count && (cpu->instruction_count % FE_CLOCK_PERIOD) == 0) {
+            g_tick_due_any++;
+            if (cpu->CED != 0) g_tick_user++;
+            if ((g_tick_due_any % 200ull) == 0)
+                fprintf(stderr, "[TICKALL] due_any=%llu in_user_domain=%llu (%.1f%%)\n",
+                        g_tick_due_any, g_tick_user,
+                        100.0*(double)g_tick_user/(double)g_tick_due_any);
+        }
+    }
     if (cpu->CED != 0) return;
     /* in_trap_handler alone must NOT block delivery: NDIX sleeps INSIDE trap
      * context (pagein -> biowait -> swtch to idle) and spins at 0x844 with the
