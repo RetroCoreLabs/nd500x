@@ -953,7 +953,16 @@ static void fe_conq_drain(Nd500Cpu* cpu) {
  * (spl0, idle/biowait), either a pending disk/dctl completion interrupt or a
  * periodic clock tick (bumping the ND-100 tick count first) so hardclock() runs
  * and drives timekeeping + the scheduler. */
+unsigned long long g_tick_gated = 0, g_tick_seen = 0;
+static void tick_report(void) {
+    const char* e = getenv("ND500X_TICKSTAT");
+    if (!e || !e[0] || e[0]=='0') return;
+    fprintf(stderr, "[TICKSTAT] clock ticks due=%llu suppressed_by_trap_gate=%llu (%.1f%%)\n",
+            g_tick_seen, g_tick_gated,
+            g_tick_seen ? 100.0*(double)g_tick_gated/(double)g_tick_seen : 0.0);
+}
 void nd500_fecall_tick(Nd500Cpu* cpu) {
+    { static int reg = 0; if (!reg) { reg = 1; atexit(tick_report); } }
     if (!cpu) return;
     /* Front-end "DMA" of queued console input into the mx_bin ring: pure
      * physical-memory writes, safe at any instruction boundary (the real
@@ -966,6 +975,24 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
      * after the sleeper is woken BY this very interrupt. The PC==0x844 idle-
      * spin gate below already guarantees the safe boundary; blocking on
      * in_trap_handler starved the exec text-read completion forever. */
+    /* ND500X_TICKSTAT=1: count how often the clock tick is SUPPRESSED by this
+     * gate versus delivered. The clock drives hardclock() and therefore
+     * preemption, so if a CPU-bound user process keeps the machine in trap
+     * context this gate can starve the scheduler - which is exactly what a
+     * spinning `yes` looks like from the console. Measure it, do not assume. */
+    {
+        extern unsigned long long g_tick_gated, g_tick_seen;
+        static int st = -1;
+        if (st < 0) { const char* e = getenv("ND500X_TICKSTAT"); st = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (st && cpu->instruction_count && (cpu->instruction_count % FE_CLOCK_PERIOD) == 0) {
+            g_tick_seen++;
+            if (cpu->in_trap_handler && cpu->PC != 0x00000844u) g_tick_gated++;
+            if ((g_tick_seen % 200ull) == 0)
+                fprintf(stderr, "[TICKSTAT] due=%llu suppressed=%llu (%.1f%%)\n",
+                        g_tick_seen, g_tick_gated,
+                        100.0*(double)g_tick_gated/(double)g_tick_seen);
+        }
+    }
     if (cpu->in_trap_handler && cpu->PC != 0x00000844u) return;
     /* Periodic clock can be disabled for isolation (ND500X_NOFECLOCK=1). */
     static int noclk = -1;
