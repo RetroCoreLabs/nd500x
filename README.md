@@ -600,9 +600,11 @@ The emulator supports loading ND-500 a.out format files with full symbol table p
        │
        ▼
 ┌──────────────────────────────────────────────┐
-│       Instruction Tables (Generated)          │
-│  (nd500_instructions_gen.h/.c)               │
-│  Built from instructions.json                │
+│            Instruction Tables                 │
+│  (nd500_instructions.h / nd500_instructions.c)│
+│  Pre-generated from instructions.json and     │
+│  COMMITTED as source - edit the .c directly,  │
+│  there is no build-time generation step.      │
 └──────────────────────────────────────────────┘
 ```
 

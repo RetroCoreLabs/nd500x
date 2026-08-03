@@ -40,6 +40,29 @@
  * KNOWN GAP, deliberately not faked: the domain operand is not honoured when
  * it differs from CED - see Rphs.c.
  *
+ *
+ * OPERAND ENCODING - CORRECTED 2026-08-03 (same fix applied to RetroCore).
+ * The instruction table marked RPHS/WPHS operand 0 as O_DIR (0x20000 in
+ * operandTemplates), i.e. "four inline literal bytes, no address code". That
+ * is WRONG. The operand is an ordinary operand.
+ *
+ * Proof from the SINTRAN swapper P-segment (SWAPPER-K01.PSEG, base 0o1000000000):
+ *
+ *   1000010525: 377 365 | 304 | 010 001 115 054   rphs <abs 0o1000246454>
+ *   1000010534: 300 057                           go   $57
+ *
+ * 0o304 is the address code "32-bit absolute address follows". Proven by a
+ * sibling instruction in the SAME routine that the disassembler already gets
+ * right:
+ *
+ *   1000010477: 104 304 010 002 075 154           w test $1000436554
+ *
+ * 0x08023D6C in octal is exactly 0o1000436554. So RPHS is 2+1+4 = 7 bytes.
+ * Read as a direct operand it is 6 bytes, so decoding resumed at 0o10533 -
+ * inside the operand - and produced the swapper's "1 10533B" protect
+ * violation. It also made the domain number 0xC408014D; with the address code
+ * honoured the domain number is READ FROM MEMORY, which is what the manual's
+ * "<domain number/r/W>" notation means.
  * Trap conditions: Addressing traps, Illegal instruction code (IIC)
  *
  * Reference: ND-500 Reference Manual, section 16.32
@@ -85,15 +108,17 @@ void nd500_instr_Wphs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Page boundary on the PHYSICAL segment - see Rphs.c for why `moved > 0`. */
         if (moved > 0 && (segment_offset & (NBPG - 1)) == 0) break;
 
+        /* BREAK, not return - ALIGNED WITH RetroCore 2026-08-03; see the note on
+         * the matching loop in Rphs.c for the reasoning and the assumption. */
         uint8_t value = nd500_read_memory_8(cpu, domain_address);
-        if (nd500_trap_occurred() || cpu->instr_aborted) return;
+        if (nd500_trap_occurred() || cpu->instr_aborted) break;
 
         uint32_t phys = nd500_mmu_translate_physical_segment(cpu, physical_segment,
                                                              segment_offset, 1);
-        if (nd500_trap_occurred() || cpu->instr_aborted) return;
+        if (nd500_trap_occurred() || cpu->instr_aborted) break;
 
         nd500_bus_write8(cpu->machine, phys, value);
-        if (nd500_trap_occurred() || cpu->instr_aborted) return;
+        if (nd500_trap_occurred() || cpu->instr_aborted) break;
 
         segment_offset++;
         domain_address++;

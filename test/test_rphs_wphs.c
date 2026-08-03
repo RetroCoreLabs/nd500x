@@ -34,6 +34,7 @@
 #include "../src/cpu/cpu_protos.h"
 #include "../src/cpu/instruction_helpers.h"
 #include "../src/cpu/nd500_mmu.h"
+#include "../src/cpu/nd500_instructions.h"   /* g_nd500_instrs - the table guard */
 #include "../src/machine/machine_protos.h"
 
 extern void nd500_instr_Rphs(Nd500Cpu*, const Nd500FetchedInstruction*);
@@ -234,6 +235,333 @@ static void test_zero_count(Nd500Machine* m, Nd500Cpu* cpu) {
     CHECK((cpu->ST1 & ND500_FLAG_Z) != 0, "Z set - an empty move is a completed move");
 }
 
+/* =========================================================================
+ * OPERAND ENCODING - the 2026-08-03 regression
+ *
+ * Until 2026-08-03 both ports marked operand 0 of RPHS/WPHS as O_DIR
+ * (0x20000 in op_templates), meaning "four inline literal bytes, no address
+ * code". Wrong: it is an ordinary operand. The cost was not a wrong result -
+ * it was a wrong LENGTH, so decoding resumed one byte early, INSIDE the
+ * operand, and every instruction after it was garbage. That is exactly the
+ * SINTRAN swapper's "1 10533B" protect violation.
+ *
+ * From the swapper P-segment (SWAPPER-K01.PSEG, base 0o1000000000):
+ *
+ *   1000010525: 377 365 | 304 | 010 001 115 054   rphs <abs 0o1000246454>
+ *   1000010534: 300 057                           go   $57
+ *
+ * 0o304 = 0xC4 = the address code "32-bit absolute address follows". Proven by
+ * a sibling in the SAME routine that the disassembler already gets right:
+ *
+ *   1000010477: 104 304 010 002 075 154   w test $1000436554
+ *
+ * and 0x08023D6C written in octal IS 0o1000436554.
+ *
+ * These tests exist because an operand-LENGTH bug is SILENT: the instruction
+ * itself still does the right thing, and the damage surfaces as a fault
+ * somewhere else entirely.
+ * ========================================================================= */
+
+#define ABS_CODE 0xC4u   /* 0o304 - absolute, 32-bit address follows */
+
+/* Lay down opcode + 0o304 + a 32-bit absolute address, and decode it. */
+static void build_abs(Nd500Machine* m, Nd500Cpu* cpu, uint16_t opcode,
+                      uint32_t operand_addr, Nd500FetchedInstruction* fi) {
+    nd500_bus_write8(m, CODE_AT + 0, (uint8_t)(opcode >> 8));
+    nd500_bus_write8(m, CODE_AT + 1, (uint8_t)(opcode & 0xFF));
+    nd500_bus_write8(m, CODE_AT + 2, (uint8_t)ABS_CODE);
+    nd500_bus_write8(m, CODE_AT + 3, (uint8_t)(operand_addr >> 24));
+    nd500_bus_write8(m, CODE_AT + 4, (uint8_t)(operand_addr >> 16));
+    nd500_bus_write8(m, CODE_AT + 5, (uint8_t)(operand_addr >> 8));
+    nd500_bus_write8(m, CODE_AT + 6, (uint8_t)(operand_addr));
+
+    /* The domain number lives IN MEMORY - that is the whole point of a
+     * non-direct operand. Read as a direct literal it would be 0xC4xxxxxx,
+     * which is not a domain number. */
+    nd500_bus_write32(m, operand_addr, 0);        /* domain 0 = CED */
+
+    memset(fi, 0, sizeof(*fi));
+    nd500_decode_at(m, CODE_AT, fi);
+    cpu->ST1 |= ND500_FLAG_PIA;
+    cpu->instr_aborted = 0;
+}
+
+/* ---- 6. absolute operand -> the instruction is SEVEN bytes --------------- */
+static void test_abs_operand_is_seven_bytes(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 6: RPHS with an absolute operand decodes as 7 bytes\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build_abs(m, cpu, 0xFFF5, 0x3000u, &fi);
+
+    printf("    total_len=%u (want 7)  operand_count=%u (want 1)\n",
+           fi.total_len, fi.operand_count);
+    CHECK(fi.total_len == 7,     "RPHS abs = 2 opcode + 1 address code + 4 address");
+    CHECK(fi.operand_count == 1, "still exactly one operand");
+
+    /* And it must still WORK - a length bug does not stop the move, which is
+     * precisely why it went unnoticed for so long. */
+    nd500_bus_write8(m, PHYS_SEG_BASE + 600, 0x5A);
+    nd500_bus_write8(m, DOM_SEG_BASE + 600, 0x00);
+    cpu->I[0] = 1; cpu->I[1] = DOM_VADDR(600); cpu->I[2] = 600; cpu->I[3] = PHYS_SEG_PSN;
+    nd500_instr_Rphs(cpu, &fi);
+    CHECK(nd500_bus_read8(m, DOM_SEG_BASE + 600) == 0x5A, "the move still happens");
+}
+
+/* ---- 7. WPHS carries the identical encoding ------------------------------ */
+static void test_wphs_abs_operand_is_seven_bytes(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 7: WPHS with an absolute operand decodes as 7 bytes\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build_abs(m, cpu, 0xFFF4, 0x3000u, &fi);
+
+    printf("    total_len=%u (want 7)\n", fi.total_len);
+    CHECK(fi.total_len == 7,
+          "WPHS abs = 7 bytes - testing only RPHS would leave half the defect live");
+}
+
+/* ---- 8. a short local operand is ONE byte -> 3 in total ------------------ */
+static void test_local_operand_is_three_bytes(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 8: RPHS with a local operand (b.24) decodes as 3 bytes\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build(m, cpu, 0xFFF5, &fi);   /* ARG_SLOT 0x45 = 0o105 = b.24 */
+
+    printf("    total_len=%u (want 3)\n", fi.total_len);
+    CHECK(fi.total_len == 3,
+          "proves the fix restored NORMAL operand decoding, not one fixed length for another");
+}
+
+/* ---- 9. decoding resumes on the next instruction, not inside the operand -- */
+static void test_next_instruction_boundary(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 9: the instruction AFTER an absolute RPHS starts at +7\n");
+    Nd500FetchedInstruction fi, next;
+    setup_mmu(cpu);
+    build_abs(m, cpu, 0xFFF5, 0x3000u, &fi);
+
+    /* A second RPHS at +7, same encoding. With the O_DIR bug decoding resumed
+     * at +6 and read two operand bytes as an opcode. */
+    nd500_bus_write8(m, CODE_AT +  7, 0xFF);
+    nd500_bus_write8(m, CODE_AT +  8, 0xF5);
+    nd500_bus_write8(m, CODE_AT +  9, (uint8_t)ABS_CODE);
+    nd500_bus_write8(m, CODE_AT + 10, 0x00);
+    nd500_bus_write8(m, CODE_AT + 11, 0x00);
+    nd500_bus_write8(m, CODE_AT + 12, 0x30);
+    nd500_bus_write8(m, CODE_AT + 13, 0x00);
+
+    memset(&next, 0, sizeof(next));
+    nd500_decode_at(m, CODE_AT + fi.total_len, &next);
+
+    printf("    next at +%u decodes opcode 0x%04X (want +7 / 0xFFF5)\n",
+           fi.total_len, next.opcode);
+    CHECK(fi.total_len == 7,     "resume offset is 7");
+    CHECK(next.opcode == 0xFFF5, "the follower really is the instruction placed there");
+}
+
+/* ---- 10. TABLE GUARD - the defect lived in the table, not the handler ----- */
+static void test_table_has_no_direct_operand(void) {
+    printf("\nTest 10: neither RPHS nor WPHS may flag an operand as O_DIR\n");
+    int checked = 0;
+    int clean = 1;
+    for (unsigned i = 0; i < g_nd500_instrs_count; i++) {
+        if (g_nd500_instrs[i].opcode != 0xFFF5 && g_nd500_instrs[i].opcode != 0xFFF4) continue;
+        checked++;
+        if (g_nd500_instrs[i].op_templates[0] & 0x20000u) {
+            printf("    %s (0x%04X) still has O_DIR: op_templates[0]=0x%08X\n",
+                   g_nd500_instrs[i].mnemonic, g_nd500_instrs[i].opcode,
+                   g_nd500_instrs[i].op_templates[0]);
+            clean = 0;
+        }
+    }
+    CHECK(checked == 2, "both RPHS and WPHS are present in the table");
+    /* The cheapest possible regression detector: it fires the moment the tables
+     * are regenerated from a stale instructions.json. FOUR copies of that file
+     * had to be corrected across the two repositories, and a single missed copy
+     * brings the swapper trap straight back. */
+    CHECK(clean, "O_DIR (0x20000) is clear - the operand is an ordinary operand");
+}
+
+/* =========================================================================
+ * EDGE CASES around the page-boundary stop
+ * ========================================================================= */
+
+/* ---- 11. ending EXACTLY on a boundary is COMPLETE, not partial ----------- */
+static void test_ends_exactly_on_boundary(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 11: a move ending exactly ON a boundary counts as complete\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build(m, cpu, 0xFFF5, &fi);
+
+    for (int i = 0; i < 8; i++)
+        nd500_bus_write8(m, PHYS_SEG_BASE + 2040 + i, (uint8_t)(0xC0 + i));
+    for (int i = 0; i < 8; i++)
+        nd500_bus_write8(m, DOM_SEG_BASE + 700 + i, 0);
+
+    cpu->I[0] = 8; cpu->I[1] = DOM_VADDR(700); cpu->I[2] = 2040; cpu->I[3] = PHYS_SEG_PSN;
+    cpu->ST1 &= ~ND500_FLAG_Z;
+
+    nd500_instr_Rphs(cpu, &fi);
+
+    int all = 1;
+    for (int i = 0; i < 8; i++)
+        if (nd500_bus_read8(m, DOM_SEG_BASE + 700 + i) != (uint8_t)(0xC0 + i)) all = 0;
+
+    printf("    I1=%u (want 0)  I3=%u (want 2048)  Z=%d (want 1)\n",
+           cpu->I[0], cpu->I[2], (cpu->ST1 & ND500_FLAG_Z) ? 1 : 0);
+    CHECK(all,            "every byte moved - the boundary is the END here, not a stop");
+    CHECK(cpu->I[0] == 0, "no bytes left");
+    /* This separates "stop when I1 = 0" from "stop at a boundary". Report a
+     * partial move here and the caller loops forever on a finished transfer. */
+    CHECK((cpu->ST1 & ND500_FLAG_Z) != 0,
+          "Z set - 'no bytes left' WINS over 'a boundary was reached'");
+}
+
+/* ---- 12. starting ON a boundary must still transfer ---------------------- */
+static void test_starts_on_boundary(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 12: an I3 already on a boundary still makes progress\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build(m, cpu, 0xFFF5, &fi);
+
+    /* PS_AZI is a single page, so offset 0 is the boundary to use here. */
+    nd500_bus_write8(m, PHYS_SEG_BASE + 0, 0x40);
+    nd500_bus_write8(m, DOM_SEG_BASE + 800, 0x00);
+
+    cpu->I[0] = 1; cpu->I[1] = DOM_VADDR(800); cpu->I[2] = 0; cpu->I[3] = PHYS_SEG_PSN;
+
+    nd500_instr_Rphs(cpu, &fi);
+
+    printf("    I1=%u (want 0)  copied 0x%02X (want 0x40)\n",
+           cpu->I[0], nd500_bus_read8(m, DOM_SEG_BASE + 800));
+    /* Otherwise a caller resuming a partial move - whose I3 the previous pass
+     * left sitting exactly on a boundary - would never make progress. */
+    CHECK(cpu->I[0] == 0, "a boundary-aligned start does not stop the move dead");
+    CHECK(nd500_bus_read8(m, DOM_SEG_BASE + 800) == 0x40, "the byte moved");
+}
+
+/* ---- 13. a single byte - guards the loop-condition off-by-one ------------ */
+static void test_single_byte(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 13: RPHS with a count of 1 moves exactly one byte\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build(m, cpu, 0xFFF5, &fi);
+
+    nd500_bus_write8(m, PHYS_SEG_BASE + 900, 0x3C);
+    nd500_bus_write8(m, PHYS_SEG_BASE + 901, 0xFF);   /* must NOT be copied */
+    nd500_bus_write8(m, DOM_SEG_BASE + 900, 0x00);
+    nd500_bus_write8(m, DOM_SEG_BASE + 901, 0x00);
+
+    cpu->I[0] = 1; cpu->I[1] = DOM_VADDR(900); cpu->I[2] = 900; cpu->I[3] = PHYS_SEG_PSN;
+
+    nd500_instr_Rphs(cpu, &fi);
+
+    CHECK(nd500_bus_read8(m, DOM_SEG_BASE + 900) == 0x3C, "the one byte moved");
+    CHECK(nd500_bus_read8(m, DOM_SEG_BASE + 901) == 0x00, "exactly one - not two");
+    CHECK(cpu->I[0] == 0, "I1 reached 0");
+}
+
+/* ---- 14. never move MORE than requested ---------------------------------- */
+static void test_never_exceeds_count(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 14: RPHS never moves more bytes than I1 asked for\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build(m, cpu, 0xFFF5, &fi);
+
+    for (int i = 0; i < 16; i++)
+        nd500_bus_write8(m, PHYS_SEG_BASE + 1000 + i, (uint8_t)(0xE0 + i));
+    for (int i = 0; i < 16; i++)
+        nd500_bus_write8(m, DOM_SEG_BASE + 1000 + i, 0x00);
+
+    cpu->I[0] = 3; cpu->I[1] = DOM_VADDR(1000); cpu->I[2] = 1000; cpu->I[3] = PHYS_SEG_PSN;
+
+    nd500_instr_Rphs(cpu, &fi);
+
+    int first3 = 1;
+    for (int i = 0; i < 3; i++)
+        if (nd500_bus_read8(m, DOM_SEG_BASE + 1000 + i) != (uint8_t)(0xE0 + i)) first3 = 0;
+
+    CHECK(first3, "the 3 requested bytes moved");
+    CHECK(nd500_bus_read8(m, DOM_SEG_BASE + 1003) == 0x00, "byte 4 was never requested");
+    CHECK(cpu->I[2] == 1003, "I3 advanced by exactly the requested count");
+}
+
+/* ---- 15. WPHS stops on I3 (the segment), not I2 (the domain) ------------- */
+static void test_wphs_stops_on_segment_side(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 15: WPHS stops on the PHYSICAL SEGMENT boundary, not the domain address\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build(m, cpu, 0xFFF4, &fi);
+
+    /* I3 sits 4 bytes below a boundary; I2 is nowhere near one. If the stop
+     * were driven by the domain side, all 64 bytes would move. */
+    for (int i = 0; i < 64; i++)
+        nd500_bus_write8(m, DOM_SEG_BASE + 1100 + i, (uint8_t)(i + 1));
+    for (int i = 0; i < 4; i++)
+        nd500_bus_write8(m, PHYS_SEG_BASE + 2044 + i, 0x00);
+
+    cpu->I[0] = 64; cpu->I[1] = DOM_VADDR(1100); cpu->I[2] = 2044; cpu->I[3] = PHYS_SEG_PSN;
+    cpu->ST1 |= ND500_FLAG_Z;
+
+    nd500_instr_Wphs(cpu, &fi);
+
+    printf("    I1=%u (want 60)  I3=%u (want 2048)  Z=%d (want 0)\n",
+           cpu->I[0], cpu->I[2], (cpu->ST1 & ND500_FLAG_Z) ? 1 : 0);
+    CHECK(cpu->I[0] == 60,                "the stop is driven by I3, not I2");
+    CHECK(cpu->I[2] == 2048,              "I3 stops on the boundary");
+    CHECK((cpu->ST1 & ND500_FLAG_Z) == 0, "Z cleared - bytes still left");
+}
+
+/* =========================================================================
+ * NEGATIVE TESTS - what must NOT happen
+ * ========================================================================= */
+
+/* ---- 16. unprivileged RPHS must trap and move NOTHING -------------------- */
+static void test_rphs_requires_privilege(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 16: an unprivileged RPHS traps and moves nothing\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build(m, cpu, 0xFFF5, &fi);
+
+    nd500_bus_write8(m, PHYS_SEG_BASE + 1200, 0x99);
+    nd500_bus_write8(m, DOM_SEG_BASE + 1200, 0x00);
+
+    cpu->ST1 &= ~ND500_FLAG_PIA;        /* deliberately NOT privileged */
+    cpu->I[0] = 4; cpu->I[1] = DOM_VADDR(1200); cpu->I[2] = 1200; cpu->I[3] = PHYS_SEG_PSN;
+
+    nd500_instr_Rphs(cpu, &fi);
+
+    /* A privilege check that traps but copies anyway is worse than none at all:
+     * it leaks physical memory to an unprivileged domain while the trap log
+     * still looks correct. */
+    CHECK(nd500_bus_read8(m, DOM_SEG_BASE + 1200) == 0x00, "not one byte transferred");
+    CHECK(cpu->I[0] == 4, "registers untouched - nothing moved, so nothing counts down");
+
+    cpu->ST1 |= ND500_FLAG_PIA;
+    cpu->instr_aborted = 0;
+}
+
+/* ---- 17. unprivileged WPHS - the more dangerous direction ---------------- */
+static void test_wphs_requires_privilege(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\nTest 17: an unprivileged WPHS traps and writes nothing\n");
+    Nd500FetchedInstruction fi;
+    setup_mmu(cpu);
+    build(m, cpu, 0xFFF4, &fi);
+
+    nd500_bus_write8(m, DOM_SEG_BASE + 1300, 0x66);
+    nd500_bus_write8(m, PHYS_SEG_BASE + 1300, 0x00);
+
+    cpu->ST1 &= ~ND500_FLAG_PIA;
+    cpu->I[0] = 4; cpu->I[1] = DOM_VADDR(1300); cpu->I[2] = 1300; cpu->I[3] = PHYS_SEG_PSN;
+
+    nd500_instr_Wphs(cpu, &fi);
+
+    CHECK(nd500_bus_read8(m, PHYS_SEG_BASE + 1300) == 0x00,
+          "an unprivileged WPHS must not write INTO a physical segment");
+    CHECK(cpu->I[0] == 4, "registers untouched");
+
+    cpu->ST1 |= ND500_FLAG_PIA;
+    cpu->instr_aborted = 0;
+}
+
 int main(void) {
     Nd500Machine m;
     Nd500Cpu cpu;
@@ -249,6 +577,24 @@ int main(void) {
     test_stops_at_page_boundary(&m, &cpu);
     test_wphs_domain_to_segment(&m, &cpu);
     test_zero_count(&m, &cpu);
+
+    /* Operand encoding - the 2026-08-03 regression. */
+    test_abs_operand_is_seven_bytes(&m, &cpu);
+    test_wphs_abs_operand_is_seven_bytes(&m, &cpu);
+    test_local_operand_is_three_bytes(&m, &cpu);
+    test_next_instruction_boundary(&m, &cpu);
+    test_table_has_no_direct_operand();
+
+    /* Edge cases around the page-boundary stop. */
+    test_ends_exactly_on_boundary(&m, &cpu);
+    test_starts_on_boundary(&m, &cpu);
+    test_single_byte(&m, &cpu);
+    test_never_exceeds_count(&m, &cpu);
+    test_wphs_stops_on_segment_side(&m, &cpu);
+
+    /* Negative tests. */
+    test_rphs_requires_privilege(&m, &cpu);
+    test_wphs_requires_privilege(&m, &cpu);
 
     printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
     nd500_machine_free(&m);

@@ -1,6 +1,10 @@
 # ND500X Instruction Test Coverage Report
 
-Generated from nd500_tests.json and instructions_gen.c
+Generated from nd500_tests.json and nd500_instructions.c
+
+(Was `instructions_gen.c` - a second, unbuilt copy of the same table, deleted 2026-08-04. It
+had already gone stale against the live table and caused a real bug: an RPHS/WPHS fix applied
+only to the dead copy looked applied while the emulator kept the old behaviour.)
 
 ## Summary
 
