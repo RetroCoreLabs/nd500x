@@ -715,6 +715,27 @@ static void fe_read_disk(Nd500Cpu* cpu, uint32_t device, uint32_t cpk_word, uint
  * Caller has read iplrec/ip_cur/shseg and confirmed the base level. */
 static void fe_deliver(Nd500Cpu* cpu, uint32_t iplrec, uint16_t ip_cur, uint32_t shseg,
                        uint32_t gen, uint32_t sub, uint32_t rpk, uint32_t ipl) {
+    /* An ND-100 interrupt reaches the ND-500 whatever domain is executing, and
+     * the kernel is written for both cases: _intvec's first act (machine/
+     * locore.c:768 "Findstk") is to read cxbtab[ip_cur].cx_ced and branch to
+     * New_Kstack - a fresh _Kstack - when the interrupted context was a user
+     * domain, versus Old_Kstack when it was the kernel itself.
+     *
+     * Everything written below - the shared-segment descriptors, iplrec,
+     * cxbtab - is a KERNEL address that a user domain holds no capability for,
+     * so the switch has to happen before the first write, not after. The
+     * interrupted CED/CAD/ST1 are captured first and stored into the context
+     * block, and _intvec's closing `lcntxt $CNTXMASK` restores all three
+     * (CNTXMASK bits 23-25 = THA/CED/CAD, and bit 17 = ST1 carries the
+     * interrupted domain's PiA back), so the user domain resumes unchanged. */
+    uint32_t int_ced = cpu->CED, int_cad = cpu->CAD, int_st1 = cpu->ST1;
+    if (int_ced != 0) {
+        cpu->CED = 0;
+        /* CAD == CED so that a `ret` with prev_b == 0 anywhere in the handler
+         * cannot be mistaken for a domain return (Ret.c gates on CAD != CED). */
+        cpu->CAD = 0;
+        nd500_apply_domain_pia(cpu, 0);
+    }
     uint32_t idp_kva  = K_SHAREBASE + INTDESC_OFF;
     uint32_t term_kva = K_SHAREBASE + INTDESC_OFF + 0x40u;   /* terminator descriptor */
 
@@ -763,11 +784,11 @@ static void fe_deliver(Nd500Cpu* cpu, uint32_t iplrec, uint16_t ip_cur, uint32_t
     nd500_bus_write32(cpu->machine, cx_phys + 13*4, cpu->E[1]);
     nd500_bus_write32(cpu->machine, cx_phys + 14*4, cpu->E[2]);
     nd500_bus_write32(cpu->machine, cx_phys + 15*4, cpu->E[3]);
-    nd500_bus_write32(cpu->machine, cx_phys + 16*4, cpu->ST1);  /* 17 ST1 */
+    nd500_bus_write32(cpu->machine, cx_phys + 16*4, int_st1);   /* 17 ST1 */
     nd500_bus_write32(cpu->machine, cx_phys + 17*4, cpu->ST2);  /* 18 ST2 */
     nd500_bus_write32(cpu->machine, cx_phys + 22*4, cpu->THA);  /* 23 THA */
-    nd500_bus_write32(cpu->machine, cx_phys + 23*4, cpu->CED);  /* 24 CED */
-    nd500_bus_write32(cpu->machine, cx_phys + 24*4, cpu->CAD);  /* 25 CAD */
+    nd500_bus_write32(cpu->machine, cx_phys + 23*4, int_ced);   /* 24 CED */
+    nd500_bus_write32(cpu->machine, cx_phys + 24*4, int_cad);   /* 25 CAD */
 
     if (fedbg())
         fprintf(stderr, "[FECALL] deliver INT gen=%u sub=%u rpk=0x%08X ipl=%u ip_cur=%u -> _intvec (P was 0x%08X)\n",
@@ -956,6 +977,12 @@ static void fe_conq_drain(Nd500Cpu* cpu) {
 unsigned long long g_tick_gated = 0, g_tick_seen = 0;
 unsigned long long g_tick_due_any = 0, g_tick_user = 0;
 unsigned long long g_tick_at844 = 0, g_tick_ced0_not844 = 0;
+unsigned long long g_tick_userdeliv = 0;   /* clock ticks delivered from a user domain */
+unsigned long long g_tick_latched = 0;     /* clock ticks latched for later delivery */
+/* Ticks that came due while no boundary was eligible. See the long note at the
+ * latch site in nd500_fecall_tick(). */
+#define FE_CLOCK_MAX_PENDING 4u
+static unsigned g_clock_pending = 0;
 static void tick_report(void) {
     const char* e = getenv("ND500X_TICKSTAT");
     if (!e || !e[0] || e[0]=='0') return;
@@ -985,11 +1012,78 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
               else if (cpu->CED == 0)     g_tick_ced0_not844++; }
             if ((g_tick_due_any % 200ull) == 0)
                 { extern unsigned long long g_tick_at844, g_tick_ced0_not844;
-                  fprintf(stderr, "[TICKALL] due=%llu user_domain=%llu at_0x844=%llu kernel_but_not_844=%llu\n",
-                        g_tick_due_any, g_tick_user, g_tick_at844, g_tick_ced0_not844); }
+                  fprintf(stderr, "[TICKALL] due=%llu user_domain=%llu at_0x844=%llu kernel_but_not_844=%llu latched=%llu userdeliv=%llu pend=%u\n",
+                        g_tick_due_any, g_tick_user, g_tick_at844, g_tick_ced0_not844,
+                        g_tick_latched, g_tick_userdeliv, g_clock_pending); }
         }
     }
-    if (cpu->CED != 0) return;
+    /* Periodic clock can be disabled for isolation (ND500X_NOFECLOCK=1). */
+    static int noclk = -1;
+    if (noclk < 0) { const char* e = getenv("ND500X_NOFECLOCK"); noclk = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    int clock_due = !noclk && cpu->instruction_count && (cpu->instruction_count % FE_CLOCK_PERIOD) == 0;
+
+    /* A tick is a one-shot test on ONE instruction out of FE_CLOCK_PERIOD, but
+     * every gate below rejects most instructions - so testing for the tick and
+     * gating it in the same breath DISCARDED the tick whenever the two did not
+     * coincide, rather than deferring it. Measured at an idle login prompt with
+     * ND500X_TICKSTAT: 740 of 8800 due ticks (8.4%) found the kernel at 0x844,
+     * so ~92% of the clock was being thrown away even with the machine doing
+     * nothing. Latch it here and deliver at the next eligible boundary instead.
+     * Capped, so a long ineligible stretch cannot then fire a burst of catch-up
+     * interrupts at the kernel the moment it becomes eligible. */
+    if (clock_due && g_clock_pending < FE_CLOCK_MAX_PENDING) {
+        g_clock_pending++;
+        g_tick_latched++;
+    }
+
+    /* ── a USER domain is executing ──────────────────────────────────────────
+     * Everything below this block is written for CED == 0 and gates delivery on
+     * the kernel being parked in swtch()'s idle spin at PC 0x844. That gate
+     * exists to stop a DEVICE COMPLETION landing between a driver's async
+     * fecall and its following `flag++; sleep(&flag)`, which would run the
+     * handler while flag == 0 and leave the driver asleep forever.
+     *
+     * That hazard is about kernel code being half way through a sequence. When
+     * CED != 0 the kernel is not executing at all, so there is no such sequence
+     * to land inside - this is the safest point in the whole run to interrupt.
+     * Without delivery here nothing ever preempts a compute-bound process:
+     * hardclock() is what drives roundrobin/setpri, and measured with
+     * ND500X_TICKSTAT a spinning `yes` drove at_0x844 to a standstill while 44%
+     * of due ticks were being dropped by the old `if (CED != 0) return`.
+     *
+     * The periodic clock ONLY. Device completions keep the 0x844 rule, because
+     * for them the hazard above is real whatever domain happens to be running.
+     * ND500X_NOUSERCLOCK=1 restores the old behaviour. */
+    if (cpu->CED != 0) {
+        static int nouclk = -1;
+        if (nouclk < 0) { const char* e = getenv("ND500X_NOUSERCLOCK"); nouclk = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (nouclk || !g_clock_pending) return;
+        /* Same CALL/ENT* interlock as the kernel path below. */
+        if (cpu->pending_call_return_address != 0) return;
+        /* A trap handler running in a user domain is mid-dispatch; leave it. */
+        if (cpu->in_trap_handler) return;
+
+        /* The IPL record, cxbtab and the shared segment are kernel addresses,
+         * so read them through the kernel domain, and put the user domain back
+         * if we end up not delivering. fe_deliver() performs the real switch
+         * itself and saves the interrupted CED/CAD/ST1 into the context block. */
+        uint32_t u_ced = cpu->CED, u_cad = cpu->CAD;
+        cpu->CED = 0; cpu->CAD = 0;
+        uint32_t iplrec = nd500_read_memory_32(cpu, K_IPLP);
+        uint16_t ip_cur = iplrec ? nd500_read_memory_16(cpu, iplrec + IP_CURR_OFF) : 1;
+        if (iplrec == 0 || ip_cur != 0) {          /* not at the kernel base level */
+            cpu->CED = u_ced; cpu->CAD = u_cad;
+            return;
+        }
+        uint32_t shseg = nd500_read_memory_32(cpu, K_SHSEG);
+        uint32_t t = nd500_read_memory_32(cpu, K_CLOCKREC);
+        nd500_write_memory_32(cpu, K_CLOCKREC, t + 2);   /* ~40ms = 2 x 20ms ticks */
+        cpu->CED = u_ced; cpu->CAD = u_cad;   /* fe_deliver saves these, then switches */
+        g_clock_pending--;
+        fe_deliver(cpu, iplrec, ip_cur, shseg, GEN_CLOCK, 0, 0, IPL_CL);
+        g_tick_userdeliv++;
+        return;
+    }
     /* in_trap_handler alone must NOT block delivery: NDIX sleeps INSIDE trap
      * context (pagein -> biowait -> swtch to idle) and spins at 0x844 with the
      * emulator's in_trap_handler still set - the trap only "returns" (lregbl)
@@ -1015,11 +1109,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
         }
     }
     if (cpu->in_trap_handler && cpu->PC != 0x00000844u) return;
-    /* Periodic clock can be disabled for isolation (ND500X_NOFECLOCK=1). */
-    static int noclk = -1;
-    if (noclk < 0) { const char* e = getenv("ND500X_NOFECLOCK"); noclk = (e && e[0] && e[0] != '0') ? 1 : 0; }
-    int clock_due = !noclk && cpu->instruction_count && (cpu->instruction_count % FE_CLOCK_PERIOD) == 0;
-    if (!cpu->fe_int_pending && !clock_due) return;     /* fast path */
+    if (!cpu->fe_int_pending && !g_clock_pending) return;   /* fast path */
 
     /* Never interrupt between a CALL/CALLG and its ENT* - the emulator's
      * pending-call state is not part of the saved context, so an interrupt
@@ -1098,6 +1188,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
         return;
     }
     /* Periodic clock: advance the ND-100 tick count, then interrupt hardclock. */
+    g_clock_pending--;
     uint32_t t = nd500_read_memory_32(cpu, K_CLOCKREC);
     nd500_write_memory_32(cpu, K_CLOCKREC, t + 2);   /* ~40ms = 2 x 20ms ticks */
     fe_deliver(cpu, iplrec, ip_cur, shseg, GEN_CLOCK, 0, 0, IPL_CL);
