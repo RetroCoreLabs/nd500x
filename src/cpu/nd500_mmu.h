@@ -209,6 +209,15 @@ void nd500_mmu_enable_data(Nd500Cpu* cpu);
 void nd500_mmu_disable_data(Nd500Cpu* cpu);
 int nd500_mmu_is_data_enabled(Nd500Cpu* cpu);
 
+/* Translate an address on a PHYSICAL SEGMENT (RPHS/WPHS, ND-05.009.4
+ * 16.31/16.32). The segment number is GIVEN (from I4), so no capability is
+ * consulted and the walk is entered at the PST. Returns the physical address,
+ * or the input unchanged when the data MMU is off. Raises the normal traps on
+ * a bad PSN or a failed walk - check nd500_trap_occurred() / instr_aborted. */
+uint32_t nd500_mmu_translate_physical_segment(Nd500Cpu* cpu, uint32_t psn,
+                                              uint32_t segment_relative_addr,
+                                              int is_write);
+
 /* Program MMU Control (PMON/PMOF instructions) */
 void nd500_mmu_enable_program(Nd500Cpu* cpu);
 void nd500_mmu_disable_program(Nd500Cpu* cpu);

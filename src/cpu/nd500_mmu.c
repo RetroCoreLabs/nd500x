@@ -216,6 +216,374 @@ int nd500_mmu_is_enabled(Nd500Cpu* cpu) {
  * The ALT prefix allows called routines to access caller's data when
  * crossing domain boundaries.
  */
+/* ---------------------------------------------------------------------------
+ * The PSN-rooted half of the translation: PST entry -> index mode -> page
+ * tables -> physical address. Split out of nd500_mmu_translate_domain() so
+ * that RPHS/WPHS (ND-05.009.4 16.31/16.32), which are handed a physical
+ * segment number in I4 and must skip the capability lookup entirely, enter
+ * the walk here instead of carrying a second copy of it.
+ *
+ * report_vaddr / report_segment / report_capability exist ONLY so fault
+ * messages can say what was being translated. For a physical-segment access
+ * report_segment is -1 and report_capability is 0, so a page fault from RPHS
+ * cannot be misread as a capability walk that never happened.
+ *
+ * tlb_cacheable is 0 for the physical-segment path: the TLB is keyed on
+ * (vpn, domain, is_instruction) and a PSN-rooted access has no logical
+ * segment or domain to key on, so caching it there would alias.
+ * ------------------------------------------------------------------------- */
+static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
+                                   int psn, int l1_index, int l2_index, int offset,
+                                   int is_write, int is_instruction, int use_guest,
+                                   int tlb_cacheable, uint32_t tlb_idx, uint32_t tlb_key,
+                                   uint32_t virtual_addr, int segment,
+                                   uint16_t capability, uint8_t domain) {
+    (void)domain;
+    /* Get PST entry by reading the guest's REAL Physical Segment Table at PSTP
+     * (struct pste, big-endian: ps_index@[31:30], ps_pfnum@[29:0]). The kernel
+     * extends this table at runtime (newproc writes Pst[p_addr]); reading it here
+     * is what lets __resume's u-area remap resolve to the new process. */
+    PhysicalSegmentTableEntry pst_entry;
+    if (use_guest && cpu->PSTP) {
+        uint32_t pa = cpu->PSTP + (uint32_t)psn * 4u;
+        nd500_tlb_note_xlat_page(pa);             /* guest PST - invalidate on write */
+        uint32_t w = ((uint32_t)nd500_bus_read8(cpu->machine, pa)     << 24)
+                   | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 1) << 16)
+                   | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 2) << 8)
+                   |  (uint32_t)nd500_bus_read8(cpu->machine, pa + 3);
+        pst_entry.index_mode   = (uint8_t)(w >> 30);
+        pst_entry.physical_pfn = w & 0x3FFFFFFF;
+    } else {
+        pst_entry = g_pst[psn];
+    }
+
+    /* A ZERO PST ENTRY IS A PAGE FAULT - not a direct mapping of physical page 0.
+     * ND-05.009.4 section 4.3: "If the Physical Segment Table entry is 0, this means
+     * that no mapping exists for the logical address that needs translation. This is
+     * a page fault trap condition."  Without this a zero entry decodes as PS_AZI with
+     * pfn 0 and silently translates to physical page 0, which is never mappable.
+     * Mirrors CpuND500.MMU.cs ReadPstEntry/pstEntryIsZero. [PST zero entry 2026-07-27] */
+    if (pst_entry.index_mode == PS_AZI && pst_entry.physical_pfn == 0) {
+        MMU_ERR("[MMU] TRAP: PST entry %d is ZERO - no mapping exists! vaddr=0x%08X\n",
+                psn, virtual_addr);
+        {   /* branch tag (env ND500X_PGFDBG): identify WHICH mmu branch raised
+             * the silent second _Udata fault (no PTWDBG-L2/PST47 line). */
+            static int pgfd = -1;
+            if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+            if (pgfd) fprintf(stderr, "[PGFSITE] PST-ZERO dom=%d seg=%d psn=%d va=0x%08X use_guest=%d\n",
+                              domain, segment, psn, virtual_addr, use_guest);
+        }
+        /* MMS fault location: zero PST entry is PFZPST (NDIX machine/icb.h:76
+         * "0 in PST entry for page fault" = 0xD), NOT the PFZ1/PFZ2 page-table
+         * codes. Without setting it the previous fault's code was left in place -
+         * usually PFZ2 from the routine demand-paging path - and NDIX's trap.c
+         * (:510-511 test MMWHERE against PFZ2 and PFZ1) then classified a missing
+         * segment as a second-level page-table miss. Matches CpuND500.MMU.cs
+         * MM_PFZPST; these two must not diverge. */
+        cpu->mmu_pgf_where = MMW_PFZPST | (is_instruction ? MMW_INST : 0u);
+        trap_page_fault(cpu, cpu->PC, virtual_addr);
+        return virtual_addr;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+     * LEVEL 3: PST Entry → Physical Address
+     * Mode-dependent translation (AZI, ASI, ADI)
+     * ───────────────────────────────────────────────────────── */
+
+    uint32_t physical_pfn;
+
+    switch (pst_entry.index_mode) {
+        case PS_AZI: {
+            /* Mode 0: Direct Addressing (no paging) - single 2KB page only */
+            /* For PS_AZI, both L1 and L2 indices must be 0 */
+            if (l1_index != 0 || l2_index != 0) {
+                MMU_ERR("[MMU] TRAP: PS_AZI page fault! L1=%d L2=%d must be 0! vaddr=0x%08X\n",
+                      l1_index, l2_index, virtual_addr);
+                {   static int pgfd = -1;
+                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+                    if (pgfd) fprintf(stderr, "[PGFSITE] AZI-IDX dom=%d seg=%d psn=%d va=0x%08X pfn=0x%X\n",
+                                      domain, segment, psn, virtual_addr, pst_entry.physical_pfn);
+                }
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                return virtual_addr;
+            }
+            /* Physical PFN comes directly from PST entry */
+            physical_pfn = pst_entry.physical_pfn;
+            break;
+        }
+
+        case PS_ASI: {
+            /* Mode 1: Single-Level Paging (up to 512 pages = 1MB) */
+            /* For PS_ASI, L1 must be 0; L2 selects page table entry */
+            if (l1_index != 0) {
+                MMU_ERR("[MMU] TRAP: PS_ASI page fault! L1=%d must be 0! vaddr=0x%08X\n",
+                      l1_index, virtual_addr);
+                {   static int pgfd = -1;
+                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+                    if (pgfd) fprintf(stderr, "[PGFSITE] ASI-IDX dom=%d seg=%d psn=%d va=0x%08X\n",
+                                      domain, segment, psn, virtual_addr);
+                }
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                return virtual_addr;
+            }
+            /* PST entry points to a page table */
+            uint32_t page_table_base = pst_entry.physical_pfn << PGSHIFT;
+            uint32_t pte_addr = page_table_base + (l2_index * 4);  /* Use L2 index */
+
+            /* Read PTE from memory */
+            nd500_tlb_note_xlat_page(pte_addr);   /* PS_ASI page table - invalidate on write */
+            PageTableEntry pte = nd500_mmu_read_pte(cpu, pte_addr);
+
+            /* Check if page is present (valid bit must be set) */
+            if (!pte.valid) {
+                MMU_ERR("[MMU] TRAP: PS_ASI page not valid! vaddr=0x%08X pte_addr=0x%08X\n", virtual_addr, pte_addr);
+                {   static int pgfd = -1;
+                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+                    if (pgfd) fprintf(stderr, "[PGFSITE] ASI-PTE dom=%d seg=%d psn=%d va=0x%08X pte@0x%08X\n",
+                                      domain, segment, psn, virtual_addr, pte_addr);
+                }
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
+            }
+
+            /* PTE bit 31 is DATA-PAGE write protection on the LAST indexing
+             * level, and in PS_ASI the single level IS the last level.
+             * ND-05.009.4 Figure 14: "Bit 31 in an index page table entry is
+             * reserved except on the last indexing level. That is, when the
+             * page number part of the entry specifies a data page, then bit 31
+             * is used for data page write protection."
+             * It was previously gated on is_instruction, so a data write to a
+             * read-only page succeeded here while the PS_ADI branch below
+             * correctly rejected it - the two paths disagreed. The old comment
+             * justified this with "C# reference creates all PTEs with
+             * protection=1", which is no longer true of that code. */
+            if (is_write && pte.protection != 0) {
+                MMU_ERR("[MMU] TRAP: Instruction write to read-only page! vaddr=0x%08X pte_addr=0x%08X prot=%d\n",
+                      virtual_addr, pte_addr, pte.protection);
+                /* PVWVIOL: a write-protected PAGE, the recoverable case (see the
+                 * DC_WRP site above). MMINST stays clear - this is a data write. */
+                cpu->mmu_pgf_where = MMW_PVWVIOL;
+                trap_protect_violation(cpu, cpu->PC, virtual_addr);
+                return virtual_addr;
+            }
+
+            physical_pfn = pte.physical_pfn;
+            break;
+        }
+
+        case PS_ADI: {
+            /* Mode 2: Two-Level Paging (up to 128*512 = 65536 pages = 128MB) */
+            /* L1 selects L2 page table (0-127), L2 selects entry (0-511) */
+            /* l1_index and l2_index already extracted correctly at top of function */
+            uint32_t l1_table_base = pst_entry.physical_pfn << PGSHIFT;
+
+            /* Read L1 PTE using l1_index */
+            uint32_t l1_pte_addr = l1_table_base + (l1_index * 4);
+            nd500_tlb_note_xlat_page(l1_pte_addr);  /* PS_ADI L1 table - invalidate on write */
+            PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
+
+            if (!l1_pte.valid) {
+                /* A MON-connected segment (412B FSCNT / 422B GSWSP) is grown on
+                 * demand, matching the manual's paged segment model - allocate
+                 * the missing L2 table + page and re-read rather than trapping. */
+                if (!is_instruction && nd500_segment_grow_on_fault(cpu, virtual_addr, domain)) {
+                    l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
+                }
+            }
+            if (!l1_pte.valid) {
+                MMU_ERR("[MMU] TRAP: PS_ADI L1 page not valid! vaddr=0x%08X l1_pte_addr=0x%08X\n", virtual_addr, l1_pte_addr);
+                /* PTWDBG: prove/refute the Physbase-linear-map (seg 2) round-trip.
+                 * The kernel writes this very L1 table THROUGH the seg-2 linear map
+                 * at virtual (Physbase + l1_table_base). If seg-2 maps that back to
+                 * physical l1_table_base, the write and this read agree; if not, the
+                 * kernel's PTE writes are landing on the wrong page - the real root. */
+                {
+                    const char* e = getenv("ND500X_PTWDBG");
+                    if (e && e[0] && e[0] != '0') {
+                        uint32_t phys_l1  = nd500_bus_read32(cpu->machine, l1_pte_addr);
+                        uint32_t alias_va = 0x10000000u + l1_table_base; /* Physbase(seg2)+X */
+                        /* Walk the GUEST seg-2 tables (DIT->PST->ADI) exactly as the
+                         * CPU does - NOT nd500_mmu_peek (that reads the shadow tables). */
+                        uint32_t s2 = (alias_va >> SGSHIFT) & 0x1F;
+                        uint32_t s2_l1 = (alias_va >> L1_INDEX_SHIFT) & L1_INDEX_MASK;
+                        uint32_t s2_l2 = (alias_va >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
+                        uint32_t s2_off = alias_va & (NBPG - 1);
+                        uint32_t capA = cpu->DITBASE + 0u*256u + 64u + s2*2u;
+                        uint16_t cap  = (uint16_t)((nd500_bus_read8(cpu->machine, capA) << 8)
+                                                 |  nd500_bus_read8(cpu->machine, capA + 1));
+                        uint32_t psn  = cap & PC_PSN;
+                        uint32_t pstw = nd500_bus_read32(cpu->machine, cpu->PSTP + psn*4u);
+                        uint32_t pmode = pstw >> 30, ppfn = pstw & 0x3FFFFFFF;
+                        uint32_t l1w = nd500_bus_read32(cpu->machine, (ppfn<<PGSHIFT) + s2_l1*4u);
+                        uint32_t l2base = (l1w & 0x3FFFFFFF);
+                        uint32_t l2w = nd500_bus_read32(cpu->machine, (l2base<<PGSHIFT) + s2_l2*4u);
+                        uint32_t gphys = ((l2w & 0x3FFFFFFF)<<PGSHIFT) + s2_off;
+                        uint32_t gval  = nd500_bus_read32(cpu->machine, gphys);
+                        fprintf(stderr, "[PTWDBG] seg=%d usrpt L1@phys0x%08X=0x%08X | seg2 GUEST-walk "
+                                "va=0x%08X cap=0x%04X psn=%u mode=%u l1=0x%08X l2=0x%08X -> gphys=0x%08X val=0x%08X\n",
+                                segment, l1_pte_addr, phys_l1, alias_va, cap, psn, pmode, l1w, l2w, gphys, gval);
+                    }
+                }
+                /* PFZ1: zero 1st-level page-table entry. MMINST (0x40) marks an
+                 * I-channel (instruction fetch) fault - the NDIX kernel derives
+                 * the fault SPACE from it (trap.c T_PGF+USER: access=(info&
+                 * MMINST)>>5; segno+access classifies text vs data). Without it
+                 * a text-fetch fault at va 0 pages in DATA page 0 instead. */
+                cpu->mmu_pgf_where = MMW_PFZ1 | (is_instruction ? MMW_INST : 0u);
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
+            }
+
+            /* L1 PTE points to L2 page table */
+            uint32_t l2_table_base = l1_pte.physical_pfn << PGSHIFT;
+            uint32_t l2_pte_addr = l2_table_base + (l2_index * 4);
+
+            /* Read L2 PTE */
+            nd500_tlb_note_xlat_page(l2_pte_addr);  /* PS_ADI L2 table - invalidate on write */
+            PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
+
+            /* PST47DBG: full walk chain for the shared user-data segment (PSN 47 =
+             * icode p_addr+1). Shows whether PST[47] -> L1 -> L2 resolves to a page
+             * or where the chain is empty (the _Udata / seg-30 boot blocker). */
+            if (nd_env_flag("ND500X_PST47DBG", &g_envf_pst47dbg) && psn == 47) {
+                static uint64_t n47 = 0;
+                if (n47++ < 40) {
+                    uint32_t l1w = nd500_bus_read32(cpu->machine, l1_pte_addr);
+                    uint32_t l2w = nd500_bus_read32(cpu->machine, l2_pte_addr);
+                    fprintf(stderr,
+                        "[PST47] dom=%d seg=%d va=0x%08X L1i=%d L2i=%d PC=0x%08X | "
+                        "PST47{mode=%u pfn=0x%X} l1@0x%08X=0x%08X(pfn0x%X v=%d) "
+                        "l2base=0x%08X l2@0x%08X=0x%08X(v=%d)\n",
+                        domain, segment, virtual_addr, l1_index, l2_index, cpu->PC,
+                        pst_entry.index_mode, pst_entry.physical_pfn,
+                        l1_pte_addr, l1w, l1_pte.physical_pfn, l1_pte.valid,
+                        l2_table_base, l2_pte_addr, l2w, l2_pte.valid);
+                }
+            }
+
+            if (!l2_pte.valid) {
+                /* Same demand-growth path as the L1 miss above. */
+                if (!is_instruction && nd500_segment_grow_on_fault(cpu, virtual_addr, domain)) {
+                    l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
+                }
+            }
+            if (!l2_pte.valid) {
+                /* A zero L2 PTE is the ROUTINE demand-paging fault in a paging
+                 * OS (every text/data page of every exec'd program) - log it
+                 * only at TRACE, not at the default ERRORS level, or the
+                 * console drowns during normal NDIX operation. */
+                if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_TRACE)
+                    fprintf(stderr, "[MMU] TRAP: PS_ADI L2 page not valid! vaddr=0x%08X l2_pte_addr=0x%08X\n", virtual_addr, l2_pte_addr);
+                {
+                    const char* e = getenv("ND500X_PTWDBG");
+                    if (e && e[0] && e[0] != '0') {
+                        fprintf(stderr, "[PTWDBG-L2] seg=%d va=0x%08X psn=%d pst_pfn=0x%X l1_pte@0x%08X=pfn0x%X "
+                                "l2_pte_addr=0x%08X raw=0x%08X\n", segment, virtual_addr, psn,
+                                pst_entry.physical_pfn, l1_pte_addr, l1_pte.physical_pfn, l2_pte_addr,
+                                nd500_bus_read32(cpu->machine, l2_pte_addr));
+                        fprintf(stderr, "[PTWDBG-L2] guest PST[13..21]:");
+                        for (int q = 13; q <= 21; q++)
+                            fprintf(stderr, " [%d]=0x%08X", q, nd500_bus_read32(cpu->machine, cpu->PSTP + q*4u));
+                        fprintf(stderr, "\n[PTWDBG-L2] guest DIT dom0 seg2 data@0x%08X=0x%04X\n",
+                                cpu->DITBASE + 64u + 2u*2u,
+                                (nd500_bus_read8(cpu->machine, cpu->DITBASE+64u+4u)<<8)
+                                | nd500_bus_read8(cpu->machine, cpu->DITBASE+64u+5u));
+                    }
+                }
+                /* PFZ2: zero 2nd-level page-table entry (demand page). MMINST
+                 * (0x40) marks an I-channel fault - see the PFZ1 site above. */
+                cpu->mmu_pgf_where = MMW_PFZ2 | (is_instruction ? MMW_INST : 0u);
+                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
+            }
+
+            /* Write permission comes from the L2 entry only. ND-05.009.4
+             * Figure 14: "Bit 31 in an index page table entry is reserved
+             * except on the last indexing level." The L1 entry addresses
+             * another table, not a data page, so its bit 31 is not a
+             * protection bit. Checking it denied writes to every page beneath
+             * a read-only L1 entry - nd500_segment_alloc.c had to force L1
+             * entries writable to work around exactly that. */
+            if (is_write && l2_pte.protection != 0) {
+                MMU_ERR("[MMU] TRAP: PS_ADI write to read-only page! vaddr=0x%08X l1_prot=%d l2_prot=%d\n",
+                      virtual_addr, l1_pte.protection, l2_pte.protection);
+                /* Same detail the L2-not-valid branch prints. Knowing WHICH
+                 * table entry carries the read-only bit is the whole question
+                 * when a segment the guest believes is SG_RW refuses a write:
+                 * with ND500X_MMU_GUEST_TABLES these are the GUEST's tables,
+                 * so the address identifies whose PTE it is. */
+                {
+                    const char* e = getenv("ND500X_PTWDBG");
+                    if (e && e[0] && e[0] != '0') {
+                        fprintf(stderr, "[PTWDBG-RO] seg=%d va=0x%08X psn=%d pst_pfn=0x%X "
+                                "l1_pte@0x%08X=pfn0x%X raw=0x%08X  l2_pte@0x%08X raw=0x%08X pfn=0x%X\n",
+                                segment, virtual_addr, psn, pst_entry.physical_pfn,
+                                l1_pte_addr, l1_pte.physical_pfn,
+                                nd500_bus_read32(cpu->machine, l1_pte_addr),
+                                l2_pte_addr, nd500_bus_read32(cpu->machine, l2_pte_addr),
+                                l2_pte.physical_pfn);
+                    }
+                }
+                /* PVWVIOL: write-protected data page (recoverable - see above). */
+                cpu->mmu_pgf_where = MMW_PVWVIOL;
+                trap_protect_violation(cpu, cpu->PC, virtual_addr);
+                return virtual_addr;  /* Write to read-only page - return virtual address, trap will stop execution */
+            }
+
+
+            physical_pfn = l2_pte.physical_pfn;
+            break;
+        }
+
+        default:
+            /* Invalid index mode */
+            MMU_ERR("[MMU] TRAP: Invalid PST index mode %d! vaddr=0x%08X psn=%d\n",
+                  pst_entry.index_mode, virtual_addr, psn);
+            trap_illegal_operand(cpu, cpu->PC);
+            return virtual_addr;  /* Invalid index mode - return virtual address, trap will stop execution */
+    }
+
+    /* ─────────────────────────────────────────────────────────
+     * Construct physical address: (PFN << 11) | Offset
+     * ───────────────────────────────────────────────────────── */
+
+    uint32_t physical_addr = (physical_pfn << PGSHIFT) | offset;
+
+    /* Cache this translation. Reached only by a walk that produced a physical
+     * address - every fault path returned above - so nothing that traps is
+     * ever cached. `writable` records whether the DC_WRP and PTE-protection
+     * checks were actually satisfied on this pass: a read-only page cached by
+     * a read must not let a later write through, so the lookup re-walks in
+     * that case and the trap is raised properly. */
+    if (g_nd500_tlb_on && tlb_cacheable) {
+        g_tlb_misses++;
+        TlbEntry* te = &g_nd500_tlb[tlb_idx];
+        te->tag      = tlb_key;
+        te->pfn      = physical_pfn;
+        te->writable = (uint8_t)(is_write != 0);
+    }
+
+    /* Hardware sets Page Used on any access and Written In Page on a write
+     * (ND-05.009.4 16.17, 16.20). The swapper reads them back through
+     * RPGU/RWIP. Marked here, at the one exit where a page walk actually
+     * produced a physical address - every fault path returns before this, so a
+     * page that was never reached is never marked.
+     *
+     * DELIBERATE LIMIT: the MMU-disabled and segment-alias exits earlier in
+     * this function return without marking. NDIX only ever asks about page
+     * frames it owns in its own page tables, and it reaches those through this
+     * path, so the untranslated exits cannot change a swapper decision. */
+    nd500_page_bits_mark(cpu->machine, physical_addr, is_write);
+
+    /* Debug: show translation for high addresses (controlled by show mmu level) */
+    if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ALL && virtual_addr >= 0x08000000) {
+        fprintf(stderr, "[MMU] vaddr=0x%08X -> paddr=0x%08X (seg=%d L1=%d L2=%d cap=0x%04X psn=%d mode=%d pfn=0x%X)\n",
+                virtual_addr, physical_addr, segment, l1_index, l2_index, capability, psn, pst_entry.index_mode, physical_pfn);
+    }
+
+    return physical_addr;
+}
+
 uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is_write, int is_instruction, uint8_t domain) {
     /* Debug: trace all translations for high addresses */
     if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_TRACE && virtual_addr >= 0x08000000 && is_write) {
@@ -601,349 +969,64 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         }
     }
 
-    /* Get PST entry by reading the guest's REAL Physical Segment Table at PSTP
-     * (struct pste, big-endian: ps_index@[31:30], ps_pfnum@[29:0]). The kernel
-     * extends this table at runtime (newproc writes Pst[p_addr]); reading it here
-     * is what lets __resume's u-area remap resolve to the new process. */
-    PhysicalSegmentTableEntry pst_entry;
-    if (use_guest && cpu->PSTP) {
-        uint32_t pa = cpu->PSTP + (uint32_t)psn * 4u;
-        nd500_tlb_note_xlat_page(pa);             /* guest PST - invalidate on write */
-        uint32_t w = ((uint32_t)nd500_bus_read8(cpu->machine, pa)     << 24)
-                   | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 1) << 16)
-                   | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 2) << 8)
-                   |  (uint32_t)nd500_bus_read8(cpu->machine, pa + 3);
-        pst_entry.index_mode   = (uint8_t)(w >> 30);
-        pst_entry.physical_pfn = w & 0x3FFFFFFF;
-    } else {
-        pst_entry = g_pst[psn];
+    /* The rest of the walk is rooted at the PSN and is shared verbatim with
+     * RPHS/WPHS, which are handed a PSN in I4 and must NOT do a capability
+     * lookup. One copy only - this walk has been wrong four separate times
+     * (PTE bit positions, zero-PST handling, ReadPhysical32 vs bus reads,
+     * CED vs CAD) and a second copy would drift from the first. */
+    return nd500_mmu_walk_pst(cpu, psn, l1_index, l2_index, offset,
+                              is_write, is_instruction, use_guest,
+                              /* tlb_cacheable */ 1, tlb_idx, tlb_key,
+                              virtual_addr, segment, capability, domain);
+}
+
+/* ---------------------------------------------------------------------------
+ * Translate an address on a PHYSICAL SEGMENT, for RPHS / WPHS.
+ *
+ * ND-05.009.4 16.31: "The physical segment number is used together with the
+ * physical segment table pointer to find the physical page number of the
+ * wanted data page or of the corresponding index page." So the segment is
+ * GIVEN, not selected by the top bits of an address, and no capability is
+ * consulted - which is why this enters the walk at the PST rather than going
+ * through nd500_mmu_translate_domain().
+ *
+ * segment_relative_addr is decomposed exactly as a virtual address is, minus
+ * the 5 segment-select bits, which are absent because the segment is given.
+ *
+ * ASSUMPTION, ours and not ND's: with the data MMU disabled this returns the
+ * segment-relative address unchanged, mirroring what the virtual path does in
+ * the same situation. The manuals describe RPHS/WPHS only in terms of the
+ * physical segment table and say nothing about paging-off behaviour. The
+ * alternative - walking an unconfigured PST - faults on a zero PSTP, which is
+ * certainly wrong. RetroCore's TranslatePhysicalSegmentAddress carries the
+ * same assumption, deliberately, so the two ports do not silently diverge.
+ * ------------------------------------------------------------------------- */
+uint32_t nd500_mmu_translate_physical_segment(Nd500Cpu* cpu, uint32_t psn,
+                                              uint32_t segment_relative_addr,
+                                              int is_write) {
+    if (!cpu) return segment_relative_addr;
+    if (!nd500_mmu_is_data_enabled(cpu)) return segment_relative_addr;
+
+    if (psn >= (uint32_t)MAX_PST) {
+        MMU_ERR("[MMU] TRAP: physical segment %u >= MAX_PST %d! addr=0x%08X\n",
+                psn, MAX_PST, segment_relative_addr);
+        cpu->mmu_pgf_where = MMW_INDEXERR;
+        trap_protect_violation(cpu, cpu->PC, segment_relative_addr);
+        return segment_relative_addr;
     }
 
-    /* A ZERO PST ENTRY IS A PAGE FAULT - not a direct mapping of physical page 0.
-     * ND-05.009.4 section 4.3: "If the Physical Segment Table entry is 0, this means
-     * that no mapping exists for the logical address that needs translation. This is
-     * a page fault trap condition."  Without this a zero entry decodes as PS_AZI with
-     * pfn 0 and silently translates to physical page 0, which is never mappable.
-     * Mirrors CpuND500.MMU.cs ReadPstEntry/pstEntryIsZero. [PST zero entry 2026-07-27] */
-    if (pst_entry.index_mode == PS_AZI && pst_entry.physical_pfn == 0) {
-        MMU_ERR("[MMU] TRAP: PST entry %d is ZERO - no mapping exists! vaddr=0x%08X\n",
-                psn, virtual_addr);
-        {   /* branch tag (env ND500X_PGFDBG): identify WHICH mmu branch raised
-             * the silent second _Udata fault (no PTWDBG-L2/PST47 line). */
-            static int pgfd = -1;
-            if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
-            if (pgfd) fprintf(stderr, "[PGFSITE] PST-ZERO dom=%d seg=%d psn=%d va=0x%08X use_guest=%d\n",
-                              domain, segment, psn, virtual_addr, use_guest);
-        }
-        /* MMS fault location: zero PST entry is PFZPST (NDIX machine/icb.h:76
-         * "0 in PST entry for page fault" = 0xD), NOT the PFZ1/PFZ2 page-table
-         * codes. Without setting it the previous fault's code was left in place -
-         * usually PFZ2 from the routine demand-paging path - and NDIX's trap.c
-         * (:510-511 test MMWHERE against PFZ2 and PFZ1) then classified a missing
-         * segment as a second-level page-table miss. Matches CpuND500.MMU.cs
-         * MM_PFZPST; these two must not diverge. */
-        cpu->mmu_pgf_where = MMW_PFZPST | (is_instruction ? MMW_INST : 0u);
-        trap_page_fault(cpu, cpu->PC, virtual_addr);
-        return virtual_addr;
-    }
+    int l1_index = (segment_relative_addr >> L1_INDEX_SHIFT) & L1_INDEX_MASK;
+    int l2_index = (segment_relative_addr >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
+    int offset   = segment_relative_addr & (NBPG - 1);
 
-    /* ─────────────────────────────────────────────────────────
-     * LEVEL 3: PST Entry → Physical Address
-     * Mode-dependent translation (AZI, ASI, ADI)
-     * ───────────────────────────────────────────────────────── */
+    int use_guest = mmu_use_guest_tables() && cpu->machine && cpu->DITBASE && cpu->PSTP;
 
-    uint32_t physical_pfn;
-
-    switch (pst_entry.index_mode) {
-        case PS_AZI: {
-            /* Mode 0: Direct Addressing (no paging) - single 2KB page only */
-            /* For PS_AZI, both L1 and L2 indices must be 0 */
-            if (l1_index != 0 || l2_index != 0) {
-                MMU_ERR("[MMU] TRAP: PS_AZI page fault! L1=%d L2=%d must be 0! vaddr=0x%08X\n",
-                      l1_index, l2_index, virtual_addr);
-                {   static int pgfd = -1;
-                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
-                    if (pgfd) fprintf(stderr, "[PGFSITE] AZI-IDX dom=%d seg=%d psn=%d va=0x%08X pfn=0x%X\n",
-                                      domain, segment, psn, virtual_addr, pst_entry.physical_pfn);
-                }
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
-                return virtual_addr;
-            }
-            /* Physical PFN comes directly from PST entry */
-            physical_pfn = pst_entry.physical_pfn;
-            break;
-        }
-
-        case PS_ASI: {
-            /* Mode 1: Single-Level Paging (up to 512 pages = 1MB) */
-            /* For PS_ASI, L1 must be 0; L2 selects page table entry */
-            if (l1_index != 0) {
-                MMU_ERR("[MMU] TRAP: PS_ASI page fault! L1=%d must be 0! vaddr=0x%08X\n",
-                      l1_index, virtual_addr);
-                {   static int pgfd = -1;
-                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
-                    if (pgfd) fprintf(stderr, "[PGFSITE] ASI-IDX dom=%d seg=%d psn=%d va=0x%08X\n",
-                                      domain, segment, psn, virtual_addr);
-                }
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
-                return virtual_addr;
-            }
-            /* PST entry points to a page table */
-            uint32_t page_table_base = pst_entry.physical_pfn << PGSHIFT;
-            uint32_t pte_addr = page_table_base + (l2_index * 4);  /* Use L2 index */
-
-            /* Read PTE from memory */
-            nd500_tlb_note_xlat_page(pte_addr);   /* PS_ASI page table - invalidate on write */
-            PageTableEntry pte = nd500_mmu_read_pte(cpu, pte_addr);
-
-            /* Check if page is present (valid bit must be set) */
-            if (!pte.valid) {
-                MMU_ERR("[MMU] TRAP: PS_ASI page not valid! vaddr=0x%08X pte_addr=0x%08X\n", virtual_addr, pte_addr);
-                {   static int pgfd = -1;
-                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
-                    if (pgfd) fprintf(stderr, "[PGFSITE] ASI-PTE dom=%d seg=%d psn=%d va=0x%08X pte@0x%08X\n",
-                                      domain, segment, psn, virtual_addr, pte_addr);
-                }
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
-                return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
-            }
-
-            /* PTE bit 31 is DATA-PAGE write protection on the LAST indexing
-             * level, and in PS_ASI the single level IS the last level.
-             * ND-05.009.4 Figure 14: "Bit 31 in an index page table entry is
-             * reserved except on the last indexing level. That is, when the
-             * page number part of the entry specifies a data page, then bit 31
-             * is used for data page write protection."
-             * It was previously gated on is_instruction, so a data write to a
-             * read-only page succeeded here while the PS_ADI branch below
-             * correctly rejected it - the two paths disagreed. The old comment
-             * justified this with "C# reference creates all PTEs with
-             * protection=1", which is no longer true of that code. */
-            if (is_write && pte.protection != 0) {
-                MMU_ERR("[MMU] TRAP: Instruction write to read-only page! vaddr=0x%08X pte_addr=0x%08X prot=%d\n",
-                      virtual_addr, pte_addr, pte.protection);
-                /* PVWVIOL: a write-protected PAGE, the recoverable case (see the
-                 * DC_WRP site above). MMINST stays clear - this is a data write. */
-                cpu->mmu_pgf_where = MMW_PVWVIOL;
-                trap_protect_violation(cpu, cpu->PC, virtual_addr);
-                return virtual_addr;
-            }
-
-            physical_pfn = pte.physical_pfn;
-            break;
-        }
-
-        case PS_ADI: {
-            /* Mode 2: Two-Level Paging (up to 128*512 = 65536 pages = 128MB) */
-            /* L1 selects L2 page table (0-127), L2 selects entry (0-511) */
-            /* l1_index and l2_index already extracted correctly at top of function */
-            uint32_t l1_table_base = pst_entry.physical_pfn << PGSHIFT;
-
-            /* Read L1 PTE using l1_index */
-            uint32_t l1_pte_addr = l1_table_base + (l1_index * 4);
-            nd500_tlb_note_xlat_page(l1_pte_addr);  /* PS_ADI L1 table - invalidate on write */
-            PageTableEntry l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
-
-            if (!l1_pte.valid) {
-                /* A MON-connected segment (412B FSCNT / 422B GSWSP) is grown on
-                 * demand, matching the manual's paged segment model - allocate
-                 * the missing L2 table + page and re-read rather than trapping. */
-                if (!is_instruction && nd500_segment_grow_on_fault(cpu, virtual_addr, domain)) {
-                    l1_pte = nd500_mmu_read_pte(cpu, l1_pte_addr);
-                }
-            }
-            if (!l1_pte.valid) {
-                MMU_ERR("[MMU] TRAP: PS_ADI L1 page not valid! vaddr=0x%08X l1_pte_addr=0x%08X\n", virtual_addr, l1_pte_addr);
-                /* PTWDBG: prove/refute the Physbase-linear-map (seg 2) round-trip.
-                 * The kernel writes this very L1 table THROUGH the seg-2 linear map
-                 * at virtual (Physbase + l1_table_base). If seg-2 maps that back to
-                 * physical l1_table_base, the write and this read agree; if not, the
-                 * kernel's PTE writes are landing on the wrong page - the real root. */
-                {
-                    const char* e = getenv("ND500X_PTWDBG");
-                    if (e && e[0] && e[0] != '0') {
-                        uint32_t phys_l1  = nd500_bus_read32(cpu->machine, l1_pte_addr);
-                        uint32_t alias_va = 0x10000000u + l1_table_base; /* Physbase(seg2)+X */
-                        /* Walk the GUEST seg-2 tables (DIT->PST->ADI) exactly as the
-                         * CPU does - NOT nd500_mmu_peek (that reads the shadow tables). */
-                        uint32_t s2 = (alias_va >> SGSHIFT) & 0x1F;
-                        uint32_t s2_l1 = (alias_va >> L1_INDEX_SHIFT) & L1_INDEX_MASK;
-                        uint32_t s2_l2 = (alias_va >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
-                        uint32_t s2_off = alias_va & (NBPG - 1);
-                        uint32_t capA = cpu->DITBASE + 0u*256u + 64u + s2*2u;
-                        uint16_t cap  = (uint16_t)((nd500_bus_read8(cpu->machine, capA) << 8)
-                                                 |  nd500_bus_read8(cpu->machine, capA + 1));
-                        uint32_t psn  = cap & PC_PSN;
-                        uint32_t pstw = nd500_bus_read32(cpu->machine, cpu->PSTP + psn*4u);
-                        uint32_t pmode = pstw >> 30, ppfn = pstw & 0x3FFFFFFF;
-                        uint32_t l1w = nd500_bus_read32(cpu->machine, (ppfn<<PGSHIFT) + s2_l1*4u);
-                        uint32_t l2base = (l1w & 0x3FFFFFFF);
-                        uint32_t l2w = nd500_bus_read32(cpu->machine, (l2base<<PGSHIFT) + s2_l2*4u);
-                        uint32_t gphys = ((l2w & 0x3FFFFFFF)<<PGSHIFT) + s2_off;
-                        uint32_t gval  = nd500_bus_read32(cpu->machine, gphys);
-                        fprintf(stderr, "[PTWDBG] seg=%d usrpt L1@phys0x%08X=0x%08X | seg2 GUEST-walk "
-                                "va=0x%08X cap=0x%04X psn=%u mode=%u l1=0x%08X l2=0x%08X -> gphys=0x%08X val=0x%08X\n",
-                                segment, l1_pte_addr, phys_l1, alias_va, cap, psn, pmode, l1w, l2w, gphys, gval);
-                    }
-                }
-                /* PFZ1: zero 1st-level page-table entry. MMINST (0x40) marks an
-                 * I-channel (instruction fetch) fault - the NDIX kernel derives
-                 * the fault SPACE from it (trap.c T_PGF+USER: access=(info&
-                 * MMINST)>>5; segno+access classifies text vs data). Without it
-                 * a text-fetch fault at va 0 pages in DATA page 0 instead. */
-                cpu->mmu_pgf_where = MMW_PFZ1 | (is_instruction ? MMW_INST : 0u);
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
-                return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
-            }
-
-            /* L1 PTE points to L2 page table */
-            uint32_t l2_table_base = l1_pte.physical_pfn << PGSHIFT;
-            uint32_t l2_pte_addr = l2_table_base + (l2_index * 4);
-
-            /* Read L2 PTE */
-            nd500_tlb_note_xlat_page(l2_pte_addr);  /* PS_ADI L2 table - invalidate on write */
-            PageTableEntry l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
-
-            /* PST47DBG: full walk chain for the shared user-data segment (PSN 47 =
-             * icode p_addr+1). Shows whether PST[47] -> L1 -> L2 resolves to a page
-             * or where the chain is empty (the _Udata / seg-30 boot blocker). */
-            if (nd_env_flag("ND500X_PST47DBG", &g_envf_pst47dbg) && psn == 47) {
-                static uint64_t n47 = 0;
-                if (n47++ < 40) {
-                    uint32_t l1w = nd500_bus_read32(cpu->machine, l1_pte_addr);
-                    uint32_t l2w = nd500_bus_read32(cpu->machine, l2_pte_addr);
-                    fprintf(stderr,
-                        "[PST47] dom=%d seg=%d va=0x%08X L1i=%d L2i=%d PC=0x%08X | "
-                        "PST47{mode=%u pfn=0x%X} l1@0x%08X=0x%08X(pfn0x%X v=%d) "
-                        "l2base=0x%08X l2@0x%08X=0x%08X(v=%d)\n",
-                        domain, segment, virtual_addr, l1_index, l2_index, cpu->PC,
-                        pst_entry.index_mode, pst_entry.physical_pfn,
-                        l1_pte_addr, l1w, l1_pte.physical_pfn, l1_pte.valid,
-                        l2_table_base, l2_pte_addr, l2w, l2_pte.valid);
-                }
-            }
-
-            if (!l2_pte.valid) {
-                /* Same demand-growth path as the L1 miss above. */
-                if (!is_instruction && nd500_segment_grow_on_fault(cpu, virtual_addr, domain)) {
-                    l2_pte = nd500_mmu_read_pte(cpu, l2_pte_addr);
-                }
-            }
-            if (!l2_pte.valid) {
-                /* A zero L2 PTE is the ROUTINE demand-paging fault in a paging
-                 * OS (every text/data page of every exec'd program) - log it
-                 * only at TRACE, not at the default ERRORS level, or the
-                 * console drowns during normal NDIX operation. */
-                if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_TRACE)
-                    fprintf(stderr, "[MMU] TRAP: PS_ADI L2 page not valid! vaddr=0x%08X l2_pte_addr=0x%08X\n", virtual_addr, l2_pte_addr);
-                {
-                    const char* e = getenv("ND500X_PTWDBG");
-                    if (e && e[0] && e[0] != '0') {
-                        fprintf(stderr, "[PTWDBG-L2] seg=%d va=0x%08X psn=%d pst_pfn=0x%X l1_pte@0x%08X=pfn0x%X "
-                                "l2_pte_addr=0x%08X raw=0x%08X\n", segment, virtual_addr, psn,
-                                pst_entry.physical_pfn, l1_pte_addr, l1_pte.physical_pfn, l2_pte_addr,
-                                nd500_bus_read32(cpu->machine, l2_pte_addr));
-                        fprintf(stderr, "[PTWDBG-L2] guest PST[13..21]:");
-                        for (int q = 13; q <= 21; q++)
-                            fprintf(stderr, " [%d]=0x%08X", q, nd500_bus_read32(cpu->machine, cpu->PSTP + q*4u));
-                        fprintf(stderr, "\n[PTWDBG-L2] guest DIT dom0 seg2 data@0x%08X=0x%04X\n",
-                                cpu->DITBASE + 64u + 2u*2u,
-                                (nd500_bus_read8(cpu->machine, cpu->DITBASE+64u+4u)<<8)
-                                | nd500_bus_read8(cpu->machine, cpu->DITBASE+64u+5u));
-                    }
-                }
-                /* PFZ2: zero 2nd-level page-table entry (demand page). MMINST
-                 * (0x40) marks an I-channel fault - see the PFZ1 site above. */
-                cpu->mmu_pgf_where = MMW_PFZ2 | (is_instruction ? MMW_INST : 0u);
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
-                return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
-            }
-
-            /* Write permission comes from the L2 entry only. ND-05.009.4
-             * Figure 14: "Bit 31 in an index page table entry is reserved
-             * except on the last indexing level." The L1 entry addresses
-             * another table, not a data page, so its bit 31 is not a
-             * protection bit. Checking it denied writes to every page beneath
-             * a read-only L1 entry - nd500_segment_alloc.c had to force L1
-             * entries writable to work around exactly that. */
-            if (is_write && l2_pte.protection != 0) {
-                MMU_ERR("[MMU] TRAP: PS_ADI write to read-only page! vaddr=0x%08X l1_prot=%d l2_prot=%d\n",
-                      virtual_addr, l1_pte.protection, l2_pte.protection);
-                /* Same detail the L2-not-valid branch prints. Knowing WHICH
-                 * table entry carries the read-only bit is the whole question
-                 * when a segment the guest believes is SG_RW refuses a write:
-                 * with ND500X_MMU_GUEST_TABLES these are the GUEST's tables,
-                 * so the address identifies whose PTE it is. */
-                {
-                    const char* e = getenv("ND500X_PTWDBG");
-                    if (e && e[0] && e[0] != '0') {
-                        fprintf(stderr, "[PTWDBG-RO] seg=%d va=0x%08X psn=%d pst_pfn=0x%X "
-                                "l1_pte@0x%08X=pfn0x%X raw=0x%08X  l2_pte@0x%08X raw=0x%08X pfn=0x%X\n",
-                                segment, virtual_addr, psn, pst_entry.physical_pfn,
-                                l1_pte_addr, l1_pte.physical_pfn,
-                                nd500_bus_read32(cpu->machine, l1_pte_addr),
-                                l2_pte_addr, nd500_bus_read32(cpu->machine, l2_pte_addr),
-                                l2_pte.physical_pfn);
-                    }
-                }
-                /* PVWVIOL: write-protected data page (recoverable - see above). */
-                cpu->mmu_pgf_where = MMW_PVWVIOL;
-                trap_protect_violation(cpu, cpu->PC, virtual_addr);
-                return virtual_addr;  /* Write to read-only page - return virtual address, trap will stop execution */
-            }
-
-
-            physical_pfn = l2_pte.physical_pfn;
-            break;
-        }
-
-        default:
-            /* Invalid index mode */
-            MMU_ERR("[MMU] TRAP: Invalid PST index mode %d! vaddr=0x%08X psn=%d\n",
-                  pst_entry.index_mode, virtual_addr, psn);
-            trap_illegal_operand(cpu, cpu->PC);
-            return virtual_addr;  /* Invalid index mode - return virtual address, trap will stop execution */
-    }
-
-    /* ─────────────────────────────────────────────────────────
-     * Construct physical address: (PFN << 11) | Offset
-     * ───────────────────────────────────────────────────────── */
-
-    uint32_t physical_addr = (physical_pfn << PGSHIFT) | offset;
-
-    /* Cache this translation. Reached only by a walk that produced a physical
-     * address - every fault path returned above - so nothing that traps is
-     * ever cached. `writable` records whether the DC_WRP and PTE-protection
-     * checks were actually satisfied on this pass: a read-only page cached by
-     * a read must not let a later write through, so the lookup re-walks in
-     * that case and the trap is raised properly. */
-    if (g_nd500_tlb_on) {
-        g_tlb_misses++;
-        TlbEntry* te = &g_nd500_tlb[tlb_idx];
-        te->tag      = tlb_key;
-        te->pfn      = physical_pfn;
-        te->writable = (uint8_t)(is_write != 0);
-    }
-
-    /* Hardware sets Page Used on any access and Written In Page on a write
-     * (ND-05.009.4 16.17, 16.20). The swapper reads them back through
-     * RPGU/RWIP. Marked here, at the one exit where a page walk actually
-     * produced a physical address - every fault path returns before this, so a
-     * page that was never reached is never marked.
-     *
-     * DELIBERATE LIMIT: the MMU-disabled and segment-alias exits earlier in
-     * this function return without marking. NDIX only ever asks about page
-     * frames it owns in its own page tables, and it reaches those through this
-     * path, so the untranslated exits cannot change a swapper decision. */
-    nd500_page_bits_mark(cpu->machine, physical_addr, is_write);
-
-    /* Debug: show translation for high addresses (controlled by show mmu level) */
-    if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ALL && virtual_addr >= 0x08000000) {
-        fprintf(stderr, "[MMU] vaddr=0x%08X -> paddr=0x%08X (seg=%d L1=%d L2=%d cap=0x%04X psn=%d mode=%d pfn=0x%X)\n",
-                virtual_addr, physical_addr, segment, l1_index, l2_index, capability, psn, pst_entry.index_mode, physical_pfn);
-    }
-
-    return physical_addr;
+    /* segment -1 / capability 0: no logical segment and no capability were
+     * involved, and a fault message must not imply otherwise. */
+    return nd500_mmu_walk_pst(cpu, (int)psn, l1_index, l2_index, offset,
+                              is_write, /* is_instruction */ 0, use_guest,
+                              /* tlb_cacheable */ 0, 0, 0,
+                              segment_relative_addr, -1, 0, (uint8_t)cpu->CED);
 }
 
 /**
