@@ -223,6 +223,10 @@ static uint32_t pkt_rd32(Pkt* p, uint32_t off) {
  * addresses = (physical_byte + private)/2; the kernel doubles them back to
  * bytes (htob) and, for firstaddr, subtracts private (so private cancels).
  * ═══════════════════════════════════════════════════════════════════════════ */
+/* Set once the guest completes FE_INIT. Until then no fecall interrupt may be
+ * delivered - see the gate at the top of nd500_fecall_tick(). */
+static int g_fe_initialised = 0;
+
 static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
     uint32_t memtop = cpu->machine ? cpu->machine->memory_size : 0x1000000u;
 
@@ -300,6 +304,14 @@ static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
     uint32_t sdata_phys = 0x00041a94u;   /* = a_text (data base) */
     uint32_t sstack_phys = sfree_phys;
     uint32_t spst_phys  = 0x00084000u;   /* emulator PSTP */
+
+    /* The guest has now negotiated the MON 600 front-end interface, so the
+     * interrupt machinery in nd500_fecall_tick() is allowed to run. Nothing
+     * below FE_INIT is meaningful before this point: K_IPLP, K_INTVEC and
+     * K_CXBTAB are hardcoded NDIX kernel addresses, and in any other guest
+     * they are just whatever happens to be at those addresses. See the gate
+     * at the top of nd500_fecall_tick(). */
+    g_fe_initialised = 1;
 
     /* word = (physical + private)/2 */
 #define W(x) (((x) + FE_PRIVATE) / 2u)
@@ -1004,6 +1016,22 @@ static void tick_report(void) {
 void nd500_fecall_tick(Nd500Cpu* cpu) {
     { static int reg = 0; if (!reg) { reg = 1; atexit(tick_report); } }
     if (!cpu) return;
+    /* Do nothing at all until the guest has negotiated MON 600 with FE_INIT.
+     *
+     * Everything this function touches - K_IPLP, K_INTVEC, K_CXBTAB, the shared
+     * segment - is a hardcoded NDIX kernel address. In any other guest those
+     * are just whatever bytes happen to live there. A SINTRAN DOM (the NC
+     * compiler in the dom_nc_* tests) never issues a fecall, yet K_IPLP read
+     * back nonzero garbage, ip_cur read back 0, and the tick vectored the DOM
+     * to K_INTVEC = 0x4ed - "illegal instruction", every time.
+     *
+     * That was latent before: the CED != 0 and PC == 0x844 gates almost never
+     * both held for a DOM, so the garbage iplrec was never reached. Delivering
+     * the clock from a user domain (8461ed8) removed the PC check on that path
+     * and made it reachable, which broke dom_nc_compiler, dom_nc_compile_a and
+     * dom_nc_compile_b. Gate on the interface actually being live instead of
+     * relying on two unrelated conditions to miss. */
+    if (!g_fe_initialised) return;
     /* Front-end "DMA" of queued console input into the mx_bin ring: pure
      * physical-memory writes, safe at any instruction boundary (the real
      * ND-100 wrote this ring concurrently with ND-500 execution). */
