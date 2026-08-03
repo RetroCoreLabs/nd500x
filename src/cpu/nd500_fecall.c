@@ -955,6 +955,7 @@ static void fe_conq_drain(Nd500Cpu* cpu) {
  * and drives timekeeping + the scheduler. */
 unsigned long long g_tick_gated = 0, g_tick_seen = 0;
 unsigned long long g_tick_due_any = 0, g_tick_user = 0;
+unsigned long long g_tick_at844 = 0, g_tick_ced0_not844 = 0;
 static void tick_report(void) {
     const char* e = getenv("ND500X_TICKSTAT");
     if (!e || !e[0] || e[0]=='0') return;
@@ -979,10 +980,13 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
         if (st2 && cpu->instruction_count && (cpu->instruction_count % FE_CLOCK_PERIOD) == 0) {
             g_tick_due_any++;
             if (cpu->CED != 0) g_tick_user++;
+            { extern unsigned long long g_tick_at844, g_tick_ced0_not844;
+              if (cpu->PC == 0x00000844u) g_tick_at844++;
+              else if (cpu->CED == 0)     g_tick_ced0_not844++; }
             if ((g_tick_due_any % 200ull) == 0)
-                fprintf(stderr, "[TICKALL] due_any=%llu in_user_domain=%llu (%.1f%%)\n",
-                        g_tick_due_any, g_tick_user,
-                        100.0*(double)g_tick_user/(double)g_tick_due_any);
+                { extern unsigned long long g_tick_at844, g_tick_ced0_not844;
+                  fprintf(stderr, "[TICKALL] due=%llu user_domain=%llu at_0x844=%llu kernel_but_not_844=%llu\n",
+                        g_tick_due_any, g_tick_user, g_tick_at844, g_tick_ced0_not844); }
         }
     }
     if (cpu->CED != 0) return;
