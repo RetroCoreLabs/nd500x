@@ -202,6 +202,37 @@ typedef struct Nd500Cpu {
 	 * restartable-fault (PGF) saved PC so the instruction re-executes. */
 	uint32_t cur_instr_pc;
 
+	/* P1 - the TRAPPING P register: the address of the instruction that caused
+	 * the most recent trap.
+	 *
+	 * The ND-500/5000 keeps TWO program registers. P is the restart address and
+	 * runs AHEAD of the fault (the fetch advances it, and also decodes operands,
+	 * before the instruction executes). P1 holds the instruction that failed.
+	 *
+	 * This is how the machine is documented and operated, not an emulator
+	 * convenience. ND-05.017.01 "ND-5000 HARDWARE MAINTENANCE" chapter 6 STEP 2
+	 * has the engineer find a failing instruction like this:
+	 *
+	 *     N500: ATTACH-PROCESS 0
+	 *     N500: LOOK-AT-REGISTER P
+	 *     P  : XXXXXXXXXX
+	 *     P1 : XXXXXXXXXX:<Failing instruction>
+	 *
+	 * ND annotate P1 as the failing instruction; P is NOT. The whole of STEP 2
+	 * exists because the address printed in a trap report (which is P) does not
+	 * identify the instruction. Same pair as the context block's "Trapping P
+	 * register" / "Restart P register" (Appendix A.1, registers 0 and 1).
+	 *
+	 * Worked example, measured 2026-08-03: a SINTRAN swapper trap reported
+	 * "At program address: 1 10533B" (= P = 0o1000010533) while the instruction
+	 * that actually faulted was the RPHS at 0o1000010525 - three instructions
+	 * earlier. Recovering that by hand took days; reading P1 is immediate.
+	 *
+	 * Latched on EVERY trap in raise_trap, unlike the PGF/PV-only restart
+	 * correction below, so a handler always sees the trap it was entered for.
+	 * Mirrored from RetroCore Registers.cs / CpuND500.Trap.cs 2026-08-03. */
+	uint32_t P1;
+
 	/* Pending ND-100 front-end (fecall) completion interrupt. An async FE_READ/
 	 * FE_WRIT/FE_DCTL fills its response packet immediately but the kernel blocks
 	 * in biowait() until a completion INTERRUPT drives diintr()->iodone(). The

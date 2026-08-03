@@ -494,6 +494,10 @@ typedef struct {
 
 static const RegNameEntry g_reg_table[] = {
 	{"PC",      offsetof(Nd500Cpu, PC)},
+	/* P1 = trapping P: the instruction that caused the last trap. Exposed by
+	 * name so `LOOK-AT-REGISTER P1` reproduces the ND-05.017.01 ch.6 STEP 2
+	 * troubleshooting procedure. PC/P is the RESTART address and runs ahead. */
+	{"P1",      offsetof(Nd500Cpu, P1)},
 	{"I1",      offsetof(Nd500Cpu, I[0])},
 	{"I2",      offsetof(Nd500Cpu, I[1])},
 	{"I3",      offsetof(Nd500Cpu, I[2])},

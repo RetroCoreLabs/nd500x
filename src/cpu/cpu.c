@@ -1042,6 +1042,15 @@ void nd500_trap_seq_pop_top(Nd500Cpu* cpu) {
 
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
 	if (!cpu) return;
+
+	/* Latch P1 = the TRAPPING P (see cpu_protos.h for the register's provenance).
+	 * Done for EVERY trap, and before anything below can return early, so a
+	 * handler or a post-mortem always sees the instruction the trap was raised
+	 * for rather than a stale address from an earlier fault. The PGF/PV block
+	 * further down adjusts the RESTART P; this is the separate trapping P and the
+	 * two must not be conflated. */
+	if (cpu->cur_instr_pc != 0) cpu->P1 = cpu->cur_instr_pc;
+
 	{ static int init = 0;
 	  if (!init) { const char* e = getenv("ND500X_PTDBG"); init = 1;
 	               g_ptdbg_target = e ? strtoul(e, NULL, 16) : 0; }
