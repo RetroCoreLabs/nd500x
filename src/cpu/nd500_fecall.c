@@ -365,16 +365,27 @@ static void fe_idev(Nd500Cpu* cpu, uint32_t gen, Pkt* cpk, Pkt* rpk) {
         if (fedbg()) fprintf(stderr, "[FECALL] FE_IDEV gen=%u -> FAIL (NOXMSG)\n", gen);
         return;
     }
-    /* Tape: only present when an image is attached. Answering success with no
-     * medium would let mtattach create /dev/mt* that fail on every access;
-     * failing here is what a drive-less machine looks like. */
+    /* Tape: only present when an image is attached (ND500X_TAPE). With no
+     * image, answer SUCCESS with zero sub-devices - that is how the kernel
+     * spells "the drive is not there", and it is silent:
+     *
+     *     io/mt.c:107   if (fep->subdevc = Idev_rpk(*mt_pkt).subdevc) {
+     *                           fep->alive++; fep->state = GD_RUN; ...
+     *
+     * subdevc == 0 skips the whole block, so nothing is marked alive and no
+     * mt sub-device is ever built. Reporting a nonzero COMPLETION instead sent
+     * mtattach down io/mt.c:103 nderror(), which printed
+     *     mtattach(): bad completion code 01 from feidev()
+     * on every single boot of a machine that simply has no tape drive. The
+     * earlier reasoning here - that success would make mtattach create /dev/mt*
+     * that fail on access - was wrong: with subdevc 0 it creates nothing. */
+    pkt_wr16(rpk, ID_RPK_COMPLETION, 0);
     if (gen == GEN_TAPE && !fe_tape_open()) {
-        pkt_wr16(rpk, ID_RPK_COMPLETION, 1);
-        if (fedbg()) fprintf(stderr, "[FECALL] FE_IDEV gen=2 (tape) -> FAIL (no ND500X_TAPE)\n");
+        pkt_wr16(rpk, ID_RPK_SUBDEVC, 0);
+        if (fedbg())
+            fprintf(stderr, "[FECALL] FE_IDEV gen=2 (tape) -> subdevc=0 (no ND500X_TAPE image)\n");
         return;
     }
-
-    pkt_wr16(rpk, ID_RPK_COMPLETION, 0);
 
     /* Terminals answer with a DIFFERENT packet shape. machine/if.h:
      *     struct _idev_rpk_xxxx { short completion; short subdevc; }
