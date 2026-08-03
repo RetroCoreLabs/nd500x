@@ -214,9 +214,13 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 		cpu->machine->stop_addr = trap ? trap->trap_pc : cpu->PC;
 		cpu->machine->stop_data = trap ? trap->trap_data_addr : 0;
 		cpu->machine->stop_reason = trap ? trap_to_stop_reason(trap->trap_condition) : STOP_TRAP_OTHER;
-		printf("[STOP] %s at PC=0x%08X data=0x%08X\n",
+		/* P1 = the TRAPPING P: the instruction that actually failed. PC/stop_addr is
+		 * the RESTART P and normally runs AHEAD of it, so this line printed alone
+		 * sends a reader to the wrong instruction. ND-05.017.01 ch.6 STEP 2 has the
+		 * engineer read BOTH registers for exactly that reason. Disassemble P1. */
+		printf("[STOP] %s at PC=0x%08X data=0x%08X P1=0x%08X <- failing instruction\n",
 		       nd500_stop_reason_str(cpu->machine->stop_reason),
-		       cpu->machine->stop_addr, cpu->machine->stop_data);
+		       cpu->machine->stop_addr, cpu->machine->stop_data, cpu->P1);
 		nd500_dump_stop_ring("trap");
 		nd500_trap_clear();
 		return false;
@@ -1246,8 +1250,9 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		}
 		/* Set trap state - this WILL stop execution */
 		nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
-		TRACE("[TRAP] %s at PC=0x%08X data=0x%08X\n",
-		      nd500_stop_reason_str(trap_to_stop_reason(trapBit)), trapPC, dataAddr);
+		/* Both program registers - same reason as the [STOP] line above. */
+		TRACE("[TRAP] %s at PC=0x%08X data=0x%08X P1=0x%08X <- failing instruction\n",
+		      nd500_stop_reason_str(trap_to_stop_reason(trapBit)), trapPC, dataAddr, cpu->P1);
 		if (cpu->machine) {
 			cpu->machine->run_flag = 0;
 			if (cpu->machine->stop_reason == STOP_NONE) {
