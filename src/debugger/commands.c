@@ -119,6 +119,7 @@ static int cmd_showpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_map_kdata(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_ndix_uarea(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_dumppt(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -196,6 +197,7 @@ static const CmdEntry g_commands[] = {
 	{"phyladr",     cmd_phyladr,      "Translate virtual to physical address"},
 	{"mmusetup",    cmd_mmusetup,     "Setup demo MMU configuration"},
 	{"map-kdata",   cmd_map_kdata,    "Describe kernel data seg 0 in the guest PST/DIT (for kernacc)"},
+	{"ndix-uarea",  cmd_ndix_uarea,   "Build proc0's kernel-stack/u-area segment (the ND-100's job)"},
 	{"listpst",     cmd_listpst,      "List configured PST entries"},
 	{"listpcb",     cmd_listpcb,      "List configured PCB domains"},
 	{"dumppt",      cmd_dumppt,       "Dump page table entries for PSN"},
@@ -3012,6 +3014,126 @@ static int cmd_map_kdata(Nd500Machine* m, CmdContext* ctx, char* args) {
 	output(ctx, "kernel data seg 0: phys 0x%08X..0x%08X (%u pages) -> PSN %u, "
 	            "PS_ASI page table at 0x%08X, DIT cap 0x%04X",
 	       phys_base, phys_base + (npages << PGSHIFT) - 1, npages, psn, pt_phys, cap);
+	return 0;
+}
+
+/*
+ * ndix-uarea [pt_phys] [uarea_phys]
+ *
+ * Build proc0's kernel-stack segment - the u-area at _u = 0xE8000000, which is
+ * segment 29 (DC_KSTACK, machine/pcb.h:195) - the way an ND-100 bootstrap would
+ * have left it. Same class of gap as THA/CTE1/CTE2 and map-kdata.
+ *
+ * Why nd500x has to do this at all: machdep.c:181-193 only DERIVES the twelve
+ * well-known kernel segment indices from Pst[FIRST_PHYS_SEG].ps_pfnum and never
+ * assigns Pst[stackindex]; its comment says outright that "the 100 has loaded
+ * the kernel into the start of the 5000 memory". init_main.c:68-74 then READS
+ * that slot: p_p0br = ptob(Pst[iseg].ps_pfnum) + Physbase, p_addr = iseg. There
+ * is no ND-100 here, so the slot has to be built or nothing valid is in it.
+ *
+ * The SHAPE is not a guess. NDIX builds the equivalent slot itself for every
+ * other process in vm_pt.c:85-89 - slot +0 PS_ASI over Usrptmap[a], slots +1..+3
+ * PS_ADI - and that was confirmed by reading the live PST out of physical memory
+ * at PSTP during a boot: PST[46]=0x40000910, PST[51]=0x40000901, PST[56], [61],
+ * [66] all PS_ASI, each followed by three PS_ADI entries. So slot +0 is a
+ * ONE-LEVEL segment whose index page doubles as the process page table, and its
+ * first UPAGES entries are the u-area's own pages. That is exactly what
+ * baseline/bin/ps.c:1305-1350 reads back: a page of struct pte from p_p0br,
+ * expecting arguutl[0..UPAGES-1].pg_pfnum to be non-zero.
+ *
+ * Only ONE slot is written. Pst[16..25] are the twelve well-known KERNEL
+ * segments (pcb.h:171-183: STACKINDEX 3 -> 16, PSTINDEX 4 -> 17, SYSINDEX 5 ->
+ * 18, PHYSINDEX 6 -> 19, PSINDEX 7 -> 20). proc0's p_addr names a single one of
+ * them, not a five-slot process group - writing a group here would overwrite
+ * sysindex and physindex, which machdep.c:236 and :371 own. p_szpt = 4 at
+ * init_main.c:73 is nominal; the swapper never has user text, data or stack.
+ *
+ * Default physical placement sits below sfree (0x00100000, nd500_fecall.c:266),
+ * so these pages are outside the pool FE_INIT tells NDIX it owns, and above the
+ * seg 27/28 page tables (0xA0000/0xA1000) and map-kdata's page table (0xA2000).
+ */
+#define NDIX_UAREA_PT_PHYS   0x000A3000u   /* page table for segment 29        */
+#define NDIX_UAREA_PG_PHYS   0x000A3800u   /* first of UPAGES u-area pages     */
+#define NDIX_UPAGES          4u            /* machine/param.h:31, = 8 KB       */
+#define NDIX_FIRST_PHYS_SEG  13u           /* machine/pcb.h:164                */
+#define NDIX_STACKINDEX      3u            /* machine/pcb.h:154                */
+#define NDIX_KSTACK_SEG      29            /* machine/pcb.h:195, _u >> SGSHIFT */
+
+static int cmd_ndix_uarea(Nd500Machine* m, CmdContext* ctx, char* args) {
+	if (!m || !m->cpu) {
+		error(ctx, "no cpu linked");
+		return -1;
+	}
+	if (!m->cpu->PSTP || !m->cpu->DITBASE) {
+		error(ctx, "ndix-uarea: run mmusetup first (PSTP/DITBASE unset)");
+		return -1;
+	}
+
+	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
+	char* a2 = strtok(NULL, " \t\r\n");
+	uint32_t pt_phys    = a1 ? (uint32_t)strtoul(a1, NULL, 0) : NDIX_UAREA_PT_PHYS;
+	uint32_t uarea_phys = a2 ? (uint32_t)strtoul(a2, NULL, 0) : NDIX_UAREA_PG_PHYS;
+
+	if ((pt_phys & PGOFSET) || (uarea_phys & PGOFSET)) {
+		error(ctx, "ndix-uarea: addresses must be page aligned (NBPG=%d)", 1 << PGSHIFT);
+		return -1;
+	}
+
+	/* first_phys_seg is read from the PST exactly as machdep.c:181 reads it,
+	 * rather than assumed to be 13, so a different PST layout still lands in
+	 * the slot the kernel will actually look at. */
+	uint32_t fps = nd500_bus_read32(m, m->cpu->PSTP + NDIX_FIRST_PHYS_SEG * 4u)
+	             & 0x3FFFFFFFu;
+	uint32_t psn = fps + NDIX_STACKINDEX;
+	if (psn == 0 || psn >= MAX_PST) {
+		error(ctx, "ndix-uarea: derived PSN %u out of range (Pst[%u].ps_pfnum = %u)",
+		      psn, NDIX_FIRST_PHYS_SEG, fps);
+		return -1;
+	}
+
+	/* Zero the whole index page first: entries past UPAGES must read 0 so the
+	 * MMU treats them as absent (nd500_mmu_read_pte: valid = pfnum != 0) and so
+	 * ps sees a clean end to the table rather than stale RAM. */
+	for (uint32_t i = 0; i < (1u << PGSHIFT); i++)
+		nd500_bus_write8(m, pt_phys + i, 0);
+
+	/* Entry k maps u-area page k. struct pte is pg_prot@31, pg_xx@30,
+	 * pg_pfnum@[29:0] (machine/pte.h:27-31); prot 0 = read/write, which the
+	 * kernel stack needs. */
+	for (uint32_t i = 0; i < NDIX_UPAGES; i++) {
+		uint32_t pte = ((uarea_phys >> PGSHIFT) + i) & 0x3FFFFFFFu;
+		uint32_t a = pt_phys + i * 4u;
+		nd500_bus_write8(m, a,     (uint8_t)(pte >> 24));
+		nd500_bus_write8(m, a + 1, (uint8_t)(pte >> 16));
+		nd500_bus_write8(m, a + 2, (uint8_t)(pte >> 8));
+		nd500_bus_write8(m, a + 3, (uint8_t)pte);
+	}
+
+	/* Zero the u-area pages themselves. locore.c:200 does the same thing on the
+	 * way in ("a virgin u area"), but it only covers _u.._Kstack; this makes the
+	 * whole 8 KB deterministic rather than whatever the allocator left. */
+	for (uint32_t i = 0; i < NDIX_UPAGES << PGSHIFT; i++)
+		nd500_bus_write8(m, uarea_phys + i, 0);
+
+	nd500_mmu_set_pst_entry(m->cpu, (int)psn, PS_ASI, pt_phys >> PGSHIFT);
+
+	/* Segment 29 is in the guest-table set (nd500_mmu.c use_guest), so the
+	 * capability must reach the DIT - set_data_capability writes the shadow and
+	 * mirrors it there. __resume (locore.c:924-932) overwrites this on every
+	 * context switch with p_addr|DC_WRP; the point of setting it here is that
+	 * the FIRST touch of 0xE8000000, long before any __resume, finds a real
+	 * mapping instead of falling into the demand allocator. */
+	uint16_t cap = (uint16_t)((psn & DC_PSN) | DC_WRP);
+	nd500_mmu_set_data_capability(m->cpu, 0, NDIX_KSTACK_SEG, cap);
+
+	/* printf, not output(ctx, ...): on the --ndix boot path ctx is a bare
+	 * CmdContext and output() goes nowhere, so the step would leave no trace in
+	 * the boot log. It replaces the "kernel u-area published to PST[16]" line
+	 * the demand-map fallback used to print, and matches those ND-500: lines. */
+	printf("ND-500: proc0 kernel stack (seg %d) -> PST[%u] PS_ASI, page table "
+	       "0x%08X, %u u-area pages at 0x%08X..0x%08X, DIT cap 0x%04X\n",
+	       NDIX_KSTACK_SEG, psn, pt_phys, NDIX_UPAGES, uarea_phys,
+	       uarea_phys + (NDIX_UPAGES << PGSHIFT) - 1, cap);
 	return 0;
 }
 

@@ -824,6 +824,18 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
 
                 /* Publish the kernel u-area in the PST slot NDIX expects.
                  *
+                 * FALLBACK PATH as of the `ndix-uarea` command. --ndix autoboot
+                 * now builds this slot properly before the guest runs, as
+                 * PS_ASI over a real page table - the shape NDIX's own vgetpt
+                 * produces (vm_pt.c:85-89) and the one ps.c:1305-1350 reads
+                 * back. Once that has run, segment 29 has a capability and this
+                 * demand branch never fires for it. It still fires on the
+                 * `load <kernel>` + <kernel>.init route, which has no
+                 * ndix-uarea step, so this stays - but note it aliases a
+                 * PS_ADI segment into the slot, which leaves the u-area
+                 * unreadable to ps and pstat -u even though the kernel itself
+                 * is fine (its own two-level walk resolves correctly).
+                 *
                  * On real hardware the ND-100 loads the kernel and fills the
                  * segment table entries Pst[first_phys_seg+1 .. +12] (machdep.c
                  * "the 100 has loaded the kernel ... left us with a single

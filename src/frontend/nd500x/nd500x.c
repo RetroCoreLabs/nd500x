@@ -529,6 +529,20 @@ int main(int argc, char** argv) {
 				printf("[ndix] %s\n", ndix_load_cmd);
 				nd500_cmd_execute(&machine, ndix_load_cmd, &bctx);
 			}
+			/* proc0's kernel-stack/u-area segment (segment 29, _u at
+			 * 0xE8000000). machdep.c:181-193 derives the twelve well-known
+			 * kernel segment indices but never assigns Pst[stackindex] - it
+			 * assumes an ND-100 bootstrap already filled them - and
+			 * init_main.c:72 then reads that slot to build proc0's p_p0br.
+			 * There is no ND-100 here, so nd500x builds it.
+			 *
+			 * Deliberately on BOTH boot routes, not inside autoboot: the
+			 * <kernel>.init route is the one that actually runs for the
+			 * shipped kernel (vmunix.init exists beside it), and it needs
+			 * this just as much. Runs after either route has set PSTP and
+			 * loaded the image, and before the guest first touches
+			 * 0xE8000000. */
+			nd500_cmd_execute(&machine, "ndix-uarea", &bctx);
 			printf("[ndix] run\n");
 			nd500_cmd_execute(&machine, "run", &bctx);
 		}
