@@ -327,9 +327,18 @@ void nd500_debugger_set_quiet_banner(int quiet) { g_quiet_banner = quiet; }
  * does the line editing (erase, kill, EOT) that readline was intercepting, so
  * Ctrl-D now reaches it as a plain 0x04 and works mid-session.
  *
- * ISIG is deliberately left ON so Ctrl-C still stops the emulator the way it
- * always has, rather than being swallowed by the guest. Ctrl-] drops to one
- * debugger command line and returns.
+ * ISIG is now turned OFF so Ctrl-C reaches the GUEST. It used to be left on so
+ * that Ctrl-C stopped the emulator, and the cost of that was total: the host
+ * terminal turned 0x03 into SIGINT for nd500x and NDIX never saw the character
+ * at all. Nothing running under NDIX could be interrupted - a runaway program
+ * meant restarting the machine. The guest's own tty is configured for it and
+ * always was: "stty everything" on the console reports "intr ^C" with the line
+ * cooked (-raw -cbreak), so the kernel side was ready and only the host was in
+ * the way.
+ *
+ * Ctrl-] still drops to one debugger command line and returns, and remains the
+ * way to reach the emulator rather than the guest. ND500X_HOST_SIGINT=1 puts
+ * the old behaviour back for anyone who wants Ctrl-C to kill nd500x itself.
  *
  * Returns 1 while stdin is alive, 0 on EOF. *want_debugger is set if the user
  * pressed the escape.
@@ -347,6 +356,13 @@ static int guest_passthrough(Nd500Machine* m, int* want_debugger)
 
     raw = saved;
     raw.c_lflag &= ~(ICANON | ECHO);              /* no line buffer, no local echo */
+    {
+        /* Hand Ctrl-C (and Ctrl-\, Ctrl-Z) to the guest instead of letting the
+         * host tty turn them into signals for the emulator. See the note above. */
+        const char* e = getenv("ND500X_HOST_SIGINT");
+        if (!(e && e[0] && e[0] != '0'))
+            raw.c_lflag &= ~ISIG;
+    }
     raw.c_cc[VMIN]  = 1;
     raw.c_cc[VTIME] = 0;
     if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) != 0) return 1;

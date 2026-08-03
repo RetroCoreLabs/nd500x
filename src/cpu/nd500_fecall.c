@@ -806,15 +806,34 @@ static FeConqEntry g_conq[FE_CONQ_SIZE];
 static int  g_conq_head = 0, g_conq_tail = 0;
 static pthread_mutex_t g_conq_mtx = PTHREAD_MUTEX_INITIALIZER;
 
+/* The guest's erase character is DEL (0177). h/ttychars.h:36 sets CERASE that
+ * way, and the guest confirms it at runtime - "stty everything" on the console
+ * reports "erase ^?" with the line in cooked mode (-raw -cbreak).
+ *
+ * Measured: sending 0x7F erases (echo abcZ<DEL>Y printed "abcY"), sending 0x08
+ * does not (echo defZ<BS>W printed "defZ\bW" - the byte went through as data).
+ * So on any terminal whose Backspace key emits BS rather than DEL, backspace
+ * silently does nothing. Translating here is what a real terminal server did,
+ * and it is the only place we can do it: the NDIX side is frozen source.
+ *
+ * ND500X_RAW_BS=1 turns the translation off, for a program that genuinely wants
+ * ^H as data - vi bound to ^H for cursor-left being the obvious one. */
+static int fe_translate_bs(void) {
+    static int on = -1;
+    if (on < 0) { const char* e = getenv("ND500X_RAW_BS"); on = (e && e[0] && e[0] != '0') ? 0 : 1; }
+    return on;
+}
+
 void nd500_fecall_tty_input(int unit, const char* buf, int len) {
     int i;
+    int xlat = fe_translate_bs();
     if (unit < 0 || unit > 255) return;        /* element field is 8 bits */
     pthread_mutex_lock(&g_conq_mtx);
     for (i = 0; i < len; i++) {
         int nt = (g_conq_tail + 1) % FE_CONQ_SIZE;
         if (nt == g_conq_head) break;          /* host queue full - drop rest */
         g_conq[g_conq_tail].unit = (uint8_t)unit;
-        g_conq[g_conq_tail].ch   = buf[i];
+        g_conq[g_conq_tail].ch   = (xlat && buf[i] == 0x08) ? 0x7F : buf[i];
         g_conq_tail = nt;
     }
     g_conq_avail = (g_conq_tail != g_conq_head);
