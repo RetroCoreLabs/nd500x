@@ -356,6 +356,22 @@ static int guest_passthrough(Nd500Machine* m, int* want_debugger)
 
     raw = saved;
     raw.c_lflag &= ~(ICANON | ECHO);              /* no line buffer, no local echo */
+    /* IEXTEN is the host's own extended input processing, and Ctrl-V (LNEXT) is
+     * the part of it that runs even with ICANON off - the host would consume the
+     * Ctrl-V and hand the guest only the quoted character. CLNEXT is Ctrl-V in
+     * the guest too (h/ttychars.h:50), so the guest must receive the 0x16. */
+    raw.c_lflag &= ~IEXTEN;
+    /* Software flow control belongs to the GUEST, not to the host terminal.
+     * With IXON left set (the default on a Linux tty) the host swallows Ctrl-S
+     * and Ctrl-Q outright, so CSTOP/CSTART (h/ttychars.h:40-41) could never
+     * reach NDIX - stopping and restarting guest output was impossible. IXANY
+     * goes too, or any keystroke silently restarts output the guest still
+     * believes it has stopped.
+     *
+     * Only the flags that STEAL characters are cleared. ICRNL deliberately
+     * stays: Enter currently reaches the guest correctly, and cfmakeraw-style
+     * blanket clearing would change that for no demonstrated gain. */
+    raw.c_iflag &= ~(IXON | IXOFF | IXANY);
     {
         /* Hand Ctrl-C (and Ctrl-\, Ctrl-Z) to the guest instead of letting the
          * host tty turn them into signals for the emulator. See the note above. */
