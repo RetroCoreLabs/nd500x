@@ -32,6 +32,12 @@ void nd500_fecall_tty_input(int unit, const char* buf, int len);
 /* Backwards-compatible shorthand for unit 0 (/dev/console). */
 void nd500_fecall_console_input(const char* buf, int len);
 
+/* Which guest tty the LOCAL terminal is attached to - what stdin feeds and what
+ * stdout shows. Unit 0 (the console) until the F12 menu moves it. Changing it
+ * is invisible to the guest: all four ttys keep running either way. */
+void nd500_fecall_set_local_unit(int unit);
+int  nd500_fecall_local_unit(void);
+
 /* Sink for guest output on one unit. buf/len is a chunk of one FE_WRIT. */
 typedef void (*Nd500TtyOutFunc)(int unit, const unsigned char* buf, int len, void* ctx);
 

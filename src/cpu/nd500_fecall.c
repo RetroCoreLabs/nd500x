@@ -900,8 +900,19 @@ void nd500_fecall_tty_input(int unit, const char* buf, int len) {
     pthread_mutex_unlock(&g_conq_mtx);
 }
 
+/* Which guest tty the LOCAL terminal is attached to. The F12 menu moves it, so
+ * one terminal can reach console, tty01, tty02 or tty81 without a telnet client.
+ * Everything else about those units is unchanged - the guest cannot tell. */
+static int g_local_unit = FE_CONDEV;
+
+void nd500_fecall_set_local_unit(int unit) {
+    if (unit >= 0 && unit <= 255) g_local_unit = unit;
+}
+
+int nd500_fecall_local_unit(void) { return g_local_unit; }
+
 void nd500_fecall_console_input(const char* buf, int len) {
-    nd500_fecall_tty_input(FE_CONDEV, buf, len);
+    nd500_fecall_tty_input(g_local_unit, buf, len);
 }
 
 /* ---- console OUTPUT: guest -> host sinks ---------------------------------
@@ -942,7 +953,9 @@ static void fe_tty_out(int unit, const unsigned char* buf, int len) {
         ctx = g_tty_out_ctx[unit];
     }
     if (fn) fn(unit, buf, len, ctx);
-    if (unit == FE_CONDEV) {
+    /* The local terminal shows whichever unit it is currently attached to, not
+     * unit 0 for ever: that is what makes the F12 virtual-console switch work. */
+    if (unit == g_local_unit) {
         int i;
         for (i = 0; i < len; i++) putchar((int)buf[i]);
         fflush(stdout);
@@ -1291,16 +1304,34 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                             "or set ND500X_DISK\n");
             return -1;
         }
-        /* ND500X_DISK_RW=1: copy-on-write session. The MASTER image is copied
-         * to <image>.session (overwriting any previous session) and all reads
-         * AND writes go to the session copy - the master stays pristine. A
-         * good session can be promoted by copying it over the master by hand.
-         * Without the env var the master opens read-only and FE_WRIT is a
-         * fake-success no-op (historic behavior). */
+        /* ND500X_DISK_RW selects what a guest write does:
+         *
+         *   unset / "1"  write STRAIGHT THROUGH to the image. Editing a file or
+         *                writing to /tmp inside NDIX changes the image on disk
+         *                and is still there next boot - which is what a real
+         *                machine does, and what makes the image the one thing
+         *                that has to be delivered. /tmp is an ordinary
+         *                directory in the root filesystem (4.3BSD has no
+         *                tmpfs), so it persists too.
+         *   "cow"        copy-on-write session. The image is copied to
+         *                <image>.session and all reads AND writes go to the
+         *                copy, leaving the master untouched. Promote a good
+         *                session by copying it over the master by hand.
+         *   "0"          read-only; FE_WRIT is a fake-success no-op.
+         *
+         * The default used to be "0" with "1" meaning the session copy. It was
+         * changed deliberately: an emulator whose disk forgets everything is
+         * not a machine anyone can use. Anything that must not be modified
+         * should be run with "cow" or "0". */
         static int rw = -1;
-        if (rw < 0) { const char* e = getenv("ND500X_DISK_RW"); rw = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        static int cow = 0;
+        if (rw < 0) {
+            const char* e = getenv("ND500X_DISK_RW");
+            cow = (e && (e[0] == 'c' || e[0] == 'C')) ? 1 : 0;
+            rw = (e && e[0] == '0' && e[1] == '\0') ? 0 : 1;
+        }
         g_disk_rw = rw;
-        if (rw) {
+        if (rw && cow) {
             static char spath[1100];
             snprintf(spath, sizeof(spath), "%s.session", disk_path);
             FILE* src = fopen(disk_path, "rb");
@@ -1315,6 +1346,18 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             if (fedbg() || g_disk)
                 fprintf(stderr, "[FECALL] COW session: %s -> %s (%s)\n",
                         disk_path, spath, g_disk ? "writable" : "FAILED - no disk");
+        } else if (rw) {
+            g_disk = fopen(disk_path, "r+b");
+            if (!g_disk) {
+                /* Say so rather than falling back silently: a read-only open
+                 * looks like a working boot right up to the first write, which
+                 * then vanishes with no error anywhere. */
+                fprintf(stderr, "[FECALL] cannot open %s for writing (%s) - "
+                                "opening read-only, guest writes will be LOST\n",
+                        disk_path, strerror(errno));
+                g_disk = fopen(disk_path, "rb");
+                g_disk_rw = 0;
+            }
         } else {
             g_disk = fopen(disk_path, "rb");
         }

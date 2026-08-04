@@ -13,6 +13,7 @@
 #include "../../debugger/commands.h"
 #include "nd500x_shell.h"
 #include "nd500x_ndix.h"
+#include "ndix_menu.h"
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
 #include <ndmon/mon.h>
@@ -85,13 +86,19 @@ static void print_usage(const char* prog) {
     printf("  %s --ndix <root-disk-image> --telnet\n", prog);
     printf("  Boots multiuser to a login prompt (root, no password). Typed lines go to\n");
     printf("  the guest console; a line starting with '~' goes to the debugger instead.\n");
+    printf("  Press F12 for the emulator menu: virtual consoles, or exit NDIX.\n");
     printf("  The kernel image is looked up in this order:\n");
     printf("      --kernel <path>\n");
     printf("      $ND500X_KERNEL\n");
+    printf("      /vmunix INSIDE the disk image        (so the image is all you need)\n");
     printf("      <root>/kernel/MASTER/GENERIC/vmunix\n");
     printf("      <root>/vmunix\n");
     printf("  where <root> is --sintran-root if given, else the directory holding the\n");
-    printf("  disk image. --ndix only sets DEFAULTS for ND500X_DISK, ND500X_DISK_RW,\n");
+    printf("  disk image. A kernel you just rebuilt is NOT picked up until you copy it\n");
+    printf("  into the image with nd500-mkproto - or pass --kernel.\n");
+    printf("  Guest writes go THROUGH to the disk image and survive a restart. Set\n");
+    printf("  ND500X_DISK_RW=cow for a scratch session, or =0 for read-only.\n");
+    printf("  --ndix only sets DEFAULTS for ND500X_DISK, ND500X_DISK_RW,\n");
     printf("  ND500X_MMU_GUEST_TABLES, ND500X_NOXMSG and ND500X_CONSOLE_STDIN - any of\n");
     printf("  them exported beforehand still wins.\n");
     printf("\n");
@@ -503,6 +510,12 @@ int main(int argc, char** argv) {
     }
 
 	if (debug) {
+		/* F12 belongs to the emulator, not to the guest. Installed only on the
+		 * --ndix path: the menu's entries (virtual consoles, shut NDIX down)
+		 * only mean anything when there is an NDIX guest running. */
+		if (ndix_image)
+			nd500_debugger_set_guest_key_handler(ndix_menu_guest_key);
+
 		/* Guest terminals over telnet. Started before the boot script so the
 		 * very first console bytes reach an already-connected client; the
 		 * local stdio console keeps its copy of unit 0 either way, so nothing

@@ -15,7 +15,10 @@
 
 #include "nd500x_ndix.h"
 #include "telnetserver.h"
+#include "ndix_ffs.h"
 #include "../../cpu/nd500_fecall.h"
+#include "../../machine/machine_protos.h"
+#include "../../machine/machine_types.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,6 +49,58 @@ static void setenv_default(const char* name, const char* value) {
 static int is_file(const char* p) {
     struct stat st;
     return p && p[0] && stat(p, &st) == 0 && S_ISREG(st.st_mode);
+}
+
+/* The kernel taken out of the disk image, if that is where it came from. It has
+ * to exist as a real file for the rest of the boot: `load` reads the a.out from
+ * a path and ndlib_symbols_load() takes a path too, so handing over a buffer
+ * would mean losing every kernel symbol in the debugger. */
+static char g_extracted_kernel[PATH_MAX];
+
+static void remove_extracted_kernel(void) {
+    if (g_extracted_kernel[0]) {
+        unlink(g_extracted_kernel);
+        g_extracted_kernel[0] = '\0';
+    }
+}
+
+/* Pull <path> out of the filesystem inside <image> and write it to a private
+ * temporary file. Returns 0 and fills <out> on success.
+ *
+ * This is what lets the .img be the only file that has to be delivered: the
+ * kernel travels inside the filesystem it boots, exactly like the userland. */
+static int extract_kernel(const char* image, const char* path,
+                          char* out, size_t outlen) {
+    const char* why = "";
+    long n = 0;
+    uint8_t* data;
+    const char* tmpdir;
+    char tmpl[PATH_MAX];
+    int fd;
+    ssize_t written;
+
+    data = ndix_ffs_read_file(image, path, &n, &why);
+    if (!data) return -1;
+    if (n <= 0) { free(data); return -1; }
+
+    tmpdir = getenv("TMPDIR");
+    if (!tmpdir || !tmpdir[0]) tmpdir = "/tmp";
+    if (snprintf(tmpl, sizeof tmpl, "%s/nd500x-kernel-XXXXXX", tmpdir) >= (int)sizeof tmpl) {
+        free(data);
+        return -1;
+    }
+    fd = mkstemp(tmpl);
+    if (fd < 0) { free(data); return -1; }
+
+    written = write(fd, data, (size_t)n);
+    close(fd);
+    free(data);
+    if (written != (ssize_t)n) { unlink(tmpl); return -1; }
+
+    snprintf(out, outlen, "%s", tmpl);
+    snprintf(g_extracted_kernel, sizeof g_extracted_kernel, "%s", tmpl);
+    atexit(remove_extracted_kernel);
+    return 0;
 }
 
 int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_opt,
@@ -100,18 +155,29 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
         } else {
             char cand[PATH_MAX + 64];
             size_t i;
-            for (i = 0; i < sizeof rel / sizeof rel[0]; i++) {
-                snprintf(cand, sizeof cand, "%s/%s", root, rel[i]);
-                if (is_file(cand) && realpath(cand, kern)) break;
-                kern[0] = '\0';
+            /* The image's own /vmunix comes FIRST. That is the whole point of
+             * shipping one file: the kernel travels inside the filesystem it
+             * boots. A kernel rebuilt in the GENERIC directory is therefore NOT
+             * picked up on its own - copy it into the image with nd500-mkproto,
+             * or point at it with --kernel. The line printed below always says
+             * which kernel was actually taken, so this is never a mystery. */
+            if (extract_kernel(abs_image, "/vmunix", kern, sizeof kern) == 0) {
+                fprintf(stderr, "[ndix] kernel : /vmunix from inside %s\n", abs_image);
+            } else {
+                for (i = 0; i < sizeof rel / sizeof rel[0]; i++) {
+                    snprintf(cand, sizeof cand, "%s/%s", root, rel[i]);
+                    if (is_file(cand) && realpath(cand, kern)) break;
+                    kern[0] = '\0';
+                }
             }
             if (!kern[0]) {
                 fprintf(stderr,
                         "error: no NDIX kernel found. Looked for:\n"
+                        "         /vmunix inside %s\n"
                         "         %s/kernel/MASTER/GENERIC/vmunix\n"
                         "         %s/vmunix\n"
                         "       Give it explicitly with --kernel <path> or "
-                        "ND500X_KERNEL=<path>.\n", root, root);
+                        "ND500X_KERNEL=<path>.\n", abs_image, root, root);
                 return -1;
             }
         }
@@ -172,6 +238,72 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
 /* ---------------------------------------------------------- auto boot ------ */
 int nd500x_ndix_autoboot_needed(void) { return g_auto_boot; }
 
+/* Put the kernel a.out into physical memory in the layout the PSEG/DSEG files
+ * would have produced: text at 0, data at <dseg_load>, bss zeroed after it.
+ *
+ * The debugger's own `load` is NOT enough here. It places data immediately
+ * after text at a_text (0x41A8C for the shipped kernel), while load-dseg places
+ * it at the next 2 KB page (0x42000) - and 0x42000 is the address map-kdata is
+ * given and the address the kernel's own data references were linked against.
+ * The two differ by 1396 bytes, so relying on `load` alone would shift every
+ * kernel datum. `load` is still issued before this, for the entry PC and the
+ * symbols; this then overwrites what it put down with the right placement. */
+static int place_aout_segments(struct Nd500Machine* m, const char* path,
+                               unsigned long dseg_load) {
+    unsigned char hdr[32];
+    uint32_t a_text, a_data, a_bss;
+    unsigned char* buf;
+    FILE* f;
+    unsigned long i;
+
+    f = fopen(path, "rb");
+    if (!f || fread(hdr, 1, sizeof hdr, f) != sizeof hdr) {
+        if (f) fclose(f);
+        fprintf(stderr, "error: cannot read %s\n", path);
+        return -1;
+    }
+    a_text = ((uint32_t)hdr[4]  << 24) | ((uint32_t)hdr[5]  << 16)
+           | ((uint32_t)hdr[6]  << 8)  |  (uint32_t)hdr[7];
+    a_data = ((uint32_t)hdr[8]  << 24) | ((uint32_t)hdr[9]  << 16)
+           | ((uint32_t)hdr[10] << 8)  |  (uint32_t)hdr[11];
+    a_bss  = ((uint32_t)hdr[12] << 24) | ((uint32_t)hdr[13] << 16)
+           | ((uint32_t)hdr[14] << 8)  |  (uint32_t)hdr[15];
+
+    /* IMAGIC/OMAGIC keep text immediately after the 32-byte header
+     * (pcc-nd500 src/include/nd500/a.out.h, N_TXTOFF). */
+    buf = (unsigned char*)malloc((size_t)a_text + a_data);
+    if (!buf) { fclose(f); fprintf(stderr, "error: out of memory reading %s\n", path); return -1; }
+    if (fread(buf, 1, (size_t)a_text + a_data, f) != (size_t)a_text + a_data) {
+        fclose(f); free(buf);
+        fprintf(stderr, "error: %s is shorter than its header claims\n", path);
+        return -1;
+    }
+    fclose(f);
+
+    if (dseg_load + a_data + a_bss > m->memory_size) {
+        free(buf);
+        fprintf(stderr, "error: kernel needs 0x%lX bytes, machine has 0x%X\n",
+                dseg_load + a_data + a_bss, m->memory_size);
+        return -1;
+    }
+
+    for (i = 0; i < a_text; i++)
+        nd500_bus_write8(m, (uint32_t)i, buf[i]);
+    for (i = 0; i < a_data; i++)
+        nd500_bus_write8(m, (uint32_t)(dseg_load + i), buf[a_text + i]);
+    /* bss must be zero: guest RAM is only cleared at power-on, and the kernel
+     * assumes a zeroed bss the way every C program does. */
+    for (i = 0; i < a_bss; i++)
+        nd500_bus_write8(m, (uint32_t)(dseg_load + a_data + i), 0);
+
+    free(buf);
+    fprintf(stderr, "[ndix] placed a.out: text 0x0..0x%X, data 0x%08lX..0x%08lX, "
+                    "bss zeroed to 0x%08lX\n",
+            a_text, dseg_load, dseg_load + a_data,
+            dseg_load + a_data + a_bss);
+    return 0;
+}
+
 /* Boot the kernel without an .init file.
  *
  * Everything the old vmunix.init hand-wrote is derived from the files here, so a
@@ -188,20 +320,59 @@ int nd500x_ndix_autoboot(struct Nd500Machine* m,
                          void* ctx) {
     char pseg[PATH_MAX], dseg[PATH_MAX], cmd[PATH_MAX + 64];
     struct stat sp, sd;
+    unsigned long pseg_size, dseg_load, dseg_size;
+    int have_seg_files;
 
     snprintf(pseg, sizeof pseg, "%s.pseg", g_auto_kernel);
     snprintf(dseg, sizeof dseg, "%s.dseg", g_auto_kernel);
-    if (stat(pseg, &sp) != 0 || stat(dseg, &sd) != 0) {
-        fprintf(stderr, "error: --ndix needs %s and %s beside the kernel\n", pseg, dseg);
-        return -1;
+    have_seg_files = (stat(pseg, &sp) == 0 && stat(dseg, &sd) == 0);
+
+    if (have_seg_files) {
+        pseg_size = (unsigned long)sp.st_size;
+        dseg_size = (unsigned long)sd.st_size;
+    } else {
+        /* No .pseg/.dseg beside the kernel - derive both from the a.out itself.
+         * splitseg produces nothing the header does not already say: pseg is
+         * a_text rounded up to a 2 KB page, dseg is a_data + a_bss rounded the
+         * same way. Checked against the shipped kernel, whose header reads
+         * a_text=0x41A8C a_data=0x1CB20 a_bss=0x21540: that gives 270336 and
+         * 256000, byte-for-byte the sizes of vmunix.pseg and vmunix.dseg.
+         *
+         * This is what lets the kernel come out of the disk image, where only
+         * the a.out exists and there are no segment files to sit beside it. */
+        uint32_t a_text, a_data, a_bss;
+        unsigned char hdr[32];
+        FILE* kf = fopen(g_auto_kernel, "rb");
+        if (!kf || fread(hdr, 1, sizeof hdr, kf) != sizeof hdr) {
+            if (kf) fclose(kf);
+            fprintf(stderr, "error: cannot read the a.out header of %s\n", g_auto_kernel);
+            return -1;
+        }
+        fclose(kf);
+        /* Big-endian, per pcc-nd500 src/include/nd500/a.out.h: a_magic@0,
+         * a_text@4, a_data@8, a_bss@12. */
+        a_text = ((uint32_t)hdr[4]  << 24) | ((uint32_t)hdr[5]  << 16)
+               | ((uint32_t)hdr[6]  << 8)  |  (uint32_t)hdr[7];
+        a_data = ((uint32_t)hdr[8]  << 24) | ((uint32_t)hdr[9]  << 16)
+               | ((uint32_t)hdr[10] << 8)  |  (uint32_t)hdr[11];
+        a_bss  = ((uint32_t)hdr[12] << 24) | ((uint32_t)hdr[13] << 16)
+               | ((uint32_t)hdr[14] << 8)  |  (uint32_t)hdr[15];
+        if (a_text == 0) {
+            fprintf(stderr, "error: %s has no text segment - not an NDIX kernel\n",
+                    g_auto_kernel);
+            return -1;
+        }
+        pseg_size = ((unsigned long)a_text + 0x7FFUL) & ~0x7FFUL;
+        dseg_size = (((unsigned long)a_data + a_bss) + 0x7FFUL) & ~0x7FFUL;
+        fprintf(stderr, "[ndix] segments derived from the a.out: text=%u data=%u bss=%u\n",
+                a_text, a_data, a_bss);
     }
 
     /* .dseg follows .pseg, page-aligned (NBPG = 2048). */
-    unsigned long dseg_load = ((unsigned long)sp.st_size + 0x7FFUL) & ~0x7FFUL;
-    unsigned long dseg_size = (unsigned long)sd.st_size;
+    dseg_load = (pseg_size + 0x7FFUL) & ~0x7FFUL;
 
     fprintf(stderr, "[ndix] auto-boot: pseg=%lu dseg=%lu -> dseg@0x%08lX kdata 0x%08lX+0x%lX\n",
-            (unsigned long)sp.st_size, dseg_size, dseg_load, dseg_load, dseg_size);
+            pseg_size, dseg_size, dseg_load, dseg_load, dseg_size);
 
     /* `load` first: it reads the a.out and SETS THE ENTRY PC from the header.
      * The normal path gets this because the debugger's `load` auto-sources
@@ -216,8 +387,12 @@ int nd500x_ndix_autoboot(struct Nd500Machine* m,
     }
 
     run(m, "mmusetup", ctx);
-    snprintf(cmd, sizeof cmd, "load-pseg %s 0x00000000", pseg);          run(m, cmd, ctx);
-    snprintf(cmd, sizeof cmd, "load-dseg %s 0x%08lX", dseg, dseg_load);  run(m, cmd, ctx);
+    if (have_seg_files) {
+        snprintf(cmd, sizeof cmd, "load-pseg %s 0x00000000", pseg);          run(m, cmd, ctx);
+        snprintf(cmd, sizeof cmd, "load-dseg %s 0x%08lX", dseg, dseg_load);  run(m, cmd, ctx);
+    } else if (place_aout_segments(m, g_auto_kernel, dseg_load) != 0) {
+        return -1;
+    }
     snprintf(cmd, sizeof cmd, "map-kdata 0x%08lX 0x%08lX", dseg_load, dseg_size);
     run(m, cmd, ctx);
     /* THA = _u + U_CXB0, NOT _u + _Ktrap.

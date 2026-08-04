@@ -345,6 +345,15 @@ void nd500_debugger_set_quiet_banner(int quiet) { g_quiet_banner = quiet; }
  * --------------------------------------------------------------------------- */
 #define GUEST_ESCAPE 0x1D   /* Ctrl-] - the escape telnet has used forever */
 
+/* Installed by the frontend; NULL means no emulator hot key exists. */
+static Nd500GuestKeyFn g_guest_key_handler = NULL;
+
+void nd500_debugger_set_guest_key_handler(Nd500GuestKeyFn fn) {
+    g_guest_key_handler = fn;
+}
+
+/* Returns 1 while the guest still owns the terminal, 0 on EOF, and -1 when the
+ * hot-key handler asked to shut the session down. */
 static int guest_passthrough(Nd500Machine* m, int* want_debugger)
 {
     extern void nd500_fecall_console_input(const char* buf, int len);
@@ -393,9 +402,41 @@ static int guest_passthrough(Nd500Machine* m, int* want_debugger)
         if (n < 0) break;
         if (n == 0) continue;
 
+        /* held/nheld carry a partial hot-key sequence between reads - see the
+         * -2 case of Nd500GuestKeyFn. Anything held is prepended to the next
+         * read so the handler always sees the sequence whole. */
+        static char held[16];
+        static int  nheld = 0;
         char buf[256];
-        ssize_t got = read(STDIN_FILENO, buf, sizeof(buf));
+        ssize_t got;
+
+        if (nheld > 0) memcpy(buf, held, (size_t)nheld);
+        got = read(STDIN_FILENO, buf + nheld, sizeof(buf) - (size_t)nheld);
         if (got <= 0) { rc = 0; break; }           /* EOF */
+        got += nheld;
+        nheld = 0;
+
+        if (g_guest_key_handler) {
+            int used = g_guest_key_handler(m, buf, (int)got);
+            if (used == -2) {
+                /* Incomplete: keep the bytes and read more. Bounded by the
+                 * buffer, so a terminal that stops mid-sequence cannot make
+                 * this grow without limit - past that, give up and let the
+                 * bytes through as ordinary input. */
+                if (got <= (ssize_t)sizeof(held)) {
+                    memcpy(held, buf, (size_t)got);
+                    nheld = (int)got;
+                    continue;
+                }
+            } else if (used == -1) {
+                rc = -1;                            /* user asked to shut down */
+                break;
+            } else if (used > 0) {
+                if (used >= (int)got) continue;     /* nothing left over */
+                memmove(buf, buf + used, (size_t)(got - used));
+                got -= used;
+            }
+        }
 
         ssize_t esc = -1;
         for (ssize_t i = 0; i < got; i++)
@@ -470,6 +511,8 @@ int nd500_debugger_repl(Nd500Machine* m) {
 		if (to_guest && isatty(STDIN_FILENO)) {
 			int want_debugger = 0;
 			int alive = guest_passthrough(m, &want_debugger);
+			if (alive < 0)
+				break;          /* F12 menu: Exit NDIX - end the session */
 			if (alive && !want_debugger)
 				continue;       /* machine stopped - loop and re-evaluate */
 			to_guest = 0;       /* Ctrl-] or EOF: this read is the debugger's */

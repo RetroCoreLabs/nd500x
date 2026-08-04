@@ -20,6 +20,13 @@
 # type commands (e.g. "echo hello", "ls -l", "ps -ax"). A line starting with
 # '~' goes to the emulator debugger instead. End with Ctrl-D.
 #
+# Press F12 at any time for the emulator menu: switch the terminal between the
+# guest's virtual consoles, or shut NDIX down.
+#
+# Guest writes go THROUGH to the disk image and are still there next boot.
+# Export ND500X_DISK_RW=cow for a scratch session that leaves the image alone,
+# or ND500X_DISK_RW=0 for a read-only one.
+#
 # The guest terminals are ALSO served over telnet on port 5000 by default, so
 # you can reach the same machine from another window with any telnet client:
 #
@@ -148,14 +155,11 @@ if [ -z "$DISK" ]; then
     fi
 fi
 
-# nd500x looks for the kernel next to the DISK IMAGE. That is right for the
-# shipped layout, but wrong the moment -d points at an image kept elsewhere
-# (a test build in a scratch directory, say) while the kernel still lives in
-# the NDIX tree. If NDIX_ROOT names a tree that has one, use it.
-if [ -z "$KERNEL" ] && [ -n "${NDIX_ROOT:-}" ] \
-   && [ -f "$NDIX_ROOT/kernel/MASTER/GENERIC/vmunix" ]; then
-    KERNEL=$NDIX_ROOT/kernel/MASTER/GENERIC/vmunix
-fi
+# No kernel hunting here any more. nd500x reads /vmunix out of the filesystem
+# INSIDE the disk image, so the image is the only file that has to exist - which
+# is the point of shipping one file. -k still overrides, and that is the switch
+# to use when testing a kernel you just rebuilt and have not put in the image
+# yet (nd500-mkproto is what puts it there).
 
 if [ ! -x "$ND500X_BIN" ]; then
     echo "error: $ND500X_BIN not found" >&2
