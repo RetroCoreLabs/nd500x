@@ -30,7 +30,9 @@ static void print_usage(const char* prog) {
     printf("  --script <path>          Feed shell commands from a file (with --monitor)\n");
     printf("  --ndix <disk-image>      Boot the NDIX kernel with <disk-image> as root disk\n");
     printf("  --kernel <path>          NDIX kernel image for --ndix (default: see below)\n");
-    printf("  --telnet[=<port>]        Serve terminals over TCP/telnet (default port 5000).\n");
+    printf("  --telnet[=<port>] [<n>]  Serve terminals over TCP/telnet (default port 5000).\n");
+    printf("                           <n> limits how many guest ttys are offered, in the\n");
+    printf("                           order console, tty01, tty02, tty81 (default: all 4).\n");
     printf("                           With --ndix: the guest ttys. Otherwise: the SINTRAN shell.\n");
     printf("  --config <path>          Load settings from an ini file (else ./nd500x.ini)\n");
     printf("                           keys: sintran-root, user, terminal-type, telnet-port, monitor\n");
@@ -163,6 +165,7 @@ int main(int argc, char** argv) {
     int monitor_mode = 0;  /* SINTRAN-flavoured interactive shell */
     const char* script_path = NULL;  /* optional shell command script */
     int telnet_port = 0;   /* >0: serve terminals over TCP/telnet */
+    int telnet_ttys = 0;   /* how many guest ttys to offer; 0 = all of them */
     const char* ndix_image = NULL;   /* --ndix root disk image */
     const char* ndix_kernel = NULL;  /* --kernel override */
     const char* sintran_root_opt = NULL;  /* --sintran-root as typed */
@@ -229,17 +232,25 @@ int main(int argc, char** argv) {
             ++i;   /* already handled in the pre-parse pass above */
         } else if (strcmp(argv[i], "--telnet") == 0 ||
                    strncmp(argv[i], "--telnet=", 9) == 0) {
-            /* Three accepted forms, all meaning "serve terminals over telnet":
-             *   --telnet          default port 5000
-             *   --telnet=<port>   explicit port
-             *   --telnet <port>   explicit port (the original spelling)
-             * 5000 avoids the DAP ports (4500 here, 4711 in nd100x). */
+            /* Accepted forms, all meaning "serve terminals over telnet":
+             *   --telnet                  default port 5000, every tty
+             *   --telnet=<port>           explicit port, every tty
+             *   --telnet <port>           explicit port (the original spelling)
+             *   --telnet <port> <count>   also limit how many ttys are offered
+             * 5000 avoids the DAP ports (4500 here, 4711 in nd100x). The count
+             * is only read after an explicit port, so a lone numeric argument
+             * stays the port it has always been. */
             const char* eq = strchr(argv[i], '=');
             if (eq) {
                 telnet_port = atoi(eq + 1);
             } else if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9') {
                 telnet_port = atoi(argv[++i]);
             }
+            /* The count follows the port in both spellings. Nothing else in this
+             * parser takes a bare numeric argument, so consuming one here cannot
+             * steal it from another option. */
+            if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9')
+                telnet_ttys = atoi(argv[++i]);
             if (telnet_port <= 0) telnet_port = 5000;
         } else if (strcmp(argv[i], "--ndix") == 0 && i + 1 < argc) {
             ndix_image = argv[++i];
@@ -502,7 +513,7 @@ int main(int argc, char** argv) {
 			 * something else holds the port (often a previous run that has
 			 * not exited yet) is worse than losing the telnet listener. Warn
 			 * loudly and carry on. */
-			if (nd500x_ndix_telnet_start(telnet_port) != 0)
+			if (nd500x_ndix_telnet_start(telnet_port, telnet_ttys) != 0)
 				fprintf(stderr, "[telnet] continuing without the telnet server "
 				        "- local console only\n");
 			else

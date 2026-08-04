@@ -31,7 +31,10 @@ int nd500x_ndix_autoboot(struct Nd500Machine* m,
                          int (*run)(struct Nd500Machine*, const char*, void*),
                          void* ctx);
 
-int nd500x_ndix_telnet_start(int port);
+/* Serve the first <count> guest ttys - console, tty01, tty02, tty81, in that
+ * order. count <= 0 means all of them; a count above the number the image has
+ * is reported and clamped, never silently accepted. */
+int nd500x_ndix_telnet_start(int port, int count);
 
 /* Stop the terminal server (safe if it was never started). */
 void nd500x_ndix_telnet_stop(void);

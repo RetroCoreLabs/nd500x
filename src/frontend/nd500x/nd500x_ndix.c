@@ -256,10 +256,12 @@ typedef struct NdixTty {
     int  swallow;           /* drop a LF/NUL that pairs with a just-seen CR */
 } NdixTty;
 
-/* Units mirror the shipped image's /dev entries: console (major 0 minor 0)
- * plus tty01/tty02/tty81 (minors 1, 2, 129). Only the console has a getty in
- * the shipped /etc/ttys; the others are offered so that enabling one is a
- * guest-side change, not an emulator change. */
+/* Units mirror the shipped image's /dev entries EXACTLY. Read from the proto the
+ * image was built with: console c 0 0, tty01 c 0 1, tty02 c 0 2, tty81 c 0 129.
+ * There is no tty03 and up - offering one would be a made-up unit number that
+ * no guest device answers, so the table stops where the image stops. Adding a
+ * fifth terminal is an image change (a /dev entry and an /etc/ttys line), not an
+ * emulator change. */
 static NdixTty g_ttys[] = {
     { 0,   "console", 0, 0 },
     { 1,   "tty01",   0, 0 },
@@ -267,6 +269,10 @@ static NdixTty g_ttys[] = {
     { 129, "tty81",   0, 0 },
 };
 #define NDIX_TTY_COUNT ((int)(sizeof g_ttys / sizeof g_ttys[0]))
+
+/* How many of g_ttys[] the running server actually took, so stop() unregisters
+ * exactly what start() registered. */
+static int g_tty_served = 0;
 
 static TelnetServer* g_server = NULL;
 
@@ -306,14 +312,26 @@ static void ndix_tty_out(int unit, const unsigned char* buf, int len, void* ctx)
     }
 }
 
-int nd500x_ndix_telnet_start(int port) {
+int nd500x_ndix_telnet_start(int port, int count) {
     TelnetServerConfig cfg;
     int i;
 
     if (g_server) return 0;
+
+    /* count <= 0 means "every terminal the image has". Anything above that is
+     * not silently rounded down: a caller asking for six terminals has a wrong
+     * idea of the image and should be told, not humoured. */
+    if (count <= 0) count = NDIX_TTY_COUNT;
+    if (count > NDIX_TTY_COUNT) {
+        fprintf(stderr, "[telnet] %d terminals asked for, image has %d "
+                        "(console, tty01, tty02, tty81) - serving %d\n",
+                count, NDIX_TTY_COUNT, NDIX_TTY_COUNT);
+        count = NDIX_TTY_COUNT;
+    }
+
     memset(&cfg, 0, sizeof cfg);
     cfg.port = port;
-    cfg.maxConnections = NDIX_TTY_COUNT;
+    cfg.maxConnections = count;
     cfg.transport = TRANSPORT_TELNET;
 
     g_server = TelnetServer_Create(&cfg);
@@ -322,7 +340,7 @@ int nd500x_ndix_telnet_start(int port) {
         return -1;
     }
 
-    for (i = 0; i < NDIX_TTY_COUNT; i++) {
+    for (i = 0; i < count; i++) {
         TelnetTerminalInfo info;
         memset(&info, 0, sizeof info);
         info.device    = (struct Device*)&g_ttys[i];
@@ -333,6 +351,12 @@ int nd500x_ndix_telnet_start(int port) {
         info.rawInput  = true;
         if (!TelnetServer_RegisterTerminal(g_server, &info)) {
             fprintf(stderr, "[telnet] cannot register terminal %s\n", g_ttys[i].name);
+            /* Drop the sinks already installed. A sink outliving its server
+             * would send guest output into a freed TelnetServer, and it also
+             * suppresses the stdout copy in fe_tty_out - the console would go
+             * silent with nothing to show for it. */
+            for (--i; i >= 0; i--)
+                nd500_fecall_set_tty_output(g_ttys[i].unit, NULL, NULL);
             TelnetServer_Destroy(g_server);
             g_server = NULL;
             return -1;
@@ -342,22 +366,27 @@ int nd500x_ndix_telnet_start(int port) {
 
     if (!TelnetServer_Start(g_server)) {
         fprintf(stderr, "[telnet] cannot start server on port %d\n", port);
-        for (i = 0; i < NDIX_TTY_COUNT; i++)
+        for (i = 0; i < count; i++)
             nd500_fecall_set_tty_output(g_ttys[i].unit, NULL, NULL);
         TelnetServer_Destroy(g_server);
         g_server = NULL;
         return -1;
     }
-    fprintf(stderr, "[telnet] guest terminals on port %d - connect with a telnet "
-                    "client to localhost %d\n", port, port);
+    g_tty_served = count;
+    fprintf(stderr, "[telnet] %d guest terminal%s on port %d (%s) - connect with a "
+                    "telnet client to localhost %d\n",
+            count, count == 1 ? "" : "s", port,
+            count == NDIX_TTY_COUNT ? "all" : "first of console, tty01, tty02, tty81",
+            port);
     return 0;
 }
 
 void nd500x_ndix_telnet_stop(void) {
     int i;
     if (!g_server) return;
-    for (i = 0; i < NDIX_TTY_COUNT; i++)
+    for (i = 0; i < g_tty_served; i++)
         nd500_fecall_set_tty_output(g_ttys[i].unit, NULL, NULL);
+    g_tty_served = 0;
     TelnetServer_Stop(g_server);
     TelnetServer_Destroy(g_server);
     g_server = NULL;

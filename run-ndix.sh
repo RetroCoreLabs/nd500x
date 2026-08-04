@@ -11,7 +11,8 @@
 # from any directory.
 #
 # Usage: run-ndix.sh [-d <disk-image>] [-k <kernel>] [-t <seconds>]
-#                    [-l <logfile>] [-p <port>] [-N] [-h]
+#                    [-l <logfile>] [-p <port>] [-n <ttys>] [-N] [-h]
+#                    [<port> [<ttys>]]
 #
 # With stdin on a terminal this boots MULTIUSER to a login prompt: real
 # /etc/init runs /etc/rc, then getty on /dev/console prints the banner and
@@ -26,18 +27,24 @@
 #
 # which offers a menu of the guest's terminals (console, tty01, tty02, tty81).
 # The local terminal keeps working at the same time; console output is mirrored
-# to both. Use -p to change the port, or -N to not listen at all.
+# to both. Use -p to change the port, -n to offer fewer than all four terminals,
+# or -N to not listen at all. The port and the tty count may also be given as
+# plain arguments: "run-ndix.sh 5500" or "run-ndix.sh 5500 1".
 #
 #   -d <image>    Root disk image. Default: $ND500X_DISK, else $NDIX_ROOT/rootfs_full.img.
-#   -k <kernel>   NDIX kernel image. Default: nd500x's own search, which is
-#                 <root>/kernel/MASTER/GENERIC/vmunix then <root>/vmunix, where
-#                 <root> is the directory holding the disk image.
+#   -k <kernel>   NDIX kernel image. Default: /vmunix read out of the disk image
+#                 itself, so nothing else has to be shipped or found. Use -k to
+#                 test a kernel you just rebuilt and have not copied into the
+#                 image with nd500-mkproto yet.
 #   -t <seconds>  Run duration when stdin is NOT a terminal (default: 45).
 #                 The outer timeout is <seconds> + 25.
 #   -l <logfile>  Also tee output to <logfile>.
 #                 NOTE: boot logs contain binary/control bytes - use 'grep -a'
 #                 when searching the log file.
 #   -p <port>     Telnet port to listen on (default 5000).
+#   -n <ttys>     How many guest terminals to offer, in the order console,
+#                 tty01, tty02, tty81. Default: all 4, which is every terminal
+#                 the shipped image has a /dev entry for.
 #   -N            Do not start the telnet server.
 #   -h            Show this usage.
 #
@@ -75,26 +82,61 @@ DISK=${ND500X_DISK:-}
 KERNEL=
 RUNTIME=45
 LOGFILE=
-# Telnet console is ON by default, port 5000.
+# Telnet console is ON by default, port 5000, all four guest ttys.
 TELNET=--telnet
+TELNET_TTYS=
 
 usage() {
-    sed -n '2,55p' "$0" | sed 's/^# \{0,1\}//'
+    # The whole leading comment block IS the usage text, so take it to the last
+    # comment line rather than a fixed number that goes stale on every edit.
+    sed -n '2,/^[^#]/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
-while getopts "d:k:t:l:p:Nh" opt; do
+while getopts "d:k:t:l:p:n:Nh" opt; do
     case $opt in
         d) DISK=$OPTARG ;;
         k) KERNEL=$OPTARG ;;
         t) RUNTIME=$OPTARG ;;
         l) LOGFILE=$OPTARG ;;
         p) TELNET=--telnet=$OPTARG ;;
+        n) TELNET_TTYS=$OPTARG ;;
         N) TELNET= ;;
         h) usage 0 ;;
         *) usage 1 ;;
     esac
 done
+shift $((OPTIND - 1))
+
+# "./run-ndix.sh 5500" used to be accepted and thrown away: getopts stops at the
+# first non-option, nothing looked at what was left, and the boot went up on the
+# default port 5000 with no clue that the number had been ignored. A leading
+# number is now the telnet port and an optional second one the tty count;
+# anything else is an error rather than silence.
+if [ $# -gt 0 ]; then
+    case $1 in
+        ''|*[!0-9]*) echo "error: unexpected argument '$1'" >&2; usage 1 ;;
+    esac
+    # -N asks for no telnet server and a port asks for one. Quietly letting the
+    # port win would restart the listener the caller just switched off.
+    if [ -z "$TELNET" ]; then
+        echo "error: -N and a telnet port '$1' contradict each other" >&2
+        usage 1
+    fi
+    TELNET=--telnet=$1
+    shift
+fi
+if [ $# -gt 0 ]; then
+    case $1 in
+        ''|*[!0-9]*) echo "error: unexpected argument '$1'" >&2; usage 1 ;;
+    esac
+    TELNET_TTYS=$1
+    shift
+fi
+if [ $# -gt 0 ]; then
+    echo "error: unexpected argument '$1'" >&2
+    usage 1
+fi
 
 if [ -z "$DISK" ]; then
     if [ -n "${NDIX_ROOT:-}" ]; then
@@ -129,6 +171,8 @@ fi
 ARGS=(--ndix "$DISK")
 [ -n "$KERNEL" ] && ARGS+=(--kernel "$KERNEL")
 [ -n "$TELNET" ] && ARGS+=("$TELNET")
+# The tty count is a separate argv word and only means anything with -N absent.
+[ -n "$TELNET" ] && [ -n "$TELNET_TTYS" ] && ARGS+=("$TELNET_TTYS")
 
 boot() {
     if [ -t 0 ]; then
