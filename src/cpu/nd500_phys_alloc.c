@@ -26,6 +26,11 @@ typedef struct {
     uint32_t* owner;        /* one tag per page frame */
     uint32_t  hint;         /* first PFN worth scanning from */
 
+    /* First PFN of the guest's own page pool; 0 = no guest pool declared. The
+     * allocator never hands out a page at or above it. See
+     * nd500_phys_set_guest_pool_base() in the header for why. */
+    uint32_t  guest_pool_pfn;
+
     /* Arena ids are handed out from a counter that only ever increases, so an
      * id is never reused. That matters: a caller may pop the same id twice (an
      * error path that also runs the normal cleanup), and with recycled ids the
@@ -104,12 +109,16 @@ uint32_t nd500_phys_alloc_pages(Nd500Machine* m, uint32_t count, int zero) {
 
     uint32_t tag = pa_current_owner(pa);
 
+    /* Pages at or above the guest pool base are the guest's, not ours. */
+    uint32_t limit = pa->page_count;
+    if (pa->guest_pool_pfn && pa->guest_pool_pfn < limit) limit = pa->guest_pool_pfn;
+
     /* First fit over a contiguous free run. The map is small (8192 entries for a
      * 16 MB machine) and allocation happens at load/segment-create time only. */
     uint32_t start = (pa->hint < 1) ? 1 : pa->hint;
     for (int pass = 0; pass < 2; pass++) {
         uint32_t run = 0;
-        for (uint32_t pfn = start; pfn < pa->page_count; pfn++) {
+        for (uint32_t pfn = start; pfn < limit; pfn++) {
             if (pa->owner[pfn] != ND500_PHYS_FREE) { run = 0; continue; }
             if (++run < count) continue;
 
@@ -123,7 +132,25 @@ uint32_t nd500_phys_alloc_pages(Nd500Machine* m, uint32_t count, int zero) {
         if (start == 1) break;
         start = 1;
     }
+    /* Say WHY, and say it always: a silent 0 here used to be indistinguishable
+     * from "out of memory" on a 16 MB machine that still had 14 MB free. */
+    if (pa->guest_pool_pfn && limit < pa->page_count) {
+        fprintf(stderr, "[PHYS] out of emulator-private memory: %u page(s) wanted, "
+                        "window is 0x%08X..0x%08X (guest pool starts there)\n",
+                count, 1u << PGSHIFT, limit << PGSHIFT);
+    }
     return 0;
+}
+
+void nd500_phys_set_guest_pool_base(Nd500Machine* m, uint32_t byte_base) {
+    PhysAlloc* pa = pa_get(m);
+    if (!pa) return;
+    pa->guest_pool_pfn = byte_base >> PGSHIFT;
+}
+
+uint32_t nd500_phys_guest_pool_base(Nd500Machine* m) {
+    PhysAlloc* pa = pa_get(m);
+    return pa ? (pa->guest_pool_pfn << PGSHIFT) : 0u;
 }
 
 void nd500_phys_free_pages(Nd500Machine* m, uint32_t base_pfn, uint32_t count) {

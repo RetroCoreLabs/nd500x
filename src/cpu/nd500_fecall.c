@@ -27,10 +27,12 @@
 #include "nd500_mmu.h"
 #include "nd500_fecall.h"
 #include "nd500_tape.h"
+#include "nd500_phys_alloc.h"
 #include "../machine/machine_protos.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <pthread.h>
 
 /* Once-latched env flag: getenv() on the CPU run path races readline's
@@ -262,25 +264,32 @@ static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
     /* Physical layout (bytes): kernel image + emulator PST(0x84000)/DIT(0x90000)
      * live below sfree; free RAM from 1 MB to the top of memory. */
     uint32_t scont_phys = 0x00000000u;   /* first physical addr NDIX uses */
-    uint32_t sfree_phys = 0x00100000u;   /* start of free RAM (past image+tables) */
 
-    /* ND500X_SFREE overrides where NDIX's free pool starts, in bytes.
+    /* Where NDIX's free page pool starts, and therefore where the emulator's
+     * own allocations must stop.
      *
-     * The default 0x00100000 is KNOWN to overlap the emulator's own
-     * allocations and is left unchanged only because moving it changes the
-     * guest's view of memory. mmusetup reserves just 0x0-0x180000
-     * (src/debugger/commands.c:3066), so demand segments land above that -
-     * measured at 0x00180000 (seg 6), 0x001A1000 (seg 29), 0x001C2000 (seg 8),
-     * with an ND500X_PHYSDBG high-water of 0x001E3000 that does not vary with
-     * guest memory size. All of that sits inside the pool NDIX is told it owns,
-     * nothing informs NDIX, and under memory pressure NDIX reuses and zeroes
-     * those pages - destroying the segment-8 page table and faulting the
-     * cxbtab (see the ROOT CAUSE notes on this in git log).
+     * mmusetup reserves 0x0-0x180000 for the kernel image and the hand-built
+     * PST/DIT (src/debugger/commands.c), so the emulator's demand-grown segments
+     * land above that - measured at 0x00180000 (seg 6), 0x001A1000 (seg 29),
+     * 0x001C2000 (seg 8), with an ND500X_PHYSDBG high-water of 0x001E3000 that
+     * does not vary with guest memory size.
      *
-     * Setting ND500X_SFREE=0x280000 puts the pool above the high-water with
-     * headroom. Kept as an override rather than a new default so the shipped
-     * behaviour is unchanged until the tradeoff (half a megabyte of guest
-     * memory) is chosen deliberately. */
+     * The old default told NDIX its pool began at 0x00100000, i.e. UNDER all of
+     * that. Nothing informed NDIX, so under memory pressure it reused and zeroed
+     * the emulator's pages - destroying the segment-8 page table and faulting the
+     * cxbtab (see the ROOT CAUSE notes in git log). ND500X_SFREE=0x280000 was the
+     * hand-applied workaround; it is now the default, and the split is ENFORCED:
+     * nd500_phys_set_guest_pool_base() below makes the allocator refuse to hand
+     * out anything at or above this address, so a future emulator allocation that
+     * outgrows the window fails loudly instead of eating guest memory.
+     *
+     * 0x00180000..0x00280000 is 1 MB (512 pages) of emulator-private window
+     * against a measured 0x63000 (396 KB) in use. The cost is 1.5 MB of guest
+     * memory against the old number. */
+    uint32_t sfree_phys = 0x00280000u;
+
+    /* ND500X_SFREE overrides that base, in bytes - both the number reported to
+     * NDIX and the allocator's ceiling, so they cannot drift apart. */
     {
         static long sfree_override = -2;
         if (sfree_override == -2) {
@@ -298,6 +307,13 @@ static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
             sfree_phys = (uint32_t)sfree_override;
         }
     }
+
+    /* Hand the same number to the page allocator. From here on it refuses to
+     * allocate at or above sfree_phys, so the pool NDIX is about to be told it
+     * owns is genuinely its own. Deliberately after the override so the two are
+     * always the same value. */
+    if (cpu->machine)
+        nd500_phys_set_guest_pool_base(cpu->machine, sfree_phys);
 
     uint32_t sphys_phys = memtop;        /* top of physical memory */
     uint32_t stext_phys = 0x00000000u;

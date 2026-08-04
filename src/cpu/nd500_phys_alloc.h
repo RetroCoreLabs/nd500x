@@ -62,6 +62,24 @@ void nd500_phys_free_pages(struct Nd500Machine* m, uint32_t base_pfn, uint32_t c
  * outside memory or overlaps a page already owned by an arena. */
 int nd500_phys_reserve(struct Nd500Machine* m, uint32_t byte_base, uint32_t byte_len);
 
+/* Declare that physical memory from `byte_base` upward belongs to the GUEST, so
+ * the allocator must never hand out a page there. Pass 0 to lift the limit.
+ *
+ * A guest that does its own page management (NDIX: FE_INIT hands it sfree..sphys
+ * and it allocates, frees and ZEROES inside that range at will) has no idea the
+ * emulator also allocates. Before this existed the two pools overlapped: NDIX was
+ * told its pool began at 0x100000 while the emulator's demand-grown segments were
+ * being placed from 0x180000 up, inside it. Under memory pressure NDIX recycled
+ * and zeroed those pages, destroying the segment-8 page table.
+ *
+ * The limit is set by whoever states the contract - fe_init(), with the same
+ * number it writes into IR_SFREE - so the two cannot drift apart. Allocation
+ * above the limit fails outright (returns 0) instead of quietly taking guest
+ * memory. nd500_phys_reserve() is NOT limited: an image loaded at a fixed high
+ * address is a placement, not an allocation. */
+void nd500_phys_set_guest_pool_base(struct Nd500Machine* m, uint32_t byte_base);
+uint32_t nd500_phys_guest_pool_base(struct Nd500Machine* m);
+
 /* Open a new allocation scope. Returns its arena id (>= ND500_PHYS_ARENA_FIRST),
  * or 0 if the allocator is unavailable or nesting is exhausted. */
 uint32_t nd500_phys_arena_push(struct Nd500Machine* m);
