@@ -102,7 +102,7 @@ rootdev=0 = di0a; swapdev = minor+1 = di0b.
 
 ## Emulator integration points
 - MON dispatch: `src/cpu/nd500_indirect.c:370-490` (mon_dispatch, MonContext w/ read/write_phys_word/byte callbacks).
-- MON handlers: `src/_libmon.old/` (registry `g_registry[mon_number]`, mon_dispatch.c:154).
+- MON handlers: `external/ndmonlib/src/handlers/` (one file per MON call).
 - Kernel physical load: pseg@phys 0, dseg@0x41a94; Physbase=0x10000000; mmusetup PST@0x84000, DIT@0x90000.
 - Need: derive stext/sdata/sstack/sfree/sphys/scont/spst from the emulator's actual physical layout;
   pick a consistent nonzero `private`; implement the interrupt-injection path for async FE_READ.

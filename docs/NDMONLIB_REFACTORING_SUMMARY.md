@@ -58,7 +58,7 @@ ndmonlib/
 
 **Changes:**
 - Added `external/ndmonlib` as git submodule
-- Archived original MON source to `src/_libmon.old/` (preserved for reference, not deleted)
+- Archived original MON source to `src/_libmon.old/`; deleted once ndmonlib had superseded it (recoverable from git history)
 - Updated CMakeLists.txt to use `add_subdirectory(external/ndmonlib)`
 - Updated all include paths: `#include "../libmon/mon.h"` → `#include <ndmon/mon.h>` (110+ files)
 - MON call dispatch in `src/cpu/nd500_indirect.c:230-335`
@@ -312,7 +312,7 @@ This callback was added to support MON 11B without direct CPU header includes.
 - **nd500x MON dispatcher:** `src/cpu/nd500_indirect.c:230-335`
 - **ndmonlib callbacks:** `$NDMONLIB/include/ndmon/mon_types.h:62-136`
 - **MON reference:** ND-860228.2 EN (SINTRAN III Monitor Calls manual)
-- **Original nd500x MON source:** `src/_libmon.old/` (archived)
+- **Original nd500x MON source:** deleted; in git history before the removal commit
 
 ## Metrics
 
