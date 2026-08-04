@@ -902,7 +902,22 @@ void nd500_fecall_set_tty_output(int unit, Nd500TtyOutFunc fn, void* ctx) {
     g_tty_out_ctx[unit] = ctx;
 }
 
-/* Emit one already-masked chunk of guest output for <unit>. */
+/* Emit one already-masked chunk of guest output for <unit>.
+ *
+ * ONLY unit 0 reaches stdout. This used to be "unit == FE_CONDEV || !fn", so a
+ * unit with no registered sink was copied to the console too - and the sinks
+ * exist only while the telnet server runs (nd500x_ndix.c). /etc/ttys enables
+ * getty on console, tty01 and tty02, so on a plain --ndix boot all three getty
+ * banners printed on the one terminal. That produced three "login:" prompts,
+ * in unit order 2, 0, 1: the FIRST prompt on screen belonged to tty02, and a
+ * line typed at it went into unit 0's queue before the console's own getty had
+ * run ioctl(0, TIOCSETP, &tmode) - which sys/tty.c:389-391 turns into
+ * ttyflush(tp, FREAD). The guest discarded the line, exactly as 4.3BSD does on
+ * real hardware, and it read as "the emulator swallows the first character".
+ *
+ * A terminal nobody is connected to gets its output dropped, like an unplugged
+ * line. ND500X_TTYDBG=1 tags it to stderr instead of dropping it, for when the
+ * question is what tty01/tty02 are saying. */
 static void fe_tty_out(int unit, const unsigned char* buf, int len) {
     Nd500TtyOutFunc fn = NULL;
     void* ctx = NULL;
@@ -911,10 +926,22 @@ static void fe_tty_out(int unit, const unsigned char* buf, int len) {
         ctx = g_tty_out_ctx[unit];
     }
     if (fn) fn(unit, buf, len, ctx);
-    if (unit == FE_CONDEV || !fn) {
+    if (unit == FE_CONDEV) {
         int i;
         for (i = 0; i < len; i++) putchar((int)buf[i]);
         fflush(stdout);
+    } else if (!fn) {
+        static int ttydbg = -1;
+        if (ttydbg < 0) {
+            const char* e = getenv("ND500X_TTYDBG");
+            ttydbg = (e && e[0] && e[0] != '0') ? 1 : 0;
+        }
+        if (ttydbg) {
+            int i;
+            fprintf(stderr, "[tty%02d] ", unit);
+            for (i = 0; i < len; i++) fputc((int)buf[i], stderr);
+            fflush(stderr);
+        }
     }
 }
 
