@@ -649,11 +649,25 @@ invalid00_done: ;
 		}
 		/* At fuword's add3 (0x657, after ENTS), b.24 holds the uaddr arg. */
 		if (old_pc == 0x657) {
-			uint32_t a24 = nd500_read_memory_32(cpu, cpu->B + 24);
-			uint32_t a20 = nd500_read_memory_32(cpu, cpu->B + 20);
-			uint32_t uval = nd500_read_memory_32(cpu, 0xF0000000u + a24);
-			printf("[SYSDBG] fuword add3: B=0x%08X [B+20]=0x%08X [B+24]=0x%08X (uaddr) -> _Udata+uaddr=0x%08X *uaddr=0x%08X\n",
-			       cpu->B, a20, a24, 0xF0000000u + a24, uval);
+			/* Trap-free reads only. fuword's whole job is to probe a user
+			 * address that MAY be bad, so uaddr is 0xFFFFFFFF often enough:
+			 * translating _Udata+0xFFFFFFFF = 0xEFFFFFFF through the faulting
+			 * path made the probe itself raise a kernel page fault, and the
+			 * boot then died in a runaway trap loop at PC=0x657 - with
+			 * ND500X_SYSDBG=1 the machine never reached login: at all.
+			 * Also stderr, not stdout: stdout is the guest console. */
+			uint32_t pa24 = nd500_mmu_peek(cpu, cpu->B + 24);
+			uint32_t pa20 = nd500_mmu_peek(cpu, cpu->B + 20);
+			uint32_t a24 = (pa24 == 0xFFFFFFFFu) ? 0xFFFFFFFFu : nd500_bus_read32(cpu->machine, pa24);
+			uint32_t a20 = (pa20 == 0xFFFFFFFFu) ? 0xFFFFFFFFu : nd500_bus_read32(cpu->machine, pa20);
+			uint32_t uva = 0xF0000000u + a24;
+			uint32_t pau = nd500_mmu_peek(cpu, uva);
+			if (pau == 0xFFFFFFFFu)
+				fprintf(stderr, "[SYSDBG] fuword add3: B=0x%08X [B+20]=0x%08X [B+24]=0x%08X (uaddr) -> _Udata+uaddr=0x%08X UNMAPPED\n",
+				        cpu->B, a20, a24, uva);
+			else
+				fprintf(stderr, "[SYSDBG] fuword add3: B=0x%08X [B+20]=0x%08X [B+24]=0x%08X (uaddr) -> _Udata+uaddr=0x%08X *uaddr=0x%08X\n",
+				        cpu->B, a20, a24, uva, nd500_bus_read32(cpu->machine, pau));
 		}
 	}
 

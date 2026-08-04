@@ -65,6 +65,67 @@ static int mmu_use_guest_tables(void) {
     return g_mmu_guest_tables;
 }
 
+/* Which segments translate through the GUEST's own DIT/PST instead of the
+ * emulator shadow tables. Extracted so the trap-free diagnostic peek below
+ * uses the SAME predicate as the real walk - a diagnostic that consulted a
+ * different table than the CPU would report addresses the CPU never sees.
+ */
+static int mmu_use_guest_for(Nd500Cpu* cpu, uint8_t domain, int segment) {
+    /* Read the guest's REAL tables ONLY for the per-process segments that
+     * __resume remaps (locore.c:920): 26=_Utext, 29=_u/Kstack, 30=_Udata,
+     * 31=_Ustack. This makes the u-area remap (and thus per-process context
+     * switch / u.u_procp) resolve correctly - the fix for `panic: sleep` -
+     * while the kernel's self-referential phys-map bootstrap (seg 2) and the
+     * other kernel segments stay on the emulator's proven management, avoiding
+     * the early page-fault-during-bootstrap problem. Full guest-table mode
+     * (all segments) remains available but needs the PGF->kernel dispatch. */
+    return mmu_use_guest_tables() && cpu && cpu->machine && cpu->DITBASE
+        && (/* User domains (domain != KDOM=0) have NO direct-loaded image:
+                      * every segment of a user process is mapped only by the guest
+                      * capability tables (pcbfork sets pcb_pc[0]/pcb_dc[0]/stack etc.,
+                      * the icode is placed by vmemall+copyiout into proc[1]'s real
+                      * physical text page). The kernel's selective set below covers
+                      * only domain 0, whose low segments (0=ktext,1) are the flat
+                      * direct-loaded kernel image. So for domain != 0, route ALL
+                      * segments through the guest DIT/PST. Without this the /etc/init
+                      * launch fetches domain-1 seg-0 VA=4 through the emulator's stale
+                      * demo shadow (mmusetup) at physical 0x80000 (empty) -> 0x00. */
+                     domain != 0
+                     || segment == 26 || segment == 29 || segment == 30 || segment == 31
+                     /* Page-table window segments the kernel manages recursively:
+                      * 3=_usrpi1 (0x18000000), 4=_usrpt (0x20000000), 5=_susrpt
+                      * (0x28000000). vgetpt writes new-process u-area/data PTEs
+                      * through usrpt (seg 4) via Usrptmap; the flat shadow mapping
+                      * sent those writes to the wrong physical page, so Pst[38]'s
+                      * page table stayed empty and __resume page-faulted. Routing
+                      * these through the guest tables makes PTE writes/reads land
+                      * where the PST entries point. */
+                     || segment == 3 || segment == 4 || segment == 5
+                     /* 7 = the no-cache segment (NO_CACHE_SEG_START 0x38000000,
+                      * machine/param.h): the kernel maps the DISK BUFFER pool
+                      * here (machdep startup, ncsize += MAXBSIZE*nbuf) with its
+                      * own PTEs. Through the shadow tables the buffer window
+                      * diverged from the kernel's mapping after exec recycled
+                      * buffers: namei's geteblk name buffer and dirlookup's
+                      * bread buffers read back stale/garbage bytes, so EVERY
+                      * post-exec lookup died with "/: bad dir ino 2 at offset
+                      * 0: mangled entry" -> ENOENT. */
+                     || segment == 7
+                     /* 2 = Physbase (_Physbase, virtual 0x10000000, DC_PHYS). The
+                      * kernel builds seg-2 as a self-referential IDENTITY map of all
+                      * physical memory (machdep.c startup: PS_AZI->PS_ASI->PS_ADI,
+                      * pte->pg_pfnum = i). It writes the ADI page-table PAGES *through
+                      * Physbase itself*, and sets Pst[physindex]/DIT[dom0 seg2] via the
+                      * seg 27/28 windows onto PSTP/DITBASE. If seg-2 translates through
+                      * the emulator SHADOW tables instead, those self-referential
+                      * writes land in demand-allocated pages (a fixed page skew), so a
+                      * later usrpt L1 PTE the kernel wrote via Physbase reads back 0 and
+                      * page-faults. Routing seg-2 through the guest tables (like the
+                      * hardware, which has no shadow) makes the identity map coincide
+                      * with raw physical memory: kernel-pfnum P == physical page P. */
+                     || segment == 2);
+}
+
 /* Segment-level demand mapping: when a DATA access references a work segment
  * that has no capability, allocate a backed (PS_ADI, demand-grown) segment on
  * the fly, mirroring how SINTRAN maps scratch segments on first use. The NC C
@@ -656,59 +717,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
     /* Domain parameter is now passed explicitly - no need to read from cpu->CAD */
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, so domain < MAXDOM is always true */
 
-    /* Read the guest's REAL tables ONLY for the per-process segments that
-     * __resume remaps (locore.c:920): 26=_Utext, 29=_u/Kstack, 30=_Udata,
-     * 31=_Ustack. This makes the u-area remap (and thus per-process context
-     * switch / u.u_procp) resolve correctly - the fix for `panic: sleep` -
-     * while the kernel's self-referential phys-map bootstrap (seg 2) and the
-     * other kernel segments stay on the emulator's proven management, avoiding
-     * the early page-fault-during-bootstrap problem. Full guest-table mode
-     * (all segments) remains available but needs the PGF->kernel dispatch. */
-    int use_guest = mmu_use_guest_tables() && cpu->machine && cpu->DITBASE
-                 && (/* User domains (domain != KDOM=0) have NO direct-loaded image:
-                      * every segment of a user process is mapped only by the guest
-                      * capability tables (pcbfork sets pcb_pc[0]/pcb_dc[0]/stack etc.,
-                      * the icode is placed by vmemall+copyiout into proc[1]'s real
-                      * physical text page). The kernel's selective set below covers
-                      * only domain 0, whose low segments (0=ktext,1) are the flat
-                      * direct-loaded kernel image. So for domain != 0, route ALL
-                      * segments through the guest DIT/PST. Without this the /etc/init
-                      * launch fetches domain-1 seg-0 VA=4 through the emulator's stale
-                      * demo shadow (mmusetup) at physical 0x80000 (empty) -> 0x00. */
-                     domain != 0
-                     || segment == 26 || segment == 29 || segment == 30 || segment == 31
-                     /* Page-table window segments the kernel manages recursively:
-                      * 3=_usrpi1 (0x18000000), 4=_usrpt (0x20000000), 5=_susrpt
-                      * (0x28000000). vgetpt writes new-process u-area/data PTEs
-                      * through usrpt (seg 4) via Usrptmap; the flat shadow mapping
-                      * sent those writes to the wrong physical page, so Pst[38]'s
-                      * page table stayed empty and __resume page-faulted. Routing
-                      * these through the guest tables makes PTE writes/reads land
-                      * where the PST entries point. */
-                     || segment == 3 || segment == 4 || segment == 5
-                     /* 7 = the no-cache segment (NO_CACHE_SEG_START 0x38000000,
-                      * machine/param.h): the kernel maps the DISK BUFFER pool
-                      * here (machdep startup, ncsize += MAXBSIZE*nbuf) with its
-                      * own PTEs. Through the shadow tables the buffer window
-                      * diverged from the kernel's mapping after exec recycled
-                      * buffers: namei's geteblk name buffer and dirlookup's
-                      * bread buffers read back stale/garbage bytes, so EVERY
-                      * post-exec lookup died with "/: bad dir ino 2 at offset
-                      * 0: mangled entry" -> ENOENT. */
-                     || segment == 7
-                     /* 2 = Physbase (_Physbase, virtual 0x10000000, DC_PHYS). The
-                      * kernel builds seg-2 as a self-referential IDENTITY map of all
-                      * physical memory (machdep.c startup: PS_AZI->PS_ASI->PS_ADI,
-                      * pte->pg_pfnum = i). It writes the ADI page-table PAGES *through
-                      * Physbase itself*, and sets Pst[physindex]/DIT[dom0 seg2] via the
-                      * seg 27/28 windows onto PSTP/DITBASE. If seg-2 translates through
-                      * the emulator SHADOW tables instead, those self-referential
-                      * writes land in demand-allocated pages (a fixed page skew), so a
-                      * later usrpt L1 PTE the kernel wrote via Physbase reads back 0 and
-                      * page-faults. Routing seg-2 through the guest tables (like the
-                      * hardware, which has no shadow) makes the identity map coincide
-                      * with raw physical memory: kernel-pfnum P == physical page P. */
-                     || segment == 2);
+    int use_guest = mmu_use_guest_for(cpu, domain, segment);
 
     /* Get capability by reading the guest's REAL Domain Information Table at
      * DITBASE (like the hardware): DIT stride 256 bytes/domain; program table at
@@ -1060,13 +1069,43 @@ uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr) {
     int offset   = virtual_addr & (NBPG - 1);
     uint8_t domain = (uint8_t)cpu->CED;
 
-    uint16_t capability = g_pcb_table[domain].data_capabilities[segment];
+    /* Same DIT/PST choice the CPU makes for this segment. Under NDIX the
+     * per-process segments (26/29/30/31), the page-table windows (3/4/5), the
+     * no-cache buffer window (7), Physbase (2) and every user-domain segment
+     * live ONLY in the guest tables - reading the shadow for those reported a
+     * mapping the CPU never uses, or none at all. Physical reads only; this
+     * function must not trap or write anything. */
+    int use_guest = mmu_use_guest_for(cpu, domain, segment);
+
+    uint16_t capability;
+    if (use_guest) {
+        uint32_t cap_addr = cpu->DITBASE + (uint32_t)domain * 256u + 64u
+                          + (uint32_t)segment * 2u;
+        capability = (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
+                              |  (uint32_t)nd500_bus_read8(cpu->machine, cap_addr + 1));
+    } else {
+        capability = g_pcb_table[domain].data_capabilities[segment];
+    }
     if (capability == 0) return 0xFFFFFFFFu;
 
     int psn = capability & PC_PSN;
     if (psn >= MAX_PST) return 0xFFFFFFFFu;
 
-    PhysicalSegmentTableEntry pst_entry = g_pst[psn];
+    PhysicalSegmentTableEntry pst_entry;
+    if (use_guest && cpu->PSTP) {
+        uint32_t pa = cpu->PSTP + (uint32_t)psn * 4u;
+        uint32_t w = ((uint32_t)nd500_bus_read8(cpu->machine, pa)     << 24)
+                   | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 1) << 16)
+                   | ((uint32_t)nd500_bus_read8(cpu->machine, pa + 2) << 8)
+                   |  (uint32_t)nd500_bus_read8(cpu->machine, pa + 3);
+        pst_entry.index_mode   = (uint8_t)(w >> 30);
+        pst_entry.physical_pfn = w & 0x3FFFFFFF;
+    } else {
+        pst_entry = g_pst[psn];
+    }
+    /* A zero entry is "no mapping" (ND-05.009.4 4.3), not physical page 0. */
+    if (pst_entry.index_mode == PS_AZI && pst_entry.physical_pfn == 0)
+        return 0xFFFFFFFFu;
     uint32_t physical_pfn;
 
     switch (pst_entry.index_mode) {
