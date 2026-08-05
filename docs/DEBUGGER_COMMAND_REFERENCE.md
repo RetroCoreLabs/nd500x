@@ -1047,10 +1047,163 @@ When colors are enabled:
 
 ## Environment Variables
 
+These set a display option's starting state, so a session begins with it already
+on instead of needing the matching `show` command. Each is read in
+`src/machine/debug_api.c`.
+
 | Variable | Description |
 |----------|-------------|
-| `ND500X_TRACE` | Set to `1` to enable trace on startup |
+| `ND500X_TRACE` | Set to `1` to enable instruction tracing on startup |
+| `ND500X_PROFILE` | Set to `1` to enable instruction profiling on startup |
+| `ND500X_SHOW_EA` | Set to `1` to enable the effective-address breakdown on startup |
+| `ND500X_SHOW_HEX` | Set to `1` to show hex bytes in disassembly on startup |
+| `ND500X_DEMANGLE` | Set to `1` to enable symbol demangling on startup |
 | `TERM` | Terminal type for color detection |
+
+The emulator reads many more `ND500X_*` variables outside the debugger - disk
+and kernel paths for `--ndix`, and a large set of per-subsystem debug switches.
+Those are not display options and are not listed here; `grep -rho 'getenv("[A-Z0-9_]*")' src/`
+gives the current full set.
+
+---
+
+## Source Map File Format
+
+`loadmap` reads a `.map` file, which is what makes `list`, `bp source` and the
+`show source` annotations work. One mapping per line:
+
+```
+source-file:line -> address
+```
+
+Example:
+
+```
+program.s:1 -> 000000
+program.s:10 -> 000020
+main.c:50 -> 0x08000000
+```
+
+**Addresses default to OCTAL.** A bare number is read base 8; only a `0x`/`0X`
+prefix makes it hexadecimal (`ndlib_symbols.c:526-532`). This follows the ND-500
+convention and is the opposite of what most tooling assumes, so `000042` is
+decimal 34, not 42.
+
+**Paths are reduced to a basename.** `/path/to/program.s:10` is stored as
+`program.s:10`. Both `/` and `\` count as separators, so a map generated on
+Windows loads unchanged.
+
+**One address may carry both a C and an assembly mapping.** When C is compiled
+via assembly, both source lines land on the same address:
+
+```
+test_debug.s:22 -> 000006
+test_debug.c:6 -> 000006
+```
+
+Both entries are kept, and `show source [off|asm|c|both]` selects which is
+displayed. `list` prefers C and falls back to assembly; `list c` and `list asm`
+force one and error if it is unavailable.
+
+**Limits and failure behaviour.** The source cache holds
+`MAX_SOURCE_FILES` = 32 files (`ndlib_symbols.c:57`). Malformed lines are
+skipped with a warning rather than aborting the load, and a missing source file
+degrades to no annotation instead of an error.
+
+For a program linked from several objects, load each module's map and sources in
+turn - `loadmap` accumulates rather than replacing:
+
+```
+load program.o          # auto-loads program.map / .s / .c alongside it
+loadmap helper.map
+loadsrc helper.c
+show source both
+```
+
+---
+
+## Debugging Recipes
+
+**Find memory corruption** - watch the structure, then look at what wrote to it:
+
+```
+wp 0x1000 256 change
+run
+m 0x1000 256            # what it became
+d                       # the instruction that did it
+```
+
+**Profile a hot path:**
+
+```
+show profile on
+run
+stop
+profile show
+```
+
+**Break inside a loop on one specific iteration** - a conditional breakpoint
+instead of stepping:
+
+```
+bp cond 0x100 "I1 == 0x42"
+bp cond 0x200 "PC > 0x1000"
+bp cond 0x300 "L != 0"
+```
+
+**Break at a source line** rather than an address (`src` is accepted as the
+short form, `commands.c:2112`):
+
+```
+bp source kernel.c 42
+bp src test.s 5
+```
+
+### When something looks wrong
+
+- **No colours** - the terminal must support ANSI; `TERM` is what the detection reads.
+- **No symbols** - the binary has to carry them; check with `symb`.
+- **A watchpoint never fires** - confirm the address is actually accessed, and that the watchpoint type (`read`/`write`/`change`) matches.
+- **Everything is slow** - `show trace off` and `show profile off`. Tracing prints a line per instruction, which dominates runtime on any real program.
+
+---
+
+## Verification Procedures
+
+Manual checks for the display and breakpoint features. Each runs from
+`./build/bin/nd500x --debug`.
+
+**Disassembly options.** With a binary loaded, toggle each option and
+disassemble the same range across the change:
+
+```
+show ea on   / d 0x59 16     # memory operands gain [BASE+-disp]->0xEA
+show demangle on / d 0x59 16 # _write displays as write
+show hex on  / d 0x59 16     # raw bytes appear beside the mnemonic
+```
+
+Each bare `show <option>` with no argument reports the current state.
+
+**Conditional breakpoints.** Set one whose condition is initially false, `run`,
+and confirm it does not stop; then arrange for the condition to hold and confirm
+it does. `bp list` shows the hit count.
+
+**Tracing and profiling.** `show trace on` then `step 20` should print one line
+per instruction. `show profile on`, `run`, `stop`, `profile show` should give a
+frequency table whose total matches the instruction count. `profile reset`
+zeroes it.
+
+**Call stack.** Break inside a nested call and run `backtrace`; the depth should
+match the number of active `call` frames, innermost first.
+
+**Watchpoints.** `wp reg I1` fires on a register change and reports old and new
+values. `wp <addr> <len> write` fires only on writes; `change` fires only when
+the value actually differs. `wp list` shows all of them, `wp del <id>` removes
+one.
+
+**Error handling.** These should each produce a clear message and leave the
+session usable: a breakpoint at an unmapped address, `wp` on a nonexistent
+register, `bp del` on an unknown id, and `loadmap` on a missing file.
 
 ---
 
@@ -1059,3 +1212,4 @@ When colors are enabled:
 - `CLAUDE.md` - Development guidelines and architecture
 - `docs/cpu_implementation_changes.md` - CPU implementation details
 - `docs/INIT_SCRIPT_FORMAT.md` - Init script format for automation
+- `docs/DAP_INTEGRATION.md` - Driving the same features from an IDE over DAP
