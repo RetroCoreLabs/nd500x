@@ -79,3 +79,4 @@ run-ndix.local
 work/
 build-opt/
 build-base/
+build-asan/
