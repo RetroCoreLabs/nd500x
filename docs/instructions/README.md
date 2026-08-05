@@ -147,7 +147,7 @@ The ND-500 supports 14 addressing modes:
 
 The YAML files are generated from `instructions.json` using:
 ```bash
-python3 ../../generate_yaml_instructions.py
+python3 generate_yaml_instructions.py
 ```
 
 This script:

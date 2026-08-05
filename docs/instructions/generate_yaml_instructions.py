@@ -2,7 +2,8 @@
 """
 Generate individual YAML files for each unique ND-500 instruction.
 Groups all variants of the same instruction into one file.
-Reads from docs/instructions/instructions.json and creates YAML files in docs/instructions/yaml/
+Reads instructions.json from this script's own directory and writes YAML files
+into the yaml/ subdirectory beside it.
 """
 
 import json
@@ -337,10 +338,12 @@ def instruction_group_to_yaml(instruction_group, group_key):
 
 def main():
     """Main function to generate YAML files"""
-    # Paths
+    # Paths. This script lives beside instructions.json, so everything it needs
+    # is resolved relative to its own directory - it does not care where it is
+    # run from, and moving the pair together keeps working.
     script_dir = Path(__file__).parent
-    json_file = script_dir / 'docs' / 'instructions' / 'instructions.json'
-    output_dir = script_dir / 'docs' / 'instructions' / 'yaml'
+    json_file = script_dir / 'instructions.json'
+    output_dir = script_dir / 'yaml'
 
     # Check if JSON file exists
     if not json_file.exists():
