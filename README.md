@@ -26,6 +26,7 @@ ND500X is an emulator for the Norsk Data ND-500 architecture, featuring:
 
 ## Table of Contents
 
+- [Download](#download)
 - [Quick Start](#quick-start)
 - [Building](#building)
   - [Native Build](#native-build)
@@ -39,6 +40,39 @@ ND500X is an emulator for the Norsk Data ND-500 architecture, featuring:
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
+
+## Download
+
+Pre-built binaries are published on the
+**[Releases page](https://github.com/HackerCorpLabs/nd500x/releases)** -
+[latest release](https://github.com/HackerCorpLabs/nd500x/releases/latest).
+
+| Platform | File | Notes |
+|----------|------|-------|
+| Windows x64 | `nd500x-windows-x64.zip` | Standalone `.exe`, no DLLs to install |
+| Windows x86 | `nd500x-windows-x86.zip` | 32-bit build |
+| Linux amd64 | `nd500x_<version>_amd64.deb` | `sudo dpkg -i nd500x_*.deb` |
+| Linux arm64 | `nd500x_<version>_arm64.deb` | Raspberry Pi OS 64-bit (Pi 3/4/5) |
+| Linux armhf | `nd500x_<version>_armhf.deb` | Raspberry Pi OS 32-bit (Pi 2/3/4/Zero 2) |
+| macOS arm64 | `nd500x-macos-arm64.tar.gz` | Apple Silicon |
+| macOS x86_64 | `nd500x-macos-x86_64.tar.gz` | Intel |
+
+Each release is built by
+[.github/workflows/release.yml](.github/workflows/release.yml) from the tagged
+commit. To cut one, push a tag starting with `v`:
+
+```bash
+git tag -a v0.2.0 -m "Release 0.2.0"
+git push origin v0.2.0
+```
+
+The binaries carry no runtime dependencies: cJSON is compiled in, and the
+Windows builds are statically linked.
+
+> **Note:** no release has been published yet. The workflow cannot run until the
+> `external/ndmonlib` submodule repository is public - `actions/checkout` fails
+> to clone it otherwise. Until then, build from source as below; the macOS
+> targets in particular have never been built.
 
 ## Quick Start
 
@@ -64,9 +98,12 @@ make
 
 **Native Build:**
 - CMake 3.16+
-- C11-compatible compiler (GCC, Clang, MSVC)
-- libcjson (via pkg-config) - optional, for JSON output
-- pthread (Linux/Unix)
+- C11-compatible compiler (GCC or Clang; on Windows use MinGW - MSVC is untested)
+- pthread (supplied by winpthreads under MinGW, by libSystem on macOS)
+- libcjson - **optional**. It is a hard requirement of the code, but CMake
+  downloads and compiles a private copy when the system has none, so nothing
+  needs installing.
+- libreadline - optional, adds tab completion and history to the `--debug` REPL
 
 **WebAssembly Build:**
 - Emscripten SDK
@@ -74,12 +111,23 @@ make
 
 ### Native Build
 
-Using the Makefile wrapper:
+Using the Makefile wrapper (Linux and macOS):
 ```bash
 make            # Build the project
+make release    # Optimised build into build_release/ - what releases ship
 make run        # Build and run with --debug flag
 make clean      # Clean build artifacts
 ```
+
+On **Windows**, use the batch wrapper instead - it puts w64devkit on PATH for
+the build only and forces the Ninja generator (left alone, CMake picks the
+Visual Studio generator, which needs MSVC and cannot drive MinGW):
+```bat
+build.bat            :: release build -> build_release\bin\nd500x.exe
+build.bat debug      :: debug build   -> build\bin\nd500x.exe
+build.bat clean      :: remove both build directories
+```
+It looks for w64devkit in `C:\Utils\w64devkit`; set `W64DEVKIT` to override.
 
 Using CMake directly:
 ```bash
@@ -664,9 +712,14 @@ If libreadline is not found, the debugger will work without tab completion and c
 | Platform | Status | Notes |
 |----------|--------|-------|
 | **Linux** | ✅ Full support | Tested on Ubuntu 20.04+ |
-| **Windows** | ⚠️ Experimental | Native build via MSVC or MinGW |
+| **Windows** | ✅ Full support | MinGW (w64devkit or MSYS2) - see `build.bat`. MSVC is not tested. |
 | **WebAssembly** | ✅ Full support | Emscripten-based, web debugger interface |
-| **macOS** | ⚠️ Untested | Should work (Unix-like) |
+| **macOS** | ⚠️ Untested | POSIX, so it should build, but it never has been |
+
+Windows notes: `~` in a path expands to your **Documents** folder (resolved
+through the shell API, so folder redirection into OneDrive is handled), and the
+console is switched to virtual-terminal input mode so function keys - including
+**F12** for the NDIX menu - reach the emulator.
 
 ## Project Structure
 
