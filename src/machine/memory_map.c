@@ -33,11 +33,11 @@
 #include "../cpu/cpu_protos.h"
 #include "../cpu/nd500_mmu.h"
 
-#ifndef HAVE_SYSTEM_CJSON
+/* Both arms of the old #ifndef HAVE_SYSTEM_CJSON here included the very same
+ * header, so the test decided nothing. cJSON is a hard requirement of this
+ * file either way; the top-level CMakeLists guarantees the header is reachable
+ * under <cjson/...> whether it came from a package or from FetchContent. */
 #include <cjson/cJSON.h>
-#else
-#include <cjson/cJSON.h>
-#endif
 
 /* Internal representation of a memory block */
 typedef struct {

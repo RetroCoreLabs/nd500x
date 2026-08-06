@@ -2265,6 +2265,26 @@ uint32_t nd500_native_single_from_double(double value, bool* out_overflow, bool*
     if (value == 0.0) return 0;
     bool sign = signbit(value);
     uint32_t sign_bit = sign ? ND500_FLOAT_SIGN_MASK : 0u;
+
+    /* Infinity and NaN must be caught BEFORE frexp(). The C standard leaves
+     * *exp UNSPECIFIED when the input is not finite, so everything computed
+     * from it below is whatever the host's libm happened to leave behind:
+     * glibc lands on a huge exponent and falls into the overflow branch, while
+     * mingw does not - measured as test_float_arithmetic's "infinity
+     * saturates" passing on Linux and failing on Windows with the same source.
+     * That was luck, not logic.
+     *
+     * The ND-500 single format has no encoding for either: 9 exponent bits and
+     * 23 mantissa bits, all combinations meaning a finite number. So both map
+     * to the largest representable magnitude and report overflow - the same
+     * answer the overflow branch below gives, now reached deliberately. NaN
+     * keeps the sign it arrived with only because there is nothing better to
+     * do with it; no ND program can observe the difference. */
+    if (isinf(value) || isnan(value)) {
+        if (out_overflow) *out_overflow = true;
+        return sign_bit | ND500_FLOAT_EXPONENT_MASK | ND500_FLOAT_MANTISSA_MASK;
+    }
+
     int e;
     double m = frexp(fabs(value), &e);   // |value| = m * 2^e, m in [0.5, 1)
     // mant = round((m - 0.5) * 2^23); a round up to 1.0 renormalizes into the next exponent
@@ -2298,6 +2318,16 @@ uint64_t nd500_native_double_from_double(double value, bool* out_overflow, bool*
     if (value == 0.0) return 0;
     bool sign = signbit(value);
     uint64_t sign_bit = sign ? ND500_DOUBLE_SIGN_MASK : 0ull;
+
+    /* Same non-finite guard as the single-precision codec above, and for the
+     * same reason: frexp() leaves *exp unspecified for infinity and NaN, and
+     * the ND-500 double format has no encoding for either. Saturate to the
+     * largest magnitude and report overflow. */
+    if (isinf(value) || isnan(value)) {
+        if (out_overflow) *out_overflow = true;
+        return sign_bit | ND500_DOUBLE_EXPONENT_MASK | ND500_DOUBLE_MANTISSA_MASK;
+    }
+
     int e;
     double m = frexp(fabs(value), &e);   // |value| = m * 2^e, m in [0.5, 1)
     // mant = round((m - 0.5) * 2^55); host double keeps 52 bits so the low 2 stay zero

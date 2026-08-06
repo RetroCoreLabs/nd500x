@@ -1,6 +1,7 @@
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "nd500_mmu.h"   /* nd500_mmu_translate - the DOMRET-BOGUS dump uses it */
 #include <stdio.h>
 #include <stdlib.h>
 

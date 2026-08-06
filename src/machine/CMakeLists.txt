@@ -3,3 +3,15 @@ add_library(nd500_machine machine.c io.c debug_api.c machine_loader.c breakpoint
 target_include_directories(nd500_machine PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_SOURCE_DIR}/src/cpu)
 target_link_libraries(nd500_machine PUBLIC nd500_ndlib nd500_cpu nd500_disasm)
 
+# memory_map.c calls cJSON directly. Until now those symbols only resolved by
+# accident, because libdap happened to drag libcjson into the final link - so
+# building with SKIP_LIBDAP=ON, or on any platform where DAP is off, would fail
+# at link time. Say the dependency out loud instead.
+# cjson_objects exists when cJSON was fetched rather than installed; otherwise
+# CJSON_LIBRARIES holds whatever pkg-config or find_library turned up.
+if(TARGET cjson_objects)
+    target_link_libraries(nd500_machine PUBLIC cjson_objects)
+elseif(CJSON_LIBRARIES)
+    target_link_libraries(nd500_machine PUBLIC ${CJSON_LIBRARIES})
+endif()
+

@@ -14,6 +14,11 @@
 
 extern unsigned long long g_tlb_hits, g_tlb_misses, g_tlb_flushes;
 
+/* Defined at the bottom of this file but called from tlb_init_once() above it.
+ * GCC 11 let the implicit declaration slide with a warning; GCC 14 and later
+ * make it a hard error, so say it properly. */
+void nd500_mmu_tlb_stat_install(void);
+
 uint8_t g_nd500_xlat_bm[ND500_TLB_XLAT_PAGES / 8];
 int     g_nd500_tlb_on = 0;
 

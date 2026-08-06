@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>   /* getenv - used below; GCC 14+ rejects the implicit decl */
 
 /**
  * Umul instruction - ARITHMETIC class

@@ -3,6 +3,7 @@
 #include "instruction_helpers.h"
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>   /* getenv - used below; GCC 14+ rejects the implicit decl */
 
 /**
  * Byconv instruction - FLOAT_MATH class
