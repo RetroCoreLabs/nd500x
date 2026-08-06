@@ -414,6 +414,12 @@ int nd500_cpu_run(Nd500Cpu* cpu, int steps);
 /* Trap system functions */
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr);
 
+/* Non-zero if <trapBit> is enabled for the current domain, by the own-domain
+ * mask (OTE) or the mother-domain mask (MTE, read from the kernel DIT when one
+ * is present). Needed by the BP instruction, which raises BPT when that trap is
+ * enabled and IIC when it is not. */
+int nd500_trap_is_enabled(Nd500Cpu* cpu, uint64_t trapBit);
+
 /* CALL/ENT* sequence-interlock save stack: pushed by the trap dispatch, popped by
  * RETT, keyed on the trap frame address (THA+256). Not on the resume PC: the
  * kernel rewrites that (machine/trap.c:430,472 set cx_p = &fuerror on a failed

@@ -1422,6 +1422,33 @@ void check_solo_timeout(Nd500Cpu* cpu, uint32_t trappingPC) {
 	raise_trap(cpu, TRAP_DT, trappingPC, 0);
 }
 
+/* Is <trapBit> enabled for the current domain?
+ *
+ * "Enabled" means EITHER the own-domain mask (OTE, "handle it here") or the
+ * mother-domain mask (MTE, "the mother domain handles it"), with MTE also read
+ * from the kernel's DIT - the live MTE registers are never loaded under NDIX,
+ * so the DIT is where the real per-domain enables live. That is the same
+ * combination raise_trap and check_pending_traps use; this exists so callers
+ * outside cpu.c can ask the question without duplicating it, and without
+ * needing the DIT accessors, which are private to this file.
+ *
+ * The BP instruction is the caller that needs it: manual ND-05.009.4 p.2086,
+ * "BreakPoint instruction Trap condition occurs when a breakpoint instruction
+ * (BP) is executed. If BPT is not enabled, a BP instruction will cause an IIC
+ * trap condition." - so BP has to know before deciding which trap to raise. */
+int nd500_trap_is_enabled(Nd500Cpu* cpu, uint64_t trapBit) {
+	if (!cpu) return 0;
+	{
+		uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
+		uint64_t mte = ((uint64_t)cpu->MTE2 << 32) | cpu->MTE1;
+		if (cpu->DITBASE) {
+			mte |= (uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE1)
+			     | ((uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE2) << 32);
+		}
+		return (trapBit & (ote | mte)) != 0;
+	}
+}
+
 void check_pending_traps(Nd500Cpu* cpu, uint32_t trappingPC) {
 	if (!cpu) return;
 

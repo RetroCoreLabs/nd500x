@@ -146,24 +146,38 @@ void nd500_instr_Bp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // In a full implementation with trap enable register support, we would:
-    // 1. Check if BPT (Breakpoint Trap) is enabled in OTE/MTE
-    // 2. If enabled, raise BPT trap
-    // 3. If disabled, raise IIC (Illegal Instruction Code) trap
-    //
-    // For now, we'll raise a breakpoint trap unconditionally for debugger support
+    /* Manual ND-05.009.4, p.2086:
+     *   "BreakPoint instruction Trap condition occurs when a breakpoint
+     *    instruction (BP) is executed. If BPT is not enabled, a BP instruction
+     *    will cause an IIC trap condition."
+     * and p.2213 on IIC: "...or execution of a BP instruction with the BPT trap
+     * disabled." Two outcomes, no third.
+     *
+     * This used to print a line and carry on, which is neither of them. That
+     * mattered: NDIX runs asm("bp") in its PANIC path (machine/machdep.c:1028)
+     * precisely so the trap will "take us back into trap() and save a context
+     * block", and machine/trap.c:169 answers T_BPT with dumpsys() followed by a
+     * reboot. With the instruction doing nothing, a panicking kernel fell
+     * straight through that call and never took its crash dump.
+     *
+     * ND500X_BPDBG=1 brings the old log line back for anyone debugging the
+     * instruction itself. It is off by default - a panicking guest is noisy
+     * enough, and an unexplained "[BP] Breakpoint hit" in the middle of a
+     * shutdown reads like an emulator fault when it is the guest saying it has
+     * crashed. */
+    {
+        static int dbg = -1;
+        if (dbg < 0) { const char* e = getenv("ND500X_BPDBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (dbg)
+            printf("[BP] breakpoint instruction at PC=0x%08X (BPT %s)\n",
+                   fi->address,
+                   nd500_trap_is_enabled(cpu, TRAP_BPT) ? "enabled" : "disabled -> IIC");
+    }
 
-    printf("[BP] Breakpoint hit at PC=0x%08X\n", fi->address);
+    if (nd500_trap_is_enabled(cpu, TRAP_BPT))
+        raise_trap(cpu, TRAP_BPT, fi->address, 0);
+    else
+        trap_illegal_instruction(cpu, fi->address, fi->opcode);
 
-    // TODO: When trap system is fully implemented:
-    // if (trap_bpt_enabled(cpu)) {
-    //     trap_breakpoint(cpu, fi->address);
-    // } else {
-    //     trap_illegal_instruction(cpu, fi->address);
-    // }
-
-    // For now, just log the breakpoint for debugging purposes
-    // The emulator debugger can intercept this and stop execution
-
-    // No status flags are modified by BP instruction
+    /* No status flags are modified by the BP instruction itself. */
 }
