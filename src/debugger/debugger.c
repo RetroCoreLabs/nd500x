@@ -9,8 +9,9 @@
 #include <ctype.h>
 #include <time.h>
 #include <unistd.h>
-#include <termios.h>
-#include <sys/select.h>
+/* Raw terminal mode and the timed stdin wait used to be termios + select here.
+ * Both live behind nd_tty.h now, because neither header exists on Windows. */
+#include "nd_tty.h"
 #ifdef HAVE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -357,48 +358,28 @@ void nd500_debugger_set_guest_key_handler(Nd500GuestKeyFn fn) {
 static int guest_passthrough(Nd500Machine* m, int* want_debugger)
 {
     extern void nd500_fecall_console_input(const char* buf, int len);
-    struct termios saved, raw;
+    nd_tty_mode saved;
+    int pass_signals;
 
     *want_debugger = 0;
-    if (!isatty(STDIN_FILENO)) return 1;          /* scripted: leave as-is */
-    if (tcgetattr(STDIN_FILENO, &saved) != 0) return 1;
+    if (!nd_tty_stdin_is_terminal()) return 1;    /* scripted: leave as-is */
+    if (nd_tty_save(&saved) != 0) return 1;
 
-    raw = saved;
-    raw.c_lflag &= ~(ICANON | ECHO);              /* no line buffer, no local echo */
-    /* IEXTEN is the host's own extended input processing, and Ctrl-V (LNEXT) is
-     * the part of it that runs even with ICANON off - the host would consume the
-     * Ctrl-V and hand the guest only the quoted character. CLNEXT is Ctrl-V in
-     * the guest too (h/ttychars.h:50), so the guest must receive the 0x16. */
-    raw.c_lflag &= ~IEXTEN;
-    /* Software flow control belongs to the GUEST, not to the host terminal.
-     * With IXON left set (the default on a Linux tty) the host swallows Ctrl-S
-     * and Ctrl-Q outright, so CSTOP/CSTART (h/ttychars.h:40-41) could never
-     * reach NDIX - stopping and restarting guest output was impossible. IXANY
-     * goes too, or any keystroke silently restarts output the guest still
-     * believes it has stopped.
-     *
-     * Only the flags that STEAL characters are cleared. ICRNL deliberately
-     * stays: Enter currently reaches the guest correctly, and cfmakeraw-style
-     * blanket clearing would change that for no demonstrated gain. */
-    raw.c_iflag &= ~(IXON | IXOFF | IXANY);
+    /* Hand Ctrl-C (and Ctrl-\, Ctrl-Z) to the guest instead of letting the host
+     * terminal turn them into signals for the emulator. See the note above.
+     * The rest of the raw-mode detail - IEXTEN/Ctrl-V, IXON/IXOFF flow control,
+     * why ICRNL stays - now lives in nd_tty_set_raw(), which has to say it
+     * twice: once in termios flags and once in console-mode flags. */
     {
-        /* Hand Ctrl-C (and Ctrl-\, Ctrl-Z) to the guest instead of letting the
-         * host tty turn them into signals for the emulator. See the note above. */
         const char* e = getenv("ND500X_HOST_SIGINT");
-        if (!(e && e[0] && e[0] != '0'))
-            raw.c_lflag &= ~ISIG;
+        pass_signals = (e && e[0] && e[0] != '0') ? 1 : 0;
     }
-    raw.c_cc[VMIN]  = 1;
-    raw.c_cc[VTIME] = 0;
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) != 0) return 1;
+    if (nd_tty_set_raw(&saved, pass_signals) != 0) return 1;
 
     int rc = 1;
     while (m && m->run_flag) {
-        fd_set rf;
-        struct timeval tv = {0, 200000};          /* 200ms: notice the machine stopping */
-        FD_ZERO(&rf);
-        FD_SET(STDIN_FILENO, &rf);
-        int n = select(STDIN_FILENO + 1, &rf, NULL, NULL, &tv);
+        /* 200ms: notice the machine stopping even when nobody is typing. */
+        int n = nd_tty_wait_readable(200);
         if (n < 0) break;
         if (n == 0) continue;
 
@@ -411,7 +392,7 @@ static int guest_passthrough(Nd500Machine* m, int* want_debugger)
         ssize_t got;
 
         if (nheld > 0) memcpy(buf, held, (size_t)nheld);
-        got = read(STDIN_FILENO, buf + nheld, sizeof(buf) - (size_t)nheld);
+        got = nd_tty_read(buf + nheld, (int)(sizeof(buf) - (size_t)nheld));
         if (got <= 0) { rc = 0; break; }           /* EOF */
         got += nheld;
         nheld = 0;
@@ -448,7 +429,7 @@ static int guest_passthrough(Nd500Machine* m, int* want_debugger)
         }
         nd500_fecall_console_input(buf, (int)got);
     }
-    tcsetattr(STDIN_FILENO, TCSANOW, &saved);
+    nd_tty_restore(&saved);
     return rc;
 }
 
@@ -495,7 +476,7 @@ int nd500_debugger_repl(Nd500Machine* m) {
 	const char* cse = getenv("ND500X_CONSOLE_STDIN");
 	int console_stdin = (cse && cse[0] && cse[0] != '0') ? 1 : 0;
 
-	if (console_stdin && isatty(STDIN_FILENO))
+	if (console_stdin && nd_tty_stdin_is_terminal())
 		printf("[repl] terminal connected to the guest - Ctrl-] for the debugger\n");
 
 	/* Main REPL loop */
@@ -508,7 +489,7 @@ int nd500_debugger_repl(Nd500Machine* m) {
 		 * pipe (scripted boots) there is nothing to put in raw mode, and the
 		 * line-based path below already does the right thing - taking the
 		 * passthrough branch there would spin without ever reading. */
-		if (to_guest && isatty(STDIN_FILENO)) {
+		if (to_guest && nd_tty_stdin_is_terminal()) {
 			int want_debugger = 0;
 			int alive = guest_passthrough(m, &want_debugger);
 			if (alive < 0)

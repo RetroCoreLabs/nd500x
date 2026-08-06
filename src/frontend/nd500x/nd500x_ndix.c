@@ -17,6 +17,9 @@
 #include "telnetserver.h"
 #include "ndix_ffs.h"
 #include "../../cpu/nd500_fecall.h"
+#include "../../cpu/nd500_phys_alloc.h"
+#include "../../ndlib/ndlib.h"
+#include "../../debugger/commands.h"
 #include "../../machine/machine_protos.h"
 #include "../../machine/machine_types.h"
 
@@ -29,6 +32,10 @@
 #include <sys/stat.h>
 
 #include <ndmon/mon_config.h>
+/* setenv() and realpath() are POSIX-only; nd_setenv()/nd_realpath() keep the
+ * same behaviour on Windows - including realpath's failure on a missing file,
+ * which the "disk image not found" check below depends on. */
+#include "nd_compat.h"
 
 /* Set by nd500x_ndix_setup: the kernel path, and whether no <kernel>.init exists
  * so we have to do the boot setup ourselves. */
@@ -43,7 +50,7 @@ static int  g_auto_boot;
 static void setenv_default(const char* name, const char* value) {
     const char* cur = getenv(name);
     if (cur && cur[0]) return;
-    setenv(name, value, 1);
+    nd_setenv(name, value, 1);
 }
 
 static int is_file(const char* p) {
@@ -114,7 +121,7 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
         fprintf(stderr, "error: --ndix needs a root disk image path\n");
         return -1;
     }
-    if (!realpath(image, abs_image)) {
+    if (!nd_realpath(image, abs_image)) {
         fprintf(stderr, "error: --ndix disk image not found: %s\n", image);
         return -1;
     }
@@ -126,7 +133,7 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
     /* SINTRAN root: an explicit --sintran-root wins, else the directory the
      * disk image lives in (that is where the NDIX tree is rooted). */
     if (root_opt && root_opt[0]) {
-        if (!realpath(root_opt, root)) {
+        if (!nd_realpath(root_opt, root)) {
             fprintf(stderr, "error: --sintran-root not found: %s\n", root_opt);
             return -1;
         }
@@ -140,7 +147,7 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
      * next to the image without being checked for. */
     kern[0] = '\0';
     if (kernel && kernel[0]) {
-        if (!realpath(kernel, kern)) {
+        if (!nd_realpath(kernel, kern)) {
             fprintf(stderr, "error: --kernel not found: %s\n", kernel);
             return -1;
         }
@@ -148,7 +155,7 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
         const char* env = getenv("ND500X_KERNEL");
         const char* rel[] = { "kernel/MASTER/GENERIC/vmunix", "vmunix" };
         if (env && env[0]) {
-            if (!realpath(env, kern)) {
+            if (!nd_realpath(env, kern)) {
                 fprintf(stderr, "error: ND500X_KERNEL not found: %s\n", env);
                 return -1;
             }
@@ -166,7 +173,7 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
             } else {
                 for (i = 0; i < sizeof rel / sizeof rel[0]; i++) {
                     snprintf(cand, sizeof cand, "%s/%s", root, rel[i]);
-                    if (is_file(cand) && realpath(cand, kern)) break;
+                    if (is_file(cand) && nd_realpath(cand, kern)) break;
                     kern[0] = '\0';
                 }
             }
@@ -249,7 +256,8 @@ int nd500x_ndix_autoboot_needed(void) { return g_auto_boot; }
  * kernel datum. `load` is still issued before this, for the entry PC and the
  * symbols; this then overwrites what it put down with the right placement. */
 static int place_aout_segments(struct Nd500Machine* m, const char* path,
-                               unsigned long dseg_load) {
+                               unsigned long dseg_load,
+                               unsigned long pseg_size, unsigned long dseg_size) {
     unsigned char hdr[32];
     uint32_t a_text, a_data, a_bss;
     unsigned char* buf;
@@ -280,27 +288,73 @@ static int place_aout_segments(struct Nd500Machine* m, const char* path,
     }
     fclose(f);
 
-    if (dseg_load + a_data + a_bss > m->memory_size) {
+    /* Check against the PADDED size, since that is what actually gets written. */
+    if (dseg_load + dseg_size > m->memory_size) {
         free(buf);
         fprintf(stderr, "error: kernel needs 0x%lX bytes, machine has 0x%X\n",
-                dseg_load + a_data + a_bss, m->memory_size);
+                dseg_load + dseg_size, m->memory_size);
         return -1;
     }
 
     for (i = 0; i < a_text; i++)
         nd500_bus_write8(m, (uint32_t)i, buf[i]);
+    /* splitseg pads .pseg with ZEROS from a_text up to the 2 KB page boundary,
+     * and the load-pseg path therefore writes those zeros too. We must match it,
+     * because the debugger's `load` ran a moment ago and placed the DATA image at
+     * a_text (0x41A8C) instead of at the next page (0x42000) - see the comment
+     * above. That leaves 1396 bytes of stray data bytes sitting in the text tail
+     * which the .pseg path has as zeros.
+     *
+     * Not cosmetic: those bytes were being read as if they were text, and the
+     * boot died dereferencing 0x2025640A - the ASCII of the format string " %d\n"
+     * - before reaching login. Zeroing the tail is what makes the from-image boot
+     * behave identically to the .pseg/.dseg boot. */
+    for (i = a_text; i < pseg_size; i++)
+        nd500_bus_write8(m, (uint32_t)i, 0);
     for (i = 0; i < a_data; i++)
         nd500_bus_write8(m, (uint32_t)(dseg_load + i), buf[a_text + i]);
     /* bss must be zero: guest RAM is only cleared at power-on, and the kernel
-     * assumes a zeroed bss the way every C program does. */
-    for (i = 0; i < a_bss; i++)
-        nd500_bus_write8(m, (uint32_t)(dseg_load + a_data + i), 0);
+     * assumes a zeroed bss the way every C program does. The loop runs to
+     * dseg_size, not a_data+a_bss, for the same reason as the text tail above:
+     * .dseg is padded to a page and map-kdata is handed the padded size. */
+    for (i = a_data; i < dseg_size; i++)
+        nd500_bus_write8(m, (uint32_t)(dseg_load + i), 0);
 
     free(buf);
-    fprintf(stderr, "[ndix] placed a.out: text 0x0..0x%X, data 0x%08lX..0x%08lX, "
-                    "bss zeroed to 0x%08lX\n",
-            a_text, dseg_load, dseg_load + a_data,
-            dseg_load + a_data + a_bss);
+
+    /* THE separate-I&D data base. This is what load-dseg does after writing the
+     * file (commands.c, "Separate I&D de-aliasing for the PSEG/DSEG load path")
+     * and it is NOT optional: a.out magic 0411 means the kernel's data lives in
+     * D-space at [0, a_data+a_bss), so a segment-0 data read of virtual V must
+     * resolve to data_base + V. The debugger's `load`, issued just before us,
+     * sets this base to a_text (0x41A8C) because that is where IT put the data.
+     * We move the data to the next page (0x42000), so the base has to move with
+     * it - otherwise every kernel data read is 1396 bytes low.
+     *
+     * Measured before this call existed: at _feinit+0x08 the kernel executed
+     * `w1 := $114728` and got 0x2025640A (the ASCII of " %d\n" at 0x5DAB4)
+     * instead of 0x0003DF00 at 0x5E028 - exactly 1396 bytes adrift - and the
+     * boot then died on a page fault at PC=0x3613E. The bytes in memory were
+     * correct all along; only this base was wrong. */
+    ndlib_aout_set_data_base((uint32_t)dseg_load);
+
+    /* Claim both extents, exactly as the load-pseg / load-dseg commands do via
+     * reserve_loaded_image() (src/debugger/commands.c). Without this the page
+     * allocator does not know the kernel image is there and can hand the same
+     * frames to a domain demand-mapped later. This was the ONLY thing the
+     * load-pseg/load-dseg path did that placing the a.out by hand did not, and
+     * leaving it out is what made the boot-from-image path die where the
+     * .pseg/.dseg path booted. */
+    if (nd500_phys_reserve(m, 0, (uint32_t)pseg_size) != 0)
+        fprintf(stderr, "warning: kernel text at 0x0 overlaps memory a loaded domain owns\n");
+    if (nd500_phys_reserve(m, (uint32_t)dseg_load, (uint32_t)dseg_size) != 0)
+        fprintf(stderr, "warning: kernel data at 0x%08lX overlaps memory a loaded domain owns\n",
+                dseg_load);
+
+    fprintf(stderr, "[ndix] placed a.out: text 0x0..0x%X (zero-padded to 0x%08lX), "
+                    "data 0x%08lX..0x%08lX, bss+pad zeroed to 0x%08lX\n",
+            a_text, pseg_size, dseg_load, dseg_load + a_data,
+            dseg_load + dseg_size);
     return 0;
 }
 
@@ -318,7 +372,11 @@ static int place_aout_segments(struct Nd500Machine* m, const char* path,
 int nd500x_ndix_autoboot(struct Nd500Machine* m,
                          int (*run)(struct Nd500Machine*, const char*, void*),
                          void* ctx) {
-    char pseg[PATH_MAX], dseg[PATH_MAX], cmd[PATH_MAX + 64];
+    /* +8 leaves room for the ".pseg"/".dseg" suffix on a PATH_MAX kernel path,
+     * which is what gcc's -Wformat-truncation was pointing at. A path that long
+     * cannot exist anyway, but sizing the buffer for it is cheaper than an
+     * argument about whether snprintf's truncation would matter. */
+    char pseg[PATH_MAX + 8], dseg[PATH_MAX + 8], cmd[PATH_MAX + 64];
     struct stat sp, sd;
     unsigned long pseg_size, dseg_load, dseg_size;
     int have_seg_files;
@@ -390,7 +448,8 @@ int nd500x_ndix_autoboot(struct Nd500Machine* m,
     if (have_seg_files) {
         snprintf(cmd, sizeof cmd, "load-pseg %s 0x00000000", pseg);          run(m, cmd, ctx);
         snprintf(cmd, sizeof cmd, "load-dseg %s 0x%08lX", dseg, dseg_load);  run(m, cmd, ctx);
-    } else if (place_aout_segments(m, g_auto_kernel, dseg_load) != 0) {
+    } else if (place_aout_segments(m, g_auto_kernel, dseg_load,
+                                   pseg_size, dseg_size) != 0) {
         return -1;
     }
     snprintf(cmd, sizeof cmd, "map-kdata 0x%08lX 0x%08lX", dseg_load, dseg_size);
@@ -412,12 +471,60 @@ int nd500x_ndix_autoboot(struct Nd500Machine* m,
      * This bootstrap value only matters for a trap raised in domain 0 before
      * the first __resume/domain switch, since a switch reloads THA. A healthy
      * boot never traps that early, which is why the wrong value went unnoticed;
-     * a memory-starved boot does, and died here. */
-    run(m, "set THA 0xE800073C", ctx);
+     * a memory-starved boot does, and died here.
+     *
+     * _u is looked up in the kernel's own symbol table rather than assumed, so a
+     * kernel that moves its u-area still gets a correct vector. The `load` above
+     * has already read the symbols. U_CXB0 stays a literal because it is a
+     * compile-time struct offset (machine/locore.h:66), not a linker symbol -
+     * there is nothing in the a.out to read it from. If the lookup fails we fall
+     * back to the measured value rather than booting with THA unset. */
+    {
+        uint32_t u_addr = 0;
+        unsigned long tha = 0xE800073CUL;
+        if (ndlib_symbols_lookup("_u", &u_addr, NULL) == 0 && u_addr != 0) {
+            tha = (unsigned long)u_addr + 0x73CUL;   /* U_CXB0 = 1852 */
+            if (tha != 0xE800073CUL)
+                fprintf(stderr, "[ndix] THA derived from _u=0x%08X -> 0x%08lX\n",
+                        u_addr, tha);
+        } else {
+            fprintf(stderr, "[ndix] warning: symbol _u not found, "
+                            "using THA 0x%08lX\n", tha);
+        }
+        snprintf(cmd, sizeof cmd, "set THA 0x%08lX", tha);
+        run(m, cmd, ctx);
+    }
     run(m, "set CTE1 0xF413D800", ctx);
     run(m, "set CTE2 0x0000005F", ctx);
     run(m, "set CAD 1", ctx);
     return 0;
+}
+
+/* ------------------------------------------------------------- shutdown -- */
+
+/* Make the GUEST shut itself down, instead of us just stopping the CPU.
+ *
+ * Why this is needed: NDIX is a 4.3BSD, so the disk image is only consistent
+ * once the kernel has flushed its buffer cache. Killing run_flag leaves every
+ * dirty buffer in emulator RAM, and the next boot finds a filesystem that fsck
+ * has to repair ("ialloc: dup alloc", "free: freeing free frag" - both were
+ * reproduced exactly this way). The image has no /etc/halt, /etc/shutdown or
+ * update daemon, so there is nothing inside the guest to ask nicely.
+ *
+ * What we do instead is what a panic already does: call the kernel's own
+ * boot(). machine/machdep.c:985 boot(how, kernel, rdev, cdev) runs update()
+ * twice, prints "syncing disks... done", and with RB_BOOT clear takes the HALT
+ * branch, ending in feexit_fecall() - which reaches us as FE_EXIT (0xb) and is
+ * how we learn the flush finished. We do not have to guess or poll.
+ *
+ * The work itself is the debugger's `ndix-halt` command, which sits next to
+ * `ndix-uarea` - the other NDIX-specific bootstrap command - so that it is also
+ * reachable as "~ndix-halt" from the console while the guest is running. That
+ * is how this path gets tested without a terminal that can send F12. */
+int nd500x_ndix_halt_guest(struct Nd500Machine* m) {
+    CmdContext bctx = {0};
+    if (!m) return -1;
+    return nd500_cmd_execute(m, "ndix-halt", &bctx) == 0 ? 0 : -1;
 }
 
 /* ---------------------------------------------------------- telnet bridge -- */

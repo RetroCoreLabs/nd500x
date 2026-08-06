@@ -4,8 +4,12 @@
  * The telnet IAC state machine, negotiation options and the accept/reader
  * threading model are reused from nd100x (src/ndlib/telnetserver.c). This
  * version is deliberately single-terminal: one listening socket, one client,
- * bridged to one ConsoleIO - which is all the nd500x shell needs. POSIX sockets
- * (nd500x targets Linux/WSL); no Windows abstraction is pulled in.
+ * bridged to one ConsoleIO - which is all the nd500x shell needs.
+ *
+ * Sockets go through net_compat.h so the same code builds on POSIX and Winsock:
+ * descriptors are nd_socket_t, close is nd_socket_close(), and the error to
+ * test after a failed call comes from nd_last_socket_error() rather than errno,
+ * because Winsock does not report through errno at all.
  */
 
 #include "nd500x_telnet.h"
@@ -13,13 +17,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <pthread.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <arpa/inet.h>
-#include <errno.h>
+#include "net_compat.h"
 
 /* Telnet protocol (RFC 854/855) - same constants as nd100x telnetserver.c. */
 #define IAC  255
@@ -39,8 +38,8 @@ typedef enum {
 
 #define INBUF_SIZE 4096
 
-static int g_listen_fd = -1;
-static int g_client_fd = -1;
+static nd_socket_t g_listen_fd = ND_INVALID_SOCKET;
+static nd_socket_t g_client_fd = ND_INVALID_SOCKET;
 static volatile int g_connected = 0;
 static volatile int g_shutdown = 0;
 static pthread_t g_accept_thread;
@@ -119,13 +118,14 @@ static void txlog(const unsigned char* buf, int len) {
 /* Raw send to the client. Returns bytes actually sent (== len unless the peer
  * closed mid-write - which WOULD be real loss, now visible in the return). */
 static int sock_send(const unsigned char* buf, int len) {
-    int fd = g_client_fd;
+    nd_socket_t fd = g_client_fd;
     if (fd < 0) return 0;
     txlog(buf, len);
     int off = 0;
     while (off < len) {
-        ssize_t n = send(fd, buf + off, (size_t)(len - off), MSG_NOSIGNAL);
-        if (n <= 0) { if (errno == EINTR) continue; break; }
+        nd_ssize_t n = send(ND_SOCK_NATIVE(fd), ND_SOCK_BUF(buf + off),
+                            ND_SOCK_LEN(len - off), MSG_NOSIGNAL);
+        if (n <= 0) { if (nd_last_socket_error() == ND_EINTR) continue; break; }
         off += (int)n;
     }
     if (off < len)
@@ -137,12 +137,14 @@ static int sock_send(const unsigned char* buf, int len) {
 static void* accept_thread_fn(void* arg) {
     (void)arg;
     while (!g_shutdown) {
-        struct sockaddr_in cli; socklen_t clen = sizeof cli;
-        int fd = accept(g_listen_fd, (struct sockaddr*)&cli, &clen);
+        struct sockaddr_in cli; nd_socklen_t clen = sizeof cli;
+        nd_socket_t fd = (nd_socket_t)accept(ND_SOCK_NATIVE(g_listen_fd),
+                                             (struct sockaddr*)&cli, &clen);
         if (fd < 0) { if (g_shutdown) break; continue; }
 
         int one = 1;
-        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
+        setsockopt(ND_SOCK_NATIVE(fd), IPPROTO_TCP, TCP_NODELAY,
+                   ND_SOCKOPT(&one), sizeof one);
 
         /* Put the client in character-at-a-time mode with server echo:
          * IAC WILL ECHO, IAC WILL SGA, IAC DONT LINEMODE (same as nd100x). */
@@ -166,8 +168,12 @@ static void* accept_thread_fn(void* arg) {
         IacState st = T_DATA;
         unsigned char buf[1024];
         for (;;) {
-            ssize_t n = recv(fd, buf, sizeof buf, 0);
-            if (n <= 0) { if (n < 0 && errno == EINTR) continue; break; }
+            nd_ssize_t n = recv(ND_SOCK_NATIVE(fd), ND_SOCK_BUF(buf),
+                                ND_SOCK_LEN(sizeof buf), 0);
+            if (n <= 0) {
+                if (n < 0 && nd_last_socket_error() == ND_EINTR) continue;
+                break;
+            }
             for (int i = 0; i < n; i++) {
                 unsigned char b = buf[i];
                 switch (st) {
@@ -197,10 +203,10 @@ static void* accept_thread_fn(void* arg) {
 
         pthread_mutex_lock(&g_in_mtx);
         g_connected = 0;
-        g_client_fd = -1;
+        g_client_fd = ND_INVALID_SOCKET;
         pthread_cond_signal(&g_in_cond);
         pthread_mutex_unlock(&g_in_mtx);
-        close(fd);
+        nd_socket_close(fd);
         fprintf(stderr, "[telnet] client disconnected\n");
     }
     return NULL;
@@ -320,24 +326,32 @@ int nd500x_telnet_readline(char* out, int len) {
 /* ------------------------------------------------------------- lifecycle -- */
 
 int nd500x_telnet_start(int port) {
-    g_listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    /* No-op on POSIX; on Windows this is the WSAStartup that every other
+     * socket call here depends on having run first. */
+    if (nd_net_init() != 0) { fprintf(stderr, "[telnet] socket layer init failed\n"); return -1; }
+
+    g_listen_fd = (nd_socket_t)socket(AF_INET, SOCK_STREAM, 0);
     if (g_listen_fd < 0) { perror("[telnet] socket"); return -1; }
     int one = 1;
-    setsockopt(g_listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+    setsockopt(ND_SOCK_NATIVE(g_listen_fd), SOL_SOCKET, SO_REUSEADDR,
+               ND_SOCKOPT(&one), sizeof one);
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof addr);
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons((uint16_t)port);
-    if (bind(g_listen_fd, (struct sockaddr*)&addr, sizeof addr) < 0) {
-        perror("[telnet] bind"); close(g_listen_fd); g_listen_fd = -1; return -1;
+    if (bind(ND_SOCK_NATIVE(g_listen_fd), (struct sockaddr*)&addr, sizeof addr) < 0) {
+        perror("[telnet] bind");
+        nd_socket_close(g_listen_fd); g_listen_fd = ND_INVALID_SOCKET; return -1;
     }
-    if (listen(g_listen_fd, 1) < 0) {
-        perror("[telnet] listen"); close(g_listen_fd); g_listen_fd = -1; return -1;
+    if (listen(ND_SOCK_NATIVE(g_listen_fd), 1) < 0) {
+        perror("[telnet] listen");
+        nd_socket_close(g_listen_fd); g_listen_fd = ND_INVALID_SOCKET; return -1;
     }
     g_shutdown = 0;
     if (pthread_create(&g_accept_thread, NULL, accept_thread_fn, NULL) != 0) {
-        perror("[telnet] pthread_create"); close(g_listen_fd); g_listen_fd = -1; return -1;
+        perror("[telnet] pthread_create");
+        nd_socket_close(g_listen_fd); g_listen_fd = ND_INVALID_SOCKET; return -1;
     }
     fprintf(stderr, "[telnet] listening on port %d - connect with: telnet localhost %d\n",
             port, port);
@@ -361,6 +375,17 @@ void nd500x_telnet_stop(void) {
     pthread_mutex_lock(&g_in_mtx);
     pthread_cond_broadcast(&g_in_cond);
     pthread_mutex_unlock(&g_in_mtx);
-    if (g_client_fd >= 0) { shutdown(g_client_fd, SHUT_RDWR); close(g_client_fd); g_client_fd = -1; }
-    if (g_listen_fd >= 0) { shutdown(g_listen_fd, SHUT_RDWR); close(g_listen_fd); g_listen_fd = -1; }
+    if (g_client_fd >= 0) {
+        shutdown(ND_SOCK_NATIVE(g_client_fd), ND_SHUT_RDWR);
+        nd_socket_close(g_client_fd);
+        g_client_fd = ND_INVALID_SOCKET;
+    }
+    if (g_listen_fd >= 0) {
+        shutdown(ND_SOCK_NATIVE(g_listen_fd), ND_SHUT_RDWR);
+        nd_socket_close(g_listen_fd);
+        g_listen_fd = ND_INVALID_SOCKET;
+    }
+    /* Matches the nd_net_init() in _start(); refcounted, so the telnetserver
+     * side keeping its own reference is fine. */
+    nd_net_shutdown();
 }

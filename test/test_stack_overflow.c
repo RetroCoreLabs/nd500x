@@ -18,6 +18,9 @@
 #include <stdio.h>
 #include <string.h>
 #include "../src/cpu/cpu_protos.h"
+/* nd500_read_memory_32 / nd500_write_memory_32 are declared here. GCC 11 let
+ * the implicit declarations pass with a warning; GCC 14 and later reject them. */
+#include "../src/cpu/instruction_helpers.h"
 #include "../src/machine/machine_protos.h"
 
 extern void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);

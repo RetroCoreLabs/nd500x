@@ -40,6 +40,18 @@
     #ifndef MSG_NOSIGNAL
         #define MSG_NOSIGNAL 0
     #endif
+    /* shutdown() how-values are spelled differently but mean the same thing. */
+    #define ND_SHUT_RDWR SD_BOTH
+    /* "the call was interrupted, try again". Winsock reports its errors through
+     * WSAGetLastError(), not errno, so the CONSTANT differs as well as the way
+     * it is fetched - always compare against nd_last_socket_error(). */
+    #define ND_EINTR     WSAEINTR
+    /* Winsock's send/recv take char* and an int length, POSIX takes void* and
+     * size_t. These two keep the casts in one place instead of at every call. */
+    #define ND_SOCK_BUF(p)  ((char*)(p))
+    #define ND_SOCK_LEN(n)  ((int)(n))
+    /* setsockopt takes const char* on Windows, const void* on POSIX. */
+    #define ND_SOCKOPT(p)   ((const char*)(p))
 #else
     #include <sys/types.h>
     #include <sys/socket.h>
@@ -55,6 +67,11 @@
     typedef struct pollfd nd_pollfd_t;
     #define ND_INVALID_SOCKET ((nd_socket_t)-1)
     #define ND_SOCK_NATIVE(s) ((int)(s))
+    #define ND_SHUT_RDWR      SHUT_RDWR
+    #define ND_EINTR          EINTR
+    #define ND_SOCK_BUF(p)    (p)
+    #define ND_SOCK_LEN(n)    ((size_t)(n))
+    #define ND_SOCKOPT(p)     ((const void*)(p))
 #endif
 
 #ifdef __cplusplus

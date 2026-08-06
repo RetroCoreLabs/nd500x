@@ -26,6 +26,11 @@
 #include "../src/cpu/instruction_helpers.h"
 #include "../src/machine/machine_protos.h"
 
+/* The per-instruction handlers have no public header - nd500_instructions.c
+ * declares each one just above the dispatch table it fills in. Repeat the one
+ * prototype this test needs, matching src/cpu/instructions/SYSTEM/Lregbl.c. */
+void nd500_instr_Lregbl(Nd500Cpu*, const Nd500FetchedInstruction*);
+
 extern void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 extern void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 extern void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);

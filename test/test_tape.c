@@ -14,7 +14,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#ifdef _WIN32
+#  include <io.h>        /* close() lives here on Windows, not in unistd.h */
+#  define close _close
+#else
+#  include <unistd.h>    /* close() */
+#endif
 #include "../src/cpu/nd500_tape.h"
+
+/* Where scratch files go. Hard-coding "/tmp" would fail on Windows, which has
+ * no such directory - the temp path is whatever TMP/TEMP point at. */
+static const char* test_tmpdir(void) {
+    const char* d;
+    if ((d = getenv("TMPDIR")) && d[0]) return d;
+    if ((d = getenv("TMP"))    && d[0]) return d;
+    if ((d = getenv("TEMP"))   && d[0]) return d;
+    return "/tmp";
+}
 
 static int passed = 0, failed = 0;
 
@@ -67,7 +83,8 @@ static void build(const char* path) {
 int main(void) {
     printf("ND-500 tape (SIMH .tap) record layer\n====================================\n");
 
-    char path[] = "/tmp/nd500x_tape_testXXXXXX";
+    char path[512];
+    snprintf(path, sizeof path, "%s/nd500x_tape_testXXXXXX", test_tmpdir());
     int fd = mkstemp(path);
     if (fd < 0) { perror("mkstemp"); return 2; }
     close(fd);

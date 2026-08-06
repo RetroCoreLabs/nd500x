@@ -34,7 +34,18 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <termios.h>
+/* Cooked/raw terminal handling, portable: termios does not exist on Windows. */
+#include "nd_tty.h"
+
+#ifdef _WIN32
+#  include <direct.h>      /* _mkdir */
+/* Win32 mkdir() takes ONE argument - there are no Unix permission bits to pass.
+ * Directories inherit their ACL from the parent, which is the closest thing to
+ * the 0755 the POSIX call asks for. */
+#  define sh_mkdir(path, mode) _mkdir(path)
+#else
+#  define sh_mkdir(path, mode) mkdir((path), (mode))
+#endif
 
 #ifdef HAVE_READLINE
 #include <readline/readline.h>
@@ -110,7 +121,7 @@ static int           g_running = 1;          /* shell REPL keeps going */
  * terminal type is kept in the emulator's per-terminal state, not a shell-local
  * variable, so MON 16B/17B and a running DOM share the exact same value. */
 #define SHELL_TERM_DEVICE 1
-static struct termios g_cooked_termios;      /* saved on start for restore */
+static nd_tty_mode   g_cooked_termios;       /* saved on start for restore */
 static int           g_have_cooked = 0;
 
 /* Generous safety cap so a runaway DOM cannot wedge the shell forever. */
@@ -380,8 +391,12 @@ static int resolve_domain(const char* name, char* out, size_t n) {
 
 /* Restore cooked terminal mode after a DOM run left the stdio console raw. */
 static void restore_cooked(void) {
-    if (g_have_cooked && isatty(STDIN_FILENO)) {
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_cooked_termios);
+    if (g_have_cooked && nd_tty_stdin_is_terminal()) {
+        /* Discard type-ahead first: anything typed during the DOM run was meant
+         * for the DOM, not for the shell prompt about to come back. That is what
+         * the original TCSAFLUSH restore did. */
+        nd_tty_flush_input();
+        nd_tty_restore(&g_cooked_termios);
     }
 }
 
@@ -1023,6 +1038,31 @@ static void cmd_edit(int argc, char** argv) {
     char path[1024];
     sh_resolve_file(argv[1], path, sizeof path);  /* out is set even when absent */
 
+#ifdef _WIN32
+    /* Windows has no fork(). It also has no `command -v`, and VS Code is a
+     * BATCH file (code.cmd) rather than an .exe - so there is nothing here to
+     * exec directly and cmd.exe has to be involved either way.
+     *
+     * "where" is the cmd equivalent of "command -v". */
+    if (system("where code >nul 2>nul") != 0) {
+        printf("'code' not found on PATH - install VS Code and enable 'Add to PATH'.\n");
+        return;
+    }
+    {
+        /* start returns immediately, which is the point of the fork on POSIX.
+         * The empty "" is the window TITLE argument: start treats a leading
+         * quoted token as the title, so without it the quoted path would be
+         * swallowed as one and nothing would open.
+         *
+         * Quoting the path is safe against the injection the POSIX branch
+         * avoids by not using a shell: Windows forbids " in a file name, so the
+         * quoted string cannot be broken out of. */
+        char cmd[1200];
+        snprintf(cmd, sizeof cmd, "start \"\" code \"%s\"", path);
+        if (system(cmd) != 0) { printf("Could not launch editor\n"); return; }
+        printf("Opening %s in VS Code...\n", path);
+    }
+#else
     /* Need `code` on PATH (VS Code + Remote-WSL). Check first so we can tell the
      * user instead of silently doing nothing. */
     if (system("command -v code >/dev/null 2>&1") != 0) {
@@ -1044,6 +1084,7 @@ static void cmd_edit(int argc, char** argv) {
     } else {
         printf("Could not launch editor (fork failed)\n");
     }
+#endif
 }
 
 static void cmd_rename_file(int argc, char** argv) {
@@ -1102,7 +1143,7 @@ static void cmd_create_user(int argc, char** argv) {
     str_upper(up);
     char p[1024];
     snprintf(p, sizeof p, "%s/%s", root, up);
-    if (mkdir(p, 0755) != 0) { printf("USER ALREADY EXISTS OR CANNOT CREATE\n"); return; }
+    if (sh_mkdir(p, 0755) != 0) { printf("USER ALREADY EXISTS OR CANNOT CREATE\n"); return; }
     printf("Created user %s\n", up);
 }
 
@@ -1270,8 +1311,7 @@ int nd500x_shell_run(Nd500Machine* machine, Nd500Cpu* cpu, const char* script_pa
         g_use_telnet = 1;
     }
 
-    if (!g_use_telnet && isatty(STDIN_FILENO) &&
-        tcgetattr(STDIN_FILENO, &g_cooked_termios) == 0) {
+    if (!g_use_telnet && nd_tty_save(&g_cooked_termios) == 0) {
         g_have_cooked = 1;
     }
 

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-add_library(nd500_ndlib ndlib.c ndlib_aout.c ndlib_symbols.c ndlib_color.c ndlib_dom.c ndlib_dom_loader.c)
+add_library(nd500_ndlib ndlib.c ndlib_aout.c ndlib_symbols.c ndlib_color.c ndlib_dom.c ndlib_dom_loader.c
+                        nd_tty.c nd_compat.c)
 target_include_directories(nd500_ndlib PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_SOURCE_DIR}/src/machine ${CMAKE_SOURCE_DIR}/src/cpu ${CMAKE_SOURCE_DIR}/include)
 
 if(DEFINED HAVE_LIBSYMBOLS)
