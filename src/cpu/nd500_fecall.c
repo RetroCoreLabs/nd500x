@@ -430,13 +430,28 @@ static void fe_idev(Nd500Cpu* cpu, uint32_t gen, Pkt* cpk, Pkt* rpk) {
      * while init reported "/dev/tty01: No such device or address".
      *
      * Enable the first 16 local lines (bits 31-28) so tty01..tty16 exist.
-     * remdevc stays 0: remote lines (minor 129+) would need the ND-100 side. */
+     *
+     * remdevc is the REMOTE line count. mx.c:182 splits the minors in two:
+     * 1-128 are local and gated by locdevm, 129-255 are remote and admitted
+     * only while (minor - MAXLOCALTTY) <= remdevc. With remdevc 0 the remote
+     * sub-devices were never set up, so /dev/tty81 (minor 129) could not be
+     * opened at all - measured as
+     *     init: /dev/tty81: No such device or address
+     * even with a getty line for it in /etc/ttys. Meanwhile the F12 console
+     * menu has always offered tty81, so the emulator was advertising a
+     * terminal the guest had been told did not exist.
+     *
+     * One remote line is reported, which makes minor 129 real. Nothing else is
+     * needed on this side: a remote line carries input and output through the
+     * same (generic << 16 | unit) fecall path as a local one - "remote" is
+     * about where the line is attached on real hardware, and here the emulator
+     * IS the front end for every line it serves. */
     if (gen == 3 /* TERM_IN */ || gen == 4 /* TERM_OUT */) {
         pkt_wr32(rpk, 2, 0xF0000000u);      /* locdevm: minors 1-16 */
-        pkt_wr16(rpk, 6, 0);                /* remdevc: no remote lines */
+        pkt_wr16(rpk, 6, 1);                /* remdevc: one remote line (129) */
         if (fedbg())
             fprintf(stderr, "[FECALL] FE_IDEV gen=%u (terminal) -> locdevm=0xF0000000 "
-                            "(local minors 1-16), remdevc=0\n", gen);
+                            "(local minors 1-16), remdevc=1 (minor 129 = tty81)\n", gen);
         return;
     }
 

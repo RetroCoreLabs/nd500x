@@ -52,10 +52,33 @@ static int read_key(void) {
     return n == 1 ? (int)c : -1;
 }
 
+/* Version string for the menu header.
+ *
+ * ND500X_VERSION comes from the project() line in the top-level CMakeLists, so
+ * there is one place to change it. The fallback only matters for a build that
+ * bypasses CMake. __DATE__ and __TIME__ are stamped when THIS file is compiled,
+ * which is what makes the header answer "am I running the binary I just built?"
+ * - a question that came up repeatedly while the Windows build was being fixed,
+ * because a running emulator holds its own .exe locked and an update silently
+ * does not take. */
+#ifndef ND500X_VERSION
+#define ND500X_VERSION "unknown"
+#endif
+#define MENU_BUILD_LINE "v" ND500X_VERSION "  built " __DATE__ " " __TIME__
+
 static void banner(const char* title) {
     printf("\r\n");
     printf("+---------------------------------------------+\r\n");
     printf("| %-43s |\r\n", title);
+    printf("+---------------------------------------------+\r\n");
+}
+
+/* Header with the build stamp under the title, for the top-level menu. */
+static void banner_versioned(const char* title) {
+    printf("\r\n");
+    printf("+---------------------------------------------+\r\n");
+    printf("| %-43s |\r\n", title);
+    printf("| %-43s |\r\n", MENU_BUILD_LINE);
     printf("+---------------------------------------------+\r\n");
 }
 
@@ -105,7 +128,7 @@ int ndix_menu_guest_key(struct Nd500Machine* m, const char* buf, int len) {
 NdixMenuResult ndix_menu_run(struct Nd500Machine* m) {
     int k;
 
-    banner("nd500x - NDIX");
+    banner_versioned("nd500x - NDIX");
     printf("|  1. Virtual consoles                        |\r\n");
     printf("|  2. Shut down NDIX (sync, then halt)        |\r\n");
     printf("|  3. Exit now, WITHOUT syncing               |\r\n");

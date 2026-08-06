@@ -37,6 +37,12 @@ endif()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# Make the project version visible to the code. The F12 menu shows it next to
+# the build date and time, so "which binary am I actually running?" has an
+# answer on screen rather than needing the file timestamp. Single source of
+# truth: the project() line above.
+add_compile_definitions(ND500X_VERSION="${PROJECT_VERSION}")
+
 # cJSON integration strategy
 #
 # cJSON is REQUIRED, not optional: src/machine/memory_map.c includes
