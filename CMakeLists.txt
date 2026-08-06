@@ -38,9 +38,31 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # cJSON integration strategy
+#
+# cJSON is REQUIRED, not optional: src/machine/memory_map.c includes
+# <cjson/cJSON.h> unconditionally and calls it in 37 places, and the DAP layer
+# needs it too. The old code only looked via pkg-config and, when that failed,
+# printed "Native build can proceed without JSON output" and carried on - which
+# was untrue. On Windows, where pkg-config finds nothing, the build died with
+# "cjson/cJSON.h: No such file or directory".
+#
+# Resolution order, cheapest first:
+#   1. pkg-config libcjson   - Linux distro packages, MSYS2, Homebrew
+#   2. plain find_path/find_library - installs that ship no .pc file
+#   3. FetchContent from GitHub - last resort; needs network at configure time
+#
+# CI installs a package on every platform, so step 3 only ever fires for a
+# developer building on a machine without cJSON.
 if(PLATFORM_WASM OR BUILD_WASM)
     include(FetchContent)
-    FetchContent_Declare(cjson GIT_REPOSITORY https://github.com/DaveGamble/cJSON.git GIT_TAG master)
+    # SOURCE_SUBDIR points at nothing on purpose - see the long note in the
+    # native branch below. Short version: cJSON's own CMakeLists asks for
+    # cmake_minimum_required(VERSION 3.0), which CMake 4 refuses to honour, and
+    # only cJSON.c is needed here anyway.
+    FetchContent_Declare(cjson
+        GIT_REPOSITORY https://github.com/DaveGamble/cJSON.git
+        GIT_TAG        master
+        SOURCE_SUBDIR  no-cmake-build-here)
     FetchContent_MakeAvailable(cjson)
     add_library(cjson_objects OBJECT ${cjson_SOURCE_DIR}/cJSON.c)
     target_include_directories(cjson_objects PUBLIC ${cjson_SOURCE_DIR})
@@ -52,11 +74,50 @@ else()
     if(PKG_CONFIG_FOUND)
         pkg_check_modules(CJSON QUIET libcjson)
     endif()
+
     if(CJSON_FOUND)
+        message(STATUS "cJSON: pkg-config (${CJSON_VERSION})")
         add_compile_definitions(HAVE_SYSTEM_CJSON)
         include_directories(${CJSON_INCLUDE_DIRS})
+        link_directories(${CJSON_LIBRARY_DIRS})
     else()
-        message(STATUS "System cJSON not found. Native build can proceed without JSON output.")
+        # No .pc file: look for the header and library directly. MSYS2 ships
+        # both but its pkgconf is not always on PATH for a w64devkit build.
+        find_path(ND_CJSON_INCLUDE_DIR cjson/cJSON.h)
+        find_library(ND_CJSON_LIBRARY NAMES cjson libcjson)
+
+        if(ND_CJSON_INCLUDE_DIR AND ND_CJSON_LIBRARY)
+            message(STATUS "cJSON: found at ${ND_CJSON_LIBRARY}")
+            add_compile_definitions(HAVE_SYSTEM_CJSON)
+            include_directories(${ND_CJSON_INCLUDE_DIR})
+            set(CJSON_LIBRARIES ${ND_CJSON_LIBRARY})
+        else()
+            message(STATUS "cJSON not installed - fetching a private copy from GitHub")
+            include(FetchContent)
+            # Pinned, not 'master': a release build should not change because
+            # somebody pushed to cJSON this morning.
+            #
+            # SOURCE_SUBDIR names a directory that does not exist on purpose.
+            # That makes FetchContent download the sources and stop, instead of
+            # running cJSON's own CMakeLists - which opens with
+            # cmake_minimum_required(VERSION 3.0) and is therefore REJECTED
+            # outright by CMake 4 (measured: 4.2.3 on Windows fails to
+            # configure, 3.22 on Linux still accepts it). Only cJSON.c is
+            # wanted here, so its build system is dead weight either way.
+            FetchContent_Declare(cjson
+                GIT_REPOSITORY https://github.com/DaveGamble/cJSON.git
+                GIT_TAG        v1.7.18
+                SOURCE_SUBDIR  no-cmake-build-here)
+            FetchContent_MakeAvailable(cjson)
+            add_library(cjson_objects OBJECT ${cjson_SOURCE_DIR}/cJSON.c)
+            target_include_directories(cjson_objects PUBLIC ${cjson_SOURCE_DIR})
+            # The sources say #include <cjson/cJSON.h>, so give them a directory
+            # with that exact shape rather than editing 40-odd include lines.
+            file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/cjson)
+            configure_file(${cjson_SOURCE_DIR}/cJSON.h
+                           ${CMAKE_BINARY_DIR}/include/cjson/cJSON.h COPYONLY)
+            include_directories(${CMAKE_BINARY_DIR}/include)
+        endif()
     endif()
 endif()
 
@@ -78,6 +139,10 @@ endif()
 
 # Optionally include externals if present (native only - DAP requires sockets)
 option(SKIP_LIBDAP "Skip DAP library even if present" OFF)
+
+# DAP is built on every platform. libdap used to be POSIX-only - straight BSD
+# sockets, AF_UNIX, fcntl(O_NONBLOCK) and errno - and now goes through its own
+# libdap/include/dap_net_compat.h shim, which maps all of that onto Winsock.
 if(NOT PLATFORM_WASM AND NOT SKIP_LIBDAP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap/CMakeLists.txt")
     add_subdirectory(external/libdap)
     if(TARGET dap_objects AND TARGET cjson_objects)

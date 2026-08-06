@@ -2,15 +2,38 @@
 
 .PHONY: all clean run wasm wasm-clean wasm-serve kernel-example
 .PHONY: with-dap without-dap with-sanitizer without-sanitizer
-.PHONY: dap-sanitizer help
+.PHONY: dap-sanitizer release help
 
 BUILD_DIR?=build
+BUILD_DIR_RELEASE?=build_release
 WASM_DIR?=build_wasm
+
+# CMake generator selection.
+# On Windows (w64devkit / MSYS2) Ninja has to be forced: left alone, CMake
+# picks the Visual Studio generator, which needs MSVC and cannot drive a MinGW
+# toolchain. On Linux and macOS the default (Unix Makefiles) is right.
+ifeq ($(OS),Windows_NT)
+    CMAKE_GENERATOR_FLAG := -G Ninja
+else
+    CMAKE_GENERATOR_FLAG :=
+endif
+
+# Parallel job count. nproc is Linux; macOS spells it sysctl -n hw.ncpu.
+JOBS?=$(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 # Default build (native with DAP if available)
 all:
 	@mkdir -p $(BUILD_DIR)
 	@cd $(BUILD_DIR) && cmake .. && $(MAKE)
+
+# Optimised build, output in build_release/. This is what CI packages, on every
+# platform - keep it working on Linux, macOS and Windows alike.
+release:
+	@mkdir -p $(BUILD_DIR_RELEASE)
+	cmake -S . -B $(BUILD_DIR_RELEASE) $(CMAKE_GENERATOR_FLAG) -DCMAKE_BUILD_TYPE=Release
+	cmake --build $(BUILD_DIR_RELEASE) -j $(JOBS)
+	@echo ""
+	@echo "Release build complete: $(BUILD_DIR_RELEASE)/bin/"
 
 # Build without DAP support (removes external/libdap from build)
 without-dap:
@@ -47,7 +70,7 @@ run: all
 	@./$(BUILD_DIR)/bin/nd500x --debug
 
 clean:
-	@rm -rf $(BUILD_DIR) $(WASM_DIR)
+	@rm -rf $(BUILD_DIR) $(BUILD_DIR_RELEASE) $(WASM_DIR)
 
 wasm:
 	@mkdir -p $(WASM_DIR)
@@ -72,6 +95,7 @@ wasm-serve: wasm kernel-example
 help:
 	@echo "ND500X Build Targets:"
 	@echo "  make                 - Build native (with DAP if available)"
+	@echo "  make release         - Optimised build into build_release/ (what CI ships)"
 	@echo "  make with-dap        - Build with DAP support (requires external/libdap)"
 	@echo "  make without-dap     - Build without DAP support"
 	@echo "  make with-sanitizer  - Build with address sanitizer"
@@ -82,8 +106,11 @@ help:
 	@echo "  make run             - Build and run in debug mode"
 	@echo "  make clean           - Clean all build directories"
 	@echo ""
+	@echo "Windows note: build.bat wraps 'make release' with w64devkit on PATH."
+	@echo ""
 	@echo "Build directories:"
 	@echo "  build/               - Native build output"
+	@echo "  build_release/       - Optimised build output"
 	@echo "  build_wasm/          - WASM build output"
 	@echo ""
 	@echo "Kernel example workflow:"

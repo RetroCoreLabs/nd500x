@@ -1,0 +1,360 @@
+name: Release builds
+
+# Multi-platform binaries for nd500x, modelled on the tiki100 release workflow.
+#
+# Deliberately thin on dependencies: nd500x needs only a C compiler and CMake.
+# cJSON is the one hard requirement and the top-level CMakeLists downloads and
+# compiles it when the system does not provide it, so no job installs it. That
+# keeps every platform on the same code path and the shipped binaries free of
+# runtime library dependencies.
+#
+# Readline is deliberately NOT installed either. It only adds tab completion and
+# history to the --debug REPL, and linking it would tie each .deb to a specific
+# libreadline soname (libreadline8 on bookworm, libreadline8t64 on newer Ubuntu)
+# - a package that refuses to install is worse than one without tab completion.
+#
+# DAP (the VS Code debug adapter) is off on Windows: libdap is POSIX-only. It is
+# built normally on Linux and macOS.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name for the release (e.g. v0.2.0). Leave empty to build without publishing.'
+        required: false
+        default: ''
+
+env:
+  # Package metadata used by fpm (.deb builds) and release artifacts.
+  PKG_NAME: nd500x
+  PKG_DESCRIPTION: "ND-500 emulator (Norsk Data ND-500/ND-5000 minicomputer, runs NDIX and SINTRAN)"
+  PKG_MAINTAINER: "Ronny Hansen <noreply@github.com>"
+  PKG_HOMEPAGE: "https://github.com/HackerCorpLabs/nd500x"
+  PKG_LICENSE: "See LICENSE"
+
+jobs:
+  build-windows:
+    name: Build windows-${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            msystem: MINGW64
+            prefix: mingw-w64-x86_64
+          - arch: x86
+            msystem: MINGW32
+            prefix: mingw-w64-i686
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    env:
+      # -static is what makes the .exe standalone. Without it a MinGW build
+      # loads libwinpthread-1.dll from the MSYS2 tree, which is not present on
+      # a user's machine, and the binary dies at startup with a missing-DLL box.
+      # CMake seeds CMAKE_EXE_LINKER_FLAGS from LDFLAGS on first configure.
+      LDFLAGS: -static
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Setup MSYS2 (${{ matrix.msystem }})
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: >-
+            base-devel
+            git
+            ${{ matrix.prefix }}-gcc
+            ${{ matrix.prefix }}-cmake
+            ${{ matrix.prefix }}-ninja
+
+      - name: Show toolchain versions
+        run: |
+          gcc --version | head -1
+          cmake --version | head -1
+          ninja --version
+
+      - name: Build release
+        run: make release
+
+      - name: Confirm the binary is standalone
+        # A missing-DLL failure would otherwise only show up on a user's
+        # machine. objdump lists the DLLs the exe imports; anything outside the
+        # Windows system set means -static did not take.
+        run: |
+          objdump -p build_release/bin/nd500x.exe | grep -i 'DLL Name' || true
+
+      - name: Stage release artifacts
+        run: |
+          set -e
+          STAGE="dist/nd500x-windows-${{ matrix.arch }}"
+          mkdir -p "$STAGE"
+          cp build_release/bin/nd500x.exe "$STAGE/"
+          cp README.md "$STAGE/" 2>/dev/null || true
+          cp LICENSE  "$STAGE/" 2>/dev/null || true
+
+      - name: Upload build artifact
+        # Upload the staging DIRECTORY, not a pre-zipped file.
+        # actions/upload-artifact always wraps its contents in a zip on
+        # download, so uploading a .zip produces a zip-inside-a-zip.
+        uses: actions/upload-artifact@v5
+        with:
+          name: nd500x-windows-${{ matrix.arch }}
+          path: dist/nd500x-windows-${{ matrix.arch }}/
+          if-no-files-found: error
+
+  build-linux-amd64:
+    name: Build linux-amd64 (.deb)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Compute package version
+        id: ver
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.0.0-dev"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config git \
+            ruby ruby-dev rubygems
+
+      - name: Install fpm (.deb packager)
+        run: sudo gem install --no-document fpm
+
+      - name: Build release binary
+        run: make release
+
+      - name: Stage files for packaging
+        run: |
+          set -e
+          STAGE=pkgroot
+          mkdir -p "$STAGE/usr/bin"
+          cp build_release/bin/nd500x "$STAGE/usr/bin/nd500x"
+
+      - name: Build .deb
+        run: |
+          set -e
+          mkdir -p dist
+          fpm -s dir -t deb \
+              --name "$PKG_NAME" \
+              --version "${{ steps.ver.outputs.version }}" \
+              --architecture amd64 \
+              --description "$PKG_DESCRIPTION" \
+              --maintainer "$PKG_MAINTAINER" \
+              --url "$PKG_HOMEPAGE" \
+              --license "$PKG_LICENSE" \
+              --package "dist/" \
+              -C pkgroot .
+
+      - name: List artifact
+        run: ls -la dist/
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v5
+        with:
+          name: nd500x-linux-amd64-deb
+          path: dist/*.deb
+          if-no-files-found: error
+
+  build-linux-arm:
+    name: Build linux-${{ matrix.friendly }} (.deb)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - friendly: armhf     # Raspberry Pi OS 32-bit (Pi 2/3/4/Zero 2)
+            run_arch: armv7
+            deb_arch: armhf
+          - friendly: arm64     # Raspberry Pi OS 64-bit (Pi 3/4/5)
+            run_arch: aarch64
+            deb_arch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Compute package version
+        id: ver
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.0.0-dev"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Build binary inside ${{ matrix.friendly }} Debian bookworm container
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          arch: ${{ matrix.run_arch }}
+          distro: bookworm
+          githubToken: ${{ github.token }}
+          # The action bind-mounts the workspace so files written under
+          # /workspace are visible on the host runner afterwards.
+          dockerRunArgs: |
+            --volume "${PWD}:/workspace"
+          install: |
+            apt-get update -q -y
+            apt-get install -y --no-install-recommends \
+              build-essential cmake pkg-config git ca-certificates
+          run: |
+            set -eu
+            cd /workspace
+            make release
+            # Stage files under pkgroot so the host runner can package them.
+            STAGE=pkgroot
+            rm -rf "$STAGE"
+            mkdir -p "$STAGE/usr/bin"
+            cp build_release/bin/nd500x "$STAGE/usr/bin/nd500x"
+            # Let the host runner user own the staged tree so fpm can read it.
+            chown -R $(stat -c '%u:%g' /workspace) "$STAGE" build_release
+
+      - name: Install fpm on host
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends ruby ruby-dev rubygems
+          sudo gem install --no-document fpm
+
+      - name: Build .deb on host
+        run: |
+          set -e
+          mkdir -p dist
+          fpm -s dir -t deb \
+              --name "$PKG_NAME" \
+              --version "${{ steps.ver.outputs.version }}" \
+              --architecture ${{ matrix.deb_arch }} \
+              --description "$PKG_DESCRIPTION" \
+              --maintainer "$PKG_MAINTAINER" \
+              --url "$PKG_HOMEPAGE" \
+              --license "$PKG_LICENSE" \
+              --package "dist/" \
+              -C pkgroot .
+
+      - name: List artifact
+        run: ls -la dist/
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v5
+        with:
+          name: nd500x-linux-${{ matrix.deb_arch }}-deb
+          path: dist/*.deb
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest      # Apple Silicon (M1/M2/M3)
+          - arch: x86_64
+            runner: macos-13          # last Intel runner image
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Show toolchain versions
+        run: |
+          cc --version | head -1
+          cmake --version | head -1
+
+      - name: Build release binary
+        run: make release
+
+      - name: Stage release artifacts
+        run: |
+          set -e
+          STAGE="dist/nd500x-macos-${{ matrix.arch }}"
+          mkdir -p "$STAGE"
+          cp build_release/bin/nd500x "$STAGE/"
+          cp README.md "$STAGE/" 2>/dev/null || true
+          cp LICENSE  "$STAGE/" 2>/dev/null || true
+
+      - name: Create archive
+        # tar rather than the artifact zip, so the executable permission bit
+        # survives the round trip - a zipped binary downloads as non-executable.
+        run: |
+          cd dist
+          tar czf "nd500x-macos-${{ matrix.arch }}.tar.gz" "nd500x-macos-${{ matrix.arch }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: nd500x-macos-${{ matrix.arch }}
+          path: dist/nd500x-macos-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-linux-amd64, build-linux-arm, build-macos]
+    runs-on: ubuntu-latest
+    # Only publish on actual tag pushes, not workflow_dispatch runs with an
+    # empty tag input.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: dist
+
+      - name: Re-zip Windows artifact directories
+        # download-artifact extracts each artifact into dist/<name>/.
+        # The Windows builds were uploaded as directories (to avoid the
+        # zip-inside-zip problem), so rebuild one .zip each for the release
+        # attachment. .deb and .tar.gz artifacts are single files and are
+        # skipped by the .exe check.
+        run: |
+          set -e
+          cd dist
+          for d in */; do
+            name="${d%/}"
+            if ls "$d"*.exe >/dev/null 2>&1; then
+              zip -r "${name}.zip" "$name"
+            fi
+          done
+
+      - name: List artifacts
+        run: find dist -maxdepth 2 -type f \( -name '*.zip' -o -name '*.deb' -o -name '*.tar.gz' \) -print
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/**/*.deb
+            dist/**/*.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: false
