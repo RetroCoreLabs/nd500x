@@ -33,15 +33,25 @@ int ndix_menu_match_f12(const char* buf, int len) {
     return partial ? -1 : 0;
 }
 
-/* The guest ttys this menu can attach the local terminal to. Same four units
- * and the same order as the telnet bridge in nd500x_ndix.c, because they are
- * the same terminals - these are the /dev entries the image actually has
- * (console 0/0, tty01 0/1, tty02 0/2, tty81 0/129). */
+/* The guest ttys this menu can attach the local terminal to.
+ * Must stay in step with g_ttys[] in nd500x_ndix.c - the same lines, whether
+ * they are reached over telnet or by switching this terminal.
+ *
+ * Local minors only. tty81 (minor 129) was here and is not any more: it is the
+ * first REMOTE line, and io/mx.c:66 gives every minor from 129 up HARD carrier,
+ * so its open() waits for the front end to report carrier the way a dial-in
+ * line waits for DCD. That handshake does not yet complete, so the entry only
+ * ever offered a terminal that stayed silent. */
 static const struct { int unit; const char* name; } MENU_TTYS[] = {
-    { 0,   "console" },
-    { 1,   "tty01"   },
-    { 2,   "tty02"   },
-    { 129, "tty81"   },
+    { 0, "console" },
+    { 1, "tty01"   },
+    { 2, "tty02"   },
+    { 3, "tty03"   },
+    { 4, "tty04"   },
+    { 5, "tty05"   },
+    { 6, "tty06"   },
+    { 7, "tty07"   },
+    { 8, "tty08"   },
 };
 #define MENU_TTY_COUNT ((int)(sizeof MENU_TTYS / sizeof MENU_TTYS[0]))
 
@@ -82,37 +92,130 @@ static void banner_versioned(const char* title) {
     printf("+---------------------------------------------+\r\n");
 }
 
-/* Sub-menu: pick which guest tty this terminal talks to. */
+/* Who, if anyone, is on a given tty over telnet.
+ *
+ * The telnet server keeps its terminals in the same order as MENU_TTYS, so the
+ * menu index is the server index. Returns a short tag for the line's state, and
+ * fills <addr> with the client's IP:port when one is connected. */
+static const char* telnet_state(int idx, char* addr, int addrlen) {
+    const char* name = NULL;
+    int connected = 0;
+
+    if (addr && addrlen > 0) addr[0] = '\0';
+    if (!nd500x_ndix_telnet_active()) return "";
+    if (nd500x_ndix_telnet_info(idx, &name, &connected, addr, addrlen) != 0)
+        return "";
+    return connected ? "in use" : "free";
+}
+
+/* Sub-menu: pick which guest tty this terminal talks to, and manage the telnet
+ * server - whether it is running, who is on which line, and hanging one up.
+ *
+ * Modelled on nd100x's terminal menu: ONE port serves every line, a client
+ * chooses which when it connects, so the useful things to see here are which
+ * lines are taken and by whom. */
 static void console_menu(void) {
     int cur = nd500_fecall_local_unit();
     int i, k;
 
-    banner("Virtual consoles");
-    for (i = 0; i < MENU_TTY_COUNT; i++)
-        printf("|  %d. %-8s (unit %3d)%-19s|\r\n", i + 1, MENU_TTYS[i].name,
-               MENU_TTYS[i].unit,
-               MENU_TTYS[i].unit == cur ? "  <- attached" : "");
-    printf("|  0. Resume NDIX                             |\r\n");
-    printf("+---------------------------------------------+\r\n");
-    printf("choice: ");
-    fflush(stdout);
+    for (;;) {
+        int on   = nd500x_ndix_telnet_active();
+        int port = nd500x_ndix_telnet_port();
+        int pend = nd500x_ndix_telnet_pending();
 
-    k = read_key();
-    printf("\r\n");
-    if (k < 0 || k == '0' || k == 27) return;
-    if (k >= '1' && k < '1' + MENU_TTY_COUNT) {
-        int idx = k - '1';
-        nd500_fecall_set_local_unit(MENU_TTYS[idx].unit);
-        /* Say what happened AND that the screen is not redrawn: this terminal
-         * now shows only what the new tty prints from here on, and a tty whose
-         * getty already printed its prompt will look silent until it writes
-         * again. Pressing Enter is the usual way to make it speak. */
-        printf("[menu] terminal attached to %s (unit %d) - press Enter if it "
-               "looks silent\r\n", MENU_TTYS[idx].name, MENU_TTYS[idx].unit);
-    } else {
+        banner("Virtual consoles");
+        for (i = 0; i < MENU_TTY_COUNT; i++) {
+            char addr[64];
+            const char* st = telnet_state(i, addr, (int)sizeof addr);
+            char note[40];
+
+            /* Two independent things can be true of one line: this window may
+             * be attached to it, and a telnet client may be on it. Show both. */
+            note[0] = '\0';
+            if (MENU_TTYS[i].unit == cur)
+                snprintf(note, sizeof note, " <- local");
+            if (st[0] && strcmp(st, "in use") == 0)
+                snprintf(note + strlen(note), sizeof note - strlen(note),
+                         " [%s]", addr[0] ? addr : "in use");
+
+            printf("|  %d. %-8s (unit %3d)%-19s|\r\n", i + 1, MENU_TTYS[i].name,
+                   MENU_TTYS[i].unit, note);
+        }
+        printf("+---------------------------------------------+\r\n");
+        if (on)
+            printf("|  T. Telnet: ON, port %-5d%s|\r\n", port,
+                   pend ? " (client at menu)  " : "                   ");
+        else
+            printf("|  T. Telnet: OFF - press T to start it       |\r\n");
+        printf("|  D. Disconnect a telnet client              |\r\n");
+        printf("|  0. Resume NDIX                             |\r\n");
+        printf("+---------------------------------------------+\r\n");
+        printf("choice: ");
+        fflush(stdout);
+
+        k = read_key();
+        printf("\r\n");
+        if (k < 0 || k == '0' || k == 27) return;
+
+        if (k == 't' || k == 'T') {
+            if (on) {
+                nd500x_ndix_telnet_stop();
+                printf("[menu] telnet server stopped - connected clients were "
+                       "dropped; the guest lines stay logged in\r\n");
+            } else {
+                /* 0 = every terminal in the table. The port is the same default
+                 * --telnet uses, so starting it here and starting it on the
+                 * command line land in the same place. */
+                if (nd500x_ndix_telnet_start(5000, 0) == 0)
+                    printf("[menu] telnet server started - connect with: "
+                           "telnet localhost 5000\r\n");
+                else
+                    printf("[menu] could not start the telnet server (port in "
+                           "use?)\r\n");
+            }
+            fflush(stdout);
+            continue;                     /* redraw, so the new state shows */
+        }
+
+        if (k == 'd' || k == 'D') {
+            if (!nd500x_ndix_telnet_active()) {
+                printf("[menu] the telnet server is not running\r\n");
+                fflush(stdout);
+                continue;
+            }
+            printf("disconnect which terminal (1-%d, 0 to cancel)? ", MENU_TTY_COUNT);
+            fflush(stdout);
+            k = read_key();
+            printf("\r\n");
+            if (k >= '1' && k < '1' + MENU_TTY_COUNT) {
+                int idx = k - '1';
+                if (nd500x_ndix_telnet_disconnect(idx) == 0)
+                    printf("[menu] %s disconnected\r\n", MENU_TTYS[idx].name);
+                else
+                    printf("[menu] %s had no telnet client\r\n", MENU_TTYS[idx].name);
+            }
+            fflush(stdout);
+            continue;
+        }
+
+        if (k >= '1' && k < '1' + MENU_TTY_COUNT) {
+            int idx = k - '1';
+            nd500_fecall_set_local_unit(MENU_TTYS[idx].unit);
+            cur = MENU_TTYS[idx].unit;
+            /* Say what happened AND that the screen is not redrawn: this
+             * terminal now shows only what the new tty prints from here on, and
+             * a tty whose getty already printed its prompt will look silent
+             * until it writes again. Pressing Enter is the usual way to make it
+             * speak. */
+            printf("[menu] terminal attached to %s (unit %d) - press Enter if it "
+                   "looks silent\r\n", MENU_TTYS[idx].name, MENU_TTYS[idx].unit);
+            fflush(stdout);
+            return;
+        }
+
         printf("[menu] no such choice\r\n");
+        fflush(stdout);
     }
-    fflush(stdout);
 }
 
 /* The debugger's hot-key handler: see Nd500GuestKeyFn in debugger.h for what

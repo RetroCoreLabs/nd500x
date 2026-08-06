@@ -546,17 +546,35 @@ typedef struct NdixTty {
     int  swallow;           /* drop a LF/NUL that pairs with a just-seen CR */
 } NdixTty;
 
-/* Units mirror the shipped image's /dev entries EXACTLY. Read from the proto the
- * image was built with: console c 0 0, tty01 c 0 1, tty02 c 0 2, tty81 c 0 129.
- * There is no tty03 and up - offering one would be a made-up unit number that
- * no guest device answers, so the table stops where the image stops. Adding a
- * fifth terminal is an image change (a /dev entry and an /etc/ttys line), not an
- * emulator change. */
+/* The local lines the emulator serves.
+ *
+ * FE_IDEV reports locdevm = 0xF0000000 (nd500_fecall.c), and io/mx.c:427 reads
+ * that as four minors per mask bit counting down from bit 31 - so bits 31-28
+ * admit minors 1-16. Eight are offered here, which is well inside that and
+ * plenty of terminals for one machine.
+ *
+ * A line only reaches a login prompt if the IMAGE also has it: a /dev entry
+ * (mknod ttyNN c 0 NN) and an /etc/ttys line for getty. Units listed here that
+ * the image lacks are simply silent - they cost nothing, and having the table
+ * match what the emulator can serve keeps the two ends from drifting apart the
+ * way they did when this stopped at tty02.
+ *
+ * tty81 is deliberately NOT in this list. It is minor 129, the first REMOTE
+ * line, and io/mx.c:66 gives every minor from 129 up HARD carrier - open()
+ * blocks until the front end reports carrier, the way a dial-in line waits for
+ * DCD. That path does not yet complete (the open completion arrives but the
+ * line never finishes coming up), so offering it here would advertise a
+ * terminal that stays silent. The local lines have soft carrier and just work. */
 static NdixTty g_ttys[] = {
-    { 0,   "console", 0, 0 },
-    { 1,   "tty01",   0, 0 },
-    { 2,   "tty02",   0, 0 },
-    { 129, "tty81",   0, 0 },
+    { 0, "console", 0, 0 },
+    { 1, "tty01",   0, 0 },
+    { 2, "tty02",   0, 0 },
+    { 3, "tty03",   0, 0 },
+    { 4, "tty04",   0, 0 },
+    { 5, "tty05",   0, 0 },
+    { 6, "tty06",   0, 0 },
+    { 7, "tty07",   0, 0 },
+    { 8, "tty08",   0, 0 },
 };
 #define NDIX_TTY_COUNT ((int)(sizeof g_ttys / sizeof g_ttys[0]))
 
@@ -614,7 +632,7 @@ int nd500x_ndix_telnet_start(int port, int count) {
     if (count <= 0) count = NDIX_TTY_COUNT;
     if (count > NDIX_TTY_COUNT) {
         fprintf(stderr, "[telnet] %d terminals asked for, image has %d "
-                        "(console, tty01, tty02, tty81) - serving %d\n",
+                        "(console, tty01..tty08) - serving %d\n",
                 count, NDIX_TTY_COUNT, NDIX_TTY_COUNT);
         count = NDIX_TTY_COUNT;
     }
@@ -666,7 +684,7 @@ int nd500x_ndix_telnet_start(int port, int count) {
     fprintf(stderr, "[telnet] %d guest terminal%s on port %d (%s) - connect with a "
                     "telnet client to localhost %d\n",
             count, count == 1 ? "" : "s", port,
-            count == NDIX_TTY_COUNT ? "all" : "first of console, tty01, tty02, tty81",
+            count == NDIX_TTY_COUNT ? "all" : "first of console, tty01..tty08",
             port);
     return 0;
 }
@@ -683,3 +701,43 @@ void nd500x_ndix_telnet_stop(void) {
 }
 
 int nd500x_ndix_telnet_active(void) { return g_server != NULL; }
+
+/* ---- status and control for the F12 menu ------------------------------- */
+
+int nd500x_ndix_telnet_port(void) {
+    return g_server ? TelnetServer_GetPort(g_server) : 0;
+}
+
+int nd500x_ndix_telnet_count(void) {
+    return g_server ? TelnetServer_GetTerminalCount(g_server) : 0;
+}
+
+int nd500x_ndix_telnet_info(int idx, const char** name, int* connected,
+                            char* addr, int addrlen) {
+    const char* nm = NULL;
+    uint16_t ident = 0;
+    bool conn = false, local = false;
+
+    if (addr && addrlen > 0) addr[0] = '\0';
+    if (!g_server) return -1;
+
+    /* The server fills clientAddr only while a client is attached, so the
+     * caller's buffer is cleared first - otherwise a disconnected line would
+     * show whatever the last connected one left behind. */
+    if (!TelnetServer_GetTerminalStatus(g_server, idx, &nm, &ident, &conn, &local,
+                                        addr, addrlen))
+        return -1;
+
+    if (name)      *name = nm;
+    if (connected) *connected = conn ? 1 : 0;
+    return 0;
+}
+
+int nd500x_ndix_telnet_disconnect(int idx) {
+    if (!g_server) return -1;
+    return TelnetServer_DisconnectTerminal(g_server, idx) ? 0 : -1;
+}
+
+int nd500x_ndix_telnet_pending(void) {
+    return g_server ? TelnetServer_GetPendingCount(g_server) : 0;
+}

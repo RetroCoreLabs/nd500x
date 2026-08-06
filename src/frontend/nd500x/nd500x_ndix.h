@@ -39,9 +39,12 @@ int nd500x_ndix_autoboot(struct Nd500Machine* m,
  * left. Does NOT clear run_flag itself. */
 int nd500x_ndix_halt_guest(struct Nd500Machine* m);
 
-/* Serve the first <count> guest ttys - console, tty01, tty02, tty81, in that
- * order. count <= 0 means all of them; a count above the number the image has
- * is reported and clamped, never silently accepted. */
+/* Serve the first <count> guest ttys - console, tty01..tty08, in that order.
+ * count <= 0 means all of them; a count above the number available is reported
+ * and clamped, never silently accepted.
+ *
+ * ONE port serves them all: a connecting client is shown a menu and picks its
+ * terminal (telnetserver.c, copied from nd100x). There is no port per tty. */
 int nd500x_ndix_telnet_start(int port, int count);
 
 /* Stop the terminal server (safe if it was never started). */
@@ -49,5 +52,36 @@ void nd500x_ndix_telnet_stop(void);
 
 /* True once the terminal server is running. */
 int nd500x_ndix_telnet_active(void);
+
+/* ---- status and control, for the F12 menu -------------------------------
+ *
+ * Thin wrappers over the TelnetServer so the menu needs neither its types nor
+ * its pointer. All are safe to call while the server is stopped: the count is
+ * 0 and the rest do nothing.
+ *
+ * Modelled on what nd100x's menu offers - see which lines are in use and from
+ * where, and hang one up. */
+
+/* TCP port being listened on, or 0 when the server is not running. */
+int nd500x_ndix_telnet_port(void);
+
+/* How many terminals the running server offers (0 when stopped). */
+int nd500x_ndix_telnet_count(void);
+
+/* Details of terminal <idx> (0-based, in the order the server lists them).
+ *   name      - receives the tty name, e.g. "tty01"
+ *   connected - non-zero while a telnet client holds it
+ *   addr      - receives "IP:port" of that client, or "" when free
+ * Returns 0 on success, -1 if idx is out of range or the server is stopped. */
+int nd500x_ndix_telnet_info(int idx, const char** name, int* connected,
+                            char* addr, int addrlen);
+
+/* Hang up whatever client holds terminal <idx>. Returns 0 if one was
+ * disconnected, -1 otherwise. The GUEST side is untouched: the line stays
+ * logged in, exactly as unplugging a real terminal would leave it. */
+int nd500x_ndix_telnet_disconnect(int idx);
+
+/* Clients that have connected but not yet chosen a terminal from the menu. */
+int nd500x_ndix_telnet_pending(void);
 
 #endif /* ND500X_NDIX_H */
