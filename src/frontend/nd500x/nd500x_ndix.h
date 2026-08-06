@@ -102,4 +102,14 @@ int nd500x_ndix_telnet_mark_local(int unit);
  * refuse switching the local window onto a line somebody else is using. */
 int nd500x_ndix_telnet_in_use(int idx);
 
+/* Who is logged in on <ttyname> ("console", "tty01", ...), from /etc/utmp in
+ * the disk image. Writes the user name into <out> and returns 0; returns -1
+ * when nobody is logged in there, or the file cannot be read.
+ *
+ * This reads a FILE from the image - the same path used to extract the kernel
+ * at boot - not the running kernel: no symbols and no guest memory are touched.
+ * The consequence is that a login appears only once utmp has reached the disk
+ * through the buffer cache, so a very fresh one can be missing briefly. */
+int nd500x_ndix_utmp_user(const char* ttyname, char* out, int outlen);
+
 #endif /* ND500X_NDIX_H */

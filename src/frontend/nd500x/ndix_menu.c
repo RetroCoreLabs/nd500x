@@ -152,18 +152,39 @@ static void console_menu(void) {
         for (i = 0; i < MENU_TTY_COUNT; i++) {
             char addr[64];
             const char* st = telnet_state(i, addr, (int)sizeof addr);
-            char note[40];
+            char user[16];
+            char note[64];
+            size_t n;
 
-            /* Two independent things can be true of one line: this window may
-             * be attached to it, and a telnet client may be on it. Show both. */
+            /* Three independent things can be true of one line: somebody may be
+             * LOGGED IN on it, this window may be attached to it, and a telnet
+             * client may hold it. Show all three - being logged in and being
+             * connected are not the same thing, and the difference is exactly
+             * what you want to see before disconnecting somebody. */
             note[0] = '\0';
-            if (MENU_TTYS[i].unit == cur)
-                snprintf(note, sizeof note, " <- local");
-            if (st[0] && strcmp(st, "in use") == 0)
-                snprintf(note + strlen(note), sizeof note - strlen(note),
-                         " [%s]", addr[0] ? addr : "in use");
+            n = 0;
 
-            row(" %d. %-8s (unit %3d)%s", i + 1, MENU_TTYS[i].name,
+            if (nd500x_ndix_utmp_user(MENU_TTYS[i].name, user, (int)sizeof user) == 0)
+                n += (size_t)snprintf(note + n, sizeof note - n, " %s", user);
+            else
+                n += (size_t)snprintf(note + n, sizeof note - n, " %-6s", "-");
+
+            if (MENU_TTYS[i].unit == cur)
+                n += (size_t)snprintf(note + n, sizeof note - n, " <- local");
+            if (st[0] && strcmp(st, "in use") == 0) {
+                /* Host only, no port: "root [127.0.0.1:34540]" ran past the
+                 * right border and was truncated mid-address, which is worse
+                 * than showing less. The full address with its port is on the
+                 * disconnect list, where the row is short enough to carry it. */
+                char host[32];
+                const char* colon;
+                snprintf(host, sizeof host, "%s", addr[0] ? addr : "in use");
+                colon = strrchr(host, ':');
+                if (colon) host[colon - host] = '\0';
+                snprintf(note + n, sizeof note - n, " [%s]", host);
+            }
+
+            row(" %d. %-8s (unit %2d)%s", i + 1, MENU_TTYS[i].name,
                 MENU_TTYS[i].unit, note);
         }
         rule();
@@ -232,13 +253,17 @@ static void console_menu(void) {
             banner("Connected telnet clients");
             for (i = 0; i < MENU_TTY_COUNT; i++) {
                 char addr[64];
+                char user[16];
                 const char* name = NULL;
                 int conn = 0;
                 if (!nd500x_ndix_telnet_in_use(i)) continue;
                 nd500x_ndix_telnet_info(i, &name, &conn, addr, (int)sizeof addr);
+                if (nd500x_ndix_utmp_user(MENU_TTYS[i].name, user, (int)sizeof user) != 0)
+                    snprintf(user, sizeof user, "-");
                 /* Same numbers as the terminal list above, so a line keeps one
-                 * number wherever it is shown. */
-                row(" %d. %-8s %s", i + 1, MENU_TTYS[i].name,
+                 * number wherever it is shown. Who is logged in matters here:
+                 * disconnecting also logs them out. */
+                row(" %d. %-8s %-8s %s", i + 1, MENU_TTYS[i].name, user,
                     addr[0] ? addr : "(client attached)");
             }
             row(" 0. Cancel");

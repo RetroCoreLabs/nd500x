@@ -40,6 +40,10 @@
 /* Set by nd500x_ndix_setup: the kernel path, and whether no <kernel>.init exists
  * so we have to do the boot setup ourselves. */
 static char g_auto_kernel[PATH_MAX];
+
+/* The root disk image, kept so the F12 menu can read /etc/utmp out of it and
+ * show who is logged in on each line. Set by nd500x_ndix_setup(). */
+static char g_image_path[PATH_MAX];
 static int  g_auto_boot;
 
 
@@ -137,6 +141,7 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
         fprintf(stderr, "error: --ndix disk image is not a regular file: %s\n", abs_image);
         return -1;
     }
+    snprintf(g_image_path, sizeof g_image_path, "%s", abs_image);
 
     /* SINTRAN root: an explicit --sintran-root wins, else the directory the
      * disk image lives in (that is where the NDIX tree is rooted). */
@@ -795,6 +800,70 @@ int nd500x_ndix_telnet_mark_local(int unit) {
         if (is_local) found = i;
     }
     return found >= 0 ? 0 : -1;
+}
+
+/* ---- who is logged in, straight out of /etc/utmp ------------------------
+ *
+ * Deliberately NOT a kernel hook: no symbols, no guest memory, no reading of
+ * kernel structures. /etc/utmp is an ordinary file, and the emulator already
+ * reads files out of the image with ndix_ffs_read_file() - that is how the
+ * kernel itself is extracted at boot.
+ *
+ * The record layout was MEASURED rather than assumed, by logging in on two
+ * lines at once and dumping the file from inside the guest:
+ *
+ *     36: "console"  44: "root"   68: <time>
+ *     72: "tty01"    80: "root"  104: <time>
+ *
+ * 72 - 36 = 36 bytes per record, with ut_line at +0, ut_name at +8, ut_host at
+ * +16 and ut_time at +32 - the classic 4.3BSD struct utmp. The file is indexed
+ * by tty slot, so record 0 is unused and the entries line up with /etc/ttys.
+ *
+ * Two things follow from reading the DISK rather than the running kernel, and
+ * both are honest limits rather than bugs:
+ *   - a login only shows once utmp has reached the disk through the buffer
+ *     cache, so a very fresh one can be missing for a few seconds;
+ *   - an image with no /etc/utmp simply reports nobody, which is what the
+ *     menu shows anyway when a line is free.
+ */
+#define UTMP_RECSZ   36
+#define UTMP_LINEOFF  0
+#define UTMP_NAMEOFF  8
+#define UTMP_FIELD    8
+
+int nd500x_ndix_utmp_user(const char* ttyname, char* out, int outlen) {
+    uint8_t* data;
+    long size = 0;
+    const char* why = "";
+    long rec;
+
+    if (out && outlen > 0) out[0] = '\0';
+    if (!ttyname || !ttyname[0] || !out || outlen <= 0) return -1;
+    if (!g_image_path[0]) return -1;
+
+    data = ndix_ffs_read_file(g_image_path, "/etc/utmp", &size, &why);
+    if (!data) return -1;
+
+    for (rec = 0; (rec + 1) * UTMP_RECSZ <= size; rec++) {
+        const char* line = (const char*)(data + rec * UTMP_RECSZ + UTMP_LINEOFF);
+        const char* name = (const char*)(data + rec * UTMP_RECSZ + UTMP_NAMEOFF);
+        char lbuf[UTMP_FIELD + 1], nbuf[UTMP_FIELD + 1];
+
+        /* The fields are fixed-width and NOT necessarily terminated, so they
+         * are copied out before being compared or returned. */
+        memcpy(lbuf, line, UTMP_FIELD); lbuf[UTMP_FIELD] = '\0';
+        memcpy(nbuf, name, UTMP_FIELD); nbuf[UTMP_FIELD] = '\0';
+
+        if (lbuf[0] == '\0' || nbuf[0] == '\0') continue;   /* free slot */
+        if (strcmp(lbuf, ttyname) != 0) continue;
+
+        snprintf(out, (size_t)outlen, "%s", nbuf);
+        free(data);
+        return 0;
+    }
+
+    free(data);
+    return -1;
 }
 
 int nd500x_ndix_telnet_in_use(int idx) {
