@@ -959,6 +959,14 @@ static uint32_t g_halt_syscall_addr = 0;
 static int      g_halt_phase        = HALT_OFF;
 static long     g_halt_start_ms     = 0;
 static long     g_halt_last_write_ms = 0;
+static long     g_halt_armed_ms     = 0;   /* when phase 2 began */
+static int      g_halt_nudges       = 0;   /* wake-up newlines sent so far */
+
+/* How long to wait for a system call to come along by itself before waking the
+ * guest with a newline, and how many times to try. 300ms is long enough that a
+ * busy guest reaches the dispatcher on its own and no newline is ever sent. */
+#define HALT_NUDGE_MS   300
+#define HALT_NUDGE_MAX  8
 
 /* Set once the guest has shut ITSELF down through FE_EXIT, as opposed to the
  * machine merely being stopped (a breakpoint, a trap, an F12 "exit now"). The
@@ -1008,6 +1016,8 @@ void nd500_ndix_halt_check(Nd500Cpu* cpu, uint32_t pc) {
         if (now - g_halt_last_write_ms < HALT_QUIET_MS &&
             now - g_halt_start_ms      < HALT_MAX_MS) return;
         g_halt_phase = HALT_ARMED;
+        g_halt_armed_ms = halt_now_ms();
+        g_halt_nudges = 0;
         printf("\r\n[ndix] disks quiet - halting\r\n");
         fflush(stdout);
         return;
@@ -1019,8 +1029,38 @@ void nd500_ndix_halt_check(Nd500Cpu* cpu, uint32_t pc) {
      * up now would be wiped out and _boot's own ENTS would raise an ISE. Just
      * remember that we are one instruction away from a good frame. */
     if (g_halt_phase == HALT_ARMED) {
-        if (pc == g_halt_syscall_addr && cpu->CED == 0)
+        if (pc == g_halt_syscall_addr && cpu->CED == 0) {
             g_halt_phase = HALT_AT_SAFE_POINT;
+            return;
+        }
+
+        /* An IDLE guest never gets here on its own.
+         *
+         * The halt rides in on the next system call, and a shell sitting at its
+         * prompt has already made the one it is waiting in - it is asleep inside
+         * read(), and no further syscall happens until a key is pressed. So the
+         * shutdown stopped dead after "disks quiet - halting" and only completed
+         * when the user hit Enter, which is the keystroke that woke the shell
+         * and produced the syscall this was waiting for.
+         *
+         * Rather than ask the user to press it, press it for them: put a newline
+         * into the guest's own input ring, exactly as a keystroke would. The
+         * shell wakes, calls into the kernel, and the halt fires there.
+         *
+         * Re-sent periodically, and only a few times, because the wake has to
+         * reach whichever process actually owns the terminal - if the console is
+         * sitting at a login prompt rather than a shell, the first newline goes
+         * to getty and the next one carries it forward. It is capped so a guest
+         * that is genuinely wedged does not get spammed for ever; the halt then
+         * simply stays armed, as it did before. */
+        {
+            long now = halt_now_ms();
+            if (g_halt_nudges < HALT_NUDGE_MAX &&
+                now - g_halt_armed_ms >= HALT_NUDGE_MS * (g_halt_nudges + 1)) {
+                g_halt_nudges++;
+                nd500_fecall_tty_input(g_local_unit, "\n", 1);
+            }
+        }
         return;
     }
 
