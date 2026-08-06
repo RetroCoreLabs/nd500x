@@ -43,9 +43,13 @@ void nd500_instr_Tutti(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Clear Process Switch Disabled flag (like C# line 50) */
-    /* Reference: instructions.md Chapter 16.2 - "allows normal interleaving of process execution" */
+    /* Clear Process Switch Disabled flag.
+     * Reference: manual ch.16.2 - "allows normal interleaving of process
+     * execution". Clearing PSD ends the SOLO region, which also stands down
+     * the DT timeout measurement (it only runs while PSD is set) and the DE
+     * check on the non-ignorable trap path. */
     cpu->ST1 &= ~ND500_FLAG_PSD;
+    cpu->solo_start_icount = 0;
 
     /* No status bits affected for this instruction */
 }

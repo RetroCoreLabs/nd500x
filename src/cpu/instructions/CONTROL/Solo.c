@@ -225,24 +225,35 @@ void nd500_instr_Solo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // TODO: When process switching system is implemented:
-    // cpu->solo_mode = true;
-    //
-    // The CPU execution loop would then:
-    // - Check solo_mode before allowing process switch
-    // - Monitor for conditional branch instructions
-    // - Clear solo_mode when conditional branch encountered
-    //
-    // For now, just log that SOLO was executed (env-gated: the NDIX kernel
-    // executes SOLO in its idle spin, flooding the console at ~25 lines/sec
-    // and shredding interactive shell output).
+    /* Set PSD (ST1 bit 4). The manual is explicit that this bit "is only
+     * modifiable by the SOLO and TUTTI instructions" (ch.6.5.4, Table:
+     * status/trap bits), so this is the one place that may set it - TUTTI
+     * clears it.
+     *
+     * This used to be a TODO that only logged, which left PSD permanently
+     * clear. Two consequences followed from that single omission: nothing
+     * could ever detect a SOLO region running too long (DT, bit 30), and
+     * nothing could notice a page fault taken inside one (DE, bit 31) - so
+     * both traps looked "unimplemented" when the real cause was that the
+     * condition they detect could never arise. NDIX enables both (machine/
+     * trap.h T_CMTE1/T_KOTE1 have bits 30 and 31 set) and vectors them
+     * (machine/locore.c:689-690), so it was asking for a signal the emulator
+     * could not give. */
+    cpu->ST1 |= ND500_FLAG_PSD;
+
+    /* Stamp the start so check_solo_timeout() can measure the region. The
+     * limit counts MACROINSTRUCTION cycles on the ND-5000 (ch.16.1), which is
+     * what instruction_count holds. */
+    cpu->solo_start_icount = cpu->instruction_count;
+
     {
         static int dbg = -1;
         if (dbg < 0) { const char* e = getenv("ND500X_SOLODBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
         if (dbg)
-            printf("[SOLO] Process switching disabled at PC=0x%08X (ends at next conditional branch)\n",
-                   fi->address);
+            printf("[SOLO] Process switch disabled at PC=0x%08X (PSD set, icount=%llu)\n",
+                   fi->address, (unsigned long long)cpu->instruction_count);
     }
 
-    // No status flags are modified by SOLO instruction
+    /* PSD is a status bit, not a condition flag: no arithmetic status is
+     * affected by SOLO. */
 }

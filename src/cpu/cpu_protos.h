@@ -195,6 +195,25 @@ typedef struct Nd500Cpu {
 	/* Instruction counter for TIME MON call (MON 11B) */
 	uint64_t instruction_count;  /* Total instructions executed since startup */
 
+	/* SOLO / TUTTI (manual ND-05.009.4 ch.16.1-16.2, section 6.5.4).
+	 *
+	 * SOLO sets PSD (ST1 bit 4) to make the instructions up to the next TUTTI
+	 * an indivisible sequence; TUTTI clears it. Held for too long, that is a
+	 * Disable process switch Timeout (DT, bit 30).
+	 *
+	 * The limit is "256 micro-cycles" on the ND-500/2, but the manual is
+	 * explicit that "In the ND-5000 implementation these are macroinstruction
+	 * cycles" (ch.16.1), and the ND-5000 is what this emulates - so the count
+	 * is of executed instructions, which is a thing this CPU actually has.
+	 *
+	 * Equally explicit, same paragraph: "In privilege mode there is no
+	 * limitation to the duration of a SOLO operation. Unprivileged users are
+	 * not allowed to run in SOLO for more than 256 cycles." The timeout is
+	 * therefore only ever armed for unprivileged code - which is why NDIX,
+	 * whose kernel sits in SOLO around context switches and interrupt entry
+	 * (machine/locore.c:508, :737), is not affected. */
+	uint64_t solo_start_icount;  /* instruction_count when SOLO set PSD */
+
 	/* Start PC of the instruction currently being executed (= old_pc in
 	 * cpu_step, set BEFORE the pre-execute PC advance). A page fault must
 	 * restart the FAULTING instruction, but cpu->PC is already advanced to
@@ -281,7 +300,14 @@ typedef struct Nd500Cpu {
 #define TRAP_PRF  (1ULL << 40)  /* Processor Fault */
 #define TRAP_HF   (1ULL << 41)  /* Hardware Fault */
 
-/* Mask for traps that interrupt instruction execution */
+/* Mask for traps that interrupt instruction execution.
+ *
+ * Bits 32-41 only. DT(30) and DE(31) are non-ignorable too, but they are NOT
+ * listed here on purpose: several call sites use this mask to mean "a fault
+ * that aborts the current memory access" (see the FUWDBG and kernel-B checks in
+ * cpu.c), and the process-switch traps are not that. TRAP_NONIGNORABLE_MASK
+ * below is the one to test when the question is which DISPATCH PATH a trap
+ * takes. */
 #define TRAP_INTERRUPT_MASK (TRAP_XSE | TRAP_IIC | TRAP_IOS | \
                              TRAP_ISE | TRAP_PV | TRAP_THM | \
                              TRAP_PGF | TRAP_PWF | TRAP_PRF | TRAP_HF)
@@ -306,6 +332,8 @@ typedef struct Nd500Cpu {
 #define TRAP_STO  (1ULL << 27)  /* Stack Overflow */
 #define TRAP_STU  (1ULL << 28)  /* Stack Underflow */
 #define TRAP_PRT  (1ULL << 29)  /* Programmed Trap */
+#define TRAP_DT   (1ULL << 30)  /* Disable process switch Timeout */
+#define TRAP_DE   (1ULL << 31)  /* Disable process switch Error */
 
 /* Mask for ignorable traps only: bits 9 and 11-29. Bit 10 is undefined.
  *
@@ -333,6 +361,16 @@ typedef struct Nd500Cpu {
  * them misfire. They have no generator in the emulator yet (SOLO/TUTTI is a
  * stub), so nothing is currently being dropped on their account. */
 #define TRAP_IGNORABLE_MASK 0x3FFFFA00ULL
+
+/* Every trap the manual classes NON-ignorable: the process-switch pair DT(30)
+ * and DE(31), plus the fault/interrupt range 32-41.
+ *
+ * Manual ND-05.009.4 Table 10 gives both DT and DE class "N A" - Non-ignorable,
+ * taken After the instruction - and the Linker manual's SET-TRAP-CONDITION list
+ * starts its non-ignorable section at "30D DISABLE-PROCESS-SWITCH-TIMEOUT".
+ * Non-ignorable means the enable masks do not gate DISPATCH the way they do for
+ * the ignorable range, so these have to take the same path as a page fault. */
+#define TRAP_NONIGNORABLE_MASK (TRAP_INTERRUPT_MASK | TRAP_DT | TRAP_DE)
 
 /* Traps handled AFTER the instruction completes (manual ND-05.009.4 Table 10,
  * "Status bits survey", column B/D/A): O(9), IVO..CT(11-19), ATF..AZ(21-24),
@@ -390,6 +428,11 @@ void nd500_apply_domain_pia(Nd500Cpu* cpu, uint32_t domain);
 /* Set non-zero to suppress informational CPU-side printf output (shell clean mode). */
 extern int nd500_quiet;
 void check_pending_traps(Nd500Cpu* cpu, uint32_t trappingPC);
+
+/* Raise DT (bit 30) if an unprivileged SOLO region has run past 256
+ * macroinstruction cycles. Called once per instruction; a no-op unless PSD is
+ * set. See the implementation in cpu.c for the manual references. */
+void check_solo_timeout(Nd500Cpu* cpu, uint32_t trappingPC);
 void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP);
 
 /* Trap state management */

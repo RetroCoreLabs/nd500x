@@ -52,6 +52,9 @@ static StopReason trap_to_stop_reason(uint64_t trap_condition) {
 	if (trap_condition & TRAP_STO)  return STOP_TRAP_STACK_OVERFLOW;
 	if (trap_condition & TRAP_STU)  return STOP_TRAP_STACK_UNDERFLOW;
 	if (trap_condition & TRAP_IOV)  return STOP_TRAP_INTEGER_OVERFLOW;
+	/* DT and DE have no dedicated StopReason - they are reported through the
+	 * generic one, which still names the trap in the log line. Adding enum
+	 * values would ripple through every consumer of StopReason for no gain. */
 	return STOP_TRAP_OTHER;
 }
 
@@ -759,6 +762,10 @@ invalid00_done: ;
 	/* Increment instruction counter (used by MON 11B TIME) */
 	cpu->instruction_count++;
 
+	/* DT: has this SOLO region outstayed its welcome? Checked before the
+	 * ignorable traps because a timeout is non-ignorable and outranks them. */
+	check_solo_timeout(cpu, old_pc);
+
 	/* Check for pending ignorable traps at end of instruction.
 	 * Pass old_pc (the faulting/just-executed instruction's address, before
 	 * PC was advanced) so RETT retries the correct instruction - not the
@@ -1205,8 +1212,11 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	 * floods the MMU error log. Legitimate page-fault handling makes progress
 	 * (the retry succeeds, so the identical trap does not repeat), so a long run
 	 * of identical consecutive traps only happens in a genuine dead loop. Detect
-	 * it and HALT instead of spinning. */
-	if (trapBit & TRAP_INTERRUPT_MASK) {
+	 * it and HALT instead of spinning.
+	 *
+	 * DT and DE are covered too: a handler that returns without clearing PSD
+	 * would otherwise re-time-out immediately, for ever. */
+	if (trapBit & TRAP_NONIGNORABLE_MASK) {
 		static uint32_t last_pc = 0xFFFFFFFFu, last_data = 0xFFFFFFFFu;
 		static uint64_t last_bit = 0;
 		static uint32_t rep = 0;
@@ -1238,8 +1248,37 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		cpu->ST2 |= (uint32_t)(trapBit >> 32);
 	}
 
-	/* Check if this is a non-ignorable/fatal trap (bits 32+) */
-	if (trapBit & TRAP_INTERRUPT_MASK) {
+	/* ---- DE: a non-ignorable trap taken inside a SOLO region -------------
+	 *
+	 * Manual ch.6.5.4: "When executing with the process switch disable set,
+	 * non-ignorable traps (such as page fault) that require process switching
+	 * must not occur. If they do occur, they cause a disable process switch
+	 * error trap condition." Ch.16.1 says the same of SOLO: "Non-ignorable and
+	 * fatal traps cause a disable process switch error trap."
+	 *
+	 * So DE is raised ALONGSIDE the trap that provoked it, not instead of it:
+	 * the status bit records that the fault happened at a point where the
+	 * machine could not afford to switch. NDIX enables DE and vectors it
+	 * (machine/locore.c:690), which is how a kernel finds out that a solo
+	 * region - a context switch, an interrupt entry - touched an unmapped page.
+	 *
+	 * Guarded against re-entry: DE itself is non-ignorable, so raising it from
+	 * here without the check would recurse. */
+	if ((trapBit & TRAP_NONIGNORABLE_MASK) && !(trapBit & TRAP_DE) &&
+	    (cpu->ST1 & ND500_FLAG_PSD)) {
+		cpu->ST1 |= (uint32_t)TRAP_DE;
+		{
+			static int dbg = -1;
+			if (dbg < 0) { const char* e = getenv("ND500X_SOLODBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+			if (dbg)
+				fprintf(stderr, "[SOLO] DE: non-ignorable trap 0x%llX at PC=0x%08X "
+				                "while process switch disabled\n",
+				        (unsigned long long)trapBit, trapPC);
+		}
+	}
+
+	/* Check if this is a non-ignorable/fatal trap (bits 30-31, 32+) */
+	if (trapBit & TRAP_NONIGNORABLE_MASK) {
 		cpu->instr_aborted = 1;   /* dispatch or halt - the instruction aborts */
 		/* ---- Mother-domain trap dispatch (manual 4.2.5.3 + ch.6 Fig.18) ----
 		 * When a trap in the current (child) domain is NOT own-handled there but a
@@ -1328,8 +1367,73 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
  * (already-advanced) cpu->PC. This is the address RETT must retry,
  * matching the C# reference (CpuND500.Execute.cs: CheckPendingTraps(instructionPC)).
  */
+/* ---- DT: process-switch-disable timeout ---------------------------------
+ *
+ * Manual ND-05.009.4 ch.6.5.4: "Synchronization procedures can execute with the
+ * process switch disable status bit set. If this bit is set for more than 256
+ * microcycles (including the 2 spent in the SOLO instruction), a process switch
+ * timeout trap condition occurs."
+ *
+ * Two details from ch.16.1 decide how that is counted and to whom it applies:
+ *
+ *   "In the 500/2 implementation, these are microcycles. In the ND-5000
+ *    implementation they are macroinstruction cycles."
+ * This emulates the ND-5000, so the unit is executed instructions - which the
+ * CPU already counts. Counting real microcycles would mean modelling per-operand
+ * timing that nothing else here needs.
+ *
+ *   "In privilege mode there is no limitation to the duration of a SOLO
+ *    operation. Unprivileged users are not allowed to run in SOLO for more than
+ *    256 cycles."
+ * So the timeout is armed for unprivileged code only. That is not a convenience:
+ * NDIX's kernel sits in SOLO across context switches and interrupt entry
+ * (machine/locore.c:508, :737) for far longer than 256 instructions, and would
+ * trap on every switch if privilege were ignored.
+ *
+ * The +2 the manual mentions for the SOLO instruction itself is inside the
+ * 256 and is not modelled separately - at instruction granularity it rounds
+ * away, and erring long cannot produce a false timeout. */
+#define SOLO_MAX_CYCLES 256
+
+void check_solo_timeout(Nd500Cpu* cpu, uint32_t trappingPC) {
+	if (!cpu) return;
+	if (!(cpu->ST1 & ND500_FLAG_PSD)) return;      /* not in a SOLO region */
+	if (nd500_is_privileged(cpu)) return;          /* privileged: no limit */
+
+	if (cpu->instruction_count - cpu->solo_start_icount <= SOLO_MAX_CYCLES)
+		return;
+
+	{
+		static int dbg = -1;
+		if (dbg < 0) { const char* e = getenv("ND500X_SOLODBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (dbg)
+			fprintf(stderr, "[SOLO] DT: process switch disabled for %llu cycles "
+			                "(limit %d) at PC=0x%08X\n",
+			        (unsigned long long)(cpu->instruction_count - cpu->solo_start_icount),
+			        SOLO_MAX_CYCLES, trappingPC);
+	}
+
+	/* Clear PSD before raising. The region is over as far as the machine is
+	 * concerned, and leaving the bit set would make the handler's own first
+	 * instruction time out again immediately. */
+	cpu->ST1 &= ~ND500_FLAG_PSD;
+	cpu->solo_start_icount = 0;
+
+	raise_trap(cpu, TRAP_DT, trappingPC, 0);
+}
+
 void check_pending_traps(Nd500Cpu* cpu, uint32_t trappingPC) {
 	if (!cpu) return;
+
+	/* Ignorable traps are suppressed inside a SOLO region.
+	 *
+	 * Manual ch.6.5.4, immediately after the timeout paragraph: "Ignorable trap
+	 * conditions are ignored in SOLO-TUTTI sequences regardless of enabling of
+	 * these traps." The status bits still accumulate - they are set by the
+	 * instructions themselves - they simply do not dispatch until TUTTI. That
+	 * is the whole point of the sequence being indivisible: a handler call is
+	 * exactly the process switch SOLO exists to prevent. */
+	if (cpu->ST1 & ND500_FLAG_PSD) return;
 
 	/* Combine ST1 and ST2 into 64-bit status */
 	uint64_t st = ((uint64_t)cpu->ST2 << 32) | cpu->ST1;
