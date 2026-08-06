@@ -257,10 +257,28 @@ typedef struct Nd500Cpu {
 	 * in biowait() until a completion INTERRUPT drives diintr()->iodone(). The
 	 * fecall handler sets these; cpu_step delivers the interrupt (vector to
 	 * _intvec) at the next safe boundary once the CPU drops below IPL_DK. */
-	int      fe_int_pending;
-	uint32_t fe_int_gen;    /* generic device (DISK=1) */
-	uint32_t fe_int_sub;    /* sub-device */
-	uint32_t fe_int_rpk;    /* response-packet ND-100 word address */
+	/* Pending front-end completion interrupts.
+	 *
+	 * This was ONE slot - a flag plus gen/sub/rpk. Any completion raised while
+	 * another was still waiting to be delivered simply overwrote it, and the
+	 * first one was never seen by the guest. That is not theoretical: it is
+	 * why an async terminal open (a hard-carrier line, io/mx.c:334) never woke
+	 * up. The open's completion was raised during a busy part of boot, a disk
+	 * or clock completion landed on top of it, and the driver slept for ever
+	 * in mxopen() waiting for a carrier report that had been thrown away.
+	 *
+	 * A small ring keeps them all. Eight is well clear of what is ever in
+	 * flight - completions are delivered at the next instruction boundary, so
+	 * the queue drains almost as fast as it fills. */
+#define FE_INT_QUEUE_SIZE 8
+	struct {
+		uint32_t gen;   /* generic device (DISK=1) */
+		uint32_t sub;   /* sub-device */
+		uint32_t rpk;   /* response-packet ND-100 word address */
+	} fe_int_q[FE_INT_QUEUE_SIZE];
+	unsigned fe_int_head;   /* next slot to deliver */
+	unsigned fe_int_count;  /* how many are queued */
+	unsigned fe_int_lost;   /* completions dropped because the ring was full */
 
 	/* Set by raise_trap when a trap fires MID-instruction; cleared by cpu_step
 	 * before each execute. Instruction implementations must check it after any
@@ -412,6 +430,14 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out);
 int nd500_cpu_run(Nd500Cpu* cpu, int steps);
 
 /* Trap system functions */
+/* Queue a front-end completion interrupt for delivery at the next instruction
+ * boundary. Replaces assigning fe_int_pending/gen/sub/rpk by hand, which lost a
+ * completion whenever two were outstanding at once. */
+void nd500_fe_int_post(Nd500Cpu* cpu, uint32_t gen, uint32_t sub, uint32_t rpk);
+
+/* Non-zero if any front-end completion is waiting to be delivered. */
+int  nd500_fe_int_pending(Nd500Cpu* cpu);
+
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr);
 
 /* Non-zero if <trapBit> is enabled for the current domain, by the own-domain

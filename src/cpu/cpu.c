@@ -340,7 +340,9 @@ invalid00_done: ;
 			uint32_t lock = nd500_bus_read32(cpu->machine, iplp + 8u); /* ip_lock */
 			fprintf(stderr, "[PCSAMPLE] PC=0x%08X CED=0x%X iplrec=0x%08X ip_curr=0x%04X ip_mask=0x%04X ip_next=0x%08X lock=0x%08X fe_pend=%d gen=%d (n=%llu)\n",
 				cpu->PC, cpu->CED, iplp, (ipw >> 16) & 0xFFFF, ipw & 0xFFFF, ipnx, lock,
-				(int)cpu->fe_int_pending, (int)cpu->fe_int_gen, (unsigned long long)pcn);
+				(int)cpu->fe_int_count,
+				(int)(cpu->fe_int_count ? cpu->fe_int_q[cpu->fe_int_head].gen : 0),
+				(unsigned long long)pcn);
 		}
 	}
 

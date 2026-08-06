@@ -460,6 +460,47 @@ static void fe_idev(Nd500Cpu* cpu, uint32_t gen, Pkt* cpk, Pkt* rpk) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * Pending completion-interrupt queue
+ *
+ * Every async front-end call ends by asking for a completion interrupt, which
+ * cpu_step delivers at the next safe instruction boundary. That used to be a
+ * SINGLE slot - a flag plus gen/sub/rpk - so a second completion raised before
+ * the first was delivered simply overwrote it, and the first was lost.
+ *
+ * It cost a real feature. A hard-carrier terminal open (io/mx.c:334, which is
+ * every REMOTE line - mxsoftCAR[] is 0 from minor 129 up) issues an ASYNC
+ * FE_OPEN and then sleeps until the front end reports carrier. During boot that
+ * completion was raised while disk and clock completions were also in flight,
+ * one of them landed on top of it, and the getty on tty81 slept for ever in
+ * open(). It looked like the line did not exist; it was queued and thrown away.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+void nd500_fe_int_post(Nd500Cpu* cpu, uint32_t gen, uint32_t sub, uint32_t rpk) {
+    unsigned slot;
+    if (!cpu) return;
+
+    if (cpu->fe_int_count >= FE_INT_QUEUE_SIZE) {
+        /* Full. Counted rather than silently dropped: if this is ever non-zero
+         * the queue is too small, and that is worth knowing rather than
+         * debugging the same lost-wakeup symptom all over again. */
+        cpu->fe_int_lost++;
+        if (fedbg())
+            fprintf(stderr, "[FECALL] completion queue FULL - dropped gen=%u sub=%u "
+                            "(lost %u so far)\n", gen, sub, cpu->fe_int_lost);
+        return;
+    }
+
+    slot = (cpu->fe_int_head + cpu->fe_int_count) % FE_INT_QUEUE_SIZE;
+    cpu->fe_int_q[slot].gen = gen;
+    cpu->fe_int_q[slot].sub = sub;
+    cpu->fe_int_q[slot].rpk = rpk;
+    cpu->fe_int_count++;
+}
+
+int nd500_fe_int_pending(Nd500Cpu* cpu) {
+    return cpu && cpu->fe_int_count > 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * FE_OPEN - open a sub-device. Return disk geometry.
  * ═══════════════════════════════════════════════════════════════════════════ */
 static void fe_open_disk(Pkt* rpk) {
@@ -722,13 +763,11 @@ static void fe_read_disk(Nd500Cpu* cpu, uint32_t device, uint32_t cpk_word, uint
     pkt_wr32(rpk, RD_RPK_NBYTES, done);
 
     /* async: queue a completion interrupt (delivered by cpu_step at the next
-     * safe boundary) so diintr()->iodone() wakes the biowait() sleeper. */
+     * safe boundary) so diintr()->iodone() wakes the biowait() sleeper.
+     * QUEUED, not written into a single slot - see nd500_fe_int_post(). */
     /* Interrupt on the disk's ACTUAL generic device (the root disk is gen 7 in
      * this config, not the nominal DISK=1) so dispatch calls its diintr. */
-    cpu->fe_int_pending = 1;
-    cpu->fe_int_gen = (device >> 16) & 0xFFFF;
-    cpu->fe_int_sub = device & 0xFFFF;
-    cpu->fe_int_rpk = rpk_word;
+    nd500_fe_int_post(cpu, (device >> 16) & 0xFFFF, device & 0xFFFF, rpk_word);
     (void)rpk;
 }
 
@@ -1422,7 +1461,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
         }
     }
     if (cpu->in_trap_handler && cpu->PC != 0x00000844u) return;
-    if (!cpu->fe_int_pending && !g_clock_pending) return;   /* fast path */
+    if (!nd500_fe_int_pending(cpu) && !g_clock_pending) return;   /* fast path */
 
     /* Never interrupt between a CALL/CALLG and its ENT* - the emulator's
      * pending-call state is not part of the saved context, so an interrupt
@@ -1446,19 +1485,19 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
         if (gn++ < 25) {
             uint32_t rpaddr = nd500_mmu_translate(cpu, iplrec + IP_CURR_OFF, 0, 0);
             fprintf(stderr, "[GATEDBG] @0x844 iplrec=0x%08X ip_cur=%u rd_paddr=0x%08X CED=%d gen=%d pcall=0x%08X fe_pend=%d clk_due=%d icnt=%llu\n",
-                    iplrec, ip_cur, rpaddr, cpu->CED, (int)cpu->fe_int_gen, cpu->pending_call_return_address,
-                    (int)cpu->fe_int_pending, clock_due, (unsigned long long)cpu->instruction_count);
+                    iplrec, ip_cur, rpaddr, cpu->CED, (int)(cpu->fe_int_count ? cpu->fe_int_q[cpu->fe_int_head].gen : 0), cpu->pending_call_return_address,
+                    (int)cpu->fe_int_count, clock_due, (unsigned long long)cpu->instruction_count);
         }
     }
     if (ip_cur != 0) {
-        if (cpu->fe_int_pending && fedbg()) {
+        if (nd500_fe_int_pending(cpu) && fedbg()) {
             static uint64_t last = 0;
             if (cpu->instruction_count - last > 300000) {
                 last = cpu->instruction_count;
                 uint32_t iplock = nd500_read_memory_32(cpu, iplrec + 8);
                 uint32_t ipnext = nd500_read_memory_32(cpu, iplrec + IP_NEXT_OFF);
                 fprintf(stderr, "[FECALL] INT blocked: ip_cur=%u IP_LOCK=0x%08X ip_next=0x%08X B=0x%08X (pending gen=%u)\n",
-                        ip_cur, iplock, ipnext, cpu->B, cpu->fe_int_gen);
+                        ip_cur, iplock, ipnext, cpu->B, cpu->fe_int_q[cpu->fe_int_head].gen);
                 uint32_t b = cpu->B;
                 for (int lvl = 0; lvl < 10 && b >= 0xE8000000u && b < 0xE8100000u; lvl++) {
                     uint32_t prevb = nd500_read_memory_32(cpu, b + 0);
@@ -1473,8 +1512,15 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
     }
     uint32_t shseg = nd500_read_memory_32(cpu, K_SHSEG);
 
-    /* Pending disk/dctl completion takes priority over the periodic clock. */
-    if (cpu->fe_int_pending) {
+    /* Pending device completion takes priority over the periodic clock.
+     * One per visit, oldest first - the queue drains over successive
+     * instruction boundaries rather than all at once, which keeps each
+     * delivery on the same well-tested path a single completion always took. */
+    if (nd500_fe_int_pending(cpu)) {
+        uint32_t q_gen = cpu->fe_int_q[cpu->fe_int_head].gen;
+        uint32_t q_sub = cpu->fe_int_q[cpu->fe_int_head].sub;
+        uint32_t q_rpk = cpu->fe_int_q[cpu->fe_int_head].rpk;
+
         /* Deliver at the priority the DEVICE asked for at connect time, not at
          * the disk level. Every completion used to go out at FE_IPL_DK (4),
          * while SIINTR's own priority is IPL_SI = 3 (machine/icb.h:87) - the
@@ -1483,21 +1529,21 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
          * every other device do the same. Devices that never went through
          * FE_IDEV, or whose ipl field was out of range, keep the old default. */
         uint32_t ipl = FE_IPL_DK;
-        if (cpu->fe_int_gen < (sizeof cpu->fe_dev_ipl / sizeof cpu->fe_dev_ipl[0])
-            && cpu->fe_dev_ipl[cpu->fe_int_gen] != 0)
-            ipl = cpu->fe_dev_ipl[cpu->fe_int_gen];
+        if (q_gen < (sizeof cpu->fe_dev_ipl / sizeof cpu->fe_dev_ipl[0])
+            && cpu->fe_dev_ipl[q_gen] != 0)
+            ipl = cpu->fe_dev_ipl[q_gen];
 
         /* SIINTR delivery trace (env ND500X_SIDBG). */
-        if (cpu->fe_int_gen == GEN_SIINTR) {
+        if (q_gen == GEN_SIINTR) {
             static int sidbg = -1;
             if (sidbg < 0) { const char* e = getenv("ND500X_SIDBG"); sidbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
             if (sidbg)
                 fprintf(stderr, "[SIDBG] deliver interrupt gen=8 sub=%u rpk=0x%08X ipl=%u (IPL_SI=3) PC=0x%08X CED=%u\n",
-                        cpu->fe_int_sub, cpu->fe_int_rpk, ipl, cpu->PC, cpu->CED);
+                        q_sub, q_rpk, ipl, cpu->PC, cpu->CED);
         }
-        fe_deliver(cpu, iplrec, ip_cur, shseg,
-                   cpu->fe_int_gen, cpu->fe_int_sub, cpu->fe_int_rpk, ipl);
-        cpu->fe_int_pending = 0;
+        fe_deliver(cpu, iplrec, ip_cur, shseg, q_gen, q_sub, q_rpk, ipl);
+        cpu->fe_int_head = (cpu->fe_int_head + 1) % FE_INT_QUEUE_SIZE;
+        cpu->fe_int_count--;
         return;
     }
     /* Periodic clock: advance the ND-100 tick count, then interrupt hardclock. */
@@ -1662,7 +1708,37 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                             ok ? "success" : "no medium", g_tape.pos);
             } else {
                 pkt_wr16(&rpk, 0, 0);    /* other devices (e.g. XMSG): success */
-                if (fedbg()) fprintf(stderr, "[FECALL] FE_OPEN gen=%u -> success (non-disk)\n", gen);
+                if (fedbg())
+                    fprintf(stderr, "[FECALL] FE_OPEN gen=%u sub=%u qual=%s -> success (non-disk)\n",
+                            gen, device & 0xFFFF,
+                            ((request >> 16) & 0xFFFF) == 1 ? "SYNC" : "ASYNC");
+            }
+
+            /* An ASYNC open needs its completion INTERRUPT, not just a filled-in
+             * reply packet.
+             *
+             * io/mx.c:321 picks the form by carrier type: a soft-carrier line
+             * opens with QF_SYNC and is done when the call returns, but a
+             * HARD-carrier line opens with QF_ASYNC and then
+             *     while (in_sd->sd_state == SD_OPEN)
+             *         sleep(&(in_sd->sd_state), TTIPRI);
+             * waiting for the front end to report carrier. Writing completion 0
+             * and returning left that sleep for ever, because nothing ever ran
+             * the driver's completion handler to change sd_state.
+             *
+             * Which lines are hard-carrier is fixed in the driver: mxsoftCAR[]
+             * (io/mx.c:66) is 1 for minors 0-128 and 0 for 129-255. So every
+             * REMOTE line - tty81 among them - takes the async path, which is
+             * why it opened without error and then produced no login prompt: the
+             * getty was asleep in open(), not failing.
+             *
+             * Carrier is always up here. The emulator IS the front end for every
+             * terminal it serves; there is no modem to raise DCD. */
+            if (((request >> 16) & 0xFFFF) != 1 /* QF_SYNC */) {
+                nd500_fe_int_post(cpu, gen, device & 0xFFFF, rpk_arg);
+                if (fedbg())
+                    fprintf(stderr, "[FECALL] FE_OPEN gen=%u sub=%u async -> completion "
+                                    "interrupt (carrier up)\n", gen, device & 0xFFFF);
             }
             break;
         }
@@ -1708,10 +1784,7 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             Pkt rpk = pkt_word(cpu, rpk_arg);
             if (gen == GEN_TAPE) {
                 fe_read_tape(cpu, cpk_arg, &rpk);
-                cpu->fe_int_pending = 1;      /* async, like the disk path */
-                cpu->fe_int_gen = gen;
-                cpu->fe_int_sub = device & 0xFFFF;
-                cpu->fe_int_rpk = rpk_arg;
+                nd500_fe_int_post(cpu, gen, device & 0xFFFF, rpk_arg);
                 break;
             }
             fe_read_disk(cpu, device, cpk_arg, rpk_arg, &rpk);
@@ -1752,10 +1825,7 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                     fprintf(stderr, "[FECALL] FE_WRIT TERM_OUT unit=%u strip=%d nbytes=%u phys=0x%08X raw=[%s]\n",
                             device & 0xFFFF, strip, nbytes, phys, hex);
                 }
-                cpu->fe_int_pending = 1;
-                cpu->fe_int_gen = gen;
-                cpu->fe_int_sub = device & 0xFFFF;
-                cpu->fe_int_rpk = rpk_arg;
+                nd500_fe_int_post(cpu, gen, device & 0xFFFF, rpk_arg);
                 break;
             }
             if (gen == GEN_TAPE) {
@@ -1766,10 +1836,7 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                 pkt_wr16(&rpk, 2, 0);
                 if (fedbg())
                     fprintf(stderr, "[FECALL] FE_WRIT tape refused (image is read-only)\n");
-                cpu->fe_int_pending = 1;
-                cpu->fe_int_gen = gen;
-                cpu->fe_int_sub = device & 0xFFFF;
-                cpu->fe_int_rpk = rpk_arg;
+                nd500_fe_int_post(cpu, gen, device & 0xFFFF, rpk_arg);
                 break;
             }
             /* writ_cpk_disk {nbytes@0, physaddr@4, devaddr@8}; writ_rpk {completion@0,
@@ -1808,20 +1875,14 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             }
             pkt_wr16(&rpk, 0, completion);
             pkt_wr16(&rpk, 2, 0);   /* status */
-            cpu->fe_int_pending = 1;
-            cpu->fe_int_gen = (device >> 16) & 0xFFFF;
-            cpu->fe_int_sub = device & 0xFFFF;
-            cpu->fe_int_rpk = rpk_arg;
+            nd500_fe_int_post(cpu, (device >> 16) & 0xFFFF, device & 0xFFFF, rpk_arg);
             break;
         }
         case FE_DCTL: {
             Pkt rpk = pkt_word(cpu, rpk_arg);
             if (gen == GEN_TAPE) {
                 fe_dctl_tape(cpu, cpk_arg, &rpk);
-                cpu->fe_int_pending = 1;
-                cpu->fe_int_gen = gen;
-                cpu->fe_int_sub = device & 0xFFFF;
-                cpu->fe_int_rpk = rpk_arg;
+                nd500_fe_int_post(cpu, gen, device & 0xFFFF, rpk_arg);
                 break;
             }
             pkt_wr16(&rpk, 0, 0);   /* completion */
@@ -1841,10 +1902,7 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
              * get a completion interrupt - the kernel does not sleep on them.
              * Async DCTL queues a completion interrupt like FE_READ. */
             if (((request >> 16) & 0xFFFF) != 1 /* !QF_SYNC */) {
-                cpu->fe_int_pending = 1;
-                cpu->fe_int_gen = gen;
-                cpu->fe_int_sub = device & 0xFFFF;
-                cpu->fe_int_rpk = rpk_arg;
+                nd500_fe_int_post(cpu, gen, device & 0xFFFF, rpk_arg);
             }
             break;
         }
