@@ -84,4 +84,17 @@ int nd500x_ndix_telnet_disconnect(int idx);
 /* Clients that have connected but not yet chosen a terminal from the menu. */
 int nd500x_ndix_telnet_pending(void);
 
+/* Tell the server which line the LOCAL window is attached to, so it stops
+ * offering that one to telnet clients. Exactly one line is marked at a time;
+ * every other is cleared, so switching away with F12 releases the old line.
+ *
+ * Without this a telnet client could pick the console straight out of the menu
+ * and end up sharing it with the local terminal. Returns 0 if the unit matched
+ * a served terminal, -1 otherwise (including when the server is stopped). */
+int nd500x_ndix_telnet_mark_local(int unit);
+
+/* Non-zero while a telnet client holds terminal <idx>. Used by the F12 menu to
+ * refuse switching the local window onto a line somebody else is using. */
+int nd500x_ndix_telnet_in_use(int idx);
+
 #endif /* ND500X_NDIX_H */

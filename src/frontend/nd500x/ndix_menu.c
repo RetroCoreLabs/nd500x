@@ -8,6 +8,7 @@
 #include "../../machine/machine_types.h"
 
 #include <stdio.h>
+#include <stdarg.h>   /* row() takes a format and arguments */
 #include <string.h>
 #include <unistd.h>
 
@@ -76,20 +77,44 @@ static int read_key(void) {
 #endif
 #define MENU_BUILD_LINE "v" ND500X_VERSION "  built " __DATE__ " " __TIME__
 
+/* The menu box is drawn in exactly one width, and every row goes through the
+ * two helpers below.
+ *
+ * Hand-padding each printf with its own run of spaces is what let the right-hand
+ * border drift: the tty rows came out 43 wide and the "Telnet: ON" row 46, in a
+ * 45-wide box. Formatting into a buffer and printing it with a single %-*s
+ * makes every row the same width by construction, and a row that grows too long
+ * is truncated rather than pushing the border out. */
+#define MENU_W 43   /* text columns between "| " and " |" */
+
+static void rule(void) {
+    printf("+---------------------------------------------+\r\n");
+}
+
+/* One row of the box: "| <text padded to MENU_W> |". */
+static void row(const char* fmt, ...) {
+    char buf[MENU_W + 1];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    printf("| %-*s |\r\n", MENU_W, buf);
+}
+
 static void banner(const char* title) {
     printf("\r\n");
-    printf("+---------------------------------------------+\r\n");
-    printf("| %-43s |\r\n", title);
-    printf("+---------------------------------------------+\r\n");
+    rule();
+    row("%s", title);
+    rule();
 }
 
 /* Header with the build stamp under the title, for the top-level menu. */
 static void banner_versioned(const char* title) {
     printf("\r\n");
-    printf("+---------------------------------------------+\r\n");
-    printf("| %-43s |\r\n", title);
-    printf("| %-43s |\r\n", MENU_BUILD_LINE);
-    printf("+---------------------------------------------+\r\n");
+    rule();
+    row("%s", title);
+    row("%s", MENU_BUILD_LINE);
+    rule();
 }
 
 /* Who, if anyone, is on a given tty over telnet.
@@ -138,18 +163,18 @@ static void console_menu(void) {
                 snprintf(note + strlen(note), sizeof note - strlen(note),
                          " [%s]", addr[0] ? addr : "in use");
 
-            printf("|  %d. %-8s (unit %3d)%-19s|\r\n", i + 1, MENU_TTYS[i].name,
-                   MENU_TTYS[i].unit, note);
+            row(" %d. %-8s (unit %3d)%s", i + 1, MENU_TTYS[i].name,
+                MENU_TTYS[i].unit, note);
         }
-        printf("+---------------------------------------------+\r\n");
+        rule();
         if (on)
-            printf("|  T. Telnet: ON, port %-5d%s|\r\n", port,
-                   pend ? " (client at menu)  " : "                   ");
+            row(" T. Telnet: ON, port %d%s", port,
+                pend ? "  (client at menu)" : "");
         else
-            printf("|  T. Telnet: OFF - press T to start it       |\r\n");
-        printf("|  D. Disconnect a telnet client              |\r\n");
-        printf("|  0. Resume NDIX                             |\r\n");
-        printf("+---------------------------------------------+\r\n");
+            row(" T. Telnet: OFF - press T to start it");
+        row(" D. Disconnect a telnet client");
+        row(" 0. Resume NDIX");
+        rule();
         printf("choice: ");
         fflush(stdout);
 
@@ -166,9 +191,13 @@ static void console_menu(void) {
                 /* 0 = every terminal in the table. The port is the same default
                  * --telnet uses, so starting it here and starting it on the
                  * command line land in the same place. */
-                if (nd500x_ndix_telnet_start(5000, 0) == 0)
+                if (nd500x_ndix_telnet_start(5000, 0) == 0) {
+                    /* Claim the line this window is on straight away, or the
+                     * first client to connect would be offered it. */
+                    nd500x_ndix_telnet_mark_local(cur);
                     printf("[menu] telnet server started - connect with: "
                            "telnet localhost 5000\r\n");
+                }
                 else
                     printf("[menu] could not start the telnet server (port in "
                            "use?)\r\n");
@@ -200,8 +229,30 @@ static void console_menu(void) {
 
         if (k >= '1' && k < '1' + MENU_TTY_COUNT) {
             int idx = k - '1';
+
+            /* Only a FREE line may be taken. Two readers on one tty means each
+             * sees half the keystrokes and both see all the output, which looks
+             * like the terminal breaking rather than like a conflict. The same
+             * rule applies the other way round: nd500x_ndix_telnet_mark_local()
+             * below stops the telnet menu offering whichever line this window
+             * holds. */
+            if (nd500x_ndix_telnet_in_use(idx)) {
+                char addr[64];
+                const char* name = NULL;
+                int conn = 0;
+                nd500x_ndix_telnet_info(idx, &name, &conn, addr, (int)sizeof addr);
+                printf("[menu] %s is in use by a telnet client%s%s - "
+                       "disconnect it first with D\r\n",
+                       MENU_TTYS[idx].name, addr[0] ? " at " : "",
+                       addr[0] ? addr : "");
+                fflush(stdout);
+                continue;
+            }
+
             nd500_fecall_set_local_unit(MENU_TTYS[idx].unit);
             cur = MENU_TTYS[idx].unit;
+            /* Hand the old line back and claim the new one. */
+            nd500x_ndix_telnet_mark_local(cur);
             /* Say what happened AND that the screen is not redrawn: this
              * terminal now shows only what the new tty prints from here on, and
              * a tty whose getty already printed its prompt will look silent
@@ -232,11 +283,11 @@ NdixMenuResult ndix_menu_run(struct Nd500Machine* m) {
     int k;
 
     banner_versioned("nd500x - NDIX");
-    printf("|  1. Virtual consoles                        |\r\n");
-    printf("|  2. Shut down NDIX (sync, then halt)        |\r\n");
-    printf("|  3. Exit now, WITHOUT syncing               |\r\n");
-    printf("|  0. Resume NDIX                             |\r\n");
-    printf("+---------------------------------------------+\r\n");
+    row(" 1. Virtual consoles");
+    row(" 2. Shut down NDIX (sync, then halt)");
+    row(" 3. Exit now, WITHOUT syncing");
+    row(" 0. Resume NDIX");
+    rule();
     printf("choice: ");
     fflush(stdout);
 

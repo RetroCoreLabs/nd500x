@@ -741,3 +741,40 @@ int nd500x_ndix_telnet_disconnect(int idx) {
 int nd500x_ndix_telnet_pending(void) {
     return g_server ? TelnetServer_GetPendingCount(g_server) : 0;
 }
+
+int nd500x_ndix_telnet_mark_local(int unit) {
+    int i, found = -1;
+
+    if (!g_server) return -1;
+
+    /* The server already refuses to offer a terminal that is taken - send_menu
+     * lists a line only when "clientFd == ND_INVALID_SOCKET && !locallyActive".
+     * The second half of that test was dead here, because nothing ever set
+     * locallyActive: nd500x never told the server which line the LOCAL window
+     * was on. So a telnet client was free to pick the console out of the menu
+     * and fight the local terminal for it, two readers on one line.
+     *
+     * Marking it closes that: exactly one line is locally active at a time -
+     * the one this window is attached to - and the telnet menu stops offering
+     * it. Every other line is cleared, so switching away with F12 hands the old
+     * line back for someone else to use. */
+    for (i = 0; i < TelnetServer_GetTerminalCount(g_server); i++) {
+        int is_local = (i < NDIX_TTY_COUNT && g_ttys[i].unit == unit);
+        TelnetServer_SetTerminalLocallyActive(g_server, i, is_local ? true : false);
+        if (is_local) found = i;
+    }
+    return found >= 0 ? 0 : -1;
+}
+
+int nd500x_ndix_telnet_in_use(int idx) {
+    const char* name = NULL;
+    uint16_t ident = 0;
+    bool conn = false, local = false;
+    char addr[8];
+
+    if (!g_server) return 0;
+    if (!TelnetServer_GetTerminalStatus(g_server, idx, &name, &ident, &conn, &local,
+                                        addr, (int)sizeof addr))
+        return 0;
+    return conn ? 1 : 0;
+}

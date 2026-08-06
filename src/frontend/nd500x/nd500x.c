@@ -637,8 +637,13 @@ int main(int argc, char** argv) {
 			if (nd500x_ndix_telnet_start(telnet_port, telnet_ttys) != 0)
 				fprintf(stderr, "[telnet] continuing without the telnet server "
 				        "- local console only\n");
-			else
+			else {
+				/* Claim the line this window is attached to before any client
+				 * can connect, so the console is not offered in the telnet menu
+				 * and then shared with the local terminal. */
+				nd500x_ndix_telnet_mark_local(nd500_fecall_local_unit());
 				nd500_debugger_set_stdin_eof_quiet(1);
+			}
 		}
 		/* In --ndix mode the user is talking to NDIX, not to the debugger -
 		 * the REPL is only here because the boot sequence runs through it.
