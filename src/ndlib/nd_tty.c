@@ -239,8 +239,28 @@ int nd_tty_read(void* buf, int max) {
     if (n > 0) {
         unsigned char* p = (unsigned char*)buf;
         int i;
-        for (i = 0; i < n; i++)
-            if (p[i] == '\r') p[i] = '\n';
+        for (i = 0; i < n; i++) {
+            if (p[i] == '\r') { p[i] = '\n'; continue; }
+
+            /* Backspace: send DEL, not BS.
+             *
+             * NDIX's erase character is 0177 - kernel/MASTER/h/ttychars.h:
+             * "#define CERASE 0177" - which is DEL (0x7F). A Unix terminal
+             * sends exactly that for the Backspace key, so erase works there
+             * without anyone thinking about it.
+             *
+             * The Windows console sends 0x08 (BS) instead. NDIX does not treat
+             * that as erase, so Backspace did nothing at all: no character
+             * removed, no cursor movement, because the guest never echoed the
+             * erase sequence.
+             *
+             * Cost of the translation: Ctrl-H also produces 0x08 on this
+             * console and becomes DEL too. The two keys are indistinguishable
+             * once the console has turned them into bytes, and a working
+             * Backspace is worth far more than a literal Ctrl-H. Ctrl-Backspace
+             * still delivers a raw 0x7F if the guest ever needs it. */
+            if (p[i] == 0x08) p[i] = 0x7F;
+        }
     }
     return n;
 }
