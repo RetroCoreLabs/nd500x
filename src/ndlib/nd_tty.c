@@ -4,6 +4,7 @@
  */
 #include "nd_tty.h"
 
+#include <stdio.h>     /* the ND500X_KEYLOG dump writes to stderr */
 #include <stdlib.h>
 #include <string.h>
 
@@ -216,10 +217,33 @@ int nd_tty_wait_readable(int timeout_ms) {
     }
 }
 
+/* ND500X_KEYLOG=1 dumps every byte read from the local terminal to stderr, in
+ * hex, before any translation and again after. Keyboards differ far more
+ * between terminals than anyone expects - which byte Backspace sends, whether
+ * Enter is CR or LF, what a function key expands to - and guessing at it wastes
+ * more time than printing it. Off unless the variable is set. */
+static int keylog_on(void) {
+    static int on = -1;
+    if (on < 0) {
+        const char* e = getenv("ND500X_KEYLOG");
+        on = (e && e[0] && e[0] != '0') ? 1 : 0;
+    }
+    return on;
+}
+
+static void keylog_dump(const char* tag, const unsigned char* p, int n) {
+    int i;
+    fprintf(stderr, "[keylog] %s %d:", tag, n);
+    for (i = 0; i < n; i++) fprintf(stderr, " %02X", p[i]);
+    fputc('\n', stderr);
+    fflush(stderr);
+}
+
 int nd_tty_read(void* buf, int max) {
     int n;
     if (!buf || max <= 0) return -1;
     n = _read(0, buf, (unsigned int)max);
+    if (n > 0 && keylog_on()) keylog_dump("raw", (const unsigned char*)buf, n);
 
     /* Translate CR to LF - the Windows stand-in for termios ICRNL.
      *
@@ -261,6 +285,7 @@ int nd_tty_read(void* buf, int max) {
              * still delivers a raw 0x7F if the guest ever needs it. */
             if (p[i] == 0x08) p[i] = 0x7F;
         }
+        if (keylog_on()) keylog_dump("xlat", (const unsigned char*)buf, n);
     }
     return n;
 }
