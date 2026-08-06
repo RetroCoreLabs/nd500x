@@ -17,6 +17,7 @@
 #include "../../debugger/commands.h"
 #include "nd500x_shell.h"
 #include "nd500x_ndix.h"
+#include "ndix_ffs.h"   /* --extract reads a file straight out of the image */
 /* nd500_fecall_local_unit() - which guest tty this window is attached to, so
  * the telnet server can be told not to offer that one. */
 #include "../../cpu/nd500_fecall.h"
@@ -38,6 +39,8 @@ static void print_usage(const char* prog) {
     printf("  --script <path>          Feed shell commands from a file (with --monitor)\n");
     printf("  --ndix <disk-image>      Boot the NDIX kernel with <disk-image> as root disk\n");
     printf("  --kernel <path>          NDIX kernel image for --ndix (default: see below)\n");
+    printf("  --extract <in> <out>     Copy one file OUT of the --ndix image and exit.\n");
+    printf("                           No boot, no guest. e.g. --extract /lib/crt0.o crt0.o\n");
     printf("  --telnet[=<port>] [<n>]  Serve terminals over TCP/telnet (default port 5000).\n");
     printf("                           <n> limits how many guest ttys are offered, in the\n");
     printf("                           order console, tty01, tty02, tty81 (default: all 4).\n");
@@ -281,6 +284,10 @@ int main(int argc, char** argv) {
     int telnet_port = 0;   /* >0: serve terminals over TCP/telnet */
     int telnet_ttys = 0;   /* how many guest ttys to offer; 0 = all of them */
     const char* ndix_image = NULL;   /* --ndix root disk image */
+    /* --extract <path-in-image> <host-file>: copy one file out of the image and
+     * exit, without booting anything. */
+    const char* extract_guest = NULL;
+    const char* extract_host  = NULL;
     const char* ndix_kernel = NULL;  /* --kernel override */
     const char* sintran_root_opt = NULL;  /* --sintran-root as typed */
     char sintran_root_buf[512];           /* backs sintran_root_opt if '~' expanded */
@@ -369,6 +376,9 @@ int main(int argc, char** argv) {
             if (telnet_port <= 0) telnet_port = 5000;
         } else if (strcmp(argv[i], "--ndix") == 0 && i + 1 < argc) {
             ndix_image = argv[++i];
+        } else if (strcmp(argv[i], "--extract") == 0 && i + 2 < argc) {
+            extract_guest = argv[++i];
+            extract_host  = argv[++i];
         } else if (strcmp(argv[i], "--kernel") == 0 && i + 1 < argc) {
             ndix_kernel = argv[++i];
         } else if (strcmp(argv[i], "--run") == 0) {
@@ -395,6 +405,52 @@ int main(int argc, char** argv) {
      * the kernel directory. Must run BEFORE the machine is built and before
      * anything reads ND500X_*. It implies the debugger REPL, which is what
      * drives the boot script and carries console input. */
+    /* --extract: pull one file out of the disk image and stop. No machine, no
+     * boot, no guest.
+     *
+     * The emulator has always been able to do this - it is how the kernel is
+     * taken out of /vmunix at startup (extract_kernel() in nd500x_ndix.c) - but
+     * the ability was not reachable from outside. That mattered: /lib/crt0.o
+     * and /lib/libc.a exist ONLY inside the image, so rebuilding any part of
+     * the userland meant first booting the guest and reading them out through a
+     * terminal. One flag turns a filesystem the host could only look at into
+     * one it can take things from.
+     *
+     * Deliberately read-only: it copies out, never in. */
+    if (extract_guest) {
+        long n = 0;
+        const char* why = "";
+        uint8_t* data;
+        FILE* out;
+
+        if (!ndix_image) {
+            fprintf(stderr, "error: --extract needs --ndix <image> as well\n");
+            return 1;
+        }
+        data = ndix_ffs_read_file(ndix_image, extract_guest, &n, &why);
+        if (!data) {
+            fprintf(stderr, "error: cannot read %s from %s: %s\n",
+                    extract_guest, ndix_image, why && why[0] ? why : "not found");
+            return 1;
+        }
+        out = fopen(extract_host, "wb");
+        if (!out) {
+            perror(extract_host);
+            free(data);
+            return 1;
+        }
+        if (n > 0 && fwrite(data, 1, (size_t)n, out) != (size_t)n) {
+            perror(extract_host);
+            fclose(out);
+            free(data);
+            return 1;
+        }
+        fclose(out);
+        free(data);
+        printf("extracted %s -> %s (%ld bytes)\n", extract_guest, extract_host, n);
+        return 0;
+    }
+
     char ndix_load_cmd[PATH_MAX + 8];
     if (ndix_image) {
         if (nd500x_ndix_setup(ndix_image, ndix_kernel, sintran_root_opt,
