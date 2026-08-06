@@ -17,6 +17,9 @@
 #include "../../debugger/commands.h"
 #include "nd500x_shell.h"
 #include "nd500x_ndix.h"
+/* nd500_fecall_local_unit() - which guest tty this window is attached to, so
+ * the telnet server can be told not to offer that one. */
+#include "../../cpu/nd500_fecall.h"
 #include "ndix_menu.h"
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
