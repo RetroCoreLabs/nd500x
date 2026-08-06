@@ -12,6 +12,9 @@
 /* Raw terminal mode and the timed stdin wait used to be termios + select here.
  * Both live behind nd_tty.h now, because neither header exists on Windows. */
 #include "nd_tty.h"
+/* nd500_ndix_guest_exited() - tells a clean guest shutdown apart from the
+ * machine merely having stopped. */
+#include "../cpu/nd500_fecall.h"
 #ifdef HAVE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -494,6 +497,14 @@ int nd500_debugger_repl(Nd500Machine* m) {
 			int alive = guest_passthrough(m, &want_debugger);
 			if (alive < 0)
 				break;          /* F12 menu: Exit NDIX - end the session */
+			/* The guest shut ITSELF down (F12 -> 2, or halt/reboot typed
+			 * inside NDIX): boot() synced the disks and reached FE_EXIT.
+			 * There is nothing left to debug, so end the session instead of
+			 * dropping the user at a debugger prompt they did not ask for.
+			 * A breakpoint or trap also clears run_flag, and for those the
+			 * prompt IS wanted - hence the more specific test. */
+			if (nd500_ndix_guest_exited())
+				break;
 			if (alive && !want_debugger)
 				continue;       /* machine stopped - loop and re-evaluate */
 			to_guest = 0;       /* Ctrl-] or EOF: this read is the debugger's */

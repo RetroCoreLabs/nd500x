@@ -54,6 +54,15 @@ int  nd500_ndix_request_halt(uint32_t boot_addr, uint32_t syscall_addr);
 /* Non-zero while a halt is armed and has not fired yet. */
 int  nd500_ndix_halt_pending(void);
 
+/* Non-zero once the guest has shut ITSELF down - it reached FE_EXIT, so the
+ * kernel's boot() finished syncing and halted.
+ *
+ * This is deliberately different from "the machine is not running". A
+ * breakpoint, a trap or an F12 "exit now" all clear run_flag too, and after
+ * those the debugger prompt is exactly what is wanted. After a clean shutdown
+ * it is not: there is no longer a guest to debug, and the session should end. */
+int  nd500_ndix_guest_exited(void);
+
 /* Called from the disk-write path so a pending shutdown can tell when the
  * flush it asked for has actually finished. */
 void nd500_ndix_halt_note_write(void);

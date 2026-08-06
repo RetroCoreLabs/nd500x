@@ -48,6 +48,7 @@ typedef struct {
 #ifdef _WIN32
     DWORD in_mode;              /* console input mode as found */
     DWORD out_mode;             /* console output mode as found */
+    int   stdin_fmode;          /* CRT translation mode of fd 0, to restore */
 #else
     struct termios t;
 #endif

@@ -8,7 +8,8 @@
 #include <string.h>
 
 #ifdef _WIN32
-#  include <io.h>          /* _isatty, _read */
+#  include <io.h>          /* _isatty, _read, _setmode */
+#  include <fcntl.h>       /* _O_BINARY, _O_TEXT */
 #  include <windows.h>
 #else
 #  include <unistd.h>
@@ -34,6 +35,26 @@
 static HANDLE tty_in(void)  { return GetStdHandle(STD_INPUT_HANDLE); }
 static HANDLE tty_out(void) { return GetStdHandle(STD_OUTPUT_HANDLE); }
 
+/* Is this key one that produces no input bytes at all, however it is pressed?
+ *
+ * Pressing Shift on its own queues a key-down record but yields nothing to
+ * read, so treating it as "input is available" would send the caller into a
+ * read() that blocks until the user types something real. Every other key does
+ * produce bytes in virtual-terminal input mode, including the function and
+ * cursor keys, which arrive as ANSI escape sequences. */
+static int is_bare_modifier(WORD vk) {
+    switch (vk) {
+        case VK_SHIFT: case VK_LSHIFT: case VK_RSHIFT:
+        case VK_CONTROL: case VK_LCONTROL: case VK_RCONTROL:
+        case VK_MENU: case VK_LMENU: case VK_RMENU:     /* Alt */
+        case VK_LWIN: case VK_RWIN: case VK_APPS:
+        case VK_CAPITAL: case VK_NUMLOCK: case VK_SCROLL:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 /* A console handle answers GetConsoleMode; a pipe or a file does not. That is a
  * sharper test than _isatty(), which also says "yes" to the NUL device. */
 static int is_console(HANDLE h) {
@@ -53,6 +74,9 @@ int nd_tty_save(nd_tty_mode* saved) {
      * changes it and restoring only the input half would leave the console in
      * a state this program created. */
     if (!GetConsoleMode(tty_out(), &saved->out_mode)) saved->out_mode = 0;
+    /* -1 means "not changed"; nd_tty_set_raw() fills this in if it switches
+     * fd 0 to binary, so nd_tty_restore() knows whether to put it back. */
+    saved->stdin_fmode = -1;
     saved->valid = 1;
     return 0;
 }
@@ -61,6 +85,7 @@ void nd_tty_restore(const nd_tty_mode* saved) {
     if (!saved || !saved->valid) return;
     SetConsoleMode(tty_in(), saved->in_mode);
     if (saved->out_mode) SetConsoleMode(tty_out(), saved->out_mode);
+    if (saved->stdin_fmode != -1) _setmode(0, saved->stdin_fmode);
 }
 
 void nd_tty_flush_input(void) {
@@ -71,6 +96,26 @@ void nd_tty_flush_input(void) {
 int nd_tty_set_raw(const nd_tty_mode* base, int pass_signals) {
     DWORD mode;
     if (!base || !base->valid) return -1;
+
+    /* Put fd 0 in BINARY mode. The CRT opens it in TEXT mode, where _read()
+     * rewrites the byte stream on its way through, and raw mode means raw:
+     *
+     *   - CR LF is folded to a single LF, and a lone CR - which is exactly what
+     *     the console sends for Enter - can be held back waiting to see whether
+     *     an LF follows. That is the measured "the first Enter does nothing,
+     *     press it twice" symptom.
+     *   - Ctrl-Z (0x1A) is taken as END OF FILE and ends input for good. The
+     *     guest wants that byte; NDIX has its own meaning for it.
+     *
+     * The cast away from const is deliberate and confined to this one field:
+     * the mode has to be recorded somewhere nd_tty_restore() can find it, and
+     * *base is the state that call is given. */
+    {
+        int prev = _setmode(0, _O_BINARY);
+        if (prev != -1 && prev != _O_BINARY)
+            ((nd_tty_mode*)base)->stdin_fmode = prev;
+    }
+
     mode = base->in_mode;
 
     /* ENABLE_LINE_INPUT is the console's line editor: without clearing it,
@@ -134,24 +179,35 @@ int nd_tty_wait_readable(int timeout_ms) {
             default:            return -1;
         }
 
-        /* The handle is signalled by ANY input record, including key-UP events,
-         * which produce no bytes. Reporting readable on one of those would send
-         * the caller into a read() that blocks past its timeout. So look before
-         * answering: only a key-down that carries a character counts. */
+        /* The handle is signalled by ANY input record, including key-UP and
+         * focus events, which produce no bytes. Reporting readable on one of
+         * those would send the caller into a read() that blocks past its
+         * timeout. So look before answering.
+         *
+         * ANY key-down counts, not only one carrying a character. In virtual-
+         * terminal input mode the console turns keys that have no character -
+         * F1..F12, the arrows, Home/End/PgUp/PgDn - into ANSI escape sequences,
+         * so those DO produce bytes for the read that follows. Testing
+         * uChar.AsciiChar != 0 rejected exactly those keys, and the discard
+         * below then ate them: F12 and the arrow keys were swallowed before
+         * anything could see them.
+         *
+         * A key-down with a live modifier and no character (Shift alone, Ctrl
+         * alone) still produces nothing; the discard handles those. */
         if (!PeekConsoleInput(h, recs, (DWORD)(sizeof recs / sizeof recs[0]), &n))
             return -1;
         if (n == 0) continue;
 
         for (i = 0; i < n; i++) {
-            if (recs[i].EventType == KEY_EVENT
-                && recs[i].Event.KeyEvent.bKeyDown
-                && recs[i].Event.KeyEvent.uChar.AsciiChar != 0)
+            if (recs[i].EventType == KEY_EVENT && recs[i].Event.KeyEvent.bKeyDown)
                 return 1;
         }
 
-        /* Nothing readable in the queue. Drop one record so the wait cannot
-         * spin on the same event forever, then go round again on what is left
-         * of the timeout. */
+        /* Nothing readable in the queue - only key-ups and window events. Drop
+         * ONE record so the wait cannot spin on the same event forever, then go
+         * round again on what is left of the timeout.
+         *
+         * The scan above guarantees this never discards a key-down. */
         {
             INPUT_RECORD discard;
             DWORD got = 0;

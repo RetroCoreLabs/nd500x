@@ -960,6 +960,15 @@ static int      g_halt_phase        = HALT_OFF;
 static long     g_halt_start_ms     = 0;
 static long     g_halt_last_write_ms = 0;
 
+/* Set once the guest has shut ITSELF down through FE_EXIT, as opposed to the
+ * machine merely being stopped (a breakpoint, a trap, an F12 "exit now"). The
+ * REPL uses it to end the session instead of presenting a debugger prompt. */
+static int      g_guest_exited      = 0;
+
+int nd500_ndix_guest_exited(void) {
+    return g_guest_exited;
+}
+
 static long halt_now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -1783,6 +1792,12 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             printf("\r\n[ndix] guest halted, disk image is consistent\r\n");
             fflush(stdout);
             if (cpu->machine) cpu->machine->run_flag = 0;
+            /* Stopping the CPU is not enough on its own: the REPL simply
+             * notices run_flag has gone and offers its own prompt, so a
+             * deliberate shutdown left the user sitting in the ND-500 debugger
+             * instead of back at their shell. This says WHY the machine
+             * stopped, so the REPL can end the session rather than take over. */
+            g_guest_exited = 1;
             break;
         }
         case FE_ERRM: {
