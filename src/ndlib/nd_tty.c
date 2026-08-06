@@ -217,8 +217,32 @@ int nd_tty_wait_readable(int timeout_ms) {
 }
 
 int nd_tty_read(void* buf, int max) {
+    int n;
     if (!buf || max <= 0) return -1;
-    return _read(0, buf, (unsigned int)max);
+    n = _read(0, buf, (unsigned int)max);
+
+    /* Translate CR to LF - the Windows stand-in for termios ICRNL.
+     *
+     * The POSIX side of this shim deliberately LEAVES ICRNL SET (see the note
+     * in nd_tty_set_raw), so on Linux the guest receives 0x0A when Enter is
+     * pressed. Windows has no such flag: in virtual-terminal input mode Enter
+     * arrives as a bare 0x0D, and binary mode - which is required, or the CRT
+     * mangles the stream in worse ways - hands that straight through.
+     *
+     * The guest therefore saw a different byte for the same key on the two
+     * platforms, and NDIX's line discipline did not treat it as end of line:
+     * measured as "Enter does nothing, it takes several presses". Doing the
+     * translation here keeps raw mode meaning the same thing everywhere.
+     *
+     * Nothing else is affected: the escape sequences the function and cursor
+     * keys produce contain no CR. */
+    if (n > 0) {
+        unsigned char* p = (unsigned char*)buf;
+        int i;
+        for (i = 0; i < n; i++)
+            if (p[i] == '\r') p[i] = '\n';
+    }
+    return n;
 }
 
 void nd_tty_enable_ansi_output(void) {
