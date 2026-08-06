@@ -85,10 +85,30 @@ static int read_key(void) {
  * 45-wide box. Formatting into a buffer and printing it with a single %-*s
  * makes every row the same width by construction, and a row that grows too long
  * is truncated rather than pushing the border out. */
-#define MENU_W 43   /* text columns between "| " and " |" */
+/* Text columns between "| " and " |".
+ *
+ * Wide enough for the longest row that can occur, which is a tty line with
+ * everything true at once:
+ *
+ *   " 1. console  (unit  0) operator <- local [255.255.255.255]"
+ *    \__________/\________/\_______/\_______/\________________/
+ *      4 + 8       10        9        9          18            = 58
+ *
+ * The box used to be 43, sized for the days when it held nothing but a name.
+ * A real address on a LAN - 192.168.1.18 - ran off the end and was truncated
+ * mid-number, which is worse than not showing it: a half-printed IP looks like
+ * a different machine. 15 characters is the widest an IPv4 address gets
+ * (255.255.255.255), and utmp names are up to 8, so this leaves both room. */
+#define MENU_W 62
 
+/* The border is DERIVED from MENU_W rather than written out as a literal row
+ * of dashes. The two used to be independent, which is how the box came to be
+ * drawn 45 wide while its rows were 43 and 46. */
 static void rule(void) {
-    printf("+---------------------------------------------+\r\n");
+    int i;
+    putchar('+');
+    for (i = 0; i < MENU_W + 2; i++) putchar('-');
+    printf("+\r\n");
 }
 
 /* One row of the box: "| <text padded to MENU_W> |". */
@@ -164,10 +184,12 @@ static void console_menu(void) {
             note[0] = '\0';
             n = 0;
 
+            /* 8 columns: utmp's ut_name field is 8 wide, so that is the widest
+             * a user name can be. */
             if (nd500x_ndix_utmp_user(MENU_TTYS[i].name, user, (int)sizeof user) == 0)
-                n += (size_t)snprintf(note + n, sizeof note - n, " %s", user);
+                n += (size_t)snprintf(note + n, sizeof note - n, " %-8s", user);
             else
-                n += (size_t)snprintf(note + n, sizeof note - n, " %-6s", "-");
+                n += (size_t)snprintf(note + n, sizeof note - n, " %-8s", "-");
 
             if (MENU_TTYS[i].unit == cur)
                 n += (size_t)snprintf(note + n, sizeof note - n, " <- local");
