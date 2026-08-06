@@ -207,21 +207,56 @@ static void console_menu(void) {
         }
 
         if (k == 'd' || k == 'D') {
+            int nconn = 0;
+
             if (!nd500x_ndix_telnet_active()) {
-                printf("[menu] the telnet server is not running\r\n");
+                printf("[menu] the telnet server is not running - press T to "
+                       "start it\r\n");
                 fflush(stdout);
                 continue;
             }
-            printf("disconnect which terminal (1-%d, 0 to cancel)? ", MENU_TTY_COUNT);
+
+            /* Show only the lines that actually have a client, and say plainly
+             * when there are none. Asking "which terminal (1-9)?" when nobody
+             * is connected invites picking one and being told it had no client
+             * - a question that should never have been asked. */
+            for (i = 0; i < MENU_TTY_COUNT; i++)
+                if (nd500x_ndix_telnet_in_use(i)) nconn++;
+
+            if (nconn == 0) {
+                printf("[menu] nobody is connected - nothing to disconnect\r\n");
+                fflush(stdout);
+                continue;
+            }
+
+            banner("Connected telnet clients");
+            for (i = 0; i < MENU_TTY_COUNT; i++) {
+                char addr[64];
+                const char* name = NULL;
+                int conn = 0;
+                if (!nd500x_ndix_telnet_in_use(i)) continue;
+                nd500x_ndix_telnet_info(i, &name, &conn, addr, (int)sizeof addr);
+                /* Same numbers as the terminal list above, so a line keeps one
+                 * number wherever it is shown. */
+                row(" %d. %-8s %s", i + 1, MENU_TTYS[i].name,
+                    addr[0] ? addr : "(client attached)");
+            }
+            row(" 0. Cancel");
+            rule();
+            printf("disconnect which? ");
             fflush(stdout);
+
             k = read_key();
             printf("\r\n");
             if (k >= '1' && k < '1' + MENU_TTY_COUNT) {
                 int idx = k - '1';
-                if (nd500x_ndix_telnet_disconnect(idx) == 0)
-                    printf("[menu] %s disconnected\r\n", MENU_TTYS[idx].name);
+                if (!nd500x_ndix_telnet_in_use(idx))
+                    printf("[menu] %s has no telnet client\r\n", MENU_TTYS[idx].name);
+                else if (nd500x_ndix_telnet_disconnect(idx) == 0)
+                    printf("[menu] %s disconnected and logged out - it will "
+                           "come back at a login prompt\r\n", MENU_TTYS[idx].name);
                 else
-                    printf("[menu] %s had no telnet client\r\n", MENU_TTYS[idx].name);
+                    printf("[menu] could not disconnect %s\r\n", MENU_TTYS[idx].name);
             }
             fflush(stdout);
             continue;

@@ -76,9 +76,14 @@ int nd500x_ndix_telnet_count(void);
 int nd500x_ndix_telnet_info(int idx, const char** name, int* connected,
                             char* addr, int addrlen);
 
-/* Hang up whatever client holds terminal <idx>. Returns 0 if one was
- * disconnected, -1 otherwise. The GUEST side is untouched: the line stays
- * logged in, exactly as unplugging a real terminal would leave it. */
+/* Hang up whatever client holds terminal <idx>, AND log the guest session on
+ * that line out, so the next person to take it gets a login prompt rather than
+ * somebody else's shell. Returns 0 if a client was disconnected, -1 otherwise.
+ *
+ * The logout is done by sending INTR then EOF to the line, because a carrier
+ * drop - what real hardware uses - is ignored on a soft-carrier line, which
+ * every local tty is. See the implementation for the driver code that says so,
+ * and for what this therefore cannot dislodge. */
 int nd500x_ndix_telnet_disconnect(int idx);
 
 /* Clients that have connected but not yet chosen a terminal from the menu. */

@@ -735,7 +735,38 @@ int nd500x_ndix_telnet_info(int idx, const char** name, int* connected,
 
 int nd500x_ndix_telnet_disconnect(int idx) {
     if (!g_server) return -1;
-    return TelnetServer_DisconnectTerminal(g_server, idx) ? 0 : -1;
+    if (!TelnetServer_DisconnectTerminal(g_server, idx)) return -1;
+
+    /* Log the guest session out too, so the next person to take this line gets
+     * a login prompt rather than somebody else's shell.
+     *
+     * A carrier drop cannot do it. That is the mechanism real hardware uses -
+     * io/mx.c:668-687 turns CARRIER_DOWN into gsignal(SIGHUP) - but only on a
+     * HARD-carrier line. Every local tty is soft carrier (mxsoftCAR[] is 1 for
+     * minors 0-128), and the same code says what happens there:
+     *
+     *     if (mxsoftCAR[sub]) {
+     *         / * since we are ignoring carrier transitions
+     *           * we need to repost the read * /
+     *
+     * - the drop is ignored and the read reposted. Faithfully so: a directly
+     * wired terminal has no carrier to lose.
+     *
+     * So the session is ended from the keyboard side instead, exactly as a
+     * person leaving would: interrupt whatever is running, then send
+     * end-of-file. INTR is CTRL-C and EOF is CTRL-D (kernel/MASTER/h/
+     * ttychars.h: CINTR = CTRL(c), CEOF = CTRL(d)). The shell exits, init
+     * respawns getty, and the line comes back at "login:".
+     *
+     * Limits, stated rather than papered over: a program that ignores SIGINT
+     * and does not read stdin will not be dislodged by this, and neither will a
+     * line whose owner has turned INTR off with stty. There is no stronger
+     * lever available from outside the guest on a soft-carrier line. */
+    if (idx >= 0 && idx < NDIX_TTY_COUNT) {
+        static const char logout_seq[] = { 0x03, 0x04 };   /* CTRL-C, CTRL-D */
+        nd500_fecall_tty_input(g_ttys[idx].unit, logout_seq, (int)sizeof logout_seq);
+    }
+    return 0;
 }
 
 int nd500x_ndix_telnet_pending(void) {
