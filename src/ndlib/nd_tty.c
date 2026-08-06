@@ -36,6 +36,10 @@
 static HANDLE tty_in(void)  { return GetStdHandle(STD_INPUT_HANDLE); }
 static HANDLE tty_out(void) { return GetStdHandle(STD_OUTPUT_HANDLE); }
 
+/* Defined further down, next to the read path it mostly serves; declared here
+ * because nd_tty_set_raw() reports the console modes under the same flag. */
+static int keylog_on(void);
+
 /* Is this key one that produces no input bytes at all, however it is pressed?
  *
  * Pressing Shift on its own queues a key-down record but yields nothing to
@@ -143,6 +147,22 @@ int nd_tty_set_raw(const nd_tty_mode* base, int pass_signals) {
 
     if (!SetConsoleMode(tty_in(), mode)) return -1;
     nd_tty_enable_ansi_output();
+
+    /* Under ND500X_KEYLOG, report the console modes actually in force. The
+     * guest erases a character by sending BS then ESC [ K, so whether
+     * ENABLE_VIRTUAL_TERMINAL_PROCESSING (0x0004) survived on the OUTPUT
+     * handle decides whether that erase is visible or silently ignored. */
+    if (keylog_on()) {
+        DWORD in_now = 0, out_now = 0;
+        GetConsoleMode(tty_in(), &in_now);
+        GetConsoleMode(tty_out(), &out_now);
+        fprintf(stderr, "[keylog] console modes: in=0x%08lX out=0x%08lX"
+                        " (VT_INPUT=%s VT_OUTPUT=%s)\n",
+                (unsigned long)in_now, (unsigned long)out_now,
+                (in_now  & ENABLE_VIRTUAL_TERMINAL_INPUT)      ? "on" : "OFF",
+                (out_now & ENABLE_VIRTUAL_TERMINAL_PROCESSING) ? "on" : "OFF");
+        fflush(stderr);
+    }
     return 0;
 }
 

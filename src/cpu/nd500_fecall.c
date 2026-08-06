@@ -1144,6 +1144,22 @@ static void fe_tty_out(int unit, const unsigned char* buf, int len) {
      * unit 0 for ever: that is what makes the F12 virtual-console switch work. */
     if (unit == g_local_unit) {
         int i;
+        /* ND500X_KEYLOG also dumps guest OUTPUT, because half of a terminal
+         * question is what the guest sent, not just what the user typed. An
+         * erase, for instance, leaves the guest as BS then ESC [ K - seeing
+         * those bytes leave here separates "the guest never sent it" from "the
+         * terminal ignored it". */
+        static int outlog = -1;
+        if (outlog < 0) {
+            const char* e = getenv("ND500X_KEYLOG");
+            outlog = (e && e[0] && e[0] != '0') ? 1 : 0;
+        }
+        if (outlog) {
+            fprintf(stderr, "[keylog] out %d:", len);
+            for (i = 0; i < len; i++) fprintf(stderr, " %02X", buf[i]);
+            fputc('\n', stderr);
+            fflush(stderr);
+        }
         for (i = 0; i < len; i++) putchar((int)buf[i]);
         fflush(stdout);
     } else if (!fn) {
