@@ -307,8 +307,32 @@ typedef struct Nd500Cpu {
 #define TRAP_STU  (1ULL << 28)  /* Stack Underflow */
 #define TRAP_PRT  (1ULL << 29)  /* Programmed Trap */
 
-/* Mask for ignorable traps only (bits 11-29) */
-#define TRAP_IGNORABLE_MASK 0x3FFFF800ULL
+/* Mask for ignorable traps only: bits 9 and 11-29. Bit 10 is undefined.
+ *
+ * This used to be 0x3FFFF800 - bits 11-29 - which left OVERFLOW(9) out, so the
+ * overflow trap could never be dispatched no matter who enabled it. Eighteen
+ * instructions set the O status bit and not one of them could ever reach a
+ * handler.
+ *
+ * Bit 9 belongs here on two independent authorities:
+ *   - ND-05.009.4 ND-500 Reference Manual, Table 7 "Data status bits": O is
+ *     bit 9, and "The Z, C, and S status bits have no corresponding trap
+ *     conditions... All other data status bits are ignorable trap conditions."
+ *   - ND-860289-2 Linker manual, SET-TRAP-CONDITION: the ignorable list opens
+ *     with "9D OVERFLOW" and the non-ignorable list starts at 30D.
+ * docs/ND-500-TRAPS.md in this repo already said 9-29; only the code disagreed.
+ * TRAP_AFTER_MASK below has always included bit 9, so the two were out of step.
+ *
+ * NDIX is unaffected either way: it arms neither bit 9 nor anything else below
+ * 11 (machine/trap.h T_CMTE1 = 0xf413d800), and a child cannot add bits of its
+ * own (T_CTEMM1 = 0). This matters for ND-500 programs under SINTRAN, where
+ * SET-TRAP-CONDITION OVERFLOW is a documented and supported thing to do.
+ *
+ * Bits 30 (DT) and 31 (DE) are deliberately NOT here - the manual classes them
+ * non-ignorable, and NDIX enables both. Adding them to this mask would make
+ * them misfire. They have no generator in the emulator yet (SOLO/TUTTI is a
+ * stub), so nothing is currently being dropped on their account. */
+#define TRAP_IGNORABLE_MASK 0x3FFFFA00ULL
 
 /* Traps handled AFTER the instruction completes (manual ND-05.009.4 Table 10,
  * "Status bits survey", column B/D/A): O(9), IVO..CT(11-19), ATF..AZ(21-24),

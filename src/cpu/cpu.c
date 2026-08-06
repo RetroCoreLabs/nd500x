@@ -1371,8 +1371,14 @@ void check_pending_traps(Nd500Cpu* cpu, uint32_t trappingPC) {
 	uint64_t pending = st_ign & (ote | mte);
 
 	if (pending != 0) {
-		/* Find highest priority trap (highest bit number) */
-		for (int bit = 29; bit >= 11; bit--) {
+		/* Find highest priority trap (highest bit number).
+		 *
+		 * Down to 9, not 11: OVERFLOW is bit 9 and is an ignorable trap
+		 * condition (see TRAP_IGNORABLE_MASK in cpu_protos.h for the manual
+		 * references). Stopping at 11 meant an enabled overflow trap was
+		 * masked in, matched as pending, and then never dispatched. Bit 10 is
+		 * undefined and is absent from the mask, so it can never be pending. */
+		for (int bit = 29; bit >= 9; bit--) {
 			uint64_t trapBit = 1ULL << bit;
 			if (pending & trapBit) {
 				/* MTE-delegated traps are handled by the MOTHER domain, so switch
