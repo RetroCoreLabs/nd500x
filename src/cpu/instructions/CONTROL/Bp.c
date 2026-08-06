@@ -2,6 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>   /* getenv - the ND500X_BPDBG gate below */
 
 /**
  * Bp instruction - CONTROL class
