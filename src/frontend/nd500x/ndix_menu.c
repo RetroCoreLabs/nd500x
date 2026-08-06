@@ -107,7 +107,8 @@ NdixMenuResult ndix_menu_run(struct Nd500Machine* m) {
 
     banner("nd500x - NDIX");
     printf("|  1. Virtual consoles                        |\r\n");
-    printf("|  2. Exit NDIX                               |\r\n");
+    printf("|  2. Shut down NDIX (sync, then halt)        |\r\n");
+    printf("|  3. Exit now, WITHOUT syncing               |\r\n");
     printf("|  0. Resume NDIX                             |\r\n");
     printf("+---------------------------------------------+\r\n");
     printf("choice: ");
@@ -121,11 +122,33 @@ NdixMenuResult ndix_menu_run(struct Nd500Machine* m) {
         console_menu();
         return NDIX_MENU_RESUME;
     case '2':
-        /* Stop the CPU here and let the caller unwind. Killing the process on
-         * the spot would skip the telnet server shutdown and, more to the
-         * point, leave the disk image with whatever was half-written to it -
-         * and guest writes now go straight through to that image. */
-        printf("[menu] shutting NDIX down\r\n");
+        /* The clean route. We do NOT stop the CPU here - we hand the guest to
+         * the kernel's own boot() halt path and keep running it, because the
+         * flush only happens while the CPU is still executing. The machine
+         * stops when boot() reaches feexit_fecall(), which arrives as FE_EXIT
+         * and clears run_flag there.
+         *
+         * So RESUME, not QUIT, is the correct return here even though the
+         * machine is on its way down.
+         *
+         * If the guest is wedged and never gets there, nothing is lost: press
+         * F12 again and take option 3. That is exactly why both entries exist
+         * rather than one that tries to be clever. */
+        printf("[menu] shutting NDIX down - syncing disks\r\n");
+        fflush(stdout);
+        if (nd500x_ndix_halt_guest(m) != 0) {
+            printf("[menu] clean shutdown unavailable; use 3 to exit without "
+                   "syncing (the image will need fsck)\r\n");
+            fflush(stdout);
+        }
+        return NDIX_MENU_RESUME;
+    case '3':
+        /* The escape hatch, and the old behaviour of option 2. Stops the CPU
+         * where it stands, so any buffer the guest had not written is lost and
+         * the filesystem is left dirty - "/etc/fsck -y /dev/rdi0a" repairs it.
+         * Still unwinds through the caller rather than exiting on the spot, so
+         * the telnet server is stopped and the image is closed properly. */
+        printf("[menu] exiting WITHOUT syncing - the image will need fsck\r\n");
         fflush(stdout);
         if (m) m->run_flag = 0;
         return NDIX_MENU_QUIT;

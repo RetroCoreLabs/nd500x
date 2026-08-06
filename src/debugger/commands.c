@@ -13,6 +13,7 @@
 #include "../cpu/nd500_phys_alloc.h"
 #include "../cpu/nd500_domain.h"
 #include "../cpu/instruction_helpers.h"
+#include "../cpu/nd500_fecall.h"
 #include <ndmon/mon.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_config.h>
@@ -120,6 +121,7 @@ static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_map_kdata(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_ndix_uarea(Nd500Machine* m, CmdContext* ctx, char* args);
+static int cmd_ndix_halt(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args);
 static int cmd_dumppt(Nd500Machine* m, CmdContext* ctx, char* args);
@@ -198,6 +200,7 @@ static const CmdEntry g_commands[] = {
 	{"mmusetup",    cmd_mmusetup,     "Setup demo MMU configuration"},
 	{"map-kdata",   cmd_map_kdata,    "Describe kernel data seg 0 in the guest PST/DIT (for kernacc)"},
 	{"ndix-uarea",  cmd_ndix_uarea,   "Build proc0's kernel-stack/u-area segment (the ND-100's job)"},
+	{"ndix-halt",   cmd_ndix_halt,    "Shut the NDIX guest down cleanly (sync via the kernel's boot())"},
 	{"listpst",     cmd_listpst,      "List configured PST entries"},
 	{"listpcb",     cmd_listpcb,      "List configured PCB domains"},
 	{"dumppt",      cmd_dumppt,       "Dump page table entries for PSN"},
@@ -3134,6 +3137,77 @@ static int cmd_ndix_uarea(Nd500Machine* m, CmdContext* ctx, char* args) {
 	       "0x%08X, %u u-area pages at 0x%08X..0x%08X, DIT cap 0x%04X\n",
 	       NDIX_KSTACK_SEG, psn, pt_phys, NDIX_UPAGES, uarea_phys,
 	       uarea_phys + (NDIX_UPAGES << PGSHIFT) - 1, cap);
+	return 0;
+}
+
+/*
+ * ndix-halt - shut the NDIX guest down cleanly.
+ *
+ * NDIX is a 4.3BSD: the disk image is only consistent once the kernel has
+ * flushed its buffer cache. Simply clearing run_flag strands every dirty buffer
+ * in emulator RAM, and the next boot comes up on a filesystem fsck has to
+ * repair - "ialloc: dup alloc" and "free: freeing free frag" were both
+ * reproduced exactly that way. The shipped image has no /etc/halt, /etc/shutdown
+ * and no update daemon, so there is nothing inside the guest to ask.
+ *
+ * So we do what a panic already does and call the kernel's own boot():
+ * machine/machdep.c:985 boot(how, kernel, rdev, cdev) calls update() twice,
+ * prints "syncing disks... done", and with RB_BOOT clear takes the HALT branch,
+ * ending in feexit_fecall(). That arrives as FE_EXIT (0xb) in nd500_fecall.c,
+ * which clears run_flag - so the caller must keep RUNNING the machine after
+ * this command; the stop comes from the guest, not from here.
+ *
+ * how = 0 means sync (RB_NOSYNC clear) and halt (RB_BOOT clear).
+ *
+ * The calling convention was read off a real call site rather than assumed. At
+ * text 0x37FA9, trap.c's boot(RB_BOOT|RB_SAMECON|RB_SAMEROOT,0,0,0) compiles to
+ *     w move #3073,b.92     ; arg0 'how'  (3073 = 0x0C01, matching the source)
+ *     w stz  b.96           ; arg1 kernel
+ *     w stz  b.100          ; arg2 rdev
+ *     w stz  b.104          ; arg3 cdev
+ *     call   $226068,$0     ; _boot, with ZERO call-arguments
+ * and _boot's prologue reads 'how' at b.20 after `ents #56'.
+ *
+ * Note the "$0": PCC-500 does NOT use the CALL argument mechanism here. ENTS
+ * copies pending_call_arg_addresses to newB+20 only when the count is non-zero,
+ * so with zero the caller is free to put argument VALUES at newB+20 itself,
+ * which is exactly what those four stores do.
+ *
+ * newB is NOT "B + 72". Ents.c:80 reads it out of the old frame's SP field,
+ * newB = [B+8], so the 92 in the disassembly is that particular caller's frame
+ * size plus 20 and means nothing anywhere else. We compute it the same way the
+ * instruction does. Getting this wrong writes the arguments into a random part
+ * of the interrupted frame.
+ *
+ * Setting PC alone is not enough either: ENTS refuses to run unless a CALL
+ * preceded it (Ents.c:53, "Must be preceded by CALL/CALLG"), so we set the same
+ * interlock state Call.c does - pending_call_return_address, the arg count, and
+ * L. Skipping that produced an ISE trap and a "panic: swtch" instead of a
+ * shutdown.
+ */
+static int cmd_ndix_halt(Nd500Machine* m, CmdContext* ctx, char* args) {
+	uint32_t boot_addr = 0, syscall_addr = 0;
+
+	(void)args;
+	if (!m || !m->cpu) {
+		error(ctx, "no machine or cpu");
+		return -1;
+	}
+	if (ndlib_symbols_lookup("_boot", &boot_addr, NULL) != 0 || boot_addr == 0) {
+		error(ctx, "ndix-halt: symbol _boot not found - cannot shut down cleanly");
+		return -1;
+	}
+	if (ndlib_symbols_lookup("_syscall", &syscall_addr, NULL) != 0 || syscall_addr == 0) {
+		error(ctx, "ndix-halt: symbol _syscall not found - no safe point to halt at");
+		return -1;
+	}
+	if (nd500_ndix_request_halt(boot_addr, syscall_addr) != 0) {
+		error(ctx, "ndix-halt: could not arm the shutdown");
+		return -1;
+	}
+
+	output(ctx, "ndix-halt: shutdown armed - _boot 0x%08X will be called at the "
+	            "next syscall (0x%08X)", boot_addr, syscall_addr);
 	return 0;
 }
 

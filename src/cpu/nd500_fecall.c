@@ -915,6 +915,144 @@ void nd500_fecall_console_input(const char* buf, int len) {
     nd500_fecall_tty_input(g_local_unit, buf, len);
 }
 
+/* ---- deferred clean shutdown --------------------------------------------
+ *
+ * See nd500_fecall.h for why the halt cannot simply be injected on the spot.
+ * The short version: boot() sleeps, and sleep() panics unless the current
+ * process is SRUN, which an idle shell is not.
+ *
+ * The safe point is the _syscall dispatcher. A process only arrives there by
+ * trapping in from user mode, so at that instruction the kernel domain is
+ * current AND the process is running - both preconditions hold by construction
+ * rather than by luck.
+ *
+ * Arming also types "sync" at the console, for two reasons.
+ *
+ * The first is that an idle guest issues no syscalls at all, so without input
+ * the halt would sit armed forever waiting for a safe point.
+ *
+ * The second is that boot()'s OWN flush does not finish here. It calls update()
+ * twice and then busy-polls B_BUSY twenty times with DELAY(1) at spl3; measured
+ * under nd500x that loop ends with 7 buffers still busy, prints "done" anyway,
+ * and the resulting image STILL fails fsck ("free: freeing free frag" on the
+ * next boot). A plain sync(2) from the shell drains completely - the same image
+ * then passes fsck with no errors at all, even after a hard kill. So the real
+ * flush is done by sync through the normal syscall path, and boot() afterwards
+ * provides the orderly halt on top of an already-consistent filesystem.
+ *
+ * Hence the phases: type sync, wait for the disk to go quiet, then arm the
+ * injection. If no shell is at the prompt the sync types a stray word and
+ * flushes nothing - which is what fsck at boot is there to cover. */
+#define HALT_QUIET_MS   400     /* no disk write for this long = drained */
+#define HALT_MIN_MS    1200     /* never judge "quiet" before sync can have run */
+#define HALT_MAX_MS   15000     /* give up waiting and halt regardless */
+
+enum {
+    HALT_OFF = 0,
+    HALT_SYNCING,       /* sync typed; waiting for writes to stop */
+    HALT_ARMED,         /* waiting to reach the syscall dispatcher */
+    HALT_AT_SAFE_POINT  /* dispatcher's ENTS done; inject on this step */
+};
+
+static uint32_t g_halt_boot_addr    = 0;
+static uint32_t g_halt_syscall_addr = 0;
+static int      g_halt_phase        = HALT_OFF;
+static long     g_halt_start_ms     = 0;
+static long     g_halt_last_write_ms = 0;
+
+static long halt_now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long)(ts.tv_sec * 1000L + ts.tv_nsec / 1000000L);
+}
+
+/* Called from the FE_WRIT path so "quiet" means what it says. */
+void nd500_ndix_halt_note_write(void) {
+    if (g_halt_phase == HALT_SYNCING) g_halt_last_write_ms = halt_now_ms();
+}
+
+int nd500_ndix_request_halt(uint32_t boot_addr, uint32_t syscall_addr) {
+    if (boot_addr == 0 || syscall_addr == 0) return -1;
+    g_halt_boot_addr     = boot_addr;
+    g_halt_syscall_addr  = syscall_addr;
+    g_halt_start_ms      = halt_now_ms();
+    g_halt_last_write_ms = g_halt_start_ms;
+    g_halt_phase         = HALT_SYNCING;
+    /* A leading newline finishes any half-typed line before "sync". */
+    nd500_fecall_tty_input(g_local_unit, "\nsync\n", 6);
+    return 0;
+}
+
+int nd500_ndix_halt_pending(void) { return g_halt_phase != HALT_OFF; }
+
+void nd500_ndix_halt_check(Nd500Cpu* cpu, uint32_t pc) {
+    uint32_t old_b, new_b, ret;
+    int i;
+
+    if (g_halt_phase == HALT_OFF || !cpu) return;
+
+    /* Phase 1: the typed sync is doing the real flushing. Wait for the disk to
+     * go quiet before halting, because boot() will not finish the job itself. */
+    if (g_halt_phase == HALT_SYNCING) {
+        long now = halt_now_ms();
+        if (now - g_halt_start_ms < HALT_MIN_MS) return;
+        if (now - g_halt_last_write_ms < HALT_QUIET_MS &&
+            now - g_halt_start_ms      < HALT_MAX_MS) return;
+        g_halt_phase = HALT_ARMED;
+        printf("\r\n[ndix] disks quiet - halting\r\n");
+        fflush(stdout);
+        return;
+    }
+
+    /* Phase 2: we have arrived at the syscall dispatcher. Do NOT inject yet.
+     * Its first instruction is the ENTS that builds the syscall's own frame,
+     * and ENTS clears the CALL interlock as it completes - so anything we set
+     * up now would be wiped out and _boot's own ENTS would raise an ISE. Just
+     * remember that we are one instruction away from a good frame. */
+    if (g_halt_phase == HALT_ARMED) {
+        if (pc == g_halt_syscall_addr && cpu->CED == 0)
+            g_halt_phase = HALT_AT_SAFE_POINT;
+        return;
+    }
+
+    /* Phase 3: the dispatcher's ENTS has run, so B is now a fresh KERNEL frame
+     * belonging to a process that trapped in from user mode - which is exactly
+     * the context boot() needs in order to be allowed to sleep. Redirect this
+     * step to _boot; the syscall itself is simply abandoned, which is fine
+     * because the machine is going down. */
+    if (cpu->CED != 0) {                       /* not kernel any more - re-arm */
+        g_halt_phase = HALT_ARMED;
+        return;
+    }
+
+    old_b = cpu->B;
+    if (old_b == 0) { g_halt_phase = HALT_ARMED; return; }   /* no frame - retry */
+
+    /* newB comes out of the old frame's SP field, exactly as Ents.c:80 does.
+     * It is NOT a fixed offset from B. */
+    new_b = nd500_read_memory_32(cpu, old_b + 8);
+    if (new_b == 0 || new_b >= cpu->TOS) { g_halt_phase = HALT_ARMED; return; }
+
+    /* boot(0,0,0,0) - how=0 means sync and halt. PCC-500 passes these by VALUE
+     * in the callee frame at newB+20, because the call site uses `call $_boot,$0`
+     * with zero CALL-arguments (verified against the compiled call in trap.c). */
+    for (i = 0; i < 4; i++)
+        nd500_write_memory_32(cpu, new_b + 20 + (uint32_t)(i * 4), 0);
+
+    /* ENTS refuses to run unless a CALL preceded it, so set the same interlock
+     * Call.c does. boot() never returns, so the return address only ever shows
+     * up as this frame's RETA. */
+    ret = pc ? pc : g_halt_boot_addr;
+    cpu->pending_call_return_address = ret;
+    cpu->pending_call_arg_count      = 0;
+    cpu->L                           = ret;
+    cpu->PC                          = g_halt_boot_addr;
+
+    g_halt_phase = HALT_OFF;
+    printf("\r\n[ndix] shutting down: calling _boot(0,0,0,0)\r\n");
+    fflush(stdout);
+}
+
 /* ---- console OUTPUT: guest -> host sinks ---------------------------------
  * Guest tty output arrives one FE_WRIT chunk at a time on a known unit. The
  * local stdout copy is unconditional for unit 0 (so a boot log keeps working
@@ -1577,6 +1715,9 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                     for (i = 0; i < nbytes; i++)
                         fputc((int)nd500_bus_read8(cpu->machine, src_phys + i), g_disk);
                     fflush(g_disk);
+                    /* Keeps a pending shutdown from calling the disk "quiet"
+                     * while the sync it just asked for is still writing. */
+                    nd500_ndix_halt_note_write();
                 }
                 if (fedbg())
                     fprintf(stderr, "[FECALL] FE_WRIT nbytes=%u devaddr=%u img_off=0x%lX src_phys=0x%08X -> session (compl=%u)\n",
@@ -1628,7 +1769,20 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             break;
         }
         case FE_EXIT: {
+            /* The guest has finished its own shutdown. machdep.c boot() ends in
+             * feexit_fecall() once update()/sync has drained the buffer cache
+             * and it has printed "syncing disks... done", so this is the point
+             * where the disk image is consistent and the CPU has nothing left
+             * to do. Stopping here is what makes an F12 "shut down" different
+             * from an F12 "exit now": the run loop ends of its own accord and
+             * the caller unwinds normally (telnet server down, image closed).
+             *
+             * Previously this only logged, so the guest fell off the end of
+             * boot() with the emulator still spinning. */
             if (fedbg()) fprintf(stderr, "[FECALL] FE_EXIT (shutdown)\n");
+            printf("\r\n[ndix] guest halted, disk image is consistent\r\n");
+            fflush(stdout);
+            if (cpu->machine) cpu->machine->run_flag = 0;
             break;
         }
         case FE_ERRM: {

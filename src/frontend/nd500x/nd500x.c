@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <limits.h>
+#ifdef _WIN32
+/* SHGetFolderPathA / CSIDL_PERSONAL, used by expand_tilde() below. */
+#include <shlobj.h>
+#endif
 #include "../../machine/machine_protos.h"
 #include "../../cpu/cpu_protos.h"
 #include "../../cpu/nd500_mmu.h"
@@ -112,6 +116,103 @@ static char* ini_trim(char* s) {
     return s;
 }
 
+/* Where a leading "~" points on THIS platform.
+ *
+ * On Unix that is $HOME, the usual thing.
+ *
+ * On Windows it is the DOCUMENTS folder, not the user profile. That is a
+ * deliberate difference: the things a '~' path names here (SINTRAN user
+ * directories, disk images, configs) are the user's own documents, and
+ * dropping them straight into C:\Users\<name> is not where a Windows user
+ * expects to find their files.
+ *
+ * Documents is asked for through the shell API rather than built as
+ * "%USERPROFILE%\Documents", because that guess is wrong on a lot of machines.
+ * Measured on this box (2026-08-06):
+ *
+ *   HKCU\...\Explorer\User Shell Folders  Personal = C:\Users\ronny\OneDrive\Documents
+ *
+ * i.e. Documents is redirected into OneDrive, and the string-concatenation
+ * version would have pointed at a directory that is not the user's Documents
+ * folder at all. SHGetFolderPath reads that same redirection and gets it right.
+ *
+ * $HOME is NOT consulted first on Windows: under MSYS/Git-Bash it holds a POSIX
+ * path like /c/Users/ronny, which a native Windows program cannot open.
+ *
+ * Returns NULL if no directory could be determined; 'out' otherwise. SHGFP_TYPE_CURRENT
+ * asks for the path in effect now rather than the registry default. */
+static const char* platform_home_dir(char* out, size_t out_size) {
+#ifdef _WIN32
+    char docs[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_PERSONAL, NULL,
+                                   SHGFP_TYPE_CURRENT, docs))
+        && docs[0]) {
+        if ((size_t)snprintf(out, out_size, "%s", docs) < out_size) return out;
+        return NULL;                    /* longer than the caller's buffer */
+    }
+    /* Last resort if the shell API is unavailable: the profile's Documents.
+     * Wrong under folder redirection, but better than expanding to nothing. */
+    {
+        const char* prof = getenv("USERPROFILE");
+        if (prof && prof[0]
+            && (size_t)snprintf(out, out_size, "%s\\Documents", prof) < out_size)
+            return out;
+    }
+    return NULL;
+#else
+    const char* home = getenv("HOME");
+    if (!home || !home[0]) return NULL;
+    if ((size_t)snprintf(out, out_size, "%s", home) >= out_size) return NULL;
+    return out;
+#endif
+}
+
+/* Expand a leading "~/" (or a bare "~") to the user's home directory
+ * (on Windows: the Documents folder - see platform_home_dir()).
+ *
+ * The ini file is read with fopen/fgets, so no shell ever sees its values. On
+ * the command line "--sintran-root ~/ND500USERS" works only because bash
+ * expands the tilde first; written in the ini the same string arrives here
+ * literally, and mon_config_set_sintran_root() (mon_config.c) just strncpy's
+ * whatever it is given. mon_ensure_directory() (mon_path.c) would then mkdir a
+ * directory literally NAMED "~" in the current working directory, which is how
+ * SINTRAN user dirs ended up inside the repository.
+ *
+ * A '~' anywhere but the first character is left alone. So is the "~user" form,
+ * which would need getpwnam and is not what anyone writes here.
+ *
+ * Returns 'out' when it expanded, else 'in' unchanged. Every case where an
+ * expansion was clearly wanted but could not be done warns, because failing
+ * silently means falling back to the literal-"~" bug this exists to prevent. */
+static const char* expand_tilde(const char* in, char* out, size_t out_size) {
+    if (!in || in[0] != '~') return in;
+    if (in[1] != '\0' && in[1] != '/' && in[1] != '\\') {
+        fprintf(stderr, "warning: '%s': the ~user form is not supported, "
+                        "using it literally. Write an absolute path.\n", in);
+        return in;
+    }
+    char homebuf[PATH_MAX];
+    const char* home = platform_home_dir(homebuf, sizeof homebuf);
+    if (!home) {
+        fprintf(stderr, "warning: '%s': could not work out %s, "
+                        "using it literally. Write an absolute path.\n",
+#ifdef _WIN32
+                in, "your Documents folder");
+#else
+                in, "your home directory");
+#endif
+        return in;
+    }
+    int n = snprintf(out, out_size, "%s%s", home, in + 1);
+    if (n < 0 || (size_t)n >= out_size) {
+        fprintf(stderr, "warning: '%s' expands to more than %zu characters, "
+                        "using it literally. Write a shorter absolute path.\n",
+                in, out_size - 1);
+        return in;
+    }
+    return out;
+}
+
 /* Load an ini/config file: simple "key = value" lines, '#'/';' comments,
  * '[section]' lines ignored. Recognised keys: sintran-root, user,
  * terminal-type, telnet-port, monitor. Command-line flags override these
@@ -128,7 +229,10 @@ static int load_config(const char* path, int* telnet_port, int* monitor_mode, in
         *eq = '\0';
         char* key = ini_trim(p);
         char* val = ini_trim(eq + 1);
-        if (strcasecmp(key, "sintran-root") == 0)      mon_config_set_sintran_root(val);
+        /* 512 matches MAX_ROOT_PATH in mon_config.c, so anything that would be
+         * truncated there is caught here with a warning instead. */
+        char rootbuf[512];
+        if (strcasecmp(key, "sintran-root") == 0)      mon_config_set_sintran_root(expand_tilde(val, rootbuf, sizeof rootbuf));
         else if (strcasecmp(key, "user") == 0)       { mon_config_set_current_user(val); if (user_set) *user_set = 1; }
         else if (strcasecmp(key, "terminal-type") == 0) mon_set_terminal_type(1, atoi(val));
         else if (strcasecmp(key, "telnet-port") == 0) { *telnet_port = atoi(val); *monitor_mode = 1; }
@@ -176,6 +280,7 @@ int main(int argc, char** argv) {
     const char* ndix_image = NULL;   /* --ndix root disk image */
     const char* ndix_kernel = NULL;  /* --kernel override */
     const char* sintran_root_opt = NULL;  /* --sintran-root as typed */
+    char sintran_root_buf[512];           /* backs sintran_root_opt if '~' expanded */
     uint64_t max_steps = 0;  /* 0 = unlimited */
     const char* trace_file_path = NULL;
     int dap_port = 0;  /* 0 = DAP server not requested */
@@ -270,7 +375,10 @@ int main(int argc, char** argv) {
         } else if (strcmp(argv[i], "--trace-file") == 0 && i + 1 < argc) {
             trace_file_path = argv[++i];
         } else if (strcmp(argv[i], "--sintran-root") == 0 && i + 1 < argc) {
-            sintran_root_opt = argv[++i];
+            /* Normally the shell has already expanded any '~' here, but not if
+             * it was quoted. Expanding before --ndix sees it too (it realpath's
+             * this value) keeps the flag and the ini key behaving alike. */
+            sintran_root_opt = expand_tilde(argv[++i], sintran_root_buf, sizeof sintran_root_buf);
             mon_config_set_sintran_root(sintran_root_opt);
         } else if (strcmp(argv[i], "--user") == 0 && i + 1 < argc) {
             mon_config_set_current_user(argv[++i]);

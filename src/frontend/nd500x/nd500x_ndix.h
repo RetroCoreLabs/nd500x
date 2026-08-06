@@ -31,6 +31,14 @@ int nd500x_ndix_autoboot(struct Nd500Machine* m,
                          int (*run)(struct Nd500Machine*, const char*, void*),
                          void* ctx);
 
+/* Ask the GUEST to shut itself down: vector it into the kernel's own boot()
+ * halt path, which syncs the buffer cache ("syncing disks... done") and then
+ * issues the FE_EXIT fecall that stops the machine. Returns 0 when the guest
+ * was vectored - the caller must keep RUNNING it, the stop arrives via FE_EXIT
+ * - and -1 when it could not be done, in which case only an unclean exit is
+ * left. Does NOT clear run_flag itself. */
+int nd500x_ndix_halt_guest(struct Nd500Machine* m);
+
 /* Serve the first <count> guest ttys - console, tty01, tty02, tty81, in that
  * order. count <= 0 means all of them; a count above the number the image has
  * is reported and clamped, never silently accepted. */

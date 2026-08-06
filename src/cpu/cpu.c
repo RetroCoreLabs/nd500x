@@ -6,6 +6,7 @@
 #include "instruction_helpers.h"
 #include "nd500_mmu.h"
 #include "nd500_domain.h"
+#include "nd500_fecall.h"
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
 #include "../disasm/nd500_disasm.h"
@@ -339,6 +340,17 @@ invalid00_done: ;
 				(int)cpu->fe_int_pending, (int)cpu->fe_int_gen, (unsigned long long)pcn);
 		}
 	}
+
+	/* A clean shutdown requested earlier fires HERE - before the PC is latched,
+	 * so that when it redirects us to _boot this very step decodes and executes
+	 * _boot with the CALL/ENTS interlock it just set up.
+	 *
+	 * Doing this AFTER the decode does not work: the instruction at the safe
+	 * point still executes, and at the syscall dispatcher that instruction is
+	 * an ENTS, which clears the interlock again ("[TRAP] ENTS: Must be preceded
+	 * by CALL/CALLG", then a kernel stack underflow panic). */
+	if (nd500_ndix_halt_pending())
+		nd500_ndix_halt_check(cpu, cpu->PC);
 
 	/* Decode, execute, then advance PC by decoded length */
 	Nd500FetchedInstruction fi;
