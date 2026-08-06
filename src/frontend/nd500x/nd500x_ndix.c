@@ -90,7 +90,15 @@ static int extract_kernel(const char* image, const char* path,
     if (!data) return -1;
     if (n <= 0) { free(data); return -1; }
 
+    /* Scratch directory for the extracted kernel.
+     *
+     * TMPDIR is the POSIX name; Windows sets TMP and TEMP instead and has no
+     * /tmp at all, so falling straight through to "/tmp" there resolved to
+     * <current drive>:\tmp - a directory that usually does not exist, and never
+     * the one the user expects. Try all three before giving up. */
     tmpdir = getenv("TMPDIR");
+    if (!tmpdir || !tmpdir[0]) tmpdir = getenv("TMP");
+    if (!tmpdir || !tmpdir[0]) tmpdir = getenv("TEMP");
     if (!tmpdir || !tmpdir[0]) tmpdir = "/tmp";
     if (snprintf(tmpl, sizeof tmpl, "%s/nd500x-kernel-XXXXXX", tmpdir) >= (int)sizeof tmpl) {
         free(data);

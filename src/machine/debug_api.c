@@ -455,7 +455,18 @@ void nd500_dbg_step(Nd500Machine* m, uint32_t count) {
 	}
 }
 
-#ifndef __unix__
+/* Threadless fallback: set the flag and let the caller drive stepping itself.
+ *
+ * The guard was #ifndef __unix__, which MinGW satisfies - so a Windows build
+ * took THIS version, and nothing ever executed. run_flag went to 1, the
+ * frontend reported "[ndix] run", and no instruction was ever stepped, because
+ * on Windows there was no run loop to pick the flag up. The threaded version in
+ * machine.c was excluded by the same mistaken guard.
+ *
+ * WebAssembly is the only target that really has no threads, so that is what
+ * the test now says. Keep this condition and machine.c's in agreement: exactly
+ * one of the two files must define these. */
+#ifdef __EMSCRIPTEN__
 void nd500_dbg_run(Nd500Machine* m) {
 	if (!m) return;
 	if (m->cpu) {

@@ -1,15 +1,31 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <time.h>
-#ifdef __unix__
-#include <pthread.h>
-#endif
 #include "machine_protos.h"
 #include "../cpu/cpu_protos.h"
 #include "../cpu/nd500_mmu.h"
 
-/* Background run loop for native builds */
-#ifdef __unix__
+/* Background run loop for native builds.
+ *
+ * The guard used to be __unix__, which the MinGW compiler does not define - so
+ * a Windows build silently had NO run loop and NO nd500_dbg_run(). Everything
+ * up to "[ndix] run" printed normally and then nothing happened at all: the
+ * machine never started, so the kernel never got as far as its banner or the
+ * login prompt. It looked like a console-output problem and was not.
+ *
+ * ND500_NATIVE_THREADS is the honest test - "this build has real threads" -
+ * and covers Windows and macOS as well as Linux. WebAssembly is the one target
+ * that genuinely has none; there the debugger drives stepping itself.
+ *
+ * pthreads are available everywhere here: winpthreads under MinGW/MSYS2, and
+ * libSystem on macOS. CMake links them through Threads::Threads. */
+#if !defined(__EMSCRIPTEN__)
+#define ND500_NATIVE_THREADS 1
+#endif
+
+#ifdef ND500_NATIVE_THREADS
+#include <pthread.h>
+
 static void* run_thread(void* arg) {
 	Nd500Machine* m = (Nd500Machine*)arg;
 	uint32_t batch = 0;
