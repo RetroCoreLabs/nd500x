@@ -1663,8 +1663,17 @@ static void test_mon_413B_fscdnt_optional_segment_no(void) {
     printf("\nTesting MON 413B FSCDNT optional LogSegmentNumber...\n");
     setup();
 
-    /* Open a file, then map it as a segment via 412B so 413B has work to do. */
-    int file_no = mon_file_open_ex("SCRATCH-413", "DATA", ACCESS_RAND_RDWR, 0);
+    /* Open a file, then map it as a segment via 412B so 413B has work to do.
+     *
+     * ":DATA" is the SINTRAN scratch-file syntax, which creates the file on
+     * open. This used to pass the UNQUOTED name "SCRATCH-413", which worked
+     * only against a non-standard auto-create-on-write that mon_file_table.c
+     * has since removed as diverging from real hardware: byte-verified against
+     * the carved SINTRAN GFILI resolver, an unquoted open is LOOKUP-ONLY and
+     * returns 056B "No such file name" for every access code when the file is
+     * absent. So the open failed and the test never reached what it was
+     * actually testing. */
+    int file_no = mon_file_open_ex(":DATA", "DATA", ACCESS_RAND_RDWR, 0);
     if (file_no < 0) {
         TEST_FAIL("MON 413B optional param: could not open scratch file", "open failed");
         teardown();
@@ -1714,7 +1723,9 @@ static void test_mon_413B_fscdnt_segment_mismatch(void) {
     printf("\nTesting MON 413B FSCDNT segment mismatch...\n");
     setup();
 
-    int file_no = mon_file_open_ex("SCRATCH-413B", "DATA", ACCESS_RAND_RDWR, 0);
+    /* Scratch-file syntax, for the same reason as the test above: an unquoted
+     * name is lookup-only and this file does not exist. */
+    int file_no = mon_file_open_ex(":DATA", "DATA", ACCESS_RAND_RDWR, 0);
     if (file_no < 0) {
         TEST_FAIL("MON 413B mismatch: could not open scratch file", "open failed");
         teardown();

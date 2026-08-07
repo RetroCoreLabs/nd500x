@@ -68,7 +68,15 @@ static void execute_instruction(Nd500Machine* m, Nd500Cpu* cpu, const uint8_t* c
     cpu->PC = pc;
 
     Nd500FetchedInstruction fi;
-    nd500_decode_at(m, pc, &fi);
+    /* A failed decode used to be swallowed silently, which let a test "pass"
+     * while the instruction under test never ran at all - the LREGBL/CTE1
+     * pair did exactly that for as long as it existed. Say so loudly. */
+    int rc = nd500_decode_at(m, pc, &fi);
+    if (rc != 0) {
+        printf("  ERROR: decode failed (rc=%d) at PC=0x%08X - instruction NOT executed\n",
+               rc, pc);
+        return;
+    }
 
     InstrExecFunc func = g_instr_exec_table[fi.opcode];
     if (func) {
@@ -608,24 +616,71 @@ void test_clte_temm_blocks(void) {
  * filter and could silently overwrite CTE1.
  * =================================================================== */
 
+/*
+ * LREGBL and the CTE1 privilege filter.
+ *
+ * Both tests below used to hand-assemble the instruction as
+ *     { 0xFF, 0xF6, 0x80, 0x00, 0x00, 0x00 }
+ * intending "LREGBL mask=0x80000000, address=0". That is not a valid encoding
+ * of a 32-bit constant operand: the decoder read it as two operands whose
+ * values were BOTH zero, so LREGBL ran with mask = 0 and selected no register
+ * at all. Nothing was ever loaded.
+ *
+ * That made the pair worthless in a way that hid itself: the non-privileged
+ * test asserts CTE1 is UNCHANGED, which is trivially true when the instruction
+ * does nothing, so it passed and looked like coverage. Only its privileged
+ * twin could tell, and it had simply been failing.
+ *
+ * These now build the fetched instruction directly - the same approach
+ * test_trap_conformance.c and test_solo_traps.c use - so the test is about
+ * LREGBL's privilege filter rather than about operand encoding. Two register
+ * operands: I1 carries the mask, I2 the base address.
+ */
+extern void nd500_instr_Lregbl(Nd500Cpu*, const Nd500FetchedInstruction*);
+
+/* Register 32 is CTE1, and LREGBL reads register N from address + (N-1)*4 -
+ * register 1 (P) sits at offset 0, not 4. Lregbl.c:72 and Sregbl.c:72 both use
+ * that convention (the save/load pair has to agree), and Lregbl.c cites why:
+ * NDIX passes address = the arg2/P slot of the ENTT frame. */
+#define LREGBL_CTE1_MASK  0x80000000u        /* bit 31 selects register 32 */
+#define LREGBL_CTE1_SLOT  ((32 - 1) * 4)     /* = 0x7C with base address 0 */
+
+static void lregbl_cte1_setup(Nd500Machine *m, Nd500Cpu *cpu,
+                              Nd500FetchedInstruction *fi, int privileged) {
+    nd500_machine_init(m, MEMORY_SIZE);
+    nd500_cpu_init(cpu, m);
+    nd500_cpu_reset(cpu);
+
+    if (privileged) cpu->ST1 |=  ND500_FLAG_PIA;
+    else            cpu->ST1 &= ~ND500_FLAG_PIA;
+
+    cpu->CTE1 = 0xAAAAAAAA;                  /* sentinel */
+    write_word(m, LREGBL_CTE1_SLOT, 0x12345678);
+
+    /* LREGBL <mask>, <address> - both from integer registers. */
+    nd500_write_integer_register(cpu, 1, LREGBL_CTE1_MASK);
+    nd500_write_integer_register(cpu, 2, 0u);   /* base address */
+
+    memset(fi, 0, sizeof *fi);
+    fi->address       = CODE_ADDR;
+    fi->opcode        = 0xFFF6;
+    fi->operand_count = 2;
+    fi->data_type     = ND500_DTYPE_WORD;
+    fi->operands[0].mode = ND500_ADDR_REGISTER;  /* mask    */
+    fi->operands[0].reg  = 1;
+    fi->operands[1].mode = ND500_ADDR_REGISTER;  /* address */
+    fi->operands[1].reg  = 2;
+}
+
 void test_lregbl_cte1_no_leak_nonpriv(void) {
     printf("\n=== Test: LREGBL cannot write CTE1 in non-privileged mode ===\n");
 
     Nd500Machine m;
     Nd500Cpu cpu;
-    nd500_machine_init(&m, MEMORY_SIZE);
-    nd500_cpu_init(&cpu, &m);
-    nd500_cpu_reset(&cpu);
+    Nd500FetchedInstruction fi;
+    lregbl_cte1_setup(&m, &cpu, &fi, 0);
 
-    cpu.ST1 &= ~ND500_FLAG_PIA;             /* non-privileged */
-    cpu.CTE1 = 0xAAAAAAAA;                   /* sentinel */
-    /* LREGBL loads reg N from <address> + N*4. mask 0x80000000 selects only
-     * register 32 (CTE1); with base address 0 the CTE1 slot is at 0x80. */
-    write_word(&m, 0x80, 0x12345678);        /* would-be CTE1 value */
-
-    uint8_t code[] = { 0xFF, 0xF6,
-                       0x80, 0x00, 0x00, 0x00 };  /* mask (inline word) = reg 32 (CTE1) */
-    execute_instruction(&m, &cpu, code, sizeof(code), CODE_ADDR);
+    nd500_instr_Lregbl(&cpu, &fi);
 
     CHECK(cpu.CTE1 == 0xAAAAAAAA, "CTE1 unchanged (no privilege leak)");
 
@@ -637,17 +692,10 @@ void test_lregbl_cte1_priv_loads(void) {
 
     Nd500Machine m;
     Nd500Cpu cpu;
-    nd500_machine_init(&m, MEMORY_SIZE);
-    nd500_cpu_init(&cpu, &m);
-    nd500_cpu_reset(&cpu);
+    Nd500FetchedInstruction fi;
+    lregbl_cte1_setup(&m, &cpu, &fi, 1);
 
-    cpu.ST1 |= ND500_FLAG_PIA;              /* privileged */
-    cpu.CTE1 = 0xAAAAAAAA;
-    write_word(&m, 0x80, 0x12345678);        /* CTE1 slot (base 0 + 32*4) */
-
-    uint8_t code[] = { 0xFF, 0xF6,
-                       0x80, 0x00, 0x00, 0x00 };  /* mask (inline word) = reg 32 (CTE1) */
-    execute_instruction(&m, &cpu, code, sizeof(code), CODE_ADDR);
+    nd500_instr_Lregbl(&cpu, &fi);
 
     CHECK(cpu.CTE1 == 0x12345678, "CTE1 loaded in privileged mode");
 
