@@ -160,27 +160,71 @@ static int read_inode(Ffs* fs, int32_t ino, uint8_t out[SZ_DINODE]) {
  * i_ib[0] ("indirect block full" is a fatal error there), so a double indirect
  * cannot occur in an image this reader is meant to read. Anything deeper is
  * reported rather than silently returning wrong bytes. */
+/* Read one 32-bit block pointer out of the indirect block <ib>, at <idx>.
+ * Returns 0 for a hole (which is also what an unallocated indirect block
+ * means), or -1 if the block could not be read at all. */
+static int32_t indirect_at(Ffs* fs, int32_t ib, long idx) {
+    uint8_t* blk;
+    int32_t bno;
+
+    if (ib == 0) return 0;                       /* hole */
+    if (idx < 0 || idx >= fs->nindir) return -1; /* out of range for this fs */
+    blk = (uint8_t*)malloc((size_t)fs->bsize);
+    if (!blk) return -1;
+    if (rdfs(fs, fsbtodb(fs, ib), fs->bsize, blk) != 0) { free(blk); return -1; }
+    bno = (int32_t)be32(blk + 4 * idx);
+    free(blk);
+    return bno;
+}
+
+/* Map a byte offset in a file to its disk block number.
+ *
+ * Walks direct, single, double AND triple indirection. Only direct and single
+ * used to be handled, and everything else returned an error - which is why
+ * /lib/libc.a and /bin/write could not be read out of the image. At an 8 KB
+ * block size a file needs double indirection past about 96 KB, so this was not
+ * an exotic case: it was every large file. /vmunix (~500 KB) fits in single
+ * indirection, which is presumably why the gap went unnoticed - the one big
+ * file the emulator read at boot happened to be under the limit. */
 static int32_t bmap(Ffs* fs, const uint8_t* din, long pos, const char** why) {
     long lbn = pos / fs->bsize;
+    long per = fs->nindir;               /* pointers per indirect block */
 
     if (lbn < NDADDR)
         return (int32_t)be32(din + DI_DB + 4 * lbn);
-
     lbn -= NDADDR;
-    if (lbn < fs->nindir) {
-        int32_t ib = (int32_t)be32(din + DI_IB + 0);
-        uint8_t* blk;
-        int32_t bno;
-        if (ib == 0) return 0;
-        blk = (uint8_t*)malloc((size_t)fs->bsize);
-        if (!blk) return 0;
-        if (rdfs(fs, fsbtodb(fs, ib), fs->bsize, blk) != 0) { free(blk); return 0; }
-        bno = (int32_t)be32(blk + 4 * lbn);
-        free(blk);
-        return bno;
+
+    /* single indirect: i_ib[0] */
+    if (lbn < per) {
+        int32_t b = indirect_at(fs, (int32_t)be32(din + DI_IB + 0), lbn);
+        if (b < 0 && why) *why = "could not read the single indirect block";
+        return b;
+    }
+    lbn -= per;
+
+    /* double indirect: i_ib[1] -> a block of indirect blocks */
+    if (lbn < per * per) {
+        int32_t mid = indirect_at(fs, (int32_t)be32(din + DI_IB + 4), lbn / per);
+        if (mid < 0) { if (why) *why = "could not read the double indirect block"; return -1; }
+        if (mid == 0) return 0;
+        return indirect_at(fs, mid, lbn % per);
+    }
+    lbn -= per * per;
+
+    /* triple indirect: i_ib[2]. No NDIX file is anywhere near this big, but
+     * handling it costs three lines and removes the last "cannot read" case. */
+    if (lbn < per * per * per) {
+        int32_t top = indirect_at(fs, (int32_t)be32(din + DI_IB + 8), lbn / (per * per));
+        int32_t mid;
+        if (top < 0) { if (why) *why = "could not read the triple indirect block"; return -1; }
+        if (top == 0) return 0;
+        mid = indirect_at(fs, top, (lbn / per) % per);
+        if (mid < 0) { if (why) *why = "could not read the triple indirect block"; return -1; }
+        if (mid == 0) return 0;
+        return indirect_at(fs, mid, lbn % per);
     }
 
-    if (why) *why = "file needs a double indirect block, which this reader does not walk";
+    if (why) *why = "file offset is past even triple indirection";
     return -1;
 }
 
@@ -235,13 +279,30 @@ static int32_t dir_lookup(Ffs* fs, const uint8_t* din, const char* name,
         int32_t ino = (int32_t)be32(d + off);
         uint16_t reclen = be16(d + off + 4);
         uint16_t namlen = be16(d + off + 6);
+
         /* A zero or unaligned reclen would loop forever or walk off the end. */
-        if (reclen < 8 || (reclen & 3) != 0 || off + reclen > dsize) break;
+        if (reclen < 8 || (reclen & 3) != 0) break;
+
+        /* Check the entry BEFORE deciding whether its reclen is sane.
+         *
+         * The last record in a directory block has its reclen padded out to the
+         * end of that block, and that padding can reach past the size recorded
+         * in the inode. Treating "off + reclen > dsize" as corruption and
+         * breaking first therefore skipped the LAST ENTRY OF EVERY DIRECTORY -
+         * which is exactly why /lib/libc.a and /bin/write reported "no such
+         * file in the image" while every other name in those directories read
+         * out fine. Alphabetically last is not a property a filesystem should
+         * care about, and that was the tell.
+         *
+         * The name itself is still bounds-checked against dsize, so an actually
+         * corrupt record cannot make this read past the buffer. */
         if (ino != 0 && namlen == namelen && off + 8 + namlen <= dsize
             && memcmp(d + off + 8, name, namelen) == 0) {
             found = ino;
             break;
         }
+
+        if (off + reclen > dsize) break;   /* that was the final record */
         off += reclen;
     }
     free(d);
