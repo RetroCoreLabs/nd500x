@@ -66,10 +66,24 @@ copy_tree "$NDIX/kernel/MASTER/netinet" "$INC/netinet" yes
 # and <if/if_etioctl.h> - the Ethernet driver's own interface - so this tree
 # needs to be reachable under the name "if" as well.
 copy_tree "$NDIX/kernel/MASTER/if"      "$INC/if"      yes
+# 4. the 4.3BSD overlay, applied LAST so it wins.
+#
+# NDIX-C is 4.3BSD-derived and its Release 3 libc includes <resolv.h> and
+# <arpa/nameser.h>, which the archive never preserved - so they come from the
+# real 4.3 tree instead of being reconstructed. netdb.h is deliberately
+# OVERWRITTEN: the archive's copy is "netdb.h 2.5 87/05/13" and still has the
+# 4.2-era "char *h_addr", while the libc shipped beside it
+# (gethostnamadr.c 3.2 88/05/11) assigns host.h_addr_list. The header is simply
+# older than the library. The 4.3 header is a superset - it keeps h_addr as
+# "#define h_addr h_addr_list[0]" - so nothing that compiled before stops
+# compiling. See bsd43/README.md for provenance and for what was verified
+# against the NDIX-C sources before trusting these.
+copy_tree "$(dirname "$0")/bsd43"       "$INC"         yes
 
 echo "include tree: $INC"
 echo "  headers: $(find "$INC" -name '*.h' | wc -l)"
 for h in sys/types.h sys/socket.h sys/param.h machine/param.h netinet/in.h \
-         net/if.h arpa/inet.h netdb.h signal.h stdio.h; do
+         net/if.h arpa/inet.h netdb.h signal.h stdio.h \
+         resolv.h arpa/nameser.h ttyent.h curses.h; do
     printf "  %-18s %s\n" "$h" "$([ -e "$INC/$h" ] && echo present || echo MISSING)"
 done

@@ -72,10 +72,39 @@ shipped image: rebuilding from it silently drops `fsck`, `mount`, `dump`,
 `cron`, `syslogd` and all of `/lib`. `enum.sh` + `genproto2.py` build the
 prototype from the image itself instead.
 
-## What cannot be built
+## The archive's `usr.include` is a year older than its own libc
 
-`resolv.h`, `arpa/nameser.h` and `ttyent.h` exist in neither NDIX-B nor NDIX-C,
-and there is no curses source. So the resolver family (anything calling
-`gethostbyname` — `ping`, `telnet`, `rlogind`, `named`, `htable`, `routed`, …)
-and the screen programs (`nstat`, `systat`) cannot be built from this archive at
-all. That is a limit of what was preserved, not of the toolchain.
+This is the single most productive thing to know. Three headers in the
+preserved include set all carry the same date — `netdb.h 2.5 87/05/13`,
+`inet.h 2.5 87/05/13`, `telnet.h 2.5 87/05/13` — while the library sources
+beside them are Release 3, `88/05/11`. The snapshot is stale, and the mismatch
+is silent until something fails to compile:
+
+| Header says | Library actually does | Broke |
+|---|---|---|
+| `char *h_addr;` | `gethostnamadr.c` assigns `host.h_addr_list` | `rcmd.c`, and so `finger` `rshd` `rlogind` |
+| `struct in_addr inet_addr();` | `inet_addr.c` returns `u_long` | `gethostnamadr.c` |
+| no `TELOPT_TTYPE` | — | `telnet`, `telnetd` |
+
+`resolv.h`, `arpa/nameser.h`, `ttyent.h`, `curses.h` and all of `protocols/`
+were not preserved at all. Since NDIX-C is 4.3BSD-derived, the fix in every
+case is the real 4.3 header — see `bsd43/`. Fixing them took the build from 32
+programs to 43, including the entire resolver family.
+
+**A missing header does not announce itself.** `nd500-cpp` has `/usr/include`
+compiled in as a fallback, so `<protocols/rwhod.h>` silently resolved to the
+*host's* copy and produced a nonsense error about `out_time`. Any error naming
+a path outside the work tree means this happened.
+
+## What still does not build
+
+* `nstat`, `systat` — need a `libcurses.a`; only the header was restored, and
+  no curses source exists in either tree.
+* `kanalyze`, `pstat`, `systat` — `nd500-cpp` gives up with "too much
+  defining" on the driver headers. A limit in the cross-compiler, not in the
+  sources; raising the macro table in pcc-nd500 would settle it.
+* `conf`, `config` — `config.y` uses constructs the K&R rewrite of byacc's
+  output does not survive.
+* `as` — needs `lex` output (`_yyless`); `ftpd` needs its own yacc grammar.
+* `graph` needs the plot library; `panalyze` needs `_pr_user`; `timed`,
+  `tftpsubs` unresolved.
