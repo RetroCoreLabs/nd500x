@@ -17,7 +17,11 @@
 set -u
 NDIX=/mnt/e/Dev/Ronny/NDIX-C
 SP=/home/ronny/repos/nd500x/work
-PROG=/mnt/c/Users/ronny/AppData/Local/Temp/claude/E--Dev-Ronny-NDIX-C/8ae946ae-fd1d-44c4-a731-a036a9cf9531/scratchpad/prog.sh
+# The per-program builder that sits beside this script. This used to point into
+# a session scratch directory, so edits to the committed copy had no effect and
+# the whole batch stopped working once that directory was cleaned up. Same trap
+# rebuild.sh had with genproto2.py.
+PROG=$(dirname "$0")/prog.sh
 GEN=$SP/gen
 mkdir -p "$SP/bin" "$GEN"
 

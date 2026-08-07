@@ -16,6 +16,24 @@ cd /home/ronny/repos/nd500x || exit 1
 rm -rf "$SP/stage/full"
 mkdir -p "$SP/stage/full"
 
+echo "=== 0. halt and newboot are the reboot binary under other names ==="
+# shutdown(8) execs /etc/halt (shutdown.c:235). Without it the exec fails and
+# "shutdown now" prints its warnings and then does nothing at all - which is
+# exactly the symptom that was reported. There is no halt.c in the archive
+# because 4.3 does not need one: reboot.c:59 takes progname from argv[0] and
+# reboot.c:105 switches on its FIRST CHARACTER -
+#     'h' -> halt    (howto = 0, the plain halt)
+#     'r' -> reboot  (howto |= RB_SAME)
+#     'n' -> newboot (boot a named kernel)
+# so one binary installed under three names is how it was always shipped.
+# genproto2.py installs every regular file in $SP/bin into /etc, so copying
+# here is all that is needed - and doing it here rather than by hand means a
+# later rebuild cannot silently drop it again.
+for name in halt newboot; do
+    cp "$SP/bin/reboot" "$SP/bin/$name" || exit 1
+    printf '  %s\n' "$name"
+done
+
 echo "=== 1. proto from the real image ==="
 # The 6th argument is the /etc overlay: the network database files the shipped
 # image never had (services, protocols, networks, hosts - all from NDIX-C's own
