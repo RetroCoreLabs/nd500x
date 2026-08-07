@@ -69,7 +69,7 @@ void nd500_instr_Exp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Check for overflow (infinity) or underflow (denormalized/zero) */
     if (isinf(result)) {
-        trap_floating_overflow(cpu, fi->address);
+        trap_invalid_operation(cpu, fi->address);
     } else if (result != 0.0 && fabs(result) < (is_double ? 1e-308 : 1e-38)) {
         /* Underflow - result too small to represent.
          * exp(x) underflows for large negative x values. */

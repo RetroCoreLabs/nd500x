@@ -163,8 +163,8 @@ void nd500_instr_Ixi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Handle trap conditions */
     if (illegal_operand) {
-        trap_invalid_operation(cpu, fi->address);
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
     } else if (overflow) {
-        trap_invalid_operation(cpu, fi->address);
+        trap_integer_overflow(cpu, fi->address);
     }
 }

@@ -217,21 +217,21 @@ void nd500_instr_Putbf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Validate field parameters
     if (field_size == 0) {
         printf("[ERROR] PUTBF at PC=0x%08X: Field size must be > 0\n", fi->address);
-        trap_invalid_operation(cpu, fi->address);
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
     }
 
     if (bit_number >= bits) {
         printf("[ERROR] PUTBF at PC=0x%08X: Bit number %u out of range for data type (max: %u)\n",
                fi->address, bit_number, bits - 1);
-        trap_invalid_operation(cpu, fi->address);
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
     }
 
     if ((bit_number + field_size) > bits) {
         printf("[ERROR] PUTBF at PC=0x%08X: Field extends beyond operand (bit %u + size %u > %u bits)\n",
                fi->address, bit_number, field_size, bits);
-        trap_invalid_operation(cpu, fi->address);
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
     }
 

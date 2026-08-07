@@ -153,7 +153,7 @@ void nd500_instr_Setbi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (bit_number >= max_bit) {
         printf("[ERROR] SETBI at PC=0x%08X: Bit number %u out of range for data type (max: %u)\n",
                fi->address, bit_number, max_bit - 1);
-        trap_invalid_operation(cpu, fi->address);
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
     }
 

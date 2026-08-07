@@ -244,7 +244,7 @@ void nd500_instr_Clte(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (bit_number > 63) {
         printf("[ERROR] CLTE at PC=0x%08X: Bit number %u out of range (must be 0-63)\n",
                fi->address, bit_number);
-        trap_invalid_operation(cpu, fi->address);
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
     }
 

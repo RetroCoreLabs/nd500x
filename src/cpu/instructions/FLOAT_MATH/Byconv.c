@@ -127,10 +127,22 @@ void nd500_instr_Byconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             ND500X_TRAPLOG("[TRAP] BYCONV at PC=0x%08X: Value %lld outside byte range (-128 to 127)\n",
                    fi->address, (long long)source_value);
         nd500_write_operand_value(cpu, &fi->operands[1], (uint64_t)(uint8_t)byte_result, ND500_DTYPE_BYTE);
-        /* TEST: do NOT trap on conversion overflow - the PCC compiler emits BYCONV
-         * for ordinary char-narrowing which the kernel expects to wrap silently
-         * (overflow-trap disabled). Just set the O flag and continue. */
+        /* Conversion overflow is INTEGER OVERFLOW - O, bit 9. ND-05.009.4 15.2:
+         * "Conversion of longer to shorter data types is by truncation of the
+         * most significant bits and may cause integer overflow."
+         *
+         * This used to raise nothing at all, with the note that "the PCC
+         * compiler emits BYCONV for ordinary char-narrowing which the kernel
+         * expects to wrap silently (overflow-trap disabled)". That observation
+         * was exactly right - NDIX leaves bit 9 clear - but the reason a trap
+         * had to be suppressed here is that the sibling conversions (HCONV,
+         * BYCONR, HCONR, WCONR) raised IOV, bit 16, which NDIX DOES arm. So
+         * the workaround was treating the symptom of a wrong trap number.
+         * With TRAP_O in place the honest thing is to raise it: NDIX ignores
+         * it exactly as the comment described, and an ND-500 program under
+         * SINTRAN that asked for SET-TRAP-CONDITION OVERFLOW now gets it. */
         nd500_set_flag(cpu, ND500_FLAG_O);
+        trap_integer_overflow(cpu, fi->address);
         return;
     }
 

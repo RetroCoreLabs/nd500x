@@ -68,7 +68,7 @@ void nd500_instr_Wconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (overflow) {
         ND500X_TRAPLOG("[TRAP] WCONR at PC=0x%08X: Value %lld outside word range\n",
                fi->address, (long long)source_value);
-        raise_trap(cpu, TRAP_IOV, fi->address, 0);
+        raise_trap(cpu, TRAP_O, fi->address, 0);
         return;
     }
 

@@ -182,6 +182,6 @@ void nd500_instr_Mul4(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     // Handle overflow trap (integer overflow uses invalid operation trap)
     if (overflow) {
-        trap_invalid_operation(cpu, fi->address);
+        trap_integer_overflow(cpu, fi->address);
     }
 }

@@ -169,7 +169,7 @@ void nd500_instr_Ifstgo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (bit_number > 29) {
         printf("[ERROR] IF ST GO at PC=0x%08X: Bit number %u out of range (must be 0-29)\n",
                fi->address, bit_number);
-        trap_invalid_operation(cpu, fi->address);
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
     }
 

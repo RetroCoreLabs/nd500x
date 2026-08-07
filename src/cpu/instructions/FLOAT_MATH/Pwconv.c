@@ -78,7 +78,7 @@ void nd500_instr_Pwconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (bcd_result.invalid_digit) {
         ND500X_TRAPLOG("[TRAP] PWCONV at PC=0x%08X: Invalid BCD digit detected\n",
                fi->address);
-        raise_trap(cpu, TRAP_IOV, fi->address, 0);
+        raise_trap(cpu, TRAP_IVO, fi->address, 0);
         return;
     }
 
