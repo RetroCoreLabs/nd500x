@@ -219,6 +219,14 @@ add_executable(test_solo_traps
 )
 target_link_libraries(test_solo_traps PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# Which trap does each instruction actually raise? The 19 wrong trap numbers
+# fixed in ee3ec62 and 694bac2 all survived because nothing asserted the exact
+# bit - instruction_validation checks results only.
+add_executable(test_trap_conformance
+    test_trap_conformance.c
+)
+target_link_libraries(test_trap_conformance PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 
 # ---------------------------------------------------------------------------
 # CTest registration
@@ -254,6 +262,7 @@ add_test(NAME rpgu_operand COMMAND test_rpgu_operand)
 add_test(NAME rphs_wphs COMMAND test_rphs_wphs)
 add_test(NAME abort_guard COMMAND test_abort_guard)
 add_test(NAME solo_traps COMMAND test_solo_traps)
+add_test(NAME trap_conformance COMMAND test_trap_conformance)
 
 if(TARGET dap_objects)
     add_test(NAME dap_adapter COMMAND test_dap_adapter)

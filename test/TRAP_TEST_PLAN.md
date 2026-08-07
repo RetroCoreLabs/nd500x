@@ -73,12 +73,29 @@ Deliberately not fixed on 2026-08-07: adding a trap NDIX has **armed** changes
 behaviour on a working guest and needs its own testing rather than being
 smuggled into a correctness sweep. Record each as a red test.
 
-| Site | Missing | NDIX arms it? |
-|---|---|---|
-| `Wpconv.c` BCD overflow | `TRAP_BO` (15) | **yes** |
-| `Axi.c:88,102` zero base, negative exponent | `TRAP_IOV` (16) | **yes** |
-| `Pwconv.c:95` integer overflow | `TRAP_O` (9) | no |
-| `Wconv.c` float→word — never even sets `O` | `TRAP_O` (9) | no |
+| Site | Missing | NDIX arms it? | Covered |
+|---|---|---|---|
+| `Wpconv.c` BCD overflow | `TRAP_BO` (15) | **yes** | not yet |
+| `Axi.c` zero base, negative exponent | `TRAP_IVO` (11) — **corrected** | **yes** | yes |
+| `Pwconv.c:95` integer overflow | `TRAP_O` (9) | no | not yet |
+| `Wconv.c` double→word — never even sets `O` | `TRAP_O` (9) | no | yes |
+
+**Correction to the AXI row.** This originally said AXI was missing `TRAP_IOV`
+(bit 16). That is wrong. `Axi.c`'s own header, quoting ND-500 Reference Manual
+ch.12.1, lists the trap conditions as "Floating overflow (FO), Floating
+underflow (FU), Invalid operation (IVO)" and the data status bits as "invalid
+operation -> IVO". So the right bit is **IVO (11)**, not IOV (16).
+
+AXI is also missing *three* traps, not one: `Axi.c` detects overflow,
+underflow and invalid-operation correctly and then only sets flags — and for
+invalid operation it sets `ND500_FLAG_K` (bit 8, "destination full"), which is
+not an error flag at all. IVO is armed by NDIX, so fixing this changes guest
+behaviour and still needs its own testing.
+
+**Why `Wpconv`/`Pwconv` are not covered yet.** Both take a packed-BCD
+descriptor from memory rather than registers, so they need a descriptor
+builder (`Nd500BcdDescriptor`) that the current two-register operand helper
+does not provide. Nothing about them is unclear — it is only unwritten.
 
 ## Unresolved — do not guess
 
