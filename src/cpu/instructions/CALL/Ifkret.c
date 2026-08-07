@@ -112,7 +112,7 @@ void nd500_instr_Ifkret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* STEP 5: Check for stack underflow */
     if (prev_b == 0) {
-        printf("[TRAP] IFKRET at PC=0x%08X: Stack underflow (PREVB=0)\n", fi->address);
+        ND500X_TRAPLOG("[TRAP] IFKRET at PC=0x%08X: Stack underflow (PREVB=0)\n", fi->address);
         trap_stack_underflow(cpu, fi->address);
         return;
     }

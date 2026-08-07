@@ -51,7 +51,7 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Validate that CALL preceded this instruction */
     if (cpu->pending_call_return_address == 0) {
-        printf("[TRAP] ENTS at PC=0x%08X: Must be preceded by CALL/CALLG\n",
+        ND500X_TRAPLOG("[TRAP] ENTS at PC=0x%08X: Must be preceded by CALL/CALLG\n",
                fi->address);
         trap_instruction_sequence_error(cpu, fi->address);
         return;
@@ -92,7 +92,7 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Check for stack overflow BEFORE modifying anything */
     if (new_b + stack_demand >= cpu->TOS) {
-        printf("[TRAP] ENTS at PC=0x%08X: Stack overflow (newB=0x%08X, demand=0x%08X, TOS=0x%08X)\n",
+        ND500X_TRAPLOG("[TRAP] ENTS at PC=0x%08X: Stack overflow (newB=0x%08X, demand=0x%08X, TOS=0x%08X)\n",
                fi->address, new_b, stack_demand, cpu->TOS);
         trap_stack_overflow(cpu, fi->address);
         return;

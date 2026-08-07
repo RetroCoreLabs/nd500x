@@ -1,7 +1,26 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include "../machine/machine_types.h"
+
+/* Per-instruction trap diagnostics.
+ *
+ * These were plain printf(), i.e. STDOUT - and under --ndix stdout IS the
+ * NDIX console. A guest that overflows on a timer tick then interleaves its
+ * own output with ours: "Connected to loca[TRAP] ADD2 ... lhost." Worse, it
+ * is indistinguishable from guest output to anything parsing the console.
+ *
+ * These traps occur in normal operation - 4.3BSD C overflows signed arithmetic
+ * routinely, and the ND-500 only *takes* an overflow trap when the trap is
+ * enabled - so they are off by default. Set ND500X_TRAPLOG=1 to get them back,
+ * on stderr where diagnostics belong. Trap behaviour itself is unaffected:
+ * only the printing is gated. */
+int nd500x_traplog(void);
+#define ND500X_TRAPLOG(...)                                    \
+	do {                                                       \
+		if (nd500x_traplog()) fprintf(stderr, __VA_ARGS__);    \
+	} while (0)
 
 /* Maximum operands in decoded instruction struct.
  * Variable-operand instructions (CALL/CALLG/POLY) can have 2 fixed + 255 variable = 257 operands.
@@ -331,6 +350,17 @@ typedef struct Nd500Cpu {
                              TRAP_PGF | TRAP_PWF | TRAP_PRF | TRAP_HF)
 
 /* Ignorable traps (bits 11-29) - set status but don't longjmp */
+/* Integer overflow. Bit 9, per ND-05.009.4 Table 7 "Data status bits" (O is
+ * bit 9) and the linker manual's SET-TRAP-CONDITION list, which opens with
+ * "9D OVERFLOW".
+ *
+ * Every integer instruction used to raise TRAP_IVO here instead - bit 11,
+ * Invalid Operation - which is a different condition entirely, and one NDIX
+ * DOES arm (machine/trap.h T_CMTE1 = 0xf413d800 has bit 11 set and bit 9
+ * clear). So an ordinary signed overflow, which 4.3BSD C does routinely and
+ * which NDIX deliberately ignores, was being delivered to the guest as an
+ * Invalid Operation trap. Seen once per timer tick under ping/telnet. */
+#define TRAP_O    (1ULL << 9)   /* Integer Overflow */
 #define TRAP_IVO  (1ULL << 11)  /* Invalid Operation */
 #define TRAP_DZ   (1ULL << 12)  /* Divide by Zero */
 #define TRAP_FU   (1ULL << 13)  /* Floating Underflow */
@@ -483,6 +513,9 @@ void trap_divide_by_zero(Nd500Cpu* cpu, uint32_t pc);
 void trap_floating_overflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_floating_underflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_invalid_operation(Nd500Cpu* cpu, uint32_t pc);
+/* Integer overflow (bit 9). NOT the same as trap_invalid_operation - see the
+ * TRAP_O comment above for why using that one was a real bug. */
+void trap_integer_overflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_stack_overflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_stack_underflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_breakpoint(Nd500Cpu* cpu, uint32_t pc);

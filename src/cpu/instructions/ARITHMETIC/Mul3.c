@@ -143,8 +143,8 @@ void nd500_instr_Mul3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Handle trap conditions (like C# lines 158-170) */
     if (overflow) {
-        printf("[TRAP] MUL3 at PC=0x%08X: Integer overflow\n", fi->address);
-        trap_invalid_operation(cpu, fi->address);
+        ND500X_TRAPLOG("[TRAP] MUL3 at PC=0x%08X: Integer overflow\n", fi->address);
+        trap_integer_overflow(cpu, fi->address);
         return;
     }
 }

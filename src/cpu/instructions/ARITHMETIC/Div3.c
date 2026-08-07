@@ -95,7 +95,7 @@ void nd500_instr_Div3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Check for divide by zero (like C# lines 67-73) */
     if (bValue == 0) {
-        printf("[TRAP] DIV3 at PC=0x%08X: Divide by zero\n", fi->address);
+        ND500X_TRAPLOG("[TRAP] DIV3 at PC=0x%08X: Divide by zero\n", fi->address);
         trap_divide_by_zero(cpu, fi->address);
         return;
     }
@@ -158,8 +158,8 @@ void nd500_instr_Div3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Handle trap conditions (like C# lines 167-179) */
     if (overflow) {
-        printf("[TRAP] DIV3 at PC=0x%08X: Integer overflow\n", fi->address);
-        trap_invalid_operation(cpu, fi->address);
+        ND500X_TRAPLOG("[TRAP] DIV3 at PC=0x%08X: Integer overflow\n", fi->address);
+        trap_integer_overflow(cpu, fi->address);
         return;
     }
 }

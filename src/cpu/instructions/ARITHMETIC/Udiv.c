@@ -58,7 +58,7 @@ void nd500_instr_Udiv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Check for divide by zero (like C# lines 58-63) */
     if (divisor == 0) {
-        printf("[TRAP] UDIV at PC=0x%08X: Divide by zero\n", fi->address);
+        ND500X_TRAPLOG("[TRAP] UDIV at PC=0x%08X: Divide by zero\n", fi->address);
         trap_divide_by_zero(cpu, fi->address);
         return;
     }

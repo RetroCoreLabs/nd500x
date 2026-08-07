@@ -110,7 +110,7 @@ void nd500_instr_Retb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t block_addr = cpu->B;
 
     if (block_addr == 0) {
-        printf("[TRAP] RETB at PC=0x%08X: Stack underflow (B=0)\n", fi->address);
+        ND500X_TRAPLOG("[TRAP] RETB at PC=0x%08X: Stack underflow (B=0)\n", fi->address);
         trap_stack_underflow(cpu, fi->address);
         return;
     }
@@ -126,7 +126,7 @@ void nd500_instr_Retb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* STEP 4: Validate PREVB and RETA (check for stack underflow) */
     if (prev_b == 0 && ret_addr == 0) {
         /* Both zero - check if we should trap or switch domains */
-        printf("[TRAP] RETB at PC=0x%08X: Stack underflow (PREVB=0, RETA=0)\n", fi->address);
+        ND500X_TRAPLOG("[TRAP] RETB at PC=0x%08X: Stack underflow (PREVB=0, RETA=0)\n", fi->address);
         trap_stack_underflow(cpu, fi->address);
         return;
     }

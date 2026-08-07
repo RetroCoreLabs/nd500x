@@ -100,7 +100,7 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* We pass the ADDRESS of the argument, not the VALUE */
         if (arg_operand->mode == ND500_ADDR_CONSTANT ||
             arg_operand->mode == ND500_ADDR_CONSTANT_SHORT) {
-            printf("[TRAP] CALL at PC=0x%08X: Argument %u is constant, must be memory operand\n",
+            ND500X_TRAPLOG("[TRAP] CALL at PC=0x%08X: Argument %u is constant, must be memory operand\n",
                    fi->address, i + 1);
             trap_illegal_operand(cpu, fi->address);
             return;
@@ -203,7 +203,7 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     if (!is_valid_entry) {
-        printf("[TRAP] CALL at PC=0x%08X: Target 0x%08X opcode=0x%02X is not an entry point (PROGRAM SPACE)\n",
+        ND500X_TRAPLOG("[TRAP] CALL at PC=0x%08X: Target 0x%08X opcode=0x%02X is not an entry point (PROGRAM SPACE)\n",
                fi->address, resolved_addr, entry_opcode);
         trap_instruction_sequence_error(cpu, fi->address);
         return;

@@ -229,8 +229,8 @@ void nd500_instr_Mulad(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Handle trap on overflow */
     if (overflow) {
-        printf("[TRAP] MULAD at PC=0x%08X: Integer overflow\n", fi->address);
-        trap_invalid_operation(cpu, fi->address);
+        ND500X_TRAPLOG("[TRAP] MULAD at PC=0x%08X: Integer overflow\n", fi->address);
+        trap_integer_overflow(cpu, fi->address);
         return;
     }
 }

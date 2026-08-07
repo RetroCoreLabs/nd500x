@@ -1567,7 +1567,7 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 		        cpu->CED, cpu->CAD, cpu->THA, cpu->in_trap_handler);
 
 	if (handlerAddr == 0) {
-		printf("[TRAP] No trap handler at THA[%d] (THA=0x%08X, ptr=0x%08X)\n",
+		fprintf(stderr, "[TRAP] No trap handler at THA[%d] (THA=0x%08X, ptr=0x%08X)\n",
 		       trapNumber, cpu->THA, handlerPointer);
 		if (getenv("ND500X_STODBG"))
 			fprintf(stderr, "[STODBG] trap %d trapPC=0x%08X B=0x%08X TOS=0x%08X LL=0x%08X HL=0x%08X ST1=0x%08X OTE1=0x%08X CED=%u inH=%d\n",
@@ -1585,7 +1585,7 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 	uint32_t paddr_handler = nd500_mmu_translate(cpu, handlerAddr, 0, 1); /* read, instruction */
 	uint8_t byte0 = nd500_bus_read8(cpu->machine, paddr_handler);
 	if (byte0 != 0xBC) {
-		printf("[TRAP] No ENTT instruction at trap handler 0x%08X (found 0x%02X, expected 0xBC)\n",
+		fprintf(stderr, "[TRAP] No ENTT instruction at trap handler 0x%08X (found 0x%02X, expected 0xBC)\n",
 		       handlerAddr, byte0);
 		/* Clear trap bit since handler is invalid */
 		if (trapBit & 0xFFFFFFFF)
@@ -1681,8 +1681,24 @@ void trap_floating_underflow(Nd500Cpu* cpu, uint32_t pc) {
 	raise_trap(cpu, TRAP_FU, pc, 0);
 }
 
+/* Backing check for the ND500X_TRAPLOG macro in cpu_protos.h. Calling getenv()
+ * on a per-instruction path would be absurd, so cache the answer on first use. */
+int nd500x_traplog(void) {
+	static int state = -1;
+	if (state < 0) state = getenv("ND500X_TRAPLOG") ? 1 : 0;
+	return state;
+}
+
 void trap_invalid_operation(Nd500Cpu* cpu, uint32_t pc) {
 	raise_trap(cpu, TRAP_IVO, pc, 0);
+}
+
+/* Integer overflow condition (O, bit 9) - see TRAP_O in cpu_protos.h. The
+ * status flag is set by the instruction regardless; this only offers the trap,
+ * which is taken solely if the guest armed bit 9. NDIX does not, which is the
+ * correct outcome for ordinary signed overflow in C code. */
+void trap_integer_overflow(Nd500Cpu* cpu, uint32_t pc) {
+	raise_trap(cpu, TRAP_O, pc, 0);
 }
 
 void trap_stack_overflow(Nd500Cpu* cpu, uint32_t pc) {

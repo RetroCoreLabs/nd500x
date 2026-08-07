@@ -207,7 +207,7 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * STEP 2: VALIDATE INSTRUCTION SEQUENCE (must follow CALL/CALLG)
      * ======================================================================== */
     if (cpu->pending_call_return_address == 0) {
-        printf("[TRAP] ENTM at PC=0x%08X: Must be preceded by CALL/CALLG\n",
+        ND500X_TRAPLOG("[TRAP] ENTM at PC=0x%08X: Must be preceded by CALL/CALLG\n",
                fi->address);
         trap_instruction_sequence_error(cpu, fi->address);
         return;
@@ -242,7 +242,7 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ======================================================================== */
     /* Stack overflow if main demand >= total demand */
     if (stack_demand_main >= total_stack_demand) {
-        printf("[TRAP] ENTM at PC=0x%08X: Stack overflow - main demand 0x%08X >= total 0x%08X\n",
+        ND500X_TRAPLOG("[TRAP] ENTM at PC=0x%08X: Stack overflow - main demand 0x%08X >= total 0x%08X\n",
                fi->address, stack_demand_main, total_stack_demand);
         trap_stack_overflow(cpu, fi->address);
         return;

@@ -75,7 +75,7 @@ void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Check for stack overflow in specification (like C#) */
     if (stack_demand_main >= total_stack_demand) {
-        printf("[TRAP] INIT at PC=0x%08X: Stack overflow - main demand 0x%08X >= total 0x%08X\n",
+        ND500X_TRAPLOG("[TRAP] INIT at PC=0x%08X: Stack overflow - main demand 0x%08X >= total 0x%08X\n",
                fi->address, stack_demand_main, total_stack_demand);
         trap_stack_overflow(cpu, fi->address);
         return;

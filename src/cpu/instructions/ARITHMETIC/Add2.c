@@ -224,8 +224,8 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Handle trap conditions (like C# lines 152-164) */
     if (overflow) {
-        printf("[TRAP] ADD2 at PC=0x%08X: Integer overflow\n", fi->address);
-        trap_invalid_operation(cpu, fi->address);
+        ND500X_TRAPLOG("[TRAP] ADD2 at PC=0x%08X: Integer overflow\n", fi->address);
+        trap_integer_overflow(cpu, fi->address);
         return;
     }
 }

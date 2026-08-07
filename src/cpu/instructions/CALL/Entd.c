@@ -31,7 +31,7 @@
 void nd500_instr_Entd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate that CALL preceded this instruction */
     if (cpu->pending_call_return_address == 0) {
-        printf("[TRAP] ENTD at PC=0x%08X: Must be preceded by CALL/CALLG\n",
+        ND500X_TRAPLOG("[TRAP] ENTD at PC=0x%08X: Must be preceded by CALL/CALLG\n",
                fi->address);
         trap_instruction_sequence_error(cpu, fi->address);
         return;
@@ -39,7 +39,7 @@ void nd500_instr_Entd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Validate zero arguments (ENTD doesn't support arguments) */
     if (cpu->pending_call_arg_count != 0) {
-        printf("[TRAP] ENTD at PC=0x%08X: Requires 0 arguments, got %u\n",
+        ND500X_TRAPLOG("[TRAP] ENTD at PC=0x%08X: Requires 0 arguments, got %u\n",
                fi->address, cpu->pending_call_arg_count);
         trap_instruction_sequence_error(cpu, fi->address);
         return;

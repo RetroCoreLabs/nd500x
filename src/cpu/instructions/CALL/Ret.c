@@ -214,7 +214,7 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          *
          * This is an error condition - raise STU (Stack Underflow) trap.
          */
-        printf("[TRAP] RET at PC=0x%08X: Stack underflow (PREVB=0, no domain to return to)\n",
+        ND500X_TRAPLOG("[TRAP] RET at PC=0x%08X: Stack underflow (PREVB=0, no domain to return to)\n",
                fi->address);
         trap_stack_underflow(cpu, fi->address);
         return;

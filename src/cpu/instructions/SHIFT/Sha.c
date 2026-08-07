@@ -80,7 +80,7 @@ void nd500_instr_Sha(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Validate shift count (like C# lines 37-41) */
     if (abs_shift >= (int32_t)bits) {
-        printf("[TRAP] SHA at PC=0x%08X: Illegal shift count %d (>= %u bits)\n",
+        ND500X_TRAPLOG("[TRAP] SHA at PC=0x%08X: Illegal shift count %d (>= %u bits)\n",
                fi->address, abs_shift, bits);
         /* Raise IOV (Illegal Operand Value) trap - must be TRAP_IOV, not
          * trap_invalid_operation()'s TRAP_IVO - matches C# Sha.cs. */

@@ -124,7 +124,7 @@ void nd500_instr_Byconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * updated on the trap path. */
     if (overflow) {
         if (getenv("ND500X_BYCONVDBG"))
-            printf("[TRAP] BYCONV at PC=0x%08X: Value %lld outside byte range (-128 to 127)\n",
+            ND500X_TRAPLOG("[TRAP] BYCONV at PC=0x%08X: Value %lld outside byte range (-128 to 127)\n",
                    fi->address, (long long)source_value);
         nd500_write_operand_value(cpu, &fi->operands[1], (uint64_t)(uint8_t)byte_result, ND500_DTYPE_BYTE);
         /* TEST: do NOT trap on conversion overflow - the PCC compiler emits BYCONV

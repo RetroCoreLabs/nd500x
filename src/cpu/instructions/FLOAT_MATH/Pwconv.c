@@ -66,7 +66,7 @@ void nd500_instr_Pwconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     Nd500BcdDescriptor desc = nd500_load_bcd_descriptor(cpu, desc_addr);
 
     if (!desc.is_valid || desc.field_width == 0) {
-        printf("[TRAP] PWCONV at PC=0x%08X: Invalid BCD descriptor (FW=%u)\n",
+        ND500X_TRAPLOG("[TRAP] PWCONV at PC=0x%08X: Invalid BCD descriptor (FW=%u)\n",
                fi->address, desc.field_width);
         raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
@@ -76,7 +76,7 @@ void nd500_instr_Pwconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     Nd500BcdResult bcd_result = nd500_read_packed_bcd(cpu, &desc);
 
     if (bcd_result.invalid_digit) {
-        printf("[TRAP] PWCONV at PC=0x%08X: Invalid BCD digit detected\n",
+        ND500X_TRAPLOG("[TRAP] PWCONV at PC=0x%08X: Invalid BCD digit detected\n",
                fi->address);
         raise_trap(cpu, TRAP_IOV, fi->address, 0);
         return;
