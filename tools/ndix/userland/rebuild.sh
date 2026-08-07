@@ -6,7 +6,10 @@ NDIX=/mnt/e/Dev/Ronny/NDIX-C
 SP=/home/ronny/repos/nd500x/work
 B=/home/ronny/repos/ragge/pcc-nd500/bin
 SRC=$NDIX/rootfs_full.img
-GEN=/mnt/c/Users/ronny/AppData/Local/Temp/claude/E--Dev-Ronny-NDIX-C/8ae946ae-fd1d-44c4-a731-a036a9cf9531/scratchpad/genproto2.py
+# The generator that sits beside this script. This used to point into a
+# session scratch directory, so edits to the committed copy silently had no
+# effect - the /etc overlay was generated and then ignored.
+GEN=$(dirname "$0")/genproto2.py
 OUT=$SP/stage/rootfs_new.img
 
 cd /home/ronny/repos/nd500x || exit 1
@@ -14,8 +17,11 @@ rm -rf "$SP/stage/full"
 mkdir -p "$SP/stage/full"
 
 echo "=== 1. proto from the real image ==="
+# The 6th argument is the /etc overlay: the network database files the shipped
+# image never had (services, protocols, networks, hosts - all from NDIX-C's own
+# baseline/etc) and a replacement /etc/rc that brings lo0 up and starts inetd.
 python3 "$GEN" "$SP/stage/listing.txt" "$SRC" "$SP/stage/full" \
-        "$SP/stage/full.proto" "$SP/bin" 2>&1 | tail -4
+        "$SP/stage/full.proto" "$SP/bin" "$SP/extraetc" 2>&1 | tail -4
 
 echo
 echo "=== 2. build the root filesystem ==="

@@ -15,6 +15,18 @@ IMG     = sys.argv[2]
 STAGE   = sys.argv[3]
 OUT     = sys.argv[4]
 NEWBIN  = sys.argv[5]
+# Optional 6th argument: a directory of plain /etc data files to install.
+# A file here whose name matches one already in the image REPLACES it (that is
+# how /etc/rc gets edited); a file with a new name is added. Used to put back
+# /etc/services, /etc/protocols, /etc/networks and /etc/hosts, which the
+# shipped image never had even though NDIX-C's own baseline/etc carries them.
+EXTRAETC = sys.argv[6] if len(sys.argv) > 6 else None
+extra = {}
+if EXTRAETC and os.path.isdir(EXTRAETC):
+    for e in sorted(os.listdir(EXTRAETC)):
+        p = os.path.join(EXTRAETC, e)
+        if os.path.isfile(p):
+            extra[e] = p
 ND      = "/home/ronny/repos/nd500x/build/bin/nd500x"
 
 def mode_of(perm):
@@ -74,6 +86,29 @@ def emit_dir(guest, indent):
                     if os.path.isfile(p) and not any(
                             e[2] == b for e in dirs.get("/etc", [])):
                         out.append("%s\t%s ---755 3 1 %s" % (pad, b, p))
+                # data files that the image did not have at all. Ones it DID
+                # have were already swapped in by the typ == "-" branch below.
+                for b, p in sorted(extra.items()):
+                    if not any(e[2] == b for e in dirs.get("/etc", [])):
+                        out.append("%s\t%s ---644 3 1 %s" % (pad, b, p))
+            if gpath == "/dev":
+                # Pseudo-terminals. The image had none at all, so telnetd and
+                # rlogind failed with "All network ports in use" - which is
+                # 4.3's way of saying it could not open a pty master.
+                #
+                # Majors come from kernel/MASTER/machine/conf.c: entry 5 in
+                # cdevsw is pts (the slave, /dev/ttyp?) and entry 6 is ptc (the
+                # master, /dev/ptyp?). The GENERIC IDENT sets NPTY=32, so the
+                # minors run 0..31 - that is the p series and the q series,
+                # 16 each, which is exactly the naming telnetd walks.
+                for minor in range(32):
+                    series = "pq"[minor // 16]
+                    digit  = "0123456789abcdef"[minor % 16]
+                    for prefix, major in (("pty", 6), ("tty", 5)):
+                        nm = "%s%s%s" % (prefix, series, digit)
+                        if not any(e[2] == nm for e in dirs.get("/dev", [])):
+                            out.append("%s\t%s c--666 3 1 %d %d"
+                                       % (pad, nm, major, minor))
             out.append("%s$" % pad)
             continue
 
@@ -82,6 +117,12 @@ def emit_dir(guest, indent):
             continue
 
         if typ == "-":
+            # An override wins over whatever is in the image - this is how
+            # /etc/rc is edited without ever writing to the live image.
+            if guest == "/etc" and name in extra:
+                out.append("%s%s ---%s 3 1 %s" % (pad, name, mode, extra[name]))
+                recovered += 1
+                continue
             local = os.path.join(STAGE, gpath.lstrip("/"))
             os.makedirs(os.path.dirname(local), exist_ok=True)
             r = subprocess.run([ND, "--ndix", IMG, "--extract", gpath, local],
