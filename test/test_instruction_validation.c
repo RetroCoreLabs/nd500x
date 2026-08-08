@@ -609,6 +609,31 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
     nd500_cpu_reset(cpu);
     memset(m->memory, 0, m->memory_size);
 
+    /* The raised-trap record is a FILE-SCOPE GLOBAL in cpu.c, not part of
+     * Nd500Cpu, so nd500_cpu_reset() above cannot clear it. It was only ever
+     * cleared inside the "if (nd500_trap_occurred())" branch further down, so
+     * any test that returned before reaching that branch left its trap set and
+     * the NEXT test was reported as trapping when it had not.
+     *
+     * Clear it up front so every test starts clean regardless of how the
+     * previous one ended. */
+    nd500_trap_clear();
+
+    /* The MACHINE's run state is not part of Nd500Cpu either, so it also
+     * survives nd500_cpu_reset(). A test whose instruction legitimately halts
+     * the machine - Bp_Breakpoint raises IIC and leaves
+     * "[STOP] illegal instruction at PC=0x1000 data=0x2", run_flag = 0 - left
+     * the NEXT test running against a stopped machine, which surfaced as an
+     * "unexpected trap: Unknown".
+     *
+     * That is exactly what made Noop_Default fail: it passes on its own
+     * (--filter Noop is 2/2) and only fails in a full run, immediately after
+     * the BP test. Put the machine back in a runnable state per test. */
+    m->run_flag = 1;
+    m->stop_reason = 0;
+    m->stop_addr = 0;
+    m->stop_data = 0;
+
     /* Get test components */
     cJSON* bytes = cJSON_GetObjectItem(test, "bytes");
     cJSON* initial = cJSON_GetObjectItem(test, "initial");
