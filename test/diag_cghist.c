@@ -29,7 +29,7 @@
 #include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
-static const char* DOM=nd500_testdata("FraTor/nc/nc-a06.dom");
+static const char* DOM; /* assigned in main - nd500_testdata() is a call, not a constant */
 
 /* Codegen region per handoff: 0x0802B000 - 0x0802E000 */
 #define CG_LO 0x0802B000u
@@ -65,6 +65,7 @@ static struct { uint32_t pc,i0,i1,i2,i3,b,r,tos; } sr[SRING];
 static int shead=0;
 
 int main(int argc,char**argv){
+    DOM = nd500_testdata("FraTor/nc/nc-a06.dom");
     const char* cmd=(argc>1)?argv[1]:"COMPILE B,B,B\r";
     long maxsteps=(argc>2)?atol(argv[2]):15000000;
     hist=calloc(HSPAN,sizeof(uint32_t));

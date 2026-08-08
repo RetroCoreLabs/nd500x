@@ -25,7 +25,7 @@
 #include "testdata.h"
 
 #define MEMSZ (16u*1024u*1024u)
-static const char* DOM=nd500_testdata("FraTor/nc/nc-a06.dom");
+static const char* DOM; /* assigned in main - nd500_testdata() is a call, not a constant */
 
 static Nd500Cpu* g_cpu=NULL;
 
@@ -84,6 +84,7 @@ static void mon_cb(MonLogLevel lvl,const char* msg){
 }
 
 int main(int argc,char**argv){
+    DOM = nd500_testdata("FraTor/nc/nc-a06.dom");
     const char* cmd=(argc>1)?argv[1]:"CHECK B,B,B\rGENERATE-CODE B,BOUT\rEXIT\r";
     if(ndlib_load_dom_header(DOM)||ndlib_load_dom_segments()){fprintf(stderr,"load fail\n");return 2;}
     Nd500Machine m; Nd500Cpu c;

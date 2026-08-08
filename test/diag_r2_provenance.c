@@ -43,7 +43,7 @@
 static uint32_t TARGET = 0x54312D42u;   /* overridable via argv[1] */
 static int      REG    = 1;             /* index into cpu.I[]; overridable via argv[2] */
 
-static const char* DOM = nd500_testdata("FraTor/nc/nc-a06.dom");
+static const char* DOM; /* assigned in main - nd500_testdata() is a call, not a constant */
 
 static void prime_input(void) {
     const char* cmd = "COMPILE A,A,A\r";
@@ -92,6 +92,7 @@ static void dump_around(Nd500Machine* m, uint32_t center, int before, int after)
 }
 
 int main(int argc,char**argv){ if(argc>1)TARGET=(uint32_t)strtoul(argv[1],0,0); if(argc>2)REG=atoi(argv[2]);
+    DOM = nd500_testdata("FraTor/nc/nc-a06.dom");
     /* ---- header/segments loaded once (ndlib globals), reused by both passes ---- */
     if (ndlib_load_dom_header(DOM) != 0) { fprintf(stderr, "header load failed\n"); return 2; }
     if (ndlib_load_dom_segments() != 0)  { fprintf(stderr, "segment load failed\n"); return 2; }

@@ -17,11 +17,12 @@
 #include <ndmon/mon_clock.h>
 #include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
-static const char* DOM=nd500_testdata("FraTor/nc/nc-a06.dom");
+static const char* DOM; /* assigned in main - nd500_testdata() is a call, not a constant */
 
 static long filesize(const char* p){ FILE* f=fopen(p,"rb"); if(!f)return -1; fseek(f,0,SEEK_END); long n=ftell(f); fclose(f); return n; }
 
 int main(int argc,char**argv){
+    DOM = nd500_testdata("FraTor/nc/nc-a06.dom");
     const char* cmd=(argc>1)?argv[1]:"COMPILE B,B,BOUT\rEXIT\r";
     if(ndlib_load_dom_header(DOM)||ndlib_load_dom_segments()){fprintf(stderr,"load fail\n");return 2;}
     Nd500Machine m; Nd500Cpu c;

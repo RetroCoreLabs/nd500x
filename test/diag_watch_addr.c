@@ -28,7 +28,7 @@
 
 #define MEMORY_SIZE   (16u * 1024u * 1024u)
 #define MAX_STEPS     2000000L
-static const char* DOM = nd500_testdata("FraTor/nc/nc-a06.dom");
+static const char* DOM; /* assigned in main - nd500_testdata() is a call, not a constant */
 static const char* CMD = "CHECK B,B,B\r";
 
 static void prime_input(void) {
@@ -48,6 +48,7 @@ static uint32_t xlate(Nd500Cpu* c, uint32_t v) {
 }
 
 int main(int argc, char** argv) {
+    DOM = nd500_testdata("FraTor/nc/nc-a06.dom");
     if (argc > 1) CMD = argv[1];
     uint32_t WATCH = (argc > 2) ? (uint32_t)strtoul(argv[2], 0, 0) : 0x100001F4u;
 
