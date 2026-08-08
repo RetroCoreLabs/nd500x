@@ -94,4 +94,4 @@ Unaffected.
 ## See Also
 
 - [OTE1=:](ote1=_.md) - Store Own trap enable 1
-- [Context Switching](../ContextSwitching.md)
+- [MOVE instruction reference](../../instruction-reference/MOVE.md)

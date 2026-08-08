@@ -231,4 +231,4 @@ EARLY_EXIT:
 - [SOLO](solo.md) - Disable process switch (begin atomic section)
 - [ENTT](entt.md) - Enter trap handler
 - [WAIT](wait.md) - Wait for event
-- [Synchronization](../ND500_SYNCHRONIZATION.md) - Lock and semaphore primitives
+- [CONTROL instruction reference](../../instruction-reference/CONTROL.md)

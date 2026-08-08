@@ -235,4 +235,4 @@ SEARCH:
 - [SCOMP](scomp.md) - String compare
 - [SSCAN](sscan.md) - String scan
 - [SCPUNO](scpuno.md) - String copy until
-- [String Operations](../ND500_STRING_OPERATIONS.md)
+- [STRING instruction reference](../../instruction-reference/STRING.md)

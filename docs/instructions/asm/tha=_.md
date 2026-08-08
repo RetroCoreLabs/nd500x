@@ -100,4 +100,4 @@ Unaffected.
 ## See Also
 
 - [THA:=](tha_=.md) - Load Trap handler address
-- [Context Switching](../ContextSwitching.md)
+- [MOVE instruction reference](../../instruction-reference/MOVE.md)

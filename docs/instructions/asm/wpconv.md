@@ -228,4 +228,4 @@ CONTINUE:
 - [PSUB](psub.md) - Packed BCD subtraction
 - [PMUL](pmul.md) - Packed BCD multiplication
 - [PDIV](pdiv.md) - Packed BCD division
-- [BCD Arithmetic](../ND500_BCD_ARITHMETIC.md) - Packed decimal operations
+- [Packed BCD](../../ND500_PACKED_BCD.md) - Packed decimal format and the decimal instructions

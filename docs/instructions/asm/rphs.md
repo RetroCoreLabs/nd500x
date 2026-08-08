@@ -278,5 +278,4 @@ DONE:
 - [BMOVE](bmove.md) - Block move within same domain
 - [RPGU](rpgu.md) - Read Page Used table
 - [ZPGU](zpgu.md) - Clear Page Used bit
-- [MMU Documentation](../ND500_MMU.md) - Memory management unit
-- [Virtual Memory](../ND500_VIRTUAL_MEMORY.md) - Physical segment addressing
+- [SYSTEM instruction reference](../../instruction-reference/SYSTEM.md)

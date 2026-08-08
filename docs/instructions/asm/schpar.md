@@ -109,4 +109,4 @@ for each byte in string:
 ## See Also
 
 - [SCHK](schk.md) - Check condition
-- [String Operations](../ND500_STRING_OPERATIONS.md)
+- [STRING instruction reference](../../instruction-reference/STRING.md)

@@ -206,4 +206,4 @@ EXCEPT_HANDLER:
 - [LREGBL](lregbl.md) - Load register block (restore registers)
 - [SVERS](svers.md) - Store microprogram version
 - [SLOCA](sloca.md) - System location access
-- [Context Switching](../ND500_CONTEXT_SWITCHING.md) - Task switching operations
+- [SYSTEM instruction reference](../../instruction-reference/SYSTEM.md)

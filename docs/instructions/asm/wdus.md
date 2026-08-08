@@ -204,5 +204,5 @@ No flags affected (unlike RDUS, WDUS does not set Z or S flags).
 - [RDUS](rdus.md) - Read bypassing cache (load with cache bypass)
 - [=:](assignfrom.md) - Normal store operation (uses cache)
 - [WIOM](wiom.md) - Write I/O memory
-- [Cache System](../ND500_CACHE_SYSTEM.md) - ND-500 cache architecture
+- [SYSTEM instruction reference](../../instruction-reference/SYSTEM.md)
 - [Trap System](../../ND-500-TRAPS.md) - Trap handling

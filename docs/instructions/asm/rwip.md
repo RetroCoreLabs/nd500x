@@ -245,5 +245,4 @@ NO_FLUSH_NEEDED:
 - [ZPGU](zpgu.md) - Clear Page Used bit
 - [RPHS](rphs.md) - Read from physical segment
 - [WPHS](wphs.md) - Write to physical segment
-- [MMU Documentation](../ND500_MMU.md) - Memory management unit
-- [Virtual Memory](../ND500_VIRTUAL_MEMORY.md) - Paging and dirty page tracking
+- [SYSTEM instruction reference](../../instruction-reference/SYSTEM.md)

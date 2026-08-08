@@ -229,5 +229,4 @@ Aging:
 - [RPGU](rpgu.md) - Read Page Used table (companion read instruction)
 - [RPHS](rphs.md) - Read from physical segment
 - [WPHS](wphs.md) - Write to physical segment
-- [MMU Documentation](../ND500_MMU.md) - Memory management unit
-- [Virtual Memory](../ND500_VIRTUAL_MEMORY.md) - Paging and swapping system
+- [SYSTEM instruction reference](../../instruction-reference/SYSTEM.md)

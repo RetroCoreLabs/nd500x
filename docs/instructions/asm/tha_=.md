@@ -94,4 +94,4 @@ Unaffected.
 ## See Also
 
 - [THA=:](tha=_.md) - Store Trap handler address
-- [Context Switching](../ContextSwitching.md)
+- [MOVE instruction reference](../../instruction-reference/MOVE.md)

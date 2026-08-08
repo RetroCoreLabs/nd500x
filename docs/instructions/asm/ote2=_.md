@@ -94,4 +94,4 @@ Unaffected.
 ## See Also
 
 - [OTE2:=](ote2_=.md) - Load Own trap enable 2
-- [Context Switching](../ContextSwitching.md)
+- [MOVE instruction reference](../../instruction-reference/MOVE.md)

@@ -215,6 +215,5 @@ MM_FREE_DONE:
 ## See Also
 
 - [GETB](getb.md) - Allocate buddy element from heap
-- [Privilege Levels](../ND500_PRIVILEGE_MODES.md)
+- [SYSTEM instruction reference](../../instruction-reference/SYSTEM.md)
 - [Trap System](../../ND-500-TRAPS.md)
-- [Heap Management](../ND500_HEAP_MANAGEMENT.md)

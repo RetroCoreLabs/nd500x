@@ -207,4 +207,4 @@ VERSION_OK:
 
 - [SREGBL](sregbl.md) - Save register block
 - [SLOCA](sloca.md) - System location access
-- [System Programming](../ND500_SYSTEM_PROGRAMMING.md) - System-level operations
+- [SYSTEM instruction reference](../../instruction-reference/SYSTEM.md)

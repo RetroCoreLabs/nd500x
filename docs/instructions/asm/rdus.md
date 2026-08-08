@@ -213,5 +213,5 @@ FLAG_SET:
 - [WDUS](wdus.md) - Write bypassing cache (store with cache bypass)
 - [:=](assignto.md) - Normal load operation (uses cache)
 - [RIOM](riom.md) - Read I/O memory
-- [Cache System](../ND500_CACHE_SYSTEM.md) - ND-500 cache architecture
+- [SYSTEM instruction reference](../../instruction-reference/SYSTEM.md)
 - [Trap System](../../ND-500-TRAPS.md) - Trap handling
