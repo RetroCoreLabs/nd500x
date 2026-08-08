@@ -2,7 +2,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include "nd500_indirect.h"
-#include "mon.h"
+#include "nd500_mon_sintran.h"   /* SINTRAN MON seam - keeps ndmonlib optional */
 #include <stdio.h>
 
 /**
@@ -91,8 +91,8 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
         /* Debug: trace argument operands for MON calls */
         if (is_mon_call) {
-            const char* mon_name = mon_get_name(mon_number);
-            mon_log(MON_LOG_DEBUG, "MON %oB (%s) arg[%u]: mode=%d, ea=0x%08X",
+            const char* mon_name = nd500_mon_name(mon_number);
+            nd500_mon_log_debug("MON %oB (%s) arg[%u]: mode=%d, ea=0x%08X",
                     mon_number, mon_name ? mon_name : "?",
                     i, arg_operand->mode, arg_operand->effective_address);
         }

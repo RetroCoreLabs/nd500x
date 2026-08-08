@@ -12,8 +12,7 @@
 #include "../cpu/cpu_protos.h"
 #include "../ndlib/ndlib.h"
 #include "../ndlib/ndlib_color.h"
-#include <ndmon/mon.h>
-#include <ndmon/mon_file_table.h>
+#include "../cpu/nd500_mon_sintran.h"   /* SINTRAN MON seam - no ndmonlib here */
 
 static const char* reg_names[] = {"r1", "r2", "r3", "r4"};
 
@@ -715,13 +714,6 @@ static void trace_console_write_char(void* ctx, int ch) {
     }
 }
 
-static ConsoleIO g_trace_console = {
-    .read_char = NULL,
-    .write_char = trace_console_write_char,
-    .char_available = NULL,
-    .context = NULL
-};
-
 /* Trace file functions */
 int nd500_dbg_set_trace_file_ex(const char* path, int append) {
     if (g_trace_file && g_trace_file != stdout) {
@@ -730,7 +722,7 @@ int nd500_dbg_set_trace_file_ex(const char* path, int append) {
     }
     if (path == NULL) {
         g_trace_file = NULL;  /* Disable file output */
-        mon_file_table_set_console(NULL);  /* Restore default console */
+        nd500_mon_set_trace_console(NULL);  /* Restore default console */
         return 0;
     }
     g_trace_file = fopen(path, append ? "a" : "w");
@@ -739,7 +731,7 @@ int nd500_dbg_set_trace_file_ex(const char* path, int append) {
         return -1;
     }
     /* Set up console handler to capture MON output */
-    mon_file_table_set_console(&g_trace_console);
+    nd500_mon_set_trace_console(trace_console_write_char);
     /* Also enable trace mode */
     nd500_dbg_set_trace_mode(1);
     /* Reset line start tracking for new trace session */
@@ -758,7 +750,7 @@ void nd500_dbg_close_trace_file(void) {
         fclose(g_trace_file);
     }
     g_trace_file = NULL;
-    mon_file_table_set_console(NULL);  /* Restore default console */
+    nd500_mon_set_trace_console(NULL);  /* Restore default console */
 }
 
 FILE* nd500_dbg_get_trace_file(void) {
@@ -862,9 +854,9 @@ static int format_mon_call_info(const char* mnemonic, char* out, size_t out_size
     uint32_t mon_number = target_addr & 0x07FFFFFF;
 
     /* Get MON call name and octal string from registry */
-    const char* octal = mon_get_octal(mon_number);
-    const char* short_name = mon_get_name(mon_number);
-    const char* long_name = mon_get_long_name(mon_number);
+    const char* octal = nd500_mon_octal(mon_number);
+    const char* short_name = nd500_mon_name(mon_number);
+    const char* long_name = nd500_mon_long_name(mon_number);
 
     /* Format output: | MON 3B [EXIT/EXITT] */
     if (short_name && long_name) {

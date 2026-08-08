@@ -70,8 +70,12 @@ if(PLATFORM_WASM OR BUILD_WASM)
         GIT_TAG        master
         SOURCE_SUBDIR  no-cmake-build-here)
     FetchContent_MakeAvailable(cjson)
-    add_library(cjson_objects OBJECT ${cjson_SOURCE_DIR}/cJSON.c)
-    target_include_directories(cjson_objects PUBLIC ${cjson_SOURCE_DIR})
+    # Guarded: nd100x defines a target of the same name, and two
+    # add_subdirectory()'d trees both creating it is a hard CMake error.
+    if(NOT TARGET cjson_objects)
+        add_library(cjson_objects OBJECT ${cjson_SOURCE_DIR}/cJSON.c)
+        target_include_directories(cjson_objects PUBLIC ${cjson_SOURCE_DIR})
+    endif()
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/cjson)
     configure_file(${cjson_SOURCE_DIR}/cJSON.h ${CMAKE_BINARY_DIR}/include/cjson/cJSON.h COPYONLY)
     include_directories(${CMAKE_BINARY_DIR}/include)
@@ -115,8 +119,11 @@ else()
                 GIT_TAG        v1.7.18
                 SOURCE_SUBDIR  no-cmake-build-here)
             FetchContent_MakeAvailable(cjson)
-            add_library(cjson_objects OBJECT ${cjson_SOURCE_DIR}/cJSON.c)
-            target_include_directories(cjson_objects PUBLIC ${cjson_SOURCE_DIR})
+            # Guarded - see the note on the WASM branch above.
+            if(NOT TARGET cjson_objects)
+                add_library(cjson_objects OBJECT ${cjson_SOURCE_DIR}/cJSON.c)
+                target_include_directories(cjson_objects PUBLIC ${cjson_SOURCE_DIR})
+            endif()
             # The sources say #include <cjson/cJSON.h>, so give them a directory
             # with that exact shape rather than editing 40-odd include lines.
             file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/cjson)
@@ -161,12 +168,38 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libsymbols")
     add_subdirectory(external/libsymbols)
 endif()
 
-# MON call library (ndmonlib) - essential for SINTRAN support
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/ndmonlib/CMakeLists.txt")
-    add_subdirectory(external/ndmonlib)
+# MON call library (ndmonlib) - SINTRAN III monitor-call emulation.
+#
+# OPTIONAL since 2026-08-08. NDIX makes exactly ONE monitor call: MON 600, the
+# ND-100 front-end call ("fecall"), issued from kernel machine/locore.c:227 as
+# callg $0xf8000180. That one is served inside this repository by
+# src/cpu/nd500_fecall.c and depends on nothing external. Everything else on
+# segment 31 is SINTRAN emulation, and it now lives behind the seam declared in
+# src/cpu/nd500_mon_sintran.h.
+#
+# Turn this OFF to build nd500_cpu + nd500_machine with NO ndmonlib dependency:
+# the emulator still boots NDIX, and those two libraries can be linked into
+# another host - nd100x's WASM build in particular - without this submodule,
+# which lives in a separate private repository. The SINTRAN-facing parts (the
+# debugger with its `mon` command, the native/WASM frontends and the test
+# suite) do need it and are skipped in that configuration.
+option(ND500X_WITH_NDMON "Build SINTRAN MON-call emulation (needs the ndmonlib submodule)" ON)
+
+if(ND500X_WITH_NDMON)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/ndmonlib/CMakeLists.txt")
+        add_subdirectory(external/ndmonlib)
+    else()
+        # This used to be two warnings followed by a confusing compile error.
+        # Say it once, up front, and name both ways out.
+        message(FATAL_ERROR
+            "ndmonlib submodule not found at external/ndmonlib.\n"
+            "  Fix:      git submodule update --init external/ndmonlib\n"
+            "  Or build without SINTRAN MON emulation (NDIX still boots, it\n"
+            "  only needs MON 600):  cmake -DND500X_WITH_NDMON=OFF ...")
+    endif()
 else()
-    message(WARNING "ndmonlib submodule not found at external/ndmonlib")
-    message(WARNING "Run: git submodule update --init external/ndmonlib")
+    message(STATUS "ndmonlib DISABLED (ND500X_WITH_NDMON=OFF)"
+                   " - MON 600 / NDIX only; debugger, frontends and tests skipped")
 endif()
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -179,12 +212,17 @@ add_subdirectory(src/disasm)
 add_subdirectory(src/machine)
 add_subdirectory(src/cpu)
 # MON library now comes from external/ndmonlib (added above)
-add_subdirectory(src/debugger)
+# The debugger (its `mon` command enumerates the ndmonlib registry) and both
+# frontends are SINTRAN-facing and need ndmonlib. A WITH_NDMON=OFF build is a
+# library-only build: nd500_cpu + nd500_machine for embedding elsewhere.
+if(ND500X_WITH_NDMON)
+    add_subdirectory(src/debugger)
 
-if(BUILD_WASM)
-    add_subdirectory(src/frontend/nd500wasm)
-else()
-    add_subdirectory(src/frontend/nd500x)
+    if(BUILD_WASM)
+        add_subdirectory(src/frontend/nd500wasm)
+    else()
+        add_subdirectory(src/frontend/nd500x)
+    endif()
 endif()
 
 if(PLATFORM_WASM OR BUILD_WASM)
@@ -203,4 +241,8 @@ endif()
 
 
 enable_testing()
-add_subdirectory(test)
+# The test suite links `mon` directly (test_mon_calls and friends), so it only
+# builds in the WITH_NDMON configuration.
+if(ND500X_WITH_NDMON)
+    add_subdirectory(test)
+endif()

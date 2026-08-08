@@ -7,7 +7,7 @@
 #include "../cpu/nd500_phys_alloc.h"
 #include "../cpu/nd500_page_bits.h"
 #include "../cpu/nd500_tlb.h"
-#include <ndmon/mon_file_table.h>
+#include "../cpu/nd500_mon_sintran.h"   /* SINTRAN MON seam - no ndmonlib here */
 
 /* ------------------------------------------------------------------ *
  * PTE write-watch (env ND500X_PTEWATCH). Diagnostic only: logs every
@@ -132,7 +132,7 @@ void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
 	}
 
 	/* Initialize file system tables (for MON 50/43/122/123 etc) */
-	mon_file_table_init();
+	nd500_mon_files_init();
 }
 
 void nd500_machine_free(Nd500Machine* m) {
@@ -167,7 +167,7 @@ void nd500_machine_free(Nd500Machine* m) {
 	}
 
 	/* Reset file system tables */
-	mon_file_table_reset();
+	nd500_mon_files_reset();
 }
 
 static inline int in_range(Nd500Machine* m, uint32_t addr, uint32_t size) {

@@ -6,6 +6,12 @@
  * hardware the ND-100 monitor services these. Here the emulator services them,
  * backing the disk with a host image file (rootfs.img).
  *
+ * Per-code contract in the ND manual "List of special commands for
+ * communicating with SINTRAN III" - feexit p.7-8, feidev p.9-11,
+ * feinit p.12-13, feopen p.14-15, feread p.17-18, fewcon p.19.
+ * (Citation preserved from ndmonlib's duplicate MON 600 handler, deleted
+ * 2026-08-08: this file is the only implementation now.)
+ *
  * Interface fully documented in docs/NDIX_FECALL_MON600_SPEC.md. Summary:
  *   callg $0xf8000180,$4, device, request, rpk, cpk
  *     device  = gen<<16 | subdev   (gen: DISK=1)
