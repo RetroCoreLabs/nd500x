@@ -24,6 +24,7 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | (pre-2026-08-08) | various | Float native bias-256 rebase | docs/SYNC-FLOAT-NATIVE-REBASE.md | unaudited |
 | (pre-2026-08-08) | various | MON 257B FOPEN present in SINTRAN L | docs/SYNC-MON-257B-FOPEN-PRESENT-IN-SINTRAN-L.md | unaudited |
 | (pre-2026-08-08) | various | STRING wrong-instruction fixes | docs/SYNC-STRING-WRONG-INSTRUCTION-FIXES.md | unaudited |
+| 2026-08-08 | ndmonlib `97a2a22` + pointer bump | MON 113B CLOCK returned `tm_year % 100`; now writes the full year. **INFERRED, not proven** - the manual states no width and the case rests on one NPL line. Read item 13 before mirroring | shared-file item 13 | open |
 
 ## Backlog state as of 2026-08-08
 
