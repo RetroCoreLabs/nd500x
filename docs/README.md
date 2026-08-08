@@ -32,7 +32,7 @@ Two rules keep this folder from silting up again:
 | Document | Covers |
 |---|---|
 | [instruction-reference/](instruction-reference/) | Per-category functional reference (13 files), built by tracing the ND-5000 microcode and cross-checking the printed manual. Disagreements between the two are called out per instruction. **The highest-confidence instruction documentation here.** |
-| [instructions/](instructions/) | Per-instruction reference, 241 of each. The `yaml/*.yaml` are generated from `instructions.json` by `generate_yaml_instructions.py` and can be regenerated freely. The `asm/*.md` are **written by hand from the manual** - do not run `generate_instruction_docs.py` over them. It emits skeletons, so regenerating replaces every description, operand note and privilege level with a placeholder. |
+| [instructions/](instructions/) | Per-instruction reference, 241 of each. The `yaml/*.yaml` are generated from `instructions.json` by `generate_yaml_instructions.py` and can be regenerated freely. The `asm/*.md` are **written by hand from the manual** - there is no generator for them, and there must not be one. The scaffolder that produced the original empty skeletons was deleted for overwriting them. |
 | [ND-500-TRAPS.md](ND-500-TRAPS.md) | The 64 status bits and the 40 defined trap conditions, by category. |
 | [ND500_PACKED_BCD.md](ND500_PACKED_BCD.md) | Packed BCD format and the decimal instructions (manual chapter 17). |
 | [cpu_implementation_changes.md](cpu_implementation_changes.md) | Corrections made to the emulator's CPU, each anchored to the validation test that caught it. |
