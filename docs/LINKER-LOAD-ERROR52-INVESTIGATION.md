@@ -1,5 +1,93 @@
 # ND linker `LOAD <obj>` — error 52 investigation (blocker #1, LOAD object load)
 
+## CLOSED 2026-08-09 — every blocker in this document is fixed
+
+`OPEN-DOMAIN` + `LOAD` works, the full link produces a running `.DOM`, and the
+result is correct. Nothing below is a live bug. Read the rest as a record of how
+it was found, not as a task list.
+
+### The run that closes it (2026-08-09)
+
+Harness `build/bin/diag_linkdrive`, rebuilt from scratch first (`make diag`) —
+the copy on disk was two weeks stale. Run from the `$ND500USERS` tree:
+
+```
+OPEN-DOMAIN "HTEST";;LOAD HELLO;;LOAD NC-LIB;;LOAD CAT-LIB;;
+DEFINE-ENTRY stack-space,400000,d;;DEFINE-ENTRY heap-space,400000,d;;
+REFER-ENTRY stack-space,rts_stack_size,d,d;;
+REFER-ENTRY heap-space,rts_heap_size,d,d;;CLOSE;;EXIT
+```
+
+`LOAD HELLO` reports, with no error code:
+
+```
+Program:........164B P01   Data:...........164B D01   Debug:.........262B Bytes
+```
+
+The link completes and writes `GUEST/HTEST.DOM` (6,312,200 bytes). Loading and
+stepping that domain gives a clean exit, and the right answer — `HELLO.C` is
+`int x; int main(){ x = 42; return x; }` and after the run `0x0800006C` holds
+`00 00 00 2A`:
+
+```
+programHELLO terminated
+execution time   0:00:00
+[STOP] MON halt: Program exit (MON 0B LEAVE)
+Stopped: MON halt at 0x08002FDA (after 15383 instructions)
+```
+
+### Which commit fixed what — bisected, not assumed
+
+Three separate faults, each producing a different error code, each fixed by a
+different commit. Established by `git bisect` over `faa46cc..4401ac5` in a
+throwaway worktree, rebuilding the emulator and re-running the linker at every
+step:
+
+| Error | Fixed by | Cause |
+|---|---|---|
+| `(-677:52)` | `177fa229` `fix(libmon): DEABF returns version-qualified name` | DEABF returned `B:NRF` with no version; the linker rejects a version-less object name before opening it |
+| `(0054:67)` "no current domain" | `bce9562` `fix(libmon): 256B DEABF returns K CLEAR on success, not K SET` | measured: `288402d` still returns `(0054:67)`, `bce9562` does not |
+| `(0054:16)` "illegal control byte" | `a3047b1` `fix(cpu): LOOPI index uses the instruction data type, not forced WORD` | `H LOOPI:B b.0x14` read as WORD also swallowed `b.0x16`, so the NRF record scanner consumed one length byte too few and desynchronised |
+
+So the last blocker went on **2026-07-20**, with `a3047b1`. That commit's own
+message already records `LOAD TEST` printing a `Program:/Data:` summary. This
+document was simply never updated and described a dead blocker for three weeks.
+
+### Two traps hit while closing this — read before re-running anything here
+
+- **A stale harness produced a confident wrong answer.** Two bisect runs were
+  void: the build step preferred the CMake target `diag_linkdrive`, which does
+  not exist before `17b4c1e`, and then fell through to a `[ -x bw/bin/diag_linkdrive ]`
+  test that was still true from the *previous, newer* commit's build. Every step
+  after the first therefore tested one new binary against every commit. It named
+  `177fa229`, which agreed with what this document already claimed — that
+  agreement is exactly what made it hard to spot. It was caught only because
+  `faa46cc` reported GOOD on one run and BROKEN on another. Any bisect here must
+  delete `bw/bin/diag_linkdrive` and `bw/lib/*.a` before each build.
+- **`$ND500USERS` cannot run pre-2026-07-19 code.** Its `SYSTEM/` holds
+  `DDBTABLES-G06.VTM` and depends on the later un-revisioned-name fallback in
+  `50B OPEN`. Older commits fail the open, take `DDBTABLES-E.VTM` instead, and
+  die with "Format of found DDBTABLES is not supported by this VTM" long before
+  reaching `LOAD`. Bisecting needs a copy of the tree with a `DDBTABLES-G.VTM`
+  added.
+
+### Known bad data in the sandbox
+
+`GUEST/B.NRF`, `GUEST/A.NRF` and `GUEST/HOUT.NRF` are **0 bytes**. The
+"Reproduce" section below uses `B.NRF`, so running it as written measures
+nothing: `LOAD` reports `Program:..........4B P01` because the object is empty,
+not because anything worked. Use a real object such as `GUEST/HELLO.NRF`.
+
+### One thing that changed and is not a fault
+
+At `CLOSE` the linker now finds and runs `LINKER-AUTO-FORT:JOB` — it loads
+`(SYSTEM)NC-LIB` and `(SYSTEM)CAT-LIB` and issues the `DEFINE-ENTRY`/`REFER`
+lines itself. Scripts that also do those by hand get
+`*** WARNING - Redefinition of STACK-SPACE = 400000B ignored`, which is
+harmless. Older notes saying the auto-job is missing are out of date.
+
+---
+
 ## *** SOLVED 2026-07-19: root cause = DEABF returned a VERSION-LESS name ***
 The linker's `LOAD` rejects a resolved object name that lacks a SINTRAN **version**.
 Our `256B DEABF/FullFileName` returned `B:NRF` (no version); the Monitor Calls manual
@@ -20,7 +108,7 @@ files (`B:NRF;1`) makes the linker **open the object** (`50B OPEN ./GUEST/B.NRF`
   is a check on DEABF's OUTPUT. The manual named the missing field (version); a one-line
   experiment (`;1`) confirmed it by making `50B OPEN` fire.
 
-### NEW frontier (next blocker, separate): "no current domain" — CHARACTERIZED 2026-07-19
+### (historical, FIXED by `bce9562`) "no current domain" — CHARACTERIZED 2026-07-19
 MON-level trace of the full run (deterministic) pins the behaviour:
 - **OPEN-DOMAIN "A-TEST"** (quoted create): `50B OPEN` create A-TEST.DOM (file 101) ->
   `120B WFILE` 4096-byte empty header at block 0 -> `256B DEABF` 'A-TEST:DOM;1' ->
@@ -61,7 +149,9 @@ domain create). The `0xB0048CC8` global (=1) is not this state.
 
 Full path: `docs/LINKER-LOAD-ERROR52-INVESTIGATION.md`
 Date: 2026-07-18
-Run from: `build/link_sandbox` (NOT nc_sandbox)
+Run from: `build/link_sandbox` (NOT nc_sandbox) — that directory no longer
+exists; the linker now runs from the `$ND500USERS` tree. See the CLOSED section
+at the top of this file.
 Driver: `../bin/diag_linkdrive $ND500_TESTDATA/nd-linker/linker-b01.dom 'OPEN-DOMAIN "A-TEST";;LOAD B:NRF;;EXIT;;'`
 (delete `GUEST/A-TEST.DOM` between runs — quoted OPEN-DOMAIN create errors -62 if it already exists)
 

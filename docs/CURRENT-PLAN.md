@@ -10,7 +10,7 @@ This is deliberately a living status file inside `docs/` (an exception to
 the "working notes live in `$NDIX/notes/`" rule) so any session finds it
 cold.
 
-Last updated: 2026-08-08.
+Last updated: 2026-08-09.
 
 ## Standing goal
 
@@ -25,8 +25,11 @@ bar: it must keep working.
   trap-condition bits; instruction_validation was brought from 261
   failures down to 2, then the last two trap gaps were closed (see
   `git log` around 8d9c511, 04f18b5, 21be7ab).
-- Open investigation: linker `LOAD` error 52 at B0040D75 - full byte-level
-  state in `docs/LINKER-LOAD-ERROR52-INVESTIGATION.md`.
+- Linker `LOAD`: CLOSED 2026-08-09. Every blocker in
+  `docs/LINKER-LOAD-ERROR52-INVESTIGATION.md` is fixed. `OPEN-DOMAIN` + `LOAD`
+  + `CLOSE` links a `.DOM` that runs and gives the right answer. Bisected: the
+  last fix was `a3047b1` (LOOPI index data type) on 2026-07-20, so the document
+  described a dead blocker for three weeks. No open investigation replaces it.
 
 ## Ruled out - PROVEN, do not re-investigate
 
@@ -40,7 +43,11 @@ compactions before this list existed.
 - The 2026-07-26 "general domain-header regression" never existed: it was
   a stale hand-linked `diag_linkdrive` binary. The diag_* harnesses are
   CMake targets now (`make diag`); never trust a result from a binary
-  `make` did not just build.
+  `make` did not just build. This bit again on 2026-08-09 in a different
+  shape - a bisect script that fell back to the previous commit's binary
+  when the CMake target did not exist yet, and produced a confident wrong
+  answer that agreed with the document it was checking. Delete the binary,
+  do not just rebuild over it.
 - The NC heap crash root cause is SETTLED: the caller domain's MMU
   translation (g_pst/g_pcb_table) was lost across nested UECOM runs;
   fixed with nd500_mmu_state_save/restore in shell_execute_command. It
