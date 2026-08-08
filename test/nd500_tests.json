@@ -436532,6 +436532,94 @@
     "maxInstructions": 1
   },
   {
+    "name": "Getb_documented_StackOverflow_emptyFreelists_log2",
+    "assembly": "W1 GETB $2",
+    "bytes": [
+      254,
+      76,
+      2
+    ],
+    "initial": {
+      "regs": {
+        "i1": 3735928559,
+        "pc": 4096,
+        "st": 0,
+        "tos": 196608
+      },
+      "ram": [
+        [
+          196608,
+          0
+        ],
+        [
+          196609,
+          0
+        ],
+        [
+          196610,
+          0
+        ],
+        [
+          196611,
+          4
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "StackOverflow",
+    "expectedTrapBits": 134217728
+  },
+  {
+    "name": "Getb_documented_StackOverflow_logSizeAboveMaxl_log5",
+    "assembly": "W1 GETB $5",
+    "bytes": [
+      254,
+      76,
+      5
+    ],
+    "initial": {
+      "regs": {
+        "i1": 3735928559,
+        "pc": 4096,
+        "st": 0,
+        "tos": 196608
+      },
+      "ram": [
+        [
+          196608,
+          0
+        ],
+        [
+          196609,
+          0
+        ],
+        [
+          196610,
+          0
+        ],
+        [
+          196611,
+          4
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "StackOverflow",
+    "expectedTrapBits": 134217728
+  },
+  {
     "name": "Getbf_12345678_Start0_Width4",
     "assembly": "BY GETBF I1,$0,$4",
     "bytes": [
@@ -449994,6 +450082,58 @@
     "requiresCallContext": true
   },
   {
+    "name": "ENTM_documented_StackOverflow_mainDemandEqualsTotal",
+    "assembly": "entm $131072,$4096,$4096",
+    "bytes": [
+      223,
+      0,
+      2,
+      0,
+      0,
+      206,
+      16,
+      0,
+      206,
+      16,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "pc": 4096,
+        "b": 65536,
+        "st": 0
+      },
+      "ram": [
+        [
+          65544,
+          0
+        ],
+        [
+          65545,
+          1
+        ],
+        [
+          65546,
+          2
+        ],
+        [
+          65547,
+          0
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4107
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "requiresCallContext": true,
+    "expectedTrap": "StackOverflow",
+    "expectedTrapBits": 134217728
+  },
+  {
     "name": "ents_NoCallContext_ISE",
     "assembly": "ents $32",
     "bytes": [
@@ -450648,6 +450788,67 @@
     },
     "maxInstructions": 1,
     "requiresCallContext": true
+  },
+  {
+    "name": "ents_documented_StackOverflow_demand0x40",
+    "assembly": "ents $0x40",
+    "bytes": [
+      184,
+      205,
+      64
+    ],
+    "initial": {
+      "regs": {
+        "pc": 4096,
+        "b": 65536,
+        "st": 0,
+        "tos": 65536
+      },
+      "ram": [
+        [
+          65536,
+          0
+        ],
+        [
+          65540,
+          0
+        ],
+        [
+          65544,
+          0
+        ],
+        [
+          65545,
+          1
+        ],
+        [
+          65546,
+          2
+        ],
+        [
+          65547,
+          0
+        ],
+        [
+          65548,
+          0
+        ],
+        [
+          65552,
+          0
+        ]
+      ]
+    },
+    "final": {
+      "regs": {
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "requiresCallContext": true,
+    "expectedTrap": "StackOverflow",
+    "expectedTrapBits": 134217728
   },
   {
     "name": "entsn_NoCallContext_ISE",
@@ -527668,6 +527869,72 @@
       ]
     },
     "maxInstructions": 1
+  },
+  {
+    "name": "Init_documented_StackOverflow_mainEqualsTotal",
+    "assembly": "init $0x10000,$0x1000,$0x1000",
+    "bytes": [
+      220,
+      0,
+      1,
+      0,
+      0,
+      206,
+      16,
+      0,
+      206,
+      16,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4107
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "StackOverflow",
+    "expectedTrapBits": 134217728
+  },
+  {
+    "name": "Init_documented_StackOverflow_mainGreaterThanTotal",
+    "assembly": "init $0x10000,$0x2000,$0x1000",
+    "bytes": [
+      220,
+      0,
+      1,
+      0,
+      0,
+      206,
+      32,
+      0,
+      206,
+      16,
+      0
+    ],
+    "initial": {
+      "regs": {
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4107
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "StackOverflow",
+    "expectedTrapBits": 134217728
   },
   {
     "name": "Noop_Default",
