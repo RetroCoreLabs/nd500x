@@ -445997,6 +445997,58 @@
     "maxInstructions": 1
   },
   {
+    "name": "Ifstgo_documented_IllegalBitNo_30",
+    "assembly": "ifstgo $30, $4",
+    "bytes": [
+      252,
+      123,
+      30,
+      4
+    ],
+    "initial": {
+      "regs": {
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue",
+    "expectedTrapBits": 65536
+  },
+  {
+    "name": "Ifstgo_documented_IllegalBitNo_31",
+    "assembly": "ifstgo $31, $4",
+    "bytes": [
+      252,
+      123,
+      31,
+      4
+    ],
+    "initial": {
+      "regs": {
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue",
+    "expectedTrapBits": 65536
+  },
+  {
     "name": "Ifstgo_ZeroBit_Taken",
     "assembly": "ifstgo $5, $4",
     "bytes": [
@@ -446211,6 +446263,58 @@
       "ram": []
     },
     "maxInstructions": 1
+  },
+  {
+    "name": "Ifstgo_documented_IllegalBitNo_30",
+    "assembly": "ifstgo $30, $4",
+    "bytes": [
+      252,
+      123,
+      30,
+      4
+    ],
+    "initial": {
+      "regs": {
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue",
+    "expectedTrapBits": 65536
+  },
+  {
+    "name": "Ifstgo_documented_IllegalBitNo_31",
+    "assembly": "ifstgo $31, $4",
+    "bytes": [
+      252,
+      123,
+      31,
+      4
+    ],
+    "initial": {
+      "regs": {
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IllegalOperandValue",
+    "expectedTrapBits": 65536
   },
   {
     "name": "Jumpg_To4",
