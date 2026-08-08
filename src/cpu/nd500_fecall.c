@@ -34,6 +34,8 @@
 #include "nd500_fecall.h"
 #include "nd500_tape.h"
 #include "nd500_phys_alloc.h"
+#include "nd500_host.h"       /* host services: block storage       */
+#include "nd500_settings.h"   /* every knob, as plain struct fields  */
 #include "../machine/machine_protos.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,14 +43,10 @@
 #include <errno.h>
 #include <pthread.h>
 
-/* Once-latched env flag: getenv() on the CPU run path races readline's
- * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
-static int nd_env_flag(const char* name, int* latch) {
-    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
-    return *latch;
-}
-static int g_envf_gatedbg = -1;
-static int g_envf_inodedbg = -1;
+/* Settings are read straight out of nd500_settings() now - see
+ * nd500_settings.h. The old nd_env_flag() latch is gone with them: there is no
+ * string lookup left to amortise, and no getenv() on the CPU run path to race
+ * readline's setenv on the main thread (which used to be a real SIGSEGV). */
 
 
 /* ---- FE request codes (machine/if.h) ---- */
@@ -166,9 +164,21 @@ static int fedbg(void);
  * build, not to the repository - the image location comes from --ndix (which
  * exports ND500X_DISK) or from ND500X_DISK directly. */
 
-static FILE*    g_disk = NULL;
-static long     g_disk_size = 0;
-static int      g_disk_rw = 0;   /* 1 = COW session open r+b, honor FE_WRIT */
+/* The disk itself now belongs to the host (nd500_host.h): it may be a file, a
+ * browser OPFS handle, or blocks fetched over a WebSocket. All this layer does
+ * is compute an image offset and ask. FE_ROOT_DISK_UNIT is the unit NDIX boots
+ * from; other units come from the device subaddress - see fe_disk_unit(). */
+#define FE_ROOT_DISK_UNIT 0
+
+/* NDIX addresses disks as gen<<16 | subdevice, and its own ceiling is
+ * MAXDISK 16 (kernel/MASTER/machine/fevar.h), so the subdevice IS the unit
+ * number. Out-of-range falls back to the root unit rather than failing: a
+ * machine that answers the wrong disk is easier to diagnose than one that
+ * silently stops answering. */
+static int fe_disk_unit(uint32_t device) {
+    uint32_t sub = device & 0xFFFFu;
+    return (sub < ND500_HOST_MAX_DISKS) ? (int)sub : FE_ROOT_DISK_UNIT;
+}
 static uint32_t g_ssize = FE_SECSIZE;   /* sector size, confirmed by FE_OPEN */
 
 /* ---- tape state (SIMH .tap, read-only) ----
@@ -184,7 +194,7 @@ static int       g_tape_init = 0;
 static Nd500Tape* fe_tape_open(void) {
     if (g_tape_init) return g_tape.fp ? &g_tape : NULL;
     g_tape_init = 1;
-    const char* p = getenv("ND500X_TAPE");
+    const char* p = nd500_settings()->tape_path;
     if (!p || !p[0]) return NULL;
     if (nd500_tape_attach(&g_tape, p) != 0) {
         fprintf(stderr, "[FECALL] tape: cannot open %s\n", p);
@@ -249,16 +259,7 @@ static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
      * Ignored unless it leaves at least one page above sfree, so a mistyped
      * value cannot produce a kernel with zero page frames. */
     {
-        static long capped = -2;   /* -2 = not yet read, -1 = unset/invalid */
-        if (capped == -2) {
-            const char* e = getenv("ND500X_MEMTOP");
-            capped = -1;
-            if (e && e[0]) {
-                char* end = NULL;
-                long v = strtol(e, &end, 0);
-                if (end && *end == '\0' && v > 0) capped = v;
-            }
-        }
+        long capped = (long)nd500_settings()->memtop;   /* 0 = not set */
         if (capped > 0 && (uint32_t)capped < memtop &&
             (uint32_t)capped > 0x00100000u + 2048u) {
             fprintf(stderr, "[FECALL] FE_INIT: reporting memtop 0x%lX instead of 0x%X"
@@ -297,16 +298,7 @@ static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
     /* ND500X_SFREE overrides that base, in bytes - both the number reported to
      * NDIX and the allocator's ceiling, so they cannot drift apart. */
     {
-        static long sfree_override = -2;
-        if (sfree_override == -2) {
-            const char* e = getenv("ND500X_SFREE");
-            sfree_override = -1;
-            if (e && e[0]) {
-                char* end = NULL;
-                long v = strtol(e, &end, 0);
-                if (end && *end == '\0' && v > 0) sfree_override = v;
-            }
-        }
+        long sfree_override = (long)nd500_settings()->sfree;   /* 0 = not set */
         if (sfree_override > 0 && (uint32_t)sfree_override < memtop) {
             fprintf(stderr, "[FECALL] FE_INIT: sfree 0x%lX instead of 0x%X"
                             " (ND500X_SFREE)\n", sfree_override, sfree_phys);
@@ -393,7 +385,7 @@ static void fe_idev(Nd500Cpu* cpu, uint32_t gen, Pkt* cpk, Pkt* rpk) {
      * currently deadlocks the boot - to see whether the cross-message subsystem
      * is required to reach mountfs / the root disk read. */
     static int noxmsg = -1;
-    if (noxmsg < 0) { const char* e = getenv("ND500X_NOXMSG"); noxmsg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    if (noxmsg < 0) noxmsg = nd500_settings()->noxmsg;
     if (noxmsg && gen == GEN_XMSG) {
         pkt_wr16(rpk, ID_RPK_COMPLETION, 1);   /* error -> xgattach returns early */
         if (fedbg()) fprintf(stderr, "[FECALL] FE_IDEV gen=%u -> FAIL (NOXMSG)\n", gen);
@@ -569,7 +561,7 @@ static void fe_rcon(Nd500Cpu* cpu, uint32_t physaddr_word, Pkt* rpk) {
 
 static int fedbg(void) {
     static int v = -1;
-    if (v < 0) { const char* e = getenv("ND500X_FEDBG"); v = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    if (v < 0) v = nd500_settings()->fedbg;
     return v;
 }
 
@@ -734,14 +726,15 @@ static void fe_read_disk(Nd500Cpu* cpu, uint32_t device, uint32_t cpk_word, uint
                 nbytes, devaddr, img_off, dst_phys);
 
     uint32_t done = 0;
-    if (g_disk && fseek(g_disk, img_off, SEEK_SET) == 0) {
+    {
+        int unit = fe_disk_unit(device);
         uint8_t buf[2048];
         while (done < nbytes) {
             uint32_t chunk = nbytes - done;
             if (chunk > sizeof(buf)) chunk = sizeof(buf);
-            size_t got = fread(buf, 1, chunk, g_disk);
-            if (got == 0) break;
-            for (size_t i = 0; i < got; i++)
+            int64_t got = nd500_host_disk_read(unit, (uint64_t)img_off + done, buf, chunk);
+            if (got <= 0) break;          /* short read or error - stop here */
+            for (int64_t i = 0; i < got; i++)
                 nd500_bus_write8(cpu->machine, dst_phys + done + (uint32_t)i, buf[i]);
             done += (uint32_t)got;
         }
@@ -750,7 +743,7 @@ static void fe_read_disk(Nd500Cpu* cpu, uint32_t device, uint32_t cpk_word, uint
     /* Diagnostic: when the inode block (devaddr 122 = fs_iblkno) is DMA'd, dump
      * root inode 2's i_db[0] (dinode offset 40, inode 2 at block offset 2*128)
      * as the kernel will read it, to check the root-dir block pointer. */
-    if (nd_env_flag("ND500X_INODEDBG", &g_envf_inodedbg) && devaddr == 122) {
+    if (nd500_settings()->inodedbg && devaddr == 122) {
         uint32_t o = dst_phys + 2u*128u + 40u;
         uint32_t v = ((uint32_t)nd500_bus_read8(cpu->machine,o)<<24)
                    | ((uint32_t)nd500_bus_read8(cpu->machine,o+1)<<16)
@@ -940,7 +933,7 @@ static pthread_mutex_t g_conq_mtx = PTHREAD_MUTEX_INITIALIZER;
  * ^H as data - vi bound to ^H for cursor-left being the obvious one. */
 static int fe_translate_bs(void) {
     static int on = -1;
-    if (on < 0) { const char* e = getenv("ND500X_RAW_BS"); on = (e && e[0] && e[0] != '0') ? 0 : 1; }
+    if (on < 0) on = nd500_settings()->translate_bs;
     return on;
 }
 
@@ -1209,11 +1202,7 @@ static void fe_tty_out(int unit, const unsigned char* buf, int len) {
          * erase, for instance, leaves the guest as BS then ESC [ K - seeing
          * those bytes leave here separates "the guest never sent it" from "the
          * terminal ignored it". */
-        static int outlog = -1;
-        if (outlog < 0) {
-            const char* e = getenv("ND500X_KEYLOG");
-            outlog = (e && e[0] && e[0] != '0') ? 1 : 0;
-        }
+        int outlog = nd500_settings()->keylog;
         if (outlog) {
             fprintf(stderr, "[keylog] out %d:", len);
             for (i = 0; i < len; i++) fprintf(stderr, " %02X", buf[i]);
@@ -1223,11 +1212,7 @@ static void fe_tty_out(int unit, const unsigned char* buf, int len) {
         for (i = 0; i < len; i++) putchar((int)buf[i]);
         fflush(stdout);
     } else if (!fn) {
-        static int ttydbg = -1;
-        if (ttydbg < 0) {
-            const char* e = getenv("ND500X_TTYDBG");
-            ttydbg = (e && e[0] && e[0] != '0') ? 1 : 0;
-        }
+        int ttydbg = nd500_settings()->ttydbg;
         if (ttydbg) {
             int i;
             fprintf(stderr, "[tty%02d] ", unit);
@@ -1269,7 +1254,7 @@ static void fe_tty_out(int unit, const unsigned char* buf, int len) {
  */
 static int fe_console_8bit(void) {
     static int on = -1;
-    if (on < 0) { const char* e = getenv("ND500X_CONSOLE_8BIT"); on = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    if (on < 0) on = nd500_settings()->console_8bit;
     return on;
 }
 
@@ -1326,8 +1311,7 @@ unsigned long long g_tick_latched = 0;     /* clock ticks latched for later deli
 #define FE_CLOCK_MAX_PENDING 4u
 static unsigned g_clock_pending = 0;
 static void tick_report(void) {
-    const char* e = getenv("ND500X_TICKSTAT");
-    if (!e || !e[0] || e[0]=='0') return;
+    if (!nd500_settings()->tickstat) return;
     fprintf(stderr, "[TICKSTAT] clock ticks due=%llu suppressed_by_trap_gate=%llu (%.1f%%)\n",
             g_tick_seen, g_tick_gated,
             g_tick_seen ? 100.0*(double)g_tick_gated/(double)g_tick_seen : 0.0);
@@ -1361,7 +1345,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
     {
         extern unsigned long long g_tick_due_any, g_tick_user;
         static int st2 = -1;
-        if (st2 < 0) { const char* e = getenv("ND500X_TICKSTAT"); st2 = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (st2 < 0) st2 = nd500_settings()->tickstat;
         if (st2 && cpu->instruction_count && (cpu->instruction_count % FE_CLOCK_PERIOD) == 0) {
             g_tick_due_any++;
             if (cpu->CED != 0) g_tick_user++;
@@ -1377,7 +1361,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
     }
     /* Periodic clock can be disabled for isolation (ND500X_NOFECLOCK=1). */
     static int noclk = -1;
-    if (noclk < 0) { const char* e = getenv("ND500X_NOFECLOCK"); noclk = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    if (noclk < 0) noclk = nd500_settings()->nofeclock;
     int clock_due = !noclk && cpu->instruction_count && (cpu->instruction_count % FE_CLOCK_PERIOD) == 0;
 
     /* A tick is a one-shot test on ONE instruction out of FE_CLOCK_PERIOD, but
@@ -1414,7 +1398,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
      * ND500X_NOUSERCLOCK=1 restores the old behaviour. */
     if (cpu->CED != 0) {
         static int nouclk = -1;
-        if (nouclk < 0) { const char* e = getenv("ND500X_NOUSERCLOCK"); nouclk = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (nouclk < 0) nouclk = nd500_settings()->nouserclock;
         if (nouclk || !g_clock_pending) return;
         /* Same CALL/ENT* interlock as the kernel path below. */
         if (cpu->pending_call_return_address != 0) return;
@@ -1456,7 +1440,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
     {
         extern unsigned long long g_tick_gated, g_tick_seen;
         static int st = -1;
-        if (st < 0) { const char* e = getenv("ND500X_TICKSTAT"); st = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (st < 0) st = nd500_settings()->tickstat;
         if (st && cpu->instruction_count && (cpu->instruction_count % FE_CLOCK_PERIOD) == 0) {
             g_tick_seen++;
             if (cpu->in_trap_handler && cpu->PC != 0x00000844u) g_tick_gated++;
@@ -1486,7 +1470,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
     uint32_t iplrec = nd500_read_memory_32(cpu, K_IPLP);
     if (iplrec == 0) return;
     uint16_t ip_cur = nd500_read_memory_16(cpu, iplrec + IP_CURR_OFF);
-    if (nd_env_flag("ND500X_GATEDBG", &g_envf_gatedbg)) {
+    if (nd500_settings()->gatedbg) {
         static uint64_t gn = 0;
         if (gn++ < 25) {
             uint32_t rpaddr = nd500_mmu_translate(cpu, iplrec + IP_CURR_OFF, 0, 0);
@@ -1542,7 +1526,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
         /* SIINTR delivery trace (env ND500X_SIDBG). */
         if (q_gen == GEN_SIINTR) {
             static int sidbg = -1;
-            if (sidbg < 0) { const char* e = getenv("ND500X_SIDBG"); sidbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+            if (sidbg < 0) sidbg = nd500_settings()->sidbg;
             if (sidbg)
                 fprintf(stderr, "[SIDBG] deliver interrupt gen=8 sub=%u rpk=0x%08X ipl=%u (IPL_SI=3) PC=0x%08X CED=%u\n",
                         q_sub, q_rpk, ipl, cpu->PC, cpu->CED);
@@ -1567,73 +1551,19 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
 int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresses) {
     if (!cpu || arg_count < 4) return -1;
 
-    if (!g_disk) {
-        const char* disk_path = getenv("ND500X_DISK");
-        if (!disk_path || !disk_path[0]) {
+    /* The host owns HOW the disk is provided - a file, browser storage, blocks
+     * over a WebSocket - so all this does is check that the root unit answers.
+     * The POSIX default host mounts it from ND500X_DISK on first use, which is
+     * what "--ndix <image>" has always relied on. Checked once, and only
+     * latched on success so a later mount still works. */
+    static int disk_checked = 0;
+    if (!disk_checked) {
+        if (nd500_host_disk_size(FE_ROOT_DISK_UNIT) < 0) {
             fprintf(stderr, "[FECALL] no root disk image: pass --ndix <image> "
                             "or set ND500X_DISK\n");
             return -1;
         }
-        /* ND500X_DISK_RW selects what a guest write does:
-         *
-         *   unset / "1"  write STRAIGHT THROUGH to the image. Editing a file or
-         *                writing to /tmp inside NDIX changes the image on disk
-         *                and is still there next boot - which is what a real
-         *                machine does, and what makes the image the one thing
-         *                that has to be delivered. /tmp is an ordinary
-         *                directory in the root filesystem (4.3BSD has no
-         *                tmpfs), so it persists too.
-         *   "cow"        copy-on-write session. The image is copied to
-         *                <image>.session and all reads AND writes go to the
-         *                copy, leaving the master untouched. Promote a good
-         *                session by copying it over the master by hand.
-         *   "0"          read-only; FE_WRIT is a fake-success no-op.
-         *
-         * The default used to be "0" with "1" meaning the session copy. It was
-         * changed deliberately: an emulator whose disk forgets everything is
-         * not a machine anyone can use. Anything that must not be modified
-         * should be run with "cow" or "0". */
-        static int rw = -1;
-        static int cow = 0;
-        if (rw < 0) {
-            const char* e = getenv("ND500X_DISK_RW");
-            cow = (e && (e[0] == 'c' || e[0] == 'C')) ? 1 : 0;
-            rw = (e && e[0] == '0' && e[1] == '\0') ? 0 : 1;
-        }
-        g_disk_rw = rw;
-        if (rw && cow) {
-            static char spath[1100];
-            snprintf(spath, sizeof(spath), "%s.session", disk_path);
-            FILE* src = fopen(disk_path, "rb");
-            FILE* dst = src ? fopen(spath, "wb") : NULL;
-            if (src && dst) {
-                char buf[65536]; size_t n;
-                while ((n = fread(buf, 1, sizeof(buf), src)) > 0) fwrite(buf, 1, n, dst);
-            }
-            if (src) fclose(src);
-            if (dst) fclose(dst);
-            g_disk = dst ? fopen(spath, "r+b") : NULL;
-            if (fedbg() || g_disk)
-                fprintf(stderr, "[FECALL] COW session: %s -> %s (%s)\n",
-                        disk_path, spath, g_disk ? "writable" : "FAILED - no disk");
-        } else if (rw) {
-            g_disk = fopen(disk_path, "r+b");
-            if (!g_disk) {
-                /* Say so rather than falling back silently: a read-only open
-                 * looks like a working boot right up to the first write, which
-                 * then vanishes with no error anywhere. */
-                fprintf(stderr, "[FECALL] cannot open %s for writing (%s) - "
-                                "opening read-only, guest writes will be LOST\n",
-                        disk_path, strerror(errno));
-                g_disk = fopen(disk_path, "rb");
-                g_disk_rw = 0;
-            }
-        } else {
-            g_disk = fopen(disk_path, "rb");
-        }
-        if (g_disk) { fseek(g_disk, 0, SEEK_END); g_disk_size = ftell(g_disk); fseek(g_disk, 0, SEEK_SET); }
-        if (fedbg())
-            fprintf(stderr, "[FECALL] disk image: %s (%ld bytes)\n", disk_path, g_disk ? g_disk_size : -1L);
+        disk_checked = 1;
     }
 
     uint32_t device  = nd500_read_memory_32(cpu, arg_addresses[0]);
@@ -1667,7 +1597,7 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
      * Anything else on generic 8 is unexpected and worth seeing. */
     if (gen == GEN_SIINTR) {
         static int sidbg = -1;
-        if (sidbg < 0) { const char* e = getenv("ND500X_SIDBG"); sidbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (sidbg < 0) sidbg = nd500_settings()->sidbg;
         if (sidbg) {
             uint32_t qual = (request >> 16) & 0xFFFF;
             const char* rname = (req == FE_IDEV) ? "FE_IDEV" :
@@ -1857,17 +1787,31 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             uint32_t devaddr  = pkt_rd32(&cpk, 8);   /* sector index */
             Pkt rpk = pkt_word(cpu, rpk_arg);
             uint16_t completion = 0;
-            if (g_disk_rw && g_disk) {
+            int wunit = fe_disk_unit(device);
+            if (nd500_host_disk_writable(wunit)) {
                 uint32_t src_phys = physaddr * 2u - FE_PRIVATE;
                 long img_off = (long)devaddr * (long)g_ssize;
-                if (img_off < 0 || img_off + (long)nbytes > g_disk_size) {
+                int64_t dsize = nd500_host_disk_size(wunit);
+                if (img_off < 0 || dsize < 0 || img_off + (long)nbytes > dsize) {
                     completion = 1;   /* out of range */
                 } else {
-                    uint32_t i;
-                    fseek(g_disk, img_off, SEEK_SET);
-                    for (i = 0; i < nbytes; i++)
-                        fputc((int)nd500_bus_read8(cpu->machine, src_phys + i), g_disk);
-                    fflush(g_disk);
+                    /* Gather out of ND-500 memory a chunk at a time, then hand
+                     * whole blocks to the host. The old code wrote byte by byte
+                     * with fputc, which only worked because the host WAS a
+                     * FILE*; a host serving blocks over a socket needs them
+                     * batched. */
+                    uint8_t buf[2048];
+                    uint32_t done_w = 0;
+                    while (done_w < nbytes) {
+                        uint32_t chunk = nbytes - done_w;
+                        if (chunk > sizeof(buf)) chunk = sizeof(buf);
+                        for (uint32_t i = 0; i < chunk; i++)
+                            buf[i] = nd500_bus_read8(cpu->machine, src_phys + done_w + i);
+                        int64_t put = nd500_host_disk_write(wunit,
+                                          (uint64_t)img_off + done_w, buf, chunk);
+                        if (put <= 0) { completion = 1; break; }
+                        done_w += (uint32_t)put;
+                    }
                     /* Keeps a pending shutdown from calling the disk "quiet"
                      * while the sync it just asked for is still writing. */
                     nd500_ndix_halt_note_write();
