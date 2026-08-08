@@ -16,6 +16,57 @@
 #include "../src/cpu/nd500_mmu.h"   /* For program/data space capability setup */
 #include "../src/machine/machine_protos.h"
 
+/*
+ * Render a trap-condition mask as architecture names, e.g.
+ *   0x0000000200 -> "O(9)"      0x0000000800 -> "IVO(11)"
+ *   0x0000010000 -> "IOV(16)"   0x0000000004:32 -> "IOS(34)"
+ *
+ * A bare hex mask in a failure message is unreadable, and telling O from IVO
+ * from IOV from IOS by eye is exactly the judgement these tests exist to make.
+ * Returns a pointer to a rotating static buffer, so two calls can be used in
+ * one printf (as the expected/actual pair below does).
+ */
+static const char* nd500_trap_bits_str(uint64_t bits) {
+    static char bufs[2][256];
+    static int which = 0;
+    static const struct { uint64_t bit; const char* name; } tbl[] = {
+        { 1ULL <<  9, "O(9)"     }, { 1ULL << 11, "IVO(11)" },
+        { 1ULL << 12, "DZ(12)"   }, { 1ULL << 13, "FU(13)"  },
+        { 1ULL << 14, "FO(14)"   }, { 1ULL << 15, "BO(15)"  },
+        { 1ULL << 16, "IOV(16)"  }, { 1ULL << 17, "SIT(17)" },
+        { 1ULL << 18, "BT(18)"   }, { 1ULL << 19, "CT(19)"  },
+        { 1ULL << 20, "BPT(20)"  }, { 1ULL << 21, "ATF(21)" },
+        { 1ULL << 22, "ATR(22)"  }, { 1ULL << 23, "ATW(23)" },
+        { 1ULL << 24, "AZ(24)"   }, { 1ULL << 25, "DR(25)"  },
+        { 1ULL << 26, "IX(26)"   }, { 1ULL << 27, "STO(27)" },
+        { 1ULL << 28, "STU(28)"  }, { 1ULL << 29, "PRT(29)" },
+        { 1ULL << 30, "DT(30)"   }, { 1ULL << 31, "DE(31)"  },
+        { 1ULL << 32, "XSE(32)"  }, { 1ULL << 33, "IIC(33)" },
+        { 1ULL << 34, "IOS(34)"  }, { 1ULL << 35, "ISE(35)" },
+        { 1ULL << 36, "PV(36)"   }, { 1ULL << 37, "THM(37)" },
+        { 1ULL << 38, "PGF(38)"  }, { 1ULL << 39, "PWF(39)" },
+        { 1ULL << 40, "PRF(40)"  }, { 1ULL << 41, "HF(41)"  },
+    };
+    char* out = bufs[which];
+    which ^= 1;
+    out[0] = '\0';
+    if (bits == 0) { snprintf(out, 256, "(none)"); return out; }
+    size_t used = 0;
+    for (size_t i = 0; i < sizeof tbl / sizeof tbl[0]; i++) {
+        if (!(bits & tbl[i].bit)) continue;
+        int n = snprintf(out + used, 256 - used, "%s%s", used ? "|" : "", tbl[i].name);
+        if (n < 0 || (size_t)n >= 256 - used) break;
+        used += (size_t)n;
+        bits &= ~tbl[i].bit;
+    }
+    /* Anything left is a bit this table does not name - say so rather than
+     * silently dropping it. */
+    if (bits && used < 250)
+        snprintf(out + used, 256 - used, "%s+0x%llX", used ? "|" : "",
+                 (unsigned long long)bits);
+    return out;
+}
+
 /* Test configuration */
 #define MEMORY_SIZE (1 << 20)  /* 1MB */
 #define MAX_FAILURE_DETAILS 500 /* Max failures to show in detail */
@@ -54,7 +105,7 @@ static NegativeTestStats negative_stats = {0};
 static int is_known_test_field(const char* name) {
     static const char* known_fields[] = {
         "name", "assembly", "bytes", "initial", "final", "maxInstructions",
-        "strictMemory", "requiresCallContext", "expectedTrap",
+        "strictMemory", "requiresCallContext", "expectedTrap", "expectedTrapBits",
         /* Negative test fields - for tests that SHOULD fail validation */
         "isNegativeTest", "negativeTestType", "expectedValidationFailure",
         NULL
@@ -821,6 +872,17 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
     }
 
     /* 4. Get expected trap (if any) */
+    /* Exact condition mask, when the case pins one. Bits run 0..41, so the
+     * value always fits a double exactly (2^41 < 2^53) and a plain JSON number
+     * is lossless here. -1 means "not specified". */
+    cJSON* expected_bits_json = cJSON_GetObjectItem(test, "expectedTrapBits");
+    int have_expected_bits = 0;
+    uint64_t expected_trap_bits = 0;
+    if (expected_bits_json && cJSON_IsNumber(expected_bits_json)) {
+        expected_trap_bits = (uint64_t)expected_bits_json->valuedouble;
+        have_expected_bits = 1;
+    }
+
     cJSON* expected_trap_json = cJSON_GetObjectItem(test, "expectedTrap");
     const char* expected_trap = NULL;
     if (expected_trap_json && cJSON_IsString(expected_trap_json)) {
@@ -837,6 +899,15 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
     char actual_trap_type[64] = {0};  /* Copy trap name before clearing state */
     char actual_trap_desc[256] = {0};
     uint32_t trap_pc = 0;
+    /* The EXACT condition bit(s) raised, not the lossy name. "expectedTrap" is
+     * a 5-token enum (DivisionByZero, FloatException, IllegalInstruction,
+     * IllegalOperandValue, InstructionSequenceError) shared with the C# side,
+     * and it collapses conditions the ND-500 keeps apart: FloatException covers
+     * IVO+FU+FO, IllegalOperandValue covers BOTH IOV(16) and IOS(34), and there
+     * is no token at all for O(9), integer overflow. That is precisely why 19
+     * wrong trap numbers survived this corpus. "expectedTrapBits" carries the
+     * raw 64-bit mask so a case can pin the exact bit. */
+    uint64_t actual_trap_bits = 0;
 
     /* Save initial ST1 to detect newly-set trap flags */
     uint32_t initial_st1 = cpu->ST1;
@@ -852,6 +923,7 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
             strncpy(actual_trap_type, trap->trap_name, sizeof(actual_trap_type) - 1);
             strncpy(actual_trap_desc, trap->trap_description, sizeof(actual_trap_desc) - 1);
             trap_pc = trap->trap_pc;
+            actual_trap_bits = trap->trap_condition;
             nd500_trap_clear();
             break;  /* Stop on trap */
         }
@@ -923,6 +995,29 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
                 printf("  Actual trap: %s (%s) at PC=0x%08X\n",
                        actual_trap_type[0] ? actual_trap_type : "unknown",
                        actual_trap_desc[0] ? actual_trap_desc : "", trap_pc);
+            }
+            return 1;
+        }
+
+        /* The name matched, but the name is coarse. If the case pins the exact
+         * condition, that is the assertion that actually distinguishes O(9)
+         * from IVO(11) from IOV(16) from IOS(34) - the differences every one of
+         * the 19 wrong-trap bugs lived in, and which the name alone cannot
+         * see. */
+        if (have_expected_bits && actual_trap_bits != expected_trap_bits) {
+            if (show_details) {
+                printf("Test %d/%d: %s ... FAIL (wrong trap BITS)\n", test_num, total, test_name);
+                cJSON* assembly = cJSON_GetObjectItem(test, "assembly");
+                if (assembly && cJSON_IsString(assembly)) {
+                    printf("  Assembly: %s\n", assembly->valuestring);
+                }
+                printf("  Trap name matched (%s), but the condition differs:\n", expected_trap);
+                printf("    expected bits 0x%016llX  %s\n",
+                       (unsigned long long)expected_trap_bits,
+                       nd500_trap_bits_str(expected_trap_bits));
+                printf("    actual   bits 0x%016llX  %s\n",
+                       (unsigned long long)actual_trap_bits,
+                       nd500_trap_bits_str(actual_trap_bits));
             }
             return 1;
         }
@@ -1090,6 +1185,12 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
 static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value) {
     if (strcmp(name, "pc") == 0) cpu->PC = value;
     else if (strcmp(name, "st") == 0) cpu->ST1 = value;
+    /* ST2 holds trap condition bits 32..41 - XSE(32), IIC(33), IOS(34),
+     * ISE(35), PV(36), THM(37), PGF(38), PWF(39), PRF(40), HF(41). The corpus
+     * carried only "st" (= ST1), so none of those were ever asserted, which is
+     * why the IOS-vs-ISE guard divergence between the two emulators was
+     * invisible to 40062 test cases. */
+    else if (strcmp(name, "st2") == 0) cpu->ST2 = value;
     else if (strcmp(name, "i1") == 0) cpu->I[0] = value;
     else if (strcmp(name, "i2") == 0) cpu->I[1] = value;
     else if (strcmp(name, "i3") == 0) cpu->I[2] = value;
@@ -1130,6 +1231,7 @@ static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value) {
 static uint32_t get_register(Nd500Cpu* cpu, const char* name) {
     if (strcmp(name, "pc") == 0) return cpu->PC;
     else if (strcmp(name, "st") == 0) return cpu->ST1;
+    else if (strcmp(name, "st2") == 0) return cpu->ST2;   /* trap bits 32..41 */
     else if (strcmp(name, "i1") == 0) return cpu->I[0];
     else if (strcmp(name, "i2") == 0) return cpu->I[1];
     else if (strcmp(name, "i3") == 0) return cpu->I[2];
@@ -1169,7 +1271,7 @@ static uint32_t get_register(Nd500Cpu* cpu, const char* name) {
  */
 static int is_known_register(const char* name) {
     static const char* known_regs[] = {
-        "pc", "st", "i1", "i2", "i3", "i4",
+        "pc", "st", "st2", "i1", "i2", "i3", "i4",
         "a1", "a2", "a3", "a4", "e1", "e2", "e3", "e4",
         "l", "b", "r", "p", "tos", "ll", "hl", "tha",
         "ced", "cad", "ps", "ote1", "ote2", NULL
@@ -1266,6 +1368,33 @@ static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_detail
                 /* For ST register, show granular flag differences */
                 if (strcmp(reg_name, "st") == 0) {
                     print_flag_differences(expected, actual);
+                }
+                /* ST2 is the upper half of the same status word, so name the
+                 * trap conditions rather than leaving a bare hex diff. These
+                 * are the guard/interrupt-class traps; a mismatch here is
+                 * almost always "the two CPUs disagree about which trap a
+                 * malformed instruction raises". */
+                else if (strcmp(reg_name, "st2") == 0) {
+                    static const struct { uint32_t bit; const char* name; } st2_bits[] = {
+                        { 1u << 0,  "XSE(32) index scaling error" },
+                        { 1u << 1,  "IIC(33) illegal instruction code" },
+                        { 1u << 2,  "IOS(34) illegal operand specifier" },
+                        { 1u << 3,  "ISE(35) instruction sequence error" },
+                        { 1u << 4,  "PV(36) protect violation" },
+                        { 1u << 5,  "THM(37) trap handler missing" },
+                        { 1u << 6,  "PGF(38) page fault" },
+                        { 1u << 7,  "PWF(39) power failure" },
+                        { 1u << 8,  "PRF(40) processor fault" },
+                        { 1u << 9,  "HF(41) hardware fault" },
+                    };
+                    printf("    ST2 trap-condition differences:\n");
+                    for (size_t i = 0; i < sizeof st2_bits / sizeof st2_bits[0]; i++) {
+                        int e = (expected & st2_bits[i].bit) ? 1 : 0;
+                        int a = (actual   & st2_bits[i].bit) ? 1 : 0;
+                        if (e != a)
+                            printf("      %-34s expected=%d, actual=%d\n",
+                                   st2_bits[i].name, e, a);
+                    }
                 }
             }
             failures++;
