@@ -41,6 +41,11 @@ cmake_install.cmake
 Makefile
 CTestTestfile.cmake
 *.cmake
+# The rule above is aimed at the .cmake files CMake writes into a build tree,
+# but it matches everywhere. These two are source: they build the sandboxes the
+# vendor toolchain has to be run from, and without this line they are invisible
+# to git status and get left behind.
+!test/*_sandbox_setup.cmake
 
 # Test files
 test.o

@@ -2,7 +2,7 @@
 
 .PHONY: all clean run wasm wasm-clean wasm-serve kernel-example
 .PHONY: with-dap without-dap with-sanitizer without-sanitizer
-.PHONY: dap-sanitizer release help diag doctor
+.PHONY: dap-sanitizer release help diag doctor link-sandbox
 
 BUILD_DIR?=build
 BUILD_DIR_RELEASE?=build_release
@@ -82,6 +82,25 @@ diag:
 doctor:
 	@sh tools/check-env.sh
 
+# Build the directory the ND linker has to be run FROM.
+#
+# The linker works in build/link_sandbox and nowhere else. Started from
+# build/nc_sandbox - the compiler's sandbox - it fails at startup in a way that
+# reads like a real defect. Nothing used to create this directory, and since it
+# sits under build/ it does not survive `make clean`.
+#
+# The vendor files come from $ND500_TESTDATA; `make doctor` says whether that is
+# reachable.
+link-sandbox:
+	@if [ -z "$$ND500_TESTDATA" ]; then \
+		echo "ND500_TESTDATA is not set - it locates the vendor binaries."; \
+		echo "Run 'make doctor' to see what this checkout can reach."; \
+		exit 1; \
+	fi
+	@cmake -DSANDBOX=$(abspath $(BUILD_DIR))/link_sandbox \
+	       -DTESTDATA=$$ND500_TESTDATA \
+	       -P test/link_sandbox_setup.cmake
+
 run: all
 	@./$(BUILD_DIR)/bin/nd500x --debug
 
@@ -122,6 +141,7 @@ help:
 	@echo "  make run             - Build and run in debug mode"
 	@echo "  make diag            - Build the diag_* investigation harnesses in test/"
 	@echo "  make doctor          - Report which outside trees this checkout can reach"
+	@echo "  make link-sandbox    - Build build/link_sandbox, where the ND linker must run"
 	@echo "  make clean           - Clean all build directories"
 	@echo ""
 	@echo "Windows note: build.bat wraps 'make release' with w64devkit on PATH."
