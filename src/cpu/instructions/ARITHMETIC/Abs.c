@@ -42,7 +42,7 @@
  * Trap conditions: None
  *
  * Reference: ND-500 Reference Manual, Chapter 10.15
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Abs.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Abs.cs
  */
 void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

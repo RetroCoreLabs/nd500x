@@ -50,7 +50,7 @@
  *   - Floating underflow (FU)
  *
  * Reference: ND-500 Reference Manual, Chapter 11 (Basic Arithmetic)
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Multiply.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Multiply.cs
  */
 void nd500_instr_Multiply(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

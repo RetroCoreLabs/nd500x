@@ -27,7 +27,7 @@
  *
  * Reference: ND-500 Reference Manual, Section 16.36.
  *            Microcode SCPUNO 001047 / SCPUNO_1 011021 (SAMSON_CPU, SAVE_RES 011025).
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Scpuno.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Scpuno.cs
  */
 void nd500_instr_Scpuno(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 1) {

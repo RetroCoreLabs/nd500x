@@ -161,7 +161,7 @@
  * - WAIT: Wait for interrupt
  *
  * Reference: ND-500 Reference Manual, Chapter 6.4
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Rett.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Rett.cs
  */
 void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ========================================================================

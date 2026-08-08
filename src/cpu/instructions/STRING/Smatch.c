@@ -38,7 +38,7 @@
  * Traps: DR trap (an operand addressed outside its string).
  *
  * Reference: ND-500 Reference Manual, Section 14.18.
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smatch.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smatch.cs
  */
 void nd500_instr_Smatch(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 2) {

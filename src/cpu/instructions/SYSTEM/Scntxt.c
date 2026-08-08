@@ -32,7 +32,7 @@
  * Data status bits: None affected
  *
  * Reference: ND-500 Reference Manual, Chapter 16.27.3
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Scntxt.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Scntxt.cs
  */
 void nd500_instr_Scntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 42-46) */

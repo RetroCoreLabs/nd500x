@@ -40,7 +40,7 @@
  *   - Illegal operand if operand is register or constant
  *
  * Reference: ND-500 Reference Manual, Chapter 15.4
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Laddr.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Laddr.cs
  */
 void nd500_instr_Laddr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 47-51) */

@@ -177,7 +177,7 @@
  * - RET: Return from subroutine
  *
  * Reference: ND-500 Reference Manual, Chapter 13.10, Chapter 3.2
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entm.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entm.cs
  */
 void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Check if trace mode is enabled for debug output */

@@ -32,7 +32,8 @@
  *   Z = 1 if stored value is zero
  *   S = 1 if stored value sign bit is set
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/AssignFrom.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/AssignFrom.cs
  */
 void nd500_instr_AssignFrom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

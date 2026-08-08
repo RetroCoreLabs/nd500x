@@ -238,7 +238,7 @@
  * - RIOM: Read I/O processor memory (ND-100 → ND-500) [this instruction]
  *
  * Reference: ND-500 Reference Manual, Section 16.23
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/IO/Riom.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/IO/Riom.cs
  */
 void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

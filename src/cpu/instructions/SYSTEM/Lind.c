@@ -38,7 +38,7 @@
  * Data status bits: K (out of bounds), IX trap bit (out of bounds)
  *
  * Reference: ND-500 Reference Manual, Chapter 15.8
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Lind.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Lind.cs
  */
 void nd500_instr_Lind(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 55-59) */

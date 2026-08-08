@@ -26,7 +26,7 @@
  * Data status bits: Z (zero if version is 0), S (sign bit of version)
  *
  * Reference: ND-500 Reference Manual, Chapter 16.35
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Svers.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Svers.cs
  */
 void nd500_instr_Svers(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 41-45) */

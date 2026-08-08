@@ -33,7 +33,7 @@
  *   - BO or IVO -> K
  *
  * Reference: ND-500 Reference Manual, Chapter 17.4 (Packed Arithmetic)
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Pmpyr.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Pmpyr.cs
  */
 void nd500_instr_Pmpyr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

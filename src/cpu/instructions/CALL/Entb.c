@@ -140,8 +140,8 @@
  * - CALLG: Call global subroutine (sets up pending call state)
  *
  * Reference: ND-500 Reference Manual, Chapter 3.3, Page 223
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entb.cs
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructionset.BuddySystem.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entb.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructionset.BuddySystem.cs
  */
 void nd500_instr_Entb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ========================================================================

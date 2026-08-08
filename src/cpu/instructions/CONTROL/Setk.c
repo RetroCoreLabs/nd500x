@@ -33,7 +33,7 @@
  *   - None
  *
  * Reference: ND-500 Reference Manual, Chapter 15.11
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CONTROL/Setk.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CONTROL/Setk.cs
  */
 void nd500_instr_Setk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     (void)fi;  // Suppress unused parameter warning

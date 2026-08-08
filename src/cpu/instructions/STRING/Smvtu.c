@@ -33,7 +33,7 @@
  *   - dest full: K=1 Z=0
  *
  * Reference: ND-500 Reference Manual, Chapter 14.6
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smvtu.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smvtu.cs
  */
 void nd500_instr_Smvtu(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 3) {

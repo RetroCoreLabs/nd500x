@@ -26,7 +26,8 @@
  *   - ISE (Instruction Sequence Error) if CALL did not precede this
  *   - ISE if argument count is not zero
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entd.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entd.cs
  */
 void nd500_instr_Entd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate that CALL preceded this instruction */

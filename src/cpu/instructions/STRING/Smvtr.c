@@ -28,7 +28,7 @@
  *   - dest full: K=1
  *
  * Reference: ND-500 Reference Manual, Chapter 14.5
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smvtr.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smvtr.cs
  */
 void nd500_instr_Smvtr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 3) {

@@ -35,7 +35,7 @@
  * Data status bits: None affected
  *
  * Reference: ND-500 Reference Manual, Chapter 16.18
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Zwip.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Zwip.cs
  */
 void nd500_instr_Zwip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 45-49) */

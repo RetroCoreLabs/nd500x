@@ -41,7 +41,7 @@
  *   - Addressing traps
  *
  * Reference: ND-500 Reference Manual, Chapter 10.18
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Set1.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Set1.cs
  */
 void nd500_instr_Set1(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 1) {

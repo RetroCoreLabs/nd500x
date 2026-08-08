@@ -31,7 +31,7 @@
  * Data status bits: Z (address = 0), S/C/O = 0
  *
  * Reference: ND-500 Reference Manual, Chapter 15.5
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Rladdr.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Rladdr.cs
  */
 void nd500_instr_Rladdr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 46-49) */

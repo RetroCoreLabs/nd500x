@@ -33,7 +33,8 @@
  *   - IOS (Illegal Operand Specifier) if argument operands are not memory operands
  *   - ISE (Instruction Sequence Error) if target is not an entry point (optional check)
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Call.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Call.cs
  */
 void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate minimum operand count (address + arg_count) */

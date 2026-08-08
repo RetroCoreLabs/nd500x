@@ -77,7 +77,7 @@
  * Trap conditions: Addressing traps, Illegal instruction code (IIC)
  *
  * Reference: ND-500 Reference Manual, section 16.31
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Rphs.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Rphs.cs
  */
 void nd500_instr_Rphs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ONE operand - the domain number. The decoder emits 1

@@ -38,7 +38,7 @@
  *   - source empty: K=0 Z=0 I1 := next element
  *
  * Reference: ND-500 Reference Manual, Chapter 14.15
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Sloca.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Sloca.cs
  */
 void nd500_instr_Sloca(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 54-58) */

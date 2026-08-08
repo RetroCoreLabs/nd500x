@@ -35,7 +35,8 @@
  *
  * Traps: Addressing traps, Integer overflow (O)
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Incr.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Incr.cs
  */
 void nd500_instr_Incr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

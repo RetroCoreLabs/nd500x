@@ -46,7 +46,7 @@
  *   matching the manual and the C# reference (Shr.cs).
  *
  * Reference: ND-500 Reference Manual, Chapter 10.26
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Shr.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Shr.cs
  */
 void nd500_instr_Shr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

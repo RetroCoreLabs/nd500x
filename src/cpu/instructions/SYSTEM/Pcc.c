@@ -32,7 +32,7 @@
  * Data status bits: None affected
  *
  * Reference: ND-500 Reference Manual, Chapter 16.10
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Pcc.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Pcc.cs
  */
 void nd500_instr_Pcc(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

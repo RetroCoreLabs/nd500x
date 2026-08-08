@@ -133,7 +133,7 @@
  * - PCOMP: Packed BCD comparison
  *
  * Reference: ND-500 Reference Manual, Packed Decimal Operations
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Pshift.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Pshift.cs
  */
 void nd500_instr_Pshift(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Get descriptor addresses from operands */

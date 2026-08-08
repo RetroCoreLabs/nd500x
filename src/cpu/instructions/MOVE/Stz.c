@@ -33,7 +33,8 @@
  *
  * Traps: Addressing traps only
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Stz.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Stz.cs
  */
 void nd500_instr_Stz(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

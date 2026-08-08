@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(kill:*)",
+      "Bash(pkill:*)",
+      "Bash(killall:*)",
+      "Bash(kill)",
+      "Bash(pkill)",
+      "Bash(killall)"
+    ]
+  }
+}

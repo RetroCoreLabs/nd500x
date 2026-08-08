@@ -31,7 +31,7 @@
  *   - Addressing traps
  *
  * Reference: ND-500 Reference Manual, Chapter 10.5
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/AssignToBaseReg.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/AssignToBaseReg.cs
  */
 void nd500_instr_AssignToBaseReg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 1) {

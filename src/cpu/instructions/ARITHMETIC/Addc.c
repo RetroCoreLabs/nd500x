@@ -34,7 +34,7 @@
  *   - Integer overflow (O)
  *
  * Reference: ND-500 Reference Manual, Chapter 11.17
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Addc.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Addc.cs
  */
 void nd500_instr_Addc(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 46-50) */

@@ -48,7 +48,7 @@
  *   - Floating underflow (FU)
  *
  * Reference: ND-500 Reference Manual, Chapter 11 (Basic Arithmetic)
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Add.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Add.cs
  */
 void nd500_instr_Add(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

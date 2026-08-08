@@ -96,7 +96,7 @@
  * - RETK: Return from subroutine (set K)
  *
  * Reference: ND-500 Reference Manual, Chapter 13.10
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entf.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entf.cs
  */
 void nd500_instr_Entf(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Stack frame field offsets (predefined by architecture) */

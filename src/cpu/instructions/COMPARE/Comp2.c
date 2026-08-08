@@ -37,7 +37,7 @@
  * Trap conditions: Addressing traps, Floating underflow (FU), Floating overflow (FO)
  *
  * Reference: ND-500 Reference Manual, Chapter 10.10
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/COMPARE/Comp2.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/COMPARE/Comp2.cs
  */
 void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

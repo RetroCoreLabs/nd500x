@@ -77,7 +77,7 @@
  *
  * Reference: ND-500 Reference Manual, §11.13 (Multiply with overflow)
  *            docs/instructions/asm/mul4.md
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Mul4.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Mul4.cs
  */
 void nd500_instr_Mul4(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Validate operands and target register

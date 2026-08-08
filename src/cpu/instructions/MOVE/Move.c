@@ -27,7 +27,8 @@
  *   Z = 1 if source value is zero
  *   S = 1 if source value sign bit is set
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Move.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Move.cs
  */
 void nd500_instr_Move(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

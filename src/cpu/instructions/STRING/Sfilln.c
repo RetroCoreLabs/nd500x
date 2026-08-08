@@ -24,7 +24,7 @@
  *   Exactly <count> elements are filled with the register value.
  *
  * Reference: ND-500 Reference Manual, Chapter 14.9
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Sfilln.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Sfilln.cs
  */
 void nd500_instr_Sfilln(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 2) {

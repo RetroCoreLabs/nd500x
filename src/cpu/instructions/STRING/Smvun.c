@@ -30,7 +30,7 @@
  *   - dest full: K=1 Z=0
  *
  * Reference: ND-500 Reference Manual, Chapter 14.4
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smvun.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smvun.cs
  */
 void nd500_instr_Smvun(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 4) {

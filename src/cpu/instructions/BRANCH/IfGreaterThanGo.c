@@ -25,7 +25,8 @@
  *
  * Traps: Addressing traps, Branch trap (BT)
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/IfGreaterThanGo.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/IfGreaterThanGo.cs
  */
 void nd500_instr_IfGreaterThanGo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

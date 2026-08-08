@@ -174,7 +174,7 @@
  *
  * Reference: ND-500 Reference Manual, Chapter 6.4
  *            COMPLETE_TRAP_SYSTEM_IMPLEMENTATION_ROADMAP.md Feature 4
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entt.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Entt.cs
  */
 void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ========================================================================

@@ -34,7 +34,7 @@
  * Traps: DR trap (source outside string); ILL_OP_SPEC (bad table, 007203).
  *
  * Reference: ND-500 Reference Manual, Section 14.16.
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Sscan.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Sscan.cs
  */
 void nd500_instr_Sscan(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 3) {

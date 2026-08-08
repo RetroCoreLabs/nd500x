@@ -46,7 +46,8 @@ static int g_envf_framelog = -1;
  *
  * Note: Domain switching logic (checking CAD != CED) is deferred to Phase 4.
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Ret.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Ret.cs
  */
 void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Stack frame field offsets */
@@ -105,7 +106,7 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * causing valid cross-domain returns to trap with STU (Stack Underflow).
      * The check order has been corrected to match ND-500 specification.
      *
-     * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Ret.cs:72-105
+     * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Ret.cs:72-105
      */
 
     /* Check for DOMAIN BOUNDARY first (before stack underflow) */

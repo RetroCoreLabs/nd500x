@@ -149,7 +149,7 @@
  * - CALL: Call subroutine (initiates subroutine call)
  *
  * Reference: ND-500 Reference Manual, Section 15.7
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Chain.cs (fixed)
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Chain.cs (fixed)
  */
 /* Once-latched env flag for CHAIN tracing (ND500X_CHAINDBG). The traversal
  * prints used to be unconditional, but a zero link is a NORMAL runtime event

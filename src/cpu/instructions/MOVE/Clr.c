@@ -43,7 +43,7 @@
  *   - None
  *
  * Reference: ND-500 Reference Manual, Chapter 10.16
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Clr.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/Clr.cs
  */
 void nd500_instr_Clr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->target_register < 1 || fi->target_register > 4) {

@@ -29,7 +29,7 @@
  *   - dest full: K=1 Z=1
  *
  * Reference: ND-500 Reference Manual, Chapter 14.3
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smvwh.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Smvwh.cs
  */
 void nd500_instr_Smvwh(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 4) {

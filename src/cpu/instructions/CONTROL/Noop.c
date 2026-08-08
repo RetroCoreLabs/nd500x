@@ -32,7 +32,7 @@
  *   - None
  *
  * Reference: ND-500 Reference Manual, Chapter 15.10
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CONTROL/Noop.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CONTROL/Noop.cs
  */
 void nd500_instr_Noop(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Do absolutely nothing - that's the point!

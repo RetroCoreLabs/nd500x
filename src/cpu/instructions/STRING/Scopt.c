@@ -39,7 +39,7 @@
  * Traps: DR trap (operand outside its string); ILL_OP_SPEC (bad table, 007027).
  *
  * Reference: ND-500 Reference Manual, Section 14.13.
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Scopt.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Scopt.cs
  */
 void nd500_instr_Scopt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 4) {

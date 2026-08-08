@@ -32,7 +32,7 @@
  *   - BO or IVO -> K
  *
  * Reference: ND-500 Reference Manual, Chapter 17.2 (Packed Arithmetic)
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Paddr.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Paddr.cs
  */
 void nd500_instr_Paddr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

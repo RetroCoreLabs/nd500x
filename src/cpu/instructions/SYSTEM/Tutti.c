@@ -27,7 +27,7 @@
  * Data status bits: None affected
  *
  * Reference: ND-500 Reference Manual, Chapter 16.2
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Tutti.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Tutti.cs
  */
 void nd500_instr_Tutti(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Check privilege - TUTTI requires supervisor mode */

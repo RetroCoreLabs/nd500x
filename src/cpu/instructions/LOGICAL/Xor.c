@@ -31,7 +31,8 @@
  *
  * Traps: Addressing traps only
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/LOGICAL/Xor.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/LOGICAL/Xor.cs
  */
 void nd500_instr_Xor(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

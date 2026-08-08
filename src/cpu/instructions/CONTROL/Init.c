@@ -40,7 +40,7 @@
  *
  * Reference:
  *   - ND-500 Reference Manual, Page 229 (Chapter 13.9)
- *   - RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CONTROL/Init.cs
+ *   - Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CONTROL/Init.cs
  *
  * NOTE: Manual example on page 229 appears to have operands reversed.
  *       Correct: INIT FRAME, 0x1000, 0x10000 (main < total)

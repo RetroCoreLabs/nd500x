@@ -32,7 +32,8 @@
  *   Z = 1 if loaded value is zero
  *   S = 1 if loaded value sign bit is set
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/AssignTo.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/MOVE/AssignTo.cs
  */
 void nd500_instr_AssignTo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

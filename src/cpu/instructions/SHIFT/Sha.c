@@ -36,7 +36,7 @@
  *   - IOV (Illegal Operand Value) if abs(shift_count) >= data_width_in_bits
  *
  * Reference: ND-500 Reference Manual, Chapter 10.25
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Sha.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Sha.cs
  */
 void nd500_instr_Sha(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

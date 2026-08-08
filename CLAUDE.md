@@ -322,6 +322,18 @@ make wasm-serve
 # Load kernel.zip in the web UI to debug
 ```
 
+## Read These First (any session, any task)
+
+- `docs/CURRENT-PLAN.md`: What we are doing, the current phase, and the PROVEN ruled-out list. Read before starting or resuming any investigation; update at every milestone.
+- `docs/EXTERNAL-ARTIFACTS.md`: Where out-of-repo truth lives (carve tree, MON YAMLs, vendor binaries, manuals) and the order of authority. Never ask for or guess these locations - they are indexed there.
+- `docs/SINTRAN-CONVENTIONS.md`: SINTRAN/toolchain behavior facts that keep biting (K&R-only C for NC, 0x27 string terminator, quote-create filenames, `--` wildcard, VTM terminal types, why NC alone cannot generate code).
+- `docs/SYNC-BACKLOG.md`: The C# sync ledger. Every commit that changes CPU/MMU/trap/MON behavior gets a line here AT THE TIME of the fix; C#-bound porting notes go in the shared rolling file `$ND500_TESTDATA/retrocore-mon-fixes.md` (numbered items), never as new docs in the RetroCore repo.
+
+Hard rules distilled from past failures:
+- All C fed to NC must be K&R 1978 style - no ANSI prototypes, no `void`, no `//` comments.
+- Never trust a result from a binary `make` did not just build; the `diag_*` harnesses are built with `make diag`.
+- Git hooks are tracked in `tools/git-hooks/`; enable once per clone with `git config core.hooksPath tools/git-hooks` (the commit-msg hook enforces the no-AI-mentions commit rule).
+
 ## Reference Documentation
 
 - `docs/DEBUGGER_COMMAND_REFERENCE.md`: Complete reference for all 60+ debugger commands

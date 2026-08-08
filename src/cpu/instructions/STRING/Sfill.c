@@ -33,7 +33,7 @@
  *   - string filled: K=1 I2 := next element
  *
  * Reference: ND-500 Reference Manual, Chapter 14.8
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Sfill.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Sfill.cs
  */
 void nd500_instr_Sfill(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 1) {

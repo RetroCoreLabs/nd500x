@@ -32,7 +32,7 @@
  * Data status bits: None affected
  *
  * Reference: ND-500 Reference Manual, Chapter 16.27.2
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Lregbl.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Lregbl.cs
  */
 void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 43-47) */

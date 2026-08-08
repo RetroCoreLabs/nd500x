@@ -32,7 +32,7 @@
  * Traps: Addressing; BCD overflow (BO); Invalid operation (IVO).
  *
  * Reference: ND-500 Reference Manual, Section 17.6.
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Pshiftr.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SHIFT/Pshiftr.cs
  */
 void nd500_instr_Pshiftr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->operand_count != 2) {

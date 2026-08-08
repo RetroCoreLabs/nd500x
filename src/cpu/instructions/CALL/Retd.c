@@ -23,7 +23,8 @@
  * No stack frame operations are performed.
  * B register remains unchanged (still points to caller's frame).
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Retd.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Retd.cs
  */
 void nd500_instr_Retd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Simply restore PC from L register */

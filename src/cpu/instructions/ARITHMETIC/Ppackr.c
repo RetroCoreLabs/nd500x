@@ -32,7 +32,7 @@
  *   - BO or IVO -> K
  *
  * Reference: ND-500 Reference Manual, Chapter 17.7 (Convert ASCII to packed)
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Ppackr.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Ppackr.cs
  */
 void nd500_instr_Ppackr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

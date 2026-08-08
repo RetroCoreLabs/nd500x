@@ -137,7 +137,7 @@
  * - RET: Return from subroutine
  *
  * Reference: ND-500 Reference Manual, Chapter 13.7
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Callg.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Callg.cs
  */
 void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Check if trace mode is enabled for debug output */

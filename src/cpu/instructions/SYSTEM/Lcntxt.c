@@ -32,7 +32,7 @@
  * Data status bits: None affected
  *
  * Reference: ND-500 Reference Manual, Chapter 16.27.4
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Lcntxt.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Lcntxt.cs
  */
 void nd500_instr_Lcntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count (like C# lines 41-45) */

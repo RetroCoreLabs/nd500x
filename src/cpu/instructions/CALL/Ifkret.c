@@ -62,7 +62,7 @@
  * - IFKRET: Conditional return if K set [this instruction]
  *
  * Reference: ND-500 Reference Manual, Chapter 13
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Ifkret.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Ifkret.cs
  */
 void nd500_instr_Ifkret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

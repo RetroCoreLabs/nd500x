@@ -44,7 +44,7 @@
  * Data status bits: bit or bit group = 0 -> Z
  *
  * Reference: ND-500 Reference Manual, Chapter 16.17
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Rwip.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Rwip.cs
  */
 
 /* Hn RWIP (group form) is 0xFE98..0xFE9B; BIn RWIP (bit form) is 0xFE94..0xFE97. */

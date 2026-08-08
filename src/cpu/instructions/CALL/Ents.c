@@ -38,7 +38,8 @@
  *   - ISE (Instruction Sequence Error) if CALL did not precede
  *   - STO (Stack Overflow) if stack demand exceeds available space
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Ents.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Ents.cs
  */
 void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Stack frame field offsets */

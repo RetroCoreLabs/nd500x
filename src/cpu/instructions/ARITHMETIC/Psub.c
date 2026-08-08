@@ -32,7 +32,7 @@
  *   - BO or IVO -> K
  *
  * Reference: ND-500 Reference Manual, Chapter 17.3 (Packed Arithmetic)
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Psub.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Psub.cs
  */
 void nd500_instr_Psub(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

@@ -89,7 +89,7 @@
  * - PUTB: Put block to heap (free)
  *
  * Reference: ND-500 Reference Manual, Chapter 3.3, Page 224
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Retb.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Retb.cs
  */
 void nd500_instr_Retb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Stack frame field offsets */

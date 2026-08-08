@@ -28,7 +28,8 @@
  *   C = 1 if NO borrow (minuend >= subtrahend)
  *   O = 1 if signed overflow occurred
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Subtract.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Subtract.cs
  */
 void nd500_instr_Sub(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

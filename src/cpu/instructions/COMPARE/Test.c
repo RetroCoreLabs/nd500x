@@ -36,7 +36,7 @@
  * Trap conditions: Addressing traps only
  *
  * Reference: ND-500 Reference Manual, Chapter 10.11
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/COMPARE/Test.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/COMPARE/Test.cs
  */
 void nd500_instr_Test(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

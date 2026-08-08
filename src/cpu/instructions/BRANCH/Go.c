@@ -20,7 +20,8 @@
  * Operation:
  *   PC ← PC + displacement (sign-extended)
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/Go.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/Go.cs
  */
 void nd500_instr_Go(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

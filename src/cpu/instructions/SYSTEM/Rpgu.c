@@ -44,7 +44,7 @@
  * Data status bits: bit or bit group = 0 -> Z
  *
  * Reference: ND-500 Reference Manual, Chapter 16.20
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Rpgu.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Rpgu.cs
  */
 
 /* Hn RPGU (group form) is 0xFE8C..0xFE8F; BIn RPGU (bit form) is 0xFE88..0xFE8B. */

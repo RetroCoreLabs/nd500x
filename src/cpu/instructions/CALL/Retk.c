@@ -76,7 +76,7 @@ static int g_envf_domdbg = -1;
  * - RETBK: Return from buddy subroutine and set K flag
  *
  * Reference: ND-500 Reference Manual, Chapter 13.11
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Retk.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/CALL/Retk.cs
  */
 void nd500_instr_Retk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Stack frame field offsets */

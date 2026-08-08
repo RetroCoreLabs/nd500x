@@ -40,7 +40,7 @@
  * Trap conditions: Integer overflow (O)
  *
  * Reference: ND-500 Reference Manual, Chapter 10.12
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Neg.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Neg.cs
  */
 void nd500_instr_Neg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

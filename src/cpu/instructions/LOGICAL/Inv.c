@@ -33,7 +33,7 @@
  * Trap conditions: None
  *
  * Reference: ND-500 Reference Manual, Chapter 10.13
- *            RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/LOGICAL/Inv.cs
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/LOGICAL/Inv.cs
  */
 void nd500_instr_Inv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */

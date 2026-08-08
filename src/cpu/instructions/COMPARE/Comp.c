@@ -38,7 +38,8 @@
  *
  * Traps: Addressing traps only (integer), Floating overflow/underflow (float)
  *
- * Reference: RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/COMPARE/Comp.cs
+ * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
+ * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/COMPARE/Comp.cs
  */
 void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */
