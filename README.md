@@ -387,13 +387,14 @@ sourced from the ND-60.128.5 SINTRAN III Reference Manual; see
 ```
 
 So put your `.DOM` files in `<root>/SYSTEM/` or `<root>/<USER>/` and run them by
-name. Example against a sandbox with staged programs (`build/link_sandbox` in
-this transcript; note that directory is a `build/` artifact and is NOT
-committed - see "Convenience launcher" below for a root-level alternative that
-does not depend on it):
+name. The example below uses a SINTRAN user area with the vendor programs
+staged in `SYSTEM/` - the ND linker, compiler and their support files. That
+tree is far too large to commit, so it lives outside the repository;
+`docs/PATH_CONVENTIONS.md` records it as `$ND500USERS` and `make doctor`
+reports whether this checkout can reach it.
 
 ```
-$ ./build/bin/nd500x --monitor --sintran-root build/link_sandbox
+$ ./build/bin/nd500x --monitor --sintran-root ~/ND500USERS
 SINTRAN III (nd500x) - user SYSTEM. Type HELP for commands.
 @ login GUEST
 User GUEST logged in.
@@ -482,7 +483,7 @@ clone all three are empty and nothing resolves — not `RECOVER-DOMAIN`/`@<name>
 against `<root>/SYSTEM/`, and not source files under `<root>/GUEST/`. A user
 area needs `.DOM` files staged in `SYSTEM/` before name lookups work; see
 [`docs/RUN_500_SH_CONFIG_RECONSTRUCTION.md`](docs/RUN_500_SH_CONFIG_RECONSTRUCTION.md)
-for the full story. A repopulated `build/link_sandbox` also works.
+for the full story.
 
 ### Debugger Commands
 

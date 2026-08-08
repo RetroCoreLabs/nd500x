@@ -60,15 +60,22 @@ The documented ND LINKER workflow (`docs/` via the `nd500-linker` skill)
 needs `SYSTEM/LINKER.DOM` + `DDBTABLES` + `LINKER.INIT` under `sintran-root`
 for the SINTRAN shell's `@lin` abbreviation to resolve. Those files are not
 at the repo root, and the sandbox that used to have them —
-`build/link_sandbox` — **does not currently exist**
-(confirmed via `ls`, no such directory). It was presumably lost the same way
-as `test_sintran/` — never committed, wiped by a clean/rebuild.
+`build/link_sandbox` — no longer exists. It was never committed and did not
+survive a clean, the same way `test_sintran/` went.
 
-**This is left open, by user decision (2026-07-24 conversation):** keep
-`sintran-root` pointed at the repo root and leave `SYSTEM/` empty for now.
-`~/run_500.sh` works for GUEST-level SINTRAN shell work today; `@lin` will
-not work until `SYSTEM/` is populated or `build/link_sandbox` is recreated
-and the ini repointed at it.
+**Resolved (2026-08-08).** `$ND500USERS` supersedes it. Its `SYSTEM/` holds
+`LINKER-B01.DOM/.HELP/.INIT`, six `DDBTABLES-*.VTM`, `UE-ERMSG-EN-C06.ERR`
+and the libraries under the un-revisioned names an unqualified open asks for
+(`CAT-LIB.NRF`, `NC-LIB.NRF`), all built by its own `populate-system.sh`.
+Point `sintran-root` there — the ini accepts a leading `~`
+(`src/frontend/nd500x/nd500x.c:241`), so no machine-specific path is needed:
+
+```ini
+sintran-root  = ~/ND500USERS
+```
+
+The earlier decision to keep `sintran-root` at the repo root with an empty
+`SYSTEM/` is superseded; that arrangement could never resolve `@lin`.
 
 ## Verified working
 

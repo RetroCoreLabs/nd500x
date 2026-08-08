@@ -86,8 +86,7 @@ cd build && ctest -R disasm
 |-----------|---------|
 | `build/` | Primary native build output (default target for `make`); contains `bin/`, `lib/`, test executables |
 | `build_wasm/` | WebAssembly build output (created by `make wasm` or `make wasm-serve`) |
-| `build/nc_sandbox/` | Sandbox directory for ND-500 compiler (CAT-500/NC) testing with isolated SYSTEM files |
-| `build/link_sandbox/` | Sandbox directory for ND linker testing with isolated SYSTEM files and DDBTABLES |
+| `build/nc_sandbox/` | Sandbox for ND-500 compiler (CAT-500/NC) testing; built by `test/nc_sandbox_setup.cmake` from `test/nc_fixtures/`. The COMPILER runs from here - the linker does not |
 | `build-ubsan/`, `build-sanitizer/` | Alternative build directories (if using different sanitizer variants) |
 
 **Note:** After `make`, test binaries and the JSON test data (`nd500-conformance.json`) are copied to `build/bin/` by CMake; the test runner auto-locates them in its executable directory.
@@ -332,6 +331,7 @@ make wasm-serve
 Hard rules distilled from past failures:
 - All C fed to NC must be K&R 1978 style - no ANSI prototypes, no `void`, no `//` comments.
 - Never trust a result from a binary `make` did not just build; the `diag_*` harnesses are built with `make diag`.
+- The COMPILER runs from `build/nc_sandbox`; the LINKER runs from `$ND500USERS`, whose `SYSTEM/` already holds `LINKER-B01.*`, the `DDBTABLES-*.VTM`, `UE-ERMSG-EN-C06.ERR` and the un-revisioned `CAT-LIB.NRF`/`NC-LIB.NRF`. Running either from the other's directory fakes a startup failure that reads like a real defect. `build/link_sandbox` is gone - older documents naming it are records, not instructions.
 - Git hooks are tracked in `tools/git-hooks/`; enable once per clone with `git config core.hooksPath tools/git-hooks` (the commit-msg hook enforces the no-AI-mentions commit rule).
 
 ## Reference Documentation

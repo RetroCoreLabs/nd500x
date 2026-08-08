@@ -75,6 +75,23 @@ the C# session" / "the carver session" / "a future nd500x session").
 
 `$ND500USERS` (GUEST / SCRATCH / SYSTEM + `populate-system.sh` +
 `nd500x.ini`). Its own README documents the layout and the standing test
-artifacts. `build/nc_sandbox` and `build/link_sandbox` inside this repo are
-the per-tool sandboxes: the COMPILER runs from `nc_sandbox`, the LINKER from
-`link_sandbox` (running from the wrong one fakes a startup "abortion").
+artifacts.
+
+**Run the LINKER from `$ND500USERS`.** Its `SYSTEM/` holds everything the
+linker opens at startup: `LINKER-B01.DOM/.HELP/.INIT`, the `DDBTABLES-*.VTM`
+terminal tables, `UE-ERMSG-EN-C06.ERR`, and the libraries `CAT-LIB.NRF` and
+`NC-LIB.NRF` under the un-revisioned names an unqualified open asks for.
+`populate-system.sh` builds it, uppercasing every name on the way in because
+`src/libmon/mon_path.c` upshifts and the tree sits on a case-sensitive
+filesystem.
+
+`build/nc_sandbox` is the COMPILER's, built by
+`test/nc_sandbox_setup.cmake` from tracked fixtures in `test/nc_fixtures/`.
+Do not run the linker from it - it starts and fails in a way that reads like
+a real defect.
+
+Older documents say to run the linker from `build/link_sandbox`. That was a
+hand-assembled directory under gitignored `build/`; it did not survive a
+`make clean` and is not present now. `$ND500USERS` replaced it. Where an
+investigation record cites `build/link_sandbox`, read it as the sandbox of
+its day, not as an instruction.
