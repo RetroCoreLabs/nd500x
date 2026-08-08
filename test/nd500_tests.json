@@ -261620,6 +261620,31 @@
     "expectedTrapBits": 4096
   },
   {
+    "name": "/_W_documented_minDividedByMinusOne",
+    "assembly": "w1 / $4294967295",
+    "bytes": [
+      120,
+      63
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483648,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4098
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
     "assembly": "W2 / b.0+",
     "bytes": [
@@ -268376,6 +268401,31 @@
     "expectedTrapBits": 4096
   },
   {
+    "name": "/_W_documented_minDividedByMinusOne",
+    "assembly": "w1 / $4294967295",
+    "bytes": [
+      120,
+      63
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483648,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4098
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
     "assembly": "W2 / b.0+",
     "bytes": [
@@ -275132,6 +275182,31 @@
     "expectedTrapBits": 4096
   },
   {
+    "name": "/_W_documented_minDividedByMinusOne",
+    "assembly": "w1 / $4294967295",
+    "bytes": [
+      120,
+      63
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483648,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4098
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
     "assembly": "W2 / b.0+",
     "bytes": [
@@ -281886,6 +281961,31 @@
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
     "expectedTrapBits": 4096
+  },
+  {
+    "name": "/_W_documented_minDividedByMinusOne",
+    "assembly": "w1 / $4294967295",
+    "bytes": [
+      120,
+      63
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483648,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4098
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -412872,6 +412972,34 @@
     "maxInstructions": 1
   },
   {
+    "name": "add2_BY_documented_maxplus1",
+    "assembly": "BY ADD2 I1,I2",
+    "bytes": [
+      252,
+      23,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 127,
+        "i2": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Add2_0_0",
     "assembly": "H ADD2 I1,I2",
     "bytes": [
@@ -413572,6 +413700,34 @@
     "maxInstructions": 1
   },
   {
+    "name": "add2_H_documented_maxplus1",
+    "assembly": "H ADD2 I1,I2",
+    "bytes": [
+      252,
+      84,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 32767,
+        "i2": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Add2_0_0",
     "assembly": "W ADD2 I1,I2",
     "bytes": [
@@ -414245,6 +414401,33 @@
       "ram": []
     },
     "maxInstructions": 1
+  },
+  {
+    "name": "add2_W_documented_maxplus1",
+    "assembly": "W ADD2 I1,I2",
+    "bytes": [
+      83,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483647,
+        "i2": 1,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4099
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
   },
   {
     "name": "Add3_A_14",
@@ -416140,6 +416323,34 @@
     "expectedTrapBits": 4096
   },
   {
+    "name": "div2_BY_documented_minDividedByMinusOne",
+    "assembly": "BY DIV2 I1,I2",
+    "bytes": [
+      252,
+      98,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 128,
+        "i2": 255,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Div2_64_A",
     "assembly": "H DIV2 I1,I2",
     "bytes": [
@@ -416254,6 +416465,34 @@
     "expectedTrapBits": 4096
   },
   {
+    "name": "div2_H_documented_minDividedByMinusOne",
+    "assembly": "H DIV2 I1,I2",
+    "bytes": [
+      252,
+      99,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 32768,
+        "i2": 65535,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Div2_64_A",
     "assembly": "W DIV2 I1,I2",
     "bytes": [
@@ -416366,6 +416605,34 @@
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
     "expectedTrapBits": 4096
+  },
+  {
+    "name": "div2_W_documented_minDividedByMinusOne",
+    "assembly": "W DIV2 I1,I2",
+    "bytes": [
+      252,
+      100,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483648,
+        "i2": 4294967295,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
   },
   {
     "name": "Div2F_Normal",
@@ -416807,6 +417074,36 @@
     "expectedTrapBits": 4096
   },
   {
+    "name": "div3_BY_documented_minDividedByMinusOne",
+    "assembly": "BY DIV3 I1,I2,I3",
+    "bytes": [
+      252,
+      118,
+      208,
+      209,
+      210
+    ],
+    "initial": {
+      "regs": {
+        "i1": 128,
+        "i2": 255,
+        "i3": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4101
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Div3_64_A",
     "assembly": "H DIV3 I1,I2,I3",
     "bytes": [
@@ -416899,6 +417196,36 @@
     "expectedTrapBits": 4096
   },
   {
+    "name": "div3_H_documented_minDividedByMinusOne",
+    "assembly": "H DIV3 I1,I2,I3",
+    "bytes": [
+      252,
+      119,
+      208,
+      209,
+      210
+    ],
+    "initial": {
+      "regs": {
+        "i1": 32768,
+        "i2": 65535,
+        "i3": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4101
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Div3_64_A",
     "assembly": "W DIV3 I1,I2,I3",
     "bytes": [
@@ -416989,6 +417316,36 @@
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
     "expectedTrapBits": 4096
+  },
+  {
+    "name": "div3_W_documented_minDividedByMinusOne",
+    "assembly": "W DIV3 I1,I2,I3",
+    "bytes": [
+      252,
+      120,
+      208,
+      209,
+      210
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483648,
+        "i2": 4294967295,
+        "i3": 0,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4101
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
   },
   {
     "name": "Div3F_Normal",
@@ -421448,6 +421805,34 @@
     "maxInstructions": 1
   },
   {
+    "name": "mul2_BY_documented_minTimesTwo",
+    "assembly": "BY MUL2 I1,I2",
+    "bytes": [
+      252,
+      93,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 128,
+        "i2": 2,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Mul2_0_5",
     "assembly": "H MUL2 I1,I2",
     "bytes": [
@@ -421588,6 +421973,34 @@
     "maxInstructions": 1
   },
   {
+    "name": "mul2_H_documented_minTimesTwo",
+    "assembly": "H MUL2 I1,I2",
+    "bytes": [
+      252,
+      94,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 32768,
+        "i2": 2,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
+  },
+  {
     "name": "Mul2_0_5",
     "assembly": "W MUL2 I1,I2",
     "bytes": [
@@ -421726,6 +422139,34 @@
       "ram": []
     },
     "maxInstructions": 1
+  },
+  {
+    "name": "mul2_W_documented_minTimesTwo",
+    "assembly": "W MUL2 I1,I2",
+    "bytes": [
+      252,
+      95,
+      208,
+      209
+    ],
+    "initial": {
+      "regs": {
+        "i1": 2147483648,
+        "i2": 2,
+        "pc": 4096,
+        "st": 0
+      },
+      "ram": []
+    },
+    "final": {
+      "regs": {
+        "pc": 4100
+      },
+      "ram": []
+    },
+    "maxInstructions": 1,
+    "expectedTrap": "IntegerOverflow",
+    "expectedTrapBits": 512
   },
   {
     "name": "Mul2F_Normal",
