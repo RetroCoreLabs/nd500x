@@ -211452,7 +211452,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -211479,7 +211480,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -211506,7 +211508,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -211533,7 +211536,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_2",
@@ -211560,7 +211564,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_F",
@@ -211587,7 +211592,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_10",
@@ -211614,7 +211620,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_3F",
@@ -211641,7 +211648,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_40",
@@ -211668,7 +211676,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_55",
@@ -211695,7 +211704,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_7E",
@@ -211722,7 +211732,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_7F",
@@ -211749,7 +211760,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_80",
@@ -211776,7 +211788,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_81",
@@ -211803,7 +211816,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_AA",
@@ -211830,7 +211844,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_FE",
@@ -211857,7 +211872,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_FF",
@@ -211884,7 +211900,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -211917,7 +211934,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx1",
@@ -211950,7 +211968,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx2",
@@ -211983,7 +212002,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx0",
@@ -212016,7 +212036,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx1",
@@ -212049,7 +212070,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx2",
@@ -212082,7 +212104,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx0",
@@ -212131,7 +212154,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx1",
@@ -212180,7 +212204,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx2",
@@ -212229,7 +212254,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx0",
@@ -212278,7 +212304,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx1",
@@ -212327,7 +212354,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx2",
@@ -212376,7 +212404,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivNormal_64",
@@ -218039,7 +218068,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -218066,7 +218096,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -218093,7 +218124,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -218120,7 +218152,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_2",
@@ -218147,7 +218180,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_F",
@@ -218174,7 +218208,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_10",
@@ -218201,7 +218236,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_3F",
@@ -218228,7 +218264,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_40",
@@ -218255,7 +218292,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_55",
@@ -218282,7 +218320,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_7E",
@@ -218309,7 +218348,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_7F",
@@ -218336,7 +218376,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_80",
@@ -218363,7 +218404,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_81",
@@ -218390,7 +218432,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_AA",
@@ -218417,7 +218460,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_FE",
@@ -218444,7 +218488,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_FF",
@@ -218471,7 +218516,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -218504,7 +218550,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx1",
@@ -218537,7 +218584,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx2",
@@ -218570,7 +218618,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx0",
@@ -218603,7 +218652,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx1",
@@ -218636,7 +218686,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx2",
@@ -218669,7 +218720,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx0",
@@ -218718,7 +218770,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx1",
@@ -218767,7 +218820,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx2",
@@ -218816,7 +218870,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx0",
@@ -218865,7 +218920,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx1",
@@ -218914,7 +218970,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx2",
@@ -218963,7 +219020,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivNormal_64",
@@ -224626,7 +224684,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -224653,7 +224712,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -224680,7 +224740,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -224707,7 +224768,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_2",
@@ -224734,7 +224796,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_F",
@@ -224761,7 +224824,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_10",
@@ -224788,7 +224852,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_3F",
@@ -224815,7 +224880,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_40",
@@ -224842,7 +224908,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_55",
@@ -224869,7 +224936,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_7E",
@@ -224896,7 +224964,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_7F",
@@ -224923,7 +224992,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_80",
@@ -224950,7 +225020,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_81",
@@ -224977,7 +225048,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_AA",
@@ -225004,7 +225076,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_FE",
@@ -225031,7 +225104,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_FF",
@@ -225058,7 +225132,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -225091,7 +225166,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx1",
@@ -225124,7 +225200,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx2",
@@ -225157,7 +225234,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx0",
@@ -225190,7 +225268,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx1",
@@ -225223,7 +225302,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx2",
@@ -225256,7 +225336,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx0",
@@ -225305,7 +225386,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx1",
@@ -225354,7 +225436,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx2",
@@ -225403,7 +225486,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx0",
@@ -225452,7 +225536,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx1",
@@ -225501,7 +225586,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx2",
@@ -225550,7 +225636,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivNormal_64",
@@ -231213,7 +231300,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -231240,7 +231328,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -231267,7 +231356,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -231294,7 +231384,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_2",
@@ -231321,7 +231412,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_F",
@@ -231348,7 +231440,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_10",
@@ -231375,7 +231468,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_3F",
@@ -231402,7 +231496,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_40",
@@ -231429,7 +231524,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_55",
@@ -231456,7 +231552,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_7E",
@@ -231483,7 +231580,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_7F",
@@ -231510,7 +231608,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_80",
@@ -231537,7 +231636,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_81",
@@ -231564,7 +231664,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_AA",
@@ -231591,7 +231692,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_FE",
@@ -231618,7 +231720,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_FF",
@@ -231645,7 +231748,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -231678,7 +231782,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx1",
@@ -231711,7 +231816,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx2",
@@ -231744,7 +231850,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx0",
@@ -231777,7 +231884,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx1",
@@ -231810,7 +231918,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp4_Idx2",
@@ -231843,7 +231952,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx0",
@@ -231892,7 +232002,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx1",
@@ -231941,7 +232052,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp0_Idx2",
@@ -231990,7 +232102,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx0",
@@ -232039,7 +232152,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx1",
@@ -232088,7 +232202,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_IND_PI_Disp4_Idx2",
@@ -232137,7 +232252,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivNormal_64",
@@ -236919,7 +237035,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -236946,7 +237063,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -236973,7 +237091,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -237000,7 +237119,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_3F",
@@ -237027,7 +237147,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_40",
@@ -237054,7 +237175,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_FF",
@@ -237081,7 +237203,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_100",
@@ -237108,7 +237231,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_FFF",
@@ -237135,7 +237259,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_1000",
@@ -237162,7 +237287,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_5555",
@@ -237189,7 +237315,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_7FFE",
@@ -237216,7 +237343,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_7FFF",
@@ -237243,7 +237371,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_8000",
@@ -237270,7 +237399,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_8001",
@@ -237297,7 +237427,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_AAAA",
@@ -237324,7 +237455,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_FFFE",
@@ -237351,7 +237483,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge15_TRAP_FFFF",
@@ -237378,7 +237511,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -242712,7 +242846,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -242739,7 +242874,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -242766,7 +242902,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -242793,7 +242930,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_3F",
@@ -242820,7 +242958,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_40",
@@ -242847,7 +242986,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_FF",
@@ -242874,7 +243014,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_100",
@@ -242901,7 +243042,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_FFF",
@@ -242928,7 +243070,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_1000",
@@ -242955,7 +243098,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_5555",
@@ -242982,7 +243126,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_7FFE",
@@ -243009,7 +243154,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_7FFF",
@@ -243036,7 +243182,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_8000",
@@ -243063,7 +243210,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_8001",
@@ -243090,7 +243238,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_AAAA",
@@ -243117,7 +243266,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_FFFE",
@@ -243144,7 +243294,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge15_TRAP_FFFF",
@@ -243171,7 +243322,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -248505,7 +248657,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -248532,7 +248685,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -248559,7 +248713,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -248586,7 +248741,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_3F",
@@ -248613,7 +248769,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_40",
@@ -248640,7 +248797,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_FF",
@@ -248667,7 +248825,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_100",
@@ -248694,7 +248853,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_FFF",
@@ -248721,7 +248881,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_1000",
@@ -248748,7 +248909,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_5555",
@@ -248775,7 +248937,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_7FFE",
@@ -248802,7 +248965,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_7FFF",
@@ -248829,7 +248993,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_8000",
@@ -248856,7 +249021,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_8001",
@@ -248883,7 +249049,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_AAAA",
@@ -248910,7 +249077,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_FFFE",
@@ -248937,7 +249105,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge15_TRAP_FFFF",
@@ -248964,7 +249133,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -254298,7 +254468,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -254325,7 +254496,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -254352,7 +254524,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -254379,7 +254552,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_3F",
@@ -254406,7 +254580,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_40",
@@ -254433,7 +254608,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_FF",
@@ -254460,7 +254636,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_100",
@@ -254487,7 +254664,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_FFF",
@@ -254514,7 +254692,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_1000",
@@ -254541,7 +254720,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_5555",
@@ -254568,7 +254748,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_7FFE",
@@ -254595,7 +254776,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_7FFF",
@@ -254622,7 +254804,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_8000",
@@ -254649,7 +254832,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_8001",
@@ -254676,7 +254860,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_AAAA",
@@ -254703,7 +254888,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_FFFE",
@@ -254730,7 +254916,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge15_TRAP_FFFF",
@@ -254757,7 +254944,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -260915,7 +261103,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -260941,7 +261130,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -260967,7 +261157,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -260993,7 +261184,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_2",
@@ -261019,7 +261211,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_3F",
@@ -261045,7 +261238,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_40",
@@ -261071,7 +261265,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_FF",
@@ -261097,7 +261292,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_100",
@@ -261123,7 +261319,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_FFFF",
@@ -261149,7 +261346,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_10000",
@@ -261175,7 +261373,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_12345678",
@@ -261201,7 +261400,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_55555555",
@@ -261227,7 +261427,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_7FFFFFFE",
@@ -261253,7 +261454,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_7FFFFFFF",
@@ -261279,7 +261481,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_80000000",
@@ -261305,7 +261508,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_80000001",
@@ -261331,7 +261535,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge15_TRAP_AAAAAAAA",
@@ -261357,7 +261562,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge16_TRAP_FFFFFFFE",
@@ -261383,7 +261589,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge17_TRAP_FFFFFFFF",
@@ -261409,7 +261616,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -267651,7 +267859,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -267677,7 +267886,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -267703,7 +267913,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -267729,7 +267940,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_2",
@@ -267755,7 +267967,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_3F",
@@ -267781,7 +267994,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_40",
@@ -267807,7 +268021,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_FF",
@@ -267833,7 +268048,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_100",
@@ -267859,7 +268075,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_FFFF",
@@ -267885,7 +268102,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_10000",
@@ -267911,7 +268129,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_12345678",
@@ -267937,7 +268156,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_55555555",
@@ -267963,7 +268183,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_7FFFFFFE",
@@ -267989,7 +268210,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_7FFFFFFF",
@@ -268015,7 +268237,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_80000000",
@@ -268041,7 +268264,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_80000001",
@@ -268067,7 +268291,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge15_TRAP_AAAAAAAA",
@@ -268093,7 +268318,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge16_TRAP_FFFFFFFE",
@@ -268119,7 +268345,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge17_TRAP_FFFFFFFF",
@@ -268145,7 +268372,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -274387,7 +274615,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -274413,7 +274642,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -274439,7 +274669,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -274465,7 +274696,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_2",
@@ -274491,7 +274723,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_3F",
@@ -274517,7 +274750,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_40",
@@ -274543,7 +274777,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_FF",
@@ -274569,7 +274804,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_100",
@@ -274595,7 +274831,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_FFFF",
@@ -274621,7 +274858,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_10000",
@@ -274647,7 +274885,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_12345678",
@@ -274673,7 +274912,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_55555555",
@@ -274699,7 +274939,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_7FFFFFFE",
@@ -274725,7 +274966,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_7FFFFFFF",
@@ -274751,7 +274993,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_80000000",
@@ -274777,7 +275020,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_80000001",
@@ -274803,7 +275047,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge15_TRAP_AAAAAAAA",
@@ -274829,7 +275074,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge16_TRAP_FFFFFFFE",
@@ -274855,7 +275101,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge17_TRAP_FFFFFFFF",
@@ -274881,7 +275128,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -281123,7 +281371,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivZeroByZero_TRAP_0",
@@ -281149,7 +281398,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge0_TRAP_0",
@@ -281175,7 +281425,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge1_TRAP_1",
@@ -281201,7 +281452,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge2_TRAP_2",
@@ -281227,7 +281479,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge3_TRAP_3F",
@@ -281253,7 +281506,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge4_TRAP_40",
@@ -281279,7 +281533,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge5_TRAP_FF",
@@ -281305,7 +281560,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge6_TRAP_100",
@@ -281331,7 +281587,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge7_TRAP_FFFF",
@@ -281357,7 +281614,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge8_TRAP_10000",
@@ -281383,7 +281641,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge9_TRAP_12345678",
@@ -281409,7 +281668,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge10_TRAP_55555555",
@@ -281435,7 +281695,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge11_TRAP_7FFFFFFE",
@@ -281461,7 +281722,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge12_TRAP_7FFFFFFF",
@@ -281487,7 +281749,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge13_TRAP_80000000",
@@ -281513,7 +281776,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge14_TRAP_80000001",
@@ -281539,7 +281803,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge15_TRAP_AAAAAAAA",
@@ -281565,7 +281830,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge16_TRAP_FFFFFFFE",
@@ -281591,7 +281857,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_DivByZero_Edge17_TRAP_FFFFFFFF",
@@ -281617,7 +281884,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div_LOCAL_PI_Disp0_Idx0",
@@ -415868,7 +416136,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div2_64_A",
@@ -415981,7 +416250,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div2_64_A",
@@ -416094,7 +416364,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div2F_Normal",
@@ -416259,7 +416530,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div2D_Normal",
@@ -416439,7 +416711,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div3_64_A",
@@ -416530,7 +416803,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div3_64_A",
@@ -416621,7 +416895,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div3_64_A",
@@ -416712,7 +416987,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div3F_Normal",
@@ -416889,7 +417165,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div3D_Normal",
@@ -417087,7 +417364,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -417181,7 +417459,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -417275,7 +417554,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -417369,7 +417649,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -417463,7 +417744,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -417557,7 +417839,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -417651,7 +417934,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -417745,7 +418029,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -417839,7 +418124,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -417933,7 +418219,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -418027,7 +418314,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -418121,7 +418409,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Div4_0_3E8_A",
@@ -418215,7 +418504,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "DivisionByZero"
+    "expectedTrap": "DivisionByZero",
+    "expectedTrapBits": 4096
   },
   {
     "name": "Incr_00000000",
@@ -448944,7 +449234,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "InstructionSequenceError"
+    "expectedTrap": "InstructionSequenceError",
+    "expectedTrapBits": 34359738368
   },
   {
     "name": "entd_NoCallContext_ISE",
@@ -448984,7 +449275,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "InstructionSequenceError"
+    "expectedTrap": "InstructionSequenceError",
+    "expectedTrapBits": 34359738368
   },
   {
     "name": "entf_NoCallContext_ISE",
@@ -449028,7 +449320,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "InstructionSequenceError"
+    "expectedTrap": "InstructionSequenceError",
+    "expectedTrapBits": 34359738368
   },
   {
     "name": "entfn_NoCallContext_ISE",
@@ -449073,7 +449366,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "InstructionSequenceError"
+    "expectedTrap": "InstructionSequenceError",
+    "expectedTrapBits": 34359738368
   },
   {
     "name": "entm_NoCallContext_ISE",
@@ -449119,7 +449413,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "InstructionSequenceError"
+    "expectedTrap": "InstructionSequenceError",
+    "expectedTrapBits": 34359738368
   },
   {
     "name": "ENTM_MainDemand_0x100_Total_0x1000",
@@ -449297,7 +449592,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "InstructionSequenceError"
+    "expectedTrap": "InstructionSequenceError",
+    "expectedTrapBits": 34359738368
   },
   {
     "name": "ENTS_StackDemand_0x20_Bytes",
@@ -449953,7 +450249,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "InstructionSequenceError"
+    "expectedTrap": "InstructionSequenceError",
+    "expectedTrapBits": 34359738368
   },
   {
     "name": "ENTSN_StackDemand_0x20_MaxArgs3",
@@ -450303,7 +450600,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "InstructionSequenceError"
+    "expectedTrap": "InstructionSequenceError",
+    "expectedTrapBits": 34359738368
   },
   {
     "name": "Ifkret_KeySet",
@@ -450854,7 +451152,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "InstructionSequenceError"
+    "expectedTrap": "InstructionSequenceError",
+    "expectedTrapBits": 34359738368
   },
   {
     "name": "Equal_Zero",
@@ -526817,7 +527116,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "clte_TrapEnableClear",
@@ -1076382,7 +1076682,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "cwip_Default",
@@ -1076405,7 +1076706,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "dcc_Default",
@@ -1076428,7 +1076730,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "dctsb_Default",
@@ -1076451,7 +1076754,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "ddirt_Default",
@@ -1076474,7 +1076778,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "dmof_Default",
@@ -1076497,7 +1076802,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "dmon_Default",
@@ -1076520,7 +1076826,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "Freeb_Basic_LogSize3",
@@ -1078947,7 +1079254,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "pctsb_Default",
@@ -1078970,7 +1079278,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "pmof_Default",
@@ -1078993,7 +1079302,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "pmon_Default",
@@ -1079016,7 +1079326,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "tutti_Default",
@@ -1079039,7 +1079350,8 @@
       "ram": []
     },
     "maxInstructions": 1,
-    "expectedTrap": "IllegalInstruction"
+    "expectedTrap": "IllegalInstruction",
+    "expectedTrapBits": 8589934592
   },
   {
     "name": "Sub_SubZero_0_NegativeTest_WrongZFlag",

@@ -928,43 +928,45 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
             break;  /* Stop on trap */
         }
 
-        /* Also check for ignorable traps via ST1 flags (bits 11-29) */
-        /* These traps set the status flag but don't trigger nd500_trap_occurred() */
-        /* Only detect flags that were NEWLY set (not already set before execution) */
-        /* Only check if test expects a trap - otherwise ST1 writes are legitimate */
+        /* Also check for ignorable traps via ST1 flags.
+         *
+         * An ignorable trap that is NOT enabled in OTE never reaches
+         * nd500_trap_set_state(), so the global trap state stays empty and this
+         * status-bit scan is the only way to observe it.
+         *
+         * This used to be a copy-pasted if-ladder over five bits (DZ, IOV, FO,
+         * FU, BO) that recorded only a name. It had no branch for O(9) at all,
+         * so integer overflow - the condition fifteen wrong-trap sites turned
+         * on - was invisible here. Table-driven now, covering every ignorable
+         * condition it can name, and it records the exact bits as well as the
+         * name so expectedTrapBits can be asserted.
+         *
+         * Names are unchanged from the ladder (the same vocabulary the C#
+         * TrapType uses), so existing expectations still match; the bits are
+         * the new, precise channel. Order matters only in that the first
+         * newly-set bit wins, matching the old ladder's behaviour. */
         if (expected_trap != NULL) {
-            uint32_t st1 = cpu->ST1;
-            uint32_t new_flags = st1 & ~initial_st1;  /* Flags set during execution */
-            if (new_flags & (1 << 12)) {  /* TRAP_DZ - Divide by Zero */
+            static const struct { uint32_t bit; const char* name; } ignorable[] = {
+                { 1u << 12, "DivisionByZero"      },  /* DZ  */
+                { 1u << 16, "IllegalOperandValue" },  /* IOV */
+                { 1u << 14, "FloatException"      },  /* FO  */
+                { 1u << 13, "FloatException"      },  /* FU  */
+                { 1u << 11, "FloatException"      },  /* IVO */
+                { 1u << 15, "Overflow"            },  /* BO  */
+                { 1u <<  9, "IntegerOverflow"     },  /* O   */
+                { 1u << 27, "StackOverflow"       },  /* STO */
+                { 1u << 28, "StackUnderflow"      },  /* STU */
+            };
+            uint32_t new_flags = cpu->ST1 & ~initial_st1;
+            for (size_t t = 0; t < sizeof ignorable / sizeof ignorable[0]; t++) {
+                if (!(new_flags & ignorable[t].bit)) continue;
                 trap_occurred = 1;
-                strncpy(actual_trap_type, "DivisionByZero", sizeof(actual_trap_type) - 1);
+                strncpy(actual_trap_type, ignorable[t].name, sizeof(actual_trap_type) - 1);
+                actual_trap_bits = (uint64_t)ignorable[t].bit;
                 trap_pc = cpu->PC;
                 break;
             }
-            if (new_flags & (1 << 16)) {  /* TRAP_IOV - Illegal Operand Value */
-                trap_occurred = 1;
-                strncpy(actual_trap_type, "IllegalOperandValue", sizeof(actual_trap_type) - 1);
-                trap_pc = cpu->PC;
-                break;
-            }
-            if (new_flags & (1 << 14)) {  /* TRAP_FO - Floating Overflow */
-                trap_occurred = 1;
-                strncpy(actual_trap_type, "FloatException", sizeof(actual_trap_type) - 1);
-                trap_pc = cpu->PC;
-                break;
-            }
-            if (new_flags & (1 << 13)) {  /* TRAP_FU - Floating Underflow */
-                trap_occurred = 1;
-                strncpy(actual_trap_type, "FloatException", sizeof(actual_trap_type) - 1);
-                trap_pc = cpu->PC;
-                break;
-            }
-            if (new_flags & (1 << 15)) {  /* TRAP_BO - BCD Overflow */
-                trap_occurred = 1;
-                strncpy(actual_trap_type, "Overflow", sizeof(actual_trap_type) - 1);
-                trap_pc = cpu->PC;
-                break;
-            }
+            if (trap_occurred) break;
         }
     }
 
