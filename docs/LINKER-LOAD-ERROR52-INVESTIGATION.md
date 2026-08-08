@@ -73,10 +73,24 @@ document was simply never updated and described a dead blocker for three weeks.
 
 ### Known bad data in the sandbox
 
-`GUEST/B.NRF`, `GUEST/A.NRF` and `GUEST/HOUT.NRF` are **0 bytes**. The
-"Reproduce" section below uses `B.NRF`, so running it as written measures
-nothing: `LOAD` reports `Program:..........4B P01` because the object is empty,
-not because anything worked. Use a real object such as `GUEST/HELLO.NRF`.
+`GUEST/B.NRF`, `GUEST/A.NRF` and `GUEST/HOUT.NRF` were all **0 bytes**, which
+is how this closure nearly went wrong: the first attempt at the "Reproduce"
+command below reported `Program:..........4B P01` and looked like a result. It
+was measuring an empty file.
+
+**A.NRF and B.NRF were rebuilt 2026-08-09** through the real toolchain
+(NC-A06 `CHECK` + `GENERATE-CODE`, nested CAT-500 codegen) driven by two new
+MODE scripts alongside the existing `COMPILE-HELLO.MODE`:
+
+| Object | Source | Size | Links to | Verified |
+|---|---|---|---|---|
+| `A.NRF` | `A.C` = `int x;main(){ x = 1;}` | 950 B | `ATEST.DOM` | runs, exits via MON 0B LEAVE, `x` = 1 |
+| `B.NRF` | `B.C` = `x = VALUE` (42) | 953 B | `BTEST.DOM` | runs, exits via MON 0B LEAVE, `x` = 42 |
+
+`HOUT.NRF` is still 0 bytes and **cannot** be rebuilt: there is no `HOUT.C` or
+any other HOUT source in the sandbox, in `$ND500_TESTDATA`, or anywhere else
+searched. The copy at `$ND500_TESTDATA/ND500USERS/GUEST/HOUT.NRF` is also 0
+bytes. Treat it as an orphan, not as data.
 
 ### One thing that changed and is not a fault
 
