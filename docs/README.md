@@ -57,7 +57,7 @@ The primary sources. Everything else defers to these.
 | [NC_TOOLCHAIN_MON_PLAN.md](NC_TOOLCHAIN_MON_PLAN.md) | Running the real NC compiler and ND Linker under emulation: the MON workstream. |
 | [NC_INTERACTIVE_COMMANDS.md](NC_INTERACTIVE_COMMANDS.md) | How NC (A06) talks to the terminal, probed live. |
 | [NC_CRASH_0x08023EA4_ROOTCAUSE.md](NC_CRASH_0x08023EA4_ROOTCAUSE.md) | The NC codegen crash traced to node use-after-free, with the diagnostic that proved it. |
-| [LINKER-LOAD-ERROR52-INVESTIGATION.md](LINKER-LOAD-ERROR52-INVESTIGATION.md) | Linker `LOAD` error 52. **Solved:** DEABF returned a version-less name. |
+| [LINKER-LOAD-ERROR52-INVESTIGATION.md](LINKER-LOAD-ERROR52-INVESTIGATION.md) | Linker `LOAD`. **CLOSED 2026-08-09** - three faults, three fixes (`177fa229`, `bce9562`, `a3047b1`); the pipeline links and runs. Read the top section before bisecting anything here. |
 | [HELP-CRASH-ADVANCED-CMD-REGISTRATION.md](HELP-CRASH-ADVANCED-CMD-REGISTRATION.md) | The HELP crash, plus the two earlier theories that direct measurement disproved. |
 | [CONVERT_DOMAIN_FORMAT_AND_USAGE.md](CONVERT_DOMAIN_FORMAT_AND_USAGE.md) | Old vs new domain format, and converting PSEG/DSEG to `:DOM`. |
 | [CONVERT_DOMAIN_MON_ANALYSIS.md](CONVERT_DOMAIN_MON_ANALYSIS.md) | Which MON calls CONVERT-DOMAIN makes, observed under nd500x. |
