@@ -2,7 +2,7 @@
 
 .PHONY: all clean run wasm wasm-clean wasm-serve kernel-example
 .PHONY: with-dap without-dap with-sanitizer without-sanitizer
-.PHONY: dap-sanitizer release help
+.PHONY: dap-sanitizer release help diag doctor
 
 BUILD_DIR?=build
 BUILD_DIR_RELEASE?=build_release
@@ -66,6 +66,22 @@ dap-sanitizer:
 	fi
 	@cd $(BUILD_DIR) && cmake -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer -g" .. && $(MAKE)
 
+# Build the diag_* investigation harnesses in test/.
+#
+# They are EXCLUDE_FROM_ALL, so a plain `make` does not build them and this
+# target is the only thing that does. Before they were CMake targets each one
+# was hand-linked from the shell, which meant a harness could be older than the
+# source it was testing - and several "bugs" turned out to be exactly that.
+diag:
+	@mkdir -p $(BUILD_DIR)
+	@cd $(BUILD_DIR) && cmake .. && $(MAKE) diag
+	@echo ""
+	@echo "diag harnesses built: $(BUILD_DIR)/bin/"
+
+# What outside trees can this checkout reach? Reads only.
+doctor:
+	@sh tools/check-env.sh
+
 run: all
 	@./$(BUILD_DIR)/bin/nd500x --debug
 
@@ -104,6 +120,8 @@ help:
 	@echo "  make kernel-example  - Build C kernel example (compile, assemble, link, zip)"
 	@echo "  make wasm-serve      - Build WASM, kernel example, and start web server"
 	@echo "  make run             - Build and run in debug mode"
+	@echo "  make diag            - Build the diag_* investigation harnesses in test/"
+	@echo "  make doctor          - Report which outside trees this checkout can reach"
 	@echo "  make clean           - Clean all build directories"
 	@echo ""
 	@echo "Windows note: build.bat wraps 'make release' with w64devkit on PATH."

@@ -229,6 +229,56 @@ target_link_libraries(test_trap_conformance PRIVATE nd500_machine nd500_cpu nd50
 
 
 # ---------------------------------------------------------------------------
+# diag_* investigation harnesses
+#
+# These are one-off harnesses written during an investigation, not asserting
+# tests - they print what the machine did and a human reads it. They are NOT
+# registered with CTest and are NOT part of the default build.
+#
+# They ARE build targets, which they were not before. Every one used to be
+# hand-linked from the shell, `make` never rebuilt any of them, and a harness
+# left over from an earlier session produced at least four investigations that
+# chased a defect the current code did not have (the zero-target DOM and the
+# 2026-07-26 "general regression" both traced back to a binary older than the
+# source it was supposedly testing). Building them from the same tree as
+# everything else removes that failure by construction.
+#
+# EXCLUDE_FROM_ALL keeps `make` untouched: build them with `make diag`, or one
+# at a time with `make diag_linkdrive`. GLOB is deliberate here - the whole
+# point is that adding test/diag_foo.c must not require remembering to edit
+# this file. CONFIGURE_DEPENDS re-globs when the set of files changes.
+#
+# Every harness gets the same link line rather than a per-file one. All 57
+# include machine_protos.h and cpu_protos.h, 56 call into mon, and 8 use the
+# disassembler; the union costs nothing at link time and means a new harness
+# builds without touching this block.
+#
+# nd500_debugger appears twice on purpose. nd500_ndlib and nd500_debugger call
+# into each other - ndlib_dom_loader.c:717 calls
+# nd500_debugger_register_domain(), defined in debugger/commands.c - and that
+# dependency is not declared between the two targets, so CMake cannot know to
+# repeat them. With a single mention the linker has already passed the
+# debugger archive by the time ndlib pulls in the DOM loader, and all 16
+# DOM-loading harnesses fail with one undefined reference. The existing tests
+# do not hit this only because they do not pull in that object file.
+file(GLOB ND500_DIAG_SOURCES CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/diag_*.c)
+
+add_custom_target(diag COMMENT "Building the diag_* investigation harnesses")
+
+foreach(_diag_src IN LISTS ND500_DIAG_SOURCES)
+    get_filename_component(_diag_name ${_diag_src} NAME_WE)
+    add_executable(${_diag_name} EXCLUDE_FROM_ALL ${_diag_src})
+    target_link_libraries(${_diag_name} PRIVATE
+        nd500_machine nd500_cpu nd500_debugger nd500_disasm nd500_ndlib mon
+        nd500_debugger)
+    add_dependencies(diag ${_diag_name})
+endforeach()
+
+list(LENGTH ND500_DIAG_SOURCES _diag_count)
+message(STATUS "diag harnesses: ${_diag_count} targets (build with 'make diag')")
+
+# ---------------------------------------------------------------------------
 # CTest registration
 # enable_testing() is called in the top-level CMakeLists.txt.
 # disasm_tests is not registered: it requires an object file argument.
