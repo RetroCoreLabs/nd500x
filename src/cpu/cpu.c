@@ -113,6 +113,28 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	cpu->extra_operand_count = 0;
 	memset(cpu->extra_operands, 0, sizeof(cpu->extra_operands));
 
+	/* Cycle counter and the SOLO-region start marker.
+	 *
+	 * These were the only pieces of CPU state a reset left running, and the
+	 * pair is dangerous together: check_solo_timeout() raises DT when
+	 * (instruction_count - solo_start_icount) exceeds SOLO_MAX_CYCLES, so a
+	 * stale non-zero count against a zero marker looks like a SOLO region that
+	 * has already overrun - even though no SOLO was ever executed.
+	 *
+	 * It bit the instruction_validation harness, which resets the CPU between
+	 * tests but shares one process. Noop_Default loads ST1 = 0x12345678, and
+	 * that word happens to set PSD (bit 4) with PIA clear - an UNPRIVILEGED
+	 * SOLO region. On its own the test passed; after 257 earlier tests had
+	 * run, instruction_count was past 256 and the very first step raised DT.
+	 * DT has no entry in nd500_trap_set_state's name table, so it surfaced as
+	 * the useless "Trap: Unknown ()". The 256-cycle limit is exactly why the
+	 * failure appeared at 257 preceding tests and not at 256.
+	 *
+	 * Zeroing both is also just what a reset should do: a real CPU coming out
+	 * of reset is not mid-SOLO with a cycle count carried over. */
+	cpu->instruction_count = 0;
+	cpu->solo_start_icount = 0;
+
 	/* Clear any pending traps */
 	nd500_trap_clear();
 }
@@ -1784,6 +1806,26 @@ void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, c
                           TRAP_DR | TRAP_IX | TRAP_PGF)) {
         name = "AddressingError";
     }
+    /* The bits below have no C# TrapType counterpart, so they used to fall
+     * through to "Unknown". That is a bad trade: a test failure reporting
+     * "Trap: Unknown ()" says nothing, and chasing one such report - a DT from
+     * a stale instruction_count, see nd500_cpu_reset - took far longer than it
+     * should have. Name them after the architecture instead. A validator
+     * comparing against a C# TrapType will not match these, which is correct:
+     * they are conditions that enum cannot express. */
+    else if (condition & TRAP_O)   name = "IntegerOverflow";     /* bit 9  */
+    else if (condition & TRAP_SIT) name = "SingleInstructionTrap"; /* bit 17 */
+    else if (condition & TRAP_BT)  name = "BranchTrap";          /* bit 18 */
+    else if (condition & TRAP_CT)  name = "CallTrap";            /* bit 19 */
+    else if (condition & TRAP_BPT) name = "BreakpointTrap";      /* bit 20 */
+    else if (condition & TRAP_PRT) name = "ProgrammedTrap";      /* bit 29 */
+    else if (condition & TRAP_DT)  name = "SoloTimeout";         /* bit 30 */
+    else if (condition & TRAP_DE)  name = "SoloError";           /* bit 31 */
+    else if (condition & TRAP_XSE) name = "IndexScalingError";   /* bit 32 */
+    else if (condition & TRAP_THM) name = "TrapHandlerMissing";  /* bit 37 */
+    else if (condition & TRAP_PWF) name = "PowerFailure";        /* bit 39 */
+    else if (condition & TRAP_PRF) name = "ProcessorFault";      /* bit 40 */
+    else if (condition & TRAP_HF)  name = "HardwareFault";       /* bit 41 */
 
     strncpy(g_trap_state.trap_name, name, sizeof(g_trap_state.trap_name) - 1);
     g_trap_state.trap_name[sizeof(g_trap_state.trap_name) - 1] = '\0';
