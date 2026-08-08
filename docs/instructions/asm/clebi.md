@@ -209,4 +209,4 @@ NO_TIMEOUT:
 - [PUTBI](putbi.md) - Put bit (clear from register value)
 - [GETBI](getbi.md) - Get bit (extract bit into register)
 - [AND](and.md) - Logical AND (can clear multiple bits with mask)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

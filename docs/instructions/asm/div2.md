@@ -176,5 +176,4 @@ The second operand (divisor) - value to divide operand 1 by.
 - [MUL2](mul2.md) - Multiply two operands
 - [UDIV](udiv.md) - Unsigned divide
 - [REM](rem.md) - Remainder
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

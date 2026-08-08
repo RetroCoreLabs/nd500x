@@ -171,5 +171,4 @@ The destination operand where the quotient is stored. The remainder goes to regi
 - [DIV2](div2.md) - Divide two operands (signed)
 - [DIV3](div3.md) - Divide three operands (signed)
 - [REM](rem.md) - Remainder operation
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

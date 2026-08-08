@@ -176,5 +176,4 @@ The denominator operand (typically x-coordinate or adjacent side).
 - [ASIN](asin.md) - Arc sine
 - [ACOS](acos.md) - Arc cosine
 - [TAN](tan.md) - Tangent
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

@@ -218,4 +218,4 @@ CONTINUE:
 - [CLEBI](clebi.md) - Clear bit to 0 unconditionally
 - [PUTBF](putbf.md) - Put bit field (multi-bit storage)
 - [TSET](tset.md) - Test and set bit
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

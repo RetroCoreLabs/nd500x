@@ -186,5 +186,4 @@ The destination operand where the difference is stored.
 - [SUBC](subc.md) - Subtract with carry (multi-precision)
 - [ADD3](add3.md) - Add three operands
 - [NEG](neg.md) - Negate
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

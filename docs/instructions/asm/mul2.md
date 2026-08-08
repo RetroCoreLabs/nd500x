@@ -171,5 +171,4 @@ The second operand (multiplier) - value to multiply operand 1 by.
 - [MUL4](mul4.md) - Multiply with overflow to register
 - [DIV2](div2.md) - Divide two operands
 - [UMUL](umul.md) - Unsigned multiply
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

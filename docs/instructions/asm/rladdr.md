@@ -167,5 +167,4 @@ The operand whose address is to be loaded into the R register. Only operands wit
 - [LADDR](laddr.md) - Load address into general register
 - [BLADDR](bladdr.md) - Load address into base register
 - [R:=](r_assignfrom.md) - Load value into R register
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

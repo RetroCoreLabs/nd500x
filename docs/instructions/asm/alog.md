@@ -164,5 +164,4 @@ DONE:
 - [ALOG2](alog2.md) - Binary logarithm (log₂)
 - [ALOG10](alog10.md) - Common logarithm (log₁₀)
 - [SQRT](sqrt.md) - Square root
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

@@ -185,4 +185,4 @@ ALLOC_OK:
 - [FREEB](freeb.md) - Free buddy element back to heap
 - [GETBF](getbf.md) - Get bit field (different instruction)
 - [PUTBF](putbf.md) - Put bit field
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

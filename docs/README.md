@@ -92,12 +92,3 @@ emulator. Each states its ground truth and what changed.
 | [SYNC-FLOAT-ARITHMETIC-FIXES.md](SYNC-FLOAT-ARITHMETIC-FIXES.md) | The earlier float fixes. Still stands except where the rebase above supersedes it. |
 | [SYNC-STRING-WRONG-INSTRUCTION-FIXES.md](SYNC-STRING-WRONG-INSTRUCTION-FIXES.md) | The STRING wrong-instruction cluster. |
 | [SYNC-MON-257B-FOPEN-PRESENT-IN-SINTRAN-L.md](SYNC-MON-257B-FOPEN-PRESENT-IN-SINTRAN-L.md) | MON 257B FOPEN is present in SINTRAN L and must be reported as such. |
-
----
-
-## `cleanup/`
-
-A holding area, not a category. It contains documents and one-shot scripts
-pulled out of the tree pending a decision on each: keep, rewrite, or drop.
-Nothing there is current, and nothing should be linked from anywhere. The folder
-is meant to empty out, not to grow.

@@ -188,5 +188,4 @@ LOOP:
 - [SUB3](sub3.md) - Subtract three operands
 - [MUL3](mul3.md) - Multiply three operands
 - [DIV3](div3.md) - Divide three operands
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

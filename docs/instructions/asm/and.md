@@ -190,5 +190,4 @@ CONTINUE:
 - [PUTBF](putbf.md) - Put bit field
 - [SHL](shl.md) - Shift left logical
 - [SHR](shr.md) - Shift right logical
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

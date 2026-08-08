@@ -177,5 +177,4 @@ The operand whose address is to be loaded. Only operands with memory addresses a
 - [CHAIN](chain.md) - Load address of multilevel chain
 - [LIND](lind.md) - Load indirect
 - [IXI](ixi.md) - Index extension indexed
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

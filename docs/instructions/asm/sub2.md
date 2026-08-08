@@ -173,5 +173,4 @@ The second operand (subtrahend) - value to subtract from operand 1.
 - [ADD2](add2.md) - Add two operands
 - [NEG](neg.md) - Negate
 - [DECR](decr.md) - Decrement by 1
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

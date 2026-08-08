@@ -252,4 +252,4 @@ STORE_OK:
 - [GETBI](getbi.md) - Get bit (extract single bit)
 - [SETBI](setbi.md) - Set bit to 1
 - [CLEBI](clebi.md) - Clear bit to 0
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

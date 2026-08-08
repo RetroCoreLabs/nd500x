@@ -291,11 +291,20 @@ def generate_markdown(mnemonic, variants, manual_ref):
     md.append("")
 
     # See Also
+    #
+    # These are written into docs/instructions/asm/, so a link is resolved from
+    # there. Only targets that exist may be listed - every generated page
+    # carries these lines, so one dead link becomes 241 dead links.
+    #
+    # Two links used to sit here, ../AddressingModes.md and ../Prefixes.md, and
+    # both targets are gone. The addressing-modes explainer was removed on
+    # purpose because it ranked the modes by speed, which the manual never does;
+    # chapter 8 (sections 8.3-8.16) of the ND-500 Reference Manual is the source
+    # for that, and nothing in docs/ stands in for it yet. Do not point these
+    # pages at a replacement until one exists.
     md.append("## See Also")
     md.append("")
-    md.append("- [Addressing Modes](../AddressingModes.md)")
-    md.append("- [Data Type Prefixes](../Prefixes.md)")
-    md.append("- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)")
+    md.append("- [Trap System](../../ND-500-TRAPS.md)")
     md.append("")
 
     return '\n'.join(md)
@@ -333,7 +342,11 @@ def main():
     args = parser.parse_args()
 
     # Paths
-    base_dir = Path('/home/user/nd500x/docs/instructions')
+    #
+    # Derived from this script's own location, not written out. The path here
+    # used to be /home/user/nd500x/docs/instructions, a machine that does not
+    # exist, so the generator could not run anywhere at all.
+    base_dir = Path(__file__).resolve().parent
     instructions_json = base_dir / 'instructions.json'
     manual_mapping_json = base_dir / 'MANUAL_SECTION_MAPPING.json'
     output_dir = base_dir / 'asm'

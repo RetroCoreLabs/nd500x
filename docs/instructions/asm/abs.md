@@ -146,5 +146,4 @@ This instruction takes no operands. It operates directly on the specified regist
 
 - [NEG](neg.md) - Negate (two's complement)
 - [INT](int.md) - Integer part (truncate floating point)
-- [Data Type Prefixes](../Prefixes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

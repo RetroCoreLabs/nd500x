@@ -171,5 +171,4 @@ The destination operand where the lower half of the unsigned product is stored. 
 - [UDIV](udiv.md) - Unsigned divide with remainder
 - [MUL2](mul2.md) - Multiply two operands (signed)
 - [MUL3](mul3.md) - Multiply three operands (signed)
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

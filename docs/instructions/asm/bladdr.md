@@ -169,5 +169,4 @@ The operand whose address is to be loaded into the B register. Only operands wit
 - [LADDR](laddr.md) - Load address into general register
 - [RLADDR](rladdr.md) - Load address into record register
 - [B:=](b_assignfrom.md) - Load value into B register
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

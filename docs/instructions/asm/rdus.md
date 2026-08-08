@@ -214,4 +214,4 @@ FLAG_SET:
 - [:=](assignto.md) - Normal load operation (uses cache)
 - [RIOM](riom.md) - Read I/O memory
 - [Cache System](../ND500_CACHE_SYSTEM.md) - ND-500 cache architecture
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md) - Trap handling
+- [Trap System](../../ND-500-TRAPS.md) - Trap handling

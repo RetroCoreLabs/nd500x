@@ -157,5 +157,4 @@ The argument operand containing the value to take the common logarithm of (must 
 - [ALOG2](alog2.md) - Binary logarithm (log₂)
 - [EXP](exp.md) - Exponential (eˣ)
 - [SQRT](sqrt.md) - Square root
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

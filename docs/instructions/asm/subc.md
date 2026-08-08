@@ -152,5 +152,4 @@ The operand to subtract from the specified register (with carry).
 - [ADDC](addc.md) - Add with carry (multi-precision)
 - [SUB2](sub2.md) - Subtract two operands
 - [SUB3](sub3.md) - Subtract three operands
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

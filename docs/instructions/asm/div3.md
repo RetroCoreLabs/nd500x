@@ -190,5 +190,4 @@ The destination operand where the quotient is stored.
 - [MUL3](mul3.md) - Multiply three operands
 - [UDIV](udiv.md) - Unsigned divide
 - [REM](rem.md) - Remainder
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

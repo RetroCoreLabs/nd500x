@@ -175,5 +175,4 @@ LOOP:
 - [SUB2](sub2.md) - Subtract two operands
 - [INCR](incr.md) - Increment by 1
 - [+](+.md) - Add operator (synonym)
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

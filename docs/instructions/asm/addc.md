@@ -197,5 +197,4 @@ LOOP:
 - [ADD3](add3.md) - Add three operands
 - [UMUL](umul.md) - Unsigned multiply (produces 64-bit result)
 - [UDIV](udiv.md) - Unsigned divide (multi-precision)
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

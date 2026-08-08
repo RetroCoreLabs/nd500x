@@ -150,5 +150,4 @@ LOOP:
 - [ADD3](add3.md) - Add three operands
 - [ADDC](addc.md) - Add with carry
 - [-](-.md) - Subtract operator
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

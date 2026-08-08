@@ -198,4 +198,4 @@ NO_ERROR:
 - [GETBI](getbi.md) - Get bit (extract bit into register)
 - [TSET](tset.md) - Test and set bit (atomic)
 - [OR](or.md) - Logical OR (can set multiple bits with mask)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

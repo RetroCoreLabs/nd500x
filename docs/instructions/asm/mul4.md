@@ -185,5 +185,4 @@ The destination operand where the lower half of the product is stored. The upper
 - [MUL3](mul3.md) - Multiply three operands (non-destructive)
 - [UMUL](umul.md) - Unsigned multiply with overflow
 - [DIV4](div4.md) - Divide with remainder to register
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

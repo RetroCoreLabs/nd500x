@@ -202,4 +202,4 @@ The bit position to extract (0 = rightmost/LSB).
 - [CLEBI](clebi.md) - Clear bit to 0
 - [GETBF](getbf.md) - Get bit field (multi-bit extraction)
 - [TSET](tset.md) - Test and set bit
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

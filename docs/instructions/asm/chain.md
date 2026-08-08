@@ -193,5 +193,4 @@ CHAIN_OK:
 - [LADDR](laddr.md) - Load address (CHAIN with 0 levels)
 - [BLADDR](bladdr.md) - Load address into base register
 - [RLADDR](rladdr.md) - Load address into record register
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

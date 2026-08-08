@@ -186,5 +186,4 @@ The destination operand where the product is stored.
 - [MUL4](mul4.md) - Multiply with overflow to register
 - [DIV3](div3.md) - Divide three operands
 - [UMUL](umul.md) - Unsigned multiply
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

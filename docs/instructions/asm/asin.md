@@ -160,5 +160,4 @@ CONTINUE:
 - [ATAN2](atan2.md) - Arc tangent two arguments
 - [SIN](sin.md) - Sine
 - [COS](cos.md) - Cosine
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

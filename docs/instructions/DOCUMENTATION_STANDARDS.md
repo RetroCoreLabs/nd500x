@@ -66,7 +66,10 @@ HALT               ; Halt CPU
 
 ## 3. Addressing Mode Syntax
 
-**Standard:** Use canonical names from `AddressingModes.md`
+**Standard:** Use the canonical names from chapter 8 (sections 8.3-8.16) of the
+ND-500 Reference Manual. There is no document under `docs/` for these yet - the
+explainer that covered them was removed for ranking the modes by speed, which the
+manual never does.
 
 | Mode | Syntax | Example |
 |------|--------|---------|
@@ -242,8 +245,7 @@ Supported modes:
 
 - [{related instruction 1}]({filename1}.md)
 - [{related instruction 2}]({filename2}.md)
-- [Addressing Modes](../AddressingModes.md)
-- [Data Type Prefixes](../Prefixes.md)
+- [Trap System](../../ND-500-TRAPS.md)
 ```
 
 ---
@@ -321,7 +323,7 @@ PI = 3.14159
 ```markdown
 See [LIND instruction](lind.md) for loading indexes.
 
-For more on addressing, see [Addressing Modes](../AddressingModes.md).
+For more on addressing, see the ND-500 Reference Manual, chapter 8.
 ```
 
 ### External References:
@@ -329,7 +331,7 @@ For more on addressing, see [Addressing Modes](../AddressingModes.md).
 ```markdown
 **Reference Manual:** §15.9 Calculate Index (page 262)
 
-**Trap Documentation:** See [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+**Trap Documentation:** See [Trap System](../../ND-500-TRAPS.md)
 ```
 
 ---

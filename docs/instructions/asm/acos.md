@@ -156,5 +156,4 @@ DONE:
 - [ATAN2](atan2.md) - Arc tangent two arguments
 - [COS](cos.md) - Cosine
 - [SIN](sin.md) - Sine
-- [Addressing Modes](../AddressingModes.md)
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

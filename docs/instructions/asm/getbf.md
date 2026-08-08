@@ -229,4 +229,4 @@ EXTRACT_OK:
 - [PUTBI](putbi.md) - Put bit (set single bit)
 - [SETBI](setbi.md) - Set bit to 1
 - [CLEBI](clebi.md) - Clear bit to 0
-- [Trap System](../ND500_TRAP_SYSTEM_COMPREHENSIVE.md)
+- [Trap System](../../ND-500-TRAPS.md)

@@ -98,4 +98,3 @@ Varies by data type.
 
 - [MOVE](move.md) - Move data
 - [SWAP](swap.md) - Swap operands
-- [Addressing Modes](../AddressingModes.md)

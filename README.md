@@ -460,24 +460,29 @@ Usage: `~/run_500.sh` (local terminal) or `~/run_500.sh <port>` (telnet, then
 `telnet localhost <port>`). Its config,
 `build/test_sintran/nd500x.ini`, is NOT committed
 (everything under `build/` is a build artifact) — if it's missing, rebuild it
-from the ini format above. A working example, using the repo root itself as
-`sintran-root` (it already has live `GUEST/`, `SYSTEM/`, `SCRATCH/` dirs):
+from the ini format above. A working example, pointing `sintran-root` at a
+populated SINTRAN user area outside the repository:
 
 ```ini
 # build/test_sintran/nd500x.ini
-sintran-root  = .
+sintran-root  = ~/ND500USERS
 user          = GUEST
 terminal-type = 53
 ```
 
-Note: with `sintran-root` pointed at the repo root, `SYSTEM/` there is empty
-by default, so name-based `RECOVER-DOMAIN`/`@<name>` lookups against
-`<root>/SYSTEM/` won't resolve until you stage `.DOM` files there (or point
-`sintran-root` at a sandbox that already has them, e.g. a repopulated
-`build/link_sandbox` — see
+`sintran-root` expands a leading `~`, so the line above works on any machine
+without naming one. It does not expand `$VAR`, so an environment variable
+cannot be used inside the ini itself; `$ND500USERS` in
+[`docs/PATH_CONVENTIONS.md`](docs/PATH_CONVENTIONS.md) records where that tree
+lives, and `make doctor` reports whether this checkout can reach it.
+
+Point it somewhere with files in it. The repo root will not do: `GUEST/`,
+`SYSTEM/` and `SCRATCH/` exist there but hold nothing tracked, so on a fresh
+clone all three are empty and nothing resolves — not `RECOVER-DOMAIN`/`@<name>`
+against `<root>/SYSTEM/`, and not source files under `<root>/GUEST/`. A user
+area needs `.DOM` files staged in `SYSTEM/` before name lookups work; see
 [`docs/RUN_500_SH_CONFIG_RECONSTRUCTION.md`](docs/RUN_500_SH_CONFIG_RECONSTRUCTION.md)
-for the full story and current state). `<root>/GUEST/` files (like `A.C`,
-`B.C`) resolve fine as-is once logged in as `GUEST`.
+for the full story. A repopulated `build/link_sandbox` also works.
 
 ### Debugger Commands
 
