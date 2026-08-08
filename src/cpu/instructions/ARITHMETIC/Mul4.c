@@ -180,7 +180,12 @@ void nd500_instr_Mul4(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         cpu->ST1 &= ~ND500_FLAG_S;
     }
 
-    // Handle overflow trap (integer overflow uses invalid operation trap)
+    /* Integer overflow raises O (bit 9), not IVO (bit 11). This comment used
+     * to say "integer overflow uses invalid operation trap", which described
+     * the bug fixed in 694bac2 rather than the manual: ND-05.009.4 6.5.3.1
+     * reserves IVO for a different condition. Note the O FLAG set above is the
+     * SAME bit 9 - there is one status register, so the flag and the trap
+     * condition are one bit. */
     if (overflow) {
         trap_integer_overflow(cpu, fi->address);
     }

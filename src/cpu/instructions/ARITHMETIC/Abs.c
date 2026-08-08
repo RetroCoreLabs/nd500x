@@ -28,10 +28,16 @@
  *   For floating point types, this is done by clearing the sign bit.
  *   Byte and halfword absolute value will clear the upper part of the register.
  *
- * Flags: Z (zero), S (sign)
+ * Flags: Z (zero), S (sign), O (overflow)
  *   Z = 1 if result is zero
- *   S = 0 (always - absolute value is never negative)
- *   C and O are not affected
+ *   S = from the RESULT's sign bit. This used to say "S = 0 (always -
+ *       absolute value is never negative)", copied from the manual Sec 10.15
+ *       prose "0 -> S", which is WRONG: negating the greatest negative integer
+ *       overflows and the result keeps its top bit set. See the adjudication
+ *       against the real B30 microcode at the isMinNegative branch below.
+ *   O = 1 when negating the greatest negative integer (the manual says O is
+ *       not affected; the microcode latches it, same adjudication).
+ *   C is not affected
  *
  * Trap conditions: None
  *
