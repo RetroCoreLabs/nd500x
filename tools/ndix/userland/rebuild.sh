@@ -17,9 +17,22 @@ rm -rf "$SP/stage/full"
 mkdir -p "$SP/stage/full"
 
 echo "=== 0. halt and newboot are the reboot binary under other names ==="
-# shutdown(8) execs /etc/halt (shutdown.c:235). Without it the exec fails and
-# "shutdown now" prints its warnings and then does nothing at all - which is
-# exactly the symptom that was reported. There is no halt.c in the archive
+# shutdown(8) execs /etc/halt (shutdown.c:235), and without it that exec fails
+# and nothing halts.
+#
+# CORRECTION, verified by booting the guest 2026-08-08: this was first written
+# saying the missing /etc/halt was why plain "shutdown now" did not halt. That
+# was WRONG. shutdown.c:232-235 gates the exec on flags set only by the command
+# line - "if (reboot) execle(REBOOT...); if (halt) execle(HALT...)" - and
+# shutdown.c:112-116 sets them only from -r and -h. Plain "shutdown now" sets
+# neither, so it kills processes, syncs and drops to single-user WITHOUT
+# halting. That is correct 4.3BSD behaviour, not a fault.
+#
+# /etc/halt is still required, for "shutdown -h now" - which was broken, and
+# now works: it prints its warnings, execs halt, and the guest reaches
+# "syncing disks... done / [ndix] guest halted, disk image is consistent".
+#
+# There is no halt.c in the archive
 # because 4.3 does not need one: reboot.c:59 takes progname from argv[0] and
 # reboot.c:105 switches on its FIRST CHARACTER -
 #     'h' -> halt    (howto = 0, the plain halt)
