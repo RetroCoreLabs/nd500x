@@ -56,35 +56,35 @@ if(PKG_CONFIG_FOUND)
 endif()
 
 if(CJSON_TEST_FOUND)
-    add_executable(test_instruction_validation
-        test_instruction_validation.c
+    add_executable(test_conformance
+        test_conformance.c
     )
-    target_link_libraries(test_instruction_validation PRIVATE
+    target_link_libraries(test_conformance PRIVATE
         nd500_machine
         nd500_cpu
         nd500_debugger
         nd500_ndlib
         ${CJSON_TEST_LIBRARIES}
     )
-    target_include_directories(test_instruction_validation PRIVATE
+    target_include_directories(test_conformance PRIVATE
         ${CJSON_TEST_INCLUDE_DIRS}
     )
 
     # Copy test data file to binary output directory (where test executable lives)
     configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/nd500_tests.json
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/nd500_tests.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/nd500-conformance.json
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/nd500-conformance.json
         COPYONLY
     )
 
-    message(STATUS "Building test_instruction_validation with cJSON support")
+    message(STATUS "Building test_conformance with cJSON support")
 else()
-    message(STATUS "Skipping test_instruction_validation (cJSON not found)")
+    message(STATUS "Skipping test_conformance (cJSON not found)")
 endif()
 
 # Float arithmetic tests (helper functions only - NOT actual instruction tests)
 # NOTE: Actual float instruction tests should be added to the C# test generator
-# and included in nd500_tests.json, not as standalone C tests
+# and included in nd500-conformance.json, not as standalone C tests
 add_executable(test_float_arithmetic
     test_float_arithmetic.c
 )
@@ -221,7 +221,7 @@ target_link_libraries(test_solo_traps PRIVATE nd500_machine nd500_cpu nd500_debu
 
 # Which trap does each instruction actually raise? The 19 wrong trap numbers
 # fixed in ee3ec62 and 694bac2 all survived because nothing asserted the exact
-# bit - instruction_validation checks results only.
+# bit - conformance checks results only.
 add_executable(test_trap_conformance
     test_trap_conformance.c
 )
@@ -332,9 +332,9 @@ add_test(NAME pty_smoke COMMAND test_pty_smoke $<TARGET_FILE:nd500x>)
 set_tests_properties(pty_smoke PROPERTIES TIMEOUT 60)
 
 if(CJSON_TEST_FOUND)
-    # Runner locates nd500_tests.json in its own executable directory
-    add_test(NAME instruction_validation COMMAND test_instruction_validation --continue)
-    set_tests_properties(instruction_validation PROPERTIES TIMEOUT 600)
+    # Runner locates nd500-conformance.json in its own executable directory
+    add_test(NAME conformance COMMAND test_conformance --continue)
+    set_tests_properties(conformance PROPERTIES TIMEOUT 600)
 endif()
 
 # DOM integration smoke test: load and run a real 1990 SINTRAN-linked binary

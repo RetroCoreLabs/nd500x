@@ -218,17 +218,17 @@ The emulator includes a comprehensive test suite with **37,298 instruction valid
 
 ```bash
 # Run all instruction validation tests
-./build/bin/test_instruction_validation
+./build/bin/test_conformance
 
 # Run with --continue to see all failures (don't stop on first)
-./build/bin/test_instruction_validation --continue
+./build/bin/test_conformance --continue
 
 # Filter tests by instruction name
-./build/bin/test_instruction_validation --filter comp
-./build/bin/test_instruction_validation --filter scomp
+./build/bin/test_conformance --filter comp
+./build/bin/test_conformance --filter scomp
 
 # Run a subset of tests
-./build/bin/test_instruction_validation --start 100 --count 50
+./build/bin/test_conformance --start 100 --count 50
 
 # Run all tests via ctest
 cd build && ctest -V
@@ -263,7 +263,7 @@ Negative tests ensure the validation logic catches real bugs and doesn't produce
 
 ### Test JSON Format
 
-Tests are defined in `test/nd500_tests.json` with this structure:
+Tests are defined in `test/nd500-conformance.json` with this structure:
 
 ```json
 {
@@ -783,8 +783,8 @@ nd500x/
 │   ├── libdap/             # Debug Adapter Protocol library (optional)
 │   └── libsymbols/         # Symbol table support library (optional)
 ├── test/                   # Test suite (37,298 instruction validation tests)
-│   ├── nd500_tests.json    # Master test file with all test cases
-│   └── test_instruction_validation.c  # Test runner with negative test support
+│   ├── nd500-conformance.json    # Master test file with all test cases
+│   └── test_conformance.c  # Test runner with negative test support
 ├── build/                  # Build output (created by CMake, not in git)
 │   ├── bin/                # Executables (nd500x, nd500wasm.js/wasm)
 │   └── lib/                # Compiled libraries

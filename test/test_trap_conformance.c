@@ -5,7 +5,7 @@
  *
  * On 2026-08-07 an audit of all 176 trap call sites under src/cpu found 19
  * WRONG trap numbers (fixed in ee3ec62 and 694bac2). Every one survived
- * because nothing asserted which trap fired: test_instruction_validation runs
+ * because nothing asserted which trap fired: test_conformance runs
  * 40,064 generated cases and checks RESULTS only, so an instruction that
  * computed the right answer and then reported the wrong trap passed happily.
  *

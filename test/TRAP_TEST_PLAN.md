@@ -7,7 +7,7 @@ wrong trap numbers** (fixed in `ee3ec62` and `694bac2`) and 4 places that raise
 no trap where the manual requires one.
 
 Every one of them survived because **nothing asserts which trap fires**.
-`instruction_validation` runs 40,064 generated cases, but it validates *results*
+`conformance` runs 40,064 generated cases, but it validates *results*
 only. The consequences were not theoretical:
 
 - `ADD2`/`MUL2`/… raised `TRAP_IVO` (bit 11) on integer overflow instead of
@@ -123,7 +123,7 @@ nearest precedent.
 
 ## Note on the existing suite
 
-`ote_instructions`, `mon_calls` and `instruction_validation` were already
+`ote_instructions`, `mon_calls` and `conformance` were already
 failing before this work (confirmed by stashing against a clean tree).
-`instruction_validation`'s failures are `DoubleSub` **result** mismatches —
+`conformance`'s failures are `DoubleSub` **result** mismatches —
 unrelated to traps, but worth triaging separately.

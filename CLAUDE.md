@@ -49,10 +49,10 @@ make help               # Display all available build targets
 
 ```bash
 # Run instruction validation tests (39,598 test cases from C# reference)
-./build/bin/test_instruction_validation
-./build/bin/test_instruction_validation --continue      # Run all, don't stop on failure
-./build/bin/test_instruction_validation --filter mul    # Filter by instruction name
-./build/bin/test_instruction_validation --start 100 --count 50  # Run subset
+./build/bin/test_conformance
+./build/bin/test_conformance --continue      # Run all, don't stop on failure
+./build/bin/test_conformance --filter mul    # Filter by instruction name
+./build/bin/test_conformance --start 100 --count 50  # Run subset
 
 # Run all tests via ctest
 cd build && ctest
@@ -65,7 +65,7 @@ cd build && ctest -R disasm
 
 # Run tests directly
 ./build/bin/disasm_tests
-./build/bin/test_instruction_validation
+./build/bin/test_conformance
 ./build/bin/test_float_arithmetic
 ./build/bin/test_lget_instruction
 ./build/bin/test_mmu_translation
@@ -90,7 +90,7 @@ cd build && ctest -R disasm
 | `build/link_sandbox/` | Sandbox directory for ND linker testing with isolated SYSTEM files and DDBTABLES |
 | `build-ubsan/`, `build-sanitizer/` | Alternative build directories (if using different sanitizer variants) |
 
-**Note:** After `make`, test binaries and the JSON test data (`nd500_tests.json`) are copied to `build/bin/` by CMake; the test runner auto-locates them in its executable directory.
+**Note:** After `make`, test binaries and the JSON test data (`nd500-conformance.json`) are copied to `build/bin/` by CMake; the test runner auto-locates them in its executable directory.
 
 ## Architecture & Code Organization
 
@@ -230,16 +230,16 @@ Run with: `./build/bin/nd500x --debug`
 ```bash
 # Build and run instruction validation tests
 make
-./build/bin/test_instruction_validation
+./build/bin/test_conformance
 
 # Run tests for a specific instruction (e.g., MUL, ADD)
-./build/bin/test_instruction_validation --filter mul
+./build/bin/test_conformance --filter mul
 
 # Run all tests without stopping on first failure (comprehensive check)
-./build/bin/test_instruction_validation --continue
+./build/bin/test_conformance --continue
 
 # Run a subset of tests
-./build/bin/test_instruction_validation --start 100 --count 50
+./build/bin/test_conformance --start 100 --count 50
 ```
 
 ### Interactive Debugging
@@ -338,7 +338,7 @@ Hard rules distilled from past failures:
 
 - `docs/DEBUGGER_COMMAND_REFERENCE.md`: Complete reference for all 60+ debugger commands
 - `docs/cpu_implementation_changes.md`: Detailed documentation of all CPU bug fixes, test results, and implementation notes (24 sections covering variant-to-datatype mapping, status flags, branch PC calculation, etc.)
-- `test/nd500_tests.json`: 39,598 test cases generated from C# test generators
+- `test/nd500-conformance.json`: 39,598 test cases generated from C# test generators
 
 ## Test Generation Architecture
 
@@ -382,14 +382,14 @@ cd $RETROCORE
 dotnet test Emulated.Tests.ND500 --filter "Generate_Master_JSON"
 
 # Copy to nd500x
-cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500_tests.json \
-   test/nd500_tests.json
+cp Emulated.Tests.ND500/bin/Debug/net9.0/nd500-conformance.json \
+   test/nd500-conformance.json
 
 # Rebuild (CMake copies to build/bin/)
 cd . && make
 
 # Run tests
-./build/bin/test_instruction_validation --continue
+./build/bin/test_conformance --continue
 ```
 
 ### Test JSON Format
@@ -408,18 +408,18 @@ cd . && make
 
 | Purpose | Path |
 |---------|------|
-| Source test data | `test/nd500_tests.json` |
-| Build copy | `build/bin/nd500_tests.json` (CMake copies at build) |
-| C test runner | `test/test_instruction_validation.c` |
+| Source test data | `test/nd500-conformance.json` |
+| Build copy | `build/bin/nd500-conformance.json` (CMake copies at build) |
+| C test runner | `test/test_conformance.c` |
 
-The test runner automatically finds `nd500_tests.json` in its executable directory.
+The test runner automatically finds `nd500-conformance.json` in its executable directory.
 
 ## Instruction Porting Guidelines
 
 When implementing ND-500 instructions:
 - Reference implementations should match the C# emulator code as closely as possible
 - C# reference location: `$RETROCORE/Emulated.HW/ND/CPU/ND500/Instructions/`
-- Run `./build/bin/test_instruction_validation --filter <instruction>` to validate against reference
+- Run `./build/bin/test_conformance --filter <instruction>` to validate against reference
 - See `docs/cpu_implementation_changes.md` for known issues and fixes
 - If missing helper functions or decoding logic, create them rather than duplicating code
 - Ask if unsure about implementation approach

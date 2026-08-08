@@ -121,7 +121,7 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 	 * stale non-zero count against a zero marker looks like a SOLO region that
 	 * has already overrun - even though no SOLO was ever executed.
 	 *
-	 * It bit the instruction_validation harness, which resets the CPU between
+	 * It bit the conformance harness, which resets the CPU between
 	 * tests but shares one process. Noop_Default loads ST1 = 0x12345678, and
 	 * that word happens to set PSD (bit 4) with PIA clear - an UNPRIVILEGED
 	 * SOLO region. On its own the test passed; after 257 earlier tests had
