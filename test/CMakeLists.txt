@@ -228,6 +228,15 @@ add_executable(test_trap_conformance
 target_link_libraries(test_trap_conformance PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
 
+# Interactive-terminal smoke test: runs the real nd500x --debug binary on a
+# pty (readline and termios behave differently on a pipe, so only a pty can
+# catch "exits immediately on a real terminal" / "leaves the tty broken").
+# The harness itself links nothing from the emulator - it forks and execs
+# the nd500x binary, whose path ctest passes as the argument.
+add_executable(test_pty_smoke
+    test_pty_smoke.c
+)
+
 # ---------------------------------------------------------------------------
 # diag_* investigation harnesses
 #
@@ -278,6 +287,7 @@ endforeach()
 list(LENGTH ND500_DIAG_SOURCES _diag_count)
 message(STATUS "diag harnesses: ${_diag_count} targets (build with 'make diag')")
 
+
 # ---------------------------------------------------------------------------
 # CTest registration
 # enable_testing() is called in the top-level CMakeLists.txt.
@@ -317,6 +327,9 @@ add_test(NAME trap_conformance COMMAND test_trap_conformance)
 if(TARGET dap_objects)
     add_test(NAME dap_adapter COMMAND test_dap_adapter)
 endif()
+
+add_test(NAME pty_smoke COMMAND test_pty_smoke $<TARGET_FILE:nd500x>)
+set_tests_properties(pty_smoke PROPERTIES TIMEOUT 60)
 
 if(CJSON_TEST_FOUND)
     # Runner locates nd500_tests.json in its own executable directory
