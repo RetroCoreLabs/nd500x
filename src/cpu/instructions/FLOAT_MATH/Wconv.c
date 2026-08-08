@@ -29,6 +29,7 @@ void nd500_instr_Wconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     int32_t word_result = 0;
+    bool overflow = false;   /* D WCONV out of word range - see below */
 
     /* Read source operand based on opcode */
     if (fi->opcode == 0xFD46) {
@@ -87,11 +88,22 @@ void nd500_instr_Wconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
         }
         int64_t int64_result = nd500_double_to_int64(double_bits);
-        /* Clamp to int32 range */
+        /* Out of word range: clamp, set O, and raise integer overflow.
+         *
+         * This used to clamp silently - no trap, and not even the O flag that
+         * every sibling conversion sets. Manual 15.2: "Conversion of longer to
+         * shorter data types is by truncation of the most significant bits and
+         * may cause integer overflow." Corroborated by RetroCore's Wconv.cs,
+         * which already raises integer overflow here.
+         *
+         * O is bit 9, which NDIX does NOT arm, so the guest ignores this - the
+         * same reason BYCONV's trap was safe to restore. */
         if (int64_result > INT32_MAX) {
             word_result = INT32_MAX;
+            overflow = true;
         } else if (int64_result < INT32_MIN) {
             word_result = INT32_MIN;
+            overflow = true;
         } else {
             word_result = (int32_t)int64_result;
         }
@@ -118,5 +130,15 @@ void nd500_instr_Wconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_clear_flag(cpu, ND500_FLAG_S);
     }
 
-    /* O and C flags unaffected */
+    /* Integer overflow: the clamped result IS written (manual 15.2 - conversion
+     * is by truncation and may cause integer overflow), the O flag is set, and
+     * then the trap is raised. C is unaffected. */
+    if (overflow) {
+        nd500_set_flag(cpu, ND500_FLAG_O);
+        trap_integer_overflow(cpu, fi->address);
+        return;
+    }
+    nd500_clear_flag(cpu, ND500_FLAG_O);
+
+    /* C flag unaffected */
 }

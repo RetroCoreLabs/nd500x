@@ -139,15 +139,32 @@ void nd500_instr_Axi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_clear_flag(cpu, ND500_FLAG_S);
     }
 
-    /* Set floating-point exception flags */
+    /* Set floating-point exception flags AND raise the traps.
+     *
+     * All three conditions were detected correctly here and then only flagged -
+     * AXI raised no trap at all. The file header, quoting ND-500 Reference
+     * Manual ch.12.1, lists the trap conditions as "Floating overflow (FO),
+     * Floating underflow (FU), Invalid operation (IVO)" and the data status
+     * bits as "invalid operation -> IVO".
+     *
+     * Worse, invalid operation was recorded in ND500_FLAG_K - bit 8,
+     * "destination full" - which is not an error flag at all. The right bit is
+     * IVO (11). NDIX ARMS bit 11 (T_CMTE1 = 0xF413D800), so this is a
+     * guest-visible change, not a cosmetic one.
+     *
+     * Corroborated by the independent C# implementation: RetroCore's Axi.cs
+     * already raises FO, FU and IVO here. Two implementations of the same
+     * instruction disagreeing, with the manual on one side, is what settles it
+     * - the same standard used for the ABS S-flag question. */
     if (overflow) {
         cpu->ST1 |= ND500_FLAG_FO;
+        trap_floating_overflow(cpu, fi->address);
     }
     if (underflow) {
         cpu->ST1 |= ND500_FLAG_FU;
+        trap_floating_underflow(cpu, fi->address);
     }
     if (invalid_op) {
-        /* Use K flag for invalid operations */
-        cpu->ST1 |= ND500_FLAG_K;
+        trap_invalid_operation(cpu, fi->address);
     }
 }

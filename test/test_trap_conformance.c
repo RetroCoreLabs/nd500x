@@ -324,18 +324,16 @@ static const TrapCase CASES[] = {
     0, 3, 1u,
     "a legal bit number must report no condition", 0, NULL },
 
-  { "D WCONV: 1e18 clamps silently (GAP)", s_wconv_double_clamp, nd500_instr_Wconv,
-    0, TRAP_O | TRAP_IVO | TRAP_IOV,
-    0, 2, 0x7FFFFFFFu,
-    "ND-05.009.4 15.2 says this may cause integer overflow", 1,
-    "should raise O (bit 9) and set the O flag; does neither, and clamps" },
+  { "D WCONV: 1e18 out of word range -> O", s_wconv_double_clamp, nd500_instr_Wconv,
+    ND500_FLAG_O, TRAP_O | TRAP_IVO | TRAP_IOV,
+    TRAP_O, 2, 0x7FFFFFFFu,
+    "ND-05.009.4 15.2; RetroCore's Wconv.cs raises it too", 0, NULL },
 
-  { "AXI F: 0 ** -1 flags K, no trap (GAP)", s_axi_zero_negative_power, nd500_instr_Axi,
-    ND500_FLAG_K, ND500_FLAG_K | TRAP_IVO | TRAP_IOV | TRAP_FO | TRAP_FU,
-    0, 0, 0,
-    "ND-500 Ref. ch.12.1 - 'invalid operation -> IVO'", 1,
-    "should raise IVO (bit 11, which NDIX ARMS); records bit 8 K instead. "
-    "Corrects the plan's 'IOV' entry. FO and FU are only flagged too." },
+  { "AXI F: 0 ** -1 -> IVO", s_axi_zero_negative_power, nd500_instr_Axi,
+    TRAP_IVO, ND500_FLAG_K | TRAP_IVO | TRAP_IOV | TRAP_FO | TRAP_FU,
+    TRAP_IVO, 0, 0,
+    "ND-500 Ref. ch.12.1 'invalid operation -> IVO'; RetroCore's Axi.cs agrees",
+    0, NULL },
 };
 
 #define NCASES ((int)(sizeof CASES / sizeof CASES[0]))
