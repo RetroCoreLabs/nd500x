@@ -13,7 +13,11 @@ mkdir -p "$S"
 cd "$REPO_ROOT"
 for i in 1 2 3; do
   P=$((5110+i))
-  ( sleep 300 ) | ND500X_ZERO_PST="16,21,26,31,36,41" ND500X_UAREADBG=1 timeout 320 \
+  # NOTE: this used to pass ND500X_ZERO_PST="16,21,26,31,36,41" and
+  # ND500X_UAREADBG=1. Both knobs were removed from the emulator when the
+  # settings moved into Nd500Settings, and nothing reads them any more, so
+  # passing them only made the run LOOK configured. Removed 2026-08-09.
+  ( sleep 300 ) | timeout 320 \
     ./build/bin/nd500x --ndix $NDIX/rootfs_full.img \
     --kernel $NDIX/kernel/MASTER/GENERIC/vmunix --telnet=$P > $S/z$i.log 2>&1 &
   EPID=$!
