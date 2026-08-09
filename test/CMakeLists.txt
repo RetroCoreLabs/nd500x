@@ -27,6 +27,15 @@ add_executable(test_tape
 )
 target_link_libraries(test_tape PRIVATE nd500_cpu)
 
+# XMSG ring discipline. Links only nd500_cpu because nd500_xring.c is free of
+# CPU and machine dependencies on purpose - the rules are checkable against a
+# plain byte array, and every way of getting them wrong is invisible inside a
+# booting guest.
+add_executable(test_xring
+    test_xring.c
+)
+target_link_libraries(test_xring PRIVATE nd500_cpu)
+
 add_executable(test_riom
     test_riom.c
 )
@@ -307,6 +316,7 @@ message(STATUS "diag harnesses: ${_diag_count} targets (build with 'make diag')"
 add_executable(test_settings_catalog test_settings_catalog.c)
 target_link_libraries(test_settings_catalog PRIVATE nd500_cpu)
 
+add_test(NAME xring COMMAND test_xring)
 add_test(NAME mmu_translation COMMAND test_mmu_translation)
 set_tests_properties(mmu_translation PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 
