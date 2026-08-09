@@ -156,12 +156,33 @@ int nd500_xmsg_service(Nd500Cpu* cpu);
  *
  * Split this way so the whole server stays checkable against two plain arrays.
  */
+/*
+ * Where a transmitted frame goes. This is the whole of the server's outside
+ * world in the outgoing direction - "frame_out(bytes, len)" in the plan's
+ * architecture section, and deliberately nothing more: no sockets, no files, no
+ * threads, so the same code runs native, in wasm, and behind ndmonlib.
+ *
+ * `frame` is a plain ethernet frame - destination, source, type, payload. The
+ * 6-byte XMSG datagram header (struct ac_head) has already been stripped.
+ */
+typedef void (*Nd500XmsgFrameOut)(void* ctx, const uint8_t* frame, uint32_t len);
+
 typedef struct Nd500XmsgOps {
     Nd500XRingMem ring;
     uint8_t (*pread8) (void* ctx, uint32_t phys);
     void    (*pwrite8)(void* ctx, uint32_t phys, uint8_t val);
     void*   ctx;
+    /* NULL is a working uplink - it drops the frame and says so. That is
+     * "uplink_null", and it is what phases 1-4 need. */
+    Nd500XmsgFrameOut frame_out;
+    void*             frame_ctx;
 } Nd500XmsgOps;
+
+/*
+ * Plug an uplink into the CPU-driven path (nd500_xmsg_service). Without one,
+ * transmitted frames are logged under ND500X_FEDBG and dropped.
+ */
+void nd500_xmsg_set_uplink(Nd500XmsgFrameOut fn, void* ctx);
 
 int nd500_xmsg_service_mem(const Nd500XmsgOps* ops);
 

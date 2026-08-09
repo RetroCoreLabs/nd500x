@@ -13,6 +13,7 @@
 #include "nd500_xring.h"
 #include "cpu_protos.h"
 #include "instruction_helpers.h"   /* nd500_read_memory_8 / nd500_write_memory_8 */
+#include "../machine/machine_protos.h"  /* nd500_bus_read8 / nd500_bus_write8    */
 #include "nd500_settings.h"        /* ND500X_FEDBG                               */
 
 /* Byte offsets inside a command entry (struct xmsg_cmd, if/xmsg.h:35-42).
@@ -575,6 +576,101 @@ static int xmsg_do_recv(const Nd500XmsgOps* ops, uint16_t subdev,
     return 1;
 }
 
+/* ---- transmit -------------------------------------------------------------
+ *
+ * XETHER - "here is a framed datagram, put it on the wire".
+ *
+ *   xgdctl(unit, xma(xa, XETHER, dton(ei->ei_xmit), xlen, es->es_portno),
+ *          es->es_magno, DONTWAIT);                          (if_et.c:539)
+ *
+ * xma() is (T, A, X, D), so: A = buffer, X = LENGTH, D = port. Measured on the
+ * wire as A=0x1D14 D=0x0001 X=0x0040 - the first ARP, 64 bytes.
+ *
+ * ONE command. No XFGET, no XFWRI, no XFSND - the whole datagram travels by
+ * address. It is a `struct ei_dgram` (if_etregs.h:33-37):
+ *
+ *   +0   struct ac_head       6   EXMTYdata, identifier, EXMHDlength
+ *   +6   struct ether_header 14   destination, source, type
+ *   +20  the payload
+ *
+ * and xlen counts from +0: `EXMHDlength + sizeof(ac_head) + sizeof(ether_header)
+ * - 2` (if_et.c:530). The frame proper is therefore xlen - 6 bytes starting at
+ * +6, and the ac_head is XMSG's envelope, not part of the ethernet frame.
+ *
+ * A NOTE ON THE MINIMUM LENGTH, because it looks like a bug and is not ours.
+ * etput() sets EXMHDlength = off - 12 and clamps it to ETHERMIN = 60-14 = 46
+ * (if_et.c:953-955, netinet/if_ether.h:35). Since EXMHDlength counts the
+ * 2-byte ether_type, that clamp means payload >= 44 and a frame of 58 bytes -
+ * TWO SHORT of the 60-byte ethernet minimum. NDIX has always done this. The
+ * frame is passed on exactly as built; padding to 60 belongs in whatever uplink
+ * needs it, not here, where it would quietly change what the guest sent.
+ */
+static void xmsg_do_ether(const Nd500XmsgOps* ops, uint16_t subdev,
+                          uint16_t waddr, uint16_t port, uint16_t xlen,
+                          uint16_t* out_T) {
+    static uint8_t frame[XMSG_MSG_MAX];
+    uint32_t phys;
+    uint16_t i, type, hdrlen, framelen;
+
+    if (subdev >= XMSG_MAX_SUBDEV || g_sub[subdev].port == 0) {
+        *out_T = (uint16_t)XMSG_XENDP;
+        return;
+    }
+    if (port != g_sub[subdev].port) { *out_T = (uint16_t)XMSG_XENDP; return; }
+
+    /* Below the envelope plus an ethernet header there is no frame at all. */
+    if (xlen < 6 + 14 || xlen > XMSG_MSG_MAX) {
+        *out_T = (uint16_t)XMSG_XEITL;
+        return;
+    }
+
+    phys = xmsg_word_to_phys(nd500_xmsg_full_word(subdev, waddr));
+    for (i = 0; i < xlen; i++)
+        frame[i] = ops->pread8(ops->ctx, phys + i);
+
+    type   = nd500_xring_be16(frame + 0);
+    hdrlen = nd500_xring_be16(frame + 4);
+    if (type != XMSG_EXMTYdata) {
+        /* Anything else means the address arithmetic put us somewhere that is
+         * not a datagram. Sending 58 bytes of whatever-that-was would be worse
+         * than refusing, and the refusal is printed by etxint(). */
+        fprintf(stderr, "[XMSG] XETHER buffer at word 0x%04X (phys 0x%08X) has "
+                        "EXMHDtype %u, not EXMTYdata - not transmitting it\n",
+                waddr, phys, type);
+        *out_T = (uint16_t)XMSG_XEILM;
+        return;
+    }
+    if ((uint32_t)hdrlen + 18 != (uint32_t)xlen)
+        /* Only a warning: xlen is what the driver asked us to send, and it is
+         * the authority. This says the two disagree, which is worth knowing. */
+        fprintf(stderr, "[XMSG] XETHER length disagreement: EXMHDlength=%u "
+                        "implies %u bytes, command says %u\n",
+                hdrlen, hdrlen + 18, xlen);
+
+    framelen = (uint16_t)(xlen - 6);
+
+    if (xmsgdbg()) {
+        uint16_t n = framelen > 32 ? 32 : framelen;
+        fprintf(stderr, "[XMSG]   XETHER %u bytes on the wire "
+                        "(%02X:%02X:%02X:%02X:%02X:%02X <- "
+                        "%02X:%02X:%02X:%02X:%02X:%02X type %04X):",
+                framelen,
+                frame[6], frame[7], frame[8], frame[9], frame[10], frame[11],
+                frame[12], frame[13], frame[14], frame[15], frame[16], frame[17],
+                nd500_xring_be16(frame + 18));
+        for (i = 0; i < n; i++) fprintf(stderr, " %02X", frame[6 + i]);
+        fprintf(stderr, "%s\n", framelen > n ? " ..." : "");
+    }
+
+    if (ops->frame_out)
+        ops->frame_out(ops->frame_ctx, frame + 6, framelen);
+
+    /* Success either way. With no uplink the frame is dropped, and saying so
+     * with an error would make etxint() count an output error for something
+     * NDIX did correctly. */
+    *out_T = (uint16_t)XMSG_XMSUX;
+}
+
 /*
  * XFMST - message status. `xma(xa, XFMST, -1, 0, 0)` (if_et.c:412), and the
  * driver keeps `es_magno = xa->A << 16 | xa->D` (:417).
@@ -601,6 +697,17 @@ static void xmsg_do_mst(uint16_t subdev, uint16_t* out_T,
 
 /* ---- the service loop ---------------------------------------------------- */
 
+/* The uplink, if anything has plugged one in. NULL is "uplink_null": frames are
+ * logged under ND500X_FEDBG and dropped, which is what phases 1-4 need and is
+ * why nothing has to be configured to get this far. */
+static Nd500XmsgFrameOut g_uplink_fn  = NULL;
+static void*             g_uplink_ctx = NULL;
+
+void nd500_xmsg_set_uplink(Nd500XmsgFrameOut fn, void* ctx) {
+    g_uplink_fn  = fn;
+    g_uplink_ctx = ctx;
+}
+
 int nd500_xmsg_service(Nd500Cpu* cpu) {
     Nd500XmsgOps ops;
     if (!cpu) return 0;
@@ -610,6 +717,8 @@ int nd500_xmsg_service(Nd500Cpu* cpu) {
     ops.pread8      = xm_pread8;
     ops.pwrite8     = xm_pwrite8;
     ops.ctx         = cpu;
+    ops.frame_out   = g_uplink_fn;
+    ops.frame_ctx   = g_uplink_ctx;
     return nd500_xmsg_service_mem(&ops);
 }
 
@@ -679,6 +788,16 @@ int nd500_xmsg_service_mem(const Nd500XmsgOps* ops) {
             break;
         case XMSG_XFMST:
             xmsg_do_mst(subdev, &T, &A, &D);
+            break;
+        case XMSG_XETHER:
+            /* A = buffer, X = length, D = port (if_et.c:539). The response's
+             * func must come back as XETHER or etintr() sends it to the wrong
+             * handler (if_et.c:570-576) - which it does, because func is
+             * echoed whole. */
+            xmsg_do_ether(ops, subdev,
+                          nd500_xring_be16(centry + CMD_ARG_A),
+                          nd500_xring_be16(centry + CMD_ARG_D),
+                          nd500_xring_be16(centry + CMD_ARG_X), &T);
             break;
         default:
             /* Answered, not ignored. An unanswered command wedges the

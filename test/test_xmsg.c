@@ -68,6 +68,19 @@ static void phys_write8(void* ctx, uint32_t a, uint8_t v) {
 
 static Nd500XmsgOps g_ops;
 
+/* A stand-in uplink: remember the last frame handed to it. This is the whole
+ * of what the transmit path is asked to prove - that the right bytes, and only
+ * the right bytes, come out. */
+static uint8_t  g_tx[2048];
+static uint32_t g_tx_len;
+static int      g_tx_count;
+static void tx_sink(void* ctx, const uint8_t* frame, uint32_t len) {
+    (void)ctx;
+    g_tx_len = len < sizeof g_tx ? len : sizeof g_tx;
+    memcpy(g_tx, frame, g_tx_len);
+    g_tx_count++;
+}
+
 /* Command/response field offsets, repeated here on purpose: the test should
  * fail if nd500_xmsg.c's private copies ever drift from if/xmsg.h. */
 #define CMD_SEQWORD 0
@@ -127,6 +140,11 @@ static void reset_window(void) {
     g_ops.pread8  = phys_read8;
     g_ops.pwrite8 = phys_write8;
     g_ops.ctx     = NULL;
+    g_ops.frame_out = NULL;          /* uplink_null unless a test plugs one in */
+    g_ops.frame_ctx = NULL;
+    g_tx_count = 0;
+    g_tx_len   = 0;
+    memset(g_tx, 0, sizeof g_tx);
     nd500_xmsg_reset();
 }
 
@@ -225,13 +243,17 @@ int main(void) {
     /* ---- 3. An unknown function is answered, not dropped ------------------ */
     printf("\nunknown functions still get an answer\n");
     reset_window();
-    put_cmd(4u << 1, 0, 055 /* XETHER - not implemented yet */);
+    /* 0177 is deliberately NOT an XMSG function code (if/xmsg.h:78-97 stops
+     * well short of it), so this stays a test of "we answer things we do not
+     * understand" rather than a test of whichever function happens to be
+     * unimplemented this week - which is what it used to be, with XETHER. */
+    put_cmd(4u << 1, 0, 0177);
     check_eq("answered", 1, nd500_xmsg_service_mem(&g_ops));
     check(" response present", get_resp(r) == 1);
     check("T is negative (an error NDIX can print)",
           (int16_t)nd500_xring_be16(r + RESP_ARG_T) < 0);
     check_eq("T is XENIM", XMSG_XENIM, (int16_t)nd500_xring_be16(r + RESP_ARG_T));
-    check_eq("func still echoed", 055, nd500_xring_be16(r + RESP_FUNC));
+    check_eq("func still echoed", 0177, nd500_xring_be16(r + RESP_FUNC));
 
     /* ---- 4. DRAIN TO EMPTY -----------------------------------------------
      * R_put issues DCTL_KICK only on the empty -> non-empty transition
@@ -547,7 +569,86 @@ int main(void) {
                  nd500_xring_be16(&g_phys[recv + 0]));
     }
 
-    /* ---- 9. An empty ring is not an error -------------------------------- */
+    /* ---- 9. Transmit - XETHER --------------------------------------------
+     * if_et.c:539 sends the whole framed datagram by address in ONE command:
+     *   xma(xa, XETHER, dton(ei->ei_xmit), xlen, es->es_portno)
+     * and xma() is (T, A, X, D), so A = buffer, X = length, D = port. Measured
+     * from a live guest as A=0x1D14 D=0x0001 X=0x0040 - the first ARP.
+     *
+     * The buffer is a struct ei_dgram: 6 bytes of ac_head envelope, then the
+     * ethernet header, then the payload. xlen counts from the envelope, so the
+     * frame is xlen - 6 bytes starting 6 in. Sending the envelope as part of
+     * the frame would put "00 80 00 00 00 2E" in front of every destination
+     * address, and nothing on a real network would ever say so. */
+    printf("\ntransmit\n");
+    {
+        uint16_t port, xlen = 64;      /* the measured length of that first ARP */
+        uint32_t buf = 0x1000;
+        uint8_t* p = &g_phys[buf];
+        int i;
+
+        reset_window();
+        g_ops.frame_out = tx_sink;
+        port = open_port(0);
+
+        memset(p, 0, xlen);
+        nd500_xring_put_be16(p + 0, XMSG_EXMTYdata);   /* ac_head            */
+        nd500_xring_put_be16(p + 2, 0);                /* identifier         */
+        nd500_xring_put_be16(p + 4, (uint16_t)(xlen - 18)); /* EXMHDlength   */
+        memset(p + 6,  0xFF, 6);                       /* destination: bcast */
+        p[12] = 0x02; p[13] = 0x60; p[14] = 0x8C;      /* source             */
+        p[15] = 0x11; p[16] = 0x22; p[17] = 0x33;
+        nd500_xring_put_be16(p + 18, 0x0806);          /* ETHERTYPE_ARP      */
+        for (i = 0; i < 10; i++) p[20 + i] = (uint8_t)(0xA0 + i);
+
+        put_cmd_args(0, 0, XMSG_XETHER, PHYS_TO_WORD(buf), port, xlen);
+        check_eq("XETHER is answered", 1, nd500_xmsg_service_mem(&g_ops));
+        check("a response is waiting", get_resp(r) == 1);
+        check_eq("XETHER succeeded", 0, (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+        check_eq("func comes back as XETHER - etintr routes on it",
+                 XMSG_XETHER, nd500_xring_be16(r + RESP_FUNC));
+        check_eq("one frame reached the uplink", 1, g_tx_count);
+        check_eq("the envelope is stripped: len is xlen - 6",
+                 (long)(xlen - 6), (long)g_tx_len);
+        check("the frame starts at the DESTINATION address, not the envelope",
+              g_tx[0] == 0xFF && g_tx[5] == 0xFF);
+        check("the source address is right behind it",
+              g_tx[6] == 0x02 && g_tx[11] == 0x33);
+        check_eq("the ether type survives unswapped", 0x0806,
+                 nd500_xring_be16(g_tx + 12));
+        check("the payload is there", g_tx[14] == 0xA0 && g_tx[23] == 0xA9);
+
+        /* With no uplink the frame is dropped - and that is still a SUCCESS.
+         * Answering with an error would make etxint() count an output error
+         * (if_et.c:604) for something the guest did perfectly. */
+        g_ops.frame_out = NULL;
+        put_cmd_args(1u << 1, 0, XMSG_XETHER, PHYS_TO_WORD(buf), port, xlen);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("with no uplink the transmit still succeeds", 0,
+                 (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+        check_eq("and nothing was sent", 1, g_tx_count);
+
+        /* A buffer that is not a datagram means the address arithmetic went
+         * wrong. Refusing beats putting 58 bytes of whatever-that-was on the
+         * wire - the truncated-address trap produces exactly this. */
+        g_ops.frame_out = tx_sink;
+        nd500_xring_put_be16(&g_phys[buf], 0x4AC3);   /* what ND-500 code looks like */
+        put_cmd_args(2u << 1, 0, XMSG_XETHER, PHYS_TO_WORD(buf), port, xlen);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check("a buffer whose EXMHDtype is not EXMTYdata is refused",
+              (int16_t)nd500_xring_be16(r + RESP_ARG_T) < 0);
+        check_eq("and nothing was sent", 1, g_tx_count);
+
+        /* Too short to hold an envelope and an ethernet header. */
+        nd500_xring_put_be16(&g_phys[buf], XMSG_EXMTYdata);
+        put_cmd_args(3u << 1, 0, XMSG_XETHER, PHYS_TO_WORD(buf), port, 12);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check("a length below 20 is refused",
+              (int16_t)nd500_xring_be16(r + RESP_ARG_T) < 0);
+        check_eq("and nothing was sent", 1, g_tx_count);
+    }
+
+    /* ---- 10. An empty ring is not an error ------------------------------- */
     printf("\nan empty command ring\n");
     reset_window();
     check_eq("nothing to answer", 0, nd500_xmsg_service_mem(&g_ops));
