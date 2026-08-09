@@ -26,7 +26,8 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | (pre-2026-08-08) | various | STRING wrong-instruction fixes | docs/SYNC-STRING-WRONG-INSTRUCTION-FIXES.md | present in C# (name-level) |
 | 2026-08-08 | ndmonlib `97a2a22` + pointer bump | MON 113B CLOCK returned `tm_year % 100`; now writes the full year. **INFERRED, not proven** | shared-file item 13 | **done** - `MON_113_CLOCK.cs:100` writes `now.Year` and carries the same "INFERRED, not proven" note |
 | 2026-08-06 | `8a46aaf`, `712ba00` | SOLO/TUTTI: the 256-cycle DT timeout, DE on a non-ignorable trap inside PSD, and ignorable traps suppressed inside PSD | this file, SOLO/TUTTI section below | **open** - C# has PSD and the repeat-SOLO DT but none of these three |
-| 2026-08-09 | (none yet) | **nd500x gap, found auditing the other direction:** unprivileged repeat-SOLO must raise DT (manual ch.16.1). C# has it, nd500x does not, and `Solo.c:189-193` documents the opposite | this file, SOLO/TUTTI section below | **open against nd500x** |
+| 2026-08-09 | `ea4ed54` | **nd500x bugs found by using the ND-5000 microcode as the oracle:** a repeated SOLO restarted the timeout; TUTTI wrongly required privilege while SOLO did not; two blocks of invented prose in `Solo.c`. All fixed, `test_solo_traps` 12 -> 19 cases | `docs/SPEC-CORPUS-SOLO-TUTTI-DT-DE.md` | **done (nd500x)** |
+| 2026-08-09 | n/a - corpus defect | `tutti_Default` expects IIC. TUTTI is not privileged; the expectation comes from a SYSTEM-class catch-all at `ComprehensiveSystemGenerator.cs:805` and contradicts RetroCore's own `Tutti.cs` and `TrapConditionSpec.cs:621`. Quarantined in `test_conformance.c` | `docs/SPEC-CORPUS-SOLO-TUTTI-DT-DE.md` | **open against the generator** |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
