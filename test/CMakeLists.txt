@@ -45,7 +45,7 @@ if(TARGET dap_objects)
     target_link_libraries(test_dap_adapter PRIVATE
         nd500_debugger nd500_machine nd500_cpu nd500_ndlib mon)
     target_include_directories(test_dap_adapter PRIVATE
-        ${CMAKE_SOURCE_DIR}/external/libdap/libdap/include)
+        ${ND500X_ROOT}/external/libdap/libdap/include)
 endif()
 
 # Instruction validation tests (requires cJSON)
@@ -419,5 +419,5 @@ endif()
 add_test(NAME settings_catalog COMMAND test_settings_catalog)
 
 add_test(NAME settings_no_getenv
-         COMMAND ${CMAKE_COMMAND} -DSRC_DIR=${CMAKE_SOURCE_DIR}
+         COMMAND ${CMAKE_COMMAND} -DSRC_DIR=${ND500X_ROOT}
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/no_getenv_gate.cmake)

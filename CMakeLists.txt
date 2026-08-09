@@ -6,6 +6,16 @@ endif()
 
 project(nd500x VERSION 0.1.0 LANGUAGES C)
 
+# WHERE THIS PROJECT LIVES - use this, never CMAKE_SOURCE_DIR.
+#
+# nd500x is built two ways: on its own, and add_subdirectory()'d into another
+# project (nd100x's WASM build links nd500_cpu + nd500_machine - see the
+# ND500X_WITH_NDMON note below). CMAKE_SOURCE_DIR means the TOP-LEVEL source
+# directory, so in the nested case it is nd100x's root and every
+# ${CMAKE_SOURCE_DIR}/src/... path silently addresses the wrong tree.
+# CMAKE_CURRENT_LIST_DIR of THIS file is nd500x either way.
+set(ND500X_ROOT ${CMAKE_CURRENT_LIST_DIR})
+
 # With no CMAKE_BUILD_TYPE, CMake passes no -O flag at all and GCC/Clang default
 # to -O0. Every file of the emulator was being built unoptimized, which for an
 # instruction interpreter is the dominant cost - it also stops trivial helpers
@@ -59,7 +69,12 @@ add_compile_definitions(ND500X_VERSION="${PROJECT_VERSION}")
 #
 # CI installs a package on every platform, so step 3 only ever fires for a
 # developer building on a machine without cJSON.
-if(PLATFORM_WASM OR BUILD_WASM)
+if(TARGET cjson_objects)
+    # A parent project (nd100x) already built cJSON and put its header on
+    # the include path. Fetching it a second time would download the same
+    # sources and then be skipped by the guard below anyway.
+    message(STATUS "cJSON provided by the parent project - not fetching")
+elseif(PLATFORM_WASM OR BUILD_WASM)
     include(FetchContent)
     # SOURCE_SUBDIR points at nothing on purpose - see the long note in the
     # native branch below. Short version: cJSON's own CMakeLists asks for

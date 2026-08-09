@@ -20,7 +20,7 @@ else()
 endif()
 
 add_library(nd500_cpu cpu.c cpu_instr.c nd500_mmu.c nd500_tlb.c nd500_tape.c nd500_domain.c nd500_indirect.c nd500_fecall.c nd500_host_posix.c nd500_settings.c nd500_segment_alloc.c nd500_phys_alloc.c nd500_page_bits.c instruction_helpers.c bcd_helpers.c ${MON_SEAM_SOURCE} ${INSTRUCTION_SOURCES} ${DISPATCH_TABLE_SOURCE})
-target_include_directories(nd500_cpu PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_SOURCE_DIR}/src/machine)
+target_include_directories(nd500_cpu PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${ND500X_ROOT}/src/machine)
 
 # Link math library for BCD operations (pow function)
 target_link_libraries(nd500_cpu PUBLIC m)
@@ -47,7 +47,7 @@ target_link_libraries(nd500_cpu PUBLIC nd500_machine)
 # now, so consumers of nd500_cpu no longer inherit the dependency. That is what
 # lets another host link this library without the (private) submodule.
 if(ND500X_WITH_NDMON)
-    target_include_directories(nd500_cpu PRIVATE ${CMAKE_SOURCE_DIR}/external/ndmonlib/include)
+    target_include_directories(nd500_cpu PRIVATE ${ND500X_ROOT}/external/ndmonlib/include)
     target_link_libraries(nd500_cpu PRIVATE mon)
 endif()
 
