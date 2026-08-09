@@ -25,7 +25,8 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | (pre-2026-08-08) | various | MON 257B FOPEN present in SINTRAN L | docs/SYNC-MON-257B-FOPEN-PRESENT-IN-SINTRAN-L.md | present in C# (name-level) |
 | (pre-2026-08-08) | various | STRING wrong-instruction fixes | docs/SYNC-STRING-WRONG-INSTRUCTION-FIXES.md | present in C# (name-level) |
 | 2026-08-08 | ndmonlib `97a2a22` + pointer bump | MON 113B CLOCK returned `tm_year % 100`; now writes the full year. **INFERRED, not proven** | shared-file item 13 | **done** - `MON_113_CLOCK.cs:100` writes `now.Year` and carries the same "INFERRED, not proven" note |
-| 2026-08-06 | `8a46aaf`, `712ba00` | SOLO/TUTTI process-switch disable, DT and DE traps, and the reset that stops a stale SOLO region trapping | this file, "Confirmed gap" below | **open - the only confirmed gap** |
+| 2026-08-06 | `8a46aaf`, `712ba00` | SOLO/TUTTI: the 256-cycle DT timeout, DE on a non-ignorable trap inside PSD, and ignorable traps suppressed inside PSD | this file, SOLO/TUTTI section below | **open** - C# has PSD and the repeat-SOLO DT but none of these three |
+| 2026-08-09 | (none yet) | **nd500x gap, found auditing the other direction:** unprivileged repeat-SOLO must raise DT (manual ch.16.1). C# has it, nd500x does not, and `Solo.c:189-193` documents the opposite | this file, SOLO/TUTTI section below | **open against nd500x** |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
@@ -46,16 +47,37 @@ distinctive tokens (instruction mnemonics, MON numbers) appear anywhere in the
 RetroCore log since 2026-06-25. **124 of 142 matched.** The 18 that did not
 were then grepped against the RetroCore ND-500 source directly.
 
-### Confirmed gap - SOLO/TUTTI DT/DE traps
+### SOLO/TUTTI - read line by line against the manual, and it goes BOTH ways
 
-The only one that survived. C# declares
-`CpuND500.ProcessSwitchTimeoutCounter` (`CpuND500.cs:438`) and resets it to 0
-in `Instructions/CONTROL/Solo.cs:66` and `Instructions/SYSTEM/Tutti.cs:54`.
-Those are the ONLY three references in the whole solution: nothing ever
-increments it, and nothing raises DT or DE from it. The `DT` and `DE` register
-flags exist in `Registers.cs` and are cleared on reset, but are never set by
-the timeout. nd500x implemented the mechanism in `8a46aaf` and fixed the
-reset in `712ba00`. Mirror those two.
+An earlier version of this section claimed C# "only resets a counter" and had
+no PSD at all. **That was wrong** - it came from grepping for
+`ProcessSwitchTimeoutCounter` and missing `regs.ST.PSD = true`. Corrected
+2026-08-09 by reading `Solo.cs`, `Tutti.cs`, every `.PSD` and every `DT`/`DE`
+write in the solution, and checking each rule against
+`docs/ND-05.009.4 EN ND-500 Reference Manual.md` ch.16.1-16.2 and ch.6.5.4
+rather than against either emulator.
+
+Both sides set PSD in SOLO and clear it in TUTTI. The differences:
+
+| Manual rule (ch.16.1 / 6.5.4) | nd500x | C# |
+|---|---|---|
+| ">256 cycles with PSD set -> DT", privileged unlimited | yes, `check_solo_timeout()` `cpu.c:1397`, counts macroinstruction cycles per ch.16.1's ND-5000 wording | **no** - `ProcessSwitchTimeoutCounter` is set to 0 in `Solo.cs:66` / `Tutti.cs:54` and read nowhere; nothing increments it |
+| "Non-ignorable and fatal traps cause a disable process switch error trap" (DE) | yes, `cpu.c:1266`, raised alongside the provoking trap | **no** - the only `TrapCondition.DE` in the solution is a test setting the flag |
+| "Ignorable trap conditions are ignored in SOLO-TUTTI sequences regardless of enabling" | yes, `check_pending_traps()` returns early on PSD, `cpu.c:1462` | **no** - PSD is never read on the trap path |
+| "Disable process switch timeout occurs if unprivileged users attempt to repeat SOLO's" | **no** - not implemented | yes, `Solo.cs:53-58` raises DT on a nested SOLO with PIA clear |
+
+So three rules to mirror INTO C# (`8a46aaf` + `712ba00`), and **one to fix in
+nd500x**: the unprivileged repeat-SOLO timeout. Worse than a plain omission -
+the header comment in `src/cpu/instructions/CONTROL/Solo.c:189-193` asserts
+that a nested SOLO "typically re-enters SOLO mode / extends atomic sequence
+until next conditional branch", which is invented prose that contradicts the
+manual sentence above. Delete it when implementing the rule.
+
+Also for the C# side, cosmetic: `Tutti.cs` documents "Trap conditions:
+Illegal instruction code (IIC)" and calls TUTTI privileged. Manual 16.2 says
+"Trap conditions: None" and carries no "Privileged instruction" line, unlike
+the instructions that do. The code does not enforce privilege, so it is the
+comment that is wrong.
 
 ### Spot-checked and genuinely mirrored
 
@@ -72,6 +94,11 @@ its comment names the 2026-07-09 C fix), `ENTB`
   agrees.** Every row above marked "present in C# (name-level)" means the
   identifier exists in RetroCore, nothing more. Only MON 113B, IFKGO and
   SOLO/TUTTI were read line by line.
+- **Grepping for one identifier is not reading the code.** The first version
+  of the SOLO/TUTTI finding was wrong in both directions - it claimed C# had
+  no PSD (it does) and missed that C# implements a rule nd500x lacks. The
+  error came from searching for `ProcessSwitchTimeoutCounter` and treating
+  three hits as the whole story. Open the file.
 - Not covered, because C# has no equivalent subsystem and should not: the
   NDIX MON 600 front-end (`fecall`, `FE_READ`, `RETK`), nd500x debug knobs
   (`ND500X_NO_INVALID00`, `UDATADBG`) and nd500x-only performance work
