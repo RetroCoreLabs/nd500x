@@ -83,6 +83,8 @@ static Nd500XmsgOps g_ops;
 #define RESP_FUNC    6
 #define RESP_ARG_T   8
 #define RESP_ARG_A  10
+#define RESP_ARG_D  12
+#define RESP_ARG_X  14
 #define RESP_CBA    16
 
 static Nd500XRing g_cmd, g_resp;
@@ -130,11 +132,47 @@ static void reset_window(void) {
 
 /* Open a port on a sub-device and throw the response away - the precondition
  * for every message-space command. */
-static void open_port(uint16_t subdev) {
+static uint16_t open_port(uint16_t subdev) {
     uint8_t r[XRING_RESP_SIZE];
     put_cmd(0, subdev, XMSG_XFOPN);
     nd500_xmsg_service_mem(&g_ops);
-    get_resp(r);
+    if (!get_resp(r)) return 0;
+    return nd500_xring_be16(r + RESP_ARG_A);
+}
+
+/* ---- the attach letter, byte for byte ------------------------------------
+ * What if_et.c:364-379 builds, and what was MEASURED coming out of a running
+ * guest on 2026-08-09:
+ *
+ *   00 41 00 08              xr_header {serial 0, service XSLET 0101, len 8}
+ *   FF 06                    xr_param  {type -1 = string, length 6}
+ *   2A 45 4E 55 4D 30        "*ENUM0"
+ *   00 81 00 00 00 00        ac_areq: EXMTYattach, identifier 0, length 0
+ *   02 60 8C 11 22 33        the address etconfig(8) set
+ *   00 00 00 01 00 00        EXMSTlogical 0, EXMSTvalid 1, dum2 0
+ *
+ * Written into the PHYSICAL array, because that is where an ND-100 word
+ * address points. Returns the length. */
+#define ATTACH_LETTER_LEN 30
+static uint16_t build_attach_letter(uint32_t phys, uint16_t msgtype,
+                                    const char* name) {
+    uint8_t* p = &g_phys[phys];
+    memset(p, 0, ATTACH_LETTER_LEN);
+    p[0] = 0;                    /* xh_serial                                 */
+    p[1] = XMSG_XSLET;           /* xh_service - octal 0101, i.e. 0x41         */
+    nd500_xring_put_be16(p + 2, 8);          /* xh_length: 2 + SZ_NAM         */
+    p[4] = 0xFF;                 /* xp_type = -1, "this block is a string"     */
+    p[5] = 6;                    /* xp_length                                  */
+    memcpy(p + 6, name, 6);
+    nd500_xring_put_be16(p + 12, msgtype);   /* EXMHDtype                      */
+    nd500_xring_put_be16(p + 14, 0);         /* EXMHDidentifier                */
+    nd500_xring_put_be16(p + 16, 0);         /* EXMHDlength                    */
+    p[18] = 0x02; p[19] = 0x60; p[20] = 0x8C;
+    p[21] = 0x11; p[22] = 0x22; p[23] = 0x33;
+    nd500_xring_put_be16(p + 24, 0);         /* EXMSTlogical                   */
+    nd500_xring_put_be16(p + 26, 1);         /* EXMSTvalid                     */
+    nd500_xring_put_be16(p + 28, 0);         /* EXMSTdum2                      */
+    return ATTACH_LETTER_LEN;
 }
 
 int main(void) {
@@ -354,7 +392,162 @@ int main(void) {
     check_eq("no base recorded: unchanged",
              (long)0x1D1Eu, (long)nd500_xmsg_full_word(0, 0x1D1E));
 
-    /* ---- 8. An empty ring is not an error -------------------------------- */
+    /* ---- 8. The attach handshake, end to end -----------------------------
+     * etinit() (if_et.c:349-417) runs XFGET, XFWRI, XFSND|XFROU, XFRRE|XFWTF,
+     * XFMST in that order, and SLEEPS on every one of them (xmsg(), :1378-1385).
+     * So each command is fully answered before the next is even built - which
+     * is what lets the reply queued by XFSND simply wait for the XFRRE. */
+    printf("\nthe attach handshake\n");
+    {
+        uint16_t port, len;
+        uint32_t letter = 0x1000, recv = 0x2000;
+        uint16_t magno_a, magno_d;
+
+        reset_window();
+        port = open_port(0);
+        check("XFOPN gave a port", port != 0);
+
+        put_cmd_args(0, 0, XMSG_XFGET, 1520, 0, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("XFGET succeeded", 0, (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+
+        len = build_attach_letter(letter, XMSG_EXMTYattach, "*ENUM0");
+        put_cmd_args(1u << 1, 0, XMSG_XFWRI, PHYS_TO_WORD(letter), len, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("XFWRI succeeded", 0, (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+
+        /* The port goes in X, not D - if_et.c:393 is
+         * `xma(xa, XFSND|XFROU, 0, es->es_portno, 0)` and xma() is (T,A,X,D)
+         * while the struct is T,A,D,X. Measured on the wire as func=02014 X=1. */
+        put_cmd_args(2u << 1, 0, XMSG_XFSND | XMSG_XFROU, 0, 0, port);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("XFSND|XFROU succeeded", 0, (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+        check_eq("the option bits survive in the echoed func",
+                 XMSG_XFSND | XMSG_XFROU, nd500_xring_be16(r + RESP_FUNC));
+
+        /* XFRRE|XFWTF: A = port, X = buffer word address, D = buffer size. */
+        put_cmd_args(3u << 1, 0, XMSG_XFRRE | XMSG_XFWTF,
+                     port, 1520, PHYS_TO_WORD(recv));
+        check_eq("the blocking receive is answered at once",
+                 1, nd500_xmsg_service_mem(&g_ops));
+        check("a response is waiting", get_resp(r) == 1);
+        check_eq("XFRRE succeeded", 0, (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+        check_eq("X carries the received length (etrint reads it there)",
+                 18, nd500_xring_be16(r + RESP_ARG_X));
+        check("D carries a non-zero message id (ei_xmid)",
+              nd500_xring_be16(r + RESP_ARG_D) != 0);
+        check_eq("the func - and XFWTF with it - is echoed",
+                 XMSG_XFRRE | XMSG_XFWTF, nd500_xring_be16(r + RESP_FUNC));
+
+        /* The reply itself. etinit() gives up unless er_head.EXMHDtype is
+         * EXMTYstatus (if_et.c:404), and er_head is at offset 0 of ei_recv. */
+        check_eq("EXMHDtype is EXMTYstatus", XMSG_EXMTYstatus,
+                 nd500_xring_be16(&g_phys[recv + 0]));
+        check_eq("EXMSTstatus is EXMATok", XMSG_EXMATok,
+                 nd500_xring_be16(&g_phys[recv + 14]));
+        check_eq("EXMHDlength is 0 - no data follows", 0,
+                 nd500_xring_be16(&g_phys[recv + 4]));
+
+        /* XFMST: es_magno = xa->A << 16 | xa->D (if_et.c:417). NDIX never looks
+         * inside it, but both halves must stay clear of bit 15 - it combines a
+         * SIGNED short shift with an OR, so a high bit would smear across. */
+        put_cmd_args(4u << 1, 0, XMSG_XFMST, 0xFFFF, 0, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("XFMST succeeded", 0, (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+        magno_a = nd500_xring_be16(r + RESP_ARG_A);
+        magno_d = nd500_xring_be16(r + RESP_ARG_D);
+        check("the magic number is not zero", (magno_a | magno_d) != 0);
+        check("neither half has bit 15 set", ((magno_a | magno_d) & 0x8000) == 0);
+
+        /* And it can be released, which is where etinit() goes next. */
+        put_cmd_args(5u << 1, 0, XMSG_XFREL, 0xFFFF, 0, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("XFREL succeeded", 0, (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+    }
+
+    /* A receive with nothing to give it is PARKED, not answered. A real front
+     * end does not complete a blocking receive until a message arrives, and
+     * answering early would hand etrint() a buffer full of nothing. */
+    printf("\na receive with nothing waiting\n");
+    {
+        uint16_t port;
+        reset_window();
+        port = open_port(0);
+        put_cmd_args(0, 0, XMSG_XFRRE | XMSG_XFWTF, port, 1520,
+                     PHYS_TO_WORD(0x2000));
+        check_eq("nothing is answered", 0, nd500_xmsg_service_mem(&g_ops));
+        check("the response ring stays empty", nd500_xring_empty(&g_mem, &g_resp) == 1);
+        check("but the command ring was still drained to empty",
+              nd500_xring_empty(&g_mem, &g_cmd) == 1);
+    }
+
+    /* A letter for somebody else is not ours to answer. Better a refusal the
+     * driver can print than a made-up attach reply from a server that is not
+     * the one being addressed. */
+    printf("\na letter addressed elsewhere\n");
+    {
+        uint16_t port, len;
+        reset_window();
+        port = open_port(0);
+        put_cmd_args(0, 0, XMSG_XFGET, 1520, 0, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        len = build_attach_letter(0x1000, XMSG_EXMTYattach, "*XROUT");
+        put_cmd_args(1u << 1, 0, XMSG_XFWRI, PHYS_TO_WORD(0x1000), len, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        put_cmd_args(2u << 1, 0, XMSG_XFSND | XMSG_XFROU, 0, 0, port);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check("XFSND to a name that is not *ENUMi is refused",
+              (int16_t)nd500_xring_be16(r + RESP_ARG_T) < 0);
+    }
+
+    /* Detach and define-multicast take the same road and get the same shape of
+     * answer - if_et.c:285-322 (detach) and :437-455 (multicast) both wait for
+     * an EXMTYstatus reply and give up on anything else. */
+    printf("\ndetach and define-multicast\n");
+    {
+        uint16_t port, len;
+        uint32_t recv = 0x2000;
+        reset_window();
+        port = open_port(0);
+        put_cmd_args(0, 0, XMSG_XFGET, 1520, 0, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        len = build_attach_letter(0x1000, XMSG_EXMTYdetach, "*ENUM0");
+        put_cmd_args(1u << 1, 0, XMSG_XFWRI, PHYS_TO_WORD(0x1000), len, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        put_cmd_args(2u << 1, 0, XMSG_XFSND | XMSG_XFROU, 0, 0, port);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("XFSND of a detach succeeded", 0,
+                 (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+        put_cmd_args(3u << 1, 0, XMSG_XFRRE | XMSG_XFWTF, port, 1520,
+                     PHYS_TO_WORD(recv));
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("the detach reply is an EXMTYstatus too", XMSG_EXMTYstatus,
+                 nd500_xring_be16(&g_phys[recv + 0]));
+
+        /* Multicast goes STRAIGHT to the interface - no XFROU, so no letter,
+         * and the ac_mreq sits at offset 0 (if_et.c:437 bcopy's it into
+         * ex_buf and sends with `xma(xa, XFSND, magno>>16, portno, magno)`).
+         * The received message became the current message, so there is no
+         * XFGET here - exactly as the driver does it. */
+        memset(&g_phys[0x1000], 0, 18);
+        nd500_xring_put_be16(&g_phys[0x1000], XMSG_EXMTYdefineMulti);
+        memset(&g_phys[0x1000 + 6], 0xFF, 6);        /* the broadcast address */
+        put_cmd_args(4u << 1, 0, XMSG_XFWRI, PHYS_TO_WORD(0x1000), 18, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("XFWRI into the received message succeeded", 0,
+                 (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+        put_cmd_args(5u << 1, 0, XMSG_XFSND, 0, 0, port);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("XFSND of a define-multicast succeeded", 0,
+                 (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+        put_cmd_args(6u << 1, 0, XMSG_XFRRE | XMSG_XFWTF, port, 1520,
+                     PHYS_TO_WORD(recv));
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("its reply is an EXMTYstatus as well", XMSG_EXMTYstatus,
+                 nd500_xring_be16(&g_phys[recv + 0]));
+    }
+
+    /* ---- 9. An empty ring is not an error -------------------------------- */
     printf("\nan empty command ring\n");
     reset_window();
     check_eq("nothing to answer", 0, nd500_xmsg_service_mem(&g_ops));

@@ -81,7 +81,35 @@ extern "C" {
 #define XMSG_XFRRE   051   /* receive and read message         */
 #define XMSG_XFRREN  060   /* receive and read, do not wait    */
 #define XMSG_XETHER  055   /* the special ethernet call        */
+#define XMSG_XFRRH   052   /* receive header only - counts as a receive */
+#define XMSG_XFRCV   050   /* receive - counts as a receive             */
 #define XMSG_FUNC_MASK 0xff
+
+/* Option bits OR'd into the function (if/xmsg.h:100-112). We never act on them
+ * - the function is echoed back whole - but they are named here because a trace
+ * line reads as gibberish without them: the attach XFSND arrives as 02014,
+ * which is XFROU|XFSND, and the blocking receive as 0100051 = XFWTF|XFRRE. */
+#define XMSG_XFWTF   0x8000  /* wait until complete (XFRRE)          */
+#define XMSG_XFWAK   0x8000  /* do not block the task (XFRREN)       */
+#define XMSG_XFRMR   0x1000  /* release the message after read       */
+#define XMSG_XFROU   0x0400  /* XFSND: send to the local XROUT       */
+
+/* XROUT service requests, carried in xr_header.xh_service (if/xmsg.h:117).
+ * OCTAL 0101 = 65 decimal = 0x41 - which is what the wire shows. */
+#define XMSG_XSLET   0101    /* "send a letter"                      */
+
+/* Ethernet access-protocol message types, EXMHDtype (if/if_access.h:128-135).
+ * EXMversion is 128, so these are 128+n and all of them look like 00 8x on the
+ * wire. */
+#define XMSG_EXMTYdata         128
+#define XMSG_EXMTYattach       129
+#define XMSG_EXMTYstatus       130
+#define XMSG_EXMTYdetach       131
+#define XMSG_EXMTYdefineMulti  132
+
+/* EXMSTstatus values (if/if_access.h:141). 0 is a good attach or detach. */
+#define XMSG_EXMATok           0
+#define XMSG_EXMATillegal      1
 
 /* XMSG status codes returned in args.T (if/xmsg.h:128-161, 179).
  * XMSUX is 0 - success. Everything negative is an error, and if_et.c tests

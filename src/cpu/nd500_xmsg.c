@@ -61,6 +61,11 @@
  * "Current XMSG Message" (if/xmsg.h:167), and if_et.c never names a message -
  * XFGET creates one, XFWRI writes into it, XFSND sends it, XFREL frees it. So
  * one message per sub-device is exactly what the driver uses. */
+/* An ac_ares / ac_dres / ac_mres is 18 bytes (if/if_access.h:42-50) and every
+ * reply this server produces today is one of those three. Sized generously so
+ * a data reply can share the slot later without a second mechanism. */
+#define XMSG_REPLY_MAX 64
+
 typedef struct XmsgSub {
     uint32_t datbuf_word;  /* full-width dton(&xdata[sub]) from FE_OPEN, 0=unset */
     uint16_t port;         /* 0 = no port open (XFOPN not yet done)          */
@@ -68,14 +73,35 @@ typedef struct XmsgSub {
     uint16_t msg_size;     /* the size XFGET asked for                       */
     uint16_t msg_len;      /* bytes written into it so far by XFWRI          */
     uint8_t  msg[XMSG_MSG_MAX];
+
+    /* What the next receive will be given. XFSND queues it; the XFRRE that
+     * follows hands it over. The driver's own order guarantees the queue is
+     * never deeper than one: xmsg() SLEEPS on each command, so the XFSND is
+     * fully answered before the XFRRE is even built (if_et.c:393-400). */
+    uint8_t  reply[XMSG_REPLY_MAX];
+    uint16_t reply_len;    /* 0 = nothing waiting to be received             */
+
+    /* Attach state, kept so a later XETHER can be told which address it is
+     * sending from and a detach can be recognised as a state change rather
+     * than just another letter. */
+    int      attached;
+    uint8_t  mac[6];
+
+    /* A receive command that arrived with nothing to give it. It is PARKED,
+     * not answered - see xmsg_park_receive() for why that is the correct
+     * behaviour and not a wedge. */
+    int      recv_parked;
+    uint8_t  recv_cmd[XRING_CMD_SIZE];
 } XmsgSub;
 
 static XmsgSub g_sub[XMSG_MAX_SUBDEV];
 static uint16_t g_next_port = 1;                    /* port 0 is not handed out */
+static uint16_t g_next_msgid = 1;    /* what a receive reports in D (ei_xmid) */
 
 void nd500_xmsg_reset(void) {
     memset(g_sub, 0, sizeof g_sub);
     g_next_port = 1;
+    g_next_msgid = 1;
 }
 
 static int xmsgdbg(void) {
@@ -299,6 +325,280 @@ static void xmsg_do_rel(uint16_t subdev, uint16_t* out_T) {
     *out_T = (uint16_t)XMSG_XMSUX;
 }
 
+/* ---- the attach handshake ------------------------------------------------- */
+
+/*
+ * Queue an 18-byte status reply (struct ac_ares / ac_dres / ac_mres - they are
+ * the same shape, if/if_access.h:42-112) for the receive that is coming.
+ *
+ *   short EXMHDtype        EXMTYstatus (130)
+ *   short EXMHDidentifier  echoed from the request, "for later ref"
+ *   short EXMHDlength      length of data - 0
+ *   char  EXMHDdummy[6]    not used
+ *   short EXMSTdum1        not used
+ *   short EXMSTstatus      the answer: EXMATok = 0
+ *   short EXMSTdum2        not used
+ *
+ * if_et.c only ever looks at EXMHDtype (:404, :458, :673) and never at the
+ * status word, but the status word is what the message MEANS, so it is filled
+ * in properly rather than left zero by luck.
+ */
+static void xmsg_queue_status(XmsgSub* s, uint16_t identifier, uint16_t status) {
+    memset(s->reply, 0, sizeof s->reply);
+    nd500_xring_put_be16(s->reply + 0,  XMSG_EXMTYstatus);
+    nd500_xring_put_be16(s->reply + 2,  identifier);
+    nd500_xring_put_be16(s->reply + 4,  0);
+    /* bytes 6..11 are EXMHDdummy, left zero */
+    nd500_xring_put_be16(s->reply + 12, 0);       /* EXMSTdum1  */
+    nd500_xring_put_be16(s->reply + 14, status);  /* EXMSTstatus */
+    nd500_xring_put_be16(s->reply + 16, 0);       /* EXMSTdum2  */
+    s->reply_len = 18;
+}
+
+/*
+ * XFSND - send the current message.
+ *
+ *   attach/detach: xma(xa, XFSND|XFROU, 0, es->es_portno, 0)   (if_et.c:393)
+ *                  xma() is (T, A, X, D) and the struct is T, A, D, X, so the
+ *                  PORT arrives in X and A is 0. Measured: func=02014, X=1.
+ *   multicast:     xma(xa, XFSND, es_magno>>16, es_portno, es_magno&0xffff)
+ *                  (if_et.c:444) - no XFROU, straight to the interface, and
+ *                  this one puts the port in X as well.
+ *
+ * With XFROU the message is a letter for XROUT and has to be unwrapped:
+ *
+ *   xr_header  4  serial, service, length   (char, char, short - if_param.h:17)
+ *   xr_param   2  type (-1 = string), length
+ *   name       6  "*ENUM0"
+ *   ac_areq   18  the request proper
+ *
+ * Without XFROU there is no letter - the ac_mreq sits at offset 0 (if_et.c:437
+ * bcopy's `bcast` straight into ex_buf).
+ *
+ * Whatever it turns out to be, a status reply is queued for the XFRRE that the
+ * driver issues next. Queueing nothing would leave that XFRRE parked for ever
+ * and etinit() asleep in sleep(es, PZERO+1) with nothing printed.
+ */
+static void xmsg_do_snd(uint16_t subdev, uint16_t func, uint16_t port,
+                        uint16_t* out_T) {
+    XmsgSub* s;
+    const uint8_t* body;
+    uint16_t body_len;
+    uint16_t type, ident;
+
+    if (subdev >= XMSG_MAX_SUBDEV || g_sub[subdev].port == 0) {
+        *out_T = (uint16_t)XMSG_XENDP;
+        return;
+    }
+    s = &g_sub[subdev];
+    if (!s->msg_open || s->msg_len == 0) {
+        *out_T = (uint16_t)XMSG_XENDM;   /* nothing to send */
+        return;
+    }
+    if (port != 0 && port != s->port) {
+        /* The driver always passes its own port back, so this cannot happen
+         * while things are sane - and if it does, guessing would be worse. */
+        *out_T = (uint16_t)XMSG_XENDP;
+        return;
+    }
+
+    body = s->msg;
+    body_len = s->msg_len;
+
+    if (func & XMSG_XFROU) {
+        /* Unwrap the letter. Everything is checked rather than assumed: a
+         * mis-parse here produces a reply that looks right and means nothing,
+         * which is the failure mode this whole area specialises in. */
+        uint8_t service, ptype, plen;
+        if (body_len < 12) { *out_T = (uint16_t)XMSG_XEILM; return; }
+        service = body[1];
+        ptype   = body[4];
+        plen    = body[5];
+        if (service != XMSG_XSLET) {
+            fprintf(stderr, "[XMSG] XFROU letter service is 0%o, expected "
+                            "XSLET 0%o - not answering it\n",
+                    service, XMSG_XSLET);
+            *out_T = (uint16_t)XMSG_XENIM;
+            return;
+        }
+        if (ptype != 0xFF || plen == 0 || (uint16_t)(6 + plen) > body_len) {
+            fprintf(stderr, "[XMSG] XFROU param block is type %d length %u - "
+                            "expected a string of 6 (\"*ENUM0\")\n",
+                    (int8_t)ptype, plen);
+            *out_T = (uint16_t)XMSG_XEILM;
+            return;
+        }
+        /* The name is "*ENUMi" where i is the unit's thumbwheel digit
+         * (if_et.c:374, ET_NAM in if_etregs.h:57). We serve every unit, so the
+         * digit is not compared - only the "*ENUM" that says this is meant for
+         * the ethernet media server at all. */
+        if (plen < 5 || memcmp(body + 6, "*ENUM", 5) != 0) {
+            fprintf(stderr, "[XMSG] XFROU letter is addressed to \"%.*s\", "
+                            "not *ENUMi - no server here\n", plen, body + 6);
+            *out_T = (uint16_t)XMSG_XENIM;
+            return;
+        }
+        body     = s->msg + 6 + plen;
+        body_len = (uint16_t)(s->msg_len - (6 + plen));
+    }
+
+    if (body_len < 18) { *out_T = (uint16_t)XMSG_XEILM; return; }
+    type  = nd500_xring_be16(body + 0);
+    ident = nd500_xring_be16(body + 2);
+
+    switch (type) {
+    case XMSG_EXMTYattach:
+        /* EXMHDaddress[6] at offset 6 is the address etconfig(8) set. Keep it:
+         * a transmitted frame's source address is ours to fill in later. */
+        memcpy(s->mac, body + 6, 6);
+        s->attached = 1;
+        if (xmsgdbg())
+            fprintf(stderr, "[XMSG]   ATTACH %02X:%02X:%02X:%02X:%02X:%02X "
+                            "on port %u -> EXMATok\n",
+                    s->mac[0], s->mac[1], s->mac[2],
+                    s->mac[3], s->mac[4], s->mac[5], s->port);
+        xmsg_queue_status(s, ident, XMSG_EXMATok);
+        break;
+    case XMSG_EXMTYdetach:
+        s->attached = 0;
+        if (xmsgdbg())
+            fprintf(stderr, "[XMSG]   DETACH on port %u -> EXMATok\n", s->port);
+        xmsg_queue_status(s, ident, XMSG_EXMATok);
+        break;
+    case XMSG_EXMTYdefineMulti:
+        /* if_et.c:437 defines ff:ff:ff:ff:ff:ff so it can hear broadcasts.
+         * Nothing filters yet, so accepting is honest: everything IS delivered. */
+        if (xmsgdbg())
+            fprintf(stderr, "[XMSG]   DEFINE MULTICAST "
+                            "%02X:%02X:%02X:%02X:%02X:%02X -> EXMATok\n",
+                    body[6], body[7], body[8], body[9], body[10], body[11]);
+        xmsg_queue_status(s, ident, XMSG_EXMATok);
+        break;
+    default:
+        fprintf(stderr, "[XMSG] XFSND carries EXMHDtype %u, which is not "
+                        "attach/detach/multicast - answering XENIM\n", type);
+        *out_T = (uint16_t)XMSG_XENIM;
+        return;
+    }
+
+    /* The message has been consumed. The BUFFER stays allocated: if_et.c:437
+     * writes the multicast request into it with no XFGET in between ("we can
+     * use the Xmsg buffer XFRRE'd from Attach to Server", :422). */
+    s->msg_len = 0;
+    *out_T = (uint16_t)XMSG_XMSUX;
+}
+
+/*
+ * XFRRE / XFRREN - receive a message into a guest buffer.
+ *
+ *   xma(xr, XFRRE|XFWTF, es->es_portno, dton(ei->ei_recv), sizeof(ei_dgram))
+ *   (if_et.c:398) -> A = port, X = buffer word address, D = buffer size.
+ *
+ * On the response etrint() reads (if_et.c:660-670):
+ *   T < 0  an error
+ *   D      the message id, kept as ei_xmid
+ *   X      the RECEIVED LENGTH
+ * and then looks at er_head.EXMHDtype in the buffer itself to tell an
+ * attach/detach status reply from a datagram.
+ *
+ * With nothing to give it the command is PARKED, not answered - see
+ * xmsg_park_receive().
+ *
+ * Returns 1 if a response should be built, 0 if the command was parked.
+ */
+static int xmsg_do_recv(const Nd500XmsgOps* ops, uint16_t subdev,
+                        uint16_t port, uint16_t waddr, uint16_t size,
+                        const uint8_t* centry,
+                        uint16_t* out_T, uint16_t* out_D, uint16_t* out_X) {
+    XmsgSub* s;
+    uint32_t phys;
+    uint16_t i;
+
+    if (subdev >= XMSG_MAX_SUBDEV || g_sub[subdev].port == 0) {
+        *out_T = (uint16_t)XMSG_XENDP;
+        return 1;
+    }
+    s = &g_sub[subdev];
+    if (port != s->port) { *out_T = (uint16_t)XMSG_XENDP; return 1; }
+
+    if (s->reply_len == 0) {
+        /* Nothing has arrived for this port. A real XMSG front end simply does
+         * not complete the request until something does, and that is what is
+         * modelled here: the command is remembered and answered later.
+         *
+         * This is NOT the wedge described in the header. A wedge is an
+         * outstanding request that can never be retired; this one is retired
+         * the moment there is a message, and xgdctl's HAS_RCV flag being set
+         * meanwhile is exactly right - a receive IS outstanding. */
+        if (s->recv_parked)
+            fprintf(stderr, "[XMSG] second receive parked on subdev %u - the "
+                            "first one is being dropped\n", subdev);
+        memcpy(s->recv_cmd, centry, XRING_CMD_SIZE);
+        s->recv_parked = 1;
+        if (xmsgdbg())
+            /* The seq is printed here because a parked command produces no
+             * "cmd seq=..." line of its own, and without it the trace looks
+             * like a command went missing. */
+            fprintf(stderr, "[XMSG]   receive PARKED: seq=%u port %u "
+                            "(buffer word 0x%04X, %u bytes) - nothing to give "
+                            "it yet\n",
+                    nd500_xring_be32(centry + CMD_SEQWORD) >> 1,
+                    port, waddr, size);
+        return 0;
+    }
+
+    if (size < s->reply_len) { *out_T = (uint16_t)XMSG_XEITL; return 1; }
+
+    phys = xmsg_word_to_phys(nd500_xmsg_full_word(subdev, waddr));
+    for (i = 0; i < s->reply_len; i++)
+        ops->pwrite8(ops->ctx, phys + i, s->reply[i]);
+
+    *out_T = (uint16_t)XMSG_XMSUX;
+    *out_X = s->reply_len;      /* the received length, etrint reads it from X */
+    *out_D = g_next_msgid++;    /* the message id, kept as ei_xmid            */
+    if (g_next_msgid == 0) g_next_msgid = 1;
+
+    if (xmsgdbg()) {
+        fprintf(stderr, "[XMSG]   receive %u bytes to word 0x%04X "
+                        "(phys 0x%08X):", s->reply_len, waddr, phys);
+        for (i = 0; i < s->reply_len; i++)
+            fprintf(stderr, " %02X", s->reply[i]);
+        fprintf(stderr, "\n");
+    }
+
+    s->reply_len = 0;
+    /* The received message becomes the current message - that is why if_et.c
+     * can XFWRI the multicast request without an XFGET first (:422, :437). */
+    s->msg_open = 1;
+    if (s->msg_size == 0) s->msg_size = XMSG_MSG_MAX;
+    s->msg_len  = 0;
+    return 1;
+}
+
+/*
+ * XFMST - message status. `xma(xa, XFMST, -1, 0, 0)` (if_et.c:412), and the
+ * driver keeps `es_magno = xa->A << 16 | xa->D` (:417).
+ *
+ * That magic number goes in the `magno` field of every later command packet and
+ * NDIX never looks inside it - it is the server's own handle (spec section 5.1).
+ * So any stable non-zero value works. Handing back 1 in A and the port in D
+ * makes a trace line readable: magno=0x00010001 is "port 1".
+ *
+ * Both halves are kept small deliberately: NDIX combines them with a SIGNED
+ * shift of a `short`, so anything with bit 15 set would sign-extend and the two
+ * halves would smear into each other.
+ */
+static void xmsg_do_mst(uint16_t subdev, uint16_t* out_T,
+                        uint16_t* out_A, uint16_t* out_D) {
+    if (subdev >= XMSG_MAX_SUBDEV || g_sub[subdev].port == 0) {
+        *out_T = (uint16_t)XMSG_XENDP;
+        return;
+    }
+    *out_T = (uint16_t)XMSG_XMSUX;
+    *out_A = 1;
+    *out_D = g_sub[subdev].port;
+}
+
 /* ---- the service loop ---------------------------------------------------- */
 
 int nd500_xmsg_service(Nd500Cpu* cpu) {
@@ -334,6 +634,7 @@ int nd500_xmsg_service_mem(const Nd500XmsgOps* ops) {
         uint16_t func   = nd500_xring_be16(centry + CMD_FUNC);
         uint16_t T = (uint16_t)XMSG_XENIM;   /* default answer: not implemented */
         uint16_t A = 0, D = 0, X = 0;
+        int reply_now = 1;   /* cleared when a receive is parked instead */
 
         switch (func & XMSG_FUNC_MASK) {
         case XMSG_XFOPN:
@@ -356,6 +657,29 @@ int nd500_xmsg_service_mem(const Nd500XmsgOps* ops) {
         case XMSG_XFREL:
             xmsg_do_rel(subdev, &T);
             break;
+        case XMSG_XFSND:
+            /* The port is in X, not D: xma() is (T, A, X, D) and the struct is
+             * T, A, D, X, so if_et.c:393's third argument lands in X. Measured
+             * arriving as func=02014 X=0x0001. */
+            xmsg_do_snd(subdev, func, nd500_xring_be16(centry + CMD_ARG_X), &T);
+            break;
+        case XMSG_XFRRE:
+        case XMSG_XFRREN:
+        case XMSG_XFRRH:
+        case XMSG_XFRCV:
+            /* A = port, X = buffer word address, D = buffer size (if_et.c:398).
+             * All four are what xg.c's is_receive() calls a receive (xg.c:335),
+             * so all four must clear HAS_RCV and not HAS_OTHER - which they do,
+             * because the func is echoed back whole. */
+            reply_now = xmsg_do_recv(ops, subdev,
+                                     nd500_xring_be16(centry + CMD_ARG_A),
+                                     nd500_xring_be16(centry + CMD_ARG_X),
+                                     nd500_xring_be16(centry + CMD_ARG_D),
+                                     centry, &T, &D, &X);
+            break;
+        case XMSG_XFMST:
+            xmsg_do_mst(subdev, &T, &A, &D);
+            break;
         default:
             /* Answered, not ignored. An unanswered command wedges the
              * sub-device for good (see the header); an XENIM answer retires
@@ -363,6 +687,12 @@ int nd500_xmsg_service_mem(const Nd500XmsgOps* ops) {
              * something to print. */
             break;
         }
+
+        /* A parked receive has no answer yet, by design. Keep draining - the
+         * kick only comes on the empty -> non-empty transition, so stopping
+         * here would strand every command behind it. */
+        if (!reply_now)
+            continue;
 
         /* Build the response. seq, subdev and func are echoed VERBATIM from the
          * command - xgintr() picks which outstanding-request flag to clear from
