@@ -85,16 +85,21 @@ void nd500_settings_defaults(Nd500Settings* s) {
     s->show_hex           = 1;
     s->trap_invalid       = 1;
     s->disk_mode = 1;
-    /* This machine's ND system number. 500 is ARBITRARY - nd500x has never had
-     * a system number and nothing in it needs one except the XMSG magic number,
-     * whose high half is the sysno on a real machine (measured: RetroCore's
-     * oracle capture of the real 68K ENCOS firmware shows
-     * XFMST -> A=0x0064 D=0x02AF on a node booted as system 100).
+    /* The ND SYSTEM NUMBER that appears in the high half of the XMSG magic
+     * number (XFMST; measured on RetroCore's oracle capture of the real 68K
+     * ENCOS firmware: XFMST -> A=0x0064 D=0x02AF on a node booted as 100).
      *
-     * Deliberately NOT 100, which is the node in that capture: two machines
-     * claiming one system number on the same segment is the sort of thing that
-     * looks like a network fault for a day. Set ND500X_SYSNO to match whatever
-     * the rest of the emulated site uses. */
+     * WHOSE number is it? The ND-100's. On a real machine the ND-500 is a
+     * subsystem behind an ND-100 and XMSG runs on the ND-100 side - which is
+     * precisely the side nd500x stands in for. So when the two emulators are
+     * eventually run together this must be the ND-100's system number and the
+     * pair share one, rather than the ND-500 having a number of its own.
+     *
+     * Until then there is no ND-100 to ask, so this is an override with a
+     * default. 500 is ARBITRARY and only has to be consistent and unique on
+     * whatever segment the machine joins - deliberately NOT 100, the node in
+     * that capture, because two machines claiming one system number looks like
+     * a network fault for a day. */
     s->sysno = 500;
 }
 

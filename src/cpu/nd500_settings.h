@@ -116,7 +116,7 @@ typedef struct Nd500Settings {
 
     /* ---- Behaviour --------------------------------------------------------- */
     int noxmsg;            /* ND500X_NOXMSG               fail XMSG (generic 7) device init so xgattach gives up cleanly */
-    uint32_t sysno;        /* ND500X_SYSNO                this machine's ND system number. Default 500. Used as the high half of the XMSG magic number (XFMST). */
+    uint32_t sysno;        /* ND500X_SYSNO                ND system number for the high half of the XMSG magic number (XFMST). Properly the ND-100's - the pair share one - so this is an override until there is an ND-100 to ask. Default 500. */
     const char* eth_uplink; /* ND500X_ETH_UPLINK          where et0's frames go. NULL/"none" = dropped; "loop" = echoed back; "listen[:port]" = wait for a peer; "tcp:host[:port]" = dial one */
     int nofeclock;         /* ND500X_NOFECLOCK            suppress the front-end 50 Hz clock */
     int nouserclock;       /* ND500X_NOUSERCLOCK          suppress the user-visible clock tick */
