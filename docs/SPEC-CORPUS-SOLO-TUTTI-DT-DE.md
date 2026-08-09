@@ -57,6 +57,26 @@ Also checked and rejected: `SOLO_0`'s first microword,
 not. The identical idiom appears at `RETT_USTS` (014464) and `MSG_UNIX5RE2`
 (025660), so it is a generic MIC status write, not SOLO's timer.
 
+## The oracle can be RUN, not just read
+
+RetroCore already executes this control store:
+`Nuget/HackerCorpLabs.Emulation.CPU.ND5000/tests/MacroInstructionOracle.cs`
+`RunBoth()` drives one macroinstruction through the loaded microcode AND through
+the functional emulator and diffs them. That is a better authority than my
+reading of the listing, and it is the route asked for in shared-file item 15a.
+
+It cannot answer SOLO today: `tests/MacroOracleState.cs` exposes
+`Zro Sgn Cry Ovfl Pia` but not `Psd`, and `tests/ControlManualCoverageTests.cs:31`
+records that "solo's PSD ... [is] NOT directly" observable. Adding `Psd` the way
+`Pia` is already done makes all four SOLO/TUTTI questions executable, and the
+harness's one-instruction boundary is no obstacle - seeding `Psd=1` IS "a region
+is already open", so the repeat-SOLO case needs no second SOLO.
+
+**If that oracle contradicts anything below, it wins and nd500x changes.** One
+caveat on a null result: the 256-cycle counter is hardware watching the modus
+bit, not microcode, so the oracle can settle what the control store DOES and
+cannot settle what the counter does afterwards.
+
 ## Encoding and bit values
 
 | Item | Value |
