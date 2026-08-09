@@ -447,8 +447,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                  * physical l1_table_base, the write and this read agree; if not, the
                  * kernel's PTE writes are landing on the wrong page - the real root. */
                 {
-                    const char* e = nd500_settings()->ptwdbg;
-                    if (e && e[0] && e[0] != '0') {
+                    if (nd500_settings()->ptwdbg) {
                         uint32_t phys_l1  = nd500_bus_read32(cpu->machine, l1_pte_addr);
                         uint32_t alias_va = 0x10000000u + l1_table_base; /* Physbase(seg2)+X */
                         /* Walk the GUEST seg-2 tables (DIT->PST->ADI) exactly as the
@@ -524,8 +523,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_TRACE)
                     fprintf(stderr, "[MMU] TRAP: PS_ADI L2 page not valid! vaddr=0x%08X l2_pte_addr=0x%08X\n", virtual_addr, l2_pte_addr);
                 {
-                    const char* e = nd500_settings()->ptwdbg;
-                    if (e && e[0] && e[0] != '0') {
+                    if (nd500_settings()->ptwdbg) {
                         fprintf(stderr, "[PTWDBG-L2] seg=%d va=0x%08X psn=%d pst_pfn=0x%X l1_pte@0x%08X=pfn0x%X "
                                 "l2_pte_addr=0x%08X raw=0x%08X\n", segment, virtual_addr, psn,
                                 pst_entry.physical_pfn, l1_pte_addr, l1_pte.physical_pfn, l2_pte_addr,
@@ -562,8 +560,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                  * with ND500X_MMU_GUEST_TABLES these are the GUEST's tables,
                  * so the address identifies whose PTE it is. */
                 {
-                    const char* e = nd500_settings()->ptwdbg;
-                    if (e && e[0] && e[0] != '0') {
+                    if (nd500_settings()->ptwdbg) {
                         fprintf(stderr, "[PTWDBG-RO] seg=%d va=0x%08X psn=%d pst_pfn=0x%X "
                                 "l1_pte@0x%08X=pfn0x%X raw=0x%08X  l2_pte@0x%08X raw=0x%08X pfn=0x%X\n",
                                 segment, virtual_addr, psn, pst_entry.physical_pfn,
