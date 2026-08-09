@@ -213,6 +213,84 @@ Until the corpus is regenerated, nd500x quarantines the single case in
 prints, is not counted as a pass, and the run FAILS if it ever starts passing
 so the entry cannot go stale.
 
+## Three-emulator alignment status (2026-08-09)
+
+There are THREE ND-500 CPU implementations, and the third one has never been
+checked here:
+
+1. **nd500x** - the C functional emulator, this repo.
+2. **RetroCore `CpuND500`** - the C# functional emulator.
+3. **RetroCore `CpuND5000`** - `Nuget/HackerCorpLabs.Emulation.CPU.ND5000/`, which
+   EXECUTES `MICRO-5800-B30.DATA`. When it runs, it is the machine.
+
+| Rule (source: control store + ch.16) | nd500x | `CpuND500` | `CpuND5000` |
+|---|---|---|---|
+| SOLO sets PSD (bit 4) | yes | yes | **cannot run - throws** |
+| TUTTI clears PSD | yes | yes | **cannot run - throws** |
+| Neither instruction is privileged | yes, fixed `ea4ed54` | yes in code (comment wrong) | microcode has no privilege test |
+| Unprivileged repeat SOLO: no immediate DT | yes, fixed `ea4ed54` | **no** - `Solo.cs:52-58` traps | microcode never sets DT anywhere |
+| 256-cycle DT timeout | yes, `cpu.c:1397` | **no** - counter never read | hardware, not microcode |
+| DE alongside the provoking trap | yes, `cpu.c:1266` | **no** - never raised | **yes** - `DEL_TRAP` 012542 |
+| Ignorable traps suppressed inside PSD | yes, `cpu.c:1462` | **no** - PSD never read | dispatch level, not checked |
+
+### Why `CpuND5000` cannot run SOLO or TUTTI today
+
+Both opcodes ARE dispatched - `Generated/DispatchMapB30.g.cs:689-690` maps
+`65024` (0xFE00) to control-store 457 = 711 octal and `65025` (0xFE01) to
+458 = 712 octal, matching the `.LABE` entries. The engine also models
+`MIC,MISTS` (`OperandRouter.cs:158/447`) and `MIC,STS`
+(`OperandRouter.cs:167/460`, `Registers.MicSts`).
+
+**It does not model `SPEC,MOD`.** `OperandRouter.cs:25` states the policy
+outright: "Unimplemented selects (MMS, **SPEC**, IDU, AAP results) throw with the
+mnemonic so real gaps surface." So:
+
+- SOLO executes 004524 and 004525, then throws at **004526** (`A,SPEC,MOD`).
+- TUTTI throws on its **first** microword, 004534 (`A,SPEC,MOD`).
+
+This is the single blocking gap for the whole three-way alignment, and it is the
+same gap that blocks the oracle run asked for in shared-file item 15a. Modelling
+`SPEC,MOD` as a plain 32-bit register on both the A and D sides is enough - the
+modus bit that SOLO/TUTTI touch (BM25 = bit 21) needs storage and readback,
+nothing more. Adding `Psd` to `MacroOracleState` then makes all four SOLO/TUTTI
+questions executable against real microcode.
+
+## Negative cases - use the corpus's own mutation encoding
+
+The corpus already supports negative tests and the runner reports on them
+(3664 present, 100% correctly detected). The fields are
+`isNegativeTest`, `negativeTestType` (`wrong_flag` | `wrong_register` |
+`wrong_memory`) and `expectedValidationFailure`. A negative case carries a
+DELIBERATELY WRONG expectation and PASSES when the runner detects the mismatch.
+
+These encode each bug found in this area as something the corpus itself will
+catch if it ever comes back:
+
+| # | Type | Case | Detects |
+|---|---|---|---|
+| N1 | `wrong_flag` | SOLO, `st` 0 -> claimed final `0x00000000` (PSD missing) | an emulator that never sets PSD - the pre-`8a46aaf` nd500x bug |
+| N2 | `wrong_flag` | **SOLO, `st` `0x00000010` -> claimed final `0x40000010`** (DT set) | **the discriminator as a negative.** Detected only if the emulator does NOT raise DT on a nested SOLO. `CpuND500` fails this today |
+| N3 | `wrong_flag` | TUTTI, `st` `0x00000010` -> claimed final `0x00000010` (PSD still set) | a TUTTI that does not clear the region |
+| N4 | `wrong_flag` | TUTTI, `st` `0x00000010`, PIA clear -> claimed IIC raised | the `tutti_Default` defect, re-expressed so the corpus asserts IIC must NOT happen |
+| N5 | `wrong_flag` | SOLO, `st` `0x000003EE` -> claimed final `0x000003DE` (Z cleared) | "Data status bits: Unaffected" being violated |
+| N6 | `wrong_register` | SOLO -> claimed `pc` = DefaultPC+1 | wrong instruction length |
+| N7 | `wrong_flag` | SOLO, `st` `0x00000002` -> claimed final `0x00000010` (PIA cleared) | PIA being modified, which ch.6.5.4 forbids |
+| N8 | `wrong_flag` | TUTTI, `st` `0x000003FE` -> claimed final `0x000003EE` **plus** O cleared | TUTTI touching condition flags |
+
+## More positive cases - preservation, which is where emulators drift
+
+| # | Name | initial `st` | final `st` | What it pins |
+|---|---|---|---|---|
+| S13 | `Solo_PreservesPendingTrapBits` | `0xC0000000` | `0xC0000010` | SOLO must not clear an already-set DT/DE |
+| S14 | `Tutti_PreservesPendingTrapBits` | `0xC0000010` | `0xC0000000` | nor must TUTTI |
+| S15 | `Solo_PreservesPdIr` | `0x0000000C` | `0x0000001C` | PD (bit 2) and IR (bit 3) untouched |
+| S16 | `Tutti_PreservesPdIr` | `0x0000001C` | `0x0000000C` | same |
+| S17 | `Solo_AllNonTrapStatusSet` | `0x000003EE` | `0x000003FE` | every non-trap status bit survives at once |
+| S18 | `Tutti_AllNonTrapStatusSet` | `0x000003FE` | `0x000003EE` | same, and ONLY bit 4 changes |
+
+`0x000003EE` is PIA, PD, IR, Z, C, S, K, O all set with PSD clear - deliberately
+no trap-condition bits, so these cases cannot accidentally depend on dispatch.
+
 ## Tier 2 - cases the single-instruction corpus CANNOT express
 
 These need a sequence harness: a state, a run of N instructions, then an
