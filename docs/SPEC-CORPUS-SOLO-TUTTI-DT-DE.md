@@ -1,0 +1,195 @@
+# Corpus generator spec: SOLO, TUTTI, DT and DE
+
+**Written 2026-08-09.** For the RetroCore side to implement in
+`Emulated.Tests.ND500/Validation/Generators/`, so both emulators run the same
+cases. nd500x consumes the generated corpus; it does not author it. See
+`docs/ND500-CONFORMANCE-CORPUS-HANDOFF-2026-08-08.md`.
+
+Every expectation below is derived from the ND-5000 control store or the
+printed manual, never from either emulator. Where something could not be
+derived it says so and is NOT given an expected value.
+
+## Sources of authority used
+
+| Source | Path | Used for |
+|---|---|---|
+| ND-5000 control store, symbolic listing | `/mnt/d/ND/5000/Decode/MICRO-5800-B30.LIST` | what SOLO and TUTTI actually do |
+| Microword field definitions | `/mnt/d/ND/5000/Decode/mnemonics.md` | decoding `BM04`, `MIC,STS`, `SPEC,MOD` |
+| ND-500 Reference Manual | `docs/ND-05.009.4 EN ND-500 Reference Manual.md` ch.16.1, 16.2, 6.5.4 | rules and the ST1 bit table |
+
+### What the microcode says, byte for byte
+
+`SOLO_0` at control-store 004524, `TUTTI_0` at 004534:
+
+```
+004527:  ALU,OR    A,BM04 B,SC3  D,MIC,STS      ; SOLO: status := status OR bit4   -> PSD set
+004530:  ALU,AND   A,BM01 B,SC3                 ; SOLO: test bit1 of the OLD status -> PIA
+004531:  ALU,ANDCA ALUF,OR A,BM25 B,SC13 D,SC13 COND,MZRO
+                                                ; SOLO: set/clear modus bit 21 on privilege
+004532:  ALU,A     A,SC13 B,X1   D,SPEC,MOD     ; SOLO: write modus register back
+
+004535:  ALU,ANDCB A,MIC,STS B,SC3 D,MIC,STS    ; TUTTI: status := status AND NOT bit4 (SC3=BM04)
+004536:  ALU,ANDCA A,BM25 B,SC13 D,SPEC,MOD     ; TUTTI: clear modus bit 21 unconditionally
+```
+
+Three things follow, and they are the reason this spec exists:
+
+1. PSD is status **bit 4**; SOLO sets it, TUTTI clears it. Matches the manual's
+   ST1 table (bit 4 "Process switch disable", marked `S` - status, not
+   instruction-modifiable except here).
+2. SOLO branches on **PIA (bit 1) of the status as it was before the OR**, and
+   arms a modus-register bit only for unprivileged code. The privilege
+   distinction is hardware, not an emulator convenience.
+3. **SOLO arms with an OR - a level set. Nothing in the SOLO path resets a
+   counter.** So a second SOLO inside an open region does not restart the
+   timer. Manual ch.16.1's "Disable process switch timeout occurs if
+   unprivileged users attempt to repeat SOLO's" is a *consequence* of the timer
+   continuing to run, not a separate immediate trap.
+
+**Inferred, not proven:** the 256-cycle counter itself is not in the microcode.
+It is hardware watching the modus bit. Point 3 rests on the absence of any
+counter reset in the SOLO path, which is strong but is an argument from
+absence. If a counter reset is later found in the hardware description, cases
+S4 and T9 below are the ones to revisit.
+
+Also checked and rejected: `SOLO_0`'s first microword,
+`ALU,A-1 A,BM10 B,X1 D,MIC,MISTS`, looks like a preset of 255 = 256-1. It is
+not. The identical idiom appears at `RETT_USTS` (014464) and `MSG_UNIX5RE2`
+(025660), so it is a generic MIC status write, not SOLO's timer.
+
+## Encoding and bit values
+
+| Item | Value |
+|---|---|
+| SOLO | hex `0xFE00`, octal 177000B, 0 operands |
+| TUTTI | hex `0xFE01`, octal 177001B, 0 operands |
+| PIA | ST1 bit 1, mask `0x00000002` |
+| PSD | ST1 bit 4, mask `0x00000010` |
+| Z / C / S / K / O | bits 5 / 6 / 7 / 8 / 9, masks `0x20` `0x40` `0x80` `0x100` `0x200` |
+| DT | trap bit 30, mask `0x40000000` - non-ignorable, **After**-class |
+| DE | trap bit 31, mask `0x80000000` - non-ignorable, **After**-class |
+
+Manual 16.1 "Data status bits: **Unaffected**" for SOLO; 16.2 the same for
+TUTTI, and 16.2's "Trap conditions: **None**" - TUTTI carries no
+"Privileged instruction" line, unlike the instructions that do.
+
+---
+
+## Tier 1 - cases that fit the existing single-instruction corpus
+
+Format as usual: set `initial.regs`, execute one instruction, assert
+`final.regs` and the trap condition. `pc` advances by 2 in every case. Unless a
+row says otherwise, **the expected trap set is empty** - that is the assertion,
+not a detail.
+
+| # | Name | initial `st` | final `st` | Trap | What it pins |
+|---|---|---|---|---|---|
+| S1 | `Solo_SetsPsd_Unprivileged` | `0x00000000` | `0x00000010` | none | SOLO sets bit 4 |
+| S2 | `Solo_SetsPsd_Privileged` | `0x00000002` | `0x00000012` | none | privilege does not change the visible effect |
+| S3 | `Solo_LeavesConditionFlagsUnchanged` | `0x000003E0` | `0x000003F0` | none | "Data status bits: Unaffected" - Z,C,S,K,O all survive |
+| S4 | `Solo_Repeat_Unprivileged_NoImmediateTrap` | `0x00000010` | `0x00000010` | **none** | **the discriminator.** A nested SOLO does NOT trap on the spot |
+| S5 | `Solo_Repeat_Privileged_NoTrap` | `0x00000012` | `0x00000012` | none | same, privileged |
+| S6 | `Solo_DoesNotRaiseDtOrDe` | `0x00000000` | `0x00000010` | none | asserts bits 30 and 31 stay clear |
+| S7 | `Tutti_ClearsPsd` | `0x00000010` | `0x00000000` | none | TUTTI clears bit 4 |
+| S8 | `Tutti_WhenPsdClear_NoOp` | `0x00000000` | `0x00000000` | none | idempotent, no trap |
+| S9 | `Tutti_Unprivileged_NoIicTrap` | `0x00000010` | `0x00000000` | **none** | manual 16.2 "Trap conditions: None". TUTTI is not privileged |
+| S10 | `Tutti_LeavesConditionFlagsUnchanged` | `0x000003F0` | `0x000003E0` | none | Z,C,S,K,O survive |
+| S11 | `Solo_PreservesPia` | `0x00000002` | `0x00000012` | none | PIA is not instruction-modifiable |
+| S12 | `Tutti_PreservesPia` | `0x00000012` | `0x00000002` | none | same |
+
+**Known failures these will produce today, which is the point:**
+- **C# fails S4 and S5.** `Instructions/CONTROL/Solo.cs:53-58` raises DT
+  immediately when PSD is already set and PIA is clear. S5 may pass by accident
+  since that path is guarded on `!PIA`; S4 will fail.
+- **nd500x failed S9 until 2026-08-09** - `nd500_instr_Tutti()` opened with
+  `nd500_require_privilege()` while SOLO had no such guard, so unprivileged
+  code could open a region and then be refused the only instruction that closes
+  it. Fixed; see below.
+
+## An existing corpus case is WRONG and must be regenerated
+
+`tutti_Default` (case 36424 of 40088) expects `IllegalInstruction`. It should
+expect no trap. **TUTTI is not a privileged instruction:**
+
+1. The manual marks privileged instructions with an explicit "Privileged
+   instruction" line in the Description - 15.17 CLINIT and 16.13 DMON both have
+   it, **and both still say "Trap Conditions: None"**, so the trap list is not
+   where privilege is recorded. Neither 16.1 SOLO nor 16.2 TUTTI carries that
+   line.
+2. Ch.16.1 presumes unprivileged users execute SOLO: "Unprivileged users are
+   not allowed to run in SOLO for more than 256 cycles." A privileged-only SOLO
+   would make that rule, and the whole DT timeout, dead text.
+3. The ND-5000 control store has no privilege test in `TUTTI_0`
+   (004534-004537). `SOLO_0` does read PIA, but only to decide whether to arm
+   the timeout (004530/004531), never to reject the instruction.
+
+**Where the wrong expectation comes from:**
+`CreateGenericSystemScenario` in
+`Emulated.Tests.ND500/Validation/Generators/ComprehensiveSystemGenerator.cs:805`
+sets `ExpectedTrap = TrapType.IllegalInstruction` with the comment "Privileged
+instructions raise IIC when executed in user mode", for **every** SYSTEM-class
+instruction it falls through to, with `st = 0`. TUTTI was swept in by its
+instruction class, not by anything determined about TUTTI.
+
+Two independent signs the corpus is the wrong side here, not the emulators:
+- RetroCore's own `Instructions/SYSTEM/Tutti.cs` does **not** enforce privilege,
+  so the generator contradicts its own emulator.
+- The generator's own `TrapConditionSpec.cs:621` lists TUTTI's conditions as
+  "DT, DE" - not IIC. Its two halves disagree.
+
+**Action for the generator side:** exclude `tutti` (and check the rest of the
+SYSTEM fall-through list: `pmof dmof rpgu cpgu zpgu rwip cwip zwip rphs wphs
+freeb ddirt int`) from the blanket-privileged catch-all, and drive privilege
+from the manual's "Privileged instruction" line rather than from the class.
+`DMON`/`PMON`/`CLINIT` genuinely are privileged; SOLO and TUTTI are not.
+
+Until the corpus is regenerated, nd500x quarantines the single case in
+`test/test_conformance.c` (`conformance_quarantine[]`). It still runs, still
+prints, is not counted as a pass, and the run FAILS if it ever starts passing
+so the entry cannot go stale.
+
+## Tier 2 - cases the single-instruction corpus CANNOT express
+
+These need a sequence harness: a state, a run of N instructions, then an
+assertion. Do not force them into the corpus format - a case that pre-loads an
+emulator-internal cycle marker would be testing the implementation, not the
+architecture.
+
+| # | Sequence | Expected | What it pins |
+|---|---|---|---|
+| T1 | `PIA=0`; SOLO; 300 filler instructions | DT raised | the timeout exists at all. C# has no timeout |
+| T2 | `PIA=0`; SOLO; 100 filler | **no DT** | negative - well inside the limit |
+| T3 | `PIA=1`; SOLO; 10000 filler | **no DT** | "In privilege mode there is no limitation" |
+| T4 | `PIA=0`; SOLO; 100 filler; TUTTI; 10000 filler | **no DT** | TUTTI disarms (microcode 004536 clears the modus bit unconditionally) |
+| T5 | SOLO; instruction that page-faults | PGF **and** DE both set | "Non-ignorable and fatal traps cause a disable process switch error trap". DE is raised ALONGSIDE, not instead of |
+| T6 | PSD clear; same page-faulting instruction | PGF set, **DE clear** | negative - DE only inside a region |
+| T7 | SOLO; instruction raising an enabled ignorable trap (e.g. IOV with IOV enabled in OTE) | status bit set, **no dispatch**, PC not vectored to THA | ch.6.5.4 "Ignorable trap conditions are ignored in SOLO-TUTTI sequences regardless of enabling of these traps" |
+| T8 | as T7, then TUTTI, then one more instruction | dispatch now occurs | the bits accumulated, they were only held back |
+| T9 | `PIA=0`; SOLO; 200 filler; **SOLO again**; 100 filler | **DT raised** | **the nd500x discriminator.** Total 300 > 256. nd500x currently re-stamps its start marker on every SOLO and will NOT trap |
+| T10 | CPU reset; 300 filler with PSD never set | **no DT** | regression guard for `712ba00` |
+| T11 | DT delivery | resumes at the NEXT instruction | DT is After-class in the ST1 table (`N A`) |
+
+**Known failures:** C# fails T1, T4, T5, T7, T8, T9, T11 - it has no timeout,
+never raises DE, and never reads PSD on the trap path. nd500x fails **T9**.
+
+### One boundary deliberately left without an expected value
+
+Manual ch.6.5.4: "If this bit is set for more than 256 microcycles (including
+the 2 spent in the SOLO instruction)". Ch.16.1 adds that on the ND-5000 the
+unit is macroinstruction cycles, not microcycles. Whether the boundary case is
+256 or 257 or 258 counted instructions therefore depends on how the "+2" maps
+onto macroinstruction cycles, which neither the manual nor the listing settles.
+
+**Do not generate a case at the exact boundary.** T1 and T2 sit at 300 and 100
+so they cannot depend on it. If someone later wants the boundary pinned, the
+experiment is to run an unprivileged SOLO region on real hardware, or find the
+counter in the ND-5000 hardware description - not to copy whichever number an
+emulator currently uses. nd500x uses `> 256` (`SOLO_MAX_CYCLES` in
+`src/cpu/cpu.c`), chosen to err long; that is a choice, not a measurement.
+
+## Filler instruction for Tier 2
+
+Use an instruction with no operands and no side effects on ST1's condition
+bits, so the sequence tests only the timeout. A register-to-register move of a
+register onto itself, or a NOOP if the corpus already has one. It must NOT be
+a branch (BT is a trap condition) and must not fault.

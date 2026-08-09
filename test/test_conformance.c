@@ -190,6 +190,48 @@ static const char* BUGGY_TESTS[] = {
 
 /* Forward declarations */
 static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total, int verbose, int show_details);
+
+/* ---------------------------------------------------------------------------
+ * Quarantined corpus cases
+ *
+ * RetroCore generates this corpus; nd500x only runs it. When a case's EXPECTED
+ * value is itself wrong, nd500x cannot fix it here - the fix has to happen in
+ * the generator and the corpus be regenerated. Until then the case sits in this
+ * table so one known-bad expectation does not mask every other regression.
+ *
+ * The rules this obeys, so it can never become a dumping ground:
+ *   1. An entry needs a reason naming the SOURCE that overrules the corpus -
+ *      the manual or the microcode, never "our emulator disagrees".
+ *   2. The case is still executed and still printed, as QUARANTINED.
+ *   3. If it starts passing, the run FAILS telling you to delete the entry.
+ *      A stale quarantine is a bug too.
+ *   4. It must be reported to the generator side. Both entries below are in
+ *      docs/SPEC-CORPUS-SOLO-TUTTI-DT-DE.md and shared-file item 14.
+ * ------------------------------------------------------------------------- */
+static const struct { const char* name; const char* reason; }
+conformance_quarantine[] = {
+    { "tutti_Default",
+      "TUTTI is not privileged, so it must not raise IIC. The manual marks "
+      "privileged instructions with an explicit 'Privileged instruction' line "
+      "in the Description (15.17 CLINIT, 16.13 DMON); 16.2 TUTTI has none, and "
+      "neither does 16.1 SOLO. Ch.16.1 also presumes unprivileged users run "
+      "SOLO. The ND-5000 control store has no privilege test in TUTTI_0 "
+      "(004534-004537). The expectation comes from CreateGenericSystemScenario "
+      "in ComprehensiveSystemGenerator.cs:805, a catch-all that stamps "
+      "ExpectedTrap=IllegalInstruction on every SYSTEM-class instruction - "
+      "TUTTI was swept in by its class, not by any finding about TUTTI. "
+      "RetroCore's own Tutti.cs does not enforce privilege either, so the "
+      "generator disagrees with its own emulator" },
+    { NULL, NULL }
+};
+
+static const char* conformance_quarantine_reason(const char* name) {
+    if (!name) return NULL;
+    for (int i = 0; conformance_quarantine[i].name; i++)
+        if (strcmp(name, conformance_quarantine[i].name) == 0)
+            return conformance_quarantine[i].reason;
+    return NULL;
+}
 static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value);
 static uint32_t get_register(Nd500Cpu* cpu, const char* name);
 static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_details);
@@ -422,6 +464,8 @@ int main(int argc, char** argv) {
     int passed = 0;
     int failed = 0;
     int skipped = 0;
+    int quarantined = 0;
+    int quarantine_stale = 0;
     int test_num = 0;
     int failures_shown = 0;
 
@@ -470,6 +514,29 @@ int main(int argc, char** argv) {
         /* Determine if we should show details for this test */
         int show_details = continue_on_fail ? (failures_shown < MAX_FAILURE_DETAILS) : 1;
         int result = run_single_test(&machine, test, test_num + 1, total_tests, verbose, show_details);
+
+        /* Quarantine: a case whose EXPECTATION is wrong, reported to the
+         * generator side and not yet regenerated. See conformance_quarantine[]
+         * for the rule this obeys - it never hides a case, and it fails the run
+         * if the case starts passing so the entry cannot go stale. */
+        {
+            cJSON* qn = cJSON_GetObjectItem(test, "name");
+            const char* qname = (qn && cJSON_IsString(qn)) ? qn->valuestring : "";
+            const char* why = conformance_quarantine_reason(qname);
+            if (why) {
+                if (result != 0) {
+                    printf("Test %d/%d: %s ... QUARANTINED (corpus expectation is wrong: %s)\n",
+                           test_num + 1, total_tests, qname, why);
+                    quarantined++;
+                    continue;
+                }
+                printf("Test %d/%d: %s ... QUARANTINE IS STALE - the case now passes, "
+                       "delete its entry in conformance_quarantine[]\n",
+                       test_num + 1, total_tests, qname);
+                quarantine_stale++;
+            }
+        }
+
         if (result == 0) {
             passed++;
         } else {
@@ -502,6 +569,19 @@ int main(int argc, char** argv) {
     printf("Results: %d passed, %d failed, %d skipped (%.1f%% pass rate)\n",
            passed, failed, skipped,
            (passed + failed) > 0 ? (100.0 * passed / (passed + failed)) : 0);
+
+    /* Quarantined cases are NOT counted as passes. Print them every run so a
+     * known-bad expectation stays visible instead of quietly becoming normal. */
+    if (quarantined > 0 || quarantine_stale > 0) {
+        printf("\nQuarantined corpus cases: %d (expectation wrong, awaiting a "
+               "regenerated corpus - see conformance_quarantine[])\n", quarantined);
+        for (int i = 0; conformance_quarantine[i].name; i++)
+            printf("  - %s\n", conformance_quarantine[i].name);
+        if (quarantine_stale > 0)
+            printf("  %d STALE entr%s - the case passes now; delete it from "
+                   "conformance_quarantine[]\n",
+                   quarantine_stale, quarantine_stale == 1 ? "y" : "ies");
+    }
 
     /* Report any unknown JSON elements */
     int total_unknown = unknown_reg_count + unknown_field_count +
@@ -636,7 +716,7 @@ int main(int argc, char** argv) {
     nd500_machine_free(&machine);
     cJSON_Delete(root);
 
-    return failed > 0 ? 1 : 0;
+    return (failed > 0 || quarantine_stale > 0) ? 1 : 0;
 }
 
 /**

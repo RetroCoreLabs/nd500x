@@ -187,35 +187,30 @@
  *   Consult system documentation for specific interrupt behavior.
  *
  * Nested SOLO:
- *   Executing SOLO while already in SOLO mode typically:
- *   - Re-enters SOLO mode (resets the termination condition)
- *   - Extends atomic sequence until next conditional branch
- *   - Not recommended (adds complexity, no benefit)
+ *   Manual ch.16.1: "Disable process switch timeout occurs if unprivileged
+ *   users attempt to repeat SOLO's." A second SOLO inside an open region does
+ *   NOT restart the timeout - see the implementation note at the stamp below,
+ *   which derives that from the ND-5000 control store.
  *
- * Performance Considerations:
- *   - Keep SOLO sequences short (few instructions)
- *   - Long SOLO sequences reduce system responsiveness
- *   - May increase interrupt latency
- *   - Consider TSET for simpler atomic operations
- *   - Scheduler cannot preempt until conditional branch
+ *   This paragraph used to claim the opposite - that a nested SOLO "re-enters
+ *   SOLO mode (resets the termination condition)" and "extends atomic sequence
+ *   until next conditional branch". None of that came from the manual or the
+ *   microcode; it was invented, it contradicted ch.16.1, and the code matched
+ *   the invention rather than the machine. Deleted 2026-08-09.
  *
- * Multi-Processor Considerations:
- *   SOLO only prevents process switching on the current CPU. For
- *   multi-processor synchronization, combine with TSET or other
- *   memory-based locks to ensure atomicity across processors.
+ * Ending a region:
+ *   TUTTI, or the DT timeout. Nothing else. The microcode has no notion of a
+ *   region ending at a branch.
  *
- * Implementation Notes:
- *   In a full implementation, this instruction would:
- *   1. Set an internal CPU flag (SOLO mode active)
- *   2. Disable scheduler preemption for this processor
- *   3. Continue executing instructions normally
- *   4. Monitor for conditional branch instructions
- *   5. Clear SOLO flag when conditional branch encountered
- *   6. Re-enable scheduler preemption
- *
- *   In an emulator without true multi-processing or scheduling,
- *   SOLO may have no practical effect. However, it should still
- *   track the state for accurate emulation and debugging.
+ *   Two more invented paragraphs were deleted here on 2026-08-09, for the same
+ *   reason as the nested-SOLO one above. They said the scheduler "cannot
+ *   preempt until conditional branch", that a full implementation would
+ *   "monitor for conditional branch instructions" and "clear SOLO flag when
+ *   conditional branch encountered", and that in an emulator "SOLO may have no
+ *   practical effect". The first two describe a machine that does not exist -
+ *   ch.16.1 and the control store both end the region at TUTTI - and the third
+ *   stopped being true when the region, the DT timeout and DE were implemented
+ *   in 8a46aaf.
  */
 void nd500_instr_Solo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Validate operand count
@@ -240,12 +235,42 @@ void nd500_instr_Solo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * trap.h T_CMTE1/T_KOTE1 have bits 30 and 31 set) and vectors them
      * (machine/locore.c:689-690), so it was asking for a signal the emulator
      * could not give. */
+    int was_open = (cpu->ST1 & ND500_FLAG_PSD) != 0;
+
     cpu->ST1 |= ND500_FLAG_PSD;
 
     /* Stamp the start so check_solo_timeout() can measure the region. The
      * limit counts MACROINSTRUCTION cycles on the ND-5000 (ch.16.1), which is
-     * what instruction_count holds. */
-    cpu->solo_start_icount = cpu->instruction_count;
+     * what instruction_count holds.
+     *
+     * ONLY on the 0->1 transition. A SOLO executed inside an already-open
+     * region must NOT restart the timer, or unprivileged code could hold the
+     * process switch disabled forever by issuing SOLO every 200 instructions -
+     * exactly what ch.16.1 forbids with "Disable process switch timeout occurs
+     * if unprivileged users attempt to repeat SOLO's".
+     *
+     * That sentence describes a CONSEQUENCE, not a separate check, and the
+     * ND-5000 control store is what settles it. SOLO_0 at 004524 arms the
+     * region by OR-ing a modus-register bit
+     *   004531: ALU,ANDCA ALUF,OR A,BM25 B,SC13 D,SC13 COND,MZRO
+     *   004532: ALU,A A,SC13 B,X1 D,SPEC,MOD
+     * and TUTTI clears that same bit unconditionally at 004536. An OR is a
+     * level set: re-arming an armed bit changes nothing, and there is no
+     * counter reset anywhere in the SOLO path. So the timer runs from the
+     * FIRST SOLO of the region and the repeat trips it.
+     *
+     * INFERRED, not proven: the counter itself is not in the microcode - it is
+     * hardware watching that modus bit - so this rests on the absence of a
+     * reset in the SOLO path rather than on seeing the counter. Strong, but an
+     * argument from absence. Corpus case T9 in
+     * docs/SPEC-CORPUS-SOLO-TUTTI-DT-DE.md is the test that pins it.
+     *
+     * Raising DT immediately on the nested SOLO instead - which is what the
+     * C# side does at Instructions/CONTROL/Solo.cs:53-58 - is a different and
+     * wrong reading: it traps two cycles into a region the manual allows to
+     * run for 256. */
+    if (!was_open)
+        cpu->solo_start_icount = cpu->instruction_count;
 
     {
         static int dbg = -1;

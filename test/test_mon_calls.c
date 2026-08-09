@@ -342,12 +342,22 @@ static void test_mon_113B_clock(void) {
         TEST_FAIL("Month in range 1-12", msg);
     }
 
-    if (year <= 99) {
-        TEST_PASS("Year in range 0-99");
+    /* MON 113B returns the FULL year (e.g. 2026), not the last two digits.
+     * Changed 2026-08-08; this assertion still demanded 0-99 and so failed on
+     * the very fix it was supposed to cover.
+     *
+     * The width is INFERRED, not proven - the manual gives the seventh word
+     * only as "%Year." and states no width. See the note at the write site in
+     * external/ndmonlib/src/handlers/mon_113B_GetCurrentTime.c before changing
+     * this either way. The range below is deliberately loose: it pins "full
+     * year, not two digits", which is the part under test, without asserting a
+     * precision the evidence does not support. */
+    if (year >= 1970 && year <= 2100) {
+        TEST_PASS("Year is a full year (1970-2100)");
     } else {
         char msg[64];
         snprintf(msg, sizeof(msg), "year=%u", year);
-        TEST_FAIL("Year in range 0-99", msg);
+        TEST_FAIL("Year is a full year (1970-2100)", msg);
     }
 
     /* Validate basic units calculation */

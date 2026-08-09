@@ -77,7 +77,7 @@ int main(void) {
     nd500_cpu_init(&cpu, &m);
 
     /* ---- SOLO sets PSD, TUTTI clears it ---------------------------------- */
-    set_privileged(&cpu, 1);          /* SOLO and TUTTI are privileged */
+    set_privileged(&cpu, 1);          /* neither is privileged; see Tutti.c */
     cpu.ST1 &= ~(uint32_t)ND500_FLAG_PSD;
 
     nd500_instr_Solo(&cpu, &fi);
@@ -101,7 +101,7 @@ int main(void) {
 
     /* ---- An UNPRIVILEGED SOLO under the limit does not time out ---------- */
     set_privileged(&cpu, 1);
-    nd500_instr_Solo(&cpu, &fi);              /* SOLO itself is privileged */
+    nd500_instr_Solo(&cpu, &fi);
     set_privileged(&cpu, 0);                  /* the region runs unprivileged */
     cpu.instruction_count += 256;             /* exactly at the limit */
     check_solo_timeout(&cpu, 0x2000u);
@@ -162,6 +162,97 @@ int main(void) {
           "its status bit is still recorded, ready for after TUTTI");
 
     nd500_instr_Tutti(&cpu, &fi);
+
+    /* ---- A REPEATED SOLO must not restart the timer ----------------------
+     * Manual ch.16.1: "Disable process switch timeout occurs if unprivileged
+     * users attempt to repeat SOLO's."
+     *
+     * That sentence describes a consequence, not a separate check, and the
+     * ND-5000 control store is what settles it: SOLO_0 (004524) arms the
+     * region by OR-ing a modus-register bit (004531/004532) and TUTTI clears
+     * that bit unconditionally (004536). An OR is a level set - re-arming an
+     * armed bit changes nothing - and there is NO counter reset anywhere in
+     * the SOLO path. So the timer runs from the FIRST SOLO of the region.
+     *
+     * Until 2026-08-09 Solo.c re-stamped solo_start_icount on every SOLO, so
+     * unprivileged code could hold the process switch disabled forever by
+     * issuing SOLO every 200 instructions. Both halves below matter: the
+     * region must not trap early, and it must still trap at the real deadline.
+     *
+     * This also pins the opposite error. The C# side raises DT immediately on
+     * a nested SOLO (Instructions/CONTROL/Solo.cs:53-58), which would trap two
+     * cycles into a region the manual allows to run for 256 - the first CHECK
+     * here is exactly that negative case. */
+    cpu.ST1 &= ~(uint32_t)(TRAP_DT | TRAP_DE);
+    cpu.ST2 = 0;
+    set_privileged(&cpu, 1);
+    nd500_instr_Solo(&cpu, &fi);              /* region opens here */
+    set_privileged(&cpu, 0);                  /* and runs unprivileged */
+
+    cpu.instruction_count += 200;             /* 200 elapsed - still legal */
+    nd500_instr_Solo(&cpu, &fi);              /* the repeat */
+    check_solo_timeout(&cpu, 0x2000u);
+    CHECK((cpu.ST1 & (uint32_t)TRAP_DT) == 0,
+          "a repeated SOLO does not trap on the spot at 200 cycles");
+    CHECK((cpu.ST1 & ND500_FLAG_PSD) != 0,
+          "and the region is still open after the repeat");
+
+    cpu.instruction_count += 100;             /* 300 total, past 256 */
+    check_solo_timeout(&cpu, 0x2000u);
+    CHECK((cpu.ST1 & (uint32_t)TRAP_DT) != 0,
+          "the repeat did not restart the timer - DT still fires at the "
+          "original deadline");
+
+    /* ---- TUTTI disarms: the next long stretch must not trap --------------
+     * Microcode 004536 clears the modus bit unconditionally. After TUTTI there
+     * is no region, so no amount of elapsed time may raise DT. */
+    cpu.ST1 &= ~(uint32_t)(TRAP_DT | TRAP_DE);
+    cpu.ST2 = 0;
+    set_privileged(&cpu, 1);
+    nd500_instr_Solo(&cpu, &fi);
+    set_privileged(&cpu, 0);
+    cpu.instruction_count += 100;
+    nd500_instr_Tutti(&cpu, &fi);
+    cpu.instruction_count += 100000;
+    check_solo_timeout(&cpu, 0x2000u);
+    CHECK((cpu.ST1 & (uint32_t)TRAP_DT) == 0,
+          "after TUTTI a long stretch does not raise DT");
+
+    /* ---- Neither SOLO nor TUTTI is privileged ----------------------------
+     * The manual marks privileged instructions with an explicit "Privileged
+     * instruction" line in the Description (15.17 CLINIT, 16.13 DMON); 16.1
+     * and 16.2 have no such line. Ch.16.1 also presumes unprivileged users run
+     * SOLO - "Unprivileged users are not allowed to run in SOLO for more than
+     * 256 cycles" - which would be dead text if SOLO were privileged. And the
+     * ND-5000 control store has no privilege test in TUTTI_0 (004534-004537).
+     *
+     * nd500x guarded TUTTI with nd500_require_privilege() until 2026-08-09
+     * while leaving SOLO unguarded, so unprivileged code could open a region
+     * and then be refused the only instruction that closes it. */
+    cpu.ST1 &= ~(uint32_t)(TRAP_DT | TRAP_DE | TRAP_IIC);
+    cpu.ST2 = 0;
+    nd500_trap_clear();
+    set_privileged(&cpu, 0);                  /* unprivileged throughout */
+
+    nd500_instr_Solo(&cpu, &fi);
+    CHECK((cpu.ST1 & ND500_FLAG_PSD) != 0 && (cpu.ST1 & (uint32_t)TRAP_IIC) == 0,
+          "an unprivileged SOLO opens the region and does not raise IIC");
+
+    nd500_instr_Tutti(&cpu, &fi);
+    CHECK((cpu.ST1 & ND500_FLAG_PSD) == 0 && (cpu.ST1 & (uint32_t)TRAP_IIC) == 0,
+          "an unprivileged TUTTI closes it and does not raise IIC");
+
+    /* ---- A CPU coming out of reset is not mid-SOLO -----------------------
+     * Regression guard for 712ba00: nd500_cpu_reset() left instruction_count
+     * and solo_start_icount alone, so a carried-over count against a zero
+     * marker looked exactly like a region that had already overrun. It cost a
+     * real debugging session in the validation harness, which resets the CPU
+     * between cases but shares one process. */
+    nd500_cpu_reset(&cpu);
+    cpu.instruction_count += 300;             /* past 256, but no SOLO ran */
+    check_solo_timeout(&cpu, 0x2000u);
+    CHECK((cpu.ST1 & (uint32_t)TRAP_DT) == 0,
+          "no DT after a reset when no SOLO ever ran");
 
     printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
     nd500_machine_free(&m);
