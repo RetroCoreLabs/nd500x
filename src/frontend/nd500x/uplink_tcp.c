@@ -35,6 +35,22 @@ static int         g_up;             /* handshake done, frames may flow */
  * on the other end must be able to come back without this one restarting. */
 static nd_socket_t g_listen = ND_INVALID_SOCKET;
 
+/* CONNECT mode: who to dial, and when to try again.
+ *
+ * The dial RETRIES, and it has to. Measured the hard way (2026-08-09): two
+ * guests started together, the dialler reached its connect a fraction before
+ * the listener reached its bind, and because the dial was once-and-for-all the
+ * two machines sat on the same wire for two minutes never seeing each other -
+ * with an "et0 is up" on both consoles and nothing to say why. RetroCore's own
+ * backend re-establishes the link in its connection loop; so does this.
+ *
+ * The same path reconnects after a drop, so a peer that reboots comes back. */
+static char     g_host[256];
+static int      g_port;
+static int      g_dial;              /* connect mode: keep trying             */
+static unsigned g_retry_ticks;       /* poll ticks until the next attempt     */
+#define UPLINK_RETRY_TICKS 100       /* poll runs at 50 Hz, so ~2 seconds     */
+
 /* Whatever has arrived and not yet been taken apart. A frame can be split
  * across any number of reads, so this has to survive between polls. */
 static uint8_t  g_in[4 * ETHHUB_MAX_FRAME];
@@ -113,6 +129,78 @@ static void uplink_frame_out(void* ctx, const uint8_t* frame, uint32_t len) {
 static int read_fully(nd_socket_t s, uint8_t* buf, size_t count);
 
 /*
+ * CONNECT mode: try once to reach the relay and shake hands.
+ *
+ * Returns 1 on success. On failure it says nothing at all unless `announce` is
+ * set - this is called every couple of seconds for as long as the relay is
+ * down, and a line per attempt would bury the guest's own output. The first
+ * attempt announces; the retries are silent until one works.
+ */
+static int uplink_dial(int announce) {
+    struct addrinfo hints, *res = NULL, *ai;
+    char portstr[16];
+    uint8_t hello[ETHHUB_HANDSHAKE_LEN], peer[ETHHUB_HANDSHAKE_LEN];
+    uint8_t peer_version = 0;
+    nd_socket_t s = ND_INVALID_SOCKET;
+    int one = 1;
+
+    snprintf(portstr, sizeof portstr, "%d", g_port);
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family   = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(g_host, portstr, &hints, &res) != 0 || !res) {
+        if (announce)
+            fprintf(stderr, "[XMSG] uplink: cannot resolve %s\n", g_host);
+        return 0;
+    }
+    for (ai = res; ai; ai = ai->ai_next) {
+        s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (s == ND_INVALID_SOCKET) continue;
+        if (connect(ND_SOCK_NATIVE(s), ai->ai_addr, (nd_socklen_t)ai->ai_addrlen) == 0)
+            break;
+        nd_socket_close(s);
+        s = ND_INVALID_SOCKET;
+    }
+    freeaddrinfo(res);
+
+    if (s == ND_INVALID_SOCKET) {
+        if (announce)
+            fprintf(stderr, "[XMSG] uplink: nothing answering at %s:%d yet - "
+                            "will keep trying every %u seconds\n",
+                    g_host, g_port, UPLINK_RETRY_TICKS / 50);
+        return 0;
+    }
+
+    /* Nagle off: small, latency-sensitive frames, and the relay does the same
+     * on its side (TcpEthernetRelay.cs:142). */
+    setsockopt(ND_SOCK_NATIVE(s), IPPROTO_TCP, TCP_NODELAY,
+               ND_SOCKOPT(&one), (nd_socklen_t)sizeof one);
+
+    /* Write ours, then read theirs - the order both RetroCore endpoints use, so
+     * neither side waits for the other to speak first. */
+    nd500_ethhub_build_handshake(hello, ETHHUB_VERSION_MEMBER);
+    if (send(ND_SOCK_NATIVE(s), ND_SOCK_BUF(hello), ND_SOCK_LEN(sizeof hello),
+             MSG_NOSIGNAL) != (nd_ssize_t)sizeof hello) {
+        nd_socket_close(s);
+        return 0;
+    }
+    if (!read_fully(s, peer, sizeof peer) ||
+        !nd500_ethhub_check_handshake(peer, &peer_version)) {
+        fprintf(stderr, "[XMSG] uplink: %s:%d answered, but not with a RETH "
+                        "handshake - is that really a relay?\n", g_host, g_port);
+        nd_socket_close(s);
+        return 0;
+    }
+
+    g_sock   = s;
+    g_up     = 1;
+    g_in_len = 0;
+    fprintf(stderr, "[XMSG] uplink: joined the ethernet segment at %s:%d "
+                    "(peer protocol version %u)\n", g_host, g_port, peer_version);
+    return 1;
+}
+
+/*
  * LISTEN mode: is somebody dialling in? Non-blocking - if nobody is there this
  * returns at once and the guest carries on.
  *
@@ -178,6 +266,12 @@ static void uplink_poll(void* ctx, Nd500Cpu* cpu) {
 
     if (!cpu) return;
     if (!g_up && g_listen != ND_INVALID_SOCKET) uplink_accept();
+    if (!g_up && g_dial) {
+        /* Keep trying. The relay may not be up yet, or may have restarted. */
+        if (g_retry_ticks) { g_retry_ticks--; return; }
+        g_retry_ticks = UPLINK_RETRY_TICKS;
+        if (!uplink_dial(0)) return;
+    }
     if (!g_up || g_sock == ND_INVALID_SOCKET) return;
 
     for (;;) {
@@ -252,12 +346,6 @@ int nd500x_uplink_tcp_start(Nd500Cpu* cpu) {
     const char* spec = nd500_settings()->eth_uplink;
     char host[256];
     int port = 0;
-    struct addrinfo hints, *res = NULL, *ai;
-    char portstr[16];
-    uint8_t hello[ETHHUB_HANDSHAKE_LEN];
-    uint8_t peer[ETHHUB_HANDSHAKE_LEN];
-    uint8_t peer_version = 0;
-    int one = 1;
 
     if (!cpu || !spec || !*spec) return 0;
     if (strcmp(spec, "loop") == 0 || strcmp(spec, "none") == 0) return 0;
@@ -318,61 +406,16 @@ int nd500x_uplink_tcp_start(Nd500Cpu* cpu) {
         return -1;
     }
 
-    snprintf(portstr, sizeof portstr, "%d", port);
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(host, portstr, &hints, &res) != 0 || !res) {
-        fprintf(stderr, "[XMSG] uplink: cannot resolve %s\n", host);
-        return -1;
-    }
-
-    for (ai = res; ai; ai = ai->ai_next) {
-        nd_socket_t s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (s == ND_INVALID_SOCKET) continue;
-        if (connect(ND_SOCK_NATIVE(s), ai->ai_addr, (nd_socklen_t)ai->ai_addrlen) == 0) {
-            g_sock = s;
-            break;
-        }
-        nd_socket_close(s);
-    }
-    freeaddrinfo(res);
-
-    if (g_sock == ND_INVALID_SOCKET) {
-        /* Not fatal, and deliberately so - see the header. */
-        fprintf(stderr, "[XMSG] uplink: no relay answered at %s:%d. et0 will "
-                        "come up with nothing on the other end.\n", host, port);
-        return -1;
-    }
-
-    /* Nagle off: these are small, latency-sensitive frames, and the relay does
-     * the same on its side (TcpEthernetRelay.cs:142). */
-    setsockopt(ND_SOCK_NATIVE(g_sock), IPPROTO_TCP, TCP_NODELAY,
-               ND_SOCKOPT(&one), (nd_socklen_t)sizeof one);
-
-    /* Write our hello, then read theirs - the order both RetroCore endpoints
-     * use (TcpEthernetBackend.cs, TcpEthernetRelay.cs:145-146), so neither side
-     * waits for the other to speak first. */
-    nd500_ethhub_build_handshake(hello, ETHHUB_VERSION_MEMBER);
-    if (send(ND_SOCK_NATIVE(g_sock), ND_SOCK_BUF(hello),
-             ND_SOCK_LEN(sizeof hello), MSG_NOSIGNAL) != (nd_ssize_t)sizeof hello) {
-        uplink_close("handshake could not be sent");
-        return -1;
-    }
-    if (!read_fully(g_sock, peer, sizeof peer) ||
-        !nd500_ethhub_check_handshake(peer, &peer_version)) {
-        fprintf(stderr, "[XMSG] uplink: %s:%d answered, but not with a RETH "
-                        "handshake - is that really a relay?\n", host, port);
-        uplink_close("bad handshake");
-        return -1;
-    }
-
-    g_up     = 1;
-    g_in_len = 0;
+    /* Remember where, register, and try once. Whether that first try succeeds
+     * or not, the poll keeps trying - so the two ends can be started in either
+     * order, and a relay that restarts is picked up again. */
+    snprintf(g_host, sizeof g_host, "%s", host);
+    g_port = port;
+    g_dial = 1;
     g_tx = g_rx = 0;
+    g_retry_ticks = UPLINK_RETRY_TICKS;
     nd500_xmsg_set_uplink(uplink_frame_out, NULL);
     nd500_xmsg_set_uplink_poll(uplink_poll, NULL);
-    fprintf(stderr, "[XMSG] uplink: joined the ethernet segment at %s:%d "
-                    "(peer protocol version %u)\n", host, port, peer_version);
-    return 1;
+
+    return uplink_dial(1) ? 1 : -1;
 }
