@@ -22,6 +22,7 @@
 #include "../../debugger/commands.h"
 #include "../../machine/machine_protos.h"
 #include "../../machine/machine_types.h"
+#include "../../machine/nd500_ndix_boot.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -258,130 +259,23 @@ int nd500x_ndix_setup(const char* image, const char* kernel, const char* root_op
 /* ---------------------------------------------------------- auto boot ------ */
 int nd500x_ndix_autoboot_needed(void) { return g_auto_boot; }
 
-/* Put the kernel a.out into physical memory in the layout the PSEG/DSEG files
- * would have produced: text at 0, data at <dseg_load>, bss zeroed after it.
+/* Boot the kernel.
  *
- * The debugger's own `load` is NOT enough here. It places data immediately
- * after text at a_text (0x41A8C for the shipped kernel), while load-dseg places
- * it at the next 2 KB page (0x42000) - and 0x42000 is the address map-kdata is
- * given and the address the kernel's own data references were linked against.
- * The two differ by 1396 bytes, so relying on `load` alone would shift every
- * kernel datum. `load` is still issued before this, for the entry PC and the
- * symbols; this then overwrites what it put down with the right placement. */
-static int place_aout_segments(struct Nd500Machine* m, const char* path,
-                               unsigned long dseg_load,
-                               unsigned long pseg_size, unsigned long dseg_size) {
-    unsigned char hdr[32];
-    uint32_t a_text, a_data, a_bss;
-    unsigned char* buf;
-    FILE* f;
-    unsigned long i;
-
-    f = fopen(path, "rb");
-    if (!f || fread(hdr, 1, sizeof hdr, f) != sizeof hdr) {
-        if (f) fclose(f);
-        fprintf(stderr, "error: cannot read %s\n", path);
-        return -1;
-    }
-    a_text = ((uint32_t)hdr[4]  << 24) | ((uint32_t)hdr[5]  << 16)
-           | ((uint32_t)hdr[6]  << 8)  |  (uint32_t)hdr[7];
-    a_data = ((uint32_t)hdr[8]  << 24) | ((uint32_t)hdr[9]  << 16)
-           | ((uint32_t)hdr[10] << 8)  |  (uint32_t)hdr[11];
-    a_bss  = ((uint32_t)hdr[12] << 24) | ((uint32_t)hdr[13] << 16)
-           | ((uint32_t)hdr[14] << 8)  |  (uint32_t)hdr[15];
-
-    /* IMAGIC/OMAGIC keep text immediately after the 32-byte header
-     * (pcc-nd500 src/include/nd500/a.out.h, N_TXTOFF). */
-    buf = (unsigned char*)malloc((size_t)a_text + a_data);
-    if (!buf) { fclose(f); fprintf(stderr, "error: out of memory reading %s\n", path); return -1; }
-    if (fread(buf, 1, (size_t)a_text + a_data, f) != (size_t)a_text + a_data) {
-        fclose(f); free(buf);
-        fprintf(stderr, "error: %s is shorter than its header claims\n", path);
-        return -1;
-    }
-    fclose(f);
-
-    /* Check against the PADDED size, since that is what actually gets written. */
-    if (dseg_load + dseg_size > m->memory_size) {
-        free(buf);
-        fprintf(stderr, "error: kernel needs 0x%lX bytes, machine has 0x%X\n",
-                dseg_load + dseg_size, m->memory_size);
-        return -1;
-    }
-
-    for (i = 0; i < a_text; i++)
-        nd500_bus_write8(m, (uint32_t)i, buf[i]);
-    /* splitseg pads .pseg with ZEROS from a_text up to the 2 KB page boundary,
-     * and the load-pseg path therefore writes those zeros too. We must match it,
-     * because the debugger's `load` ran a moment ago and placed the DATA image at
-     * a_text (0x41A8C) instead of at the next page (0x42000) - see the comment
-     * above. That leaves 1396 bytes of stray data bytes sitting in the text tail
-     * which the .pseg path has as zeros.
-     *
-     * Not cosmetic: those bytes were being read as if they were text, and the
-     * boot died dereferencing 0x2025640A - the ASCII of the format string " %d\n"
-     * - before reaching login. Zeroing the tail is what makes the from-image boot
-     * behave identically to the .pseg/.dseg boot. */
-    for (i = a_text; i < pseg_size; i++)
-        nd500_bus_write8(m, (uint32_t)i, 0);
-    for (i = 0; i < a_data; i++)
-        nd500_bus_write8(m, (uint32_t)(dseg_load + i), buf[a_text + i]);
-    /* bss must be zero: guest RAM is only cleared at power-on, and the kernel
-     * assumes a zeroed bss the way every C program does. The loop runs to
-     * dseg_size, not a_data+a_bss, for the same reason as the text tail above:
-     * .dseg is padded to a page and map-kdata is handed the padded size. */
-    for (i = a_data; i < dseg_size; i++)
-        nd500_bus_write8(m, (uint32_t)(dseg_load + i), 0);
-
-    free(buf);
-
-    /* THE separate-I&D data base. This is what load-dseg does after writing the
-     * file (commands.c, "Separate I&D de-aliasing for the PSEG/DSEG load path")
-     * and it is NOT optional: a.out magic 0411 means the kernel's data lives in
-     * D-space at [0, a_data+a_bss), so a segment-0 data read of virtual V must
-     * resolve to data_base + V. The debugger's `load`, issued just before us,
-     * sets this base to a_text (0x41A8C) because that is where IT put the data.
-     * We move the data to the next page (0x42000), so the base has to move with
-     * it - otherwise every kernel data read is 1396 bytes low.
-     *
-     * Measured before this call existed: at _feinit+0x08 the kernel executed
-     * `w1 := $114728` and got 0x2025640A (the ASCII of " %d\n" at 0x5DAB4)
-     * instead of 0x0003DF00 at 0x5E028 - exactly 1396 bytes adrift - and the
-     * boot then died on a page fault at PC=0x3613E. The bytes in memory were
-     * correct all along; only this base was wrong. */
-    ndlib_aout_set_data_base((uint32_t)dseg_load);
-
-    /* Claim both extents, exactly as the load-pseg / load-dseg commands do via
-     * reserve_loaded_image() (src/debugger/commands.c). Without this the page
-     * allocator does not know the kernel image is there and can hand the same
-     * frames to a domain demand-mapped later. This was the ONLY thing the
-     * load-pseg/load-dseg path did that placing the a.out by hand did not, and
-     * leaving it out is what made the boot-from-image path die where the
-     * .pseg/.dseg path booted. */
-    if (nd500_phys_reserve(m, 0, (uint32_t)pseg_size) != 0)
-        fprintf(stderr, "warning: kernel text at 0x0 overlaps memory a loaded domain owns\n");
-    if (nd500_phys_reserve(m, (uint32_t)dseg_load, (uint32_t)dseg_size) != 0)
-        fprintf(stderr, "warning: kernel data at 0x%08lX overlaps memory a loaded domain owns\n",
-                dseg_load);
-
-    fprintf(stderr, "[ndix] placed a.out: text 0x0..0x%X (zero-padded to 0x%08lX), "
-                    "data 0x%08lX..0x%08lX, bss+pad zeroed to 0x%08lX\n",
-            a_text, pseg_size, dseg_load, dseg_load + a_data,
-            dseg_load + dseg_size);
-    return 0;
-}
-
-/* Boot the kernel without an .init file.
+ * This used to be ~200 lines that wrote debugger COMMAND STRINGS ("mmusetup",
+ * "map-kdata 0x%08lX 0x%08lX", "set THA 0x%08lX", ...) and handed them to
+ * nd500_cmd_execute(). All of it now lives in src/machine/nd500_ndix_boot.c as
+ * plain C functions, so a caller with no debugger and no main() - the wasm
+ * build - can boot NDIX too.
  *
- * Everything the old vmunix.init hand-wrote is derived from the files here, so a
- * rebuilt kernel cannot silently desync:
- *   - the .pseg / .dseg paths come from the --kernel path
- *   - the .dseg load address is the .pseg size rounded to a 2 KB page
- *   - map-kdata gets that same address and the real .dseg size
- * (verified against the shipped kernel: pseg 0x42000, dseg 0x3E800, matching the
- * 0x42000 / 0x3E800 constants the init file carried by hand).
+ * What stayed here is the part that genuinely belongs to a command-line
+ * frontend: which files to boot from. g_auto_kernel came from --kernel, from
+ * ND500X_KERNEL, or out of the disk image itself; the .pseg/.dseg beside it are
+ * used when they exist and derived from the a.out header when they do not.
  *
- * THA/CTE1/CTE2/CAD stand in for what SINTRAN's context load would have set. */
+ * The `run` callback is kept in the signature and no longer used for the boot
+ * steps. It is still how the caller's own debugger context reaches this
+ * function, and removing it would churn nd500x.c for no gain today.
+ */
 int nd500x_ndix_autoboot(struct Nd500Machine* m,
                          int (*run)(struct Nd500Machine*, const char*, void*),
                          void* ctx) {
@@ -389,128 +283,32 @@ int nd500x_ndix_autoboot(struct Nd500Machine* m,
      * which is what gcc's -Wformat-truncation was pointing at. A path that long
      * cannot exist anyway, but sizing the buffer for it is cheaper than an
      * argument about whether snprintf's truncation would matter. */
-    char pseg[PATH_MAX + 8], dseg[PATH_MAX + 8], cmd[PATH_MAX + 64];
+    char pseg[PATH_MAX + 8], dseg[PATH_MAX + 8];
     struct stat sp, sd;
-    unsigned long pseg_size, dseg_load, dseg_size;
-    int have_seg_files;
+    Nd500NdixBoot cfg;
+
+    (void)run;
+    (void)ctx;
 
     snprintf(pseg, sizeof pseg, "%s.pseg", g_auto_kernel);
     snprintf(dseg, sizeof dseg, "%s.dseg", g_auto_kernel);
-    have_seg_files = (stat(pseg, &sp) == 0 && stat(dseg, &sd) == 0);
 
-    if (have_seg_files) {
-        pseg_size = (unsigned long)sp.st_size;
-        dseg_size = (unsigned long)sd.st_size;
-    } else {
-        /* No .pseg/.dseg beside the kernel - derive both from the a.out itself.
-         * splitseg produces nothing the header does not already say: pseg is
-         * a_text rounded up to a 2 KB page, dseg is a_data + a_bss rounded the
-         * same way. Checked against the shipped kernel, whose header reads
-         * a_text=0x41A8C a_data=0x1CB20 a_bss=0x21540: that gives 270336 and
-         * 256000, byte-for-byte the sizes of vmunix.pseg and vmunix.dseg.
-         *
-         * This is what lets the kernel come out of the disk image, where only
-         * the a.out exists and there are no segment files to sit beside it. */
-        uint32_t a_text, a_data, a_bss;
-        unsigned char hdr[32];
-        FILE* kf = fopen(g_auto_kernel, "rb");
-        if (!kf || fread(hdr, 1, sizeof hdr, kf) != sizeof hdr) {
-            if (kf) fclose(kf);
-            fprintf(stderr, "error: cannot read the a.out header of %s\n", g_auto_kernel);
-            return -1;
-        }
-        fclose(kf);
-        /* Big-endian, per pcc-nd500 src/include/nd500/a.out.h: a_magic@0,
-         * a_text@4, a_data@8, a_bss@12. */
-        a_text = ((uint32_t)hdr[4]  << 24) | ((uint32_t)hdr[5]  << 16)
-               | ((uint32_t)hdr[6]  << 8)  |  (uint32_t)hdr[7];
-        a_data = ((uint32_t)hdr[8]  << 24) | ((uint32_t)hdr[9]  << 16)
-               | ((uint32_t)hdr[10] << 8)  |  (uint32_t)hdr[11];
-        a_bss  = ((uint32_t)hdr[12] << 24) | ((uint32_t)hdr[13] << 16)
-               | ((uint32_t)hdr[14] << 8)  |  (uint32_t)hdr[15];
-        if (a_text == 0) {
-            fprintf(stderr, "error: %s has no text segment - not an NDIX kernel\n",
-                    g_auto_kernel);
-            return -1;
-        }
-        pseg_size = ((unsigned long)a_text + 0x7FFUL) & ~0x7FFUL;
-        dseg_size = (((unsigned long)a_data + a_bss) + 0x7FFUL) & ~0x7FFUL;
-        fprintf(stderr, "[ndix] segments derived from the a.out: text=%u data=%u bss=%u\n",
-                a_text, a_data, a_bss);
+    memset(&cfg, 0, sizeof cfg);
+    cfg.kernel_path = g_auto_kernel;
+    /* Only offer the segment files when BOTH are really there. The library
+     * treats a missing pair as "derive everything from the a.out", which is the
+     * path a kernel extracted from the disk image takes - there are no segment
+     * files inside the image to sit beside it. */
+    if (stat(pseg, &sp) == 0 && stat(dseg, &sd) == 0) {
+        cfg.pseg_path = pseg;
+        cfg.dseg_path = dseg;
     }
+    /* The u-area step is NOT done here: nd500x.c does it on BOTH boot routes,
+     * because the <kernel>.init route needs it just as much and never comes
+     * through this function. */
+    cfg.with_uarea = 0;
 
-    /* .dseg follows .pseg, page-aligned (NBPG = 2048). */
-    dseg_load = (pseg_size + 0x7FFUL) & ~0x7FFUL;
-
-    fprintf(stderr, "[ndix] auto-boot: pseg=%lu dseg=%lu -> dseg@0x%08lX kdata 0x%08lX+0x%lX\n",
-            pseg_size, dseg_size, dseg_load, dseg_load, dseg_size);
-
-    /* `load` first: it reads the a.out and SETS THE ENTRY PC from the header.
-     * The normal path gets this because the debugger's `load` auto-sources
-     * <name>.init AFTER loading; here there is no .init, so we issue the same
-     * load and then do by hand what that .init would have done. Without this the
-     * machine starts at PC=0 and immediately stops on an invalid instruction. */
-    {
-        char kbase[PATH_MAX];
-        snprintf(kbase, sizeof kbase, "%s", g_auto_kernel);
-        snprintf(cmd, sizeof cmd, "load %s", basename(kbase));
-        run(m, cmd, ctx);
-    }
-
-    run(m, "mmusetup", ctx);
-    if (have_seg_files) {
-        snprintf(cmd, sizeof cmd, "load-pseg %s 0x00000000", pseg);          run(m, cmd, ctx);
-        snprintf(cmd, sizeof cmd, "load-dseg %s 0x%08lX", dseg, dseg_load);  run(m, cmd, ctx);
-    } else if (place_aout_segments(m, g_auto_kernel, dseg_load,
-                                   pseg_size, dseg_size) != 0) {
-        return -1;
-    }
-    snprintf(cmd, sizeof cmd, "map-kdata 0x%08lX 0x%08lX", dseg_load, dseg_size);
-    run(m, cmd, ctx);
-    /* THA = _u + U_CXB0, NOT _u + _Ktrap.
-     *
-     * The runtime trap vector is set LIVE by the kernel's __resume
-     * (machine/locore.c:964-966): tha := _u + U_CXB0 + traplev*496, and
-     * U_CXB0 = 1852 = 0x73C (machine/locore.h:66). At traplev 0 that is
-     * 0xE800073C. The static _Ktrap = _u+0x736 (locore.c:183), which
-     * kpcbinit stores in pcb_tha, is 6 bytes LOWER and is not 4-byte aligned;
-     * cpu.c:942-949 already documents that it yields a misaligned vector.
-     *
-     * Measured: with 0xE8000736 a trap 38 reads its slot at 0xE80007CE, so the
-     * big-endian word straddles THA[36]=0x00000365 and THA[37]=0x00000373 and
-     * returns 0x03650000 - a garbage handler address. With 0xE800073C the same
-     * slot is 0xE80007D4 and holds the real page-fault handler 0x00000381.
-     *
-     * This bootstrap value only matters for a trap raised in domain 0 before
-     * the first __resume/domain switch, since a switch reloads THA. A healthy
-     * boot never traps that early, which is why the wrong value went unnoticed;
-     * a memory-starved boot does, and died here.
-     *
-     * _u is looked up in the kernel's own symbol table rather than assumed, so a
-     * kernel that moves its u-area still gets a correct vector. The `load` above
-     * has already read the symbols. U_CXB0 stays a literal because it is a
-     * compile-time struct offset (machine/locore.h:66), not a linker symbol -
-     * there is nothing in the a.out to read it from. If the lookup fails we fall
-     * back to the measured value rather than booting with THA unset. */
-    {
-        uint32_t u_addr = 0;
-        unsigned long tha = 0xE800073CUL;
-        if (ndlib_symbols_lookup("_u", &u_addr, NULL) == 0 && u_addr != 0) {
-            tha = (unsigned long)u_addr + 0x73CUL;   /* U_CXB0 = 1852 */
-            if (tha != 0xE800073CUL)
-                fprintf(stderr, "[ndix] THA derived from _u=0x%08X -> 0x%08lX\n",
-                        u_addr, tha);
-        } else {
-            fprintf(stderr, "[ndix] warning: symbol _u not found, "
-                            "using THA 0x%08lX\n", tha);
-        }
-        snprintf(cmd, sizeof cmd, "set THA 0x%08lX", tha);
-        run(m, cmd, ctx);
-    }
-    run(m, "set CTE1 0xF413D800", ctx);
-    run(m, "set CTE2 0x0000005F", ctx);
-    run(m, "set CAD 1", ctx);
-    return 0;
+    return nd500_ndix_boot(m, &cfg);
 }
 
 /* ------------------------------------------------------------- shutdown -- */

@@ -17,6 +17,7 @@
 #include "../../debugger/commands.h"
 #include "nd500x_shell.h"
 #include "nd500x_ndix.h"
+#include "../../machine/nd500_ndix_boot.h"
 #include "ndix_ffs.h"   /* --extract reads a file straight out of the image */
 /* nd500_fecall_local_unit() - which guest tty this window is attached to, so
  * the telnet server can be told not to offer that one. */
@@ -738,7 +739,10 @@ int main(int argc, char** argv) {
 			 * this just as much. Runs after either route has set PSTP and
 			 * loaded the image, and before the guest first touches
 			 * 0xE8000000. */
-			nd500_cmd_execute(&machine, "ndix-uarea", &bctx);
+			/* The library function, not the debugger command: the work is
+			 * the same one implementation, and this way the step does not
+			 * need a command table to exist. 0/0 = the default addresses. */
+			nd500_ndix_uarea(&machine, 0, 0);
 			printf("[ndix] run\n");
 			nd500_cmd_execute(&machine, "run", &bctx);
 		}

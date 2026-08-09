@@ -7,6 +7,7 @@
 #include "debugger.h"
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
+#include "../machine/nd500_ndix_boot.h"
 #include "../ndlib/ndlib.h"
 #include "../cpu/cpu_protos.h"
 #include "../cpu/nd500_mmu.h"
@@ -2839,127 +2840,46 @@ static int cmd_phyladr(Nd500Machine* m, CmdContext* ctx, char* args) {
 	return 0;
 }
 
-/* Write a big-endian halfword to an ND-500 virtual address through the DATA
- * MMU, mirroring mon_write_halfword_cb (src/cpu/nd500_indirect.c). Passing
- * is_write=1 makes a cap-0 segment demand-allocate exactly as a kernel data
- * write would, so segment 6 gets backed and the bytes are visible to BOTH the
- * kernel and the MON handlers (which translate through the same MMU). */
-static void sintran_write_halfword(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) {
-	uint32_t phys = vaddr;
-	if (cpu->machine && cpu->machine->mmu_enabled)
-		phys = nd500_mmu_translate(cpu, vaddr, 1, 0);  /* is_write, data */
-	nd500_bus_write8(cpu->machine, phys,     (uint8_t)(val >> 8));  /* BE hi byte */
-	nd500_bus_write8(cpu->machine, phys + 1, (uint8_t)val);         /* BE lo byte */
+/* ---- bridging the library's boot log back into the debugger --------------
+ *
+ * src/machine/nd500_ndix_boot.c has two log channels (see its header): NOTICE,
+ * which always printed with printf, and VERBOSE, which is the running
+ * commentary the command bodies used to send to output(). Binding them per
+ * command keeps both behaviours exactly as they were:
+ *   - typed at the debugger prompt, everything appears
+ *   - on the --ndix boot path, where the frontend passes a bare CmdContext,
+ *     output() goes nowhere and only the NOTICE lines survive
+ * which is the difference between a readable boot log and a screenful of PST
+ * tables in the middle of it. */
+static void ndix_log_sink(void* ctx, const char* line) {
+	output((CmdContext*)ctx, "%s", line);
 }
 
-/* SINTRAN shared-memory init: Xmsg ring-buffer descriptors (segment 6).
- *
- * On real hardware SINTRAN (the ND-100 side) sets up the ND-100<->ND-500
- * shared segment before the NDIX kernel runs. The kernel's R_init()
- * (if/xg.c:399) REQUIRES the two ring-buffer headers to be pre-initialized and
- * panics ("Xmsg command/response buffer not initialized") otherwise:
- *
- *   xmsg_cmd_buf  @ 0x30000000 : p=0, k=0, mp=NXMSGCMD  (102)
- *   xmsg_resp_buf @ 0x30000800 : p=0, k=0, mp=NXMSGRESP (113)
- *
- * p (offset 0) and k (offset 2) are already 0 because segment 6 is
- * demand-allocated zeroed, so only the mp field (offset 4, a big-endian short)
- * needs writing. Addresses AND values were verified by disassembling _R_init at
- * 0x3EF42: "h comp2 $0x30000004,#102" and "h comp2 $0x30000804,#113". Note the
- * response struct is UNPADDED on the ND-500 compiler, so
- * NXMSGRESP=(0x800-6)/sizeof(xmsg_resp=18)=113 (NOT 102 - the command struct is
- * 20 bytes -> 102). These match the RetroCore NDSharedMemory reference
- * (XMSG_CMD_BUFFER=0x30000000, XMSG_RESP_BUFFER=0x30000800). */
-static void sintran_init_xmsg_ringbuffers(Nd500Cpu* cpu) {
-	sintran_write_halfword(cpu, 0x30000004u, 102);  /* xmsg_cmd_buf.mp  = NXMSGCMD  */
-	sintran_write_halfword(cpu, 0x30000804u, 113);  /* xmsg_resp_buf.mp = NXMSGRESP */
+/* The library keeps the sink pointers, so a CmdContext living on this
+ * command's stack MUST be handed back before the command returns - otherwise
+ * the next boot step from anywhere else writes through a dangling pointer.
+ * Passing NULL restores the library's own defaults (notices to stdout, verbose
+ * discarded); it does not silence anything permanently. */
+static void ndix_log_bind(CmdContext* ctx) {
+	nd500_ndix_set_verbose_log(ndix_log_sink, ctx);
+	nd500_ndix_set_notice_log(ndix_log_sink, ctx);
 }
 
-/* Write a big-endian 32-bit word to an ND-500 virtual address through the DATA
- * MMU (same demand-alloc path as sintran_write_halfword). */
-static void sintran_write_word(Nd500Cpu* cpu, uint32_t vaddr, uint32_t val) {
-	sintran_write_halfword(cpu, vaddr,     (uint16_t)(val >> 16));
-	sintran_write_halfword(cpu, vaddr + 2, (uint16_t)val);
-}
-
-/* SINTRAN shared-memory init: the IPL (Interrupt Priority Level) record,
- * struct ipl_rec, at the fixed shared-segment address _iplrec = 0x30001000
- * (locore.c:116). Layout (icb.h:31, offsets in bytes):
- *   ip_next   @0 (long)  : outstanding-interrupt descriptor, ND-100 word addr;
- *                          -1 (0xFFFFFFFF) means "none pending"
- *   ip_current@4 (short) : current IPL
- *   ip_mask   @6 (short) : IPL mask
- *   ip_lock   @8 (short) : spinlock byte
- *
- * On real hardware SINTRAN owns this record and queues interrupt descriptors
- * into ip_next; when idle it holds -1. The NDIX kernel never initializes it
- * (machdep.c:834 only does `iplp = &iplrec`); _splx and _intvec (locore.c:1413,
- * 791) only READ ip_next, short-circuiting on -1. Segment 6 is demand-allocated
- * ZEROED, so ip_next=0, which _splx treats as a real descriptor pointer:
- *   r3 = ip_next<<1 - shseg + sharebase = 0 - 0x30000800 + 0x30000000 = -0x800
- *   deref [r3+4] = 0xFFFFF804  -> PS_AZI page fault (verified: exact fault addr).
- * ip_current/ip_mask/ip_lock are correctly 0 from the demand-zero, so only
- * ip_next needs the -1 sentinel. (shseg = htob(sharedseg)+NBPG = 0x30000800.) */
-static void sintran_init_iplrec(Nd500Cpu* cpu) {
-	sintran_write_word(cpu, 0x30001000u, 0xFFFFFFFFu);  /* iplrec.ip_next = -1 (none) */
-}
-
-/* Map domain-0 logical segment `seg` to a contiguous physical region
- * [phys_base, phys_base + npages*2048) via a PS_ASI page table at pt_phys, using
- * PST index `psn`, as a writable data segment. Used to make _Pst/_pcbtab reach
- * the physical PST/DIT the emulator MMU reads. Page-table entries and the PST
- * entry are written in the hardware pte.h format (pg_pfnum@[29:0]). */
-static void sintran_map_segment_to_phys(Nd500Machine* m, int seg, uint32_t phys_base,
-                                        uint32_t npages, uint32_t psn, uint32_t pt_phys) {
-	for (uint32_t i = 0; i < npages; i++) {
-		uint32_t pfn = (phys_base >> PGSHIFT) + i;      /* prot 0 = read/write */
-		uint32_t pte = pfn & 0x3FFFFFFFu;
-		uint32_t a = pt_phys + i * 4u;
-		nd500_bus_write8(m, a,   (uint8_t)(pte >> 24));
-		nd500_bus_write8(m, a+1, (uint8_t)(pte >> 16));
-		nd500_bus_write8(m, a+2, (uint8_t)(pte >> 8));
-		nd500_bus_write8(m, a+3, (uint8_t)pte);
-	}
-	nd500_mmu_set_pst_entry(m->cpu, (int)psn, PS_ASI, pt_phys >> PGSHIFT);
-	nd500_mmu_set_data_capability(m->cpu, 0, seg, (uint16_t)(psn | DC_WRP));
+static void ndix_log_release(void) {
+	nd500_ndix_set_verbose_log(NULL, NULL);
+	nd500_ndix_set_notice_log(NULL, NULL);
 }
 
 /*
  * map-kdata <phys_base> <size_bytes> [psn] [pt_phys]
  *
- * Describe the kernel's OWN data segment (domain 0, segment 0) in the GUEST
- * page tables, so the kernel's software checks can see it.
- *
- * Why this is needed: nothing in NDIX ever writes pcbtab[KDOM].pcb_dc[DC_KDATA].
- * On real hardware the ND-100/SINTRAN context load installs the kernel domain's
- * own segment capabilities before the ND-500 kernel starts - the same class of
- * gap as THA/CTE1/CTE2, which vmunix.init already hand-installs. Without it
- * kernacc() (machdep.c) reads capability 0 for segment 0 and refuses every
- * access, so io/mem.c mmrw() minor 1 returns EFAULT and /dev/kmem is unusable:
- * "ps" dies with "error reading nswap from /dev/kmem", and w/vmstat/pstat/
- * netstat fail the same way.
- *
- * This deliberately writes ONLY the guest tables (PST at PSTP and the DIT at
- * DITBASE). It does NOT touch the emulator's shadow capability table, because
- * translate() reads the shadow - not the DIT - for domain 0 segment 0 (that
- * segment is not in the use_guest set). Address translation therefore keeps
- * using the proven segment-0 data fallback (virtual + data_base) and is
- * completely unaffected; only kernacc()/getpte() start seeing the truth.
- *
- * phys_base MUST be page aligned, because a page table can only express a
- * page-granular mapping. vmunix.init loads the DSEG at 0x00042000 for exactly
- * this reason (a_text 0x41a94 is not a multiple of NBPG).
+ * Describe the kernel's own data segment (domain 0, segment 0) in the guest
+ * page tables so kernacc()/getpte() can see it. WHY that is needed, and why it
+ * writes only the guest tables and never the emulator's shadow, is documented
+ * on nd500_ndix_map_kdata() in src/machine/nd500_ndix_boot.c - the command is
+ * now just the way to type it.
  */
 static int cmd_map_kdata(Nd500Machine* m, CmdContext* ctx, char* args) {
-	if (!m || !m->cpu) {
-		error(ctx, "no cpu linked");
-		return -1;
-	}
-	if (!m->cpu->PSTP || !m->cpu->DITBASE) {
-		error(ctx, "map-kdata: run mmusetup first (PSTP/DITBASE unset)");
-		return -1;
-	}
-
 	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
 	char* a2 = strtok(NULL, " \t\r\n");
 	char* a3 = strtok(NULL, " \t\r\n");
@@ -2969,175 +2889,33 @@ static int cmd_map_kdata(Nd500Machine* m, CmdContext* ctx, char* args) {
 		return -1;
 	}
 
+	/* 0 reaches the library as "use the default", which is what the two
+	 * optional arguments have always meant. */
 	uint32_t phys_base = (uint32_t)strtoul(a1, NULL, 0);
 	uint32_t size      = (uint32_t)strtoul(a2, NULL, 0);
-	uint32_t psn       = a3 ? (uint32_t)strtoul(a3, NULL, 0) : 802u;
-	uint32_t pt_phys   = a4 ? (uint32_t)strtoul(a4, NULL, 0) : 0x000A2000u;
+	uint32_t psn       = a3 ? (uint32_t)strtoul(a3, NULL, 0) : 0u;
+	uint32_t pt_phys   = a4 ? (uint32_t)strtoul(a4, NULL, 0) : 0u;
 
-	if (phys_base & PGOFSET) {
-		error(ctx, "map-kdata: phys_base 0x%08X is not page aligned (NBPG=%d)",
-		      phys_base, 1 << PGSHIFT);
-		return -1;
-	}
-	uint32_t npages = (size + (uint32_t)PGOFSET) >> PGSHIFT;
-	if (npages == 0) {
-		error(ctx, "map-kdata: size must be non-zero");
-		return -1;
-	}
-	/* PS_ASI is a single index level: at most NPTEPG entries (one page of PTEs). */
-	if (npages > 512u) {
-		error(ctx, "map-kdata: %u pages exceeds the PS_ASI limit of 512", npages);
-		return -1;
-	}
-	if (psn == 0) {
-		error(ctx, "map-kdata: psn 0 means 'no capability' - pick a non-zero PSN");
-		return -1;
-	}
-
-	/* Page table: entry k maps segment page k to phys_base + k*NBPG.
-	 * struct pte is pg_prot@31, pg_xx@30, pg_pfnum@[29:0]; prot 0 = read/write. */
-	for (uint32_t i = 0; i < npages; i++) {
-		uint32_t pte = ((phys_base >> PGSHIFT) + i) & 0x3FFFFFFFu;
-		uint32_t a = pt_phys + i * 4u;
-		nd500_bus_write8(m, a,   (uint8_t)(pte >> 24));
-		nd500_bus_write8(m, a+1, (uint8_t)(pte >> 16));
-		nd500_bus_write8(m, a+2, (uint8_t)(pte >> 8));
-		nd500_bus_write8(m, a+3, (uint8_t)pte);
-	}
-
-	nd500_mmu_set_pst_entry(m->cpu, (int)psn, PS_ASI, pt_phys >> PGSHIFT);
-
-	/* Guest DIT ONLY: domain 0, data table (+64), segment 0 (+0), 16-bit BE.
-	 * Deliberately not nd500_mmu_set_data_capability() - see the note above. */
-	uint16_t cap = (uint16_t)((psn & DC_PSN) | DC_WRP);
-	uint32_t cap_addr = m->cpu->DITBASE + 0u * 256u + 64u + 0u * 2u;
-	nd500_bus_write8(m, cap_addr,     (uint8_t)(cap >> 8));
-	nd500_bus_write8(m, cap_addr + 1, (uint8_t)cap);
-
-	output(ctx, "kernel data seg 0: phys 0x%08X..0x%08X (%u pages) -> PSN %u, "
-	            "PS_ASI page table at 0x%08X, DIT cap 0x%04X",
-	       phys_base, phys_base + (npages << PGSHIFT) - 1, npages, psn, pt_phys, cap);
-	return 0;
+	ndix_log_bind(ctx);
+	int rc = nd500_ndix_map_kdata(m, phys_base, size, psn, pt_phys);
+	ndix_log_release();
+	return rc;
 }
 
-/*
- * ndix-uarea [pt_phys] [uarea_phys]
- *
- * Build proc0's kernel-stack segment - the u-area at _u = 0xE8000000, which is
- * segment 29 (DC_KSTACK, machine/pcb.h:195) - the way an ND-100 bootstrap would
- * have left it. Same class of gap as THA/CTE1/CTE2 and map-kdata.
- *
- * Why nd500x has to do this at all: machdep.c:181-193 only DERIVES the twelve
- * well-known kernel segment indices from Pst[FIRST_PHYS_SEG].ps_pfnum and never
- * assigns Pst[stackindex]; its comment says outright that "the 100 has loaded
- * the kernel into the start of the 5000 memory". init_main.c:68-74 then READS
- * that slot: p_p0br = ptob(Pst[iseg].ps_pfnum) + Physbase, p_addr = iseg. There
- * is no ND-100 here, so the slot has to be built or nothing valid is in it.
- *
- * The SHAPE is not a guess. NDIX builds the equivalent slot itself for every
- * other process in vm_pt.c:85-89 - slot +0 PS_ASI over Usrptmap[a], slots +1..+3
- * PS_ADI - and that was confirmed by reading the live PST out of physical memory
- * at PSTP during a boot: PST[46]=0x40000910, PST[51]=0x40000901, PST[56], [61],
- * [66] all PS_ASI, each followed by three PS_ADI entries. So slot +0 is a
- * ONE-LEVEL segment whose index page doubles as the process page table, and its
- * first UPAGES entries are the u-area's own pages. That is exactly what
- * baseline/bin/ps.c:1305-1350 reads back: a page of struct pte from p_p0br,
- * expecting arguutl[0..UPAGES-1].pg_pfnum to be non-zero.
- *
- * Only ONE slot is written. Pst[16..25] are the twelve well-known KERNEL
- * segments (pcb.h:171-183: STACKINDEX 3 -> 16, PSTINDEX 4 -> 17, SYSINDEX 5 ->
- * 18, PHYSINDEX 6 -> 19, PSINDEX 7 -> 20). proc0's p_addr names a single one of
- * them, not a five-slot process group - writing a group here would overwrite
- * sysindex and physindex, which machdep.c:236 and :371 own. p_szpt = 4 at
- * init_main.c:73 is nominal; the swapper never has user text, data or stack.
- *
- * Default physical placement sits below sfree (0x00100000, nd500_fecall.c:266),
- * so these pages are outside the pool FE_INIT tells NDIX it owns, and above the
- * seg 27/28 page tables (0xA0000/0xA1000) and map-kdata's page table (0xA2000).
- */
-#define NDIX_UAREA_PT_PHYS   0x000A3000u   /* page table for segment 29        */
-#define NDIX_UAREA_PG_PHYS   0x000A3800u   /* first of UPAGES u-area pages     */
-#define NDIX_UPAGES          4u            /* machine/param.h:31, = 8 KB       */
-#define NDIX_FIRST_PHYS_SEG  13u           /* machine/pcb.h:164                */
-#define NDIX_STACKINDEX      3u            /* machine/pcb.h:154                */
-#define NDIX_KSTACK_SEG      29            /* machine/pcb.h:195, _u >> SGSHIFT */
-
 static int cmd_ndix_uarea(Nd500Machine* m, CmdContext* ctx, char* args) {
-	if (!m || !m->cpu) {
-		error(ctx, "no cpu linked");
-		return -1;
-	}
-	if (!m->cpu->PSTP || !m->cpu->DITBASE) {
-		error(ctx, "ndix-uarea: run mmusetup first (PSTP/DITBASE unset)");
-		return -1;
-	}
-
+	/* Optional overrides; 0 means "the default", which the library resolves to
+	 * ND500_NDIX_UAREA_PT_PHYS / ND500_NDIX_UAREA_PG_PHYS. The work, and the
+	 * NDIX source references behind every constant, are in
+	 * nd500_ndix_uarea() (src/machine/nd500_ndix_boot.c). */
 	char* a1 = args ? strtok(args, " \t\r\n") : NULL;
 	char* a2 = strtok(NULL, " \t\r\n");
-	uint32_t pt_phys    = a1 ? (uint32_t)strtoul(a1, NULL, 0) : NDIX_UAREA_PT_PHYS;
-	uint32_t uarea_phys = a2 ? (uint32_t)strtoul(a2, NULL, 0) : NDIX_UAREA_PG_PHYS;
+	uint32_t pt_phys    = a1 ? (uint32_t)strtoul(a1, NULL, 0) : 0u;
+	uint32_t uarea_phys = a2 ? (uint32_t)strtoul(a2, NULL, 0) : 0u;
 
-	if ((pt_phys & PGOFSET) || (uarea_phys & PGOFSET)) {
-		error(ctx, "ndix-uarea: addresses must be page aligned (NBPG=%d)", 1 << PGSHIFT);
-		return -1;
-	}
-
-	/* first_phys_seg is read from the PST exactly as machdep.c:181 reads it,
-	 * rather than assumed to be 13, so a different PST layout still lands in
-	 * the slot the kernel will actually look at. */
-	uint32_t fps = nd500_bus_read32(m, m->cpu->PSTP + NDIX_FIRST_PHYS_SEG * 4u)
-	             & 0x3FFFFFFFu;
-	uint32_t psn = fps + NDIX_STACKINDEX;
-	if (psn == 0 || psn >= MAX_PST) {
-		error(ctx, "ndix-uarea: derived PSN %u out of range (Pst[%u].ps_pfnum = %u)",
-		      psn, NDIX_FIRST_PHYS_SEG, fps);
-		return -1;
-	}
-
-	/* Zero the whole index page first: entries past UPAGES must read 0 so the
-	 * MMU treats them as absent (nd500_mmu_read_pte: valid = pfnum != 0) and so
-	 * ps sees a clean end to the table rather than stale RAM. */
-	for (uint32_t i = 0; i < (1u << PGSHIFT); i++)
-		nd500_bus_write8(m, pt_phys + i, 0);
-
-	/* Entry k maps u-area page k. struct pte is pg_prot@31, pg_xx@30,
-	 * pg_pfnum@[29:0] (machine/pte.h:27-31); prot 0 = read/write, which the
-	 * kernel stack needs. */
-	for (uint32_t i = 0; i < NDIX_UPAGES; i++) {
-		uint32_t pte = ((uarea_phys >> PGSHIFT) + i) & 0x3FFFFFFFu;
-		uint32_t a = pt_phys + i * 4u;
-		nd500_bus_write8(m, a,     (uint8_t)(pte >> 24));
-		nd500_bus_write8(m, a + 1, (uint8_t)(pte >> 16));
-		nd500_bus_write8(m, a + 2, (uint8_t)(pte >> 8));
-		nd500_bus_write8(m, a + 3, (uint8_t)pte);
-	}
-
-	/* Zero the u-area pages themselves. locore.c:200 does the same thing on the
-	 * way in ("a virgin u area"), but it only covers _u.._Kstack; this makes the
-	 * whole 8 KB deterministic rather than whatever the allocator left. */
-	for (uint32_t i = 0; i < NDIX_UPAGES << PGSHIFT; i++)
-		nd500_bus_write8(m, uarea_phys + i, 0);
-
-	nd500_mmu_set_pst_entry(m->cpu, (int)psn, PS_ASI, pt_phys >> PGSHIFT);
-
-	/* Segment 29 is in the guest-table set (nd500_mmu.c use_guest), so the
-	 * capability must reach the DIT - set_data_capability writes the shadow and
-	 * mirrors it there. __resume (locore.c:924-932) overwrites this on every
-	 * context switch with p_addr|DC_WRP; the point of setting it here is that
-	 * the FIRST touch of 0xE8000000, long before any __resume, finds a real
-	 * mapping instead of falling into the demand allocator. */
-	uint16_t cap = (uint16_t)((psn & DC_PSN) | DC_WRP);
-	nd500_mmu_set_data_capability(m->cpu, 0, NDIX_KSTACK_SEG, cap);
-
-	/* printf, not output(ctx, ...): on the --ndix boot path ctx is a bare
-	 * CmdContext and output() goes nowhere, so the step would leave no trace in
-	 * the boot log. It replaces the "kernel u-area published to PST[16]" line
-	 * the demand-map fallback used to print, and matches those ND-500: lines. */
-	printf("ND-500: proc0 kernel stack (seg %d) -> PST[%u] PS_ASI, page table "
-	       "0x%08X, %u u-area pages at 0x%08X..0x%08X, DIT cap 0x%04X\n",
-	       NDIX_KSTACK_SEG, psn, pt_phys, NDIX_UPAGES, uarea_phys,
-	       uarea_phys + (NDIX_UPAGES << PGSHIFT) - 1, cap);
-	return 0;
+	ndix_log_bind(ctx);
+	int rc = nd500_ndix_uarea(m, pt_phys, uarea_phys);
+	ndix_log_release();
+	return rc;
 }
 
 /*
@@ -3212,258 +2990,17 @@ static int cmd_ndix_halt(Nd500Machine* m, CmdContext* ctx, char* args) {
 }
 
 static int cmd_mmusetup(Nd500Machine* m, CmdContext* ctx, char* args) {
-	if (!m || !m->cpu) {
-		error(ctx, "no cpu linked");
-		return -1;
-	}
-
-	output(ctx, "Setting up MMU with 3 domains: Kernel (0) + User1 (1) + User2 (2)");
-	output(ctx, "Each domain gets 256KB code + 256KB data (128 pages each)");
-	output(ctx, "");
-	output(ctx, "Physical Memory Layout:");
-	output(ctx, "  0x00000000-0x0003FFFF: Domain 0 (Kernel) Code (256KB = 128 pages)");
-	output(ctx, "  0x00040000-0x0007FFFF: Domain 0 (Kernel) Data (256KB = 128 pages)");
-	output(ctx, "  0x00080000-0x000BFFFF: Domain 1 (User1) Code (256KB = 128 pages)");
-	output(ctx, "  0x000C0000-0x000FFFFF: Domain 1 (User1) Data (256KB = 128 pages)");
-	output(ctx, "  0x00100000-0x0013FFFF: Domain 2 (User2) Code (256KB = 128 pages)");
-	output(ctx, "  0x00140000-0x0017FFFF: Domain 2 (User2) Data (256KB = 128 pages)");
-	output(ctx, "  0x00180000-0x00FFFFFF: Available (~14.5 MB)");
-	output(ctx, "");
-
-	/* Set the guest MMU-table base registers BEFORE any capability/PST setup so
-	 * the set_* mirroring lands in the right physical tables. The tables live in
-	 * the free gap between the kernel image and kernel free memory (firstaddr,
-	 * phys 0x100000): PST at 0x84000, DIT at 0x90000 (64KB), seg 27/28 page
-	 * tables at 0xA0000. translate() reads these.
-	 *
-	 * PSTP MUST sit ABOVE the loaded DSEG. The kernel image is loaded flat as one
-	 * contiguous block: PSEG at raw 0 (size 0x41a94) + DSEG at raw 0x41a94 (size
-	 * 0x3E800), so kernel data actually extends to raw 0x8028C - PAST the old
-	 * 0x80000 PST base. load-dseg (run AFTER mmusetup) therefore zeroed the low
-	 * ~163 PST entries, including Pst[FIRST_PHYS_SEG=13]. The kernel reads
-	 * first_phys_seg = Pst[13].ps_pfnum (machdep.c:181); with it clobbered to 0,
-	 * every derived index collapsed (physindex 19->6, pstindex 17->4, ...) and
-	 * the kernel then dereferenced Pst[pstindex].ps_pfnum==0 as Physbase+0 (the
-	 * "inaccessible" physical page 0), page-faulting at PC 0x3621C. Placing PSTP
-	 * at 0x84000 (above 0x8028C) keeps the synthetic identity PST entries intact,
-	 * so first_phys_seg=13 and the SINTRAN-provided entries (dataindex, pstindex,
-	 * psindex) survive with their valid identity values. Verified via ND500X_PTWDBG. */
-	m->cpu->PSTP    = 0x00084000;
-	m->cpu->DITBASE = 0x00090000;
-	/* NOTE: boot-time live CAD = 1 (the /etc/init domain) is established from
-	 * vmunix.init via `set CAD 1`, NOT here: the load-pseg/load-dseg steps run
-	 * after mmusetup and would wipe a value set at this point. See the comment
-	 * in kernel/MASTER/GENERIC/vmunix.init for the full rationale (it is what
-	 * lets the /etc/init launch RET at PC=0x29 switch domains, manual 4.2.5.2). */
-	/* Tell the physical page allocator that this whole region is spoken for.
-	 * The layout above is hand-built at fixed addresses and never passes through
-	 * the allocator, so without this a DOM loaded afterwards would be handed the
-	 * kernel's own pages. Reserved pages are permanent: no arena pop frees them. */
-	if (nd500_phys_reserve(m, 0x00000000, 0x00180000) != 0) {
-		error(ctx, "warning: could not reserve 0x000000-0x17FFFF - a domain may already hold part of it");
-	}
-
-	/* Zero the PST (32KB) and DIT (64KB) so unset segments read capability 0
-	 * (=> demand-map / identity fallback) instead of stale RAM garbage. */
-	for (uint32_t a = 0x00080000; a < 0x000A0000; a++)
-		nd500_bus_write8(m, a, 0);
-
-	/* ═══════════════════════════════════════════════════════
-	 * PST CONFIGURATION - Create 128 contiguous pages per region
-	 * Each domain needs 256 PST entries (128 for code + 128 for data)
-	 * Total: 768 PST entries
-	 * ═══════════════════════════════════════════════════════ */
-	output(ctx, "=== PST Configuration ===");
-	output(ctx, "Creating 768 PST entries (256 per domain)...");
-
-	/* Domain 0 (Kernel) Code: PSN 0-127 → Physical 0x00000000-0x0003FFFF */
-	for (uint32_t i = 0; i < 128; i++) {
-		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);  /* PFN = PSN for direct mapping */
-	}
-	output(ctx, "PST[0-127]     = Domain 0 kernel code (phys 0x00000000-0x0003FFFF)");
-
-	/* Domain 0 (Kernel) Data: PSN 128-255 → Physical 0x00040000-0x0007FFFF */
-	for (uint32_t i = 128; i < 256; i++) {
-		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
-	}
-	output(ctx, "PST[128-255]   = Domain 0 kernel data (phys 0x00040000-0x0007FFFF)");
-
-	/* Domain 1 (User1) Code: PSN 256-383 → Physical 0x00080000-0x000BFFFF */
-	for (uint32_t i = 256; i < 384; i++) {
-		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
-	}
-	output(ctx, "PST[256-383]   = Domain 1 user1 code (phys 0x00080000-0x000BFFFF)");
-
-	/* Domain 1 (User1) Data: PSN 384-511 → Physical 0x000C0000-0x000FFFFF */
-	for (uint32_t i = 384; i < 512; i++) {
-		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
-	}
-	output(ctx, "PST[384-511]   = Domain 1 user1 data (phys 0x000C0000-0x000FFFFF)");
-
-	/* Domain 2 (User2) Code: PSN 512-639 → Physical 0x00100000-0x0013FFFF */
-	for (uint32_t i = 512; i < 640; i++) {
-		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
-	}
-	output(ctx, "PST[512-639]   = Domain 2 user2 code (phys 0x00100000-0x0013FFFF)");
-
-	/* Domain 2 (User2) Data: PSN 640-767 → Physical 0x00140000-0x0017FFFF */
-	for (uint32_t i = 640; i < 768; i++) {
-		nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
-	}
-	output(ctx, "PST[640-767]   = Domain 2 user2 data (phys 0x00140000-0x0017FFFF)");
-
-	output(ctx, "");
-	output(ctx, "=== PCB Configuration ===");
-	output(ctx, "Mapping 128 consecutive segment entries per domain...");
-	output(ctx, "");
-
-	/* Domain 0 (Kernel): Virtual segment 0 onwards */
-	output(ctx, "Domain 0 (Kernel):");
-	/* Code segments 0-127: Each segment i maps to PSN i (phys 0x00000000+) */
-	for (uint32_t seg = 0; seg < 128; seg++) {
-		/* PC_DIR is 0x0000 - direct is absence of PC_IND flag, not a flag to set */
-		nd500_mmu_set_program_capability(m->cpu, 0, seg, seg);
-	}
-	output(ctx, "  Prog segments [0-127]   → PSN [0-127]   (virtual 0x00000000-0x3F800000)");
-
-	/* Data segments 0-127: Each segment i maps to PSN 128+i (phys 0x00040000+).
-	 * Kernel data is READ/WRITE, so grant DC_WRP - without it every kernel data
-	 * store (including the stack-frame [B+8] SP write the NDIX kernel does in
-	 * INIT/ENTS) hits "WRITE DENIED! missing DC_WRP flag".
-	 *
-	 * Two segments must NOT be pre-mapped with the demo's single 2KB PS_AZI page,
-	 * because their real extents exceed 2KB (an access past offset 0x7FF faults
-	 * with "PS_AZI page fault L2!=0"):
-	 *   - segment 0  = the flat-loaded kernel image (text+data+const, virtual
-	 *     0x0..< physRAM). Leaving its data capability 0 lets the identity
-	 *     fallback back it (virtual == physical, writes allowed) - exactly what
-	 *     the PROGRAM side already does (program cap 0 -> identity), so kernel
-	 *     globals/consts above 2KB (e.g. vaddr 0x00022924) resolve.
-	 *   - segment 29 = the u-area / kernel stack (virtual 0xE8000000, 8KB, beyond
-	 *     physRAM). Leaving its capability 0 lets the segment-demand allocator
-	 *     back it as a writable, paged PS_ADI segment big enough for the stack. */
-	for (uint32_t seg = 0; seg < 128; seg++) {
-		/* Leave two segments capability 0 so the correct fallback backs them
-		 * instead of the demo's too-small 2KB PS_AZI page:
-		 *   seg 0  = flat-loaded kernel image (text+data+const, virtual 0x0 ..
-		 *            < physRAM) -> identity fallback (virtual == physical, writes
-		 *            allowed) - exactly what the PROGRAM side already does, so
-		 *            kernel globals/consts above 2KB (e.g. vaddr 0x00022924) resolve.
-		 *   seg 29 = the u-area / kernel stack (virtual 0xE8000000, 8KB, beyond
-		 *            physRAM) -> segment-demand allocator backs it writable + paged
-		 *            (PS_ADI) big enough for the whole stack. Fixes the reported
-		 *            [B+8] SP write dropping and the RET PREVB=0 stack underflow.
-		 * The OTHER data segments keep the demo mapping: they carry loaded DSEG
-		 * data the kernel reads early, so we must NOT replace them with zeroed
-		 * demand pages - just make them writable (DC_WRP). */
-		if (seg == 0 || (seg >= 1 && seg <= 30)) {
-			continue;  /* seg 0 = identity image; 1..30 = runtime kernel tables demand-backed PS_ADI
-			            * (the demo 2KB PS_AZI page is too small for the kernel's real segments). */
-		}
-		nd500_mmu_set_data_capability(m->cpu, 0, seg, (128 + seg) | DC_WRP);
-	}
-	output(ctx, "  Data segments   → RW (seg 0 = identity image, seg 29 = demand-backed u-area)");
-
-	/* Special: Segment 31 for Domain 0 = ND-100 Other Machine (INDIRECT + OMC) */
-	/* Bit 15 = 1 (INDIRECT), Bit 14 = 1 (OMC), Domain=0, Segment=1 */
-	nd500_mmu_set_program_capability(m->cpu, 0, 31, PC_IND | PC_OMC | (0 << 5) | 1);
-	output(ctx, "  Prog segment 31         → INDIRECT OMC Domain=0 Seg=1 (ND-100)");
-
-	output(ctx, "");
-	output(ctx, "Domain 1 (User1):");
-	/* Code segments 0-127: Each segment i maps to PSN 256+i (phys 0x00080000+) */
-	for (uint32_t seg = 0; seg < 128; seg++) {
-		/* PC_DIR is 0x0000 - direct is absence of PC_IND flag */
-		nd500_mmu_set_program_capability(m->cpu, 1, seg, (256 + seg));
-	}
-	output(ctx, "  Prog segments [0-127]   → PSN [256-383] (virtual 0x00000000-0x3F800000)");
-
-	/* Data segments 0-127: Each segment i maps to PSN 384+i (phys 0x000C0000+) */
-	for (uint32_t seg = 0; seg < 128; seg++) {
-		nd500_mmu_set_data_capability(m->cpu, 1, seg, (384 + seg) | DC_PAC);
-	}
-	output(ctx, "  Data segments [0-127]   → PSN [384-511] (virtual 0x00000000-0x3F800000)");
-
-	/* Special: Segment 31 for Domain 1 = Link to Kernel (INDIRECT, no OMC) */
-	/* Bit 15 = 1 (INDIRECT), Bit 14 = 0 (no OMC), Domain=0, Segment=1 */
-	nd500_mmu_set_program_capability(m->cpu, 1, 31, PC_IND | (0 << 5) | 1);
-	output(ctx, "  Prog segment 31         → INDIRECT Domain=0 Seg=1 (→ Kernel)");
-
-	output(ctx, "");
-	output(ctx, "Domain 2 (User2):");
-	/* Code segments 0-127: Each segment i maps to PSN 512+i (phys 0x00100000+) */
-	for (uint32_t seg = 0; seg < 128; seg++) {
-		/* PC_DIR is 0x0000 - direct is absence of PC_IND flag */
-		nd500_mmu_set_program_capability(m->cpu, 2, seg, (512 + seg));
-	}
-	output(ctx, "  Prog segments [0-127]   → PSN [512-639] (virtual 0x00100000-0x0013FFFF)");
-
-	/* Data segments 0-127: Each segment i maps to PSN 640+i (phys 0x00140000+) */
-	for (uint32_t seg = 0; seg < 128; seg++) {
-		nd500_mmu_set_data_capability(m->cpu, 2, seg, (640 + seg) | DC_PAC);
-	}
-	output(ctx, "  Data segments [0-127]   → PSN [640-767] (virtual 0x00140000-0x0017FFFF)");
-
-	/* Special: Segment 31 for Domain 2 = Link to Kernel (INDIRECT, no OMC) */
-	/* Bit 15 = 1 (INDIRECT), Bit 14 = 0 (no OMC), Domain=0, Segment=1 */
-	nd500_mmu_set_program_capability(m->cpu, 2, 31, PC_IND | (0 << 5) | 1);
-	output(ctx, "  Prog segment 31         → INDIRECT Domain=0 Seg=1 (→ Kernel)");
-
-	/* Map the kernel's own table-access segments so _Pst (seg 27, 0xd8000000)
-	 * reaches physical PSTP and _pcbtab (seg 28, 0xe0000000) reaches physical
-	 * DITBASE. Without this the kernel's writes to kern_dcap/Pst (kpcbinit,
-	 * __resume, newproc) land in demand pages the MMU never reads. PS_ASI page
-	 * tables at 0xA0000 / 0xA1000; high PSNs to avoid the demo's 0-767. */
-	sintran_map_segment_to_phys(m, 27, m->cpu->PSTP,    16, 800, 0x000A0000); /* _Pst */
-	sintran_map_segment_to_phys(m, 28, m->cpu->DITBASE, 32, 801, 0x000A1000); /* _pcbtab */
-	output(ctx, "Mapped seg 27 -> PSTP (0x%X), seg 28 -> DITBASE (0x%X)",
-	       m->cpu->PSTP, m->cpu->DITBASE);
-
-	output(ctx, "");
-	output(ctx, "=== MMU Registers ===");
-	m->cpu->CAD = 0;
-	m->cpu->CED = 0;
-	m->cpu->PS = 0;
-	output(ctx, "PSTP    = 0x%08X", m->cpu->PSTP);
-	output(ctx, "DITBASE = 0x%08X", m->cpu->DITBASE);
-	output(ctx, "CAD     = 0 (Alternative Domain - kernel)");
-	output(ctx, "CED     = 0 (Executing Domain - kernel)");
-	output(ctx, "PS      = 0 (Process Segment)");
-
-	/* Enable MMU */
-	output(ctx, "");
-	nd500_machine_enable_mmu(m);
-	output(ctx, "MMU ENABLED - Virtual memory now active!");
-
-	/* SINTRAN's job on context load: initialize the Xmsg ring-buffer
-	 * descriptors in the shared segment so the NDIX kernel's R_init() does
-	 * not panic. Done after MMU enable so the write translates through the
-	 * data MMU and demand-backs segment 6. See helper above for the verified
-	 * addresses/values (_R_init disasm at 0x3EF42). */
-	sintran_init_xmsg_ringbuffers(m->cpu);
-	output(ctx, "Xmsg ring buffers initialized (cmd.mp=102, resp.mp=113 @ seg 6)");
-
-	/* Also SINTRAN's job: seed the IPL record's ip_next to -1 ("no interrupt
-	 * pending"). Without it _splx derefs a zeroed ip_next as a descriptor
-	 * pointer and page-faults at 0xFFFFF804. See helper above. */
-	sintran_init_iplrec(m->cpu);
-	output(ctx, "IPL record initialized (iplrec.ip_next = -1 @ 0x30001000)");
-
-	output(ctx, "");
-	output(ctx, "Virtual Memory Layout (each domain has 256KB code + 256KB data):");
-	output(ctx, "  Domain 0 (Kernel): Virtual 0x00000000-0x3F800000 → Phys 0x00000000-0x0007FFFF");
-	output(ctx, "  Domain 1 (User1):  Virtual 0x00000000-0x3F800000 → Phys 0x00080000-0x000FFFFF");
-	output(ctx, "  Domain 2 (User2):  Virtual 0x00000000-0x3F800000 → Phys 0x00100000-0x0017FFFF");
-	output(ctx, "");
-	output(ctx, "Configuration complete! You can now:");
-	output(ctx, "  - Load PSEG/DSEG files to any virtual address 0x00000000-0x3F800000");
-	output(ctx, "  - Switch domains using 'set CAD <domain>' or 'set CED <domain>'");
-	output(ctx, "  - Use 'showmmu' to view MMU status");
-	output(ctx, "  - Use 'phyladr <vaddr>' to test address translation");
-	output(ctx, "  - Use 'listpst' to see all 768 configured PST entries");
-	output(ctx, "  - Use 'listpcb' to see domain configurations");
-
-	return 0;
+	(void)args;
+	/* The whole demo/bootstrap MMU layout, and the three jobs SINTRAN would
+	 * normally do (segments 27/28, the Xmsg rings, the IPL record), are in
+	 * nd500_ndix_mmu_setup() (src/machine/nd500_ndix_boot.c). Typing the
+	 * command still prints the running commentary, because ndix_log_bind()
+	 * gives the library a verbose sink; the --ndix boot path passes a bare
+	 * context and therefore stays quiet, exactly as it did before. */
+	ndix_log_bind(ctx);
+	int rc = nd500_ndix_mmu_setup(m);
+	ndix_log_release();
+	return rc;
 }
 
 static int cmd_listpst(Nd500Machine* m, CmdContext* ctx, char* args) {
