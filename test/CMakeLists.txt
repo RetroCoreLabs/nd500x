@@ -45,6 +45,14 @@ add_executable(test_xmsg
 )
 target_link_libraries(test_xmsg PRIVATE nd500_cpu)
 
+# The RETH wire format nd500x speaks to a RetroCore ethernet relay. Every
+# constant in it is a claim about somebody else's code, and a wrong one gives a
+# link that connects, says hello and then silently carries nothing.
+add_executable(test_ethhub
+    test_ethhub.c
+)
+target_link_libraries(test_ethhub PRIVATE nd500_cpu)
+
 add_executable(test_riom
     test_riom.c
 )
@@ -327,6 +335,7 @@ target_link_libraries(test_settings_catalog PRIVATE nd500_cpu)
 
 add_test(NAME xring COMMAND test_xring)
 add_test(NAME xmsg COMMAND test_xmsg)
+add_test(NAME ethhub COMMAND test_ethhub)
 add_test(NAME mmu_translation COMMAND test_mmu_translation)
 set_tests_properties(mmu_translation PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 

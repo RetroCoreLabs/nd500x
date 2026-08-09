@@ -184,6 +184,22 @@ typedef struct Nd500XmsgOps {
  */
 void nd500_xmsg_set_uplink(Nd500XmsgFrameOut fn, void* ctx);
 
+/*
+ * An uplink that has to be ASKED whether anything arrived - a socket, say -
+ * registers a poll here. It is called from the front-end clock tick
+ * (nd500_fecall.c, every FE_CLOCK_PERIOD instructions = the 50 Hz source), so
+ * an uplink does not need a thread and the CPU library does not need a socket.
+ *
+ * Deliberately a callback rather than a call INTO the frontend: this file is
+ * shared with the wasm build, where the uplink is a websocket that pushes and
+ * has nothing to poll.
+ */
+typedef void (*Nd500XmsgUplinkPoll)(void* ctx, Nd500Cpu* cpu);
+void nd500_xmsg_set_uplink_poll(Nd500XmsgUplinkPoll fn, void* ctx);
+
+/* Run the registered poll, if there is one. Called from the clock tick. */
+void nd500_xmsg_uplink_poll(Nd500Cpu* cpu);
+
 /* The front-end generic device number XMSG is connected on. GENERIC/ioconf.c:100
  * makes drvtab[6] = { xgattach, xgintr }, and the dispatcher indexes it as
  * drvtab[gen-1], so generic 7 is what vectors an interrupt into xgintr(). */

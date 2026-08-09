@@ -786,9 +786,21 @@ static void xmsg_do_mst(uint16_t subdev, uint16_t* out_T,
 static Nd500XmsgFrameOut g_uplink_fn  = NULL;
 static void*             g_uplink_ctx = NULL;
 
+static Nd500XmsgUplinkPoll g_uplink_poll_fn  = NULL;
+static void*               g_uplink_poll_ctx = NULL;
+
 void nd500_xmsg_set_uplink(Nd500XmsgFrameOut fn, void* ctx) {
     g_uplink_fn  = fn;
     g_uplink_ctx = ctx;
+}
+
+void nd500_xmsg_set_uplink_poll(Nd500XmsgUplinkPoll fn, void* ctx) {
+    g_uplink_poll_fn  = fn;
+    g_uplink_poll_ctx = ctx;
+}
+
+void nd500_xmsg_uplink_poll(Nd500Cpu* cpu) {
+    if (g_uplink_poll_fn) g_uplink_poll_fn(g_uplink_poll_ctx, cpu);
 }
 
 int nd500_xmsg_service(Nd500Cpu* cpu) {

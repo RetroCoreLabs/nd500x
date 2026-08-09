@@ -23,6 +23,7 @@
  * the telnet server can be told not to offer that one. */
 #include "../../cpu/nd500_fecall.h"
 #include "ndix_menu.h"
+#include "uplink_tcp.h"   /* ND500X_ETH_UPLINK=tcp:host[:port] */
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
 #include <ndmon/mon.h>
@@ -743,6 +744,19 @@ int main(int argc, char** argv) {
 			 * the same one implementation, and this way the step does not
 			 * need a command table to exist. 0/0 = the default addresses. */
 			nd500_ndix_uarea(&machine, 0, 0);
+
+			/* Dial the ethernet relay, if ND500X_ETH_UPLINK names one.
+			 * AFTER the boot path, because that is what installs the
+			 * loopback uplink when the setting says "loop" - a TCP spec
+			 * takes it from there. Before "run", so the link is up before
+			 * the guest's first frame.
+			 *
+			 * The return value is deliberately ignored: a relay that is not
+			 * running must not stop the machine booting. It says so on
+			 * stderr and et0 comes up with nothing on the other end, which
+			 * is what it had before any of this existed. */
+			(void)nd500x_uplink_tcp_start(&cpu);
+
 			printf("[ndix] run\n");
 			nd500_cmd_execute(&machine, "run", &bctx);
 		}

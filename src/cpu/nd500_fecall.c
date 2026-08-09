@@ -1379,6 +1379,14 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
         g_tick_latched++;
     }
 
+    /* Ask the ethernet uplink whether anything arrived. On the DUE test rather
+     * than the pending one, so it runs at a steady 50 Hz whether or not the
+     * clock interrupt itself is eligible to be delivered - a frame does not
+     * care where the kernel's PC happens to be, and the receive path parks the
+     * command if NDIX is not ready for it. No-op unless something registered a
+     * poll, so this costs one null test on 1 instruction in FE_CLOCK_PERIOD. */
+    if (clock_due) nd500_xmsg_uplink_poll(cpu);
+
     /* ── a USER domain is executing ──────────────────────────────────────────
      * Everything below this block is written for CED == 0 and gates delivery on
      * the kernel being parked in swtch()'s idle spin at PC 0x844. That gate
