@@ -65,20 +65,29 @@ Both sides set PSD in SOLO and clear it in TUTTI. The differences:
 | ">256 cycles with PSD set -> DT", privileged unlimited | yes, `check_solo_timeout()` `cpu.c:1397`, counts macroinstruction cycles per ch.16.1's ND-5000 wording | **no** - `ProcessSwitchTimeoutCounter` is set to 0 in `Solo.cs:66` / `Tutti.cs:54` and read nowhere; nothing increments it |
 | "Non-ignorable and fatal traps cause a disable process switch error trap" (DE) | yes, `cpu.c:1266`, raised alongside the provoking trap | **no** - the only `TrapCondition.DE` in the solution is a test setting the flag |
 | "Ignorable trap conditions are ignored in SOLO-TUTTI sequences regardless of enabling" | yes, `check_pending_traps()` returns early on PSD, `cpu.c:1462` | **no** - PSD is never read on the trap path |
-| "Disable process switch timeout occurs if unprivileged users attempt to repeat SOLO's" | **no** - not implemented | yes, `Solo.cs:53-58` raises DT on a nested SOLO with PIA clear |
+| "Disable process switch timeout occurs if unprivileged users attempt to repeat SOLO's" | fixed `ea4ed54` - the timer is no longer restarted, so the repeat trips the original deadline | **wrong** - `Solo.cs:53-58` raises DT *immediately* on a nested SOLO |
+| TUTTI is not privileged | fixed `ea4ed54` - the guard is gone | correct - `Tutti.cs` never enforced it |
 
-So three rules to mirror INTO C# (`8a46aaf` + `712ba00`), and **one to fix in
-nd500x**: the unprivileged repeat-SOLO timeout. Worse than a plain omission -
-the header comment in `src/cpu/instructions/CONTROL/Solo.c:189-193` asserts
-that a nested SOLO "typically re-enters SOLO mode / extends atomic sequence
-until next conditional branch", which is invented prose that contradicts the
-manual sentence above. Delete it when implementing the rule.
+**Settled by the ND-5000 control store, 2026-08-09**, after this section first
+got the repeat-SOLO rule wrong in both directions. `SOLO_0` (004524) arms the
+region by OR-ing a modus-register bit (004531/004532) and `TUTTI_0` clears it
+unconditionally (004536). An OR is a level set and there is NO counter reset
+anywhere in the SOLO path, so the timer runs from the FIRST SOLO of a region -
+ch.16.1's repeat sentence is that consequence, not a separate check. So:
 
-Also for the C# side, cosmetic: `Tutti.cs` documents "Trap conditions:
-Illegal instruction code (IIC)" and calls TUTTI privileged. Manual 16.2 says
-"Trap conditions: None" and carries no "Privileged instruction" line, unlike
-the instructions that do. The code does not enforce privilege, so it is the
-comment that is wrong.
+- **C# is wrong to trap immediately** on the nested SOLO: that fires two cycles
+  into a region the manual allows to run 256. Replace it with "do not restart
+  the timer", which needs the timeout from row 1 to exist first.
+- **nd500x was wrong the other way** and re-stamped its start marker on every
+  SOLO, so unprivileged code could hold the process switch disabled forever.
+  Fixed.
+- Neither instruction is privileged (manual marks privileged ones with an
+  explicit "Privileged instruction" line; 16.1 and 16.2 have none, and TUTTI_0
+  has no PIA test). nd500x wrongly guarded TUTTI while leaving SOLO open -
+  fixed. C#'s code is right here; only its `Tutti.cs` comment is wrong.
+
+Full derivation, the microwords, and the corpus cases:
+`docs/SPEC-CORPUS-SOLO-TUTTI-DT-DE.md`.
 
 ### Spot-checked and genuinely mirrored
 
