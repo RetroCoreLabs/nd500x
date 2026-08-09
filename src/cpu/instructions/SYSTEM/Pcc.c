@@ -43,10 +43,20 @@ void nd500_instr_Pcc(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Check privileged mode - PCC is a privileged instruction */
-    if (!nd500_require_privilege(cpu, fi->address)) {
-        return;  /* Trap raised, instruction aborted */
-    }
+    /* NOT PRIVILEGED - guard removed 2026-08-09.
+     *
+     * Manual ch.16.12 Program cache clear: the entry has NO "Privileged instruction" line in its
+     * Description, and gives "Trap conditions: None". That line is where the
+     * manual records privilege - 15.17 CLINIT and 16.13 DMON both carry it and
+     * both still say "Trap Conditions: None", so the trap list is not the
+     * marker.
+     *
+     * The ND-5000 control store agrees: PCC (000717) jumps to PCC_IC (012273)
+     * and on to CLR_IC, with no PIA test anywhere in the path.
+     *
+     * Found by the sweep prompted by the same bug in TUTTI: a guard that came
+     * from the C# port rather than from any source. 
+     */
 
     /* EMULATOR NO-OP: Program cache clear is not implemented in emulator */
     /* In hardware, this would clear the instruction cache to force subsequent */

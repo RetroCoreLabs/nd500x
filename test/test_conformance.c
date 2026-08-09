@@ -222,6 +222,21 @@ conformance_quarantine[] = {
       "TUTTI was swept in by its class, not by any finding about TUTTI. "
       "RetroCore's own Tutti.cs does not enforce privilege either, so the "
       "generator disagrees with its own emulator" },
+    { "dcc_Default",
+      "DCC is not privileged, so it must not raise IIC. Manual 16.10 has no "
+      "'Privileged instruction' line and says 'Trap conditions: None'. The "
+      "ND-5000 control store agrees - DCC (000720) -> DCC_IC (012275) -> the "
+      "cache-clear subroutines, with no PIA test in the path. Same "
+      "CreateGenericSystemScenario catch-all as tutti_Default" },
+    { "pcc_Default",
+      "PCC is not privileged. Manual 16.12 has no 'Privileged instruction' "
+      "line and says 'Trap conditions: None'. Control store: PCC (000717) -> "
+      "PCC_IC (012273) -> CLR_IC, no PIA test. Same catch-all" },
+    { "ddirt_Default",
+      "DDIRT is not privileged. Manual 16.11 has no 'Privileged instruction' "
+      "line and says 'Trap Conditions: None'. Microcode NOT checked - no DDIRT "
+      "label in MICRO-5800-B30.LABE - so this rests on the manual plus its two "
+      "siblings DCC and PCC having no privilege test. Same catch-all" },
     { NULL, NULL }
 };
 

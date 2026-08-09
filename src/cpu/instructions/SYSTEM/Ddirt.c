@@ -34,10 +34,22 @@
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Ddirt.cs
  */
 void nd500_instr_Ddirt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* Check privilege - DDIRT requires supervisor mode */
-    if (!nd500_require_privilege(cpu, fi->address)) {
-        return;  /* Trapped - not privileged */
-    }
+    /* NOT PRIVILEGED - guard removed 2026-08-09.
+     *
+     * Manual ch.16.11 DDIRT - Dump 'Dirty': the entry has NO "Privileged instruction" line in its
+     * Description, and gives "Trap conditions: None". That line is where the
+     * manual records privilege - 15.17 CLINIT and 16.13 DMON both carry it and
+     * both still say "Trap Conditions: None", so the trap list is not the
+     * marker.
+     *
+     * Microcode NOT checked for this one - no DDIRT label was found in
+     * MICRO-5800-B30.LABE, so this rests on the manual alone plus the fact
+     * that its two siblings DCC and PCC have no privilege test in the
+     * control store.
+     *
+     * Found by the sweep prompted by the same bug in TUTTI: a guard that came
+     * from the C# port rather than from any source. 
+     */
 
     /* Validate operand count (like C# lines 40-45) */
     if (fi->operand_count != 0) {
