@@ -36,6 +36,15 @@ add_executable(test_xring
 )
 target_link_libraries(test_xring PRIVATE nd500_cpu)
 
+# The XMSG SERVER - what gets answered, and how. Split from the ring tests
+# because nd500_xmsg_service_mem() takes the same bare byte accessor and has no
+# CPU in it either: the wedge it guards against (a response whose func does not
+# match its command) is completely silent inside a running guest.
+add_executable(test_xmsg
+    test_xmsg.c
+)
+target_link_libraries(test_xmsg PRIVATE nd500_cpu)
+
 add_executable(test_riom
     test_riom.c
 )
@@ -317,6 +326,7 @@ add_executable(test_settings_catalog test_settings_catalog.c)
 target_link_libraries(test_settings_catalog PRIVATE nd500_cpu)
 
 add_test(NAME xring COMMAND test_xring)
+add_test(NAME xmsg COMMAND test_xmsg)
 add_test(NAME mmu_translation COMMAND test_mmu_translation)
 set_tests_properties(mmu_translation PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 

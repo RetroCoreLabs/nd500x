@@ -33,6 +33,7 @@
 #include "nd500_mmu.h"
 #include "nd500_fecall.h"
 #include "nd500_tape.h"
+#include "nd500_xmsg.h"       /* the ND-100 side of the XMSG rings   */
 #include "nd500_phys_alloc.h"
 #include "nd500_host.h"       /* host services: block storage       */
 #include "nd500_settings.h"   /* every knob, as plain struct fields  */
@@ -1837,6 +1838,27 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
             }
             pkt_wr16(&rpk, 0, 0);   /* completion */
             pkt_wr16(&rpk, 2, 0);   /* status */
+            /* XMSG: this is the "you have mail" signal. R_put (if/xg.c:484)
+             * issues DCTL_KICK only on the empty -> non-empty transition of the
+             * command ring, so the ring must be drained TO EMPTY here or no
+             * further kick ever arrives and the link stops with nothing
+             * printed. DCTL_WAIT means "wake me when there is command-ring
+             * space"; because we drain synchronously there always is, and the
+             * completion interrupt below is what decrements xwbuf (xg.c:362).
+             *
+             * The responses are picked up by xgintr(), which the async
+             * completion interrupt posted at the bottom of this case already
+             * causes to run - generic 7 dispatches to drvtab[6].fr_intr = xgintr
+             * (GENERIC/ioconf.c:100). So no interrupt is raised from the XMSG
+             * server itself. */
+            if (gen == GEN_XMSG) {
+                Pkt xcpk = pkt_word(cpu, cpk_arg);
+                uint16_t xrequest = pkt_rd16(&xcpk, 0);  /* _dctl_cpk_xmsg.request */
+                if (fedbg())
+                    fprintf(stderr, "[FECALL] FE_DCTL xmsg request=%u\n", xrequest);
+                if (xrequest == XMSG_DCTL_KICK || xrequest == XMSG_DCTL_WAIT)
+                    nd500_xmsg_service(cpu);
+            }
             /* Terminal DCTL_CHG_FLGS reports the line mode (machine/if.h
              * dctl_cpk_term: operation@0, parameter@2, both BE16). Logged only -
              * console output masking is NOT driven from it, see fe_console_8bit(). */

@@ -19,6 +19,7 @@
 #include "../cpu/cpu_protos.h"
 #include "../cpu/nd500_mmu.h"
 #include "../cpu/nd500_phys_alloc.h"
+#include "../cpu/nd500_xmsg.h"      /* the XMSG server behind the two rings */
 #include "../ndlib/ndlib.h"
 
 #include <stdio.h>
@@ -111,6 +112,9 @@ static void sintran_write_halfword(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) 
 static void sintran_init_xmsg_ringbuffers(Nd500Cpu* cpu) {
     sintran_write_halfword(cpu, 0x30000004u, 102);  /* xmsg_cmd_buf.mp  = NXMSGCMD  */
     sintran_write_halfword(cpu, 0x30000804u, 113);  /* xmsg_resp_buf.mp = NXMSGRESP */
+    /* The rings are empty again, so the server behind them must forget the port
+     * numbers it handed out on any previous boot in this process. */
+    nd500_xmsg_reset();
 }
 
 /* Write a big-endian 32-bit word to an ND-500 virtual address through the DATA

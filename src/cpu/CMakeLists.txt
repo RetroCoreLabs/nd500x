@@ -19,7 +19,7 @@ else()
     set(MON_SEAM_SOURCE nd500_mon_sintran_stub.c)
 endif()
 
-add_library(nd500_cpu cpu.c cpu_instr.c nd500_xring.c nd500_mmu.c nd500_tlb.c nd500_tape.c nd500_domain.c nd500_indirect.c nd500_fecall.c nd500_host_posix.c nd500_settings.c nd500_segment_alloc.c nd500_phys_alloc.c nd500_page_bits.c instruction_helpers.c bcd_helpers.c ${MON_SEAM_SOURCE} ${INSTRUCTION_SOURCES} ${DISPATCH_TABLE_SOURCE})
+add_library(nd500_cpu cpu.c cpu_instr.c nd500_xring.c nd500_xmsg.c nd500_mmu.c nd500_tlb.c nd500_tape.c nd500_domain.c nd500_indirect.c nd500_fecall.c nd500_host_posix.c nd500_settings.c nd500_segment_alloc.c nd500_phys_alloc.c nd500_page_bits.c instruction_helpers.c bcd_helpers.c ${MON_SEAM_SOURCE} ${INSTRUCTION_SOURCES} ${DISPATCH_TABLE_SOURCE})
 target_include_directories(nd500_cpu PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${ND500X_ROOT}/src/machine)
 
 # Link math library for BCD operations (pow function)
