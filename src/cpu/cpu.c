@@ -10,6 +10,7 @@
 #include "../machine/machine_protos.h"
 #include "../machine/breakpoints.h"
 #include "../disasm/nd500_disasm.h"
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /* Global trap state */
 Nd500TrapState g_trap_state = {0};
@@ -28,8 +29,7 @@ static uint8_t  g_pc_ring_cad[ND500_PC_RING_LEN];
 static uint8_t  g_pc_ring_inh[ND500_PC_RING_LEN];
 static uint32_t g_pc_ring_pos = 0;
 static void nd500_dump_stop_ring(const char* tag) {
-	const char* e = getenv("ND500X_STOPDBG");
-	if (!(e && e[0] && e[0] != '0')) return;
+	if (!nd500_settings()->stopdbg) return;
 	fprintf(stderr, "[STOPDBG] %s - last %d instruction PCs (oldest -> newest):\n",
 	        tag, ND500_PC_RING_LEN);
 	for (uint32_t k = 0; k < ND500_PC_RING_LEN; k++) {
@@ -140,14 +140,6 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 }
 
 
-/* Once-latched env flag. getenv() every instruction is not only slow - it is
- * a CRASH: readline on the main thread setenv()s LINES/COLUMNS (reallocating
- * environ) while the CPU thread scans it -> SIGSEGV in getenv. Every env
- * probe on the run path must latch its value once. */
-static int env_flag(const char* name, int* latch) {
-	if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
-	return *latch;
-}
 
 bool nd500_cpu_step(Nd500Cpu* cpu) {
 	if (!cpu || !cpu->machine) return false;
@@ -194,7 +186,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 	 * tell WHICH of the three conditions fired, without guessing frame layout. */
 	{
 		static int slpdbg = -1;
-		if (slpdbg < 0) { const char* e = getenv("ND500X_SLPDBG"); slpdbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (slpdbg < 0) slpdbg = nd500_settings()->slpdbg;
 		if (slpdbg && cpu->PC == 0x00011F75u) {
 			uint32_t pu = nd500_mmu_peek(cpu, 0xE8000008u); /* &u.u_procp (seg 29) */
 			uint32_t procp = (pu != 0xFFFFFFFFu) ? nd500_bus_read32(cpu->machine, pu) : 0xDEADBEEF;
@@ -223,7 +215,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 	 * 0xF0000000), not the bogus 0x32 (=arg-count N). Args are on the stack at B+. */
 	{
 		static int pidbg = -1;
-		if (pidbg < 0) { const char* e = getenv("ND500X_PAGEINDBG"); pidbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (pidbg < 0) pidbg = nd500_settings()->pageindbg;
 		if (pidbg && cpu->PC == 0x0002FD24u) {
 			for (uint32_t off = 0x14; off <= 0x28; off += 4) {
 				uint32_t pa = nd500_mmu_peek(cpu, cpu->B + off);
@@ -287,8 +279,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 				goto invalid00_done;
 			}
 			opcode_byte = nd500_bus_read8(cpu->machine, paddr);
-			static int env_icodedbg = -1;
-			if (env_flag("ND500X_ICODEDBG", &env_icodedbg) && cpu->CED != 0) {
+			if (nd500_settings()->icodedbg && cpu->CED != 0) {
 				uint32_t cap_addr = cpu->DITBASE + (uint32_t)cpu->CED * 256u + 0u
 				                  + ((uint32_t)((cpu->PC >> SGSHIFT) & 0x1F)) * 2u;
 				uint16_t gcap = (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
@@ -306,7 +297,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 			 * moment while its disk read is in flight - halting there hides
 			 * whether the page arrives. */
 			static int nz = -1;
-			if (nz < 0) { const char* e = getenv("ND500X_NO_INVALID00"); nz = (e && e[0] && e[0] != '0') ? 1 : 0; }
+			if (nz < 0) nz = nd500_settings()->no_invalid00;
 			if (nz) {
 				static unsigned zc = 0;
 				if (zc++ < 40)
@@ -340,9 +331,7 @@ invalid00_done: ;
 		extern void nd500_fecall_tick(Nd500Cpu* cpu);
 		nd500_fecall_tick(cpu);
 	}
-
-	static int env_piadbg = -1;
-	if (env_flag("ND500X_PIADBG", &env_piadbg)) {
+	if (nd500_settings()->piadbg) {
 		static int prev_pia = -1;
 		static uint32_t prev_pc = 0;
 		int pia = (cpu->ST1 >> 1) & 1;   /* PIA = ST1 bit 1 */
@@ -351,9 +340,7 @@ invalid00_done: ;
 			        prev_pc, cpu->PC, cpu->ST1, cpu->CED, cpu->CAD);
 		prev_pia = pia; prev_pc = cpu->PC;
 	}
-
-	static int env_pcsample = -1;
-	if (env_flag("ND500X_PCSAMPLE", &env_pcsample)) {
+	if (nd500_settings()->pcsample) {
 		static uint64_t pcn = 0;
 		if ((pcn++ % 500000) == 0) {
 			uint32_t iplp = nd500_bus_read32(cpu->machine, 0x1cb20u); /* *_iplp = iplrec ptr */
@@ -396,9 +383,7 @@ invalid00_done: ;
 		nd500_dump_stop_ring("decode-failed");
 		return false;
 	}
-
-	static int env_d1dbg = -1;
-	if (env_flag("ND500X_D1DBG", &env_d1dbg) && cpu->CED == 1 && old_pc <= 0x40) {
+	if (nd500_settings()->d1dbg && cpu->CED == 1 && old_pc <= 0x40) {
 		static uint64_t d1n = 0;
 		if (d1n++ < 8) {
 			uint32_t pa = nd500_mmu_translate(cpu, old_pc, 0, 1);
@@ -483,8 +468,7 @@ invalid00_done: ;
 	/* Bounded trap-handler control-flow trace (env ND500X_HDLRTRACE): prints the
 	 * PC sequence executed while inside a trap handler, to see where the NDIX
 	 * kernel PGF stub branches (the PC=0x93 mid-instruction blocker). */
-	static int env_hdlrtrace = -1;
-	if (env_flag("ND500X_HDLRTRACE", &env_hdlrtrace) && cpu->in_trap_handler) {
+	if (nd500_settings()->hdlrtrace && cpu->in_trap_handler) {
 		/* Log only taken control transfers: whenever this PC is not the sequential
 		 * successor of the previous instruction, print from->to with the SOURCE
 		 * instruction bytes. Directly exposes the branch that reaches PC=0x04. */
@@ -539,8 +523,7 @@ invalid00_done: ;
 	/* Boot-flow trace (env ND500X_BOOTDBG): log kernel (CED==0) entry to key
 	 * scheduling / mount / I/O functions to map where the boot stalls and what
 	 * proc[0] sleeps on. sleep()'s wchan is arg1 (register I1 at entry). */
-	static int env_bootdbg = -1;
-	if (env_flag("ND500X_BOOTDBG", &env_bootdbg) && cpu->CED == 0) {
+	if (nd500_settings()->bootdbg && cpu->CED == 0) {
 		const char* nm =
 		    old_pc == 0x2319du ? "mountfs" :
 		    old_pc == 0x0f578u ? "newproc" :
@@ -578,8 +561,7 @@ invalid00_done: ;
 	/* One-shot frame-chain dump at the swtch() idle loop (env ND500X_SWTCHDBG):
 	 * walk B -> PREVB(@0)/RETA(@4) to reveal who called swtch() and thus what
 	 * proc[0] is waiting on when the scheduler goes idle with no runnable proc. */
-	static int env_swtchdbg = -1;
-	if (env_flag("ND500X_SWTCHDBG", &env_swtchdbg) && cpu->CED == 0 && old_pc == 0x844u) {
+	if (nd500_settings()->swtchdbg && cpu->CED == 0 && old_pc == 0x844u) {
 		static int done = 0;
 		if (!done) {
 			done = 1;
@@ -599,8 +581,7 @@ invalid00_done: ;
 	 * execution of its low pcode + the current value of its syscall-code slot
 	 * b.0x14, to see whether the page-faulting instruction (PC=4, sets code
 	 * 0x3B) re-executes after the pagein or is skipped by the restart P. */
-	static int env_initdbg = -1;
-	if (cpu->CED == 1 && old_pc < 0x40 && env_flag("ND500X_INITDBG", &env_initdbg)) {
+	if (cpu->CED == 1 && old_pc < 0x40 && nd500_settings()->initdbg) {
 		printf("[INITDBG] CED=1 old_pc=0x%08X newPC=0x%08X B=0x%08X\n",
 		       old_pc, cpu->PC, cpu->B);
 	}
@@ -610,7 +591,7 @@ invalid00_done: ;
 	 * locore + properly relocated symbols; verified against _splx@0x83A). */
 	{
 		static int iod = -1;
-		if (iod < 0) { const char* e = getenv("ND500X_IOCDBG"); iod = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (iod < 0) iod = nd500_settings()->iocdbg;
 		if (iod && cpu->CED == 0) {
 			const char* n =
 			    old_pc == 0x173B4u ? "ioctl(syscall)" :
@@ -636,7 +617,7 @@ invalid00_done: ;
 	 * TIOCGETD/TIOCGETP constants at 0x1AB61/0x1AB90. */
 	{
 		static int td2 = -1;
-		if (td2 < 0) { const char* e = getenv("ND500X_TTYDBG"); td2 = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (td2 < 0) td2 = nd500_settings()->ttydbg;
 		if (td2 && cpu->CED == 0 && old_pc >= 0x1AB30u && old_pc <= 0x1ABE0u) {
 			static unsigned q = 0;
 			if (q++ < 300)
@@ -647,8 +628,7 @@ invalid00_done: ;
 	/* Syscall-path trace (env ND500X_SYSDBG): log kernel (CED==0) entry to the
 	 * syscall dispatcher / fuword / execve / nosys to see how init's execve
 	 * syscall is decoded and where it errors. */
-	static int env_sysdbg = -1;
-	if (cpu->CED == 0 && env_flag("ND500X_SYSDBG", &env_sysdbg)) {
+	if (cpu->CED == 0 && nd500_settings()->sysdbg) {
 		const char* nm = (old_pc == 0x38f7a) ? "_syscall"
 		               : (old_pc == 0x655)   ? "_fuword"
 		               : (old_pc == 0xdba6)  ? "_execve"
@@ -663,7 +643,7 @@ invalid00_done: ;
 		 * be named instead of guessed. Bounded. */
 		{
 			static int scn = -1;
-			if (scn < 0) { const char* e = getenv("ND500X_SYSCNO"); scn = (e && e[0] && e[0] != '0') ? 1 : 0; }
+			if (scn < 0) scn = nd500_settings()->syscno;
 			if (scn && old_pc == 0x38f7a) {
 				static unsigned n = 0;
 				if (n++ < 4000) {
@@ -678,7 +658,7 @@ invalid00_done: ;
 		 * fubyte at ~0x678 is re-executed after the _Udata pagein. */
 		{
 			static int exed = -1;
-			if (exed < 0) { const char* e = getenv("ND500X_EXEDBG"); exed = (e && e[0] && e[0] != '0') ? 1 : 0; }
+			if (exed < 0) exed = nd500_settings()->exedbg;
 			if (exed && old_pc >= 0x640 && old_pc < 0x6E0) {
 				static uint64_t xn = 0;
 				if (xn++ < 400)
@@ -724,7 +704,7 @@ invalid00_done: ;
 	{
 		static int caddbg = -1;
 		static uint32_t last_cad = 0xFFFFFFFFu;
-		if (caddbg < 0) caddbg = getenv("ND500X_CADDBG") ? 1 : 0;
+		if (caddbg < 0) caddbg = nd500_settings()->caddbg;
 		if (caddbg && cpu->CAD != last_cad) {
 			printf("[CADDBG] CAD %u -> %u at PC=0x%08X (instr@0x%08X) CED=%u\n",
 			       last_cad == 0xFFFFFFFFu ? 0 : last_cad,
@@ -755,10 +735,7 @@ invalid00_done: ;
 	 * ------------------------------------------------------------------- */
 	if (old_pc == 0x08024834u) {
 		static int guard_mode = -1; /* -1 unread, 0 off, 1 on */
-		if (guard_mode < 0) {
-			const char* e = getenv("ND500X_NC_TYPETAG_GUARD");
-			guard_mode = (e && e[0] && e[0] != '0') ? 1 : 0;
-		}
+		if (guard_mode < 0) guard_mode = nd500_settings()->nc_typetag_guard;
 		/* h1 (cpu->I[0]) now holds mem16[recordA], big-endian, so its high
 		 * byte is the record's tag byte at offset 0. A type-3 object has
 		 * tag 0x03; a genuine count-record here holds a tiny value (1,2).
@@ -940,7 +917,7 @@ static void nd500_trap_maybe_cross_domain(Nd500Cpu* cpu, uint64_t trapBit) {
 	cpu->trap_cross_domain = 0;
 	/* Env-gated PRT dispatch probe (ND500X_PRTDBG). */
 	{	static int prtdbg = -1; static unsigned n = 0;
-		if (prtdbg < 0) { const char* e = getenv("ND500X_PRTDBG"); prtdbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (prtdbg < 0) prtdbg = nd500_settings()->prtdbg;
 		if (prtdbg && (trapBit & TRAP_PRT) && n++ < 12)
 			fprintf(stderr, "[PRTDBG] xdom entry: DITBASE=0x%08X inH=%d CED=%u MD(CED)=%u\n",
 			        cpu->DITBASE, cpu->in_trap_handler, cpu->CED,
@@ -1013,8 +990,7 @@ static void nd500_trap_maybe_cross_domain(Nd500Cpu* cpu, uint64_t trapBit) {
 			 * handler can run privileged instructions (e.g. entrap's dcc/pctsb). */
 			nd500_apply_domain_pia(cpu, handler);
 			cpu->trap_cross_domain = 1;
-			static int env_domdbg2 = -1;
-			if (env_flag("ND500X_DOMDBG", &env_domdbg2)) {
+			if (nd500_settings()->domdbg) {
 				printf("[DOMTRAP] trap bit %d in domain %u -> mother domain %u  DIT.THA=0x%08X  live.THA(pre)=0x%08X\n",
 				       tn2, cpu->CAD, cpu->CED, cpu->THA, old_tha);
 				for (int s = tn2 - 1; s <= tn2 + 1; s++) {
@@ -1113,8 +1089,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	if (cpu->cur_instr_pc != 0) cpu->P1 = cpu->cur_instr_pc;
 
 	{ static int init = 0;
-	  if (!init) { const char* e = getenv("ND500X_PTDBG"); init = 1;
-	               g_ptdbg_target = e ? strtoul(e, NULL, 16) : 0; }
+	  if (!init) { init = 1; g_ptdbg_target = nd500_settings()->ptdbg_target; }
 	  if (g_ptdbg_target && dataAddr == (uint32_t)g_ptdbg_target && !g_ptdbg_count)
 	      g_ptdbg_count = 60; }
 
@@ -1201,7 +1176,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	 * _Udata/_Ustack window address (>=0xF0000000) is the fuword() read of a
 	 * user syscall arg faulting because domain-0 seg 30/31 DATA capability is
 	 * not mapped to the current user's data/stack. */
-	if ((trapBit & TRAP_INTERRUPT_MASK) && cpu->CED == 0 && dataAddr >= 0xF0000000u && ({ static int env_fuwdbg = -1; env_flag("ND500X_FUWDBG", &env_fuwdbg); }))
+	if ((trapBit & TRAP_INTERRUPT_MASK) && cpu->CED == 0 && dataAddr >= 0xF0000000u && nd500_settings()->fuwdbg)
 		printf("[FUWDBG] kernel trap bit=%d trapPC=0x%08X faultaddr=0x%08X B=0x%08X CAD=%u\n",
 		       __builtin_ctzll(trapBit), trapPC, dataAddr, cpu->B, cpu->CAD);
 
@@ -1210,7 +1185,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	 * underflow detected during trap" on return. Log the trap that causes it. */
 	if ((trapBit & TRAP_INTERRUPT_MASK) && cpu->CED == 0 && cpu->B < 0xE8000736u) {
 		static int ksudbg = -1;
-		if (ksudbg < 0) { const char* e = getenv("ND500X_KSUDBG"); ksudbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (ksudbg < 0) ksudbg = nd500_settings()->ksudbg;
 		if (ksudbg)
 			fprintf(stderr, "[KSUDBG] kernel trap bit=%d trapPC=0x%08X B=0x%08X L=0x%08X R=0x%08X TOS=0x%08X CAD=%u data=0x%08X\n",
 			        __builtin_ctzll(trapBit), trapPC, cpu->B, cpu->L, cpu->R, cpu->TOS, cpu->CAD, dataAddr);
@@ -1220,7 +1195,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 	 * stack-overflow, ...) and polluting normal program output. Enable with
 	 * ND500X_TRAPLOG=1 when debugging traps. */
 	static int traplog = -1;
-	if (traplog < 0) { const char* e = getenv("ND500X_TRAPLOG"); traplog = (e && e[0] && e[0] != '0') ? 1 : 0; }
+	if (traplog < 0) traplog = nd500_settings()->traplog;
 	if (traplog) {
 		fprintf(stderr, "[DEBUG] raise_trap: trapBit=0x%llX trapPC=0x%08X dataAddr=0x%08X INTERRUPT=%d instr_count=%llu\n",
 		        (unsigned long long)trapBit, trapPC, dataAddr,
@@ -1293,7 +1268,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		cpu->ST1 |= (uint32_t)TRAP_DE;
 		{
 			static int dbg = -1;
-			if (dbg < 0) { const char* e = getenv("ND500X_SOLODBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+			if (dbg < 0) dbg = nd500_settings()->solodbg;
 			if (dbg)
 				fprintf(stderr, "[SOLO] DE: non-ignorable trap 0x%llX at PC=0x%08X "
 				                "while process switch disabled\n",
@@ -1321,13 +1296,13 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
 		 * saved-trap state cannot nest, and a nested non-ignorable trap is a genuine hard error).
 		 * Opt out with ND500X_NO_TRAP_DISPATCH=1 to restore the old always-halt behavior. */
 		static int td = -1;
-		if (td < 0) { const char* e = getenv("ND500X_NO_TRAP_DISPATCH"); td = (e && e[0] && e[0] != '0') ? 0 : 1; }
+		if (td < 0) td = nd500_settings()->trap_dispatch;
 		if (td && cpu->THA != 0 && !cpu->trap_dispatch_pending) {
 			int tn = 0; for (int i = 0; i < 64; i++) { if ((trapBit >> i) & 1) { tn = i; break; } }
 			uint32_t hp = nd500_mmu_translate(cpu, cpu->THA + tn * 4, 0, 0);
 			uint32_t haddr = nd500_trap_occurred() ? 0 : nd500_bus_read32(cpu->machine, hp);
 			{ static int thd = -1;
-			  if (thd < 0) { const char* e = getenv("ND500X_THADBG"); thd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+			  if (thd < 0) thd = nd500_settings()->thadbg;
 			  if (thd) fprintf(stderr, "[THADBG] trap %d trapPC=0x%08X data=0x%08X CED=%u CAD=%u THA=0x%08X slot@0x%08X haddr=0x%08X xdom=%d\n",
 			                   tn, trapPC, dataAddr, cpu->CED, cpu->CAD, cpu->THA, hp, haddr, cpu->trap_cross_domain); }
 			if (haddr != 0) {
@@ -1429,7 +1404,7 @@ void check_solo_timeout(Nd500Cpu* cpu, uint32_t trappingPC) {
 
 	{
 		static int dbg = -1;
-		if (dbg < 0) { const char* e = getenv("ND500X_SOLODBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (dbg < 0) dbg = nd500_settings()->solodbg;
 		if (dbg)
 			fprintf(stderr, "[SOLO] DT: process switch disabled for %llu cycles "
 			                "(limit %d) at PC=0x%08X\n",
@@ -1583,7 +1558,7 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 	uint32_t paddr_tha = nd500_mmu_translate(cpu, handlerPointer, 0, 0); /* read, data */
 	uint32_t handlerAddr = nd500_bus_read32(cpu->machine, paddr_tha);
 
-	if (getenv("ND500X_PRIVDBG"))
+	if (nd500_settings()->privdbg)
 		fprintf(stderr, "[PRIVDBG] dispatch trap %d -> handler=0x%08X priv=%d ST1=0x%08X CED=%u CAD=%u THA=0x%08X inH=%d\n",
 		        trapNumber, handlerAddr, nd500_is_privileged(cpu) ? 1 : 0, cpu->ST1,
 		        cpu->CED, cpu->CAD, cpu->THA, cpu->in_trap_handler);
@@ -1591,7 +1566,7 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
 	if (handlerAddr == 0) {
 		fprintf(stderr, "[TRAP] No trap handler at THA[%d] (THA=0x%08X, ptr=0x%08X)\n",
 		       trapNumber, cpu->THA, handlerPointer);
-		if (getenv("ND500X_STODBG"))
+		if (nd500_settings()->stodbg)
 			fprintf(stderr, "[STODBG] trap %d trapPC=0x%08X B=0x%08X TOS=0x%08X LL=0x%08X HL=0x%08X ST1=0x%08X OTE1=0x%08X CED=%u inH=%d\n",
 			        trapNumber, trappingP, cpu->B, cpu->TOS, cpu->LL, cpu->HL, cpu->ST1, cpu->OTE1, cpu->CED, cpu->in_trap_handler);
 		/* Clear trap bit since we can't handle it */
@@ -1677,14 +1652,14 @@ void trap_instruction_sequence_error(Nd500Cpu* cpu, uint32_t pc) {
 }
 
 void trap_protect_violation(Nd500Cpu* cpu, uint32_t pc, uint32_t address) {
-	if (getenv("ND500X_PGFDBG"))
+	if (nd500_settings()->pgfdbg)
 		printf("[PVDBG] protect violation CED=%u CAD=%u PC=0x%08X addr=0x%08X B=0x%08X\n",
 		       cpu->CED, cpu->CAD, pc, address, cpu->B);
 	raise_trap(cpu, TRAP_PV, pc, address);
 }
 
 void trap_page_fault(Nd500Cpu* cpu, uint32_t pc, uint32_t address) {
-	if (getenv("ND500X_PGFDBG"))
+	if (nd500_settings()->pgfdbg)
 		printf("[PGFDBG] page fault CED=%u CAD=%u PC=0x%08X faultaddr=0x%08X B=0x%08X ret=%p\n",
 		       cpu->CED, cpu->CAD, pc, address, cpu->B,
 		       __builtin_return_address(0));
@@ -1707,7 +1682,7 @@ void trap_floating_underflow(Nd500Cpu* cpu, uint32_t pc) {
  * on a per-instruction path would be absurd, so cache the answer on first use. */
 int nd500x_traplog(void) {
 	static int state = -1;
-	if (state < 0) state = getenv("ND500X_TRAPLOG") ? 1 : 0;
+	if (state < 0) state = nd500_settings()->traplog;
 	return state;
 }
 
@@ -1728,7 +1703,7 @@ void trap_stack_overflow(Nd500Cpu* cpu, uint32_t pc) {
 	 * (heap vars at TOS, THA[27], OTE bit 27, handler nesting) - discriminating
 	 * experiment for the NC exit crash, see
 	 * docs/HANDOFF-NC-HEAP-CRASH-2026-07-27.md section 2b. */
-	if (getenv("ND500X_STODBG")) {
+	if (nd500_settings()->stodbg) {
 		uint32_t hv[3] = { 0xDEADBEEFu, 0xDEADBEEFu, 0xDEADBEEFu };
 		for (int i = 0; i < 3; i++) {
 			uint32_t pa = nd500_mmu_peek(cpu, cpu->TOS + (uint32_t)i * 4u);

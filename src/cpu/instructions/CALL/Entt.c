@@ -2,9 +2,12 @@
 #include "machine_protos.h"
 #include "nd500_mmu.h"
 #include <stdio.h>
-#include <stdlib.h>   /* getenv() - without this the implicit int prototype
-                       * truncates the returned char* to 32 bits and the env
-                       * check derefs a wild pointer (SIGSEGV in ENTT). */
+#include <stdlib.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
+/* The <stdlib.h> above used to carry a warning that getenv()'s implicit int
+ * prototype truncated the returned char* to 32 bits and made the env check
+ * deref a wild pointer (a real SIGSEGV in ENTT). That whole class of bug is
+ * gone: this file reads a struct field now, not the environment. */
 
 /**
  * ENTT instruction - CALL class
@@ -316,10 +319,7 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * guest-tables mode and keep the classic N=50 heading otherwise. (trap_cross_
      * domain alone is NOT sufficient: NC also takes cross-domain traps.) */
     static int ndix_regime = -1;
-    if (ndix_regime < 0) {
-        const char* e = getenv("ND500X_MMU_GUEST_TABLES");
-        ndix_regime = (e && e[0] && e[0] != '0') ? 1 : 0;
-    }
+    if (ndix_regime < 0) ndix_regime = nd500_settings()->mmu_guest_tables;
     if (ndix_regime) {
         nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 12, 1, 0),
                           cpu->trap_saved_info);

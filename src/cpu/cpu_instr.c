@@ -7,6 +7,7 @@
 #include "../machine/machine_protos.h"
 #include "nd500_instructions.h"
 #include "nd500_mmu.h"
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /* ═══════════════════════════════════════════════════════
  * INSTRUCTION PREFIX FLAGS
@@ -60,7 +61,7 @@ static inline uint8_t mmu_read8(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int
 #define NC_WWATCH_HI 0x1802A1D0u
 static inline void nc_wwatch(Nd500Cpu* cpu, uint32_t vaddr, int width, uint32_t val) {
 	static int mode = -1;
-	if (mode < 0) { const char* e = getenv("ND500X_NC_WWATCH"); mode = (e && e[0] && e[0] != '0') ? 1 : 0; }
+	if (mode < 0) mode = nd500_settings()->nc_wwatch;
 	if (!mode) return;
 	if (vaddr >= NC_WWATCH_LO && vaddr < NC_WWATCH_HI) {
 		fprintf(stderr, "[WWATCH] instr=%llu PC~=%08X w%d [%08X] <- %0*X\n",
@@ -91,7 +92,7 @@ static inline void mmu_write8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t val) {
 	/* Kernel path-copy tracer (env ND500X_SLASHDBG) - see write_memory_8. */
 	{
 		static int sld = -1;
-		if (sld < 0) { const char* e = getenv("ND500X_SLASHDBG"); sld = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (sld < 0) sld = nd500_settings()->slashdbg;
 		if (sld && cpu->CED == 0 && val == 0x2F) {
 			static unsigned n = 0;
 			if (n++ < 60)
@@ -119,7 +120,7 @@ static inline uint16_t mmu_read16(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
 	 * window, which NDIX does constantly. */
 	{
 		static int udbg = -1;
-		if (udbg < 0) { const char* e = getenv("ND500X_UDATADBG"); udbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (udbg < 0) udbg = nd500_settings()->udatadbg;
 		if (udbg && cpu->CED == 0 && vaddr >= 0xF0000000u)
 			printf("[UDATA16] PC=0x%08X CED=0 read16 vaddr=0x%08X paddr=0x%08X\n",
 			       cpu->PC, vaddr, paddr);
@@ -159,7 +160,7 @@ static inline uint32_t mmu_read32(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
 	/* Latched - see mmu_read16 above. */
 	{
 		static int udbg = -1;
-		if (udbg < 0) { const char* e = getenv("ND500X_UDATADBG"); udbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (udbg < 0) udbg = nd500_settings()->udatadbg;
 		if (udbg && cpu->CED == 0 && vaddr >= 0xF0000000u)
 			printf("[UDATA32] PC=0x%08X CED=0 read32 vaddr=0x%08X paddr=0x%08X\n",
 			       cpu->PC, vaddr, paddr);

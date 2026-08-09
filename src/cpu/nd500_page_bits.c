@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 #ifndef NBPG
 #define NBPG    2048        /* bytes per page frame */
@@ -55,10 +56,8 @@ static Nd500Machine* g_report_machine = NULL;
  * first, so whichever armed last would be the only one to report. */
 static void pb_emit_reports(void) {
     if (!g_report_machine) return;
-    const char* e = getenv("ND500X_PGUDBG");
-    if (e && e[0] && e[0] != '0') nd500_page_bits_report(g_report_machine);
-    e = getenv("ND500X_PHYSDBG");
-    if (e && e[0] && e[0] != '0') nd500_phys_alloc_report(g_report_machine);
+    if (nd500_settings()->pgudbg)  nd500_page_bits_report(g_report_machine);
+    if (nd500_settings()->physdbg) nd500_phys_alloc_report(g_report_machine);
 }
 
 static void pb_atexit_report(void) {
@@ -84,10 +83,7 @@ static void pb_signal_report(int sig) {
 static void pb_arm_report(Nd500Machine* m) {
     static int armed = 0;
     if (armed) { g_report_machine = m; return; }
-    const char* pgu  = getenv("ND500X_PGUDBG");
-    const char* phys = getenv("ND500X_PHYSDBG");
-    int want = ((pgu  && pgu[0]  && pgu[0]  != '0') ||
-                (phys && phys[0] && phys[0] != '0'));
+    int want = (nd500_settings()->pgudbg || nd500_settings()->physdbg);
     if (!want) return;
     g_report_machine = m;
     armed = 1;
@@ -153,10 +149,7 @@ void nd500_page_bits_mark(Nd500Machine* m, uint32_t phys_addr, int is_write) {
     {
         static long watch = -2;
         static unsigned shown = 0;
-        if (watch == -2) {
-            const char* e = getenv("ND500X_PGUWATCH");
-            watch = (e && e[0]) ? strtol(e, NULL, 0) : -1;
-        }
+        if (watch == -2) watch = nd500_settings()->pguwatch;
         if (watch >= 0 && (uint32_t)watch == page && shown < 40u) {
             shown++;
             Nd500Cpu* c = m->cpu;
@@ -207,10 +200,7 @@ uint32_t nd500_page_bits_read_bit(Nd500Machine* m, Nd500PageTable table, uint32_
     {
         static int dbg = -1;
         static unsigned long shown = 0;
-        if (dbg < 0) {
-            const char* e = getenv("ND500X_PGUDBG");
-            dbg = (e && e[0] && e[0] != '0') ? 1 : 0;
-        }
+        if (dbg < 0) dbg = nd500_settings()->pgudbg;
         if (dbg && shown < 24u) {
             shown++;
             fprintf(stderr, "[PGUQ] %s page=%u (raw 0x%X) -> %u  [marked range %u..%u]\n",

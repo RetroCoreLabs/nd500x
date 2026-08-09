@@ -3,6 +3,7 @@
 #include "instruction_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * Comp2 instruction - COMPARE class
@@ -81,7 +82,7 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
              * libc's iszero_d() was comparing an un-negated -8.5 - the trail
              * that led to the swapped A/E double-register halves. */
             static int on = -1;
-            if (on < 0) { const char* e = getenv("ND500X_FCMPDBG"); on = (e && e[0] && e[0] != '0') ? 1 : 0; }
+            if (on < 0) on = nd500_settings()->fcmpdbg;
             if (on) {
                 static unsigned n = 0;
                 if (n++ < 200)

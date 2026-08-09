@@ -37,14 +37,7 @@
 #include <stdlib.h>   /* getenv */
 #include <string.h>
 #include <stdarg.h>
-
-/* Once-latched env flag: getenv() on the CPU run path races readline's
- * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
-static int nd_env_flag(const char* name, int* latch) {
-    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
-    return *latch;
-}
-static int g_envf_carve_bout = -1;
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /* Forward declaration for segment allocation callback */
 extern int nd500_mon_allocate_segment(void* cpu, void* machine, uint8_t domain,
@@ -294,7 +287,7 @@ int nd500_mon_sintran_call(Nd500Cpu* cpu,
      * 100 (octal, =64 dec), walk the ND-500 frame chain (B -> PREVB/RETA) to
      * recover which routine chose the scratch file number for the object
      * write. RETA is at frame+4, PREVB at frame+0 (see Ents.c). */
-    if (nd_env_flag("ND500X_CARVE_BOUT", &g_envf_carve_bout) && mon_number == 80 /* 120B WFILE */ && arg_count >= 1) {
+    if (nd500_settings()->carve_bout && mon_number == 80 /* 120B WFILE */ && arg_count >= 1) {
         uint32_t fno = ctx.read_word ? ctx.read_word(cpu, ctx.arg_addresses[0]) : 0xFFFFFFFF;
         uint32_t blk = (arg_count >= 4 && ctx.read_word) ? ctx.read_word(cpu, ctx.arg_addresses[3]) : 0xFFFFFFFF;
         if (fno == 64 /* file 100 octal */ && blk >= 1 && blk <= 8 /* object blocks only */) {

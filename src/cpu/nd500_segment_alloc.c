@@ -15,6 +15,7 @@
 #include "../machine/machine_protos.h"
 #include <stdio.h>
 #include <string.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /* SINTRAN error codes */
 #define ERR_SUCCESS               0
@@ -257,7 +258,7 @@ uint32_t nd500_segment_map_bounded_data(void* cpu_ptr, void* machine_ptr,
     Nd500Machine* m = (Nd500Machine*)machine_ptr;
 
     static int bmdbg = -1;
-    if (bmdbg < 0) { const char* e = getenv("ND500X_ALLOCDBG"); bmdbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    if (bmdbg < 0) bmdbg = nd500_settings()->allocdbg;
     if (bmdbg)
         fprintf(stderr, "[BMDBG] psn=%d data_pages=%u reserve=%u free_pages=%u mem_pages=%u\n",
                 psn, data_pages, reserve_pages, nd500_phys_pages_free(m),
@@ -596,7 +597,7 @@ static int alloc_backed_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain
     /* Opt-in layout dump (ND500X_SEG_DUMP) to hunt physical overlap between GSWSP segments. */
     {
         static int dbg = -1;
-        if (dbg < 0) { const char* e = getenv("ND500X_SEG_DUMP"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (dbg < 0) dbg = nd500_settings()->seg_dump;
         if (dbg) {
             uint32_t vbase = (uint32_t)assigned_segment << 27; /* VA seg field */
             fprintf(stderr, "[SEG] ic=%llu CED=%u dom=%u seg=%u vbase=%08X reqBytes=%u rounded=%u initPages=%u "

@@ -17,16 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>   /* getenv */
 #include <string.h>
-
-/* Once-latched env flag: getenv() on the CPU run path races readline's
- * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
-static int nd_env_flag(const char* name, int* latch) {
-    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
-    return *latch;
-}
-static int g_envf_inddbg = -1;
-
-
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /* =========================================================================
  * INTERNAL CONSTANTS
@@ -111,7 +102,7 @@ int nd500_check_indirect_call(
      * syscall gate (PC_IND, no PC_OMC -> target_domain 0 = kernel). Env ND500X_INDDBG. */
     {
         static int inddbg = -1;
-        if (inddbg < 0) { const char* e = getenv("ND500X_INDDBG"); inddbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (inddbg < 0) inddbg = nd500_settings()->inddbg;
         if (inddbg && (segment == SINTRAN_SEGMENT || target_segment == SINTRAN_SEGMENT)) {
             fprintf(stderr, "[INDDBG] seg=%u off=0x%X CED=%u cap=0x%04X PC_IND=%d PC_OMC=%d tgt_dom=%u tgt_seg=%u\n",
                     segment, offset, cpu->CED, pc, (pc & PC_IND) ? 1 : 0, (pc & PC_OMC) ? 1 : 0,
@@ -185,7 +176,7 @@ int nd500_check_indirect_call(
              * domain-return that Ret.c performs when prev_b==0 && CAD!=CED. [dom call] */
             cpu->B = 0;
 
-            if (nd_env_flag("ND500X_INDDBG", &g_envf_inddbg))
+            if (nd500_settings()->inddbg)
                 fprintf(stderr, "[SYSCALL] cross-domain CALL caller_dom=%u -> dom%u entry=0x%08X (retP=0x%08X B=0x%08X)\n",
                         caller_ced, target_domain, entry, cpu->pending_call_return_address, cpu->B);
 

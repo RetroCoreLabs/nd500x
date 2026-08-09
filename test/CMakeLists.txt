@@ -295,6 +295,18 @@ message(STATUS "diag harnesses: ${_diag_count} targets (build with 'make diag')"
 # test_mmu_translation and test_lget_instruction always exit 0, so they are
 # gated on their printed output instead of the exit code.
 
+
+# ---------------------------------------------------------------------------
+# The settings catalog. Two tests, because there are two ways it can rot:
+#   settings_catalog   - the documented defaults and, above all, the DIRECTION
+#                        of the four inverted flags (ND500X_NOTLB and friends
+#                        name what they switch OFF).
+#   settings_no_getenv - a raw getenv creeping back into the libraries, which
+#                        is how knobs used to escape the catalog entirely.
+# ---------------------------------------------------------------------------
+add_executable(test_settings_catalog test_settings_catalog.c)
+target_link_libraries(test_settings_catalog PRIVATE nd500_cpu)
+
 add_test(NAME mmu_translation COMMAND test_mmu_translation)
 set_tests_properties(mmu_translation PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 
@@ -403,3 +415,9 @@ if(EXISTS ${NC_COMPILER_DOM})
         TIMEOUT 300)
     message(STATUS "NC compile tests enabled (sandbox: ${NC_SANDBOX})")
 endif()
+
+add_test(NAME settings_catalog COMMAND test_settings_catalog)
+
+add_test(NAME settings_no_getenv
+         COMMAND ${CMAKE_COMMAND} -DSRC_DIR=${CMAKE_SOURCE_DIR}
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/no_getenv_gate.cmake)

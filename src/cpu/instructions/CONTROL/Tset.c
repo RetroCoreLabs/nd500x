@@ -3,6 +3,7 @@
 #include "instruction_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * Tset instruction - CONTROL class
@@ -264,7 +265,7 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     // Note: Other flags (C, V, K) are not modified by TSET
 
-    if (getenv("ND500X_TSETDBG") && fi->address >= 0x83Au && fi->address <= 0x852u) {
+    if (nd500_settings()->tsetdbg && fi->address >= 0x83Au && fi->address <= 0x852u) {
         static uint64_t n = 0;
         if ((n++ % 200000) == 0) {
             uint64_t readback = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);

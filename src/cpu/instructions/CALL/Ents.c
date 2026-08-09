@@ -4,6 +4,7 @@
 #include "nd500_mmu.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * Ents instruction - CALL class
@@ -86,7 +87,7 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* Frame trace (env-gated) - shows where new_b comes from */
-    if (getenv("ND500X_FRAMELOG")) {
+    if (nd500_settings()->framelog) {
         printf("[ENTS] PC=0x%08X old_b=0x%08X read[old_b+8=0x%08X]=new_b=0x%08X L=0x%08X\n",
                fi->address, old_b, old_b + OFFSET_SP, new_b, cpu->L);
     }
@@ -150,7 +151,7 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     {
         static uint32_t hwm = 0;
         static int stkdbg = -1;
-        if (stkdbg < 0) { const char* e = getenv("ND500X_STKDBG"); stkdbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (stkdbg < 0) stkdbg = nd500_settings()->stkdbg;
         if (stkdbg && new_b > hwm) {
             hwm = new_b;
             fprintf(stderr, "[STKDBG] stack HWM new_b=0x%08X depth=0x%X at PC=0x%08X (old_b=0x%08X)\n",

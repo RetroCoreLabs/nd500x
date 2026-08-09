@@ -3,6 +3,7 @@
 #include "instruction_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * FREEB instruction - SYSTEM class
@@ -116,7 +117,7 @@ void nd500_instr_Freeb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Update freelist head: FLOG[log_size] = element */
     nd500_write_memory_32(cpu, freelist_addr, element);
 
-    if (getenv("ND500X_HEAPDBG")) {
+    if (nd500_settings()->heapdbg) {
         fprintf(stderr, "[HEAPDBG] FREEB PC=0x%08X log_size=%u element=0x%08X TOS=0x%08X\n",
                 fi->address, log_size, element, cpu->TOS);
     }

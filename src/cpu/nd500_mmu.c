@@ -18,16 +18,7 @@ void nd500_mmu_tlb_stat_install(void);
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
-/* Once-latched env flag: getenv() on the CPU run path races readline's
- * setenv (environ realloc) on the main thread -> SIGSEGV. Latch once. */
-static int nd_env_flag(const char* name, int* latch) {
-    if (*latch < 0) { const char* e = getenv(name); *latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
-    return *latch;
-}
-static int g_envf_pst47dbg = -1;
-static int g_envf_seg30dbg = -1;
-
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /* Physical base where the flat a.out loader placed the DATA section (= a_text).
  * Declared here (not via ndlib.h) to keep the MMU free of a loader header
@@ -58,10 +49,7 @@ static ProcessControlBlock* g_pcb_table = NULL;
  * OFF so the current boot (mounts root) is unchanged. */
 static int g_mmu_guest_tables = -1;
 static int mmu_use_guest_tables(void) {
-    if (g_mmu_guest_tables < 0) {
-        const char* e = getenv("ND500X_MMU_GUEST_TABLES");
-        g_mmu_guest_tables = (e && e[0] && e[0] != '0') ? 1 : 0;
-    }
+    if (g_mmu_guest_tables < 0) g_mmu_guest_tables = nd500_settings()->mmu_guest_tables;
     return g_mmu_guest_tables;
 }
 
@@ -330,7 +318,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
         {   /* branch tag (env ND500X_PGFDBG): identify WHICH mmu branch raised
              * the silent second _Udata fault (no PTWDBG-L2/PST47 line). */
             static int pgfd = -1;
-            if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+            if (pgfd < 0) pgfd = nd500_settings()->pgfdbg;
             if (pgfd) fprintf(stderr, "[PGFSITE] PST-ZERO dom=%d seg=%d psn=%d va=0x%08X use_guest=%d\n",
                               domain, segment, psn, virtual_addr, use_guest);
         }
@@ -361,7 +349,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 MMU_ERR("[MMU] TRAP: PS_AZI page fault! L1=%d L2=%d must be 0! vaddr=0x%08X\n",
                       l1_index, l2_index, virtual_addr);
                 {   static int pgfd = -1;
-                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+                    if (pgfd < 0) pgfd = nd500_settings()->pgfdbg;
                     if (pgfd) fprintf(stderr, "[PGFSITE] AZI-IDX dom=%d seg=%d psn=%d va=0x%08X pfn=0x%X\n",
                                       domain, segment, psn, virtual_addr, pst_entry.physical_pfn);
                 }
@@ -380,7 +368,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 MMU_ERR("[MMU] TRAP: PS_ASI page fault! L1=%d must be 0! vaddr=0x%08X\n",
                       l1_index, virtual_addr);
                 {   static int pgfd = -1;
-                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+                    if (pgfd < 0) pgfd = nd500_settings()->pgfdbg;
                     if (pgfd) fprintf(stderr, "[PGFSITE] ASI-IDX dom=%d seg=%d psn=%d va=0x%08X\n",
                                       domain, segment, psn, virtual_addr);
                 }
@@ -399,7 +387,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
             if (!pte.valid) {
                 MMU_ERR("[MMU] TRAP: PS_ASI page not valid! vaddr=0x%08X pte_addr=0x%08X\n", virtual_addr, pte_addr);
                 {   static int pgfd = -1;
-                    if (pgfd < 0) { const char* e = getenv("ND500X_PGFDBG"); pgfd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+                    if (pgfd < 0) pgfd = nd500_settings()->pgfdbg;
                     if (pgfd) fprintf(stderr, "[PGFSITE] ASI-PTE dom=%d seg=%d psn=%d va=0x%08X pte@0x%08X\n",
                                       domain, segment, psn, virtual_addr, pte_addr);
                 }
@@ -459,7 +447,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                  * physical l1_table_base, the write and this read agree; if not, the
                  * kernel's PTE writes are landing on the wrong page - the real root. */
                 {
-                    const char* e = getenv("ND500X_PTWDBG");
+                    const char* e = nd500_settings()->ptwdbg;
                     if (e && e[0] && e[0] != '0') {
                         uint32_t phys_l1  = nd500_bus_read32(cpu->machine, l1_pte_addr);
                         uint32_t alias_va = 0x10000000u + l1_table_base; /* Physbase(seg2)+X */
@@ -506,7 +494,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
             /* PST47DBG: full walk chain for the shared user-data segment (PSN 47 =
              * icode p_addr+1). Shows whether PST[47] -> L1 -> L2 resolves to a page
              * or where the chain is empty (the _Udata / seg-30 boot blocker). */
-            if (nd_env_flag("ND500X_PST47DBG", &g_envf_pst47dbg) && psn == 47) {
+            if (nd500_settings()->pst47dbg && psn == 47) {
                 static uint64_t n47 = 0;
                 if (n47++ < 40) {
                     uint32_t l1w = nd500_bus_read32(cpu->machine, l1_pte_addr);
@@ -536,7 +524,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_TRACE)
                     fprintf(stderr, "[MMU] TRAP: PS_ADI L2 page not valid! vaddr=0x%08X l2_pte_addr=0x%08X\n", virtual_addr, l2_pte_addr);
                 {
-                    const char* e = getenv("ND500X_PTWDBG");
+                    const char* e = nd500_settings()->ptwdbg;
                     if (e && e[0] && e[0] != '0') {
                         fprintf(stderr, "[PTWDBG-L2] seg=%d va=0x%08X psn=%d pst_pfn=0x%X l1_pte@0x%08X=pfn0x%X "
                                 "l2_pte_addr=0x%08X raw=0x%08X\n", segment, virtual_addr, psn,
@@ -574,7 +562,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                  * with ND500X_MMU_GUEST_TABLES these are the GUEST's tables,
                  * so the address identifies whose PTE it is. */
                 {
-                    const char* e = getenv("ND500X_PTWDBG");
+                    const char* e = nd500_settings()->ptwdbg;
                     if (e && e[0] && e[0] != '0') {
                         fprintf(stderr, "[PTWDBG-RO] seg=%d va=0x%08X psn=%d pst_pfn=0x%X "
                                 "l1_pte@0x%08X=pfn0x%X raw=0x%08X  l2_pte@0x%08X raw=0x%08X pfn=0x%X\n",
@@ -739,7 +727,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             : g_pcb_table[domain].data_capabilities[segment];
     }
 
-    if (nd_env_flag("ND500X_SEG30DBG", &g_envf_seg30dbg) && domain == 0 && segment == 30 && !is_instruction) {
+    if (nd500_settings()->seg30dbg && domain == 0 && segment == 30 && !is_instruction) {
         static uint64_t n = 0;
         if (n++ < 12)
             fprintf(stderr, "[SEG30DBG] dom0 seg30 vaddr=0x%08X use_guest=%d cap=0x%04X (PSN=%u ind=%d) @PC=0x%08X\n",
@@ -794,8 +782,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
          * fall through to translate. Bounded + logged so wild pointers to other
          * segments still trap. */
         if (mmu_demand_segments < 0) {
-            const char* e = getenv("ND500X_NO_DEMAND_SEGMENTS");
-            mmu_demand_segments = (e && e[0] && e[0] != '0') ? 0 : 1;
+            mmu_demand_segments = nd500_settings()->demand_segments;
         }
         if (!is_instruction && mmu_demand_segments && cpu->machine &&
             /* KERNEL DOMAIN ONLY. User-domain (domain != 0) segments are

@@ -4,6 +4,7 @@
 #include "nd500_tlb.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * DCTSB instruction - SYSTEM class
@@ -187,7 +188,7 @@ void nd500_instr_Dctsb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     {
         static int dbg = -1;
-        if (dbg < 0) { const char* e = getenv("ND500X_TSBDBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (dbg < 0) dbg = nd500_settings()->tsbdbg;
         if (dbg)
             printf("[DCTSB] Data TLB clear (emulator no-op) at PC=0x%08X\n", fi->address);
     }

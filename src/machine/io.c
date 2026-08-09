@@ -8,6 +8,7 @@
 #include "../cpu/nd500_page_bits.h"
 #include "../cpu/nd500_tlb.h"
 #include "../cpu/nd500_mon_sintran.h"   /* SINTRAN MON seam - no ndmonlib here */
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /* ------------------------------------------------------------------ *
  * PTE write-watch (env ND500X_PTEWATCH). Diagnostic only: logs every
@@ -24,14 +25,11 @@ static uint32_t ptewatch_pfn  = 0x091du;
 static unsigned long ptewatch_seq = 0;
 static void ptewatch_init(void) {
 	if (ptewatch_on >= 0) return;
-	const char* e = getenv("ND500X_PTEWATCH");
-	ptewatch_on = (e && e[0] && e[0] != '0') ? 1 : 0;
-	const char* pg = getenv("ND500X_PTEWATCH_PAGE");
-	if (pg && pg[0]) ptewatch_page = (uint32_t)strtoul(pg, NULL, 0);
-	const char* pg2 = getenv("ND500X_PTEWATCH_PAGE2");
-	if (pg2 && pg2[0]) ptewatch_page2 = (uint32_t)strtoul(pg2, NULL, 0);
-	const char* pf = getenv("ND500X_PTEWATCH_PFN");
-	if (pf && pf[0]) ptewatch_pfn = (uint32_t)strtoul(pf, NULL, 0);
+	const Nd500Settings* cfg = nd500_settings();
+	ptewatch_on = cfg->ptewatch;
+	if (cfg->ptewatch_page)  ptewatch_page  = cfg->ptewatch_page;
+	if (cfg->ptewatch_page2) ptewatch_page2 = cfg->ptewatch_page2;
+	if (cfg->ptewatch_pfn)   ptewatch_pfn   = cfg->ptewatch_pfn;
 }
 static int ptewatch_in_page(uint32_t addr) {
 	if (addr >= ptewatch_page && addr < ptewatch_page + 0x800u) return 1;
@@ -143,16 +141,14 @@ void nd500_machine_free(Nd500Machine* m) {
 		 * from the pageout daemon and dirty(), so all-zero counts mean it
 		 * never paged - see ND500X_MEMTOP in nd500_fecall.c for the knob that
 		 * makes it. */
-		const char* e = getenv("ND500X_PGUDBG");
-		if (e && e[0] && e[0] != '0') nd500_page_bits_report(m);
+		if (nd500_settings()->pgudbg) nd500_page_bits_report(m);
 	}
 	{
 		/* How much physical memory did the emulator itself take? Demand
 		 * segments grow on fault, so the answer is not the initial
 		 * allocation - and it decides how much must be withheld from a guest
 		 * that does its own allocation over the same range. */
-		const char* e = getenv("ND500X_PHYSDBG");
-		if (e && e[0] && e[0] != '0') nd500_phys_alloc_report(m);
+		if (nd500_settings()->physdbg) nd500_phys_alloc_report(m);
 	}
 	nd500_page_bits_reset(m);    /* drop the PGU/WIP bitmaps */
 	free(m->memory);
@@ -213,8 +209,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	 * after its pagein DMA has already filled it. */
 	{
 		static int fw_init = 0; static uint32_t fw_base = 0; static unsigned fw_n = 0;
-		if (!fw_init) { const char* e = getenv("ND500X_FRAMEWATCH"); fw_init = 1;
-		                fw_base = e ? (uint32_t)strtoul(e, NULL, 16) : 0; }
+		if (!fw_init) { fw_init = 1; fw_base = nd500_settings()->framewatch; }
 		if (fw_base && addr >= fw_base && addr < fw_base + 2048 && val == 0 && fw_n < 4000) {
 			Nd500Cpu* c = m ? m->cpu : 0;
 			fw_n++;
@@ -229,9 +224,9 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	 * value, so it catches a partial overwrite of a live word. */
 	{
 		static int pw_init = 0; static uint32_t pw_base = 0, pw_len = 0; static unsigned pw_n = 0;
-		if (!pw_init) { const char* e = getenv("ND500X_PWATCH"); pw_init = 1;
-		                if (e && e[0]) { char* end; pw_base = (uint32_t)strtoul(e, &end, 16);
-		                                 pw_len = (*end == ':') ? (uint32_t)strtoul(end + 1, NULL, 0) : 16; } }
+		if (!pw_init) { pw_init = 1;
+		                pw_base = nd500_settings()->pwatch_base;
+		                pw_len  = nd500_settings()->pwatch_len; }
 		if (pw_len && addr >= pw_base && addr < pw_base + pw_len && pw_n < 4000) {
 			Nd500Cpu* c = m ? m->cpu : 0;
 			pw_n++;
@@ -256,7 +251,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 		 * memory_size and the data just vanishes - reads then return 0).
 		 * Log the first few drops (env ND500X_DROPDBG). */
 		static int dropd = -1;
-		if (dropd < 0) { const char* e = getenv("ND500X_DROPDBG"); dropd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (dropd < 0) dropd = nd500_settings()->dropdbg;
 		if (dropd) {
 			static unsigned n = 0;
 			if (n++ < 40)
@@ -279,7 +274,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	 * NDIX-boot 0x844 idle regression: proc1 never scheduled). Env-gated. */
 	{
 		static int dit1 = -1;
-		if (dit1 < 0) { const char* e = getenv("ND500X_DIT1DBG"); dit1 = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (dit1 < 0) dit1 = nd500_settings()->dit1dbg;
 		if (dit1 && addr >= 0x90100u && addr < 0x90200u && val != 0) {
 			static unsigned n = 0;
 			if (n++ < 128)
@@ -294,7 +289,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	 * the seg-30/_Udata (0xF0000000) and seg-1 (0x08000014) walks read as empty. */
 	{
 		static int l2w = -1;
-		if (l2w < 0) { const char* e = getenv("ND500X_L2WATCH"); l2w = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (l2w < 0) l2w = nd500_settings()->l2watch;
 		if (l2w && ((addr >= 0x489000u && addr < 0x489020u) || (addr >= 0x48A000u && addr < 0x48A020u))) {
 			/* Zero-clears are noise (the 2KB page wipe): sample the first few.
 			 * NONZERO writes are the PTE installs we hunt: log them all. */
@@ -324,7 +319,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	 * ("/etc/init") physically lands during the boot. */
 	{
 		static int dcd = -1;
-		if (dcd < 0) { const char* e = getenv("ND500X_DCODEDBG"); dcd = (e && e[0] && e[0] != '0') ? 1 : 0; }
+		if (dcd < 0) dcd = nd500_settings()->dcodedbg;
 		if (dcd) {
 			static uint32_t match_addr = 0; static int match_len = 0;
 			static const uint8_t pat[4] = { 0x2F, 0x65, 0x74, 0x63 }; /* "/etc" */
@@ -348,8 +343,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
 	 * identified and resolved with addr2line. */
 	{
 		static long catch_addr = -2;
-		if (catch_addr == -2) { const char* e = getenv("ND500X_PTECATCH");
-			catch_addr = (e && e[0]) ? (long)strtoul(e, NULL, 0) : -1; }
+		if (catch_addr == -2) catch_addr = nd500_settings()->ptecatch;
 		if (catch_addr >= 0 && addr == (uint32_t)catch_addr) {
 			long delta = (char*)__builtin_return_address(0) - (char*)&nd500_bus_write8;
 			fprintf(stderr, "[PTECATCH] write phys=0x%08X val=0x%02X ret=%p delta_from_bus_write8=0x%lx\n",

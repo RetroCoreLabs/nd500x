@@ -3,6 +3,7 @@
 #include "instruction_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * Solo instruction - CONTROL class
@@ -248,7 +249,7 @@ void nd500_instr_Solo(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     {
         static int dbg = -1;
-        if (dbg < 0) { const char* e = getenv("ND500X_SOLODBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (dbg < 0) dbg = nd500_settings()->solodbg;
         if (dbg)
             printf("[SOLO] Process switch disabled at PC=0x%08X (PSD set, icount=%llu)\n",
                    fi->address, (unsigned long long)cpu->instruction_count);

@@ -3,6 +3,7 @@
 #include "instruction_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>   /* getenv - the ND500X_BPDBG gate below */
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * Bp instruction - CONTROL class
@@ -168,7 +169,7 @@ void nd500_instr_Bp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * crashed. */
     {
         static int dbg = -1;
-        if (dbg < 0) { const char* e = getenv("ND500X_BPDBG"); dbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+        if (dbg < 0) dbg = nd500_settings()->bpdbg;
         if (dbg)
             printf("[BP] breakpoint instruction at PC=0x%08X (BPT %s)\n",
                    fi->address,

@@ -11,6 +11,7 @@
 #include "nd500_tlb.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 extern unsigned long long g_tlb_hits, g_tlb_misses, g_tlb_flushes;
 
@@ -37,8 +38,7 @@ void nd500_mmu_tlb_init_once(void) {
 	g_nd500_tlb_init = 1;
 	for (uint32_t i = 0; i < ND500_TLB_SIZE; i++)
 		g_nd500_tlb[i].tag = ND500_TLB_EMPTY;
-	const char* e = getenv("ND500X_NOTLB");
-	g_nd500_tlb_on = (e && e[0] && e[0] != '0') ? 0 : 1;
+	g_nd500_tlb_on = nd500_settings()->tlb_enabled;
 	nd500_mmu_tlb_stat_install();
 	if (!g_nd500_tlb_on)
 		printf("ND-500: translation cache DISABLED (ND500X_NOTLB)\n");
@@ -49,8 +49,7 @@ void nd500_mmu_tlb_init_once(void) {
  * decides whether the design works, not a guess about it. */
 unsigned long long g_tlb_hits, g_tlb_misses, g_tlb_flushes;
 static void tlb_report(void) {
-	const char* e = getenv("ND500X_TLBSTAT");
-	if (!e || !e[0] || e[0] == '0') return;
+	if (!nd500_settings()->tlbstat) return;
 	unsigned long long tot = g_tlb_hits + g_tlb_misses;
 	fprintf(stderr, "[TLBSTAT] hits=%llu misses=%llu (%.1f%% hit) flushes=%llu\n",
 	        g_tlb_hits, g_tlb_misses,

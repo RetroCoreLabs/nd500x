@@ -3,6 +3,7 @@
 #include "instruction_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>   /* getenv - used below; GCC 14+ rejects the implicit decl */
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * Umul instruction - ARITHMETIC class
@@ -106,7 +107,7 @@ void nd500_instr_Umul(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * raised a spurious invalid-operation trap that aborted the init-creation path,
      * leaving the run queue empty and idling forever at text 0x844. Same class as
      * the BYCONV overflow-trap fix. Just leave the O flag set (above) and continue. */
-    if (overflow && getenv("ND500X_UMULDBG")) {
+    if (overflow && nd500_settings()->umuldbg) {
         printf("[UMUL] PC=0x%08X: overflow (upper=0x%08X delivered to Rn) - O flag set, no trap\n",
                fi->address, upperHalf);
     }

@@ -3,6 +3,7 @@
 #include "instruction_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * CHAIN instruction - CALL class
@@ -157,7 +158,7 @@
  * prints flooded program output. */
 static int chain_dbg(void) {
     static int latch = -1;
-    if (latch < 0) { const char* e = getenv("ND500X_CHAINDBG"); latch = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    if (latch < 0) latch = nd500_settings()->chaindbg;
     return latch;
 }
 

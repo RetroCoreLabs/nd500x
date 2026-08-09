@@ -41,6 +41,9 @@ cmake_install.cmake
 Makefile
 CTestTestfile.cmake
 *.cmake
+# ...but this one is hand-written source, not generated: it is the
+# settings_no_getenv CTest gate (see src/cpu/nd500_settings.h).
+!test/no_getenv_gate.cmake
 
 # Test files
 test.o

@@ -13,6 +13,7 @@
 #include "../ndlib/ndlib.h"
 #include "../ndlib/ndlib_color.h"
 #include "../cpu/nd500_mon_sintran.h"   /* SINTRAN MON seam - no ndmonlib here */
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 static const char* reg_names[] = {"r1", "r2", "r3", "r4"};
 
@@ -68,10 +69,7 @@ int nd500_dbg_set_show_ea(int onoff) {
 }
 
 int nd500_dbg_get_show_ea(void) {
-    if (g_show_ea < 0) {
-        const char* env = getenv("ND500X_SHOW_EA");
-        g_show_ea = (env && *env == '1') ? 1 : 0;
-    }
+    if (g_show_ea < 0) g_show_ea = nd500_settings()->show_ea;
     return g_show_ea;
 }
 
@@ -81,11 +79,7 @@ int nd500_dbg_set_show_hex(int onoff) {
 }
 
 int nd500_dbg_get_show_hex(void) {
-    if (g_show_hex < 0) {
-        const char* env = getenv("ND500X_SHOW_HEX");
-        /* Default to ON if not set */
-        g_show_hex = (env && *env == '0') ? 0 : 1;
-    }
+    if (g_show_hex < 0) g_show_hex = nd500_settings()->show_hex;
     return g_show_hex;
 }
 
@@ -110,10 +104,7 @@ int nd500_dbg_get_radix_base(void) {
 
 static const char* maybe_demangle(const char* sym) {
     if (!sym) return NULL;
-    if (g_demangle < 0) {
-        const char* env = getenv("ND500X_DEMANGLE");
-        g_demangle = (env && *env == '1') ? 1 : 0;
-    }
+    if (g_demangle < 0) g_demangle = nd500_settings()->demangle;
     if (!g_demangle) return sym;
     /* Simple C demangle: strip single leading underscore */
     if (sym[0] == '_' && sym[1] != '\0') return sym + 1;
@@ -126,10 +117,7 @@ int nd500_dbg_set_demangle(int onoff) {
 }
 
 int nd500_dbg_get_demangle(void) {
-    if (g_demangle < 0) {
-        const char* env = getenv("ND500X_DEMANGLE");
-        g_demangle = (env && *env == '1') ? 1 : 0;
-    }
+    if (g_demangle < 0) g_demangle = nd500_settings()->demangle;
     return g_demangle;
 }
 
@@ -671,10 +659,7 @@ int nd500_dbg_set_trace_mode(int onoff) {
 }
 
 int nd500_dbg_get_trace_mode(void) {
-    if (g_trace_mode < 0) {
-        const char* env = getenv("ND500X_TRACE");
-        g_trace_mode = (env && strcmp(env, "1") == 0) ? 1 : 0;
-    }
+    if (g_trace_mode < 0) g_trace_mode = nd500_settings()->trace;
     return g_trace_mode;
 }
 
@@ -1025,10 +1010,7 @@ int nd500_dbg_set_profiling(int onoff) {
 }
 
 int nd500_dbg_get_profiling(void) {
-    if (g_profiling < 0) {
-        const char* env = getenv("ND500X_PROFILE");
-        g_profiling = (env && strcmp(env, "1") == 0) ? 1 : 0;
-    }
+    if (g_profiling < 0) g_profiling = nd500_settings()->profile;
     return g_profiling;
 }
 
@@ -1140,13 +1122,11 @@ int nd500_dbg_set_trap_invalid(int onoff) {
 
 int nd500_dbg_get_trap_invalid(void) {
     if (g_trap_invalid == -1) {
-        /* Check environment variable */
-        const char* env = getenv("ND500X_TRAP_INVALID");
-        if (env && (strcmp(env, "1") == 0 || strcasecmp(env, "on") == 0 || strcasecmp(env, "true") == 0)) {
-            g_trap_invalid = 1;
-        } else {
-            g_trap_invalid = 1; /* Default to enabled */
-        }
+        /* NOTE: the code this replaced assigned 1 in BOTH branches, so
+         * ND500X_TRAP_INVALID has never had any effect - trapping invalid
+         * opcodes is unconditionally on. Reproduced exactly; see the catalog
+         * note in nd500_settings.h. */
+        g_trap_invalid = nd500_settings()->trap_invalid;
     }
     return g_trap_invalid;
 }

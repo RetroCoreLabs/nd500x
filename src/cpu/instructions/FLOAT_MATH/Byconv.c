@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>   /* getenv - used below; GCC 14+ rejects the implicit decl */
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * Byconv instruction - FLOAT_MATH class
@@ -123,7 +124,7 @@ void nd500_instr_Byconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * cause integer overflow"), then the IOV trap is raised. Flags are not
      * updated on the trap path. */
     if (overflow) {
-        if (getenv("ND500X_BYCONVDBG"))
+        if (nd500_settings()->byconvdbg)
             ND500X_TRAPLOG("[TRAP] BYCONV at PC=0x%08X: Value %lld outside byte range (-128 to 127)\n",
                    fi->address, (long long)source_value);
         nd500_write_operand_value(cpu, &fi->operands[1], (uint64_t)(uint8_t)byte_result, ND500_DTYPE_BYTE);

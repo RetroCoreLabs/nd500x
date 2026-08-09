@@ -3,6 +3,7 @@
 #include "instruction_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
 /**
  * Init instruction - CONTROL class
@@ -107,7 +108,7 @@ void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Diagnostic only - gated so it never leaks onto the SINTRAN console.
      * Set ND500X_INITLOG=1 to see the stack setup each INIT performs. */
-    if (getenv("ND500X_INITLOG")) {
+    if (nd500_settings()->initlog) {
         printf("[INIT] Stack initialized at B=0x%08X, TOS=0x%08X, SP=0x%08X\n",
                cpu->B, cpu->TOS, bottom_of_stack + stack_demand_main);
     }
