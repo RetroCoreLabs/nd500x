@@ -1645,6 +1645,22 @@ int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresse
                             ok ? "success" : "no medium", g_tape.pos);
             } else {
                 pkt_wr16(&rpk, 0, 0);    /* other devices (e.g. XMSG): success */
+                if (gen == GEN_XMSG) {
+                    /* _open_cpk_xmsg is a single `long datbuf` (machine/if.h:173)
+                     * = dton(&xdata[sub]) (xg.c:215). This is the ONLY place the
+                     * front end is told a full-width buffer address for this
+                     * sub-device, and it is needed later: every address inside an
+                     * xmsg_args is squeezed through a `short`, so the top bits
+                     * have to be recovered from something. See
+                     * nd500_xmsg_note_datbuf(). */
+                    Pkt ocpk = pkt_word(cpu, cpk_arg);
+                    uint32_t datbuf = pkt_rd32(&ocpk, 0);
+                    nd500_xmsg_note_datbuf(device & 0xFFFF, datbuf);
+                    if (fedbg())
+                        fprintf(stderr, "[FECALL] FE_OPEN xmsg sub=%u datbuf=word 0x%08X"
+                                        " (phys 0x%08X)\n",
+                                device & 0xFFFF, datbuf, datbuf * 2u - FE_PRIVATE);
+                }
                 if (fedbg())
                     fprintf(stderr, "[FECALL] FE_OPEN gen=%u sub=%u qual=%s -> success (non-disk)\n",
                             gen, device & 0xFFFF,

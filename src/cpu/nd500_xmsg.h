@@ -71,16 +71,29 @@ extern "C" {
 
 /* The XMSG function codes we care about (if/xmsg.h:78-97). The low byte is the
  * function; the high bits are option flags (XFMASK = 0xff strips them). */
-#define XMSG_XFOPN   012   /* open a port  */
-#define XMSG_XFCLS   013   /* close a port */
+#define XMSG_XFGET   002   /* get message space, size in A     */
+#define XMSG_XFREL   003   /* release message space            */
+#define XMSG_XFWRI   007   /* write from a buffer into the message */
+#define XMSG_XFMST   011   /* get message status -> magic number   */
+#define XMSG_XFOPN   012   /* open a port                      */
+#define XMSG_XFCLS   013   /* close a port                     */
+#define XMSG_XFSND   014   /* send the message to a port       */
+#define XMSG_XFRRE   051   /* receive and read message         */
+#define XMSG_XFRREN  060   /* receive and read, do not wait    */
+#define XMSG_XETHER  055   /* the special ethernet call        */
 #define XMSG_FUNC_MASK 0xff
 
 /* XMSG status codes returned in args.T (if/xmsg.h:128-161, 179).
  * XMSUX is 0 - success. Everything negative is an error, and if_et.c tests
  * exactly `xa->T < 0`. */
-#define XMSG_XMSUX    0     /* success                            */
-#define XMSG_XENIM   -5     /* facility not yet implemented       */
-#define XMSG_XENOP  -011    /* no more ports available (octal -9) */
+#define XMSG_XMSUX    0     /* success                                    */
+#define XMSG_XENIM   -5     /* facility not yet implemented               */
+#define XMSG_XENOP  -011    /* no more ports available                    */
+#define XMSG_XEXBF  -033    /* message already has an XMSG buffer (XFDUB) */
+#define XMSG_XENDP  -035    /* no port open, so the port param is invalid */
+#define XMSG_XEILM  -025    /* illegal message size                       */
+#define XMSG_XENDM  -013    /* no default (current) message               */
+#define XMSG_XEITL  -036    /* illegal transfer length for read/write     */
 
 /*
  * Drain the command ring, answer every command in it, and leave the answers in
@@ -102,7 +115,27 @@ int nd500_xmsg_service(Nd500Cpu* cpu);
  * nd500_xmsg_service() is a two-line wrapper that supplies the guest-memory
  * accessor and calls this.
  */
-int nd500_xmsg_service_mem(const Nd500XRingMem* mem);
+/*
+ * What the server needs to reach, in the two different address spaces it has
+ * to deal with:
+ *
+ *   ring   - the two ring buffers, at ND-500 VIRTUAL addresses in segment 6.
+ *   pread8 - PHYSICAL memory. Every buffer address inside an xmsg_args is an
+ *            ND-100 WORD address produced by dton() (h/types.h:56), and the
+ *            conversion is `phys = word * 2 - FE_PRIVATE` - the same one the
+ *            tty path already does (nd500_fecall.c:545). It does not go through
+ *            the ND-500 MMU at all, so it cannot share the ring accessor.
+ *
+ * Split this way so the whole server stays checkable against two plain arrays.
+ */
+typedef struct Nd500XmsgOps {
+    Nd500XRingMem ring;
+    uint8_t (*pread8) (void* ctx, uint32_t phys);
+    void    (*pwrite8)(void* ctx, uint32_t phys, uint8_t val);
+    void*   ctx;
+} Nd500XmsgOps;
+
+int nd500_xmsg_service_mem(const Nd500XmsgOps* ops);
 
 /*
  * Forget all port allocations. Called from the NDIX boot path when the ring
@@ -110,6 +143,33 @@ int nd500_xmsg_service_mem(const Nd500XRingMem* mem);
  * inherit the first one's ports.
  */
 void nd500_xmsg_reset(void);
+
+/*
+ * Record the full-width buffer base for a sub-device, from the FE_OPEN command
+ * packet (`long datbuf` = dton(&xdata[sub]), xg.c:215, machine/if.h:173).
+ *
+ * WHY THIS IS NEEDED AT ALL. Every buffer address inside a command travels in
+ * `struct xmsg_args`, whose fields are all `short` (if/xmsg.h:25-30), while
+ * xma() takes them as `long` and assigns straight in (`xap->A = A`,
+ * if_et.c:1173). A word address wider than 16 bits is therefore TRUNCATED
+ * before it ever reaches this side. Measured: the attach letter really sat at
+ * word 0x00151D1E and arrived as 0x1D1E.
+ *
+ * `datbuf` is the one full-width address the front end is given, so it supplies
+ * the missing high bits. nd500_xmsg_full_word() completes a truncated address
+ * against it.
+ */
+void nd500_xmsg_note_datbuf(uint32_t subdev, uint32_t datbuf_word);
+
+/*
+ * Complete a 16-bit truncated word address for a sub-device, using the base
+ * recorded by nd500_xmsg_note_datbuf(). Exposed for the tests.
+ *
+ * It picks the candidate NEAREST to the base, so a buffer just below the base's
+ * own 64K boundary still resolves - the alternative (masking in the base's high
+ * bits unconditionally) is wrong by 128 KB whenever the two straddle it.
+ */
+uint32_t nd500_xmsg_full_word(uint32_t subdev, uint16_t truncated);
 
 #ifdef __cplusplus
 }
