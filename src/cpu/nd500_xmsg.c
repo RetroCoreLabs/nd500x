@@ -758,23 +758,38 @@ static void xmsg_do_ether(const Nd500XmsgOps* ops, uint16_t subdev,
  * XFMST - message status. `xma(xa, XFMST, -1, 0, 0)` (if_et.c:412), and the
  * driver keeps `es_magno = xa->A << 16 | xa->D` (:417).
  *
- * That magic number goes in the `magno` field of every later command packet and
- * NDIX never looks inside it - it is the server's own handle (spec section 5.1).
- * So any stable non-zero value works. Handing back 1 in A and the port in D
- * makes a trace line readable: magno=0x00010001 is "port 1".
+ * THE TWO HALVES ARE NOT ARBITRARY. This used to answer A=1, D=port on the
+ * grounds that NDIX never looks inside the magic number - which is true, it is
+ * only echoed back in the `magno` field of later commands. But it is a real
+ * address on a real machine, and RetroCore's oracle capture of the actual 68K
+ * ENCOS firmware shows what it is made of:
  *
- * Both halves are kept small deliberately: NDIX combines them with a SIGNED
- * shift of a `short`, so anything with bit 15 set would sign-extend and the two
- * halves would smear into each other.
+ *     XFMST -> T=0x0001 A=0x0064 D=0x02AF
+ *     XFSND(A=0x0064, X=4)   "send to the kernel magic (node 100), from port 4"
+ *
+ * 0x0064 = 100 = the SYSTEM NUMBER of the node that capture was taken on.
+ * (RetroCore, Emulated.HW/ND/CPU/NDBUS/EthernetII/ETHII-HLE-PROTOCOL-SPEC.md.)
+ * So A is the ND system number and D identifies the port. Answering 1 was
+ * harmless for NDIX alone and wrong the moment anything real is on the far end
+ * - and wrong in a way nobody would notice until a peer rejected it.
+ *
+ * Both halves must stay clear of bit 15: NDIX combines them with a SIGNED shift
+ * of a `short`, so a high bit would sign-extend and smear the two together.
+ * A system number that large would break a real machine too.
  */
 static void xmsg_do_mst(uint16_t subdev, uint16_t* out_T,
                         uint16_t* out_A, uint16_t* out_D) {
+    uint32_t sysno;
+
     if (subdev >= XMSG_MAX_SUBDEV || g_sub[subdev].port == 0) {
         *out_T = (uint16_t)XMSG_XENDP;
         return;
     }
+    sysno = nd500_settings()->sysno;
+    if (sysno == 0 || sysno > 0x7FFF) sysno = 500;   /* see the bit-15 note */
+
     *out_T = (uint16_t)XMSG_XMSUX;
-    *out_A = 1;
+    *out_A = (uint16_t)sysno;
     *out_D = g_sub[subdev].port;
 }
 

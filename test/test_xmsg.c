@@ -480,6 +480,15 @@ int main(void) {
         magno_d = nd500_xring_be16(r + RESP_ARG_D);
         check("the magic number is not zero", (magno_a | magno_d) != 0);
         check("neither half has bit 15 set", ((magno_a | magno_d) & 0x8000) == 0);
+        /* A is the ND SYSTEM NUMBER and D the port - not two arbitrary tokens.
+         * RetroCore's oracle capture of the real 68K ENCOS firmware shows
+         * XFMST -> A=0x0064 D=0x02AF on a node booted as system 100
+         * (ETHII-HLE-PROTOCOL-SPEC.md). NDIX only echoes the magic number back,
+         * so this is invisible from inside the guest and would stay wrong until
+         * something real refused it. */
+        check_eq("A is this machine's system number (ND500X_SYSNO, default 500)",
+                 500, magno_a);
+        check_eq("D is the port", port, magno_d);
 
         /* And it can be released, which is where etinit() goes next. */
         put_cmd_args(5u << 1, 0, XMSG_XFREL, 0xFFFF, 0, 0);

@@ -85,6 +85,17 @@ void nd500_settings_defaults(Nd500Settings* s) {
     s->show_hex           = 1;
     s->trap_invalid       = 1;
     s->disk_mode = 1;
+    /* This machine's ND system number. 500 is ARBITRARY - nd500x has never had
+     * a system number and nothing in it needs one except the XMSG magic number,
+     * whose high half is the sysno on a real machine (measured: RetroCore's
+     * oracle capture of the real 68K ENCOS firmware shows
+     * XFMST -> A=0x0064 D=0x02AF on a node booted as system 100).
+     *
+     * Deliberately NOT 100, which is the node in that capture: two machines
+     * claiming one system number on the same segment is the sort of thing that
+     * looks like a network fault for a day. Set ND500X_SYSNO to match whatever
+     * the rest of the emulated site uses. */
+    s->sysno = 500;
 }
 
 void nd500_settings_load_env(void) {
@@ -160,6 +171,11 @@ void nd500_settings_load_env(void) {
     s->sysdbg             = env_flag("ND500X_SYSDBG");
     s->noxmsg             = env_flag("ND500X_NOXMSG");
     s->eth_uplink         = getenv("ND500X_ETH_UPLINK");
+    /* 0 is not a legal system number, so unset or junk means the default.
+     * Written as an unconditional assignment rather than "override if set" so a
+     * reload after the variable is REMOVED goes back to 500 instead of keeping
+     * the last value - this function is called on its own by the tests. */
+    s->sysno = env_u32("ND500X_SYSNO") ? env_u32("ND500X_SYSNO") : 500;
     s->nofeclock          = env_flag("ND500X_NOFECLOCK");
     s->nouserclock        = env_flag("ND500X_NOUSERCLOCK");
     s->console_8bit       = env_flag("ND500X_CONSOLE_8BIT");
