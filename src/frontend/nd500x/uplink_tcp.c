@@ -30,6 +30,11 @@
 static nd_socket_t g_sock = ND_INVALID_SOCKET;
 static int         g_up;             /* handshake done, frames may flow */
 
+/* LISTEN mode: bound and waiting for somebody to dial in. Kept separate from
+ * g_sock because the listener outlives any one peer - a guest that is rebooted
+ * on the other end must be able to come back without this one restarting. */
+static nd_socket_t g_listen = ND_INVALID_SOCKET;
+
 /* Whatever has arrived and not yet been taken apart. A frame can be split
  * across any number of reads, so this has to survive between polls. */
 static uint8_t  g_in[4 * ETHHUB_MAX_FRAME];
@@ -52,6 +57,10 @@ static void uplink_close(const char* why) {
 
 void nd500x_uplink_tcp_stop(void) {
     if (g_sock != ND_INVALID_SOCKET) uplink_close("stopped");
+    if (g_listen != ND_INVALID_SOCKET) {
+        nd_socket_close(g_listen);
+        g_listen = ND_INVALID_SOCKET;
+    }
     nd500_xmsg_set_uplink(NULL, NULL);
     nd500_xmsg_set_uplink_poll(NULL, NULL);
 }
@@ -101,11 +110,75 @@ static void uplink_frame_out(void* ctx, const uint8_t* frame, uint32_t len) {
  * which either completes a parked receive (and raises the interrupt) or queues
  * the frame for NDIX's next XFRREN.
  */
+static int read_fully(nd_socket_t s, uint8_t* buf, size_t count);
+
+/*
+ * LISTEN mode: is somebody dialling in? Non-blocking - if nobody is there this
+ * returns at once and the guest carries on.
+ *
+ * One peer at a time. This is a point-to-point link, not a hub: the hub role is
+ * RetroCore's TcpEthernetRelay, and duplicating it here would be a second
+ * implementation of something that already exists and works. What this is for
+ * is two emulators talking directly with nothing else running.
+ */
+static void uplink_accept(void) {
+    nd_pollfd_t pfd;
+    nd_socket_t s;
+    uint8_t hello[ETHHUB_HANDSHAKE_LEN], peer[ETHHUB_HANDSHAKE_LEN];
+    uint8_t peer_version = 0;
+    int one = 1;
+
+    pfd.fd = ND_SOCK_NATIVE(g_listen);
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+    if (nd_poll(&pfd, 1, 0) <= 0) return;
+
+    s = accept(ND_SOCK_NATIVE(g_listen), NULL, NULL);
+    if (s == ND_INVALID_SOCKET) return;
+
+    setsockopt(ND_SOCK_NATIVE(s), IPPROTO_TCP, TCP_NODELAY,
+               ND_SOCKOPT(&one), (nd_socklen_t)sizeof one);
+
+    /* Write ours, then read theirs - the order the relay uses on an accepted
+     * connection too (TcpEthernetRelay.cs:145-146), so neither side is waiting
+     * for the other to go first.
+     *
+     * The read blocks, briefly and once per connection. The peer writes its
+     * hello the instant it connects, so this is a formality; the poll below
+     * bounds it so a peer that connects and then says nothing costs half a
+     * second rather than the whole machine. */
+    nd500_ethhub_build_handshake(hello, ETHHUB_VERSION_MEMBER);
+    if (send(ND_SOCK_NATIVE(s), ND_SOCK_BUF(hello), ND_SOCK_LEN(sizeof hello),
+             MSG_NOSIGNAL) != (nd_ssize_t)sizeof hello) {
+        nd_socket_close(s);
+        return;
+    }
+    pfd.fd = ND_SOCK_NATIVE(s);
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+    if (nd_poll(&pfd, 1, 500) <= 0 ||
+        !read_fully(s, peer, sizeof peer) ||
+        !nd500_ethhub_check_handshake(peer, &peer_version)) {
+        fprintf(stderr, "[XMSG] uplink: something connected but did not send a "
+                        "RETH handshake - dropped\n");
+        nd_socket_close(s);
+        return;
+    }
+
+    g_sock   = s;
+    g_up     = 1;
+    g_in_len = 0;
+    fprintf(stderr, "[XMSG] uplink: peer joined (protocol version %u)\n",
+            peer_version);
+}
+
 static void uplink_poll(void* ctx, Nd500Cpu* cpu) {
     nd_pollfd_t pfd;
     (void)ctx;
 
-    if (!g_up || g_sock == ND_INVALID_SOCKET || !cpu) return;
+    if (!cpu) return;
+    if (!g_up && g_listen != ND_INVALID_SOCKET) uplink_accept();
+    if (!g_up || g_sock == ND_INVALID_SOCKET) return;
 
     for (;;) {
         int consumed;
@@ -159,7 +232,7 @@ static void uplink_poll(void* ctx, Nd500Cpu* cpu) {
 /* ---- connecting ---------------------------------------------------------- */
 
 /* Read exactly `count` bytes, blocking. Used only for the handshake, which is
- * five bytes and happens once. */
+ * five bytes and happens once per connection. */
 static int read_fully(nd_socket_t s, uint8_t* buf, size_t count) {
     size_t got = 0;
     while (got < count) {
@@ -188,9 +261,55 @@ int nd500x_uplink_tcp_start(Nd500Cpu* cpu) {
 
     if (!cpu || !spec || !*spec) return 0;
     if (strcmp(spec, "loop") == 0 || strcmp(spec, "none") == 0) return 0;
+
+    /* LISTEN: bind and wait. Nothing blocks here - the accept happens in the
+     * poll, so the guest boots whether or not anyone ever turns up. */
+    if (nd500_ethhub_parse_listen(spec, &port)) {
+        struct sockaddr_in a;
+        nd_socklen_t alen = (nd_socklen_t)sizeof a;
+        int one = 1;
+
+        if (nd_net_init() != 0) {
+            fprintf(stderr, "[XMSG] uplink: no networking available\n");
+            return -1;
+        }
+        g_listen = socket(AF_INET, SOCK_STREAM, 0);
+        if (g_listen == ND_INVALID_SOCKET) {
+            fprintf(stderr, "[XMSG] uplink: cannot create a listening socket\n");
+            return -1;
+        }
+        /* Without this a restart inside TIME_WAIT fails to bind, which on a
+         * machine being booted over and over is most of the time. */
+        setsockopt(ND_SOCK_NATIVE(g_listen), SOL_SOCKET, SO_REUSEADDR,
+                   ND_SOCKOPT(&one), (nd_socklen_t)sizeof one);
+
+        memset(&a, 0, sizeof a);
+        a.sin_family = AF_INET;
+        a.sin_addr.s_addr = htonl(INADDR_ANY);
+        a.sin_port = htons((unsigned short)port);
+        if (bind(ND_SOCK_NATIVE(g_listen), (struct sockaddr*)&a, (nd_socklen_t)sizeof a) != 0 ||
+            listen(ND_SOCK_NATIVE(g_listen), 1) != 0) {
+            fprintf(stderr, "[XMSG] uplink: cannot listen on port %d "
+                            "(is one already running?)\n", port);
+            nd_socket_close(g_listen);
+            g_listen = ND_INVALID_SOCKET;
+            return -1;
+        }
+        /* Report the port actually bound - with "listen:0" the OS picked it. */
+        if (getsockname(ND_SOCK_NATIVE(g_listen), (struct sockaddr*)&a, &alen) == 0)
+            port = ntohs(a.sin_port);
+
+        g_tx = g_rx = 0;
+        nd500_xmsg_set_uplink(uplink_frame_out, NULL);
+        nd500_xmsg_set_uplink_poll(uplink_poll, NULL);
+        fprintf(stderr, "[XMSG] uplink: listening on port %d for one peer\n", port);
+        return 1;
+    }
+
     if (!nd500_ethhub_parse_spec(spec, host, sizeof host, &port)) {
         fprintf(stderr, "[XMSG] uplink: ND500X_ETH_UPLINK=\"%s\" is not a spec I "
-                        "understand. Use loop, or tcp:host[:port].\n", spec);
+                        "understand. Use loop, listen[:port], or "
+                        "tcp:host[:port].\n", spec);
         return -1;
     }
 

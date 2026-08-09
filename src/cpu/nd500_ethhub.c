@@ -59,6 +59,31 @@ int nd500_ethhub_parse_spec(const char* spec, char* host, size_t hostlen,
     return 1;
 }
 
+int nd500_ethhub_parse_listen(const char* spec, int* port) {
+    const char* rest;
+
+    if (!spec || !port) return 0;
+    while (*spec == ' ' || *spec == '\t') spec++;
+
+    if (strncmp(spec, "tcp-listen", 10) == 0)   rest = spec + 10;
+    else if (strncmp(spec, "listen", 6) == 0)   rest = spec + 6;
+    else return 0;
+
+    if (*rest == '\0') { *port = ETHHUB_DEFAULT_PORT; return 1; }
+    if (*rest != ':')  return 0;    /* "listenX" is not a listen spec */
+    rest++;
+    if (*rest == '\0') { *port = ETHHUB_DEFAULT_PORT; return 1; }
+    {
+        char* end = NULL;
+        long p = strtol(rest, &end, 10);
+        /* 0 is legal HERE - it asks the OS for any free port. On the connect
+         * side it means nothing and is refused. */
+        if (!end || *end != '\0' || p < 0 || p > 65535) return 0;
+        *port = (int)p;
+    }
+    return 1;
+}
+
 void nd500_ethhub_build_handshake(uint8_t* out, uint8_t version) {
     if (!out) return;
     memcpy(out, ETHHUB_MAGIC, 4);

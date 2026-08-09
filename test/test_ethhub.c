@@ -168,6 +168,36 @@ int main(void) {
     check("a host too long for the buffer is refused, not cut short",
           nd500_ethhub_parse_spec("tcp:aaaaaaaaaaaaaaaaaaaa:1", host, 8, &port) == 0);
 
+    /* ---- the listen forms -------------------------------------------------
+     * TcpEthernetBackend.Parse:120-140. These let two emulators pair up with
+     * nothing else running - one listens, the other dials. */
+    printf("\nthe listen forms\n");
+    port = -1;
+    check("bare \"listen\" parses", nd500_ethhub_parse_listen("listen", &port) == 1);
+    check_eq("and defaults to 3094", ETHHUB_DEFAULT_PORT, port);
+    check("\"tcp-listen\" parses too", nd500_ethhub_parse_listen("tcp-listen", &port) == 1);
+    check_eq("same default", ETHHUB_DEFAULT_PORT, port);
+    check("listen:<port> parses", nd500_ethhub_parse_listen("listen:4100", &port) == 1);
+    check_eq("with that port", 4100, port);
+    check("tcp-listen:<port> parses",
+          nd500_ethhub_parse_listen("tcp-listen:4101", &port) == 1);
+    check_eq("with that port", 4101, port);
+
+    /* 0 means "any free port" to bind. It is legal HERE and refused on the
+     * connect side, where it means nothing at all. */
+    check("listen:0 is legal - the OS picks the port",
+          nd500_ethhub_parse_listen("listen:0", &port) == 1);
+    check_eq("and it is reported as 0 until the bind says otherwise", 0, port);
+
+    check("a connect spec is not a listen spec",
+          nd500_ethhub_parse_listen("tcp:relay:3094", &port) == 0);
+    check("and a word that merely starts with \"listen\" is not one either",
+          nd500_ethhub_parse_listen("listening", &port) == 0);
+    check("nor is a listen with a junk port",
+          nd500_ethhub_parse_listen("listen:abc", &port) == 0);
+    check("a listen spec is not a connect spec",
+          nd500_ethhub_parse_spec("listen", host, sizeof host, &port) == 0);
+
     printf("\n%d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

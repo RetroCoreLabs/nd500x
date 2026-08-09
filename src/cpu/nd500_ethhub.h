@@ -74,6 +74,20 @@ extern "C" {
 int nd500_ethhub_parse_spec(const char* spec, char* host, size_t hostlen,
                             int* port);
 
+/*
+ * Parse a LISTEN spec, matching TcpEthernetBackend.Parse's listen forms
+ * (:120-140):
+ *
+ *   listen / tcp-listen          -> port 3094
+ *   listen:<port> / tcp-listen:<port>
+ *
+ * Returns 1 and sets *port on success, 0 if this is not a listen spec.
+ *
+ * Port 0 IS accepted here and means "any free port", which is what it means to
+ * bind - unlike the connect side, where 0 is meaningless and refused.
+ */
+int nd500_ethhub_parse_listen(const char* spec, int* port);
+
 /* Fill `out` (ETHHUB_HANDSHAKE_LEN bytes) with our hello. */
 void nd500_ethhub_build_handshake(uint8_t* out, uint8_t version);
 

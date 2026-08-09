@@ -116,7 +116,7 @@ typedef struct Nd500Settings {
 
     /* ---- Behaviour --------------------------------------------------------- */
     int noxmsg;            /* ND500X_NOXMSG               fail XMSG (generic 7) device init so xgattach gives up cleanly */
-    const char* eth_uplink; /* ND500X_ETH_UPLINK          where et0's frames go. NULL or "none" = dropped; "loop" = echoed straight back */
+    const char* eth_uplink; /* ND500X_ETH_UPLINK          where et0's frames go. NULL/"none" = dropped; "loop" = echoed back; "listen[:port]" = wait for a peer; "tcp:host[:port]" = dial one */
     int nofeclock;         /* ND500X_NOFECLOCK            suppress the front-end 50 Hz clock */
     int nouserclock;       /* ND500X_NOUSERCLOCK          suppress the user-visible clock tick */
     int console_8bit;      /* ND500X_CONSOLE_8BIT         pass console bytes with all 8 bits */
