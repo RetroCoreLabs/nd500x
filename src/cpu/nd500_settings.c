@@ -159,6 +159,7 @@ void nd500_settings_load_env(void) {
     s->swtchdbg           = env_flag("ND500X_SWTCHDBG");
     s->sysdbg             = env_flag("ND500X_SYSDBG");
     s->noxmsg             = env_flag("ND500X_NOXMSG");
+    s->eth_uplink         = getenv("ND500X_ETH_UPLINK");
     s->nofeclock          = env_flag("ND500X_NOFECLOCK");
     s->nouserclock        = env_flag("ND500X_NOUSERCLOCK");
     s->console_8bit       = env_flag("ND500X_CONSOLE_8BIT");

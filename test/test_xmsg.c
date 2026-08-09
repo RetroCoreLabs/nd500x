@@ -648,7 +648,136 @@ int main(void) {
         check_eq("and nothing was sent", 1, g_tx_count);
     }
 
-    /* ---- 10. An empty ring is not an error ------------------------------- */
+    /* ---- 10. Receive ------------------------------------------------------
+     * A frame arriving from the uplink has to reach a receive command that is
+     * already parked, wrapped in the 6-byte ac_head envelope XETHER strips on
+     * the way out. etrint() reads three things off the response - T, D (the
+     * message id) and X (the RECEIVED LENGTH) - and then reads
+     * er_head.EXMHDtype out of the buffer to tell a datagram from a status
+     * reply (if_et.c:660-673). */
+    printf("\nreceive\n");
+    {
+        uint16_t port;
+        uint32_t recv = 0x2000;
+        uint8_t  arp[58];
+        int i;
+
+        /* A frame shaped like the one the guest actually sent: broadcast ARP
+         * request, 58 bytes - NDIX's own under-padded minimum, see the XETHER
+         * comment in nd500_xmsg.c. */
+        memset(arp, 0, sizeof arp);
+        memset(arp + 0, 0xFF, 6);                      /* destination         */
+        arp[6] = 0x02; arp[7] = 0x60; arp[8] = 0x8C;   /* source              */
+        arp[9] = 0x11; arp[10] = 0x22; arp[11] = 0x33;
+        nd500_xring_put_be16(arp + 12, 0x0806);        /* ETHERTYPE_ARP       */
+        for (i = 0; i < 20; i++) arp[14 + i] = (uint8_t)(0xB0 + i);
+
+        reset_window();
+        port = open_port(0);
+
+        /* Park a receive first, the way NDIX always has one outstanding. */
+        put_cmd_args(0, 0, XMSG_XFRREN | XMSG_XFWAK | XMSG_XFRMR,
+                     port, 1520, PHYS_TO_WORD(recv));
+        check_eq("the receive parks", 0, nd500_xmsg_service_mem(&g_ops));
+        check("nothing answered yet", nd500_xring_empty(&g_mem, &g_resp) == 1);
+
+        check_eq("the frame completes sub-device 0", 0,
+                 nd500_xmsg_frame_in_mem(&g_ops, arp, sizeof arp));
+        check("now there IS a response", get_resp(r) == 1);
+        check_eq("T is success", 0, (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+        check_eq("X is the received length: envelope + frame",
+                 (long)(sizeof arp + 6), (long)nd500_xring_be16(r + RESP_ARG_X));
+        check("D is a non-zero message id", nd500_xring_be16(r + RESP_ARG_D) != 0);
+        check_eq("the func comes back whole - XFRREN with all its option bits",
+                 XMSG_XFRREN | XMSG_XFWAK | XMSG_XFRMR,
+                 nd500_xring_be16(r + RESP_FUNC));
+
+        /* The buffer. er_head first, then the ethernet header right behind it. */
+        check_eq("EXMHDtype is EXMTYdata", XMSG_EXMTYdata,
+                 nd500_xring_be16(&g_phys[recv + 0]));
+        /* etrint does `len = er_head.EXMHDlength - sizeof(short)` and treats
+         * that as the payload after the ethernet header (if_et.c:679), so
+         * EXMHDlength counts the ether_type: framelen - 12. Get this wrong and
+         * every received packet is silently the wrong length. */
+        check_eq("EXMHDlength counts the ether_type: framelen - 12",
+                 (long)(sizeof arp - 12), (long)nd500_xring_be16(&g_phys[recv + 4]));
+        check("the ethernet header starts at +6, not +0",
+              g_phys[recv + 6] == 0xFF && g_phys[recv + 12] == 0x02);
+        check_eq("the ether type is where etrint looks for it", 0x0806,
+                 nd500_xring_be16(&g_phys[recv + 18]));
+        check("the payload followed it", g_phys[recv + 20] == 0xB0);
+
+        /* A frame arriving with NO receive parked waits in the queue - that is
+         * the window between etrint() completing one and posting the next
+         * (if_et.c:756-768), and dropping it there would lose packets for no
+         * reason. */
+        check_eq("with nothing parked, the frame is queued rather than delivered",
+                 -1, nd500_xmsg_frame_in_mem(&g_ops, arp, sizeof arp));
+        check("still no response", nd500_xring_empty(&g_mem, &g_resp) == 1);
+        put_cmd_args(1u << 1, 0, XMSG_XFRREN | XMSG_XFWAK | XMSG_XFRMR,
+                     port, 1520, PHYS_TO_WORD(recv));
+        check_eq("the next receive picks the queued frame up at once",
+                 1, nd500_xmsg_service_mem(&g_ops));
+        check("with a response", get_resp(r) == 1);
+        check_eq("of the right length", (long)(sizeof arp + 6),
+                 (long)nd500_xring_be16(r + RESP_ARG_X));
+
+        /* Order is kept, and a status reply is never overtaken by a frame -
+         * etinit() gives up on anything that is not EXMTYstatus (if_et.c:404),
+         * so an attach reply queued behind a broadcast would kill the attach. */
+        reset_window();
+        port = open_port(0);
+        put_cmd_args(0, 0, XMSG_XFGET, 1520, 0, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        build_attach_letter(0x1000, XMSG_EXMTYattach, "*ENUM0");
+        put_cmd_args(1u << 1, 0, XMSG_XFWRI, PHYS_TO_WORD(0x1000),
+                     ATTACH_LETTER_LEN, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        put_cmd_args(2u << 1, 0, XMSG_XFSND | XMSG_XFROU, 0, 0, port);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        nd500_xmsg_frame_in_mem(&g_ops, arp, sizeof arp);   /* jumps the queue? */
+        put_cmd_args(3u << 1, 0, XMSG_XFRRE | XMSG_XFWTF, port, 1520,
+                     PHYS_TO_WORD(recv));
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("the attach reply comes first, not the frame", XMSG_EXMTYstatus,
+                 nd500_xring_be16(&g_phys[recv + 0]));
+        put_cmd_args(4u << 1, 0, XMSG_XFRRE | XMSG_XFWTF, port, 1520,
+                     PHYS_TO_WORD(recv));
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("and the frame right after it", XMSG_EXMTYdata,
+                 nd500_xring_be16(&g_phys[recv + 0]));
+
+        /* A frame too big for the guest's buffer is DROPPED, not left at the
+         * head of the queue. Leaving it would park every later receive behind
+         * something that can never be delivered - a queue that stops for good. */
+        reset_window();
+        port = open_port(0);
+        nd500_xmsg_frame_in_mem(&g_ops, arp, sizeof arp);
+        put_cmd_args(0, 0, XMSG_XFRREN | XMSG_XFWAK, port, 20,
+                     PHYS_TO_WORD(recv));
+        check_eq("a receive too small for the queued frame parks", 0,
+                 nd500_xmsg_service_mem(&g_ops));
+        put_cmd_args(1u << 1, 0, XMSG_XFRREN | XMSG_XFWAK, port, 1520,
+                     PHYS_TO_WORD(recv));
+        check_eq("and the oversized frame is gone, not blocking the queue", 0,
+                 nd500_xmsg_service_mem(&g_ops));
+
+        /* The queue is short on purpose. When it overflows the OLDEST goes:
+         * on a network the fresher frame is nearly always the useful one. */
+        reset_window();
+        port = open_port(0);
+        for (i = 0; i < 12; i++) {
+            arp[57] = (uint8_t)i;                 /* stamp each one */
+            nd500_xmsg_frame_in_mem(&g_ops, arp, sizeof arp);
+        }
+        put_cmd_args(0, 0, XMSG_XFRREN | XMSG_XFWAK, port, 1520,
+                     PHYS_TO_WORD(recv));
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("after an overflow the OLDEST survivor is delivered, not #0",
+                 4, g_phys[recv + 6 + 57]);
+    }
+
+    /* ---- 11. An empty ring is not an error ------------------------------- */
     printf("\nan empty command ring\n");
     reset_window();
     check_eq("nothing to answer", 0, nd500_xmsg_service_mem(&g_ops));

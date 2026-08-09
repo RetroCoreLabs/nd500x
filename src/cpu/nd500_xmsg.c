@@ -99,10 +99,35 @@ static XmsgSub g_sub[XMSG_MAX_SUBDEV];
 static uint16_t g_next_port = 1;                    /* port 0 is not handed out */
 static uint16_t g_next_msgid = 1;    /* what a receive reports in D (ei_xmid) */
 
+/* ---- frames waiting to be received ---------------------------------------
+ * NDIX keeps a receive outstanding at all times, but not at EVERY instant:
+ * etrint() completes one, copies the datagram out, releases the message and
+ * only then posts the next XFRREN (if_et.c:756-768). A frame arriving inside
+ * that window has nowhere to go, so there is a short queue for it.
+ *
+ * Eight is chosen to cover that window and a burst behind it, not to be a
+ * buffer. If frames are being dropped the guest is not keeping up, and the
+ * counter says so rather than the packets just going missing. */
+#define XMSG_RXQ_DEPTH  8
+#define XMSG_FRAME_MAX  1536         /* ETHERMTU 1500 + a 14-byte header, rounded */
+
+typedef struct XmsgFrame {
+    uint8_t  buf[XMSG_FRAME_MAX];
+    uint16_t len;
+} XmsgFrame;
+
+static XmsgFrame     g_rxq[XMSG_RXQ_DEPTH];
+static int           g_rxq_head;
+static int           g_rxq_count;
+static unsigned long g_rx_dropped;
+
 void nd500_xmsg_reset(void) {
     memset(g_sub, 0, sizeof g_sub);
     g_next_port = 1;
     g_next_msgid = 1;
+    g_rxq_head = 0;
+    g_rxq_count = 0;
+    g_rx_dropped = 0;
 }
 
 static int xmsgdbg(void) {
@@ -507,13 +532,69 @@ static void xmsg_do_snd(uint16_t subdev, uint16_t func, uint16_t port,
  *
  * Returns 1 if a response should be built, 0 if the command was parked.
  */
+/*
+ * What is there to receive, if anything? Copies it into `out` and returns its
+ * length, or 0 for "nothing waiting".
+ *
+ * Two sources, in priority order:
+ *
+ *   1. A status reply queued by XFSND. This is the attach handshake, and it
+ *      must not be overtaken by a frame that happens to arrive first - etinit()
+ *      gives up on anything whose EXMHDtype is not EXMTYstatus (if_et.c:404).
+ *   2. A frame from the uplink, wrapped in the 6-byte ac_head envelope that
+ *      XETHER strips on the way out.
+ *
+ * The envelope's EXMHDlength follows the SAME rule as transmit: etrint() reads
+ * `len = er_head.EXMHDlength - sizeof(short)` and treats that as the payload
+ * after the ethernet header (if_et.c:679), so EXMHDlength counts the 2-byte
+ * ether_type - i.e. framelen - 12.
+ */
+static uint16_t xmsg_next_message(XmsgSub* s, uint8_t* out, uint16_t max) {
+    XmsgFrame* f;
+    uint16_t total;
+
+    if (s->reply_len != 0) {
+        uint16_t n = s->reply_len;
+        if (n > max) return 0;
+        memcpy(out, s->reply, n);
+        s->reply_len = 0;
+        return n;
+    }
+    /* A frame the guest's buffer cannot hold is DROPPED here rather than left
+     * at the head of the queue. Leaving it would park every later receive
+     * behind something that can never be delivered - a queue that stops for
+     * good, which is the shape of failure this whole area keeps producing. */
+    while (g_rxq_count > 0) {
+        f = &g_rxq[g_rxq_head];
+        total = (uint16_t)(f->len + 6);
+        g_rxq_head = (g_rxq_head + 1) % XMSG_RXQ_DEPTH;
+        g_rxq_count--;
+
+        if (total > max) {
+            g_rx_dropped++;
+            fprintf(stderr, "[XMSG] a %u-byte frame does not fit the %u-byte "
+                            "receive buffer - dropped (%lu dropped so far)\n",
+                    total, max, g_rx_dropped);
+            continue;
+        }
+
+        nd500_xring_put_be16(out + 0, XMSG_EXMTYdata);
+        nd500_xring_put_be16(out + 2, 0);                       /* identifier */
+        nd500_xring_put_be16(out + 4, (uint16_t)(f->len - 12)); /* EXMHDlength */
+        memcpy(out + 6, f->buf, f->len);
+        return total;
+    }
+    return 0;
+}
+
 static int xmsg_do_recv(const Nd500XmsgOps* ops, uint16_t subdev,
                         uint16_t port, uint16_t waddr, uint16_t size,
                         const uint8_t* centry,
                         uint16_t* out_T, uint16_t* out_D, uint16_t* out_X) {
     XmsgSub* s;
     uint32_t phys;
-    uint16_t i;
+    uint16_t i, len;
+    static uint8_t msg[XMSG_FRAME_MAX + 16];
 
     if (subdev >= XMSG_MAX_SUBDEV || g_sub[subdev].port == 0) {
         *out_T = (uint16_t)XMSG_XENDP;
@@ -522,7 +603,11 @@ static int xmsg_do_recv(const Nd500XmsgOps* ops, uint16_t subdev,
     s = &g_sub[subdev];
     if (port != s->port) { *out_T = (uint16_t)XMSG_XENDP; return 1; }
 
-    if (s->reply_len == 0) {
+    /* The guest's buffer size bounds what can be handed over, so it is what
+     * limits the copy - not the size of our own scratch. */
+    len = xmsg_next_message(s, msg,
+                            size < sizeof msg ? size : (uint16_t)sizeof msg);
+    if (len == 0) {
         /* Nothing has arrived for this port. A real XMSG front end simply does
          * not complete the request until something does, and that is what is
          * modelled here: the command is remembered and answered later.
@@ -548,26 +633,24 @@ static int xmsg_do_recv(const Nd500XmsgOps* ops, uint16_t subdev,
         return 0;
     }
 
-    if (size < s->reply_len) { *out_T = (uint16_t)XMSG_XEITL; return 1; }
-
     phys = xmsg_word_to_phys(nd500_xmsg_full_word(subdev, waddr));
-    for (i = 0; i < s->reply_len; i++)
-        ops->pwrite8(ops->ctx, phys + i, s->reply[i]);
+    for (i = 0; i < len; i++)
+        ops->pwrite8(ops->ctx, phys + i, msg[i]);
 
     *out_T = (uint16_t)XMSG_XMSUX;
-    *out_X = s->reply_len;      /* the received length, etrint reads it from X */
+    *out_X = len;               /* the received length, etrint reads it from X */
     *out_D = g_next_msgid++;    /* the message id, kept as ei_xmid            */
     if (g_next_msgid == 0) g_next_msgid = 1;
 
     if (xmsgdbg()) {
+        uint16_t n = len > 32 ? 32 : len;
         fprintf(stderr, "[XMSG]   receive %u bytes to word 0x%04X "
-                        "(phys 0x%08X):", s->reply_len, waddr, phys);
-        for (i = 0; i < s->reply_len; i++)
-            fprintf(stderr, " %02X", s->reply[i]);
-        fprintf(stderr, "\n");
+                        "(phys 0x%08X):", len, waddr, phys);
+        for (i = 0; i < n; i++)
+            fprintf(stderr, " %02X", msg[i]);
+        fprintf(stderr, "%s\n", len > n ? " ..." : "");
     }
 
-    s->reply_len = 0;
     /* The received message becomes the current message - that is why if_et.c
      * can XFWRI the multicast request without an XFGET first (:422, :437). */
     s->msg_open = 1;
@@ -722,18 +805,161 @@ int nd500_xmsg_service(Nd500Cpu* cpu) {
     return nd500_xmsg_service_mem(&ops);
 }
 
+/*
+ * Put one answer in the response ring. Returns 1 on success, 0 if the ring was
+ * full.
+ *
+ * seq, subdev and func are echoed VERBATIM out of the command being answered.
+ * xgintr() picks which outstanding-request flag to clear from the RESPONSE's
+ * own func (xg.c:374), and a mismatch there wedges the sub-device silently.
+ * Do not "improve" that.
+ *
+ * Split out of the service loop because a parked receive is completed from
+ * somewhere else entirely - a frame arriving from the uplink, with no command
+ * ring involved - and it must produce byte-for-byte the same answer.
+ */
+static int xmsg_put_response(const Nd500XmsgOps* ops, const uint8_t* centry,
+                             uint16_t T, uint16_t A, uint16_t D, uint16_t X) {
+    Nd500XRing resp;
+    uint8_t rentry[XRING_RESP_SIZE];
+
+    nd500_xring_resp_init(&resp);
+
+    memset(rentry, 0, sizeof rentry);
+    memcpy(rentry + RESP_SEQWORD, centry + CMD_SEQWORD, 4);
+    memcpy(rentry + RESP_SUBDEV,  centry + CMD_SUBDEV, 2);
+    memcpy(rentry + RESP_FUNC,    centry + CMD_FUNC, 2);
+    nd500_xring_put_be16(rentry + RESP_ARG_T, T);
+    nd500_xring_put_be16(rentry + RESP_ARG_A, A);
+    nd500_xring_put_be16(rentry + RESP_ARG_D, D);
+    nd500_xring_put_be16(rentry + RESP_ARG_X, X);
+    nd500_xring_put_be16(rentry + RESP_CBA,   0);
+
+    if (nd500_xring_put(&ops->ring, &resp, rentry))
+        return 1;
+
+    /* The response ring is full: 113 answers are outstanding and NDIX has not
+     * run xgintr() once. That cannot happen while the guest is healthy, and
+     * dropping the answer would wedge the sub-device, so say so loudly rather
+     * than lose it quietly. */
+    fprintf(stderr, "[XMSG] response ring FULL - answer to subdev=%u "
+                    "func=0%o DROPPED (that sub-device is now stuck)\n",
+            nd500_xring_be16(centry + CMD_SUBDEV),
+            nd500_xring_be16(centry + CMD_FUNC));
+    return 0;
+}
+
+/*
+ * A frame has arrived from the uplink. Queue it, and complete any receive that
+ * is parked waiting for one.
+ *
+ * Returns the sub-device whose receive was completed, or -1 if none was - in
+ * which case the frame sits in the queue until NDIX posts its next XFRREN.
+ * The caller uses that to decide whether to raise an interrupt: a completion
+ * NDIX is never told about is a completion that never happened.
+ */
+int nd500_xmsg_frame_in_mem(const Nd500XmsgOps* ops,
+                            const uint8_t* frame, uint32_t len) {
+    int sub;
+
+    if (!ops || !frame || len < 14 || len > XMSG_FRAME_MAX) return -1;
+
+    if (g_rxq_count >= XMSG_RXQ_DEPTH) {
+        /* The guest is not collecting. Drop the OLDEST rather than the newest:
+         * on a network the fresher frame is nearly always the useful one, and
+         * an ARP reply stuck behind five stale broadcasts helps nobody. */
+        g_rxq_head = (g_rxq_head + 1) % XMSG_RXQ_DEPTH;
+        g_rxq_count--;
+        g_rx_dropped++;
+        if (xmsgdbg())
+            fprintf(stderr, "[XMSG] receive queue full - oldest frame dropped "
+                            "(%lu dropped so far)\n", g_rx_dropped);
+    }
+    {
+        int tail = (g_rxq_head + g_rxq_count) % XMSG_RXQ_DEPTH;
+        memcpy(g_rxq[tail].buf, frame, len);
+        g_rxq[tail].len = (uint16_t)len;
+        g_rxq_count++;
+    }
+
+    /* Hand it to whoever is waiting. There is one ethernet interface being
+     * served, so the first parked receive is the right one; the loop is over
+     * sub-devices only so this does not have to change when there are two. */
+    for (sub = 0; sub < XMSG_MAX_SUBDEV; sub++) {
+        XmsgSub* s = &g_sub[sub];
+        uint8_t cmd[XRING_CMD_SIZE];
+        uint16_t T = (uint16_t)XMSG_XMSUX, D = 0, X = 0;
+
+        if (!s->recv_parked) continue;
+
+        memcpy(cmd, s->recv_cmd, sizeof cmd);
+        s->recv_parked = 0;
+
+        if (!xmsg_do_recv(ops, (uint16_t)sub,
+                          nd500_xring_be16(cmd + CMD_ARG_A),
+                          nd500_xring_be16(cmd + CMD_ARG_X),
+                          nd500_xring_be16(cmd + CMD_ARG_D),
+                          cmd, &T, &D, &X)) {
+            /* Parked again - the frame did not fit and was dropped, so there
+             * is still nothing to give it. The command stays outstanding,
+             * which is right, and no interrupt is raised. */
+            continue;
+        }
+        if (!xmsg_put_response(ops, cmd, T, 0, D, X)) return -1;
+        if (xmsgdbg())
+            fprintf(stderr, "[XMSG]   parked receive COMPLETED on subdev %d, "
+                            "%u bytes\n", sub, X);
+        return sub;
+    }
+    return -1;
+}
+
+int nd500_xmsg_frame_in(Nd500Cpu* cpu, const uint8_t* frame, uint32_t len) {
+    Nd500XmsgOps ops;
+    int sub;
+
+    if (!cpu) return -1;
+    ops.ring.read8  = xm_read8;
+    ops.ring.write8 = xm_write8;
+    ops.ring.ctx    = cpu;
+    ops.pread8      = xm_pread8;
+    ops.pwrite8     = xm_pwrite8;
+    ops.ctx         = cpu;
+    ops.frame_out   = g_uplink_fn;
+    ops.frame_ctx   = g_uplink_ctx;
+
+    sub = nd500_xmsg_frame_in_mem(&ops, frame, len);
+    if (sub < 0) return sub;
+
+    /* THE ONE NEW PIECE OF MACHINERY IN THE WHOLE RECEIVE PATH.
+     *
+     * Every XMSG answer so far has ridden home on the completion interrupt the
+     * async FE_DCTL already posts - NDIX kicked us, so NDIX was already going
+     * to be interrupted. A frame arriving from outside is nobody's completion:
+     * without this, the response sits in the ring and xgintr() is never run to
+     * find it, and the guest waits for a packet that is already in its own
+     * memory.
+     *
+     * The queue and the delivery are the existing ones. nd500_fe_int_post
+     * queues it, cpu_step delivers at the next safe instruction boundary, and
+     * the IPL comes from what generic 7 asked for at FE_IDEV time (IPL_XM,
+     * xg.c:128) - so this is the same road every other device already takes.
+     * rpk is 0 because xgintr() does not read it: it drains the response ring
+     * and works from what it finds there (xg.c:363-380). */
+    nd500_fe_int_post(cpu, XMSG_GENERIC, (uint32_t)sub, 0);
+    return sub;
+}
+
 int nd500_xmsg_service_mem(const Nd500XmsgOps* ops) {
     const Nd500XRingMem* mem;
-    Nd500XRing cmd, resp;
+    Nd500XRing cmd;
     uint8_t centry[XRING_CMD_SIZE];
-    uint8_t rentry[XRING_RESP_SIZE];
     int answered = 0;
 
     if (!ops) return 0;
     mem = &ops->ring;
 
     nd500_xring_cmd_init(&cmd);
-    nd500_xring_resp_init(&resp);
 
     /* DRAIN TO EMPTY. NDIX kicks only on the empty -> non-empty transition
      * (xg.c:484 `if (oldp == xmsg_cmd_buf.k)`), so anything left behind here is
@@ -813,30 +1039,8 @@ int nd500_xmsg_service_mem(const Nd500XmsgOps* ops) {
         if (!reply_now)
             continue;
 
-        /* Build the response. seq, subdev and func are echoed VERBATIM from the
-         * command - xgintr() picks which outstanding-request flag to clear from
-         * the response's own func (xg.c:374), and a mismatch there wedges the
-         * sub-device silently. */
-        memset(rentry, 0, sizeof rentry);
-        memcpy(rentry + RESP_SEQWORD, centry + CMD_SEQWORD, 4);
-        nd500_xring_put_be16(rentry + RESP_SUBDEV, subdev);
-        nd500_xring_put_be16(rentry + RESP_FUNC,   func);
-        nd500_xring_put_be16(rentry + RESP_ARG_T,  T);
-        nd500_xring_put_be16(rentry + RESP_ARG_A,  A);
-        nd500_xring_put_be16(rentry + RESP_ARG_D,  D);
-        nd500_xring_put_be16(rentry + RESP_ARG_X,  X);
-        nd500_xring_put_be16(rentry + RESP_CBA,    0);
-
-        if (!nd500_xring_put(mem, &resp, rentry)) {
-            /* The response ring is full: 113 answers are outstanding and NDIX
-             * has not run xgintr() once. That cannot happen while the guest is
-             * healthy, and dropping the answer would wedge the sub-device, so
-             * say so loudly rather than lose it quietly. */
-            fprintf(stderr, "[XMSG] response ring FULL - answer to subdev=%u "
-                            "func=0%o DROPPED (that sub-device is now stuck)\n",
-                    subdev, func);
+        if (!xmsg_put_response(ops, centry, T, A, D, X))
             break;
-        }
         answered++;
 
         if (xmsgdbg()) {

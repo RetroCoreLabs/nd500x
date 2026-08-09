@@ -184,6 +184,28 @@ typedef struct Nd500XmsgOps {
  */
 void nd500_xmsg_set_uplink(Nd500XmsgFrameOut fn, void* ctx);
 
+/* The front-end generic device number XMSG is connected on. GENERIC/ioconf.c:100
+ * makes drvtab[6] = { xgattach, xgintr }, and the dispatcher indexes it as
+ * drvtab[gen-1], so generic 7 is what vectors an interrupt into xgintr(). */
+#define XMSG_GENERIC 7
+
+/*
+ * A frame has arrived for NDIX. Queue it and complete any receive parked
+ * waiting for one.
+ *
+ * Returns the sub-device whose receive was completed, or -1 if none was - in
+ * which case the frame waits in the queue for NDIX's next XFRREN.
+ *
+ * nd500_xmsg_frame_in() additionally raises the interrupt that makes NDIX go
+ * and look. That is the ONE thing the receive path needs which the transmit
+ * path did not: every answer up to now rode home on the completion interrupt
+ * the async FE_DCTL already posts, and an arriving frame is nobody's
+ * completion.
+ */
+int nd500_xmsg_frame_in(Nd500Cpu* cpu, const uint8_t* frame, uint32_t len);
+int nd500_xmsg_frame_in_mem(const Nd500XmsgOps* ops,
+                            const uint8_t* frame, uint32_t len);
+
 int nd500_xmsg_service_mem(const Nd500XmsgOps* ops);
 
 /*

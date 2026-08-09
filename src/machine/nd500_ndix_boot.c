@@ -20,6 +20,7 @@
 #include "../cpu/nd500_mmu.h"
 #include "../cpu/nd500_phys_alloc.h"
 #include "../cpu/nd500_xmsg.h"      /* the XMSG server behind the two rings */
+#include "../cpu/nd500_settings.h"  /* ND500X_ETH_UPLINK                    */
 #include "../ndlib/ndlib.h"
 
 #include <stdio.h>
@@ -109,12 +110,47 @@ static void sintran_write_halfword(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) 
  * NXMSGRESP=(0x800-6)/sizeof(xmsg_resp=18)=113 (NOT 102 - the command struct is
  * 20 bytes -> 102). These match the RetroCore NDSharedMemory reference
  * (XMSG_CMD_BUFFER=0x30000000, XMSG_RESP_BUFFER=0x30000800). */
+/* uplink_loop - hand every transmitted frame straight back as a received one.
+ * The `ctx` is the CPU, because the receive side has to reach guest memory and
+ * raise an interrupt. */
+static void ndix_uplink_loop(void* ctx, const uint8_t* frame, uint32_t len) {
+    nd500_xmsg_frame_in((Nd500Cpu*)ctx, frame, len);
+}
+
 static void sintran_init_xmsg_ringbuffers(Nd500Cpu* cpu) {
     sintran_write_halfword(cpu, 0x30000004u, 102);  /* xmsg_cmd_buf.mp  = NXMSGCMD  */
     sintran_write_halfword(cpu, 0x30000804u, 113);  /* xmsg_resp_buf.mp = NXMSGRESP */
     /* The rings are empty again, so the server behind them must forget the port
      * numbers it handed out on any previous boot in this process. */
     nd500_xmsg_reset();
+
+    /* Where et0's frames go. Nothing by default - they are logged under
+     * ND500X_FEDBG and dropped, which is all phases 1-4 needed.
+     *
+     * "loop" echoes every transmitted frame straight back in. That sounds like
+     * a toy and is not: it exercises the ENTIRE receive path - the queue, the
+     * ac_head envelope, the parked-receive completion and the interrupt that
+     * has to be raised outside a DCTL_KICK - with no host, no privileges and
+     * nothing to configure. Measured: after one `ifconfig et0 ... up`,
+     *
+     *     Name  Mtu   Network     Address      Ipkts Ierrs Opkts Oerrs
+     *     et0   1498  223.255.25  223.255.254. 1     0     1     0
+     *
+     * That Ipkts is if_ipackets++ in etrint() (if_et.c:675), which is only
+     * reached once the datagram has been decoded.
+     *
+     * The frame itself goes no further, and that is CORRECT rather than a
+     * limitation: in_arpinput() drops an ARP whose sender hardware address is
+     * our own before it looks at anything else - "it's from me, ignore it"
+     * (netinet/if_ether.c:286). A loopback cannot produce a conversation; it
+     * proves the road. */
+    {
+        const char* up = nd500_settings()->eth_uplink;
+        if (up && strcmp(up, "loop") == 0) {
+            nd500_xmsg_set_uplink(ndix_uplink_loop, cpu);
+            fprintf(stderr, "[XMSG] uplink: loopback (ND500X_ETH_UPLINK=loop)\n");
+        }
+    }
 }
 
 /* Write a big-endian 32-bit word to an ND-500 virtual address through the DATA
