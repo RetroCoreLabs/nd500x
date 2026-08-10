@@ -23,7 +23,8 @@
  * the telnet server can be told not to offer that one. */
 #include "../../cpu/nd500_fecall.h"
 #include "ndix_menu.h"
-#include "uplink_tcp.h"   /* ND500X_ETH_UPLINK=tcp:host[:port] */
+#include "uplink_tcp.h"   /* ND500X_ETH_UPLINK=tcp:host[:port] / listen:port */
+#include "uplink_tap.h"   /* ND500X_ETH_UPLINK=tap[:dev]  - Linux, host-visible */
 #include "../../ndlib/ndlib.h"
 #include "../../ndlib/ndlib_color.h"
 #include <ndmon/mon.h>
@@ -755,7 +756,13 @@ int main(int argc, char** argv) {
 			 * running must not stop the machine booting. It says so on
 			 * stderr and et0 comes up with nothing on the other end, which
 			 * is what it had before any of this existed. */
-			(void)nd500x_uplink_tcp_start(&cpu);
+			/* TAP first: it returns 0 for anything that is not a tap
+			 * spec, so the TCP uplink still sees every setting it owns.
+			 * Order matters only in that exactly one of them must claim
+			 * the setting - both register into the same single-slot seam
+			 * (nd500_xmsg_set_uplink), so whichever ran last would win. */
+			if (nd500x_uplink_tap_start(&cpu) == 0)
+				(void)nd500x_uplink_tcp_start(&cpu);
 
 			printf("[ndix] run\n");
 			nd500_cmd_execute(&machine, "run", &bctx);

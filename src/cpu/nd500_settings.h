@@ -117,7 +117,18 @@ typedef struct Nd500Settings {
     /* ---- Behaviour --------------------------------------------------------- */
     int noxmsg;            /* ND500X_NOXMSG               fail XMSG (generic 7) device init so xgattach gives up cleanly */
     uint32_t sysno;        /* ND500X_SYSNO                ND system number for the high half of the XMSG magic number (XFMST). Properly the ND-100's - the pair share one - so this is an override until there is an ND-100 to ask. Default 500. */
-    const char* eth_uplink; /* ND500X_ETH_UPLINK          where et0's frames go. NULL/"none" = dropped; "loop" = echoed back; "listen[:port]" = wait for a peer; "tcp:host[:port]" = dial one */
+    /* ND500X_ETH_UPLINK - where et0's frames go.
+     *   NULL / "none"      dropped and counted
+     *   "loop"             echoed straight back (portable; the wasm build has this)
+     *   "listen[:port]"    wait for one emulated peer to dial in   (RETH framing)
+     *   "tcp:host[:port]"  dial an emulated peer or a RetroCore relay
+     *   "tap[:dev]"        a real Linux TAP device, default "nd0" - this is the
+     *                      only one the HOST can reach with ordinary tools, and
+     *                      the only way to exercise NDIX's TCP servers, because
+     *                      the image ships telnetd/rlogind/rshd but no matching
+     *                      client (measured: /usr/ucb has no telnet, /etc no ftpd)
+     */
+    const char* eth_uplink;
     int nofeclock;         /* ND500X_NOFECLOCK            suppress the front-end 50 Hz clock */
     int nouserclock;       /* ND500X_NOUSERCLOCK          suppress the user-visible clock tick */
     int console_8bit;      /* ND500X_CONSOLE_8BIT         pass console bytes with all 8 bits */
