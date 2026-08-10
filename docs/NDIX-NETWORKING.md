@@ -210,5 +210,30 @@ file from `baseline/` on the host instead, where possible.
 | Nothing on the wire | `./tools/ndix-tap.sh status`; NO-CARRIER means nothing has the device open |
 | Connection accepted then dropped | your client, most likely — `nc` closes stdin at once and telnetd exits with it |
 | Sub-device wedged, nothing printed | the XMSG response's `func` must echo the request's, see `src/cpu/nd500_xmsg.h` |
+| `bad XFGET, (Attach To Server), T reg = 0xffffffe5` | **fixed 2026-08-10**, see trap 9 below. If it reappears, the message-space bookkeeping has regressed |
+
+### 9. A received frame is not an allocation (fixed, kept as a warning)
+
+`0xffffffe5` is `-27` is `-033` octal is `XEXBF`, "message already has Xmsg
+buffer" (`if/xmsg.h:153`).
+
+A delivered receive makes its message the **current** message — it must, because
+`if_et.c:422` and `:437` `XFWRI` the multicast request without an `XFGET` first.
+But NDIX **never releases a received data frame**: `XFREL` appears at exactly two
+places in the whole driver, `if_et.c:426` and `:462`, both inside the attach
+handshake. The header comment at `if_et.c:629` claims `etrint` releases the
+buffer and posts the next `XFRREN` — **the code does not do that.** Do not trust
+that comment.
+
+So a server that books a receive as an *allocation* can never have it released,
+and refuses every later `XFGET`. The interface then comes up, transmits happily,
+and receives nothing ever again.
+
+**It only shows up with two machines.** Booting alone completes the attach before
+any traffic exists. It needs a second machine already running whose ARP broadcast
+lands mid-handshake — which is why it surfaced under Docker, where containers
+start alongside each other, and never in the staggered two-guest tests. The same
+root cause makes an `et0` configured early from `/etc/rc` come up and then never
+answer ARP.
 
 Frame counters are on stderr when the uplink closes: sent, received, dropped.
