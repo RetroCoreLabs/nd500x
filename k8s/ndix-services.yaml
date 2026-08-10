@@ -1,0 +1,108 @@
+# Reaching a specific NDIX machine from outside the cluster.
+#
+# "Access to the machine's IP" has three possible shapes in Kubernetes and they
+# are not interchangeable:
+#
+#   pod IP        - works, but only from inside the cluster, and it changes on
+#                   every restart. Fine for debugging, useless for anything you
+#                   want to keep typing.
+#   ClusterIP     - a stable virtual address, still cluster-internal. This is
+#                   what `ndix-0` and `ndix-1` below give you, and the right
+#                   answer for anything else running in the cluster.
+#   NodePort /    - reachable from OUTSIDE. NodePort works everywhere;
+#   LoadBalancer    LoadBalancer needs a cluster that can provision one (a cloud
+#                   provider, or MetalLB on bare metal).
+#
+# IMPORTANT: one Service PER MACHINE, not one Service in front of all of them.
+# These are distinct computers with distinct disks and distinct hostnames, not
+# replicas of a stateless app - load-balancing across them would hand you a
+# different machine on every connection. The per-pod selector below is what
+# pins each Service to exactly one guest.
+#
+# The label `statefulset.kubernetes.io/pod-name` is set automatically by the
+# StatefulSet controller on every pod it creates. It is the supported way to
+# select a single pod.
+#
+# ---------------------------------------------------------------------------
+# Which one to use
+# ---------------------------------------------------------------------------
+#
+#  * Docker Desktop's built-in Kubernetes, kind, k3d: NodePort, and reach it at
+#    localhost:<nodePort>. LoadBalancer also works on Docker Desktop, which
+#    maps it to localhost.
+#  * A real multi-node cluster: NodePort reaches it at any node's address.
+#    LoadBalancer is nicer if your cluster can provision one - uncomment the
+#    block at the bottom.
+#
+# NodePort numbers must be in the cluster's service-node-port-range, 30000-32767
+# by default. 30231 = machine 1 telnet(23), 30241 = machine 1 console(2400).
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ndix-0
+  labels:
+    app: ndix
+    ndix-machine: "0"
+spec:
+  type: NodePort
+  selector:
+    statefulset.kubernetes.io/pod-name: ndix-0
+  ports:
+    - name: telnet
+      port: 23
+      targetPort: 23
+      nodePort: 30231      # the guest's telnetd. Log in as `ndix`, NOT root.
+    - name: console
+      port: 2400
+      targetPort: 2400
+      nodePort: 30241      # the emulator console. root works here.
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ndix-1
+  labels:
+    app: ndix
+    ndix-machine: "1"
+spec:
+  type: NodePort
+  selector:
+    statefulset.kubernetes.io/pod-name: ndix-1
+  ports:
+    - name: telnet
+      port: 23
+      targetPort: 23
+      nodePort: 30232
+    - name: console
+      port: 2400
+      targetPort: 2400
+      nodePort: 30242
+
+# ---------------------------------------------------------------------------
+# LoadBalancer alternative - one real external IP per machine.
+#
+# Only apply this if your cluster can actually provision load balancers. On a
+# cluster that cannot, the Service is created and sits in <pending> for ever,
+# which looks like a fault and is not one.
+# ---------------------------------------------------------------------------
+#
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: ndix-0-lb
+#   labels:
+#     app: ndix
+# spec:
+#   type: LoadBalancer
+#   selector:
+#     statefulset.kubernetes.io/pod-name: ndix-0
+#   ports:
+#     - name: telnet
+#       port: 23
+#       targetPort: 23
+#     - name: console
+#       port: 2400
+#       targetPort: 2400

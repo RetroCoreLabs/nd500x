@@ -1,0 +1,134 @@
+# Two NDIX machines on one emulated ethernet segment.
+#
+# They can ping each other, and you can telnet into either from the host.
+#
+#   docker compose -f docker/docker-compose.yml up -d --build
+#   telnet localhost 2301      # ndix1's guest, log in as: ndix   (no password)
+#   telnet localhost 2302      # ndix2's guest
+#   telnet localhost 2401      # ndix1's EMULATOR CONSOLE - root works here
+#   docker compose -f docker/docker-compose.yml down
+#
+# HOW THEY SEE EACH OTHER
+# -----------------------
+# Each container puts its TAP device and its eth0 into one bridge, so the guest
+# sits directly on the `ndixnet` Docker network with its own MAC and IP. Docker
+# does the L2 forwarding between containers; nothing relays frames in userspace.
+# This is the only shape that works, because nd500x has ONE uplink slot per
+# machine - see the long comment at the top of entrypoint.sh.
+#
+# ADDRESSES
+# ---------
+#   ndixnet          172.30.0.0/16   the Docker network (the containers)
+#   guest segment    223.255.254.0/24 the NDIX machines, on the same wire
+#
+#   ndix1  container 172.30.0.11   guest 223.255.254.8   MAC 08:00:26:F4:01:00
+#   ndix2  container 172.30.0.12   guest 223.255.254.9   MAC 08:00:26:F5:01:00
+#
+# The guests deliberately do NOT use Docker's subnet. Docker knows nothing about
+# them, so keeping them apart means its address allocator can never hand a
+# container an address a guest already has.
+#
+# Everything above is derived from NDIX_ID by entrypoint.sh - system number
+# 499+ID, address 223.255.254.(7+ID) - so NDIX_ID=1 reproduces exactly the
+# machine every existing note describes. Give each container a different ID and
+# they cannot collide.
+#
+# ADDING A THIRD MACHINE: copy a block, set NDIX_ID: "3", pick container IP
+# 172.30.0.13 and published ports 2303/2403, and add its guest address to the
+# OTHER machines' NDIX_PEERS (and theirs to its own). Nothing else changes.
+
+services:
+
+  ndix1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        # docker/build.sh stages the master image here first. Run it once, or
+        # copy an image to docker/disk/rootfs_net.img yourself.
+        NDIX_IMAGE_SRC: docker/disk/rootfs_net.img
+    image: ronnya/ndix-c:dev
+    container_name: ndix1
+    hostname: ndix1
+
+    # NET_ADMIN + /dev/net/tun: nd500x only ever OPENS a TAP device, it never
+    # creates one (that is a root operation on host networking and the emulator
+    # deliberately refuses to do it silently - tools/ndix-tap.sh explains why).
+    # So the entrypoint creates it, and needs the capability to do so.
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    environment:
+      NDIX_ID: "1"
+      # Every OTHER guest, and the container that hosts it. This is what makes
+      # guest-to-guest work: the container answers its guest's ARP for the peer
+      # (proxy ARP) and routes the packet to the peer's container. The host part
+      # may be a name - Docker's own DNS resolves `ndix2` to its address.
+      NDIX_PEERS: "223.255.254.9@ndix2"
+
+    # To use your OWN disk image instead of the baked-in one, uncomment:
+    # volumes:
+    #   - /path/to/your/rootfs.img:/data/rootfs.img:ro
+
+    ports:
+      - "2301:23"      # -> guest telnetd. Log in as `ndix`, NOT root.
+      - "2401:2400"    # -> emulator console. root works here.
+
+    networks:
+      ndixnet:
+        ipv4_address: 172.30.0.11
+
+    # `docker attach ndix1` gives you the console on the terminal you are in.
+    # tty: false on purpose - nd500x reads a pipe perfectly well (nd_tty.c
+    # select()s on stdin either way) and a pty would add a second echo.
+    stdin_open: true
+    tty: false
+
+    restart: unless-stopped
+
+  ndix2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        NDIX_IMAGE_SRC: docker/disk/rootfs_net.img
+    image: ronnya/ndix-c:dev
+    container_name: ndix2
+    hostname: ndix2
+
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    environment:
+      NDIX_ID: "2"
+      NDIX_PEERS: "223.255.254.8@ndix1"
+
+    ports:
+      - "2302:23"
+      - "2402:2400"
+
+    networks:
+      ndixnet:
+        ipv4_address: 172.30.0.12
+
+    stdin_open: true
+    tty: false
+
+    restart: unless-stopped
+
+networks:
+  ndixnet:
+    name: ndixnet
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+          gateway: 172.30.0.1
+    driver_opts:
+      # A stable bridge name makes `ip link` / `bridge fdb` on the host readable
+      # when you are working out where a frame went.
+      com.docker.network.bridge.name: br-ndixnet

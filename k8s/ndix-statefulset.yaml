@@ -1,0 +1,211 @@
+# NDIX on Kubernetes.
+#
+#   kubectl apply -f k8s/
+#   kubectl get pods -l app=ndix -w
+#   kubectl logs ndix-0 -f
+#
+# ---------------------------------------------------------------------------
+# READ THIS FIRST: THE PRIVILEGES THIS NEEDS
+# ---------------------------------------------------------------------------
+#
+# Every NDIX pod needs BOTH of:
+#
+#   * CAP_NET_ADMIN   - to create and address the TAP device
+#   * /dev/net/tun    - as a hostPath device
+#
+# There is no way around them. The guest's ethernet leaves the emulator through
+# a Linux TAP device, and nd500x deliberately only ever OPENS a device that
+# already exists - creating one is a root operation on host networking, and an
+# emulator doing that silently is hard to undo. So the pod creates it.
+#
+# MANY MANAGED CLUSTERS FORBID EXACTLY THIS. Under the `baseline` or
+# `restricted` Pod Security Standards, adding NET_ADMIN and mounting a host
+# device are both refused, and the pod will not schedule. Check before you plan
+# around this:
+#
+#   kubectl label --dry-run=server namespace <ns> \
+#       pod-security.kubernetes.io/enforce=baseline
+#
+# If your cluster refuses, the options are, in order of preference:
+#   1. a namespace with `pod-security.kubernetes.io/enforce: privileged`;
+#   2. a self-managed cluster (k3s, kind, Docker Desktop's built-in one) where
+#      you set the policy;
+#   3. no NDIX networking - set NDIX_AUTOCONF=0 and NDIX_SKIP_NETWORK=1 and use
+#      the console only. The machine boots and works; it just has no ethernet.
+#
+# There is no privilege-free way to give this guest a network. A relay-based
+# design over the `tcp:` uplink would remove the capability from the guest pod
+# but would need a relay pod that speaks RETH framing, which does not exist, and
+# guest-to-guest would still be the only thing it bought - nothing outside the
+# emulators speaks RETH, so the outside world still could not reach the guest.
+#
+# ---------------------------------------------------------------------------
+# WHY A StatefulSet
+# ---------------------------------------------------------------------------
+#
+# Each NDIX machine needs a STABLE IDENTITY: a unique ND system number, a unique
+# MAC derived from it, and a unique IP. A Deployment gives pods random names, so
+# a restarted pod would come back as a different machine. A StatefulSet names
+# them ndix-0, ndix-1, ... and the entrypoint turns that ordinal into NDIX_ID,
+# which derives all three together. Pod ndix-0 is always the machine at
+# 223.255.254.8 with MAC 08:00:26:F4:01:00, restart after restart.
+#
+# It also gives per-pod DNS (ndix-0.ndix, ndix-1.ndix) through the headless
+# Service, which is what NDIX_PEERS points at - pod IPs change, those names do
+# not.
+#
+# ---------------------------------------------------------------------------
+# HOW GUESTS REACH EACH OTHER
+# ---------------------------------------------------------------------------
+#
+# Pods are a LAYER 3 network. They do not share an ethernet segment, so the
+# guests cannot simply ARP for each other the way two machines on one wire
+# would. Instead each pod routes: NDIX_PEERS lists every other guest and the pod
+# that hosts it, the pod answers the guest's ARP itself (proxy ARP) and forwards
+# the packet to the peer pod, which delivers it down its own TAP.
+#
+# This is the same design the Docker Compose setup uses, for the same reason -
+# see the long comment at the top of docker/entrypoint.sh, which records the
+# measurement that ruled bridging out.
+#
+# ADDING A THIRD MACHINE: raise `replicas` to 3, add `223.255.254.10@ndix-2.ndix`
+# to NDIX_PEERS, and add an ndix-2 Service block in ndix-services.yaml.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ndix-config
+  labels:
+    app: ndix
+data:
+  # Guest addresses are derived from the pod ordinal by the entrypoint:
+  #   ndix-0 -> NDIX_ID=1 -> sysno 500, MAC 08:00:26:F4:01:00, 223.255.254.8
+  #   ndix-1 -> NDIX_ID=2 -> sysno 501, MAC 08:00:26:F5:01:00, 223.255.254.9
+  # so nothing here has to be set per pod.
+  NDIX_GUEST_NET: "223.255.254.0/24"
+  NDIX_NETMASK: "255.255.255.0"
+
+  # Every guest, and the pod that hosts it. Names, not addresses: pod IPs are
+  # handed out fresh on every restart and only these StatefulSet DNS names are
+  # stable. Each pod skips its own entry harmlessly (the route just points at
+  # itself and the local TAP route wins).
+  NDIX_PEERS: "223.255.254.8@ndix-0.ndix,223.255.254.9@ndix-1.ndix"
+
+  # Re-resolve those names every 30 s, so a peer that restarts at a new address
+  # is picked up again instead of disappearing for good.
+  NDIX_PEER_REFRESH: "30"
+
+  # ~45 s to a login prompt on an idle machine, and a cluster node running
+  # several of these at once is not idle. Be generous.
+  NDIX_BOOT_TIMEOUT: "600"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ndix
+  labels:
+    app: ndix
+spec:
+  # Headless: this Service exists to give each pod a DNS name
+  # (ndix-0.ndix.<namespace>.svc.cluster.local), not to load-balance. Balancing
+  # across NDIX machines would be meaningless - they are distinct computers with
+  # distinct disks, not replicas of one service.
+  clusterIP: None
+  selector:
+    app: ndix
+  ports:
+    - name: telnet
+      port: 23
+    - name: console
+      port: 2400
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ndix
+  labels:
+    app: ndix
+spec:
+  serviceName: ndix
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ndix
+  template:
+    metadata:
+      labels:
+        app: ndix
+    spec:
+      # A wedged 1988 kernel does not shut down in 30 seconds, and killing it
+      # mid-write would matter if you ever turn the copy-on-write default off.
+      terminationGracePeriodSeconds: 60
+
+      containers:
+        - name: ndix
+          image: ronnya/ndix-c:latest
+          imagePullPolicy: IfNotPresent
+
+          envFrom:
+            - configMapRef:
+                name: ndix-config
+
+          # NDIX_ID is deliberately NOT set: the entrypoint reads the pod
+          # ordinal out of the hostname (ndix-0 -> 1) so one manifest serves
+          # every replica.
+
+          ports:
+            - name: telnet
+              containerPort: 23
+            - name: console
+              containerPort: 2400
+
+          securityContext:
+            # The whole reason a policy might refuse this pod. See the header.
+            capabilities:
+              add: ["NET_ADMIN"]
+            # NOT privileged. NET_ADMIN plus the tun device is the entire
+            # requirement, and asking for more than that would be lazy.
+            privileged: false
+            allowPrivilegeEscalation: false
+
+          volumeMounts:
+            - name: tun
+              mountPath: /dev/net/tun
+            # Mount your own disk image here to replace the baked-in one.
+            # Anything ending .img under /data wins over the built-in image.
+            # - name: ndix-disk
+            #   mountPath: /data
+            #   readOnly: true
+
+          # Liveness would be wrong here: the guest takes minutes to become
+          # useful and a restart costs another full boot. Readiness is the right
+          # signal - keep the pod out of service until its telnetd answers, and
+          # leave a sick machine running so you can look at its console.
+          readinessProbe:
+            exec:
+              command: ["/opt/nd500x/bin/healthcheck.sh"]
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            timeoutSeconds: 15
+            failureThreshold: 30
+
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              # The emulator is a busy loop with a 50 Hz tick; giving it less
+              # than a core makes the ~45 s boot take minutes.
+              cpu: "2"
+              memory: "2Gi"
+
+      volumes:
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+        # - name: ndix-disk
+        #   persistentVolumeClaim:
+        #     claimName: ndix-disk

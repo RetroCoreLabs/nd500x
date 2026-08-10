@@ -1,0 +1,27 @@
+# Keep the Docker build context small.
+#
+# The working tree is ~1 GB, almost all of it already-compiled objects and the
+# 68 MB test corpus. The build needs src/, include/, external/ and
+# CMakeLists.txt - about 8 MB. Without this file every build would upload the
+# lot, over and over.
+#
+# Everything is excluded first, then the few things the build genuinely reads
+# are allowed back in. A denylist would silently grow stale the moment somebody
+# adds a new build directory.
+
+*
+
+!CMakeLists.txt
+!src/
+!include/
+!external/
+!docker/
+# ndixput.py only - it is what patches the guest's /etc/rc so NDIX configures
+# its own network at boot. The rest of tools/ is not needed in the image.
+!tools/ndix/ndixput.py
+
+# ...but not these, even inside the directories allowed above.
+external/**/build/
+external/**/.git
+docker/disk/*.session
+docker/*.md

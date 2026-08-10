@@ -86,3 +86,8 @@ work/
 build-opt/
 build-base/
 build-asan/
+
+# The NDIX disk image staged into the Docker build context by docker/build.sh.
+# 71 MB of a 1988 operating system - regenerable from the master, and it does
+# not belong in git.
+docker/disk/
