@@ -13,6 +13,7 @@
 #include "nd500_xring.h"
 #include "cpu_protos.h"
 #include "instruction_helpers.h"   /* nd500_read_memory_8 / nd500_write_memory_8 */
+#include "nd500_mmu.h"             /* nd500_mmu_peek_domain - trap-free, domain 0 */
 #include "../machine/machine_protos.h"  /* nd500_bus_read8 / nd500_bus_write8    */
 #include "nd500_settings.h"        /* ND500X_FEDBG                               */
 
@@ -164,11 +165,44 @@ static int xmsgdbg(void) {
  * goes through the MMU every time. Reading them at a remembered physical
  * address returns plausible rubbish rather than an error - that mistake has
  * already been made once here, see REFERENCE_XMSG_ADDRESSES_2026-08-09.md. */
+/*
+ * DOMAIN 0, AND TRAP-FREE. Both halves of that matter, and getting either wrong
+ * fails only under load, which is the worst way to fail.
+ *
+ * DOMAIN 0: the rings belong to the NDIX KERNEL. nd500_read_memory_8() walks
+ * whichever domain is executing right now, which is fine for a command arriving
+ * from a fecall (the kernel made the call, so CED is 0) and WRONG for the
+ * uplink poll, which is driven by the 50 Hz clock tick and fires wherever the
+ * guest happens to be. Measured 2026-08-10, two containers under load:
+ *     [MMU] TRAP: No data capability! domain=4 segment=6 vaddr=0x30000800
+ * 0x30000800 is the response ring; domain 4 was some user process. A single
+ * idle guest sits in domain 0 nearly all the time, so one container never
+ * showed it and two did.
+ *
+ * TRAP-FREE: an asynchronous producer must never inject a trap into whatever
+ * the guest is running - that would corrupt an innocent process for a fault it
+ * had no part in. nd500_mmu_peek_domain() returns 0xFFFFFFFF instead of
+ * trapping, so a ring that is not mapped yet costs a dropped access and
+ * nothing else.
+ *
+ * The physical address is NOT cached. Segment 6 is demand-mapped and its pages
+ * move; reading a remembered physical address returns plausible rubbish rather
+ * than an error - that mistake has already been made once here, see
+ * REFERENCE_XMSG_ADDRESSES_2026-08-09.md.
+ */
+#define XMSG_KERNEL_DOMAIN 0
+
 static uint8_t xm_read8(void* ctx, uint32_t vaddr) {
-    return nd500_read_memory_8((Nd500Cpu*)ctx, vaddr);
+    Nd500Cpu* cpu = (Nd500Cpu*)ctx;
+    uint32_t phys = nd500_mmu_peek_domain(cpu, vaddr, XMSG_KERNEL_DOMAIN);
+    if (phys == 0xFFFFFFFFu) return 0;
+    return nd500_bus_read8(cpu->machine, phys);
 }
 static void xm_write8(void* ctx, uint32_t vaddr, uint8_t val) {
-    nd500_write_memory_8((Nd500Cpu*)ctx, vaddr, val);
+    Nd500Cpu* cpu = (Nd500Cpu*)ctx;
+    uint32_t phys = nd500_mmu_peek_domain(cpu, vaddr, XMSG_KERNEL_DOMAIN);
+    if (phys == 0xFFFFFFFFu) return;
+    nd500_bus_write8(cpu->machine, phys, val);
 }
 
 /* PHYSICAL memory, for the buffers named inside an xmsg_args. Those are ND-100

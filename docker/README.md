@@ -138,32 +138,31 @@ exists is not something anyone did in 1988, so it is not surprising that it
 falls over — but it is worth chasing in `nd500x` rather than only being worked
 around here.
 
-### Start containers one at a time
+### Starting several at once — FIXED 2026-08-10
 
-**This is the most important operational thing on this page.**
+**This used to be the most important warning on the page. It no longer applies.**
+`docker compose up -d` is fine now. The history is kept because the symptom was
+so misleading.
 
-The gate is not a complete fix. A guest that is **booting while another emulator
-is already running** still hangs, intermittently. This was isolated:
+A guest booting while another emulator was already running used to hang: `et0`
+UP and transmitting, receiving nothing. Booting alone always worked. It was
+**two separate emulator bugs wearing the same symptom**, and fixing only the
+first left it looking unfixed:
 
-| what was done | result |
-|---|---|
-| container boots alone | works, every time |
-| container boots while another emulator is running | hangs, often |
-| already-configured guest, while a second container boots beside it | keeps working |
+| # | Bug | Why two machines were needed to see it |
+|---|---|---|
+| 1 | A received frame was booked as an XMSG allocation, so the next `XFGET` was refused with `XEXBF` — `et0: bad XFGET, (Attach To Server), T reg = 0xffffffe5` | A neighbour's ARP broadcast arrives during the attach handshake. Alone, the handshake finishes before any traffic exists. |
+| 2 | The XMSG ring buffers were read through **whichever domain was executing**, not the kernel's. The uplink poll runs off the 50 Hz clock tick, so it landed in user processes — `[MMU] TRAP: No data capability! domain=4 segment=6 vaddr=0x30000800` | One idle guest sits in domain 0 nearly all the time. Two busy ones do not. |
 
-So it is the boot itself that is fragile under load, not the running machine.
-`docker compose up -d` starts everything at once and is the worst case.
+Both are fixed (nd500x `b4ff6c9` and the domain-0 ring access). Measured after,
+with **both containers started simultaneously**: both `healthy`, zero MMU traps,
+zero `bad XFGET`, cross-container ping 4/4 each way, and guest-to-guest from the
+NDIX console `4 of 5` (the first packet is lost while ARP resolves, which is
+normal for this `ping`).
 
-Until the underlying problem is fixed in the emulator, **stagger the starts**:
-
-```sh
-docker compose -f docker/docker-compose.yml up -d ndix1
-# wait for "gate open" in `docker logs ndix1`
-docker compose -f docker/docker-compose.yml up -d ndix2
-```
-
-Once both are up they stay up. If one comes up hung — `netstat -i` in the
-guest frozen while `Opkts` climbs — just restart that container.
+If a guest ever does come up not receiving — `netstat -i` frozen while `Opkts`
+climbs — check the container log for either signature above before assuming it
+is load.
 
 Give the Docker VM room, too. The VM this was measured on had 20 CPUs and only
 **2 GB of RAM**, and each emulated machine wants 16 MB of guest memory plus the

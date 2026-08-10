@@ -1043,6 +1043,29 @@ uint32_t nd500_mmu_translate_physical_segment(Nd500Cpu* cpu, uint32_t psn,
  * calls trap_page_fault/trap_protect_violation as side effects).
  */
 uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr) {
+    /* The current domain is what a debugger or a tracer wants: "what does this
+     * address mean to the code running right now?" */
+    return nd500_mmu_peek_domain(cpu, virtual_addr, cpu ? (uint8_t)cpu->CED : 0);
+}
+
+/*
+ * Same walk, but for a domain you NAME rather than the one that happens to be
+ * running.
+ *
+ * WHY THIS EXISTS: an asynchronous producer - the XMSG uplink poll, driven by
+ * the 50 Hz clock tick - touches the ring buffers in the KERNEL's segment 6.
+ * The tick fires wherever the guest happens to be, so with nd500_mmu_peek it
+ * walked whichever user domain was current, found no capability for segment 6,
+ * and the access failed. Measured 2026-08-10 with two containers under load:
+ *     [MMU] TRAP: No data capability! domain=4 segment=6 vaddr=0x30000800
+ * (0x30000800 is the response ring.) One idle guest sits in domain 0 nearly all
+ * the time and never showed it; two busy ones did.
+ *
+ * Anything reached from an interrupt, a poll or a timer must name its domain.
+ * Whatever the CPU was executing has nothing to do with where the data lives.
+ */
+uint32_t nd500_mmu_peek_domain(Nd500Cpu* cpu, uint32_t virtual_addr,
+                               uint8_t domain) {
     if (!cpu) return 0xFFFFFFFFu;
     if (!g_mmu_data_enabled) return virtual_addr; /* MMU off: identity */
     if (!g_pst || !g_pcb_table) return 0xFFFFFFFFu;
@@ -1051,7 +1074,6 @@ uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr) {
     int l1_index = (virtual_addr >> L1_INDEX_SHIFT) & L1_INDEX_MASK;
     int l2_index = (virtual_addr >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
     int offset   = virtual_addr & (NBPG - 1);
-    uint8_t domain = (uint8_t)cpu->CED;
 
     /* Same DIT/PST choice the CPU makes for this segment. Under NDIX the
      * per-process segments (26/29/30/31), the page-table windows (3/4/5), the

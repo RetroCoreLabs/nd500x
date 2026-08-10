@@ -273,6 +273,14 @@ int nd500_segment_register_growable_alias(uint8_t domain, uint32_t alias_segment
 
 /* Trap-free read-only translate for diagnostics; 0xFFFFFFFF if unmapped. Never perturbs state. */
 uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr);
+
+/* Same, but for a NAMED domain instead of whichever one is currently running.
+ * Anything driven by an interrupt, a poll or a timer must use this: the CPU
+ * could be anywhere when it fires, and the data it wants belongs to a
+ * particular domain. See the comment on the definition for the measured case
+ * (the XMSG rings in the kernel's segment 6, reached from the clock tick). */
+uint32_t nd500_mmu_peek_domain(Nd500Cpu* cpu, uint32_t virtual_addr,
+                               uint8_t domain);
 uint32_t nd500_mmu_phyladr(Nd500Cpu* cpu, uint32_t virtual_addr);
 
 /* PST Accessors */
