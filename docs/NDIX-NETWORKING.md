@@ -209,7 +209,7 @@ file from `baseline/` on the host instead, where possible.
 | ARP works, IP silent | trap 1 — `-trailers` on both ends |
 | Nothing on the wire | `./tools/ndix-tap.sh status`; NO-CARRIER means nothing has the device open |
 | Connection accepted then dropped | your client, most likely — `nc` closes stdin at once and telnetd exits with it |
-| Sub-device wedged, nothing printed | the XMSG response's `func` must echo the request's, see `src/cpu/nd500_xmsg.h` |
+| Sub-device hung, nothing printed | the XMSG response's `func` must echo the request's, see `src/cpu/nd500_xmsg.h` |
 | `bad XFGET, (Attach To Server), T reg = 0xffffffe5` | **fixed 2026-08-10**, see trap 9 below. If it reappears, the message-space bookkeeping has regressed |
 
 ### 9. A received frame is not an allocation (fixed, kept as a warning)

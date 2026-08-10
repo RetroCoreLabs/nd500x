@@ -23,7 +23,7 @@
  *            HAS_OTHER flag according to the response's OWN func field, and
  *            calls the subdevice handler registered at xgopen() time.
  *
- * THE WEDGE HAZARD - read this before adding a command
+ * THE HANG HAZARD - read this before adding a command
  * ----------------------------------------------------
  * xgintr() decides which outstanding-request flag to clear from the RESPONSE's
  * func (xg.c:374). If a response carries a func that does not match the command

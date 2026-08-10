@@ -378,7 +378,7 @@ ISE/IIC) — direction unknown, untouched.
 - **`wsl bash -c '...'` from PowerShell eats `$variables`.** Put the script in a
   file and run `wsl bash /mnt/c/...`.
 - **The 1988 guest tty has a small canonical input buffer** — a ~250-char command
-  line wedges it until Ctrl-C. And its `ping` has no `-c`: `ping -c 3 host`
+  line hangs it until Ctrl-C. And its `ping` has no `-c`: `ping -c 3 host`
   pings the host named "3".
 - **Read the code, not the file header.** `Abs.c`'s header quotes the manual
   saying "S=0 always"; twenty lines below, a microcode adjudication proves the

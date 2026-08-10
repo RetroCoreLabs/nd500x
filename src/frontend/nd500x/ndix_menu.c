@@ -390,7 +390,7 @@ NdixMenuResult ndix_menu_run(struct Nd500Machine* m) {
          * So RESUME, not QUIT, is the correct return here even though the
          * machine is on its way down.
          *
-         * If the guest is wedged and never gets there, nothing is lost: press
+         * If the guest is hung and never gets there, nothing is lost: press
          * F12 again and take option 3. That is exactly why both entries exist
          * rather than one that tries to be clever. */
         printf("[menu] shutting NDIX down - syncing disks\r\n");

@@ -75,8 +75,8 @@
 #
 #     et0: bad XFGET, (Attach To Server), T reg = 0xffffffe5
 #
-# which is the XMSG sub-device wedged - the failure mode
-# docs/NDIX-NETWORKING.md lists under "sub-device wedged, nothing printed". A
+# which is the XMSG sub-device hung - the failure mode
+# docs/NDIX-NETWORKING.md lists under "sub-device hung, nothing printed". A
 # 1988 driver that has never seen traffic it did not ask for is not the thing to
 # harden here.
 #
@@ -88,7 +88,7 @@
 # there at all.
 #
 # Rejected alternatives, so nobody has to rediscover why:
-#   * bridging - see above. Measured to wedge the guest.
+#   * bridging - see above. Measured to hang the guest.
 #   * listen:/tcp: uplinks between guests - RETH framing, strictly point to
 #     point, ONE peer each. Three guests would need a relay process, and the
 #     host still could not telnet in because nothing outside the emulators
@@ -265,7 +265,7 @@ setup_network() {
     # SHUT THE GATE before the device carries anything.
     #
     # This is not belt and braces, it is the fix for a failure that was measured
-    # twice. The guest's et0 wedges if it is handed frames before it has been
+    # twice. The guest's et0 hangs if it is handed frames before it has been
     # configured: `netstat -i` freezes at Ipkts around 8-10, transmits keep
     # climbing, ARP goes unanswered, and `ifconfig et0 down; up` then reports
     #     et0: bad XFGET, (Attach To Server)
@@ -508,7 +508,7 @@ EOF
 #
 # and then the interface DOES NOT WORK. It never answers an ARP request, the
 # container's neighbour entry stays INCOMPLETE, and `netstat -i` in the guest
-# shows receives frozen while transmits keep climbing - the same wedge that
+# shows receives frozen while transmits keep climbing - the same hang that
 # bridging produced. Bringing et0 up LATE, from a shell after the machine has
 # finished booting, works every time; bringing it up EARLY, from rc, does not.
 # Why the two differ is NOT UNDERSTOOD and is a real finding to chase in the

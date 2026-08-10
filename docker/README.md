@@ -106,8 +106,8 @@ happily, and bringing the interface down and up again reports:
 et0: bad XFGET, (Attach To Server), T reg = 0xffffffe5
 ```
 
-which is the XMSG sub-device wedged — the failure mode `docs/NDIX-NETWORKING.md`
-lists under "sub-device wedged, nothing printed". Hardening a 1988 driver
+which is the XMSG sub-device hung — the failure mode `docs/NDIX-NETWORKING.md`
+lists under "sub-device hung, nothing printed". Hardening a 1988 driver
 against traffic it never asked for is not the job here.
 
 Routing fixes it by construction: **the only frames that ever reach the guest are
@@ -115,7 +115,7 @@ the ones the container deliberately sends it.** Nothing floods.
 
 ### The gate
 
-Routing alone is not quite enough. The same wedge appeared again with two
+Routing alone is not quite enough. The same hang appeared again with two
 containers started together: the first machine's traffic reached the second
 one's TAP while it was still booting, and that was enough — same symptoms,
 receives frozen around `Ipkts=10`.
@@ -143,12 +143,12 @@ around here.
 **This is the most important operational thing on this page.**
 
 The gate is not a complete fix. A guest that is **booting while another emulator
-is already running** still wedges, intermittently. This was isolated:
+is already running** still hangs, intermittently. This was isolated:
 
 | what was done | result |
 |---|---|
 | container boots alone | works, every time |
-| container boots while another emulator is running | wedges, often |
+| container boots while another emulator is running | hangs, often |
 | already-configured guest, while a second container boots beside it | keeps working |
 
 So it is the boot itself that is fragile under load, not the running machine.
@@ -162,7 +162,7 @@ docker compose -f docker/docker-compose.yml up -d ndix1
 docker compose -f docker/docker-compose.yml up -d ndix2
 ```
 
-Once both are up they stay up. If one comes up wedged — `netstat -i` in the
+Once both are up they stay up. If one comes up hung — `netstat -i` in the
 guest frozen while `Opkts` climbs — just restart that container.
 
 Give the Docker VM room, too. The VM this was measured on had 20 CPUs and only
@@ -212,7 +212,7 @@ published ports are the only way in.
 
 | Idea | Why not |
 |---|---|
-| Bridging the TAP with `eth0` | Measured to wedge the guest's `et0` after ~8 unsolicited frames. See above. |
+| Bridging the TAP with `eth0` | Measured to hang the guest's `et0` after ~8 unsolicited frames. See above. |
 | `listen:` / `tcp:` uplinks between guests | RETH framing, strictly point to point, **one** peer each. Three guests would need a relay process that does not exist — and the host still could not telnet in, because nothing outside the emulators speaks RETH. |
 | `macvlan` | Would give the guest a first-class address on the Docker network, but it needs a parent interface with a real segment behind it, and it does not work on Docker Desktop at all. |
 
@@ -602,7 +602,7 @@ daemon, so that path pushes directly — test the single-arch image first.
 | `ping -c 3 host` says "Network is unreachable" for ever | This `ping` has no `-c`. It is pinging the string `-c`. |
 | Two guests cannot see each other | Is `NDIX_PEERS` set on **both**, each naming the other? Same Docker network? Different `NDIX_ID` — two guests with the same ID share a MAC and an IP. On Kubernetes, see the CNI note above. |
 | `ping: socket: Permission denied` | `ping` needs a raw socket and therefore root. Use the console port, not telnet. |
-| Guest stops receiving; `netstat -i` frozen, transmits still climbing | The XMSG sub-device has wedged. `ifconfig et0 down; ifconfig et0 up` then reports `bad XFGET, (Attach To Server)`. Restart the container. This is what unsolicited ethernet traffic does to this driver — do not bridge the TAP. |
+| Guest stops receiving; `netstat -i` frozen, transmits still climbing | The XMSG sub-device has hung. `ifconfig et0 down; ifconfig et0 up` then reports `bad XFGET, (Attach To Server)`. Restart the container. This is what unsolicited ethernet traffic does to this driver — do not bridge the TAP. |
 | Published port reaches nothing | Check `docker logs` for the `ip_forward is 0` warning. If you see it, add `--sysctl net.ipv4.ip_forward=1`. |
 | Guest config file looks corrupt when you `cat` it | The console drops the odd byte. Never conclude a file is malformed from a console read. |
 | Healthcheck stays `starting` for minutes | By design: `start-period` is 240 s, because the guest needs ~45 s to boot and the auto-config adds more. |

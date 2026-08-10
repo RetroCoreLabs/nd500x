@@ -38,7 +38,7 @@ target_link_libraries(test_xring PRIVATE nd500_cpu)
 
 # The XMSG SERVER - what gets answered, and how. Split from the ring tests
 # because nd500_xmsg_service_mem() takes the same bare byte accessor and has no
-# CPU in it either: the wedge it guards against (a response whose func does not
+# CPU in it either: the hang it guards against (a response whose func does not
 # match its command) is completely silent inside a running guest.
 add_executable(test_xmsg
     test_xmsg.c

@@ -73,7 +73,7 @@ typedef struct XmsgSub {
     int      msg_open;     /* a current message exists (XFGET *or* received) */
     /* Did that message come from an explicit XFGET, or did it just arrive?
      *
-     * THIS DISTINCTION IS NOT PEDANTRY - conflating the two wedged et0 for good.
+     * THIS DISTINCTION IS NOT PEDANTRY - conflating the two hung et0 for good.
      * A received message becomes the current message (see the receive path), but
      * NDIX never releases a received DATA frame: XFREL appears at exactly two
      * places in the whole driver, if_et.c:426 and :462, both inside the attach
@@ -110,7 +110,7 @@ typedef struct XmsgSub {
 
     /* A receive command that arrived with nothing to give it. It is PARKED,
      * not answered - see xmsg_park_receive() for why that is the correct
-     * behaviour and not a wedge. */
+     * behaviour and not a hang. */
     int      recv_parked;
     uint8_t  recv_cmd[XRING_CMD_SIZE];
 } XmsgSub;
@@ -638,7 +638,7 @@ static int xmsg_do_recv(const Nd500XmsgOps* ops, uint16_t subdev,
          * not complete the request until something does, and that is what is
          * modelled here: the command is remembered and answered later.
          *
-         * This is NOT the wedge described in the header. A wedge is an
+         * This is NOT the hang described in the header. A hang is an
          * outstanding request that can never be retired; this one is retired
          * the moment there is a message, and xgdctl's HAS_RCV flag being set
          * meanwhile is exactly right - a receive IS outstanding. */
@@ -683,7 +683,7 @@ static int xmsg_do_recv(const Nd500XmsgOps* ops, uint16_t subdev,
      * But it is NOT an allocation: msg_from_get stays clear, so the next XFGET
      * replaces it instead of being refused with XEXBF. NDIX only ever XFRELs
      * inside the attach handshake (if_et.c:426, :462) and never for a data
-     * frame, so treating this as an allocation wedged the interface for good
+     * frame, so treating this as an allocation hung the interface for good
      * once any frame had arrived. */
     s->msg_open     = 1;
     s->msg_from_get = 0;
@@ -871,7 +871,7 @@ int nd500_xmsg_service(Nd500Cpu* cpu) {
  *
  * seq, subdev and func are echoed VERBATIM out of the command being answered.
  * xgintr() picks which outstanding-request flag to clear from the RESPONSE's
- * own func (xg.c:374), and a mismatch there wedges the sub-device silently.
+ * own func (xg.c:374), and a mismatch there hangs the sub-device silently.
  * Do not "improve" that.
  *
  * Split out of the service loop because a parked receive is completed from
@@ -900,7 +900,7 @@ static int xmsg_put_response(const Nd500XmsgOps* ops, const uint8_t* centry,
 
     /* The response ring is full: 113 answers are outstanding and NDIX has not
      * run xgintr() once. That cannot happen while the guest is healthy, and
-     * dropping the answer would wedge the sub-device, so say so loudly rather
+     * dropping the answer would hang the sub-device, so say so loudly rather
      * than lose it quietly. */
     fprintf(stderr, "[XMSG] response ring FULL - answer to subdev=%u "
                     "func=0%o DROPPED (that sub-device is now stuck)\n",
@@ -1086,7 +1086,7 @@ int nd500_xmsg_service_mem(const Nd500XmsgOps* ops) {
                           nd500_xring_be16(centry + CMD_ARG_X), &T);
             break;
         default:
-            /* Answered, not ignored. An unanswered command wedges the
+            /* Answered, not ignored. An unanswered command hangs the
              * sub-device for good (see the header); an XENIM answer retires
              * xgdctl's HAS_RCV/HAS_OTHER flag and gives if_et.c's eterror()
              * something to print. */

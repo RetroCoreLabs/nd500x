@@ -2,7 +2,7 @@
  * XMSG server tests - what the ND-100 side answers, and how.
  *
  * test_xring.c checks the ring ARITHMETIC. This file checks the ANSWERS, and
- * the reason it exists is the wedge: xgintr() (NDIX if/xg.c:374) picks which
+ * the reason it exists is the hang: xgintr() (NDIX if/xg.c:374) picks which
  * outstanding-request flag to clear from the RESPONSE's own func field. Send
  * back a func that does not match the command it answers and the wrong flag is
  * cleared, the real request is never retired, every later xgdctl() on that
@@ -10,7 +10,7 @@
  * see that from a booting guest, so it is pinned here.
  *
  * The other thing pinned here is "always answer". A command left unanswered
- * wedges its sub-device exactly the same way, so an unknown function must come
+ * hangs its sub-device exactly the same way, so an unknown function must come
  * back as an ERROR rather than be dropped.
  */
 #include <stdio.h>
@@ -213,7 +213,7 @@ int main(void) {
     check("command ring is drained", nd500_xring_empty(&g_mem, &g_cmd) == 1);
     check("response ring is now empty again", nd500_xring_empty(&g_mem, &g_resp) == 1);
 
-    /* ---- 2. THE WEDGE: seq, subdev and func come back verbatim ------------
+    /* ---- 2. THE HANG: seq, subdev and func come back verbatim ------------
      * xgintr() reads the RESPONSE's func to decide whether to clear HAS_RCV or
      * HAS_OTHER (xg.c:374 is_receive(rp->func)), and its DEBUG_XMSG build even
      * panics "WRONG RESPONSE" when a response's seq matches a command with a
@@ -785,7 +785,7 @@ int main(void) {
         check_eq("after an overflow the OLDEST survivor is delivered, not #0",
                  4, g_phys[recv + 6 + 57]);
 
-        /* ---- the wedge: a RECEIVED message must not block the next XFGET ---
+        /* ---- the hang: a RECEIVED message must not block the next XFGET ---
          *
          * This is a regression test for a bug that took two Docker containers
          * to find. A delivered receive makes its message the CURRENT message -
@@ -813,11 +813,11 @@ int main(void) {
 
         put_cmd_args(1u << 1, 0, XMSG_XFGET, 1520, 0, 0);
         nd500_xmsg_service_mem(&g_ops); get_resp(r);
-        check_eq("XFGET after a received frame SUCCEEDS - this is the wedge", 0,
+        check_eq("XFGET after a received frame SUCCEEDS - this is the hang", 0,
                  (int16_t)nd500_xring_be16(r + RESP_ARG_T));
 
         /* ...but a genuine double-XFGET is still a driver leak and still
-         * refused. Fixing the wedge must not throw that check away. */
+         * refused. Fixing the hang must not throw that check away. */
         put_cmd_args(2u << 1, 0, XMSG_XFGET, 1520, 0, 0);
         nd500_xmsg_service_mem(&g_ops); get_resp(r);
         check("a real double-XFGET is still refused",

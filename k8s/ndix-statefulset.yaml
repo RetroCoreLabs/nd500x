@@ -138,7 +138,7 @@ spec:
       labels:
         app: ndix
     spec:
-      # A wedged 1988 kernel does not shut down in 30 seconds, and killing it
+      # A hung 1988 kernel does not shut down in 30 seconds, and killing it
       # mid-write would matter if you ever turn the copy-on-write default off.
       terminationGracePeriodSeconds: 60
 

@@ -124,7 +124,7 @@ static int           g_running = 1;          /* shell REPL keeps going */
 static nd_tty_mode   g_cooked_termios;       /* saved on start for restore */
 static int           g_have_cooked = 0;
 
-/* Generous safety cap so a runaway DOM cannot wedge the shell forever. */
+/* Generous safety cap so a runaway DOM cannot hang the shell forever. */
 #define SHELL_MAX_STEPS 2000000000ULL
 
 /* ---- MODE (script) execution -------------------------------------------

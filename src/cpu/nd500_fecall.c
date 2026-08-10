@@ -1105,7 +1105,7 @@ void nd500_ndix_halt_check(Nd500Cpu* cpu, uint32_t pc) {
          * reach whichever process actually owns the terminal - if the console is
          * sitting at a login prompt rather than a shell, the first newline goes
          * to getty and the next one carries it forward. It is capped so a guest
-         * that is genuinely wedged does not get spammed for ever; the halt then
+         * that is genuinely hung does not get spammed for ever; the halt then
          * simply stays armed, as it did before. */
         {
             long now = halt_now_ms();
