@@ -138,6 +138,38 @@ exists is not something anyone did in 1988, so it is not surprising that it
 falls over — but it is worth chasing in `nd500x` rather than only being worked
 around here.
 
+### Start containers one at a time
+
+**This is the most important operational thing on this page.**
+
+The gate is not a complete fix. A guest that is **booting while another emulator
+is already running** still wedges, intermittently. This was isolated:
+
+| what was done | result |
+|---|---|
+| container boots alone | works, every time |
+| container boots while another emulator is running | wedges, often |
+| already-configured guest, while a second container boots beside it | keeps working |
+
+So it is the boot itself that is fragile under load, not the running machine.
+`docker compose up -d` starts everything at once and is the worst case.
+
+Until the underlying problem is fixed in the emulator, **stagger the starts**:
+
+```sh
+docker compose -f docker/docker-compose.yml up -d ndix1
+# wait for "gate open" in `docker logs ndix1`
+docker compose -f docker/docker-compose.yml up -d ndix2
+```
+
+Once both are up they stay up. If one comes up wedged — `netstat -i` in the
+guest frozen while `Opkts` climbs — just restart that container.
+
+Give the Docker VM room, too. The VM this was measured on had 20 CPUs and only
+**2 GB of RAM**, and each emulated machine wants 16 MB of guest memory plus the
+emulator's own working set. Memory pressure is a plausible part of this and has
+not been ruled out.
+
 It is also the only design that can work on Kubernetes, where pods are a layer-3
 network and never share an ethernet segment.
 

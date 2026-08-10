@@ -3,6 +3,18 @@
 # They can ping each other, and you can telnet into either from the host.
 #
 #   docker compose -f docker/docker-compose.yml up -d --build
+#
+# START THEM ONE AT A TIME. A guest that boots while another emulator is already
+# running wedges its et0 intermittently - a guest booting ALONE works every
+# time. `up -d` starts both at once, which is the worst case:
+#
+#   docker compose -f docker/docker-compose.yml up -d ndix1
+#   #   wait for "gate open" in: docker logs ndix1
+#   docker compose -f docker/docker-compose.yml up -d ndix2
+#
+# Once both are up they stay up. See docker/README.md, "Start containers one at
+# a time", for the measurements behind this.
+#
 #   telnet localhost 2301      # ndix1's guest, log in as: ndix   (no password)
 #   telnet localhost 2302      # ndix2's guest
 #   telnet localhost 2401      # ndix1's EMULATOR CONSOLE - root works here
