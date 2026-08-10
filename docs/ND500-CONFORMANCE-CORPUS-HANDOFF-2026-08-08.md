@@ -311,7 +311,43 @@ from the manual. Adjudicate before trusting a failure there.
 Plus 71 guard-only divergences (nd500x raises IOS where RetroCore raises
 ISE/IIC) — direction unknown, untouched.
 
+> **div4 ADJUDICATED 2026-08-08 (microword oracle, RetroCore commits ae01222ec/99e6a56f9):**
+> the real B30 microcode (DIV4BY @002553 → DIV4_COMM @027474) produces quotient → third
+> operand, remainder → Rn with the C-truncation sign convention (−24/10 = −2 rem −4), and a
+> BY1 register write stores the LOW BYTE ONLY — matching the corpus's own by1 convention
+> everywhere else (all green negative-result by1 subtracts expect 0xFF, not 0xFFFFFFFF).
+> The corpus's `Div4_0_3E8_A` by1 expectation i1=0xFFFFFFFC (sign-extended full width) is
+> therefore a Div4.c generator bug (C int stored full-width); correct is i1=0x000000FC.
+> h1/w1 div4 now match the microword exactly.
+
 ---
+
+> **AMBIGUOUS-TOKEN ADJUDICATION, first microword-oracle table (2026-08-08, RetroCore
+> commit eef0e5e5a, `ND5000_TRAP_ADJUDICATE=1` on the conformance sweep):**
+> - `FloatException` **overflow** rows → **FO (bit 14)**: MuladFD_Overflow raises a clean
+>   O+FO. (The single-float overflow rows show O+FU+FO — the FU co-latch is suspected to
+>   be the RetroCore microword engine's sticky per-instruction Fo/Fu latch, not hardware;
+>   treat FO as the adjudicated bit.)
+> - `FloatException` **underflow** rows → **FU (bit 13)**: MuladFD_Underflow clean. The
+>   SINGLE-float underflow rows raised nothing — a known microword-engine gap (MuladF FU
+>   path), not adjudication data.
+> - `IllegalOperandValue` rows — **SETTLED, superseding the first note: → IOV (ST1 bit
+>   16).** The raise mechanism was found (RetroCore commit 2223a6af1): the guard paths OR
+>   the ST1-layout bit into the MIC,STS register (LOOP step-zero @03674/@03675 does
+>   `A,MIC,STS → BM20|x → D,MIC,STS`), which the harness previously never read. Every
+>   Ifstgo illegal-bit and LOOP step-zero row measures micSts bit 16 = IOV; the Getb
+>   StackOverflow rows measure bit 27 = STO the same way. Microword trap-misses went
+>   24 → 4 once MIC,STS was composed in.
+> - **Tset exception (settled 2026-08-08, closes the "only Tset raises nothing" open):
+>   the `IllegalOperandValue` token on Tset_NotSet/Tset_AlreadySet is a MISNOMER — the
+>   real raise is IOS (ST2 bit 34), not IOV(16).** TSET with a register operand is an
+>   illegal operand *specifier* (RetroCore functional `Tset.cs` citing the manual:
+>   "Register and constant operands are illegal, and will cause an illegal operand
+>   specifier trap"; `TrapIllegalOperand` = IOS). The B30 TSET region (@0757 +
+>   @004540–004563) carries no MIC,STS raise, consistent with a DAC/hardware-side IOS.
+>   The exporter should emit `IllegalOperandSpecifier`/IOS(34) for these two rows.
+>   The microword sweep now buckets them as ST2-unobservable (instrument gap), not
+>   engine-miss.
 
 ## 7. Rulings already given (do not re-ask)
 
