@@ -784,6 +784,44 @@ int main(void) {
         nd500_xmsg_service_mem(&g_ops); get_resp(r);
         check_eq("after an overflow the OLDEST survivor is delivered, not #0",
                  4, g_phys[recv + 6 + 57]);
+
+        /* ---- the wedge: a RECEIVED message must not block the next XFGET ---
+         *
+         * This is a regression test for a bug that took two Docker containers
+         * to find. A delivered receive makes its message the CURRENT message -
+         * it has to, because if_et.c:422 and :437 XFWRI the multicast request
+         * without an XFGET first. But NDIX never releases a received DATA
+         * frame: XFREL appears at exactly two places in the entire driver,
+         * if_et.c:426 and :462, both inside the attach handshake.
+         *
+         * So treating a receive as an ALLOCATION made the next XFGET fail with
+         * XEXBF (-033, if/xmsg.h:153) forever after the first frame arrived.
+         * On the machine that looked like: an emulator booting next to a
+         * running one takes the neighbour's ARP broadcast during its own
+         * attach and then prints
+         *     et0: bad XFGET, (Attach To Server), T reg = 0xffffffe5
+         * with et0 up, transmitting, and receiving nothing ever again.
+         * Booting alone never showed it, which is why it survived so long. */
+        reset_window();
+        port = open_port(0);
+        nd500_xmsg_frame_in_mem(&g_ops, arp, sizeof arp);
+        put_cmd_args(0, 0, XMSG_XFRREN | XMSG_XFWAK, port, 1520,
+                     PHYS_TO_WORD(recv));
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("the frame is delivered", 0,
+                 (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+
+        put_cmd_args(1u << 1, 0, XMSG_XFGET, 1520, 0, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check_eq("XFGET after a received frame SUCCEEDS - this is the wedge", 0,
+                 (int16_t)nd500_xring_be16(r + RESP_ARG_T));
+
+        /* ...but a genuine double-XFGET is still a driver leak and still
+         * refused. Fixing the wedge must not throw that check away. */
+        put_cmd_args(2u << 1, 0, XMSG_XFGET, 1520, 0, 0);
+        nd500_xmsg_service_mem(&g_ops); get_resp(r);
+        check("a real double-XFGET is still refused",
+              (int16_t)nd500_xring_be16(r + RESP_ARG_T) < 0);
     }
 
     /* ---- 11. An empty ring is not an error ------------------------------- */

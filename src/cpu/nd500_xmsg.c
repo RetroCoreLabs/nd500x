@@ -70,7 +70,27 @@
 typedef struct XmsgSub {
     uint32_t datbuf_word;  /* full-width dton(&xdata[sub]) from FE_OPEN, 0=unset */
     uint16_t port;         /* 0 = no port open (XFOPN not yet done)          */
-    int      msg_open;     /* XFGET done and not yet XFREL                   */
+    int      msg_open;     /* a current message exists (XFGET *or* received) */
+    /* Did that message come from an explicit XFGET, or did it just arrive?
+     *
+     * THIS DISTINCTION IS NOT PEDANTRY - conflating the two wedged et0 for good.
+     * A received message becomes the current message (see the receive path), but
+     * NDIX never releases a received DATA frame: XFREL appears at exactly two
+     * places in the whole driver, if_et.c:426 and :462, both inside the attach
+     * handshake. So if a receive marks the space "allocated", the very next
+     * XFGET is refused with XEXBF forever after the first frame arrives.
+     *
+     * Measured 2026-08-10, and it needed two containers to show up at all:
+     * an emulator booting NEXT TO a running one takes the neighbour's ARP
+     * broadcast during its own attach handshake, and the XFGET that follows
+     * fails - "et0: bad XFGET, (Attach To Server), T reg = 0xffffffe5"
+     * (0xffffffe5 = -27 = -033 octal = XEXBF, if/xmsg.h:153). Booting alone
+     * never showed it. Same root cause as an et0 configured early from
+     * /etc/rc coming up and then never answering ARP.
+     *
+     * So XEXBF is still returned for a genuine double-XFGET - a real driver
+     * leak - but a message that merely arrived is replaced without complaint. */
+    int      msg_from_get; /* 1 = allocated by XFGET and not yet XFREL       */
     uint16_t msg_size;     /* the size XFGET asked for                       */
     uint16_t msg_len;      /* bytes written into it so far by XFWRI          */
     uint8_t  msg[XMSG_MSG_MAX];
@@ -267,11 +287,16 @@ static void xmsg_do_get(uint16_t subdev, uint16_t size,
         *out_T = (uint16_t)XMSG_XEILM;   /* illegal message size */
         return;
     }
-    if (s->msg_open) {
+    /* Only a message the driver ASKED for blocks a new XFGET. One that merely
+     * arrived is replaced - NDIX never XFRELs a received data frame, so
+     * refusing here would break every re-attach after the first frame. See the
+     * msg_from_get comment on the struct for the measurement. */
+    if (s->msg_open && s->msg_from_get) {
         *out_T = (uint16_t)XMSG_XEXBF;   /* already has a message buffer */
         return;
     }
-    s->msg_open = 1;
+    s->msg_open     = 1;
+    s->msg_from_get = 1;
     s->msg_size = size;
     s->msg_len  = 0;
     memset(s->msg, 0, sizeof s->msg);
@@ -345,7 +370,8 @@ static void xmsg_do_wri(const Nd500XmsgOps* ops, uint16_t subdev,
  */
 static void xmsg_do_rel(uint16_t subdev, uint16_t* out_T) {
     if (subdev >= XMSG_MAX_SUBDEV) { *out_T = (uint16_t)XMSG_XENDP; return; }
-    g_sub[subdev].msg_open = 0;
+    g_sub[subdev].msg_open     = 0;
+    g_sub[subdev].msg_from_get = 0;
     g_sub[subdev].msg_len  = 0;
     g_sub[subdev].msg_size = 0;
     *out_T = (uint16_t)XMSG_XMSUX;
@@ -652,8 +678,15 @@ static int xmsg_do_recv(const Nd500XmsgOps* ops, uint16_t subdev,
     }
 
     /* The received message becomes the current message - that is why if_et.c
-     * can XFWRI the multicast request without an XFGET first (:422, :437). */
-    s->msg_open = 1;
+     * can XFWRI the multicast request without an XFGET first (:422, :437).
+     *
+     * But it is NOT an allocation: msg_from_get stays clear, so the next XFGET
+     * replaces it instead of being refused with XEXBF. NDIX only ever XFRELs
+     * inside the attach handshake (if_et.c:426, :462) and never for a data
+     * frame, so treating this as an allocation wedged the interface for good
+     * once any frame had arrived. */
+    s->msg_open     = 1;
+    s->msg_from_get = 0;
     if (s->msg_size == 0) s->msg_size = XMSG_MSG_MAX;
     s->msg_len  = 0;
     return 1;
