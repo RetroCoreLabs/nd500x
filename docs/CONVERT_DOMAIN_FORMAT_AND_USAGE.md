@@ -435,11 +435,29 @@ Post-conversion verification (from the Linker, per the manual): `@LINKER` then
 `LIST-STATUS LED-B03` to see the segments / start address / trap block, then
 test-run with `@ND LED-B03`.
 
-UNVERIFIED end-to-end: I did not run CONVERT-DOMAIN under nd500x. The exact
-prompt strings shown by A03 at run time, the handling of the empty `:LINK`,
-and whether a `:SEG` is produced can only be confirmed by executing it. The
-prompt text above is reconstructed from the parameter names in the help file
-and the interactive-mode description; treat the literal wording as INFERRED.
+~~UNVERIFIED end-to-end~~ **NOW VERIFIED (2026-08-10), on a different domain**
+(`LINKAGE-LOAD-H02`, the NLL H02 installer floppy's own old-format domain, staged
+under `~/ND500USERS/FLOPPY-USER/` -
+`E:\Dev\Ronny\NDInsight\SINTRAN\ND500-APPS\CONVERT-DOM-A03\userguide.md` has the full
+transcript). Confirms both open risk factors this doc flagged:
+
+1. **An empty `:LINK` file IS accepted** - `LINKAGE-LOAD-H02.LINK` is 0 bytes, same as
+   `led-b03.link`, and the conversion completed with no error.
+2. **Exact `(directory:user)` resolution is NOT required** - the real
+   `description-file.desc` names the segment files under
+   `(210319H02:FLOPPY-USER)LINKAGE-LOAD-H02`, but the files were staged flat under a
+   single-level SINTRAN user directory named just `FLOPPY-USER` (no `210319H02`
+   sub-level), logged in AS that user, and CONVERT-DOMAIN resolved the bare source name
+   `LINKAGE-LOAD-H02` correctly anyway. This means being logged in as the domain's owning
+   user with that user's own `DESCRIPTION-FILE:DESC` present is what matters - the
+   `(directory:user)` string embedded in the `:DESC`'s SNAME field appears to be
+   informational/provenance, not a hard resolution requirement for a domain the CURRENT
+   user owns.
+
+Output was the four expected `>> Converting ... part for segment 22` progress lines (no
+`:SEG` was produced - consistent with no linked segments) followed by `>> Finished`, and
+a `LINKAGE-LOAD-H02.DOM` (2,316,049 bytes) was written. This is strong, though not
+identical-domain, evidence that the same recipe will work for `LED-B03` too.
 
 ---
 
