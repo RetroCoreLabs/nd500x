@@ -17,6 +17,7 @@
 #include <ndmon/mon.h>
 #include <ndmon/mon_errors.h>
 #include <ndmon/mon_file_table.h>
+#include <ndmon/mon_terminal_state.h>
 
 /* Test counters */
 static int tests_passed = 0;
@@ -1853,6 +1854,106 @@ static void test_mon_nd500_tool_calls(void) {
     teardown();
 }
 
+/*
+ * Test MON 405B USTRK (SwitchUserBreak)
+ *
+ * Mirror of the RetroCore test USTRK_SwitchOnWithHandler_ThenOff_BothSucceed in
+ * Emulated.Tests.ND500/Sintran/TestMON_PortedTerminalDeviceCalls.cs, so the two
+ * emulators are held to the same contract. 405B used to be an auto-generated
+ * stub that returned an error, so a program installing its own ESCAPE handler
+ * at startup got K set and could not proceed.
+ *
+ * What is asserted is what a caller depends on: the call succeeds, and the
+ * on/off + address are recorded per terminal. The asynchronous ESCAPE->transfer
+ * is NOT delivered by either emulator, so nothing here asserts it.
+ */
+static void test_mon_405B_ustrk(void) {
+    printf("\nTesting MON 405B USTRK (SwitchUserBreak)...\n");
+    setup();
+    mon_terminal_state_reset();
+
+    /* USTRK carries no device number - it acts on the calling program's own
+     * terminal, which is device 1, the same convention 71B/72B DESCF/EESCF use. */
+    const uint32_t own_terminal = 1;
+    uint32_t p_flag = 0x3000, p_addr = 0x3004;
+    uint32_t args[2] = { p_flag, p_addr };
+    MonContext ctx;
+
+    /* ON, with a plausible program address. 405B = 261 decimal. */
+    test_write_word(&cpu, p_flag, 1);
+    test_write_word(&cpu, p_addr, 0x00012340);
+    setup_mon_context(&ctx, 261, 2, args);
+
+    if (mon_dispatch(&ctx) == MON_SUCCESS) {
+        TEST_PASS("MON 405B USTRK(on, addr) returns success");
+    } else {
+        TEST_FAIL("MON 405B USTRK(on, addr) returns success", "returned error");
+    }
+
+    if (mon_get_user_escape_enabled(own_terminal)) {
+        TEST_PASS("USTRK(on) records user escape handling as ON");
+    } else {
+        TEST_FAIL("USTRK(on) records user escape handling as ON", "still off");
+    }
+
+    uint32_t recorded = mon_get_user_escape_address(own_terminal);
+    if (recorded == 0x00012340) {
+        TEST_PASS("USTRK(on) records the handler address");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "got 0x%08X", recorded);
+        TEST_FAIL("USTRK(on) records the handler address", msg);
+    }
+
+    /* OFF. The address argument is ignored while switching off. */
+    test_write_word(&cpu, p_flag, 0);
+    test_write_word(&cpu, p_addr, 0);
+    setup_mon_context(&ctx, 261, 2, args);
+
+    if (mon_dispatch(&ctx) == MON_SUCCESS) {
+        TEST_PASS("MON 405B USTRK(off) returns success");
+    } else {
+        TEST_FAIL("MON 405B USTRK(off) returns success", "returned error");
+    }
+
+    if (!mon_get_user_escape_enabled(own_terminal)) {
+        TEST_PASS("USTRK(off) records user escape handling as OFF");
+    } else {
+        TEST_FAIL("USTRK(off) records user escape handling as OFF", "still on");
+    }
+
+    /* The stored handler survives the OFF, so a later re-enable without a fresh
+     * address behaves like SINTRAN's last handler. Both emulators keep it - see
+     * mon_set_user_escape_handler and TerminalState.SetUserEscapeHandler, which
+     * only overwrite a stored handler with a non-zero one. */
+    recorded = mon_get_user_escape_address(own_terminal);
+    if (recorded == 0x00012340) {
+        TEST_PASS("USTRK(off) keeps the last handler address");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "got 0x%08X", recorded);
+        TEST_FAIL("USTRK(off) keeps the last handler address", msg);
+    }
+
+    /* No arguments at all: both emulators default the flag to 0 and succeed
+     * rather than faulting the caller. */
+    setup_mon_context(&ctx, 261, 0, NULL);
+
+    if (mon_dispatch(&ctx) == MON_SUCCESS) {
+        TEST_PASS("MON 405B USTRK with no arguments returns success");
+    } else {
+        TEST_FAIL("MON 405B USTRK with no arguments returns success", "returned error");
+    }
+
+    if (!mon_get_user_escape_enabled(own_terminal)) {
+        TEST_PASS("USTRK with no arguments leaves user escape handling OFF");
+    } else {
+        TEST_FAIL("USTRK with no arguments leaves user escape handling OFF", "turned on");
+    }
+
+    teardown();
+}
+
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
@@ -1893,6 +1994,7 @@ int main(int argc, char* argv[]) {
     test_mon_413B_fscdnt_missing_args();
     test_mon_413B_fscdnt_optional_segment_no();
     test_mon_413B_fscdnt_segment_mismatch();
+    test_mon_405B_ustrk();
     test_mon_nd500_tool_calls();
 
     /* Summary */
