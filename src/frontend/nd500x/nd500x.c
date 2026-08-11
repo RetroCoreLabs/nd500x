@@ -664,7 +664,14 @@ int main(int argc, char** argv) {
             return 1;
         }
         printf("DAP server listening on port %d\n", dap_port);
-        if (!debug) {
+        /* --monitor: the SINTRAN shell IS the session, so fall through to it
+         * with the DAP server running alongside on its own thread. Entering
+         * the headless wait loop below instead (which is what happened before
+         * this check existed) meant the '@' prompt never appeared, no domain
+         * could be started, and every DAP read reported a CPU that had never
+         * run - registers 0, memory unreadable. The shell's run loops and the
+         * DAP callbacks serialize on the CPU lock (nd500_cpu_lock). */
+        if (!debug && !monitor_mode) {
             /* Headless: keep serving until the DAP thread exits */
             while (nd500_dap_is_active()) {
                 struct timespec ts = {0, 100000000}; /* 100ms */

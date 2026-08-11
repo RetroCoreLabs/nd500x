@@ -150,6 +150,30 @@ typedef struct { uint32_t addr; uint32_t len; WatchpointType type; } DapTrackedW
 static DapTrackedWp g_dap_wps[DAP_MAX_TRACKED];
 static int g_dap_wp_count = 0;
 
+/* ── CPU lock ──────────────────────────────────────────────────── */
+
+/* Every callback that reads or writes CPU registers, MMU state or machine
+ * memory runs with the CPU lock held, because the thread advancing the CPU is
+ * NOT always the one this file spawns through nd500_dbg_run: a domain started
+ * from the SINTRAN shell's '@' prompt (--monitor) is stepped by run_domain in
+ * src/frontend/nd500x/nd500x_shell.c, on the shell's own thread. Reading an
+ * Nd500Cpu that another thread is in the middle of updating is a data race,
+ * and a register or memory value obtained that way means nothing.
+ *
+ * DAP_CMD_LOCKED(cmd_x) { ... } defines the body as cmd_x_unlocked and a
+ * cmd_x that takes the lock around it, so the registration table below is
+ * unchanged and no body has to remember to unlock on each return path. */
+#define DAP_CMD_LOCKED(name)                                    \
+	static int name##_unlocked(DAPServer* server);          \
+	static int name(DAPServer* server) {                    \
+		int r;                                          \
+		nd500_cpu_lock();                               \
+		r = name##_unlocked(server);                    \
+		nd500_cpu_unlock();                             \
+		return r;                                       \
+	}                                                       \
+	static int name##_unlocked(DAPServer* server)
+
 /* ── Helpers ───────────────────────────────────────────────────── */
 
 static const char* stop_reason_to_dap(StopReason r) {
@@ -301,7 +325,7 @@ static void dap_flush_console_output(DAPServer* server) {
 
 /* Called by libdap on every server loop iteration. Polls the machine
  * stop state and sends 'stopped' events to the client. */
-static int cmd_check_cpu_events(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_check_cpu_events) {
 	if (!g_machine) return 0;
 
 	dap_flush_console_output(server);
@@ -344,7 +368,7 @@ static int cmd_check_cpu_events(DAPServer* server) {
 
 /* ── Session callbacks ─────────────────────────────────────────── */
 
-static int cmd_launch(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_launch) {
 	if (!g_machine) return -1;
 	const char* program_path = server->debugger_state.program_path;
 	bool stop_at_entry = server->debugger_state.stop_at_entry;
@@ -388,7 +412,7 @@ static int cmd_launch(DAPServer* server) {
 	return 0;
 }
 
-static int cmd_attach(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_attach) {
 	if (!g_machine) return -1;
 	server->attached = true;
 	server->is_running = true;
@@ -424,7 +448,7 @@ static int cmd_terminate(DAPServer* server) {
 	return 0;
 }
 
-static int cmd_restart(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_restart) {
 	if (!g_machine || !g_machine->cpu) return -1;
 	nd500_dbg_stop(g_machine);
 	if (g_have_entry_pc) {
@@ -438,7 +462,7 @@ static int cmd_restart(DAPServer* server) {
 
 /* ── Execution control ─────────────────────────────────────────── */
 
-static int cmd_continue(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_continue) {
 	if (!g_machine) return -1;
 	g_machine->stop_reason = STOP_NONE;
 	g_step_pending = 0;
@@ -451,7 +475,7 @@ static int cmd_continue(DAPServer* server) {
 /* All step flavors are single-instruction steps: the ND-500 adapter has
  * no reliable source-line stepping yet, and step-out would need frame
  * unwinding. Executed synchronously (one instruction is fast). */
-static int cmd_step_common(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_step_common) {
 	if (!g_machine) return -1;
 	if (g_machine->run_flag) return -1; /* already running */
 	g_machine->stop_reason = STOP_NONE;
@@ -472,7 +496,7 @@ static int cmd_next(DAPServer* server)     { return cmd_step_common(server); }
 static int cmd_step_in(DAPServer* server)  { return cmd_step_common(server); }
 static int cmd_step_out(DAPServer* server) { return cmd_step_common(server); }
 
-static int cmd_pause(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_pause) {
 	(void)server;
 	if (!g_machine) return -1;
 	nd500_dbg_stop(g_machine);
@@ -483,7 +507,7 @@ static int cmd_pause(DAPServer* server) {
 
 /* ── Breakpoints ───────────────────────────────────────────────── */
 
-static int cmd_set_breakpoints(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_set_breakpoints) {
 	if (!g_machine || !g_machine->bp_mgr) return -1;
 	BreakpointCommandContext* ctx = &server->current_command.context.breakpoint;
 
@@ -525,7 +549,7 @@ static int cmd_set_breakpoints(DAPServer* server) {
 	return 0;
 }
 
-static int cmd_set_instruction_breakpoints(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_set_instruction_breakpoints) {
 	if (!g_machine || !g_machine->bp_mgr) return -1;
 	InstructionBreakpointCommandContext* ctx =
 		&server->current_command.context.instruction_breakpoint;
@@ -555,7 +579,7 @@ static int cmd_set_instruction_breakpoints(DAPServer* server) {
  * "V:0xADDRESS:LENGTH" - virtual address (translated via MMU at set time)
  * "P:0xADDRESS:LENGTH" - physical address (used as-is)
  * Address is hex, length is a decimal byte count. */
-static int cmd_data_breakpoint_info(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_data_breakpoint_info) {
 	DataBreakpointInfoCommandContext* ctx =
 		&server->current_command.context.data_breakpoint_info;
 	ctx->data_id = NULL;
@@ -629,7 +653,7 @@ static int cmd_data_breakpoint_info(DAPServer* server) {
 	return 0;
 }
 
-static int cmd_set_data_breakpoints(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_set_data_breakpoints) {
 	if (!g_machine || !g_machine->bp_mgr) return -1;
 	SetDataBreakpointsCommandContext* ctx =
 		&server->current_command.context.set_data_breakpoints;
@@ -733,7 +757,7 @@ static int cmd_set_data_breakpoints(DAPServer* server) {
 
 /* ── Inspection ────────────────────────────────────────────────── */
 
-static int cmd_stack_trace(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_stack_trace) {
 	StackTraceCommandContext* ctx = &server->current_command.context.stack_trace;
 	ctx->frames = NULL;
 	ctx->frame_count = 0;
@@ -775,7 +799,7 @@ static int cmd_stack_trace(DAPServer* server) {
 	return 0;
 }
 
-static int cmd_scopes(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_scopes) {
 	ScopesCommandContext* ctx = &server->current_command.context.scopes;
 	static const struct { const char* name; int ref; int count; } defs[] = {
 		{"Core",              SCOPE_ID_CORE,         DAP_REG_COUNT(g_core_regs) + 1},
@@ -826,7 +850,7 @@ static void dap_add_reg_group(DAPServer* server, const DapRegDef* defs, int coun
 	}
 }
 
-static int cmd_variables(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_variables) {
 	VariablesCommandContext* ctx = &server->current_command.context.variables;
 	ctx->variable_array = NULL;
 	ctx->variable_count = 0;
@@ -906,7 +930,7 @@ static int cmd_variables(DAPServer* server) {
 	return 0;
 }
 
-static int cmd_set_variable(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_set_variable) {
 	SetVariableCommandContext* ctx = &server->current_command.context.set_variable;
 	if (!g_machine || !g_machine->cpu || !ctx->name || !ctx->value) return -1;
 	/* All register scopes are writable; computed variables (Flags,
@@ -929,7 +953,7 @@ static int cmd_set_variable(DAPServer* server) {
 	return 0;
 }
 
-static int cmd_evaluate(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_evaluate) {
 	EvaluateCommandContext* ctx = &server->current_command.context.evaluate;
 	ctx->result = NULL;
 	if (!g_machine || !g_machine->cpu || !ctx->expression) return -1;
@@ -973,7 +997,7 @@ static int cmd_evaluate(DAPServer* server) {
 
 /* ── Memory ────────────────────────────────────────────────────── */
 
-static int cmd_read_memory(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_read_memory) {
 	ReadMemoryCommandContext* ctx = &server->current_command.context.read_memory;
 	ctx->base64_data = NULL;
 	if (!g_machine) return -1;
@@ -1008,7 +1032,7 @@ static int cmd_read_memory(DAPServer* server) {
 	return ctx->base64_data ? 0 : -1;
 }
 
-static int cmd_write_memory(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_write_memory) {
 	WriteMemoryCommandContext* ctx = &server->current_command.context.write_memory;
 	ctx->bytes_written = 0;
 	if (!g_machine || !ctx->data) return -1;
@@ -1038,7 +1062,7 @@ static int cmd_write_memory(DAPServer* server) {
 
 /* ── Disassembly and symbols ───────────────────────────────────── */
 
-static int cmd_disassemble(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_disassemble) {
 	DisassembleCommandContext* ctx = &server->current_command.context.disassemble;
 	ctx->instructions = NULL;
 	ctx->actual_instruction_count = 0;
@@ -1081,7 +1105,7 @@ static int cmd_disassemble(DAPServer* server) {
 	return 0;
 }
 
-static int cmd_symbol_list(DAPServer* server) {
+DAP_CMD_LOCKED(cmd_symbol_list) {
 	SymbolListContext* ctx = &server->current_command.context.symbol_list;
 	ctx->symbols = NULL;
 	ctx->symbol_count = 0;

@@ -32,6 +32,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 /* Cooked/raw terminal handling, portable: termios does not exist on Windows. */
@@ -60,6 +61,9 @@
 #include "../../ndlib/ndlib.h"
 #include "nd500_dom.h"
 #include "nd500x_telnet.h"
+#ifdef DAP_ENABLED
+#include "../../debugger/debugger.h"   /* nd500_dap_is_active */
+#endif
 
 /* Segment-allocator C-side state snapshot (nd500_segment_alloc.c) - used to make
  * a nested 317B UECOM program run transparent to its caller. */
@@ -476,6 +480,50 @@ static int shell_wait_input_resume(void) {
     return mon_console_wait_for_input();
 }
 
+/* A breakpoint or watchpoint stop is a PAUSE, not the end of the program.
+ * cpu.c clears run_flag when one fires, which the run loops below would
+ * otherwise read as "the program is finished" - so a DAP breakpoint killed
+ * the domain outright and there was nothing left to continue.
+ *
+ * Park here instead: drop the CPU lock (a DAP read or step must be able to
+ * run while the domain is stopped) and wait for run_flag to come back up.
+ * A DAP continue does exactly that through nd500_dbg_run, which does not
+ * spawn its own thread while this loop is registered as the CPU's driver.
+ *
+ * Returns 1 to resume stepping, 0 to end the run. With no debugger attached
+ * there is nobody to continue, so keep the old behavior and end the run;
+ * otherwise a stray breakpoint would hang the '@' prompt with no way out
+ * except ESCAPE - which is also honored here. */
+static int shell_park_for_debugger(void) {
+#ifdef DAP_ENABLED
+    if (!nd500_dap_is_active()) return 0;
+    int held = nd500_cpu_lock_suspend();
+    int resume = 0;
+    for (;;) {
+        if (g_machine->run_flag) { resume = 1; break; }
+        struct timespec ts = {0, 10000000}; /* 10ms */
+        nanosleep(&ts, NULL);
+        if (mon_console_poll_user_break()) {
+            g_machine->stop_reason = STOP_USER_REQUESTED;
+            printf("\n-- aborted (ESCAPE user break) --\n");
+            break;
+        }
+    }
+    nd500_cpu_lock_resume(held);
+    if (resume) g_machine->stop_reason = STOP_NONE;
+    return resume;
+#else
+    return 0;
+#endif
+}
+
+static int shell_is_debugger_stop(int reason) {
+    return reason == STOP_BREAKPOINT ||
+           reason == STOP_WATCHPOINT_READ ||
+           reason == STOP_WATCHPOINT_WRITE ||
+           reason == STOP_WATCHPOINT_REGISTER;
+}
+
 static int shell_execute_command(void* cpu_v, void* machine_v, const char* command) {
     (void)cpu_v; (void)machine_v;   /* use the shell globals g_cpu / g_machine */
     if (!command || !*command) return -1;
@@ -588,12 +636,18 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
     g_machine->run_flag = 1;
     g_machine->stop_reason = STOP_NONE;
     uint64_t steps = 0;
+    /* Same CPU lock discipline as run_domain below - see the comment there. */
+    nd500_cpu_lock();
     while (g_machine->run_flag) {
         if (steps >= SHELL_MAX_STEPS) break;
         int ok = nd500_cpu_step(g_cpu);
         steps++;
+        if ((steps & 0xFFF) == 0) nd500_cpu_lock_yield();
         if (g_machine->stop_reason == STOP_WAIT_INPUT) {
-            if (shell_wait_input_resume()) {
+            int held = nd500_cpu_lock_suspend();
+            int resume = shell_wait_input_resume();
+            nd500_cpu_lock_resume(held);
+            if (resume) {
                 g_machine->stop_reason = STOP_NONE;
                 g_machine->run_flag = 1;
                 continue;
@@ -601,8 +655,13 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
             break;
         }
         if (g_machine->stop_reason == STOP_MON_HALT) break;
+        if (shell_is_debugger_stop(g_machine->stop_reason)) {
+            if (shell_park_for_debugger()) continue;
+            break;
+        }
         if (!ok) break;
     }
+    nd500_cpu_unlock();
 
     /* Sub-program done: drop back to the caller's file generation (its LEAVE
      * already closed only its own files). */
@@ -681,15 +740,21 @@ static void run_domain(const char* name, const char* args) {
      * Set ND500X_LOADDBG=1 for the loader's own diagnostics on stderr. */
     static int loaddbg = -1;
     if (loaddbg < 0) { const char* e = getenv("ND500X_LOADDBG"); loaddbg = (e && e[0] && e[0] != '0') ? 1 : 0; }
+    /* Placing the domain rewrites the CPU registers, the PST and the
+     * capabilities; a DAP read landing in the middle of that sees neither the
+     * old program nor the new one. Hold the CPU lock across the load too. */
+    nd500_cpu_lock();
     rc = ndlib_dom_load_to_machine(g_machine, g_cpu, -1,
                                    loaddbg ? loaddbg_cb : NULL, NULL,
                                    &start_addr, &loaded_domain);
     if (rc != 0) {
         nd500_mmu_state_restore(mmu_backup);
         nd500_segment_alloc_state_restore(seg_backup);
+        nd500_cpu_unlock();
         printf("DOM configuration failed\n");
         return;
     }
+    nd500_cpu_unlock();
 
     /* Hand the typed arguments to the program the SINTRAN way. */
     mon_set_command_buffer(args ? args : "");
@@ -722,10 +787,21 @@ static void run_domain(const char* name, const char* args) {
     g_machine->run_flag = 1;
     g_machine->stop_reason = STOP_NONE;
     uint64_t steps = 0;
+    /* This loop, not nd500_dbg_run's background thread, is what advances the
+     * CPU for a domain started from the '@' prompt. Hold the CPU lock while
+     * stepping so a DAP register/memory read on the server thread cannot
+     * observe a half-updated Nd500Cpu, hand it over every 4K instructions so
+     * such a read actually gets in, and drop it entirely while blocked
+     * waiting for the user's input line (which can be indefinite). */
+    /* Claim the CPU so a DAP continue resumes THIS loop instead of starting a
+     * second one in nd500_dbg_run. Cleared when the program exits. */
+    nd500_cpu_set_external_driver(1);
+    nd500_cpu_lock();
     while (g_machine->run_flag) {
         if (steps >= SHELL_MAX_STEPS) { printf("\n-- step limit reached --\n"); break; }
         int ok = nd500_cpu_step(g_cpu);
         steps++;
+        if ((steps & 0xFFF) == 0) nd500_cpu_lock_yield();
         /* Asynchronous ESCAPE user-break: a compute-bound program never issues a
          * terminal read, so the INBT/DVINST escape check can't fire. Poll the
          * console every so often; if the user pressed ESCAPE and escape is
@@ -744,7 +820,10 @@ static void run_domain(const char* name, const char* args) {
          * a suspended step returns "ok" while clearing run_flag, so checking it
          * only on the failure branch would let the program fall out and exit. */
         if (g_machine->stop_reason == STOP_WAIT_INPUT) {
-            if (shell_wait_input_resume()) {
+            int held = nd500_cpu_lock_suspend();
+            int resume = shell_wait_input_resume();
+            nd500_cpu_lock_resume(held);
+            if (resume) {
                 g_machine->stop_reason = STOP_NONE;
                 g_machine->run_flag = 1;
                 continue;
@@ -752,8 +831,14 @@ static void run_domain(const char* name, const char* args) {
             break; /* no more input can ever arrive (EOF) */
         }
         if (g_machine->stop_reason == STOP_MON_HALT) break;
+        if (shell_is_debugger_stop(g_machine->stop_reason)) {
+            if (shell_park_for_debugger()) continue;
+            break;
+        }
         if (!ok) break;
     }
+    nd500_cpu_unlock();
+    nd500_cpu_set_external_driver(0);
     if (!g_use_telnet) restore_cooked();
     printf("\n-- program exited (%llu instructions) --\n", (unsigned long long)steps);
 
@@ -762,11 +847,13 @@ static void run_domain(const char* name, const char* args) {
      * capabilities - domain numbers are reused now, so stale entries must
      * not leak into the next occupant), reclaim its watermark pages, and
      * free the domain number. */
+    nd500_cpu_lock();
     nd500_mmu_state_restore(mmu_backup);
     nd500_segment_alloc_state_restore(seg_backup);
     if (loaded_domain > 0) {
         nd500_domain_free(g_cpu, (uint8_t)loaded_domain);
     }
+    nd500_cpu_unlock();
 }
 
 /* --------------------------------------------------------------- commands */

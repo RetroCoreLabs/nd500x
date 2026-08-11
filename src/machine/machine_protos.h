@@ -22,6 +22,25 @@ size_t nd500_dbg_disasm  (Nd500Machine* m, uint32_t addr, uint32_t len, char* ou
 void   nd500_dbg_step    (Nd500Machine* m, uint32_t count);
 void   nd500_dbg_run     (Nd500Machine* m);
 void   nd500_dbg_stop    (Nd500Machine* m);
+
+/* CPU lock: held by whichever thread is advancing the CPU (the background
+ * run_thread, or the SINTRAN shell's own run loops), and taken by the DAP
+ * adapter around every read of CPU/memory state. Recursive.
+ * nd500_cpu_lock_yield() drops it, yields, and retakes it - what a run loop
+ * calls periodically so a waiting reader gets a turn. No-ops under WASM. */
+void   nd500_cpu_lock(void);
+void   nd500_cpu_unlock(void);
+void   nd500_cpu_lock_yield(void);
+/* Release every level this thread holds (returns the count) and put them
+ * back. For a run loop about to block for an unbounded time. */
+int    nd500_cpu_lock_suspend(void);
+void   nd500_cpu_lock_resume(int levels);
+
+/* "A loop outside machine.c is driving the CPU" (the SINTRAN shell's
+ * run_domain). While set, nd500_dbg_run raises run_flag but does not spawn
+ * its own run thread, so a DAP continue resumes THAT loop. */
+void   nd500_cpu_set_external_driver(int on);
+int    nd500_cpu_has_external_driver(void);
 int    nd500_dbg_is_running(Nd500Machine* m);
 int    nd500_dbg_load_aout_file(Nd500Machine* m, const char* path, uint32_t* out_entry_pc);
 int    nd500_dbg_load_aout_buffer(Nd500Machine* m, const uint8_t* data, size_t size, uint32_t* out_entry_pc);

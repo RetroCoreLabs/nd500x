@@ -1954,6 +1954,116 @@ static void test_mon_405B_ustrk(void) {
     teardown();
 }
 
+/*
+ * Test MON 300B EUSEL / 301B DUSEL (SetEscapeHandling / StopEscapeHandling)
+ *
+ * These are the ND-100 form of the facility MON 405B USTBRK provides on the
+ * ND-500: 300B switches user-defined escape handling on with a handler address,
+ * 301B switches it off, and 405B does both through an on/off flag. Source is
+ * ND-860228-2 SINTRAN III Monitor Calls p.442 and p.490 - the body pages, which
+ * say ASSEMBLY-500 "Not available" and carry an ND-100 footer, unlike the
+ * overview table on p.047 that marks both architectures.
+ *
+ * What matters here is that all three drive ONE per-terminal state, so a
+ * sequence across them has to stay consistent. As with 405B, the asynchronous
+ * ESCAPE->transfer is not delivered by either emulator and nothing asserts it.
+ */
+static void test_mon_300B_301B_escape_handling(void) {
+    printf("\nTesting MON 300B EUSEL / 301B DUSEL (escape handling)...\n");
+    setup();
+    mon_terminal_state_reset();
+
+    const uint32_t own_terminal = 1;
+    uint32_t p_addr = 0x3100;
+    uint32_t args[1] = { p_addr };
+    MonContext ctx;
+
+    /* 300B EUSEL: one parameter, the handler address. 300B = 192 decimal. */
+    test_write_word(&cpu, p_addr, 0x00045670);
+    setup_mon_context(&ctx, 192, 1, args);
+
+    if (mon_dispatch(&ctx) == MON_SUCCESS) {
+        TEST_PASS("MON 300B EUSEL returns success");
+    } else {
+        TEST_FAIL("MON 300B EUSEL returns success", "returned error");
+    }
+
+    if (mon_get_user_escape_enabled(own_terminal)) {
+        TEST_PASS("EUSEL switches user escape handling ON");
+    } else {
+        TEST_FAIL("EUSEL switches user escape handling ON", "still off");
+    }
+
+    uint32_t recorded = mon_get_user_escape_address(own_terminal);
+    if (recorded == 0x00045670) {
+        TEST_PASS("EUSEL records the handler address");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "got 0x%08X", recorded);
+        TEST_FAIL("EUSEL records the handler address", msg);
+    }
+
+    /* 301B DUSEL: no parameters at all. 301B = 193 decimal. */
+    setup_mon_context(&ctx, 193, 0, NULL);
+
+    if (mon_dispatch(&ctx) == MON_SUCCESS) {
+        TEST_PASS("MON 301B DUSEL returns success");
+    } else {
+        TEST_FAIL("MON 301B DUSEL returns success", "returned error");
+    }
+
+    if (!mon_get_user_escape_enabled(own_terminal)) {
+        TEST_PASS("DUSEL switches user escape handling OFF");
+    } else {
+        TEST_FAIL("DUSEL switches user escape handling OFF", "still on");
+    }
+
+    recorded = mon_get_user_escape_address(own_terminal);
+    if (recorded == 0x00045670) {
+        TEST_PASS("DUSEL keeps the last handler address");
+    } else {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "got 0x%08X", recorded);
+        TEST_FAIL("DUSEL keeps the last handler address", msg);
+    }
+
+    /* The ND-100 pair and the ND-500 call share one state: 405B USTBRK must see
+     * what 300B set, and 300B must see what 405B set. This is the assertion that
+     * catches the two ever drifting onto separate storage. */
+    uint32_t p_flag = 0x3110, p_addr2 = 0x3114;
+    uint32_t args405[2] = { p_flag, p_addr2 };
+    test_write_word(&cpu, p_flag, 1);
+    test_write_word(&cpu, p_addr2, 0x00098760);
+    setup_mon_context(&ctx, 261, 2, args405);
+    (void)mon_dispatch(&ctx);
+
+    setup_mon_context(&ctx, 193, 0, NULL);   /* 301B must turn OFF what 405B turned on */
+    (void)mon_dispatch(&ctx);
+
+    if (!mon_get_user_escape_enabled(own_terminal) &&
+        mon_get_user_escape_address(own_terminal) == 0x00098760) {
+        TEST_PASS("300B/301B and 405B share one per-terminal state");
+    } else {
+        char msg[96];
+        snprintf(msg, sizeof(msg), "enabled=%d addr=0x%08X",
+                 mon_get_user_escape_enabled(own_terminal) ? 1 : 0,
+                 mon_get_user_escape_address(own_terminal));
+        TEST_FAIL("300B/301B and 405B share one per-terminal state", msg);
+    }
+
+    /* EUSEL with no argument at all still succeeds rather than faulting the
+     * caller; the address defaults to 0 and the stored one is kept. */
+    setup_mon_context(&ctx, 192, 0, NULL);
+
+    if (mon_dispatch(&ctx) == MON_SUCCESS) {
+        TEST_PASS("MON 300B EUSEL with no arguments returns success");
+    } else {
+        TEST_FAIL("MON 300B EUSEL with no arguments returns success", "returned error");
+    }
+
+    teardown();
+}
+
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
@@ -1995,6 +2105,7 @@ int main(int argc, char* argv[]) {
     test_mon_413B_fscdnt_optional_segment_no();
     test_mon_413B_fscdnt_segment_mismatch();
     test_mon_405B_ustrk();
+    test_mon_300B_301B_escape_handling();
     test_mon_nd500_tool_calls();
 
     /* Summary */
