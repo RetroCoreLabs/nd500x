@@ -210,33 +210,27 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
  * ------------------------------------------------------------------------- */
 static const struct { const char* name; const char* reason; }
 conformance_quarantine[] = {
-    { "tutti_Default",
-      "TUTTI is not privileged, so it must not raise IIC. The manual marks "
-      "privileged instructions with an explicit 'Privileged instruction' line "
-      "in the Description (15.17 CLINIT, 16.13 DMON); 16.2 TUTTI has none, and "
-      "neither does 16.1 SOLO. Ch.16.1 also presumes unprivileged users run "
-      "SOLO. The ND-5000 control store has no privilege test in TUTTI_0 "
-      "(004534-004537). The expectation comes from CreateGenericSystemScenario "
-      "in ComprehensiveSystemGenerator.cs:805, a catch-all that stamps "
-      "ExpectedTrap=IllegalInstruction on every SYSTEM-class instruction - "
-      "TUTTI was swept in by its class, not by any finding about TUTTI. "
-      "RetroCore's own Tutti.cs does not enforce privilege either, so the "
-      "generator disagrees with its own emulator" },
-    { "dcc_Default",
-      "DCC is not privileged, so it must not raise IIC. Manual 16.10 has no "
-      "'Privileged instruction' line and says 'Trap conditions: None'. The "
-      "ND-5000 control store agrees - DCC (000720) -> DCC_IC (012275) -> the "
-      "cache-clear subroutines, with no PIA test in the path. Same "
-      "CreateGenericSystemScenario catch-all as tutti_Default" },
-    { "pcc_Default",
-      "PCC is not privileged. Manual 16.12 has no 'Privileged instruction' "
-      "line and says 'Trap conditions: None'. Control store: PCC (000717) -> "
-      "PCC_IC (012273) -> CLR_IC, no PIA test. Same catch-all" },
-    { "ddirt_Default",
-      "DDIRT is not privileged. Manual 16.11 has no 'Privileged instruction' "
-      "line and says 'Trap Conditions: None'. Microcode NOT checked - no DDIRT "
-      "label in MICRO-5800-B30.LABE - so this rests on the manual plus its two "
-      "siblings DCC and PCC having no privilege test. Same catch-all" },
+    /* EMPTY, and that is the goal state.
+     *
+     * It held four entries - tutti_Default, dcc_Default, pcc_Default and
+     * ddirt_Default - all victims of ONE generator defect: a SYSTEM-class
+     * catch-all in ComprehensiveSystemGenerator that expected every instruction
+     * without a bespoke generator to raise IIC "because privileged instructions
+     * do when executed in user mode". None of those four is privileged. The
+     * manual marks privileged instructions explicitly (15.17 CLINIT, 16.13
+     * DMON), and 16.2 TUTTI, 16.10 DCC, 16.11 DDIRT and 16.12 PCC each lack
+     * that line - three of them say "Trap conditions: None" outright.
+     *
+     * FIXED at the source on 2026-08-17 (RetroCore ComprehensiveSystemGenerator,
+     * an explicit unprivileged set) and the corpus regenerated, so the wrong
+     * expectation is gone from the data rather than skipped in the runner.
+     *
+     * Leave the mechanism in place. It costs nothing while empty and it is the
+     * right shape for the next corpus defect: quarantine the case WITH its
+     * evidence, keep executing it, and fail the run when it starts passing so a
+     * stale entry cannot rot here. Both of those behaviours are what turned this
+     * table back into an empty one.
+     */
     { NULL, NULL }
 };
 
