@@ -1345,6 +1345,27 @@ static void cmd_mode(int argc, char** argv) {
     g_mode_buf = save_buf; g_mode_len = save_len; g_mode_pos = save_pos;
 }
 
+/* Prepend a byte the ESCAPE poll peeked during a program run and nobody read.
+ * Without this the byte stays inside ndmonlib's stdio pushback while readline()
+ * or fgets() below reads the NEXT one, so the first character of the command
+ * after any program that does no input call disappeared: @CPU-STAT then FILES
+ * ran "ILES" and answered NO SUCH COMMAND OR DOMAIN. A pending CR or LF is
+ * dropped instead of prepended - it only ever terminated a line that was
+ * already consumed, and prepending it would submit an empty command. */
+static char* shell_reclaim_pushback(char* line) {
+    int pending = mon_console_take_pushback();
+    if (pending < 0 || pending == '\r' || pending == '\n') return line;
+    if (!line) return line;
+
+    size_t n = strlen(line);
+    char* joined = (char*)malloc(n + 2);
+    if (!joined) return line;              /* out of memory: the byte is lost, the line is not */
+    joined[0] = (char)pending;
+    memcpy(joined + 1, line, n + 1);
+    free(line);
+    return joined;
+}
+
 static char* shell_readline(const char* prompt) {
     if (g_use_telnet) {
         static char tbuf[1024];
@@ -1354,7 +1375,7 @@ static char* shell_readline(const char* prompt) {
         return strdup(tbuf);
     }
 #ifdef HAVE_READLINE
-    char* line = readline(prompt);
+    char* line = shell_reclaim_pushback(readline(prompt));
     if (line && *line) add_history(line);
     return line;
 #else
@@ -1364,7 +1385,7 @@ static char* shell_readline(const char* prompt) {
     if (!fgets(buf, sizeof(buf), stdin)) return NULL;
     size_t n = strlen(buf);
     if (n && buf[n-1] == '\n') buf[n-1] = '\0';
-    return strdup(buf);
+    return shell_reclaim_pushback(strdup(buf));
 #endif
 }
 
