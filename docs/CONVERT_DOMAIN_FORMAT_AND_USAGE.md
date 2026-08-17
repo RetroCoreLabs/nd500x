@@ -190,10 +190,29 @@ header. In the OLD format that same bookkeeping is split between the
 
 What the description file holds (verified summary): per-user index of every
 domain the user owns, the on-disk location of each domain's `:PSEG`/`:DSEG`/
-`:LINK` files, and per-domain / per-segment bookkeeping. Exact byte layout of
-`:DESC` is UNVERIFIED here (no `:DESC` format spec was found in the repos read;
-to verify, one would reverse the `DESCRIPTION-FILE:DESC` bytes against a known
-domain, or find a `:DESC` layout appendix).
+`:LINK` files, and per-domain / per-segment bookkeeping.
+
+**The `:DESC` byte layout is no longer unverified** - this paragraph used to say
+it was, and to suggest reversing the bytes against a known domain. That was
+done. Both the domain entry and the segment entry are decoded, read out of the
+ND-500 Loader/Debug Monitor's own field-printing code and checked against 13
+vendor floppies. Do not restart that work; read the spec instead:
+
+- Spec and JSON: NDInsight `SINTRAN/File-Formats/DESCRIPTION-FILE-FORMAT.md`
+  and `desc-format.json`. The `:LINK` half is `LINK-FILE-FORMAT.md` and
+  `link-format.json`.
+- Carve chains, with the address of the instruction that proves each field:
+  NDInsight `SINTRAN/ND500/nd-500-mon/CARVE-ANSWER-DESC-FIELD-OFFSETS-2026-08-11.md`
+  and `CARVE-ANSWER-FOUR-OPEN-QUESTIONS-2026-08-17.md`.
+- Working C: `desc.h` and `desc_utils.c` in the `pcc-nd500` tree, and
+  `nd500-dump` prints a whole file.
+
+Three things worth knowing before reading any of it. The size fields hold the
+LAST BYTE INDEX, not a count - `PLB + PSIZE + 1` is the `.pseg` file size -
+which is why years of scanning for literal file sizes found nothing. Segment
+entries are a singly linked list, not an array. And the manual gets two
+domain-entry field placements wrong: PBITMAP/DBITMAP are at bytes 48/52, and
+procPrior and flag are one packed word.
 
 ---
 
@@ -373,9 +392,14 @@ What this tells us (facts):
   unresolved external references has an empty link area (consistent with the
   Linker-manual statement that link info "contains the entries in the symbol
   table that are defined with values in the slave segments"). The file EXISTS,
-  so it is not the "deleted file" failure case. Whether CONVERT-DOMAIN A03
-  accepts a zero-byte `:LINK` is UNVERIFIED -- verify by actually running the
-  conversion under nd500x and checking for an error.
+  so it is not the "deleted file" failure case. **CONVERT-DOMAIN A03 DOES
+  accept a zero-byte `:LINK`** - verified 2026-08-17 under nd500x, and not on
+  LED-B03 but on a domain that happens to have the same property: the staged
+  `LINKAGE-LOAD-H02.LINK` is exactly 0 bytes, and the conversion printed
+  `>> Converting link part for segment 22` followed by `>> Finished` and wrote
+  a 2,316,049-byte `:DOM`, with no error. Consistent with the format: a `:LINK`
+  is a dump of the loader table, so an empty table is an empty file - and both
+  the linker and the symbolic debugger ship with a zero-byte one.
 - `scratch-seg-01.pseg` is 5 NUL bytes and `scratch-seg-01.dseg` is tiny; this
   is essentially an empty scratch segment belonging to `SCRATCH-DOMAIN`, not
   to `LED-B03`.
