@@ -20,10 +20,10 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 
 | Date | nd500x commit | Change | Detail | Status |
 |---|---|---|---|---|
-| (pre-2026-08-08) | various | Float arithmetic fixes | docs/SYNC-FLOAT-ARITHMETIC-FIXES.md | present in C# (name-level) |
-| (pre-2026-08-08) | various | Float native bias-256 rebase | docs/SYNC-FLOAT-NATIVE-REBASE.md | present in C# (name-level) |
-| (pre-2026-08-08) | various | MON 257B FOPEN present in SINTRAN L | docs/SYNC-MON-257B-FOPEN-PRESENT-IN-SINTRAN-L.md | present in C# (name-level) |
-| (pre-2026-08-08) | various | STRING wrong-instruction fixes | docs/SYNC-STRING-WRONG-INSTRUCTION-FIXES.md | present in C# (name-level) |
+| (pre-2026-08-08) | various | Float arithmetic fixes | docs/SYNC-FLOAT-ARITHMETIC-FIXES.md | **done in C#, checked 2026-08-17** - the rebased codec (`ReadOperandAsIeeeFloat`/`WriteOperandFromIeeeFloat`) is used by 13 ND-500 files and every ARITHMETIC file is committed; no longer a name-level guess |
+| (pre-2026-08-08) | various | Float native bias-256 rebase | docs/SYNC-FLOAT-NATIVE-REBASE.md | **done in C#, checked 2026-08-17** - same codec, same files; the doc's "not yet committed pending regen" note is stale |
+| (pre-2026-08-08) | various | MON 257B FOPEN present in SINTRAN L | docs/SYNC-MON-257B-FOPEN-PRESENT-IN-SINTRAN-L.md | **done in C#, checked 2026-08-17** - `MON_257_FOPEN.cs` really searches file numbers 64..127 and writes FileNo/AccessCode/DevNo. Both emulators have since replaced the status-based MOINF with the SAME carved L07 MCTAB table, so the doc's step 1 (flip a status flag so MOINF reports 257B present) is superseded on BOTH sides |
+| (pre-2026-08-08) | various | STRING wrong-instruction fixes | docs/SYNC-STRING-WRONG-INSTRUCTION-FIXES.md | **done in C#, checked 2026-08-17** - Sscan/Sspan/Smatch/Scopt committed in `a72d1f33f` and Scpuno in `1defdb121`; that later commit also shares one descriptor-address helper, which settles the doc's OPEN VERIFICATION ITEM (effective_address vs ReadOperandValue). The doc's "DONE (subagent), uncommitted" note is stale |
 | 2026-08-08 | ndmonlib `97a2a22` + pointer bump | MON 113B CLOCK returned `tm_year % 100`; now writes the full year. **INFERRED, not proven** | shared-file item 13 | **done** - `MON_113_CLOCK.cs:100` writes `now.Year` and carries the same "INFERRED, not proven" note |
 | 2026-08-06 | `8a46aaf`, `712ba00` | SOLO/TUTTI: the 256-cycle DT timeout, DE on a non-ignorable trap inside PSD, and ignorable traps suppressed inside PSD | this file, SOLO/TUTTI section below | **done in C#** - RetroCore `13e9c0ef7`: all four rules ported (repeat-SOLO no longer traps immediately and does not restart the clock; the 256-cycle DT timeout now exists at all - `ProcessSwitchTimeoutCounter` was written in two places and read in none; DE alongside a non-ignorable trap; ignorable traps suppressed while PSD). Timeout check runs BEFORE the ignorable check, mirroring cpu.c:768. Builds clean, full ND500 suite 2090 passed / 15 failed, all 15 pre-existing Windows-absolute-path lookups (`E:\`, `D:\`) that cannot resolve from WSL |
 | 2026-08-09 | `ea4ed54` | **nd500x bugs found by using the ND-5000 microcode as the oracle:** a repeated SOLO restarted the timeout; TUTTI wrongly required privilege while SOLO did not; two blocks of invented prose in `Solo.c`. All fixed, `test_solo_traps` 12 -> 19 cases | `docs/SPEC-CORPUS-SOLO-TUTTI-DT-DE.md` | **done (nd500x)** |
@@ -104,9 +104,17 @@ its comment names the 2026-07-09 C fix), `ENTB`
 ### Limits of this audit - read before trusting a row
 
 - **A name match proves the subject was touched, not that the behavior
-  agrees.** Every row above marked "present in C# (name-level)" means the
-  identifier exists in RetroCore, nothing more. Only MON 113B, IFKGO and
-  SOLO/TUTTI were read line by line.
+  agrees.** That was the state of this audit on 2026-08-09: rows read
+  "present in C# (name-level)", meaning the identifier existed in RetroCore
+  and nothing more.
+  **Superseded 2026-08-17 - there are no name-level rows left.** The four
+  that carried that marker were opened and checked: the float rows against
+  the actual codec calls and their commits, MON 257B against the handler
+  body (and both MOINF implementations, which have since converged on the
+  same carved L07 MCTAB), and the STRING row against five committed files
+  plus the later refactor that settled its open verification item. Two of
+  those docs still say the C# side is "uncommitted" or "pending regen";
+  both notes are stale, and the ledger rows now say so rather than the docs.
 - **Grepping for one identifier is not reading the code.** The first version
   of the SOLO/TUTTI finding was wrong in both directions - it claimed C# had
   no PSD (it does) and missed that C# implements a rule nd500x lacks. The
