@@ -90,21 +90,26 @@ static int32_t itod(const Ffs* fs, int32_t x) {
     return cgimin(fs, itog(fs, x)) + ((x % fs->ipg) / fs->inopb << fs->fragshift);
 }
 
-static int ffs_open(Ffs* fs, const char* image_path, const char** why) {
+/* Parse the super-block of an ALREADY OPEN image. The FILE* stays the
+ * caller's - nothing here closes it, on success or on failure. This is the
+ * half of ffs_open() that does not care where the bytes came from, which is
+ * what lets an image held only in memory (fmemopen, in the wasm front end) be
+ * read with the same code that reads one on disk. */
+static int ffs_attach(Ffs* fs, FILE* f, const char** why) {
     uint8_t sb[SBSIZE];
 
     memset(fs, 0, sizeof *fs);
-    fs->f = fopen(image_path, "rb");
-    if (!fs->f) { if (why) *why = "cannot open image"; return -1; }
+    if (!f) { if (why) *why = "cannot open image"; return -1; }
+    fs->f = f;
     fs->base = (long)BLKZERO * DEV_BSIZE;
 
     if (rdfs(fs, SBLOCK, SBSIZE, sb) != 0) {
         if (why) *why = "image too short to hold a super-block";
-        fclose(fs->f); fs->f = NULL; return -1;
+        fs->f = NULL; return -1;
     }
     if (be32(sb + FS_MAGIC_OFF) != FS_MAGIC) {
         if (why) *why = "no NDIX filesystem (super-block magic mismatch)";
-        fclose(fs->f); fs->f = NULL; return -1;
+        fs->f = NULL; return -1;
     }
 
     fs->iblkno    = (int32_t)be32(sb + SB_IBLKNO);
@@ -127,8 +132,15 @@ static int ffs_open(Ffs* fs, const char* image_path, const char** why) {
         || fs->nindir <= 0 || fs->fsbtodb < 0 || fs->fragshift < 0
         || fs->bsize % DEV_BSIZE != 0) {
         if (why) *why = "super-block geometry is not usable";
-        fclose(fs->f); fs->f = NULL; return -1;
+        fs->f = NULL; return -1;
     }
+    return 0;
+}
+
+static int ffs_open(Ffs* fs, const char* image_path, const char** why) {
+    FILE* f = fopen(image_path, "rb");
+    if (!f) { if (why) *why = "cannot open image"; return -1; }
+    if (ffs_attach(fs, f, why) != 0) { fclose(f); return -1; }
     return 0;
 }
 
@@ -309,9 +321,10 @@ static int32_t dir_lookup(Ffs* fs, const uint8_t* din, const char* name,
     return found;
 }
 
-uint8_t* ndix_ffs_read_file(const char* image_path, const char* path,
-                            long* out_size, const char** why) {
-    Ffs fs;
+/* The path walk itself, on an image whose super-block is already parsed.
+ * Closes nothing: ownership of fs->f belongs to whoever attached it. */
+static uint8_t* ffs_read_path(Ffs* fs, const char* path,
+                              long* out_size, const char** why) {
     uint8_t din[SZ_DINODE];
     int32_t ino = ROOTINO;
     const char* p = path;
@@ -319,13 +332,10 @@ uint8_t* ndix_ffs_read_file(const char* image_path, const char* path,
     long size = 0;
 
     if (out_size) *out_size = 0;
-    if (why) *why = "";
-    if (!image_path || !path) { if (why) *why = "no image or path given"; return NULL; }
-    if (ffs_open(&fs, image_path, why) != 0) return NULL;
 
-    if (read_inode(&fs, ino, din) != 0) {
+    if (read_inode(fs, ino, din) != 0) {
         if (why) *why = "cannot read the root inode";
-        ffs_close(&fs); return NULL;
+        return NULL;
     }
 
     while (*p) {
@@ -336,7 +346,7 @@ uint8_t* ndix_ffs_read_file(const char* image_path, const char* path,
         while (p[n] && p[n] != '/') {
             if (n + 1 >= sizeof comp) {
                 if (why) *why = "path component too long";
-                ffs_close(&fs); return NULL;
+                return NULL;
             }
             comp[n] = p[n];
             n++;
@@ -349,28 +359,52 @@ uint8_t* ndix_ffs_read_file(const char* image_path, const char* path,
          * kernel's first block happens to look like as directory records. */
         if ((be16(din + DI_MODE) & IFMT) != IFDIR) {
             if (why) *why = "path component is not a directory";
-            ffs_close(&fs); return NULL;
+            return NULL;
         }
-        ino = dir_lookup(&fs, din, comp, why);
+        ino = dir_lookup(fs, din, comp, why);
         if (ino == 0) {
             if (why && (!*why || !(*why)[0])) *why = "no such file in the image";
-            ffs_close(&fs); return NULL;
+            return NULL;
         }
-        if (read_inode(&fs, ino, din) != 0) {
+        if (read_inode(fs, ino, din) != 0) {
             if (why) *why = "cannot read an inode named by the path";
-            ffs_close(&fs); return NULL;
+            return NULL;
         }
     }
 
     if ((be16(din + DI_MODE) & IFMT) != IFREG) {
         if (why) *why = "not a regular file";
-        ffs_close(&fs); return NULL;
+        return NULL;
     }
 
-    data = read_whole(&fs, din, &size, why);
-    ffs_close(&fs);
+    data = read_whole(fs, din, &size, why);
     if (data && out_size) *out_size = size;
     return data;
+}
+
+uint8_t* ndix_ffs_read_file(const char* image_path, const char* path,
+                            long* out_size, const char** why) {
+    Ffs fs;
+    uint8_t* data;
+
+    if (out_size) *out_size = 0;
+    if (why) *why = "";
+    if (!image_path || !path) { if (why) *why = "no image or path given"; return NULL; }
+    if (ffs_open(&fs, image_path, why) != 0) return NULL;
+    data = ffs_read_path(&fs, path, out_size, why);
+    ffs_close(&fs);
+    return data;
+}
+
+uint8_t* ndix_ffs_read_file_fp(FILE* image, const char* path,
+                               long* out_size, const char** why) {
+    Ffs fs;
+
+    if (out_size) *out_size = 0;
+    if (why) *why = "";
+    if (!image || !path) { if (why) *why = "no image or path given"; return NULL; }
+    if (ffs_attach(&fs, image, why) != 0) return NULL;
+    return ffs_read_path(&fs, path, out_size, why);   /* image stays the caller's */
 }
 
 int ndix_ffs_probe(const char* image_path, const char** why) {

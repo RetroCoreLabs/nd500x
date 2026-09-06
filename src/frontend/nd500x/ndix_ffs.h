@@ -41,6 +41,14 @@
 uint8_t* ndix_ffs_read_file(const char* image_path, const char* path,
                             long* out_size, const char** why);
 
+/* Same, for an image that is already open - and which may not be a file at
+ * all. The wasm front end holds the disc as bytes in memory and hands over an
+ * fmemopen() stream, so the browser reads the kernel out of the image with
+ * exactly the code the native build uses. The stream stays the caller's: this
+ * neither closes nor rewinds it beyond its own seeks. */
+uint8_t* ndix_ffs_read_file_fp(FILE* image, const char* path,
+                               long* out_size, const char** why);
+
 /* True if <image_path> holds a filesystem this reader understands. Cheap: reads
  * the super-block only. <why> as above. */
 int ndix_ffs_probe(const char* image_path, const char** why);
