@@ -44,8 +44,8 @@ ND500X is an emulator for the Norsk Data ND-500 architecture, featuring:
 ## Download
 
 Pre-built binaries are published on the
-**[Releases page](https://github.com/HackerCorpLabs/nd500x/releases)** -
-[latest release](https://github.com/HackerCorpLabs/nd500x/releases/latest).
+**[Releases page](https://github.com/RetroCoreLabs/nd500x/releases)** -
+[latest release](https://github.com/RetroCoreLabs/nd500x/releases/latest).
 
 | Platform | File | Notes |
 |----------|------|-------|
@@ -78,7 +78,7 @@ Windows builds are statically linked.
 
 ```bash
 # Clone the repository
-git clone https://github.com/HackerCorpLabs/nd500x.git
+git clone https://github.com/RetroCoreLabs/nd500x.git
 cd nd500x
 
 # Build and run (using Makefile wrapper)
@@ -847,8 +847,8 @@ make wasm
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/HackerCorpLabs/nd500x/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/HackerCorpLabs/nd500x/discussions)
+- **Issues**: [GitHub Issues](https://github.com/RetroCoreLabs/nd500x/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/RetroCoreLabs/nd500x/discussions)
 
 ---
 
