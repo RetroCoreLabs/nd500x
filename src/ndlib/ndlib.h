@@ -94,6 +94,17 @@ int ndlib_load_dom_segments(void);
 /* Close DOM file, free segment data, and clear state */
 void ndlib_close_dom(void);
 
+/* Stage an OLD-FORMAT domain (<name>:PSEG + <name>:DSEG described by an entry
+ * in DESCRIPTION-FILE:DESC) exactly as if it had been read from a :DOM, so
+ * ndlib_dom_load_to_machine() places it unchanged. Replaces BOTH
+ * ndlib_load_dom_header() and ndlib_load_dom_segments() for such a domain.
+ * The domain name must match the DESC entry exactly (case-insensitive).
+ * Returns: 0 staged, 1 no such domain in this DESC file (caller may try the
+ * next one), -1 error with err[] filled (file missing, size does not match
+ * the entry, more than one segment - never guessed around). */
+int ndlib_load_old_domain(const char* desc_path, const char* domain_name,
+                          char* err, size_t err_len);
+
 /* Get loaded header (NULL if not loaded) */
 const nd500_header_t* ndlib_get_dom_header(void);
 

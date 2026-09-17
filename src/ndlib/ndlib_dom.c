@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 /*============================================================================
  * Loaded file structure - holds header and all segment data
@@ -451,5 +452,345 @@ int ndlib_dom_get_segment_info(int index, uint32_t* prog_size, uint32_t* prog_ad
                                 is_segment_used(&data_ptr[SEG_OFF_ATT]);
     }
 
+    return 0;
+}
+
+/*============================================================================
+ * OLD-FORMAT DOMAIN: a :PSEG / :DSEG pair described by DESCRIPTION-FILE:DESC
+ *
+ * Before the self-contained :DOM file existed, a linked ND-500 domain was
+ * three files on the owning user - <name>:PSEG, <name>:DSEG, <name>:LINK -
+ * plus one entry in that user's DESCRIPTION-FILE:DESC (ND-30.003.007 System
+ * Supervisor, "old domain format"; docs/CONVERT_DOMAIN_FORMAT_AND_USAGE.md).
+ * The DESC entry is what turns the bare files into a runnable domain: it holds
+ * the start address, the trap handler address (THA), the trap enable word and
+ * the segment number. The DESC byte layout is include/nd500_desc.h.
+ *
+ * This loader stages such a domain into g_dom_file exactly as if it had been
+ * read from a :DOM, so ndlib_dom_load_to_machine() places it unchanged. The
+ * mapping below is not invented: it reproduces what the vendor CONVERT-DOMAIN
+ * (A03) program writes when it converts the same files, checked on two
+ * conversions made under nd500x (both read with a header dump script):
+ *
+ *   $ND500USERS/FLOPPY-USER/LINKAGE-LOAD-H02.DOM  (from the DESC
+ *   entry LINKAGE-LOAD-H02: STADR b0000dd1, THA b0215310, ENABLEINT 0ffe00ac,
+ *   PSEG use bit 22, .pseg 123989 bytes, .dseg 2184977 bytes)
+ *     -> STADDR b0000dd1, THA b0215310, OTE1 fc015800, OTE2 0000001f,
+ *        seg 22 PROG sz 123989 att 10002000, seg 22 DATA sz 2184977
+ *        att e1002000, FLA 0 on both, TEMM1 fffffa00, TEMM2 0000001f
+ *   $ND500USERS/SYSTEM/LED-NEW.DOM  (from LED-B03: STADR 08000004,
+ *   THA 0806011c, ENABLEINT 0, PSEG use bit 1, .pseg 223695, .dseg 394525)
+ *     -> STADDR 08000004, THA 0806011c, OTE 0, seg 1 PROG sz 223695,
+ *        seg 1 DATA sz 394525, same ATT/TEMM values
+ *
+ * So: the WHOLE .pseg is the program segment image from segment offset 0, the
+ * WHOLE .dseg is the data segment image from offset 0 (DLB is not an offset
+ * into the segment - LINKAGE-LOAD has DLB 75834 and its converted DATA size
+ * is still the full file), the segment number is the one bit set in the
+ * domain entry's PSEG/DSEG use bitmaps, and start address and THA are copied.
+ *
+ * ENABLEINT -> OTE: every one of the 15 set bits of 0ffe00ac lands 9 bits
+ * higher in the 64-bit OTE (OTE1 = low word, OTE2 = high word):
+ *   bits 2,3,5,7 -> OTE1 bits 11,12,14,16; bits 17..22 -> OTE1 26..31;
+ *   bits 23..27 -> OTE2 0..4.  OTE1 = ENABLEINT << 9, OTE2 = ENABLEINT >> 23.
+ * That is derived from ONE non-zero sample (plus the trivial LED zero); it is
+ * exact for that sample but has no second witness. TEMM is the same constant
+ * in both conversions and is copied as such.
+ *
+ * All 13 DESC files known to this project (docs/CONVERT_DOMAIN_FORMAT_AND_USAGE.md
+ * section B, NDInsight SINTRAN/File-Formats/samples) describe exactly ONE
+ * segment per domain with PSEG use == DSEG use. A domain whose segment chain
+ * has more than one entry is refused: the segment entry's own segment-number
+ * field is not decoded (nd500_desc.h), so the entries could not be told apart
+ * without guessing.
+ *============================================================================*/
+
+#include "nd500_desc.h"
+
+static void olddom_err(char* err, size_t n, const char* fmt, ...) {
+    if (!err || n == 0) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(err, n, fmt, ap);
+    va_end(ap);
+}
+
+static int olddom_read_file(const char* path, uint8_t** out, uint32_t* out_size) {
+    *out = NULL; *out_size = 0;
+    FILE* f = fopen(path, "rb");
+    if (!f) return -1;
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return -1; }
+    long sz = ftell(f);
+    if (sz < 0 || sz > 0x10000000L) { fclose(f); return -1; }
+    uint8_t* buf = malloc(sz > 0 ? (size_t)sz : 1);
+    if (!buf) { fclose(f); return -1; }
+    fseek(f, 0, SEEK_SET);
+    if (sz > 0 && fread(buf, 1, (size_t)sz, f) != (size_t)sz) { free(buf); fclose(f); return -1; }
+    fclose(f);
+    *out = buf; *out_size = (uint32_t)sz;
+    return 0;
+}
+
+/* Copy a DESC name field: up to max bytes, ended by the 0x27 terminator. */
+static void olddom_name(const uint8_t* p, size_t max, char* out, size_t n) {
+    size_t i = 0;
+    while (i < max && i + 1 < n && p[i] != DESC_DOMAIN_DNAME_TERMINATOR && p[i] != 0) {
+        out[i] = (char)p[i];
+        i++;
+    }
+    out[i] = '\0';
+}
+
+static int olddom_strieq(const char* a, const char* b) {
+    while (*a && *b) {
+        char ca = (*a >= 'a' && *a <= 'z') ? (char)(*a - 32) : *a;
+        char cb = (*b >= 'a' && *b <= 'z') ? (char)(*b - 32) : *b;
+        if (ca != cb) return 0;
+        a++; b++;
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+/* Segment number from a use bitmap: the index of its single set bit.
+ * Returns -1 for zero and -2 for more than one bit. */
+static int olddom_bitmap_segno(uint32_t bm) {
+    if (bm == 0) return -1;
+    int seg = -1;
+    for (int i = 0; i < 32; i++) {
+        if (bm & (1u << i)) {
+            if (seg >= 0) return -2;
+            seg = i;
+        }
+    }
+    return seg;
+}
+
+/* Directory part of a path (no trailing slash); "." when there is none. */
+static void olddom_dirname(const char* path, char* out, size_t n) {
+    const char* last = NULL;
+    for (const char* p = path; *p; p++) if (*p == '/') last = p;
+    if (!last) { snprintf(out, n, "."); return; }
+    size_t len = (size_t)(last - path);
+    if (len == 0) len = 1;              /* "/x" -> "/" */
+    if (len >= n) len = n - 1;
+    memcpy(out, path, len);
+    out[len] = '\0';
+}
+
+/* Locate <NAME>.<TYPE> for a DESC segment file name of the form
+ * "(directory:user)NAME" or "NAME". Tried in order (root = the parent of
+ * the DESC's directory, i.e. the sintran-root/USER layout):
+ *   <root>/<user>/NAME.TYPE   only when the name carries a (directory:user)
+ *                             prefix - where the DESC says the file is;
+ *   <DESC directory>/NAME.TYPE   the owning user's own directory;
+ *   <root>/SYSTEM/NAME.TYPE   the SINTRAN own-directory-then-(SYSTEM) rule
+ *                             that every unqualified file open follows
+ *                             (docs/SINTRAN-CONVENTIONS.md), so a pair kept
+ *                             under SYSTEM is reachable from any user's DESC.
+ * Returns 1 with out[] filled, 0 if none exists. */
+static int olddom_segment_file(const char* desc_path, const char* sname,
+                               const char* type, char* out, size_t n) {
+    char user[64] = "";
+    const char* name = sname;
+    if (*sname == '(') {
+        const char* close = strchr(sname, ')');
+        if (close) {
+            const char* colon = memchr(sname, ':', (size_t)(close - sname));
+            const char* u = colon ? colon + 1 : sname + 1;
+            size_t ul = (size_t)(close - u);
+            if (ul >= sizeof(user)) ul = sizeof(user) - 1;
+            memcpy(user, u, ul);
+            user[ul] = '\0';
+            name = close + 1;
+        }
+    }
+    char desc_dir[512], root[512];
+    olddom_dirname(desc_path, desc_dir, sizeof desc_dir);
+    olddom_dirname(desc_dir, root, sizeof root);
+    if (user[0]) {
+        snprintf(out, n, "%s/%s/%s.%s", root, user, name, type);
+        FILE* f = fopen(out, "rb");
+        if (f) { fclose(f); return 1; }
+    }
+    snprintf(out, n, "%s/%s.%s", desc_dir, name, type);
+    FILE* f = fopen(out, "rb");
+    if (f) { fclose(f); return 1; }
+    snprintf(out, n, "%s/SYSTEM/%s.%s", root, name, type);
+    f = fopen(out, "rb");
+    if (f) { fclose(f); return 1; }
+    return 0;
+}
+
+static void olddom_write32(uint8_t* p, uint32_t v) {
+    p[0] = (uint8_t)(v >> 24); p[1] = (uint8_t)(v >> 16);
+    p[2] = (uint8_t)(v >> 8);  p[3] = (uint8_t)v;
+}
+
+int ndlib_load_old_domain(const char* desc_path, const char* domain_name,
+                          char* err, size_t err_len) {
+    if (err && err_len) err[0] = '\0';
+    if (!desc_path || !domain_name || !*domain_name) return -1;
+
+    uint8_t* desc = NULL;
+    uint32_t desc_size = 0;
+    if (olddom_read_file(desc_path, &desc, &desc_size) != 0) {
+        olddom_err(err, err_len, "cannot read %s", desc_path);
+        return -1;
+    }
+
+    /* ---- find the domain entry by exact name (case-insensitive) ---- */
+    const uint8_t* dent = NULL;
+    for (uint32_t idx = 0; idx <= DESC_MAX_DOMAIN_INDEX; idx++) {
+        uint32_t pos = DESC_DOMAIN_ENTRY_POSITION(idx);
+        if (pos + DESC_DOMAIN_ENTRY_SIZE > desc_size) break;
+        const uint8_t* e = desc + pos;
+        uint16_t fp = desc_read16(e + DESC_DOMAIN_FLAGPRIOR_OFFSET);
+        if (!DESC_DOMAIN_FLAG_DINUSE(fp)) continue;
+        char dname[DESC_DOMAIN_DNAME_SIZE + 1];
+        olddom_name(e + DESC_DOMAIN_DNAME_OFFSET, DESC_DOMAIN_DNAME_SIZE, dname, sizeof dname);
+        if (olddom_strieq(dname, domain_name)) { dent = e; break; }
+    }
+    if (!dent) { free(desc); return 1; }
+
+    uint32_t seglink = desc_read32(dent + DESC_DOMAIN_SEGLINK_OFFSET);
+    uint32_t stadr   = desc_read32(dent + DESC_DOMAIN_STADR_OFFSET);
+    uint32_t enabint = desc_read32(dent + DESC_DOMAIN_ENABLEINT_OFFSET);
+    uint32_t tha     = desc_read32(dent + DESC_DOMAIN_THA_OFFSET);
+    uint32_t pbitmap = desc_read32(dent + DESC_DOMAIN_PBITMAP_OFFSET);
+    uint32_t dbitmap = desc_read32(dent + DESC_DOMAIN_DBITMAP_OFFSET);
+
+    if (seglink == 0 || seglink + DESC_SEGMENT_ENTRY_SIZE > desc_size) {
+        olddom_err(err, err_len, "%s: domain %s has no segment entry (SEGLINK 0x%08X)",
+                   desc_path, domain_name, seglink);
+        free(desc);
+        return -1;
+    }
+    const uint8_t* sent = desc + seglink;
+    uint32_t next = desc_read32(sent + DESC_SEGMENT_SEGLINK_OFFSET);
+    if (next != 0) {
+        olddom_err(err, err_len, "%s: domain %s has more than one segment entry; "
+                   "only single-segment old-format domains are supported "
+                   "(the per-entry segment number is not decoded)",
+                   desc_path, domain_name);
+        free(desc);
+        return -1;
+    }
+
+    int pseg_no = olddom_bitmap_segno(pbitmap);
+    int dseg_no = olddom_bitmap_segno(dbitmap);
+    if (pseg_no == -2 || dseg_no == -2) {
+        olddom_err(err, err_len, "%s: domain %s uses more than one segment "
+                   "(PSEG use 0x%08X, DSEG use 0x%08X) - not supported",
+                   desc_path, domain_name, pbitmap, dbitmap);
+        free(desc);
+        return -1;
+    }
+    if (pseg_no < 0 && dseg_no < 0) {
+        olddom_err(err, err_len, "%s: domain %s has empty PSEG/DSEG use bitmaps",
+                   desc_path, domain_name);
+        free(desc);
+        return -1;
+    }
+
+    char sname[DESC_SEGMENT_SNAME_SIZE + 1];
+    olddom_name(sent + DESC_SEGMENT_SNAME_OFFSET, DESC_SEGMENT_SNAME_SIZE, sname, sizeof sname);
+    uint32_t plb   = desc_read32(sent + DESC_SEGMENT_PLB_OFFSET);
+    uint32_t psize = desc_read32(sent + DESC_SEGMENT_PSIZE_OFFSET);
+    uint32_t dlb   = desc_read32(sent + DESC_SEGMENT_DLB_OFFSET);
+    uint32_t dsize = desc_read32(sent + DESC_SEGMENT_DSIZE_OFFSET);
+    uint64_t want_pseg = DESC_PSEG_FILE_SIZE(plb, psize);
+    uint64_t want_dseg = DESC_DSEG_FILE_SIZE(dlb, dsize);
+
+    /* ---- read the segment files, checking them against the entry ---- */
+    uint8_t* pbuf = NULL; uint32_t pbytes = 0;
+    uint8_t* dbuf = NULL; uint32_t dbytes = 0;
+    char ppath[1024] = "", dpath[1024] = "";
+
+    if (pseg_no >= 0) {
+        if (!olddom_segment_file(desc_path, sname, "PSEG", ppath, sizeof ppath)) {
+            olddom_err(err, err_len, "%s: segment file %s:PSEG not found (looked for %s)",
+                       desc_path, sname, ppath);
+            free(desc);
+            return -1;
+        }
+        if (olddom_read_file(ppath, &pbuf, &pbytes) != 0) {
+            olddom_err(err, err_len, "cannot read %s", ppath);
+            free(desc);
+            return -1;
+        }
+        if ((uint64_t)pbytes != want_pseg) {
+            olddom_err(err, err_len, "%s is %u bytes but the DESC entry says PLB+PSIZE+1 = %llu",
+                       ppath, pbytes, (unsigned long long)want_pseg);
+            free(pbuf); free(desc);
+            return -1;
+        }
+    }
+    if (dseg_no >= 0) {
+        if (!olddom_segment_file(desc_path, sname, "DSEG", dpath, sizeof dpath)) {
+            olddom_err(err, err_len, "%s: segment file %s:DSEG not found (looked for %s)",
+                       desc_path, sname, dpath);
+            free(pbuf); free(desc);
+            return -1;
+        }
+        if (olddom_read_file(dpath, &dbuf, &dbytes) != 0) {
+            olddom_err(err, err_len, "cannot read %s", dpath);
+            free(pbuf); free(desc);
+            return -1;
+        }
+        if ((uint64_t)dbytes != want_dseg) {
+            olddom_err(err, err_len, "%s is %u bytes but the DESC entry says DLB+DSIZE+1 = %llu",
+                       dpath, dbytes, (unsigned long long)want_dseg);
+            free(pbuf); free(dbuf); free(desc);
+            return -1;
+        }
+    }
+    free(desc);
+
+    /* ---- stage it as a DOM (values as CONVERT-DOMAIN A03 writes them) ---- */
+    ndlib_close_dom();
+    uint8_t* raw = g_dom_file.header.raw;
+    raw[OFF_VERSION]  = 97;     /* both converted samples */
+    raw[OFF_REVISION] = 3;
+    raw[OFF_FLAGS]    = 0xF8;   /* includes ND500_FLAG_IS_DOMAIN_FILE */
+    raw[OFF_MACHINE]  = 0;
+    olddom_write32(&raw[OFF_STADDR],   stadr);
+    olddom_write32(&raw[OFF_RESTADDR], 0xFFFFFFFFu);
+    olddom_write32(&raw[OFF_THA],      tha);
+    olddom_write32(&raw[0xEC],  enabint >> 23);           /* OTE2 */
+    olddom_write32(&raw[0xF0],  enabint << 9);            /* OTE1 */
+    olddom_write32(&raw[0xFC],  0x0000001Fu);             /* TEMM2 */
+    olddom_write32(&raw[0x100], 0xFFFFFA00u);             /* TEMM1 */
+
+    if (pseg_no >= 0 && pbytes > 0) {
+        uint8_t* part = &raw[OFF_DOM_SEGTAB + pseg_no * SEG_DESC_SIZE];
+        olddom_write32(&part[SEG_OFF_SZ], pbytes);
+        olddom_write32(&part[SEG_OFF_ATT], 0x10002000u);
+        g_dom_file.segment_data[pseg_no] = pbuf;
+        g_dom_file.segment_size[pseg_no] = pbytes;
+        g_dom_file.segment_load_addr[pseg_no] = 0;
+        pbuf = NULL;
+    }
+    if (dseg_no >= 0 && dbytes > 0) {
+        uint8_t* part = &raw[OFF_DOM_SEGTAB + dseg_no * SEG_DESC_SIZE + SEG_PART_SIZE];
+        olddom_write32(&part[SEG_OFF_SZ], dbytes);
+        olddom_write32(&part[SEG_OFF_ATT], 0xE1002000u);
+        g_dom_file.data_data[dseg_no] = dbuf;
+        g_dom_file.data_size[dseg_no] = dbytes;
+        g_dom_file.data_load_addr[dseg_no] = 0;
+        dbuf = NULL;
+    }
+    free(pbuf); free(dbuf);
+
+    g_dom_file.is_dom = 1;
+    g_dom_file.file = NULL;
+    /* The PSEG path names the domain for the debugger's domain registry
+     * (basename without extension), the same way a :DOM path does. */
+    snprintf(g_dom_file.filepath, sizeof g_dom_file.filepath, "%s",
+             ppath[0] ? ppath : dpath);
+    g_dom_file.is_loaded = 1;
+
+    nd500_log("OLD-FORMAT Load: %s from %s: PSEG seg %d %u bytes, DSEG seg %d %u bytes, "
+              "start 0x%08X THA 0x%08X ENABLEINT 0x%08X",
+              domain_name, desc_path, pseg_no, pbytes, dseg_no, dbytes, stadr, tha, enabint);
     return 0;
 }

@@ -393,6 +393,55 @@ static int resolve_domain(const char* name, char* out, size_t n) {
     return dom_host_path("SYSTEM", name, out, n);
 }
 
+/* Old-format domains: a <NAME>:PSEG / <NAME>:DSEG pair is runnable only through
+ * the entry that names it in the owning user's DESCRIPTION-FILE:DESC (start
+ * address, THA, trap enable, segment number all live there - see
+ * ndlib_load_old_domain). Returns 1 with out[] = that user's DESC path when the
+ * file exists, else 0. */
+static int desc_host_path(const char* user, char* out, size_t n) {
+    const char* root = mon_config_get_sintran_root();
+    snprintf(out, n, "%s/%s/DESCRIPTION-FILE.DESC", root && *root ? root : ".", user);
+    return access(out, F_OK) == 0;
+}
+
+/* Stage NAME for placement by ndlib_dom_load_to_machine(): first as a :DOM
+ * (current user's directory, then SYSTEM - resolve_domain), else as an
+ * old-format :PSEG/:DSEG domain looked up by exact name in the current
+ * user's DESCRIPTION-FILE:DESC, then SYSTEM's. Returns:
+ *   1  staged; path[] names the :DOM, or the DESC file for an old-format one
+ *   0  no such domain anywhere
+ *  -1  ambiguous abbreviation (never guessed)
+ *  -2  found but could not be staged; why[] says what was wrong */
+static int stage_domain(const char* name, char* path, size_t n, char* why, size_t whyn) {
+    why[0] = '\0';
+    int rc = resolve_domain(name, path, n);
+    if (rc == -1) return -1;
+    if (rc == 1) {
+        if (ndlib_load_dom_header(path) != 0) { snprintf(why, whyn, "DOM load failed: %s", path); return -2; }
+        if (ndlib_load_dom_segments() != 0)   { snprintf(why, whyn, "DOM segment load failed: %s", path); return -2; }
+        return 1;
+    }
+    /* No :DOM - try the old format. The name typed must match the DESC entry
+     * exactly (up to case); a :type suffix is stripped. */
+    char upname[64];
+    snprintf(upname, sizeof upname, "%s", name);
+    str_upper(upname);
+    char* colon = strchr(upname, ':');
+    if (colon) *colon = '\0';
+    const char* user = mon_config_get_current_user();
+    const char* dirs[2] = { (user && *user) ? user : NULL, "SYSTEM" };
+    for (int i = 0; i < 2; i++) {
+        if (!dirs[i]) continue;
+        if (i == 1 && dirs[0] && strcmp(dirs[0], "SYSTEM") == 0) break;
+        if (!desc_host_path(dirs[i], path, n)) continue;
+        int orc = ndlib_load_old_domain(path, upname, why, whyn);
+        if (orc == 0) return 1;
+        if (orc < 0) return -2;
+        /* orc == 1: not in this DESC, try the next directory */
+    }
+    return 0;
+}
+
 /* Restore cooked terminal mode after a DOM run left the stdio console raw. */
 static void restore_cooked(void) {
     if (g_have_cooked && nd_tty_stdin_is_terminal()) {
@@ -539,9 +588,14 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
     const char* args = p;   /* remainder (may be empty) */
     if (name[0] == '\0') return -1;
 
-    char path[1024];
-    if (resolve_domain(name, path, sizeof(path)) != 1)
+    char path[1024], why[512];
+    int staged = stage_domain(name, path, sizeof(path), why, sizeof why);
+    if (staged == 0 || staged == -1)
         return -1;          /* not a known program -> benign stub in the handler */
+    if (staged == -2) {
+        mon_log(MON_LOG_WARN, "UECOM: cannot stage '%s': %s", name, why);
+        return 1;
+    }
 
     if (g_uecom_nest >= UECOM_MAX_NEST) {
         mon_log(MON_LOG_WARN, "UECOM: nesting too deep, refusing '%s'", name);
@@ -605,12 +659,10 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
 
     g_uecom_nest++;
 
-    int rc = ndlib_load_dom_header(path);
-    if (rc == 0) rc = ndlib_load_dom_segments();
+    /* The image was staged by stage_domain() above; place it. */
     uint32_t start_addr = 0;
     int loaded_domain = -1;
-    if (rc == 0)
-        rc = ndlib_dom_load_to_machine(g_machine, g_cpu, -1, NULL, NULL,
+    int rc = ndlib_dom_load_to_machine(g_machine, g_cpu, -1, NULL, NULL,
                                        &start_addr, &loaded_domain);
     if (rc != 0) {
         nd500_segment_alloc_state_restore(seg_backup);
@@ -705,20 +757,21 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
  * SINTRAN passes this to the program via the command buffer (MON 12B SETCM);
  * NC and other tools read their arguments (e.g. the source file) from it. */
 static void run_domain(const char* name, const char* args) {
-    char path[1024];
-    int rc0 = resolve_domain(name, path, sizeof(path));
+    char path[1024], why[512];
+    int rc0 = stage_domain(name, path, sizeof(path), why, sizeof why);
     if (rc0 == -1) {
         printf("AMBIGUOUS DOMAIN NAME\n");   /* SINTRAN 057 - refuse to guess */
         return;
     }
-    if (rc0 != 1) {
+    if (rc0 == 0) {
         printf("NO SUCH COMMAND OR DOMAIN\n");
         return;
     }
-
-    int rc = ndlib_load_dom_header(path);
-    if (rc != 0) { printf("DOM load failed: %s\n", path); return; }
-    if (ndlib_load_dom_segments() != 0) { printf("DOM segment load failed\n"); return; }
+    if (rc0 == -2) {
+        printf("%s\n", why);
+        return;
+    }
+    int rc;
 
     /* Snapshot the physical-page allocator AND the MMU tables (PST +
      * capabilities). Every program run consumes fresh watermark pages
@@ -891,7 +944,7 @@ static const struct {
     { "LIST-FILES",       cmd_list_files,     1, "LIST-FILES [<pattern>] - list files" },
     { "SET-TERMINAL-TYPE",cmd_set_term,       0, "SET-TERMINAL-TYPE [<term>],<type> - set type; with no type, lists types from the VTM" },
     { "GET-TERMINAL-TYPE",cmd_get_term,       0, "GET-TERMINAL-TYPE - show current terminal type" },
-    { "RECOVER-DOMAIN",   cmd_recover_domain, 1, "RECOVER-DOMAIN <name> - load and run a domain" },
+    { "RECOVER-DOMAIN",   cmd_recover_domain, 1, "RECOVER-DOMAIN <name> - load and run a domain (:DOM, or :PSEG/:DSEG listed in DESCRIPTION-FILE:DESC)" },
     { "CREATE-FILE",      cmd_create_file,    1, "CREATE-FILE <name> - create an empty file (default type :DATA)" },
     { "TYPE",             cmd_type,           1, "TYPE <name>:<type> - copy a file's contents to the terminal" },
     { "EDIT",             cmd_edit,           1, "EDIT <name>:<type> - open the file in VS Code on the host" },

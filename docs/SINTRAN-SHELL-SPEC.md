@@ -180,7 +180,7 @@ ambiguous -> `AMBIGUOUS COMMAND`; a leading `@` herald is tolerated.
 | `EXIT` | X | leave the emulator |
 | `LIST-FILES [<pattern>]` | A | list files in the current user's directory |
 | `SET-TERMINAL-TYPE [<term>],<type>` / `GET-TERMINAL-TYPE` | A | terminal type (from the VTM file) |
-| `RECOVER-DOMAIN <name>` (or just type `<name>`) | A | load + run a `:DOM` / `:PROG` |
+| `RECOVER-DOMAIN <name>` (or just type `<name>`) | A | load + run a `:DOM`, or an old-format `:PSEG`/`:DSEG` pair listed in `DESCRIPTION-FILE:DESC` (see below) |
 | `CREATE-FILE <name>[:<type>]` | A | create an empty file (default type `:DATA`) |
 | `DELETE-FILE <name>:<type>` | A | delete a file |
 | `RENAME-FILE <old>,<new>` | A | rename a file |
@@ -189,6 +189,25 @@ ambiguous -> `AMBIGUOUS COMMAND`; a leading `@` herald is tolerated.
 | `TYPE <name>:<type>` | X | copy a file's contents to the terminal (SINTRAN COPY-TERMINAL, shortened; CR->LF for display; searches current user then SYSTEM) |
 | `EDIT <name>:<type>` | X | open the file in VS Code on the host (`code`; new buffer if absent) |
 | `MODE <file>` | A | run a script of commands from `<file>:MODE` then `:SYMB` (SINTRAN `@MODE`) |
+
+### Old-format domains (`:PSEG` + `:DSEG` + `DESCRIPTION-FILE:DESC`) - added 2026-09-15
+
+A domain shipped as `<NAME>:PSEG` / `<NAME>:DSEG` (the pre-:DOM format) runs by
+name too, WITHOUT converting it first. The name is looked up - exact match, no
+abbreviation - in the current user's `DESCRIPTION-FILE:DESC`, then in
+`SYSTEM/DESCRIPTION-FILE.DESC`; the entry supplies the start address, THA, trap
+enable and segment number, and the two files are loaded whole as the segment
+images. The segment files are looked for at the `(directory:user)` the DESC
+names, then in the DESC's own directory, then under SYSTEM. Detail and the
+byte-level evidence: `docs/SYNC-OLD-FORMAT-DOMAIN-LOADER.md`.
+
+Worked example (LED editor): the pair `LED-B03.PSEG`/`LED-B03.DSEG` sits under
+`SYSTEM`; copy the LED description file (`$ND500_TESTDATA/LED/x/description-file.desc`)
+to `<sintran-root>/GUEST/DESCRIPTION-FILE.DESC`, then type `LED-B03` at the `@`
+prompt as GUEST. A pair with NO description file entry anywhere still gives
+`NO SUCH COMMAND OR DOMAIN` - nothing on disk says where it starts. A pair whose
+file sizes disagree with the entry, or a domain with more than one segment
+entry, is refused with a message rather than guessed.
 
 ### MODE files (SINTRAN `@MODE`)
 
