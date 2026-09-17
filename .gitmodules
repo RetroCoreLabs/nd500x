@@ -1,7 +1,7 @@
 [submodule "external/libdap"]
 	path = external/libdap
-	url = https://github.com/HackerCorpLabs/libdap.git
+	url = https://github.com/RetroCoreLabs/libdap.git
 	branch = main
 [submodule "external/ndmonlib"]
 	path = external/ndmonlib
-	url = https://github.com/HackerCorpLabs/ndmonlib.git
+	url = https://github.com/RetroCoreLabs/ndmonlib.git
