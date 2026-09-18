@@ -66,19 +66,7 @@ void nd500_instr_E1Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // wrote the low half, which is A1, not E1.
     cpu->E[0] = value;
 
-    // Set Z and S flags based on the 32-bit word value
-    if (value == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;
-    }
-
-    if ((value & 0x80000000) != 0) {
-        cpu->ST1 |= ND500_FLAG_S;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_S;
-    }
-
-    // ST,SAVA: C and O cleared; K unchanged.
-    cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_O);
+    /* Z and S from the value; C and O are reset (manual 6.5.1; the microcode's
+     * ST,SAVA status save, e.g. READ_RFEND @012243, STOREA1 @001170). */
+    nd500_set_flags_zs(cpu, value, ND500_DTYPE_WORD);
 }

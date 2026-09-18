@@ -55,18 +55,7 @@ void nd500_instr_A1Get(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Write to destination (like C# line 25) */
     nd500_write_operand_word(cpu, &fi->operands[0], value);
 
-    /* Set Z and S flags (like C# line 26) */
-    /* Z flag: set if value is zero */
-    if (value == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;
-    }
-
-    /* S flag: set if sign bit (bit 31) is set */
-    if ((value & 0x80000000) != 0) {
-        cpu->ST1 |= ND500_FLAG_S;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_S;
-    }
+    /* Z and S from the value; C and O are reset (manual 6.5.1; the microcode's
+     * ST,SAVA status save, e.g. READ_RFEND @012243, STOREA1 @001170). */
+    nd500_set_flags_zs(cpu, value, ND500_DTYPE_WORD);
 }

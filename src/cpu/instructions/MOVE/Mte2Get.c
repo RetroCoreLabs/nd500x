@@ -55,16 +55,7 @@ void nd500_instr_Mte2Get(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t value = cpu->MTE2;
     nd500_write_operand_word(cpu, &fi->operands[0], value);
 
-    // Set Z and S flags based on the value
-    if (value == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;
-    }
-
-    if ((value & 0x80000000) != 0) {
-        cpu->ST1 |= ND500_FLAG_S;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_S;
-    }
+    /* Z and S from the value; C and O are reset (manual 6.5.1; the microcode's
+     * ST,SAVA status save, e.g. READ_RFEND @012243, STOREA1 @001170). */
+    nd500_set_flags_zs(cpu, value, ND500_DTYPE_WORD);
 }
