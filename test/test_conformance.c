@@ -9,9 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <libgen.h>  /* For dirname() */
-#include <unistd.h>  /* For access() */
 #include <cjson/cJSON.h>
+#include "conformance_corpus.h"
 #include "../src/cpu/cpu_protos.h"
 #include "../src/cpu/nd500_mmu.h"   /* For program/data space capability setup */
 #include "../src/machine/machine_protos.h"
@@ -182,12 +181,6 @@ static int validate_test_structure(cJSON* test, const char* test_name, int print
     return unknown;
 }
 
-/* Known buggy tests to skip - these have confirmed issues in test data */
-static const char* BUGGY_TESTS[] = {
-    /* GO tests: all expect same PC regardless of displacement - clearly wrong */
-    NULL  /* Placeholder - will add after confirming */
-};
-
 /* Forward declarations */
 static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total, int verbose, int show_details);
 
@@ -350,31 +343,6 @@ static void analyze_test_coverage(cJSON* test, int verbose) {
 }
 
 /* Load JSON file into memory */
-static char* load_file(const char* path, size_t* out_size) {
-    FILE* f = fopen(path, "rb");
-    if (!f) {
-        fprintf(stderr, "Failed to open file: %s\n", path);
-        return NULL;
-    }
-
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    char* data = (char*)malloc(size + 1);
-    if (!data) {
-        fclose(f);
-        return NULL;
-    }
-
-    size_t read = fread(data, 1, size, f);
-    fclose(f);
-
-    data[read] = '\0';
-    if (out_size) *out_size = read;
-    return data;
-}
-
 int main(int argc, char** argv) {
     const char* json_path = "nd500-conformance.json";
     int start_test = 0;
@@ -419,42 +387,8 @@ int main(int argc, char** argv) {
     printf("ND500 Instruction Validation Tests\n");
     printf("===================================\n\n");
 
-    /* Resolve JSON path - try current dir first, then executable's dir */
-    char resolved_path[4096];
-    strncpy(resolved_path, json_path, sizeof(resolved_path) - 1);
-    resolved_path[sizeof(resolved_path) - 1] = '\0';
-
-    if (access(resolved_path, R_OK) != 0) {
-        /* File not in current dir - try executable's directory */
-        char exe_path[4096];
-        strncpy(exe_path, argv[0], sizeof(exe_path) - 1);
-        exe_path[sizeof(exe_path) - 1] = '\0';
-        char* dir = dirname(exe_path);
-        snprintf(resolved_path, sizeof(resolved_path), "%s/%s", dir, json_path);
-    }
-
-    /* Load JSON file */
-    printf("Loading %s...\n", resolved_path);
-    size_t json_size;
-    char* json_data = load_file(resolved_path, &json_size);
-    if (!json_data) {
-        return 1;
-    }
-    printf("Loaded %zu bytes\n", json_size);
-
-    /* Parse JSON */
-    cJSON* root = cJSON_Parse(json_data);
-    free(json_data);
-
+    cJSON* root = conformance_corpus_load(argv[0], json_path);
     if (!root) {
-        const char* error = cJSON_GetErrorPtr();
-        fprintf(stderr, "JSON parse error: %s\n", error ? error : "unknown");
-        return 1;
-    }
-
-    if (!cJSON_IsArray(root)) {
-        fprintf(stderr, "JSON root is not an array\n");
-        cJSON_Delete(root);
         return 1;
     }
 

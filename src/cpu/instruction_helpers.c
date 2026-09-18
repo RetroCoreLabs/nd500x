@@ -2203,25 +2203,7 @@ void nd500_string_clear_unused_flags(Nd500Cpu* cpu) {
  * ============================================================================
  */
 
-// ND-500 Float constants (per Reference Manual 7.2.5)
-// Format: sign(1) | exponent(9) | mantissa(22)
-// Mantissa range: 0.5 <= M < 1.0 (implicit 0.1 binary prefix)
-#define ND500_FLOAT_SIGN_MASK      0x80000000u           // Bit 31
-#define ND500_FLOAT_EXPONENT_MASK  0x7FC00000u           // Bits 30-22 (9 bits)
-#define ND500_FLOAT_MANTISSA_MASK  0x003FFFFFu           // Bits 21-0 (22 bits)
-#define ND500_FLOAT_EXPONENT_BIAS  256
-#define ND500_FLOAT_EXPONENT_SHIFT 22
-#define ND500_FLOAT_MANTISSA_BITS  22
-
-// ND-500 Double constants (per Reference Manual 7.2.6)
-// Format: sign(1) | exponent(9) | mantissa(54)
-// Mantissa range: 0.5 <= M < 1.0 (implicit 0.1 binary prefix)
-#define ND500_DOUBLE_SIGN_MASK      0x8000000000000000ull  // Bit 63
-#define ND500_DOUBLE_EXPONENT_MASK  0x7FC0000000000000ull  // Bits 62-54 (9 bits)
-#define ND500_DOUBLE_MANTISSA_MASK  0x003FFFFFFFFFFFFFull  // Bits 53-0 (54 bits)
-#define ND500_DOUBLE_EXPONENT_BIAS  256
-#define ND500_DOUBLE_EXPONENT_SHIFT 54
-#define ND500_DOUBLE_MANTISSA_BITS  54
+/* The native float and double layout constants are in instruction_helpers.h. */
 
 // ---------------------------------------------------------------------------
 // Full-range ND-500 NATIVE float/double <-> host-double codec (frexp-based).

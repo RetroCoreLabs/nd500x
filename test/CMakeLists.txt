@@ -84,6 +84,7 @@ endif()
 if(CJSON_TEST_FOUND)
     add_executable(test_conformance
         test_conformance.c
+        conformance_corpus.c
     )
     target_link_libraries(test_conformance PRIVATE
         nd500_machine

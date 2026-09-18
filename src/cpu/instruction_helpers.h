@@ -334,6 +334,26 @@ void nd500_write_double_register(Nd500Cpu* cpu, uint8_t reg_num, uint64_t value)
 #define ND500_FLAG_FU  (1u << 13)  // Floating underflow flag
 #define ND500_FLAG_FO  (1u << 14)  // Floating overflow flag
 
+// ND-500 Float constants (per Reference Manual 7.2.5)
+// Format: sign(1) | exponent(9) | mantissa(22)
+// Mantissa range: 0.5 <= M < 1.0 (implicit 0.1 binary prefix)
+#define ND500_FLOAT_SIGN_MASK      0x80000000u           // Bit 31
+#define ND500_FLOAT_EXPONENT_MASK  0x7FC00000u           // Bits 30-22 (9 bits)
+#define ND500_FLOAT_MANTISSA_MASK  0x003FFFFFu           // Bits 21-0 (22 bits)
+#define ND500_FLOAT_EXPONENT_BIAS  256
+#define ND500_FLOAT_EXPONENT_SHIFT 22
+#define ND500_FLOAT_MANTISSA_BITS  22
+
+// ND-500 Double constants (per Reference Manual 7.2.6)
+// Format: sign(1) | exponent(9) | mantissa(54)
+// Mantissa range: 0.5 <= M < 1.0 (implicit 0.1 binary prefix)
+#define ND500_DOUBLE_SIGN_MASK      0x8000000000000000ull  // Bit 63
+#define ND500_DOUBLE_EXPONENT_MASK  0x7FC0000000000000ull  // Bits 62-54 (9 bits)
+#define ND500_DOUBLE_MANTISSA_MASK  0x003FFFFFFFFFFFFFull  // Bits 53-0 (54 bits)
+#define ND500_DOUBLE_EXPONENT_BIAS  256
+#define ND500_DOUBLE_EXPONENT_SHIFT 54
+#define ND500_DOUBLE_MANTISSA_BITS  54
+
 /**
  * Set Z and S flags based on result value
  * @param cpu CPU state
