@@ -8,6 +8,7 @@
  */
 
 #include "cpu_protos.h"
+#include "instructions_protos.h"
 #include "machine_protos.h"
 #include "nd500_mmu.h"
 #include "instruction_helpers.h"

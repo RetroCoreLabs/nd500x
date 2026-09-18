@@ -6,6 +6,31 @@ file(GLOB_RECURSE INSTRUCTION_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/instructions/
 # Dispatch table and header are now in src/cpu/ (committed as source files)
 set(DISPATCH_TABLE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/nd500_instructions.c")
 
+# Generate the instruction handler prototypes with mkptypes, the way nd100x
+# generates its *_protos.h: at build time, into the source directory,
+# gitignored, rebuilt whenever a handler file changes. Every handler file and
+# the dispatch table (nd500_instructions.c) include it, so a handler whose
+# signature drifts from the table is a compile error instead of a silent
+# mismatch.
+#
+# The only difference from nd100x's rule: nd100x writes one
+# "COMMAND mkptypes x.c >> x_protos.h" per file, and nd500x drives the same
+# per-file loop from cmake/mkptypes_gen.cmake. Ninja joins every COMMAND of a
+# custom command into ONE command line, and the Windows CI builds with Ninja
+# through cmd.exe (8191-character limit); 242 handler steps would not fit.
+set(INSTRUCTIONS_PROTOS ${CMAKE_CURRENT_SOURCE_DIR}/instructions_protos.h)
+add_custom_command(
+    OUTPUT ${INSTRUCTIONS_PROTOS}
+    COMMAND ${CMAKE_COMMAND}
+            -DMKPTYPES=${ND500X_ROOT}/tools/mkptypes/mkptypes
+            -DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}/instructions
+            -DOUT=${INSTRUCTIONS_PROTOS}
+            -P ${ND500X_ROOT}/cmake/mkptypes_gen.cmake
+    DEPENDS ${INSTRUCTION_SOURCES} ${ND500X_ROOT}/cmake/mkptypes_gen.cmake
+    COMMENT "Generating prototypes for instructions"
+    VERBATIM
+)
+
 # Create library with all sources
 # SINTRAN MON-call emulation is optional (ND500X_WITH_NDMON, root CMakeLists).
 # Exactly one implementation of the seam in nd500_mon_sintran.h is compiled:
@@ -19,7 +44,7 @@ else()
     set(MON_SEAM_SOURCE nd500_mon_sintran_stub.c)
 endif()
 
-add_library(nd500_cpu cpu.c cpu_instr.c nd500_xring.c nd500_xmsg.c nd500_ethhub.c nd500_mmu.c nd500_tlb.c nd500_tape.c nd500_domain.c nd500_indirect.c nd500_fecall.c nd500_host_posix.c nd500_settings.c nd500_segment_alloc.c nd500_phys_alloc.c nd500_page_bits.c instruction_helpers.c bcd_helpers.c ${MON_SEAM_SOURCE} ${INSTRUCTION_SOURCES} ${DISPATCH_TABLE_SOURCE})
+add_library(nd500_cpu cpu.c cpu_instr.c nd500_xring.c nd500_xmsg.c nd500_ethhub.c nd500_mmu.c nd500_tlb.c nd500_tape.c nd500_domain.c nd500_indirect.c nd500_fecall.c nd500_host_posix.c nd500_settings.c nd500_segment_alloc.c nd500_phys_alloc.c nd500_page_bits.c instruction_helpers.c bcd_helpers.c ${MON_SEAM_SOURCE} ${INSTRUCTION_SOURCES} ${DISPATCH_TABLE_SOURCE} ${INSTRUCTIONS_PROTOS})
 target_link_libraries(nd500_cpu PRIVATE nd500x_warnings)   # house C standard, Tier A
 target_include_directories(nd500_cpu PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${ND500X_ROOT}/src/machine)
 

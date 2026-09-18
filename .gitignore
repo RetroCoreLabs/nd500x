@@ -47,6 +47,8 @@ CTestTestfile.cmake
 # ...and the mkptypes build copied from nd100x (tools/mkptypes/): its Makefile
 # is source, not CMake output.
 !tools/mkptypes/Makefile
+# ...and the script that runs it over a source directory.
+!cmake/mkptypes_gen.cmake
 
 # Test files
 test.o

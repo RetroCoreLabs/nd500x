@@ -8,6 +8,7 @@
  */
 
 #include "cpu_protos.h"
+#include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
