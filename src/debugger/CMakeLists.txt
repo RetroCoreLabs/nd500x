@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 add_library(nd500_debugger commands.c debugger.c dap_adapter.c)
+target_link_libraries(nd500_debugger PRIVATE nd500x_warnings)   # house C standard, Tier A
 target_include_directories(nd500_debugger PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${ND500X_ROOT}/src/machine ${ND500X_ROOT}/src/cpu ${ND500X_ROOT}/include)
 target_link_libraries(nd500_debugger PUBLIC nd500_machine nd500_cpu nd500_ndlib mon)
 

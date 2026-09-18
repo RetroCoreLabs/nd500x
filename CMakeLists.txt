@@ -48,6 +48,39 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)          # gnu11: never rely on the compiler default (gcc 14+ is gnu23)
 
+# Tier A warnings from the house C standard. An INTERFACE target that each
+# nd500x target links PRIVATE, so the flags reach only nd500x's own sources:
+# never external/, and never a project that add_subdirectory()s nd500x.
+# Every flag is probed first because this file is built by gcc (Linux and
+# MinGW), clang (macOS) and emcc (WASM), and they do not all know the same
+# -W options. The name carries the nd500x prefix on purpose: nd100x plans a
+# warnings target of its own, and two add_subdirectory()'d trees creating
+# the same name is a hard CMake error (the cjson_objects guard below exists
+# for the same reason).
+include(CheckCCompilerFlag)
+option(ND500X_WERROR "Treat every warning as an error - for CI, not local builds" OFF)
+if(NOT TARGET nd500x_warnings)
+    add_library(nd500x_warnings INTERFACE)
+    set(ND500X_TIER_A_FLAGS
+        -Wall -Wextra -Wformat=2 -Wimplicit-fallthrough
+        -Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition
+        -Wshadow -Wpointer-arith -Wundef -Wvla -Wwrite-strings
+        -Werror=implicit-function-declaration
+        -Werror=incompatible-pointer-types
+        -Werror=int-conversion
+        -Werror=format-security)
+    foreach(flag IN LISTS ND500X_TIER_A_FLAGS)
+        string(MAKE_C_IDENTIFIER "ND500X_CC_HAS${flag}" flag_var)
+        check_c_compiler_flag(${flag} ${flag_var})
+        if(${flag_var})
+            target_compile_options(nd500x_warnings INTERFACE ${flag})
+        endif()
+    endforeach()
+    if(ND500X_WERROR)
+        target_compile_options(nd500x_warnings INTERFACE -Werror)
+    endif()
+endif()
+
 # Make the project version visible to the code. The F12 menu shows it next to
 # the build date and time, so "which binary am I actually running?" has an
 # answer on screen rather than needing the file timestamp. Single source of
