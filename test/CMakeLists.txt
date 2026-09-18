@@ -105,6 +105,23 @@ if(CJSON_TEST_FOUND)
     )
 
     message(STATUS "Building test_conformance with cJSON support")
+
+    # Coverage ratchet over the same corpus file (see the header of
+    # test_corpus_coverage.c for what it measures and how to move a baseline).
+    add_executable(test_corpus_coverage
+        test_corpus_coverage.c
+        conformance_corpus.c
+    )
+    target_link_libraries(test_corpus_coverage PRIVATE
+        nd500_machine
+        nd500_cpu
+        nd500_debugger
+        nd500_ndlib
+        ${CJSON_TEST_LIBRARIES}
+    )
+    target_include_directories(test_corpus_coverage PRIVATE
+        ${CJSON_TEST_INCLUDE_DIRS}
+    )
 else()
     message(STATUS "Skipping test_conformance (cJSON not found)")
 endif()
@@ -377,6 +394,7 @@ if(CJSON_TEST_FOUND)
     # Runner locates nd500-conformance.json in its own executable directory
     add_test(NAME conformance COMMAND test_conformance --continue)
     set_tests_properties(conformance PROPERTIES TIMEOUT 600)
+    add_test(NAME corpus_coverage COMMAND test_corpus_coverage)
 endif()
 
 # DOM integration smoke test: load and run a real 1990 SINTRAN-linked binary
