@@ -146,8 +146,12 @@ void nd500_instr_Div4(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Write quotient to operand c location (like C# line 136) */
     nd500_write_operand_value(cpu, &fi->operands[2], (uint64_t)quotient, fi->data_type);
 
-    /* Write remainder to register (like C# line 139) */
-    nd500_write_integer_register(cpu, fi->target_register, (uint32_t)remainder);
+    /* Write remainder to register. BY and H are zero-filled, not sign-extended
+     * (manual, DATA TYPES chapter: "the unused upper part of the register is
+     * always zero-filled"); the B30 microcode DIV4BY @002553 agrees: BY -24/10
+     * leaves Rn = 0x000000FC. */
+    nd500_write_integer_register(cpu, fi->target_register,
+                                 nd500_mask_to_datatype((uint32_t)remainder, fi->data_type));
 
     /* Update status flags based on quotient (like C# lines 142-153) */
     cpu->ST1 &= ~ND500_FLAG_C;   /* manual 6.5.1: data status bits not named in the list are reset */
