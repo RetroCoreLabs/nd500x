@@ -194,24 +194,28 @@ void nd500_instr_Psum(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     bool carry = false;
     uint32_t masked_result;
 
+    /* "carry from most significant bit -> C": the adder's carry when the
+     * product (in the data type's width) and Rn are added. The old test,
+     * (uint64_t)result > mask on a signed result, set C for every negative
+     * result: -2*3 + 2 = -4 carries nothing (0xFFFFFFFA + 2). */
+    uint64_t mask;
     switch (fi->data_type) {
         case ND500_DTYPE_BYTE:
             overflow = (result < -128 || result > 127);
-            carry = ((uint64_t)result > 0xFF);
-            masked_result = (uint32_t)(result & 0xFF);
+            mask = 0xFF;
             break;
         case ND500_DTYPE_HALFWORD:
             overflow = (result < -32768 || result > 32767);
-            carry = ((uint64_t)result > 0xFFFF);
-            masked_result = (uint32_t)(result & 0xFFFF);
+            mask = 0xFFFF;
             break;
         case ND500_DTYPE_WORD:
         default:
             overflow = (result < INT32_MIN || result > INT32_MAX);
-            carry = ((uint64_t)result > 0xFFFFFFFF);
-            masked_result = (uint32_t)result;
+            mask = 0xFFFFFFFF;
             break;
     }
+    carry = (((uint64_t)product & mask) + ((uint64_t)reg_val & mask)) > mask;
+    masked_result = (uint32_t)((uint64_t)result & mask);
 
     /* Write result to register */
     nd500_write_integer_register(cpu, reg_num, masked_result);
