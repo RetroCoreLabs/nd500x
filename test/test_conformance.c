@@ -980,6 +980,7 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
                 { 1u << 27, "StackOverflow"       },  /* STO */
                 { 1u << 28, "StackUnderflow"      },  /* STU */
                 { 1u << 25, "AddressingError"     },  /* DR: ignorable (manual 6.5.3) */
+                { 1u << 26, "AddressingError"     },  /* IX: ignorable (manual 6.5.3) */
             };
             uint32_t new_flags = cpu->ST1 & ~initial_st1;
             for (size_t t = 0; t < sizeof ignorable / sizeof ignorable[0]; t++) {

@@ -55,13 +55,13 @@
  * twins included). See the file header for when and how to change them. */
 enum
 {
-    BASE_INSTRUCTIONS = 182,
-    BASE_OPCODES      = 386,
-    BASE_SEED_Z       = 77,
-    BASE_SEED_C       = 75,
-    BASE_SEED_S       = 75,
-    BASE_SEED_O       = 67,
-    BASE_SEED_K       = 68,
+    BASE_INSTRUCTIONS = 201,
+    BASE_OPCODES      = 435,
+    BASE_SEED_Z       = 89,
+    BASE_SEED_C       = 84,
+    BASE_SEED_S       = 86,
+    BASE_SEED_O       = 76,
+    BASE_SEED_K       = 79,
     BASE_TRAP_ENABLE  = 0,
     BASE_FLOAT_HIGH   = 3,
     BASE_FLOAT_LOW    = 0
