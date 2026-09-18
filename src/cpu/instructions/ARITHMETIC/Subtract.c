@@ -23,12 +23,12 @@
  * Mnemonics: - (subtract)
  * Operands: 1 (<operand/r/t>)
  *
- * Opcodes:
- *   0xFC3C (BYn -) byte subtract
- *   0xFC40 (Hn -)  halfword subtract
- *   0x0060 (Wn -)  word subtract
- *   0x0064 (Fn -)  float subtract
- *   0x0068 (Dn -)  double subtract
+ * Opcodes (register n in opcode bits 1-0):
+ *   0xFC3C-0xFC3F (BY1- through BY4-) byte subtract
+ *   0xFC40-0xFC43 (H1- through H4-)   halfword subtract
+ *   0x0060-0x0063 (W1- through W4-)   word subtract
+ *   0x0064-0x0067 (F1- through F4-)   float subtract
+ *   0x0068-0x006B (D1- through D4-)   double subtract
  *
  * Operation: Rn - <operand> -> Rn
  *
@@ -57,7 +57,8 @@
  *   - Floating overflow (FO)
  *   - Floating underflow (FU)
  *
- * Reference: ND-500 Reference Manual, Chapter 11 (Basic Arithmetic)
+ * Reference: ND-500 Reference Manual, Chapter 11 (Basic Arithmetic), and
+ *            docs/instructions/asm/ (authoritative).
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Subtract.cs
  */
 void nd500_instr_Subtract(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {

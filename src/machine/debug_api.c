@@ -604,63 +604,6 @@ size_t nd500_dbg_mem_write_raw(Nd500Machine* m, uint32_t addr, const uint8_t* da
 
 /* NOTE: nd500_dbg_load_aout_file and nd500_dbg_load_aout_buffer are now in machine_loader.c */
 
-int nd500_dbg_load_aout_buffer_OLD_UNUSED(Nd500Machine* m, const uint8_t* buf, size_t size, uint32_t* out_entry_pc) {
-    if (!m || !buf || size < sizeof(unsigned int) * 8) return -1;
-    /* Parse nd500 a.out header (32-bit fields, little-endian in our toolchain outputs) */
-    unsigned int a_magic   = (unsigned int)(buf[0]  | (buf[1]  << 8) | (buf[2]  << 16) | (buf[3]  << 24));
-    unsigned int a_text    = (unsigned int)(buf[4]  | (buf[5]  << 8) | (buf[6]  << 16) | (buf[7]  << 24));
-    unsigned int a_data    = (unsigned int)(buf[8]  | (buf[9]  << 8) | (buf[10] << 16) | (buf[11] << 24));
-    unsigned int a_bss     = (unsigned int)(buf[12] | (buf[13] << 8) | (buf[14] << 16) | (buf[15] << 24));
-    unsigned int a_syms    = (unsigned int)(buf[16] | (buf[17] << 8) | (buf[18] << 16) | (buf[19] << 24));
-    unsigned int a_entry   = (unsigned int)(buf[20] | (buf[21] << 8) | (buf[22] << 16) | (buf[23] << 24));
-    unsigned int a_trsize  = (unsigned int)(buf[24] | (buf[25] << 8) | (buf[26] << 16) | (buf[27] << 24));
-    unsigned int a_drsize  = (unsigned int)(buf[28] | (buf[29] << 8) | (buf[30] << 16) | (buf[31] << 24));
-
-    /* Validate magic using same set as ndlib */
-    if (!(a_magic == 0407 || a_magic == 0410 || a_magic == 0413 || a_magic == 0411 ||
-          a_magic == 0x0107 || a_magic == 0x0108 || a_magic == 0x0109 || a_magic == 0x010B)) {
-        /* Not an a.out; fallback: blunt copy at 0 */
-        size_t to_copy = size;
-        if (to_copy > m->memory_size) to_copy = m->memory_size;
-        for (size_t i = 0; i < to_copy; ++i) nd500_bus_write8(m, (uint32_t)i, buf[i]);
-        if (out_entry_pc) *out_entry_pc = 0;
-        if (m->cpu) m->cpu->PC = 0;
-        return 0;
-    }
-
-    /* Determine object vs executable (match ndlib logic) */
-    int has_reloc = (a_trsize > 0 || a_drsize > 0);
-    int is_placeholder_entry = (a_entry == 4);
-    int is_object = has_reloc || is_placeholder_entry;
-
-    /* Layout immediately after 32-byte header: text, then data, then reloc, then symbols/strings */
-    const unsigned int hdr_size = 32;
-    if (size < hdr_size) return -1;
-
-    /* Load text */
-    if (a_text && size >= hdr_size + a_text) {
-        for (unsigned int i = 0; i < a_text; ++i) {
-            nd500_bus_write8(m, i, buf[hdr_size + i]);
-        }
-    }
-    /* Load data */
-    if (a_data && size >= hdr_size + a_text + a_data) {
-        unsigned int data_off = hdr_size + a_text;
-        for (unsigned int i = 0; i < a_data; ++i) {
-            nd500_bus_write8(m, a_text + i, buf[data_off + i]);
-        }
-    }
-    /* Zero BSS */
-    for (unsigned int i = 0; i < a_bss; ++i) {
-        nd500_bus_write8(m, a_text + a_data + i, 0);
-    }
-
-    unsigned int entry = is_object ? 0u : a_entry;
-    if (out_entry_pc) *out_entry_pc = entry;
-    if (m->cpu) m->cpu->PC = entry;
-    return 0;
-}
-
 /* Trace mode functions */
 int nd500_dbg_set_trace_mode(int onoff) {
     g_trace_mode = onoff ? 1 : 0;
