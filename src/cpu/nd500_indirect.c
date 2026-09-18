@@ -19,6 +19,7 @@
 #include "cpu_protos.h"   /* nd500_quiet */
 #include "../machine/machine_protos.h"
 #include "nd500_mon_sintran.h"   /* SINTRAN MON seam - see that header */
+#include "nd500_fecall.h"        /* nd500_fecall, MON 600 */
 #include <stdio.h>
 #include <stdlib.h>   /* getenv */
 #include <string.h>
@@ -198,7 +199,6 @@ int nd500_check_indirect_call(
          * (fecall) - disk/console/init I/O. It needs full cpu/machine/DMA access,
          * so it is serviced directly, not through the generic MON registry. */
         if (mon_number == 0x180) {
-            extern int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresses);
             nd500_fecall(cpu, arg_count, arg_addresses);
             *out_resolved = cpu->pending_call_return_address;
             return INDIRECT_HANDLED;

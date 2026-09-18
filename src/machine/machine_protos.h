@@ -168,4 +168,39 @@ const char* nd500_dbg_memory_map_json(Nd500Machine* m);
 const char* nd500_dbg_memory_map_for_domain_json(Nd500Machine* m, int domain);
 
 
+/**
+ * @brief Page-table write watch: log a CPU write of any width that lands in a
+ *        watched physical page, or whose value carries the watched page-frame
+ *        number, with the instruction PC and a global sequence number.
+ *
+ * Diagnostic only; does nothing unless the ptewatch setting is on.
+ *
+ * @param pc     PC of the writing instruction.
+ * @param vaddr  Virtual address written.
+ * @param paddr  Translated physical address.
+ * @param value  Value written.
+ * @param size   Width in bits (8, 16 or 32).
+ */
+void nd500_ptewatch_wr(uint32_t pc, uint32_t vaddr, uint32_t paddr, uint32_t value, int size);
+
+/**
+ * @brief Page-table watch for 32-bit CPU stores, called from
+ *        nd500_write_memory_32. Diagnostic only; off unless ptewatch is on.
+ *
+ * @param vaddr  Virtual address written.
+ * @param paddr  Translated physical address.
+ * @param value  Value written.
+ */
+void nd500_ptewatch_store(uint32_t vaddr, uint32_t paddr, uint32_t value);
+
+/**
+ * @brief Page-table watch for reads: log a read whose value carries the
+ *        watched page-frame number. Diagnostic only; off unless ptewatch is on.
+ *
+ * @param vaddr  Virtual address read.
+ * @param paddr  Translated physical address.
+ * @param value  Value read.
+ */
+void nd500_ptewatch_read(uint32_t vaddr, uint32_t paddr, uint32_t value);
+
 #endif /* MACHINE_PROTOS_H */

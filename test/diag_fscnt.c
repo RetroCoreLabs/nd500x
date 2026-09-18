@@ -21,9 +21,6 @@
 
 #define MEMSZ (16u*1024u*1024u)
 
-extern int nd500_mon_connect_file_as_segment(void* cpu, void* machine, uint8_t domain,
-    uint32_t requested_segment, uint32_t access_type, int writable,
-    const char* host_path, uint32_t file_size_bytes, uint32_t* out_assigned_segment);
 
 int main(int argc, char** argv) {
     const char* path = (argc > 1) ? argv[1] : nd500_testdata("FraTor/test-real/test-real.nrf");

@@ -511,6 +511,17 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP);
 void nd500_trap_clear(void);
 int nd500_trap_occurred(void);
 const Nd500TrapState* nd500_trap_get_state(void);
+
+/**
+ * @brief Print the most recent instruction PCs to stderr.
+ *
+ * Public wrapper over cpu.c's stop-diagnostics ring, for callers outside
+ * cpu.c (Ret.c's bogus-domain-return diagnostic). Prints nothing unless the
+ * stopdbg setting (ND500X_STOPDBG) is on.
+ *
+ * @param tag  Label printed at the head of the dump, naming the caller.
+ */
+void nd500_dump_pc_ring(const char *tag);
 void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, const char* description);
 
 /* Trap helper functions */

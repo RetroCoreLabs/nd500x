@@ -325,6 +325,75 @@ void  nd500_mmu_state_restore(void* blob);
  * a DOM is loaded, restore when it exits: the restore frees every physical page
  * the run allocated and puts the growable-segment registry back, so a nested
  * run cannot leak into - or over - its caller. */
+/**
+ * @brief MON callback for 422B GSWSP: allocate an empty, writable scratch
+ *        segment backed by MMU/PST pages.
+ *
+ * @param cpu_ptr               The calling Nd500Cpu.
+ * @param machine_ptr           The Nd500Machine.
+ * @param domain                Domain number; 0xFF means the current domain.
+ * @param requested_segment     Logical segment wanted.
+ * @param segment_size_bytes    Size of the segment.
+ * @param out_assigned_segment  Receives the segment actually assigned.
+ * @return 0 on success, a SINTRAN error code otherwise.
+ */
+int nd500_mon_allocate_segment(void *cpu_ptr, void *machine_ptr, uint8_t domain,
+                               uint32_t requested_segment, uint32_t segment_size_bytes,
+                               uint32_t *out_assigned_segment);
+
+/**
+ * @brief MON callback for 412B FSCNT: connect an open file as a data segment.
+ *
+ * Allocates an MMU/PST-backed segment the same way as GSWSP, then copies the
+ * file's bytes into it verbatim for access types 0, 2 and 3 (type 1 leaves
+ * it zeroed).
+ *
+ * @param cpu_ptr               The calling Nd500Cpu.
+ * @param machine_ptr           The Nd500Machine.
+ * @param domain                Domain number; 0xFF means the current domain.
+ * @param requested_segment     Logical segment wanted.
+ * @param access_type           0 initial data, 1 uninitialized, 2 primarily
+ *                              sequential, 3 combination of 1 and 2.
+ * @param writable              Non-zero for an RW capability, from the file's
+ *                              open mode (not from access_type).
+ * @param host_path             Host file to load.
+ * @param file_size_bytes       Size of that file.
+ * @param out_assigned_segment  Receives the segment actually assigned.
+ * @return 0 on success, a SINTRAN error code otherwise.
+ */
+int nd500_mon_connect_file_as_segment(void *cpu_ptr, void *machine_ptr, uint8_t domain,
+                                      uint32_t requested_segment, uint32_t access_type,
+                                      int writable, const char *host_path,
+                                      uint32_t file_size_bytes,
+                                      uint32_t *out_assigned_segment);
+
+/**
+ * @brief Write a file-connected segment's mapped pages back to its host file.
+ *
+ * Only mapped pages are written; untouched pages of a demand-grown segment
+ * stay holes, and the file is extended to cover the highest mapped page.
+ *
+ * @param cpu_ptr    The calling Nd500Cpu.
+ * @param domain     Real domain number (callers resolve 0xFF first).
+ * @param segment    Logical segment.
+ * @param host_path  Host file to write.
+ * @return 1 if the segment was flushed, 0 if there was nothing to flush (not
+ *         a tracked segment, or mapped read-only), negative on a write error.
+ */
+int nd500_segment_writeback(void *cpu_ptr, uint8_t domain, uint32_t segment,
+                            const char *host_path);
+
+/**
+ * @brief Release a file-connected segment: clear its registry slot, PST entry
+ *        and the domain's data capability, so the same logical segment can be
+ *        connected again.
+ *
+ * @param cpu_ptr  The calling Nd500Cpu.
+ * @param domain   Domain number; 0xFF means the current executing domain.
+ * @param segment  Logical segment.
+ */
+void nd500_segment_release(void *cpu_ptr, uint8_t domain, uint32_t segment);
+
 void* nd500_segment_alloc_state_save(void* machine_ptr);
 void  nd500_segment_alloc_state_restore(void* blob);
 

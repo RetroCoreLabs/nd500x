@@ -94,4 +94,27 @@ typedef void (*Nd500TtyOutFunc)(int unit, const unsigned char* buf, int len, voi
  * console log. Unit 0 always keeps its stdout copy (see nd500x --telnet). */
 void nd500_fecall_set_tty_output(int unit, Nd500TtyOutFunc fn, void* ctx);
 
+/**
+ * @brief Entry point for MON 600 (offset 0x180), the NDIX front-end call.
+ *
+ * Called from nd500_indirect.c.
+ *
+ * @param cpu            The calling CPU.
+ * @param arg_count      Number of entries in arg_addresses.
+ * @param arg_addresses  Effective addresses of device, request, rpk and cpk.
+ * @return 0 (handled).
+ */
+int nd500_fecall(struct Nd500Cpu *cpu, uint32_t arg_count, const uint32_t *arg_addresses);
+
+/**
+ * @brief ND-100 front-end interrupt tick, called from nd500_cpu_step.
+ *
+ * At the kernel base level, delivers a pending disk/dctl completion or a
+ * periodic clock tick by vectoring PC to the kernel's _intvec. Does nothing
+ * until the guest has negotiated MON 600 with FE_INIT.
+ *
+ * @param cpu  The CPU to tick.
+ */
+void nd500_fecall_tick(struct Nd500Cpu *cpu);
+
 #endif /* ND500_FECALL_H */

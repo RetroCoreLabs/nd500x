@@ -188,8 +188,7 @@ void nd500_write_memory_8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t value) {
     nd_uwatch(cpu, vaddr, paddr, (uint32_t)value, 8);
 
     MEMTRACE_WR("[MEMTRACE] write_8: vaddr=0x%08X paddr=0x%08X value=0x%02X\n", vaddr, paddr, value);
-    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
-      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 8); }
+    { nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 8); }
     /* Kernel path-copy tracer (env ND500X_SLASHDBG): log CED=0 byte stores of
      * '/' - the first byte of every path namei copies into its geteblk buffer.
      * Reveals WHICH virtual address the name buffer really is and where it
@@ -250,8 +249,7 @@ void nd500_write_memory_16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t value) {
     }
 
     MEMTRACE_WR("[MEMTRACE] write_16: vaddr=0x%08X paddr=0x%08X value=0x%04X\n", vaddr, paddr, value);
-    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
-      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 16); }
+    { nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 16); }
     /* usrpt-window PTE-write trace (env ND500X_UPTWDBG): the kernel writes user
      * page-table entries (pfns) as halfword stores through the usrpt(seg-4) KVA
      * window [0x20000000..0x28000000). Log vaddr->paddr->pfn so we can see where
@@ -313,7 +311,6 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
      * against the emulator's PST->L1->L2 slot (0x48A000). If they differ, the
      * usrpt-window mapping and the L1 walk have diverged - the coherence bug. */
     {
-        extern void nd500_ptewatch_read(uint32_t vaddr, uint32_t paddr, uint32_t value);
         nd500_ptewatch_read(vaddr, paddr, value);
     }
     return value;
@@ -359,8 +356,6 @@ void nd500_write_memory_32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value) {
      * writes init's stack pte to, and WHICH physical page that translates to -
      * to compare against the emulator's PST->L1->L2 slot (0x48A000). */
     {
-        extern void nd500_ptewatch_store(uint32_t vaddr, uint32_t paddr, uint32_t value);
-        extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
         nd500_ptewatch_store(vaddr, paddr, value);
         nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 32);
     }
@@ -674,8 +669,7 @@ void nd500_write_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint32_t value,
 
     MEMTRACE_WR("[MEMTRACE] write_32_domain: vaddr=0x%08X paddr=0x%08X domain=%d value=0x%08X\n",
                 vaddr, paddr, domain, value);
-    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
-      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 32); }
+    { nd500_ptewatch_wr(cpu->PC, vaddr, paddr, value, 32); }
     /* _Udata window WRITE trace (env ND500X_UDATADBG) - see write_8_domain. */
     {
         static int udbg = -1;

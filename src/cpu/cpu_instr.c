@@ -96,8 +96,7 @@ static inline void mmu_write8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t val) {
         if (nd500_trap_occurred() || cpu->instr_aborted) return;
     }
 
-    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
-      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 8); }
+    { nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 8); }
     /* Kernel path-copy tracer (env ND500X_SLASHDBG) - see write_memory_8. */
     {
         static int sld = -1;
@@ -150,8 +149,7 @@ static inline void mmu_write16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) {
         if (nd500_trap_occurred() || cpu->instr_aborted) return;  /* see mmu_write8 */
     }
 
-    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
-      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 16); }
+    { nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 16); }
     nd500_bus_write16(cpu->machine, paddr, val);
 }
 

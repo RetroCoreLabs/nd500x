@@ -7,6 +7,8 @@
  * See LICENSE in the repository root for the full text.
  */
 
+#include "ndlib.h"
+
 #include <stdio.h>
 #include <stdarg.h>
 

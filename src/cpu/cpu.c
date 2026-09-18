@@ -337,7 +337,6 @@ invalid00_done: ;
      * hardclock() drives the scheduler. Has its own fast path (no-op most
      * instructions). */
     {
-        extern void nd500_fecall_tick(Nd500Cpu* cpu);
         nd500_fecall_tick(cpu);
     }
     if (nd500_settings()->piadbg) {

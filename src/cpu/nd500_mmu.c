@@ -129,9 +129,6 @@ static int mmu_use_guest_for(Nd500Cpu* cpu, uint8_t domain, int segment) {
  * compiler's code generator references more work-segments (2..6) than it
  * explicitly allocates via GSWSP, and relies on this. Bounded to a plausible
  * work-segment range and gated so genuinely-wild accesses still trap. */
-extern int nd500_mon_allocate_segment(void* cpu, void* machine, uint8_t domain,
-    uint32_t requested_segment, uint32_t segment_size_bytes,
-    uint32_t* out_assigned_segment);
 #define DEMAND_SEG_MIN_SEGMENT   1       /* 0=alias (identity-backed image); 1..30 demand-backed; 31=SINTRAN window */
 #define DEMAND_SEG_MAX_SEGMENT   30    /* incl. 29=_Kstack/u-area, 30=UDATA; 31=SINTRAN window stays special */
 #define DEMAND_SEG_INIT_BYTES    (128u*1024u)  /* grows on demand beyond this */

@@ -58,7 +58,7 @@ void nd500_ptewatch_wr(uint32_t pc, uint32_t vaddr, uint32_t paddr, uint32_t val
                 ptewatch_seq++, pc, size, vaddr, paddr, value,
                 p == 1 ? " [PG1]" : p == 2 ? " [PG2]" : "", has_pfn ? " [PFN]" : "");
 }
-void nd500_ptewatch32(uint32_t addr, uint32_t val) {
+static void nd500_ptewatch32(uint32_t addr, uint32_t val) {
     ptewatch_init();
     if (!ptewatch_on) return;
     int in_page = (addr >= ptewatch_page && addr < ptewatch_page + 0x800u);
@@ -67,7 +67,7 @@ void nd500_ptewatch32(uint32_t addr, uint32_t val) {
         fprintf(stderr, "[PTEWATCH] w32 phys=0x%08X val=0x%08X%s%s\n", addr, val,
                 in_page ? " [L2-PAGE]" : "", has_pfn ? " [PFN]" : "");
 }
-void nd500_ptewatch8(uint32_t addr, uint8_t val) {
+static void nd500_ptewatch8(uint32_t addr, uint8_t val) {
     ptewatch_init();
     if (!ptewatch_on) return;
     if (addr >= ptewatch_page && addr < ptewatch_page + 0x800u)
