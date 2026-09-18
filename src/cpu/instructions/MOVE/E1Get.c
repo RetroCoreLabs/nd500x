@@ -52,8 +52,9 @@ void nd500_instr_E1Get(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // en=: reads the E1 register (E = HIGH 32 bits of D1;
-    // microcode STOREE1 @001174: A,E1). Was reading the low half (A1).
+    // en=: reads the E1 register, the LEAST significant 32 bits of D1
+    // (manual 16.9; microcode STOREE1 @001174: A,E1). An is the most
+    // significant half (nd500_read_double_register).
     uint32_t value = cpu->E[0];
 
     nd500_write_operand_word(cpu, &fi->operands[0], value);

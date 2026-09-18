@@ -61,9 +61,9 @@ void nd500_instr_E3Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // en:= writes the source into the E3 register. E is the HIGH 32 bits of
-    // the D3 pair (microcode LOADE3 @001166: D,E3); the previous code
-    // wrote the low half, which is A3, not E3.
+    // en:= writes the source into the E3 register, the LEAST significant
+    // 32 bits of D3 (manual 16.9; microcode LOADE3 @001166: D,E3). An is
+    // the most significant half (nd500_read_double_register).
     cpu->E[2] = value;
 
     /* Z and S from the value; C and O are reset (manual 6.5.1; the microcode's

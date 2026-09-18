@@ -61,9 +61,9 @@ void nd500_instr_E4Set(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // en:= writes the source into the E4 register. E is the HIGH 32 bits of
-    // the D4 pair (microcode LOADE4 @001167: D,E4); the previous code
-    // wrote the low half, which is A4, not E4.
+    // en:= writes the source into the E4 register, the LEAST significant
+    // 32 bits of D4 (manual 16.9; microcode LOADE4 @001167: D,E4). An is
+    // the most significant half (nd500_read_double_register).
     cpu->E[3] = value;
 
     /* Z and S from the value; C and O are reset (manual 6.5.1; the microcode's

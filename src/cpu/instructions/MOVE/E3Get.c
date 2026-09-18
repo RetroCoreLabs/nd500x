@@ -52,8 +52,9 @@ void nd500_instr_E3Get(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    // en=: reads the E3 register (E = HIGH 32 bits of D3;
-    // microcode STOREE3 @001176: A,E3). Was reading the low half (A3).
+    // en=: reads the E3 register, the LEAST significant 32 bits of D3
+    // (manual 16.9; microcode STOREE3 @001176: A,E3). An is the most
+    // significant half (nd500_read_double_register).
     uint32_t value = cpu->E[2];
 
     nd500_write_operand_word(cpu, &fi->operands[0], value);
