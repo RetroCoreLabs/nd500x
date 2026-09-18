@@ -82,9 +82,21 @@ void nd500_instr_Freeb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Read operands */
+    /* The <element> operand has access code "s", special (manual 15.14): the
+     * element is the addressed location itself - it is appended to the freelist
+     * and "Write access to the <element> is required" for its link word. So the
+     * element's address is the operand's effective address, not the word stored
+     * there; the B30 microcode takes it with LADDR (FREEB_1 @004403). A register
+     * or constant has no address, and constants are illegal for write access
+     * (8.12): illegal operand specifier. */
+    const Nd500OperandDecoded* elem_op = &fi->operands[1];
+    if (elem_op->mode == ND500_ADDR_REGISTER || elem_op->mode == ND500_ADDR_CONSTANT ||
+        elem_op->mode == ND500_ADDR_CONSTANT_SHORT) {
+        trap_illegal_operand(cpu, fi->address);
+        return;
+    }
     uint8_t log_size = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_BYTE);
-    uint32_t element = nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
+    uint32_t element = elem_op->effective_address;
     /* A faulting operand read must abort the instruction: commit nothing,
      * and raise no second trap on top of the fault the kernel is already
      * about to service. See the ADD3 guard (commit a351296) for the panic
@@ -109,6 +121,8 @@ void nd500_instr_Freeb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Read MAXL to validate log_size */
     uint32_t max_log = nd500_read_memory_32(cpu, heap_vars_addr + 0);
 
+    /* Not in the manual: FREEB lists no check against MAXL (its only trap
+     * conditions are addressing traps). This refusal is nd500x's own choice. */
     if (log_size > max_log) {
         printf("[ERROR] FREEB at PC=0x%08X: log_size=%u exceeds MAXL=%u\n",
                fi->address, log_size, max_log);
