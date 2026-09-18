@@ -143,7 +143,7 @@ void nd500_instr_Ixi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_write_integer_register(cpu, fi->target_register, masked_result);
 
     /* Update status flags: Z, S, O (no C for IXI) */
-    nd500_clear_flag(cpu, ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O);
+    nd500_clear_flag(cpu, ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);   /* C: manual 6.5.1 */
 
     if (masked_result == 0) {
         nd500_set_flag(cpu, ND500_FLAG_Z);

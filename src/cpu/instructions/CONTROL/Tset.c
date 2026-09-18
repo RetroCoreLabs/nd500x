@@ -248,6 +248,8 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
     nd500_write_operand_value(cpu, &fi->operands[0], set_value, fi->data_type);
 
+    cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_O);   /* manual 6.5.1: data status bits not named in the list are reset */
+
     // Set Z flag based on old value
     // Z=1 if old value was 0 (lock acquired successfully)
     // Z=0 if old value was non-zero (lock already held)

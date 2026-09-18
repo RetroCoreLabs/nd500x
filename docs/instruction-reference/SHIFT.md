@@ -65,8 +65,12 @@ Flag resolution (was UNKNOWN in the flags-only pass):
 - The final ALU op is `ALU,A` (pass-through), so carry and overflow it produces are
   0. Combined with Reference Manual rule 4040 (line 4040: "Data status bits not
   mentioned in the instruction description are always cleared") and line 2022,
-  the manual's per-instruction list for SHL/SHA/SHR mentions ONLY Z and S -> K, C,
-  O are CLEARED (reset to 0). Microcode and manual agree.
+  the manual's per-instruction list for SHL/SHA/SHR mentions ONLY Z and S -> C and
+  O are CLEARED (reset to 0). Microcode and manual agree. K is NOT covered by that
+  rule: it is not a data status bit (Table 7 lists Z C S O IVO DZ FU FO BO), and
+  the cells cited below carry ST,SAVA but no K field, so K is UNCHANGED.
+  (Corrected 2026-09-18: this line used to say K was cleared too; the ND5000
+  microcode sweep of the flag-preset twins confirms K is kept.)
 
 Microcode citations: dispatch 000350-000413; cores SHL_C_1 003260 / SHA_C_1
 003277 / SHR_C_1 003316; loop bodies SHL_PSC_2 003276, SHL_NSC_2 003272,
@@ -112,7 +116,7 @@ operand's own read/write.
 ### Status flags
 | Flag | Effect                                  |
 |------|-----------------------------------------|
-| K    | CLEARED (not mentioned; rule 4040)      |
+| K    | UNCHANGED (not a data status bit)       |
 | Z    | CONDITIONAL: set if result == 0         |
 | C    | CLEARED (not mentioned; rule 4040)      |
 | O    | CLEARED (not mentioned; rule 4040)      |
@@ -172,7 +176,7 @@ multiply/divide by powers of two.
 ### Status flags
 | Flag | Effect                                  |
 |------|-----------------------------------------|
-| K    | CLEARED (not mentioned; rule 4040)      |
+| K    | UNCHANGED (not a data status bit)       |
 | Z    | CONDITIONAL: set if result == 0         |
 | C    | CLEARED (not mentioned; rule 4040)      |
 | O    | CLEARED (not mentioned; rule 4040)      |
@@ -230,7 +234,7 @@ Rotated value written back to operand[0].
 ### Status flags
 | Flag | Effect                                  |
 |------|-----------------------------------------|
-| K    | CLEARED (not mentioned; rule 4040)      |
+| K    | UNCHANGED (not a data status bit)       |
 | Z    | CONDITIONAL: set if result == 0         |
 | C    | CLEARED (not mentioned; rule 4040)      |
 | O    | CLEARED (not mentioned; rule 4040)      |

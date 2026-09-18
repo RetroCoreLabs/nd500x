@@ -54,8 +54,6 @@ void nd500_instr_Scpuno(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_write_operand_value(cpu, &fi->operands[0], cpuno, ND500_DTYPE_WORD);
 
     /* Status per the stored CPU-number value (ST,SAVA): Z if zero, S if sign
-     * bit set. C and O not named for SCPUNO -> cleared (rule 4040). */
+     * bit set. C and O are not named for SCPUNO; the helper clears them. */
     nd500_set_flags_zs(cpu, cpuno, ND500_DTYPE_WORD);
-    nd500_clear_flag(cpu, ND500_FLAG_C);
-    nd500_clear_flag(cpu, ND500_FLAG_O);
 }

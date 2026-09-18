@@ -135,7 +135,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
              * S clear. */
             if (n_zero) {
                 nd500_write_float_register(cpu, reg_num, 0);
-                cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+                cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O |
                               ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
                 return;
             }
@@ -181,7 +181,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
              * FO|O|Z = 0x4220 (oracle-verified on the $0x12345678 cases). */
             if (efield > 384) {
                 nd500_write_float_register(cpu, reg_num, 0);
-                cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+                cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O |
                               ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
                 cpu->ST1 |= ND500_FLAG_FO | ND500_FLAG_O | ND500_FLAG_Z;
                 trap_floating_overflow(cpu, fi->address);
@@ -193,7 +193,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
              * microcode DIVFI_FU -> DIVFI_ST structure. Result forced 0. */
             if (efield < 128) {
                 nd500_write_float_register(cpu, reg_num, 0);
-                cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+                cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O |
                               ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
                 cpu->ST1 |= ND500_FLAG_FU | ND500_FLAG_Z;
                 trap_floating_underflow(cpu, fi->address);
@@ -204,7 +204,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             nd500_write_float_register(cpu, reg_num, out);
             /* Normal result: set ONLY S from the result sign; clear the other FP
              * arithmetic status bits (Z is not set by float divide). */
-            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O |
                           ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
             if (sign) {
                 cpu->ST1 |= ND500_FLAG_S;
@@ -259,7 +259,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * from DNZRO64's ST,SAVA, which unlike the single path DOES set Z). */
         if (en == 0 && mn == 0) {
             nd500_write_double_register(cpu, reg_num, 0);
-            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O |
                           ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
             cpu->ST1 |= ND500_FLAG_Z;
             return;
@@ -280,7 +280,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * ed==0-vs-ed!=0 flag split is verified. */
         if (en == 0) {
             nd500_write_double_register(cpu, reg_num, 0);
-            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O |
                           ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
             cpu->ST1 |= (ed != 0) ? ND500_FLAG_Z : ND500_FLAG_S;
             return;
@@ -324,7 +324,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * no double case exercises it so this is by analogy, not verified. */
         if (efield > 384) {
             nd500_write_double_register(cpu, reg_num, 0);
-            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O |
                           ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
             cpu->ST1 |= ND500_FLAG_FO | ND500_FLAG_O | ND500_FLAG_Z;
             trap_floating_overflow(cpu, fi->address);
@@ -332,7 +332,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
         if (efield < 128) {
             nd500_write_double_register(cpu, reg_num, 0);
-            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+            cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O |
                           ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
             cpu->ST1 |= ND500_FLAG_FU | ND500_FLAG_Z;
             trap_floating_underflow(cpu, fi->address);
@@ -346,7 +346,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
         /* Normal result flags (DNZRO64 ST,SAVA): Z if the result is zero,
          * else S from the result sign. */
-        cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O |
+        cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O |
                       ND500_FLAG_DZ | ND500_FLAG_FO | ND500_FLAG_FU);
         if ((out & 0x7FFFFFFFFFFFFFFFULL) == 0) {
             cpu->ST1 |= ND500_FLAG_Z;
@@ -465,7 +465,8 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Write back to register
     nd500_write_integer_register(cpu, fi->target_register, masked_result);
 
-    // Update status flags
+    // Update status flags; C is not named for "/" and is reset (manual 6.5.1)
+    cpu->ST1 &= ~ND500_FLAG_C;
     if (masked_result == 0) {
         cpu->ST1 |= ND500_FLAG_Z;
     } else {

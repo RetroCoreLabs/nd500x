@@ -115,6 +115,7 @@ void nd500_instr_Pwconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     cpu->I[reg_num - 1] = (uint32_t)result;
 
     /* Set flags */
+    nd500_clear_flag(cpu, ND500_FLAG_C);   /* manual 6.5.1: data status bits not named in the list are reset */
     /* Z flag: set if result is zero */
     if (result == 0) {
         nd500_set_flag(cpu, ND500_FLAG_Z);

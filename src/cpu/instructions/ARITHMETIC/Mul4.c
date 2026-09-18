@@ -170,6 +170,7 @@ void nd500_instr_Mul4(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_write_integer_register(cpu, fi->target_register, upperPart);
 
     // Update status flags based on lower part of product
+    cpu->ST1 &= ~ND500_FLAG_C;   /* manual 6.5.1: data status bits not named in the list are reset */
     if (lowerPart == 0) {
         cpu->ST1 |= ND500_FLAG_Z;
     } else {

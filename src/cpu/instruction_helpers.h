@@ -355,18 +355,27 @@ void nd500_write_double_register(Nd500Cpu* cpu, uint8_t reg_num, uint64_t value)
 #define ND500_DOUBLE_MANTISSA_BITS  54
 
 /**
- * Set Z and S flags based on result value
- * @param cpu CPU state
- * @param value Result value
- * @param dtype Data type (determines sign bit position)
+ * @brief Set Z and S from a result, and clear C and O.
+ *
+ * ND-05.009.4 6.5.1: "Bits that are set, reset or left unaffected are
+ * mentioned explicitly. All data status bits not mentioned are reset."
+ * The microcode's ST,SAVA status save does the same. A handler whose manual
+ * list names C or O sets it after this call; K is not a data status bit and
+ * is left alone.
+ *
+ * @param cpu    CPU state.
+ * @param value  Result value.
+ * @param dtype  Data type (determines sign bit position).
  */
 void nd500_set_flags_zs(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype);
 
 /**
- * Set Z and S flags for float/double values (handles -0.0 as zero)
- * @param cpu CPU state
- * @param value Float or double bits (raw IEEE-754 representation)
- * @param is_double True for 64-bit double, false for 32-bit float
+ * @brief Set Z and S from a float/double result (-0.0 counts as zero), and
+ *        clear C and O - the same manual rule as nd500_set_flags_zs().
+ *
+ * @param cpu        CPU state.
+ * @param value      Float or double bits.
+ * @param is_double  True for 64-bit double, false for 32-bit float.
  */
 void nd500_set_flags_zs_float(Nd500Cpu* cpu, uint64_t value, bool is_double);
 

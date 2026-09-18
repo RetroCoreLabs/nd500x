@@ -58,7 +58,7 @@ void nd500_instr_Stz(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Write zero to destination operand (like C# WriteOperandValue) */
     nd500_write_operand_value(cpu, &fi->operands[0], 0, fi->data_type);
 
-    /* Set status flags: Z=1 (always zero), S=0 (zero is not negative) */
+    /* Set status flags: the list is "1 -> Z"; S, C and O are reset (manual 6.5.1) */
     nd500_set_flag(cpu, ND500_FLAG_Z);
-    nd500_clear_flag(cpu, ND500_FLAG_S);
+    nd500_clear_flag(cpu, ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
 }

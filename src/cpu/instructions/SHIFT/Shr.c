@@ -127,10 +127,9 @@ void nd500_instr_Shr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Write back to operand */
     nd500_write_operand_value(cpu, &fi->operands[0], masked_result, fi->data_type);
 
-    /* Status: Z and S from the result; K, C, O cleared (rule 4040 - only Z and S
-     * are named for SHR). */
+    /* Status: Z and S from the result; C and O cleared by the helper (manual
+     * 6.5.1 - only Z and S are named for SHR). K is kept: it is not a data
+     * status bit (Table 7), and the SHR microcode cell has ST,SAVA but no K
+     * field. */
     nd500_set_flags_zs(cpu, masked_result, fi->data_type);
-    nd500_clear_flag(cpu, ND500_FLAG_K);
-    nd500_clear_flag(cpu, ND500_FLAG_C);
-    nd500_clear_flag(cpu, ND500_FLAG_O);
 }

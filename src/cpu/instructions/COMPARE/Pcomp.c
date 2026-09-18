@@ -126,6 +126,11 @@ void nd500_instr_Pcomp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t desc_addr_a = fi->operands[0].effective_address;
     uint32_t desc_addr_b = fi->operands[1].effective_address;
 
+    /* The list is Z, S and "IVO -> K": K is written (the descriptor and BCD
+     * helpers below set it on an invalid operand, so clear it first), and C
+     * and O are reset (manual 6.5.1). */
+    nd500_clear_flag(cpu, ND500_FLAG_K | ND500_FLAG_C | ND500_FLAG_O);
+
     /* Load string descriptor A from first operand address */
     Nd500StringDescriptor desc_a;
     if (!nd500_load_string_descriptor(cpu, desc_addr_a, true, false, &desc_a)) {
@@ -165,7 +170,6 @@ void nd500_instr_Pcomp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* K flag is set by nd500_read_packed_bcd_value() if invalid BCD data */
-    /* C and O flags are unaffected */
 
     /* Difference is discarded - this is comparison only */
     /* PC will be advanced automatically by cpu_step() */

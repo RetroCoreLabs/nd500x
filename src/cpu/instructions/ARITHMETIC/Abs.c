@@ -116,7 +116,7 @@ void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_write_integer_register(cpu, fi->target_register, (uint32_t)result);
 
         /* Update status flags for integer (handle overflow case) */
-        cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_O);
+        cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);   /* C: manual 6.5.1 */
 
         if (result == 0) {
             cpu->ST1 |= ND500_FLAG_Z;
@@ -146,8 +146,8 @@ void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* Update status flags (like C# lines 90-92) */
-    /* Clear Z and S flags first */
-    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S);
+    /* Clear Z and S, and C and O: the float list names neither (manual 6.5.1) */
+    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
 
     /* Set Z flag if result is zero */
     if (result == 0) {
@@ -155,5 +155,4 @@ void nd500_instr_Abs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* S flag remains cleared (absolute value is never negative) */
-    /* C and O flags are not affected */
 }

@@ -122,6 +122,7 @@ void nd500_instr_Wpconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* Set flags */
+    nd500_clear_flag(cpu, ND500_FLAG_C);   /* manual 6.5.1: data status bits not named in the list are reset */
     /* Z flag: set if result is zero */
     if (source_value == 0) {
         nd500_set_flag(cpu, ND500_FLAG_Z);

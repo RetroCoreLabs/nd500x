@@ -176,7 +176,6 @@ void nd500_instr_Setbi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Write result back to first operand
     nd500_write_operand_value(cpu, &fi->operands[0], masked_result, fi->data_type);
 
-    // Update status flags: Z=0, S=0 (always, per ND-500 specification)
-    cpu->ST1 &= ~ND500_FLAG_Z;  // Clear Z (result cannot be zero)
-    cpu->ST1 &= ~ND500_FLAG_S;  // Clear S (sign not relevant)
+    // Update status flags: the manual says "All cleared" (all data status bits: Z C S O)
+    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_C | ND500_FLAG_S | ND500_FLAG_O);
 }

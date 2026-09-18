@@ -181,6 +181,7 @@ void nd500_instr_Clebi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Write result back to first operand
     nd500_write_operand_value(cpu, &fi->operands[0], masked_result, fi->data_type);
 
-    // Update status flags: Z=1 (always, per ND-500 specification)
-    cpu->ST1 |= ND500_FLAG_Z;  // Set Z (per specification)
+    // Update status flags: the list is "1 -> Z"; C, S and O are reset (manual 6.5.1)
+    cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_S | ND500_FLAG_O);
+    cpu->ST1 |= ND500_FLAG_Z;
 }

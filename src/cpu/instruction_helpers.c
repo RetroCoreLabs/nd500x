@@ -821,8 +821,10 @@ void nd500_write_double_register(Nd500Cpu* cpu, uint8_t reg_num, uint64_t value)
  */
 
 void nd500_set_flags_zs(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype) {
-    // Clear Z and S flags first
-    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S);
+    /* Z and S are computed below; C and O are cleared because every data
+     * status bit an instruction's list does not name is reset (manual 6.5.1).
+     * Callers that name C or O set them after this. */
+    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
 
     // Set Z flag if value is zero (masked to data type)
     uint64_t mask = 0;
@@ -863,8 +865,9 @@ void nd500_set_flags_zs(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype) {
 }
 
 void nd500_set_flags_zs_float(Nd500Cpu* cpu, uint64_t value, bool is_double) {
-    // Clear Z and S flags first
-    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S);
+    /* Z and S are computed below; C and O are cleared (manual 6.5.1, as in
+     * nd500_set_flags_zs). */
+    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
 
     if (is_double) {
         // 64-bit double: sign bit at position 63, magnitude is bits 62:0
@@ -915,8 +918,7 @@ uint64_t nd500_float_finish(Nd500Cpu* cpu, uint32_t pc, double result, bool is_d
     bool funfl = (!fovfl && codec_unfl);
 
     /* STATUS: Z,S from result; C,O cleared (rule 4040); FU,FO conditional */
-    nd500_set_flags_zs_float(cpu, result_bits, is_double);
-    cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_O);
+    nd500_set_flags_zs_float(cpu, result_bits, is_double);   /* also clears C and O */
     if (fovfl) {
         cpu->ST1 |= ND500_FLAG_FO;
     } else {

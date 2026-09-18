@@ -150,6 +150,7 @@ void nd500_instr_Div4(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_write_integer_register(cpu, fi->target_register, (uint32_t)remainder);
 
     /* Update status flags based on quotient (like C# lines 142-153) */
+    cpu->ST1 &= ~ND500_FLAG_C;   /* manual 6.5.1: data status bits not named in the list are reset */
     /* Set Z flag based on quotient (like C# line 142) */
     if (quotient == 0) {
         cpu->ST1 |= ND500_FLAG_Z;
