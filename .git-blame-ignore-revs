@@ -4,3 +4,5 @@
 e608fcc1abc0d65bdf98392474409008508e7367
 # ASCII only: replace every non-ASCII character in C sources and tests
 f1d158c601e65d4d4d725915ba84a7f8af244478
+# MIT licence: LICENSE file and an SPDX banner on every nd500x source file
+39dc420886c569c4686dd4689cb9a7b65ca73194
