@@ -37,6 +37,7 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | 2026-09-18 | `654d6d7` `a23301c` `486b367` `053ef24` | Microcode sweep findings, ruled on the manual and the B30 listing: DIV4 BY/H remainder zero-filled; F/D divide rounds by 7.2.7; float -0 store Z from the bit pattern, TEST -0 is Z only; SFILLN/SMOVN typed elements and Z=1 on m done, SFILL/SFILLN F/D fill from A/E:A, DR trap (new) on a start outside the string; string descriptors keep all 32 count bits. Corpus from RetroCore `d21cd2bef` | shared-file item 23 | open |
 | 2026-09-18 | `cb233b5` `c594c1b` | Decimal instructions (chapter 17) rewritten from the manual: descriptor SGN 26-24 / SC 23-16 signed / FW 15-0 (was SC 23-18, FW 17-13), exact 31-digit arithmetic, scaling, rounding, BO keeping signed low digits, IVO on bad digits/signs and the scaling-difference restriction, DR on FW=0; 374 manual-derived vectors (RetroCore `0bad65b87`) | shared-file item 24 | open |
 | 2026-09-18 | `63ea9b4` | FREEB takes the element's address (LADDR), not the word at it; register/constant element is IOS | shared-file item 25 | open |
+| 2026-09-18 | `4fa9f67` `5192061` `233c4cb` `ad812c8` `29f4cf4` | Found by the new manual-derived cases: CLR resets C/S/O; F INT/INTR read A (were reading I) and compute exactly; AXI 0**-n is IOV with the largest number (was IVO, 0); PSUM C is the adder carry (was set for every negative result); SMVWH Z=1 on source empty / dest full; SLOCA resets C/O | shared-file item 26 | open |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
