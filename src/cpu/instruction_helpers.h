@@ -276,6 +276,12 @@ void nd500_write_integer_register(Nd500Cpu* cpu, uint8_t reg_num, uint32_t value
  * A for F, E:A for D. */
 uint64_t nd500_read_register_by_type(Nd500Cpu* cpu, uint8_t reg_num, Nd500DataType dtype);
 
+/* INT and INTR (manual 10.34/10.35): the truncated or rounded integer part of
+ * a float or double operand, in the same format, loaded into register n; Z and
+ * S from the result. Exact on the ND-500 bits (no host float). */
+void nd500_execute_integer_part(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi,
+                                bool is_double, bool round);
+
 /**
  * Read float register A1-A4 (single precision)
  * @param cpu CPU state

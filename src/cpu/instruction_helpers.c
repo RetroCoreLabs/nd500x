@@ -769,6 +769,48 @@ uint64_t nd500_read_register_by_type(Nd500Cpu* cpu, uint8_t reg_num, Nd500DataTy
     }
 }
 
+/* The integer part of an ND-500 float (mb = 22) or double (mb = 54): value =
+ * sig/2**(mb+1) * 2**e with sig = the mantissa plus its implicit bit, so the
+ * low (mb+1-e) bits of sig are the fraction. Rounding adds half of the lowest
+ * integer bit first; not in the manual: an exact half therefore rounds away
+ * from zero (as host round() did before). */
+static uint64_t nd500_nd_integer_part(uint64_t bits, int mb, bool round) {
+    uint64_t sign = bits >> (mb + 9) & 1;
+    int efield = (int)((bits >> mb) & 0x1FF);
+    uint64_t mant_mask = ((uint64_t)1 << mb) - 1;
+    if (efield == 0) return 0;
+    int e = efield - 256;
+    if (e >= mb + 1) return bits;                       /* no fraction bits */
+    if (e < 0) return 0;                                /* |x| < 0.25 */
+    uint64_t sig = ((uint64_t)1 << mb) | (bits & mant_mask);
+    int frac = mb + 1 - e;                              /* 1 .. mb+1 */
+    if (round) sig += (uint64_t)1 << (frac - 1);
+    sig &= ~((((uint64_t)1) << frac) - 1);
+    if (sig == 0) return 0;
+    if (sig >> (mb + 1)) { sig >>= 1; efield++; }       /* rounded up a binade */
+    return (sign << (mb + 9)) | ((uint64_t)efield << mb) | (sig & mant_mask);
+}
+
+void nd500_execute_integer_part(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi,
+                                bool is_double, bool round) {
+    if (fi->operand_count != 1 || fi->target_register < 1 || fi->target_register > 4) {
+        trap_illegal_operand(cpu, fi->address);
+        return;
+    }
+    uint64_t x = is_double ? nd500_read_operand_doubleword(cpu, &fi->operands[0])
+                           : nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+    uint64_t r = nd500_nd_integer_part(x, is_double ? 54 : 22, round);
+    if (is_double) {
+        nd500_write_double_register(cpu, fi->target_register, r);
+    } else {
+        nd500_write_float_register(cpu, fi->target_register, (uint32_t)r);
+    }
+    nd500_set_flags_zs_float(cpu, r, is_double);   /* Z, S; C and O reset (6.5.1) */
+}
+
 uint32_t nd500_read_float_register(Nd500Cpu* cpu, uint8_t reg_num) {
     if (reg_num < 1 || reg_num > 4) {
         fprintf(stderr, "ND-500: Invalid float register number %u\n", reg_num);
