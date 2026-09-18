@@ -79,6 +79,6 @@ void nd500_instr_Clr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     // Set Z flag to 1 (result is always zero)
     cpu->ST1 |= ND500_FLAG_Z;
 
-    // Clear S flag (result is always positive zero)
-    cpu->ST1 &= ~ND500_FLAG_S;
+    // S, C and O are not named ("1 -> Z" only), so they are reset (manual 6.5.1)
+    cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
 }
