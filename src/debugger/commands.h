@@ -19,9 +19,9 @@ typedef void (*cmd_output_fn)(const char* line, void* ctx);
  * Provides callbacks for command output and error messages
  */
 typedef struct {
-	cmd_output_fn output;    /* Normal output callback */
-	cmd_output_fn error;     /* Error output callback */
-	void* context;           /* User context (e.g., native FILE*, WASM buffer) */
+    cmd_output_fn output;    /* Normal output callback */
+    cmd_output_fn error;     /* Error output callback */
+    void* context;           /* User context (e.g., native FILE*, WASM buffer) */
 } CmdContext;
 
 /* Execute a debugger command

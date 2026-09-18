@@ -141,7 +141,7 @@ int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, N
     (void)use_color; /* Reserved for future use */
     if (!buf || cap == 0 || !op) return 0;
     char* p = buf; char* e = buf + cap;
-    
+
     /* Extract value from data bytes (BIG-ENDIAN - ND-500 native byte order) */
     uint32_t val = 0; int32_t sval = 0;
     if (op->data_len == 1) { val = op->data[0]; sval = (int8_t)op->data[0]; }
@@ -151,7 +151,7 @@ int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, N
     /* Handle prefix bytes - add DESC() or ALT() wrapper */
     int has_desc = op->has_desc_prefix;
     int has_alt = op->has_alt_prefix;
-    
+
     if (has_alt && p < e) {
         int n = snprintf(p, (size_t)(e-p), "ALT(");
         if (n>0) p += (n < (e-p)? n : (int)(e-p));
@@ -173,7 +173,7 @@ int nd500_format_operand(char* buf, size_t cap, const Nd500OperandDecoded* op, N
 
     /* Short-forms embed value in AC low 6 bits */
     uint8_t low6 = op->address_code & 0x3F;
-    
+
     switch (op->mode) {
         case ND500_ADDR_CONSTANT_SHORT: {
             /* 6-bit signed constant sign-extended */
@@ -332,7 +332,7 @@ static size_t fmt_operand(char* dst, size_t cap, const Nd500OperandDecoded* op, 
 /**
  * Calculate branch target address from PC and displacement.
  * Shared function to avoid duplicate branch target calculation logic.
- * 
+ *
  * @param pc                 Current instruction address
  * @param displacement       Signed displacement value from operand
  * @return Absolute target address
@@ -343,7 +343,7 @@ uint32_t nd500_calc_branch_target(uint32_t pc, int32_t displacement) {
 
 /**
  * Extract displacement from operand data bytes (big-endian).
- * 
+ *
  * @param op  Decoded operand
  * @return Signed displacement value
  */
@@ -558,25 +558,25 @@ size_t nd500_disasm_format_range_json(struct Nd500Machine* m,
     size_t pos = 0;
     uint32_t a = addr;
     uint32_t end = addr + len;
-    
+
     pos = buf_append(out, out_cap, pos, "{\"instructions\":[");
     int first = 1;
-    
+
     while (a < end) {
         Nd500FetchedInstruction fi;
         memset(&fi, 0, sizeof(fi));
         int rc = nd500_decode_at(m, a, &fi);
-        
+
         if (!first) {
             pos = buf_append(out, out_cap, pos, ",");
         }
         first = 0;
-        
+
         if (rc != 0 || fi.total_len == 0) {
             /* Fallback: show single byte unknown */
             uint8_t b = nd500_bus_read8(m, a);
-            pos = buf_append(out, out_cap, pos, 
-                "{\"address\":\"%08X\",\"bytes\":\"%02X\",\"mnemonic\":\"???\",\"operands\":\"\",\"is_unknown\":true}", 
+            pos = buf_append(out, out_cap, pos,
+                "{\"address\":\"%08X\",\"bytes\":\"%02X\",\"mnemonic\":\"???\",\"operands\":\"\",\"is_unknown\":true}",
                 a, (unsigned)b);
             a += 1;
             continue;
@@ -584,7 +584,7 @@ size_t nd500_disasm_format_range_json(struct Nd500Machine* m,
 
         /* Build address */
         pos = buf_append(out, out_cap, pos, "{\"address\":\"%08X\",", fi.address);
-        
+
         /* Build bytes array */
         pos = buf_append(out, out_cap, pos, "\"bytes\":\"");
         for (uint32_t i = 0; i < fi.total_len; ++i) {
@@ -709,7 +709,7 @@ size_t nd500_disasm_format_range_json(struct Nd500Machine* m,
 
         a += (uint32_t)fi.total_len;
     }
-    
+
     pos = buf_append(out, out_cap, pos, "]}");
     return pos;
 }

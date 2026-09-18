@@ -48,7 +48,7 @@ void nd500_instr_Ddirt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * control store.
      *
      * Found by the sweep prompted by the same bug in TUTTI: a guard that came
-     * from the C# port rather than from any source. 
+     * from the C# port rather than from any source.
      */
 
     /* Validate operand count (like C# lines 40-45) */

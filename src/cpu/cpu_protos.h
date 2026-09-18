@@ -18,9 +18,9 @@
  * only the printing is gated. */
 int nd500x_traplog(void);
 #define ND500X_TRAPLOG(...)                                    \
-	do {                                                       \
-		if (nd500x_traplog()) fprintf(stderr, __VA_ARGS__);    \
-	} while (0)
+    do {                                                       \
+        if (nd500x_traplog()) fprintf(stderr, __VA_ARGS__);    \
+    } while (0)
 
 /* Maximum operands in decoded instruction struct.
  * Variable-operand instructions (CALL/CALLG/POLY) can have 2 fixed + 255 variable = 257 operands.
@@ -60,264 +60,264 @@ typedef struct Nd500OperandDecoded {
 } Nd500OperandDecoded;
 
 typedef struct Nd500Cpu {
-	/* Core registers */
-	uint32_t PC;
-	/* Integer */
-	uint32_t I[4];
-	/* Float accumulators and extensions */
-	uint32_t A[4];
-	uint32_t E[4];
-	/* Addressing registers */
-	uint32_t L; /* link */
-	uint32_t B; /* base */
-	uint32_t R; /* record */
-	/* Special */
-	uint32_t TOS, LL, HL, THA;
-	/* Control */
-	uint32_t OTE1, OTE2, CTE1, CTE2, MTE1, MTE2, TEMM1, TEMM2;
-	/* Status registers (64-bit split into two 32-bit registers) */
-	uint32_t ST1, ST2;  /* Status register (64-bit) */
-	/* Flags (simplified status) */
-	uint32_t FLAGS;
-	/* MMU registers */
-	uint32_t PSTP;      /* Physical Segment Table Pointer */
-	uint32_t DITBASE;   /* Domain Information Table Base */
-	uint32_t CED;       /* Current Executing Domain */
-	uint32_t CAD;       /* Current Alternative Domain */
-	uint32_t PS;        /* Process Segment */
+    /* Core registers */
+    uint32_t PC;
+    /* Integer */
+    uint32_t I[4];
+    /* Float accumulators and extensions */
+    uint32_t A[4];
+    uint32_t E[4];
+    /* Addressing registers */
+    uint32_t L; /* link */
+    uint32_t B; /* base */
+    uint32_t R; /* record */
+    /* Special */
+    uint32_t TOS, LL, HL, THA;
+    /* Control */
+    uint32_t OTE1, OTE2, CTE1, CTE2, MTE1, MTE2, TEMM1, TEMM2;
+    /* Status registers (64-bit split into two 32-bit registers) */
+    uint32_t ST1, ST2;  /* Status register (64-bit) */
+    /* Flags (simplified status) */
+    uint32_t FLAGS;
+    /* MMU registers */
+    uint32_t PSTP;      /* Physical Segment Table Pointer */
+    uint32_t DITBASE;   /* Domain Information Table Base */
+    uint32_t CED;       /* Current Executing Domain */
+    uint32_t CAD;       /* Current Alternative Domain */
+    uint32_t PS;        /* Process Segment */
 
-	/* Domain allocation tracking (like C# domainsInUse[]) */
-	uint8_t domains_in_use[256];  /* 0=free, 1=allocated. Domain 0 always in use (kernel) */
+    /* Domain allocation tracking (like C# domainsInUse[]) */
+    uint8_t domains_in_use[256];  /* 0=free, 1=allocated. Domain 0 always in use (kernel) */
 
-	/* Symbol domain (for debugger symbol lookup - separate from CED/CAD) */
-	uint8_t symbol_domain;
+    /* Symbol domain (for debugger symbol lookup - separate from CED/CAD) */
+    uint8_t symbol_domain;
 
-	/* CALL/ENT handshake state (internal CPU state not visible to programs) */
-	/* Set by invoke_trap_handler, cleared by the handler's ENTT once it has
-	 * copied the trap context into the guest-memory trap frame.
-	 *
-	 * Nesting is ONLY unsafe in that window. ENTT writes 48 context fields to
-	 * the frame at THA and RETT reads them back, so once ENTT has run, level N's
-	 * state lives in guest memory and the emulator's single-level trap_saved_*
-	 * fields are free to be reused by a deeper trap. NDIX is built for exactly
-	 * this - it keeps per-level context blocks and computes
-	 * THA = _u + U_CXB0 + traplevel*496.
-	 *
-	 * Blocking dispatch for the WHOLE handler (the old use of in_trap_handler)
-	 * made any fault inside a handler a hard halt, which is what stopped PRT:
-	 * psig() legitimately touches the _Udata window and page-faults. */
-	uint32_t trap_dispatch_pending;
+    /* CALL/ENT handshake state (internal CPU state not visible to programs) */
+    /* Set by invoke_trap_handler, cleared by the handler's ENTT once it has
+     * copied the trap context into the guest-memory trap frame.
+     *
+     * Nesting is ONLY unsafe in that window. ENTT writes 48 context fields to
+     * the frame at THA and RETT reads them back, so once ENTT has run, level N's
+     * state lives in guest memory and the emulator's single-level trap_saved_*
+     * fields are free to be reused by a deeper trap. NDIX is built for exactly
+     * this - it keeps per-level context blocks and computes
+     * THA = _u + U_CXB0 + traplevel*496.
+     *
+     * Blocking dispatch for the WHOLE handler (the old use of in_trap_handler)
+     * made any fault inside a handler a hard halt, which is what stopped PRT:
+     * psig() legitimately touches the _Udata window and page-faults. */
+    uint32_t trap_dispatch_pending;
 
-	uint32_t pending_call_return_address;  /* Return address from CALL to pass to ENT */
-	uint32_t pending_call_arg_count;       /* Number of arguments from CALL */
-	uint32_t pending_call_arg_addresses[256]; /* Effective addresses of arguments */
+    uint32_t pending_call_return_address;  /* Return address from CALL to pass to ENT */
+    uint32_t pending_call_arg_count;       /* Number of arguments from CALL */
+    uint32_t pending_call_arg_addresses[256]; /* Effective addresses of arguments */
 
-	/* Trap handler state (for ENTT/RETT) */
-	bool in_trap_handler;           /* True while executing trap handler */
-	uint32_t trap_saved_PC;         /* Trapping P: address of the instruction that trapped (frame arg1) */
-	uint32_t trap_resume_PC;        /* P to resume at after RETT (frame arg2): equals trap_saved_PC
-	                                 * for Before/During-class traps (retry), but the NEXT instruction
-	                                 * for After-class traps (manual ND-05.009.4 Table 10 + page 79) */
-	uint32_t trap_saved_OTE1;       /* Saved OTE1 for restoration by RETT */
-	uint32_t trap_saved_OTE2;       /* Saved OTE2 for restoration by RETT */
-	int trap_number;                /* Current trap being handled (bit position) */
+    /* Trap handler state (for ENTT/RETT) */
+    bool in_trap_handler;           /* True while executing trap handler */
+    uint32_t trap_saved_PC;         /* Trapping P: address of the instruction that trapped (frame arg1) */
+    uint32_t trap_resume_PC;        /* P to resume at after RETT (frame arg2): equals trap_saved_PC
+                                     * for Before/During-class traps (retry), but the NEXT instruction
+                                     * for After-class traps (manual ND-05.009.4 Table 10 + page 79) */
+    uint32_t trap_saved_OTE1;       /* Saved OTE1 for restoration by RETT */
+    uint32_t trap_saved_OTE2;       /* Saved OTE2 for restoration by RETT */
+    int trap_number;                /* Current trap being handled (bit position) */
 
-	/* Saved CALL/ENT* sequence-interlock state across a trap-and-restart.
-	 * The "an ENT* must be preceded by CALL/CALLG" precondition is a REAL hardware
-	 * interlock (microword C,SEQ / INVSEQ; MICRO-5800-B30 CALL @000646, CALLG @000652
-	 * set it; ENTD @000660 -> INS_SEQ_ERR @003141 reads IDU,STS). The sequence state
-	 * lives in the IDU status, which is part of the trap-saved context (ENTT1 @014042
-	 * carries C,SEQ). So when a CALL's callee ENT* page-faults, the pending-call state
-	 * must be SAVED here on dispatch and RESTORED by RETT - otherwise the kernel
-	 * handler's own CALL/ENT* pairs clear the naked pending_call_* fields and the
-	 * resumed ENTS sees pending_call_return_address == 0 and raises a FALSE ISE.
-	 *
-	 * ONE SLOT IS NOT ENOUGH. Traps nest: a page fault during a callee's ENT*
-	 * saves the interlock, and then the kernel's page-fault handler takes its own
-	 * page fault. With a single slot the inner dispatch overwrote it with the
-	 * already-cleared live value, so the outer RETT restored 0 and the resumed
-	 * ENT* raised a FALSE ISE anyway. MEASURED 2026-07-30: 14 such nested
-	 * discards in one ordinary NDIX boot (all trap 38, all CED 0); vi is simply
-	 * the first program demand-paged heavily enough to land the resume on an
-	 * actual ENT* and die with "Memory fault - core dumped".
-	 *
-	 * So each handler ENTT pushes its own entry, keyed by the trap frame address
-	 * (THA+256) it builds. The key is NOT the resume PC: the kernel rewrites that
-	 * (machine/trap.c:430 and :472 set ap->cx_p = &fuerror when pagein() fails).
-	 * A pop searches newest-first for its key; on a hit it restores that entry and
-	 * drops everything above it, which is what makes an ABANDONED frame harmless -
-	 * a process killed by SIGSEGV never returns from its handler, and a plain depth
-	 * counter would drift upward forever on exactly the failure this fixes. The
-	 * ring evicts oldest-first so the depth is bounded whatever the guest does.
-	 *
-	 * THE POP IS NOT (ONLY) IN RETT. NDIX never executes RETT for kernel traps -
-	 * machine/locore.c trapex returns with `lregbl $CNTXMASK,r3` (see the note in
-	 * SYSTEM/Lregbl.c), so an lregbl that reloads P while a handler is active IS
-	 * the trap return and pops the newest entry. MEASURED 2026-07-30 before this
-	 * was wired up: 132 pushes and 0 pops in one boot, ring permanently saturated,
-	 * every interlock lost - which is why vi died with "Memory fault - core dumped"
-	 * on a false ISE after a page fault on its own ENTS at 0x0000FC15.
-	 *
-	 * RetroCore CpuND500.Trap.cs carries the identical structure and policy -
-	 * these two must not diverge. */
+    /* Saved CALL/ENT* sequence-interlock state across a trap-and-restart.
+     * The "an ENT* must be preceded by CALL/CALLG" precondition is a REAL hardware
+     * interlock (microword C,SEQ / INVSEQ; MICRO-5800-B30 CALL @000646, CALLG @000652
+     * set it; ENTD @000660 -> INS_SEQ_ERR @003141 reads IDU,STS). The sequence state
+     * lives in the IDU status, which is part of the trap-saved context (ENTT1 @014042
+     * carries C,SEQ). So when a CALL's callee ENT* page-faults, the pending-call state
+     * must be SAVED here on dispatch and RESTORED by RETT - otherwise the kernel
+     * handler's own CALL/ENT* pairs clear the naked pending_call_* fields and the
+     * resumed ENTS sees pending_call_return_address == 0 and raises a FALSE ISE.
+     *
+     * ONE SLOT IS NOT ENOUGH. Traps nest: a page fault during a callee's ENT*
+     * saves the interlock, and then the kernel's page-fault handler takes its own
+     * page fault. With a single slot the inner dispatch overwrote it with the
+     * already-cleared live value, so the outer RETT restored 0 and the resumed
+     * ENT* raised a FALSE ISE anyway. MEASURED 2026-07-30: 14 such nested
+     * discards in one ordinary NDIX boot (all trap 38, all CED 0); vi is simply
+     * the first program demand-paged heavily enough to land the resume on an
+     * actual ENT* and die with "Memory fault - core dumped".
+     *
+     * So each handler ENTT pushes its own entry, keyed by the trap frame address
+     * (THA+256) it builds. The key is NOT the resume PC: the kernel rewrites that
+     * (machine/trap.c:430 and :472 set ap->cx_p = &fuerror when pagein() fails).
+     * A pop searches newest-first for its key; on a hit it restores that entry and
+     * drops everything above it, which is what makes an ABANDONED frame harmless -
+     * a process killed by SIGSEGV never returns from its handler, and a plain depth
+     * counter would drift upward forever on exactly the failure this fixes. The
+     * ring evicts oldest-first so the depth is bounded whatever the guest does.
+     *
+     * THE POP IS NOT (ONLY) IN RETT. NDIX never executes RETT for kernel traps -
+     * machine/locore.c trapex returns with `lregbl $CNTXMASK,r3` (see the note in
+     * SYSTEM/Lregbl.c), so an lregbl that reloads P while a handler is active IS
+     * the trap return and pops the newest entry. MEASURED 2026-07-30 before this
+     * was wired up: 132 pushes and 0 pops in one boot, ring permanently saturated,
+     * every interlock lost - which is why vi died with "Memory fault - core dumped"
+     * on a false ISE after a page fault on its own ENTS at 0x0000FC15.
+     *
+     * RetroCore CpuND500.Trap.cs carries the identical structure and policy -
+     * these two must not diverge. */
 #define TRAP_SEQ_RING   16      /* nesting depth kept; oldest evicted beyond it */
 #define TRAP_SEQ_MAXARG 256     /* matches pending_call_arg_addresses */
-	struct {
-		uint32_t frame_base;    /* key: trap frame address (THA+256) ENTT built */
-		uint32_t return_address;
-		uint32_t arg_count;
-		uint32_t arg_addresses[TRAP_SEQ_MAXARG];
-	} trap_seq[TRAP_SEQ_RING];
-	uint32_t trap_seq_head;     /* index one past the newest entry, mod TRAP_SEQ_RING */
-	uint32_t trap_seq_count;    /* live entries, <= TRAP_SEQ_RING */
-	/* Cross-domain (mother-domain) trap dispatch state. When a trap in a child
-	 * domain is handled by a mother domain (manual 4.2.5.3 / ch.6), raise_trap
-	 * switches live CED/CAD to the handler domain and stashes the TRAPPING
-	 * domain's CED/CAD here so ENTT saves them into the register block and RETT
-	 * returns to the trapping domain. trap_cross_domain=0 for same-domain traps
-	 * (unchanged single-domain SINTRAN behaviour). */
-	uint32_t trap_saved_CED;        /* Trapping domain's CED (for ENTT reg-block arg25) */
-	uint32_t trap_saved_CAD;        /* Trapping domain's CAD (for ENTT reg-block arg26) */
-	int trap_cross_domain;          /* 1 if the current trap switched domains */
-	/* Faulting logical address + info for the current trap. On a trap the ND-500
-	 * microcode places the faulting address in the ENTT frame heading N field
-	 * (B+16) and the fault info in AUX (B+12); NDIX's entrap copies them to
-	 * cx_vaddr/cx_info and pagein() uses cx_vaddr. Saved here by raise_trap so ENTT
-	 * can write them (previously ENTT wrote the literal arg count 50 = 0x32 at B+16,
-	 * so pagein faulted address 0x32 and never mapped the real page). Placed at the
-	 * struct tail so adding them does not shift any earlier field's offset. */
-	uint32_t trap_saved_fault_addr;
-	uint32_t trap_saved_info;
-	/* MMU fault-location code (MMWHERE nibble, plus MMINST 0x40 for an I-channel
-	 * access) for the CURRENT fault, set by the MMU walk just before it calls
-	 * trap_page_fault() or trap_protect_violation(). Values are the MMW_* defines
-	 * in nd500_mmu.h. raise_trap copies it into trap_saved_info -> cx_info, which
-	 * the NDIX kernel branches on (machine/trap.c): the PGF handler services only
-	 * PFZ2, and both protect-violation handlers attempt pagein() only for
-	 * PVWVIOL with MMINST clear. For a page fault, 0 => default PFZ2. */
-	uint32_t mmu_pgf_where;
+    struct {
+        uint32_t frame_base;    /* key: trap frame address (THA+256) ENTT built */
+        uint32_t return_address;
+        uint32_t arg_count;
+        uint32_t arg_addresses[TRAP_SEQ_MAXARG];
+    } trap_seq[TRAP_SEQ_RING];
+    uint32_t trap_seq_head;     /* index one past the newest entry, mod TRAP_SEQ_RING */
+    uint32_t trap_seq_count;    /* live entries, <= TRAP_SEQ_RING */
+    /* Cross-domain (mother-domain) trap dispatch state. When a trap in a child
+     * domain is handled by a mother domain (manual 4.2.5.3 / ch.6), raise_trap
+     * switches live CED/CAD to the handler domain and stashes the TRAPPING
+     * domain's CED/CAD here so ENTT saves them into the register block and RETT
+     * returns to the trapping domain. trap_cross_domain=0 for same-domain traps
+     * (unchanged single-domain SINTRAN behaviour). */
+    uint32_t trap_saved_CED;        /* Trapping domain's CED (for ENTT reg-block arg25) */
+    uint32_t trap_saved_CAD;        /* Trapping domain's CAD (for ENTT reg-block arg26) */
+    int trap_cross_domain;          /* 1 if the current trap switched domains */
+    /* Faulting logical address + info for the current trap. On a trap the ND-500
+     * microcode places the faulting address in the ENTT frame heading N field
+     * (B+16) and the fault info in AUX (B+12); NDIX's entrap copies them to
+     * cx_vaddr/cx_info and pagein() uses cx_vaddr. Saved here by raise_trap so ENTT
+     * can write them (previously ENTT wrote the literal arg count 50 = 0x32 at B+16,
+     * so pagein faulted address 0x32 and never mapped the real page). Placed at the
+     * struct tail so adding them does not shift any earlier field's offset. */
+    uint32_t trap_saved_fault_addr;
+    uint32_t trap_saved_info;
+    /* MMU fault-location code (MMWHERE nibble, plus MMINST 0x40 for an I-channel
+     * access) for the CURRENT fault, set by the MMU walk just before it calls
+     * trap_page_fault() or trap_protect_violation(). Values are the MMW_* defines
+     * in nd500_mmu.h. raise_trap copies it into trap_saved_info -> cx_info, which
+     * the NDIX kernel branches on (machine/trap.c): the PGF handler services only
+     * PFZ2, and both protect-violation handlers attempt pagein() only for
+     * PVWVIOL with MMINST clear. For a page fault, 0 => default PFZ2. */
+    uint32_t mmu_pgf_where;
 
-	/* Per-generic-device interrupt priority, captured from the FE_IDEV command
-	 * packet (machine/if.h: every _idev_cpk variant begins with "short ipl") and
-	 * used when that device's completion interrupt is delivered. Indexed by
-	 * generic device number; 0 = never connected, use the default. Without it
-	 * every completion went out at IPL_DK - see fe_deliver's caller. */
-	uint8_t fe_dev_ipl[16];
+    /* Per-generic-device interrupt priority, captured from the FE_IDEV command
+     * packet (machine/if.h: every _idev_cpk variant begins with "short ipl") and
+     * used when that device's completion interrupt is delivered. Indexed by
+     * generic device number; 0 = never connected, use the default. Without it
+     * every completion went out at IPL_DK - see fe_deliver's caller. */
+    uint8_t fe_dev_ipl[16];
 
-	/* Variable operand buffer for CALL/CALLG/POLY (all operands including fixed) */
-	Nd500OperandDecoded extra_operands[ND500_MAX_OPERANDS];
-	uint16_t extra_operand_count;
+    /* Variable operand buffer for CALL/CALLG/POLY (all operands including fixed) */
+    Nd500OperandDecoded extra_operands[ND500_MAX_OPERANDS];
+    uint16_t extra_operand_count;
 
-	/* ND-100 I/O Processor Bridge Configuration */
-	uint32_t nd100_memory_offset;  /* Physical memory offset for ND-100 memory (default: 0x40000) */
+    /* ND-100 I/O Processor Bridge Configuration */
+    uint32_t nd100_memory_offset;  /* Physical memory offset for ND-100 memory (default: 0x40000) */
 
-	/* Instruction counter for TIME MON call (MON 11B) */
-	uint64_t instruction_count;  /* Total instructions executed since startup */
+    /* Instruction counter for TIME MON call (MON 11B) */
+    uint64_t instruction_count;  /* Total instructions executed since startup */
 
-	/* SOLO / TUTTI (manual ND-05.009.4 ch.16.1-16.2, section 6.5.4).
-	 *
-	 * SOLO sets PSD (ST1 bit 4) to make the instructions up to the next TUTTI
-	 * an indivisible sequence; TUTTI clears it. Held for too long, that is a
-	 * Disable process switch Timeout (DT, bit 30).
-	 *
-	 * The limit is "256 micro-cycles" on the ND-500/2, but the manual is
-	 * explicit that "In the ND-5000 implementation these are macroinstruction
-	 * cycles" (ch.16.1), and the ND-5000 is what this emulates - so the count
-	 * is of executed instructions, which is a thing this CPU actually has.
-	 *
-	 * Equally explicit, same paragraph: "In privilege mode there is no
-	 * limitation to the duration of a SOLO operation. Unprivileged users are
-	 * not allowed to run in SOLO for more than 256 cycles." The timeout is
-	 * therefore only ever armed for unprivileged code - which is why NDIX,
-	 * whose kernel sits in SOLO around context switches and interrupt entry
-	 * (machine/locore.c:508, :737), is not affected. */
-	uint64_t solo_start_icount;  /* instruction_count when SOLO set PSD */
+    /* SOLO / TUTTI (manual ND-05.009.4 ch.16.1-16.2, section 6.5.4).
+     *
+     * SOLO sets PSD (ST1 bit 4) to make the instructions up to the next TUTTI
+     * an indivisible sequence; TUTTI clears it. Held for too long, that is a
+     * Disable process switch Timeout (DT, bit 30).
+     *
+     * The limit is "256 micro-cycles" on the ND-500/2, but the manual is
+     * explicit that "In the ND-5000 implementation these are macroinstruction
+     * cycles" (ch.16.1), and the ND-5000 is what this emulates - so the count
+     * is of executed instructions, which is a thing this CPU actually has.
+     *
+     * Equally explicit, same paragraph: "In privilege mode there is no
+     * limitation to the duration of a SOLO operation. Unprivileged users are
+     * not allowed to run in SOLO for more than 256 cycles." The timeout is
+     * therefore only ever armed for unprivileged code - which is why NDIX,
+     * whose kernel sits in SOLO around context switches and interrupt entry
+     * (machine/locore.c:508, :737), is not affected. */
+    uint64_t solo_start_icount;  /* instruction_count when SOLO set PSD */
 
-	/* Start PC of the instruction currently being executed (= old_pc in
-	 * cpu_step, set BEFORE the pre-execute PC advance). A page fault must
-	 * restart the FAULTING instruction, but cpu->PC is already advanced to
-	 * the next instruction during execute; raise_trap uses this for the
-	 * restartable-fault (PGF) saved PC so the instruction re-executes. */
-	uint32_t cur_instr_pc;
+    /* Start PC of the instruction currently being executed (= old_pc in
+     * cpu_step, set BEFORE the pre-execute PC advance). A page fault must
+     * restart the FAULTING instruction, but cpu->PC is already advanced to
+     * the next instruction during execute; raise_trap uses this for the
+     * restartable-fault (PGF) saved PC so the instruction re-executes. */
+    uint32_t cur_instr_pc;
 
-	/* P1 - the TRAPPING P register: the address of the instruction that caused
-	 * the most recent trap.
-	 *
-	 * The ND-500/5000 keeps TWO program registers. P is the restart address and
-	 * runs AHEAD of the fault (the fetch advances it, and also decodes operands,
-	 * before the instruction executes). P1 holds the instruction that failed.
-	 *
-	 * This is how the machine is documented and operated, not an emulator
-	 * convenience. ND-05.017.01 "ND-5000 HARDWARE MAINTENANCE" chapter 6 STEP 2
-	 * has the engineer find a failing instruction like this:
-	 *
-	 *     N500: ATTACH-PROCESS 0
-	 *     N500: LOOK-AT-REGISTER P
-	 *     P  : XXXXXXXXXX
-	 *     P1 : XXXXXXXXXX:<Failing instruction>
-	 *
-	 * ND annotate P1 as the failing instruction; P is NOT. The whole of STEP 2
-	 * exists because the address printed in a trap report (which is P) does not
-	 * identify the instruction. Same pair as the context block's "Trapping P
-	 * register" / "Restart P register" (Appendix A.1, registers 0 and 1).
-	 *
-	 * Worked example, measured 2026-08-03: a SINTRAN swapper trap reported
-	 * "At program address: 1 10533B" (= P = 0o1000010533) while the instruction
-	 * that actually faulted was the RPHS at 0o1000010525 - three instructions
-	 * earlier. Recovering that by hand took days; reading P1 is immediate.
-	 *
-	 * Latched on EVERY trap in raise_trap, unlike the PGF/PV-only restart
-	 * correction below, so a handler always sees the trap it was entered for.
-	 * Mirrored from RetroCore Registers.cs / CpuND500.Trap.cs 2026-08-03. */
-	uint32_t P1;
+    /* P1 - the TRAPPING P register: the address of the instruction that caused
+     * the most recent trap.
+     *
+     * The ND-500/5000 keeps TWO program registers. P is the restart address and
+     * runs AHEAD of the fault (the fetch advances it, and also decodes operands,
+     * before the instruction executes). P1 holds the instruction that failed.
+     *
+     * This is how the machine is documented and operated, not an emulator
+     * convenience. ND-05.017.01 "ND-5000 HARDWARE MAINTENANCE" chapter 6 STEP 2
+     * has the engineer find a failing instruction like this:
+     *
+     *     N500: ATTACH-PROCESS 0
+     *     N500: LOOK-AT-REGISTER P
+     *     P  : XXXXXXXXXX
+     *     P1 : XXXXXXXXXX:<Failing instruction>
+     *
+     * ND annotate P1 as the failing instruction; P is NOT. The whole of STEP 2
+     * exists because the address printed in a trap report (which is P) does not
+     * identify the instruction. Same pair as the context block's "Trapping P
+     * register" / "Restart P register" (Appendix A.1, registers 0 and 1).
+     *
+     * Worked example, measured 2026-08-03: a SINTRAN swapper trap reported
+     * "At program address: 1 10533B" (= P = 0o1000010533) while the instruction
+     * that actually faulted was the RPHS at 0o1000010525 - three instructions
+     * earlier. Recovering that by hand took days; reading P1 is immediate.
+     *
+     * Latched on EVERY trap in raise_trap, unlike the PGF/PV-only restart
+     * correction below, so a handler always sees the trap it was entered for.
+     * Mirrored from RetroCore Registers.cs / CpuND500.Trap.cs 2026-08-03. */
+    uint32_t P1;
 
-	/* Pending ND-100 front-end (fecall) completion interrupt. An async FE_READ/
-	 * FE_WRIT/FE_DCTL fills its response packet immediately but the kernel blocks
-	 * in biowait() until a completion INTERRUPT drives diintr()->iodone(). The
-	 * fecall handler sets these; cpu_step delivers the interrupt (vector to
-	 * _intvec) at the next safe boundary once the CPU drops below IPL_DK. */
-	/* Pending front-end completion interrupts.
-	 *
-	 * This was ONE slot - a flag plus gen/sub/rpk. Any completion raised while
-	 * another was still waiting to be delivered simply overwrote it, and the
-	 * first one was never seen by the guest. That is not theoretical: it is
-	 * why an async terminal open (a hard-carrier line, io/mx.c:334) never woke
-	 * up. The open's completion was raised during a busy part of boot, a disk
-	 * or clock completion landed on top of it, and the driver slept for ever
-	 * in mxopen() waiting for a carrier report that had been thrown away.
-	 *
-	 * A small ring keeps them all. Eight is well clear of what is ever in
-	 * flight - completions are delivered at the next instruction boundary, so
-	 * the queue drains almost as fast as it fills. */
+    /* Pending ND-100 front-end (fecall) completion interrupt. An async FE_READ/
+     * FE_WRIT/FE_DCTL fills its response packet immediately but the kernel blocks
+     * in biowait() until a completion INTERRUPT drives diintr()->iodone(). The
+     * fecall handler sets these; cpu_step delivers the interrupt (vector to
+     * _intvec) at the next safe boundary once the CPU drops below IPL_DK. */
+    /* Pending front-end completion interrupts.
+     *
+     * This was ONE slot - a flag plus gen/sub/rpk. Any completion raised while
+     * another was still waiting to be delivered simply overwrote it, and the
+     * first one was never seen by the guest. That is not theoretical: it is
+     * why an async terminal open (a hard-carrier line, io/mx.c:334) never woke
+     * up. The open's completion was raised during a busy part of boot, a disk
+     * or clock completion landed on top of it, and the driver slept for ever
+     * in mxopen() waiting for a carrier report that had been thrown away.
+     *
+     * A small ring keeps them all. Eight is well clear of what is ever in
+     * flight - completions are delivered at the next instruction boundary, so
+     * the queue drains almost as fast as it fills. */
 #define FE_INT_QUEUE_SIZE 8
-	struct {
-		uint32_t gen;   /* generic device (DISK=1) */
-		uint32_t sub;   /* sub-device */
-		uint32_t rpk;   /* response-packet ND-100 word address */
-	} fe_int_q[FE_INT_QUEUE_SIZE];
-	unsigned fe_int_head;   /* next slot to deliver */
-	unsigned fe_int_count;  /* how many are queued */
-	unsigned fe_int_lost;   /* completions dropped because the ring was full */
+    struct {
+        uint32_t gen;   /* generic device (DISK=1) */
+        uint32_t sub;   /* sub-device */
+        uint32_t rpk;   /* response-packet ND-100 word address */
+    } fe_int_q[FE_INT_QUEUE_SIZE];
+    unsigned fe_int_head;   /* next slot to deliver */
+    unsigned fe_int_count;  /* how many are queued */
+    unsigned fe_int_lost;   /* completions dropped because the ring was full */
 
-	/* Set by raise_trap when a trap fires MID-instruction; cleared by cpu_step
-	 * before each execute. Instruction implementations must check it after any
-	 * operand memory access and ABORT (no destination commit) when set: the
-	 * trap restarts the instruction, so committing a result computed from the
-	 * faulted (garbage) read corrupts restart state. (invoke_trap_handler
-	 * clears the global trap state synchronously, so nd500_trap_occurred() is
-	 * already 0 back in the instruction - this flag is the reliable signal.) */
-	uint32_t instr_aborted;
+    /* Set by raise_trap when a trap fires MID-instruction; cleared by cpu_step
+     * before each execute. Instruction implementations must check it after any
+     * operand memory access and ABORT (no destination commit) when set: the
+     * trap restarts the instruction, so committing a result computed from the
+     * faulted (garbage) read corrupts restart state. (invoke_trap_handler
+     * clears the global trap state synchronously, so nd500_trap_occurred() is
+     * already 0 back in the instruction - this flag is the reliable signal.) */
+    uint32_t instr_aborted;
 
-	/* 1 while nd500_execute_decoded runs the current instruction; 0 during
-	 * instruction fetch/decode. Lets raise_trap tell an instruction-FETCH
-	 * page fault (restart at the fetch address, since cur_instr_pc still
-	 * names the previous instruction) from a mid-EXECUTE program-space read
-	 * fault such as CALL's entry-point check (restart at the instruction
-	 * itself, or the restarted CALL resumes at its TARGET and the ENTS
-	 * faults with "no preceding CALL"). */
-	uint32_t in_execute;
+    /* 1 while nd500_execute_decoded runs the current instruction; 0 during
+     * instruction fetch/decode. Lets raise_trap tell an instruction-FETCH
+     * page fault (restart at the fetch address, since cur_instr_pc still
+     * names the previous instruction) from a mid-EXECUTE program-space read
+     * fault such as CALL's entry-point check (restart at the instruction
+     * itself, or the restarted CALL resumes at its TARGET and the ENTS
+     * faults with "no preceding CALL"). */
+    uint32_t in_execute;
 
-	Nd500Machine* machine;
+    Nd500Machine* machine;
 } Nd500Cpu;
 
 /* ND-500 Trap System Definitions */
@@ -441,16 +441,16 @@ typedef struct {
 extern Nd500TrapState g_trap_state;
 
 typedef struct Nd500Regs {
-	uint32_t PC;
-	uint32_t FLAGS;
-	uint32_t I[4];
-	uint32_t A[4];
-	uint32_t E[4];
-	uint32_t L, B, R;
-	uint32_t TOS, LL, HL, THA;
-	uint32_t OTE1, OTE2, CTE1, CTE2, MTE1, MTE2, TEMM1, TEMM2;
-	uint32_t ST1, ST2;  /* Status registers (64-bit) */
-	uint32_t PSTP, DITBASE, CED, CAD, PS;  /* MMU registers */
+    uint32_t PC;
+    uint32_t FLAGS;
+    uint32_t I[4];
+    uint32_t A[4];
+    uint32_t E[4];
+    uint32_t L, B, R;
+    uint32_t TOS, LL, HL, THA;
+    uint32_t OTE1, OTE2, CTE1, CTE2, MTE1, MTE2, TEMM1, TEMM2;
+    uint32_t ST1, ST2;  /* Status registers (64-bit) */
+    uint32_t PSTP, DITBASE, CED, CAD, PS;  /* MMU registers */
 } Nd500Regs;
 
 void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine);

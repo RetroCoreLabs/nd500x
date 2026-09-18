@@ -55,7 +55,7 @@ void nd500_instr_Pcc(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * and on to CLR_IC, with no PIA test anywhere in the path.
      *
      * Found by the sweep prompted by the same bug in TUTTI: a guard that came
-     * from the C# port rather than from any source. 
+     * from the C# port rather than from any source.
      */
 
     /* EMULATOR NO-OP: Program cache clear is not implemented in emulator */

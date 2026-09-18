@@ -18,16 +18,16 @@ void ndlib_color_init(int ansi_flag) {
         use_color = false;
         return;
     }
-    
+
     /* Auto-detect: check if stdout is a TTY and terminal supports ANSI */
     const char *term = getenv("TERM");
     bool term_supports_ansi = false;
-    
+
     if (term) {
         /* Check for common terminal types that support ANSI escape codes */
-        if (strstr(term, "xterm") || 
-            strstr(term, "ansi") || 
-            strstr(term, "vt100") || 
+        if (strstr(term, "xterm") ||
+            strstr(term, "ansi") ||
+            strstr(term, "vt100") ||
             strstr(term, "rxvt") ||
             strstr(term, "screen") ||
             strstr(term, "tmux") ||
@@ -36,7 +36,7 @@ void ndlib_color_init(int ansi_flag) {
             term_supports_ansi = true;
         }
     }
-    
+
     /* Enable color only if both TTY and ANSI-capable terminal */
     use_color = isatty(STDOUT_FILENO) && term_supports_ansi;
 }

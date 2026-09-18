@@ -7,15 +7,15 @@
 
 /**
  * Int instruction - SYSTEM class
- * 
+ *
  * Variants: 8
  * Mnemonics: int (F1-F4, D1-D4)
  * Operands: 1
- * 
+ *
  * Opcodes:
  *   0xFE60-0xFE63 (int) - F1-F4 INT (float integer part)
  *   0xFE64-0xFE67 (int) - D1-D4 INT (double integer part)
- * 
+ *
  * Calculates truncated integer part of float/double and loads result
  * into register in float/double format (not integer format).
  */
@@ -30,7 +30,7 @@ void nd500_instr_Int(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Determine if float or double from opcode */
     bool is_double = (fi->opcode >= 0xFE64 && fi->opcode <= 0xFE67);
     uint8_t reg_num = fi->target_register;
-    
+
     if (reg_num < 1 || reg_num > 4) {
         printf("[ERROR] INT at PC=0x%08X: Invalid register %u\n",
                fi->address, reg_num);

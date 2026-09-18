@@ -27,21 +27,21 @@ TlbEntry g_nd500_tlb[ND500_TLB_SIZE];
 int      g_nd500_tlb_init = 0;
 
 void nd500_mmu_tlb_flush(void) {
-	if (!g_nd500_tlb_init) return;
-	g_tlb_flushes++;
-	for (uint32_t i = 0; i < ND500_TLB_SIZE; i++)
-		g_nd500_tlb[i].tag = ND500_TLB_EMPTY;
+    if (!g_nd500_tlb_init) return;
+    g_tlb_flushes++;
+    for (uint32_t i = 0; i < ND500_TLB_SIZE; i++)
+        g_nd500_tlb[i].tag = ND500_TLB_EMPTY;
 }
 
 void nd500_mmu_tlb_init_once(void) {
-	if (g_nd500_tlb_init) return;
-	g_nd500_tlb_init = 1;
-	for (uint32_t i = 0; i < ND500_TLB_SIZE; i++)
-		g_nd500_tlb[i].tag = ND500_TLB_EMPTY;
-	g_nd500_tlb_on = nd500_settings()->tlb_enabled;
-	nd500_mmu_tlb_stat_install();
-	if (!g_nd500_tlb_on)
-		printf("ND-500: translation cache DISABLED (ND500X_NOTLB)\n");
+    if (g_nd500_tlb_init) return;
+    g_nd500_tlb_init = 1;
+    for (uint32_t i = 0; i < ND500_TLB_SIZE; i++)
+        g_nd500_tlb[i].tag = ND500_TLB_EMPTY;
+    g_nd500_tlb_on = nd500_settings()->tlb_enabled;
+    nd500_mmu_tlb_stat_install();
+    if (!g_nd500_tlb_on)
+        printf("ND-500: translation cache DISABLED (ND500X_NOTLB)\n");
 }
 
 /* ND500X_TLBSTAT=1: hit/miss/flush counts at exit. A translation cache that
@@ -49,10 +49,10 @@ void nd500_mmu_tlb_init_once(void) {
  * decides whether the design works, not a guess about it. */
 unsigned long long g_tlb_hits, g_tlb_misses, g_tlb_flushes;
 static void tlb_report(void) {
-	if (!nd500_settings()->tlbstat) return;
-	unsigned long long tot = g_tlb_hits + g_tlb_misses;
-	fprintf(stderr, "[TLBSTAT] hits=%llu misses=%llu (%.1f%% hit) flushes=%llu\n",
-	        g_tlb_hits, g_tlb_misses,
-	        tot ? 100.0 * (double)g_tlb_hits / (double)tot : 0.0, g_tlb_flushes);
+    if (!nd500_settings()->tlbstat) return;
+    unsigned long long tot = g_tlb_hits + g_tlb_misses;
+    fprintf(stderr, "[TLBSTAT] hits=%llu misses=%llu (%.1f%% hit) flushes=%llu\n",
+            g_tlb_hits, g_tlb_misses,
+            tot ? 100.0 * (double)g_tlb_hits / (double)tot : 0.0, g_tlb_flushes);
 }
 void nd500_mmu_tlb_stat_install(void) { atexit(tlb_report); }

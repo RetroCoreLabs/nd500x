@@ -25,276 +25,276 @@
 
 /* Output callback for native debugger - prints to stdout */
 static void native_output(const char* line, void* ctx) {
-	(void)ctx; /* Unused */
-	printf("%s\n", line);
+    (void)ctx; /* Unused */
+    printf("%s\n", line);
 }
 
 /* Error callback for native debugger - prints to stderr */
 static void native_error(const char* line, void* ctx) {
-	(void)ctx; /* Unused */
-	fprintf(stderr, "%s\n", line);
+    (void)ctx; /* Unused */
+    fprintf(stderr, "%s\n", line);
 }
 
 #ifdef HAVE_READLINE
 
 /* Command generator for readline completion */
 static char* command_generator(const char* text, int state) {
-	static int list_index, len;
-	static const char** command_list = NULL;
+    static int list_index, len;
+    static const char** command_list = NULL;
 
-	if (!state) {
-		list_index = 0;
-		len = strlen(text);
-		if (!command_list) {
-			command_list = nd500_cmd_get_command_list();
-		}
-	}
+    if (!state) {
+        list_index = 0;
+        len = strlen(text);
+        if (!command_list) {
+            command_list = nd500_cmd_get_command_list();
+        }
+    }
 
-	/* Check line buffer to determine context */
-	char* line = rl_line_buffer;
-	int point = rl_point;
+    /* Check line buffer to determine context */
+    char* line = rl_line_buffer;
+    int point = rl_point;
 
-	/* Find start of current word */
-	int word_start = point;
-	while (word_start > 0 && !isspace(line[word_start - 1])) {
-		word_start--;
-	}
+    /* Find start of current word */
+    int word_start = point;
+    while (word_start > 0 && !isspace(line[word_start - 1])) {
+        word_start--;
+    }
 
-	/* Check if we're completing a subcommand */
-	const char** subcommands = NULL;
-	if (word_start > 0) {
-		/* Extract the first word (command) */
-		char cmd[64];
-		int cmd_len = 0;
-		int i = 0;
-		while (i < word_start && cmd_len < 63) {
-			if (!isspace(line[i])) {
-				cmd[cmd_len++] = line[i];
-			} else if (cmd_len > 0) {
-				break;
-			}
-			i++;
-		}
-		cmd[cmd_len] = '\0';
+    /* Check if we're completing a subcommand */
+    const char** subcommands = NULL;
+    if (word_start > 0) {
+        /* Extract the first word (command) */
+        char cmd[64];
+        int cmd_len = 0;
+        int i = 0;
+        while (i < word_start && cmd_len < 63) {
+            if (!isspace(line[i])) {
+                cmd[cmd_len++] = line[i];
+            } else if (cmd_len > 0) {
+                break;
+            }
+            i++;
+        }
+        cmd[cmd_len] = '\0';
 
-		if (cmd_len > 0) {
-			subcommands = nd500_cmd_get_subcommands(cmd);
-		}
-	}
+        if (cmd_len > 0) {
+            subcommands = nd500_cmd_get_subcommands(cmd);
+        }
+    }
 
-	/* Generate completions from appropriate list */
-	if (subcommands) {
-		while (subcommands[list_index]) {
-			const char* match = subcommands[list_index++];
-			if (len == 0 || strncmp(match, text, len) == 0) {
-				return strdup(match);
-			}
-		}
-	} else {
-		while (command_list && command_list[list_index]) {
-			const char* match = command_list[list_index++];
-			if (len == 0 || strncmp(match, text, len) == 0) {
-				return strdup(match);
-			}
-		}
-	}
+    /* Generate completions from appropriate list */
+    if (subcommands) {
+        while (subcommands[list_index]) {
+            const char* match = subcommands[list_index++];
+            if (len == 0 || strncmp(match, text, len) == 0) {
+                return strdup(match);
+            }
+        }
+    } else {
+        while (command_list && command_list[list_index]) {
+            const char* match = command_list[list_index++];
+            if (len == 0 || strncmp(match, text, len) == 0) {
+                return strdup(match);
+            }
+        }
+    }
 
-	return NULL;
+    return NULL;
 }
 
 /* Completion function for readline */
 static char** command_completion(const char* text, int start, int end) {
-	char** matches = NULL;
-	(void)end; /* Unused */
+    char** matches = NULL;
+    (void)end; /* Unused */
 
-	/* Always suppress filename completion */
-	rl_attempted_completion_over = 1;
+    /* Always suppress filename completion */
+    rl_attempted_completion_over = 1;
 
-	if (start == 0) {
-		/* Completing the first word (command) */
-		matches = rl_completion_matches(text, command_generator);
-	} else {
-		/* Completing subsequent words (subcommands) */
-		matches = rl_completion_matches(text, command_generator);
-	}
+    if (start == 0) {
+        /* Completing the first word (command) */
+        matches = rl_completion_matches(text, command_generator);
+    } else {
+        /* Completing subsequent words (subcommands) */
+        matches = rl_completion_matches(text, command_generator);
+    }
 
-	return matches;
+    return matches;
 }
 
 /* History management */
 static void load_history(void) {
-	char* home = getenv("HOME");
-	if (home) {
-		char history_file[512];
-		snprintf(history_file, sizeof(history_file), "%s/.nd500x_history", home);
+    char* home = getenv("HOME");
+    if (home) {
+        char history_file[512];
+        snprintf(history_file, sizeof(history_file), "%s/.nd500x_history", home);
 
-		/* Load history from file (ignore errors) */
-		read_history(history_file);
-	}
+        /* Load history from file (ignore errors) */
+        read_history(history_file);
+    }
 }
 
 static void save_history(void) {
-	char* home = getenv("HOME");
-	if (home) {
-		char history_file[512];
-		snprintf(history_file, sizeof(history_file), "%s/.nd500x_history", home);
+    char* home = getenv("HOME");
+    if (home) {
+        char history_file[512];
+        snprintf(history_file, sizeof(history_file), "%s/.nd500x_history", home);
 
-		/* Save history to file */
-		write_history(history_file);
-	}
+        /* Save history to file */
+        write_history(history_file);
+    }
 }
 
 /* Execute history command (!!, !nnn, !string) */
 static int execute_history_command(const char* line, char* output, size_t max_len) {
-	if (line[0] == '!') {
-		const char* num_str = line + 1;
+    if (line[0] == '!') {
+        const char* num_str = line + 1;
 
-		/* Handle !! (last command) */
-		if (num_str[0] == '!' && num_str[1] == '\0') {
-			HIST_ENTRY* last = history_get(history_length);
-			if (last) {
-				strncpy(output, last->line, max_len - 1);
-				output[max_len - 1] = '\0';
-				return 1;
-			}
-			return 0;
-		}
+        /* Handle !! (last command) */
+        if (num_str[0] == '!' && num_str[1] == '\0') {
+            HIST_ENTRY* last = history_get(history_length);
+            if (last) {
+                strncpy(output, last->line, max_len - 1);
+                output[max_len - 1] = '\0';
+                return 1;
+            }
+            return 0;
+        }
 
-		/* Handle !nnn (specific history number) */
-		char* end;
-		long num = strtol(num_str, &end, 10);
-		if (end != num_str && *end == '\0' && num > 0) {
-			HIST_ENTRY* entry = history_get(num);
-			if (entry) {
-				strncpy(output, entry->line, max_len - 1);
-				output[max_len - 1] = '\0';
-				return 1;
-			}
-		}
+        /* Handle !nnn (specific history number) */
+        char* end;
+        long num = strtol(num_str, &end, 10);
+        if (end != num_str && *end == '\0' && num > 0) {
+            HIST_ENTRY* entry = history_get(num);
+            if (entry) {
+                strncpy(output, entry->line, max_len - 1);
+                output[max_len - 1] = '\0';
+                return 1;
+            }
+        }
 
-		/* Handle !string (search for command starting with string) */
-		HIST_ENTRY* entry = NULL;
-		for (int i = history_length; i > 0; i--) {
-			HIST_ENTRY* hist_entry = history_get(i);
-			if (hist_entry && strstr(hist_entry->line, num_str) == hist_entry->line) {
-				entry = hist_entry;
-				break;
-			}
-		}
-		if (entry) {
-			strncpy(output, entry->line, max_len - 1);
-			output[max_len - 1] = '\0';
-			return 1;
-		}
+        /* Handle !string (search for command starting with string) */
+        HIST_ENTRY* entry = NULL;
+        for (int i = history_length; i > 0; i--) {
+            HIST_ENTRY* hist_entry = history_get(i);
+            if (hist_entry && strstr(hist_entry->line, num_str) == hist_entry->line) {
+                entry = hist_entry;
+                break;
+            }
+        }
+        if (entry) {
+            strncpy(output, entry->line, max_len - 1);
+            output[max_len - 1] = '\0';
+            return 1;
+        }
 
-		return 0;
-	}
-	return 0;
+        return 0;
+    }
+    return 0;
 }
 
 /* Read line with readline and tab completion */
 static int read_line_with_completion(char* line, size_t max_len, uint32_t pc, int quiet) {
-	/* The PC prompt belongs to the DEBUGGER. When the line we are about to read
-	 * is destined for the guest console (--ndix / ND500X_CONSOLE_STDIN with the
-	 * machine running), printing it interleaves emulator state with NDIX's own
-	 * output - you get "[0000080C] root" in the middle of a login session. The
-	 * prompt used to be unconditional because it is emitted BEFORE the line is
-	 * read, and the guest-vs-debugger decision is only made afterwards; quiet
-	 * lets the caller say up front where the line is going. */
-	char prompt[64];
-	if (quiet)
-		prompt[0] = '\0';
-	else
-		snprintf(prompt, sizeof(prompt), "\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
+    /* The PC prompt belongs to the DEBUGGER. When the line we are about to read
+     * is destined for the guest console (--ndix / ND500X_CONSOLE_STDIN with the
+     * machine running), printing it interleaves emulator state with NDIX's own
+     * output - you get "[0000080C] root" in the middle of a login session. The
+     * prompt used to be unconditional because it is emitted BEFORE the line is
+     * read, and the guest-vs-debugger decision is only made afterwards; quiet
+     * lets the caller say up front where the line is going. */
+    char prompt[64];
+    if (quiet)
+        prompt[0] = '\0';
+    else
+        snprintf(prompt, sizeof(prompt), "\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
 
-	char* input = readline(prompt);
-	if (input == NULL) {
-		return 0;
-	}
+    char* input = readline(prompt);
+    if (input == NULL) {
+        return 0;
+    }
 
-	/* Check for history commands */
-	char history_output[256];
-	if (execute_history_command(input, history_output, sizeof(history_output))) {
-		printf("! %s\n", history_output);
-		strncpy(line, history_output, max_len - 1);
-		line[max_len - 1] = '\0';
-		free(input);
-		return 1;
-	}
+    /* Check for history commands */
+    char history_output[256];
+    if (execute_history_command(input, history_output, sizeof(history_output))) {
+        printf("! %s\n", history_output);
+        strncpy(line, history_output, max_len - 1);
+        line[max_len - 1] = '\0';
+        free(input);
+        return 1;
+    }
 
-	/* Add to history if not empty and not a duplicate of last command */
-	if (strlen(input) > 0) {
-		HIST_ENTRY* last = history_get(history_length);
-		if (!last || strcmp(input, last->line) != 0) {
-			add_history(input);
-		}
-	}
+    /* Add to history if not empty and not a duplicate of last command */
+    if (strlen(input) > 0) {
+        HIST_ENTRY* last = history_get(history_length);
+        if (!last || strcmp(input, last->line) != 0) {
+            add_history(input);
+        }
+    }
 
-	strncpy(line, input, max_len - 1);
-	line[max_len - 1] = '\0';
-	free(input);
-	return 1;
+    strncpy(line, input, max_len - 1);
+    line[max_len - 1] = '\0';
+    free(input);
+    return 1;
 }
 
 #else /* !HAVE_READLINE */
 
 /* Fallback without readline */
 static int read_line_with_completion(char* line, size_t max_len, uint32_t pc, int quiet) {
-	if (!quiet) {
-		printf("\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
-		fflush(stdout);
-	}
+    if (!quiet) {
+        printf("\x1b[90m[\x1b[0m\x1b[36m%08X\x1b[0m\x1b[90m]\x1b[0m ", pc);
+        fflush(stdout);
+    }
 
-	if (fgets(line, max_len, stdin) == NULL) {
-		return 0;
-	}
+    if (fgets(line, max_len, stdin) == NULL) {
+        return 0;
+    }
 
-	/* Remove newline */
-	line[strcspn(line, "\r\n")] = '\0';
-	return 1;
+    /* Remove newline */
+    line[strcspn(line, "\r\n")] = '\0';
+    return 1;
 }
 
 #endif /* HAVE_READLINE */
 
 /* Special commands that need native handling */
 static int handle_special_commands(Nd500Machine* m, const char* line) {
-	/* Handle 'history' command specially (requires readline state) */
-	if (strcmp(line, "history") == 0) {
+    /* Handle 'history' command specially (requires readline state) */
+    if (strcmp(line, "history") == 0) {
 #ifdef HAVE_READLINE
-		printf("Command History:\n");
-		for (int i = 1; i <= history_length; i++) {
-			HIST_ENTRY* entry = history_get(i);
-			if (entry) {
-				printf("%4d  %s\n", i, entry->line);
-			}
-		}
-		if (history_length == 0) {
-			printf("No commands in history\n");
-		}
+        printf("Command History:\n");
+        for (int i = 1; i <= history_length; i++) {
+            HIST_ENTRY* entry = history_get(i);
+            if (entry) {
+                printf("%4d  %s\n", i, entry->line);
+            }
+        }
+        if (history_length == 0) {
+            printf("No commands in history\n");
+        }
 #else
-		printf("History not available (readline not found)\n");
+        printf("History not available (readline not found)\n");
 #endif
-		return 1;
-	}
+        return 1;
+    }
 
-	/* Handle 'dap' command specially (requires DAP_ENABLED) */
-	if (strncmp(line, "dap", 3) == 0) {
+    /* Handle 'dap' command specially (requires DAP_ENABLED) */
+    if (strncmp(line, "dap", 3) == 0) {
 #ifdef DAP_ENABLED
-		char* rest = (char*)(line + 3);
-		while (*rest && isspace(*rest)) rest++;
-		int port = rest && *rest ? atoi(rest) : 4500;
-		if (nd500_dap_start(m, port) == 0) {
-			printf("DAP server started on %d\n", port);
-		} else {
-			printf("failed to start DAP server\n");
-		}
+        char* rest = (char*)(line + 3);
+        while (*rest && isspace(*rest)) rest++;
+        int port = rest && *rest ? atoi(rest) : 4500;
+        if (nd500_dap_start(m, port) == 0) {
+            printf("DAP server started on %d\n", port);
+        } else {
+            printf("failed to start DAP server\n");
+        }
 #else
-		printf("DAP not available (libdap missing)\n");
+        printf("DAP not available (libdap missing)\n");
 #endif
-		return 1;
-	}
+        return 1;
+    }
 
-	return 0; /* Not a special command */
+    return 0; /* Not a special command */
 }
 
 /* Set when another transport (telnet) also carries the guest console; see
@@ -438,168 +438,168 @@ static int guest_passthrough(Nd500Machine* m, int* want_debugger)
 
 /* Main debugger REPL */
 int nd500_debugger_repl(Nd500Machine* m) {
-	char line[256];
-	int was_running = 0;  /* Track if we were running to detect stops */
-	if (!g_quiet_banner)
-		printf("nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, show, bp, wp, continue, help, q\n");
+    char line[256];
+    int was_running = 0;  /* Track if we were running to detect stops */
+    if (!g_quiet_banner)
+        printf("nd500x debug mode. Commands: m, d, step, regs, load, run, stop, symb, show, bp, wp, continue, help, q\n");
 
 #ifdef HAVE_READLINE
-	if (!g_quiet_banner) {
-		printf("Tab completion and command history enabled - press TAB to complete, UP/DOWN for history\n");
-		printf("History commands: !! (last), !nnn (number), !string (search), history (list)\n");
-	}
+    if (!g_quiet_banner) {
+        printf("Tab completion and command history enabled - press TAB to complete, UP/DOWN for history\n");
+        printf("History commands: !! (last), !nnn (number), !string (search), history (list)\n");
+    }
 
-	/* Initialize readline completion */
-	rl_attempted_completion_function = command_completion;
-	rl_completion_append_character = '\0';
-	rl_basic_word_break_characters = " \t\n\"\\'`@$><=;|&{(";
+    /* Initialize readline completion */
+    rl_attempted_completion_function = command_completion;
+    rl_completion_append_character = '\0';
+    rl_basic_word_break_characters = " \t\n\"\\'`@$><=;|&{(";
 
-	/* Show all matches with single TAB press */
-	rl_variable_bind("show-all-if-ambiguous", "on");
+    /* Show all matches with single TAB press */
+    rl_variable_bind("show-all-if-ambiguous", "on");
 
-	/* Disable filename completion completely */
-	rl_attempted_completion_over = 1;
-	rl_completion_query_items = 0;  /* Don't ask "Display all X possibilities?" */
+    /* Disable filename completion completely */
+    rl_attempted_completion_over = 1;
+    rl_completion_query_items = 0;  /* Don't ask "Display all X possibilities?" */
 
-	/* Load history from file */
-	load_history();
+    /* Load history from file */
+    load_history();
 #endif
 
-	/* Set up command context */
-	CmdContext ctx = {
-		.output = native_output,
-		.error = native_error,
-		.context = NULL
-	};
+    /* Set up command context */
+    CmdContext ctx = {
+        .output = native_output,
+        .error = native_error,
+        .context = NULL
+    };
 
-	/* Console-forwarding mode: with ND500X_CONSOLE_STDIN=1, lines typed while
-	 * the machine is running are sent to the guest console (mx_bin input ring
-	 * via nd500_fecall_console_input) instead of being parsed as debugger
-	 * commands. Prefix a line with '~' to force it to the debugger. */
-	const char* cse = getenv("ND500X_CONSOLE_STDIN");
-	int console_stdin = (cse && cse[0] && cse[0] != '0') ? 1 : 0;
+    /* Console-forwarding mode: with ND500X_CONSOLE_STDIN=1, lines typed while
+     * the machine is running are sent to the guest console (mx_bin input ring
+     * via nd500_fecall_console_input) instead of being parsed as debugger
+     * commands. Prefix a line with '~' to force it to the debugger. */
+    const char* cse = getenv("ND500X_CONSOLE_STDIN");
+    int console_stdin = (cse && cse[0] && cse[0] != '0') ? 1 : 0;
 
-	if (console_stdin && nd_tty_stdin_is_terminal())
-		printf("[repl] terminal connected to the guest - Ctrl-] for the debugger\n");
+    if (console_stdin && nd_tty_stdin_is_terminal())
+        printf("[repl] terminal connected to the guest - Ctrl-] for the debugger\n");
 
-	/* Main REPL loop */
-	for (;;) {
-		/* While the guest runs, the terminal is ITS terminal: forward
-		 * keystrokes raw so only the guest echoes them. Returns when the
-		 * machine stops, on Ctrl-], or on EOF. */
-		int to_guest = console_stdin && m && m->run_flag;
-		/* Raw passthrough only applies to a real terminal. With stdin on a
-		 * pipe (scripted boots) there is nothing to put in raw mode, and the
-		 * line-based path below already does the right thing - taking the
-		 * passthrough branch there would spin without ever reading. */
-		if (to_guest && nd_tty_stdin_is_terminal()) {
-			int want_debugger = 0;
-			int alive = guest_passthrough(m, &want_debugger);
-			if (alive < 0)
-				break;          /* F12 menu: Exit NDIX - end the session */
-			/* The guest shut ITSELF down (F12 -> 2, or halt/reboot typed
-			 * inside NDIX): boot() synced the disks and reached FE_EXIT.
-			 * There is nothing left to debug, so end the session instead of
-			 * dropping the user at a debugger prompt they did not ask for.
-			 * A breakpoint or trap also clears run_flag, and for those the
-			 * prompt IS wanted - hence the more specific test. */
-			if (nd500_ndix_guest_exited())
-				break;
-			if (alive && !want_debugger)
-				continue;       /* machine stopped - loop and re-evaluate */
-			to_guest = 0;       /* Ctrl-] or EOF: this read is the debugger's */
-		}
-		if (!read_line_with_completion(line, sizeof(line),
-		                               m && m->cpu ? m->cpu->PC : 0, to_guest)) {
-			/* stdin EOF. In console-forwarding mode do NOT kill a running
-			 * machine: the boot pipeline's input feeder closing (subshell
-			 * exit, cat dying, redirected stdin draining) used to take the
-			 * whole emulator down mid-boot. Linger until the machine stops
-			 * on its own, then exit as before. */
-			if (console_stdin && m && m->run_flag) {
-				/* Ctrl-D at a live guest shell means EOF *to the guest*, not
-				 * "kill the emulator": push EOT into the console input ring
-				 * so the shell sees end-of-file (and, in single user, exits
-				 * so init can move on). Only the SECOND consecutive EOF ends
-				 * the session, matching how a terminal behaves. */
-				extern void nd500_fecall_console_input(const char* buf, int len);
-				static int eof_seen = 0;
-				if (g_stdin_eof_quiet) {
-					fprintf(stderr, "[repl] stdin closed - guest console still "
-					        "served over telnet; machine keeps running\n");
-					while (m->run_flag) {
-						struct timespec ts = {0, 200000000}; /* 200ms */
-						nanosleep(&ts, NULL);
-					}
-					break;
-				}
-				if (!eof_seen++) {
-					const char eot = 0x04;
-					nd500_fecall_console_input(&eot, 1);
-					fprintf(stderr, "\n[repl] Ctrl-D sent to the guest console "
-					        "(press again to detach)\n");
-					continue;
-				}
-				fprintf(stderr, "[repl] stdin closed - console input ended; "
-				        "machine keeps running (Ctrl-C to stop)\n");
-				while (m->run_flag) {
-					struct timespec ts = {0, 200000000}; /* 200ms */
-					nanosleep(&ts, NULL);
-				}
-			}
-			break;
-		}
-		if (console_stdin && m && m->run_flag) {
-			if (line[0] == '~') {
-				memmove(line, line + 1, strlen(line));   /* strip escape */
-			} else {
-				extern void nd500_fecall_console_input(const char* buf, int len);
-				size_t n = strlen(line);
-				if (n < sizeof(line) - 1) line[n++] = '\n';
-				nd500_fecall_console_input(line, (int)n);
-				continue;
-			}
-		}
-		/* Check if execution stopped since last prompt */
-		if (was_running && m && !m->run_flag) {
-			if (m->stop_reason != STOP_NONE) {
-				printf("\x1b[33mStopped:\x1b[0m %s at 0x%08X\n",
-				       nd500_stop_reason_str(m->stop_reason), m->stop_addr);
-			} else {
-				printf("\x1b[33mStopped\x1b[0m at PC=0x%08X\n",
-				       m->cpu ? m->cpu->PC : 0);
-			}
-			was_running = 0;
-		}
+    /* Main REPL loop */
+    for (;;) {
+        /* While the guest runs, the terminal is ITS terminal: forward
+         * keystrokes raw so only the guest echoes them. Returns when the
+         * machine stops, on Ctrl-], or on EOF. */
+        int to_guest = console_stdin && m && m->run_flag;
+        /* Raw passthrough only applies to a real terminal. With stdin on a
+         * pipe (scripted boots) there is nothing to put in raw mode, and the
+         * line-based path below already does the right thing - taking the
+         * passthrough branch there would spin without ever reading. */
+        if (to_guest && nd_tty_stdin_is_terminal()) {
+            int want_debugger = 0;
+            int alive = guest_passthrough(m, &want_debugger);
+            if (alive < 0)
+                break;          /* F12 menu: Exit NDIX - end the session */
+            /* The guest shut ITSELF down (F12 -> 2, or halt/reboot typed
+             * inside NDIX): boot() synced the disks and reached FE_EXIT.
+             * There is nothing left to debug, so end the session instead of
+             * dropping the user at a debugger prompt they did not ask for.
+             * A breakpoint or trap also clears run_flag, and for those the
+             * prompt IS wanted - hence the more specific test. */
+            if (nd500_ndix_guest_exited())
+                break;
+            if (alive && !want_debugger)
+                continue;       /* machine stopped - loop and re-evaluate */
+            to_guest = 0;       /* Ctrl-] or EOF: this read is the debugger's */
+        }
+        if (!read_line_with_completion(line, sizeof(line),
+                                       m && m->cpu ? m->cpu->PC : 0, to_guest)) {
+            /* stdin EOF. In console-forwarding mode do NOT kill a running
+             * machine: the boot pipeline's input feeder closing (subshell
+             * exit, cat dying, redirected stdin draining) used to take the
+             * whole emulator down mid-boot. Linger until the machine stops
+             * on its own, then exit as before. */
+            if (console_stdin && m && m->run_flag) {
+                /* Ctrl-D at a live guest shell means EOF *to the guest*, not
+                 * "kill the emulator": push EOT into the console input ring
+                 * so the shell sees end-of-file (and, in single user, exits
+                 * so init can move on). Only the SECOND consecutive EOF ends
+                 * the session, matching how a terminal behaves. */
+                extern void nd500_fecall_console_input(const char* buf, int len);
+                static int eof_seen = 0;
+                if (g_stdin_eof_quiet) {
+                    fprintf(stderr, "[repl] stdin closed - guest console still "
+                            "served over telnet; machine keeps running\n");
+                    while (m->run_flag) {
+                        struct timespec ts = {0, 200000000}; /* 200ms */
+                        nanosleep(&ts, NULL);
+                    }
+                    break;
+                }
+                if (!eof_seen++) {
+                    const char eot = 0x04;
+                    nd500_fecall_console_input(&eot, 1);
+                    fprintf(stderr, "\n[repl] Ctrl-D sent to the guest console "
+                            "(press again to detach)\n");
+                    continue;
+                }
+                fprintf(stderr, "[repl] stdin closed - console input ended; "
+                        "machine keeps running (Ctrl-C to stop)\n");
+                while (m->run_flag) {
+                    struct timespec ts = {0, 200000000}; /* 200ms */
+                    nanosleep(&ts, NULL);
+                }
+            }
+            break;
+        }
+        if (console_stdin && m && m->run_flag) {
+            if (line[0] == '~') {
+                memmove(line, line + 1, strlen(line));   /* strip escape */
+            } else {
+                extern void nd500_fecall_console_input(const char* buf, int len);
+                size_t n = strlen(line);
+                if (n < sizeof(line) - 1) line[n++] = '\n';
+                nd500_fecall_console_input(line, (int)n);
+                continue;
+            }
+        }
+        /* Check if execution stopped since last prompt */
+        if (was_running && m && !m->run_flag) {
+            if (m->stop_reason != STOP_NONE) {
+                printf("\x1b[33mStopped:\x1b[0m %s at 0x%08X\n",
+                       nd500_stop_reason_str(m->stop_reason), m->stop_addr);
+            } else {
+                printf("\x1b[33mStopped\x1b[0m at PC=0x%08X\n",
+                       m->cpu ? m->cpu->PC : 0);
+            }
+            was_running = 0;
+        }
 
-		/* Skip empty lines */
-		if (strlen(line) == 0) continue;
+        /* Skip empty lines */
+        if (strlen(line) == 0) continue;
 
-		/* Check for special commands that need native handling */
-		if (handle_special_commands(m, line)) {
-			was_running = m ? m->run_flag : 0;
-			continue;
-		}
+        /* Check for special commands that need native handling */
+        if (handle_special_commands(m, line)) {
+            was_running = m ? m->run_flag : 0;
+            continue;
+        }
 
-		/* Execute command via shared library */
-		int result = nd500_cmd_execute(m, line, &ctx);
+        /* Execute command via shared library */
+        int result = nd500_cmd_execute(m, line, &ctx);
 
-		/* Update running state after command (might have started/stopped) */
-		was_running = m ? m->run_flag : 0;
+        /* Update running state after command (might have started/stopped) */
+        was_running = m ? m->run_flag : 0;
 
-		/* Handle quit command */
-		if (result == 1) {
+        /* Handle quit command */
+        if (result == 1) {
 #ifdef HAVE_READLINE
-			save_history();
+            save_history();
 #endif
-			break;
-		}
-	}
+            break;
+        }
+    }
 
 #ifdef HAVE_READLINE
-	/* Save history on exit */
-	save_history();
+    /* Save history on exit */
+    save_history();
 #endif
 
-	return 0;
+    return 0;
 }

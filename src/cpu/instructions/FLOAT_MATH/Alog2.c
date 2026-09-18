@@ -6,15 +6,15 @@
 
 /**
  * Alog2 instruction - FLOAT_MATH class
- * 
+ *
  * Variants: 8
  * Mnemonics: alog2 (F1-F4, D1-D4)
  * Operands: 1
- * 
+ *
  * Opcodes:
  *   0xFF7C-0xFF7F (alog2) - F1-F4 ALOG2 (float)
  *   0xFFA8-0xFFAB (alog2) - D1-D4 ALOG2 (double)
- * 
+ *
  * Calculates base-2 logarithm: log2(argument) -> register
  */
 void nd500_instr_Alog2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
@@ -28,7 +28,7 @@ void nd500_instr_Alog2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Determine if float or double from opcode */
     bool is_double = (fi->opcode >= 0xFFA8 && fi->opcode <= 0xFFAB);
     uint8_t reg_num = fi->target_register;
-    
+
     if (reg_num < 1 || reg_num > 4) {
         printf("[ERROR] ALOG2 at PC=0x%08X: Invalid register %u\n",
                fi->address, reg_num);
@@ -76,7 +76,7 @@ void nd500_instr_Alog2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else {
         /* Calculate log2(argument) */
         result = log2(argument);
-        
+
         /* Convert result back to ND-500 format */
         if (is_double) {
             result_bits = nd500_double_from_ieee754(result);

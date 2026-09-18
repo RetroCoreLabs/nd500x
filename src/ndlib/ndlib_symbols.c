@@ -170,13 +170,13 @@ void ndlib_symbols_clear(void) {
 
 int ndlib_symbols_load(const char* aout_path) {
     if (!aout_path) return -1;
-    
+
     /* Clear existing symbols */
     ndlib_symbols_clear();
-    
+
     FILE* f = fopen(aout_path, "rb");
     if (!f) return -1;
-    
+
     struct nd500_exec hdr;
     int is_le = 0;
     if (sym_read_exec_be(f, &hdr, &is_le) != 0 || bad_magic(hdr.a_magic)) {
@@ -186,17 +186,17 @@ int ndlib_symbols_load(const char* aout_path) {
     /* Symbol/string records share the header's byte order. */
     uint32_t (*rd32)(const unsigned char *) = is_le ? sym_le32 : sym_be32;
     uint16_t (*rd16)(const unsigned char *) = is_le ? sym_le16 : sym_be16;
-    
+
     if (hdr.a_syms == 0) {
         fclose(f);
         return 0;  /* No symbols, but not an error */
     }
-    
+
     /* Calculate offsets */
     unsigned int sym_off = sizeof(hdr) + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize;
     unsigned int str_off = sym_off + hdr.a_syms;
     int nsyms = hdr.a_syms / sizeof(struct nd500_nlist);
-    
+
     /* Read symbols */
     struct nd500_nlist* symbols = malloc(hdr.a_syms);
     if (!symbols) { fclose(f); return -1; }
@@ -230,13 +230,13 @@ int ndlib_symbols_load(const char* aout_path) {
         free(symbols); free(strings); fclose(f); return -1;
     }
     fclose(f);
-    
+
     /* Build symbol cache */
     g_symbols = calloc(nsyms, sizeof(SymbolEntry));
     if (!g_symbols) {
         free(symbols); free(strings); return -1;
     }
-    
+
     int idx = 0;
     for (int i = 0; i < nsyms; i++) {
         if (symbols[i].n_strx == 0 || symbols[i].n_strx >= strsize) continue;
@@ -252,7 +252,7 @@ int ndlib_symbols_load(const char* aout_path) {
         idx++;
     }
     g_symbol_count = idx;
-    
+
     /* === Read relocation table === */
     if (hdr.a_trsize > 0) {
         /* ND-500 relocation_info structure (8 bytes) */
@@ -264,7 +264,7 @@ int ndlib_symbols_load(const char* aout_path) {
             uint32_t r_extern : 1;
             uint32_t r_pad : 4;
         } __attribute__((packed));
-        
+
         int nrelocs = hdr.a_trsize / 8;  /* 8 bytes per relocation */
         struct nd500_reloc* reloc_table = malloc(hdr.a_trsize);
         if (reloc_table) {
@@ -295,7 +295,7 @@ int ndlib_symbols_load(const char* aout_path) {
                             g_text_relocs[g_text_reloc_count].symbol_index = reloc_table[i].r_symbolnum;
                             g_text_relocs[g_text_reloc_count].symbol_name = NULL;
                             g_text_relocs[g_text_reloc_count].is_undefined = 0;
-                            
+
                             /* Find symbol name if external */
                             if (reloc_table[i].r_extern && reloc_table[i].r_symbolnum < (uint32_t)g_symbol_count) {
                                 g_text_relocs[g_text_reloc_count].symbol_name = strdup(g_symbols[reloc_table[i].r_symbolnum].name);
@@ -313,7 +313,7 @@ int ndlib_symbols_load(const char* aout_path) {
             free(reloc_table);
         }
     }
-    
+
     free(symbols);
     free(strings);
     return 0;
@@ -331,7 +331,7 @@ const char* ndlib_symbols_name_for_addr(uint32_t addr) {
 const char* ndlib_symbols_unresolved_for_addr(uint32_t addr) {
     /* Return unresolved symbol name if address matches an UNDF|EXT symbol */
     for (int i = 0; i < g_symbol_count; i++) {
-        if (g_symbols[i].addr == addr && 
+        if (g_symbols[i].addr == addr &&
             (g_symbols[i].type & 0x0E) == 0x00 &&  /* UNDF */
             (g_symbols[i].type & 0x01)) {           /* EXT */
             return g_symbols[i].name;

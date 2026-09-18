@@ -452,13 +452,13 @@ void nd500_segment_release(void* cpu_ptr, uint8_t domain, uint32_t segment)
 static int find_free_psn(Nd500Cpu* cpu, int start_psn) {
     for (int psn = start_psn; psn < MAX_PST; psn++) {
         PhysicalSegmentTableEntry pst = nd500_mmu_get_pst_entry(cpu, psn);
-        
+
         /* Check if PSN is free */
         if (pst.index_mode == 0 && pst.physical_pfn == 0) {
             return psn;
         }
     }
-    
+
     return -1;  /* No free PSN found */
 }
 
@@ -521,7 +521,7 @@ static int alloc_backed_segment(void* cpu_ptr, void* machine_ptr, uint8_t domain
         }
     } else {
         assigned_segment = requested_segment;
-        
+
         /* Check if segment is already allocated */
         uint16_t dc = nd500_mmu_get_data_capability(cpu, domain, assigned_segment);
         if (dc != 0) {

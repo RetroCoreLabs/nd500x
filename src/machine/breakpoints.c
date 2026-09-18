@@ -14,7 +14,7 @@ void bp_mgr_init(BreakpointManager* mgr) {
 /* Breakpoint management */
 int bp_add(BreakpointManager* mgr, uint32_t address, bool one_shot) {
     if (!mgr || mgr->bp_count >= MAX_BREAKPOINTS) return -1;
-    
+
     int id = mgr->bp_count;
     Breakpoint* bp = &mgr->breakpoints[id];
     bp->address = address;
@@ -23,7 +23,7 @@ int bp_add(BreakpointManager* mgr, uint32_t address, bool one_shot) {
     bp->one_shot = one_shot;
     bp->hit_count = 0;
     bp->condition[0] = '\0';
-    
+
     mgr->bp_count++;
     printf("Breakpoint %d set at 0x%08X%s\n", id, address, one_shot ? " (one-shot)" : "");
     return id;
@@ -31,7 +31,7 @@ int bp_add(BreakpointManager* mgr, uint32_t address, bool one_shot) {
 
 int bp_add_conditional(BreakpointManager* mgr, uint32_t address, const char* condition, bool one_shot) {
     if (!mgr || mgr->bp_count >= MAX_BREAKPOINTS || !condition) return -1;
-    
+
     int id = mgr->bp_count;
     Breakpoint* bp = &mgr->breakpoints[id];
     bp->address = address;
@@ -41,7 +41,7 @@ int bp_add_conditional(BreakpointManager* mgr, uint32_t address, const char* con
     bp->hit_count = 0;
     strncpy(bp->condition, condition, sizeof(bp->condition) - 1);
     bp->condition[sizeof(bp->condition) - 1] = '\0';
-    
+
     mgr->bp_count++;
     printf("Conditional breakpoint %d set at 0x%08X: %s%s\n", id, address, condition, one_shot ? " (one-shot)" : "");
     return id;
@@ -49,7 +49,7 @@ int bp_add_conditional(BreakpointManager* mgr, uint32_t address, const char* con
 
 int bp_delete(BreakpointManager* mgr, int id) {
     if (!mgr || id < 0 || id >= mgr->bp_count) return -1;
-    
+
     /* Shift remaining breakpoints down */
     for (int i = id; i < mgr->bp_count - 1; i++) {
         mgr->breakpoints[i] = mgr->breakpoints[i + 1];
@@ -78,7 +78,7 @@ void bp_list(BreakpointManager* mgr) {
         printf("No breakpoints set\n");
         return;
     }
-    
+
     printf("=== BREAKPOINTS ===\n");
     printf("ID  Address    Enabled  Hits   Type        Condition\n");
     printf("--- ---------- -------- ------ ----------- ---------\n");
@@ -96,13 +96,13 @@ void bp_list(BreakpointManager* mgr) {
 
 bool bp_should_break_at(BreakpointManager* mgr, uint32_t pc) {
     if (!mgr) return false;
-    
+
     /* Check if we should break on next instruction (step command) */
     if (mgr->break_on_next_instruction) {
         mgr->break_on_next_instruction = false;
         return true;
     }
-    
+
     /* Check all breakpoints */
     for (int i = 0; i < mgr->bp_count; i++) {
         Breakpoint* bp = &mgr->breakpoints[i];
@@ -113,10 +113,10 @@ bool bp_should_break_at(BreakpointManager* mgr, uint32_t pc) {
                 /* For now, just break on conditional breakpoints */
                 /* In a full implementation, we'd need access to CPU registers */
             }
-            
+
             bp->hit_count++;
             printf("\nBreakpoint %d hit at 0x%08X (hit count: %u)\n", i, pc, bp->hit_count);
-            
+
             /* Handle one-shot breakpoints */
             if (bp->one_shot) {
                 printf("One-shot breakpoint %d deleted\n", i);
@@ -131,7 +131,7 @@ bool bp_should_break_at(BreakpointManager* mgr, uint32_t pc) {
 /* Watchpoint management */
 int wp_add(BreakpointManager* mgr, uint32_t address, uint32_t length, WatchpointType type) {
     if (!mgr || mgr->wp_count >= MAX_WATCHPOINTS) return -1;
-    
+
     int id = mgr->wp_count;
     Watchpoint* wp = &mgr->watchpoints[id];
     wp->address = address;
@@ -141,10 +141,10 @@ int wp_add(BreakpointManager* mgr, uint32_t address, uint32_t length, Watchpoint
     wp->last_value = 0;
     wp->hit_count = 0;
     wp->register_name[0] = '\0';
-    
+
     mgr->wp_count++;
     const char* type_str = (type == WP_TYPE_READ) ? "read" :
-                           (type == WP_TYPE_WRITE) ? "write" : 
+                           (type == WP_TYPE_WRITE) ? "write" :
                            (type == WP_TYPE_CHANGE) ? "change" : "register";
     printf("Watchpoint %d set at 0x%08X (length=%u, type=%s)\n", id, address, length, type_str);
     return id;
@@ -152,7 +152,7 @@ int wp_add(BreakpointManager* mgr, uint32_t address, uint32_t length, Watchpoint
 
 int wp_add_register(BreakpointManager* mgr, const char* reg_name, uint32_t reg_index) {
     if (!mgr || mgr->wp_count >= MAX_WATCHPOINTS || !reg_name) return -1;
-    
+
     int id = mgr->wp_count;
     Watchpoint* wp = &mgr->watchpoints[id];
     wp->address = reg_index;  /* Store register index in address field */
@@ -163,7 +163,7 @@ int wp_add_register(BreakpointManager* mgr, const char* reg_name, uint32_t reg_i
     wp->hit_count = 0;
     strncpy(wp->register_name, reg_name, sizeof(wp->register_name) - 1);
     wp->register_name[sizeof(wp->register_name) - 1] = '\0';
-    
+
     mgr->wp_count++;
     printf("Register watchpoint %d set on %s (index=%u)\n", id, reg_name, reg_index);
     return id;
@@ -200,7 +200,7 @@ int wp_check_registers(BreakpointManager* mgr, const uint32_t regs[WP_REG_INDEX_
 
 int wp_delete(BreakpointManager* mgr, int id) {
     if (!mgr || id < 0 || id >= mgr->wp_count) return -1;
-    
+
     /* Shift remaining watchpoints down */
     for (int i = id; i < mgr->wp_count - 1; i++) {
         mgr->watchpoints[i] = mgr->watchpoints[i + 1];
@@ -229,7 +229,7 @@ void wp_list(BreakpointManager* mgr) {
         printf("No watchpoints set\n");
         return;
     }
-    
+
     printf("=== WATCHPOINTS ===\n");
     printf("ID  Address    Length Enabled  Hits   Type\n");
     printf("--- ---------- ------ -------- ------ ------\n");
@@ -246,10 +246,10 @@ void wp_list(BreakpointManager* mgr) {
 
 bool wp_should_break_on_read(BreakpointManager* mgr, uint32_t addr) {
     if (!mgr) return false;
-    
+
     for (int i = 0; i < mgr->wp_count; i++) {
         Watchpoint* wp = &mgr->watchpoints[i];
-        if (wp->enabled && 
+        if (wp->enabled &&
             (wp->type == WP_TYPE_READ || wp->type == WP_TYPE_CHANGE) &&
             addr >= wp->address && addr < (wp->address + wp->length)) {
             wp->hit_count++;
@@ -262,18 +262,18 @@ bool wp_should_break_on_read(BreakpointManager* mgr, uint32_t addr) {
 
 bool wp_should_break_on_write(BreakpointManager* mgr, uint32_t addr, uint32_t value) {
     if (!mgr) return false;
-    
+
     for (int i = 0; i < mgr->wp_count; i++) {
         Watchpoint* wp = &mgr->watchpoints[i];
-        if (wp->enabled && 
+        if (wp->enabled &&
             addr >= wp->address && addr < (wp->address + wp->length)) {
-            
+
             if (wp->type == WP_TYPE_WRITE) {
                 wp->hit_count++;
                 printf("\nWatchpoint %d hit on write at 0x%08X (value=0x%08X)\n", i, addr, value);
                 return true;
             }
-            
+
             if (wp->type == WP_TYPE_CHANGE && value != wp->last_value) {
                 wp->hit_count++;
                 printf("\nWatchpoint %d hit on change at 0x%08X (old=0x%08X new=0x%08X)\n",
@@ -281,7 +281,7 @@ bool wp_should_break_on_write(BreakpointManager* mgr, uint32_t addr, uint32_t va
                 wp->last_value = value;
                 return true;
             }
-            
+
             /* Update last value for change detection */
             if (wp->type == WP_TYPE_CHANGE) {
                 wp->last_value = value;
@@ -313,28 +313,28 @@ static uint32_t parse_number(const char* str) {
 
 ExprResult bp_evaluate_condition(const char* condition, uint32_t pc, uint32_t* registers, uint32_t* memory) {
     ExprResult result = {false, 0, ""};
-    
+
     if (!condition || strlen(condition) == 0) {
         strcpy(result.error_msg, "Empty condition");
         return result;
     }
-    
+
     /* Simple condition parser: supports register comparisons */
     /* Format: "REG == value" or "REG != value" or "REG > value" etc. */
     char expr[256];
     strncpy(expr, condition, sizeof(expr) - 1);
     expr[sizeof(expr) - 1] = '\0';
-    
+
     /* Find comparison operator */
     char* op = NULL;
     if ((op = strstr(expr, " == ")) != NULL) {
         *op = '\0';
         char* reg_name = expr;
         char* value_str = op + 4;
-        
+
         uint32_t reg_val = parse_register(reg_name, registers);
         uint32_t expected = parse_number(value_str);
-        
+
         result.valid = true;
         result.value = (reg_val == expected) ? 1 : 0;
         return result;
@@ -343,10 +343,10 @@ ExprResult bp_evaluate_condition(const char* condition, uint32_t pc, uint32_t* r
         *op = '\0';
         char* reg_name = expr;
         char* value_str = op + 4;
-        
+
         uint32_t reg_val = parse_register(reg_name, registers);
         uint32_t expected = parse_number(value_str);
-        
+
         result.valid = true;
         result.value = (reg_val != expected) ? 1 : 0;
         return result;
@@ -355,10 +355,10 @@ ExprResult bp_evaluate_condition(const char* condition, uint32_t pc, uint32_t* r
         *op = '\0';
         char* reg_name = expr;
         char* value_str = op + 3;
-        
+
         uint32_t reg_val = parse_register(reg_name, registers);
         uint32_t expected = parse_number(value_str);
-        
+
         result.valid = true;
         result.value = (reg_val > expected) ? 1 : 0;
         return result;
@@ -367,10 +367,10 @@ ExprResult bp_evaluate_condition(const char* condition, uint32_t pc, uint32_t* r
         *op = '\0';
         char* reg_name = expr;
         char* value_str = op + 3;
-        
+
         uint32_t reg_val = parse_register(reg_name, registers);
         uint32_t expected = parse_number(value_str);
-        
+
         result.valid = true;
         result.value = (reg_val < expected) ? 1 : 0;
         return result;
@@ -383,7 +383,7 @@ ExprResult bp_evaluate_condition(const char* condition, uint32_t pc, uint32_t* r
 
 bool wp_should_break_on_register_change(BreakpointManager* mgr, uint32_t reg_index, uint32_t value) {
     if (!mgr) return false;
-    
+
     for (int i = 0; i < mgr->wp_count; i++) {
         Watchpoint* wp = &mgr->watchpoints[i];
         if (wp->enabled && wp->type == WP_TYPE_REGISTER && wp->address == reg_index) {

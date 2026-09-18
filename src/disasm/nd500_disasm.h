@@ -50,7 +50,7 @@ int nd500_format_operand(char* buf, size_t cap,
 /**
  * Calculate branch target address from PC and displacement.
  * Shared function to avoid duplicate branch target calculation logic.
- * 
+ *
  * @param pc           Current instruction address
  * @param displacement Signed displacement value from operand
  * @return Absolute target address

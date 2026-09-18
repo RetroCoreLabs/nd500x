@@ -8,18 +8,18 @@
 
 /**
  * Byconv instruction - FLOAT_MATH class
- * 
+ *
  * Variants: 5
  * Mnemonics: byconv byconv byconv byconv byconv
  * Operands: 2
- * 
+ *
  * Opcodes:
  *   0xFD44 (byconv) - BI BYCONV (bit to byte)
  *   0xFD4F (byconv) - H BYCONV (halfword to byte)
  *   0xFD54 (byconv) - W BYCONV (word to byte)
  *   0xFD59 (byconv) - F BYCONV (float to byte)
  *   0xFD5E (byconv) - D BYCONV (double to byte)
- * 
+ *
  * Converts source operand to 8-bit signed byte (-128 to 127).
  * Traps IOV if value outside byte range.
  */

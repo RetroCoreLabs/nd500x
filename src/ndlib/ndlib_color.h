@@ -2,7 +2,7 @@
 #define NDLIB_COLOR_H
 
 /* ND500X ANSI Color Output Module
- * 
+ *
  * Provides colorized output for disassembly and debugging.
  * Color output is auto-detected based on TTY and TERM environment,
  * or can be explicitly controlled via command-line flags.

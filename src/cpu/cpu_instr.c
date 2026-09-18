@@ -39,17 +39,17 @@
  * @return Physical memory contents
  */
 static inline uint8_t mmu_read8(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int is_instruction) {
-	if (!cpu || !cpu->machine) return 0;
+    if (!cpu || !cpu->machine) return 0;
 
-	/* Translate virtual → physical if MMU enabled */
-	uint32_t paddr = vaddr;
-	if (cpu->machine->mmu_enabled) {
-		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
-	}
+    /* Translate virtual → physical if MMU enabled */
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
+    }
 
-	/* Access physical memory via bus (no further translation) */
-	uint8_t byte = nd500_bus_read8(cpu->machine, paddr);
-	return byte;
+    /* Access physical memory via bus (no further translation) */
+    uint8_t byte = nd500_bus_read8(cpu->machine, paddr);
+    return byte;
 }
 
 /**
@@ -60,136 +60,136 @@ static inline uint8_t mmu_read8(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int
 #define NC_WWATCH_LO 0x1802A1B0u
 #define NC_WWATCH_HI 0x1802A1D0u
 static inline void nc_wwatch(Nd500Cpu* cpu, uint32_t vaddr, int width, uint32_t val) {
-	static int mode = -1;
-	if (mode < 0) mode = nd500_settings()->nc_wwatch;
-	if (!mode) return;
-	if (vaddr >= NC_WWATCH_LO && vaddr < NC_WWATCH_HI) {
-		fprintf(stderr, "[WWATCH] instr=%llu PC~=%08X w%d [%08X] <- %0*X\n",
-		        (unsigned long long)cpu->instruction_count, cpu->PC, width,
-		        vaddr, width/4, val);
-		fflush(stderr);
-	}
+    static int mode = -1;
+    if (mode < 0) mode = nd500_settings()->nc_wwatch;
+    if (!mode) return;
+    if (vaddr >= NC_WWATCH_LO && vaddr < NC_WWATCH_HI) {
+        fprintf(stderr, "[WWATCH] instr=%llu PC~=%08X w%d [%08X] <- %0*X\n",
+                (unsigned long long)cpu->instruction_count, cpu->PC, width,
+                vaddr, width/4, val);
+        fflush(stderr);
+    }
 }
 
 static inline void mmu_write8(Nd500Cpu* cpu, uint32_t vaddr, uint8_t val) {
-	if (!cpu || !cpu->machine) return;
-	nc_wwatch(cpu, vaddr, 8, val);
+    if (!cpu || !cpu->machine) return;
+    nc_wwatch(cpu, vaddr, 8, val);
 
-	uint32_t paddr = vaddr;
-	if (cpu->machine->mmu_enabled) {
-		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); /* is_write=1, is_instruction=0 */
-		/* Translation fault: MUST NOT commit - paddr == vaddr here, so the
-		 * store would land at the untranslated address AS PHYSICAL memory.
-		 * (Root cause of the exec-argv byte corrupting a context block:
-		 * a demand-fault mid arg-copy fell through and wrote the argument
-		 * byte at phys=vaddr.) Handler clears trap state synchronously,
-		 * so check the per-instruction abort flag too. */
-		if (nd500_trap_occurred() || cpu->instr_aborted) return;
-	}
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 1, 0); /* is_write=1, is_instruction=0 */
+        /* Translation fault: MUST NOT commit - paddr == vaddr here, so the
+         * store would land at the untranslated address AS PHYSICAL memory.
+         * (Root cause of the exec-argv byte corrupting a context block:
+         * a demand-fault mid arg-copy fell through and wrote the argument
+         * byte at phys=vaddr.) Handler clears trap state synchronously,
+         * so check the per-instruction abort flag too. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) return;
+    }
 
-	{ extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
-	  nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 8); }
-	/* Kernel path-copy tracer (env ND500X_SLASHDBG) - see write_memory_8. */
-	{
-		static int sld = -1;
-		if (sld < 0) sld = nd500_settings()->slashdbg;
-		if (sld && cpu->CED == 0 && val == 0x2F) {
-			static unsigned n = 0;
-			if (n++ < 60)
-				fprintf(stderr, "[SLASH] mmu_w8 vaddr=0x%08X paddr=0x%08X PC=0x%08X\n",
-				        vaddr, paddr, cpu->PC);
-		}
-	}
-	nd500_bus_write8(cpu->machine, paddr, val);
+    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
+      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 8); }
+    /* Kernel path-copy tracer (env ND500X_SLASHDBG) - see write_memory_8. */
+    {
+        static int sld = -1;
+        if (sld < 0) sld = nd500_settings()->slashdbg;
+        if (sld && cpu->CED == 0 && val == 0x2F) {
+            static unsigned n = 0;
+            if (n++ < 60)
+                fprintf(stderr, "[SLASH] mmu_w8 vaddr=0x%08X paddr=0x%08X PC=0x%08X\n",
+                        vaddr, paddr, cpu->PC);
+        }
+    }
+    nd500_bus_write8(cpu->machine, paddr, val);
 }
 
 /**
  * Read 16-bit value with MMU translation
  */
 static inline uint16_t mmu_read16(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int is_instruction) {
-	if (!cpu || !cpu->machine) return 0;
+    if (!cpu || !cpu->machine) return 0;
 
-	uint32_t paddr = vaddr;
-	if (cpu->machine->mmu_enabled) {
-		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
-	}
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
+    }
 
-	/* Latched like every other ND500X_UDATADBG site (instruction_helpers.c
-	 * 309/554/648/685). Unlatched, this ran a full getenv - environment scan
-	 * plus strcmp per entry - on every kernel-domain read of the _Udata
-	 * window, which NDIX does constantly. */
-	{
-		static int udbg = -1;
-		if (udbg < 0) udbg = nd500_settings()->udatadbg;
-		if (udbg && cpu->CED == 0 && vaddr >= 0xF0000000u)
-			printf("[UDATA16] PC=0x%08X CED=0 read16 vaddr=0x%08X paddr=0x%08X\n",
-			       cpu->PC, vaddr, paddr);
-	}
-	return nd500_bus_read16(cpu->machine, paddr);
+    /* Latched like every other ND500X_UDATADBG site (instruction_helpers.c
+     * 309/554/648/685). Unlatched, this ran a full getenv - environment scan
+     * plus strcmp per entry - on every kernel-domain read of the _Udata
+     * window, which NDIX does constantly. */
+    {
+        static int udbg = -1;
+        if (udbg < 0) udbg = nd500_settings()->udatadbg;
+        if (udbg && cpu->CED == 0 && vaddr >= 0xF0000000u)
+            printf("[UDATA16] PC=0x%08X CED=0 read16 vaddr=0x%08X paddr=0x%08X\n",
+                   cpu->PC, vaddr, paddr);
+    }
+    return nd500_bus_read16(cpu->machine, paddr);
 }
 
 /**
  * Write 16-bit value with MMU translation
  */
 static inline void mmu_write16(Nd500Cpu* cpu, uint32_t vaddr, uint16_t val) {
-	if (!cpu || !cpu->machine) return;
-	nc_wwatch(cpu, vaddr, 16, val);
+    if (!cpu || !cpu->machine) return;
+    nc_wwatch(cpu, vaddr, 16, val);
 
-	uint32_t paddr = vaddr;
-	if (cpu->machine->mmu_enabled) {
-		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
-		if (nd500_trap_occurred() || cpu->instr_aborted) return;  /* see mmu_write8 */
-	}
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
+        if (nd500_trap_occurred() || cpu->instr_aborted) return;  /* see mmu_write8 */
+    }
 
-	{ extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
-	  nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 16); }
-	nd500_bus_write16(cpu->machine, paddr, val);
+    { extern void nd500_ptewatch_wr(uint32_t,uint32_t,uint32_t,uint32_t,int);
+      nd500_ptewatch_wr(cpu->PC, vaddr, paddr, val, 16); }
+    nd500_bus_write16(cpu->machine, paddr, val);
 }
 
 /**
  * Read 32-bit value with MMU translation
  */
 static inline uint32_t mmu_read32(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int is_instruction) {
-	if (!cpu || !cpu->machine) return 0;
+    if (!cpu || !cpu->machine) return 0;
 
-	uint32_t paddr = vaddr;
-	if (cpu->machine->mmu_enabled) {
-		paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
-	}
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
+    }
 
-	/* Latched - see mmu_read16 above. */
-	{
-		static int udbg = -1;
-		if (udbg < 0) udbg = nd500_settings()->udatadbg;
-		if (udbg && cpu->CED == 0 && vaddr >= 0xF0000000u)
-			printf("[UDATA32] PC=0x%08X CED=0 read32 vaddr=0x%08X paddr=0x%08X\n",
-			       cpu->PC, vaddr, paddr);
-	}
-	return nd500_bus_read32(cpu->machine, paddr);
+    /* Latched - see mmu_read16 above. */
+    {
+        static int udbg = -1;
+        if (udbg < 0) udbg = nd500_settings()->udatadbg;
+        if (udbg && cpu->CED == 0 && vaddr >= 0xF0000000u)
+            printf("[UDATA32] PC=0x%08X CED=0 read32 vaddr=0x%08X paddr=0x%08X\n",
+                   cpu->PC, vaddr, paddr);
+    }
+    return nd500_bus_read32(cpu->machine, paddr);
 }
 
 /**
  * Write 32-bit value with MMU translation
  */
 static inline void mmu_write32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t val) {
-	if (!cpu || !cpu->machine) return;
-	nc_wwatch(cpu, vaddr, 32, val);
+    if (!cpu || !cpu->machine) return;
+    nc_wwatch(cpu, vaddr, 32, val);
 
-	uint32_t paddr = vaddr;
-	if (cpu->machine->mmu_enabled) {
-		paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
-		if (nd500_trap_occurred() || cpu->instr_aborted) return;  /* see mmu_write8 */
-	}
+    uint32_t paddr = vaddr;
+    if (cpu->machine->mmu_enabled) {
+        paddr = nd500_mmu_translate(cpu, vaddr, 1, 0);
+        if (nd500_trap_occurred() || cpu->instr_aborted) return;  /* see mmu_write8 */
+    }
 
-	nd500_bus_write32(cpu->machine, paddr, val);
+    nd500_bus_write32(cpu->machine, paddr, val);
 }
 
 /* ═══════════════════════════════════════════════════════ */
 
 typedef struct InstrMeta {
-	uint16_t opcode;
-	char mnemonic[16];
-	uint8_t operands;
+    uint16_t opcode;
+    char mnemonic[16];
+    uint8_t operands;
     uint8_t prefixes_mask;
     uint8_t variant;
     uint8_t has_variable_operands;  /* 1 if instruction accepts variable operands (CALL, CALLG, POLY) */
@@ -244,15 +244,15 @@ static Nd500DataType determine_datatype_from_prefixes(uint8_t prefixes_mask, uin
 }
 
 int nd500_instr_load_default(void) {
-	/* Minimal seed: unknown */
-	if (g_table) return 0;
-	g_table = (InstrMeta*)calloc(1, sizeof(InstrMeta));
-	if (!g_table) return -1;
-	g_table[0].opcode = 0xFFFF;
-	strcpy(g_table[0].mnemonic, "???");
-	g_table[0].operands = 0;
-	g_table_count = 1;
-	return 0;
+    /* Minimal seed: unknown */
+    if (g_table) return 0;
+    g_table = (InstrMeta*)calloc(1, sizeof(InstrMeta));
+    if (!g_table) return -1;
+    g_table[0].opcode = 0xFFFF;
+    strcpy(g_table[0].mnemonic, "???");
+    g_table[0].operands = 0;
+    g_table_count = 1;
+    return 0;
 }
 
 static InstrMeta g_fallback_unknown = {0xFFFF, "???", 0, 0};
@@ -320,7 +320,7 @@ static const InstrMeta* lookup(uint16_t opcode) {
 }
 
 const char* nd500_instr_mnemonic(uint16_t opcode) {
-	return lookup(opcode)->mnemonic;
+    return lookup(opcode)->mnemonic;
 }
 
 int nd500_instr_opcode_length(uint16_t opcode) {
@@ -371,7 +371,7 @@ const char* nd500_instr_dtype_prefix(uint16_t opcode) {
     const InstrMeta* im = lookup(opcode);
     uint8_t mask = im->prefixes_mask;
     uint8_t var = im->variant;
-    
+
     /* Count which data types are available and map variant to type */
     int idx = 0;
     if (mask & 0x01) { if (var == idx++) return "bi"; } /* BI */
@@ -380,7 +380,7 @@ const char* nd500_instr_dtype_prefix(uint16_t opcode) {
     if (mask & 0x08) { if (var == idx++) return "w"; }  /* W */
     if (mask & 0x10) { if (var == idx++) return "f"; }  /* F */
     if (mask & 0x20) { if (var == idx++) return "d"; }  /* D */
-    
+
     /* Default to 'w' if no match */
     return "w";
 }
@@ -404,10 +404,10 @@ static uint32_t get_operand_value32(const Nd500OperandDecoded* op);
 static uint32_t get_short_embedded(const Nd500OperandDecoded* op);
 
 static Nd500AddrMode classify_mode(uint8_t addr_code) {
-	uint8_t top = (addr_code & 0xC0) >> 6;
-	if (top == 0x00) return ND500_ADDR_CONSTANT_SHORT;
-	if (top == 0x01) return ND500_ADDR_LOCAL_SHORT;
-	if (top == 0x02) return ND500_ADDR_RECORD_SHORT;
+    uint8_t top = (addr_code & 0xC0) >> 6;
+    if (top == 0x00) return ND500_ADDR_CONSTANT_SHORT;
+    if (top == 0x01) return ND500_ADDR_LOCAL_SHORT;
+    if (top == 0x02) return ND500_ADDR_RECORD_SHORT;
     /* 0x3? extended - map common explicit encodings */
     if (addr_code == 0xC4) return ND500_ADDR_ABSOLUTE;            /* $address (word) */
     if ((addr_code >= 0xC1 && addr_code <= 0xC3)) return ND500_ADDR_LOCAL; /* b.N (1,2,4) */
@@ -421,7 +421,7 @@ static Nd500AddrMode classify_mode(uint8_t addr_code) {
     if ((addr_code >= 0xF4 && addr_code <= 0xFF)) return ND500_ADDR_PREINDEXED; /* rN.(disp) */
     if (addr_code == 0xC8) return ND500_ADDR_ALTERNATIVE; /* ALT prefix (standalone if not pre-parsed) */
     if ((addr_code >= 0xCC && addr_code <= 0xCF)) return ND500_ADDR_CONSTANT; /* immediate const (1,2,4,8) */
-	return ND500_ADDR_UNKNOWN;
+    return ND500_ADDR_UNKNOWN;
 }
 
 static uint8_t data_part_size(uint8_t ac) {
@@ -459,42 +459,42 @@ static uint8_t read_data_part(Nd500Machine* m, uint32_t base, uint8_t addr_code,
 }
 
 int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) {
-	if (!m || !out) return -1;
+    if (!m || !out) return -1;
 
-	/* Zeroing all of *out per decode was 55.96% of the emulator's entire host
-	 * instruction count in a callgrind profile of an NDIX boot: 1.42 million
-	 * decodes x 7392 bytes. 97.7% of the struct is operands[258], sized for
-	 * CALL's worst case, while ordinary instructions have at most three
-	 * operands - so nearly all of that zeroing was of slots nothing would read.
-	 *
-	 * Clear the fixed fields on either side of the operand array here, and only
-	 * the operand slots this opcode actually uses further down, once
-	 * operand_count is known. Slots appended later by the variable-operand path
-	 * are whole-struct assignments (operands[n] = temp_op), so they carry no
-	 * stale bytes and need no pre-clearing. */
-	{
-		const size_t ops_off = offsetof(Nd500FetchedInstruction, operands);
-		const size_t ops_end = ops_off + sizeof(out->operands);
-		memset(out, 0, ops_off);
-		memset((unsigned char*)out + ops_end, 0, sizeof(*out) - ops_end);
-	}
-	out->address = pc;
+    /* Zeroing all of *out per decode was 55.96% of the emulator's entire host
+     * instruction count in a callgrind profile of an NDIX boot: 1.42 million
+     * decodes x 7392 bytes. 97.7% of the struct is operands[258], sized for
+     * CALL's worst case, while ordinary instructions have at most three
+     * operands - so nearly all of that zeroing was of slots nothing would read.
+     *
+     * Clear the fixed fields on either side of the operand array here, and only
+     * the operand slots this opcode actually uses further down, once
+     * operand_count is known. Slots appended later by the variable-operand path
+     * are whole-struct assignments (operands[n] = temp_op), so they carry no
+     * stale bytes and need no pre-clearing. */
+    {
+        const size_t ops_off = offsetof(Nd500FetchedInstruction, operands);
+        const size_t ops_end = ops_off + sizeof(out->operands);
+        memset(out, 0, ops_off);
+        memset((unsigned char*)out + ops_end, 0, sizeof(*out) - ops_end);
+    }
+    out->address = pc;
 
-	/* Always reset extra_operand_count - prevents stale operands from previous CALL/CALLG */
-	if (m->cpu) {
-		m->cpu->extra_operand_count = 0;
-	}
+    /* Always reset extra_operand_count - prevents stale operands from previous CALL/CALLG */
+    if (m->cpu) {
+        m->cpu->extra_operand_count = 0;
+    }
 
-	/* Fetch opcode with MMU translation if CPU available */
-	uint8_t b0, b1;
-	if (m->cpu) {
-		b0 = mmu_read8(m->cpu, pc, 0, 1);     /* is_write=0, is_instruction=1 */
-		b1 = mmu_read8(m->cpu, pc+1, 0, 1);
-	} else {
-		/* Debugger/disassembler: direct physical access */
-		b0 = nd500_bus_read8(m, pc);
-		b1 = nd500_bus_read8(m, pc+1);
-	}
+    /* Fetch opcode with MMU translation if CPU available */
+    uint8_t b0, b1;
+    if (m->cpu) {
+        b0 = mmu_read8(m->cpu, pc, 0, 1);     /* is_write=0, is_instruction=1 */
+        b1 = mmu_read8(m->cpu, pc+1, 0, 1);
+    } else {
+        /* Debugger/disassembler: direct physical access */
+        b0 = nd500_bus_read8(m, pc);
+        b1 = nd500_bus_read8(m, pc+1);
+    }
     /* Determine opcode length:
      * 0x00-0xFB: 1-byte opcodes (stored as single byte, internally mapped to 0x00xx)
      * 0xFC-0xFF: 2-byte opcode prefix (next byte is low part of opcode)
@@ -505,9 +505,9 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
      */
     int oplen = (b0 >= 0xFC) ? 2 : 1;
     uint16_t opcode = (oplen == 2) ? ((uint16_t)b0 << 8) | (uint16_t)b1 : (uint16_t)b0;
-	out->opcode = opcode;
-	out->opcode_len = (uint8_t)oplen;
-	out->mnemonic = nd500_instr_mnemonic(opcode);
+    out->opcode = opcode;
+    out->opcode_len = (uint8_t)oplen;
+    out->mnemonic = nd500_instr_mnemonic(opcode);
 
     /* Capture bytes as we read them */
     out->bytes[0] = b0;
@@ -741,7 +741,7 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     }
 
     out->total_len = (uint32_t)(cursor - pc);
-	return 0;
+    return 0;
 }
 
 static uint32_t get_operand_value32(const Nd500OperandDecoded* op) {
@@ -823,12 +823,12 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op
             /* Local addressing - B register + displacement (unsigned) */
             address = cpu->B + displacement;
             break;
-            
+
         case ND500_ADDR_LOCAL_SHORT:
             /* Local short - B + embedded value * 4 */
             address = cpu->B + (get_short_embedded(op) * 4u);
             break;
-            
+
         case ND500_ADDR_RECORD:
             /* Record addressing - R register + displacement (unsigned) */
             address = cpu->R + displacement;
@@ -848,17 +848,17 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op
                 address = displacement;
             }
             break;
-            
+
         case ND500_ADDR_CONSTANT:
         case ND500_ADDR_CONSTANT_SHORT:
         case ND500_ADDR_REGISTER:
             /* Non-memory operands - return 0 */
             return 0;
-            
+
         default:
             return 0;
     }
-    
+
     /* STEP 2: Handle indirection (@b.xxx, @b.xxx+) */
     /* Read pointer from computed address */
     switch (op->mode) {
@@ -870,7 +870,7 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op
         default:
             break;
     }
-    
+
     /* STEP 3: Handle post-indexing (b.xxx(rN), IND(b.xxx)(rN), $xxx(rN)) */
     /* Add scaled index register AFTER base+displacement (and after indirection) */
     /* CRITICAL: Index register value is multiplied by data type size (scale factor) */
@@ -883,7 +883,7 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op
             /* reg from address_code: bits 0-1 give 0-3, maps to I1-I4 */
             uint8_t pi_reg = op->address_code & 0x03;
             int32_t index_value = (int32_t)cpu->I[pi_reg];
-            
+
             /* Determine scale factor based on data type */
             int scale;
             switch (dtype) {
@@ -913,7 +913,7 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op
         default:
             break;
     }
-    
+
     return address;
 }
 

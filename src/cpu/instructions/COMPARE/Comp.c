@@ -54,7 +54,7 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (fi->uses_float_registers) {
         bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
         uint8_t reg_num = fi->target_register;
-        
+
         if (reg_num < 1 || reg_num > 4) {
             printf("[ERROR] COMP at PC=0x%08X: Invalid register %u\n",
                    fi->address, reg_num);
@@ -102,7 +102,7 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Read register and operand */
         double reg_value = 0.0;
         double operand_value = 0.0;
-        
+
         if (is_double) {
             uint64_t reg_bits = nd500_read_double_register(cpu, reg_num);
             reg_value = nd500_double_to_ieee754(reg_bits);

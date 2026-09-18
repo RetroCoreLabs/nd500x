@@ -6,18 +6,18 @@
 
 /**
  * Dconv instruction - FLOAT_MATH class
- * 
+ *
  * Variants: 5
  * Mnemonics: dconv dconv dconv dconv dconv
  * Operands: 2
- * 
+ *
  * Opcodes:
  *   0xFD48 (dconv) - BI DCONV (bit to double)
  *   0xFD4D (dconv) - BY DCONV (byte to double)
  *   0xFD52 (dconv) - H DCONV (halfword to double)
  *   0xFD57 (dconv) - W DCONV (word to double)
  *   0xFD5C (dconv) - F DCONV (float to double)
- * 
+ *
  * Converts source operand to 64-bit ND-500 double precision float.
  */
 void nd500_instr_Dconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {

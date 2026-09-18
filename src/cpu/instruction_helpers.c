@@ -1175,18 +1175,18 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
     }
 
     /* Handle CONSTANT - value in data array (BIG-ENDIAN per ND-500 spec)
-     * 
+     *
      * Per ND-500 Reference Manual Table 13 "Treatment of constants as operands":
      * Constants must be SIGN-EXTENDED (SX) when constant size < operation type size.
-     * 
+     *
      * | Instruction type | :S (6-bit) | :B (byte) | :H (half) | :W (word) |
      * |------------------|------------|-----------|-----------|-----------|
      * | BY               | SX         | NC        | IOS       | IOS       |
      * | H                | SX         | SX        | NC        | IOS       |
      * | W                | SX         | SX        | SX        | NC        |
-     * 
+     *
      * SX = sign extended, NC = no conversion, IOS = illegal operand specifier
-     * 
+     *
      * Note: "SX - sign extended (unless instruction calls for unsigned)"
      * Even for unsigned operations (UMUL, UDIV), constants are first sign-extended,
      * then the result is treated as unsigned by the instruction.
@@ -1214,7 +1214,7 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
             default:
                 return 0;
         }
-        
+
         /* Apply sign extension per Table 13 when constant size < dtype size */
         switch (dtype) {
             case ND500_DTYPE_DOUBLEWORD:
@@ -1222,7 +1222,7 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
                 /* Per Table 13: D with :W or :F = 32LZ (32 least significant bits zero filled) */
                 /* For simplicity, just return raw value - D operations are rare with small constants */
                 return raw_val;
-                
+
             case ND500_DTYPE_WORD:
                 /* W operations: SX for byte and halfword constants */
                 if (op->data_len == 1) {
@@ -1234,7 +1234,7 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
                     return (uint64_t)(uint32_t)(int32_t)(int16_t)raw_val;
                 }
                 return raw_val;  /* NC for word constant */
-                
+
             case ND500_DTYPE_HALFWORD:
                 /* H operations: SX for byte constants */
                 if (op->data_len == 1) {
@@ -1242,11 +1242,11 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
                     return (uint64_t)(uint16_t)(int16_t)(int8_t)raw_val;
                 }
                 return raw_val;  /* NC for halfword constant */
-                
+
             case ND500_DTYPE_BYTE:
                 /* BY operations: NC for byte constant */
                 return raw_val;
-                
+
             default:
                 return raw_val;
         }

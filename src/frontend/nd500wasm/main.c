@@ -36,12 +36,12 @@ unsigned int nd500_dbg_instr_count_js(void) { return g_nd500_instrs_count; }
 const char* nd500_dbg_mnemonic_js(unsigned int opcode) { return nd500_instr_mnemonic((uint16_t)opcode); }
 
 void nd500wasm_init(void) {
-	printf("========================================\n");
-	printf("ND-500X WASM BUILD: %s %s\n", __DATE__, __TIME__);
-	printf("========================================\n");
-	nd500_machine_init(&g_machine, 16 * 1024 * 1024);
-	nd500_cpu_init(&g_cpu, &g_machine);
-	nd500_cpu_reset(&g_cpu);
+    printf("========================================\n");
+    printf("ND-500X WASM BUILD: %s %s\n", __DATE__, __TIME__);
+    printf("========================================\n");
+    nd500_machine_init(&g_machine, 16 * 1024 * 1024);
+    nd500_cpu_init(&g_cpu, &g_machine);
+    nd500_cpu_reset(&g_cpu);
     /* Force reference to instruction table so it is linked in */
     (void)anchor_instr_table();
 }
@@ -117,34 +117,34 @@ int nd500_dbg_load_segments_path_js(const char* pseg_path, uint32_t pseg_base,
 #endif
 
 static char* dup_json_string(cJSON* obj) {
-	char* s = cJSON_PrintUnformatted(obj);
-	cJSON_Delete(obj);
-	return s ? s : "{}";
+    char* s = cJSON_PrintUnformatted(obj);
+    cJSON_Delete(obj);
+    return s ? s : "{}";
 }
 
 const char* nd500_dbg_mem_json(uint32_t addr, uint32_t len) {
-	cJSON* root = cJSON_CreateObject();
-	uint32_t cap = len;
-	uint8_t* buf = (uint8_t*)malloc(cap);
-	if (!buf) return "{}";
-	size_t got = nd500_dbg_mem_dump(&g_machine, addr, len, buf, cap);
-	cJSON_AddNumberToObject(root, "addr", addr);
-	cJSON_AddNumberToObject(root, "len", (double)got);
-	cJSON* arr = cJSON_CreateArray();
-	cJSON* ascii_arr = cJSON_CreateArray();
-	for (size_t i = 0; i < got; ++i) {
-		char tmp[3];
-		snprintf(tmp, sizeof(tmp), "%02X", buf[i]);
-		cJSON_AddItemToArray(arr, cJSON_CreateString(tmp));
-		
-		// Add ASCII representation
-		char ascii_char = (buf[i] >= 32 && buf[i] <= 126) ? buf[i] : '.';
-		cJSON_AddItemToArray(ascii_arr, cJSON_CreateString((char[]){ascii_char, 0}));
-	}
-	cJSON_AddItemToObject(root, "bytes", arr);
-	cJSON_AddItemToObject(root, "ascii", ascii_arr);
-	free(buf);
-	return dup_json_string(root);
+    cJSON* root = cJSON_CreateObject();
+    uint32_t cap = len;
+    uint8_t* buf = (uint8_t*)malloc(cap);
+    if (!buf) return "{}";
+    size_t got = nd500_dbg_mem_dump(&g_machine, addr, len, buf, cap);
+    cJSON_AddNumberToObject(root, "addr", addr);
+    cJSON_AddNumberToObject(root, "len", (double)got);
+    cJSON* arr = cJSON_CreateArray();
+    cJSON* ascii_arr = cJSON_CreateArray();
+    for (size_t i = 0; i < got; ++i) {
+        char tmp[3];
+        snprintf(tmp, sizeof(tmp), "%02X", buf[i]);
+        cJSON_AddItemToArray(arr, cJSON_CreateString(tmp));
+
+        // Add ASCII representation
+        char ascii_char = (buf[i] >= 32 && buf[i] <= 126) ? buf[i] : '.';
+        cJSON_AddItemToArray(ascii_arr, cJSON_CreateString((char[]){ascii_char, 0}));
+    }
+    cJSON_AddItemToObject(root, "bytes", arr);
+    cJSON_AddItemToObject(root, "ascii", ascii_arr);
+    free(buf);
+    return dup_json_string(root);
 }
 
 const char* nd500_dbg_disasm_json(uint32_t addr, uint32_t len) {
@@ -158,45 +158,45 @@ const char* nd500_dbg_disasm_json(uint32_t addr, uint32_t len) {
 }
 
 const char* nd500_dbg_regs_json(void) {
-	if (!g_machine.cpu) return "{}";
-	Nd500Regs r; memset(&r, 0, sizeof(r));
-	nd500_cpu_get_regs(g_machine.cpu, &r);
-	cJSON* root = cJSON_CreateObject();
-	cJSON_AddNumberToObject(root, "PC", r.PC);
-	cJSON_AddNumberToObject(root, "FLAGS", r.FLAGS);
-	cJSON* I = cJSON_CreateArray();
-	for (int i = 0; i < 4; ++i) cJSON_AddItemToArray(I, cJSON_CreateNumber(r.I[i]));
-	cJSON* A = cJSON_CreateArray();
-	for (int i = 0; i < 4; ++i) cJSON_AddItemToArray(A, cJSON_CreateNumber(r.A[i]));
-	cJSON* E = cJSON_CreateArray();
-	for (int i = 0; i < 4; ++i) cJSON_AddItemToArray(E, cJSON_CreateNumber(r.E[i]));
-	cJSON_AddItemToObject(root, "I", I);
-	cJSON_AddItemToObject(root, "A", A);
-	cJSON_AddItemToObject(root, "E", E);
-	cJSON_AddNumberToObject(root, "L", r.L);
-	cJSON_AddNumberToObject(root, "B", r.B);
-	cJSON_AddNumberToObject(root, "R", r.R);
-	cJSON_AddNumberToObject(root, "TOS", r.TOS);
-	cJSON_AddNumberToObject(root, "LL", r.LL);
-	cJSON_AddNumberToObject(root, "HL", r.HL);
-	cJSON_AddNumberToObject(root, "THA", r.THA);
-	cJSON_AddNumberToObject(root, "ST1", r.ST1);
-	cJSON_AddNumberToObject(root, "ST2", r.ST2);
-	cJSON_AddNumberToObject(root, "OTE1", r.OTE1);
-	cJSON_AddNumberToObject(root, "OTE2", r.OTE2);
-	cJSON_AddNumberToObject(root, "CTE1", r.CTE1);
-	cJSON_AddNumberToObject(root, "CTE2", r.CTE2);
-	cJSON_AddNumberToObject(root, "MTE1", r.MTE1);
-	cJSON_AddNumberToObject(root, "MTE2", r.MTE2);
-	cJSON_AddNumberToObject(root, "TEMM1", r.TEMM1);
-	cJSON_AddNumberToObject(root, "TEMM2", r.TEMM2);
-	/* MMU registers */
-	cJSON_AddNumberToObject(root, "PSTP", r.PSTP);
-	cJSON_AddNumberToObject(root, "DITBASE", r.DITBASE);
-	cJSON_AddNumberToObject(root, "CED", r.CED);
-	cJSON_AddNumberToObject(root, "CAD", r.CAD);
-	cJSON_AddNumberToObject(root, "PS", r.PS);
-	return dup_json_string(root);
+    if (!g_machine.cpu) return "{}";
+    Nd500Regs r; memset(&r, 0, sizeof(r));
+    nd500_cpu_get_regs(g_machine.cpu, &r);
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "PC", r.PC);
+    cJSON_AddNumberToObject(root, "FLAGS", r.FLAGS);
+    cJSON* I = cJSON_CreateArray();
+    for (int i = 0; i < 4; ++i) cJSON_AddItemToArray(I, cJSON_CreateNumber(r.I[i]));
+    cJSON* A = cJSON_CreateArray();
+    for (int i = 0; i < 4; ++i) cJSON_AddItemToArray(A, cJSON_CreateNumber(r.A[i]));
+    cJSON* E = cJSON_CreateArray();
+    for (int i = 0; i < 4; ++i) cJSON_AddItemToArray(E, cJSON_CreateNumber(r.E[i]));
+    cJSON_AddItemToObject(root, "I", I);
+    cJSON_AddItemToObject(root, "A", A);
+    cJSON_AddItemToObject(root, "E", E);
+    cJSON_AddNumberToObject(root, "L", r.L);
+    cJSON_AddNumberToObject(root, "B", r.B);
+    cJSON_AddNumberToObject(root, "R", r.R);
+    cJSON_AddNumberToObject(root, "TOS", r.TOS);
+    cJSON_AddNumberToObject(root, "LL", r.LL);
+    cJSON_AddNumberToObject(root, "HL", r.HL);
+    cJSON_AddNumberToObject(root, "THA", r.THA);
+    cJSON_AddNumberToObject(root, "ST1", r.ST1);
+    cJSON_AddNumberToObject(root, "ST2", r.ST2);
+    cJSON_AddNumberToObject(root, "OTE1", r.OTE1);
+    cJSON_AddNumberToObject(root, "OTE2", r.OTE2);
+    cJSON_AddNumberToObject(root, "CTE1", r.CTE1);
+    cJSON_AddNumberToObject(root, "CTE2", r.CTE2);
+    cJSON_AddNumberToObject(root, "MTE1", r.MTE1);
+    cJSON_AddNumberToObject(root, "MTE2", r.MTE2);
+    cJSON_AddNumberToObject(root, "TEMM1", r.TEMM1);
+    cJSON_AddNumberToObject(root, "TEMM2", r.TEMM2);
+    /* MMU registers */
+    cJSON_AddNumberToObject(root, "PSTP", r.PSTP);
+    cJSON_AddNumberToObject(root, "DITBASE", r.DITBASE);
+    cJSON_AddNumberToObject(root, "CED", r.CED);
+    cJSON_AddNumberToObject(root, "CAD", r.CAD);
+    cJSON_AddNumberToObject(root, "PS", r.PS);
+    return dup_json_string(root);
 }
 
 void nd500_dbg_step_js(uint32_t n) { nd500_dbg_step(&g_machine, n ? n : 1); }
@@ -249,184 +249,184 @@ int nd500_dbg_load_aout_path_js(const char* path) {
 
 /* Breakpoint API functions */
 int nd500_dbg_bp_add_js(uint32_t addr) {
-	if (!g_machine.bp_mgr) return -1;
-	return bp_add(g_machine.bp_mgr, addr, false);  // false = not one-shot
+    if (!g_machine.bp_mgr) return -1;
+    return bp_add(g_machine.bp_mgr, addr, false);  // false = not one-shot
 }
 
 int nd500_dbg_bp_del_js(int id) {
-	if (!g_machine.bp_mgr) return -1;
-	return bp_delete(g_machine.bp_mgr, id);
+    if (!g_machine.bp_mgr) return -1;
+    return bp_delete(g_machine.bp_mgr, id);
 }
 
 int nd500_dbg_bp_enable_js(int id) {
-	if (!g_machine.bp_mgr) return -1;
-	return bp_enable(g_machine.bp_mgr, id);
+    if (!g_machine.bp_mgr) return -1;
+    return bp_enable(g_machine.bp_mgr, id);
 }
 
 int nd500_dbg_bp_disable_js(int id) {
-	if (!g_machine.bp_mgr) return -1;
-	return bp_disable(g_machine.bp_mgr, id);
+    if (!g_machine.bp_mgr) return -1;
+    return bp_disable(g_machine.bp_mgr, id);
 }
 
 const char* nd500_dbg_bp_list_json(void) {
-	cJSON* root = cJSON_CreateArray();
-	
-	if (!g_machine.bp_mgr) {
-		return dup_json_string(root);
-	}
-	
-	// Get breakpoint list from manager
-	Breakpoint* bps = g_machine.bp_mgr->breakpoints;
-	for (int i = 0; i < g_machine.bp_mgr->bp_count; i++) {
-		cJSON* bp_obj = cJSON_CreateObject();
-		cJSON_AddNumberToObject(bp_obj, "id", i);
-		cJSON_AddNumberToObject(bp_obj, "addr", bps[i].address);
-		cJSON_AddBoolToObject(bp_obj, "enabled", bps[i].enabled);
-		cJSON_AddItemToArray(root, bp_obj);
-	}
-	
-	return dup_json_string(root);
+    cJSON* root = cJSON_CreateArray();
+
+    if (!g_machine.bp_mgr) {
+        return dup_json_string(root);
+    }
+
+    // Get breakpoint list from manager
+    Breakpoint* bps = g_machine.bp_mgr->breakpoints;
+    for (int i = 0; i < g_machine.bp_mgr->bp_count; i++) {
+        cJSON* bp_obj = cJSON_CreateObject();
+        cJSON_AddNumberToObject(bp_obj, "id", i);
+        cJSON_AddNumberToObject(bp_obj, "addr", bps[i].address);
+        cJSON_AddBoolToObject(bp_obj, "enabled", bps[i].enabled);
+        cJSON_AddItemToArray(root, bp_obj);
+    }
+
+    return dup_json_string(root);
 }
 
 const char* nd500_dbg_status_json(void) {
-	cJSON* root = cJSON_CreateObject();
-	cJSON_AddBoolToObject(root, "running", g_machine.run_flag);
-	if (g_machine.cpu) {
-		cJSON_AddNumberToObject(root, "pc", g_machine.cpu->PC);
-	}
-	cJSON_AddBoolToObject(root, "breakpoint_hit", 0); // TODO: implement breakpoint hit detection
-	cJSON_AddStringToObject(root, "last_error", ""); // TODO: implement error tracking
-	return dup_json_string(root);
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "running", g_machine.run_flag);
+    if (g_machine.cpu) {
+        cJSON_AddNumberToObject(root, "pc", g_machine.cpu->PC);
+    }
+    cJSON_AddBoolToObject(root, "breakpoint_hit", 0); // TODO: implement breakpoint hit detection
+    cJSON_AddStringToObject(root, "last_error", ""); // TODO: implement error tracking
+    return dup_json_string(root);
 }
 
 const char* nd500_dbg_traps_json(void) {
-	cJSON* root = cJSON_CreateObject();
-	cJSON* traps = cJSON_CreateArray();
-	
-	if (nd500_dbg_trap_occurred()) {
-		const char* desc = nd500_dbg_get_trap_description();
-		cJSON* trap = cJSON_CreateObject();
-		cJSON_AddStringToObject(trap, "description", desc ? desc : "Unknown trap");
-		cJSON_AddBoolToObject(trap, "occurred", 1);
-		cJSON_AddItemToArray(traps, trap);
-	}
-	
-	cJSON_AddItemToObject(root, "traps", traps);
-	return dup_json_string(root);
+    cJSON* root = cJSON_CreateObject();
+    cJSON* traps = cJSON_CreateArray();
+
+    if (nd500_dbg_trap_occurred()) {
+        const char* desc = nd500_dbg_get_trap_description();
+        cJSON* trap = cJSON_CreateObject();
+        cJSON_AddStringToObject(trap, "description", desc ? desc : "Unknown trap");
+        cJSON_AddBoolToObject(trap, "occurred", 1);
+        cJSON_AddItemToArray(traps, trap);
+    }
+
+    cJSON_AddItemToObject(root, "traps", traps);
+    return dup_json_string(root);
 }
 
 void nd500_dbg_clear_traps_js(void) {
-	nd500_dbg_clear_traps();
+    nd500_dbg_clear_traps();
 }
 
 void nd500_dbg_set_reg_js(const char* reg_name, uint32_t value) {
-	if (!g_machine.cpu) return;
+    if (!g_machine.cpu) return;
 
-	// Map register names to CPU fields
-	if (strcmp(reg_name, "PC") == 0) {
-		g_machine.cpu->PC = value;
-	} else if (strcmp(reg_name, "FLAGS") == 0) {
-		g_machine.cpu->FLAGS = value;
-	} else if (strncmp(reg_name, "I", 1) == 0 && strlen(reg_name) == 2) {
-		int idx = reg_name[1] - '1';
-		if (idx >= 0 && idx < 4) {
-			g_machine.cpu->I[idx] = value;
-		}
-	} else if (strncmp(reg_name, "A", 1) == 0 && strlen(reg_name) == 2) {
-		int idx = reg_name[1] - '1';
-		if (idx >= 0 && idx < 4) {
-			g_machine.cpu->A[idx] = value;
-		}
-	} else if (strncmp(reg_name, "E", 1) == 0 && strlen(reg_name) == 2) {
-		int idx = reg_name[1] - '1';
-		if (idx >= 0 && idx < 4) {
-			g_machine.cpu->E[idx] = value;
-		}
-	} else if (strcmp(reg_name, "L") == 0) {
-		g_machine.cpu->L = value;
-	} else if (strcmp(reg_name, "B") == 0) {
-		g_machine.cpu->B = value;
-	} else if (strcmp(reg_name, "R") == 0) {
-		g_machine.cpu->R = value;
-	} else if (strcmp(reg_name, "TOS") == 0) {
-		g_machine.cpu->TOS = value;
-	} else if (strcmp(reg_name, "LL") == 0) {
-		g_machine.cpu->LL = value;
-	} else if (strcmp(reg_name, "HL") == 0) {
-		g_machine.cpu->HL = value;
-	} else if (strcmp(reg_name, "THA") == 0) {
-		g_machine.cpu->THA = value;
-	} else if (strcmp(reg_name, "ST1") == 0) {
-		g_machine.cpu->ST1 = value;
-	} else if (strcmp(reg_name, "ST2") == 0) {
-		g_machine.cpu->ST2 = value;
-	} else if (strcmp(reg_name, "OTE1") == 0) {
-		g_machine.cpu->OTE1 = value;
-	} else if (strcmp(reg_name, "OTE2") == 0) {
-		g_machine.cpu->OTE2 = value;
-	} else if (strcmp(reg_name, "CTE1") == 0) {
-		g_machine.cpu->CTE1 = value;
-	} else if (strcmp(reg_name, "CTE2") == 0) {
-		g_machine.cpu->CTE2 = value;
-	} else if (strcmp(reg_name, "MTE1") == 0) {
-		g_machine.cpu->MTE1 = value;
-	} else if (strcmp(reg_name, "MTE2") == 0) {
-		g_machine.cpu->MTE2 = value;
-	} else if (strcmp(reg_name, "TEMM1") == 0) {
-		g_machine.cpu->TEMM1 = value;
-	} else if (strcmp(reg_name, "TEMM2") == 0) {
-		g_machine.cpu->TEMM2 = value;
-	} else if (strcmp(reg_name, "PSTP") == 0) {
-		g_machine.cpu->PSTP = value;
-	} else if (strcmp(reg_name, "DITBASE") == 0) {
-		g_machine.cpu->DITBASE = value;
-	} else if (strcmp(reg_name, "CED") == 0) {
-		g_machine.cpu->CED = value;
-	} else if (strcmp(reg_name, "CAD") == 0) {
-		g_machine.cpu->CAD = value;
-	} else if (strcmp(reg_name, "PS") == 0) {
-		g_machine.cpu->PS = value;
-	}
+    // Map register names to CPU fields
+    if (strcmp(reg_name, "PC") == 0) {
+        g_machine.cpu->PC = value;
+    } else if (strcmp(reg_name, "FLAGS") == 0) {
+        g_machine.cpu->FLAGS = value;
+    } else if (strncmp(reg_name, "I", 1) == 0 && strlen(reg_name) == 2) {
+        int idx = reg_name[1] - '1';
+        if (idx >= 0 && idx < 4) {
+            g_machine.cpu->I[idx] = value;
+        }
+    } else if (strncmp(reg_name, "A", 1) == 0 && strlen(reg_name) == 2) {
+        int idx = reg_name[1] - '1';
+        if (idx >= 0 && idx < 4) {
+            g_machine.cpu->A[idx] = value;
+        }
+    } else if (strncmp(reg_name, "E", 1) == 0 && strlen(reg_name) == 2) {
+        int idx = reg_name[1] - '1';
+        if (idx >= 0 && idx < 4) {
+            g_machine.cpu->E[idx] = value;
+        }
+    } else if (strcmp(reg_name, "L") == 0) {
+        g_machine.cpu->L = value;
+    } else if (strcmp(reg_name, "B") == 0) {
+        g_machine.cpu->B = value;
+    } else if (strcmp(reg_name, "R") == 0) {
+        g_machine.cpu->R = value;
+    } else if (strcmp(reg_name, "TOS") == 0) {
+        g_machine.cpu->TOS = value;
+    } else if (strcmp(reg_name, "LL") == 0) {
+        g_machine.cpu->LL = value;
+    } else if (strcmp(reg_name, "HL") == 0) {
+        g_machine.cpu->HL = value;
+    } else if (strcmp(reg_name, "THA") == 0) {
+        g_machine.cpu->THA = value;
+    } else if (strcmp(reg_name, "ST1") == 0) {
+        g_machine.cpu->ST1 = value;
+    } else if (strcmp(reg_name, "ST2") == 0) {
+        g_machine.cpu->ST2 = value;
+    } else if (strcmp(reg_name, "OTE1") == 0) {
+        g_machine.cpu->OTE1 = value;
+    } else if (strcmp(reg_name, "OTE2") == 0) {
+        g_machine.cpu->OTE2 = value;
+    } else if (strcmp(reg_name, "CTE1") == 0) {
+        g_machine.cpu->CTE1 = value;
+    } else if (strcmp(reg_name, "CTE2") == 0) {
+        g_machine.cpu->CTE2 = value;
+    } else if (strcmp(reg_name, "MTE1") == 0) {
+        g_machine.cpu->MTE1 = value;
+    } else if (strcmp(reg_name, "MTE2") == 0) {
+        g_machine.cpu->MTE2 = value;
+    } else if (strcmp(reg_name, "TEMM1") == 0) {
+        g_machine.cpu->TEMM1 = value;
+    } else if (strcmp(reg_name, "TEMM2") == 0) {
+        g_machine.cpu->TEMM2 = value;
+    } else if (strcmp(reg_name, "PSTP") == 0) {
+        g_machine.cpu->PSTP = value;
+    } else if (strcmp(reg_name, "DITBASE") == 0) {
+        g_machine.cpu->DITBASE = value;
+    } else if (strcmp(reg_name, "CED") == 0) {
+        g_machine.cpu->CED = value;
+    } else if (strcmp(reg_name, "CAD") == 0) {
+        g_machine.cpu->CAD = value;
+    } else if (strcmp(reg_name, "PS") == 0) {
+        g_machine.cpu->PS = value;
+    }
 }
 
 /* Get all symbols as JSON array */
 const char* nd500_dbg_symbols_json(void) {
-	cJSON* root = cJSON_CreateArray();
+    cJSON* root = cJSON_CreateArray();
 
-	int count = ndlib_symbols_get_count();
-	for (int i = 0; i < count; i++) {
-		const char* name = ndlib_symbols_get_name(i);
-		uint32_t addr = ndlib_symbols_get_addr(i);
-		uint8_t type = ndlib_symbols_get_type(i);
+    int count = ndlib_symbols_get_count();
+    for (int i = 0; i < count; i++) {
+        const char* name = ndlib_symbols_get_name(i);
+        uint32_t addr = ndlib_symbols_get_addr(i);
+        uint8_t type = ndlib_symbols_get_type(i);
 
-		/* Skip unresolved/undefined symbols (type & 0x0E == 0x00) */
-		if ((type & 0x0E) == 0x00) continue;
+        /* Skip unresolved/undefined symbols (type & 0x0E == 0x00) */
+        if ((type & 0x0E) == 0x00) continue;
 
-		cJSON* sym = cJSON_CreateObject();
-		cJSON_AddStringToObject(sym, "name", name ? name : "");
-		cJSON_AddNumberToObject(sym, "addr", addr);
+        cJSON* sym = cJSON_CreateObject();
+        cJSON_AddStringToObject(sym, "name", name ? name : "");
+        cJSON_AddNumberToObject(sym, "addr", addr);
 
-		/* Add type description */
-		const char* type_str = "UNKNOWN";
-		if ((type & 0x0E) == 0x04) type_str = "TEXT";
-		else if ((type & 0x0E) == 0x06) type_str = "DATA";
-		else if ((type & 0x0E) == 0x08) type_str = "BSS";
-		cJSON_AddStringToObject(sym, "type", type_str);
+        /* Add type description */
+        const char* type_str = "UNKNOWN";
+        if ((type & 0x0E) == 0x04) type_str = "TEXT";
+        else if ((type & 0x0E) == 0x06) type_str = "DATA";
+        else if ((type & 0x0E) == 0x08) type_str = "BSS";
+        cJSON_AddStringToObject(sym, "type", type_str);
 
-		cJSON_AddItemToArray(root, sym);
-	}
+        cJSON_AddItemToArray(root, sym);
+    }
 
-	return dup_json_string(root);
+    return dup_json_string(root);
 }
 
 /* Get memory map as JSON */
 const char* nd500_dbg_memory_map_json_js(void) {
-	return nd500_dbg_memory_map_json(&g_machine);
+    return nd500_dbg_memory_map_json(&g_machine);
 }
 
 /* Get memory map filtered by domain as JSON */
 const char* nd500_dbg_memory_map_for_domain_json_js(int domain) {
-	return nd500_dbg_memory_map_for_domain_json(&g_machine, domain);
+    return nd500_dbg_memory_map_for_domain_json(&g_machine, domain);
 }
 
 /* Check if MMU is enabled (legacy - returns true if either is enabled) */
@@ -434,7 +434,7 @@ const char* nd500_dbg_memory_map_for_domain_json_js(int domain) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 int nd500_dbg_mmu_is_enabled_js(void) {
-	return nd500_machine_mmu_is_enabled(&g_machine);
+    return nd500_machine_mmu_is_enabled(&g_machine);
 }
 
 /* Check if Program MMU is enabled (PMON/PMOF) */
@@ -442,7 +442,7 @@ int nd500_dbg_mmu_is_enabled_js(void) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 int nd500_dbg_mmu_is_program_enabled_js(void) {
-	return nd500_mmu_is_program_enabled(g_machine.cpu);
+    return nd500_mmu_is_program_enabled(g_machine.cpu);
 }
 
 /* Check if Data MMU is enabled (DMON/DMOF) */
@@ -450,7 +450,7 @@ int nd500_dbg_mmu_is_program_enabled_js(void) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 int nd500_dbg_mmu_is_data_enabled_js(void) {
-	return nd500_mmu_is_data_enabled(g_machine.cpu);
+    return nd500_mmu_is_data_enabled(g_machine.cpu);
 }
 
 /* Enable Program MMU (PMON) */
@@ -458,7 +458,7 @@ int nd500_dbg_mmu_is_data_enabled_js(void) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 void nd500_dbg_mmu_enable_program_js(void) {
-	nd500_mmu_enable_program(g_machine.cpu);
+    nd500_mmu_enable_program(g_machine.cpu);
 }
 
 /* Disable Program MMU (PMOF) */
@@ -466,7 +466,7 @@ void nd500_dbg_mmu_enable_program_js(void) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 void nd500_dbg_mmu_disable_program_js(void) {
-	nd500_mmu_disable_program(g_machine.cpu);
+    nd500_mmu_disable_program(g_machine.cpu);
 }
 
 /* Enable Data MMU (DMON) */
@@ -474,7 +474,7 @@ void nd500_dbg_mmu_disable_program_js(void) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 void nd500_dbg_mmu_enable_data_js(void) {
-	nd500_mmu_enable_data(g_machine.cpu);
+    nd500_mmu_enable_data(g_machine.cpu);
 }
 
 /* Disable Data MMU (DMOF) */
@@ -482,7 +482,7 @@ void nd500_dbg_mmu_enable_data_js(void) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 void nd500_dbg_mmu_disable_data_js(void) {
-	nd500_mmu_disable_data(g_machine.cpu);
+    nd500_mmu_disable_data(g_machine.cpu);
 }
 
 /* Get PCB segment capabilities as JSON with decoded bit fields */
@@ -490,103 +490,103 @@ void nd500_dbg_mmu_disable_data_js(void) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 const char* nd500_dbg_pcb_segment_json_js(int domain, int segment) {
-	if (!g_machine.cpu || domain < 0 || domain > 255 || segment < 0 || segment >= MAXSEG) {
-		return "{}";
-	}
+    if (!g_machine.cpu || domain < 0 || domain > 255 || segment < 0 || segment >= MAXSEG) {
+        return "{}";
+    }
 
-	cJSON* root = cJSON_CreateObject();
-	cJSON_AddNumberToObject(root, "domain", domain);
-	cJSON_AddNumberToObject(root, "segment", segment);
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "domain", domain);
+    cJSON_AddNumberToObject(root, "segment", segment);
 
-	/* ═══════════════════════════════════════════════════════ */
-	/* Program Capability */
-	/* ═══════════════════════════════════════════════════════ */
-	uint16_t prog_cap = nd500_mmu_get_program_capability(g_machine.cpu, (uint8_t)domain, segment);
-	cJSON* prog = cJSON_CreateObject();
-	cJSON_AddNumberToObject(prog, "raw", prog_cap);
+    /* ═══════════════════════════════════════════════════════ */
+    /* Program Capability */
+    /* ═══════════════════════════════════════════════════════ */
+    uint16_t prog_cap = nd500_mmu_get_program_capability(g_machine.cpu, (uint8_t)domain, segment);
+    cJSON* prog = cJSON_CreateObject();
+    cJSON_AddNumberToObject(prog, "raw", prog_cap);
 
-	/* Bit 15: Direct (0) or Indirect (1) */
-	int bit15 = (prog_cap >> 15) & 1;
-	cJSON_AddNumberToObject(prog, "bit15", bit15);
-	cJSON_AddStringToObject(prog, "type", bit15 ? "INDIRECT" : "DIRECT");
+    /* Bit 15: Direct (0) or Indirect (1) */
+    int bit15 = (prog_cap >> 15) & 1;
+    cJSON_AddNumberToObject(prog, "bit15", bit15);
+    cJSON_AddStringToObject(prog, "type", bit15 ? "INDIRECT" : "DIRECT");
 
-	if (bit15 == 0) {
-		/* DIRECT segment: bit15=0, bits 14-13 unused, bits 12-0 = PSN */
-		int unused_bits = (prog_cap >> 13) & 0x3;
-		int psn = prog_cap & 0x1FFF;
+    if (bit15 == 0) {
+        /* DIRECT segment: bit15=0, bits 14-13 unused, bits 12-0 = PSN */
+        int unused_bits = (prog_cap >> 13) & 0x3;
+        int psn = prog_cap & 0x1FFF;
 
-		cJSON_AddNumberToObject(prog, "unused_bits", unused_bits);
-		cJSON_AddNumberToObject(prog, "psn", psn);
-		cJSON_AddNullToObject(prog, "omc_bit");
-		cJSON_AddNullToObject(prog, "unused_bit13");
-		cJSON_AddNullToObject(prog, "domain");
-		cJSON_AddNullToObject(prog, "segment");
-	} else {
-		/* INDIRECT segment: bit15=1, bit14=OMC, bit13 unused, bits 12-5=domain, bits 4-0=segment */
-		int omc_bit = (prog_cap >> 14) & 1;
-		int unused_bit13 = (prog_cap >> 13) & 1;
-		int domain_field = (prog_cap >> 5) & 0xFF;
-		int segment_field = prog_cap & 0x1F;
+        cJSON_AddNumberToObject(prog, "unused_bits", unused_bits);
+        cJSON_AddNumberToObject(prog, "psn", psn);
+        cJSON_AddNullToObject(prog, "omc_bit");
+        cJSON_AddNullToObject(prog, "unused_bit13");
+        cJSON_AddNullToObject(prog, "domain");
+        cJSON_AddNullToObject(prog, "segment");
+    } else {
+        /* INDIRECT segment: bit15=1, bit14=OMC, bit13 unused, bits 12-5=domain, bits 4-0=segment */
+        int omc_bit = (prog_cap >> 14) & 1;
+        int unused_bit13 = (prog_cap >> 13) & 1;
+        int domain_field = (prog_cap >> 5) & 0xFF;
+        int segment_field = prog_cap & 0x1F;
 
-		cJSON_AddNumberToObject(prog, "omc_bit", omc_bit);
-		cJSON_AddNumberToObject(prog, "unused_bit13", unused_bit13);
-		cJSON_AddNumberToObject(prog, "domain", domain_field);
-		cJSON_AddNumberToObject(prog, "segment", segment_field);
-		cJSON_AddNullToObject(prog, "unused_bits");
-		cJSON_AddNullToObject(prog, "psn");
-	}
+        cJSON_AddNumberToObject(prog, "omc_bit", omc_bit);
+        cJSON_AddNumberToObject(prog, "unused_bit13", unused_bit13);
+        cJSON_AddNumberToObject(prog, "domain", domain_field);
+        cJSON_AddNumberToObject(prog, "segment", segment_field);
+        cJSON_AddNullToObject(prog, "unused_bits");
+        cJSON_AddNullToObject(prog, "psn");
+    }
 
-	cJSON_AddItemToObject(root, "program", prog);
+    cJSON_AddItemToObject(root, "program", prog);
 
-	/* ═══════════════════════════════════════════════════════ */
-	/* Data Capability */
-	/* ═══════════════════════════════════════════════════════ */
-	uint16_t data_cap = nd500_mmu_get_data_capability(g_machine.cpu, (uint8_t)domain, segment);
-	cJSON* data = cJSON_CreateObject();
-	cJSON_AddNumberToObject(data, "raw", data_cap);
+    /* ═══════════════════════════════════════════════════════ */
+    /* Data Capability */
+    /* ═══════════════════════════════════════════════════════ */
+    uint16_t data_cap = nd500_mmu_get_data_capability(g_machine.cpu, (uint8_t)domain, segment);
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddNumberToObject(data, "raw", data_cap);
 
-	/* Bit 15: Write Permitted */
-	int wrp_bit = (data_cap >> 15) & 1;
-	cJSON_AddNumberToObject(data, "wrp_bit", wrp_bit);
+    /* Bit 15: Write Permitted */
+    int wrp_bit = (data_cap >> 15) & 1;
+    cJSON_AddNumberToObject(data, "wrp_bit", wrp_bit);
 
-	/* Bit 14: Parameter Access (user accessible) */
-	int pac_bit = (data_cap >> 14) & 1;
-	cJSON_AddNumberToObject(data, "pac_bit", pac_bit);
+    /* Bit 14: Parameter Access (user accessible) */
+    int pac_bit = (data_cap >> 14) & 1;
+    cJSON_AddNumberToObject(data, "pac_bit", pac_bit);
 
-	/* Bit 13: Shared Segment */
-	int shs_bit = (data_cap >> 13) & 1;
-	cJSON_AddNumberToObject(data, "shs_bit", shs_bit);
+    /* Bit 13: Shared Segment */
+    int shs_bit = (data_cap >> 13) & 1;
+    cJSON_AddNumberToObject(data, "shs_bit", shs_bit);
 
-	/* Bits 12-0: Physical Segment Number */
-	int psn = data_cap & 0x1FFF;
-	cJSON_AddNumberToObject(data, "psn", psn);
+    /* Bits 12-0: Physical Segment Number */
+    int psn = data_cap & 0x1FFF;
+    cJSON_AddNumberToObject(data, "psn", psn);
 
-	/* Determine permission level based on WRP and PAC bits */
-	const char* permission = "NONE";
-	const char* permission_desc = "No access";
+    /* Determine permission level based on WRP and PAC bits */
+    const char* permission = "NONE";
+    const char* permission_desc = "No access";
 
-	if (data_cap != 0) {
-		if (wrp_bit && pac_bit) {
-			permission = "SG_URW";
-			permission_desc = "User Read/Write";
-		} else if (!wrp_bit && pac_bit) {
-			permission = "SG_URO";
-			permission_desc = "User Read-Only";
-		} else if (wrp_bit && !pac_bit) {
-			permission = "SG_RW";
-			permission_desc = "Kernel Read/Write";
-		} else {
-			permission = "SG_RO";
-			permission_desc = "Kernel Read-Only";
-		}
-	}
+    if (data_cap != 0) {
+        if (wrp_bit && pac_bit) {
+            permission = "SG_URW";
+            permission_desc = "User Read/Write";
+        } else if (!wrp_bit && pac_bit) {
+            permission = "SG_URO";
+            permission_desc = "User Read-Only";
+        } else if (wrp_bit && !pac_bit) {
+            permission = "SG_RW";
+            permission_desc = "Kernel Read/Write";
+        } else {
+            permission = "SG_RO";
+            permission_desc = "Kernel Read-Only";
+        }
+    }
 
-	cJSON_AddStringToObject(data, "permission", permission);
-	cJSON_AddStringToObject(data, "permission_desc", permission_desc);
+    cJSON_AddStringToObject(data, "permission", permission);
+    cJSON_AddStringToObject(data, "permission_desc", permission_desc);
 
-	cJSON_AddItemToObject(root, "data", data);
+    cJSON_AddItemToObject(root, "data", data);
 
-	return dup_json_string(root);
+    return dup_json_string(root);
 }
 
 /* ═══════════════════════════════════════════════════════ */
@@ -599,67 +599,67 @@ static size_t g_wasm_output_pos = 0;
 
 /* Output callback for WASM - appends to buffer */
 static void wasm_output(const char* line, void* ctx) {
-	(void)ctx; /* Unused */
-	size_t len = strlen(line);
-	if (g_wasm_output_pos + len + 1 < sizeof(g_wasm_output_buffer)) {
-		memcpy(g_wasm_output_buffer + g_wasm_output_pos, line, len);
-		g_wasm_output_pos += len;
-		g_wasm_output_buffer[g_wasm_output_pos++] = '\n';
-		g_wasm_output_buffer[g_wasm_output_pos] = '\0';
-	}
+    (void)ctx; /* Unused */
+    size_t len = strlen(line);
+    if (g_wasm_output_pos + len + 1 < sizeof(g_wasm_output_buffer)) {
+        memcpy(g_wasm_output_buffer + g_wasm_output_pos, line, len);
+        g_wasm_output_pos += len;
+        g_wasm_output_buffer[g_wasm_output_pos++] = '\n';
+        g_wasm_output_buffer[g_wasm_output_pos] = '\0';
+    }
 }
 
 /* Execute a debugger command and return output as string */
 const char* nd500_cmd_exec_js(const char* cmdline) {
-	if (!cmdline) return "";
+    if (!cmdline) return "";
 
-	/* Clear output buffer */
-	g_wasm_output_pos = 0;
-	g_wasm_output_buffer[0] = '\0';
+    /* Clear output buffer */
+    g_wasm_output_pos = 0;
+    g_wasm_output_buffer[0] = '\0';
 
-	/* Set up command context */
-	CmdContext ctx = {
-		.output = wasm_output,
-		.error = wasm_output,  /* Errors also go to output buffer */
-		.context = NULL
-	};
+    /* Set up command context */
+    CmdContext ctx = {
+        .output = wasm_output,
+        .error = wasm_output,  /* Errors also go to output buffer */
+        .context = NULL
+    };
 
-	/* Execute command */
-	int result = nd500_cmd_execute(&g_machine, cmdline, &ctx);
+    /* Execute command */
+    int result = nd500_cmd_execute(&g_machine, cmdline, &ctx);
 
-	/* Return output buffer (contains either success output or error messages) */
-	/* Commands write error messages to output buffer via ctx.error callback */
-	return strdup(g_wasm_output_buffer);
+    /* Return output buffer (contains either success output or error messages) */
+    /* Commands write error messages to output buffer via ctx.error callback */
+    return strdup(g_wasm_output_buffer);
 }
 
 /* Get list of available commands as JSON array */
 const char* nd500_cmd_list_js(void) {
-	cJSON* root = cJSON_CreateArray();
+    cJSON* root = cJSON_CreateArray();
 
-	const char** commands = nd500_cmd_get_command_list();
-	if (commands) {
-		for (int i = 0; commands[i] != NULL; i++) {
-			cJSON_AddItemToArray(root, cJSON_CreateString(commands[i]));
-		}
-	}
+    const char** commands = nd500_cmd_get_command_list();
+    if (commands) {
+        for (int i = 0; commands[i] != NULL; i++) {
+            cJSON_AddItemToArray(root, cJSON_CreateString(commands[i]));
+        }
+    }
 
-	return dup_json_string(root);
+    return dup_json_string(root);
 }
 
 /* Get list of subcommands for a command as JSON array */
 const char* nd500_cmd_subcommands_js(const char* command) {
-	cJSON* root = cJSON_CreateArray();
+    cJSON* root = cJSON_CreateArray();
 
-	if (command) {
-		const char** subcommands = nd500_cmd_get_subcommands(command);
-		if (subcommands) {
-			for (int i = 0; subcommands[i] != NULL; i++) {
-				cJSON_AddItemToArray(root, cJSON_CreateString(subcommands[i]));
-			}
-		}
-	}
+    if (command) {
+        const char** subcommands = nd500_cmd_get_subcommands(command);
+        if (subcommands) {
+            for (int i = 0; subcommands[i] != NULL; i++) {
+                cJSON_AddItemToArray(root, cJSON_CreateString(subcommands[i]));
+            }
+        }
+    }
 
-	return dup_json_string(root);
+    return dup_json_string(root);
 }
 
 /* ═══════════════════════════════════════════════════════ */
@@ -671,8 +671,8 @@ const char* nd500_cmd_subcommands_js(const char* command) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 int nd500_dbg_load_map_js(const char* path) {
-	if (!path) return -1;
-	return ndlib_map_load(path);
+    if (!path) return -1;
+    return ndlib_map_load(path);
 }
 
 /* Get first non-zero instruction address from map file */
@@ -680,7 +680,7 @@ int nd500_dbg_load_map_js(const char* path) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 uint32_t nd500_dbg_first_instruction_addr_js(void) {
-	return ndlib_symbols_first_instruction_addr();
+    return ndlib_symbols_first_instruction_addr();
 }
 
 /* Store source file content in memory */
@@ -688,8 +688,8 @@ uint32_t nd500_dbg_first_instruction_addr_js(void) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 int nd500_dbg_store_source_js(const char* filename, const char* content) {
-	if (!filename || !content) return -1;
-	return ndlib_source_store(filename, content);
+    if (!filename || !content) return -1;
+    return ndlib_source_store(filename, content);
 }
 
 /* Get source location info for address as JSON: {file, line} */
@@ -697,22 +697,22 @@ int nd500_dbg_store_source_js(const char* filename, const char* content) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 const char* nd500_dbg_source_info_json_js(uint32_t addr) {
-	cJSON* root = cJSON_CreateObject();
+    cJSON* root = cJSON_CreateObject();
 
-	const char* file = ndlib_symbols_file_for_addr(addr);
-	int line = ndlib_symbols_line_for_addr(addr);
+    const char* file = ndlib_symbols_file_for_addr(addr);
+    int line = ndlib_symbols_line_for_addr(addr);
 
-	if (file && line >= 0) {
-		cJSON_AddStringToObject(root, "file", file);
-		cJSON_AddNumberToObject(root, "line", line);
-		cJSON_AddBoolToObject(root, "found", 1);
-	} else {
-		cJSON_AddBoolToObject(root, "found", 0);
-		cJSON_AddNullToObject(root, "file");
-		cJSON_AddNumberToObject(root, "line", -1);
-	}
+    if (file && line >= 0) {
+        cJSON_AddStringToObject(root, "file", file);
+        cJSON_AddNumberToObject(root, "line", line);
+        cJSON_AddBoolToObject(root, "found", 1);
+    } else {
+        cJSON_AddBoolToObject(root, "found", 0);
+        cJSON_AddNullToObject(root, "file");
+        cJSON_AddNumberToObject(root, "line", -1);
+    }
 
-	return dup_json_string(root);
+    return dup_json_string(root);
 }
 
 /* Get C source mapping for address as JSON: {file, line, found} */
@@ -720,23 +720,23 @@ const char* nd500_dbg_source_info_json_js(uint32_t addr) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 const char* nd500_dbg_source_c_mapping_json_js(uint32_t addr) {
-	cJSON* root = cJSON_CreateObject();
+    cJSON* root = cJSON_CreateObject();
 
-	const char* file = NULL;
-	int line = -1;
-	int found = ndlib_symbols_get_c_mapping(addr, &file, &line);
+    const char* file = NULL;
+    int line = -1;
+    int found = ndlib_symbols_get_c_mapping(addr, &file, &line);
 
-	if (found) {
-		cJSON_AddStringToObject(root, "file", file);
-		cJSON_AddNumberToObject(root, "line", line);
-		cJSON_AddBoolToObject(root, "found", 1);
-	} else {
-		cJSON_AddBoolToObject(root, "found", 0);
-		cJSON_AddNullToObject(root, "file");
-		cJSON_AddNumberToObject(root, "line", -1);
-	}
+    if (found) {
+        cJSON_AddStringToObject(root, "file", file);
+        cJSON_AddNumberToObject(root, "line", line);
+        cJSON_AddBoolToObject(root, "found", 1);
+    } else {
+        cJSON_AddBoolToObject(root, "found", 0);
+        cJSON_AddNullToObject(root, "file");
+        cJSON_AddNumberToObject(root, "line", -1);
+    }
 
-	return dup_json_string(root);
+    return dup_json_string(root);
 }
 
 /* Get assembly source mapping for address as JSON: {file, line, found} */
@@ -744,23 +744,23 @@ const char* nd500_dbg_source_c_mapping_json_js(uint32_t addr) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 const char* nd500_dbg_source_s_mapping_json_js(uint32_t addr) {
-	cJSON* root = cJSON_CreateObject();
+    cJSON* root = cJSON_CreateObject();
 
-	const char* file = NULL;
-	int line = -1;
-	int found = ndlib_symbols_get_s_mapping(addr, &file, &line);
+    const char* file = NULL;
+    int line = -1;
+    int found = ndlib_symbols_get_s_mapping(addr, &file, &line);
 
-	if (found) {
-		cJSON_AddStringToObject(root, "file", file);
-		cJSON_AddNumberToObject(root, "line", line);
-		cJSON_AddBoolToObject(root, "found", 1);
-	} else {
-		cJSON_AddBoolToObject(root, "found", 0);
-		cJSON_AddNullToObject(root, "file");
-		cJSON_AddNumberToObject(root, "line", -1);
-	}
+    if (found) {
+        cJSON_AddStringToObject(root, "file", file);
+        cJSON_AddNumberToObject(root, "line", line);
+        cJSON_AddBoolToObject(root, "found", 1);
+    } else {
+        cJSON_AddBoolToObject(root, "found", 0);
+        cJSON_AddNullToObject(root, "file");
+        cJSON_AddNumberToObject(root, "line", -1);
+    }
 
-	return dup_json_string(root);
+    return dup_json_string(root);
 }
 
 /* Get full source file content */
@@ -768,9 +768,9 @@ const char* nd500_dbg_source_s_mapping_json_js(uint32_t addr) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 const char* nd500_dbg_source_content_js(const char* filename) {
-	if (!filename) return "";
-	const char* content = ndlib_source_get_content(filename);
-	return content ? strdup(content) : "";
+    if (!filename) return "";
+    const char* content = ndlib_source_get_content(filename);
+    return content ? strdup(content) : "";
 }
 
 /* Get specific line from source file */
@@ -778,9 +778,9 @@ const char* nd500_dbg_source_content_js(const char* filename) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 const char* nd500_dbg_source_line_js(const char* filename, int line) {
-	if (!filename) return "";
-	const char* line_content = ndlib_source_get_line(filename, line);
-	return line_content ? strdup(line_content) : "";
+    if (!filename) return "";
+    const char* line_content = ndlib_source_get_line(filename, line);
+    return line_content ? strdup(line_content) : "";
 }
 
 /* Get address for source file:line (for breakpoints) - returns -1 if not found */
@@ -788,10 +788,10 @@ const char* nd500_dbg_source_line_js(const char* filename, int line) {
 EMSCRIPTEN_KEEPALIVE
 #endif
 int nd500_dbg_addr_for_source_js(const char* file, int line) {
-	if (!file) return -1;
-	uint32_t addr = 0;
-	if (ndlib_symbols_addr_for_line(file, line, &addr) == 0) {
-		return (int)addr;
-	}
-	return -1;
+    if (!file) return -1;
+    uint32_t addr = 0;
+    if (ndlib_symbols_addr_for_line(file, line, &addr) == 0) {
+        return (int)addr;
+    }
+    return -1;
 }

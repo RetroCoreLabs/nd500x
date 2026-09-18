@@ -49,9 +49,9 @@ extern int     g_nd500_tlb_on;      /* 0 while disabled or not yet primed */
 #define ND500_TLB_EMPTY 0xFFFFFFFFu
 
 typedef struct {
-	uint32_t tag;       /* (vpn << 9) | (domain << 1) | is_instruction */
-	uint32_t pfn;       /* resulting physical page number */
-	uint8_t  writable;  /* this translation was validated for a WRITE */
+    uint32_t tag;       /* (vpn << 9) | (domain << 1) | is_instruction */
+    uint32_t pfn;       /* resulting physical page number */
+    uint8_t  writable;  /* this translation was validated for a WRITE */
 } TlbEntry;
 
 extern TlbEntry g_nd500_tlb[ND500_TLB_SIZE];
@@ -64,26 +64,26 @@ void nd500_mmu_tlb_init_once(void);
 /* vpn is 21 bits, domain 8, is_instruction 1 - 30 bits total, so the tag is
  * exact: a tag match is a real match, never an aliasing accident. */
 static inline uint32_t nd500_tlb_tag(uint32_t vaddr, uint8_t domain, int is_instruction) {
-	return ((vaddr >> 11) << 9) | ((uint32_t)domain << 1) | (uint32_t)(is_instruction != 0);
+    return ((vaddr >> 11) << 9) | ((uint32_t)domain << 1) | (uint32_t)(is_instruction != 0);
 }
 static inline uint32_t nd500_tlb_slot(uint32_t tag) {
-	return (tag * 2654435761u) >> (32 - ND500_TLB_BITS);   /* Knuth multiplicative */
+    return (tag * 2654435761u) >> (32 - ND500_TLB_BITS);   /* Knuth multiplicative */
 }
 
 /* Record that a walk read a translation structure out of this physical page,
  * so a later write to it invalidates the cache. */
 static inline void nd500_tlb_note_xlat_page(uint32_t phys) {
-	uint32_t pg = phys >> 11;
-	if (pg < ND500_TLB_XLAT_PAGES)
-		g_nd500_xlat_bm[pg >> 3] |= (uint8_t)(1u << (pg & 7));
+    uint32_t pg = phys >> 11;
+    if (pg < ND500_TLB_XLAT_PAGES)
+        g_nd500_xlat_bm[pg >> 3] |= (uint8_t)(1u << (pg & 7));
 }
 
 /* Hot path: called for every physical byte written. Almost always a single
  * predictable load-and-test, because almost no page is a page table. */
 static inline void nd500_tlb_on_phys_write(uint32_t phys) {
-	if (!g_nd500_tlb_on) return;
-	uint32_t pg = phys >> 11;               /* PGSHIFT */
-	if (pg < ND500_TLB_XLAT_PAGES &&
-	    (g_nd500_xlat_bm[pg >> 3] & (uint8_t)(1u << (pg & 7))))
-		nd500_mmu_tlb_flush();
+    if (!g_nd500_tlb_on) return;
+    uint32_t pg = phys >> 11;               /* PGSHIFT */
+    if (pg < ND500_TLB_XLAT_PAGES &&
+        (g_nd500_xlat_bm[pg >> 3] & (uint8_t)(1u << (pg & 7))))
+        nd500_mmu_tlb_flush();
 }

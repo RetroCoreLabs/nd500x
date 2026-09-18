@@ -255,8 +255,8 @@ static int load_config(const char* path, int* telnet_port, int* monitor_mode, in
 /* Adapter: nd500x_ndix_autoboot emits debugger commands without needing to know
  * the CmdContext type. */
 static int ndix_autoboot_run(Nd500Machine* m, const char* cmd, void* ctx) {
-	printf("[ndix] %s\n", cmd);
-	return nd500_cmd_execute(m, cmd, (CmdContext*)ctx);
+    printf("[ndix] %s\n", cmd);
+    return nd500_cmd_execute(m, cmd, (CmdContext*)ctx);
 }
 
 int main(int argc, char** argv) {
@@ -497,33 +497,33 @@ int main(int argc, char** argv) {
     /* Initialize with 16MB of physical memory
      * Virtual addresses are mapped to physical via MMU */
     nd500_machine_init(&machine, 16 * 1024 * 1024);
-	Nd500Cpu cpu;
-	nd500_cpu_init(&cpu, &machine);
-	nd500_cpu_reset(&cpu);
+    Nd500Cpu cpu;
+    nd500_cpu_init(&cpu, &machine);
+    nd500_cpu_reset(&cpu);
 
-	/* Initialize SINTRAN MON call emulation */
-	mon_init();
+    /* Initialize SINTRAN MON call emulation */
+    mon_init();
 
-	/* Set command buffer if --args was specified */
-	if (args_str) {
-	    mon_set_command_buffer(args_str);
-	    printf("Command buffer: \"%s\"\n", args_str);
-	}
+    /* Set command buffer if --args was specified */
+    if (args_str) {
+        mon_set_command_buffer(args_str);
+        printf("Command buffer: \"%s\"\n", args_str);
+    }
 
-	uint32_t text_size = 0;
+    uint32_t text_size = 0;
     if (input_path) {
-		uint32_t entry = 0, pc = 0;
-		/* Use unified loading (auto-loads .map and .s files) */
-		if (ndlib_load_aout_with_debug(&machine, input_path, 1, &entry, &pc) == 0) {
-			printf("loaded: %s (entry=0x%08X, PC=0x%08X)\n", input_path, entry, pc);
-			(void)ndlib_aout_dump_metadata(input_path);
-			/* Setup segment 31 (SINTRAN MON calls) as indirect segment
-			 * This is normally done by SINTRAN firmware before jumping to kernel */
-			nd500_setup_sintran_segment(&cpu, 0);  /* domain 0 = kernel domain */
-		} else {
-			printf("load failed: %s\n", input_path);
-		}
-	}
+        uint32_t entry = 0, pc = 0;
+        /* Use unified loading (auto-loads .map and .s files) */
+        if (ndlib_load_aout_with_debug(&machine, input_path, 1, &entry, &pc) == 0) {
+            printf("loaded: %s (entry=0x%08X, PC=0x%08X)\n", input_path, entry, pc);
+            (void)ndlib_aout_dump_metadata(input_path);
+            /* Setup segment 31 (SINTRAN MON calls) as indirect segment
+             * This is normally done by SINTRAN firmware before jumping to kernel */
+            nd500_setup_sintran_segment(&cpu, 0);  /* domain 0 = kernel domain */
+        } else {
+            printf("load failed: %s\n", input_path);
+        }
+    }
 
     if (aout_path) {
         /* Look for initialization script BEFORE loading the aout file
@@ -547,7 +547,7 @@ int main(int argc, char** argv) {
 
         /* Now load the aout file with MMU potentially configured */
         uint32_t entry = 0, pc = 0;
-		/* Use unified loading (auto-loads .map and .s files) */
+        /* Use unified loading (auto-loads .map and .s files) */
         if (ndlib_load_aout_with_debug(&machine, aout_path, 1, &entry, &pc) == 0) {
             printf("loaded: %s (entry=0x%08X, PC=0x%08X)\n", aout_path, entry, pc);
             (void)ndlib_aout_dump_metadata(aout_path);
@@ -686,125 +686,125 @@ int main(int argc, char** argv) {
 #endif
     }
 
-	if (debug) {
-		/* F12 belongs to the emulator, not to the guest. Installed only on the
-		 * --ndix path: the menu's entries (virtual consoles, shut NDIX down)
-		 * only mean anything when there is an NDIX guest running. */
-		if (ndix_image)
-			nd500_debugger_set_guest_key_handler(ndix_menu_guest_key);
+    if (debug) {
+        /* F12 belongs to the emulator, not to the guest. Installed only on the
+         * --ndix path: the menu's entries (virtual consoles, shut NDIX down)
+         * only mean anything when there is an NDIX guest running. */
+        if (ndix_image)
+            nd500_debugger_set_guest_key_handler(ndix_menu_guest_key);
 
-		/* Guest terminals over telnet. Started before the boot script so the
-		 * very first console bytes reach an already-connected client; the
-		 * local stdio console keeps its copy of unit 0 either way, so nothing
-		 * is lost whether or not anyone connects. */
-		if (ndix_image && telnet_port > 0) {
-			/* A busy port must not stop the machine booting: the local
-			 * console is still perfectly usable, and refusing to run because
-			 * something else holds the port (often a previous run that has
-			 * not exited yet) is worse than losing the telnet listener. Warn
-			 * loudly and carry on. */
-			if (nd500x_ndix_telnet_start(telnet_port, telnet_ttys) != 0)
-				fprintf(stderr, "[telnet] continuing without the telnet server "
-				        "- local console only\n");
-			else {
-				/* Claim the line this window is attached to before any client
-				 * can connect, so the console is not offered in the telnet menu
-				 * and then shared with the local terminal. */
-				nd500x_ndix_telnet_mark_local(nd500_fecall_local_unit());
-				nd500_debugger_set_stdin_eof_quiet(1);
-			}
-		}
-		/* In --ndix mode the user is talking to NDIX, not to the debugger -
-		 * the REPL is only here because the boot sequence runs through it.
-		 * Silence its banner and its per-read PC prompt so guest output is
-		 * not interleaved with emulator chrome. '~' still reaches the
-		 * debugger. */
-		if (ndix_image) nd500_debugger_set_quiet_banner(1);
-		/* --ndix: boot the kernel exactly as the old shell wrapper did -
-		 * "load <kernel>" (which auto-sources <kernel>.init) then "run" -
-		 * while stdin stays on the terminal for guest console input. */
-		if (ndix_image) {
-			CmdContext bctx = {0};
-			if (nd500x_ndix_autoboot_needed()) {
-				/* No <kernel>.init beside the kernel: do the setup ourselves,
-				 * deriving the load addresses from the .pseg/.dseg files. An
-				 * .init, when present, still wins via `load` auto-sourcing it. */
-				if (nd500x_ndix_autoboot(&machine, ndix_autoboot_run, &bctx) != 0)
-					return 1;
-			} else {
-				printf("[ndix] %s\n", ndix_load_cmd);
-				nd500_cmd_execute(&machine, ndix_load_cmd, &bctx);
-			}
-			/* proc0's kernel-stack/u-area segment (segment 29, _u at
-			 * 0xE8000000). machdep.c:181-193 derives the twelve well-known
-			 * kernel segment indices but never assigns Pst[stackindex] - it
-			 * assumes an ND-100 bootstrap already filled them - and
-			 * init_main.c:72 then reads that slot to build proc0's p_p0br.
-			 * There is no ND-100 here, so nd500x builds it.
-			 *
-			 * Deliberately on BOTH boot routes, not inside autoboot: the
-			 * <kernel>.init route is the one that actually runs for the
-			 * shipped kernel (vmunix.init exists beside it), and it needs
-			 * this just as much. Runs after either route has set PSTP and
-			 * loaded the image, and before the guest first touches
-			 * 0xE8000000. */
-			/* The library function, not the debugger command: the work is
-			 * the same one implementation, and this way the step does not
-			 * need a command table to exist. 0/0 = the default addresses. */
-			nd500_ndix_uarea(&machine, 0, 0);
+        /* Guest terminals over telnet. Started before the boot script so the
+         * very first console bytes reach an already-connected client; the
+         * local stdio console keeps its copy of unit 0 either way, so nothing
+         * is lost whether or not anyone connects. */
+        if (ndix_image && telnet_port > 0) {
+            /* A busy port must not stop the machine booting: the local
+             * console is still perfectly usable, and refusing to run because
+             * something else holds the port (often a previous run that has
+             * not exited yet) is worse than losing the telnet listener. Warn
+             * loudly and carry on. */
+            if (nd500x_ndix_telnet_start(telnet_port, telnet_ttys) != 0)
+                fprintf(stderr, "[telnet] continuing without the telnet server "
+                        "- local console only\n");
+            else {
+                /* Claim the line this window is attached to before any client
+                 * can connect, so the console is not offered in the telnet menu
+                 * and then shared with the local terminal. */
+                nd500x_ndix_telnet_mark_local(nd500_fecall_local_unit());
+                nd500_debugger_set_stdin_eof_quiet(1);
+            }
+        }
+        /* In --ndix mode the user is talking to NDIX, not to the debugger -
+         * the REPL is only here because the boot sequence runs through it.
+         * Silence its banner and its per-read PC prompt so guest output is
+         * not interleaved with emulator chrome. '~' still reaches the
+         * debugger. */
+        if (ndix_image) nd500_debugger_set_quiet_banner(1);
+        /* --ndix: boot the kernel exactly as the old shell wrapper did -
+         * "load <kernel>" (which auto-sources <kernel>.init) then "run" -
+         * while stdin stays on the terminal for guest console input. */
+        if (ndix_image) {
+            CmdContext bctx = {0};
+            if (nd500x_ndix_autoboot_needed()) {
+                /* No <kernel>.init beside the kernel: do the setup ourselves,
+                 * deriving the load addresses from the .pseg/.dseg files. An
+                 * .init, when present, still wins via `load` auto-sourcing it. */
+                if (nd500x_ndix_autoboot(&machine, ndix_autoboot_run, &bctx) != 0)
+                    return 1;
+            } else {
+                printf("[ndix] %s\n", ndix_load_cmd);
+                nd500_cmd_execute(&machine, ndix_load_cmd, &bctx);
+            }
+            /* proc0's kernel-stack/u-area segment (segment 29, _u at
+             * 0xE8000000). machdep.c:181-193 derives the twelve well-known
+             * kernel segment indices but never assigns Pst[stackindex] - it
+             * assumes an ND-100 bootstrap already filled them - and
+             * init_main.c:72 then reads that slot to build proc0's p_p0br.
+             * There is no ND-100 here, so nd500x builds it.
+             *
+             * Deliberately on BOTH boot routes, not inside autoboot: the
+             * <kernel>.init route is the one that actually runs for the
+             * shipped kernel (vmunix.init exists beside it), and it needs
+             * this just as much. Runs after either route has set PSTP and
+             * loaded the image, and before the guest first touches
+             * 0xE8000000. */
+            /* The library function, not the debugger command: the work is
+             * the same one implementation, and this way the step does not
+             * need a command table to exist. 0/0 = the default addresses. */
+            nd500_ndix_uarea(&machine, 0, 0);
 
-			/* Dial the ethernet relay, if ND500X_ETH_UPLINK names one.
-			 * AFTER the boot path, because that is what installs the
-			 * loopback uplink when the setting says "loop" - a TCP spec
-			 * takes it from there. Before "run", so the link is up before
-			 * the guest's first frame.
-			 *
-			 * The return value is deliberately ignored: a relay that is not
-			 * running must not stop the machine booting. It says so on
-			 * stderr and et0 comes up with nothing on the other end, which
-			 * is what it had before any of this existed. */
-			/* TAP first: it returns 0 for anything that is not a tap
-			 * spec, so the TCP uplink still sees every setting it owns.
-			 * Order matters only in that exactly one of them must claim
-			 * the setting - both register into the same single-slot seam
-			 * (nd500_xmsg_set_uplink), so whichever ran last would win. */
-			if (nd500x_uplink_tap_start(&cpu) == 0)
-				(void)nd500x_uplink_tcp_start(&cpu);
+            /* Dial the ethernet relay, if ND500X_ETH_UPLINK names one.
+             * AFTER the boot path, because that is what installs the
+             * loopback uplink when the setting says "loop" - a TCP spec
+             * takes it from there. Before "run", so the link is up before
+             * the guest's first frame.
+             *
+             * The return value is deliberately ignored: a relay that is not
+             * running must not stop the machine booting. It says so on
+             * stderr and et0 comes up with nothing on the other end, which
+             * is what it had before any of this existed. */
+            /* TAP first: it returns 0 for anything that is not a tap
+             * spec, so the TCP uplink still sees every setting it owns.
+             * Order matters only in that exactly one of them must claim
+             * the setting - both register into the same single-slot seam
+             * (nd500_xmsg_set_uplink), so whichever ran last would win. */
+            if (nd500x_uplink_tap_start(&cpu) == 0)
+                (void)nd500x_uplink_tcp_start(&cpu);
 
-			printf("[ndix] run\n");
-			nd500_cmd_execute(&machine, "run", &bctx);
-		}
-		/* --script with --debug: execute each line as a debugger command
-		 * BEFORE the interactive REPL (e.g. "load vmunix" + "run"), so a
-		 * boot script can keep stdin connected to the real terminal for
-		 * guest console input instead of feeding commands through a
-		 * fragile printf|cat pipe. */
-		if (script_path) {
-			FILE* sf = fopen(script_path, "r");
-			if (!sf) {
-				fprintf(stderr, "error: cannot open --script file %s\n", script_path);
-				return 1;
-			}
-			char sline[256];
-			CmdContext sctx = {0};
-			while (fgets(sline, sizeof(sline), sf)) {
-				sline[strcspn(sline, "\r\n")] = '\0';
-				if (!sline[0] || sline[0] == '#') continue;
-				printf("[script] %s\n", sline);
-				nd500_cmd_execute(&machine, sline, &sctx);
-			}
-			fclose(sf);
-		}
-		int rc = nd500_debugger_repl(&machine);
-		nd500x_ndix_telnet_stop();
-		return rc;
-	}
+            printf("[ndix] run\n");
+            nd500_cmd_execute(&machine, "run", &bctx);
+        }
+        /* --script with --debug: execute each line as a debugger command
+         * BEFORE the interactive REPL (e.g. "load vmunix" + "run"), so a
+         * boot script can keep stdin connected to the real terminal for
+         * guest console input instead of feeding commands through a
+         * fragile printf|cat pipe. */
+        if (script_path) {
+            FILE* sf = fopen(script_path, "r");
+            if (!sf) {
+                fprintf(stderr, "error: cannot open --script file %s\n", script_path);
+                return 1;
+            }
+            char sline[256];
+            CmdContext sctx = {0};
+            while (fgets(sline, sizeof(sline), sf)) {
+                sline[strcspn(sline, "\r\n")] = '\0';
+                if (!sline[0] || sline[0] == '#') continue;
+                printf("[script] %s\n", sline);
+                nd500_cmd_execute(&machine, sline, &sctx);
+            }
+            fclose(sf);
+        }
+        int rc = nd500_debugger_repl(&machine);
+        nd500x_ndix_telnet_stop();
+        return rc;
+    }
 
-	if (monitor_mode) {
-		/* Spec decision: default shell user is SYSTEM unless ini/--user set one. */
-		if (!user_set) mon_config_set_current_user("SYSTEM");
-		return nd500x_shell_run(&machine, &cpu, script_path, telnet_port);
-	}
+    if (monitor_mode) {
+        /* Spec decision: default shell user is SYSTEM unless ini/--user set one. */
+        if (!user_set) mon_config_set_current_user("SYSTEM");
+        return nd500x_shell_run(&machine, &cpu, script_path, telnet_port);
+    }
 
     /* Non-interactive run mode */
     if (run_mode) {
@@ -917,7 +917,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-	printf("nd500x: nothing to do. Use --monitor for the SINTRAN shell, --debug for the\n");
-	printf("low-level debugger, or --run to execute a loaded program. See --help.\n");
-	return 0;
+    printf("nd500x: nothing to do. Use --monitor for the SINTRAN shell, --debug for the\n");
+    printf("low-level debugger, or --run to execute a loaded program. See --help.\n");
+    return 0;
 }
