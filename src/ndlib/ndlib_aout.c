@@ -272,61 +272,6 @@ int ndlib_aout_dump_metadata(const char* path) {
     return 0;
 }
 
-int ndlib_aout_dump_metadata_old(const char* path) {
-    if (!path) return -1;
-    FILE* f = fopen(path, "rb");
-    if (!f) return -1;
-    struct nd500_exec hdr;
-    if (read_exec_be(f, &hdr) != 0) { fclose(f); return -1; }
-    if (bad_magic(hdr.a_magic)) { fclose(f); return -1; }
-
-    /* Detect file type by relocations and entry point */
-    int has_relocations = (hdr.a_trsize > 0 || hdr.a_drsize > 0);
-    int is_placeholder_entry = (hdr.a_entry == 4);
-    int is_object = has_relocations || is_placeholder_entry;
-    const char* file_type;
-
-    if (is_object) {
-        file_type = "OBJECT FILE (needs linking)";
-    } else {
-        file_type = "EXECUTABLE";
-    }
-
-    printf("=== A.OUT HEADER ===\n");
-    printf("File:           %s\n", path);
-    printf("File Type:      %s\n", file_type);
-    if (is_object && (hdr.a_trsize > 0 || hdr.a_drsize > 0)) {
-        printf("Relocations:    text=%u data=%u bytes (not yet resolved)\n",
-               hdr.a_trsize, hdr.a_drsize);
-    }
-    printf("\nMagic number:   0x%04X\n", hdr.a_magic);
-    printf("Text size:      %u bytes (0x%x)\n", hdr.a_text, hdr.a_text);
-    printf("Data size:      %u bytes (0x%x)\n", hdr.a_data, hdr.a_data);
-    printf("BSS size:       %u bytes (0x%x)\n", hdr.a_bss, hdr.a_bss);
-    printf("Symbol table:   %u bytes (0x%x)\n", hdr.a_syms, hdr.a_syms);
-    printf("Entry point:    0x%x\n", hdr.a_entry);
-    printf("Text reloc:     %u bytes (0x%x)\n", hdr.a_trsize, hdr.a_trsize);
-    printf("Data reloc:     %u bytes (0x%x)\n", hdr.a_drsize, hdr.a_drsize);
-    printf("\n=== FILE LAYOUT ===\n");
-    unsigned int txt = (unsigned int)sizeof(hdr);
-    printf("Header:         0x0000 - 0x%04X (%zu bytes)\n", (unsigned)sizeof(hdr), sizeof(hdr));
-    printf("Text segment:   0x%04X - 0x%04X (%u bytes)\n", txt, txt + hdr.a_text, hdr.a_text);
-    printf("Data segment:   0x%04X - 0x%04X (%u bytes)\n", txt + hdr.a_text, txt + hdr.a_text + hdr.a_data, hdr.a_data);
-    printf("Text reloc:     0x%04X - 0x%04X (%u bytes)\n", txt + hdr.a_text + hdr.a_data, txt + hdr.a_text + hdr.a_data + hdr.a_trsize, hdr.a_trsize);
-    printf("Data reloc:     0x%04X - 0x%04X (%u bytes)\n", txt + hdr.a_text + hdr.a_data + hdr.a_trsize, txt + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize, hdr.a_drsize);
-    unsigned int sym = txt + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize;
-    printf("Symbol table:   0x%04X - 0x%04X (%u bytes)\n", sym, sym + hdr.a_syms, hdr.a_syms);
-    printf("String table:   0x%04X - (size at offset)\n", sym + hdr.a_syms);
-    printf("\n");
-    fclose(f);
-
-    /* Remember path for symbol listing */
-    if (loaded_aout_path) free((void*)loaded_aout_path);
-    loaded_aout_path = strdup(path);
-
-    return 0;
-}
-
 void ndlib_aout_dump_symbols(const char* path) {
     if (!path) return;
     FILE* f = fopen(path, "rb");
