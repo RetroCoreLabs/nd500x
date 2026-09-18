@@ -82,11 +82,9 @@ void nd500_instr_AssignFrom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Write to destination operand (like C# WriteOperandValue) */
     nd500_write_operand_value(cpu, &fi->operands[0], value, fi->data_type);
 
-    /* Update status flags: Z and S based on stored value (like C# SetStatusZS) */
-    if (fi->uses_float_registers) {
-        /* Float/double: use float-aware flag setter (-0.0 is zero) */
-        nd500_set_flags_zs_float(cpu, value, fi->data_type == ND500_DTYPE_DOUBLEWORD);
-    } else {
-        nd500_set_flags_zs(cpu, value, fi->data_type);
-    }
+    /* Manual 10.4: "datatype-dependent part of register = 0 -> Z" and its
+     * sign bit -> S. That is the bit pattern, float or not: F1 =: of
+     * 0x80000000 gives Z=0 S=1 (B30 microword engine, nd500x corpus sweep
+     * Float_AssignFrom_80000000). */
+    nd500_set_flags_zs(cpu, value, fi->data_type);
 }

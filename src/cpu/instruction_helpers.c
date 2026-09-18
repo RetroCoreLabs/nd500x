@@ -845,6 +845,9 @@ void nd500_set_flags_zs(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype) {
             sign_bit = (value & 0x8000) != 0;
             break;
         case ND500_DTYPE_WORD:
+        case ND500_DTYPE_FLOAT:
+            /* F is the 32-bit pattern here: a float with exponent 0 but a
+             * nonzero sign or mantissa is not "= 0" for a store. */
             mask = 0xFFFFFFFF;
             sign_bit = (value & 0x80000000) != 0;
             break;

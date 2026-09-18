@@ -73,8 +73,19 @@ void nd500_instr_Test(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * (ST,SAVC): Z = (operand == 0), S = signbit, C = 1 ALWAYS (subtracting 0
      * never borrows). O is not listed for either -> CLEARED (rule 4040). */
     if (fi->uses_float_registers) {
+        /* result = operand - 0 is arithmetic, and an operand with exponent 0
+         * "is treated as exactly zero, with no respect to the sign nor the
+         * mantissa" (manual 7.2.5). So -0 (0x80000000) tests as Z=1 S=0,
+         * which the B30 microword engine also gives (Test_F_NegZero). */
         bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
-        nd500_set_flags_zs_float(cpu, value, is_double);
+        uint64_t exponent = is_double ? ((value >> 54) & 0x1FF) : ((value >> 22) & 0x1FF);
+        bool sign = is_double ? ((value >> 63) & 1) != 0 : ((value >> 31) & 1) != 0;
+        cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
+        if (exponent == 0) {
+            cpu->ST1 |= ND500_FLAG_Z;
+        } else if (sign) {
+            cpu->ST1 |= ND500_FLAG_S;
+        }
     } else {
         nd500_set_flags_zs(cpu, value, fi->data_type);
         /* C flag for integer test-against-zero.
