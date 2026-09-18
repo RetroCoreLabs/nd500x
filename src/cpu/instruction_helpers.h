@@ -852,20 +852,6 @@ bool nd500_require_privilege(Nd500Cpu* cpu, uint32_t pc);
  */
 
 /**
- * Sign representation for BCD/ASCII values
- */
-typedef enum {
-    ND500_SIGN_TRAILING_SEPARATE = 0,  // Sign in separate trailing byte
-    ND500_SIGN_LEADING_SEPARATE = 1,   // Sign in separate leading byte
-    ND500_SIGN_TRAILING_OVERPUNCH = 2, // Sign overpunched in trailing digit
-    ND500_SIGN_LEADING_OVERPUNCH = 3,  // Sign overpunched in leading digit
-    ND500_SIGN_UNSIGNED = 4,            // Unsigned value
-    ND500_SIGN_RESERVED_5 = 5,          // Reserved
-    ND500_SIGN_RESERVED_6 = 6,          // Reserved
-    ND500_SIGN_RESERVED_7 = 7           // Reserved
-} Nd500SignRepresentation;
-
-/**
  * String descriptor structure (8 bytes in memory)
  *
  * Format:
@@ -881,33 +867,16 @@ typedef enum {
 typedef struct {
     uint32_t element_count;              // Number of elements
     uint32_t base_address;               // Address of element 0
-    Nd500SignRepresentation sign_repr;   // Sign representation (BCD/ASCII only)
-    int8_t scaling_factor;               // Scaling factor -32..+31 (BCD/ASCII only)
-    uint8_t field_width;                 // Field width in nibbles/bytes (BCD/ASCII only)
-    bool is_bcd_packed;                  // True if BCD packed descriptor
-    bool is_ascii;                       // True if ASCII descriptor
 } Nd500StringDescriptor;
 
 /**
  * Load string descriptor from memory
  * @param cpu CPU state
  * @param desc_addr Address where 8-byte descriptor is stored
- * @param is_bcd_packed True for BCD packed operations
- * @param is_ascii True for ASCII operations
  * @param desc Output descriptor structure
  * @return true if successful, false on error
  */
-bool nd500_load_string_descriptor(Nd500Cpu* cpu, uint32_t desc_addr,
-                                   bool is_bcd_packed, bool is_ascii,
-                                   Nd500StringDescriptor* desc);
-
-/**
- * Get element address from descriptor
- * @param desc String descriptor
- * @param index Element index
- * @return Element address, or 0 if index out of range
- */
-uint32_t nd500_string_get_element_address(const Nd500StringDescriptor* desc, uint32_t index);
+bool nd500_load_string_descriptor(Nd500Cpu* cpu, uint32_t desc_addr, Nd500StringDescriptor* desc);
 
 /**
  * Read element value from string (generic)
@@ -939,48 +908,11 @@ void nd500_string_write_element(Nd500Cpu* cpu, const Nd500StringDescriptor* desc
  */
 uint32_t nd500_get_element_size(Nd500DataType dtype);
 
-/**
- * Validate string descriptor
- * @param desc String descriptor
- * @return true if valid, false otherwise
- */
-bool nd500_string_descriptor_is_valid(const Nd500StringDescriptor* desc);
-
 /* ============================================================================
  * BCD (Binary Coded Decimal) SUPPORT
  * ============================================================================
  * BCD value reading/writing for PCOMP and arithmetic operations
  */
-
-/**
- * Read packed BCD value from memory using descriptor
- * @param cpu CPU state
- * @param desc String descriptor (must be BCD packed)
- * @return BCD value as int64_t (sign-extended)
- */
-int64_t nd500_read_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc);
-
-/**
- * Write packed BCD value to memory using descriptor
- * @param cpu CPU state
- * @param desc String descriptor (must be BCD packed)
- * @param value Value to write
- * @return true if value fit in field, false if BCD overflow occurred (K flag set)
- */
-bool nd500_write_packed_bcd_value(Nd500Cpu* cpu, const Nd500StringDescriptor* desc, int64_t value);
-
-/**
- * Write packed BCD value to memory with rounding
- * Used by PADDR, PSUBR, PMPYR, PPACKR, PUPACKR instructions.
- * Applies rounding when destination scaling factor causes precision loss.
- * @param cpu CPU state
- * @param desc String descriptor (must be BCD packed)
- * @param value Value to write (unscaled integer representation)
- * @param source_scale Scaling factor of source value
- * @return true if value fit in field, false if BCD overflow occurred (K flag set)
- */
-bool nd500_write_packed_bcd_value_rounded(Nd500Cpu* cpu, const Nd500StringDescriptor* desc,
-                                          int64_t value, int8_t source_scale);
 
 /**
  * Clear string operation flags (S, C, O)

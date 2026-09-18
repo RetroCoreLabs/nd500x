@@ -62,10 +62,10 @@ void nd500_instr_Scopt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* operand[0]/[1] string descriptors; operand[2] translate-table base
      * (256-byte, absolute address); operand[3] pad BYTE VALUE. */
     Nd500StringDescriptor desc1, desc2;
-    if (!nd500_load_string_descriptor(cpu, fi->operands[0].effective_address, false, false, &desc1)) {
+    if (!nd500_load_string_descriptor(cpu, fi->operands[0].effective_address, &desc1)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, fi->operands[1].effective_address, false, false, &desc2)) {
+    if (!nd500_load_string_descriptor(cpu, fi->operands[1].effective_address, &desc2)) {
         return;
     }
     uint32_t table_addr = fi->operands[2].effective_address;

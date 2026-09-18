@@ -99,14 +99,14 @@ void nd500_instr_Scomp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Load string descriptor 1 from first operand address */
     Nd500StringDescriptor desc1;
-    if (!nd500_load_string_descriptor(cpu, desc_addr1, false, false, &desc1)) {
+    if (!nd500_load_string_descriptor(cpu, desc_addr1, &desc1)) {
         /* Invalid descriptor - K flag already set by helper */
         return;
     }
 
     /* Load string descriptor 2 from second operand address */
     Nd500StringDescriptor desc2;
-    if (!nd500_load_string_descriptor(cpu, desc_addr2, false, false, &desc2)) {
+    if (!nd500_load_string_descriptor(cpu, desc_addr2, &desc2)) {
         /* Invalid descriptor - K flag already set by helper */
         return;
     }

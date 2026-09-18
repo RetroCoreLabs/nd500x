@@ -1,377 +1,599 @@
 /**
- * bcd_helpers.c - packed BCD helper functions
+ * bcd_helpers.c - decimal (packed BCD and ASCII) operands
  *
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2025-2026 Ronny Hansen
  *
  * See LICENSE in the repository root for the full text.
  *
- * Based on ND-500 CPU Reference Manual, Chapter 17.
+ * Every rule below is from ND-05.009.4 chapter 17 (BINARY CODED DECIMAL
+ * INSTRUCTIONS). Where the manual is silent the choice is marked
+ * "not in the manual" so it can be settled later.
  */
 
 #include "bcd_helpers.h"
 #include "cpu_protos.h"
-#include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <string.h>
 
-/* Power of 10 lookup table */
-const uint64_t nd500_powers_of_10[19] = {
-    1ULL,                    /* 10^0 */
-    10ULL,                   /* 10^1 */
-    100ULL,                  /* 10^2 */
-    1000ULL,                 /* 10^3 */
-    10000ULL,                /* 10^4 */
-    100000ULL,               /* 10^5 */
-    1000000ULL,              /* 10^6 */
-    10000000ULL,             /* 10^7 */
-    100000000ULL,            /* 10^8 */
-    1000000000ULL,           /* 10^9 */
-    10000000000ULL,          /* 10^10 */
-    100000000000ULL,         /* 10^11 */
-    1000000000000ULL,        /* 10^12 */
-    10000000000000ULL,       /* 10^13 */
-    100000000000000ULL,      /* 10^14 */
-    1000000000000000ULL,     /* 10^15 */
-    10000000000000000ULL,    /* 10^16 */
-    100000000000000000ULL,   /* 10^17 */
-    1000000000000000000ULL   /* 10^18 */
-};
+/* Room for a value scaled by up to 95 steps (see nd500_dec_store_*). */
+#define DEC_WORK 256
 
-bool nd500_bcd_sign_is_negative(uint8_t nibble)
-{
-    /* 0x0B and 0x0D are negative */
-    return (nibble == 0x0B || nibble == 0x0D);
+static void dec_zero(Nd500Dec* v, int sc) {
+    memset(v, 0, sizeof(*v));
+    v->count = 1;
+    v->sc = sc;
 }
 
-uint8_t nd500_bcd_get_sign_nibble(bool negative, Nd500BcdSignRep sign_rep)
-{
-    if (sign_rep == BCD_SIGN_UNSIGNED) {
-        return 0x0F;  /* Unsigned marker */
+/* Drop leading zero digits; a zero value is positive. */
+static void dec_normalise(Nd500Dec* v) {
+    while (v->count > 1 && v->digit[v->count - 1] == 0) {
+        v->count--;
     }
-    return negative ? 0x0D : 0x0C;
-}
-
-uint32_t nd500_bcd_bytes_needed(uint8_t field_width, Nd500BcdSignRep sign_rep)
-{
-    if (field_width == 0) {
-        return 0;
-    }
-
-    uint32_t digit_nibbles = field_width;
-    uint32_t total_nibbles;
-
-    switch (sign_rep) {
-        case BCD_SIGN_EMBEDDED_TRAILING:
-        case BCD_SIGN_EMBEDDED_LEADING:
-            /* Sign shares space with a digit nibble */
-            total_nibbles = digit_nibbles + 1;
-            break;
-        case BCD_SIGN_SEPARATE_TRAILING:
-        case BCD_SIGN_SEPARATE_LEADING:
-            /* Sign is in a separate byte */
-            total_nibbles = digit_nibbles + 2;  /* +2 nibbles = +1 byte */
-            break;
-        case BCD_SIGN_UNSIGNED:
-        default:
-            total_nibbles = digit_nibbles;
-            break;
-    }
-
-    /* Round up to bytes */
-    return (total_nibbles + 1) / 2;
-}
-
-Nd500BcdDescriptor nd500_load_bcd_descriptor(Nd500Cpu* cpu, uint32_t address)
-{
-    Nd500BcdDescriptor desc;
-    memset(&desc, 0, sizeof(desc));
-
-    /* Read 8-byte descriptor from memory using MMU-aware functions */
-    uint32_t word0 = nd500_read_memory_32(cpu, address);
-    uint32_t word1 = nd500_read_memory_32(cpu, address + 4);
-
-    /* Parse control word (word0) */
-    /* Bits 26-24: Sign representation (SGN) */
-    desc.sign_rep = (Nd500BcdSignRep)((word0 >> 24) & 0x07);
-
-    /* Bits 23-18: Scaling factor (SC) - 6-bit signed */
-    int8_t sc = (int8_t)((word0 >> 18) & 0x3F);
-    if (sc >= 32) {
-        sc -= 64;  /* Convert to signed */
-    }
-    desc.scaling_factor = sc;
-
-    /* Bits 17-13: Field width (FW) */
-    desc.field_width = (uint8_t)((word0 >> 13) & 0x1F);
-
-    /* Bits 12-0: Element count (N) */
-    desc.element_count = word0 & 0x1FFF;
-
-    /* Word 1: Base address */
-    desc.base_address = word1;
-
-    /* Validate descriptor */
-    desc.is_valid = (desc.field_width > 0) && (desc.sign_rep <= BCD_SIGN_UNSIGNED);
-
-    return desc;
-}
-
-Nd500BcdResult nd500_read_packed_bcd(Nd500Cpu* cpu, const Nd500BcdDescriptor* desc)
-{
-    Nd500BcdResult result;
-    memset(&result, 0, sizeof(result));
-
-    if (!desc->is_valid || desc->field_width == 0) {
-        result.invalid_digit = true;
-        return result;
-    }
-
-    uint32_t bytes_needed = nd500_bcd_bytes_needed(desc->field_width, desc->sign_rep);
-    uint32_t addr = desc->base_address;
-
-    /* Read all bytes */
-    uint8_t data[20];  /* Max 31 nibbles + sign = 16 bytes max */
-    if (bytes_needed > sizeof(data)) {
-        bytes_needed = sizeof(data);
-    }
-
-    for (uint32_t i = 0; i < bytes_needed; i++) {
-        data[i] = nd500_read_memory_8(cpu, addr + i);
-    }
-
-    /* Extract sign and digits based on sign representation */
-    uint8_t sign_nibble = 0x0C;  /* Default positive */
-    int digit_start_nibble = 0;
-    int digit_count = desc->field_width;
-
-    switch (desc->sign_rep) {
-        case BCD_SIGN_EMBEDDED_TRAILING:
-            /* Sign is in low nibble of last byte */
-            sign_nibble = data[bytes_needed - 1] & 0x0F;
-            /* Digits are all nibbles except the last one */
-            break;
-
-        case BCD_SIGN_SEPARATE_TRAILING:
-            /* Sign is in the last byte (low nibble) */
-            sign_nibble = data[bytes_needed - 1] & 0x0F;
-            break;
-
-        case BCD_SIGN_EMBEDDED_LEADING:
-            /* Sign is in high nibble of first byte */
-            sign_nibble = (data[0] >> 4) & 0x0F;
-            digit_start_nibble = 1;  /* Skip first nibble */
-            break;
-
-        case BCD_SIGN_SEPARATE_LEADING:
-            /* Sign is in first byte (low nibble) */
-            sign_nibble = data[0] & 0x0F;
-            digit_start_nibble = 2;  /* Skip first byte = 2 nibbles */
-            break;
-
-        case BCD_SIGN_UNSIGNED:
-            sign_nibble = 0x0F;  /* Unsigned */
-            break;
-    }
-
-    result.is_negative = nd500_bcd_sign_is_negative(sign_nibble);
-
-    /* Extract digits and build value */
-    int64_t value = 0;
-    int nibble_index = digit_start_nibble;
-
-    for (int i = 0; i < digit_count; i++) {
-        int byte_idx = nibble_index / 2;
-        int high_nibble = (nibble_index % 2) == 0;
-
-        uint8_t nibble;
-        if (high_nibble) {
-            nibble = (data[byte_idx] >> 4) & 0x0F;
-        } else {
-            nibble = data[byte_idx] & 0x0F;
-        }
-
-        /* Check for invalid BCD digit */
-        if (nibble > 9) {
-            result.invalid_digit = true;
-            return result;
-        }
-
-        value = value * 10 + nibble;
-        nibble_index++;
-    }
-
-    result.value = value;
-    result.is_zero = (value == 0);
-
-    return result;
-}
-
-Nd500BcdResult nd500_write_packed_bcd(Nd500Cpu* cpu, const Nd500BcdDescriptor* desc,
-                                       int64_t value, bool negative)
-{
-    Nd500BcdResult result;
-    memset(&result, 0, sizeof(result));
-
-    if (!desc->is_valid || desc->field_width == 0) {
-        result.invalid_digit = true;
-        return result;
-    }
-
-    /* Get absolute value */
-    uint64_t abs_value = (value < 0) ? (uint64_t)(-value) : (uint64_t)value;
-    if (value < 0) {
-        negative = true;
-    }
-
-    /* Check if value fits in field width */
-    if (!nd500_bcd_value_fits(abs_value, desc->field_width)) {
-        result.overflow = true;
-        /* Still write the lower digits */
-    }
-
-    uint32_t bytes_needed = nd500_bcd_bytes_needed(desc->field_width, desc->sign_rep);
-    uint8_t data[20];
-    memset(data, 0, sizeof(data));
-
-    /* Extract digits from value (least significant first) */
-    uint8_t digits[32];
-    int digit_count = desc->field_width;
-    uint64_t temp = abs_value;
-
-    for (int i = digit_count - 1; i >= 0; i--) {
-        digits[i] = temp % 10;
-        temp /= 10;
-    }
-
-    /* Pack digits into bytes based on sign representation */
-    int nibble_index = 0;
-    int digit_start_nibble = 0;
-
-    switch (desc->sign_rep) {
-        case BCD_SIGN_EMBEDDED_LEADING:
-            /* High nibble of first byte is sign */
-            data[0] = (nd500_bcd_get_sign_nibble(negative, desc->sign_rep) << 4);
-            digit_start_nibble = 1;
-            break;
-
-        case BCD_SIGN_SEPARATE_LEADING:
-            /* First byte is sign */
-            data[0] = nd500_bcd_get_sign_nibble(negative, desc->sign_rep);
-            digit_start_nibble = 2;
-            break;
-
-        default:
-            digit_start_nibble = 0;
-            break;
-    }
-
-    /* Pack digits */
-    nibble_index = digit_start_nibble;
-    for (int i = 0; i < digit_count; i++) {
-        int byte_idx = nibble_index / 2;
-        int high_nibble = (nibble_index % 2) == 0;
-
-        if (high_nibble) {
-            data[byte_idx] |= (digits[i] << 4);
-        } else {
-            data[byte_idx] |= digits[i];
-        }
-        nibble_index++;
-    }
-
-    /* Add trailing sign if needed */
-    switch (desc->sign_rep) {
-        case BCD_SIGN_EMBEDDED_TRAILING:
-            /* Sign ALWAYS goes in LOW nibble for embedded trailing format.
-             * The high nibble of the sign byte is either:
-             * - The last digit (if nibble_index is odd)
-             * - Zero padding (if nibble_index is even)
-             */
-            {
-                int sign_byte = nibble_index / 2;
-                /* Always put sign in LOW nibble, never in high nibble */
-                data[sign_byte] |= nd500_bcd_get_sign_nibble(negative, desc->sign_rep);
-            }
-            break;
-
-        case BCD_SIGN_SEPARATE_TRAILING:
-            /* Last byte is sign */
-            data[bytes_needed - 1] = nd500_bcd_get_sign_nibble(negative, desc->sign_rep);
-            break;
-
-        default:
-            break;
-    }
-
-    /* Write to memory using MMU-aware functions */
-    uint32_t addr = desc->base_address;
-    for (uint32_t i = 0; i < bytes_needed; i++) {
-        nd500_write_memory_8(cpu, addr + i, data[i]);
-    }
-
-    result.value = value;
-    result.is_negative = negative;
-    result.is_zero = (abs_value == 0);
-
-    return result;
-}
-
-int64_t nd500_bcd_apply_scaling(int64_t value, int8_t sc, bool* overflow)
-{
-    *overflow = false;
-
-    if (sc == 0) {
-        return value;
-    }
-
-    if (sc > 0) {
-        /* Multiply by 10^sc */
-        if (sc > 18) {
-            *overflow = true;
-            return value;
-        }
-        uint64_t multiplier = nd500_powers_of_10[sc];
-        int64_t result;
-        if (value >= 0) {
-            if ((uint64_t)value > (uint64_t)INT64_MAX / multiplier) {
-                *overflow = true;
-                return value;
-            }
-            result = value * (int64_t)multiplier;
-        } else {
-            if ((uint64_t)(-value) > (uint64_t)INT64_MAX / multiplier) {
-                *overflow = true;
-                return value;
-            }
-            result = value * (int64_t)multiplier;
-        }
-        return result;
-    } else {
-        /* Divide by 10^|sc| (truncate toward zero) */
-        int8_t abs_sc = -sc;
-        if (abs_sc > 18) {
-            return 0;  /* Complete truncation */
-        }
-        uint64_t divisor = nd500_powers_of_10[abs_sc];
-        return value / (int64_t)divisor;
+    if (v->count == 1 && v->digit[0] == 0) {
+        v->negative = false;
     }
 }
 
-int64_t nd500_bcd_remove_scaling(int64_t value, int8_t sc, bool* overflow)
-{
-    /* Opposite of apply_scaling */
-    return nd500_bcd_apply_scaling(value, -sc, overflow);
+bool nd500_dec_is_zero(const Nd500Dec* v) {
+    for (int i = 0; i < v->count; i++) {
+        if (v->digit[i] != 0) return false;
+    }
+    return true;
 }
 
-bool nd500_bcd_value_fits(uint64_t value, uint8_t field_width)
-{
-    if (field_width == 0) {
+static bool dec_faulted(Nd500Cpu* cpu) {
+    return nd500_trap_occurred() || cpu->instr_aborted;
+}
+
+/* ------------------------------------------------------------------------
+ * Descriptor: SGN bits 26-24, SC bits 23-16 (two's complement byte), FW
+ * bits 15-0 with range 0..31, then the address word (manual DESCRIPTOR
+ * FORMAT FOR ASCII AND BCD). The B30 microcode takes FW as the low five
+ * bits (001022B AND 37B). "A field width of zero will cause a
+ * descriptor-range trap condition. The address is not checked."
+ * ---------------------------------------------------------------------- */
+bool nd500_dec_load_desc(Nd500Cpu* cpu, uint32_t pc, uint32_t desc_addr, Nd500DecDesc* out) {
+    uint32_t w0 = nd500_read_memory_32(cpu, desc_addr);
+    uint32_t w1 = nd500_read_memory_32(cpu, desc_addr + 4);
+    if (dec_faulted(cpu)) {
         return false;
     }
-    if (field_width >= 19) {
-        return true;  /* Can hold any uint64 */
+    out->sgn = (uint8_t)((w0 >> 24) & 0x07);
+    out->sc = (int8_t)((w0 >> 16) & 0xFF);
+    out->fw = (uint8_t)(w0 & 0x1F);
+    out->address = w1;
+    if (out->fw == 0) {
+        trap_descriptor_range(cpu, pc);
+        return false;
     }
-    /* Max value for field_width digits is 10^field_width - 1 */
-    return value < nd500_powers_of_10[field_width];
+    return true;
+}
+
+bool nd500_dec_scale_difference_ok(const Nd500DecDesc* d1, const Nd500DecDesc* d2) {
+    int t1 = (d1->fw + 1) / 2 * 2 - d1->sc;
+    int t2 = (d2->fw + 1) / 2 * 2 - d2->sc;
+    int d = t1 - t2;
+    return d >= -32 && d <= 32;
+}
+
+/* ------------------------------------------------------------------------
+ * Packed: FW nibbles including the sign, right justified in (FW+1)/2
+ * bytes; with FW odd the leftmost nibble is not significant. Digits are
+ * 0000-1001; the sign is the rightmost nibble: + is 0000 1010 1100 1110,
+ * - is 1011 1101, unsigned 1111 (treated as plus). Anything else is an
+ * invalid operation.
+ * ---------------------------------------------------------------------- */
+Nd500DecRead nd500_dec_read_packed(Nd500Cpu* cpu, const Nd500DecDesc* desc, Nd500Dec* out) {
+    uint32_t bytes = ((uint32_t)desc->fw + 1) / 2;
+    uint8_t nib[32];
+    for (uint32_t i = 0; i < bytes; i++) {
+        uint8_t b = nd500_read_memory_8(cpu, desc->address + i);
+        if (dec_faulted(cpu)) {
+            return ND500_DEC_READ_FAULT;
+        }
+        nib[2 * i] = (uint8_t)(b >> 4);
+        nib[2 * i + 1] = (uint8_t)(b & 0x0F);
+    }
+    uint32_t total = bytes * 2;
+    uint32_t first = total - desc->fw;          /* 1 when FW is odd */
+    uint8_t sign = nib[total - 1];
+
+    dec_zero(out, desc->sc);
+    bool invalid = (sign >= 1 && sign <= 9);
+    out->negative = (sign == 0x0B || sign == 0x0D);
+
+    int n = 0;
+    for (uint32_t i = total - 2; i + 1 > first; i--) {   /* least significant first */
+        uint8_t d = nib[i];
+        if (d > 9) invalid = true;
+        out->digit[n++] = (uint8_t)(d > 9 ? 0 : d);
+        if (i == 0) break;
+    }
+    out->count = n > 0 ? n : 1;
+    dec_normalise(out);
+    return invalid ? ND500_DEC_READ_INVALID : ND500_DEC_READ_OK;
+}
+
+/* ------------------------------------------------------------------------
+ * ASCII: one byte a digit, zone 0011. Embedded sign ("overpunch"): plus
+ * 0 = 173B (07BH), 1..9 = 101B..111B (041H..049H), minus 0 = 175B (07DH),
+ * 1..9 = 112B..122B (04AH..052H); a plain ASCII digit there is plus. A
+ * separate sign is + (040B/020H or 053B/02BH) or - (055B/02DH). The parity
+ * bit is ignored on input ("with or without parity"); not in the manual:
+ * whether that holds for plain digit bytes too - it is applied to all.
+ * ---------------------------------------------------------------------- */
+static bool ascii_digit(uint8_t b, uint8_t* d) {
+    if (b >= 0x30 && b <= 0x39) { *d = (uint8_t)(b - 0x30); return true; }
+    return false;
+}
+
+static bool ascii_embedded(uint8_t b, uint8_t* d, bool* negative) {
+    if (ascii_digit(b, d)) { *negative = false; return true; }
+    if (b == 0x7B) { *d = 0; *negative = false; return true; }
+    if (b >= 0x41 && b <= 0x49) { *d = (uint8_t)(b - 0x40); *negative = false; return true; }
+    if (b == 0x7D) { *d = 0; *negative = true; return true; }
+    if (b >= 0x4A && b <= 0x52) { *d = (uint8_t)(b - 0x49); *negative = true; return true; }
+    return false;
+}
+
+static bool ascii_separate(uint8_t b, bool* negative) {
+    if (b == 0x20 || b == 0x2B) { *negative = false; return true; }
+    if (b == 0x2D) { *negative = true; return true; }
+    return false;
+}
+
+Nd500DecRead nd500_dec_read_ascii(Nd500Cpu* cpu, const Nd500DecDesc* desc, Nd500Dec* out) {
+    uint8_t raw[32];
+    for (uint32_t i = 0; i < desc->fw; i++) {
+        raw[i] = (uint8_t)(nd500_read_memory_8(cpu, desc->address + i) & 0x7F);
+        if (dec_faulted(cpu)) {
+            return ND500_DEC_READ_FAULT;
+        }
+    }
+    dec_zero(out, desc->sc);
+    if (desc->sgn > ND500_DEC_UNSIGNED) {
+        return ND500_DEC_READ_INVALID;
+    }
+
+    int fw = desc->fw;
+    int lo = 0, hi = fw;          /* digit bytes are raw[lo..hi-1] */
+    int embedded = -1;            /* index of the byte holding digit and sign */
+    bool invalid = false;
+    bool negative = false;
+    switch (desc->sgn) {
+        case ND500_DEC_EMBEDDED_TRAILING: embedded = fw - 1; break;
+        case ND500_DEC_EMBEDDED_LEADING:  embedded = 0;      break;
+        case ND500_DEC_SEPARATE_TRAILING:
+            hi = fw - 1;
+            if (!ascii_separate(raw[fw - 1], &negative)) invalid = true;
+            break;
+        case ND500_DEC_SEPARATE_LEADING:
+            lo = 1;
+            if (!ascii_separate(raw[0], &negative)) invalid = true;
+            break;
+        default:  /* unsigned: a sign code in any position is invalid */
+            break;
+    }
+
+    int n = 0;
+    for (int i = hi - 1; i >= lo; i--) {
+        uint8_t d = 0;
+        bool ok;
+        if (i == embedded) {
+            ok = ascii_embedded(raw[i], &d, &negative);
+        } else {
+            ok = ascii_digit(raw[i], &d);
+        }
+        if (!ok) { invalid = true; d = 0; }
+        out->digit[n++] = d;
+    }
+    out->count = n > 0 ? n : 1;
+    out->negative = negative;
+    dec_normalise(out);
+    return invalid ? ND500_DEC_READ_INVALID : ND500_DEC_READ_OK;
+}
+
+void nd500_dec_from_int32(int32_t value, Nd500Dec* out) {
+    dec_zero(out, 0);
+    uint64_t mag = value < 0 ? (uint64_t)(-(int64_t)value) : (uint64_t)value;
+    out->negative = value < 0;
+    int n = 0;
+    do {
+        out->digit[n++] = (uint8_t)(mag % 10);
+        mag /= 10;
+    } while (mag != 0);
+    out->count = n;
+    dec_normalise(out);
+}
+
+/* ------------------------------------------------------------------------
+ * Arithmetic
+ * ---------------------------------------------------------------------- */
+
+/* v's digits at scale sc >= v->sc, into buf (least significant first). */
+static int dec_align(const Nd500Dec* v, int sc, uint8_t* buf) {
+    int shift = sc - v->sc;
+    memset(buf, 0, DEC_WORK);
+    for (int i = 0; i < v->count && i + shift < DEC_WORK; i++) {
+        buf[i + shift] = v->digit[i];
+    }
+    int n = v->count + shift;
+    return n < DEC_WORK ? n : DEC_WORK;
+}
+
+static int mag_compare(const uint8_t* a, const uint8_t* b, int n) {
+    for (int i = n - 1; i >= 0; i--) {
+        if (a[i] != b[i]) return a[i] > b[i] ? 1 : -1;
+    }
+    return 0;
+}
+
+static void dec_from_buf(const uint8_t* buf, int n, int sc, bool negative, Nd500Dec* out) {
+    dec_zero(out, sc);
+    if (n > ND500_DEC_CAPACITY) n = ND500_DEC_CAPACITY;
+    memcpy(out->digit, buf, (size_t)n);
+    out->count = n > 0 ? n : 1;
+    out->negative = negative;
+    dec_normalise(out);
+}
+
+void nd500_dec_add(const Nd500Dec* a, const Nd500Dec* b, bool subtract, Nd500Dec* out) {
+    uint8_t x[DEC_WORK], y[DEC_WORK], r[DEC_WORK];
+    int sc = a->sc > b->sc ? a->sc : b->sc;
+    int nx = dec_align(a, sc, x);
+    int ny = dec_align(b, sc, y);
+    int n = (nx > ny ? nx : ny) + 1;
+    if (n > DEC_WORK) n = DEC_WORK;
+    bool na = a->negative;
+    bool nb = subtract ? !b->negative : b->negative;
+    memset(r, 0, sizeof(r));
+
+    if (na == nb) {
+        int carry = 0;
+        for (int i = 0; i < n; i++) {
+            int s = x[i] + y[i] + carry;
+            r[i] = (uint8_t)(s % 10);
+            carry = s / 10;
+        }
+        dec_from_buf(r, n, sc, na, out);
+        return;
+    }
+    int c = mag_compare(x, y, n);
+    const uint8_t* big = c >= 0 ? x : y;
+    const uint8_t* small = c >= 0 ? y : x;
+    bool negative = c >= 0 ? na : nb;
+    int borrow = 0;
+    for (int i = 0; i < n; i++) {
+        int s = big[i] - small[i] - borrow;
+        borrow = s < 0;
+        r[i] = (uint8_t)(s < 0 ? s + 10 : s);
+    }
+    dec_from_buf(r, n, sc, negative, out);
+}
+
+void nd500_dec_mul(const Nd500Dec* a, const Nd500Dec* b, Nd500Dec* out) {
+    uint32_t acc[DEC_WORK];
+    uint8_t r[DEC_WORK];
+    memset(acc, 0, sizeof(acc));
+    for (int i = 0; i < a->count; i++) {
+        for (int j = 0; j < b->count && i + j < DEC_WORK; j++) {
+            acc[i + j] += (uint32_t)a->digit[i] * b->digit[j];
+        }
+    }
+    uint32_t carry = 0;
+    for (int i = 0; i < DEC_WORK; i++) {
+        uint32_t s = acc[i] + carry;
+        r[i] = (uint8_t)(s % 10);
+        carry = s / 10;
+    }
+    dec_from_buf(r, a->count + b->count, a->sc + b->sc, a->negative != b->negative, out);
+}
+
+int nd500_dec_compare(const Nd500Dec* a, const Nd500Dec* b) {
+    Nd500Dec d;
+    nd500_dec_add(a, b, true, &d);
+    if (nd500_dec_is_zero(&d)) return 0;
+    return d.negative ? -1 : 1;
+}
+
+/* ------------------------------------------------------------------------
+ * Storing: scale to the destination, round if asked ("the leftmost digit
+ * not stored is inspected. If this digit is 5, 6, 7, 8 or 9 the least
+ * significant digit actually stored is incremented by 1"), then keep
+ * cap digits. More significant nonzero digits are a BCD overflow: "the
+ * result is replaced by the correctly signed least significant digits".
+ * A zero result is positive; a result that is zero only because digits
+ * were lost keeps its sign, and Z=1 S=0 are set for it (NEGATIVE AND
+ * POSITIVE ZERO).
+ * ---------------------------------------------------------------------- */
+typedef struct {
+    uint8_t digit[32];     /* the stored digits, least significant first */
+    bool negative;         /* sign of the correct (rounded) result */
+    bool overflow;
+    bool zero;             /* the stored digits are all zero */
+} DecStored;
+
+static void dec_fit(const Nd500Dec* v, int sc, bool round, int cap, DecStored* s) {
+    uint8_t buf[DEC_WORK];
+    memset(buf, 0, sizeof(buf));
+    int n;
+    int shift = sc - v->sc;
+    if (shift >= 0) {
+        for (int i = 0; i < v->count && i + shift < DEC_WORK; i++) buf[i + shift] = v->digit[i];
+        n = v->count + shift;
+    } else {
+        int drop = -shift;
+        for (int i = drop; i < v->count; i++) buf[i - drop] = v->digit[i];
+        n = v->count - drop;
+        bool up = round && drop - 1 < v->count && v->digit[drop - 1] >= 5;
+        for (int i = 0; up && i < DEC_WORK; i++) {
+            if (buf[i] == 9) { buf[i] = 0; } else { buf[i]++; up = false; }
+        }
+        n++;
+    }
+    if (n > DEC_WORK) n = DEC_WORK;
+    if (n < 1) n = 1;
+
+    bool all_zero = true;
+    for (int i = 0; i < n; i++) if (buf[i] != 0) { all_zero = false; break; }
+    s->negative = v->negative && !all_zero;
+    s->overflow = false;
+    for (int i = cap; i < n; i++) if (buf[i] != 0) { s->overflow = true; break; }
+    s->zero = true;
+    memset(s->digit, 0, sizeof(s->digit));
+    for (int i = 0; i < cap && i < 32; i++) {
+        s->digit[i] = buf[i];
+        if (buf[i] != 0) s->zero = false;
+    }
+}
+
+bool nd500_dec_store_packed(Nd500Cpu* cpu, const Nd500DecDesc* dest, const Nd500Dec* v,
+                            bool round, bool* overflow, bool* zero, bool* negative) {
+    int cap = dest->fw - 1;
+    DecStored s;
+    dec_fit(v, dest->sc, round, cap, &s);
+
+    /* "If bit 26 in the descriptor of the <dest> operand is set, the value is
+     * stored with a sign code equal to 1111"; results otherwise use 1100 for
+     * plus and 1101 for minus. */
+    bool unsigned_dest = (dest->sgn & 0x04) != 0;
+    uint8_t sign = unsigned_dest ? 0x0F : (s.negative ? 0x0D : 0x0C);
+
+    uint32_t bytes = ((uint32_t)dest->fw + 1) / 2;
+    uint32_t total = bytes * 2;
+    uint8_t nib[32];
+    memset(nib, 0, sizeof(nib));
+    nib[total - 1] = sign;
+    for (int i = 0; i < cap; i++) {
+        nib[total - 2 - (uint32_t)i] = s.digit[i];
+    }
+    for (uint32_t i = 0; i < bytes; i++) {
+        nd500_write_memory_8(cpu, dest->address + i, (uint8_t)((nib[2 * i] << 4) | nib[2 * i + 1]));
+        if (dec_faulted(cpu)) {
+            return false;
+        }
+    }
+    *overflow = s.overflow;
+    *zero = s.zero;
+    /* Not in the manual: S for an unsigned destination. The stored value has
+     * no sign, so S is left clear. */
+    *negative = !s.zero && s.negative && !unsigned_dest;
+    return true;
+}
+
+bool nd500_dec_store_ascii(Nd500Cpu* cpu, const Nd500DecDesc* dest, const Nd500Dec* v,
+                           bool round, bool* overflow, bool* zero, bool* negative) {
+    int fw = dest->fw;
+    bool separate = dest->sgn == ND500_DEC_SEPARATE_TRAILING || dest->sgn == ND500_DEC_SEPARATE_LEADING;
+    int cap = separate ? fw - 1 : fw;
+    DecStored s;
+    dec_fit(v, dest->sc, round, cap, &s);
+    bool signless = dest->sgn == ND500_DEC_UNSIGNED;
+
+    /* Digits, most significant first, "extended with leading ASCII zeros",
+     * parity bit zero. */
+    uint8_t out[32];
+    int lo = dest->sgn == ND500_DEC_SEPARATE_LEADING ? 1 : 0;
+    for (int i = 0; i < cap; i++) {
+        out[lo + cap - 1 - i] = (uint8_t)(0x30 + s.digit[i]);
+    }
+    /* Not in the manual: which of the two plus codes is written for a
+     * separate sign. 053B ('+') is used. */
+    uint8_t sign_byte = s.negative ? 0x2D : 0x2B;
+    switch (dest->sgn) {
+        case ND500_DEC_SEPARATE_TRAILING: out[fw - 1] = sign_byte; break;
+        case ND500_DEC_SEPARATE_LEADING:  out[0] = sign_byte;      break;
+        case ND500_DEC_EMBEDDED_TRAILING:
+        case ND500_DEC_EMBEDDED_LEADING: {
+            int at = dest->sgn == ND500_DEC_EMBEDDED_TRAILING ? fw - 1 : 0;
+            uint8_t d = (uint8_t)(out[at] - 0x30);
+            if (s.negative) {
+                out[at] = d == 0 ? 0x7D : (uint8_t)(0x49 + d);
+            } else {
+                out[at] = d == 0 ? 0x7B : (uint8_t)(0x40 + d);
+            }
+            break;
+        }
+        default:
+            break;
+    }
+    for (int i = 0; i < fw; i++) {
+        nd500_write_memory_8(cpu, dest->address + (uint32_t)i, out[i]);
+        if (dec_faulted(cpu)) {
+            return false;
+        }
+    }
+    *overflow = s.overflow;
+    *zero = s.zero;
+    *negative = !s.zero && s.negative && !signless;
+    return true;
+}
+
+bool nd500_dec_to_int32(const Nd500Dec* v, uint32_t* out) {
+    uint32_t low = 0;          /* magnitude modulo 2**32 */
+    uint64_t mag = 0;          /* exact magnitude until it passes 2**33 */
+    bool big = false;
+    /* Integer digits: indexes >= sc; a negative sc appends -sc zeros. */
+    int top = v->count - 1;
+    int bottom = v->sc > 0 ? v->sc : 0;
+    int zeros = v->sc < 0 ? -v->sc : 0;
+    for (int i = top; i >= bottom; i--) {
+        low = low * 10u + v->digit[i];
+        if (!big) { mag = mag * 10u + v->digit[i]; if (mag > (1ull << 33)) big = true; }
+    }
+    for (int i = 0; i < zeros; i++) {
+        low *= 10u;
+        if (!big) { mag *= 10u; if (mag > (1ull << 33)) big = true; }
+    }
+    bool overflow = big || (v->negative ? mag > 0x80000000ull : mag > 0x7FFFFFFFull);
+    *out = v->negative ? (uint32_t)(0u - low) : low;
+    return overflow;
+}
+
+void nd500_dec_finish(Nd500Cpu* cpu, uint32_t pc, bool invalid, bool overflow,
+                      bool zero, bool negative) {
+    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O | ND500_FLAG_K);
+    /* Not in the manual: Z and S after an invalid operation, when nothing
+     * is stored. They are left clear. */
+    if (!invalid) {
+        if (zero) cpu->ST1 |= ND500_FLAG_Z;
+        else if (negative) cpu->ST1 |= ND500_FLAG_S;
+    }
+    if (invalid || overflow) {
+        cpu->ST1 |= ND500_FLAG_K;
+    }
+    if (overflow) {
+        trap_bcd_overflow(cpu, pc);
+    }
+    if (invalid) {
+        trap_invalid_operation(cpu, pc);
+    }
+}
+
+/* ------------------------------------------------------------------------
+ * Instruction bodies. "Descriptor addressing is implicit": each operand's
+ * effective address is the address of its descriptor. All sources are read
+ * before the destination is written, so an operand may be both (OPERAND
+ * OVERLAP). Nothing is stored after an invalid operation (not in the
+ * manual).
+ * ---------------------------------------------------------------------- */
+static bool dec_operands(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi, unsigned count,
+                         Nd500DecDesc* desc) {
+    if (fi->operand_count != count) {
+        trap_illegal_operand(cpu, fi->address);
+        return false;
+    }
+    for (unsigned i = 0; i < count; i++) {
+        if (!nd500_dec_load_desc(cpu, fi->address, fi->operands[i].effective_address, &desc[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void nd500_dec_execute_arith(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi,
+                             Nd500DecOp op, bool round) {
+    Nd500DecDesc d[3];
+    Nd500Dec a, b, r;
+    if (!dec_operands(cpu, fi, 3, d)) return;
+    Nd500DecRead ra = nd500_dec_read_packed(cpu, &d[0], &a);
+    if (ra == ND500_DEC_READ_FAULT) return;
+    Nd500DecRead rb = nd500_dec_read_packed(cpu, &d[1], &b);
+    if (rb == ND500_DEC_READ_FAULT) return;
+
+    bool invalid = ra != ND500_DEC_READ_OK || rb != ND500_DEC_READ_OK;
+    if (op == ND500_DEC_MUL) {
+        /* "For PMPY/PMPYR, an operand with invalid digit * ZRO gives the
+         * result 0, not IVO." */
+        if ((ra == ND500_DEC_READ_OK && nd500_dec_is_zero(&a)) ||
+            (rb == ND500_DEC_READ_OK && nd500_dec_is_zero(&b))) {
+            invalid = false;
+        }
+        nd500_dec_mul(&a, &b, &r);
+    } else {
+        /* The add/subtract restriction on the scaling difference. */
+        if (!nd500_dec_scale_difference_ok(&d[0], &d[1])) invalid = true;
+        nd500_dec_add(&a, &b, op == ND500_DEC_SUB, &r);
+    }
+    bool overflow = false, zero = false, negative = false;
+    if (!invalid && !nd500_dec_store_packed(cpu, &d[2], &r, round, &overflow, &zero, &negative)) {
+        return;
+    }
+    nd500_dec_finish(cpu, fi->address, invalid, overflow, zero, negative);
+}
+
+void nd500_dec_execute_compare(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
+    Nd500DecDesc d[2];
+    Nd500Dec a, b;
+    if (!dec_operands(cpu, fi, 2, d)) return;
+    Nd500DecRead ra = nd500_dec_read_packed(cpu, &d[0], &a);
+    if (ra == ND500_DEC_READ_FAULT) return;
+    Nd500DecRead rb = nd500_dec_read_packed(cpu, &d[1], &b);
+    if (rb == ND500_DEC_READ_FAULT) return;
+    bool invalid = ra != ND500_DEC_READ_OK || rb != ND500_DEC_READ_OK ||
+                   !nd500_dec_scale_difference_ok(&d[0], &d[1]);
+    /* "An unsigned number is treated as positive, and positive and negative
+     * zero are equal." */
+    int c = nd500_dec_compare(&a, &b);
+    nd500_dec_finish(cpu, fi->address, invalid, false, c == 0, c < 0);
+}
+
+void nd500_dec_execute_convert(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi,
+                               bool source_ascii, bool dest_ascii, bool round) {
+    Nd500DecDesc d[2];
+    Nd500Dec v;
+    if (!dec_operands(cpu, fi, 2, d)) return;
+    Nd500DecRead rv = source_ascii ? nd500_dec_read_ascii(cpu, &d[0], &v)
+                                   : nd500_dec_read_packed(cpu, &d[0], &v);
+    if (rv == ND500_DEC_READ_FAULT) return;
+    bool invalid = rv != ND500_DEC_READ_OK || (dest_ascii && d[1].sgn > ND500_DEC_UNSIGNED);
+    bool overflow = false, zero = false, negative = false;
+    if (!invalid) {
+        bool ok = dest_ascii
+            ? nd500_dec_store_ascii(cpu, &d[1], &v, round, &overflow, &zero, &negative)
+            : nd500_dec_store_packed(cpu, &d[1], &v, round, &overflow, &zero, &negative);
+        if (!ok) return;
+    }
+    nd500_dec_finish(cpu, fi->address, invalid, overflow, zero, negative);
+}
+
+void nd500_dec_execute_pwconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
+    Nd500DecDesc d;
+    Nd500Dec v;
+    if (!dec_operands(cpu, fi, 1, &d)) return;
+    Nd500DecRead rv = nd500_dec_read_packed(cpu, &d, &v);
+    if (rv == ND500_DEC_READ_FAULT) return;
+    bool invalid = rv != ND500_DEC_READ_OK;
+    uint32_t value = 0;
+    bool overflow = false;
+    if (!invalid) {
+        /* "The fractional part of <source> is lost; no rounding is performed
+         * ... On integer overflow the result is the least significant 32
+         * bits of the binary result." */
+        overflow = nd500_dec_to_int32(&v, &value);
+        nd500_write_integer_register(cpu, fi->target_register, value);
+    }
+    /* value = 0 -> Z, value.signbit -> S, overflow -> O, IVO or O -> K. */
+    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O | ND500_FLAG_K);
+    if (!invalid) {
+        if (value == 0) cpu->ST1 |= ND500_FLAG_Z;
+        if (value & 0x80000000u) cpu->ST1 |= ND500_FLAG_S;
+    }
+    if (overflow) cpu->ST1 |= ND500_FLAG_O;
+    if (invalid || overflow) cpu->ST1 |= ND500_FLAG_K;
+    if (overflow) trap_integer_overflow(cpu, fi->address);
+    if (invalid) trap_invalid_operation(cpu, fi->address);
+}
+
+void nd500_dec_execute_wpconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
+    Nd500DecDesc d;
+    Nd500Dec v;
+    if (!dec_operands(cpu, fi, 1, &d)) return;
+    nd500_dec_from_int32((int32_t)nd500_read_integer_register(cpu, fi->target_register), &v);
+    /* "If the scaling factor of <dest> is negative, the least significant
+     * digits are lost" - no rounding. */
+    bool overflow = false, zero = false, negative = false;
+    if (!nd500_dec_store_packed(cpu, &d, &v, false, &overflow, &zero, &negative)) return;
+    nd500_dec_finish(cpu, fi->address, false, overflow, zero, negative);
 }

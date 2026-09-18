@@ -64,10 +64,10 @@ void nd500_instr_Smatch(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t string_desc_addr = fi->operands[1].effective_address;
 
     Nd500StringDescriptor substr_desc, string_desc;
-    if (!nd500_load_string_descriptor(cpu, substr_desc_addr, false, false, &substr_desc)) {
+    if (!nd500_load_string_descriptor(cpu, substr_desc_addr, &substr_desc)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, string_desc_addr, false, false, &string_desc)) {
+    if (!nd500_load_string_descriptor(cpu, string_desc_addr, &string_desc)) {
         return;
     }
 

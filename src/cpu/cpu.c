@@ -1685,6 +1685,12 @@ void trap_descriptor_range(Nd500Cpu* cpu, uint32_t pc) {
     raise_trap(cpu, TRAP_DR, pc, 0);
 }
 
+/* BCD Overflow (bit 15): a decimal result too wide for its destination
+ * (manual chapter 17, BCD OVERFLOW). */
+void trap_bcd_overflow(Nd500Cpu* cpu, uint32_t pc) {
+    raise_trap(cpu, TRAP_BO, pc, 0);
+}
+
 void trap_floating_overflow(Nd500Cpu* cpu, uint32_t pc) {
     raise_trap(cpu, TRAP_FO, pc, 0);
 }

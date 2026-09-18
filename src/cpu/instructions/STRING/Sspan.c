@@ -65,7 +65,7 @@ void nd500_instr_Sspan(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t table_addr = fi->operands[2].effective_address;
 
     Nd500StringDescriptor source_desc;
-    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, false, &source_desc)) {
+    if (!nd500_load_string_descriptor(cpu, source_desc_addr, &source_desc)) {
         return;
     }
 

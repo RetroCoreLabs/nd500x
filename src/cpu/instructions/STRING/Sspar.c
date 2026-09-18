@@ -53,7 +53,7 @@ void nd500_instr_Sspar(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* operand[0] = string descriptor (read-write); operand[1] = mode VALUE. */
     Nd500StringDescriptor str_desc;
-    if (!nd500_load_string_descriptor(cpu, fi->operands[0].effective_address, false, false, &str_desc)) {
+    if (!nd500_load_string_descriptor(cpu, fi->operands[0].effective_address, &str_desc)) {
         return;
     }
     uint32_t mode = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_BYTE) & 0xFF;

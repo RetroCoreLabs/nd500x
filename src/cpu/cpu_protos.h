@@ -532,6 +532,7 @@ void trap_protect_violation(Nd500Cpu* cpu, uint32_t pc, uint32_t address);
 void trap_page_fault(Nd500Cpu* cpu, uint32_t pc, uint32_t address);
 void trap_divide_by_zero(Nd500Cpu* cpu, uint32_t pc);
 void trap_descriptor_range(Nd500Cpu* cpu, uint32_t pc);
+void trap_bcd_overflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_floating_overflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_floating_underflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_invalid_operation(Nd500Cpu* cpu, uint32_t pc);

@@ -86,7 +86,7 @@ void nd500_instr_Sloca(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * layout. It also gives the correct element size per data type instead of a
      * hard-coded 1. */
     Nd500StringDescriptor desc;
-    if (!nd500_load_string_descriptor(cpu, desc_address, false, false, &desc)) {
+    if (!nd500_load_string_descriptor(cpu, desc_address, &desc)) {
         return;
     }
     uint32_t base_address = desc.base_address;

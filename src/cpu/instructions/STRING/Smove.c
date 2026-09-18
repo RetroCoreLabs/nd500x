@@ -62,10 +62,10 @@ void nd500_instr_Smove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Load string descriptors */
     Nd500StringDescriptor source_desc, dest_desc;
-    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, false, &source_desc)) {
+    if (!nd500_load_string_descriptor(cpu, source_desc_addr, &source_desc)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, false, &dest_desc)) {
+    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, &dest_desc)) {
         return;
     }
 

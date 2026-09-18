@@ -63,7 +63,7 @@ void nd500_instr_Sskip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Load string descriptor */
     Nd500StringDescriptor source_desc;
-    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, false, &source_desc)) {
+    if (!nd500_load_string_descriptor(cpu, source_desc_addr, &source_desc)) {
         return;
     }
 
