@@ -44,6 +44,9 @@ CTestTestfile.cmake
 # ...but this one is hand-written source, not generated: it is the
 # settings_no_getenv CTest gate (see src/cpu/nd500_settings.h).
 !test/no_getenv_gate.cmake
+# ...and the mkptypes build copied from nd100x (tools/mkptypes/): its Makefile
+# is source, not CMake output.
+!tools/mkptypes/Makefile
 
 # Test files
 test.o
@@ -91,3 +94,16 @@ build-asan/
 # 71 MB of a 1988 operating system - regenerable from the master, and it does
 # not belong in git.
 docker/disk/
+
+# mkptypes, built at configure time from tools/mkptypes (same as nd100x).
+/tools/mkptypes/mkptypes
+
+# Auto-generated function prototype headers (produced by mkptypes at build time).
+# Tracking these in git causes false-positive freshness checks: git checkout sets
+# all files to the same mtime, so CMake skips regeneration even when the header
+# is stale relative to its source - leading to "conflicting types" build errors.
+*_protos.h
+# nd500x exceptions: these two are hand-written, hold the CPU and machine
+# types as well as prototypes, and are tracked.
+!/src/cpu/cpu_protos.h
+!/src/machine/machine_protos.h

@@ -844,7 +844,8 @@ Exceptions, each stated in the file itself: `src/frontend/nd500x/telnetserver.[c
 and `net_compat.[ch]` came from the nd100x project and keep their original
 GPL-2.0-or-later notice; `include/nd500_desc.h` is a verbatim copy from the
 pcc-nd500 tree; everything under `external/` and `tools/ndix/userland/` has its
-own licence.
+own licence. `tools/mkptypes/` (copied from nd100x) is public domain, written by
+Eric R. Smith.
 
 ## Acknowledgments
 

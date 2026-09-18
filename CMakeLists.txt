@@ -81,6 +81,51 @@ if(NOT TARGET nd500x_warnings)
     endif()
 endif()
 
+# Build mkptypes tool first before we need it.
+#
+# Same as nd100x's CMakeLists.txt, and tools/mkptypes is a byte-identical copy
+# of nd100x's. One substitution: ${ND500X_ROOT} where nd100x has
+# ${CMAKE_SOURCE_DIR}, because nd500x is also add_subdirectory()'d into nd100x
+# (see WHERE THIS PROJECT LIVES at the top of this file).
+#
+# A Windows configure copies mkptypes.exe onto the extension-less name
+# `mkptypes` (see the WIN32 block below). That PE file is then newer than
+# mkptypes.c, so a later build on Linux in the same working tree sees the tool
+# as up to date, leaves the Windows binary in place, and every prototype
+# generation step dies with "Exec format error". Force the rebuild on
+# non-Windows so `mkptypes` is always a native binary here; it is one small C
+# file, so the cost is a fraction of a second.
+message(STATUS "Building mkptypes tool...")
+if(WIN32)
+    set(MKPTYPES_MAKE_ARGS)
+else()
+    set(MKPTYPES_MAKE_ARGS -B)
+endif()
+execute_process(
+    COMMAND make ${MKPTYPES_MAKE_ARGS} -C ${ND500X_ROOT}/tools/mkptypes
+    RESULT_VARIABLE MKTYPES_RESULT
+)
+if(NOT MKTYPES_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to build mkptypes tool. Error: ${MKTYPES_RESULT}")
+endif()
+
+# On Windows, the Makefile emits mkptypes.exe, but every downstream
+# CMakeLists references the tool as `${ND500X_ROOT}/tools/mkptypes/mkptypes`
+# (no extension). Copy the binary to the extension-less name so those
+# references keep working. Windows' CreateProcess will execute a
+# valid PE file regardless of whether its name ends in .exe.
+if(WIN32)
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${ND500X_ROOT}/tools/mkptypes/mkptypes.exe
+            ${ND500X_ROOT}/tools/mkptypes/mkptypes
+        RESULT_VARIABLE MKTYPES_COPY_RESULT
+    )
+    if(NOT MKTYPES_COPY_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to copy mkptypes.exe -> mkptypes")
+    endif()
+endif()
+
 # Make the project version visible to the code. The F12 menu shows it next to
 # the build date and time, so "which binary am I actually running?" has an
 # answer on screen rather than needing the file timestamp. Single source of

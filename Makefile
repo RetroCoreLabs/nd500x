@@ -21,14 +21,20 @@ endif
 # Parallel job count. nproc is Linux; macOS spells it sysctl -n hw.ncpu.
 JOBS?=$(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
+# Build the mkptypes tool
+.PHONY: mkptypes
+mkptypes:
+	@echo "Building mkptypes tool..."
+	$(MAKE) -C tools/mkptypes
+
 # Default build (native with DAP if available)
-all:
+all: mkptypes
 	@mkdir -p $(BUILD_DIR)
 	@cd $(BUILD_DIR) && cmake .. && $(MAKE)
 
 # Optimised build, output in build_release/. This is what CI packages, on every
 # platform - keep it working on Linux, macOS and Windows alike.
-release:
+release: mkptypes
 	@mkdir -p $(BUILD_DIR_RELEASE)
 	cmake -S . -B $(BUILD_DIR_RELEASE) $(CMAKE_GENERATOR_FLAG) -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(BUILD_DIR_RELEASE) -j $(JOBS)
@@ -36,12 +42,12 @@ release:
 	@echo "Release build complete: $(BUILD_DIR_RELEASE)/bin/"
 
 # Build without DAP support (removes external/libdap from build)
-without-dap:
+without-dap: mkptypes
 	@mkdir -p $(BUILD_DIR)
 	@cd $(BUILD_DIR) && cmake -DSKIP_LIBDAP=ON .. && $(MAKE)
 
 # Build with DAP support explicitly (requires external/libdap)
-with-dap:
+with-dap: mkptypes
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d external/libdap ]; then \
 		echo "Error: external/libdap not found. Run: git submodule update --init"; \
@@ -50,7 +56,7 @@ with-dap:
 	@cd $(BUILD_DIR) && cmake .. && $(MAKE)
 
 # Build with address sanitizer
-with-sanitizer:
+with-sanitizer: mkptypes
 	@mkdir -p $(BUILD_DIR)
 	@cd $(BUILD_DIR) && cmake -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer -g" .. && $(MAKE)
 
@@ -58,7 +64,7 @@ with-sanitizer:
 without-sanitizer: all
 
 # Build with both DAP and sanitizer
-dap-sanitizer:
+dap-sanitizer: mkptypes
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d external/libdap ]; then \
 		echo "Error: external/libdap not found. Run: git submodule update --init"; \
@@ -72,7 +78,7 @@ dap-sanitizer:
 # target is the only thing that does. Before they were CMake targets each one
 # was hand-linked from the shell, which meant a harness could be older than the
 # source it was testing - and several "bugs" turned out to be exactly that.
-diag:
+diag: mkptypes
 	@mkdir -p $(BUILD_DIR)
 	@cd $(BUILD_DIR) && cmake .. && $(MAKE) diag
 	@echo ""
@@ -88,7 +94,7 @@ run: all
 clean:
 	@rm -rf $(BUILD_DIR) $(BUILD_DIR_RELEASE) $(WASM_DIR)
 
-wasm:
+wasm: mkptypes
 	@mkdir -p $(WASM_DIR)
 	@cd $(WASM_DIR) && emcmake cmake -DBUILD_WASM=ON .. && $(MAKE)
 
