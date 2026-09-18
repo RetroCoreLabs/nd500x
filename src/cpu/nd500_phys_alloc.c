@@ -1,5 +1,10 @@
 /*
- * ND-500 physical page allocator - see nd500_phys_alloc.h for the rationale.
+ * nd500_phys_alloc.c - physical page allocator (see nd500_phys_alloc.h)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  */
 
 #include "nd500_phys_alloc.h"

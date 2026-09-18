@@ -1,5 +1,10 @@
 /*
- * ND-500 physical page allocator
+ * nd500_phys_alloc.h - physical page allocator
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * One allocator per machine, owning every 2 KB physical page frame. It replaces
  * two ad-hoc schemes that could not coexist:

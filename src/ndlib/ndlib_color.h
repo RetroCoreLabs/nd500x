@@ -1,3 +1,12 @@
+/*
+ * ndlib_color.h - ANSI colour output for disassembly and debugging
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #ifndef NDLIB_COLOR_H
 #define NDLIB_COLOR_H
 

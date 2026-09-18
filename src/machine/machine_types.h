@@ -1,3 +1,12 @@
+/*
+ * machine_types.h - machine state types and stop reasons
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #ifndef MACHINE_TYPES_H
 #define MACHINE_TYPES_H
 #include <stdint.h>

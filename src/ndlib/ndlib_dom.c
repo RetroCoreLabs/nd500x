@@ -1,5 +1,10 @@
 /*
- * ND-500 DOM/SEG File Loader
+ * ndlib_dom.c - DOM/SEG file loader
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * Loads DOM (Domain) or SEG (Segment) files including header and segment data.
  *

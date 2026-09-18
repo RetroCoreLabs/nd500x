@@ -2,6 +2,11 @@
  * nd500_settings.c - the settings struct, its defaults, and the environment
  * loader that keeps every existing script working.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * Generated shape, hand-maintained: see nd500_settings.h for what this is and
  * why nothing else in src/cpu or src/machine calls getenv any more.
  *

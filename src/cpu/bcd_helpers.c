@@ -1,5 +1,10 @@
 /**
- * ND-500 Packed BCD Helper Functions Implementation
+ * bcd_helpers.c - packed BCD helper functions
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * Based on ND-500 CPU Reference Manual, Chapter 17.
  */

@@ -1,3 +1,12 @@
+/*
+ * nd500x.c - native frontend entry point: command line, INI file, mode selection
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>

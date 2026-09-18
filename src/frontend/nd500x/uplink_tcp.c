@@ -1,6 +1,11 @@
 /*
  * uplink_tcp.c - NDIX as one member of a RetroCore TCP ethernet segment.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * See uplink_tcp.h for why this is in the frontend, and ../../cpu/nd500_ethhub.h
  * for where every byte of the protocol was read from.
  *

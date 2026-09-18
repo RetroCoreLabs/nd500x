@@ -2,6 +2,11 @@
  * nd_compat.h - small POSIX-vs-Win32 gaps that are not about terminals or
  * sockets (those are nd_tty.h and net_compat.h respectively).
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * Everything here keeps POSIX SEMANTICS, not just POSIX spelling. That matters
  * most for nd_realpath(): the Win32 _fullpath() it is built on happily returns
  * an absolute path for a file that does not exist, while realpath() fails - and

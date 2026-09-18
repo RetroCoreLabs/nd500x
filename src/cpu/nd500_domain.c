@@ -1,3 +1,12 @@
+/*
+ * nd500_domain.c - domain system: DIT, PCB, cross-domain call and return
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include "nd500_domain.h"
 #include "nd500_mmu.h"
 #include "cpu_protos.h"

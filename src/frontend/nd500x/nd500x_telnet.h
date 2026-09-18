@@ -1,6 +1,11 @@
 /*
  * nd500x_telnet.h - single-client TCP/telnet terminal host for the shell.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * Reuses the telnet IAC state machine and POSIX socket approach from nd100x
  * (src/ndlib/telnetserver.c / net_compat.h) - adapted to nd500x's single
  * ConsoleIO terminal instead of nd100x's multi-terminal Device registry.

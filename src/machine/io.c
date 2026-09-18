@@ -1,3 +1,12 @@
+/*
+ * io.c - machine init, byte-addressed memory bus and the PTE write-watch diagnostic
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

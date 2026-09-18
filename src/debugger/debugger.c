@@ -1,6 +1,11 @@
 /*
- * Native ND-500 Debugger REPL
+ * debugger.c - native debugger REPL
  * Uses shared command library with readline integration
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  */
 
 #include <stdio.h>

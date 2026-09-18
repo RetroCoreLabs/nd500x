@@ -1,5 +1,10 @@
 /*
- * Memory Map Generator for ND-500 Emulator
+ * memory_map.c - memory map generator
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * Generates a JSON representation of physical memory usage by scanning:
  * - PST (Physical Segment Table) entries to find physical memory allocations

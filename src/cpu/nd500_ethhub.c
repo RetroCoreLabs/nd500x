@@ -1,6 +1,11 @@
 /*
  * nd500_ethhub.c - the RetroCore TCP ethernet wire format. See nd500_ethhub.h
  * for where every constant in here was read from.
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  */
 
 #include <string.h>

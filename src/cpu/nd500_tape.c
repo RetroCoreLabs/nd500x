@@ -1,3 +1,12 @@
+/*
+ * nd500_tape.c - SIMH .tap record layer (see nd500_tape.h)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 /* SIMH .tap record layer - see nd500_tape.h for the format and the reasoning. */
 #include "nd500_tape.h"
 #include <string.h>

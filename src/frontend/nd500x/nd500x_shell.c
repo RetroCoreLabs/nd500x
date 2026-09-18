@@ -1,6 +1,11 @@
 /*
  * nd500x_shell.c - SINTRAN-flavoured interactive shell (--monitor mode).
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * Phase 1: local terminal. Command surface sourced from the ND manuals; see
  * docs/SINTRAN-SHELL-SPEC.md for every citation.
  *

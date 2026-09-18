@@ -2,6 +2,11 @@
  * nd500_xring.c - the XMSG ring discipline. See nd500_xring.h for why this is
  * a file of its own with no CPU in it.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * Everything here mirrors NDIX's if/xg.c. Where a rule looks wrong, it is
  * copied anyway and the reason is written down: the two sides have to agree,
  * and NDIX is the side that cannot be changed.

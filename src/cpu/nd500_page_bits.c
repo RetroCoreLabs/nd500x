@@ -1,5 +1,10 @@
 /*
- * ND-500 PGU / WIP page bitmaps - see nd500_page_bits.h for the rationale.
+ * nd500_page_bits.c - PGU / WIP page bitmaps (see nd500_page_bits.h)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  */
 
 #include "nd500_page_bits.h"

@@ -1,6 +1,11 @@
 /*
  * nd500_xmsg.h - the ND-100 side of NDIX's XMSG interface.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * WHAT THIS IS
  * ------------
  * nd500_xring.c owns the ring DISCIPLINE (empty/full/put/get). This file owns

@@ -1,6 +1,11 @@
 /*
  * nd500x_shell.h - SINTRAN-flavoured interactive shell (--monitor mode).
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * A faithful-surface reimplementation of the SINTRAN III command prompt: an
  * "@" prompt you log in to, run DOM programs from by name, and log out of.
  * Command surface and behaviour are sourced from the ND manuals - see

@@ -1,6 +1,11 @@
 /* ===========================================================================
  * nd500_fecall.c - NDIX ND-100 front-end call (fecall) = MON 600 (octal, 0x180)
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * The NDIX kernel does ALL device I/O (disk, console, clock, init) by calling
  * the ND-100 front-end processor via `fecall()` = `callg $0xf8000180`. On real
  * hardware the ND-100 monitor services these. Here the emulator services them,

@@ -1,5 +1,10 @@
 /*
- * ND-500 translation cache - storage and invalidation.
+ * nd500_tlb.c - translation cache (TSB / TLB): storage and invalidation
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * Deliberately its OWN translation unit with no dependency beyond stdlib:
  * nd500_phys_alloc.c, machine_loader.c and debug_api.c all need to flush, and

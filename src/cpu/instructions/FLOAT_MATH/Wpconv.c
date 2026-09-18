@@ -1,3 +1,12 @@
+/*
+ * Wpconv.c - ND-500 Wpconv instruction (FLOAT_MATH class)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 /**
  * Wpconv instruction - FLOAT_MATH class
  *

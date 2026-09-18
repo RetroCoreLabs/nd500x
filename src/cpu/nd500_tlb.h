@@ -1,5 +1,10 @@
 /*
- * ND-500 translation cache (TSB / TLB)
+ * nd500_tlb.h - translation cache (TSB / TLB)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * The ND-500 has one for real: DCTSB and PCTSB are instructions whose whole
  * job is to clear it, and the NDIX kernel issues them from locore.c, machdep.c

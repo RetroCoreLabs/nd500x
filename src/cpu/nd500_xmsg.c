@@ -2,6 +2,11 @@
  * nd500_xmsg.c - the ND-100 side of NDIX's XMSG interface. See nd500_xmsg.h
  * for the contract, and nd500_xring.h for the ring discipline this sits on.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * The whole file is "what would the ND-100's XMSG kernel have said?". There is
  * no ND-100 here, so we say it.
  */

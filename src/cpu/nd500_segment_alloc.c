@@ -1,3 +1,12 @@
+/*
+ * nd500_segment_alloc.c - segment allocation for MON calls (PST entries, page tables, PCB capabilities)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include <stdlib.h>
 /*
  * ND-500 Segment Allocation for MON Calls

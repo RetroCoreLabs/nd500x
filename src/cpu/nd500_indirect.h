@@ -1,5 +1,10 @@
 /*
- * ND-500 Indirect Segment Handling
+ * nd500_indirect.h - indirect segment handling
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * Implements cross-domain calls via indirect segment capabilities.
  * Segment 31 is reserved for SINTRAN monitor calls (MON).

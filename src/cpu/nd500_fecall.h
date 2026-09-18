@@ -1,6 +1,11 @@
 /*
  * nd500_fecall.h - public interface to the ND-100 front-end call emulation.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * Only the guest TERMINAL (tty) plumbing is declared here; the rest of the
  * fecall machinery is internal to nd500_fecall.c.
  *

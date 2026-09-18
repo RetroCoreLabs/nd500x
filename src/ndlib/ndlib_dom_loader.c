@@ -1,5 +1,10 @@
 /*
- * ND-500 DOM/SEG File Loading - Unified Implementation
+ * ndlib_dom_loader.c - DOM/SEG file loading into a machine
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * This module provides a single function for loading DOM/SEG files into
  * the emulator. After loading segments into physical memory, it performs

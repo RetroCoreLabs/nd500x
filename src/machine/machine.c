@@ -1,3 +1,12 @@
+/*
+ * machine.c - CPU lock, background run thread and MMU enable switches
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include <stdio.h>
 #include <stdint.h>
 #include <time.h>

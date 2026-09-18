@@ -837,7 +837,14 @@ make wasm
 
 ## License
 
-[Specify your license here - e.g., MIT, GPL, Apache 2.0]
+MIT - see [LICENSE](LICENSE). Every source file carries an
+`SPDX-License-Identifier: MIT` line.
+
+Exceptions, each stated in the file itself: `src/frontend/nd500x/telnetserver.[ch]`
+and `net_compat.[ch]` came from the nd100x project and keep their original
+GPL-2.0-or-later notice; `include/nd500_desc.h` is a verbatim copy from the
+pcc-nd500 tree; everything under `external/` and `tools/ndix/userland/` has its
+own licence.
 
 ## Acknowledgments
 

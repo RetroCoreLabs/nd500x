@@ -1,6 +1,11 @@
 /*
- * ND-500 Debugger Shared Command Library
+ * commands.h - debugger shared command library
  * Provides unified command interface for both native CLI and WASM web console
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  */
 
 #ifndef COMMANDS_H

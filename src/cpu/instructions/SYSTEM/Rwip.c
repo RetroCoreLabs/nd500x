@@ -1,3 +1,12 @@
+/*
+ * Rwip.c - ND-500 Rwip instruction (SYSTEM class)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include "cpu_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"

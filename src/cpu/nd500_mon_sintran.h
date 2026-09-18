@@ -1,6 +1,11 @@
 /*
  * nd500_mon_sintran.h - the SINTRAN MON-call emulation seam.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * WHY THIS FILE EXISTS (2026-08-08)
  * ---------------------------------
  * Two very different things arrive on segment 31, and only one of them is

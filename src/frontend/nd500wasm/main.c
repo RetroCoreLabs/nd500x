@@ -1,3 +1,12 @@
+/*
+ * main.c - WebAssembly frontend with JSON debug exports for the web debugger
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>

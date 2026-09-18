@@ -1,3 +1,12 @@
+/*
+ * nd500_disasm.h - disassembly formatting (presentation only; decoding is in the CPU)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #ifndef ND500_DISASM_H
 #define ND500_DISASM_H
 

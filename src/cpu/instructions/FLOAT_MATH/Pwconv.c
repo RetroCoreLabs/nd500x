@@ -1,3 +1,12 @@
+/*
+ * Pwconv.c - ND-500 Pwconv instruction (FLOAT_MATH class)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 /**
  * Pwconv instruction - FLOAT_MATH class
  *

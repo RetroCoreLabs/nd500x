@@ -1,6 +1,11 @@
 /*
  * nd500_host_posix.c - the default host services: stdio-backed disk images.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * This is what nd500_fecall.c used to do inline. Moving it here changes no
  * behaviour on a desktop build - the same environment variables, the same
  * open modes, the same messages - but it makes the behaviour REPLACEABLE, which

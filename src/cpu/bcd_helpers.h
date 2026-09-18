@@ -1,5 +1,10 @@
 /**
- * ND-500 Packed BCD Helper Functions
+ * bcd_helpers.h - packed BCD helper functions
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * This module provides helper functions for reading and writing
  * packed BCD (Binary-Coded Decimal) values using the ND-500

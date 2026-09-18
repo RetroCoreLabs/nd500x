@@ -1,5 +1,10 @@
 /*
- * ND-500 Page Used (PGU) and Written In Page (WIP) tables.
+ * nd500_page_bits.h - Page Used (PGU) and Written In Page (WIP) tables
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * Two hardware-maintained bitmaps, one bit per 2 KB physical page frame:
  *

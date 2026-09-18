@@ -1,6 +1,11 @@
 /*
  * ndix_ffs.c - read-only 4.3BSD FFS path lookup for NDIX disk images.
  * See ndix_ffs.h for what this is for and where the layout facts come from.
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  */
 
 #include "ndix_ffs.h"

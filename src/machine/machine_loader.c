@@ -1,3 +1,12 @@
+/*
+ * machine_loader.c - loading a.out, PSEG and DSEG files into machine memory
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include <stdio.h>
 #include "../cpu/nd500_tlb.h"
 #include <stdlib.h>

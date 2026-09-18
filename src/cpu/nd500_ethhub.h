@@ -1,6 +1,11 @@
 /*
  * nd500_ethhub.h - the RetroCore TCP ethernet wire format, with no sockets in it.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * WHAT THIS IS FOR
  * ----------------
  * The plan (notes/docs/PLAN_NDIX_NETWORKING_ENUM0_AND_WASM_2026-08-08.md, 2.4)

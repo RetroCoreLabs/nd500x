@@ -1,6 +1,11 @@
 /*
- * ND-500 Instruction Dispatch Table Declarations
+ * nd500_instructions.h - instruction dispatch table declarations
  * Pre-generated and committed as source file
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  */
 
 #ifndef ND500_INSTRUCTIONS_H

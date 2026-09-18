@@ -1,6 +1,11 @@
 /*
  * nd500x_telnet.c - single-client TCP/telnet terminal host for the SINTRAN shell.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * The telnet IAC state machine, negotiation options and the accept/reader
  * threading model are reused from nd100x (src/ndlib/telnetserver.c). This
  * version is deliberately single-terminal: one listening socket, one client,

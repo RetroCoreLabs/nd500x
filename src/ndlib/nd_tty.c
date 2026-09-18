@@ -1,6 +1,11 @@
 /*
  * nd_tty.c - cross-platform local-terminal shim. See include/nd_tty.h for what
  * each function promises; this file is the two implementations of it.
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  */
 #include "nd_tty.h"
 

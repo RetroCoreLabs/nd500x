@@ -1,6 +1,11 @@
 /*
  * nd_tty.h - cross-platform local-terminal shim (POSIX termios vs Win32 console).
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * nd500x drives the host terminal directly in two places:
  *
  *   - src/debugger/debugger.c   guest_passthrough(): raw mode, a 200 ms timed

@@ -2,6 +2,11 @@
  * uplink_tap.h - put NDIX's et0 on a real Linux TAP device, so the host (and
  * anything the host routes for) can reach the guest with ordinary tools.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * WHY A TAP AND NOT THE TCP RELAY
  * ------------------------------
  * uplink_tcp.c joins nd500x to a RetroCore *emulated* segment: everything on

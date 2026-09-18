@@ -1,3 +1,12 @@
+/*
+ * instruction_helpers.h - helpers shared by the instruction handlers: memory access, flags, types
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #ifndef ND500_INSTRUCTION_HELPERS_H
 #define ND500_INSTRUCTION_HELPERS_H
 

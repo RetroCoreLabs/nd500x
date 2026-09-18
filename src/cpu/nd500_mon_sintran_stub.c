@@ -1,6 +1,11 @@
 /*
  * nd500_mon_sintran_stub.c - the no-ndmonlib implementation of the seam.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * Compiled instead of nd500_mon_sintran.c when the build is configured with
  * -DND500X_WITH_NDMON=OFF. See nd500_mon_sintran.h for the full rationale; the
  * short version is that NDIX needs exactly ONE monitor call - MON 600, the

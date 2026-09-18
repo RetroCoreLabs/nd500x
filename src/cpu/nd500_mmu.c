@@ -1,3 +1,12 @@
+/*
+ * nd500_mmu.c - MMU three-level address translation and protection checks
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include "nd500_mmu.h"
 
 /* The MMU's refusal messages must honour the MMU LOG LEVEL, not the instruction

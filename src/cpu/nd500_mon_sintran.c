@@ -1,6 +1,11 @@
 /*
  * nd500_mon_sintran.c - SINTRAN III monitor-call emulation, backed by ndmonlib.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * This is the REAL implementation of the seam declared in nd500_mon_sintran.h;
  * nd500_mon_sintran_stub.c is the alternative that is compiled instead when the
  * build is configured with -DND500X_WITH_NDMON=OFF.

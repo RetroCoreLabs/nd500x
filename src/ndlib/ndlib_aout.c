@@ -1,3 +1,12 @@
+/*
+ * ndlib_aout.c - a.out loader
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

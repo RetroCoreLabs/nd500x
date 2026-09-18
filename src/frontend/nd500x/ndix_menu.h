@@ -1,6 +1,11 @@
 /*
  * ndix_menu.h - the F12 menu on the local terminal.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * Same idea as nd100x's F12 menu: while the guest owns the terminal there has
  * to be one key that belongs to the EMULATOR, or there is no way to change
  * anything without killing the process. Two entries for now - switch the

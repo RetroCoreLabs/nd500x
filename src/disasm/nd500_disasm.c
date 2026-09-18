@@ -1,6 +1,11 @@
 /**
  * nd500_disasm.c - ND-500 Instruction Disassembler
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * This module provides disassembly output for ND-500 instructions,
  * formatting operands according to ND-500 assembly syntax conventions.
  *

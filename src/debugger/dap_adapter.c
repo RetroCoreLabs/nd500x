@@ -1,5 +1,10 @@
 /*
- * DAP (Debug Adapter Protocol) adapter for the nd500x emulator.
+ * dap_adapter.c - Debug Adapter Protocol adapter (port 4500)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * Mirrors the nd100x integration: libdap owns the TCP transport, JSON
  * parsing and response serialization; this file implements the command

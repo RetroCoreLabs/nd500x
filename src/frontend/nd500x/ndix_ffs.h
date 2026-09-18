@@ -1,6 +1,11 @@
 /*
  * ndix_ffs.h - read a file out of the NDIX root filesystem in a disk image.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * Enough of 4.3BSD FFS to look up a path and pull the bytes back, nothing more:
  * no writing, no allocation, no cylinder-group bookkeeping. It exists so that
  * "nd500x --ndix <image>" can find the kernel INSIDE the image and boot it,

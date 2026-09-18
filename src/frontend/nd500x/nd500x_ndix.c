@@ -1,6 +1,11 @@
 /*
  * nd500x_ndix.c - NDIX boot setup (--ndix) and the guest-tty telnet bridge.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * See nd500x_ndix.h. Two independent pieces live here because both exist only
  * to serve the NDIX guest:
  *

@@ -1,3 +1,12 @@
+/*
+ * machine_protos.h - machine module prototypes: memory bus, loaders, debug API
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #ifndef MACHINE_PROTOS_H
 #define MACHINE_PROTOS_H
 #include <stdint.h>

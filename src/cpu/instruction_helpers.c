@@ -1,3 +1,12 @@
+/*
+ * instruction_helpers.c - helpers shared by the instruction handlers: memory access, flags, types
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #include "instruction_helpers.h"
 #include "cpu_protos.h"
 #include "nd500_mmu.h"

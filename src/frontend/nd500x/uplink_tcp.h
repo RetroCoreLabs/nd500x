@@ -2,6 +2,11 @@
  * uplink_tcp.h - dial into a RetroCore TCP ethernet relay and be one member of
  * the emulated LAN.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * WHY THIS LIVES IN THE FRONTEND AND "loop" DOES NOT
  * --------------------------------------------------
  * The loopback uplink is in the portable boot path because the wasm build needs

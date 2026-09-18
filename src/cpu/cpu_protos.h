@@ -1,3 +1,12 @@
+/*
+ * cpu_protos.h - CPU module prototypes and shared CPU types
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #ifndef CPU_PROTOS_H
 #define CPU_PROTOS_H
 #include <stdint.h>

@@ -1,6 +1,11 @@
 /*
  * nd500x_ndix.h - NDIX boot setup (--ndix) and the guest-tty telnet bridge.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * --ndix absorbs what the run-ndix.sh wrapper used to do: point the front-end
  * call layer at a root disk image, set the environment defaults the NDIX boot
  * needs, find the kernel image and hand the debugger a "load vmunix" + "run"

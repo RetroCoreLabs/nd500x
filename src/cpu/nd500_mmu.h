@@ -1,3 +1,12 @@
+/*
+ * nd500_mmu.h - MMU three-level address translation, declarations
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #ifndef ND500_MMU_H
 #define ND500_MMU_H
 #include <stdint.h>

@@ -1,5 +1,10 @@
 /*
  * ndix_menu.c - the F12 menu. See ndix_menu.h.
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  */
 
 #include "ndix_menu.h"

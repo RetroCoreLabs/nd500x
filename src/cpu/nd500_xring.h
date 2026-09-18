@@ -1,6 +1,11 @@
 /*
  * nd500_xring.h - the XMSG ring buffers NDIX shares with the ND-100.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * WHAT THIS IS
  * ------------
  * NDIX does all of its networking through two ring buffers in the segment-6

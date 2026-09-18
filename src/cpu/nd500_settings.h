@@ -1,6 +1,11 @@
 /*
  * nd500_settings.h - every knob the emulator has, as plain fields.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * WHY THIS EXISTS
  * ---------------
  * These settings used to be 108 getenv() calls scattered across src/cpu and

@@ -1,10 +1,15 @@
 /*
- * SIMH .tap record layer - the motion and framing logic behind the tape
+ * nd500_tape.h - SIMH .tap record layer: the motion and framing logic behind the tape
  * device (MON 600 generic 2). Kept separate from the fecall packet handling
  * in nd500_fecall.c so it can be tested on its own: the guest has no mt
  * binary and no /dev/mt nodes, so the record layer cannot currently be
  * exercised through a boot, and a layer that has never run is a layer nobody
  * should trust.
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * Format (see test/mktape.sh, which writes it):
  *   record  <4-byte LE length N> <N bytes, padded to even> <4-byte LE N>

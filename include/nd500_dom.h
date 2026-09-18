@@ -1,5 +1,10 @@
 /*
- * ND-500 Domain/Segment File Header Structures
+ * nd500_dom.h - domain and segment file header structures (:DOM, :PSEG, :DSEG; big-endian)
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
  *
  * Reference: ND-860289-2-EN ND Linker User Guide and Reference Manual
  *

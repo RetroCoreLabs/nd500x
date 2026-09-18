@@ -1,6 +1,11 @@
 /*
  * uplink_tap.c - NDIX's et0 on a Linux TAP device.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * See uplink_tap.h for why this exists alongside uplink_tcp.c and why it does
  * not configure the host interface itself.
  *

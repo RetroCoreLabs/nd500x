@@ -1,3 +1,12 @@
+/*
+ * debugger.h - native debugger REPL and DAP server entry points
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #ifndef DEBUGGER_H
 #define DEBUGGER_H
 #include <stdint.h>

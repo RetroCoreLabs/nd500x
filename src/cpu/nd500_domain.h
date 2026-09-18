@@ -1,3 +1,12 @@
+/*
+ * nd500_domain.h - domain system: cross-domain calling and protection
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ */
+
 #ifndef ND500_DOMAIN_H
 #define ND500_DOMAIN_H
 #include <stdint.h>

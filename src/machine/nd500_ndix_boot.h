@@ -1,6 +1,11 @@
 /*
  * nd500_ndix_boot.h - build an ND-500 machine that can run the NDIX kernel.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * WHY THIS FILE EXISTS
  *
  * Everything here used to live in two places that a browser build cannot

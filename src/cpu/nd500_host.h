@@ -1,6 +1,11 @@
 /*
  * nd500_host.h - what the ND-500 needs FROM ITS HOST PROCESS.
  *
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025-2026 Ronny Hansen
+ *
+ * See LICENSE in the repository root for the full text.
+ *
  * WHY THIS EXISTS
  * ---------------
  * NDIX has no I/O of its own. Every device it owns - disk (io/di.c), tape
