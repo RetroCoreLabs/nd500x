@@ -99,7 +99,7 @@ void nd500_instr_Sloca(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (element_count == 0) {
         cpu->ST1 &= ~ND500_FLAG_K;
         cpu->ST1 &= ~ND500_FLAG_Z;
-        cpu->ST1 &= ~ND500_FLAG_S;  /* SLOCA always ends S=0 (microcode: match path F02 @010133 ST,SAVA A,BM00 positive -> Sgn=0; empty/range path via SOUR_RANGE also 0). Was |= FLAG_S = over-set (golden S=1 != microword S=0). */
+        cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);  /* C, O not named: reset (6.5.1) */  /* SLOCA always ends S=0 (microcode: match path F02 @010133 ST,SAVA A,BM00 positive -> Sgn=0; empty/range path via SOUR_RANGE also 0). Was |= FLAG_S = over-set (golden S=1 != microword S=0). */
         return;
     }
 
@@ -107,7 +107,7 @@ void nd500_instr_Sloca(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (index >= element_count) {
         cpu->ST1 &= ~ND500_FLAG_K;
         cpu->ST1 &= ~ND500_FLAG_Z;
-        cpu->ST1 &= ~ND500_FLAG_S;  /* SLOCA always ends S=0; see empty-string note. */
+        cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);  /* C, O not named: reset (6.5.1) */  /* SLOCA always ends S=0; see empty-string note. */
         /* DR trap condition - set in ST2 */
         return;
     }
@@ -136,11 +136,11 @@ void nd500_instr_Sloca(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Matching element: K=0 Z=1 I1 := matching element */
         cpu->ST1 &= ~ND500_FLAG_K;
         cpu->ST1 |= ND500_FLAG_Z;
-        cpu->ST1 &= ~ND500_FLAG_S;  /* Match found (not end of string) */
+        cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);  /* C, O not named: reset (6.5.1) */  /* Match found (not end of string) */
     } else {
         /* End of string reached without match: K=0 Z=0 S=0 */
         cpu->ST1 &= ~ND500_FLAG_K;
         cpu->ST1 &= ~ND500_FLAG_Z;
-        cpu->ST1 &= ~ND500_FLAG_S;  /* SLOCA always ends S=0 (microcode: match path F02 @010133 ST,SAVA A,BM00 positive -> Sgn=0; empty/range path via SOUR_RANGE also 0). Was |= FLAG_S = over-set (golden S=1 != microword S=0). */
+        cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);  /* C, O not named: reset (6.5.1) */  /* SLOCA always ends S=0 (microcode: match path F02 @010133 ST,SAVA A,BM00 positive -> Sgn=0; empty/range path via SOUR_RANGE also 0). Was |= FLAG_S = over-set (golden S=1 != microword S=0). */
     }
 }

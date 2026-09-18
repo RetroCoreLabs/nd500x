@@ -112,13 +112,18 @@ void nd500_instr_Smvwh(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_clear_flag(cpu, ND500_FLAG_K);
         nd500_clear_flag(cpu, ND500_FLAG_Z);
     } else if (src_index >= source_desc.element_count) {
-        /* Source empty -> K=0. Z stays 0 (microcode ALU,A A,BM00 ST,SAVA; reason carried in K). */
+        /* Source empty -> K=0 Z=1. B30 SMVWHBY_F04 @007170 is ALU,FZRO ST,SAVA
+         * (Z=1) before the byte loop, then @007171 K,ZRO; only the different-
+         * byte exit @007204 (A,BM02 ST,SAVA) overwrites Z with 0. The old
+         * comment read the A,BM00 ST,SAVA words, which are the range-trap
+         * exits (SOUR_RANGE/DEST_RANGE). The manual's table, one row out of
+         * line in this copy, says the same. */
         nd500_clear_flag(cpu, ND500_FLAG_K);
-        nd500_clear_flag(cpu, ND500_FLAG_Z);
+        nd500_set_flag(cpu, ND500_FLAG_Z);
     } else if (dest_index >= dest_desc.element_count) {
-        /* Dest full -> K=1. Z stays 0. */
+        /* Dest full -> K=1 Z=1 (@007172 K,ONE after the same FZRO). */
         nd500_set_flag(cpu, ND500_FLAG_K);
-        nd500_clear_flag(cpu, ND500_FLAG_Z);
+        nd500_set_flag(cpu, ND500_FLAG_Z);
     }
 
     nd500_clear_flag(cpu, ND500_FLAG_S);
