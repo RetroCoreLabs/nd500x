@@ -51,17 +51,17 @@
 #include "nd500_instructions.h"
 
 // clang-format off
-/* Baselines, measured on the 40,082-vector corpus of 18-SEP-2026. See the
- * file header for when and how to change them. */
+/* Baselines, measured on the 76,120-vector corpus of 18-SEP-2026 (flag-preset
+ * twins included). See the file header for when and how to change them. */
 enum
 {
     BASE_INSTRUCTIONS = 169,
     BASE_OPCODES      = 371,
-    BASE_SEED_Z       = 10,
-    BASE_SEED_C       = 8,
-    BASE_SEED_S       = 6,
-    BASE_SEED_O       = 2,
-    BASE_SEED_K       = 1,
+    BASE_SEED_Z       = 64,
+    BASE_SEED_C       = 59,
+    BASE_SEED_S       = 62,
+    BASE_SEED_O       = 54,
+    BASE_SEED_K       = 55,
     BASE_TRAP_ENABLE  = 0,
     BASE_FLOAT_HIGH   = 3,
     BASE_FLOAT_LOW    = 0
