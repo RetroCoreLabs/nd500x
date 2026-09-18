@@ -1,0 +1,6 @@
+# Commits that only reformat; git blame skips them when
+# blame.ignoreRevsFile is set to this file (git config blame.ignoreRevsFile .git-blame-ignore-revs).
+# Whitespace only: tabs to 4 spaces, strip trailing whitespace
+e608fcc1abc0d65bdf98392474409008508e7367
+# ASCII only: replace every non-ASCII character in C sources and tests
+f1d158c601e65d4d4d725915ba84a7f8af244478
