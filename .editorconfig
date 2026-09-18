@@ -1,0 +1,23 @@
+# EditorConfig for nd500x - see https://editorconfig.org
+# House C standard: 4-space indent, LF, ASCII, no trailing whitespace.
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{c,h}]
+indent_style = space
+indent_size = 4
+charset = latin1
+
+[{CMakeLists.txt,*.cmake}]
+indent_style = space
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+[*.md]
+trim_trailing_whitespace = false
