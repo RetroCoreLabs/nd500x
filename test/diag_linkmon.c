@@ -55,6 +55,7 @@ int main(int argc,char**argv){
     fprintf(stderr,"STOP=%s instr=%llu PC=%08X\n",nd500_stop_reason_str(m.stop_reason),(unsigned long long)c.instruction_count,c.PC);
     { const char* co=mon_get_console_output(); size_t cl=mon_get_console_output_len();
       fprintf(stderr,"=== LINKER CONSOLE (%zu bytes) ===\n",cl);
-      if(co) fwrite(co,1,cl,stderr); fprintf(stderr,"\n=== end ===\n"); }
+      if(co) { fwrite(co,1,cl,stderr); }
+      fprintf(stderr,"\n=== end ===\n"); }
     return 0;
 }

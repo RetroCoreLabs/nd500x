@@ -44,7 +44,8 @@ int main(int argc,char**argv){
     if(n>0){
         FILE* f=fopen(scr,"rb"); FILE* o=fopen("./cat_intermediate.dat","wb");
         if(f&&o){ char buf[8192]; size_t r; while((r=fread(buf,1,sizeof(buf),f))>0) fwrite(buf,1,r,o); }
-        if(f)fclose(f); if(o)fclose(o);
+        if(f) { fclose(f); }
+        if(o) { fclose(o); }
         printf("copied to ./cat_intermediate.dat\n");
         /* hexdump head */
         FILE* h=fopen(scr,"rb"); if(h){ unsigned char b[64]; size_t r=fread(b,1,64,h); fclose(h);

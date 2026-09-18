@@ -69,7 +69,7 @@ static void create_test_map_file(const char* filename, const char* content) {
 }
 
 /* Test 1: Map file parsing with octal addresses */
-static int test_map_parsing_octal() {
+static int test_map_parsing_octal(void) {
     TEST_START("Map file parsing (octal addresses)");
 
     // Create test map file with octal addresses
@@ -133,7 +133,7 @@ static int test_map_parsing_octal() {
 }
 
 /* Test 2: Map file parsing with hexadecimal addresses */
-static int test_map_parsing_hex() {
+static int test_map_parsing_hex(void) {
     TEST_START("Map file parsing (hexadecimal addresses)");
 
     // Create test map file with hex addresses
@@ -182,7 +182,7 @@ static int test_map_parsing_hex() {
 }
 
 /* Test 3: Mixed octal and hex addresses */
-static int test_map_parsing_mixed() {
+static int test_map_parsing_mixed(void) {
     TEST_START("Map file parsing (mixed octal and hex)");
 
     // Create test map file with both octal and hex addresses
@@ -220,7 +220,7 @@ static int test_map_parsing_mixed() {
 }
 
 /* Test 4: Source file storage and retrieval */
-static int test_source_storage() {
+static int test_source_storage(void) {
     TEST_START("Source file storage and retrieval");
 
     const char* source_content =
@@ -273,7 +273,7 @@ static int test_source_storage() {
 }
 
 /* Test 5: Empty map file */
-static int test_empty_map() {
+static int test_empty_map(void) {
     TEST_START("Empty map file handling");
 
     create_test_map_file("/tmp/test_empty.map", "");
@@ -298,7 +298,7 @@ static int test_empty_map() {
 }
 
 /* Test 6: Malformed map file entries */
-static int test_malformed_map() {
+static int test_malformed_map(void) {
     TEST_START("Malformed map file handling");
 
     // Map file with some valid and some invalid entries

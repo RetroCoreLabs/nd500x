@@ -19,6 +19,7 @@
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
 #include <ndmon/mon.h>
+#include <ndmon/mon_file_table.h>   /* mon_queue_console_input */
 #include <ndmon/mon_log.h>
 #include "testdata.h"
 

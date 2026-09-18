@@ -16,7 +16,7 @@
 /* External LGet function */
 extern void nd500_instr_LGet(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 
-void test_lget_basic() {
+static void test_lget_basic(void) {
     printf("=== Test 1: LGet Basic (Absolute Addressing) ===\n");
 
     /* Create machine with enough memory */
@@ -122,7 +122,7 @@ void test_lget_basic() {
     printf("\n");
 }
 
-void test_lget_local_short() {
+static void test_lget_local_short(void) {
     printf("=== Test 2: LGet with LOCAL_SHORT Addressing ===\n");
 
     Nd500Machine m;
@@ -187,7 +187,7 @@ void test_lget_local_short() {
     printf("\n");
 }
 
-void test_lget_register() {
+static void test_lget_register(void) {
     printf("=== Test 3: LGet with REGISTER Addressing ===\n");
 
     Nd500Machine m;
@@ -237,7 +237,7 @@ void test_lget_register() {
     printf("\n");
 }
 
-void test_lget_debug() {
+static void test_lget_debug(void) {
     printf("=== Debug Test: LGet Step by Step ===\n");
 
     Nd500Machine m;
@@ -317,7 +317,7 @@ void test_lget_debug() {
     printf("\n");
 }
 
-void test_lget_with_mmu() {
+static void test_lget_with_mmu(void) {
     printf("=== Test 4: LGet with MMU Enabled (Data MMU) ===\n");
 
     Nd500Machine m;
@@ -487,7 +487,7 @@ void test_lget_with_mmu() {
     printf("\n");
 }
 
-void test_lget_user_scenario() {
+static void test_lget_user_scenario(void) {
     printf("=== Test 5: LGet User's Exact Scenario ===\n");
 
     /* Reproduce: 0802D448: FD C0 C4 08 01 D7 F0    l=:          $0x801D7F0 */
@@ -589,7 +589,7 @@ void test_lget_user_scenario() {
     printf("\n");
 }
 
-void test_lget_endian_verification() {
+static void test_lget_endian_verification(void) {
     printf("=== Test 6: Endianness Verification ===\n");
 
     Nd500Machine m;
@@ -652,7 +652,7 @@ void test_lget_endian_verification() {
     printf("\n");
 }
 
-int main() {
+int main(void) {
     printf("LGet (l=:) Instruction Tests\n");
     printf("============================\n\n");
 

@@ -86,7 +86,6 @@ static void dump_around(Nd500Machine* m, uint32_t center, int before, int after)
 int main(int argc, char** argv) {
     DOM = nd500_testdata("FraTor/nc/nc-a06.dom");
     if (argc > 1) CMD = argv[1];
-    uint32_t CRASH_PC = (argc > 2) ? (uint32_t)strtoul(argv[2], 0, 0) : 0x080241F9u;
     uint32_t TARGET   = (argc > 3) ? (uint32_t)strtoul(argv[3], 0, 0) : 0x4B6F7076u;
 
     if (ndlib_load_dom_header(DOM) != 0) { fprintf(stderr, "header load failed\n"); return 2; }

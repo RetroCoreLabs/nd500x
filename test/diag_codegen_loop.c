@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
     }
     (void)MAX_STEPS; (void)MAX_HITS;
     #undef PEEK32
-    fprintf(stderr, "Done. steps=%ld hits=%d final_PC=0x%08X stop=%s\n",
+    fprintf(stderr, "Done. steps=%ld hits=%lld final_PC=0x%08X stop=%s\n",
             step, hits, cpu.PC, nd500_stop_reason_str(machine.stop_reason));
     nd500_machine_free(&machine);
     return 0;

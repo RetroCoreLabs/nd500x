@@ -146,8 +146,12 @@ static void test_set_data_breakpoints(void) {
 	int base_count = g_m.bp_mgr->wp_count;
 
 	/* One write watch + one readWrite watch (becomes two entries) */
-	char* ids[2] = { "P:0x00002000:4", "P:0x00002100:2" };
-	char* access[2] = { "write", "readWrite" };
+	char id_w[] = "P:0x00002000:4";
+	char id_rw[] = "P:0x00002100:2";
+	char acc_w[] = "write";
+	char acc_rw[] = "readWrite";
+	char* ids[2] = { id_w, id_rw };
+	char* access[2] = { acc_w, acc_rw };
 	DAPBreakpoint results[2];
 	memset(results, 0, sizeof(results));
 	memset(ctx, 0, sizeof(*ctx));
@@ -195,7 +199,8 @@ static void test_register_watchpoints(void) {
 	/* setDataBreakpoints installs a register watch primed with the
 	 * current value */
 	g_cpu.I[0] = 0x11111111;
-	char* ids[1] = { "R:I1" };
+	char id_i1[] = "R:I1";
+	char* ids[1] = { id_i1 };
 	DAPBreakpoint results[1];
 	memset(results, 0, sizeof(results));
 	memset(ctx, 0, sizeof(*ctx));
@@ -224,7 +229,8 @@ static void test_register_watchpoints(void) {
 	g_m.memory[0x1000] = 0x6C;
 	g_m.memory[0x1001] = 0x00;
 	g_cpu.PC = 0x1000;
-	char* ids2[1] = { "R:PC" };
+	char id_pc[] = "R:PC";
+	char* ids2[1] = { id_pc };
 	DAPBreakpoint results2[1];
 	memset(results2, 0, sizeof(results2));
 	memset(ctx, 0, sizeof(*ctx));
@@ -254,10 +260,11 @@ static void test_memory_roundtrip(void) {
 	WriteMemoryCommandContext* wctx = &g_srv->current_command.context.write_memory;
 	ReadMemoryCommandContext* rctx = &g_srv->current_command.context.read_memory;
 
+	char hello_b64[] = "SEVMTE8=";
 	/* "HELLO" == base64 "SEVMTE8=" */
 	memset(wctx, 0, sizeof(*wctx));
 	wctx->memory_reference = 0x4000;
-	wctx->data = "SEVMTE8=";
+	wctx->data = hello_b64;
 	CHECK(call_cb(DAP_CMD_WRITE_MEMORY) == 0, "write memory");
 	CHECK(wctx->bytes_written == 5, "5 bytes written");
 	CHECK(memcmp(g_m.memory + 0x4000, "HELLO", 5) == 0, "bytes landed in memory");
@@ -278,7 +285,7 @@ static void test_memory_roundtrip(void) {
 	g_m.stop_reason = STOP_NONE;
 	memset(wctx, 0, sizeof(*wctx));
 	wctx->memory_reference = 0x4000;
-	wctx->data = "SEVMTE8=";
+	wctx->data = hello_b64;
 	CHECK(call_cb(DAP_CMD_WRITE_MEMORY) == 0, "write over watched memory");
 	CHECK(g_m.stop_reason == STOP_NONE, "DAP write did not trip watchpoint");
 	CHECK(g_m.run_flag == 1, "DAP write did not stop machine");

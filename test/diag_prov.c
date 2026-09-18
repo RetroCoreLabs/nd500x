@@ -26,10 +26,9 @@ int main(int argc,char**argv){
     uint32_t sa=0; int dm=0; if(ndlib_dom_load_to_machine(&m,&c,-1,NULL,NULL,&sa,&dm))return 2; m.run_flag=1; m.stop_reason=STOP_NONE;
 
     /* NON-perturbing: register compares only; dump at the fatal instant */
-    uint32_t lastB=0; int dumped=0;
+    int dumped=0;
     for(long s=0;s<3000000&&m.run_flag;s++){
         uint32_t pc=c.PC;
-        if(pc==0x080241DCu){ lastB=c.B; }
         if(pc==0x08024884u && c.I[0]==0xA1B8A1A8u && !dumped){
             dumped=1;
             uint32_t B=c.B;

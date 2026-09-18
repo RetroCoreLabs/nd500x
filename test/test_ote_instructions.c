@@ -90,7 +90,7 @@ static void execute_instruction(Nd500Machine* m, Nd500Cpu* cpu, const uint8_t* c
  * Test OTE1:= (LOAD) - operand -> OTE1
  * Opcode: 0xFDBB
  */
-void test_ote1_load_register(void) {
+static void test_ote1_load_register(void) {
     printf("\n=== Test: ote1:= with REGISTER operand ===\n");
 
     Nd500Machine m;
@@ -120,7 +120,7 @@ void test_ote1_load_register(void) {
     nd500_machine_free(&m);
 }
 
-void test_ote1_load_memory(void) {
+static void test_ote1_load_memory(void) {
     printf("\n=== Test: ote1:= with ABSOLUTE memory operand ===\n");
 
     Nd500Machine m;
@@ -150,7 +150,7 @@ void test_ote1_load_memory(void) {
     nd500_machine_free(&m);
 }
 
-void test_ote1_load_zero(void) {
+static void test_ote1_load_zero(void) {
     printf("\n=== Test: ote1:= loading zero (Z flag) ===\n");
 
     Nd500Machine m;
@@ -178,7 +178,7 @@ void test_ote1_load_zero(void) {
  * Test OTE1=: (STORE) - OTE1 -> operand
  * Opcode: 0xFDC5
  */
-void test_ote1_store_register(void) {
+static void test_ote1_store_register(void) {
     printf("\n=== Test: ote1=: to REGISTER operand ===\n");
 
     Nd500Machine m;
@@ -207,7 +207,7 @@ void test_ote1_store_register(void) {
     nd500_machine_free(&m);
 }
 
-void test_ote1_store_memory(void) {
+static void test_ote1_store_memory(void) {
     printf("\n=== Test: ote1=: to ABSOLUTE memory operand ===\n");
 
     Nd500Machine m;
@@ -241,7 +241,7 @@ void test_ote1_store_memory(void) {
  * Test OTE2:= (LOAD) - operand -> OTE2
  * Opcode: 0xFDBC
  */
-void test_ote2_load_register(void) {
+static void test_ote2_load_register(void) {
     printf("\n=== Test: ote2:= with REGISTER operand ===\n");
 
     Nd500Machine m;
@@ -268,7 +268,7 @@ void test_ote2_load_register(void) {
     nd500_machine_free(&m);
 }
 
-void test_ote2_load_memory(void) {
+static void test_ote2_load_memory(void) {
     printf("\n=== Test: ote2:= with ABSOLUTE memory operand ===\n");
 
     Nd500Machine m;
@@ -292,7 +292,7 @@ void test_ote2_load_memory(void) {
     nd500_machine_free(&m);
 }
 
-void test_ote2_load_zero(void) {
+static void test_ote2_load_zero(void) {
     printf("\n=== Test: ote2:= loading zero (Z flag) ===\n");
 
     Nd500Machine m;
@@ -320,7 +320,7 @@ void test_ote2_load_zero(void) {
  * Test OTE2=: (STORE) - OTE2 -> operand
  * Opcode: 0xFDC6
  */
-void test_ote2_store_register(void) {
+static void test_ote2_store_register(void) {
     printf("\n=== Test: ote2=: to REGISTER operand ===\n");
 
     Nd500Machine m;
@@ -349,7 +349,7 @@ void test_ote2_store_register(void) {
     nd500_machine_free(&m);
 }
 
-void test_ote2_store_memory(void) {
+static void test_ote2_store_memory(void) {
     printf("\n=== Test: ote2=: to ABSOLUTE memory operand ===\n");
 
     Nd500Machine m;
@@ -378,7 +378,7 @@ void test_ote2_store_memory(void) {
 /*
  * Test roundtrip: LOAD then STORE
  */
-void test_ote1_roundtrip(void) {
+static void test_ote1_roundtrip(void) {
     printf("\n=== Test: OTE1 roundtrip (load then store) ===\n");
 
     Nd500Machine m;
@@ -410,7 +410,7 @@ void test_ote1_roundtrip(void) {
     nd500_machine_free(&m);
 }
 
-void test_ote2_roundtrip(void) {
+static void test_ote2_roundtrip(void) {
     printf("\n=== Test: OTE2 roundtrip (load then store) ===\n");
 
     Nd500Machine m;
@@ -448,7 +448,7 @@ void test_ote2_roundtrip(void) {
  * Original trace address was 0x0802D6CB (virtual), but for unit testing
  * we use physical address CODE_ADDR since MMU is disabled.
  */
-void test_ote2_bug_scenario(void) {
+static void test_ote2_bug_scenario(void) {
     printf("\n=== Test: OTE2 Bug Scenario from Trace ===\n");
     printf("  This test reproduces the exact scenario that caused I4 differences\n");
     printf("  Original trace: 0x0802D6CB: ote2:= W4 (FD BC D3)\n");
@@ -495,7 +495,7 @@ void test_ote2_bug_scenario(void) {
  * must leave OTE unchanged in that case.
  * =================================================================== */
 
-void test_ote1_temm_blocks_protected_bit(void) {
+static void test_ote1_temm_blocks_protected_bit(void) {
     printf("\n=== Test: ote1:= blocked by TEMM (protected bit) ===\n");
 
     Nd500Machine m;
@@ -518,7 +518,7 @@ void test_ote1_temm_blocks_protected_bit(void) {
     nd500_machine_free(&m);
 }
 
-void test_ote1_temm_allows_modifiable_bit(void) {
+static void test_ote1_temm_allows_modifiable_bit(void) {
     printf("\n=== Test: ote1:= allowed when only modifiable bits change ===\n");
 
     Nd500Machine m;
@@ -541,7 +541,7 @@ void test_ote1_temm_allows_modifiable_bit(void) {
     nd500_machine_free(&m);
 }
 
-void test_sete_temm_blocks(void) {
+static void test_sete_temm_blocks(void) {
     printf("\n=== Test: SETE blocked by TEMM ===\n");
 
     Nd500Machine m;
@@ -564,7 +564,7 @@ void test_sete_temm_blocks(void) {
     nd500_machine_free(&m);
 }
 
-void test_sete_temm_allows(void) {
+static void test_sete_temm_allows(void) {
     printf("\n=== Test: SETE allowed by TEMM ===\n");
 
     Nd500Machine m;
@@ -587,7 +587,7 @@ void test_sete_temm_allows(void) {
     nd500_machine_free(&m);
 }
 
-void test_clte_temm_blocks(void) {
+static void test_clte_temm_blocks(void) {
     printf("\n=== Test: CLTE blocked by TEMM ===\n");
 
     Nd500Machine m;
@@ -672,7 +672,7 @@ static void lregbl_cte1_setup(Nd500Machine *m, Nd500Cpu *cpu,
     fi->operands[1].reg  = 2;
 }
 
-void test_lregbl_cte1_no_leak_nonpriv(void) {
+static void test_lregbl_cte1_no_leak_nonpriv(void) {
     printf("\n=== Test: LREGBL cannot write CTE1 in non-privileged mode ===\n");
 
     Nd500Machine m;
@@ -687,7 +687,7 @@ void test_lregbl_cte1_no_leak_nonpriv(void) {
     nd500_machine_free(&m);
 }
 
-void test_lregbl_cte1_priv_loads(void) {
+static void test_lregbl_cte1_priv_loads(void) {
     printf("\n=== Test: LREGBL can write CTE1 in privileged mode ===\n");
 
     Nd500Machine m;

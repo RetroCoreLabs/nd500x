@@ -24,7 +24,6 @@ int main(int argc,char**argv){
     uint32_t sa=0; int dm=0;
     if(ndlib_dom_load_to_machine(&m,&c,-1,NULL,NULL,&sa,&dm))return 2;
     m.run_flag=1; m.stop_reason=STOP_NONE;
-    unsigned long long lastcall=0;
     for(long s=0;s<3000000&&m.run_flag;s++){
         uint32_t pc=c.PC;
         if(pc==0x08023E4Eu) /* by test r1 : r1 = I[0] return from 0x802C99B */

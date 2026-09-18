@@ -49,7 +49,7 @@ int main(void){
     nd500_disasm_format_range(&m,c.PC,4,dis,sizeof(dis));
     printf("\n=== ACTUAL crash state ===\n");
     printf("stop=%s\n", nd500_stop_reason_str(m.stop_reason));
-    printf("instr#=%llu PC=0x%08X\n disasm: %s\n", c.instruction_count, c.PC, dis);
+    printf("instr#=%llu PC=0x%08X\n disasm: %s\n", (unsigned long long)c.instruction_count, c.PC, dis);
     printf("B=0x%08X R=0x%08X L=0x%08X TOS=0x%08X\n",c.B,c.R,c.L,c.TOS);
     printf("I1=%08X I2=%08X I3=%08X I4=%08X\n",c.I[0],c.I[1],c.I[2],c.I[3]);
     printf("A1=%08X A2=%08X A3=%08X A4=%08X\n",c.A[0],c.A[1],c.A[2],c.A[3]);

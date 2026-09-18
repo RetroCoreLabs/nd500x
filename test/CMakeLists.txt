@@ -450,3 +450,15 @@ add_test(NAME settings_catalog COMMAND test_settings_catalog)
 add_test(NAME settings_no_getenv
          COMMAND ${CMAKE_COMMAND} -DSRC_DIR=${ND500X_ROOT}
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/no_getenv_gate.cmake)
+
+# House C standard, Tier A: every executable in this directory (the test_*
+# runners and the diag_* harnesses) links the same warning target as src/.
+# Done here, once, instead of at each of the 34 add_executable() calls, so a
+# new test cannot be added without it.
+get_property(_test_dir_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(_t IN LISTS _test_dir_targets)
+    get_target_property(_t_type ${_t} TYPE)
+    if(_t_type STREQUAL "EXECUTABLE")
+        target_link_libraries(${_t} PRIVATE nd500x_warnings)
+    endif()
+endforeach()

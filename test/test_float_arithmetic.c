@@ -459,7 +459,7 @@ static void test_exponent_edges(void) {
     test_result("large value roundtrip", rel_err < 1.0e-6f, details);
 }
 
-int main(int argc, char** argv) {
+int main(void) {
     printf("ND500 Float Arithmetic Tests\n");
     printf("============================\n");
 

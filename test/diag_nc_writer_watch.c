@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../src/cpu/cpu_protos.h"
+#include "../src/cpu/instruction_helpers.h"   /* nd500_read_memory_32 */
 #include "../src/machine/machine_protos.h"
 #include "../src/cpu/nd500_mmu.h"
 #include "../src/cpu/nd500_domain.h"

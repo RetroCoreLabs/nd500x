@@ -190,9 +190,10 @@ static void test_lregbl_trap_return_restores(Nd500Machine* m, Nd500Cpu* cpu) {
     cpu->THA = 0;
     cpu->B = OLD_B;
     cpu->ST1 = 0;
+    nd500_trap_clear();
     Nd500FetchedInstruction ents = make_ents(STACK_DEMAND);
     nd500_instr_Ents(cpu, &ents);
-    CHECK((cpu->ST1 & (1u << 35)) == 0 || cpu->B == NEW_B,
+    CHECK(!nd500_trap_occurred() || cpu->B == NEW_B,
           "the resumed ENTS raises no false ISE after an lregbl trap return");
 }
 

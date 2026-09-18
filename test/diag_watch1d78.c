@@ -10,6 +10,7 @@
 #include "../src/cpu/nd500_domain.h"
 #include "../src/ndlib/ndlib.h"
 #include <ndmon/mon.h>
+#include <ndmon/mon_file_table.h>   /* mon_queue_console_input */
 #include "testdata.h"
 #define MEMSZ (16u*1024u*1024u)
 int main(int argc,char**argv){
