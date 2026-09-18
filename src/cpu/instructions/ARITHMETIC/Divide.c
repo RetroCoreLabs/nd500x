@@ -87,14 +87,13 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
              * SINGLE-precision float divide (DIVF, microcode @002501 ->
              * DIVFI_00 @023211 -> QUOT_RND/QUOT_EXP @023276 -> QUOT_FIN_2).
              *
-             * This is NOT a host `double` division: the ND-500 divide is a
-             * bit-level reciprocal/remainder long-division and rounds the
-             * quotient by ROUNDING THE MAGNITUDE UP whenever the remainder is
-             * nonzero (round-away-from-zero on any inexactness), not IEEE
-             * round-to-nearest. Doing the host-double divide + narrowing cast
-             * lands 1 ULP off on the inexact cases (e.g. 0.1 -> 0x3F666667).
-             * The exact-integer model below was validated bit-for-bit AND
-             * flag-for-flag against all 32 cross-core FloatDiv oracle cases.
+             * This is NOT a host `double` division: the quotient is formed
+             * exactly and rounded by the manual's rule (ND-05.009.4 7.2.7,
+             * Figure 20): with L the last kept bit, G the next bit and St the
+             * OR of everything below G, add one to the mantissa if G=1 and
+             * (St=1 or L=1). An earlier version rounded the magnitude up on
+             * any inexact result, fitted to the C# emulator; the B30
+             * microword engine and the manual both give 0.1 -> 0x3F666666.
              *
              * ND-500 single format: sign bit31 | 9-bit exp (bias 256, bits
              * 30-22) | 22-bit mantissa (bits 21-0), value =
@@ -155,11 +154,12 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             int topbit = 63 - __builtin_clzll(Q);
             int shift = topbit - 22;                 /* always >= 1 here */
             uint64_t sq = Q >> shift;
-            bool lost = ((Q & (((uint64_t)1 << shift) - 1)) != 0) || (rem != 0);
 
-            /* Round the MAGNITUDE up on any inexactness (round-away-from-zero),
-             * matching QUOT_RND's remainder-based rounding. */
-            if (lost) {
+            /* Manual 7.2.7: G = the bit below the kept 23, St = everything
+             * under G plus the division remainder. */
+            bool g = ((Q >> (shift - 1)) & 1) != 0;
+            bool st = ((Q & (((uint64_t)1 << (shift - 1)) - 1)) != 0) || (rem != 0);
+            if (g && (st || (sq & 1))) {
                 sq++;
                 if (sq == (1u << 23)) { sq >>= 1; shift++; }  /* carried into next binade */
             }
@@ -216,16 +216,11 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * DOUBLE-precision divide (DIV_64 microcode @023414). Exact-integer
          * model, NOT a host double division.
          *
-         * DIV_64 is a NON-RESTORING binary long-division (loops DIV64L1
-         * @023424 and DIV64L2 @023454, each `Q,Q*DIV ... LCDECR ... COND,AQSLZ`,
-         * with LC loaded from SARG=27o=23 then SARG=36o=30). The two loops
-         * generate 23+30 = 53 significand bits, so the quotient carries only
-         * 53 bits of precision: the result significand is the exact quotient
-         * ROUNDED TO THE NEAREST MULTIPLE OF 4 (its low two bits are zero).
-         * That single fact reproduces the whole cross-core DoubleDiv oracle
-         * bit-for-bit (e.g. 2/3 -> ...5554, 0.3 -> ...cccc, 0.1 -> ...6668),
-         * which no simple round-to-nearest/truncate of a 55-bit quotient does
-         * (they miss by a non-monotone {-1,0,+2} ULP).
+         * The quotient is formed exactly and rounded by the manual's rule
+         * (ND-05.009.4 7.2.7): add one to the mantissa if G=1 and (St=1 or
+         * L=1). An earlier version rounded to a multiple of 4, fitted to the
+         * C# emulator (2/3 -> ...5554); the B30 microword engine and the
+         * manual both give 2/3 -> ...5555 and 0.1 -> ...6666.
          *
          * ND-500 double format: sign b63 | 9-bit exp (bias 256, b62-54) |
          * 54-bit mantissa; value = +/-(2^54+mant)/2^55 * 2^(efield-256), with
@@ -286,7 +281,7 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
         }
 
-        /* Normalised operands: exact long-divide with round-to-nearest-mult-4.
+        /* Normalised operands: exact long-divide, manual 7.2.7 rounding.
          * N,D are the 55-bit significands (implicit leading 1 at bit 54). */
         unsigned __int128 N = (unsigned __int128)(((uint64_t)1 << 54) | mn);
         unsigned __int128 D = (unsigned __int128)(((uint64_t)1 << 54) | md);
@@ -298,23 +293,14 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint64_t qq_lo = (uint64_t)QQ;
         int bitlen = qq_hi ? (128 - __builtin_clzll(qq_hi)) : (64 - __builtin_clzll(qq_lo));
         int top = bitlen - 1;
-        int shift = top - 54;                    /* in {2,3} -> shift-2 >= 0 */
+        int shift = top - 54;                    /* in {2,3} */
 
-        uint64_t fq = (uint64_t)(QQ >> shift);   /* 55-bit floor significand */
-        unsigned __int128 fracbits = QQ & ((((unsigned __int128)1) << shift) - 1);
-
-        /* Round the 55-bit significand to the nearest multiple of 4 (the 53-bit
-         * grid the two DIV_64 loops produce). Half rounds up when any lower bit
-         * or the division remainder is nonzero (sticky). */
-        uint64_t q4 = fq >> 2;
-        uint64_t r4 = fq & 3;
-        unsigned __int128 frac_num = ((unsigned __int128)r4 << shift) + fracbits;
-        unsigned __int128 denom = (unsigned __int128)4 << shift;
-        int sticky = (fracbits != 0 || RR != 0);
-        if (2 * frac_num > denom || (2 * frac_num == denom && sticky)) {
-            q4++;
+        uint64_t sres = (uint64_t)(QQ >> shift); /* 55-bit truncated significand */
+        bool g = ((QQ >> (shift - 1)) & 1) != 0;
+        bool st = ((QQ & ((((unsigned __int128)1) << (shift - 1)) - 1)) != 0) || (RR != 0);
+        if (g && (st || (sres & 1))) {
+            sres++;
         }
-        uint64_t sres = q4 << 2;
         if (sres >= ((uint64_t)1 << 55)) { sres >>= 1; shift++; }   /* carried up a binade */
 
         /* value = sig * 2^(en - ed + shift - 2); efield = that + bias 256. */
