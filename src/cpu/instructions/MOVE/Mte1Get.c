@@ -6,7 +6,7 @@
 /**
  * Mte1Get instruction - MOVE class
  *
- * Store MTE1 Register: MTE1 → <dest>
+ * Store MTE1 Register: MTE1 -> <dest>
  *
  * Variants: 1
  * Mnemonics: mte1=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFD70
  *
- * Operation: regs.MTE1 → <dest>
+ * Operation: regs.MTE1 -> <dest>
  *
  * Description:
  *   Reads the MTE1 (Memory Table Entry 1) register and stores it to the

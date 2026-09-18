@@ -6,7 +6,7 @@
 /**
  * HlGet instruction - MOVE class
  *
- * Store HL Register: HL → <dest>
+ * Store HL Register: HL -> <dest>
  *
  * Variants: 1
  * Mnemonics: hl=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDC1
  *
- * Operation: regs.HL → <dest>
+ * Operation: regs.HL -> <dest>
  *
  * Description:
  *   Reads the HL (High Level) register and stores it to the destination

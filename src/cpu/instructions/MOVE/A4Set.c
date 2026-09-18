@@ -6,7 +6,7 @@
 /**
  * A4Set instruction - MOVE class
  *
- * Load A4 Register: <source> → A4
+ * Load A4 Register: <source> -> A4
  *
  * Variants: 1
  * Mnemonics: a4:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE33
  *
- * Operation: <source> → regs.A4
+ * Operation: <source> -> regs.A4
  *
  * Description:
  *   Reads the source operand and stores it to the A4 float register.

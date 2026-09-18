@@ -538,7 +538,7 @@ int main(int argc, char** argv) {
             /* Replace .o or .out with .init */
             strcpy(ext, ".init");
         } else {
-            /* No extension - append .init to basename (e.g., kernel → kernel.init) */
+            /* No extension - append .init to basename (e.g., kernel -> kernel.init) */
             strncat(init_path, ".init", sizeof(init_path) - strlen(init_path) - 1);
         }
 

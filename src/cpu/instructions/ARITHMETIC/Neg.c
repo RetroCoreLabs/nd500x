@@ -7,7 +7,7 @@
  * Neg instruction - ARITHMETIC class
  *
  * Negate register (two's complement for integers, sign flip for floats).
- * -Rn → Rn
+ * -Rn -> Rn
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn NEG, Hn NEG, Wn NEG, Fn NEG, Dn NEG (n=1..4)
@@ -20,7 +20,7 @@
  *   0x0094-0x0097 (F1 NEG through F4 NEG) - Float negate
  *   0x0094-0x0097 (D1 NEG through D4 NEG) - Double negate
  *
- * Operation: -Rn → Rn
+ * Operation: -Rn -> Rn
  *
  * Description:
  *   The contents of the specified register are negated. An integer value

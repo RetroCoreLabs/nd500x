@@ -8,7 +8,7 @@
 /**
  * Umul instruction - ARITHMETIC class
  *
- * Unsigned Multiply with Overflow to Register: <a> * <b> → <c>, overflow → Rn
+ * Unsigned Multiply with Overflow to Register: <a> * <b> -> <c>, overflow -> Rn
  *
  * Variants: 1 (word-only)
  * Mnemonics: Wn UMUL (n=1..4)
@@ -17,7 +17,7 @@
  * Opcodes:
  *   0xFC80-0xFC83 (W1 UMUL through W4 UMUL) - Word unsigned multiply
  *
- * Operation: <a> * <b> → <c>, overflow part → Rn
+ * Operation: <a> * <b> -> <c>, overflow part -> Rn
  *
  * Description:
  *   The operands are treated as unsigned. The <a> operand is multiplied

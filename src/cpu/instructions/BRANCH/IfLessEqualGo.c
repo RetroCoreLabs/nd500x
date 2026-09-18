@@ -16,7 +16,7 @@
  *   0x00CE (IF <= GO:B) - Byte displacement
  *   0x00CF (IF <= GO:H) - Halfword displacement
  *
- * Operation: if S = 1 or Z = 1 then PC ← PC + displacement
+ * Operation: if S = 1 or Z = 1 then PC <- PC + displacement
  *
  * Description:
  *   Conditional jump if the sign flag is set or zero flag is set

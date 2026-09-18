@@ -53,9 +53,9 @@ const char* ndlib_source_get_line(const char* filename, int line);
 const char* ndlib_source_get_content(const char* filename);
 int ndlib_source_count_lines(const char* filename);
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
  * UNIFIED FILE LOADING (eliminates code duplication)
- * ═══════════════════════════════════════════════════════════════════
+ * ===================================================================
  */
 
 /* Load a.out file with symbols, optional map file, and set PC correctly.
@@ -74,9 +74,9 @@ int ndlib_load_aout_with_debug(Nd500Machine* m, const char* aout_path,
                                 int auto_map, uint32_t* out_entry, uint32_t* out_pc);
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
  * DOM/SEG FILE LOADING
- * ═══════════════════════════════════════════════════════════════════
+ * ===================================================================
  */
 
 /* Forward declaration - full type in nd500_dom.h */

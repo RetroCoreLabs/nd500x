@@ -6,7 +6,7 @@
 /**
  * PsSet instruction - MOVE class
  *
- * Load PS Register: <source> → PS
+ * Load PS Register: <source> -> PS
  *
  * Variants: 1
  * Mnemonics: ps:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFF44
  *
- * Operation: <source> → regs.PS
+ * Operation: <source> -> regs.PS
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the PS

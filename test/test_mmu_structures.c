@@ -41,10 +41,10 @@ int main(void) {
 
     /* Memory requirements */
     printf("Memory Requirements:\n");
-    printf("  PST Table: %d entries × %zu bytes = %zu KB\n",
+    printf("  PST Table: %d entries x %zu bytes = %zu KB\n",
            MAX_PST, sizeof(PhysicalSegmentTableEntry),
            (MAX_PST * sizeof(PhysicalSegmentTableEntry)) / 1024);
-    printf("  PCB Table: %d domains × %zu bytes = %zu KB\n",
+    printf("  PCB Table: %d domains x %zu bytes = %zu KB\n",
            MAXDOM, sizeof(ProcessControlBlock),
            (MAXDOM * sizeof(ProcessControlBlock)) / 1024);
     printf("  Total MMU memory: ~%zu KB\n",

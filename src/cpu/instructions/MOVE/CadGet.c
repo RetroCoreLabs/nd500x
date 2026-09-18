@@ -6,7 +6,7 @@
 /**
  * CadGet instruction - MOVE class
  *
- * Store CAD Register: CAD → <dest>
+ * Store CAD Register: CAD -> <dest>
  *
  * Variants: 1
  * Mnemonics: cad=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE55
  *
- * Operation: regs.CAD → <dest>
+ * Operation: regs.CAD -> <dest>
  *
  * Description:
  *   Reads the CAD (Current Address Descriptor) register and stores it to the

@@ -47,7 +47,7 @@
  * - Operand[0]: Log size (read, byte)
  *   - Logarithm base 2 of block size in words
  *   - Block size = 2^logSize words = 2^(logSize+2) bytes
- *   - Example: logSize=4 → 2^4=16 words = 64 bytes
+ *   - Example: logSize=4 -> 2^4=16 words = 64 bytes
  *   - Addressing modes: LOCAL, RECORD, CONSTANT, REGISTER, PRE_INDEXED, ABSOLUTE
  *   - Data type: Byte (BY prefix)
  *

@@ -6,7 +6,7 @@
 /**
  * Clrk instruction - MOVE class
  *
- * Clear K Flag: 0 → K
+ * Clear K Flag: 0 -> K
  *
  * Variants: 1
  * Mnemonics: clrk
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE03
  *
- * Operation: 0 → ST.K
+ * Operation: 0 -> ST.K
  *
  * Description:
  *   Clears the K (Destination Full) status bit in the status register.

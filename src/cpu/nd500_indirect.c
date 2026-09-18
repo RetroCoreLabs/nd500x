@@ -74,20 +74,20 @@ int nd500_check_indirect_call(
         return INDIRECT_DIRECT;
     }
 
-    /* ═══════════════════════════════════════════════════════════════════════
+    /* =======================================================================
      * INDIRECT CALL - Extract target domain and segment from capability
-     * ═══════════════════════════════════════════════════════════════════════ */
+     * ======================================================================= */
 
     /* Extract target domain (bits 13-5, 9 bits) and segment (bits 4-0, 5 bits) */
     uint32_t target_domain = (pc & PC_DOM) >> 5;
     uint32_t target_segment = pc & PC_SEG;
 
-    /* ═══════════════════════════════════════════════════════════════════════
+    /* =======================================================================
      * SINTRAN SEGMENT 31 - MON CALL HANDLING
      *
      * Segment 31 is reserved for SINTRAN monitor calls.
      * The offset IS the MON number (not divided by 4).
-     * ═══════════════════════════════════════════════════════════════════════ */
+     * ======================================================================= */
 
     /* A CALLG *into* the segment-31 window is a SINTRAN monitor call by
      * architecture, regardless of what the (possibly OMC/ND-100-configured)
@@ -121,7 +121,7 @@ int nd500_check_indirect_call(
         }
     }
 
-    /* ═══════════════════════════════════════════════════════════════════════
+    /* =======================================================================
      * NDIX CROSS-DOMAIN SYSCALL CALL
      *
      * A seg-31 gate with PC_IND but WITHOUT PC_OMC is a genuine ND-500 cross-domain
@@ -133,7 +133,7 @@ int nd500_check_indirect_call(
      * routine #N at (N+1)*4; the offset is the routine index) and perform the domain
      * switch - the inverse of the Ret.c domain-return. Gated on a real kernel DIT
      * (cpu->DITBASE) so single-domain SINTRAN (no DIT) is untouched. [NDIX syscall]
-     * ═══════════════════════════════════════════════════════════════════════ */
+     * ======================================================================= */
     if ((pc & PC_IND) && !(pc & PC_OMC) && cpu->DITBASE &&
         target_segment != SINTRAN_SEGMENT) {
         uint32_t sav_base = (uint32_t)target_segment << 27;   /* addr 0 of target seg */
@@ -209,7 +209,7 @@ int nd500_check_indirect_call(
                                       arg_count, arg_addresses, out_resolved);
     }
 
-    /* ═══════════════════════════════════════════════════════════════════════
+    /* =======================================================================
      * OTHER INDIRECT SEGMENTS - DOMAIN SWITCHING
      *
      * For non-SINTRAN indirect segments, we need to:
@@ -218,7 +218,7 @@ int nd500_check_indirect_call(
      * 3. Return entry point address
      *
      * This is not yet implemented - just log and continue.
-     * ═══════════════════════════════════════════════════════════════════════ */
+     * ======================================================================= */
 
     printf("[INDIRECT] Domain switch not implemented: "
            "segment %u -> domain %u segment %u (offset 0x%08X)\n",

@@ -6,7 +6,7 @@
 /**
  * E1Get instruction - MOVE class
  *
- * Store E1 Register (lower 32 bits): E1[31:0] → <dest>
+ * Store E1 Register (lower 32 bits): E1[31:0] -> <dest>
  *
  * Variants: 1
  * Mnemonics: e1=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE3C
  *
- * Operation: regs.E1[31:0] → <dest>
+ * Operation: regs.E1[31:0] -> <dest>
  *
  * Description:
  *   Reads the lower 32 bits of the E1 extended register and stores it to

@@ -6,7 +6,7 @@
 /**
  * CadSet instruction - MOVE class
  *
- * Load CAD Register: <source> → CAD
+ * Load CAD Register: <source> -> CAD
  *
  * Variants: 1
  * Mnemonics: cad:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDBA
  *
- * Operation: <source> → regs.CAD
+ * Operation: <source> -> regs.CAD
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the CAD

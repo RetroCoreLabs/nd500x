@@ -11,7 +11,7 @@
  * Operands: 0
  * Opcode: 0xFF17 (177427 octal)
  *
- * Operation: Turn on program memory management system; L → P
+ * Operation: Turn on program memory management system; L -> P
  *
  * Description:
  * Privileged instruction.

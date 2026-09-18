@@ -18,7 +18,7 @@
  *   0xFC94-0xFC97 (H1 AND through H4 AND) - Halfword AND
  *   0x00E4-0x00E7 (W1 AND through W4 AND) - Word AND
  *
- * Operation: Rn ← Rn AND operand
+ * Operation: Rn <- Rn AND operand
  *
  * Description:
  *   A bitwise AND is performed between the contents of the specified register

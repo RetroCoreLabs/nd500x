@@ -20,7 +20,7 @@
  *   0x0010-0x0013 (F1:= through F4:=) - Load float (32-bit)
  *   0x0014-0x0017 (D1:= through D4:=) - Load double (64-bit)
  *
- * Operation: <source> → Rn
+ * Operation: <source> -> Rn
  *
  * Description:
  *   The value of the operand (<source>) is loaded into the register

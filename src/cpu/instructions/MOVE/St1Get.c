@@ -6,7 +6,7 @@
 /**
  * St1Get instruction - MOVE class
  *
- * Store ST1 Register: ST1 → <dest>
+ * Store ST1 Register: ST1 -> <dest>
  *
  * Variants: 1
  * Mnemonics: st1=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDC3
  *
- * Operation: regs.ST.ST1 → <dest>
+ * Operation: regs.ST.ST1 -> <dest>
  *
  * Description:
  *   Reads the ST1 (Status Register 1) and stores it to the destination

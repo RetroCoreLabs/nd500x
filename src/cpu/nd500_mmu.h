@@ -12,18 +12,18 @@
  * - Separate I&D spaces: Independent instruction and data address spaces
  *
  * Translation Flow:
- * Level 1: Virtual Address → Capability (via PCB[domain].pcb_dc[segment] or pcb_pc[segment])
- * Level 2: Capability → PST Entry (via PST[PSN])
- * Level 3a: Direct (PS_AZI) → Physical Page
- * Level 3b: Single-level (PS_ASI) → PTE → Physical Page
- * Level 3c: Two-level (PS_ADI) → L1 PTE → L2 PTE → Physical Page
+ * Level 1: Virtual Address -> Capability (via PCB[domain].pcb_dc[segment] or pcb_pc[segment])
+ * Level 2: Capability -> PST Entry (via PST[PSN])
+ * Level 3a: Direct (PS_AZI) -> Physical Page
+ * Level 3b: Single-level (PS_ASI) -> PTE -> Physical Page
+ * Level 3c: Two-level (PS_ADI) -> L1 PTE -> L2 PTE -> Physical Page
  *
  * Reference: C# CpuND500.MMU.cs from RetroCore emulator
  */
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // MMU CONSTANTS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 #define NBPG            2048        /* Bytes per page (2KB) */
 #define PGSHIFT         11          /* LOG2(NBPG) */
@@ -101,7 +101,7 @@
 #define DC_SYS          3           /* System tables */
 #define DC_UPT          4           /* User page tables */
 #define DC_SPT          5           /* Shadow user page tables */
-#define DC_SHSEG        6           /* Shared segment (ND-100 ↔ ND-500) */
+#define DC_SHSEG        6           /* Shared segment (ND-100 <-> ND-500) */
 #define DC_NCSYS        7           /* System tables (no-cache) */
 #define DC_CXBTAB       8           /* Context block table */
 #define DC_UTEXT        26          /* User text */
@@ -131,9 +131,9 @@
 #define CXBTABINDEX     12          /* Context block table */
 #define FIRST_PHYS_SEG  13          /* First PST entry used by NDIX */
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // MMU DATA STRUCTURES
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Physical Segment Table Entry (PSTE) - 4 bytes
@@ -197,9 +197,9 @@ typedef struct {
 // Forward declaration of CPU type
 typedef struct Nd500Cpu Nd500Cpu;
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // MMU FUNCTION DECLARATIONS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /* MMU Initialization */
 void nd500_mmu_init(Nd500Cpu* cpu);

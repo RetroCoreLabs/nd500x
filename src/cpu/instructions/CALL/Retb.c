@@ -66,11 +66,11 @@
  *
  * Typical Usage:
  *   ; Allocate heap block for local data
- *   W1 GETB #6         ; Allocate 64-word block, address → I1
+ *   W1 GETB #6         ; Allocate 64-word block, address -> I1
  *   CALL SUB1, 0       ; Call subroutine
  *   ...
  *
- *   SUB1: ENTB         ; Enter using heap block (I1 → B)
+ *   SUB1: ENTB         ; Enter using heap block (I1 -> B)
  *   ...
  *   RETB               ; Return and free heap block
  *
@@ -156,9 +156,9 @@ void nd500_instr_Retb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Note: If TOS=0 (heap not initialized), we still perform the return but skip heap operations */
 
     /* STEP 6: Restore CPU registers */
-    cpu->B = prev_b;         /* Restore previous stack frame (B.PREVB → B) */
-    cpu->PC = ret_addr;      /* Jump to return address (B.RETA → P) */
-    cpu->L = ret_addr;       /* Update link register (B.RETA → L) */
+    cpu->B = prev_b;         /* Restore previous stack frame (B.PREVB -> B) */
+    cpu->PC = ret_addr;      /* Jump to return address (B.RETA -> P) */
+    cpu->L = ret_addr;       /* Update link register (B.RETA -> L) */
 
     /* STEP 7: Clear K flag (RETB clears, RETBK sets) */
     nd500_clear_flag(cpu, ND500_FLAG_K);

@@ -1,4 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * nd500_fecall.c - NDIX ND-100 front-end call (fecall) = MON 600 (octal, 0x180)
  *
  * The NDIX kernel does ALL device I/O (disk, console, clock, init) by calling
@@ -26,7 +26,7 @@
  * response packet and return. Async calls (FE_READ, FE_WRIT, FE_DCTL): the
  * kernel blocks in biowait() until a completion INTERRUPT drives diintr()->
  * iodone()->B_DONE. (Interrupt delivery: see nd500_fecall_deliver_interrupt.)
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 
 #include "cpu_protos.h"
 #include "instruction_helpers.h"
@@ -148,14 +148,14 @@ static int fedbg(void);
 #define ID_RPK_COMPLETION 0
 #define ID_RPK_SUBDEVC    2
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * Configuration returned by FE_INIT and reused by later calls.
  *
  * private: the ND-500<->ND-100 address offset. Must be NONZERO (the kernel's
  * dton() returns 0 when private==0, which would zero all DMA addresses). Its
  * value cancels in the packet/DMA round-trip (kernel adds it, we subtract it),
  * so any nonzero value works as long as we invert with the SAME value we report.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 #define FE_PRIVATE   0x00002000u   /* nonzero ND-100<->ND-500 offset (bytes) */
 #define FE_ROOTDEV   0            /* di0a: makedev(di_major=0, minor 0) */
 #define FE_CONDEV    0            /* console minor device */
@@ -236,12 +236,12 @@ static uint32_t pkt_rd32(Pkt* p, uint32_t off) {
                       : nd500_bus_read32(p->cpu->machine, p->base + off);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * FE_INIT - system initialization. Return the boot parameter block SINTRAN's
  * ND-100 monitor would have supplied. Memory boundaries are ND-100 WORD
  * addresses = (physical_byte + private)/2; the kernel doubles them back to
  * bytes (htob) and, for firstaddr, subtracts private (so private cancels).
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 /* Set once the guest completes FE_INIT. Until then no fecall interrupt may be
  * delivered - see the gate at the top of nd500_fecall_tick(). */
 static int g_fe_initialised = 0;
@@ -362,9 +362,9 @@ static void fe_init(Nd500Cpu* cpu, Pkt* rpk) {
                 FE_ROOTDEV, FE_PRIVATE, sfree_phys, sphys_phys);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * FE_IDEV - initialise a generic device. Return one sub-device.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static void fe_idev(Nd500Cpu* cpu, uint32_t gen, Pkt* cpk, Pkt* rpk) {
     /* Record this device's interrupt priority. machine/if.h: every _idev_cpk
      * variant starts with "short ipl", and each driver fills it in before the
@@ -458,7 +458,7 @@ static void fe_idev(Nd500Cpu* cpu, uint32_t gen, Pkt* cpk, Pkt* rpk) {
     if (fedbg()) fprintf(stderr, "[FECALL] FE_IDEV gen=%u -> subdevc=1\n", gen);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * Pending completion-interrupt queue
  *
  * Every async front-end call ends by asking for a completion interrupt, which
@@ -472,7 +472,7 @@ static void fe_idev(Nd500Cpu* cpu, uint32_t gen, Pkt* cpk, Pkt* rpk) {
  * completion was raised while disk and clock completions were also in flight,
  * one of them landed on top of it, and the getty on tty81 slept for ever in
  * open(). It looked like the line did not exist; it was queued and thrown away.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 void nd500_fe_int_post(Nd500Cpu* cpu, uint32_t gen, uint32_t sub, uint32_t rpk) {
     unsigned slot;
     if (!cpu) return;
@@ -499,9 +499,9 @@ int nd500_fe_int_pending(Nd500Cpu* cpu) {
     return cpu && cpu->fe_int_count > 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * FE_OPEN - open a sub-device. Return disk geometry.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static void fe_open_disk(Pkt* rpk) {
     /* devsiz is a DISK-TYPE code = index into the kernel's dist[] table
      * (io/disizes.c), NOT a sector count. rootfs.img was built as a di70 disk
@@ -534,9 +534,9 @@ static void fe_open_disk(Pkt* rpk) {
     if (fedbg()) fprintf(stderr, "[FECALL] FE_OPEN disk: devsiz=65(di70,BSD) secsiz=1024\n");
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * FE_WCON / FE_RCON - synchronous console I/O. The physaddr points at ONE byte.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static void fe_tty_out(int unit, const unsigned char* buf, int len);
 
 static void fe_wcon(Nd500Cpu* cpu, uint32_t physaddr_word, Pkt* rpk) {
@@ -567,13 +567,13 @@ static int fedbg(void) {
 }
 
 /* ---- packet field access: logical (FE_INIT) or physical (ND-100 word) ---- */
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * FE_READ, generic 2 - read ONE tape record into ND-500 memory.
  * cpk _read_cpk_tape (if.h:223): maxbytes@0 (long), physaddr@4 (naddr_t).
  * rpk _read_rpk_xxxx (if.h:236): completion@0, status@2, nbytes@4 (long).
  * The ACTUAL record length goes back in nbytes, which is how the driver
  * learns a short record; a tape mark reads as zero bytes (EOF to the guest).
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static void fe_read_tape(Nd500Cpu* cpu, uint32_t cpk_word, Pkt* rpk) {
     Pkt cpk = pkt_word(cpu, cpk_word);
     uint32_t maxbytes = pkt_rd32(&cpk, 0);
@@ -613,13 +613,13 @@ static void fe_read_tape(Nd500Cpu* cpu, uint32_t cpk_word, Pkt* rpk) {
     pkt_wr32(rpk, 4, got);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * FE_DCTL, generic 2 - tape motion.
  * cpk _dctl_cpk_tape (if.h:323): operation@0, parameter@2 (both short).
  * rpk _dctl_rpk_tape (if.h:386): completion@0, status@2, ops@4.
  * mt.c:434-435 fills operation from b_command and parameter from b_repcnt,
  * so the space operations repeat `parameter` times.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static void fe_dctl_tape(Nd500Cpu* cpu, uint32_t cpk_word, Pkt* rpk) {
     Pkt cpk = pkt_word(cpu, cpk_word);
     uint16_t op    = pkt_rd16(&cpk, 0);
@@ -699,14 +699,14 @@ static void fe_dctl_tape(Nd500Cpu* cpu, uint32_t cpk_word, Pkt* rpk) {
     pkt_wr16(rpk, 4, (uint16_t)n);      /* ops actually attempted */
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * FE_READ - read sectors from the disk image and DMA into ND-500 memory.
  * cpk: nbytes@0, physaddr@4 (ND-100 word), devaddr@8 (sector index).
  * DMA target physical byte = physaddr*2 - private. Image offset = devaddr*ssize.
  * ASYNC: after the DMA + rpk fill, the completion must be delivered via an
  * interrupt (TODO nd500_fecall_deliver_interrupt) - a bare return leaves the
  * kernel asleep in biowait.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static void fe_read_disk(Nd500Cpu* cpu, uint32_t device, uint32_t cpk_word, uint32_t rpk_word, Pkt* rpk) {
     Pkt cpk = pkt_word(cpu, cpk_word);
     if (fedbg()) {
@@ -771,14 +771,14 @@ static void fe_read_disk(Nd500Cpu* cpu, uint32_t device, uint32_t cpk_word, uint
     (void)rpk;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * Deliver a pending ND-100 completion interrupt: replicate the ND-500 hardware
  * interrupt entry - save the live (interrupted) context into cxbtab[ip_current],
  * queue an int_descr on the IPL record, and vector to _intvec. The kernel's
  * _intvec -> dispatch -> diintr -> iodone -> B_DONE -> wakeup completes the I/O,
  * then lcntxt restores cxbtab[ip_current] and resumes the interrupted code.
  * Called from cpu_step; only fires once the CPU has dropped below IPL_DK.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 #define K_IPLP      0x0001cb20u   /* BSS: holds ptr to ipl_rec */
 #define K_SHSEG     0x0001cb24u   /* BSS: shseg (ND-100 byte base of shared seg) */
 #define K_SHAREBASE 0x30000000u   /* KVA of shared seg start */
@@ -1387,7 +1387,7 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
      * poll, so this costs one null test on 1 instruction in FE_CLOCK_PERIOD. */
     if (clock_due) nd500_xmsg_uplink_poll(cpu);
 
-    /* ── a USER domain is executing ──────────────────────────────────────────
+    /* -- a USER domain is executing ------------------------------------------
      * Everything below this block is written for CED == 0 and gates delivery on
      * the kernel being parked in swtch()'s idle spin at PC 0x844. That gate
      * exists to stop a DEVICE COMPLETION landing between a driver's async
@@ -1552,11 +1552,11 @@ void nd500_fecall_tick(Nd500Cpu* cpu) {
     fe_deliver(cpu, iplrec, ip_cur, shseg, GEN_CLOCK, 0, 0, IPL_CL);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * Entry point: called from nd500_indirect.c for MON 600 (offset 0x180).
  * arg_addresses[0..3] are the effective addresses of device/request/rpk/cpk.
  * Returns 0 (handled).
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 int nd500_fecall(Nd500Cpu* cpu, uint32_t arg_count, const uint32_t* arg_addresses) {
     if (!cpu || arg_count < 4) return -1;
 

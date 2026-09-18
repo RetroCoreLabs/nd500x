@@ -20,7 +20,7 @@
  *   0x0024-0x0027 (F1=: through F4=:) - Store float
  *   0x0028-0x002B (D1=: through D4=:) - Store double
  *
- * Operation: Rn → <dest>
+ * Operation: Rn -> <dest>
  *
  * Description:
  *   The datatype-dependent part of the register is stored in the memory

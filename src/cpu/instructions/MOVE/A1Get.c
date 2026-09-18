@@ -6,7 +6,7 @@
 /**
  * A1Get instruction - MOVE class
  *
- * Store A1 Register: A1 → <dest>
+ * Store A1 Register: A1 -> <dest>
  *
  * Variants: 1
  * Mnemonics: a1=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE38
  *
- * Operation: regs.A1 → <dest>
+ * Operation: regs.A1 -> <dest>
  *
  * Description:
  *   Reads the A1 float register and stores it to the destination operand.

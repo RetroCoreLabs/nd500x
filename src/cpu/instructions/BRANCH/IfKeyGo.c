@@ -40,7 +40,7 @@
  * Operand Structure:
  *   - Operand[0]: Displacement value (read, byte or halfword based on variant)
  *     * Effective address contains the displacement
- *     * Sign-extended based on data type (BY → int8, H → int16)
+ *     * Sign-extended based on data type (BY -> int8, H -> int16)
  *
  * Operation Steps:
  *   1. Read K flag from CPU status register
@@ -95,7 +95,7 @@
  *   - This is a conditional relative branch (PC-relative addressing)
  *   - Displacement is relative to current PC, not next instruction
  *   - Unlike absolute jumps, this preserves position-independent code
- *   - Branch range: ±127 bytes (BY) or ±32767 bytes (H)
+ *   - Branch range: +/-127 bytes (BY) or +/-32767 bytes (H)
  *   - K flag is NOT cleared by this instruction (remains set for error handling)
  *   - Use CLK instruction to explicitly clear K flag when needed
  *   - Useful for error handling, queue overflow detection, search results

@@ -6,7 +6,7 @@
 /**
  * Sub2 instruction - ARITHMETIC class
  *
- * Extended Subtract (Two Operands): <a> - Rn → <b>
+ * Extended Subtract (Two Operands): <a> - Rn -> <b>
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn SUB2, Hn SUB2, Wn SUB2, Fn SUB2, Dn SUB2 (n=1..4)
@@ -19,7 +19,7 @@
  *   0x007C-0x007F (F1 SUB2 through F4 SUB2) - Float extended subtract
  *   0x0080-0x0083 (D1 SUB2 through D4 SUB2) - Double extended subtract
  *
- * Operation: <a> - Rn → <b>
+ * Operation: <a> - Rn -> <b>
  *
  * Description:
  *   The contents of the specified register (Rn) is subtracted from the

@@ -6,7 +6,7 @@
 /**
  * E4Get instruction - MOVE class
  *
- * Store E4 Register (lower 32 bits): E4[31:0] → <dest>
+ * Store E4 Register (lower 32 bits): E4[31:0] -> <dest>
  *
  * Variants: 1
  * Mnemonics: e4=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE3F
  *
- * Operation: regs.E4[31:0] → <dest>
+ * Operation: regs.E4[31:0] -> <dest>
  *
  * Description:
  *   Reads the lower 32 bits of the E4 extended register and stores it to

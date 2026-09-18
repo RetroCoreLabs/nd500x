@@ -17,7 +17,7 @@
  * Operation:
  *   1. Validate CALL preceded this instruction
  *   2. Validate zero arguments
- *   3. L ← return_address (save return address in L register)
+ *   3. L <- return_address (save return address in L register)
  *   4. Clear pending call state
  *
  * No stack frame is created. The function uses the caller's stack frame.

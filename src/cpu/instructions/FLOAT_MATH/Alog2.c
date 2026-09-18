@@ -65,7 +65,7 @@ void nd500_instr_Alog2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Check for invalid operation (argument <= 0) */
     if (argument <= 0.0) {
-        /* Set result to -5.8×10⁷⁶ (largest negative float) */
+        /* Set result to -5.8x10^76 (largest negative float) */
         if (is_double) {
             result_bits = 0xFFE0000000000000ull;  /* Maximum negative double */
         } else {

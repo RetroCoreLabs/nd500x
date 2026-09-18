@@ -80,7 +80,7 @@
  * - Instruction Sequence Error (ISE): Target address is not an entry point (optional check)
  *
  * Performance:
- * - Execution: ~15 + (3 × arg_count) cycles
+ * - Execution: ~15 + (3 x arg_count) cycles
  * - Variable depending on number of arguments
  * - Slightly slower than CALL due to general operand addressing
  *

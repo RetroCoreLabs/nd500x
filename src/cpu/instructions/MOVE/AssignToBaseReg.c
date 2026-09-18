@@ -6,7 +6,7 @@
 /**
  * AssignToBaseReg instruction - MOVE class
  *
- * Store Local Base Register: B → <dest>
+ * Store Local Base Register: B -> <dest>
  *
  * Variants: 1
  * Mnemonics: b=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFC0A
  *
- * Operation: regs.B → <dest>
+ * Operation: regs.B -> <dest>
  *
  * Description:
  *   Reads the B (local base) register and stores it to the destination operand

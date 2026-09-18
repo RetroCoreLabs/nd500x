@@ -222,7 +222,7 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
         if (fi.opcode == 0 || !fi.mnemonic || strcmp(fi.mnemonic, "???") == 0) {
             /* Print breakpoint marker if present */
             if (nd500_dbg_has_breakpoint_at(m, a)) {
-                printf("%s●%s ", color_branch(), color_reset());  /* Red bullet for breakpoint */
+                printf("%s*%s ", color_branch(), color_reset());  /* Red bullet for breakpoint */
             } else {
                 printf("  ");  /* Two spaces for alignment */
             }
@@ -273,7 +273,7 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
 
         /* Print breakpoint marker if present */
         if (nd500_dbg_has_breakpoint_at(m, fi.address)) {
-            printf("%s●%s ", color_branch(), color_reset());  /* Red bullet for breakpoint */
+            printf("%s*%s ", color_branch(), color_reset());  /* Red bullet for breakpoint */
         } else {
             printf("  ");  /* Two spaces for alignment */
         }
@@ -336,7 +336,7 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
                     printf(" %s[", color_comment());
                     if (base) printf("%s", base);
                     if (disp != 0) printf("%+d", disp);
-                    printf("]→0x%08X%s", fi.operands[oi].effective_address, color_reset());
+                    printf("]->0x%08X%s", fi.operands[oi].effective_address, color_reset());
                 }
             }
         }
@@ -478,12 +478,12 @@ void nd500_dbg_regs(struct Nd500Cpu* cpu, Nd500Regs* out_regs) {
     nd500_cpu_get_regs(cpu, out_regs);
 }
 
-/* ═══════════════════════════════════════════════════════
+/* =======================================================
  * REGISTER ACCESS BY NAME
  * Single source of truth for the register-name-to-storage
  * mapping, shared by the CLI 'set' command and the DAP
  * adapter (setVariable / evaluate).
- * ═══════════════════════════════════════════════════════ */
+ * ======================================================= */
 
 typedef struct {
     const char* name;

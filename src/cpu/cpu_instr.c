@@ -9,9 +9,9 @@
 #include "nd500_mmu.h"
 #include "nd500_settings.h"   /* emulator knobs, as plain fields */
 
-/* ═══════════════════════════════════════════════════════
+/* =======================================================
  * INSTRUCTION PREFIX FLAGS
- * ═══════════════════════════════════════════════════════
+ * =======================================================
  * Matches C# InstructionPrefixes enum in Enums.cs
  * Used to determine which data types an instruction supports
  */
@@ -23,9 +23,9 @@
 #define ND500_PREFIX_D    0x20   /* Double (64-bit) */
 #define ND500_PREFIX_R_N  0x40   /* Register number in opcode */
 
-/* ═══════════════════════════════════════════════════════
+/* =======================================================
  * MMU-AWARE MEMORY ACCESS HELPERS
- * ═══════════════════════════════════════════════════════
+ * =======================================================
  * These functions handle MMU translation automatically when enabled.
  * They provide a clean abstraction for instruction implementations.
  */
@@ -41,7 +41,7 @@
 static inline uint8_t mmu_read8(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int is_instruction) {
     if (!cpu || !cpu->machine) return 0;
 
-    /* Translate virtual → physical if MMU enabled */
+    /* Translate virtual -> physical if MMU enabled */
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
@@ -184,7 +184,7 @@ static inline void mmu_write32(Nd500Cpu* cpu, uint32_t vaddr, uint32_t val) {
     nd500_bus_write32(cpu->machine, paddr, val);
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 typedef struct InstrMeta {
     uint16_t opcode;

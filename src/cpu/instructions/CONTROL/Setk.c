@@ -6,7 +6,7 @@
 /**
  * Setk instruction - CONTROL class
  *
- * Set K Flag: 1 → K
+ * Set K Flag: 1 -> K
  *
  * Variants: 1
  * Mnemonics: setk
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE02
  *
- * Operation: 1 → ST.K
+ * Operation: 1 -> ST.K
  *
  * Description:
  *   Sets the K (Destination Full) bit of the status register to 1.

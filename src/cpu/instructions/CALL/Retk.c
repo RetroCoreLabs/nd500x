@@ -135,9 +135,9 @@ void nd500_instr_Retk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     /* STEP 6: Normal return - restore stack frame */
-    cpu->PC = ret_addr;      /* Jump to return address (B.RETA → P) */
-    cpu->L = ret_addr;       /* Update link register (B.RETA → L) */
-    cpu->B = prev_b;         /* Restore previous stack frame (B.PREVB → B) */
+    cpu->PC = ret_addr;      /* Jump to return address (B.RETA -> P) */
+    cpu->L = ret_addr;       /* Update link register (B.RETA -> L) */
+    cpu->B = prev_b;         /* Restore previous stack frame (B.PREVB -> B) */
 
     /* K flag already set, all other flags unaffected */
 }

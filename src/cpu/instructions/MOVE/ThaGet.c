@@ -6,7 +6,7 @@
 /**
  * ThaGet instruction - MOVE class
  *
- * Store THA Register: THA → <dest>
+ * Store THA Register: THA -> <dest>
  *
  * Variants: 1
  * Mnemonics: tha=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDCB
  *
- * Operation: regs.THA → <dest>
+ * Operation: regs.THA -> <dest>
  *
  * Description:
  *   Reads the THA (Trap Handler Address) register and stores it to the

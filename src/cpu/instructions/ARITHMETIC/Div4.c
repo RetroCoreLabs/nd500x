@@ -6,7 +6,7 @@
 /**
  * Div4 instruction - ARITHMETIC class
  *
- * Divide with Remainder to Register (Modulo): <a> / <b> → <c>, remainder → Rn
+ * Divide with Remainder to Register (Modulo): <a> / <b> -> <c>, remainder -> Rn
  *
  * Variants: 3 (by data type and register)
  * Mnemonics: BYn DIV4, Hn DIV4, Wn DIV4 (n=1..4)
@@ -17,7 +17,7 @@
  *   0xFC30-0xFC33 (H1 DIV4 through H4 DIV4) - Halfword divide with remainder
  *   0xFC7C-0xFC7F (W1 DIV4 through W4 DIV4) - Word divide with remainder
  *
- * Operation: <a> / <b> → <c>, remainder → Rn
+ * Operation: <a> / <b> -> <c>, remainder -> Rn
  *
  * Description:
  *   The <a> operand is divided by the <b> operand and the quotient is

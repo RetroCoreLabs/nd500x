@@ -14,19 +14,19 @@ static int tests_total = 0;
 #define TEST_START(name) \
     tests_total++; \
     printf("\nTest %d: %s\n", tests_total, name); \
-    printf("─────────────────────────────────────────────\n");
+    printf("---------------------------------------------\n");
 
 #define TEST_ASSERT(condition, description) \
     if (condition) { \
-        printf("✓ %s\n", description); \
+        printf("OK %s\n", description); \
     } else { \
-        printf("✗ FAILED: %s\n", description); \
+        printf("FAILED: %s\n", description); \
         return 0; \
     }
 
 #define TEST_PASS() \
     do { \
-        printf("Status: ✓ PASS\n"); \
+        printf("Status: PASS\n"); \
         tests_passed++; \
         return 1; \
     } while(0)
@@ -227,9 +227,9 @@ static int test_legacy_buttons(Nd500Cpu* cpu) {
 
 int main(void) {
     printf("\n");
-    printf("═══════════════════════════════════════════════════════\n");
+    printf("=======================================================\n");
     printf("  ND-500 Separate I&D MMU Button Test Suite\n");
-    printf("═══════════════════════════════════════════════════════\n");
+    printf("=======================================================\n");
 
     /* Initialize machine and CPU */
     Nd500Machine machine;
@@ -250,14 +250,14 @@ int main(void) {
 
     /* Print summary */
     printf("\n");
-    printf("═══════════════════════════════════════════════════════\n");
+    printf("=======================================================\n");
     if (tests_passed == tests_total) {
-        printf("  ✓ All %d tests PASSED!\n", tests_total);
-        printf("═══════════════════════════════════════════════════════\n\n");
+        printf("  OK All %d tests PASSED!\n", tests_total);
+        printf("=======================================================\n\n");
     } else {
-        printf("  ✗ %d/%d tests PASSED (%d FAILED)\n",
+        printf("  %d/%d tests PASSED (%d FAILED)\n",
                tests_passed, tests_total, tests_total - tests_passed);
-        printf("═══════════════════════════════════════════════════════\n\n");
+        printf("=======================================================\n\n");
     }
 
     /* Cleanup */

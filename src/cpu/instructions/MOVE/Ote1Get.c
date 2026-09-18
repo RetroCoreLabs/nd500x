@@ -6,7 +6,7 @@
 /**
  * Ote1Get instruction - MOVE class
  *
- * Store OTE1 Register: OTE1 → <dest>
+ * Store OTE1 Register: OTE1 -> <dest>
  *
  * Variants: 1
  * Mnemonics: ote1=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDC5
  *
- * Operation: regs.OTE1 → <dest>
+ * Operation: regs.OTE1 -> <dest>
  *
  * Description:
  *   Reads the OTE1 (Object Table Entry 1) register and stores it to the

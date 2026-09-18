@@ -18,7 +18,7 @@
  *   0xFCA4-0xFCA7 (H1 XOR through H4 XOR) - Halfword XOR
  *   0x00A4-0x00A7 (W1 XOR through W4 XOR) - Word XOR
  *
- * Operation: Rn ← Rn XOR operand
+ * Operation: Rn <- Rn XOR operand
  *
  * Description:
  *   A bitwise exclusive OR is performed between the contents of the specified

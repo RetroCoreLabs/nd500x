@@ -6,7 +6,7 @@
 /**
  * Clr instruction - MOVE class
  *
- * Clear Register to Zero: 0 → Rn
+ * Clear Register to Zero: 0 -> Rn
  *
  * Variants: 6
  * Mnemonics: clr
@@ -20,17 +20,17 @@
  *   0x0088 (Fn clr)  float register clear
  *   0x008C (Dn clr)  double float register clear
  *
- * Operation: 0 → Rn
+ * Operation: 0 -> Rn
  *
  * Description:
  *   The register is set to all zeroes. For all integer data types,
  *   the entire register is cleared.
  *
  *   Register selection is encoded in opcode bits 1-0:
- *   - 00 → register 1 (I1, A1)
- *   - 01 → register 2 (I2, A2)
- *   - 10 → register 3 (I3, A3)
- *   - 11 → register 4 (I4, A4)
+ *   - 00 -> register 1 (I1, A1)
+ *   - 01 -> register 2 (I2, A2)
+ *   - 10 -> register 3 (I3, A3)
+ *   - 11 -> register 4 (I4, A4)
  *
  *   For integer variants: Uses I1-I4 registers
  *   For float/double: Uses A1-A4 (float) or D1-D4 (A+E pairs, double)

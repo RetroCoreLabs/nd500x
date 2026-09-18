@@ -6,7 +6,7 @@
 /**
  * AssignRecordRegTo instruction - MOVE class
  *
- * Load Record Register: <source> → R
+ * Load Record Register: <source> -> R
  *
  * Variants: 1
  * Mnemonics: r:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0x0018
  *
- * Operation: <source> → regs.R
+ * Operation: <source> -> regs.R
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the R

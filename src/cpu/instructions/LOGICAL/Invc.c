@@ -16,7 +16,7 @@
  * Opcodes:
  *   0xFF10-0xFF13 (W1 INVC through W4 INVC) - Word invert with carry
  *
- * Operation: Rn ← ~Rn + C (one's complement + carry)
+ * Operation: Rn <- ~Rn + C (one's complement + carry)
  *
  * Description:
  *   The one's complement of the contents of the specified register is

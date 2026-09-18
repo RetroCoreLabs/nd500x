@@ -6,7 +6,7 @@
 /**
  * Mul2 instruction - ARITHMETIC class
  *
- * Extended Multiply (Two Operands): <a> * Rn → <b>
+ * Extended Multiply (Two Operands): <a> * Rn -> <b>
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn MUL2, Hn MUL2, Wn MUL2, Fn MUL2, Dn MUL2 (n=1..4)
@@ -19,7 +19,7 @@
  *   0x0094-0x0097 (F1 MUL2 through F4 MUL2) - Float extended multiply
  *   0x0098-0x009B (D1 MUL2 through D4 MUL2) - Double extended multiply
  *
- * Operation: <a> * Rn → <b>
+ * Operation: <a> * Rn -> <b>
  *
  * Description:
  *   The <a> operand is multiplied by the contents of the specified register

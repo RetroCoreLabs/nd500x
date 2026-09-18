@@ -31,9 +31,9 @@ extern uint32_t ndlib_aout_get_data_base(void);
  * Based on C# RetroCore emulator CpuND500.MMU.cs
  */
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // MMU STATE (stored in CPU structure - to be added in Phase 3)
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 // For now, we'll use static storage. In Phase 3, this will be integrated
 // into the Nd500Cpu structure.
@@ -133,9 +133,9 @@ static int mmu_demand_segments = -1;    /* -1 = read env once; default ON */
 static int g_mmu_data_enabled = 0;     // Controlled by DMON/DMOF instructions
 static int g_mmu_program_enabled = 0;  // Controlled by PMON/PMOF instructions
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // MMU INITIALIZATION
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /* Ensure MMU tables are allocated (lazy initialization) */
 static void ensure_mmu_tables(void) {
@@ -168,9 +168,9 @@ void nd500_mmu_init(Nd500Cpu* cpu) {
     g_mmu_program_enabled = 0;
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // DATA MMU CONTROL (DMON/DMOF instructions)
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 void nd500_mmu_enable_data(Nd500Cpu* cpu) {
     nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
@@ -194,9 +194,9 @@ int nd500_mmu_is_data_enabled(Nd500Cpu* cpu) {
     return g_mmu_data_enabled;
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // PROGRAM MMU CONTROL (PMON/PMOF instructions)
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 void nd500_mmu_enable_program(Nd500Cpu* cpu) {
     nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
@@ -220,9 +220,9 @@ int nd500_mmu_is_program_enabled(Nd500Cpu* cpu) {
     return g_mmu_program_enabled;
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // LEGACY FUNCTIONS (for compatibility)
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 void nd500_mmu_enable(Nd500Cpu* cpu) {
     /* Enable BOTH data and program MMU (legacy behavior) */
@@ -241,16 +241,16 @@ int nd500_mmu_is_enabled(Nd500Cpu* cpu) {
     return g_mmu_data_enabled || g_mmu_program_enabled;
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // MMU ADDRESS TRANSLATION
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Translate virtual address to physical address
  * Implements three-level address translation:
- *   1. Virtual Address → Capability (via PCB)
- *   2. Capability → PST Entry (via PSN)
- *   3. PST Entry → Physical Page (AZI/ASI/ADI modes)
+ *   1. Virtual Address -> Capability (via PCB)
+ *   2. Capability -> PST Entry (via PSN)
+ *   3. PST Entry -> Physical Page (AZI/ASI/ADI modes)
  *
  * Based on C# CpuND500.MMU.cs TranslateVirtualAddress() (lines 282-448)
  */
@@ -334,10 +334,10 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
         return virtual_addr;
     }
 
-    /* ─────────────────────────────────────────────────────────
-     * LEVEL 3: PST Entry → Physical Address
+    /* ---------------------------------------------------------
+     * LEVEL 3: PST Entry -> Physical Address
      * Mode-dependent translation (AZI, ASI, ADI)
-     * ───────────────────────────────────────────────────────── */
+     * --------------------------------------------------------- */
 
     uint32_t physical_pfn;
 
@@ -589,9 +589,9 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
             return virtual_addr;  /* Invalid index mode - return virtual address, trap will stop execution */
     }
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * Construct physical address: (PFN << 11) | Offset
-     * ───────────────────────────────────────────────────────── */
+     * --------------------------------------------------------- */
 
     uint32_t physical_addr = (physical_pfn << PGSHIFT) | offset;
 
@@ -666,7 +666,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         return virtual_addr;  /* MMU not initialized */
     }
 
-    /* ── Translation cache lookup ────────────────────────────────
+    /* -- Translation cache lookup --------------------------------
      * Only fully-walked successes are ever stored (see the fill at the end),
      * so a hit means this exact (page, domain, space) resolved cleanly before
      * and nothing has written to any table page since. A write needs an entry
@@ -688,9 +688,9 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         }
     }
 
-    /* ─────────────────────────────────────────────────────────
-     * LEVEL 1: Virtual Address → Capability
-     * ───────────────────────────────────────────────────────── */
+    /* ---------------------------------------------------------
+     * LEVEL 1: Virtual Address -> Capability
+     * --------------------------------------------------------- */
 
     /* Extract address components per ND-500 architecture (ND-05.009.4, p53-54):
      * [Segment(5) | L1 Index(7) | L2 Index(9) | Offset(11)] */
@@ -918,9 +918,9 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         }
     }
 
-    /* ─────────────────────────────────────────────────────────
-     * LEVEL 2: Capability → PST Entry
-     * ───────────────────────────────────────────────────────── */
+    /* ---------------------------------------------------------
+     * LEVEL 2: Capability -> PST Entry
+     * --------------------------------------------------------- */
 
     /* An INDIRECT program capability is not a PSN. Bit 15 of a PROGRAM capability
      * is PC_IND: the remaining bits are a target domain (PC_DOM) and segment
@@ -1163,9 +1163,9 @@ uint32_t nd500_mmu_phyladr(Nd500Cpu* cpu, uint32_t virtual_addr) {
     return nd500_mmu_translate(cpu, virtual_addr, 0, 0);
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // PST ACCESSORS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 PhysicalSegmentTableEntry nd500_mmu_get_pst_entry(Nd500Cpu* cpu, int psn) {
     PhysicalSegmentTableEntry empty = {0, 0};
@@ -1211,9 +1211,9 @@ static void mirror_capability_to_dit(Nd500Cpu* cpu, uint8_t domain, int segment,
     nd500_bus_write8(cpu->machine, a+1, (uint8_t)capability);
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // PCB ACCESSORS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 ProcessControlBlock* nd500_mmu_get_pcb(Nd500Cpu* cpu, uint8_t domain) {
     ensure_mmu_tables();
@@ -1285,9 +1285,9 @@ void nd500_mmu_set_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment, u
     mirror_capability_to_dit(cpu, domain, segment, 1 /*data*/, capability);
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // PTE READ/WRITE (from physical memory)
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Read a Page Table Entry from physical memory
@@ -1346,9 +1346,9 @@ void nd500_mmu_write_pte(Nd500Cpu* cpu, uint32_t physical_addr, PageTableEntry p
     nd500_bus_write8(cpu->machine, physical_addr + 3, (uint8_t)(pte_value & 0xFF));
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // CACHE CONTROL
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * DCTSB - Data Cache TSB Clear
@@ -1375,9 +1375,9 @@ void nd500_mmu_clear_program_cache_tsb(Nd500Cpu* cpu) {
     }
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // MMU TABLE STATE SNAPSHOT (for nested UECOM runs)
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /* Snapshot/restore of the C-side MMU tables (g_pst + g_pcb_table), mirroring
  * nd500_segment_alloc_state_save/_restore. A nested 317B UECOM DOM load

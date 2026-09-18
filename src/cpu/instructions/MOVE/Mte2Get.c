@@ -6,7 +6,7 @@
 /**
  * Mte2Get instruction - MOVE class
  *
- * Store MTE2 Register: MTE2 → <dest>
+ * Store MTE2 Register: MTE2 -> <dest>
  *
  * Variants: 1
  * Mnemonics: mte2=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFD71
  *
- * Operation: regs.MTE2 → <dest>
+ * Operation: regs.MTE2 -> <dest>
  *
  * Description:
  *   Reads the MTE2 (Memory Table Entry 2) register and stores it to the

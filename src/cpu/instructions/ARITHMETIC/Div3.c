@@ -6,7 +6,7 @@
 /**
  * Div3 instruction - ARITHMETIC class
  *
- * Extended Divide (Three Operands): <a> / <b> → <c>
+ * Extended Divide (Three Operands): <a> / <b> -> <c>
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn DIV3, Hn DIV3, Wn DIV3, Fn DIV3, Dn DIV3 (n=1..4)
@@ -19,7 +19,7 @@
  *   0x00B8-0x00BB (F1 DIV3 through F4 DIV3) - Float extended divide
  *   0x00BC-0x00BF (D1 DIV3 through D4 DIV3) - Double extended divide
  *
- * Operation: <a> / <b> → <c>
+ * Operation: <a> / <b> -> <c>
  *
  * Description:
  *   The <a> operand is divided by the <b> operand and the quotient

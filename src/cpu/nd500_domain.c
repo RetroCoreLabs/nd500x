@@ -13,9 +13,9 @@
  * process isolation on the ND-500 architecture.
  */
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // DOMAIN SYSTEM INITIALIZATION
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Initialize domain system
@@ -52,9 +52,9 @@ void nd500_domain_setup_dit(Nd500Cpu* cpu, uint32_t ditbase) {
            ditbase, MAX_DOMAINS, dit_size);
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // DIT ACCESS FUNCTIONS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Read Top of Stack for specified domain from DIT
@@ -136,9 +136,9 @@ void nd500_domain_write_tha(Nd500Cpu* cpu, uint8_t domain, uint32_t value) {
     nd500_bus_write32(cpu->machine, dit_entry_addr, value);
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // PCB CALL STATE ACCESS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Read call state from PCB for specified domain
@@ -184,9 +184,9 @@ void nd500_domain_write_call_state(Nd500Cpu* cpu, uint8_t domain, DomainCallStat
     nd500_bus_write32(cpu->machine, call_state_addr + PCB_CALL_B_OFFSET, state.calling_b);
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // DOMAIN STATE MANAGEMENT
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Save current CPU state to DIT for specified domain
@@ -214,9 +214,9 @@ void nd500_domain_load_state(Nd500Cpu* cpu, uint8_t domain) {
     cpu->THA = nd500_domain_read_tha(cpu, domain);
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // CROSS-DOMAIN CALLING
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Check if current stack frame marks a domain boundary
@@ -266,9 +266,9 @@ void nd500_domain_switch(Nd500Cpu* cpu, uint8_t target_domain, uint32_t entry_po
         return;
     }
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 1: Save caller context to TARGET domain's PCB
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     DomainCallState call_state;
     call_state.calling_domain = calling_domain;
@@ -278,29 +278,29 @@ void nd500_domain_switch(Nd500Cpu* cpu, uint8_t target_domain, uint32_t entry_po
 
     nd500_domain_write_call_state(cpu, target_domain, call_state);
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 2: Save current domain state to DIT
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     nd500_domain_save_state(cpu, calling_domain);
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 3: Update domain registers
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     cpu->CED = target_domain;  /* Update Current Executing Domain */
     cpu->CAD = target_domain;  /* Update Current Alternative Domain */
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 4: Load target domain state from DIT
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     nd500_domain_load_state(cpu, target_domain);
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 5: Mark domain boundary on stack
      * Write PREVB=0 and RETA=0 markers
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     /* Allocate stack frame for domain boundary markers */
     cpu->B = cpu->TOS;  /* New B points to current TOS */
@@ -310,9 +310,9 @@ void nd500_domain_switch(Nd500Cpu* cpu, uint8_t target_domain, uint32_t entry_po
     nd500_bus_write32(cpu->machine, cpu->B - 8, PREVB_MARKER);  /* PREVB = 0 */
     nd500_bus_write32(cpu->machine, cpu->B - 4, RETA_MARKER);   /* RETA = 0 */
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 6: Update PC to entry point
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     cpu->PC = entry_point;
 
@@ -335,9 +335,9 @@ void nd500_domain_return(Nd500Cpu* cpu) {
 
     uint8_t current_domain = (uint8_t)cpu->CED;
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 1: Read caller context from PCB
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     DomainCallState call_state = nd500_domain_read_call_state(cpu, current_domain);
 
@@ -349,28 +349,28 @@ void nd500_domain_return(Nd500Cpu* cpu) {
 
     uint8_t calling_domain = call_state.calling_domain;
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 2: Save current domain state to DIT
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     nd500_domain_save_state(cpu, current_domain);
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 3: Update domain registers to caller's values
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     cpu->CED = calling_domain;
     cpu->CAD = call_state.alternative_domain;
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 4: Load calling domain state from DIT
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     nd500_domain_load_state(cpu, calling_domain);
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * STEP 5: Restore caller's PC and B
-     * ─────────────────────────────────────────────────────── */
+     * ------------------------------------------------------- */
 
     cpu->PC = call_state.calling_p;
     cpu->B = call_state.calling_b;
@@ -383,9 +383,9 @@ void nd500_domain_return(Nd500Cpu* cpu) {
            current_domain, calling_domain, cpu->PC);
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // DOMAIN ANALYSIS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Determine which domain owns a virtual address
@@ -431,9 +431,9 @@ int nd500_domain_is_cross_domain_call(Nd500Cpu* cpu, uint32_t target_addr) {
     return (target_domain != cpu->CED);
 }
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // DOMAIN VALIDATION
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Check if domain number is valid

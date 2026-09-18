@@ -6,7 +6,7 @@
 /**
  * LGet instruction - MOVE class
  *
- * Store L Register: L → <dest>
+ * Store L Register: L -> <dest>
  *
  * Variants: 1
  * Mnemonics: l=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDC0
  *
- * Operation: regs.L → <dest>
+ * Operation: regs.L -> <dest>
  *
  * Description:
  *   Reads the L (level) register and stores it to the destination operand

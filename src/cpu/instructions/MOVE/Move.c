@@ -21,7 +21,7 @@
  *   0x001B (F MOVE - float, 32-bit)
  *   0x002C (D MOVE - double, 64-bit)
  *
- * Operation: source → destination
+ * Operation: source -> destination
  *
  * Flags: Z (zero), S (sign)
  *   Z = 1 if source value is zero

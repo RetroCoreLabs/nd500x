@@ -14,7 +14,7 @@
  * Opcode: 0x0082
  *
  * Operation:
- *   PC ← L (restore program counter from link register)
+ *   PC <- L (restore program counter from link register)
  *
  * This instruction is paired with ENTD. Since ENTD doesn't create a stack
  * frame, RETD simply restores PC from the L register which contains the

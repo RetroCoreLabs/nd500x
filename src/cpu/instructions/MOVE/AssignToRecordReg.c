@@ -6,7 +6,7 @@
 /**
  * AssignToRecordReg instruction - MOVE class
  *
- * Store Record Register: R → <dest>
+ * Store Record Register: R -> <dest>
  *
  * Variants: 1
  * Mnemonics: r=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFC09
  *
- * Operation: regs.R → <dest>
+ * Operation: regs.R -> <dest>
  *
  * Description:
  *   Reads the R (record base) register and stores it to the destination operand

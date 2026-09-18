@@ -6,7 +6,7 @@
 /**
  * HlSet instruction - MOVE class
  *
- * Load HL Register: <source> → HL
+ * Load HL Register: <source> -> HL
  *
  * Variants: 1
  * Mnemonics: hl:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDB7
  *
- * Operation: <source> → regs.HL
+ * Operation: <source> -> regs.HL
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the HL

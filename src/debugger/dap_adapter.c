@@ -45,7 +45,7 @@
 #include "../../external/libdap/libdap/include/dap_server.h"
 #include "../../external/libdap/libdap/include/dap_server_cmds.h"
 
-/* ── Adapter state ─────────────────────────────────────────────── */
+/* -- Adapter state ----------------------------------------------- */
 
 static Nd500Machine* g_machine = NULL;
 static DAPServer* g_server = NULL;
@@ -150,7 +150,7 @@ typedef struct { uint32_t addr; uint32_t len; WatchpointType type; } DapTrackedW
 static DapTrackedWp g_dap_wps[DAP_MAX_TRACKED];
 static int g_dap_wp_count = 0;
 
-/* ── CPU lock ──────────────────────────────────────────────────── */
+/* -- CPU lock ---------------------------------------------------- */
 
 /* Every callback that reads or writes CPU registers, MMU state or machine
  * memory runs with the CPU lock held, because the thread advancing the CPU is
@@ -174,7 +174,7 @@ static int g_dap_wp_count = 0;
     }                                                       \
     static int name##_unlocked(DAPServer* server)
 
-/* ── Helpers ───────────────────────────────────────────────────── */
+/* -- Helpers ----------------------------------------------------- */
 
 static const char* stop_reason_to_dap(StopReason r) {
     switch (r) {
@@ -298,7 +298,7 @@ static uint32_t dap_format_instruction(uint32_t addr, char* buf, size_t buf_size
     return fi.total_len;
 }
 
-/* ── Lifecycle callbacks ───────────────────────────────────────── */
+/* -- Lifecycle callbacks ----------------------------------------- */
 
 static int cmd_wait_for_debugger(DAPServer* server) {
     (void)server;
@@ -366,7 +366,7 @@ DAP_CMD_LOCKED(cmd_check_cpu_events) {
     return 0;
 }
 
-/* ── Session callbacks ─────────────────────────────────────────── */
+/* -- Session callbacks ------------------------------------------- */
 
 DAP_CMD_LOCKED(cmd_launch) {
     if (!g_machine) return -1;
@@ -460,7 +460,7 @@ DAP_CMD_LOCKED(cmd_restart) {
     return 0;
 }
 
-/* ── Execution control ─────────────────────────────────────────── */
+/* -- Execution control ------------------------------------------- */
 
 DAP_CMD_LOCKED(cmd_continue) {
     if (!g_machine) return -1;
@@ -505,7 +505,7 @@ DAP_CMD_LOCKED(cmd_pause) {
     return 0;
 }
 
-/* ── Breakpoints ───────────────────────────────────────────────── */
+/* -- Breakpoints ------------------------------------------------- */
 
 DAP_CMD_LOCKED(cmd_set_breakpoints) {
     if (!g_machine || !g_machine->bp_mgr) return -1;
@@ -755,7 +755,7 @@ DAP_CMD_LOCKED(cmd_set_data_breakpoints) {
     return 0;
 }
 
-/* ── Inspection ────────────────────────────────────────────────── */
+/* -- Inspection -------------------------------------------------- */
 
 DAP_CMD_LOCKED(cmd_stack_trace) {
     StackTraceCommandContext* ctx = &server->current_command.context.stack_trace;
@@ -995,7 +995,7 @@ DAP_CMD_LOCKED(cmd_evaluate) {
     return 0;
 }
 
-/* ── Memory ────────────────────────────────────────────────────── */
+/* -- Memory ------------------------------------------------------ */
 
 DAP_CMD_LOCKED(cmd_read_memory) {
     ReadMemoryCommandContext* ctx = &server->current_command.context.read_memory;
@@ -1060,7 +1060,7 @@ DAP_CMD_LOCKED(cmd_write_memory) {
     return 0;
 }
 
-/* ── Disassembly and symbols ───────────────────────────────────── */
+/* -- Disassembly and symbols ------------------------------------- */
 
 DAP_CMD_LOCKED(cmd_disassemble) {
     DisassembleCommandContext* ctx = &server->current_command.context.disassemble;
@@ -1129,7 +1129,7 @@ DAP_CMD_LOCKED(cmd_symbol_list) {
     return 0;
 }
 
-/* ── Console I/O (custom DAP commands, nd100x convention) ──────── */
+/* -- Console I/O (custom DAP commands, nd100x convention) -------- */
 
 static int cmd_console_enable(DAPServer* server) {
     ConsoleEnableContext* ctx = &server->current_command.context.console_enable;
@@ -1182,7 +1182,7 @@ static int cmd_console_write(DAPServer* server) {
     return 0;
 }
 
-/* ── Server setup / thread ─────────────────────────────────────── */
+/* -- Server setup / thread --------------------------------------- */
 
 static int dap_register_callbacks(DAPServer* server) {
     dap_server_register_command_callback(server, DAP_CMD_LAUNCH, cmd_launch);

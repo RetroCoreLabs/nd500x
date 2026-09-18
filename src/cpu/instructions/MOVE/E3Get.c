@@ -6,7 +6,7 @@
 /**
  * E3Get instruction - MOVE class
  *
- * Store E3 Register (lower 32 bits): E3[31:0] → <dest>
+ * Store E3 Register (lower 32 bits): E3[31:0] -> <dest>
  *
  * Variants: 1
  * Mnemonics: e3=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE3E
  *
- * Operation: regs.E3[31:0] → <dest>
+ * Operation: regs.E3[31:0] -> <dest>
  *
  * Description:
  *   Reads the lower 32 bits of the E3 extended register and stores it to

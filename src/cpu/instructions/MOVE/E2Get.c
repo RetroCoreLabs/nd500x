@@ -6,7 +6,7 @@
 /**
  * E2Get instruction - MOVE class
  *
- * Store E2 Register (lower 32 bits): E2[31:0] → <dest>
+ * Store E2 Register (lower 32 bits): E2[31:0] -> <dest>
  *
  * Variants: 1
  * Mnemonics: e2=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE3D
  *
- * Operation: regs.E2[31:0] → <dest>
+ * Operation: regs.E2[31:0] -> <dest>
  *
  * Description:
  *   Reads the lower 32 bits of the E2 extended register and stores it to

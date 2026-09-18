@@ -6,7 +6,7 @@
 /**
  * TosGet instruction - MOVE class
  *
- * Store TOS Register: TOS → <dest>
+ * Store TOS Register: TOS -> <dest>
  *
  * Variants: 1
  * Mnemonics: tos=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDC9
  *
- * Operation: regs.TOS → <dest>
+ * Operation: regs.TOS -> <dest>
  *
  * Description:
  *   Reads the TOS (Top Of Stack) register and stores it to the destination

@@ -16,7 +16,7 @@
  *   0x00C4 (IF = GO:B) - Byte displacement
  *   0x00C5 (IF = GO:H) - Halfword displacement
  *
- * Operation: if Z = 1 then PC ← PC + displacement
+ * Operation: if Z = 1 then PC <- PC + displacement
  *
  * Description:
  *   A conditional jump causes transfer of control if and only if the Z

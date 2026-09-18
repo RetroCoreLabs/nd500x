@@ -6,7 +6,7 @@
 /**
  * LlGet instruction - MOVE class
  *
- * Store LL Register: LL → <dest>
+ * Store LL Register: LL -> <dest>
  *
  * Variants: 1
  * Mnemonics: ll=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDC2
  *
- * Operation: regs.LL → <dest>
+ * Operation: regs.LL -> <dest>
  *
  * Description:
  *   Reads the LL (Low Level) register and stores it to the destination

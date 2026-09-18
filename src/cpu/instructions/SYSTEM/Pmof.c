@@ -11,7 +11,7 @@
  * Operands: 0
  * Opcode: 0xFF19 (177431 octal)
  *
- * Operation: Turn off program memory management system; L → P
+ * Operation: Turn off program memory management system; L -> P
  *
  * Description:
  * Privileged instruction.

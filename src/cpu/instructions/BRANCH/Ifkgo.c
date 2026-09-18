@@ -47,9 +47,9 @@
  *
  * Displacement Encoding:
  *   - Byte displacement (0x00D0): Signed 8-bit (-128 to +127 bytes)
- *     Used for short forward/backward jumps within ±127 bytes
+ *     Used for short forward/backward jumps within +/-127 bytes
  *   - Halfword displacement (0x00D1): Signed 16-bit (-32768 to +32767 bytes)
- *     Used for longer jumps within ±32KB
+ *     Used for longer jumps within +/-32KB
  *   - Assembler auto-selects optimal displacement size
  *
  * Branch Target Calculation:
@@ -74,7 +74,7 @@
  *
  * Key Characteristics:
  *   - Tests user-controlled K flag (not arithmetic flags)
- *   - Two displacement sizes: byte (±127), halfword (±32767)
+ *   - Two displacement sizes: byte (+/-127), halfword (+/-32767)
  *   - Paired with SETK/CLRK for custom control flow
  *   - Independent of Z, S, C, V flags (orthogonal branching)
  *   - Essential for semaphores, state machines, error flags
@@ -112,7 +112,7 @@
  *   - IFNKGO: Branch if K flag is clear (K=0)
  *   - Other conditional branches: IF=GO, IF><GO, IF<GO, IF>GO, IF<=GO, IF>=GO
  *
- * Reference: ND-500 Reference Manual, §13.x (Conditional Branches)
+ * Reference: ND-500 Reference Manual, section 13.x (Conditional Branches)
  *            docs/instructions/asm/ifkgo.md
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/Ifkgo.cs
  */

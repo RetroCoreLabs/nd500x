@@ -37,7 +37,7 @@ void test_effective_address() {
             printf("  Operand 0 effective_address: 0x%08X\n", fi1.operands[0].effective_address);
             printf("  Expected: 0x%08X (B=0x1000 + 7*4 = 0x101C)\n", cpu.B + (7 * 4));
             assert(fi1.operands[0].effective_address == cpu.B + (7 * 4));
-            printf("  ✓ PASS\n");
+            printf("  PASS\n");
         }
     }
     printf("\n");
@@ -56,7 +56,7 @@ void test_effective_address() {
             printf("  Operand 1 effective_address: 0x%08X\n", fi2.operands[1].effective_address);
             printf("  Expected: 0x%08X (B=0x1000 + 16 = 0x1010)\n", cpu.B + 16);
             /* Note: displacement is in data bytes */
-            printf("  ✓ PASS\n");
+            printf("  PASS\n");
         }
     }
     printf("\n");
@@ -74,7 +74,7 @@ void test_effective_address() {
             printf("  Operand 0 effective_address: 0x%08X\n", fi3.operands[0].effective_address);
             printf("  Expected: 0x%08X (R=0x2000 + 7*4 = 0x201C)\n", cpu.R + (7 * 4));
             assert(fi3.operands[0].effective_address == cpu.R + (7 * 4));
-            printf("  ✓ PASS\n");
+            printf("  PASS\n");
         }
     }
     printf("\n");

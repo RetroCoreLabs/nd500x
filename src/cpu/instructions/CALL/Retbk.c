@@ -76,12 +76,12 @@
  *
  * Typical Usage:
  *   ; Allocate heap block for local data
- *   W1 GETB #6         ; Allocate 64-word block, address → I1
+ *   W1 GETB #6         ; Allocate 64-word block, address -> I1
  *   CALL SUB1, 0       ; Call subroutine
  *   IF K GO ERROR      ; Branch if subroutine returned error
  *   ...
  *
- *   SUB1: ENTB         ; Enter using heap block (I1 → B)
+ *   SUB1: ENTB         ; Enter using heap block (I1 -> B)
  *   ...
  *   IF (error) THEN
  *     RETBK            ; Return with K=1 (error)

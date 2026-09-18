@@ -6,7 +6,7 @@
 /**
  * Cte1Get instruction - MOVE class
  *
- * Store CTE1 Register: CTE1 → <dest>
+ * Store CTE1 Register: CTE1 -> <dest>
  *
  * Variants: 1
  * Mnemonics: cte1=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE50
  *
- * Operation: regs.CTE1 → <dest>
+ * Operation: regs.CTE1 -> <dest>
  *
  * Description:
  *   Reads the CTE1 (Code Table Entry 1) register and stores it to the

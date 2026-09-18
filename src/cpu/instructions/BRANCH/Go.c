@@ -18,7 +18,7 @@
  *   0x00C2 (GO:W) - Word displacement (full 32-bit)
  *
  * Operation:
- *   PC ← PC + displacement (sign-extended)
+ *   PC <- PC + displacement (sign-extended)
  *
  * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/BRANCH/Go.cs

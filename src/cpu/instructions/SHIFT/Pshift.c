@@ -36,7 +36,7 @@
  * - Signed 8-bit value (-128 to +127)
  * - Indicates position of decimal point relative to rightmost digit
  * - Example: scaling_factor = 2 means value represents XX.YY (2 decimal places)
- * - Example: scaling_factor = -1 means value represents X0 (value × 10)
+ * - Example: scaling_factor = -1 means value represents X0 (value x 10)
  *
  * Operation Steps:
  * 1. Load string descriptor for source from first operand address
@@ -57,13 +57,13 @@
  *   Source: value=12345, scaling_factor=2 (represents 123.45)
  *   Dest:   scaling_factor=1 (expects XX.X format)
  *   Shift:  1 - 2 = -1
- *   Result: 12345 ÷ 10 = 1234 (represents 123.4)
+ *   Result: 12345 / 10 = 1234 (represents 123.4)
  *
  * Example 2: Align 5.0 (scaling=1) to X.XX (scaling=2)
  *   Source: value=50, scaling_factor=1 (represents 5.0)
  *   Dest:   scaling_factor=2 (expects X.XX format)
  *   Shift:  2 - 1 = 1
- *   Result: 50 × 10 = 500 (represents 5.00)
+ *   Result: 50 x 10 = 500 (represents 5.00)
  *
  * Example 3: Same scaling (no adjustment)
  *   Source: value=1234, scaling_factor=2 (represents 12.34)
@@ -164,13 +164,13 @@ void nd500_instr_Pshift(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     int64_t result_value = source_value;
     if (shift > 0) {
         /* Positive shift: move decimal point right (multiply by 10^shift) */
-        /* Example: 5.0 (scale=1) → 5.00 (scale=2): 50 × 10 = 500 */
+        /* Example: 5.0 (scale=1) -> 5.00 (scale=2): 50 x 10 = 500 */
         for (int i = 0; i < shift; i++) {
             result_value *= 10;
         }
     } else if (shift < 0) {
         /* Negative shift: move decimal point left (divide by 10^|shift|) */
-        /* Example: 123.45 (scale=2) → 123.4 (scale=1): 12345 ÷ 10 = 1234 */
+        /* Example: 123.45 (scale=2) -> 123.4 (scale=1): 12345 / 10 = 1234 */
         for (int i = 0; i < -shift; i++) {
             result_value /= 10;
         }

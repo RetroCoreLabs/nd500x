@@ -6,7 +6,7 @@
 /**
  * Cte2Get instruction - MOVE class
  *
- * Store CTE2 Register: CTE2 → <dest>
+ * Store CTE2 Register: CTE2 -> <dest>
  *
  * Variants: 1
  * Mnemonics: cte2=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE51
  *
- * Operation: regs.CTE2 → <dest>
+ * Operation: regs.CTE2 -> <dest>
  *
  * Description:
  *   Reads the CTE2 (Code Table Entry 2) register and stores it to the

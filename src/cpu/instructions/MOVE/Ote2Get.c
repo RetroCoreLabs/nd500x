@@ -6,7 +6,7 @@
 /**
  * Ote2Get instruction - MOVE class
  *
- * Store OTE2 Register: OTE2 → <dest>
+ * Store OTE2 Register: OTE2 -> <dest>
  *
  * Variants: 1
  * Mnemonics: ote2=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDC6
  *
- * Operation: regs.OTE2 → <dest>
+ * Operation: regs.OTE2 -> <dest>
  *
  * Description:
  *   Reads the OTE2 (Object Table Entry 2) register and stores it to the

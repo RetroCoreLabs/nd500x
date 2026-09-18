@@ -6,7 +6,7 @@
 /**
  * AssignBaseRegTo instruction - MOVE class
  *
- * Load Local Base Register: <source> → B
+ * Load Local Base Register: <source> -> B
  *
  * Variants: 1
  * Mnemonics: b:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFC08
  *
- * Operation: <source> → regs.B
+ * Operation: <source> -> regs.B
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the B

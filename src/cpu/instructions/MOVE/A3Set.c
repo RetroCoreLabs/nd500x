@@ -6,7 +6,7 @@
 /**
  * A3Set instruction - MOVE class
  *
- * Load A3 Register: <source> → A3
+ * Load A3 Register: <source> -> A3
  *
  * Variants: 1
  * Mnemonics: a3:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE32
  *
- * Operation: <source> → regs.A3
+ * Operation: <source> -> regs.A3
  *
  * Description:
  *   Reads the source operand and stores it to the A3 float register.

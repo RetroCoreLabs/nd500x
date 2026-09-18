@@ -6,7 +6,7 @@
 /**
  * CedGet instruction - MOVE class
  *
- * Store CED Register: CED → <dest>
+ * Store CED Register: CED -> <dest>
  *
  * Variants: 1
  * Mnemonics: ced=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE54
  *
- * Operation: regs.CED → <dest>
+ * Operation: regs.CED -> <dest>
  *
  * Description:
  *   Reads the CED (Current Environment Descriptor) register and stores it to

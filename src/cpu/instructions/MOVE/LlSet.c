@@ -6,7 +6,7 @@
 /**
  * LlSet instruction - MOVE class
  *
- * Load LL Register: <source> → LL
+ * Load LL Register: <source> -> LL
  *
  * Variants: 1
  * Mnemonics: ll:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDB8
  *
- * Operation: <source> → regs.LL
+ * Operation: <source> -> regs.LL
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the LL

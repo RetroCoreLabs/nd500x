@@ -7,7 +7,7 @@
 /**
  * Subtract instruction - ARITHMETIC class
  *
- * Subtract from Register: Rn - <operand> → Rn
+ * Subtract from Register: Rn - <operand> -> Rn
  *
  * Variants: 5
  * Mnemonics: - (subtract)
@@ -20,17 +20,17 @@
  *   0x0064 (Fn -)  float subtract
  *   0x0068 (Dn -)  double subtract
  *
- * Operation: Rn - <operand> → Rn
+ * Operation: Rn - <operand> -> Rn
  *
  * Description:
  *   The operand is subtracted from the contents of the specified register.
  *   The result is stored in the register.
  *
  *   Register selection is encoded in opcode bits 1-0:
- *   - 00 → register 1 (I1, A1)
- *   - 01 → register 2 (I2, A2)
- *   - 10 → register 3 (I3, A3)
- *   - 11 → register 4 (I4, A4)
+ *   - 00 -> register 1 (I1, A1)
+ *   - 01 -> register 2 (I2, A2)
+ *   - 10 -> register 3 (I3, A3)
+ *   - 11 -> register 4 (I4, A4)
  *
  *   For integer variants: Uses I1-I4 registers
  *   For float/double: Uses A1-A4 (float) or D1-D4 (A+E pairs, double)

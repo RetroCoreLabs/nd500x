@@ -397,9 +397,9 @@ int nd500_cmd_execute(Nd500Machine* m, const char* cmdline, CmdContext* ctx) {
     return -1;
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* COMMAND HANDLERS */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 static int cmd_help(Nd500Machine* m, CmdContext* ctx, char* args) {
     output(ctx, "Commands:");
@@ -1079,10 +1079,10 @@ static int cmd_load(Nd500Machine* m, CmdContext* ctx, char* args) {
 
     char* init_ext = strrchr(init_path, '.');
     if (init_ext && *init_ext) {
-        /* Replace extension with .init (e.g., kernel.o → kernel.init) */
+        /* Replace extension with .init (e.g., kernel.o -> kernel.init) */
         strcpy(init_ext, ".init");
     } else {
-        /* No extension - append .init to basename (e.g., kernel → kernel.init) */
+        /* No extension - append .init to basename (e.g., kernel -> kernel.init) */
         strncat(init_path, ".init", sizeof(init_path) - strlen(init_path) - 1);
     }
 
@@ -2031,16 +2031,16 @@ static int cmd_list(Nd500Machine* m, CmdContext* ctx, char* args) {
                 }
             }
 
-            /* Build marker: ● for breakpoint, → for current line */
+            /* Build marker: * for breakpoint, -> for current line */
             if (has_breakpoint && line == source_line) {
                 /* Both breakpoint and current line */
-                output(ctx, "●→%4d  %s", line, line_text);
+                output(ctx, "*->%4d  %s", line, line_text);
             } else if (has_breakpoint) {
                 /* Breakpoint only */
-                output(ctx, "● %4d  %s", line, line_text);
+                output(ctx, "* %4d  %s", line, line_text);
             } else if (line == source_line) {
                 /* Current line only */
-                output(ctx, " →%4d  %s", line, line_text);
+                output(ctx, " ->%4d  %s", line, line_text);
             } else {
                 /* Neither */
                 output(ctx, "  %4d  %s", line, line_text);
@@ -2222,9 +2222,9 @@ static int cmd_clear_traps(Nd500Machine* m, CmdContext* ctx, char* args) {
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* MMU COMMAND HANDLERS */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
     if (!m || !m->cpu) {
@@ -2339,7 +2339,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
             uint32_t page_table_addr = page_table_base;
             page_table_base += seg_num_pages * 4;  /* 4 bytes per PTE */
 
-            /* Create PTEs in the page table (identity mapping: page i → PFN i) */
+            /* Create PTEs in the page table (identity mapping: page i -> PFN i) */
             for (uint32_t i = 0; i < seg_num_pages; i++) {
                 uint32_t page_num = seg_start_page + i;
                 uint32_t pte_addr = page_table_addr + (i * 4);
@@ -2413,7 +2413,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
         uint32_t vsize = vend_addr - vstart_addr + 1;
         uint32_t num_pages = (vsize + NBPG - 1) / NBPG;  /* Round up */
 
-        output(ctx, "Mapping virtual 0x%08X-0x%08X → physical 0x%08X (%s%s%s)",
+        output(ctx, "Mapping virtual 0x%08X-0x%08X -> physical 0x%08X (%s%s%s)",
             vstart_addr, vend_addr, pstart_addr,
             has_read ? "r" : "-",
             has_write ? "w" : "-",
@@ -2467,7 +2467,7 @@ static int cmd_mmu(Nd500Machine* m, CmdContext* ctx, char* args) {
             uint32_t page_table_pfn = page_table_addr >> PGSHIFT;
             nd500_mmu_set_pst_entry(m->cpu, next_psn, PS_ASI, page_table_pfn);
 
-            output(ctx, "  Segment %u: PST[%u] → page table at 0x%08X (%u pages)",
+            output(ctx, "  Segment %u: PST[%u] -> page table at 0x%08X (%u pages)",
                 seg, next_psn, page_table_addr, seg_num_pages);
 
             /* Set capabilities for this segment */
@@ -3122,7 +3122,7 @@ static int cmd_listpcb(Nd500Machine* m, CmdContext* ctx, char* args) {
     } else {
         output(ctx, "");
         output(ctx, "Total: %d domains with %d configured segments", total_domains, total_segments);
-        output(ctx, "(Maximum: %d domains × 32 segments)", MAXDOM);
+        output(ctx, "(Maximum: %d domains x 32 segments)", MAXDOM);
     }
 
     return 0;
@@ -3732,14 +3732,14 @@ int nd500_execute_init_script(Nd500Machine* m, const char* script_path) {
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * DOMAIN COMMAND - Unified domain management
  * Usage:
  *   domain              - Show current context + list loaded domains
  *   domain <n>          - Show details for domain n
  *   domain switch <n>   - Switch execution to domain n
  *   domain symbols <n>  - Set symbol lookup domain to n
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static int cmd_domain(Nd500Machine* m, CmdContext* ctx, char* args) {
     if (!m || !m->cpu) {
         error(ctx, "DOMAIN: ND-500 CPU required");
@@ -3863,7 +3863,7 @@ static int cmd_domain(Nd500Machine* m, CmdContext* ctx, char* args) {
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * HEAP COMMAND - Dump heap variables at TOS
  * Heap Variables layout (ND-500 buddy system):
  *   TOS+0   MAXL      Max log2 size of allocatable blocks
@@ -3873,7 +3873,7 @@ static int cmd_domain(Nd500Machine* m, CmdContext* ctx, char* args) {
  *   TOS+16  FLOG[1]   Freelist head for 2^1 = 2 word blocks
  *   ...
  *   TOS+12+n*4  FLOG[n]  Freelist head for 2^n word blocks
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static uint32_t read_virtual_word(Nd500Machine* m, uint32_t vaddr) {
     /* Read a 32-bit word via data MMU */
     uint32_t paddr;
@@ -3949,7 +3949,7 @@ static int cmd_heap(Nd500Machine* m, CmdContext* ctx, char* args) {
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * STACKFRAME / SF COMMAND - Dump current stack frame structure at B register
  * Stack frame layout (ND-500):
  *   B+0   PREVB   Previous B register value
@@ -3958,7 +3958,7 @@ static int cmd_heap(Nd500Machine* m, CmdContext* ctx, char* args) {
  *   B+12  AUX     Auxiliary field
  *   B+16  N       Number of arguments
  *   B+20+ ARGn    Argument addresses
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static int cmd_stackframe(Nd500Machine* m, CmdContext* ctx, char* args) {
     if (!m || !m->cpu) {
         error(ctx, "STACKFRAME: ND-500 CPU required");
@@ -4000,7 +4000,7 @@ static int cmd_stackframe(Nd500Machine* m, CmdContext* ctx, char* args) {
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * UNLOAD COMMAND - Unload domain and free resources
  * Usage: unload <domain>
  *
@@ -4011,7 +4011,7 @@ static int cmd_stackframe(Nd500Machine* m, CmdContext* ctx, char* args) {
  *   - Domain allocation
  *
  * Note: Cannot unload domain 0 (kernel)
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static int cmd_unload(Nd500Machine* m, CmdContext* ctx, char* args) {
     if (!m || !m->cpu) {
         error(ctx, "UNLOAD: ND-500 CPU required");
@@ -4083,9 +4083,9 @@ static int cmd_unload(Nd500Machine* m, CmdContext* ctx, char* args) {
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * Helper: Get segment name for well-known segments
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static const char* get_segment_name(int segment, uint8_t domain) {
     if (domain == 0) {
         /* Kernel domain */
@@ -4110,11 +4110,11 @@ static const char* get_segment_name(int segment, uint8_t domain) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * SHOWCAP COMMAND - Show capability tables for a domain
  * Usage: showcap [domain]
  * If no domain specified, shows current domain (CAD)
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static int cmd_showcap(Nd500Machine* m, CmdContext* ctx, char* args) {
     if (!m || !m->cpu) {
         error(ctx, "SHOWCAP: ND-500 CPU required");
@@ -4223,10 +4223,10 @@ static int cmd_showcap(Nd500Machine* m, CmdContext* ctx, char* args) {
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * SHOWPAGES COMMAND - Show page mappings for a domain
  * Usage: showpages <domain> [segment]
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static int cmd_showpages(Nd500Machine* m, CmdContext* ctx, char* args) {
     if (!m || !m->cpu) {
         error(ctx, "SHOWPAGES: ND-500 CPU required");
@@ -4344,10 +4344,10 @@ static int cmd_showpages(Nd500Machine* m, CmdContext* ctx, char* args) {
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ===========================================================================
  * MEMMAP COMMAND - Display memory map (virtual or physical)
  * Usage: memmap [domain|phys]
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * =========================================================================== */
 static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args) {
     if (!m || !m->cpu) {
         error(ctx, "MEMMAP: ND-500 CPU required");

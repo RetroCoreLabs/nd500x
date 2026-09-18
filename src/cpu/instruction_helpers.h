@@ -593,7 +593,7 @@ bool nd500_validate_target_register(Nd500Cpu* cpu, const Nd500FetchedInstruction
 
 /**
  * Push 32-bit word onto stack
- * L → memory, L += 4
+ * L -> memory, L += 4
  * @param cpu CPU state
  * @param value 32-bit value to push
  */
@@ -601,7 +601,7 @@ void nd500_push_word(Nd500Cpu* cpu, uint32_t value);
 
 /**
  * Pop 32-bit word from stack
- * L -= 4, memory → return value
+ * L -= 4, memory -> return value
  * @param cpu CPU state
  * @return 32-bit value popped
  */
@@ -609,7 +609,7 @@ uint32_t nd500_pop_word(Nd500Cpu* cpu);
 
 /**
  * Push 64-bit doubleword onto stack
- * L → memory (8 bytes), L += 8
+ * L -> memory (8 bytes), L += 8
  * @param cpu CPU state
  * @param value 64-bit value to push
  */
@@ -617,7 +617,7 @@ void nd500_push_doubleword(Nd500Cpu* cpu, uint64_t value);
 
 /**
  * Pop 64-bit doubleword from stack
- * L -= 8, memory → return value
+ * L -= 8, memory -> return value
  * @param cpu CPU state
  * @return 64-bit value popped
  */

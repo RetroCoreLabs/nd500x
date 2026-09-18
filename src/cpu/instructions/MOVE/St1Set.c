@@ -6,7 +6,7 @@
 /**
  * St1Set instruction - MOVE class
  *
- * Load ST1 Register: <source> → ST1
+ * Load ST1 Register: <source> -> ST1
  *
  * Variants: 1
  * Mnemonics: st1:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDB9
  *
- * Operation: <source> → regs.ST.ST1
+ * Operation: <source> -> regs.ST.ST1
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and loads it MASKED (AND 0o7773777740)

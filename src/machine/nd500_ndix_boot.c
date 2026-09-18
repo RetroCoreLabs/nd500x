@@ -261,45 +261,45 @@ int nd500_ndix_mmu_setup(Nd500Machine* m) {
     for (uint32_t a = 0x00080000; a < 0x000A0000; a++)
         nd500_bus_write8(m, a, 0);
 
-    /* ═══════════════════════════════════════════════════════
+    /* =======================================================
      * PST CONFIGURATION - Create 128 contiguous pages per region
      * Each domain needs 256 PST entries (128 for code + 128 for data)
      * Total: 768 PST entries
-     * ═══════════════════════════════════════════════════════ */
+     * ======================================================= */
     verbose("=== PST Configuration ===");
     verbose("Creating 768 PST entries (256 per domain)...");
 
-    /* Domain 0 (Kernel) Code: PSN 0-127 → Physical 0x00000000-0x0003FFFF */
+    /* Domain 0 (Kernel) Code: PSN 0-127 -> Physical 0x00000000-0x0003FFFF */
     for (uint32_t i = 0; i < 128; i++) {
         nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);  /* PFN = PSN for direct mapping */
     }
     verbose("PST[0-127]     = Domain 0 kernel code (phys 0x00000000-0x0003FFFF)");
 
-    /* Domain 0 (Kernel) Data: PSN 128-255 → Physical 0x00040000-0x0007FFFF */
+    /* Domain 0 (Kernel) Data: PSN 128-255 -> Physical 0x00040000-0x0007FFFF */
     for (uint32_t i = 128; i < 256; i++) {
         nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
     }
     verbose("PST[128-255]   = Domain 0 kernel data (phys 0x00040000-0x0007FFFF)");
 
-    /* Domain 1 (User1) Code: PSN 256-383 → Physical 0x00080000-0x000BFFFF */
+    /* Domain 1 (User1) Code: PSN 256-383 -> Physical 0x00080000-0x000BFFFF */
     for (uint32_t i = 256; i < 384; i++) {
         nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
     }
     verbose("PST[256-383]   = Domain 1 user1 code (phys 0x00080000-0x000BFFFF)");
 
-    /* Domain 1 (User1) Data: PSN 384-511 → Physical 0x000C0000-0x000FFFFF */
+    /* Domain 1 (User1) Data: PSN 384-511 -> Physical 0x000C0000-0x000FFFFF */
     for (uint32_t i = 384; i < 512; i++) {
         nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
     }
     verbose("PST[384-511]   = Domain 1 user1 data (phys 0x000C0000-0x000FFFFF)");
 
-    /* Domain 2 (User2) Code: PSN 512-639 → Physical 0x00100000-0x0013FFFF */
+    /* Domain 2 (User2) Code: PSN 512-639 -> Physical 0x00100000-0x0013FFFF */
     for (uint32_t i = 512; i < 640; i++) {
         nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
     }
     verbose("PST[512-639]   = Domain 2 user2 code (phys 0x00100000-0x0013FFFF)");
 
-    /* Domain 2 (User2) Data: PSN 640-767 → Physical 0x00140000-0x0017FFFF */
+    /* Domain 2 (User2) Data: PSN 640-767 -> Physical 0x00140000-0x0017FFFF */
     for (uint32_t i = 640; i < 768; i++) {
         nd500_mmu_set_pst_entry(m->cpu, i, PS_AZI, i);
     }
@@ -317,7 +317,7 @@ int nd500_ndix_mmu_setup(Nd500Machine* m) {
         /* PC_DIR is 0x0000 - direct is absence of PC_IND flag, not a flag to set */
         nd500_mmu_set_program_capability(m->cpu, 0, seg, seg);
     }
-    verbose("  Prog segments [0-127]   → PSN [0-127]   (virtual 0x00000000-0x3F800000)");
+    verbose("  Prog segments [0-127]   -> PSN [0-127]   (virtual 0x00000000-0x3F800000)");
 
     /* Data segments 0-127: Each segment i maps to PSN 128+i (phys 0x00040000+).
      * Kernel data is READ/WRITE, so grant DC_WRP - without it every kernel data
@@ -355,12 +355,12 @@ int nd500_ndix_mmu_setup(Nd500Machine* m) {
         }
         nd500_mmu_set_data_capability(m->cpu, 0, seg, (128 + seg) | DC_WRP);
     }
-    verbose("  Data segments   → RW (seg 0 = identity image, seg 29 = demand-backed u-area)");
+    verbose("  Data segments   -> RW (seg 0 = identity image, seg 29 = demand-backed u-area)");
 
     /* Special: Segment 31 for Domain 0 = ND-100 Other Machine (INDIRECT + OMC) */
     /* Bit 15 = 1 (INDIRECT), Bit 14 = 1 (OMC), Domain=0, Segment=1 */
     nd500_mmu_set_program_capability(m->cpu, 0, 31, PC_IND | PC_OMC | (0 << 5) | 1);
-    verbose("  Prog segment 31         → INDIRECT OMC Domain=0 Seg=1 (ND-100)");
+    verbose("  Prog segment 31         -> INDIRECT OMC Domain=0 Seg=1 (ND-100)");
 
     verbose("");
     verbose("Domain 1 (User1):");
@@ -369,18 +369,18 @@ int nd500_ndix_mmu_setup(Nd500Machine* m) {
         /* PC_DIR is 0x0000 - direct is absence of PC_IND flag */
         nd500_mmu_set_program_capability(m->cpu, 1, seg, (256 + seg));
     }
-    verbose("  Prog segments [0-127]   → PSN [256-383] (virtual 0x00000000-0x3F800000)");
+    verbose("  Prog segments [0-127]   -> PSN [256-383] (virtual 0x00000000-0x3F800000)");
 
     /* Data segments 0-127: Each segment i maps to PSN 384+i (phys 0x000C0000+) */
     for (uint32_t seg = 0; seg < 128; seg++) {
         nd500_mmu_set_data_capability(m->cpu, 1, seg, (384 + seg) | DC_PAC);
     }
-    verbose("  Data segments [0-127]   → PSN [384-511] (virtual 0x00000000-0x3F800000)");
+    verbose("  Data segments [0-127]   -> PSN [384-511] (virtual 0x00000000-0x3F800000)");
 
     /* Special: Segment 31 for Domain 1 = Link to Kernel (INDIRECT, no OMC) */
     /* Bit 15 = 1 (INDIRECT), Bit 14 = 0 (no OMC), Domain=0, Segment=1 */
     nd500_mmu_set_program_capability(m->cpu, 1, 31, PC_IND | (0 << 5) | 1);
-    verbose("  Prog segment 31         → INDIRECT Domain=0 Seg=1 (→ Kernel)");
+    verbose("  Prog segment 31         -> INDIRECT Domain=0 Seg=1 (-> Kernel)");
 
     verbose("");
     verbose("Domain 2 (User2):");
@@ -389,18 +389,18 @@ int nd500_ndix_mmu_setup(Nd500Machine* m) {
         /* PC_DIR is 0x0000 - direct is absence of PC_IND flag */
         nd500_mmu_set_program_capability(m->cpu, 2, seg, (512 + seg));
     }
-    verbose("  Prog segments [0-127]   → PSN [512-639] (virtual 0x00100000-0x0013FFFF)");
+    verbose("  Prog segments [0-127]   -> PSN [512-639] (virtual 0x00100000-0x0013FFFF)");
 
     /* Data segments 0-127: Each segment i maps to PSN 640+i (phys 0x00140000+) */
     for (uint32_t seg = 0; seg < 128; seg++) {
         nd500_mmu_set_data_capability(m->cpu, 2, seg, (640 + seg) | DC_PAC);
     }
-    verbose("  Data segments [0-127]   → PSN [640-767] (virtual 0x00140000-0x0017FFFF)");
+    verbose("  Data segments [0-127]   -> PSN [640-767] (virtual 0x00140000-0x0017FFFF)");
 
     /* Special: Segment 31 for Domain 2 = Link to Kernel (INDIRECT, no OMC) */
     /* Bit 15 = 1 (INDIRECT), Bit 14 = 0 (no OMC), Domain=0, Segment=1 */
     nd500_mmu_set_program_capability(m->cpu, 2, 31, PC_IND | (0 << 5) | 1);
-    verbose("  Prog segment 31         → INDIRECT Domain=0 Seg=1 (→ Kernel)");
+    verbose("  Prog segment 31         -> INDIRECT Domain=0 Seg=1 (-> Kernel)");
 
     /* Map the kernel's own table-access segments so _Pst (seg 27, 0xd8000000)
      * reaches physical PSTP and _pcbtab (seg 28, 0xe0000000) reaches physical
@@ -444,9 +444,9 @@ int nd500_ndix_mmu_setup(Nd500Machine* m) {
 
     verbose("");
     verbose("Virtual Memory Layout (each domain has 256KB code + 256KB data):");
-    verbose("  Domain 0 (Kernel): Virtual 0x00000000-0x3F800000 → Phys 0x00000000-0x0007FFFF");
-    verbose("  Domain 1 (User1):  Virtual 0x00000000-0x3F800000 → Phys 0x00080000-0x000FFFFF");
-    verbose("  Domain 2 (User2):  Virtual 0x00000000-0x3F800000 → Phys 0x00100000-0x0017FFFF");
+    verbose("  Domain 0 (Kernel): Virtual 0x00000000-0x3F800000 -> Phys 0x00000000-0x0007FFFF");
+    verbose("  Domain 1 (User1):  Virtual 0x00000000-0x3F800000 -> Phys 0x00080000-0x000FFFFF");
+    verbose("  Domain 2 (User2):  Virtual 0x00000000-0x3F800000 -> Phys 0x00100000-0x0017FFFF");
     verbose("");
     verbose("Configuration complete! You can now:");
     verbose("  - Load PSEG/DSEG files to any virtual address 0x00000000-0x3F800000");

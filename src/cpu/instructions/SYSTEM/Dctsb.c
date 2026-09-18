@@ -216,7 +216,7 @@ void nd500_instr_Dctsb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      *
      * The TLB (Translation Lookaside Buffer) is a HARDWARE CACHE that stores
      * recent address translations:
-     *   - Maps: (virtual_page) → (physical_page, permissions)
+     *   - Maps: (virtual_page) -> (physical_page, permissions)
      *   - Hardware lookup in ~1 CPU cycle (associative memory)
      *   - Typical hit rate: 95-99%
      *   - When TLB hits: Skip all table lookups, use cached translation
@@ -234,7 +234,7 @@ void nd500_instr_Dctsb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      *   accesses the capability tables, PST, and page tables in the emulated
      *   memory array, the HOST CPU's TLB is already caching those accesses!
      *
-     *   Emulated ND-500 Memory → Host RAM → Host CPU TLB (already optimizing!)
+     *   Emulated ND-500 Memory -> Host RAM -> Host CPU TLB (already optimizing!)
      *
      * Reason B: Emulation is already slow - MMU overhead is negligible
      *
@@ -256,10 +256,10 @@ void nd500_instr_Dctsb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * The emulator's goal is ACCURATE ND-500 BEHAVIOR, not speed.
      *
      * Doing full table lookup every time:
-     *   ✓ Ensures we catch bugs in page table setup
-     *   ✓ Makes memory access behavior deterministic
-     *   ✓ Simplifies debugging (no cache-related heisenbugs)
-     *   ✓ Matches hardware behavior functionally (just slower)
+     *   OK Ensures we catch bugs in page table setup
+     *   OK Makes memory access behavior deterministic
+     *   OK Simplifies debugging (no cache-related heisenbugs)
+     *   OK Matches hardware behavior functionally (just slower)
      *
      * 4. WHY PRIVILEGE CHECKING IS STILL CRITICAL
      * ---------------------------------------------

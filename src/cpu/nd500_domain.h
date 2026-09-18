@@ -28,9 +28,9 @@
  * Reference: C# CpuND500.Domain.cs from RetroCore emulator
  */
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // DOMAIN CONSTANTS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 #define KERNEL_DOMAIN       0           /* Domain 0 is always kernel */
 #define MAX_DOMAINS         256         /* Maximum domains per process */
@@ -82,9 +82,9 @@
 #define PREVB_MARKER        0           /* PREVB=0 marks domain boundary */
 #define RETA_MARKER         0           /* RETA=0 marks domain boundary */
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // DOMAIN STRUCTURES
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /**
  * Domain Call State
@@ -111,9 +111,9 @@ typedef struct {
 // Forward declaration of CPU type
 typedef struct Nd500Cpu Nd500Cpu;
 
-// ═══════════════════════════════════════════════════════
+// =======================================================
 // DOMAIN FUNCTION DECLARATIONS
-// ═══════════════════════════════════════════════════════
+// =======================================================
 
 /* Domain System Initialization */
 void nd500_domain_init(Nd500Cpu* cpu);

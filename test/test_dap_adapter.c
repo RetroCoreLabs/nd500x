@@ -42,7 +42,7 @@ static int call_cb(DAPCommandType cmd) {
 	return cb(g_srv);
 }
 
-/* ── Instruction breakpoints ───────────────────────────────────── */
+/* -- Instruction breakpoints ------------------------------------- */
 
 static void test_instruction_breakpoints(void) {
 	InstructionBreakpointCommandContext* ctx =
@@ -98,7 +98,7 @@ static void test_instruction_breakpoints(void) {
 	bp_delete(g_m.bp_mgr, 0); /* remove CLI bp again */
 }
 
-/* ── Data breakpoints (watchpoints) ────────────────────────────── */
+/* -- Data breakpoints (watchpoints) ------------------------------ */
 
 static void test_data_breakpoint_info(void) {
 	DataBreakpointInfoCommandContext* ctx =
@@ -248,7 +248,7 @@ static void test_register_watchpoints(void) {
 	free(results2[0].message);
 }
 
-/* ── Memory read/write (base64) ────────────────────────────────── */
+/* -- Memory read/write (base64) ---------------------------------- */
 
 static void test_memory_roundtrip(void) {
 	WriteMemoryCommandContext* wctx = &g_srv->current_command.context.write_memory;
@@ -294,7 +294,7 @@ static void test_memory_roundtrip(void) {
 	free(rctx->base64_data);
 }
 
-/* ── Registers: scopes / variables / setVariable / evaluate ────── */
+/* -- Registers: scopes / variables / setVariable / evaluate ------ */
 
 static void free_variable_results(VariablesCommandContext* ctx) {
 	for (int i = 0; i < ctx->variable_count; i++) {
@@ -439,7 +439,7 @@ static void test_evaluate(void) {
 	free((char*)ctx->type);
 }
 
-/* ── Execution control state ───────────────────────────────────── */
+/* -- Execution control state ------------------------------------- */
 
 static void test_execution_control(void) {
 	StepCommandContext* step = &g_srv->current_command.context.step;
@@ -487,7 +487,7 @@ static void test_execution_control(void) {
 	CHECK(g_srv->debugger_state.configuration_done, "flag set");
 }
 
-/* ── Stack trace ───────────────────────────────────────────────── */
+/* -- Stack trace ------------------------------------------------- */
 
 static void test_stack_trace(void) {
 	StackTraceCommandContext* ctx = &g_srv->current_command.context.stack_trace;
@@ -507,7 +507,7 @@ static void test_stack_trace(void) {
 	}
 }
 
-/* ── Disassemble ───────────────────────────────────────────────── */
+/* -- Disassemble ------------------------------------------------- */
 
 static void test_disassemble(void) {
 	DisassembleCommandContext* ctx = &g_srv->current_command.context.disassemble;

@@ -7,7 +7,7 @@
 /**
  * Add3 instruction - ARITHMETIC class
  *
- * Extended Add (Three Operands): <a> + <b> → <c>
+ * Extended Add (Three Operands): <a> + <b> -> <c>
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn ADD3, Hn ADD3, Wn ADD3, Fn ADD3, Dn ADD3 (n=1..4)
@@ -20,7 +20,7 @@
  *   0x0070-0x0073 (F1 ADD3 through F4 ADD3) - Float extended add
  *   0x0074-0x0077 (D1 ADD3 through D4 ADD3) - Double extended add
  *
- * Operation: <a> + <b> → <c>
+ * Operation: <a> + <b> -> <c>
  *
  * Description:
  *   The <a> operand is added to the <b> operand and the result is stored

@@ -6,7 +6,7 @@
 /**
  * Addc instruction - ARITHMETIC class
  *
- * Add with Carry: Rn + C + <addend> → Rn
+ * Add with Carry: Rn + C + <addend> -> Rn
  *
  * Variants: 1 (word-only)
  * Mnemonics: Wn ADDC (n=1..4)
@@ -15,7 +15,7 @@
  * Opcodes:
  *   0xFE40-0xFE43 (W1 ADDC through W4 ADDC) - Word add with carry
  *
- * Operation: Rn + C + <addend> → Rn
+ * Operation: Rn + C + <addend> -> Rn
  *
  * Description:
  *   The <addend> operand, the carry bit (interpreted as 0 or 1), and

@@ -6,7 +6,7 @@
 /**
  * ThaSet instruction - MOVE class
  *
- * Load THA Register: <source> → THA
+ * Load THA Register: <source> -> THA
  *
  * Variants: 1
  * Mnemonics: tha:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDCA
  *
- * Operation: <source> → regs.THA
+ * Operation: <source> -> regs.THA
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the THA

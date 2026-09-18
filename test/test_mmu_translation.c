@@ -25,22 +25,22 @@ int main(void) {
     nd500_cpu_reset(&cpu);
     cpu.PC = 0x1000;
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * TEST 1: MMU Initialization
-     * ───────────────────────────────────────────────────────── */
+     * --------------------------------------------------------- */
     printf("Test 1: MMU Initialization\n");
-    printf("───────────────────────────\n");
+    printf("---------------------------\n");
 
     nd500_mmu_init(&cpu);
     int enabled = nd500_mmu_is_enabled(&cpu);
     printf("MMU enabled after init: %s (expected: no)\n", enabled ? "yes" : "no");
-    printf("Status: %s\n\n", !enabled ? "✓ PASS" : "✗ FAIL");
+    printf("Status: %s\n\n", !enabled ? "PASS" : "FAIL");
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * TEST 2: Enable/Disable MMU
-     * ───────────────────────────────────────────────────────── */
+     * --------------------------------------------------------- */
     printf("Test 2: Enable/Disable MMU\n");
-    printf("───────────────────────────\n");
+    printf("---------------------------\n");
 
     nd500_mmu_enable(&cpu);
     int enabled_after_enable = nd500_mmu_is_enabled(&cpu);
@@ -50,13 +50,13 @@ int main(void) {
     int enabled_after_disable = nd500_mmu_is_enabled(&cpu);
     printf("MMU disabled: %s (expected: no)\n", enabled_after_disable ? "yes" : "no");
 
-    printf("Status: %s\n\n", (enabled_after_enable && !enabled_after_disable) ? "✓ PASS" : "✗ FAIL");
+    printf("Status: %s\n\n", (enabled_after_enable && !enabled_after_disable) ? "PASS" : "FAIL");
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * TEST 3: PST Entry Set/Get
-     * ───────────────────────────────────────────────────────── */
+     * --------------------------------------------------------- */
     printf("Test 3: PST Entry Set/Get\n");
-    printf("──────────────────────────\n");
+    printf("--------------------------\n");
 
     /* Set PST entry 100: Direct mode (PS_AZI), PFN=0x1234 */
     nd500_mmu_set_pst_entry(&cpu, 100, PS_AZI, 0x1234);
@@ -66,13 +66,13 @@ int main(void) {
     printf("PST[100].pfn        = 0x%X (expected: 0x1234)\n", pst.physical_pfn);
 
     int pst_pass = (pst.index_mode == PS_AZI && pst.physical_pfn == 0x1234);
-    printf("Status: %s\n\n", pst_pass ? "✓ PASS" : "✗ FAIL");
+    printf("Status: %s\n\n", pst_pass ? "PASS" : "FAIL");
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * TEST 4: PCB Capability Set/Get
-     * ───────────────────────────────────────────────────────── */
+     * --------------------------------------------------------- */
     printf("Test 4: PCB Capability Set/Get\n");
-    printf("───────────────────────────────\n");
+    printf("-------------------------------\n");
 
     /* Set program capability for domain 0, segment 5: PSN=100, writable */
     uint16_t pc_value = 100 | PC_DIR;
@@ -89,13 +89,13 @@ int main(void) {
     printf("PCB[0].data_capabilities[7]    = 0x%04X (expected: 0x%04X)\n", dc_read, dc_value);
 
     int pcb_pass = (pc_read == pc_value && dc_read == dc_value);
-    printf("Status: %s\n\n", pcb_pass ? "✓ PASS" : "✗ FAIL");
+    printf("Status: %s\n\n", pcb_pass ? "PASS" : "FAIL");
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * TEST 5: PCB Pointer Access
-     * ───────────────────────────────────────────────────────── */
+     * --------------------------------------------------------- */
     printf("Test 5: PCB Pointer Access\n");
-    printf("───────────────────────────\n");
+    printf("---------------------------\n");
 
     ProcessControlBlock* pcb = nd500_mmu_get_pcb(&cpu, 0);
     if (pcb) {
@@ -105,17 +105,17 @@ int main(void) {
 
         int ptr_pass = (pcb->program_capabilities[5] == pc_value &&
                         pcb->data_capabilities[7] == dc_value);
-        printf("Status: %s\n\n", ptr_pass ? "✓ PASS" : "✗ FAIL");
+        printf("Status: %s\n\n", ptr_pass ? "PASS" : "FAIL");
     } else {
         printf("PCB[0] pointer:     NULL (FAIL)\n");
-        printf("Status: ✗ FAIL\n\n");
+        printf("Status: FAIL\n\n");
     }
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * TEST 6: Direct Translation (MMU Disabled)
-     * ───────────────────────────────────────────────────────── */
+     * --------------------------------------------------------- */
     printf("Test 6: Direct Translation (MMU Disabled)\n");
-    printf("──────────────────────────────────────────\n");
+    printf("------------------------------------------\n");
 
     nd500_mmu_disable(&cpu);
 
@@ -124,14 +124,14 @@ int main(void) {
 
     printf("Virtual:  0x%08X\n", vaddr);
     printf("Physical: 0x%08X (expected: 0x%08X - direct mapping)\n", paddr, vaddr);
-    printf("Status: %s\n\n", (paddr == vaddr) ? "✓ PASS" : "✗ FAIL");
+    printf("Status: %s\n\n", (paddr == vaddr) ? "PASS" : "FAIL");
 
-    /* ─────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------
      * SUMMARY
-     * ───────────────────────────────────────────────────────── */
-    printf("═══════════════════════════════════════════\n");
-    printf("✓ All MMU unit tests complete!\n");
-    printf("═══════════════════════════════════════════\n");
+     * --------------------------------------------------------- */
+    printf("===========================================\n");
+    printf("OK All MMU unit tests complete!\n");
+    printf("===========================================\n");
     printf("\nNote: Full translation tests (PS_ASI/PS_ADI) require\n");
     printf("      integration with memory bus and will be tested\n");
     printf("      during Phase 5 (Memory Bus Integration).\n");

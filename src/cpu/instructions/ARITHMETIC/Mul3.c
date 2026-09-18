@@ -6,7 +6,7 @@
 /**
  * Mul3 instruction - ARITHMETIC class
  *
- * Extended Multiply (Three Operands): <a> * <b> → <c>
+ * Extended Multiply (Three Operands): <a> * <b> -> <c>
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn MUL3, Hn MUL3, Wn MUL3, Fn MUL3, Dn MUL3 (n=1..4)
@@ -19,7 +19,7 @@
  *   0x00A0-0x00A3 (F1 MUL3 through F4 MUL3) - Float extended multiply
  *   0x00A4-0x00A7 (D1 MUL3 through D4 MUL3) - Double extended multiply
  *
- * Operation: <a> * <b> → <c>
+ * Operation: <a> * <b> -> <c>
  *
  * Description:
  *   The <a> operand is multiplied by the <b> operand and the result

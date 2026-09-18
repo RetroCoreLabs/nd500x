@@ -6,7 +6,7 @@
 /**
  * Temm2Get instruction - MOVE class
  *
- * Store TEMM2 Register: TEMM2 → <dest>
+ * Store TEMM2 Register: TEMM2 -> <dest>
  *
  * Variants: 1
  * Mnemonics: temm2=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE53
  *
- * Operation: regs.TEMM2 → <dest>
+ * Operation: regs.TEMM2 -> <dest>
  *
  * Description:
  *   Reads the TEMM2 (Table Entry Memory Management 2) register and stores it

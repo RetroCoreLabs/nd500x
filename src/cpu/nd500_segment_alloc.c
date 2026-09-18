@@ -24,7 +24,7 @@
 #define ERR_ILLEGAL_SEGMENT       249  /* 371 octal */
 #define ERR_ILLEGAL_ADDRESS       250  /* 372 octal */
 
-/* ─────────────────────────────────────────────────────────────────────────
+/* -------------------------------------------------------------------------
  * Demand-grown segments (MON 412B FSCNT / 422B GSWSP)
  *
  * The ND-500 Reference Manual (ND-05.009.4, line 1237) describes a physical
@@ -47,7 +47,7 @@
  * pages each), with only the pages that are actually needed mapped at creation.
  * A data fault inside such a segment allocates the missing page on the spot and
  * lets the access retry. Pages never touched cost nothing.
- * ───────────────────────────────────────────────────────────────────────── */
+ * ------------------------------------------------------------------------- */
 
 #define GROWABLE_MAX_SEGMENTS 64
 
@@ -729,7 +729,7 @@ int nd500_mon_connect_file_as_segment(void* cpu_ptr, void* machine_ptr, uint8_t 
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────
+/* -------------------------------------------------------------------------
  * Per-run allocation scope.
  *
  * A DOM run (and a nested DOM started with MON 317B UECOM, or a new command)
@@ -743,7 +743,7 @@ int nd500_mon_connect_file_as_segment(void* cpu_ptr, void* machine_ptr, uint8_t 
  * copy is exactly right. The pages themselves are reclaimed by arena id, not
  * by copying a counter back - the previous version restored a watermark and
  * left the pages above it still described by live page tables.
- * ───────────────────────────────────────────────────────────────────────── */
+ * ------------------------------------------------------------------------- */
 typedef struct {
     GrowableSegment growable[GROWABLE_MAX_SEGMENTS];
     Nd500Machine*   machine;

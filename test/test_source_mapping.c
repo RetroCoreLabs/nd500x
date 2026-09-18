@@ -22,13 +22,13 @@ static int test_failed = 0;
 #define TEST_PASS() \
     do { \
         test_passed++; \
-        printf("  ✓ PASS\n\n"); \
+        printf("  PASS\n\n"); \
     } while(0)
 
 #define TEST_FAIL(msg) \
     do { \
         test_failed++; \
-        printf("  ✗ FAIL: %s\n\n", msg); \
+        printf("  FAIL: %s\n\n", msg); \
     } while(0)
 
 #define ASSERT_EQ(expected, actual, msg) \
@@ -330,9 +330,9 @@ static int test_malformed_map() {
 
 /* Main test runner */
 int main(void) {
-    printf("═══════════════════════════════════════════════════════\n");
+    printf("=======================================================\n");
     printf("ND-500 Source-Level Debugging Test Suite\n");
-    printf("═══════════════════════════════════════════════════════\n\n");
+    printf("=======================================================\n\n");
 
     // Run all tests
     test_map_parsing_octal();
@@ -343,18 +343,18 @@ int main(void) {
     test_malformed_map();
 
     // Print summary
-    printf("═══════════════════════════════════════════════════════\n");
+    printf("=======================================================\n");
     printf("Test Summary:\n");
     printf("  Total:  %d\n", test_count);
     printf("  Passed: %d\n", test_passed);
     printf("  Failed: %d\n", test_failed);
-    printf("═══════════════════════════════════════════════════════\n");
+    printf("=======================================================\n");
 
     if (test_failed == 0) {
-        printf("\n✓ All tests PASSED!\n\n");
+        printf("\nOK All tests PASSED!\n\n");
         return 0;
     } else {
-        printf("\n✗ Some tests FAILED!\n\n");
+        printf("\nSome tests FAILED!\n\n");
         return 1;
     }
 }

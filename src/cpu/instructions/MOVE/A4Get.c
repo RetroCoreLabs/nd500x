@@ -6,7 +6,7 @@
 /**
  * A4Get instruction - MOVE class
  *
- * Store A4 Register: A4 → <dest>
+ * Store A4 Register: A4 -> <dest>
  *
  * Variants: 1
  * Mnemonics: a4=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE3B
  *
- * Operation: regs.A4 → <dest>
+ * Operation: regs.A4 -> <dest>
  *
  * Description:
  *   Reads the A4 float register and stores it to the destination operand.

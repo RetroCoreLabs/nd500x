@@ -243,9 +243,9 @@ int ndlib_aout_dump_metadata(const char* path) {
     }
 
     /* Print fancy header like nd500-dis */
-    printf("; %s\n", "═══════════════════════════════════════════════════════════════");
+    printf("; %s\n", "===============================================================");
     printf("; ND-500 Disassembly\n");
-    printf("; %s\n", "═══════════════════════════════════════════════════════════════");
+    printf("; %s\n", "===============================================================");
     printf("; File: %s\n;\n", path);
     printf("; File Type:    %s\n", file_type);
     if (is_object && (hdr.a_trsize > 0 || hdr.a_drsize > 0)) {
@@ -258,7 +258,7 @@ int ndlib_aout_dump_metadata(const char* path) {
     ndlib_symbols_list_unresolved();
 
     printf(";\n; Text size:    %u bytes (0x%X)\n", hdr.a_text, hdr.a_text);
-    printf("; %s\n;\n", "═══════════════════════════════════════════════════════════════");
+    printf("; %s\n;\n", "===============================================================");
     fclose(f);
     return 0;
 }

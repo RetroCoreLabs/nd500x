@@ -6,7 +6,7 @@
 /**
  * A3Get instruction - MOVE class
  *
- * Store A3 Register: A3 → <dest>
+ * Store A3 Register: A3 -> <dest>
  *
  * Variants: 1
  * Mnemonics: a3=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE3A
  *
- * Operation: regs.A3 → <dest>
+ * Operation: regs.A3 -> <dest>
  *
  * Description:
  *   Reads the A3 float register and stores it to the destination operand.

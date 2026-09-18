@@ -18,7 +18,7 @@
  *   0xFE18-0xFE1B (H1 INV through H4 INV) - Halfword invert
  *   0x0098-0x009B (W1 INV through W4 INV) - Word invert
  *
- * Operation: Rn ← ~Rn (one's complement)
+ * Operation: Rn <- ~Rn (one's complement)
  *
  * Description:
  *   The one's complement of the contents of the specified register is

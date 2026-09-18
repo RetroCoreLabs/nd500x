@@ -37,12 +37,12 @@
  *           end;
  *
  *   Stack layout when C executes:
- *     Frame C: [static link → B] [local vars] [return addr]
- *     Frame B: [static link → A] [local vars] [return addr]
- *     Frame A: [static link → ?] [x: integer] [return addr]
+ *     Frame C: [static link -> B] [local vars] [return addr]
+ *     Frame B: [static link -> A] [local vars] [return addr]
+ *     Frame A: [static link -> ?] [x: integer] [return addr]
  *
  *   To access 'x' from C:
- *     CHAIN B, STATIC_LINK_OFFSET, 2  → Loads address of A's frame
+ *     CHAIN B, STATIC_LINK_OFFSET, 2  -> Loads address of A's frame
  *     Then use A-relative addressing to access 'x'
  *
  * Algorithm:
@@ -78,7 +78,7 @@
  * 3. Read offset to static link from operand[1]
  * 4. Read number of levels from operand[2]
  * 5. Validate levels >= 0 (negative is IOV trap)
- * 6. Special case: levels == 0 → load address (LADDR equivalent)
+ * 6. Special case: levels == 0 -> load address (LADDR equivalent)
  * 7. For i = 0 to levels-1:
  *    a. Read next link: memory[currentAddr + offset]
  *    b. If link == 0: set K flag, store current addr, trap IOV
@@ -98,7 +98,7 @@
  * - Illegal Operand Value (IOV): Zero link encountered before reaching target level
  *
  * Performance:
- * - Execution: ~10 + (5 × levels) cycles
+ * - Execution: ~10 + (5 x levels) cycles
  * - Variable depending on chain depth
  * - Typically 1-3 levels in practice
  *
@@ -123,7 +123,7 @@
  *     LOAD X, W1.OUTER_VAR   ; Access variable in outer scope
  *
  *   Example 2: Load address without traversal
- *     W2 CHAIN B, 0, 0       ; Equivalent to LADDR B → W2
+ *     W2 CHAIN B, 0, 0       ; Equivalent to LADDR B -> W2
  *
  *   Example 3: Dynamic level computation
  *     W3 CHAIN FRAME_PTR, STATIC_OFFSET, B.LEVEL_DIFF

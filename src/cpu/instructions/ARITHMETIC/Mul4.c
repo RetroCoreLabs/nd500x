@@ -6,7 +6,7 @@
 /**
  * Mul4 instruction - ARITHMETIC class
  *
- * Multiply with Overflow to Register: <a> * <b> → <c> (lower), Rn (upper)
+ * Multiply with Overflow to Register: <a> * <b> -> <c> (lower), Rn (upper)
  *
  * Variants: 12
  * Mnemonics: mul4
@@ -44,10 +44,10 @@
  *   extension of the lower half.
  *
  *   Register selection is encoded in opcode bits 1-0:
- *   - 00 → register 1 (I1)
- *   - 01 → register 2 (I2)
- *   - 10 → register 3 (I3)
- *   - 11 → register 4 (I4)
+ *   - 00 -> register 1 (I1)
+ *   - 01 -> register 2 (I2)
+ *   - 10 -> register 3 (I3)
+ *   - 11 -> register 4 (I4)
  *
  *   Data Types: BY (byte), H (halfword), W (word) - integer only
  *   NO floating-point support
@@ -55,7 +55,7 @@
  * Flags: Z (zero), S (sign), O (overflow)
  *   Z = 1 if lower part of product is zero
  *   S = 1 if sign bit of lower part is set
- *   O = 1 if overflow (upper half ≠ sign extension of lower)
+ *   O = 1 if overflow (upper half != sign extension of lower)
  *
  * Trap conditions:
  *   - Addressing traps
@@ -67,7 +67,7 @@
  *   - Integer-only (no float/double support)
  *   - Essential for multi-precision arithmetic
  *   - Upper half enables overflow detection
- *   - 12 variants (3 types × 4 registers)
+ *   - 12 variants (3 types x 4 registers)
  *
  * Performance Notes:
  *   - Slightly slower than MUL3 (extra register store)
@@ -75,7 +75,7 @@
  *   - Best case: 6 cycles (register to register)
  *   - Worst case: 9+ cycles (memory to memory)
  *
- * Reference: ND-500 Reference Manual, §11.13 (Multiply with overflow)
+ * Reference: ND-500 Reference Manual, section 11.13 (Multiply with overflow)
  *            docs/instructions/asm/mul4.md
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Mul4.cs
  */

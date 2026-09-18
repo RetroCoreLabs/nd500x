@@ -6,7 +6,7 @@
 /**
  * Set1 instruction - CONTROL class
  *
- * Set to One: 1 → <operand>
+ * Set to One: 1 -> <operand>
  *
  * Variants: 6
  * Mnemonics: set1
@@ -20,7 +20,7 @@
  *   0x0047 (F set1 - float)
  *   0xFC89 (D set1 - double)
  *
- * Operation: 1 → <operand>
+ * Operation: 1 -> <operand>
  *
  * Description:
  *   The contents of the destination operand are replaced by one.

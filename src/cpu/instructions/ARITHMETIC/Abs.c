@@ -6,7 +6,7 @@
 /**
  * Abs instruction - ARITHMETIC class
  *
- * Absolute value operation: |Rn| → Rn
+ * Absolute value operation: |Rn| -> Rn
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn ABS, Hn ABS, Wn ABS, Fn ABS, Dn ABS (n=1..4)
@@ -19,7 +19,7 @@
  *   0x009C-0x009F (F1 ABS through F4 ABS) - Float absolute value
  *   0x00A0-0x00A3 (D1 ABS through D4 ABS) - Double absolute value
  *
- * Operation: |Rn| → Rn
+ * Operation: |Rn| -> Rn
  *
  * Description:
  *   The absolute value of the contents of the specified register is

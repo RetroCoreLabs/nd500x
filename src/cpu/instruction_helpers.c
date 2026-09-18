@@ -2196,7 +2196,7 @@ void nd500_string_clear_unused_flags(Nd500Cpu* cpu) {
 }
 
 /* ============================================================================
- * FLOATING-POINT CONVERSION (ND-500 ↔ IEEE 754 ↔ Integer)
+ * FLOATING-POINT CONVERSION (ND-500 <-> IEEE 754 <-> Integer)
  * ============================================================================
  */
 

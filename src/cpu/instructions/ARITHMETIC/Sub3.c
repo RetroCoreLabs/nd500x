@@ -6,7 +6,7 @@
 /**
  * Sub3 instruction - ARITHMETIC class
  *
- * Extended Subtract (Three Operands): <a> - <b> → <c>
+ * Extended Subtract (Three Operands): <a> - <b> -> <c>
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn SUB3, Hn SUB3, Wn SUB3, Fn SUB3, Dn SUB3 (n=1..4)
@@ -19,7 +19,7 @@
  *   0x0088-0x008B (F1 SUB3 through F4 SUB3) - Float extended subtract
  *   0x008C-0x008F (D1 SUB3 through D4 SUB3) - Double extended subtract
  *
- * Operation: <a> - <b> → <c>
+ * Operation: <a> - <b> -> <c>
  *
  * Description:
  *   The <b> operand is subtracted from the <a> operand and the result

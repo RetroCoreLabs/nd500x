@@ -503,9 +503,9 @@ void ndlib_symbols_list_by_type(uint8_t seg_type) {
     printf("\n");
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* SOURCE LINE MAPPING (.map file support) */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 /* Comparison function for sorting source lines by address */
 static int compare_source_lines(const void* a, const void* b) {
@@ -739,9 +739,9 @@ uint32_t ndlib_symbols_first_instruction_addr(void) {
     return 0;  /* No instructions found, default to 0 */
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* SOURCE FILE CONTENT CACHE */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 /* Store source file content in memory */
 int ndlib_source_store(const char* filename, const char* content) {

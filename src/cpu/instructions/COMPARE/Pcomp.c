@@ -63,7 +63,7 @@
  *
  * BCD Value Range:
  * - Maximum digits: up to 31 (limited by descriptor length field)
- * - Represented as C double (±1.7e308 range, 15-17 decimal digits precision)
+ * - Represented as C double (+/-1.7e308 range, 15-17 decimal digits precision)
  * - Values exceeding double precision may lose accuracy in comparison
  *
  * Trap Conditions:

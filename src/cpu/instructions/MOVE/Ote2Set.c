@@ -6,7 +6,7 @@
 /**
  * Ote2Set instruction - MOVE class
  *
- * Load OTE2 Register: <source> → OTE2
+ * Load OTE2 Register: <source> -> OTE2
  *
  * Variants: 1
  * Mnemonics: ote2:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDBC
  *
- * Operation: <source> → regs.OTE2
+ * Operation: <source> -> regs.OTE2
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the OTE2

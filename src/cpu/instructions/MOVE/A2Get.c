@@ -6,7 +6,7 @@
 /**
  * A2Get instruction - MOVE class
  *
- * Store A2 Register: A2 → <dest>
+ * Store A2 Register: A2 -> <dest>
  *
  * Variants: 1
  * Mnemonics: a2=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE39
  *
- * Operation: regs.A2 → <dest>
+ * Operation: regs.A2 -> <dest>
  *
  * Description:
  *   Reads the A2 float register and stores it to the destination operand.

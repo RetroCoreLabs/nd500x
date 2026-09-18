@@ -20,7 +20,7 @@
  *   0x004B (F STZ - float store zero)
  *   0x004C (D STZ - double store zero)
  *
- * Operation: 0 → destination
+ * Operation: 0 -> destination
  *
  * Description:
  *   The contents of the destination operand are replaced by zero.

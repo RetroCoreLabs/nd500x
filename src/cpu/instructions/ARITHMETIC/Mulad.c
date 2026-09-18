@@ -6,7 +6,7 @@
 /**
  * Mulad instruction - ARITHMETIC class
  *
- * Multiply and Add: Rn * <x> + <y> → Rn
+ * Multiply and Add: Rn * <x> + <y> -> Rn
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn MULAD, Hn MULAD, Wn MULAD, Fn MULAD, Dn MULAD (n=1..4)
@@ -19,7 +19,7 @@
  *   0xFCF0-0xFCF3 (F1 MULAD through F4 MULAD) - Float multiply and add
  *   0xFCF4-0xFCF7 (D1 MULAD through D4 MULAD) - Double multiply and add
  *
- * Operation: Rn * <x> + <y> → Rn
+ * Operation: Rn * <x> + <y> -> Rn
  *
  * Description:
  *   The register contents are multiplied by <x>, <y> is added to

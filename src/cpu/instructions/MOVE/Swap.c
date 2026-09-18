@@ -6,7 +6,7 @@
 /**
  * Swap instruction - MOVE class
  *
- * Exchange Contents of Two Operands: <op1> ⇄ <op2>
+ * Exchange Contents of Two Operands: <op1> <-> <op2>
  *
  * Variants: 6
  * Mnemonics: swap
@@ -20,7 +20,7 @@
  *   0xFCDC (F swap - float)
  *   0xFCDD (D swap - double)
  *
- * Operation: <op1> ⇄ <op2>
+ * Operation: <op1> <-> <op2>
  *
  * Description:
  *   The contents of the first operand are stored in the second operand, and

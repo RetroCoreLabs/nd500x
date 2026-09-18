@@ -6,7 +6,7 @@
 /**
  * Div2 instruction - ARITHMETIC class
  *
- * Extended Divide (Two Operands): <a> / Rn → <b>
+ * Extended Divide (Two Operands): <a> / Rn -> <b>
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn DIV2, Hn DIV2, Wn DIV2, Fn DIV2, Dn DIV2 (n=1..4)
@@ -19,7 +19,7 @@
  *   0x00AC-0x00AF (F1 DIV2 through F4 DIV2) - Float extended divide
  *   0x00B0-0x00B3 (D1 DIV2 through D4 DIV2) - Double extended divide
  *
- * Operation: <a> / Rn → <b>
+ * Operation: <a> / Rn -> <b>
  *
  * Description:
  *   The <a> operand is divided by the contents of the specified register

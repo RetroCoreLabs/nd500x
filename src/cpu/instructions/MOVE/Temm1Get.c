@@ -6,7 +6,7 @@
 /**
  * Temm1Get instruction - MOVE class
  *
- * Store TEMM1 Register: TEMM1 → <dest>
+ * Store TEMM1 Register: TEMM1 -> <dest>
  *
  * Variants: 1
  * Mnemonics: temm1=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE52
  *
- * Operation: regs.TEMM1 → <dest>
+ * Operation: regs.TEMM1 -> <dest>
  *
  * Description:
  *   Reads the TEMM1 (Table Entry Memory Management 1) register and stores it

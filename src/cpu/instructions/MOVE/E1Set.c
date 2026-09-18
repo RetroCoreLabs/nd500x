@@ -6,7 +6,7 @@
 /**
  * E1Set instruction - MOVE class
  *
- * Load E1 Register (lower 32 bits): <source> → E1[31:0]
+ * Load E1 Register (lower 32 bits): <source> -> E1[31:0]
  *
  * Variants: 1
  * Mnemonics: e1:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE34
  *
- * Operation: <source> → regs.E1[31:0]
+ * Operation: <source> -> regs.E1[31:0]
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the lower

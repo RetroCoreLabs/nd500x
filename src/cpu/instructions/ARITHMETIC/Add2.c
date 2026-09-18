@@ -7,7 +7,7 @@
 /**
  * Add2 instruction - ARITHMETIC class
  *
- * Extended Add (Two Operands): <a> + Rn → <b>
+ * Extended Add (Two Operands): <a> + Rn -> <b>
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn ADD2, Hn ADD2, Wn ADD2, Fn ADD2, Dn ADD2 (n=1..4)
@@ -20,7 +20,7 @@
  *   0x0064-0x0067 (F1 ADD2 through F4 ADD2) - Float extended add
  *   0x0068-0x006B (D1 ADD2 through D4 ADD2) - Double extended add
  *
- * Operation: <a> + Rn → <b>
+ * Operation: <a> + Rn -> <b>
  *
  * Description:
  *   The <a> operand is added to the contents of the specified register.

@@ -826,9 +826,9 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {
     out->CAD = cpu->CAD; out->PS = cpu->PS;
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* ND-500 TRAP SYSTEM IMPLEMENTATION */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 /**
  * Raise a trap condition in the ND-500 CPU
@@ -1635,9 +1635,9 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
     nd500_trap_clear();
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* TRAP HELPER FUNCTIONS */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 void trap_illegal_instruction(Nd500Cpu* cpu, uint32_t pc, uint32_t opcode) {
     raise_trap(cpu, TRAP_IIC, pc, opcode);
@@ -1742,9 +1742,9 @@ void trap_call(Nd500Cpu* cpu, uint32_t pc) {
     raise_trap(cpu, TRAP_CT, pc, 0);
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* TRAP STATE MANAGEMENT */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 void nd500_trap_clear(void) {
     memset(&g_trap_state, 0, sizeof(g_trap_state));
@@ -1839,9 +1839,9 @@ int nd500_cpu_run(Nd500Cpu* cpu, int steps) {
     return steps;
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* ND-100 I/O PROCESSOR BRIDGE IMPLEMENTATION */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 /**
  * Read a word from ND-100 I/O processor memory space via RIOM/DMA
@@ -1859,9 +1859,9 @@ int nd500_cpu_run(Nd500Cpu* cpu, int steps) {
  *   0x060000 - 0xFFFFFF (remaining space)   : Additional RAM (system dependent)
  *
  * Address Translation:
- * - ND-100 uses word addressing (address × 2 = byte offset)
+ * - ND-100 uses word addressing (address x 2 = byte offset)
  * - ND-500 uses byte addressing (32-bit)
- * - Translation: physical_addr = nd100_memory_offset + (nd100_addr × 2)
+ * - Translation: physical_addr = nd100_memory_offset + (nd100_addr x 2)
  * - Default offset: 0x40000 (maps ND-100 space into ND-500 physical RAM)
  *
  * RIOM Access Scope:
@@ -1898,11 +1898,11 @@ uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr) {
     }
 
     /* Translate ND-100 word address to ND-500 byte address
-     * Formula: physical_addr = base_offset + (word_addr × 2)
+     * Formula: physical_addr = base_offset + (word_addr x 2)
      *
      * This maps the entire ND-100 address space into ND-500 physical RAM:
-     * - ND-100 Low RAM (0x000000) → Physical 0x40000
-     * - ND-100 5MPM (0x040000) → Physical 0xC0000
+     * - ND-100 Low RAM (0x000000) -> Physical 0x40000
+     * - ND-100 5MPM (0x040000) -> Physical 0xC0000
      */
     uint32_t physical_addr = cpu->nd100_memory_offset + (nd100_addr * 2);
 
@@ -1921,9 +1921,9 @@ uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr) {
  * @param data       Halfword value to write to ND-100 memory
  *
  * Address Translation:
- * - ND-100 uses word addressing (address × 2 = byte offset)
+ * - ND-100 uses word addressing (address x 2 = byte offset)
  * - ND-500 uses byte addressing (32-bit)
- * - Translation: physical_addr = nd100_memory_offset + (nd100_addr × 2)
+ * - Translation: physical_addr = nd100_memory_offset + (nd100_addr x 2)
  * - Default offset: 0x40000 (maps ND-100 space into ND-500 physical RAM)
  *
  * Write Operation:
@@ -1935,7 +1935,7 @@ uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr) {
  * - **NO WIOM INSTRUCTION EXISTS** in ND-500 architecture
  * - Writing from ND-500 to ND-100 is done via 5MPM shared memory only
  * - This function is for emulator internal use (e.g., test fixtures)
- * - In real hardware, ND-500 → ND-100 communication uses 5MPM at 0x80000000
+ * - In real hardware, ND-500 -> ND-100 communication uses 5MPM at 0x80000000
  *
  * Reference: E:\Dev\Ronny\NDInsight\SINTRAN\Emulator\ND100Bridge.md
  *            Line 570: "NO WIOM instruction documented in ND-500 Reference Manual"

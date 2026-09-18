@@ -6,7 +6,7 @@
 /**
  * Udiv instruction - ARITHMETIC class
  *
- * Unsigned Divide: <a> / <b> → <c>, remainder → Rn
+ * Unsigned Divide: <a> / <b> -> <c>, remainder -> Rn
  *
  * Variants: 1 (word-only)
  * Mnemonics: Wn UDIV (n=1..4)
@@ -15,7 +15,7 @@
  * Opcodes:
  *   0xFE48-0xFE4B (W1 UDIV through W4 UDIV) - Word unsigned divide
  *
- * Operation: <a> / <b> → <c>, remainder → Rn
+ * Operation: <a> / <b> -> <c>, remainder -> Rn
  *
  * Description:
  *   The operands are treated as unsigned. The <a> operand is divided

@@ -7,7 +7,7 @@
 /**
  * Multiply instruction - ARITHMETIC class
  *
- * Multiply Register by Operand: Rn * <operand> → Rn
+ * Multiply Register by Operand: Rn * <operand> -> Rn
  *
  * Variants: 5
  * Mnemonics: * (multiply)
@@ -20,7 +20,7 @@
  *   0x0070 (Fn *)  float multiply
  *   0x0074 (Dn *)  double multiply
  *
- * Operation: Rn * <operand> → Rn
+ * Operation: Rn * <operand> -> Rn
  *
  * Description:
  *   The contents of the specified register are multiplied by the operand.
@@ -29,10 +29,10 @@
  *   the result doesn't fit in the register.
  *
  *   Register selection is encoded in opcode bits 1-0:
- *   - 00 → register 1 (I1, A1)
- *   - 01 → register 2 (I2, A2)
- *   - 10 → register 3 (I3, A3)
- *   - 11 → register 4 (I4, A4)
+ *   - 00 -> register 1 (I1, A1)
+ *   - 01 -> register 2 (I2, A2)
+ *   - 10 -> register 3 (I3, A3)
+ *   - 11 -> register 4 (I4, A4)
  *
  *   For integer variants: Uses I1-I4 registers
  *   For float/double: Uses A1-A4 (float) or D1-D4 (A+E pairs, double)

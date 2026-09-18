@@ -17,11 +17,11 @@
  * Format: INIT <<bottom of stack/r/W>>, <stack demand main/r/W>, <total stack demand/r/W>
  *
  * Operation:
- *   <<bottom of stack>> → B
- *   <<bottom of stack>> + <total stack demand> → TOS
- *   <<bottom of stack>> + <stack demand main> → B.SP
- *   0 → B.PREVB
- *   0 → B.RETA → L
+ *   <<bottom of stack>> -> B
+ *   <<bottom of stack>> + <total stack demand> -> TOS
+ *   <<bottom of stack>> + <stack demand main> -> B.SP
+ *   0 -> B.PREVB
+ *   0 -> B.RETA -> L
  *
  * Description:
  *   Initialize a new stack for the main program or initial module.

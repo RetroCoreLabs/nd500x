@@ -10,7 +10,7 @@
  * Operands: 3
  * Opcode: 0xFE76 (hex) / 0177166 (octal) / 65142 (decimal)
  *
- * Operation: Read I/O Processor Memory (ND-100 → ND-500 transfer)
+ * Operation: Read I/O Processor Memory (ND-100 -> ND-500 transfer)
  *
  * Description:
  * Privileged instruction that copies data from the I/O processor (ND-100) memory
@@ -25,10 +25,10 @@
  * I/O operations while the ND-500 performs computation. RIOM enables inter-processor
  * communication by providing access to the ND-100's private memory space.
  *
- *   ┌──────────┐                    ┌──────────┐
- *   │  ND-500  │ ←──── RIOM ─────  │  ND-100  │
- *   │   CPU    │  (Read from IOP)   │   IOP    │
- *   └──────────┘                    └──────────┘
+ *   +----------+                    +----------+
+ *   |  ND-500  | <----- RIOM -----  |  ND-100  |
+ *   |   CPU    |  (Read from IOP)   |   IOP    |
+ *   +----------+                    +----------+
  *      Main Processor              I/O Processor
  *
  * Address Spaces:
@@ -140,7 +140,7 @@
  *       NOTE: the 24-bit ceiling is an EMULATOR CONVENTION agreed across the
  *       C and C# emulators, not a manual fact - ND-05.009.4 section 16.23 states no
  *       address width for the RIOM path. The real microcode masks nothing.
- *    b. Calculate ND-500 address = nd500_addr + i×2 (byte address)
+ *    b. Calculate ND-500 address = nd500_addr + ix2 (byte address)
  *    c. Read halfword from ND-100 memory[nd100_addr]
  *    d. Write halfword to ND-500 memory[nd500_addr]
  * 9. Do NOT touch any status flag (see Flag Behavior below)
@@ -180,7 +180,7 @@
  * - Execution: Variable, depends on transfer size
  * - Overhead: ~10 cycles
  * - Transfer: ~2 cycles per halfword
- * - Total: ~(10 + 2×count) cycles
+ * - Total: ~(10 + 2xcount) cycles
  * - DMA access does not interrupt ND-100 execution
  *
  * Key Characteristics:
@@ -235,7 +235,7 @@
  * 2. (DONE 2026-07-20) IOS for a REGISTER/CONSTANT buffer operand - see Trap Conditions
  *
  * Related Instructions:
- * - RIOM: Read I/O processor memory (ND-100 → ND-500) [this instruction]
+ * - RIOM: Read I/O processor memory (ND-100 -> ND-500) [this instruction]
  *
  * Reference: ND-500 Reference Manual, Section 16.23
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/IO/Riom.cs
@@ -361,7 +361,7 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* This is allowed but logged for debugging */
     }
 
-    printf("[RIOM] Transfer: ND-100[0x%06X] → ND-500[0x%08X], count=%u halfwords at PC=0x%08X\n",
+    printf("[RIOM] Transfer: ND-100[0x%06X] -> ND-500[0x%08X], count=%u halfwords at PC=0x%08X\n",
            nd100_source_addr, nd500_dest_addr, count, fi->address);
 
     /* ========================================================================
@@ -396,7 +396,7 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
         /* Read halfword from ND-100 memory via bridge
          * The bridge handles:
-         *   - Address translation (nd100_memory_offset + nd100_addr × 2)
+         *   - Address translation (nd100_memory_offset + nd100_addr x 2)
          *   - Physical memory access to emulated ND-100 space
          *   - Big-endian byte order (both ND-100 and ND-500 use big-endian)
          */
@@ -407,7 +407,7 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
         /* Debug trace for first and last transfers (avoid log spam for large transfers) */
         if (i == 0 || i == count - 1 || count <= 4) {
-            printf("  RIOM[%u]: ND-100[0x%06X] = 0x%04X → ND-500[0x%08X]\n",
+            printf("  RIOM[%u]: ND-100[0x%06X] = 0x%04X -> ND-500[0x%08X]\n",
                    i, nd100_addr, data, nd500_addr);
         }
     }

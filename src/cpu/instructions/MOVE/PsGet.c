@@ -6,7 +6,7 @@
 /**
  * PsGet instruction - MOVE class
  *
- * Store PS Register: PS → <dest>
+ * Store PS Register: PS -> <dest>
  *
  * Variants: 1
  * Mnemonics: ps=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE7C
  *
- * Operation: regs.PS → <dest>
+ * Operation: regs.PS -> <dest>
  *
  * Description:
  *   Reads the PS (Program Status) register and stores it to the destination

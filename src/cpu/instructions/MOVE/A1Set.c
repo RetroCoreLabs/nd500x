@@ -6,7 +6,7 @@
 /**
  * A1Set instruction - MOVE class
  *
- * Load A1 Register: <source> → A1
+ * Load A1 Register: <source> -> A1
  *
  * Variants: 1
  * Mnemonics: a1:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFE30
  *
- * Operation: <source> → regs.A1
+ * Operation: <source> -> regs.A1
  *
  * Description:
  *   Reads the source operand and stores it to the A1 float register.

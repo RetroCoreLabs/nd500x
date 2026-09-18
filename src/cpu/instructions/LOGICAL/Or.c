@@ -18,7 +18,7 @@
  *   0xFC9C-0xFC9F (H1 OR through H4 OR) - Halfword OR
  *   0x00A0-0x00A3 (W1 OR through W4 OR) - Word OR
  *
- * Operation: Rn ← Rn OR operand
+ * Operation: Rn <- Rn OR operand
  *
  * Description:
  *   A bitwise OR is performed between the contents of the specified register

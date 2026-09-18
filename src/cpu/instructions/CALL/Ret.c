@@ -85,11 +85,11 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      *
      * CORRECT ORDER OF CHECKS:
      * 1. Check if (PREVB==0 OR RETA==0) AND (CAD != CED) AND (CAD != 0)
-     *    → This is a domain boundary, perform domain return
+     *    -> This is a domain boundary, perform domain return
      * 2. ELSE IF PREVB == 0
-     *    → This is stack underflow (no domain to return to)
+     *    -> This is stack underflow (no domain to return to)
      * 3. ELSE
-     *    → Normal return within same domain
+     *    -> Normal return within same domain
      *
      * BUG FIX (2025-01-15):
      * Previous implementation incorrectly checked stack underflow FIRST,
@@ -218,9 +218,9 @@ void nd500_instr_Ret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * the same domain. Restore the previous stack frame and jump
      * to the return address.
      */
-    cpu->PC = ret_addr;      /* Jump to return address (B.RETA → P) */
-    cpu->L = ret_addr;       /* Update link register (B.RETA → L) */
-    cpu->B = prev_b;         /* Restore previous stack frame (B.PREVB → B) */
+    cpu->PC = ret_addr;      /* Jump to return address (B.RETA -> P) */
+    cpu->L = ret_addr;       /* Update link register (B.RETA -> L) */
+    cpu->B = prev_b;         /* Restore previous stack frame (B.PREVB -> B) */
 
     /* Stack frame automatically discarded (B now points to previous frame) */
 }

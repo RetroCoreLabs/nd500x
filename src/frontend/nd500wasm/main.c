@@ -237,7 +237,7 @@ int nd500_dbg_load_aout_path_js(const char* path) {
         /* Replace .o or .out with .init */
         strcpy(ext, ".init");
     } else {
-        /* No extension - append .init to basename (e.g., kernel → kernel.init) */
+        /* No extension - append .init to basename (e.g., kernel -> kernel.init) */
         strncat(init_path, ".init", sizeof(init_path) - strlen(init_path) - 1);
     }
 
@@ -498,9 +498,9 @@ const char* nd500_dbg_pcb_segment_json_js(int domain, int segment) {
     cJSON_AddNumberToObject(root, "domain", domain);
     cJSON_AddNumberToObject(root, "segment", segment);
 
-    /* ═══════════════════════════════════════════════════════ */
+    /* ======================================================= */
     /* Program Capability */
-    /* ═══════════════════════════════════════════════════════ */
+    /* ======================================================= */
     uint16_t prog_cap = nd500_mmu_get_program_capability(g_machine.cpu, (uint8_t)domain, segment);
     cJSON* prog = cJSON_CreateObject();
     cJSON_AddNumberToObject(prog, "raw", prog_cap);
@@ -538,9 +538,9 @@ const char* nd500_dbg_pcb_segment_json_js(int domain, int segment) {
 
     cJSON_AddItemToObject(root, "program", prog);
 
-    /* ═══════════════════════════════════════════════════════ */
+    /* ======================================================= */
     /* Data Capability */
-    /* ═══════════════════════════════════════════════════════ */
+    /* ======================================================= */
     uint16_t data_cap = nd500_mmu_get_data_capability(g_machine.cpu, (uint8_t)domain, segment);
     cJSON* data = cJSON_CreateObject();
     cJSON_AddNumberToObject(data, "raw", data_cap);
@@ -589,9 +589,9 @@ const char* nd500_dbg_pcb_segment_json_js(int domain, int segment) {
     return dup_json_string(root);
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* SHARED COMMAND LIBRARY WASM INTERFACE */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 /* Output buffer for WASM command execution */
 static char g_wasm_output_buffer[16384];
@@ -662,9 +662,9 @@ const char* nd500_cmd_subcommands_js(const char* command) {
     return dup_json_string(root);
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 /* SOURCE-LEVEL DEBUGGING SUPPORT (MAP FILES) */
-/* ═══════════════════════════════════════════════════════ */
+/* ======================================================= */
 
 /* Load .map file from WASM filesystem path */
 #ifdef __EMSCRIPTEN__

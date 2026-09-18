@@ -6,7 +6,7 @@
 /**
  * PGet instruction - MOVE class
  *
- * Store PC Register: PC → <dest>
+ * Store PC Register: PC -> <dest>
  *
  * Variants: 1
  * Mnemonics: p=:
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFD62
  *
- * Operation: regs.PC → <dest>
+ * Operation: regs.PC -> <dest>
  *
  * Description:
  *   Reads the PC (Program Counter) register and stores it to the destination

@@ -6,7 +6,7 @@
 /**
  * TosSet instruction - MOVE class
  *
- * Load TOS Register: <source> → TOS
+ * Load TOS Register: <source> -> TOS
  *
  * Variants: 1
  * Mnemonics: tos:=
@@ -14,7 +14,7 @@
  *
  * Opcode: 0xFDBD
  *
- * Operation: <source> → regs.TOS
+ * Operation: <source> -> regs.TOS
  *
  * Description:
  *   Reads the source operand as a word (32-bit) and stores it to the TOS
