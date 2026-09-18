@@ -32,18 +32,23 @@
  *   operand <i> and the result is stored in the specified floating-point
  *   register. The exponent <i> must be an integer value.
  *
- * Trap conditions:
+ *   A negative <i> with <a> equal to zero "causes an illegal operand value
+ *   trap condition and the result is set to the largest possible floating
+ *   point number (approximately 5.8E+76)". When <i> is zero the result is one.
+ *
+ * Trap conditions (ND-05.009.4 12.1):
  *   - Addressing traps
  *   - Floating overflow (FO)
  *   - Floating underflow (FU)
- *   - Invalid operation (IVO)
+ *   - Illegal operand value (IOV)
  *
  * Data status bits:
  *   - result = 0 -> Z
  *   - result.signbit -> S
  *   - floating underflow -> FU
  *   - floating overflow -> FO
- *   - invalid operation -> IVO
+ * (This header used to quote "Invalid operation (IVO)" and "invalid
+ * operation -> IVO"; neither is in the manual.)
  *
  * Reference: ND-500 Reference Manual, Chapter 12.1 (Mathematical Functions)
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Axi.cs
@@ -96,9 +101,11 @@ void nd500_instr_Axi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     } else if (exponent_i < 0) {
         /* Negative exponent: a^(-i) = 1 / (a^i) */
         if (base_value == 0.0) {
-            /* 0^(-n) is invalid (division by zero) */
+            /* Manual 12.1: "A negative value of <i> and the value of <a> equal
+             * to zero causes an illegal operand value trap condition and the
+             * result is set to the largest possible floating point number". */
             invalid_op = true;
-            result = 0.0;
+            result = 0.0;   /* replaced by the largest number below */
         } else {
             result = pow(base_value, (double)exponent_i);
             if (isinf(result)) {
@@ -126,28 +133,19 @@ void nd500_instr_Axi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
     }
 
-    /* Convert result back to ND-500 format and store */
+    /* Convert result back to ND-500 format and store. The largest number is
+     * sign 0, exponent field 511, mantissa all ones. */
     uint64_t result_bits;
     if (fi->data_type == ND500_DTYPE_FLOAT) {
-        result_bits = nd500_float_from_ieee754((float)result);
+        result_bits = invalid_op ? 0x7FFFFFFFu : nd500_float_from_ieee754((float)result);
         nd500_write_float_register(cpu, fi->target_register, (uint32_t)result_bits);
     } else {
-        result_bits = nd500_double_from_ieee754(result);
+        result_bits = invalid_op ? 0x7FFFFFFFFFFFFFFFull : nd500_double_from_ieee754(result);
         nd500_write_double_register(cpu, fi->target_register, result_bits);
     }
 
-    /* Update status flags */
-    if (result == 0.0) {
-        nd500_set_flag(cpu, ND500_FLAG_Z);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_Z);
-    }
-
-    if (result < 0.0) {
-        nd500_set_flag(cpu, ND500_FLAG_S);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_S);
-    }
+    /* Z and S from the result; C and O are not named, so they are reset (6.5.1). */
+    nd500_set_flags_zs_float(cpu, result_bits, fi->data_type != ND500_DTYPE_FLOAT);
 
     /* Set floating-point exception flags AND raise the traps.
      *
@@ -175,6 +173,6 @@ void nd500_instr_Axi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         trap_floating_underflow(cpu, fi->address);
     }
     if (invalid_op) {
-        trap_invalid_operation(cpu, fi->address);
+        raise_trap(cpu, TRAP_IOV, fi->address, 0);   /* illegal operand value (bit 16) */
     }
 }

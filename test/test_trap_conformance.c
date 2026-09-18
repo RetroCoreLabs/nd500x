@@ -258,16 +258,13 @@ static void s_wconv_double_clamp(Nd500Cpu *cpu, Nd500FetchedInstruction *fi) {
 }
 
 /* ---- AXI: 0 to a negative power ----------------------------------------
- * Axi.c detects the condition correctly (invalid_op) and then records it in
- * ND500_FLAG_K - bit 8, "destination full" - which is not an error flag at
- * all, and raises no trap.
- *
- * Note this CORRECTS the trap-test plan, which listed AXI as missing IOV
- * (bit 16). The file's own header, quoting ND-500 Reference Manual ch.12.1,
- * lists the trap conditions as "Floating overflow (FO), Floating underflow
- * (FU), Invalid operation (IVO)" and the data status bits as "invalid
- * operation -> IVO". So the right bit is IVO (11), not IOV (16) - and AXI is
- * missing three traps, not one: FO and FU are only flagged too. */
+ * ND-05.009.4 12.1: "A negative value of <i> and the value of <a> equal to
+ * zero causes an illegal operand value trap condition and the result is set
+ * to the largest possible floating point number"; trap conditions "Addressing
+ * traps, Floating overflow (FO), Floating underflow (FU), Illegal operand
+ * value (IOV)". So the bit is IOV (16), as the original trap-test plan said.
+ * An earlier version of this case expected IVO (11) on the strength of
+ * Axi.c's header, which misquoted the manual. */
 static void s_axi_zero_negative_power(Nd500Cpu *cpu, Nd500FetchedInstruction *fi) {
     two_reg(fi, 0xFCC0, ND500_DTYPE_FLOAT, 1, 2);  /* F1 AXI A1, I2 */
     fi->target_register = 1;
@@ -329,10 +326,10 @@ static const TrapCase CASES[] = {
     TRAP_O, 2, 0x7FFFFFFFu,
     "ND-05.009.4 15.2; RetroCore's Wconv.cs raises it too", 0, NULL },
 
-  { "AXI F: 0 ** -1 -> IVO", s_axi_zero_negative_power, nd500_instr_Axi,
-    TRAP_IVO, ND500_FLAG_K | TRAP_IVO | TRAP_IOV | TRAP_FO | TRAP_FU,
-    TRAP_IVO, 0, 0,
-    "ND-500 Ref. ch.12.1 'invalid operation -> IVO'; RetroCore's Axi.cs agrees",
+  { "AXI F: 0 ** -1 -> IOV", s_axi_zero_negative_power, nd500_instr_Axi,
+    TRAP_IOV, ND500_FLAG_K | TRAP_IVO | TRAP_IOV | TRAP_FO | TRAP_FU,
+    TRAP_IOV, 0, 0,   /* the result is in A1; result_reg names I registers only */
+    "ND-05.009.4 12.1: 'illegal operand value trap condition'",
     0, NULL },
 };
 
