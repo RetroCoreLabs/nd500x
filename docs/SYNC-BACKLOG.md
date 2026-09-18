@@ -36,6 +36,7 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | 2026-09-18 | `22e855d` | Data status bits an instruction does not name are now reset (manual 6.5.1): the Z/S helpers clear C and O; "/", ABS, IXI, MUL4, DIV4, PWCONV, WPCONV, TSET, STZ, CLEBI, SETBI, PCOMP given the missing reset; SHR keeps K; float TEST clears C. Found by the corpus flag-preset twins (RetroCore `7c0170554`) | shared-file item 22 | open |
 | 2026-09-18 | `654d6d7` `a23301c` `486b367` `053ef24` | Microcode sweep findings, ruled on the manual and the B30 listing: DIV4 BY/H remainder zero-filled; F/D divide rounds by 7.2.7; float -0 store Z from the bit pattern, TEST -0 is Z only; SFILLN/SMOVN typed elements and Z=1 on m done, SFILL/SFILLN F/D fill from A/E:A, DR trap (new) on a start outside the string; string descriptors keep all 32 count bits. Corpus from RetroCore `d21cd2bef` | shared-file item 23 | open |
 | 2026-09-18 | `cb233b5` `c594c1b` | Decimal instructions (chapter 17) rewritten from the manual: descriptor SGN 26-24 / SC 23-16 signed / FW 15-0 (was SC 23-18, FW 17-13), exact 31-digit arithmetic, scaling, rounding, BO keeping signed low digits, IVO on bad digits/signs and the scaling-difference restriction, DR on FW=0; 374 manual-derived vectors (RetroCore `0bad65b87`) | shared-file item 24 | open |
+| 2026-09-18 | `63ea9b4` | FREEB takes the element's address (LADDR), not the word at it; register/constant element is IOS | shared-file item 25 | open |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
