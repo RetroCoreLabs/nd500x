@@ -91,6 +91,25 @@ OPERATION_WRITES = {
     'lind': ('K', 'Operation: "... then 1->K illegal index trap condition else 0->K"'),
 }
 
+# Where the B30 microcode, decoded and verified, contradicts the manual's list
+# for one data type. Ronny's standing ruling: verified microcode wins over the
+# manual. Value: {data type: (flags kept, evidence)}.
+MICROCODE_KEEPS = {
+    'getbf': {'W': (set(DATA_FLAGS),
+                    'microcode: WORD GETBF ends GETBFW 000506 -> BFW_END 003431 -> 003436 '
+                    '(ST,LOAD + G,OOPS) with no ST,SAVA, so Z/S/C/O are unchanged '
+                    '(nd500x fdd6d78, raw decode with the microword CpuND5000)')},
+}
+
+# Instructions where the microword CpuND5000 sweep contradicts the manual's list
+# and nobody has yet traced the microcode to settle it. No twin until then.
+OPEN_ADJUDICATION = {
+    'ixi': 'OPEN: ND5000 microcode sweep 2026-09-18 - 48 IXI flag-preset twins (opcodes 0xFCC8, '
+           '0xFCCC, 0xFCD0) end with the preset O still set, where the manual lists '
+           '"overflow -> O". The IXI_SPEC path ends in IXISPEC_5 with ST,ACCA ("save and '
+           'accumulate": O is ORed on) after an ST,SAVA; needs a per-microword trace',
+}
+
 # Instructions that move the whole status register: no twin can be right
 # without modelling the transfer itself.
 WHOLE_STATUS = {
@@ -209,7 +228,7 @@ def main():
             reads = 'conditional instruction: its action depends on status bits it tests'
         if lines is None:
             entries.append((mnemonic, os.path.basename(path), False, reads, set(), set(), set(),
-                            [], 'manual gives no Data status bits list'))
+                            {}, [], 'manual gives no Data status bits list'))
             continue
         ai, af, said_unaffected, notes, unmapped = read_entry(mnemonic, lines)
         kept = set(DATA_FLAGS) if said_unaffected else {'K'}   # K: not a data status bit
@@ -221,12 +240,20 @@ def main():
             af.add(flag)
             kept.discard(flag)
             notes.append('%s also changed per %s' % (flag, quote))
+        per_type = {}
+        for dtype, (flags, evidence) in MICROCODE_KEEPS.get(mnemonic, {}).items():
+            per_type[dtype] = flags
+            notes.append('%s keeps %s per %s' % (dtype, ' '.join(sorted(flags)), evidence))
         mapped = not unmapped
         if mnemonic in WHOLE_STATUS:
             mapped = False
             notes.append('no twin: ' + WHOLE_STATUS[mnemonic])
+        if mnemonic in OPEN_ADJUDICATION:
+            mapped = False
+            notes.append('no twin: ' + OPEN_ADJUDICATION[mnemonic])
         note = '; '.join(notes + ['unresolved: "%s"' % u for u in unmapped])
-        entries.append((mnemonic, os.path.basename(path), mapped, reads, ai, af, kept, lines, note))
+        entries.append((mnemonic, os.path.basename(path), mapped, reads, ai, af, kept, per_type,
+                        lines, note))
 
     out = []
     w = out.append
@@ -277,13 +304,15 @@ def main():
     w('            public uint AffectedInteger;')
     w('            public uint AffectedFloat;')
     w('            public uint Unaffected;')
+    w('            /// <summary>Per data type, where verified microcode overrides Unaffected.</summary>')
+    w('            public Dictionary<string, uint> UnaffectedByDataType;')
     w('            public string[] ManualLines;')
     w('            public string Note;')
     w('        }')
     w('')
     w('        public static readonly Dictionary<string, Entry> ByMnemonic = new Dictionary<string, Entry>')
     w('        {')
-    for mn, yf, mapped, reads, ai, af, kept, lines, note in entries:
+    for mn, yf, mapped, reads, ai, af, kept, per_type, lines, note in entries:
         w('            [%s] = new Entry' % cs_string(mn))
         w('            {')
         w('                Mnemonic = %s,' % cs_string(mn))
@@ -293,6 +322,9 @@ def main():
         w('                AffectedInteger = %s,' % mask(ai))
         w('                AffectedFloat = %s,' % mask(af))
         w('                Unaffected = %s,' % mask(kept))
+        if per_type:
+            w('                UnaffectedByDataType = new Dictionary<string, uint> { %s },' %
+              ', '.join('[%s] = %s' % (cs_string(t), mask(f)) for t, f in sorted(per_type.items())))
         w('                ManualLines = new string[] { %s },' % ', '.join(cs_string(l) for l in lines))
         w('                Note = %s,' % cs_string(note))
         w('            },')
@@ -312,7 +344,7 @@ def main():
           % (n_kept, n_twin - n_kept))
     for e in entries:
         if not e[2]:
-            print('  unmapped %-10s %s' % (e[0], e[8][:110]))
+            print('  unmapped %-10s %s' % (e[0], e[9][:110]))
 
 
 if __name__ == '__main__':
