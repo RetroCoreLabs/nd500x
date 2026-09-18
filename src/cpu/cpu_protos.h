@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CPU_PROTOS_H
+#define CPU_PROTOS_H
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -589,3 +590,5 @@ uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr);
 void nd500_write_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr, uint16_t data);
 
 
+
+#endif /* CPU_PROTOS_H */

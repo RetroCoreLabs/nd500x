@@ -33,7 +33,8 @@
  * Set ND500X_NOTLB=1 to disable it entirely and go back to walking every
  * access. Behaviour must be identical either way; that is the standing test.
  */
-#pragma once
+#ifndef ND500_TLB_H
+#define ND500_TLB_H
 #include <stdint.h>
 
 /* One bit per 2KB physical page. 65536 pages = 128MB of physical address
@@ -87,3 +88,5 @@ static inline void nd500_tlb_on_phys_write(uint32_t phys) {
         (g_nd500_xlat_bm[pg >> 3] & (uint8_t)(1u << (pg & 7))))
         nd500_mmu_tlb_flush();
 }
+
+#endif /* ND500_TLB_H */

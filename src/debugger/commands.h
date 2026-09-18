@@ -3,7 +3,8 @@
  * Provides unified command interface for both native CLI and WASM web console
  */
 
-#pragma once
+#ifndef COMMANDS_H
+#define COMMANDS_H
 
 #include <stdint.h>
 #include "../machine/machine_types.h"
@@ -56,3 +57,5 @@ const char** nd500_cmd_get_subcommands(const char* command);
  * @return             0 on success, -1 on error
  */
 int nd500_execute_init_script(Nd500Machine* m, const char* script_path);
+
+#endif /* COMMANDS_H */

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MACHINE_TYPES_H
+#define MACHINE_TYPES_H
 #include <stdint.h>
 
 struct Nd500Cpu; /* forward */
@@ -59,3 +60,5 @@ typedef struct Nd500Machine {
 const char* nd500_stop_reason_str(StopReason reason);
 
 
+
+#endif /* MACHINE_TYPES_H */

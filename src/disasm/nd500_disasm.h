@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ND500_DISASM_H
+#define ND500_DISASM_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -77,3 +78,5 @@ int32_t nd500_get_operand_displacement(const struct Nd500OperandDecoded* op);
  */
 size_t nd500_format_instruction(char* buf, size_t cap, const Nd500FetchedInstruction* fi);
 
+
+#endif /* ND500_DISASM_H */

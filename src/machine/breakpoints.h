@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BREAKPOINTS_H
+#define BREAKPOINTS_H
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -93,3 +94,5 @@ int wp_check_registers(BreakpointManager* mgr, const uint32_t regs[WP_REG_INDEX_
 /* Map a register name (PC, I1-I4, L, B, R) to its watch index, -1 if not watchable */
 int wp_register_index_for_name(const char* name);
 
+
+#endif /* BREAKPOINTS_H */

@@ -3,7 +3,8 @@
  * Pre-generated and committed as source file
  */
 
-#pragma once
+#ifndef ND500_INSTRUCTIONS_H
+#define ND500_INSTRUCTIONS_H
 #include <stdint.h>
 
 typedef struct {
@@ -27,3 +28,5 @@ typedef void (*InstrExecFunc)(Nd500Cpu*, const Nd500FetchedInstruction*);
 
 /* Dispatch table: 65536 entries indexed by opcode (sparse, mostly NULL) */
 extern InstrExecFunc g_instr_exec_table[65536];
+
+#endif /* ND500_INSTRUCTIONS_H */

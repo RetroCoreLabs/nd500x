@@ -20,7 +20,8 @@
  * The trailing length is what makes backspacing possible: stepping back reads
  * the four bytes before the current position to learn the record's span.
  */
-#pragma once
+#ifndef ND500_TAPE_H
+#define ND500_TAPE_H
 #include <stdint.h>
 #include <stdio.h>
 
@@ -65,3 +66,5 @@ void nd500_tape_rewind(Nd500Tape* t);
  *  which is what a real drive does. */
 int nd500_tape_read(Nd500Tape* t, uint8_t* buf, uint32_t max,
                     uint32_t* actual, uint32_t* reclen, int* is_mark, int* err_flag);
+
+#endif /* ND500_TAPE_H */

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ND500_MMU_H
+#define ND500_MMU_H
 #include <stdint.h>
 
 /*
@@ -317,3 +318,5 @@ void  nd500_mmu_state_restore(void* blob);
  * run cannot leak into - or over - its caller. */
 void* nd500_segment_alloc_state_save(void* machine_ptr);
 void  nd500_segment_alloc_state_restore(void* blob);
+
+#endif /* ND500_MMU_H */

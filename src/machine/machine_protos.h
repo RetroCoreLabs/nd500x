@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MACHINE_PROTOS_H
+#define MACHINE_PROTOS_H
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -157,3 +158,5 @@ int nd500_dbg_get_mmu_log_level(void);
 const char* nd500_dbg_memory_map_json(Nd500Machine* m);
 const char* nd500_dbg_memory_map_for_domain_json(Nd500Machine* m, int domain);
 
+
+#endif /* MACHINE_PROTOS_H */

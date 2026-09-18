@@ -1,4 +1,5 @@
-#pragma once
+#ifndef DEBUGGER_H
+#define DEBUGGER_H
 #include <stdint.h>
 #include "../machine/machine_types.h"
 
@@ -47,3 +48,5 @@ void nd500_debugger_register_domain(uint8_t domain_num, const char* name,
                                     uint32_t tha, int seg_count);
 
 
+
+#endif /* DEBUGGER_H */

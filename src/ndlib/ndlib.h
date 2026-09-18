@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NDLIB_H
+#define NDLIB_H
 #include <stdint.h>
 #include <stdio.h>
 #include "../machine/machine_types.h"
@@ -165,3 +166,5 @@ int ndlib_dom_load_to_machine(
 /* Simple printf-based log callback for command line use */
 void ndlib_dom_log_printf(void* ctx, const char* fmt, ...);
 
+
+#endif /* NDLIB_H */

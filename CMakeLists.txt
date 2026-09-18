@@ -46,6 +46,7 @@ endif()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)          # gnu11: never rely on the compiler default (gcc 14+ is gnu23)
 
 # Make the project version visible to the code. The F12 menu shows it next to
 # the build date and time, so "which binary am I actually running?" has an
