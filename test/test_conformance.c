@@ -1233,7 +1233,7 @@ static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value) {
     else if (strcmp(name, "l") == 0) cpu->L = value;
     else if (strcmp(name, "b") == 0) cpu->B = value;
     else if (strcmp(name, "r") == 0) cpu->R = value;
-    else if (strcmp(name, "p") == 0) cpu->L = value;  /* P = frame pointer = L */
+    else if (strcmp(name, "p") == 0) cpu->PC = value;  /* P is the program counter (manual 2.1) */
     else if (strcmp(name, "tos") == 0) cpu->TOS = value;
     else if (strcmp(name, "ll") == 0) cpu->LL = value;
     else if (strcmp(name, "hl") == 0) cpu->HL = value;
@@ -1243,6 +1243,12 @@ static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value) {
     else if (strcmp(name, "ps") == 0) cpu->PS = value;
     else if (strcmp(name, "ote1") == 0) cpu->OTE1 = value;
     else if (strcmp(name, "ote2") == 0) cpu->OTE2 = value;
+    else if (strcmp(name, "mte1") == 0) cpu->MTE1 = value;
+    else if (strcmp(name, "mte2") == 0) cpu->MTE2 = value;
+    else if (strcmp(name, "cte1") == 0) cpu->CTE1 = value;
+    else if (strcmp(name, "cte2") == 0) cpu->CTE2 = value;
+    else if (strcmp(name, "temm1") == 0) cpu->TEMM1 = value;
+    else if (strcmp(name, "temm2") == 0) cpu->TEMM2 = value;
     else {
         /* FATAL: Unknown register - test data has register we don't support */
         fprintf(stderr, "FATAL ERROR: Unknown register '%s' in initial state!\n", name);
@@ -1274,7 +1280,7 @@ static uint32_t get_register(Nd500Cpu* cpu, const char* name) {
     else if (strcmp(name, "l") == 0) return cpu->L;
     else if (strcmp(name, "b") == 0) return cpu->B;
     else if (strcmp(name, "r") == 0) return cpu->R;
-    else if (strcmp(name, "p") == 0) return cpu->L;
+    else if (strcmp(name, "p") == 0) return cpu->PC;
     else if (strcmp(name, "tos") == 0) return cpu->TOS;
     else if (strcmp(name, "ll") == 0) return cpu->LL;
     else if (strcmp(name, "hl") == 0) return cpu->HL;
@@ -1284,6 +1290,12 @@ static uint32_t get_register(Nd500Cpu* cpu, const char* name) {
     else if (strcmp(name, "ps") == 0) return cpu->PS;
     else if (strcmp(name, "ote1") == 0) return cpu->OTE1;
     else if (strcmp(name, "ote2") == 0) return cpu->OTE2;
+    else if (strcmp(name, "mte1") == 0) return cpu->MTE1;
+    else if (strcmp(name, "mte2") == 0) return cpu->MTE2;
+    else if (strcmp(name, "cte1") == 0) return cpu->CTE1;
+    else if (strcmp(name, "cte2") == 0) return cpu->CTE2;
+    else if (strcmp(name, "temm1") == 0) return cpu->TEMM1;
+    else if (strcmp(name, "temm2") == 0) return cpu->TEMM2;
     else {
         /* FATAL: Unknown register in expected state */
         fprintf(stderr, "FATAL ERROR: Unknown register '%s' in expected state!\n", name);
@@ -1301,7 +1313,8 @@ static int is_known_register(const char* name) {
         "pc", "st", "st2", "i1", "i2", "i3", "i4",
         "a1", "a2", "a3", "a4", "e1", "e2", "e3", "e4",
         "l", "b", "r", "p", "tos", "ll", "hl", "tha",
-        "ced", "cad", "ps", "ote1", "ote2", NULL
+        "ced", "cad", "ps", "ote1", "ote2",
+        "mte1", "mte2", "cte1", "cte2", "temm1", "temm2", NULL
     };
     for (int i = 0; known_regs[i] != NULL; i++) {
         if (strcmp(name, known_regs[i]) == 0) return 1;
