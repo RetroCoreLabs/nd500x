@@ -53,10 +53,10 @@ void nd500_instr_Scotr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Load string descriptors */
     Nd500StringDescriptor source1_desc, source2_desc;
-    if (!nd500_load_string_descriptor(cpu, source1_desc_addr, false, true, &source1_desc)) {
+    if (!nd500_load_string_descriptor(cpu, source1_desc_addr, false, false, &source1_desc)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, source2_desc_addr, false, true, &source2_desc)) {
+    if (!nd500_load_string_descriptor(cpu, source2_desc_addr, false, false, &source2_desc)) {
         return;
     }
 

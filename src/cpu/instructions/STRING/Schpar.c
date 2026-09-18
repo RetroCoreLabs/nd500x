@@ -95,7 +95,7 @@ void nd500_instr_Schpar(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Load string descriptor */
     Nd500StringDescriptor string_desc;
-    if (!nd500_load_string_descriptor(cpu, string_desc_addr, false, true, &string_desc)) {
+    if (!nd500_load_string_descriptor(cpu, string_desc_addr, false, false, &string_desc)) {
         return;
     }
 

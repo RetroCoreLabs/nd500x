@@ -63,50 +63,79 @@ void nd500_instr_Smovn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Load string descriptors */
     Nd500StringDescriptor source_desc, dest_desc;
-    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, true, &source_desc)) {
+    if (!nd500_load_string_descriptor(cpu, source_desc_addr, false, false, &source_desc)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, true, &dest_desc)) {
+    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, false, &dest_desc)) {
         return;
     }
 
-    /* Get starting indices from I1 and I2 */
     uint32_t src_index = cpu->I[0];
     uint32_t dest_index = cpu->I[1];
 
-    /* Move exactly count elements */
-    for (uint32_t i = 0; i < count; i++) {
-        if (src_index >= source_desc.element_count ||
-            dest_index >= dest_desc.element_count) {
-            break;
+    /* outside source: K=0, outside dest: K=1; Z=0, I1 and I2 unmodified, DR
+     * trap condition (manual 14.7). */
+    if (src_index >= source_desc.element_count || dest_index >= dest_desc.element_count) {
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+        if (src_index >= source_desc.element_count) {
+            nd500_clear_flag(cpu, ND500_FLAG_K);
+        } else {
+            nd500_set_flag(cpu, ND500_FLAG_K);
         }
-
-        uint32_t src_addr = source_desc.base_address + src_index;
-        uint8_t value = nd500_read_memory_8(cpu, src_addr);
-
-        uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_write_memory_8(cpu, dest_addr, value);
-
-        src_index++;
-        dest_index++;
+        nd500_string_clear_unused_flags(cpu);
+        trap_descriptor_range(cpu, fi->address);
+        return;
     }
 
-    /* Update index registers */
+    /* Elements are of the instruction's data type; the descriptor lengths and
+     * I1/I2 count elements (manual 7.2.8). "Overlap is taken care of": when
+     * the destination starts above the source, copy from the last element
+     * down so no source element is overwritten before it is read. */
+    uint32_t n = count;
+    if (n > source_desc.element_count - src_index) n = source_desc.element_count - src_index;
+    if (n > dest_desc.element_count - dest_index) n = dest_desc.element_count - dest_index;
+
+    /* Compare start positions in bits, so BI strings (8 elements a byte) are
+     * ordered the same way as the others. */
+    uint64_t element_bits = (fi->data_type == ND500_DTYPE_BIT)
+                                ? 1u : 8u * nd500_get_element_size(fi->data_type);
+    uint64_t src_start = (uint64_t)source_desc.base_address * 8u + (uint64_t)src_index * element_bits;
+    uint64_t dest_start = (uint64_t)dest_desc.base_address * 8u + (uint64_t)dest_index * element_bits;
+    if (dest_start > src_start) {
+        for (uint32_t k = n; k > 0; k--) {
+            uint64_t v = nd500_string_read_element(cpu, &source_desc, src_index + k - 1, fi->data_type);
+            nd500_string_write_element(cpu, &dest_desc, dest_index + k - 1, v, fi->data_type);
+        }
+    } else {
+        for (uint32_t k = 0; k < n; k++) {
+            uint64_t v = nd500_string_read_element(cpu, &source_desc, src_index + k, fi->data_type);
+            nd500_string_write_element(cpu, &dest_desc, dest_index + k, v, fi->data_type);
+        }
+    }
+    src_index += n;
+    dest_index += n;
+
     cpu->I[0] = src_index;
     cpu->I[1] = dest_index;
 
-    /* Set status flags */
-    /* Z is left 0 on completion. The real B30 microcode terminator is ALU,A A,BM00 B,X1 ST,SAVA
-       (A,BM00 = 1<<0 = 1) -> Z=0; the termination REASON is carried in K (SOUR_RANGE @003117 K,ZRO ->
-       source exhausted K=0, DEST_RANGE @003122 K,ONE -> dest full K=1), never re-latching Z. The green
-       SFILL follows this; setting Z=1 diverged from the microword on every completed move. */
-    nd500_clear_flag(cpu, ND500_FLAG_Z);
-    if (dest_index >= dest_desc.element_count) {
+    /* Terminating conditions (manual 14.7):
+     *   m items moved: K=0 Z=1 - B30 SMOVNBY_F67 @007440 ALU,FZRO ST,SAVA,
+     *                  reached from the count test @007436 COND,MCNZ;
+     *   source empty:  K=0 Z=0;  dest full: K=1 Z=0 - the A,BM00 ST,SAVA words
+     *                  @007427/@007431 (SOUR_RANGE/DEST_RANGE).
+     * An earlier version left Z=0 on every completed move, reading only the
+     * A,BM00 words; the microword engine run on the corpus gives Z=1 for m
+     * moved. Which ending wins when m runs out exactly at the end of a string
+     * is not verified; this takes the manual's order, m moved first. */
+    nd500_string_clear_unused_flags(cpu);  /* S, C, O */
+    if (n == count) {
+        nd500_clear_flag(cpu, ND500_FLAG_K);
+        nd500_set_flag(cpu, ND500_FLAG_Z);
+    } else if (dest_index >= dest_desc.element_count) {
         nd500_set_flag(cpu, ND500_FLAG_K);
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
     } else {
         nd500_clear_flag(cpu, ND500_FLAG_K);
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
     }
-    nd500_clear_flag(cpu, ND500_FLAG_S);
-    nd500_clear_flag(cpu, ND500_FLAG_C);
-    nd500_clear_flag(cpu, ND500_FLAG_O);
 }

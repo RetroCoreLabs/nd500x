@@ -58,28 +58,28 @@ void nd500_instr_Sfill(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Load string descriptor */
     Nd500StringDescriptor dest_desc;
-    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, true, &dest_desc)) {
+    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, false, &dest_desc)) {
         return;
     }
 
-    /* Get fill value from target register */
-    uint32_t fill_value;
-    if (fi->target_register >= 1 && fi->target_register <= 4) {
-        fill_value = nd500_read_integer_register(cpu, fi->target_register);
-    } else {
-        fill_value = 0;
-    }
+    /* The data-type part of the register: I for integer types, A or E:A for F/D. */
+    uint64_t fill_value = nd500_read_register_by_type(cpu, fi->target_register, fi->data_type);
 
-    /* Get starting index from I2 */
     uint32_t dest_index = cpu->I[1];
 
-    /* Fill elements using proper data type handling */
+    /* outside dest: K=1, I2 unmodified, DR trap condition. */
+    if (dest_index >= dest_desc.element_count) {
+        nd500_set_flag(cpu, ND500_FLAG_K);
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+        nd500_string_clear_unused_flags(cpu);
+        trap_descriptor_range(cpu, fi->address);
+        return;
+    }
+
     while (dest_index < dest_desc.element_count) {
         nd500_string_write_element(cpu, &dest_desc, dest_index, fill_value, fi->data_type);
         dest_index++;
     }
-
-    /* Update I2 register */
     cpu->I[1] = dest_index;
 
     /* Set K flag - destination full */

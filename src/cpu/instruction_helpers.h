@@ -272,6 +272,10 @@ uint32_t nd500_read_integer_register(Nd500Cpu* cpu, uint8_t reg_num);
  */
 void nd500_write_integer_register(Nd500Cpu* cpu, uint8_t reg_num, uint32_t value);
 
+/* The data-type part of register n: I for BI/BY/H/W (masked to the type),
+ * A for F, E:A for D. */
+uint64_t nd500_read_register_by_type(Nd500Cpu* cpu, uint8_t reg_num, Nd500DataType dtype);
+
 /**
  * Read float register A1-A4 (single precision)
  * @param cpu CPU state

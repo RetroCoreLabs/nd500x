@@ -57,10 +57,10 @@ void nd500_instr_Scopa(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* operand[0]/[1] are string descriptors; operand[2] is the pad BYTE VALUE. */
     Nd500StringDescriptor desc1, desc2;
-    if (!nd500_load_string_descriptor(cpu, fi->operands[0].effective_address, false, true, &desc1)) {
+    if (!nd500_load_string_descriptor(cpu, fi->operands[0].effective_address, false, false, &desc1)) {
         return;
     }
-    if (!nd500_load_string_descriptor(cpu, fi->operands[1].effective_address, false, true, &desc2)) {
+    if (!nd500_load_string_descriptor(cpu, fi->operands[1].effective_address, false, false, &desc2)) {
         return;
     }
     uint8_t pad = (uint8_t)nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_BYTE);

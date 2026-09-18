@@ -760,6 +760,15 @@ void nd500_write_integer_register(Nd500Cpu* cpu, uint8_t reg_num, uint32_t value
     cpu->I[reg_num - 1] = value;
 }
 
+uint64_t nd500_read_register_by_type(Nd500Cpu* cpu, uint8_t reg_num, Nd500DataType dtype) {
+    switch (dtype) {
+        case ND500_DTYPE_FLOAT:      return nd500_read_float_register(cpu, reg_num);
+        case ND500_DTYPE_DOUBLEWORD: return nd500_read_double_register(cpu, reg_num);
+        default:
+            return nd500_mask_to_datatype(nd500_read_integer_register(cpu, reg_num), dtype);
+    }
+}
+
 uint32_t nd500_read_float_register(Nd500Cpu* cpu, uint8_t reg_num) {
     if (reg_num < 1 || reg_num > 4) {
         fprintf(stderr, "ND-500: Invalid float register number %u\n", reg_num);

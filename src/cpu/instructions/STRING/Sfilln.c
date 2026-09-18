@@ -25,13 +25,23 @@
  *   BYn SFILLN (byte string fill n)          Hex 0xFD98+(n-1)
  *
  * Operation:
- *   for i = 1 to <count> do
+ *   0 -> i
+ *   while not end of string and i < m do
  *     tn -> D(I2)
  *     I2 + 1 -> I2
+ *     i + 1 -> i
  *   enddo
  *
  * Description:
- *   Exactly <count> elements are filled with the register value.
+ *   The first m elements from I2, or all elements from I2 to the end of the
+ *   string if fewer, are filled with the data-type part of the register. The
+ *   elements are of the instruction's data type: I2 and the descriptor length
+ *   count elements, not bytes (manual 7.2.8).
+ *
+ * Terminating conditions (manual 14.9):
+ *   - outside dest:      K=1 Z=0, I2 unmodified, DR trap condition
+ *   - m elements filled: K=0 Z=1, I2 := next element
+ *   - dest full:         K=1 Z=0, I2 := next element
  *
  * Reference: ND-500 Reference Manual, Chapter 14.9
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/STRING/Sfilln.cs
@@ -57,42 +67,40 @@ void nd500_instr_Sfilln(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Load string descriptor */
     Nd500StringDescriptor dest_desc;
-    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, true, &dest_desc)) {
+    if (!nd500_load_string_descriptor(cpu, dest_desc_addr, false, false, &dest_desc)) {
         return;
     }
 
-    /* Get fill value from target register */
-    uint32_t fill_value;
-    if (fi->target_register >= 1 && fi->target_register <= 4) {
-        fill_value = nd500_read_integer_register(cpu, fi->target_register);
-    } else {
-        fill_value = 0;
-    }
-
-    /* Get starting index from I2 */
+    uint64_t fill_value = nd500_read_register_by_type(cpu, fi->target_register, fi->data_type);
     uint32_t dest_index = cpu->I[1];
 
-    /* Fill exactly count elements */
-    for (uint32_t i = 0; i < count; i++) {
-        if (dest_index >= dest_desc.element_count) {
-            break;
-        }
-        uint32_t dest_addr = dest_desc.base_address + dest_index;
-        nd500_write_memory_8(cpu, dest_addr, (uint8_t)(fill_value & 0xFF));
-        dest_index++;
-    }
+    /* S, C and O are data status bits the list does not name: reset (6.5.1). */
+    nd500_string_clear_unused_flags(cpu);
 
-    /* Update I2 register */
-    cpu->I[1] = dest_index;
-
-    /* Set status flags */
     if (dest_index >= dest_desc.element_count) {
         nd500_set_flag(cpu, ND500_FLAG_K);
-    } else {
-        nd500_clear_flag(cpu, ND500_FLAG_K);
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+        trap_descriptor_range(cpu, fi->address);
+        return;
     }
-    nd500_clear_flag(cpu, ND500_FLAG_Z);
-    nd500_clear_flag(cpu, ND500_FLAG_S);
-    nd500_clear_flag(cpu, ND500_FLAG_C);
-    nd500_clear_flag(cpu, ND500_FLAG_O);
+
+    uint32_t i = 0;
+    while (dest_index < dest_desc.element_count && i < count) {
+        nd500_string_write_element(cpu, &dest_desc, dest_index, fill_value, fi->data_type);
+        dest_index++;
+        i++;
+    }
+    cpu->I[1] = dest_index;
+
+    /* m filled: K=0 Z=1 (B30 SFILNBY @007101 ALU,FZRO ST,SAVA then @007102
+     * K,ZRO); dest full: K=1 Z=0 (@007074 A,BM00 ST,SAVA -> DEST_RANGE).
+     * Which of the two wins when m runs out exactly at the end of the string
+     * is not verified; this takes the manual's order, m filled first. */
+    if (i == count) {
+        nd500_clear_flag(cpu, ND500_FLAG_K);
+        nd500_set_flag(cpu, ND500_FLAG_Z);
+    } else {
+        nd500_set_flag(cpu, ND500_FLAG_K);
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+    }
 }

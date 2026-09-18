@@ -1678,6 +1678,13 @@ void trap_divide_by_zero(Nd500Cpu* cpu, uint32_t pc) {
     raise_trap(cpu, TRAP_DZ, pc, 0);
 }
 
+/* Descriptor Range (ST2 bit 25): an index outside a descriptor's element
+ * count (manual 7.2.8), including a string instruction whose index register
+ * starts outside its string (chapter 14 terminating conditions). */
+void trap_descriptor_range(Nd500Cpu* cpu, uint32_t pc) {
+    raise_trap(cpu, TRAP_DR, pc, 0);
+}
+
 void trap_floating_overflow(Nd500Cpu* cpu, uint32_t pc) {
     raise_trap(cpu, TRAP_FO, pc, 0);
 }
