@@ -45,6 +45,7 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | 2026-09-19 | `391fda5` | SREGBL/LREGBL/SCNTXT/LCNTXT mask bits: bit 16 = STS (ST1+ST2), 17-23 = PS TOS LL HL THA CED CAD, 24 MIC, 25-28 OTE CTE MTE TEMM (were one bit too high from PS up); SREGBL does not reduce the mask | shared-file item 31 | open |
 | 2026-09-19 | `e55ad84` | LCNTXT: a nonzero address is the context block itself; only address 0 means (process+1)*400B + OS base (was always added) | shared-file item 31 | open |
 | 2026-09-19 | `7ef4249` | SVERS stores the B30 version 0x00002E9A with ST,SAVA (was 0x00010000, C/O kept) | shared-file item 31 | open |
+| 2026-09-19 | `a7bc95d` | PS := privileged, keeps PS high 16 bits, takes operand low 16, no status (was: all 32 bits, Z/S, any mode) | shared-file item 31 | open |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
