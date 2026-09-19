@@ -55,8 +55,8 @@
  * twins included). See the file header for when and how to change them. */
 enum
 {
-    BASE_INSTRUCTIONS = 232,
-    BASE_OPCODES      = 478,
+    BASE_INSTRUCTIONS = 234,
+    BASE_OPCODES      = 480,
     BASE_SEED_Z       = 106,
     BASE_SEED_C       = 104,
     BASE_SEED_S       = 103,
