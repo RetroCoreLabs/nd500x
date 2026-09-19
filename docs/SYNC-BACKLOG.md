@@ -46,6 +46,7 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | 2026-09-19 | `e55ad84` | LCNTXT: a nonzero address is the context block itself; only address 0 means (process+1)*400B + OS base (was always added) | shared-file item 31 | open |
 | 2026-09-19 | `7ef4249` | SVERS stores the B30 version 0x00002E9A with ST,SAVA (was 0x00010000, C/O kept) | shared-file item 31 | open |
 | 2026-09-19 | `a7bc95d` | PS := privileged, keeps PS high 16 bits, takes operand low 16, no status (was: all 32 bits, Z/S, any mode) | shared-file item 31 | open |
+| 2026-09-19 | `34c14b7` | RPHS/WPHS status ST,SAVA on I1 (Z, S; C, O reset; was Z only) | shared-file item 31 | open |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
