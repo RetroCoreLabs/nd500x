@@ -140,6 +140,7 @@ void nd500_instr_Wphs(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     cpu->I[1] = domain_address;
     cpu->I[2] = segment_offset;
 
-    if (byte_count == 0) cpu->ST1 |=  ND500_FLAG_Z;
-    else                 cpu->ST1 &= ~ND500_FLAG_Z;
+    /* ST,SAVA on I1 (WPHS_1 @010573, @010603 "ALU,A A,X1 ST,SAVA"): Z when no bytes
+     * are left, S from I1, C and O reset. This changed only Z before. */
+    nd500_set_flags_zs(cpu, byte_count, ND500_DTYPE_WORD);
 }
