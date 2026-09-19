@@ -39,6 +39,7 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | 2026-09-18 | `63ea9b4` | FREEB takes the element's address (LADDR), not the word at it; register/constant element is IOS | shared-file item 25 | open |
 | 2026-09-18 | `4fa9f67` `5192061` `233c4cb` `ad812c8` `29f4cf4` | Found by the new manual-derived cases: CLR resets C/S/O; F INT/INTR read A (were reading I) and compute exactly; AXI 0**-n is IOV with the largest number (was IVO, 0); PSUM C is the adder carry (was set for every negative result); SMVWH Z=1 on source empty / dest full; SLOCA resets C/O | shared-file item 26 | open |
 | 2026-09-18 | `ed40151` | Special register stores/loads (CED CAD PS TOS THA OTE MTE CTE TEMM P =:, A1..A4 :=/=:) reset C and O; P=: stores the address of the P=: instruction | shared-file item 27 | open |
+| 2026-09-19 | `14a9000` | F/D ADD SUB MUL DIV MULAD (all operand forms) exact with manual 7.2.7 rounding (were host IEEE); FO stores the largest value, FU a signed zero; exponent-0 divisor is DZ; MULAD two rounded steps; F COMP and F/D COMP2 are float compares (COMPF/COMP2F/COMP2D): Z/S from the exact difference, C=0, FU/FO cleared | shared-file item 28 | open |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
