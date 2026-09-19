@@ -43,6 +43,7 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | 2026-09-19 | `2128f1f` | F SIN COS TAN ASIN ACOS ATAN ATAN2 EXP ALOG ALOG2 ALOG10 computed as the B30 microcode does (was host maths); SQRT exactly rounded; IVO exits per microcode; trap_invalid_operation sets the IVO status bit | shared-file item 29 | open |
 | 2026-09-19 | `74160d6` | W WDUS is 0xFEE0..3 (was the H opcodes); PHYLADR ST,SAVA (Z,S; C,O reset) and IOS on a register operand; RWIP/RPGU reset S,C,O; RetroCore assembler encoded every RDUS as BI and WDUS H/W as BY | shared-file item 30 | open |
 | 2026-09-19 | `391fda5` | SREGBL/LREGBL/SCNTXT/LCNTXT mask bits: bit 16 = STS (ST1+ST2), 17-23 = PS TOS LL HL THA CED CAD, 24 MIC, 25-28 OTE CTE MTE TEMM (were one bit too high from PS up); SREGBL does not reduce the mask | shared-file item 31 | open |
+| 2026-09-19 | `e55ad84` | LCNTXT: a nonzero address is the context block itself; only address 0 means (process+1)*400B + OS base (was always added) | shared-file item 31 | open |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
