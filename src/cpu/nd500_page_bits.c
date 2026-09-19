@@ -242,6 +242,16 @@ void nd500_page_bits_clear_bit(Nd500Machine* m, Nd500PageTable table, uint32_t p
     pb->word[table][page >> 5] &= ~(1u << (page & 31u));
 }
 
+void nd500_page_bits_set_bit(Nd500Machine* m, Nd500PageTable table, uint32_t page) {
+    PageBits* pb = pb_get(m);
+    if (!pb) return;
+
+    page &= PAGE_NO_MASK;
+    if (page >= pb->page_count) return;
+
+    pb->word[table][page >> 5] |= 1u << (page & 31u);
+}
+
 void nd500_page_bits_clear_all(Nd500Machine* m, Nd500PageTable table) {
     PageBits* pb = pb_get(m);
     if (!pb) return;

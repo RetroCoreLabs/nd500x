@@ -114,10 +114,7 @@ void nd500_instr_Rpgu(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     nd500_write_integer_register(cpu, fi->target_register, result);
 
-    /* Data status: bit or bit group = 0 -> Z */
-    if (result == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;
-    } else {
-        cpu->ST1 &= ~(uint32_t)ND500_FLAG_Z;
-    }
+    /* "bit or bit group = 0 -> Z"; S, C and O are not named, so they
+     * are reset (6.5.1). This changed only Z before. */
+    nd500_set_flags_zs(cpu, result != 0 ? 1u : 0u, ND500_DTYPE_WORD);
 }

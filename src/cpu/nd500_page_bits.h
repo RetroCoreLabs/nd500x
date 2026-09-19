@@ -76,6 +76,10 @@ void nd500_page_bits_clear_bit(struct Nd500Machine* m, Nd500PageTable table, uin
 /* Clear the whole table. */
 void nd500_page_bits_clear_all(struct Nd500Machine* m, Nd500PageTable table);
 
+/* Set one bit (a page number, low 25 bits significant). For test setup: the
+ * hardware sets bits only through accesses (nd500_page_bits_mark). */
+void nd500_page_bits_set_bit(struct Nd500Machine* m, Nd500PageTable table, uint32_t page);
+
 /* Release the bitmaps (does not touch guest RAM). Called when a machine is
  * destroyed or its memory re-sized; they rebuild lazily from memory_size. */
 void nd500_page_bits_reset(struct Nd500Machine* m);

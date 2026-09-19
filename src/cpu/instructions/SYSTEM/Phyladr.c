@@ -34,7 +34,11 @@
  *
  * Trap conditions: Addressing traps
  *
- * Data status bits: Z (physical address = 0)
+ * Data status bits: the manual names none. The B30 microcode (PHYLADR
+ *   @001026 -> @004573) saves the status with ST,SAVA on the result: Z and S
+ *   from the physical address, C and O reset. A register operand goes to
+ *   ILL_OP_SPEC (the SAVC1 test at PHLADR_1 @004561): illegal operand
+ *   specifier.
  *
  * Reference: ND-500 Reference Manual, Chapter 16.37
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Phyladr.cs
@@ -56,8 +60,16 @@ void nd500_instr_Phyladr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
+    /* A register or constant has no address (PHLADR_1 @004561 -> ILL_OP_SPEC). */
+    const Nd500OperandDecoded* op = &fi->operands[0];
+    if (op->mode == ND500_ADDR_REGISTER || op->mode == ND500_ADDR_CONSTANT ||
+        op->mode == ND500_ADDR_CONSTANT_SHORT) {
+        trap_illegal_operand(cpu, fi->address);
+        return;
+    }
+
     /* Get logical (virtual) address of operand (like C# line 48) */
-    uint32_t logical_address = fi->operands[0].effective_address;
+    uint32_t logical_address = op->effective_address;
 
     /* Translate virtual to physical address using MMU (like C# line 52) */
     /* nd500_mmu_translate handles both MMU-enabled and MMU-disabled cases */
@@ -76,10 +88,7 @@ void nd500_instr_Phyladr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Load physical address into target register (like C# line 55) */
     nd500_write_integer_register(cpu, fi->target_register, physical_address);
 
-    /* Set Z flag if physical address is zero (like C# line 58) */
-    if (physical_address == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;
-    }
+    /* ST,SAVA @004573: Z and S from the result, C and O reset. This set only
+     * Z before, following the C# port. */
+    nd500_set_flags_zs(cpu, physical_address, ND500_DTYPE_WORD);
 }

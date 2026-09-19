@@ -13,6 +13,7 @@
 #include "conformance_corpus.h"
 #include "../src/cpu/cpu_protos.h"
 #include "../src/cpu/nd500_mmu.h"   /* For program/data space capability setup */
+#include "../src/cpu/nd500_page_bits.h"   /* PGU/WIP tables: "pgu"/"wip" state fields */
 #include "../src/machine/machine_protos.h"
 
 /*
@@ -120,7 +121,7 @@ static int is_known_test_field(const char* name) {
  */
 static int is_known_state_field(const char* name) {
     static const char* known_fields[] = {
-        "regs", "ram", "nd100_memory", "program_ram", NULL
+        "regs", "ram", "nd100_memory", "program_ram", "pgu", "wip", NULL
     };
     for (int i = 0; known_fields[i] != NULL; i++) {
         if (strcmp(name, known_fields[i]) == 0) return 1;
@@ -239,6 +240,8 @@ static uint32_t get_register(Nd500Cpu* cpu, const char* name);
 static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_details);
 static int validate_memory(Nd500Machine* m, cJSON* final_ram, int print_details);
 static int validate_nd100_memory(Nd500Cpu* cpu, Nd500Machine* m, cJSON* final_nd100, int print_details);
+static void load_page_bits(Nd500Machine* m, cJSON* initial);
+static int validate_page_bits(Nd500Machine* m, cJSON* final, int print_details);
 static void analyze_test_coverage(cJSON* test, int verbose);
 
 /**
@@ -932,6 +935,10 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
      * raw 64-bit mask so a case can pin the exact bit. */
     uint64_t actual_trap_bits = 0;
 
+    /* PGU/WIP tables, when the case gives them: set after all other setup,
+     * because loading code and RAM marks pages as a side effect. */
+    load_page_bits(m, initial);
+
     /* Save initial ST1 to detect newly-set trap flags */
     uint32_t initial_st1 = cpu->ST1;
 
@@ -1089,6 +1096,9 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
         nd100_result = validate_nd100_memory(cpu, m, final_nd100, 0);
     }
 
+    /* 9b. Validate the PGU/WIP bits the case names */
+    nd100_result += validate_page_bits(m, final, 0);
+
     /* 10. Check if this is a negative test (expected to fail) */
     cJSON* is_negative = cJSON_GetObjectItem(test, "isNegativeTest");
     int negative_test = is_negative && cJSON_IsTrue(is_negative);
@@ -1191,6 +1201,7 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
             if (final_regs) validate_registers(cpu, final_regs, 1);
             if (final_ram && cJSON_IsArray(final_ram)) validate_memory(m, final_ram, 1);
             if (final_nd100 && cJSON_IsArray(final_nd100)) validate_nd100_memory(cpu, m, final_nd100, 1);
+            validate_page_bits(m, final, 1);
 
             /* Show actual final state for debugging */
             printf("  Actual final state: PC=0x%08X I1=0x%08X ST1=0x%08X\n",
@@ -1531,6 +1542,55 @@ static int validate_nd100_memory(Nd500Cpu* cpu, Nd500Machine* m, cJSON* final_nd
                        nd100_addr, phys_addr, expected, actual);
             }
             failures++;
+        }
+    }
+    return failures;
+}
+
+/*
+ * "pgu" and "wip": [[page, bit], ...] in the initial and final state. The
+ * tables are cleared and the listed bits set before the instruction runs; after
+ * it, only the listed pages are checked, because instruction fetch and data
+ * accesses mark pages as well, and a case should not have to pin those.
+ */
+static void load_page_bits(Nd500Machine* m, cJSON* initial) {
+    static const struct { const char* name; Nd500PageTable table; } k_tables[] = {
+        { "pgu", ND500_PAGE_TABLE_PGU }, { "wip", ND500_PAGE_TABLE_WIP },
+    };
+    for (size_t t = 0; t < sizeof k_tables / sizeof k_tables[0]; t++) {
+        cJSON* list = cJSON_GetObjectItem(initial, k_tables[t].name);
+        if (!list || !cJSON_IsArray(list)) continue;
+        nd500_page_bits_clear_all(m, k_tables[t].table);
+        cJSON* e;
+        cJSON_ArrayForEach(e, list) {
+            if (!cJSON_IsArray(e) || cJSON_GetArraySize(e) < 2) continue;
+            if (cJSON_GetArrayItem(e, 1)->valueint) {
+                nd500_page_bits_set_bit(m, k_tables[t].table, (uint32_t)cJSON_GetArrayItem(e, 0)->valuedouble);
+            }
+        }
+    }
+}
+
+static int validate_page_bits(Nd500Machine* m, cJSON* final, int print_details) {
+    static const struct { const char* name; Nd500PageTable table; } k_tables[] = {
+        { "pgu", ND500_PAGE_TABLE_PGU }, { "wip", ND500_PAGE_TABLE_WIP },
+    };
+    int failures = 0;
+    for (size_t t = 0; t < sizeof k_tables / sizeof k_tables[0]; t++) {
+        cJSON* list = cJSON_GetObjectItem(final, k_tables[t].name);
+        if (!list || !cJSON_IsArray(list)) continue;
+        cJSON* e;
+        cJSON_ArrayForEach(e, list) {
+            if (!cJSON_IsArray(e) || cJSON_GetArraySize(e) < 2) continue;
+            uint32_t page = (uint32_t)cJSON_GetArrayItem(e, 0)->valuedouble;
+            uint32_t want = (uint32_t)cJSON_GetArrayItem(e, 1)->valueint;
+            uint32_t got = nd500_page_bits_read_bit(m, k_tables[t].table, page);
+            if (got != want) {
+                failures++;
+                if (print_details) {
+                    printf("  %s bit of page %u: expected %u, got %u\n", k_tables[t].name, page, want, got);
+                }
+            }
         }
     }
     return failures;
