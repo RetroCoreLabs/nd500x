@@ -11,6 +11,7 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_math.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -76,8 +77,13 @@ void nd500_instr_Atan2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (nd500_trap_occurred() || cpu->instr_aborted) {
             return;
         }
-        y = (double)nd500_float_to_ieee754(y_bits);
-        x = (double)nd500_float_to_ieee754(x_bits);
+        /* Single precision is computed the way the B30 microcode computes it
+         * (float_math.h: same constants, reduction, polynomial and order of
+         * AAP operations), not with the host maths library. */
+        unsigned exc = 0;
+        uint32_t r = nd500_fm_atan2(y_bits, x_bits, &exc);
+        nd500_fm_store(cpu, fi->address, reg_num, r, exc);
+        return;
     }
 
     /* Check for invalid operation (both x=0 and y=0) */

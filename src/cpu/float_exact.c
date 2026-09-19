@@ -170,3 +170,46 @@ uint64_t nd500_fx_div(uint64_t a, uint64_t b, bool is_double, unsigned* exc) {
     bool sticky = (num % sb) != 0;
     return nd500_fx_round(na != nb, q, xa - xb - k, sticky, is_double, exc);
 }
+
+static u128 isqrt128(u128 n, bool* exact) {
+    /* Bit-by-bit integer square root: the largest r with r*r <= n. */
+    u128 r = 0;
+    u128 bit = ((u128)1) << 126;
+    while (bit > n) {
+        bit >>= 2;
+    }
+    while (bit != 0) {
+        if (n >= r + bit) {
+            n -= r + bit;
+            r = (r >> 1) + bit;
+        } else {
+            r >>= 1;
+        }
+        bit >>= 2;
+    }
+    *exact = (n == 0);
+    return r;
+}
+
+uint64_t nd500_fx_sqrt(uint64_t a, bool is_double, unsigned* exc) {
+    bool neg;
+    uint64_t sa;
+    int xa;
+    nd500_fx_decode(a, is_double, &neg, &sa, &xa);
+    if (sa == 0) {
+        return 0;
+    }
+    if (neg) {
+        *exc |= ND500_FX_IVO;
+        return 0;
+    }
+    /* value = sa * 2**xa. Scale sa up by an even-adjusted k so the root has
+     * at least keep + 2 bits; the remainder of the root is the rest of St. */
+    int k = mantissa_bits(is_double) + 6;
+    if ((xa - k) & 1) {
+        k++;
+    }
+    bool exact;
+    u128 r = isqrt128(((u128)sa) << k, &exact);
+    return nd500_fx_round(false, r, (xa - k) / 2, !exact, is_double, exc);
+}

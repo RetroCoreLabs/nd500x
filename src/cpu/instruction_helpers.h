@@ -340,6 +340,7 @@ void nd500_write_double_register(Nd500Cpu* cpu, uint8_t reg_num, uint64_t value)
 #define ND500_FLAG_S   (1u << 7)   // Sign flag
 #define ND500_FLAG_K   (1u << 8)   // Destination full flag
 #define ND500_FLAG_O   (1u << 9)   // Overflow flag
+#define ND500_FLAG_IVO (1u << 11)  // Invalid operation flag
 #define ND500_FLAG_DZ  (1u << 12)  // Divide by zero flag
 #define ND500_FLAG_FU  (1u << 13)  // Floating underflow flag
 #define ND500_FLAG_FO  (1u << 14)  // Floating overflow flag
@@ -416,6 +417,14 @@ void nd500_float_status(Nd500Cpu* cpu, uint32_t pc, uint64_t bits, unsigned exc,
  * raises no floating trap.
  */
 void nd500_float_compare_status(Nd500Cpu* cpu, uint64_t r, unsigned exc, bool is_double);
+
+/*
+ * Store an F mathematical function result (float_math.h) in register Fn:
+ * Z (from the bit pattern) and S from the result, C and O cleared (ST,SAVF in FWRITE_AAP), and the
+ * invalid operation trap when exc has ND500_FX_IVO (the microcode's
+ * IVOZRO/IVOMIN/IVOMAX exits all go through SET_IVO).
+ */
+void nd500_fm_store(Nd500Cpu* cpu, uint32_t pc, uint8_t reg_num, uint32_t r, unsigned exc);
 
 /* A float (32-bit) or double (64-bit) operand as raw bits. */
 uint64_t nd500_read_float_operand(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double);

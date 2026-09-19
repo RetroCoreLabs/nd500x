@@ -6,7 +6,7 @@
  *
  * See LICENSE in the repository root for the full text.
  *
- * The vectors in float_exact_vectors.h come from tools/gen_float_exact_vectors.py,
+ * Add, subtract, multiply, divide and square root. The vectors in float_exact_vectors.h come from tools/gen_float_exact_vectors.py,
  * which computes each result with exact rational arithmetic and rounds it by
  * ND-05.009.4 7.2.7, with the overflow and underflow results of 6.5.1.
  */
@@ -28,6 +28,7 @@ int main(void)
             case '+': r = nd500_fx_add(k_vectors[i].a, k_vectors[i].b, dbl, &exc); break;
             case '-': r = nd500_fx_sub(k_vectors[i].a, k_vectors[i].b, dbl, &exc); break;
             case '*': r = nd500_fx_mul(k_vectors[i].a, k_vectors[i].b, dbl, &exc); break;
+            case 'r': r = nd500_fx_sqrt(k_vectors[i].a, dbl, &exc); break;
             default:  r = nd500_fx_div(k_vectors[i].a, k_vectors[i].b, dbl, &exc); break;
         }
         if (r != k_vectors[i].r || exc != k_vectors[i].exc) {

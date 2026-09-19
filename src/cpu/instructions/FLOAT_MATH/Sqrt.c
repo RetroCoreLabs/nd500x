@@ -11,8 +11,8 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include <stdio.h>
-#include <math.h>
 
 /**
  * Sqrt instruction - FLOAT_MATH class
@@ -47,81 +47,31 @@ void nd500_instr_Sqrt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    double argument = 0.0;
-    double result = 0.0;
-    uint64_t result_bits = 0;
-
-    /* Read argument operand */
-    if (is_double) {
-        uint64_t arg_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
-        /* A faulting operand read must abort the instruction: commit nothing,
-         * and raise no second trap on top of the fault the kernel is already
-         * about to service. See the ADD3 guard (commit a351296) for the panic
-         * this prevents. */
-        if (nd500_trap_occurred() || cpu->instr_aborted) {
-            return;
-        }
-        argument = nd500_double_to_ieee754(arg_bits);
-    } else {
-        uint32_t arg_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
-        /* A faulting operand read must abort the instruction: commit nothing,
-         * and raise no second trap on top of the fault the kernel is already
-         * about to service. See the ADD3 guard (commit a351296) for the panic
-         * this prevents. */
-        if (nd500_trap_occurred() || cpu->instr_aborted) {
-            return;
-        }
-        argument = (double)nd500_float_to_ieee754(arg_bits);
+    uint64_t arg_bits = nd500_read_float_operand(cpu, &fi->operands[0], is_double);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
     }
 
-    /* Check for negative argument - invalid operation */
-    if (argument < 0.0) {
+    /* The root is formed exactly and rounded once (float_exact.h). SQRTF
+     * @001477 -> SQRTF_0 @020373 is a bit-by-bit ALU square root followed by
+     * one rounding step; its results on 159 positive operands, run through
+     * the ND5000 microword engine, are exactly the correctly rounded root.
+     * SQRTD_100 @020423 is the same method on 64 bits, so the double result
+     * is taken to be correctly rounded as well (inferred: the engine's double
+     * path is not reliable enough to confirm it). A negative operand goes to
+     * IVOZRO @020504: result 0 and the invalid operation trap. */
+    unsigned exc = 0;
+    uint64_t result_bits = nd500_fx_sqrt(arg_bits, is_double, &exc);
+    nd500_write_float_reg(cpu, reg_num, result_bits, is_double);
+
+    /* Z and S from the result; C and O are not named, so they are reset
+     * (6.5.1; SQRTF_1 saves status with ST,SAVA). */
+    nd500_set_flags_zs_float(cpu, result_bits, is_double);
+    if (exc & ND500_FX_IVO) {
         trap_invalid_operation(cpu, fi->address);
-        result = 0.0;
-    } else {
-        /* Calculate square root */
-        result = sqrt(argument);
     }
-
-    /* Convert result back to ND-500 format */
-    if (is_double) {
-        result_bits = nd500_double_from_ieee754(result);
-    } else {
-        result_bits = nd500_float_from_ieee754((float)result);
-    }
-
-    /* Write result to register */
-    if (is_double) {
-        nd500_write_double_register(cpu, reg_num, result_bits);
-    } else {
-        nd500_write_float_register(cpu, reg_num, (uint32_t)result_bits);
-    }
-
-    /* Set flags: Z (zero), S (sign) */
-    if (is_double) {
-        if (nd500_double_is_zero(result_bits)) {
-            nd500_set_flag(cpu, ND500_FLAG_Z);
-        } else {
-            nd500_clear_flag(cpu, ND500_FLAG_Z);
-        }
-        if (nd500_double_is_negative(result_bits)) {
-            nd500_set_flag(cpu, ND500_FLAG_S);
-        } else {
-            nd500_clear_flag(cpu, ND500_FLAG_S);
-        }
-    } else {
-        uint32_t float_bits = (uint32_t)result_bits;
-        if (nd500_float_is_zero(float_bits)) {
-            nd500_set_flag(cpu, ND500_FLAG_Z);
-        } else {
-            nd500_clear_flag(cpu, ND500_FLAG_Z);
-        }
-        if (nd500_float_is_negative(float_bits)) {
-            nd500_set_flag(cpu, ND500_FLAG_S);
-        } else {
-            nd500_clear_flag(cpu, ND500_FLAG_S);
-        }
-    }
-
-    /* O, C flags unaffected */
 }

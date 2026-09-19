@@ -1708,6 +1708,12 @@ int nd500x_traplog(void) {
 }
 
 void trap_invalid_operation(Nd500Cpu* cpu, uint32_t pc) {
+    /* IVO is a data status bit (manual 6.5.1, Table 7: Z C S O IVO DZ FU FO
+     * BO), set whenever the condition occurs; the trap is then offered like
+     * the other ignorable conditions. Nothing set the bit before, so a
+     * program testing the status after SQRT of a negative number, ALOG of
+     * zero or a bad decimal digit saw no invalid operation. */
+    cpu->ST1 |= ND500_FLAG_IVO;
     raise_trap(cpu, TRAP_IVO, pc, 0);
 }
 

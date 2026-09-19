@@ -1002,6 +1002,17 @@ void nd500_float_compare_status(Nd500Cpu* cpu, uint64_t r, unsigned exc, bool is
     }
 }
 
+void nd500_fm_store(Nd500Cpu* cpu, uint32_t pc, uint8_t reg_num, uint32_t r, unsigned exc) {
+    nd500_write_float_register(cpu, reg_num, r);
+    /* Z from the bit pattern: TAN's small-argument exit writes -0 through
+     * the ALU (ST,SAVA @026035) and the ND5000 engine gives Z=0 S=1 for it,
+     * the same rule as a store (commit 486b367). */
+    nd500_set_flags_zs(cpu, r, ND500_DTYPE_FLOAT);
+    if (exc & ND500_FX_IVO) {
+        trap_invalid_operation(cpu, pc);
+    }
+}
+
 uint64_t nd500_read_float_operand(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double) {
     if (is_double) {
         return nd500_read_operand_doubleword(cpu, operand);

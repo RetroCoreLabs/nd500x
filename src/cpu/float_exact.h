@@ -47,6 +47,12 @@ uint64_t nd500_fx_sub(uint64_t a, uint64_t b, bool is_double, unsigned* exc);   
 uint64_t nd500_fx_mul(uint64_t a, uint64_t b, bool is_double, unsigned* exc);
 uint64_t nd500_fx_div(uint64_t a, uint64_t b, bool is_double, unsigned* exc);   /* a / b */
 
+/* Square root, rounded once by 7.2.7. A negative operand (nonzero) sets
+ * ND500_FX_IVO and returns 0: SQRTF @001477 and SQRTD @001501 go to IVOZRO
+ * @020504, which zeroes the result and sets IVO. */
+#define ND500_FX_IVO 8u  /* invalid operation */
+uint64_t nd500_fx_sqrt(uint64_t a, bool is_double, unsigned* exc);
+
 /* Exact value <-> bits, for results formed outside the four operations:
  * value = (negative ? -1 : 1) * magnitude * 2**scale, rounded once. */
 uint64_t nd500_fx_round(bool negative, unsigned __int128 magnitude, int scale,
