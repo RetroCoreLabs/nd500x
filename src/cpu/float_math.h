@@ -31,16 +31,19 @@
  * an operand with exponent field 0 and a nonzero mantissa is not always
  * treated as zero; these functions follow the microcode there too.
  *
- * Division: the microcode divides F through DIV_32 (DIVFI_00 @024175), a
- * table reciprocal with integer multiplies whose final rounding is not
- * always the manual's (7.2.7), and D through DIV_64 @024400, a bit by bit
- * division that ends with a rounding step on the last quotient bit and the
- * remainder. Here both are the manual's exact division. About 1 in 100 F
- * quotients whose exact value lies just above a rounding half (fraction
- * 0.5 to 0.6 of the last place) come out one unit higher than DIV_32. A
- * floating quotient is never exactly halfway between two values, so DIV_64
- * and the exact division agree. TAN, ATAN, ATAN2, ASIN, ACOS, EXP and the
- * logarithms divide once or twice.
+ * Division: the microcode divides F through DIV_32 (DIVFI_00 @024175) and D
+ * through DIV_64 @024400. DIV_32 estimates the quotient with a table
+ * reciprocal, then forms the true remainder (dividend * 2**19 less
+ * quotient * divisor, both low 32 bit products, @024241-@024244), steps the
+ * quotient up or down until the remainder is in range (QUOT_UP @024250,
+ * QUOT_DOWN @024246) and rounds on the dropped quotient bit and that
+ * remainder (QUOT_RND @024254). DIV_64 divides bit by bit and ends in the
+ * same kind of rounding step. Both are therefore the manual's exactly
+ * rounded division (7.2.7), which is what is used here; a floating quotient
+ * is never exactly halfway between two values. On 3,000 random F operand
+ * pairs the engine gives exactly this once its two remainder products are
+ * taken as low 32 bits; TAN, ATAN, ATAN2, ASIN, ACOS, EXP and the logarithms
+ * divide once or twice.
  */
 
 #ifndef ND500_FLOAT_MATH_H
