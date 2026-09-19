@@ -33,7 +33,8 @@
  *
  * Trap conditions: Addressing traps
  *
- * Data status bits: Z (zero if version is 0), S (sign bit of version)
+ * Data status bits: "Status bit set according to version": Z and S from it,
+ *   C and O reset (ST,SAVA in SAVE_RES @012011).
  *
  * Reference: ND-500 Reference Manual, Chapter 16.35
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/SYSTEM/Svers.cs
@@ -47,25 +48,12 @@ void nd500_instr_Svers(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Define version number - implementation specific (like C# line 49) */
-    /* Version 1.0.0.0 - same as C# implementation */
-    const uint32_t VERSION_NUMBER = 0x00010000;
-
-    /* Write version number to destination operand (like C# line 52) */
+    /* The microprogram version: SVERS @001051 -> SVERS_1 @012007 calls
+     * VERSION @000001, which loads the long argument 0x00002E9A, and SAVE_RES
+     * @012011 stores it with ST,SAVA (Z and S from it, C and O reset). nd500x
+     * is checked against the B30 image, so it reports the B30 version; the
+     * C# port's 0x00010000 was made up. */
+    const uint32_t VERSION_NUMBER = 0x00002E9Au;
     nd500_write_operand_value(cpu, &fi->operands[0], VERSION_NUMBER, ND500_DTYPE_WORD);
-
-    /* Set status flags based on version (like C# lines 57-59) */
-    /* Z = 1 if version is 0 */
-    if (VERSION_NUMBER == 0) {
-        cpu->ST1 |= ND500_FLAG_Z;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_Z;
-    }
-
-    /* S = sign bit of version */
-    if (VERSION_NUMBER & 0x80000000) {
-        cpu->ST1 |= ND500_FLAG_S;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_S;
-    }
+    nd500_set_flags_zs(cpu, VERSION_NUMBER, ND500_DTYPE_WORD);
 }
