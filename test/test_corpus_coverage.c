@@ -56,15 +56,15 @@
 enum
 {
     BASE_INSTRUCTIONS = 225,
-    BASE_OPCODES      = 459,
+    BASE_OPCODES      = 465,
     BASE_SEED_Z       = 89,
-    BASE_SEED_C       = 84,
+    BASE_SEED_C       = 86,
     BASE_SEED_S       = 86,
-    BASE_SEED_O       = 76,
+    BASE_SEED_O       = 78,
     BASE_SEED_K       = 79,
     BASE_TRAP_ENABLE  = 2,
-    BASE_FLOAT_HIGH   = 3,
-    BASE_FLOAT_LOW    = 0
+    BASE_FLOAT_HIGH   = 15,
+    BASE_FLOAT_LOW    = 15
 };
 // clang-format on
 
