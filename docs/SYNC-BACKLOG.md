@@ -41,6 +41,7 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | 2026-09-18 | `ed40151` | Special register stores/loads (CED CAD PS TOS THA OTE MTE CTE TEMM P =:, A1..A4 :=/=:) reset C and O; P=: stores the address of the P=: instruction | shared-file item 27 | open |
 | 2026-09-19 | `14a9000` | F/D ADD SUB MUL DIV MULAD (all operand forms) exact with manual 7.2.7 rounding (were host IEEE); FO stores the largest value, FU a signed zero; exponent-0 divisor is DZ; MULAD two rounded steps; F COMP and F/D COMP2 are float compares (COMPF/COMP2F/COMP2D): Z/S from the exact difference, C=0, FU/FO cleared | shared-file item 28 | open |
 | 2026-09-19 | `2128f1f` | F SIN COS TAN ASIN ACOS ATAN ATAN2 EXP ALOG ALOG2 ALOG10 computed as the B30 microcode does (was host maths); SQRT exactly rounded; IVO exits per microcode; trap_invalid_operation sets the IVO status bit | shared-file item 29 | open |
+| 2026-09-19 | `74160d6` | W WDUS is 0xFEE0..3 (was the H opcodes); PHYLADR ST,SAVA (Z,S; C,O reset) and IOS on a register operand; RWIP/RPGU reset S,C,O; RetroCore assembler encoded every RDUS as BI and WDUS H/W as BY | shared-file item 30 | open |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
