@@ -419,12 +419,22 @@ void nd500_float_status(Nd500Cpu* cpu, uint32_t pc, uint64_t bits, unsigned exc,
 void nd500_float_compare_status(Nd500Cpu* cpu, uint64_t r, unsigned exc, bool is_double);
 
 /*
- * Store an F mathematical function result (float_math.h) in register Fn:
- * Z (from the bit pattern) and S from the result, C and O cleared (ST,SAVF in FWRITE_AAP), and the
+ * Store an F or D mathematical function result (float_math.h) in register Fn or Dn:
+ * Z (from the bit pattern of the high word) and S from the result, C and O cleared (ST,SAVF in
+ * FWRITE_AAP, ST,SAVA on the ALU exits), and the
  * invalid operation trap when exc has ND500_FX_IVO (the microcode's
  * IVOZRO/IVOMIN/IVOMAX exits all go through SET_IVO).
  */
-void nd500_fm_store(Nd500Cpu* cpu, uint32_t pc, uint8_t reg_num, uint32_t r, unsigned exc);
+void nd500_fm_store(Nd500Cpu* cpu, uint32_t pc, uint8_t reg_num, uint64_t r, unsigned exc, bool is_double);
+
+/*
+ * A mathematical function of one operand (SIN ... ALOG10): checks the
+ * operand count and the register, reads the F or D operand, computes fn
+ * (float_math.h) and stores the result with nd500_fm_store.
+ */
+typedef uint64_t (*Nd500FmUnary)(uint64_t x, bool is_double, unsigned* exc);
+void nd500_fm_unary(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi, const char* name,
+                    bool is_double, Nd500FmUnary fn);
 
 /*
  * Register block and context block layout for SREGBL, LREGBL, SCNTXT and

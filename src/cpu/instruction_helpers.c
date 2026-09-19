@@ -1002,15 +1002,43 @@ void nd500_float_compare_status(Nd500Cpu* cpu, uint64_t r, unsigned exc, bool is
     }
 }
 
-void nd500_fm_store(Nd500Cpu* cpu, uint32_t pc, uint8_t reg_num, uint32_t r, unsigned exc) {
-    nd500_write_float_register(cpu, reg_num, r);
-    /* Z from the bit pattern: TAN's small-argument exit writes -0 through
-     * the ALU (ST,SAVA @026035) and the ND5000 engine gives Z=0 S=1 for it,
-     * the same rule as a store (commit 486b367). */
-    nd500_set_flags_zs(cpu, r, ND500_DTYPE_FLOAT);
+void nd500_fm_store(Nd500Cpu* cpu, uint32_t pc, uint8_t reg_num, uint64_t r, unsigned exc, bool is_double) {
+    nd500_write_float_reg(cpu, reg_num, r, is_double);
+    /* Z and S from the bit pattern of the (high) word: a result the
+     * microcode writes through the ALU is saved with ST,SAVA on SC5 alone.
+     * TAN's small-argument exit writes -0 that way (@026035) and the ND5000
+     * engine gives Z=0 S=1 for it, the same rule as a store (commit 486b367). */
+    nd500_set_flags_zs(cpu, is_double ? r >> 32 : r, ND500_DTYPE_FLOAT);
     if (exc & ND500_FX_IVO) {
         trap_invalid_operation(cpu, pc);
     }
+}
+
+void nd500_fm_unary(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi, const char* name,
+                    bool is_double, Nd500FmUnary fn) {
+    if (fi->operand_count != 1) {
+        printf("[ERROR] %s expects 1 operand, got %u at PC=0x%08X\n",
+               name, fi->operand_count, fi->address);
+        trap_illegal_operand(cpu, fi->address);
+        return;
+    }
+    uint8_t reg_num = fi->target_register;
+    if (reg_num < 1 || reg_num > 4) {
+        printf("[ERROR] %s at PC=0x%08X: Invalid register %u\n", name, fi->address, reg_num);
+        trap_illegal_operand(cpu, fi->address);
+        return;
+    }
+    uint64_t arg_bits = nd500_read_float_operand(cpu, &fi->operands[0], is_double);
+    /* A faulting operand read must abort the instruction: commit nothing,
+     * and raise no second trap on top of the fault the kernel is already
+     * about to service. See the ADD3 guard (commit a351296) for the panic
+     * this prevents. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+    unsigned exc = 0;
+    uint64_t r = fn(arg_bits, is_double, &exc);
+    nd500_fm_store(cpu, fi->address, reg_num, r, exc, is_double);
 }
 
 int nd500_regblock_words(unsigned bit, int words[2]) {

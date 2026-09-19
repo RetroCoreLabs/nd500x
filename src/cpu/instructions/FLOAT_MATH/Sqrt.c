@@ -60,9 +60,12 @@ void nd500_instr_Sqrt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * @001477 -> SQRTF_0 @020373 is a bit-by-bit ALU square root followed by
      * one rounding step; its results on 159 positive operands, run through
      * the ND5000 microword engine, are exactly the correctly rounded root.
-     * SQRTD_100 @020423 is the same method on 64 bits, so the double result
-     * is taken to be correctly rounded as well (inferred: the engine's double
-     * path is not reliable enough to confirm it). A negative operand goes to
+     * SQRTD_100 @020423 is the same method on 64 bits, with the remainder in
+     * SC2:Q shifted as one 64 bit value (ND-05.022.1 6.1: Q and the F-bus
+     * shifted the same way in one microword form one 64 bit shift). With
+     * that rule the engine gives the correctly rounded double root on the
+     * same 159 operands; without it the low word of the operand never
+     * reaches the root. A negative operand goes to
      * IVOZRO @020504: result 0 and the invalid operation trap. */
     unsigned exc = 0;
     uint64_t result_bits = nd500_fx_sqrt(arg_bits, is_double, &exc);
