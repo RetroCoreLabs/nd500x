@@ -74,9 +74,14 @@ void nd500_instr_Lcntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Calculate context save area address: (process_number+1)*400B + OS_address */
-    /* Octal 400B = 256 decimal (like C# line 61) */
-    uint32_t context_address = (process_number + 1) * 256 + address;
+    /* A nonzero address is the context block itself (manual 16.27.4; B30
+     * LOADCT_13 @010777 goes straight to LOADCT_14 when the address is not
+     * zero). Only address 0 means the process's own save area, (process
+     * number + 1) * 400B plus an operating-system base that nd500x takes as 0
+     * (the microcode's GET_CNTXT reads it from a register not modelled here).
+     * This always added (process number + 1) * 256 before; NDIX passes
+     * process -1 (lcntxt CNTXMASK,r4,$-1, locore.c), so it saw no difference. */
+    uint32_t context_address = address != 0 ? address : (process_number + 1) * 256u;
 
     /* Each selected word sits at its FIXED slot word*4 in the context block,
      * not packed by mask: the kernel reads the same block through fixed CX_
