@@ -611,13 +611,12 @@ static void test_clte_temm_blocks(void) {
 }
 
 /* ===================================================================
- * LREGBL privilege tests: CTE1 (register 32, mask bit 31) must NOT be
- * loadable in non-privileged mode. Previously bit 31 escaped the privilege
- * filter and could silently overwrite CTE1.
+ * LREGBL privilege tests: CTE (mask bit 26, words 31-32 = CTE1, CTE2) must
+ * NOT be loadable in non-privileged mode (manual 16.27.2).
  * =================================================================== */
 
 /*
- * LREGBL and the CTE1 privilege filter.
+ * LREGBL and the CTE privilege filter.
  *
  * Both tests below used to hand-assemble the instruction as
  *     { 0xFF, 0xF6, 0x80, 0x00, 0x00, 0x00 }
@@ -626,24 +625,19 @@ static void test_clte_temm_blocks(void) {
  * values were BOTH zero, so LREGBL ran with mask = 0 and selected no register
  * at all. Nothing was ever loaded.
  *
- * That made the pair worthless in a way that hid itself: the non-privileged
- * test asserts CTE1 is UNCHANGED, which is trivially true when the instruction
- * does nothing, so it passed and looked like coverage. Only its privileged
- * twin could tell, and it had simply been failing.
- *
- * These now build the fetched instruction directly - the same approach
+ * These build the fetched instruction directly - the same approach
  * test_trap_conformance.c and test_solo_traps.c use - so the test is about
  * LREGBL's privilege filter rather than about operand encoding. Two register
  * operands: I1 carries the mask, I2 the base address.
  */
 extern void nd500_instr_Lregbl(Nd500Cpu*, const Nd500FetchedInstruction*);
 
-/* Register 32 is CTE1, and LREGBL reads register N from address + (N-1)*4 -
- * register 1 (P) sits at offset 0, not 4. Lregbl.c:72 and Sregbl.c:72 both use
- * that convention (the save/load pair has to agree), and Lregbl.c cites why:
- * NDIX passes address = the arg2/P slot of the ENTT frame. */
-#define LREGBL_CTE1_MASK  0x80000000u        /* bit 31 selects register 32 */
-#define LREGBL_CTE1_SLOT  ((32 - 1) * 4)     /* = 0x7C with base address 0 */
+/* The manual's mask table is numbered in octal: CTE is bit 32 octal = 26. The
+ * B30 store loop (STORERG_1 @011630) puts CTE1 at word 31 (offset 0x7C) and
+ * CTE2 at word 32; nd500_regblock_words has the whole layout. (This used mask
+ * bit 31 for CTE1, following the old one-bit-per-word numbering.) */
+#define LREGBL_CTE1_MASK  0x04000000u        /* bit 26 selects CTE (CTE1, CTE2) */
+#define LREGBL_CTE1_SLOT  (31 * 4)           /* = 0x7C with base address 0 */
 
 static void lregbl_cte1_setup(Nd500Machine *m, Nd500Cpu *cpu,
                               Nd500FetchedInstruction *fi, int privileged) {

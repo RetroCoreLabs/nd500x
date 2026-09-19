@@ -1013,6 +1013,58 @@ void nd500_fm_store(Nd500Cpu* cpu, uint32_t pc, uint8_t reg_num, uint32_t r, uns
     }
 }
 
+int nd500_regblock_words(unsigned bit, int words[2]) {
+    if (bit <= 15) {
+        words[0] = (int)bit;
+        return 1;
+    }
+    if (bit == 16) {                     /* STS: ST1 then ST2 */
+        words[0] = 16;
+        words[1] = 17;
+        return 2;
+    }
+    if (bit <= 23) {                     /* PS TOS LL HL THA CED CAD */
+        words[0] = (int)bit + 1;
+        return 1;
+    }
+    if (bit <= 28) {                     /* MIC OTE CTE MTE TEMM, two words each */
+        words[0] = bit == 24 ? 27 : 29 + 2 * ((int)bit - 25);
+        words[1] = words[0] + 1;
+        return 2;
+    }
+    return 0;
+}
+
+uint32_t* nd500_regblock_register(Nd500Cpu* cpu, int word) {
+    switch (word) {
+        case 0:  return &cpu->PC;
+        case 1:  return &cpu->L;
+        case 2:  return &cpu->B;
+        case 3:  return &cpu->R;
+        case 4: case 5: case 6: case 7:     return &cpu->I[word - 4];
+        case 8: case 9: case 10: case 11:   return &cpu->A[word - 8];
+        case 12: case 13: case 14: case 15: return &cpu->E[word - 12];
+        case 16: return &cpu->ST1;
+        case 17: return &cpu->ST2;
+        case 18: return &cpu->PS;
+        case 19: return &cpu->TOS;
+        case 20: return &cpu->LL;
+        case 21: return &cpu->HL;
+        case 22: return &cpu->THA;
+        case 23: return &cpu->CED;
+        case 24: return &cpu->CAD;
+        case 29: return &cpu->OTE1;
+        case 30: return &cpu->OTE2;
+        case 31: return &cpu->CTE1;
+        case 32: return &cpu->CTE2;
+        case 33: return &cpu->MTE1;
+        case 34: return &cpu->MTE2;
+        case 35: return &cpu->TEMM1;
+        case 36: return &cpu->TEMM2;
+        default: return NULL;            /* 27, 28: MIC */
+    }
+}
+
 uint64_t nd500_read_float_operand(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double) {
     if (is_double) {
         return nd500_read_operand_doubleword(cpu, operand);

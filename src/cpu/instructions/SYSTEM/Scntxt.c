@@ -32,9 +32,13 @@
  *   When context save area is used, this is addressed by:
  *   (process number+1)*400B + an operating system defined address.
  *
- *   Register numbering (bits in mask):
- *   1=P, 2=L, 3=B, 4=R, 5-8=I1-I4, 9-12=A1-A4, 13-16=E1-E4,
- *   17-18=ST1-ST2, 19=PS, 20=TOS, 21=LL, 22=HL, 23=THA, 24-25=CED-CAD,
+ *   Register block layout (mask bit -> words at offset word*4): see
+ *   nd500_regblock_words in instruction_helpers.h. Bits 0-15 are P L B R
+ *   I1-I4 A1-A4 E1-E4, bit 16 STS (ST1, ST2), bits 17-23 PS TOS LL HL THA CED
+ *   CAD, bit 24 MIC, bits 25-28 OTE CTE MTE TEMM. An earlier version gave ST2
+ *   its own mask bit 17, so PS..CAD each answered one bit too high; the
+ *   manual's table is in octal and the B30 store loop (STORERG_1 @011630)
+ *   tests PS with BM21 and CED with BM26, i.e. bits 17 and 22.
  *   30-31=OTE1-OTE2, 32-33=CTE1-CTE2, 34-35=MTE1-MTE2, 36-37=TEMM1-TEMM2
  *
  * Trap conditions: Illegal instruction code (IIC) if not privileged
@@ -72,60 +76,19 @@ void nd500_instr_Scntxt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* For SCNTXT, address is the base address directly (like C# line 62) */
     uint32_t context_address = address;
 
-    /* Save registers based on mask bits (like C# lines 68-125) */
-    for (int reg_num = 1; reg_num <= 37; reg_num++) {
-        if ((mask & (1u << (reg_num - 1))) != 0) {
-            uint32_t reg_value = 0;
-
-            /* Map register number to actual register */
-            switch (reg_num) {
-                case 1:  reg_value = cpu->PC; break;        /* P register */
-                case 2:  reg_value = cpu->L; break;         /* L register */
-                case 3:  reg_value = cpu->B; break;         /* B register */
-                case 4:  reg_value = cpu->R; break;         /* R register */
-                case 5:  reg_value = cpu->I[0]; break;      /* I1 register */
-                case 6:  reg_value = cpu->I[1]; break;      /* I2 register */
-                case 7:  reg_value = cpu->I[2]; break;      /* I3 register */
-                case 8:  reg_value = cpu->I[3]; break;      /* I4 register */
-                case 9:  reg_value = cpu->A[0]; break;      /* A1 register */
-                case 10: reg_value = cpu->A[1]; break;      /* A2 register */
-                case 11: reg_value = cpu->A[2]; break;      /* A3 register */
-                case 12: reg_value = cpu->A[3]; break;      /* A4 register */
-                case 13: reg_value = cpu->E[0]; break;      /* E1 register */
-                case 14: reg_value = cpu->E[1]; break;      /* E2 register */
-                case 15: reg_value = cpu->E[2]; break;      /* E3 register */
-                case 16: reg_value = cpu->E[3]; break;      /* E4 register */
-                case 17: reg_value = cpu->ST1; break;       /* ST1 register */
-                case 18: reg_value = cpu->ST2; break;       /* ST2 register */
-                case 19: reg_value = cpu->PS; break;        /* PS register */
-                case 20: reg_value = cpu->TOS; break;       /* TOS register */
-                case 21: reg_value = cpu->LL; break;        /* LL register */
-                case 22: reg_value = cpu->HL; break;        /* HL register */
-                case 23: reg_value = cpu->THA; break;       /* THA register */
-                case 24: reg_value = cpu->CED; break;       /* CED register */
-                case 25: reg_value = cpu->CAD; break;       /* CAD register */
-                /* 26-29: mic1-mic4 (not in C structure) */
-                case 30: reg_value = cpu->OTE1; break;      /* OTE1 register */
-                case 31: reg_value = cpu->OTE2; break;      /* OTE2 register */
-                case 32: reg_value = cpu->CTE1; break;      /* CTE1 register */
-                case 33: reg_value = cpu->CTE2; break;      /* CTE2 register */
-                case 34: reg_value = cpu->MTE1; break;      /* MTE1 register */
-                case 35: reg_value = cpu->MTE2; break;      /* MTE2 register */
-                case 36: reg_value = cpu->TEMM1; break;     /* TEMM1 register */
-                case 37: reg_value = cpu->TEMM2; break;     /* TEMM2 register */
-                default: continue;
+    /* The context-block address is PHYSICAL: the kernel passes
+     * phyladr(_cxbtab)+ipl*256 (splx4, intvec, locore.c), so this must bypass
+     * the data MMU. Using the MMU path (nd500_write_memory_32) mis-writes the
+     * block and the saved CX_B reads back 0 -> intvec "kernel stack underflow"
+     * panic. Matches RetroCore CpuND500.ProcessControl WritePhysical32. */
+    for (unsigned bit = 0; bit < ND500_REGBLOCK_MASK_BITS; bit++) {
+        int words[2];
+        int n = (mask >> bit) & 1u ? nd500_regblock_words(bit, words) : 0;
+        for (int k = 0; k < n; k++) {
+            const uint32_t* reg = nd500_regblock_register(cpu, words[k]);
+            if (reg) {
+                nd500_bus_write32(cpu->machine, context_address + (uint32_t)words[k] * 4u, *reg);
             }
-
-            /* Write register value to context memory. The context-block address
-             * is PHYSICAL: the kernel passes phyladr(_cxbtab)+ipl*256 (splx4,
-             * intvec, locore.c), so this must bypass the data MMU. Using the
-             * MMU path (nd500_write_memory_32) mis-writes the block and the
-             * saved CX_B reads back 0 -> intvec "kernel stack underflow" panic.
-             * Matches RetroCore CpuND500.ProcessControl ReadPhysical32/WritePhysical32.
-             * Register N is at a FIXED slot (reg_num-1)*4, matching the kernel's
-             * fixed CX_ offsets and lregbl/Lcntxt (NOT consecutive mask packing). */
-            uint32_t current_address = context_address + (uint32_t)(reg_num - 1) * 4u;
-            nd500_bus_write32(cpu->machine, current_address, reg_value);
         }
     }
 

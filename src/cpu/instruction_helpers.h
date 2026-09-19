@@ -426,6 +426,23 @@ void nd500_float_compare_status(Nd500Cpu* cpu, uint64_t r, unsigned exc, bool is
  */
 void nd500_fm_store(Nd500Cpu* cpu, uint32_t pc, uint8_t reg_num, uint32_t r, unsigned exc);
 
+/*
+ * Register block and context block layout for SREGBL, LREGBL, SCNTXT and
+ * LCNTXT (ND-05.009.4 16.27, whose mask table numbers the bits in octal; B30
+ * STORERG_1 @011630 and LOADRG_1 @011366). Mask bit n selects one or two
+ * words at fixed offsets (word number * 4) from the block address:
+ *   bit 0..15   P L B R I1-I4 A1-A4 E1-E4   words 0..15
+ *   bit 16      STS: ST1 and ST2            words 16, 17
+ *   bit 17..23  PS TOS LL HL THA CED CAD    words 18..24
+ *   bit 24      MIC                         words 27, 28
+ *   bit 25..28  OTE CTE MTE TEMM            words 29-30, 31-32, 33-34, 35-36
+ * The word offsets are the microcode's: each slot advances the address by the
+ * mini-argument of its store word (STS writes two words, PS then skips one).
+ */
+#define ND500_REGBLOCK_MASK_BITS 29
+int nd500_regblock_words(unsigned bit, int words[2]);            /* 0, 1 or 2 words */
+uint32_t* nd500_regblock_register(Nd500Cpu* cpu, int word);      /* NULL: not emulated (MIC) */
+
 /* A float (32-bit) or double (64-bit) operand as raw bits. */
 uint64_t nd500_read_float_operand(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double);
 void nd500_write_float_operand(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint64_t bits, bool is_double);
