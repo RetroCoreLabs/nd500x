@@ -11,6 +11,7 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "nd500_settings.h"   /* emulator knobs, as plain fields */
@@ -65,46 +66,39 @@ void nd500_instr_Comp2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * that consumes them - e.g. the freelist size-bucket rounding at 0x0802CED9
      * (d comp2 / if = go). Compare the decoded IEEE values instead. */
     if (fi->data_type == ND500_DTYPE_FLOAT || fi->data_type == ND500_DTYPE_DOUBLEWORD) {
-        double a, b;
-        if (fi->data_type == ND500_DTYPE_DOUBLEWORD) {
-            a = nd500_double_to_ieee754(nd500_read_operand_doubleword(cpu, &fi->operands[0]));
-            b = nd500_double_to_ieee754(nd500_read_operand_doubleword(cpu, &fi->operands[1]));
+        bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
+        uint64_t a = nd500_read_float_operand(cpu, &fi->operands[0], is_double);
+        uint64_t b = nd500_read_float_operand(cpu, &fi->operands[1], is_double);
         /* A faulting operand read must abort the instruction: commit nothing,
          * and raise no second trap on top of the fault the kernel is already
          * about to service. See the ADD3 guard (commit a351296) for the panic
          * this prevents. */
         if (nd500_trap_occurred() || cpu->instr_aborted) {
-        return;
-        }
-        } else {
-            a = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT));
-            b = (double)nd500_float_to_ieee754((uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_FLOAT));
-            /* A faulting operand read must abort the instruction: commit nothing,
-             * and raise no second trap on top of the fault the kernel is already
-             * about to service. See the ADD3 guard (commit a351296) for the panic
-             * this prevents. */
-            if (nd500_trap_occurred() || cpu->instr_aborted) {
-                return;
-            }
+            return;
         }
         {   /* ND500X_FCMPDBG=1: log every float/double compare with the
-             * decoded values and operand modes.  This is what showed that
-             * libc's iszero_d() was comparing an un-negated -8.5 - the trail
-             * that led to the swapped A/E double-register halves. */
+             * operand bits and modes.  This is what showed that libc's
+             * iszero_d() was comparing an un-negated -8.5 - the trail that
+             * led to the swapped A/E double-register halves. */
             static int on = -1;
             if (on < 0) on = nd500_settings()->fcmpdbg;
             if (on) {
                 static unsigned n = 0;
                 if (n++ < 200)
-                    fprintf(stderr, "[FCMP] PC=0x%08X CED=%u a=%g (mode=%u reg=%u) b=%g (mode=%u reg=%u)\n",
-                            fi->address, cpu->CED, a, fi->operands[0].mode, fi->operands[0].reg,
-                            b, fi->operands[1].mode, fi->operands[1].reg);
+                    fprintf(stderr, "[FCMP] PC=0x%08X CED=%u a=%016llX (mode=%u reg=%u) b=%016llX (mode=%u reg=%u)\n",
+                            fi->address, cpu->CED, (unsigned long long)a, fi->operands[0].mode, fi->operands[0].reg,
+                            (unsigned long long)b, fi->operands[1].mode, fi->operands[1].reg);
             }
         }
-        /* op1 - op2: Z = equal, S = op1 < op2 (result sign), C = no borrow (op1 >= op2) */
-        if (a == b) nd500_set_flag(cpu, ND500_FLAG_Z); else nd500_clear_flag(cpu, ND500_FLAG_Z);
-        if (a <  b) nd500_set_flag(cpu, ND500_FLAG_S); else nd500_clear_flag(cpu, ND500_FLAG_S);
-        if (a >= b) nd500_set_flag(cpu, ND500_FLAG_C); else nd500_clear_flag(cpu, ND500_FLAG_C);
+        /* op1 - op2 on the AAP: COMP2F @002155 and COMP2D @002161 (AAP2,SUBBA
+         * TYP,DR). The difference is formed exactly (float_exact.h): a host
+         * double keeps 53 of the 55 double significand bits, so doubles
+         * differing only in their last two bits compared equal. Status as
+         * nd500_float_compare_status: C=0 from ST,SAVF (not op1 >= op2), FU and
+         * FO cleared. */
+        unsigned exc = 0;
+        uint64_t r = nd500_fx_sub(a, b, is_double, &exc);
+        nd500_float_compare_status(cpu, r, exc, is_double);
         return;
     }
 

@@ -11,6 +11,7 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -72,98 +73,27 @@ void nd500_instr_Comp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
         }
 
-        /* FLOAT (not double) COMPARE = INTEGER BIT-PATTERN compare. The ND-5000 dispatches F COMP
-         * to the SHARED INTEGER compare microcode (DispatchMapB30 opcode 56-59 -> entry 161, the
-         * same cell as W COMP), so the 32-bit float words are subtracted as integers - it does NOT
-         * do an IEEE numeric compare. ND float is bitpattern-monotonic over the common range, so
-         * this still yields the numeric ordering, and it is exactly what the real microcode (and
-         * RetroCore Comp.cs, which reads the float register BITS) does: result = regbits - opbits,
-         * C = regbits >= opbits (no borrow), Z = result==0, S = result bit31. DOUBLE is different
-         * (COMPD @002147 does a real AAP2,SUBBA numeric subtract) and is handled below. */
-        if (!is_double) {
-            uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
-            uint32_t op_bits  = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
-            /* A faulting operand read must abort the instruction: commit nothing,
-             * and raise no second trap on top of the fault the kernel is already
-             * about to service. See the ADD3 guard (commit a351296) for the panic
-             * this prevents. */
-            if (nd500_trap_occurred() || cpu->instr_aborted) {
-                return;
-            }
-            uint64_t fresult = (uint64_t)reg_bits - (uint64_t)op_bits;
-            bool fcarry = (reg_bits >= op_bits);
-            /* F COMP runs on the SHARED INTEGER (W-width) compare microcode (entry 161 = W COMP
-             * @000241, ST,SAVC), so the true-comparison sign is bit31 XOR 32-bit-subtract overflow,
-             * NOT raw bit31. The earlier "overflow=0 for the compare sign" was wrong: the traced real
-             * B30 microcode gives MSgn=0, MOvfl=1 -> S=1 for e.g. -1.0 vs a large +float. Adjudicated
-             * vs the microword, Ronny 2026-07-27. (Matches RetroCore Comp.cs treating F as W.) */
-            bool fa_sign = (reg_bits & 0x80000000U) != 0;
-            bool fb_sign = (op_bits  & 0x80000000U) != 0;
-            bool fr_sign = (fresult  & 0x80000000ULL) != 0;
-            bool foverflow = (fa_sign != fb_sign) && (fa_sign != fr_sign);
-            bool fsign = fr_sign ^ foverflow;
-            if ((uint32_t)fresult == 0) nd500_set_flag(cpu, ND500_FLAG_Z); else nd500_clear_flag(cpu, ND500_FLAG_Z);
-            if (fcarry) nd500_set_flag(cpu, ND500_FLAG_C); else nd500_clear_flag(cpu, ND500_FLAG_C);
-            if (fsign)  nd500_set_flag(cpu, ND500_FLAG_S); else nd500_clear_flag(cpu, ND500_FLAG_S);
-            /* O, K unaffected (mirrors Comp.cs, which writes only Z/C/S for the integer path) */
+        /* F COMP and D COMP are float subtracts: COMPF @002143 (AAP2,SUBBA TYP,F)
+         * and COMPD @002147 (AAP2,SUBBA TYP,DF). An earlier version compared F
+         * as integer bit patterns, following the reconstructed dispatch table
+         * in the ND5000 engine, which sent F COMP to the integer entry 161; the
+         * listing has the dedicated COMPF routine, and Ronny ruled on
+         * 2026-09-19 that the listing routines decide. The difference is formed
+         * exactly (float_exact.h): a host double keeps 53 of the 55 double
+         * significand bits, so doubles differing only in their last two bits
+         * compared equal. */
+        uint64_t a = nd500_read_float_reg(cpu, reg_num, is_double);
+        uint64_t b = nd500_read_float_operand(cpu, &fi->operands[0], is_double);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
             return;
         }
-
-        /* Read register and operand */
-        double reg_value = 0.0;
-        double operand_value = 0.0;
-
-        if (is_double) {
-            uint64_t reg_bits = nd500_read_double_register(cpu, reg_num);
-            reg_value = nd500_double_to_ieee754(reg_bits);
-            uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
-            /* A faulting operand read must abort the instruction: commit nothing,
-             * and raise no second trap on top of the fault the kernel is already
-             * about to service. See the ADD3 guard (commit a351296) for the panic
-             * this prevents. */
-            if (nd500_trap_occurred() || cpu->instr_aborted) {
-                return;
-            }
-            operand_value = nd500_double_to_ieee754(op_bits);
-        } else {
-            uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
-            reg_value = (double)nd500_float_to_ieee754(reg_bits);
-            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
-            /* A faulting operand read must abort the instruction: commit nothing,
-             * and raise no second trap on top of the fault the kernel is already
-             * about to service. See the ADD3 guard (commit a351296) for the panic
-             * this prevents. */
-            if (nd500_trap_occurred() || cpu->instr_aborted) {
-                return;
-            }
-            operand_value = (double)nd500_float_to_ieee754(op_bits);
-        }
-
-        /* Perform subtraction (result not stored) */
-        double result = reg_value - operand_value;
-
-        /* Update flags: Z (zero), S (sign) */
-        if (result == 0.0) {
-            nd500_set_flag(cpu, ND500_FLAG_Z);
-        } else {
-            nd500_clear_flag(cpu, ND500_FLAG_Z);
-        }
-
-        if (result < 0.0) {
-            nd500_set_flag(cpu, ND500_FLAG_S);
-        } else {
-            nd500_clear_flag(cpu, ND500_FLAG_S);
-        }
-
-        /* DOUBLE compare CLEARS C: the real COMPD @002147 saves flags via ST,SAVF, which
-         * clears carry - Ronny-adjudicated against the RetroCore microword COMPD (C=0 wins).
-         * Ported from RetroCore Emulated.HW COMPARE/Comp.cs. Scoped to double; FLOAT (COMPF)
-         * still shares the integer compare path in the RetroCore microword today, so its C is
-         * left unaffected here to keep the two engines in agreement. */
-        if (is_double) {
-            nd500_clear_flag(cpu, ND500_FLAG_C);
-        }
-        /* O flag unaffected (overflow handled by FO/FU traps) */
+        unsigned exc = 0;
+        uint64_t r = nd500_fx_sub(a, b, is_double, &exc);
+        nd500_float_compare_status(cpu, r, exc, is_double);
         return;
     }
 

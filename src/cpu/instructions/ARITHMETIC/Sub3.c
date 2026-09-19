@@ -11,6 +11,7 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include <stdio.h>
 
 /**
@@ -64,8 +65,8 @@ void nd500_instr_Sub3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * Microcode SUB3F @002241 / SUB3D: a - b -> <c>; ST,SAVF sets Z,S,FU,FO; C,O cleared (rule 4040). */
     if (fi->uses_float_registers) {
         bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
-        double aValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
-        double bValue = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+        uint64_t a = nd500_read_float_operand(cpu, &fi->operands[0], is_double);
+        uint64_t b = nd500_read_float_operand(cpu, &fi->operands[1], is_double);
         /* A faulting operand read must abort the instruction: commit nothing,
          * and raise no second trap on top of the fault the kernel is already
          * about to service. See the ADD3 guard (commit a351296) for the panic
@@ -73,9 +74,11 @@ void nd500_instr_Sub3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (nd500_trap_occurred() || cpu->instr_aborted) {
             return;
         }
-        double fresult = aValue - bValue;
-        nd500_write_operand_from_ieee_float(cpu, &fi->operands[2], fresult, is_double);
-        nd500_float_finish(cpu, fi->address, fresult, is_double);
+        /* Exact result, rounded by the manual's rule (float_exact.h). */
+        unsigned exc = 0;
+        uint64_t r = nd500_fx_sub(a, b, is_double, &exc);
+        nd500_write_float_operand(cpu, &fi->operands[2], r, is_double);
+        nd500_float_status(cpu, fi->address, r, exc, is_double);
         return;
     }
 

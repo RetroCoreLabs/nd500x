@@ -398,6 +398,33 @@ void nd500_set_flags_zs_float(Nd500Cpu* cpu, uint64_t value, bool is_double);
  */
 uint64_t nd500_float_finish(Nd500Cpu* cpu, uint32_t pc, double result, bool is_double);
 
+/*
+ * Status and traps for a floating point result from float_exact.h: Z and S
+ * from the result bits, C and O cleared (manual 6.5.1), FO and FU set or
+ * cleared from exc, and the FO or FU trap raised. Floating underflow sets Z
+ * "in all cases" (manual 6.5.1, Z bit). The caller stores the result first,
+ * because the manual stores the largest value or a signed zero on FO and FU.
+ */
+void nd500_float_status(Nd500Cpu* cpu, uint32_t pc, uint64_t bits, unsigned exc, bool is_double);
+
+/*
+ * Status for a float COMP or COMP2 from the exact difference r (float_exact.h).
+ * COMPF @002143, COMPD @002147, COMP2F @002155 and COMP2D @002161 save the
+ * AAP status with ST,SAVF (Z and S from the difference, C=0, O from floating
+ * overflow in the engine's reading of SAVF) and then load the status ANDed
+ * with NOT 0x6000, clearing FU and FO; so a compare leaves neither set and
+ * raises no floating trap.
+ */
+void nd500_float_compare_status(Nd500Cpu* cpu, uint64_t r, unsigned exc, bool is_double);
+
+/* A float (32-bit) or double (64-bit) operand as raw bits. */
+uint64_t nd500_read_float_operand(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double);
+void nd500_write_float_operand(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint64_t bits, bool is_double);
+
+/* Register n as F (An) or D (En:An), raw bits. */
+uint64_t nd500_read_float_reg(Nd500Cpu* cpu, uint8_t reg_num, bool is_double);
+void nd500_write_float_reg(Nd500Cpu* cpu, uint8_t reg_num, uint64_t bits, bool is_double);
+
 /**
  * Set Z, S, and C flags
  * @param cpu CPU state

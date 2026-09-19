@@ -11,6 +11,7 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -79,82 +80,20 @@ void nd500_instr_Subtract(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
 
         /* Read register value */
-        double reg_value = 0.0;
-        if (is_double) {
-            uint64_t reg_bits = nd500_read_double_register(cpu, reg_num);
-            reg_value = nd500_double_to_ieee754(reg_bits);
-        } else {
-            uint32_t reg_bits = nd500_read_float_register(cpu, reg_num);
-            reg_value = (double)nd500_float_to_ieee754(reg_bits);
+        uint64_t a = nd500_read_float_reg(cpu, reg_num, is_double);
+        uint64_t b = nd500_read_float_operand(cpu, &fi->operands[0], is_double);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
         }
-
-        /* Read operand value */
-        double operand_value = 0.0;
-        if (is_double) {
-            uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
-            /* A faulting operand read must abort the instruction: commit nothing,
-             * and raise no second trap on top of the fault the kernel is already
-             * about to service. See the ADD3 guard (commit a351296) for the panic
-             * this prevents. */
-            if (nd500_trap_occurred() || cpu->instr_aborted) {
-                return;
-            }
-            operand_value = nd500_double_to_ieee754(op_bits);
-        } else {
-            uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
-            /* A faulting operand read must abort the instruction: commit nothing,
-             * and raise no second trap on top of the fault the kernel is already
-             * about to service. See the ADD3 guard (commit a351296) for the panic
-             * this prevents. */
-            if (nd500_trap_occurred() || cpu->instr_aborted) {
-                return;
-            }
-            operand_value = (double)nd500_float_to_ieee754(op_bits);
-        }
-
-        /* Perform subtraction */
-        double result = reg_value - operand_value;
-
-        /* Check for overflow/underflow */
-        if (isinf(result)) {
-            trap_floating_overflow(cpu, fi->address);
-        } else if (result != 0.0 && fabs(result) < 1e-38) {
-            /* Underflow - result too small to represent */
-            trap_floating_underflow(cpu, fi->address);
-        }
-
-        /* Convert result back to ND-500 format and write to register */
-        if (is_double) {
-            uint64_t result_bits = nd500_double_from_ieee754(result);
-            nd500_write_double_register(cpu, reg_num, result_bits);
-
-            /* Update flags: Z (zero), S (sign) */
-            if (nd500_double_is_zero(result_bits)) {
-                nd500_set_flag(cpu, ND500_FLAG_Z);
-            } else {
-                nd500_clear_flag(cpu, ND500_FLAG_Z);
-            }
-            if (nd500_double_is_negative(result_bits)) {
-                nd500_set_flag(cpu, ND500_FLAG_S);
-            } else {
-                nd500_clear_flag(cpu, ND500_FLAG_S);
-            }
-        } else {
-            uint32_t result_bits = nd500_float_from_ieee754((float)result);
-            nd500_write_float_register(cpu, reg_num, result_bits);
-
-            /* Update flags: Z (zero), S (sign) */
-            if (nd500_float_is_zero(result_bits)) {
-                nd500_set_flag(cpu, ND500_FLAG_Z);
-            } else {
-                nd500_clear_flag(cpu, ND500_FLAG_Z);
-            }
-            if (nd500_float_is_negative(result_bits)) {
-                nd500_set_flag(cpu, ND500_FLAG_S);
-            } else {
-                nd500_clear_flag(cpu, ND500_FLAG_S);
-            }
-        }
+        /* Exact result, rounded by the manual's rule (float_exact.h). */
+        unsigned exc = 0;
+        uint64_t r = nd500_fx_sub(a, b, is_double, &exc);
+        nd500_write_float_reg(cpu, reg_num, r, is_double);
+        nd500_float_status(cpu, fi->address, r, exc, is_double);
         return;
     }
 

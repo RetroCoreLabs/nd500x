@@ -135,6 +135,13 @@ add_executable(test_float_arithmetic
 target_link_libraries(test_float_arithmetic PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 target_link_libraries(test_float_arithmetic PRIVATE m)  # Link math library
 
+# Exact float add/sub/mul/div (src/cpu/float_exact.c) against vectors from an
+# independent rational-arithmetic reference, tools/gen_float_exact_vectors.py
+add_executable(test_float_exact
+    test_float_exact.c
+)
+target_link_libraries(test_float_exact PRIVATE nd500_cpu)
+
 # OTE instruction tests
 add_executable(test_ote_instructions
     test_ote_instructions.c
@@ -364,6 +371,7 @@ add_test(NAME lget_instruction COMMAND test_lget_instruction)
 set_tests_properties(lget_instruction PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 
 add_test(NAME float_arithmetic COMMAND test_float_arithmetic)
+add_test(NAME float_exact COMMAND test_float_exact)
 add_test(NAME ote_instructions COMMAND test_ote_instructions)
 add_test(NAME stack_overflow COMMAND test_stack_overflow)
 add_test(NAME unsigned_displacement COMMAND test_unsigned_displacement)

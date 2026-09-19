@@ -11,13 +11,14 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include <stdio.h>
 #include <math.h>
 
 /**
  * Add2 instruction - ARITHMETIC class
  *
- * Extended Add (Two Operands): <a> + Rn -> <b>
+ * Extended Add (Two Operands): <a> + <b> -> <a>
  *
  * Variants: 5 (by data type and register)
  * Mnemonics: BYn ADD2, Hn ADD2, Wn ADD2, Fn ADD2, Dn ADD2 (n=1..4)
@@ -30,7 +31,7 @@
  *   0x0064-0x0067 (F1 ADD2 through F4 ADD2) - Float extended add
  *   0x0068-0x006B (D1 ADD2 through D4 ADD2) - Double extended add
  *
- * Operation: <a> + Rn -> <b>
+ * Operation: <a> + <b> -> <a>
  *
  * Description:
  *   The <a> operand is added to the contents of the specified register.
@@ -65,102 +66,20 @@ void nd500_instr_Add2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Handle float/double types (like C# lines 105-139) */
     if (fi->uses_float_registers) {
         bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
-        bool overflow = false;
-
-        if (is_double) {
-            /* Double precision (D ADD2): a + b -> a */
-            uint64_t a_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
-            uint64_t b_bits = nd500_read_operand_doubleword(cpu, &fi->operands[1]);
-            /* A faulting operand read must abort the instruction: commit nothing,
-             * and raise no second trap on top of the fault the kernel is already
-             * about to service. See the ADD3 guard (commit a351296) for the panic
-             * this prevents. */
-            if (nd500_trap_occurred() || cpu->instr_aborted) {
-                return;
-            }
-
-            double a_ieee = nd500_double_to_ieee754(a_bits);
-            double b_ieee = nd500_double_to_ieee754(b_bits);
-            double sum = a_ieee + b_ieee;
-
-            /* Check for overflow/underflow */
-            if (isinf(sum)) {
-                overflow = true;
-                trap_floating_overflow(cpu, fi->address);
-            } else if (sum != 0.0 && fabs(sum) < 1e-308) {
-                /* Underflow - result too small to represent */
-                trap_floating_underflow(cpu, fi->address);
-            }
-
-            /* Convert back to ND-500 format */
-            uint64_t result_bits = nd500_double_from_ieee754(sum);
-
-            /* Write result back to operand a */
-            nd500_write_operand_value(cpu, &fi->operands[0], result_bits, ND500_DTYPE_DOUBLEWORD);
-
-            /* Update flags */
-            if (nd500_double_is_zero(result_bits)) {
-                nd500_set_flag(cpu, ND500_FLAG_Z);
-            } else {
-                nd500_clear_flag(cpu, ND500_FLAG_Z);
-            }
-            if (nd500_double_is_negative(result_bits)) {
-                nd500_set_flag(cpu, ND500_FLAG_S);
-            } else {
-                nd500_clear_flag(cpu, ND500_FLAG_S);
-            }
-        } else {
-            /* Single precision (F ADD2): a + b -> a */
-            uint32_t a_bits = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
-            uint32_t b_bits = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[1], ND500_DTYPE_WORD);
-            /* A faulting operand read must abort the instruction: commit nothing,
-             * and raise no second trap on top of the fault the kernel is already
-             * about to service. See the ADD3 guard (commit a351296) for the panic
-             * this prevents. */
-            if (nd500_trap_occurred() || cpu->instr_aborted) {
-                return;
-            }
-
-            float a_ieee = nd500_float_to_ieee754(a_bits);
-            float b_ieee = nd500_float_to_ieee754(b_bits);
-            float sum = a_ieee + b_ieee;
-
-            /* Check for overflow/underflow */
-            if (isinf(sum)) {
-                overflow = true;
-                trap_floating_overflow(cpu, fi->address);
-            } else if (sum != 0.0f && fabsf(sum) < 1e-38f) {
-                /* Underflow - result too small to represent */
-                trap_floating_underflow(cpu, fi->address);
-            }
-
-            /* Convert back to ND-500 format */
-            uint32_t result_bits = nd500_float_from_ieee754(sum);
-
-            /* Write result back to operand a */
-            nd500_write_operand_value(cpu, &fi->operands[0], (uint64_t)result_bits, ND500_DTYPE_WORD);
-
-            /* Update flags */
-            if (nd500_float_is_zero(result_bits)) {
-                nd500_set_flag(cpu, ND500_FLAG_Z);
-            } else {
-                nd500_clear_flag(cpu, ND500_FLAG_Z);
-            }
-            if (nd500_float_is_negative(result_bits)) {
-                nd500_set_flag(cpu, ND500_FLAG_S);
-            } else {
-                nd500_clear_flag(cpu, ND500_FLAG_S);
-            }
+        uint64_t a = nd500_read_float_operand(cpu, &fi->operands[0], is_double);
+        uint64_t b = nd500_read_float_operand(cpu, &fi->operands[1], is_double);
+        /* A faulting operand read must abort the instruction: commit nothing,
+         * and raise no second trap on top of the fault the kernel is already
+         * about to service. See the ADD3 guard (commit a351296) for the panic
+         * this prevents. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
         }
-
-        /* C flag unaffected for float, O flag set based on overflow */
-        if (overflow) {
-            nd500_set_flag(cpu, ND500_FLAG_O);
-            trap_floating_overflow(cpu, fi->address);
-        } else {
-            nd500_clear_flag(cpu, ND500_FLAG_O);
-        }
-
+        /* Exact result, rounded by the manual's rule (float_exact.h). */
+        unsigned exc = 0;
+        uint64_t r = nd500_fx_add(a, b, is_double, &exc);
+        nd500_write_float_operand(cpu, &fi->operands[0], r, is_double);
+        nd500_float_status(cpu, fi->address, r, exc, is_double);
         return;
     }
 

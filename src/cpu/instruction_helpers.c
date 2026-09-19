@@ -8,6 +8,7 @@
  */
 
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include "cpu_protos.h"
 #include "nd500_mmu.h"
 #include "../machine/machine_protos.h"
@@ -971,27 +972,57 @@ uint64_t nd500_float_finish(Nd500Cpu* cpu, uint32_t pc, double result, bool is_d
     bool fovfl = codec_ovfl || isinf(result) || isnan(result);
     bool funfl = (!fovfl && codec_unfl);
 
-    /* STATUS: Z,S from result; C,O cleared (rule 4040); FU,FO conditional */
-    nd500_set_flags_zs_float(cpu, result_bits, is_double);   /* also clears C and O */
-    if (fovfl) {
-        cpu->ST1 |= ND500_FLAG_FO;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_FO;
-    }
-    if (funfl) {
-        cpu->ST1 |= ND500_FLAG_FU;
-    } else {
-        cpu->ST1 &= ~ND500_FLAG_FU;
-    }
-
-    /* TRAP: Floating overflow (FO) / Floating underflow (FU) */
-    if (fovfl) {
-        trap_floating_overflow(cpu, pc);
-    } else if (funfl) {
-        trap_floating_underflow(cpu, pc);
-    }
+    nd500_float_status(cpu, pc, result_bits,
+                       (fovfl ? ND500_FX_FO : 0u) | (funfl ? ND500_FX_FU : 0u), is_double);
 
     return result_bits;
+}
+
+void nd500_float_status(Nd500Cpu* cpu, uint32_t pc, uint64_t bits, unsigned exc, bool is_double) {
+    nd500_set_flags_zs_float(cpu, bits, is_double);   /* also clears C and O */
+    cpu->ST1 &= ~(ND500_FLAG_FO | ND500_FLAG_FU);
+    if (exc & ND500_FX_FO) {
+        cpu->ST1 |= ND500_FLAG_FO;
+    }
+    if (exc & ND500_FX_FU) {
+        cpu->ST1 |= ND500_FLAG_FU | ND500_FLAG_Z;
+    }
+    if (exc & ND500_FX_FO) {
+        trap_floating_overflow(cpu, pc);
+    } else if (exc & ND500_FX_FU) {
+        trap_floating_underflow(cpu, pc);
+    }
+}
+
+void nd500_float_compare_status(Nd500Cpu* cpu, uint64_t r, unsigned exc, bool is_double) {
+    nd500_set_flags_zs_float(cpu, r, is_double);   /* also clears C and O */
+    cpu->ST1 &= ~(ND500_FLAG_FO | ND500_FLAG_FU);
+    if (exc & ND500_FX_FO) {
+        cpu->ST1 |= ND500_FLAG_O;
+    }
+}
+
+uint64_t nd500_read_float_operand(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double) {
+    if (is_double) {
+        return nd500_read_operand_doubleword(cpu, operand);
+    }
+    return (uint32_t)nd500_read_operand_value(cpu, operand, ND500_DTYPE_FLOAT);
+}
+
+void nd500_write_float_operand(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, uint64_t bits, bool is_double) {
+    nd500_write_operand_value(cpu, operand, bits, is_double ? ND500_DTYPE_DOUBLEWORD : ND500_DTYPE_FLOAT);
+}
+
+uint64_t nd500_read_float_reg(Nd500Cpu* cpu, uint8_t reg_num, bool is_double) {
+    return is_double ? nd500_read_double_register(cpu, reg_num) : nd500_read_float_register(cpu, reg_num);
+}
+
+void nd500_write_float_reg(Nd500Cpu* cpu, uint8_t reg_num, uint64_t bits, bool is_double) {
+    if (is_double) {
+        nd500_write_double_register(cpu, reg_num, bits);
+    } else {
+        nd500_write_float_register(cpu, reg_num, (uint32_t)bits);
+    }
 }
 
 void nd500_set_flags_zsc(Nd500Cpu* cpu, uint64_t value, Nd500DataType dtype, bool carry) {

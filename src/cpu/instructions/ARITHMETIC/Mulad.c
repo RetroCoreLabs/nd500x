@@ -11,6 +11,7 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include <stdio.h>
 
 /**
@@ -70,14 +71,9 @@ void nd500_instr_Mulad(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * arithmetic, matching the native reference path (Add.c) and the now-native
          * nd500_read_operand_as_ieee_float helper. Reference: ND-500 Reference Manual
          * sections 2.5.1.4 / 2.5.3.6. */
-        double regValue;
-        if (is_double) {
-            regValue = nd500_native_double_to_double(nd500_read_double_register(cpu, fi->target_register));
-        } else {
-            regValue = nd500_native_single_to_double(nd500_read_float_register(cpu, fi->target_register));
-        }
-        double x = nd500_read_operand_as_ieee_float(cpu, &fi->operands[0], is_double);
-        double y = nd500_read_operand_as_ieee_float(cpu, &fi->operands[1], is_double);
+        uint64_t r0 = nd500_read_float_reg(cpu, fi->target_register, is_double);
+        uint64_t x = nd500_read_float_operand(cpu, &fi->operands[0], is_double);
+        uint64_t y = nd500_read_float_operand(cpu, &fi->operands[1], is_double);
         /* A faulting operand read must abort the instruction: commit nothing,
          * and raise no second trap on top of the fault the kernel is already
          * about to service. See the ADD3 guard (commit a351296) for the panic
@@ -85,13 +81,15 @@ void nd500_instr_Mulad(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (nd500_trap_occurred() || cpu->instr_aborted) {
             return;
         }
-        double fresult = regValue * x + y;
-        uint64_t bits = nd500_float_finish(cpu, fi->address, fresult, is_double);
-        if (is_double) {
-            nd500_write_double_register(cpu, fi->target_register, bits);
-        } else {
-            nd500_write_float_register(cpu, fi->target_register, (uint32_t)bits);
-        }
+        /* Two AAP operations, each rounded: MULADF/MULADD start AAP2,MUL,
+         * then MULADF_01 starts AAP2,ADD on the product and MULADF_02
+         * accumulates its status (ST,ACCF), so FO or FU from either step
+         * stays set (MICRO-5800-B30 @002633, @027220). */
+        unsigned exc = 0;
+        uint64_t product = nd500_fx_mul(r0, x, is_double, &exc);
+        uint64_t r = nd500_fx_add(product, y, is_double, &exc);
+        nd500_write_float_reg(cpu, fi->target_register, r, is_double);
+        nd500_float_status(cpu, fi->address, r, exc, is_double);
         return;
     }
 
