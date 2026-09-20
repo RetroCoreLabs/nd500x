@@ -69,6 +69,10 @@ void nd500_instr_Udiv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Check for divide by zero (like C# lines 58-63) */
     if (divisor == 0) {
         ND500X_TRAPLOG("[TRAP] UDIV at PC=0x%08X: Divide by zero\n", fi->address);
+        /* UDIV_COMM @027502-@027505, then UDIV_END stores the quotient and a zero remainder. */
+        nd500_write_operand_value(cpu, &fi->operands[2],
+                                  nd500_int_divide_by_zero(cpu, dividend, ND500_DTYPE_WORD, true), ND500_DTYPE_WORD);
+        nd500_write_integer_register(cpu, fi->target_register, 0);
         trap_divide_by_zero(cpu, fi->address);
         return;
     }

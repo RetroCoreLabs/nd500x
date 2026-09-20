@@ -79,6 +79,11 @@ void nd500_instr_Div4(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Check for divide by zero (like C# lines 63-68) */
     if (divisor == 0) {
         ND500X_TRAPLOG("[TRAP] DIV4 at PC=0x%08X: Divide by zero\n", fi->address);
+        /* DIV4_COMM @027476-@027500 stores what DIV_INT returns as the quotient and a
+         * zero remainder. */
+        nd500_write_operand_value(cpu, &fi->operands[2],
+                                  nd500_int_divide_by_zero(cpu, (uint32_t)dividend, fi->data_type, false), fi->data_type);
+        nd500_write_integer_register(cpu, fi->target_register, 0);
         trap_divide_by_zero(cpu, fi->address);
         return;
     }

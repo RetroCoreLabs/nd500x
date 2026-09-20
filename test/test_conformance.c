@@ -1056,11 +1056,17 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
             return 1;
         }
 
-        /* Trap matched - test passes (skip register/memory validation for trap tests) */
-        if (verbose) {
-            printf("Test %d/%d: %s ... PASS (trap: %s)\n", test_num, total, test_name, expected_trap);
+        /* Trap matched. An ignorable trap that is not enabled lets the instruction
+         * finish (manual 6.5: the status bit is set and execution continues), so the
+         * final registers and memory the case states are checked like any other case.
+         * A non-ignorable trap aborts the instruction; the case states no final state
+         * worth checking and the test passes here. */
+        if (!(actual_trap_bits & 0x3FFFFA00ull)) {
+            if (verbose) {
+                printf("Test %d/%d: %s ... PASS (trap: %s)\n", test_num, total, test_name, expected_trap);
+            }
+            return 0;
         }
-        return 0;
     } else {
         /* Test does NOT expect a trap */
         if (trap_occurred) {

@@ -109,6 +109,9 @@ void nd500_instr_Div3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Check for divide by zero (like C# lines 67-73) */
     if (bValue == 0) {
         ND500X_TRAPLOG("[TRAP] DIV3 at PC=0x%08X: Divide by zero\n", fi->address);
+        /* DIV3 stores what DIV_INT returns (@002464 -> DIV3_COMM). */
+        nd500_write_operand_value(cpu, &fi->operands[2],
+                                  nd500_int_divide_by_zero(cpu, (uint32_t)aValue, fi->data_type, false), fi->data_type);
         trap_divide_by_zero(cpu, fi->address);
         return;
     }

@@ -2574,3 +2574,29 @@ void nd500_write_operand_from_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecode
         nd500_write_operand_value(cpu, operand, bits, ND500_DTYPE_FLOAT);
     }
 }
+
+uint32_t nd500_int_divide_by_zero(Nd500Cpu* cpu, uint32_t dividend, uint8_t data_type, bool is_unsigned) {
+    uint32_t sign, mask;
+    switch (data_type) {
+        case ND500_DTYPE_BYTE:     sign = 0x80u;       mask = 0xFFu;       break;
+        case ND500_DTYPE_HALFWORD: sign = 0x8000u;     mask = 0xFFFFu;     break;
+        default:                   sign = 0x80000000u; mask = 0xFFFFFFFFu; break;
+    }
+    dividend &= mask;
+    uint32_t quotient;
+    cpu->ST1 &= ~(ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);
+    if (dividend == 0) {
+        quotient = 0;
+        cpu->ST1 |= ND500_FLAG_Z;
+    } else if (is_unsigned) {
+        quotient = mask;
+        cpu->ST1 |= ND500_FLAG_S;
+    } else if (dividend & sign) {
+        quotient = sign;
+        cpu->ST1 |= ND500_FLAG_S;
+    } else {
+        quotient = sign - 1u;
+    }
+    cpu->ST1 |= ND500_FLAG_DZ;
+    return quotient;
+}

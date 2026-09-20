@@ -1074,4 +1074,22 @@ uint64_t nd500_native_double_from_double(double value, bool* out_overflow, bool*
 double nd500_read_operand_as_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, bool is_double);
 void nd500_write_operand_from_ieee_float(Nd500Cpu* cpu, const Nd500OperandDecoded* operand, double value, bool is_double);
 
+/**
+ * Integer divide by zero, as the B30 microcode leaves it. Returns the quotient the
+ * instruction must store and sets the status: Z S C O reset, DZ set, then S for a
+ * negative dividend or Z for a zero one. The caller stores the quotient (and a zero
+ * remainder where it has one) and then raises the trap.
+ *
+ * Signed (DIV_INT, used by / DIV2 DIV3 DIV4): ST,SAVA @024130 resets the data status;
+ * a positive dividend gives the largest positive value of the data type (@024133-
+ * @024135, OR BM14 = DZ), a negative one the most negative value (INTDN @024136-@024140,
+ * OR SARG 010200 = DZ + S), a zero one zero (INTDZRO @024141-@024143, OR SARG 010040 =
+ * DZ + Z). The manual says the same in 6.5.1: "the largest possible value in the
+ * destination with the sign of the dividend ... Zero divided by zero gives a result
+ * of zero."
+ * Unsigned (UDIV_COMM @027502-@027505): all ones, or zero for a zero dividend, with
+ * ST,SAVA on that value and then OR BM14.
+ */
+uint32_t nd500_int_divide_by_zero(Nd500Cpu* cpu, uint32_t dividend, uint8_t data_type, bool is_unsigned);
+
 #endif /* ND500_INSTRUCTION_HELPERS_H */
