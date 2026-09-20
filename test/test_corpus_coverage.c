@@ -58,11 +58,11 @@ enum
     BASE_INSTRUCTIONS = 241,
     BASE_OPCODES      = 487,
     BASE_SEED_Z       = 106,
-    BASE_SEED_C       = 107,
+    BASE_SEED_C       = 108,
     BASE_SEED_S       = 103,
-    BASE_SEED_O       = 99,
-    BASE_SEED_K       = 96,
-    BASE_TRAP_ENABLE  = 2,
+    BASE_SEED_O       = 100,
+    BASE_SEED_K       = 97,
+    BASE_TRAP_ENABLE  = 8,
     BASE_FLOAT_HIGH   = 19,
     BASE_FLOAT_LOW    = 19
 };

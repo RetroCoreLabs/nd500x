@@ -105,6 +105,17 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
     cpu->ST1 = (1u << ND500_ST_BIT_PIA);  /* Set PIA bit - privileged mode */
     cpu->ST2 = 0;
     cpu->trap_dispatch_pending = 0;       /* dispatch->ENTT interlock, see cpu_protos.h */
+    /* The rest of the ENTT/RETT bookkeeping. in_trap_handler was left set by a
+     * reset, so a RETT executed after a reset was accepted as a return from a
+     * handler that no longer existed (corpus: rett_NoTrapContext_ISE run after a
+     * TrapDelivery case). */
+    cpu->in_trap_handler = false;
+    cpu->trap_saved_PC = cpu->trap_resume_PC = 0;
+    cpu->trap_saved_OTE1 = cpu->trap_saved_OTE2 = 0;
+    cpu->trap_number = 0;
+    cpu->trap_cross_domain = 0;
+    cpu->trap_saved_CED = cpu->trap_saved_CAD = 0;
+    cpu->trap_saved_fault_addr = cpu->trap_saved_info = 0;
 
     /* Initialize MMU registers */
     cpu->PSTP = cpu->DITBASE = cpu->CED = cpu->CAD = cpu->PS = 0;
