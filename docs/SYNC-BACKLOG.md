@@ -48,6 +48,8 @@ Format: `| date | nd500x commit | what changed | detail doc / shared-file item |
 | 2026-09-19 | `a7bc95d` | PS := privileged, keeps PS high 16 bits, takes operand low 16, no status (was: all 32 bits, Z/S, any mode) | shared-file item 31 | open |
 | 2026-09-19 | `34c14b7` | RPHS/WPHS status ST,SAVA on I1 (Z, S; C, O reset; was Z only) | shared-file item 31 | open |
 | 2026-09-19 | `9a1d2b4` | D SIN COS TAN ASIN ACOS ATAN ATAN2 EXP ALOG ALOG2 ALOG10 computed as the B30 microcode does (was host maths): two-part argument reduction XREDU_D, POLLYD/RAPPD polynomials, exact DIV_64; one implementation for F and D; D SQRT confirmed correctly rounded | shared-file item 32 | open |
+| 2026-09-20 | `f258df5` | CPU reset clears the trap handler bookkeeping (in_trap_handler and the saved trap fields); a RETT after a reset was accepted as a handler return | shared-file item 34 | open |
+| 2026-09-20 | `db5f731` | Integer divide by zero as B30 DIV_INT leaves it, for / DIV2 DIV3 DIV4 UDIV: quotient = greatest value with the dividend's sign, 0 for 0/0 (was greatest positive), stored by all five (DIV2 DIV3 DIV4 UDIV stored nothing); Z S C O reset, then DZ with S or Z; DIV4 and UDIV remainder 0 | shared-file item 34 | open |
 
 ## Backlog state as of 2026-08-09 - AUDITED
 
