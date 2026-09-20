@@ -56,7 +56,7 @@
 enum
 {
     BASE_INSTRUCTIONS = 241,
-    BASE_OPCODES      = 487,
+    BASE_OPCODES      = 491,
     BASE_SEED_Z       = 106,
     BASE_SEED_C       = 108,
     BASE_SEED_S       = 103,
