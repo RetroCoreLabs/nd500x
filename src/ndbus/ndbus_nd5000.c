@@ -367,7 +367,7 @@ void ndbus_nd5000_set_sniff_threshold(NdbusNd5000 *nd, uint32_t threshold)
     }
 }
 
-bool ndbus_nd5000_sniff_write16(NdbusNd5000 *nd, uint32_t offset, uint16_t value)
+bool ndbus_nd5000_sniff_before_write16(NdbusNd5000 *nd, uint32_t offset, uint16_t value)
 {
     if (nd == NULL || nd->pool == NULL || nd->sniff.latched)
     {
@@ -375,7 +375,9 @@ bool ndbus_nd5000_sniff_write16(NdbusNd5000 *nd, uint32_t offset, uint16_t value
     }
 
     /* The signature is the TRANSITION 0xFFFF -> 0, so the cell's previous value
-     * decides, not the value being written. */
+     * decides, not the value being written - which is why this must be called
+     * BEFORE the write lands. Called afterwards, the "previous" value read here
+     * is the new one and no transition is ever seen. */
     uint16_t previous = ndbus_pool_read16(nd->pool, offset);
     if (!(previous == 0xFFFFu && value == 0u))
     {

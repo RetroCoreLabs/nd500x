@@ -71,6 +71,11 @@ int ndbus_accp_evaluate(uint8_t command, const NdbusAccpState *state)
 {
     if (state == NULL)
     {
+        /* A programming error, not a card state - there is no firmware code for
+         * "the caller passed no state". Code 6 is returned because it is the
+         * only nak that does not claim something specific about the card, and
+         * refusing is better than dereferencing. A caller seeing 6 for a command
+         * it knows exists should look here first. */
         return NDBUS_ACCP_NAK_UNDEFINED_COMMAND;
     }
 

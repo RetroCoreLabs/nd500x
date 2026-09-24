@@ -843,9 +843,12 @@ static void test_nd5000_station(void)
     const uint32_t x5act = 0x700;
     (void)ndbus_pool_write16(&pool, x5act, 0xFFFF);
 
-    CHECK(!ndbus_nd5000_sniff_write16(&nd, x5act, 0xFFFF), "writing -1 over -1 is no transition");
-    CHECK(!ndbus_nd5000_sniff_write16(&nd, 0x710, 0), "a cell that was not -1 is not one either");
-    CHECK(ndbus_nd5000_sniff_write16(&nd, x5act, 0), "the -1 to 0 write latches the doorbell");
+    CHECK(!ndbus_nd5000_sniff_before_write16(&nd, x5act, 0xFFFF),
+          "writing -1 over -1 is no transition");
+    CHECK(!ndbus_nd5000_sniff_before_write16(&nd, 0x710, 0),
+          "a cell that was not -1 is not one either");
+    CHECK(ndbus_nd5000_sniff_before_write16(&nd, x5act, 0),
+          "the -1 to 0 write latches the doorbell");
     CHECK(nd.sniff.latched, "and the sniff is latched");
     CHECK(nd.sniff.candidate_offset == x5act, "at the right cell");
 
@@ -859,19 +862,29 @@ static void test_nd5000_station(void)
     CHECK(s_log_lines == 1, "setting an unreachable threshold warns at once");
 
     (void)ndbus_pool_write16(&pool, x5act, 0xFFFF);
-    CHECK(!ndbus_nd5000_sniff_write16(&nd, x5act, 0), "the first transition does not latch");
+    CHECK(!ndbus_nd5000_sniff_before_write16(&nd, x5act, 0), "the first transition does not latch");
     /* The re-arm writes 1, not -1 - so the next ring is 1 -> 0 and never matches
      * the signature again. This is the whole trap, in one check. */
     (void)ndbus_pool_write16(&pool, x5act, 1);
-    CHECK(!ndbus_nd5000_sniff_write16(&nd, x5act, 0),
+    CHECK(!ndbus_nd5000_sniff_before_write16(&nd, x5act, 0),
           "and the re-armed 1 to 0 ring does not match the signature");
     CHECK(!nd.sniff.latched, "so with a threshold of 2 the sniff NEVER latches");
+
+    /* CALLED AFTER THE WRITE, THE SNIFF SEES NOTHING. The previous value it
+     * reads is the new one, so no transition exists to find - and the failure is
+     * silent, which is why the order is in the function's name. */
+    ndbus_nd5000_reset(&nd);
+    (void)ndbus_pool_write16(&pool, x5act, 0xFFFF);
+    (void)ndbus_pool_write16(&pool, x5act, 0);   /* the write lands first */
+    CHECK(!ndbus_nd5000_sniff_before_write16(&nd, x5act, 0),
+          "sniffing AFTER the write finds no transition");
+    CHECK(!nd.sniff.latched, "so the sniff never latches - the silent failure");
 
     /* 0 and 1 both mean latch on the first transition. */
     ndbus_nd5000_reset(&nd);
     ndbus_nd5000_set_sniff_threshold(&nd, 0);
     (void)ndbus_pool_write16(&pool, x5act, 0xFFFF);
-    CHECK(ndbus_nd5000_sniff_write16(&nd, x5act, 0), "threshold 0 latches on the first");
+    CHECK(ndbus_nd5000_sniff_before_write16(&nd, x5act, 0), "threshold 0 latches on the first");
 
     ndbus_pool_destroy(&pool);
 }

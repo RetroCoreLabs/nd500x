@@ -122,7 +122,20 @@ bool ndbus_nd5000_init(NdbusNd5000 *nd, uint8_t station_number, NdbusPool *pool,
 void ndbus_nd5000_reset(NdbusNd5000 *nd);
 
 /**
- * @brief Offer one shared-memory word write to the doorbell sniff.
+ * @brief Offer one shared-memory word write to the doorbell sniff, BEFORE it lands.
+ *
+ * CALL ORDER IS PART OF THE CONTRACT, and the name says so because getting it
+ * wrong is silent. The signature the sniff looks for is the TRANSITION
+ * 0xFFFF -> 0, so the function reads the cell to learn the PREVIOUS value. Call
+ * it after the write has already landed and the previous value it reads is the
+ * new one - no transition is ever seen, the sniff never latches, and the machine
+ * sits looking idle.
+ *
+ * That is the same failure mode as setting an unreachable repeat threshold,
+ * reached by a completely different route, which is why the order is in the name
+ * rather than only in a comment.
+ *
+ * This function does NOT perform the write. The caller still does that.
  *
  * Call it with the pool offset and the value being written. Once latched, the
  * offset is in `sniff.candidate_offset` and `sniff.latched` is set.
@@ -134,7 +147,7 @@ void ndbus_nd5000_reset(NdbusNd5000 *nd);
  *         write - including writes that advance the transition count without
  *         reaching the threshold. false is not an error.
  */
-bool ndbus_nd5000_sniff_write16(NdbusNd5000 *nd, uint32_t offset, uint16_t value);
+bool ndbus_nd5000_sniff_before_write16(NdbusNd5000 *nd, uint32_t offset, uint16_t value);
 
 /**
  * @brief Set the repeat threshold for the doorbell sniff.
