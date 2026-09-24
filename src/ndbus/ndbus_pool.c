@@ -85,7 +85,7 @@ uint16_t ndbus_pool_read16(const NdbusPool *pool, uint32_t offset)
     }
     uint8_t hi = ndbus_pool_r8(&pool->bytes[offset]);
     uint8_t lo = ndbus_pool_r8(&pool->bytes[offset + 1]);
-    return (uint16_t)(((uint16_t)hi << 8) | (uint16_t)lo);
+    return (uint16_t)(((uint16_t)hi << 8u) | (uint16_t)lo);
 }
 
 bool ndbus_pool_write16(NdbusPool *pool, uint32_t offset, uint16_t value)
@@ -96,7 +96,7 @@ bool ndbus_pool_write16(NdbusPool *pool, uint32_t offset, uint16_t value)
     {
         return false;
     }
-    ndbus_pool_w8(&pool->bytes[offset], (uint8_t)(value >> 8));
+    ndbus_pool_w8(&pool->bytes[offset], (uint8_t)(value >> 8u));
     ndbus_pool_w8(&pool->bytes[offset + 1], (uint8_t)(value & 0xFF));
     return true;
 }
@@ -110,7 +110,7 @@ uint32_t ndbus_pool_read32(const NdbusPool *pool, uint32_t offset)
     /* Two big-endian words, high word first - the ND double order. */
     uint32_t hi = ndbus_pool_read16(pool, offset);
     uint32_t lo = ndbus_pool_read16(pool, offset + 2);
-    return (hi << 16) | lo;
+    return (hi << 16u) | lo;
 }
 
 bool ndbus_pool_write32(NdbusPool *pool, uint32_t offset, uint32_t value)
@@ -119,7 +119,7 @@ bool ndbus_pool_write32(NdbusPool *pool, uint32_t offset, uint32_t value)
     {
         return false;
     }
-    (void)ndbus_pool_write16(pool, offset, (uint16_t)(value >> 16));
+    (void)ndbus_pool_write16(pool, offset, (uint16_t)(value >> 16u));
     (void)ndbus_pool_write16(pool, offset + 2, (uint16_t)(value & 0xFFFF));
     return true;
 }

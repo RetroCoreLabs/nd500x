@@ -1,5 +1,6 @@
-/*
- * ndbus_doorbell.h - the one place ordering is required
+/**
+ * @file ndbus_doorbell.h
+ * @brief The one place ordering is required.
  *
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2025-2026 Ronny Hansen
@@ -27,33 +28,50 @@
 
 #include "ndbus_pool.h"
 
-/*
- * Ring: store `value` to the doorbell cell with RELEASE ordering, publishing
- * every relaxed write the calling thread made to the pool before it. Returns
- * false and stores nothing when the cell is outside the pool.
+/**
+ * @brief Ring: store `value` to the doorbell cell with RELEASE ordering,
+ *        publishing every relaxed write the calling thread made to the pool
+ *        before it.
  *
- * The doorbell is one BYTE. It carries a flag, never data - the message is in
- * the pool. A byte cannot tear on any host, so no wider form is needed and none
- * is offered.
+ * @param pool   The shared pool holding the doorbell cell.
+ * @param offset Byte offset of the doorbell cell within the pool.
+ * @param value  The flag byte to store.
+ * @return true when the byte was stored; false when the cell is outside the
+ *         pool, in which case nothing is stored.
+ *
+ * @note The doorbell is one BYTE. It carries a flag, never data - the message
+ *       is in the pool. A byte cannot tear on any host, so no wider form is
+ *       needed and none is offered.
  */
 bool ndbus_doorbell_ring(NdbusPool *pool, uint32_t offset, uint8_t value);
 
-/*
- * Read the doorbell cell with ACQUIRE ordering. Every pool byte the ringer wrote
- * before ringing is visible to this thread afterwards. Returns 0 for a cell
- * outside the pool, which is the same as "not rung" - a caller that needs to
- * tell the two apart checks ndbus_pool_contains() itself.
+/**
+ * @brief Read the doorbell cell with ACQUIRE ordering.
+ *
+ * Every pool byte the ringer wrote before ringing is visible to this thread
+ * afterwards.
+ *
+ * @param pool   The shared pool holding the doorbell cell.
+ * @param offset Byte offset of the doorbell cell within the pool.
+ * @return The doorbell byte; 0 for a cell outside the pool, which is the same
+ *         as "not rung" - a caller that needs to tell the two apart checks
+ *         ndbus_pool_contains() itself.
  */
 uint8_t ndbus_doorbell_read(const NdbusPool *pool, uint32_t offset);
 
-/*
- * Read the doorbell with acquire ordering and, if it was non-zero, clear it -
- * the whole take-the-message step. Returns the value that was there, 0 if it was
- * already clear or the cell is outside the pool.
+/**
+ * @brief Read the doorbell with acquire ordering and, if it was non-zero,
+ *        clear it - the whole take-the-message step.
  *
- * NOT a read-modify-write under the bus mutex: a doorbell has exactly one reader
- * (the CPU it belongs to), so there is no second party to race with. A cell that
- * several CPUs may clear is a semaphore, not a doorbell - use ndbus_tset16.
+ * @param pool   The shared pool holding the doorbell cell.
+ * @param offset Byte offset of the doorbell cell within the pool.
+ * @return The value that was there; 0 if it was already clear or the cell is
+ *         outside the pool.
+ *
+ * @note NOT a read-modify-write under the bus mutex: a doorbell has exactly one
+ *       reader (the CPU it belongs to), so there is no second party to race
+ *       with. A cell that several CPUs may clear is a semaphore, not a doorbell
+ *       - use ndbus_tset16.
  */
 uint8_t ndbus_doorbell_take(NdbusPool *pool, uint32_t offset);
 

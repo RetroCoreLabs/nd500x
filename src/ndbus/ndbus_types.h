@@ -1,5 +1,6 @@
-/*
- * ndbus_types.h - the two vtables through which ndbus reaches the two machines
+/**
+ * @file ndbus_types.h
+ * @brief The two vtables through which ndbus reaches the two machines.
  *
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2025-2026 Ronny Hansen
@@ -31,29 +32,44 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/*
- * The host: whoever owns the process. Threads, logging and wall time live here,
- * because ndbus must run natively (real threads) and under Emscripten (none).
- * Every field may be NULL; ndbus checks before calling.
+/**
+ * @brief The host: whoever owns the process.
+ *
+ * Threads, logging and wall time live here, because ndbus must run natively
+ * (real threads) and under Emscripten (none). Every field may be NULL; ndbus
+ * checks before calling.
  */
 typedef struct NdbusHostOps
 {
-    /* Diagnostic text. level follows the emulator's own log levels; ndbus only
-     * ever passes a preformatted, NUL-terminated ASCII string. */
+    /**
+     * @brief Emit one line of diagnostic text.
+     * @param ctx     The host context pointer, passed through from NdbusHostOps::ctx.
+     * @param level   Severity; follows the emulator's own log levels.
+     * @param message Preformatted, NUL-terminated ASCII string. ndbus never passes
+     *                anything else.
+     * @return Nothing.
+     */
     void (*log)(void *ctx, int level, const char *message);
 
-    /* Yield the host CPU. Used ONLY by the TSET spin-damper (section 7.5.4):
-     * a guest busy-waiting on a semaphore has no hardware analogue and would
-     * otherwise burn a whole host core. NULL is legal - the damper then simply
-     * does not yield. */
+    /**
+     * @brief Yield the host CPU.
+     * @param ctx The host context pointer, passed through from NdbusHostOps::ctx.
+     * @return Nothing.
+     *
+     * @note Used ONLY by the TSET spin-damper (section 7.5.4): a guest busy-waiting
+     *       on a semaphore has no hardware analogue and would otherwise burn a whole
+     *       host core. NULL is legal - the damper then simply does not yield.
+     */
     void (*yield)(void *ctx);
 
-    void *ctx;
+    void *ctx; /**< Opaque host context handed back to every callback above. */
 } NdbusHostOps;
 
-/*
- * A CPU attached to the bus - either the ND-100 or one ND-5000. The bus uses
- * this to deliver an interrupt or a doorbell and to ask what the CPU is.
+/**
+ * @brief A CPU attached to the bus - either the ND-100 or one ND-5000.
+ *
+ * The bus uses this to deliver an interrupt or a doorbell and to ask what the
+ * CPU is.
  *
  * ADDRESSES IN THIS INTERFACE ARE POOL BYTE OFFSETS, not ND-100 word addresses
  * and not ND-5000 physical addresses. Each side converts at its own edge; see
@@ -61,18 +77,28 @@ typedef struct NdbusHostOps
  */
 typedef struct NdbusCpuOps
 {
-    /* Raise the CPU's bus interrupt. `source_station` is the octal station that
-     * caused it (1 for the ND-100 card, 070B..076B for an ND-5000). */
+    /**
+     * @brief Raise the CPU's bus interrupt.
+     * @param ctx            The CPU context pointer, passed through from NdbusCpuOps::ctx.
+     * @param source_station The octal station that caused it (1 for the ND-100 card,
+     *                       070B..076B for an ND-5000).
+     * @return Nothing.
+     */
     void (*interrupt)(void *ctx, uint8_t source_station);
 
-    /* The doorbell rang: a message is waiting at `pool_offset`. Called with the
-     * acquire load already done, so the message bytes are visible. */
+    /**
+     * @brief The doorbell rang: a message is waiting.
+     * @param ctx         The CPU context pointer, passed through from NdbusCpuOps::ctx.
+     * @param pool_offset BYTE offset into the shared pool where the message begins.
+     * @return Nothing.
+     *
+     * @note Called with the acquire load already done, so the message bytes are visible.
+     */
     void (*doorbell)(void *ctx, uint32_t pool_offset);
 
-    /* Human-readable name for logs and test failures. Never NULL. */
-    const char *name;
+    const char *name; /**< Human-readable name for logs and test failures. Never NULL. */
 
-    void *ctx;
+    void *ctx; /**< Opaque CPU context handed back to every callback above. */
 } NdbusCpuOps;
 
 #endif /* NDBUS_TYPES_H */

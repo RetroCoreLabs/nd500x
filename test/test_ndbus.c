@@ -360,16 +360,16 @@ static void test_octobus(void)
     /* THE DESTINATION-TO-SOURCE REWRITE. The frame goes out carrying the
      * destination in bits 13-8 and arrives carrying the sender. */
     uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
-    uint16_t frame = (uint16_t)(NDBUS_FRAME_C_CONTROL |
-                                (uint16_t)(NDBUS_STATION_ND5000_FIRST << NDBUS_FRAME_STATION_SHIFT) |
-                                0x05u);
+    uint16_t dest_70b = (uint16_t)(NDBUS_STATION_ND5000_FIRST << NDBUS_FRAME_STATION_SHIFT);
+    uint16_t frame = (uint16_t)(NDBUS_FRAME_C_CONTROL | dest_70b | 0x05u);
     nd5000_state.reply_count = 0;
     int sent = ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, frame, replies);
     CHECK(sent == 0, "delivered, no reply");
     CHECK(nd5000_state.frames_seen == 1, "the addressed station saw exactly one frame");
     CHECK(ndbus_frame_station(nd5000_state.last_frame) == NDBUS_STATION_ND120_CPU,
           "bits 13-8 were rewritten to the SOURCE on delivery");
-    CHECK(nd5000_state.last_source == NDBUS_STATION_ND120_CPU, "and the source is passed alongside");
+    CHECK(nd5000_state.last_source == NDBUS_STATION_ND120_CPU,
+          "and the source is passed alongside");
     CHECK((nd5000_state.last_frame & NDBUS_FRAME_C_CONTROL) != 0, "the C bit survived the rewrite");
     CHECK((nd5000_state.last_frame & NDBUS_FRAME_CODE_MASK) == 0x05u, "the code field survived");
     CHECK(nd120_state.frames_seen == 0, "the sender did not receive its own frame");
@@ -830,7 +830,8 @@ static void test_nd5000_station(void)
     CHECK(n == 2, "the restarted message is answered - Messack plus one echoed byte");
     CHECK((replies[1] & 0xFF) == 0x11,
           "and it echoes the SECOND message's byte, not the abandoned 0x99");
-    CHECK(nd.last_command == NDBUS_ACCP_ECHO, "and it is the SECOND message, not the abandoned one");
+    CHECK(nd.last_command == NDBUS_ACCP_ECHO,
+          "and it is the SECOND message, not the abandoned one");
 
     /* ---- the X5ACT doorbell ------------------------------------------------
      * The signature is the TRANSITION 0xFFFF -> 0. */
@@ -1160,7 +1161,8 @@ static void test_bringup(void)
     body[0] = (uint8_t)NDBUS_ACCP_VPARP;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
     CHECK(n == 5, "VPARP answers with Messack plus four bytes");
-    uint32_t echoed = ((uint32_t)(replies[1] & 0xFF) << 24) | ((uint32_t)(replies[2] & 0xFF) << 16) |
+    uint32_t echoed = ((uint32_t)(replies[1] & 0xFF) << 24) |
+                      ((uint32_t)(replies[2] & 0xFF) << 16) |
                       ((uint32_t)(replies[3] & 0xFF) << 8) | (uint32_t)(replies[4] & 0xFF);
     CHECK(echoed == 0xCAFEBABEu, "and it is the word the ND-120 put in SHARED MEMORY");
 

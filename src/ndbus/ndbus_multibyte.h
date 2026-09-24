@@ -1,5 +1,6 @@
-/*
- * ndbus_multibyte.h - reassemble one octobus multibyte message
+/**
+ * @file ndbus_multibyte.h
+ * @brief Reassemble one octobus multibyte message.
  *
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2025-2026 Ronny Hansen
@@ -29,32 +30,56 @@
 
 #include "ndbus_types.h"
 
-/* A multibyte body is at most 255 bytes: the length is one byte on the wire. */
+/** @brief A multibyte body is at most 255 bytes: the length is one byte on the wire. */
 #define NDBUS_MULTIBYTE_MAX 255
 
+/**
+ * @brief State of one multibyte message being reassembled from octobus frames.
+ */
 typedef struct NdbusMultibyte
 {
-    uint8_t bytes[NDBUS_MULTIBYTE_MAX];
-    int     count;
-    bool    open;      /* a SOMB was seen and the matching EOMB has not */
-    bool    overflow;  /* more body bytes arrived than the wire can describe */
-    uint8_t source;    /* who sent the message being collected; replies go here */
+    uint8_t bytes[NDBUS_MULTIBYTE_MAX];  /**< body bytes collected so far */
+    int     count;     /**< how many body bytes are in `bytes` */
+    bool    open;      /**< a SOMB was seen and the matching EOMB has not */
+    bool    overflow;  /**< more body bytes arrived than the wire can describe */
+    uint8_t source;    /**< who sent the message being collected; replies go here */
 } NdbusMultibyte;
 
+/**
+ * @brief Clear a collector back to idle: nothing open, nothing collected.
+ * @param mb The collector to reset.
+ * @return Nothing.
+ */
 void ndbus_multibyte_reset(NdbusMultibyte *mb);
 
-/* SOMB seen: start a fresh message and remember the sender. Any half-collected
- * previous message is DISCARDED - a new SOMB always wins, because the sender
- * having restarted is the only way a second SOMB can arrive. */
+/**
+ * @brief SOMB seen: start a fresh message and remember the sender.
+ * @param mb     The collector.
+ * @param source The sending OMD number, kept so replies can be addressed back.
+ * @return Nothing.
+ * @note Any half-collected previous message is DISCARDED - a new SOMB always
+ *       wins, because the sender having restarted is the only way a second SOMB
+ *       can arrive.
+ */
 void ndbus_multibyte_begin(NdbusMultibyte *mb, uint8_t source);
 
-/* One body byte from a data frame. Returns false when the collector is not open
- * (a stray data frame, which is dropped) or the body is already full. */
+/**
+ * @brief One body byte from a data frame.
+ * @param mb    The collector.
+ * @param value The body byte carried by the frame.
+ * @return true when the byte was stored; false when the collector is not open
+ *         (a stray data frame, which is dropped) or the body is already full.
+ */
 bool ndbus_multibyte_push(NdbusMultibyte *mb, uint8_t value);
 
-/* EOMB seen: close the message. Returns false when nothing was open, or when the
- * body overflowed - an overflowed message is refused whole rather than delivered
- * truncated, because a truncated ACCP command is a DIFFERENT command. */
+/**
+ * @brief EOMB seen: close the message.
+ * @param mb The collector.
+ * @return true when a complete body is now ready for the consumer; false when
+ *         nothing was open, or when the body overflowed - an overflowed message
+ *         is refused whole rather than delivered truncated, because a truncated
+ *         ACCP command is a DIFFERENT command.
+ */
 bool ndbus_multibyte_end(NdbusMultibyte *mb);
 
 #endif /* NDBUS_MULTIBYTE_H */

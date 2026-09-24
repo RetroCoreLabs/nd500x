@@ -1,5 +1,6 @@
-/*
- * ndbus_lock.h - the ONE mutex, and the TSET cycle that is the only reason it exists
+/**
+ * @file ndbus_lock.h
+ * @brief The ONE mutex, and the TSET cycle that is the only reason it exists.
  *
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2025-2026 Ronny Hansen
@@ -39,41 +40,72 @@
 #include "ndbus_pool.h"
 #include "ndbus_types.h"
 
-/* Take / release the bus-wide lock-cycle mutex. Recursion is NOT supported: a
- * function that takes it must not call another that does. */
+/**
+ * @brief Take the bus-wide lock-cycle mutex.
+ * @return Nothing.
+ * @note Recursion is NOT supported: a function that takes it must not call
+ *       another that does.
+ */
 void ndbus_lock(void);
+
+/**
+ * @brief Release the bus-wide lock-cycle mutex.
+ * @return Nothing.
+ * @note Recursion is NOT supported: a function that takes it must not call
+ *       another that does.
+ */
 void ndbus_unlock(void);
 
-/*
- * THE ND-500 TSET INSTRUCTION, as the bus sees it.
+/**
+ * @brief THE ND-500 TSET INSTRUCTION, as the bus sees it.
  *
  * src/cpu/instructions/CONTROL/Tset.c, opcode 0xFD40: a 32-bit (W) operand,
  * writes 0xFFFFFFFF, and sets Z = (old == 0). That is the entire primitive and
  * the only place mutual exclusion is genuinely required.
  *
- * Returns true when the cell was zero and is now held - the caller sets Z from
- * this. `*out_previous` receives the 32-bit value that was there, whether or not
- * the cell was taken; pass NULL if it is not wanted.
- *
- * An offset outside the pool returns false with *out_previous = 0 and writes
- * nothing.
+ * @param pool         The shared pool holding the semaphore cell.
+ * @param offset       Byte offset of the 32-bit cell within the pool.
+ * @param out_previous Receives the 32-bit value that was there, whether or not
+ *                     the cell was taken; pass NULL if it is not wanted.
+ * @return true when the cell was zero and is now held - the caller sets Z from
+ *         this. An offset outside the pool returns false with
+ *         *out_previous = 0 and writes nothing.
  */
 bool ndbus_tset32(NdbusPool *pool, uint32_t offset, uint32_t *out_previous);
 
-/*
- * The 16-bit form, for the SINTRAN-side semaphores that live in the window (the
- * ND-5000 X5SEM, the NUCLEUS TSET port lock). `taken_value` is what is stored on
- * success, because the two users differ: the NUCLEUS port lock stores the real
- * value 070000B, X5SEM stores a host-internal marker.
+/**
+ * @brief The 16-bit form, for the SINTRAN-side semaphores that live in the
+ *        window (the ND-5000 X5SEM, the NUCLEUS TSET port lock).
+ *
+ * @param pool        The shared pool holding the semaphore cell.
+ * @param offset      Byte offset of the 16-bit cell within the pool.
+ * @param taken_value What is stored on success, because the two users differ:
+ *                    the NUCLEUS port lock stores the real value 070000B,
+ *                    X5SEM stores a host-internal marker.
+ * @return true when the cell was zero and is now held; false when it was
+ *         already non-zero, or when the offset is outside the pool, in which
+ *         case nothing is written.
  */
 bool ndbus_tset16(NdbusPool *pool, uint32_t offset, uint16_t taken_value);
 
-/* Release a semaphore cell: store zero under the same mutex. */
+/**
+ * @brief Release a 16-bit semaphore cell: store zero under the same mutex.
+ * @param pool   The shared pool holding the semaphore cell.
+ * @param offset Byte offset of the 16-bit cell within the pool.
+ * @return Nothing; an offset outside the pool writes nothing.
+ */
 void ndbus_semaphore_release16(NdbusPool *pool, uint32_t offset);
+
+/**
+ * @brief Release a 32-bit semaphore cell: store zero under the same mutex.
+ * @param pool   The shared pool holding the semaphore cell.
+ * @param offset Byte offset of the 32-bit cell within the pool.
+ * @return Nothing; an offset outside the pool writes nothing.
+ */
 void ndbus_semaphore_release32(NdbusPool *pool, uint32_t offset);
 
-/*
- * THE SPIN DAMPER - an emulator problem with no hardware analogue.
+/**
+ * @brief THE SPIN DAMPER - an emulator problem with no hardware analogue.
  *
  * A guest waiting on a semaphore runs TSET / branch / TSET / ... at emulated
  * speed and burns a whole host core. On a real machine that CPU is simply
@@ -87,22 +119,36 @@ void ndbus_semaphore_release32(NdbusPool *pool, uint32_t offset);
  */
 typedef struct NdbusSpinDamper
 {
-    uint32_t last_offset;     /* the address of the previous failure */
-    uint32_t repeat_count;    /* consecutive failures at that address */
-    bool     have_last;       /* false until the first failure is recorded */
+    uint32_t last_offset;     /**< the address of the previous failure */
+    uint32_t repeat_count;    /**< consecutive failures at that address */
+    bool     have_last;       /**< false until the first failure is recorded */
 } NdbusSpinDamper;
 
-/* Past this many consecutive failures at one address, yield on every failure. */
+/** @brief Past this many consecutive failures at one address, yield on every failure. */
 #define NDBUS_SPIN_YIELD_THRESHOLD 64u
 
+/**
+ * @brief Clear a spin damper back to "no failure recorded yet".
+ * @param damper The per-CPU damper to reset.
+ * @return Nothing.
+ */
 void ndbus_spin_damper_reset(NdbusSpinDamper *damper);
 
-/* Record one FAILED TSET at `offset` and yield if the threshold is reached.
- * Returns true when it yielded. `host` may be NULL, and host->yield may be NULL;
- * the damper then counts but does not yield. */
+/**
+ * @brief Record one FAILED TSET at `offset` and yield if the threshold is reached.
+ * @param damper The per-CPU damper.
+ * @param offset The pool offset the failed TSET targeted.
+ * @param host   Host operations providing yield(). May be NULL, and host->yield
+ *               may be NULL; the damper then counts but does not yield.
+ * @return true when it yielded, false otherwise.
+ */
 bool ndbus_spin_damper_failed(NdbusSpinDamper *damper, uint32_t offset, const NdbusHostOps *host);
 
-/* Record a SUCCESSFUL TSET: the CPU made progress, so the streak is broken. */
+/**
+ * @brief Record a SUCCESSFUL TSET: the CPU made progress, so the streak is broken.
+ * @param damper The per-CPU damper.
+ * @return Nothing.
+ */
 void ndbus_spin_damper_succeeded(NdbusSpinDamper *damper);
 
 #endif /* NDBUS_LOCK_H */

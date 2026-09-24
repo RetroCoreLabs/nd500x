@@ -77,6 +77,69 @@ static int build_messnak(int nak_code, uint16_t *replies, int max)
     return 1;
 }
 
+/**
+ * @brief VERIFY PARAMETER POINTER: return the 32-bit word from the parameter area.
+ *
+ * THE ONE COMMAND A CANNED MESSACK CANNOT SATISFY.
+ *
+ * T128: "This command is used to verify that the ND-120 and the ACCP agree on
+ * where the parameter area is. Before the command is given, the ND-120 writes a
+ * 32-bit word in the parameter area. The ACCP reads and returns the word from
+ * its parameter area, and the ND-120 should then check if they are equal."
+ *
+ * So the reply must come out of SHARED MEMORY at the pointer LPARP gave.
+ * Answering with a fixed value passes the guard and fails the check the command
+ * exists to perform - and the ND-120 concludes the two disagree about where the
+ * parameter area is, which is a confusing thing to debug when the real answer is
+ * "the emulator never looked".
+ *
+ * Most significant byte first (T124).
+ *
+ * @param nd      The station.
+ * @param replies Reply frames to fill.
+ * @param max     Room in replies.
+ * @return Number of reply frames written: Messack plus four parameter bytes.
+ */
+static int accp_vparp(NdbusNd5000 *nd, uint16_t *replies, int max)
+{
+    uint32_t word = ndbus_pool_read32(nd->pool, nd->parameter_pointer);
+    uint8_t  reply[4];
+    reply[0] = (uint8_t)(word >> 24u);
+    reply[1] = (uint8_t)(word >> 16u);
+    reply[2] = (uint8_t)(word >> 8u);
+    reply[3] = (uint8_t)(word & 0xFFu);
+    return build_messack(nd->station.number, reply, 4, replies, max);
+}
+
+/**
+ * @brief ECHO TEST: return the test pattern that was sent.
+ *
+ * T126: "Returns the test pattern." Direct parameters are a count byte followed
+ * by that many test bytes, and the Messack carries them back. The command exists
+ * to prove the link works at all, so echoing a fixed pattern instead of the one
+ * that arrived would prove nothing.
+ *
+ * @param nd      The station.
+ * @param body    Message body; body[0] is the command, body[1] the count.
+ * @param length  Body length in bytes.
+ * @param replies Reply frames to fill.
+ * @param max     Room in replies.
+ * @return Number of reply frames written: Messack plus the echoed bytes.
+ */
+static int accp_echo(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_t *replies, int max)
+{
+    int count = body[1];
+    if (count > (length - 2))
+    {
+        count = length - 2; /* the sender said more than it sent */
+    }
+    if (count > NDBUS_MAX_REPLY_FRAMES - 1)
+    {
+        count = NDBUS_MAX_REPLY_FRAMES - 1;
+    }
+    return build_messack(nd->station.number, (count > 0) ? &body[2] : NULL, count, replies, max);
+}
+
 /*
  * The command itself. Only the state the guards read is maintained here; the
  * commands that move real data (the control store, the multiport test) are not
@@ -126,63 +189,20 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
         break;
 
     case NDBUS_ACCP_VPARP:
-    {
-        /*
-         * THE ONE COMMAND A CANNED MESSACK CANNOT SATISFY.
-         *
-         * T128: "This command is used to verify that the ND-120 and the ACCP
-         * agree on where the parameter area is. Before the command is given, the
-         * ND-120 writes a 32-bit word in the parameter area. The ACCP reads and
-         * returns the word from its parameter area, and the ND-120 should then
-         * check if they are equal."
-         *
-         * So the reply must come out of SHARED MEMORY at the pointer LPARP gave.
-         * Answering with a fixed value passes the guard and fails the check the
-         * command exists to perform - and the ND-120 concludes the two disagree
-         * about where the parameter area is, which is a confusing thing to
-         * debug when the real answer is "the emulator never looked".
-         *
-         * Most significant byte first (T124).
-         */
-        uint32_t word = ndbus_pool_read32(nd->pool, nd->parameter_pointer);
-        uint8_t  reply[4];
-        reply[0] = (uint8_t)(word >> 24);
-        reply[1] = (uint8_t)(word >> 16);
-        reply[2] = (uint8_t)(word >> 8);
-        reply[3] = (uint8_t)(word & 0xFF);
         nd->messacks++;
         nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
-        return build_messack(nd->station.number, reply, 4, replies, max);
-    }
+        return accp_vparp(nd, replies, max);
 
     case NDBUS_ACCP_ECHO:
-    {
-        /*
-         * T126: "Returns the test pattern." Direct parameters are a count byte
-         * followed by that many test bytes, and the Messack carries them back.
-         * The command exists to prove the link works at all, so echoing a fixed
-         * pattern instead of the one that arrived would prove nothing.
-         */
-        int count = body[1];
-        if (count > (length - 2))
-        {
-            count = length - 2; /* the sender said more than it sent */
-        }
-        if (count > NDBUS_MAX_REPLY_FRAMES - 1)
-        {
-            count = NDBUS_MAX_REPLY_FRAMES - 1;
-        }
         nd->messacks++;
         nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
-        return build_messack(nd->station.number, (count > 0) ? &body[2] : NULL, count, replies,
-                             max);
-    }
+        return accp_echo(nd, body, length, replies, max);
 
     case NDBUS_ACCP_LPARP:
         /* T128: "The address of the parameter area in the MFbus memory is
          * given." Four bytes, most significant first (T124). */
-        nd->parameter_pointer = ((uint32_t)body[1] << 24) | ((uint32_t)body[2] << 16) |
-                                ((uint32_t)body[3] << 8) | (uint32_t)body[4];
+        nd->parameter_pointer = ((uint32_t)body[1] << 24u) | ((uint32_t)body[2] << 16u) |
+                                ((uint32_t)body[3] << 8u) | (uint32_t)body[4];
         nd->accp.parameter_pointer_given = true;
         break;
 
