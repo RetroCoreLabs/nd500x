@@ -1602,7 +1602,25 @@ rungs, and the multibyte ECHO through the card is most of test 6 already.
 hand-assembled ND-500 program into MPM, and runs it. 32-bit values are written
 big-endian, high halfword first.
 
-*We have the loading half* (`mfbus_load_nd5000`), *not the context block.*
+*We have both halves now:* `mfbus_load_nd5000()` puts the image in the pool and
+`src/ndbus/ndbus_context.{h,c}` places the block. The layout is the microcode
+decode (`$NDINSIGHT/SINTRAN/ND500/CNTXT-BLOCK-DECODE-2026-07-17.md`), which
+grades every field against the microword addresses that save and load it.
+
+**The trap in that structure: not every field in the block is loaded FROM the
+block.** TOS, LL, HL, THA, CES, CAS and the whole trap-enable group are DOMAIN
+registers sourced from the Domain Information Table, and `NEWCNTXT` does not
+touch them. Writing TOS into a context block and expecting the CPU to come up
+with that stack pointer does nothing, and nothing reports it. LL and HL are
+loaded by `TRAPSET` from DIT+0x40 and DIT+0x44.
+`ndbus_context_field_is_loaded()` is how the two classes are told apart, and the
+write is still ACCEPTED - the cell exists - because an API that refused it would
+be pretending the block is smaller than it is.
+
+The blocks sit at `area + 0x100 + 0x100 * X5CPU`, where the area base is what
+the control-store cell `OFFSET` (0o20) is patched with when the control store is
+loaded (ND-05.017.01 Appendix A.1). The first CPU's block is one stride in - the
+same 1-based shape as the mailbox, and for the same reason.
 
 #### Rung 6 - threading, still bare.
 

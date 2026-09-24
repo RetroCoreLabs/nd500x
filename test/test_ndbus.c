@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include "ndbus_accp.h"
+#include "ndbus_context.h"
 #include "ndbus_doorbell.h"
 #include "ndbus_nd5000.h"
 #include "ndbus_lock.h"
@@ -1379,6 +1380,100 @@ static void test_mailbox(void)
     ndbus_pool_destroy(&pool);
 }
 
+/* ------------------------------------------------------------------------- */
+/* Layer 5: the SAMSON context block                                          */
+/* ------------------------------------------------------------------------- */
+
+static void test_context(void)
+{
+    printf("Layer 5: SAMSON context block\n");
+
+    NdbusPool pool;
+    (void)ndbus_pool_create(&pool, POOL_BYTES);
+
+    NdbusContext ctx;
+    const uint32_t area = 0x000;
+
+    CHECK(!ndbus_context_attach(&ctx, NULL, area, 0), "a view with no pool is refused");
+    CHECK(!ndbus_context_attach(&ctx, &pool, area, -1), "a negative X5CPU is refused");
+    CHECK(!ndbus_context_attach(&ctx, &pool, area, NDBUS_CTX_MAX_CPU + 1),
+          "and one past the last CPU");
+    CHECK(!ndbus_context_attach(&ctx, &pool, POOL_BYTES - 0x100, 0),
+          "a block that runs off the end is refused, not clamped");
+
+    CHECK(ndbus_context_attach(&ctx, &pool, area, 0), "X5CPU 0 attaches");
+    /* area + 0x100 + 0x100 * X5CPU: the first CPU's block is ONE STRIDE IN,
+     * the same 1-based shape the mailbox uses. */
+    CHECK(ndbus_context_base(&ctx) == area + 0x100u, "CPU 0's block is one stride in");
+
+    NdbusContext ctx3;
+    CHECK(ndbus_context_attach(&ctx3, &pool, area, 3), "X5CPU 3 attaches");
+    CHECK(ndbus_context_base(&ctx3) == area + 0x100u + 3u * 0x100u, "at four strides in");
+    CHECK(ndbus_context_base(&ctx) != ndbus_context_base(&ctx3), "and CPUs do not share a block");
+
+    /* The register file round-trips, 32-bit big-endian high halfword first. */
+    CHECK(ndbus_context_write(&ctx, NDBUS_CTX_P, 0x00001000u), "P writes");
+    CHECK(ndbus_context_write(&ctx, NDBUS_CTX_B, 0x00002000u), "B writes");
+    CHECK(ndbus_context_read(&ctx, NDBUS_CTX_P) == 0x00001000u, "P reads back");
+    CHECK(ndbus_context_read(&ctx, NDBUS_CTX_B) == 0x00002000u, "B reads back");
+    CHECK(ndbus_pool_read16(&pool, ndbus_context_base(&ctx) + NDBUS_CTX_P) == 0x0000,
+          "stored high halfword first");
+    CHECK(ndbus_pool_read16(&pool, ndbus_context_base(&ctx) + NDBUS_CTX_P + 2) == 0x1000,
+          "then the low halfword");
+
+    /* The documented offsets, so a transcription slip shows up here rather than
+     * as a CPU that starts with the wrong register in the wrong place. */
+    CHECK(NDBUS_CTX_P == 0x00u && NDBUS_CTX_L == 0x04u, "P at 0x00, L at 0x04");
+    CHECK(NDBUS_CTX_B == 0x08u && NDBUS_CTX_R == 0x0Cu, "B at 0x08, R at 0x0C");
+    CHECK(NDBUS_CTX_I1 == 0x10u && NDBUS_CTX_I4 == 0x1Cu, "I1..I4 at 0x10..0x1C");
+    CHECK(NDBUS_CTX_A1 == 0x20u && NDBUS_CTX_E4 == 0x3Cu, "A1..E4 at 0x20..0x3C");
+    CHECK(NDBUS_CTX_STATUS == 0x40u, "status composite at 0x40");
+    CHECK(NDBUS_CTX_CED == 0x5Cu && NDBUS_CTX_CAD == 0x60u, "CED at 0x5C, CAD at 0x60");
+
+    /* THE TRAP: not every field in the block is loaded FROM the block. The
+     * DOMAIN registers come from the Domain Information Table, and NEWCNTXT
+     * does not touch them - so writing TOS here and expecting that stack
+     * pointer does nothing, and nothing reports it. */
+    CHECK(ndbus_context_field_is_loaded(NDBUS_CTX_P), "P is loaded from the block");
+    CHECK(ndbus_context_field_is_loaded(NDBUS_CTX_B), "so is B");
+    CHECK(ndbus_context_field_is_loaded(NDBUS_CTX_CED), "and CED");
+    CHECK(!ndbus_context_field_is_loaded(NDBUS_CTX_DIT_TOS), "TOS is NOT - it is DIT-sourced");
+    CHECK(!ndbus_context_field_is_loaded(NDBUS_CTX_DIT_LL), "nor LL, loaded by TRAPSET from DIT");
+    CHECK(!ndbus_context_field_is_loaded(NDBUS_CTX_DIT_HL), "nor HL");
+    CHECK(!ndbus_context_field_is_loaded(NDBUS_CTX_DIT_THA), "nor THA");
+    CHECK(!ndbus_context_field_is_loaded(NDBUS_CTX_DIT_OTE1), "nor the trap enables");
+    CHECK(!ndbus_context_field_is_loaded(NDBUS_CTX_DIT_TEM2), "any of them");
+
+    /* Writing one is ACCEPTED - the cell exists - it simply has no effect on a
+     * started CPU. The API does not pretend otherwise by refusing the write. */
+    CHECK(ndbus_context_write(&ctx, NDBUS_CTX_DIT_TOS, 0xDEADBEEFu),
+          "a DIT-sourced cell can still be written");
+    CHECK(ndbus_context_read(&ctx, NDBUS_CTX_DIT_TOS) == 0xDEADBEEFu, "and read back");
+
+    /* Placing a bring-up context clears the whole block first, so a previous
+     * run's register file cannot leak into this one. */
+    CHECK(ndbus_context_write(&ctx, NDBUS_CTX_I1, 0x11111111u), "leave a stale register");
+    CHECK(ndbus_context_place(&ctx, 0x00003000u, 0x00004000u), "place a bring-up context");
+    CHECK(ndbus_context_read(&ctx, NDBUS_CTX_P) == 0x00003000u, "P is the entry point");
+    CHECK(ndbus_context_read(&ctx, NDBUS_CTX_B) == 0x00004000u, "B is the local data base");
+    CHECK(ndbus_context_read(&ctx, NDBUS_CTX_I1) == 0, "and the stale register is cleared");
+    CHECK(ndbus_context_read(&ctx, NDBUS_CTX_DIT_TOS) == 0, "along with everything else");
+
+    /* Placing one CPU's context must not disturb another's. */
+    CHECK(ndbus_context_place(&ctx3, 0x00005000u, 0x00006000u), "place CPU 3's context");
+    CHECK(ndbus_context_read(&ctx, NDBUS_CTX_P) == 0x00003000u, "CPU 0's P is untouched");
+    CHECK(ndbus_context_read(&ctx3, NDBUS_CTX_P) == 0x00005000u, "and CPU 3 has its own");
+
+    /* Out of range, and NULL. */
+    CHECK(!ndbus_context_write(&ctx, NDBUS_CTX_STRIDE_BYTES, 1), "past the block is refused");
+    CHECK(ndbus_context_read(&ctx, NDBUS_CTX_STRIDE_BYTES) == 0, "and reads 0");
+    CHECK(ndbus_context_base(NULL) == 0, "base(NULL) is 0");
+    CHECK(!ndbus_context_place(NULL, 0, 0), "place(NULL) is refused");
+    CHECK(ndbus_context_read(NULL, 0) == 0, "read(NULL) is 0");
+
+    ndbus_pool_destroy(&pool);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -1390,6 +1485,7 @@ int main(void)
     test_window();
     test_octobus();
     test_accp();
+    test_context();
     test_nd5000_station();
     test_mailbox();
 #ifndef __EMSCRIPTEN__
