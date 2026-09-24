@@ -25,6 +25,7 @@
 #include "ndbus_nd5000.h"
 #include "ndbus_lock.h"
 #include "ndbus_mailbox.h"
+#include "ndbus_msgqueue.h"
 #include "ndbus_octobus.h"
 #include "ndbus_pool.h"
 #include "ndbus_runner.h"
@@ -1493,19 +1494,30 @@ static void test_context(void)
  * service per ring" - that would be wrong on real hardware. It is "every queued
  * message is serviced exactly once, however the rings fall".
  *
- * The queue here is a counter in the pool standing in for the X5BEX chain, which
- * is not modelled yet. What is under test is the DELIVERY DISCIPLINE, not the
- * chain walk.
+ * The queue is the REAL X5BEX chain: message blocks in shared memory linked by
+ * byte offset, walked the way the microcode walks it. Each block carries a
+ * sequence number in a spare field so the drain can prove that every posted
+ * block was taken exactly once - a counter would prove only that the totals
+ * matched.
  */
 
 #define CANARY_MESSAGES 20000
+
+#define CANARY_BLOCK_BYTES 64u
+#define CANARY_ARENA       0x1000u
+/* The canary needs REAL distinct blocks - one per message - so it gets its own
+ * pool rather than the 4 KB one the other layers use. 20000 blocks of 64 bytes
+ * is 1.28 MB; 2 MB leaves room for the mailbox below the arena. The first
+ * version of this test reused the small pool and its own arena-fits check caught
+ * that, which is the check earning its place. */
+#define CANARY_POOL_BYTES  (2u * 1024u * 1024u)
 
 typedef struct
 {
     NdbusMailbox *mbx;
     NdbusPool    *pool;
-    uint32_t      queue_offset;   /* messages posted, by the ND-100 */
-    uint32_t      serviced_offset;/* messages taken, by the ND-5000 */
+    unsigned char seen[CANARY_MESSAGES]; /* times each sequence number was taken */
+    long          taken;
     /* Written by the ND-100 thread, read by the CPU thread. Touched only through
      * __atomic_* - `volatile` is NOT an atomic and a bare read/write pair here
      * is a C11 data race, which ThreadSanitizer duly reported when this test
@@ -1516,7 +1528,23 @@ typedef struct
     long          rings;
 } Canary;
 
-/* The ND-5000 side: poll the doorbell and drain the queue. */
+/* Walk the chain to exhaustion, recording each block's sequence number. This is
+ * the microcode's answer to a ring, and it is what makes coalescing safe. */
+static void canary_drain(Canary *c)
+{
+    uint32_t msg = 0;
+    while (ndbus_msgqueue_take(c->mbx, &msg))
+    {
+        uint16_t seq = ndbus_msg_read(c->pool, msg, NDBUS_MSG_X5ACT);
+        if (seq < CANARY_MESSAGES)
+        {
+            c->seen[seq]++;
+        }
+        c->taken++;
+    }
+}
+
+/* The ND-5000 side: poll the doorbell and walk the chain. */
 static void *canary_cpu(void *arg)
 {
     Canary *c = (Canary *)arg;
@@ -1525,46 +1553,14 @@ static void *canary_cpu(void *arg)
         if (ndbus_mailbox_poll(c->mbx))
         {
             c->polls++;
-            /* A ring means "there is work". Drain EVERYTHING - that is the
-             * chain walk, and it is what makes coalescing safe. */
-            for (;;)
-            {
-                ndbus_lock();
-                uint32_t posted = ndbus_pool_read32(c->pool, c->queue_offset);
-                uint32_t taken = ndbus_pool_read32(c->pool, c->serviced_offset);
-                bool have = (taken < posted);
-                if (have)
-                {
-                    (void)ndbus_pool_write32(c->pool, c->serviced_offset, taken + 1u);
-                }
-                ndbus_unlock();
-                if (!have)
-                {
-                    break;
-                }
-            }
+            canary_drain(c);
         }
 
         if (__atomic_load_n(&c->stop, __ATOMIC_RELAXED) != 0u)
         {
-            /* One last drain after the stop flag, so a message posted just
-             * before it cannot be left behind. */
-            for (;;)
-            {
-                ndbus_lock();
-                uint32_t posted = ndbus_pool_read32(c->pool, c->queue_offset);
-                uint32_t taken = ndbus_pool_read32(c->pool, c->serviced_offset);
-                bool have = (taken < posted);
-                if (have)
-                {
-                    (void)ndbus_pool_write32(c->pool, c->serviced_offset, taken + 1u);
-                }
-                ndbus_unlock();
-                if (!have)
-                {
-                    break;
-                }
-            }
+            /* One last walk after the stop flag, so a block posted just before
+             * it cannot be left on the chain. */
+            canary_drain(c);
             return NULL;
         }
     }
@@ -1575,18 +1571,22 @@ static void test_exactly_once_canary(void)
     printf("Layer 7: exactly-once canary\n");
 
     NdbusPool pool;
-    (void)ndbus_pool_create(&pool, POOL_BYTES);
+    CHECK(ndbus_pool_create(&pool, CANARY_POOL_BYTES), "a pool big enough for real blocks");
 
     NdbusMailbox mbx;
     CHECK(ndbus_mailbox_attach(&mbx, &pool, 0, 1), "a mailbox for CPU 1");
     CHECK(ndbus_mailbox_init_xmsinit(&mbx, 32, 0x800), "seeded as XMSINIT leaves it");
 
-    Canary c;
+    /* An arena of message blocks, one per message, each with its sequence
+     * number in X5ACT. Blocks are distinct memory so a double-take is provable
+     * rather than inferred from a total. */
+    static Canary c;
     memset(&c, 0, sizeof(c));
     c.mbx = &mbx;
     c.pool = &pool;
-    c.queue_offset = 0xA00;
-    c.serviced_offset = 0xA08;
+
+    CHECK(CANARY_ARENA + (uint32_t)CANARY_MESSAGES * CANARY_BLOCK_BYTES <= CANARY_POOL_BYTES,
+          "the block arena fits the pool");
 
     pthread_t cpu;
     if (pthread_create(&cpu, NULL, canary_cpu, &c) != 0)
@@ -1596,14 +1596,14 @@ static void test_exactly_once_canary(void)
         return;
     }
 
-    /* The ND-100 side: post a message, then ring. In that order - the release
-     * in the ring publishes the post. */
+    /* The ND-100 side: build a block, post it onto the chain, then ring. In
+     * that order - the release in the ring publishes everything before it. */
     for (int i = 0; i < CANARY_MESSAGES; i++)
     {
-        ndbus_lock();
-        uint32_t posted = ndbus_pool_read32(&pool, c.queue_offset);
-        (void)ndbus_pool_write32(&pool, c.queue_offset, posted + 1u);
-        ndbus_unlock();
+        uint32_t msg = CANARY_ARENA + (uint32_t)i * CANARY_BLOCK_BYTES;
+        (void)ndbus_msg_write(&pool, msg, NDBUS_MSG_X5ACT, (uint16_t)i);
+        (void)ndbus_msg_write(&pool, msg, NDBUS_MSG_SENDE, 1u);
+        (void)ndbus_msgqueue_post(&mbx, msg);
 
         (void)ndbus_mailbox_ring(&mbx);
         c.rings++;
@@ -1612,12 +1612,29 @@ static void test_exactly_once_canary(void)
     __atomic_store_n(&c.stop, 1u, __ATOMIC_RELAXED);
     (void)pthread_join(cpu, NULL);
 
-    uint32_t posted = ndbus_pool_read32(&pool, c.queue_offset);
-    uint32_t taken = ndbus_pool_read32(&pool, c.serviced_offset);
+    long posted = CANARY_MESSAGES;
+    long taken = c.taken;
 
-    CHECK(posted == (uint32_t)CANARY_MESSAGES, "every message was posted");
-    /* THE CANARY. Not one service per ring - one service per MESSAGE. */
-    CHECK(taken == posted, "and every message was serviced EXACTLY once");
+    /* THE CANARY. Not one service per ring - one service per MESSAGE, and
+     * proved per block rather than by a total: a total would pass if one block
+     * were taken twice and another lost. */
+    int missing = 0;
+    int doubled = 0;
+    for (int i = 0; i < CANARY_MESSAGES; i++)
+    {
+        if (c.seen[i] == 0)
+        {
+            missing++;
+        }
+        else if (c.seen[i] > 1)
+        {
+            doubled++;
+        }
+    }
+    CHECK(missing == 0, "no queued message was lost");
+    CHECK(doubled == 0, "and none was serviced twice");
+    CHECK(taken == posted, "so the totals agree too");
+    CHECK(ndbus_msgqueue_depth(&mbx, CANARY_MESSAGES + 1) == 0, "the chain is empty at the end");
 
     /* And the proof that rings really do coalesce, so the assertion above is
      * the meaningful one: far fewer polls succeeded than rings were sent, yet
@@ -1639,7 +1656,7 @@ static void test_exactly_once_canary(void)
      * other way. The first version of this check asserted the doorbell was left
      * re-armed and failed for exactly that reason. */
     uint16_t x5act_at_end = ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5ACT_WORD);
-    CHECK(taken == posted, "the queue is drained whatever the doorbell says");
+    CHECK(ndbus_msgqueue_depth(&mbx, 4) == 0, "the chain is drained whatever the doorbell says");
     CHECK(x5act_at_end == 0 || x5act_at_end == NDBUS_MBX_X5ACT_REARM,
           "and the doorbell is in one of its two legal states, rung or re-armed");
 
@@ -1648,8 +1665,8 @@ static void test_exactly_once_canary(void)
     if (x5act_at_end == 0)
     {
         CHECK(ndbus_mailbox_poll(&mbx), "a leftover ring is consumed by the next poll");
-        CHECK(ndbus_pool_read32(&pool, c.serviced_offset) == posted,
-              "and services nothing, because the queue is already empty");
+        CHECK(ndbus_msgqueue_depth(&mbx, 4) == 0,
+              "and finds nothing, because the chain is already empty");
     }
 
     ndbus_pool_destroy(&pool);
