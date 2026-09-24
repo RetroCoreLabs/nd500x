@@ -21,6 +21,7 @@
 
 #include "ndbus_accp.h"
 #include "ndbus_context.h"
+#include "ndbus_cpunum.h"
 #include "ndbus_doorbell.h"
 #include "ndbus_nd5000.h"
 #include "ndbus_lock.h"
@@ -1464,6 +1465,50 @@ static void test_context(void)
     CHECK(ndbus_context_place(&ctx3, 0x00005000u, 0x00006000u), "place CPU 3's context");
     CHECK(ndbus_context_read(&ctx, NDBUS_CTX_P) == 0x00003000u, "CPU 0's P is untouched");
     CHECK(ndbus_context_read(&ctx3, NDBUS_CTX_P) == 0x00005000u, "and CPU 3 has its own");
+
+    /* ---- THE TWO CPU NUMBERINGS DO NOT MATCH -------------------------------
+     * The mailbox extension block is indexed by a ONE-BASED CPUNO; the context
+     * block area by a ZERO-BASED X5CPU. Both index a 256-byte stride off a base,
+     * so the expressions look interchangeable and are not. Passing one where the
+     * other belongs puts a CPU's registers in its neighbour's block, or its
+     * queue head on top of the mailbox global header - and neither faults. */
+    CHECK(ndbus_cpu_mailbox_cpuno(56) == 1, "station 070B is mailbox CPUNO 1");
+    CHECK(ndbus_cpu_context_x5cpu(56) == 0, "and context X5CPU 0");
+    CHECK(ndbus_cpu_mailbox_cpuno(56) != ndbus_cpu_context_x5cpu(56),
+          "THE TWO DIFFER BY ONE for the same station - this is the trap");
+    CHECK(ndbus_cpu_mailbox_cpuno(62) == 7, "station 076B is mailbox CPUNO 7");
+    CHECK(ndbus_cpu_context_x5cpu(62) == 6, "and context X5CPU 6");
+
+    /* Out of range gives a value each attach REFUSES, rather than silently
+     * landing on block 0 or the global header. */
+    CHECK(ndbus_cpu_mailbox_cpuno(1) == 0, "the ND-100's own station is not a CPUNO");
+    CHECK(ndbus_cpu_context_x5cpu(1) == -1, "nor an X5CPU");
+    CHECK(ndbus_cpu_mailbox_cpuno(8) == 0, "nor is a SCSI controller's station");
+
+    /* And the refusal is real: the values are rejected by the attach calls. */
+    {
+        NdbusMailbox bad_mbx;
+        NdbusContext bad_ctx;
+        CHECK(!ndbus_mailbox_attach(&bad_mbx, &pool, 0, ndbus_cpu_mailbox_cpuno(1)),
+              "a mailbox for a non-ND-5000 station is refused");
+        CHECK(!ndbus_context_attach(&bad_ctx, &pool, 0, ndbus_cpu_context_x5cpu(1)),
+              "so is a context block");
+    }
+
+    /* Same station, both structures, and they must land in DIFFERENT places. */
+    {
+        NdbusMailbox m70;
+        NdbusContext c70;
+        CHECK(ndbus_mailbox_attach(&m70, &pool, 0, ndbus_cpu_mailbox_cpuno(56)),
+              "station 070B's mailbox attaches");
+        CHECK(ndbus_context_attach(&c70, &pool, 0, ndbus_cpu_context_x5cpu(56)),
+              "and its context block");
+        /* Both are one stride in from their own base, which is WHY the two
+         * numberings differ: the mailbox counts the header as slot 0, the
+         * context area skips slot 0 with its +0x100. */
+        CHECK(ndbus_mailbox_ext_base(&m70) == 256u, "the mailbox block is one stride in");
+        CHECK(ndbus_context_base(&c70) == 0x100u, "and so is the context block");
+    }
 
     /* Out of range, and NULL. */
     CHECK(!ndbus_context_write(&ctx, NDBUS_CTX_STRIDE_BYTES, 1), "past the block is refused");

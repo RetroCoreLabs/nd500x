@@ -56,6 +56,25 @@
  * structure zero-filled instead of initialised therefore looks like a CPU with
  * a queued chain at offset 0 and a doorbell already rung.
  *
+ *
+ * !!! THE TWO CPU NUMBERINGS DO NOT MATCH, AND BOTH ARE CORRECT !!!
+ *
+ * The mailbox extension block is indexed by CPUNO, which is ONE-BASED: slot 0 is
+ * the global header and stations 070B..076B are CPUNO 1..7.
+ *
+ * The context block area is indexed by X5CPU, which is ZERO-BASED: the layout is
+ * area + 0x100 + 0x100 * X5CPU, so the +0x100 skips slot 0 and X5CPU 0 is the
+ * first CPU's block.
+ *
+ * Both are what their sources say, and both index a 256-byte stride off a base,
+ * so the expressions look interchangeable and are not. For station 070B the
+ * mailbox wants 1 and the context wants 0. Passing one number to both puts a
+ * CPU's registers in its neighbour's block, or its queue head on the global
+ * header - and neither faults, they just corrupt.
+ *
+ * Convert with ndbus_cpu_mailbox_cpuno() and ndbus_cpu_context_x5cpu() rather
+ * than by hand.
+ *
  * CPUNO IS 1-BASED. Slot 0 is the global header, so the first ND-5000 is CPUNO
  * 1 at header + 256. Stations 070B..073B are CPUNO 1..4. Treating CPUNO as
  * 0-based would put the first CPU's extension block on top of the global header

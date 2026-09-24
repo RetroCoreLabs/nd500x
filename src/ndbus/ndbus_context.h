@@ -24,6 +24,25 @@
  * same 1-based shape the mailbox uses, and for the same reason: slot 0 is not a
  * CPU's.
  *
+ *
+ * !!! THE TWO CPU NUMBERINGS DO NOT MATCH, AND BOTH ARE CORRECT !!!
+ *
+ * The mailbox extension block is indexed by CPUNO, which is ONE-BASED: slot 0 is
+ * the global header and stations 070B..076B are CPUNO 1..7.
+ *
+ * The context block area is indexed by X5CPU, which is ZERO-BASED: the layout is
+ * area + 0x100 + 0x100 * X5CPU, so the +0x100 skips slot 0 and X5CPU 0 is the
+ * first CPU's block.
+ *
+ * Both are what their sources say, and both index a 256-byte stride off a base,
+ * so the expressions look interchangeable and are not. For station 070B the
+ * mailbox wants 1 and the context wants 0. Passing one number to both puts a
+ * CPU's registers in its neighbour's block, or its queue head on the global
+ * header - and neither faults, they just corrupt.
+ *
+ * Convert with ndbus_cpu_mailbox_cpuno() and ndbus_cpu_context_x5cpu() rather
+ * than by hand.
+ *
  * LAYOUT. Byte offsets of 32-bit words, from the microcode decode
  * (CNTXT-BLOCK-DECODE, graded per field against the microword addresses that
  * save and load each one). 32-bit values are stored big-endian, HIGH HALFWORD

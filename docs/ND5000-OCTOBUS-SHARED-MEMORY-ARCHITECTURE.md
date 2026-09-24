@@ -1163,6 +1163,37 @@ station      = 071B
 
 ## 9. Traps, and claims that are refuted
 
+### 9.0 An ND-5000 has THREE numbers and they are not the same number
+
+Found by a review sweep of the code written for this plan, before it had cost
+anything - which is the only reason it is a note rather than a bug hunt.
+
+| Number | Range | What it indexes |
+|---|---|---|
+| STATION | 070B..076B (56..62) | its address on the octobus |
+| CPUNO | **1..7** | its mailbox extension block |
+| X5CPU | **0..6** | its context block |
+
+All three are what their own sources say. The mailbox counts the global header as
+slot 0, so CPUNO starts at 1; the context block area skips slot 0 with its
+`+ 0x100`, so X5CPU starts at 0.
+
+**The two block numberings are the dangerous pair.** Both index a 256-byte stride
+off a base, so `station - 070B` and `station - 070B + 1` are both plausible and
+each is correct for exactly one of them. Passing one where the other belongs puts
+a CPU's registers in its neighbour's block, or its queue head on top of the
+mailbox global header where X5SEM lives. **Neither faults. They corrupt**, and
+the corruption surfaces as a stuck semaphore or a CPU that starts with another
+CPU's context.
+
+`src/ndbus/ndbus_cpunum.h` is the only place the conversion happens.
+A bare subtraction in calling code is the bug it exists to prevent, and there was
+one in `mfbus_bridge.c` when this was found. Out-of-range stations return values
+that `ndbus_mailbox_attach()` and `ndbus_context_attach()` both refuse - 0 and -1
+respectively - rather than values that silently land on block 0.
+
+
+
 Recording these so no future session re-derives them.
 
 ### 9.1 SINTRAN does NOT program the MPM port registers
