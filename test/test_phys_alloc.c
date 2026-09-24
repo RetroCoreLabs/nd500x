@@ -153,7 +153,7 @@ static void test_two_domains_resident(Nd500Machine* m, Nd500Cpu* cpu,
 
     /* A nested run: its pages must come from somewhere else entirely. */
     void* scope = nd500_segment_alloc_state_save(m);
-    void* mmu = nd500_mmu_state_save();
+    void* mmu = nd500_mmu_state_save(cpu);
 
     if (load_dom(m, cpu, dom_b, &domain_b) != 0) {
         printf("  [FAIL] could not load %s\n", dom_b);
@@ -175,7 +175,7 @@ static void test_two_domains_resident(Nd500Machine* m, Nd500Cpu* cpu,
 
     /* Close the nested scope: B's pages come back, A keeps its own. */
     uint32_t free_before_pop = nd500_phys_pages_free(m);
-    nd500_mmu_state_restore(mmu);
+    nd500_mmu_state_restore(cpu, mmu);
     nd500_segment_alloc_state_restore(scope);
     check(nd500_phys_pages_free(m) > free_before_pop, "closing the scope reclaimed pages");
 

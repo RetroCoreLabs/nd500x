@@ -306,11 +306,48 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# Headers reached BY SUBDIRECTORY - "machine/machine_types.h", "cpu/cpu_protos.h".
+#
+# nd500x and nd100x both have a src/machine/machine_types.h and a
+# src/cpu/cpu_protos.h. When nd500x is add_subdirectory()'d into nd100x, an
+# unqualified "machine_types.h" from a file that also has nd100x's src/machine
+# on its include path picks up the ND-100's - which happened, and produced
+# errors about Nd500Machine being an incomplete type. A header whose contents
+# merely DIFFERED would have compiled and been silently wrong. See the long note
+# at the top of nd100x's src/frontend/nd100wasm/nd500_wasm.c.
+#
+# That consumer currently hand-adds ${ND100X_ND500X_DIR}/src to its own include
+# path. This INTERFACE target carries the same directory as a PUBLIC property,
+# so a consumer writes target_link_libraries(... nd500::headers) and the path
+# comes with it - one place to change, and no way to link the libraries while
+# forgetting the include root they are meant to be reached through.
+#
+# It is INTERFACE, so it compiles nothing and costs nothing.
+add_library(nd500_headers INTERFACE)
+target_include_directories(nd500_headers INTERFACE ${ND500X_ROOT}/src)
+add_library(nd500::headers ALIAS nd500_headers)
+
 # Add subdirectories
 add_subdirectory(src/ndlib)
 add_subdirectory(src/disasm)
 add_subdirectory(src/machine)
 add_subdirectory(src/cpu)
+add_subdirectory(src/ndbus)
+
+# Namespaced aliases for consumers.
+#
+# A plain `nd500_cpu` in a consumer's target_link_libraries() is a name CMake
+# will happily treat as a bare library filename if the target does not exist -
+# so a typo, or a build where nd500x was not found, fails at LINK time with an
+# obscure message. An ALIAS with a `::` in it can never be mistaken for a
+# filename: CMake errors at CONFIGURE time with the missing target's name.
+#
+# The unprefixed names stay valid; nothing existing has to change.
+add_library(nd500::ndlib   ALIAS nd500_ndlib)
+add_library(nd500::disasm  ALIAS nd500_disasm)
+add_library(nd500::machine ALIAS nd500_machine)
+add_library(nd500::cpu     ALIAS nd500_cpu)
+add_library(nd500::ndbus   ALIAS nd500_ndbus)
 # MON library now comes from external/ndmonlib (added above)
 # The debugger (its `mon` command enumerates the ndmonlib registry) and both
 # frontends are SINTRAN-facing and need ndmonlib. A WITH_NDMON=OFF build is a

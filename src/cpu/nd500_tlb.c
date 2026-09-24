@@ -26,26 +26,88 @@ extern unsigned long long g_tlb_hits, g_tlb_misses, g_tlb_flushes;
 void nd500_mmu_tlb_stat_install(void);
 
 uint8_t g_nd500_xlat_bm[ND500_TLB_XLAT_PAGES / 8];
-int     g_nd500_tlb_on = 0;
 
-TlbEntry g_nd500_tlb[ND500_TLB_SIZE];
-int      g_nd500_tlb_init = 0;
+/*
+ * The registry of attached caches.
+ *
+ * Kept here rather than reached through Nd500Cpu on purpose: this translation
+ * unit deliberately has no dependency beyond stdlib (see the file comment), and
+ * the coarse flush callers - machine_loader.c, nd500_phys_alloc.c, debug_api.c -
+ * have no CPU pointer in hand at all.
+ */
+static Nd500Tlb *s_tlbs[ND500_TLB_MAX_CPUS];
+static int       s_tlb_count;
 
-void nd500_mmu_tlb_flush(void) {
-    if (!g_nd500_tlb_init) return;
-    g_tlb_flushes++;
-    for (uint32_t i = 0; i < ND500_TLB_SIZE; i++)
-        g_nd500_tlb[i].tag = ND500_TLB_EMPTY;
+int g_nd500_tlb_active;
+
+/* Recompute the hot-path gate: non-zero while any registered cache is on. */
+static void tlb_recount_active(void) {
+    int active = 0;
+    for (int i = 0; i < s_tlb_count; i++)
+        if (s_tlbs[i] != NULL && s_tlbs[i]->on)
+            active = 1;
+    g_nd500_tlb_active = active;
 }
 
-void nd500_mmu_tlb_init_once(void) {
-    if (g_nd500_tlb_init) return;
-    g_nd500_tlb_init = 1;
+bool nd500_tlb_register(Nd500Tlb *tlb) {
+    if (tlb == NULL) return false;
+    for (int i = 0; i < s_tlb_count; i++)
+        if (s_tlbs[i] == tlb) return true;          /* already attached */
+    if (s_tlb_count >= ND500_TLB_MAX_CPUS) {
+        /* Refused, not dropped silently: a CPU that is not in the registry
+         * never receives a shootdown and would run on stale translations
+         * forever, which shows up as impossible memory contents much later. */
+        fprintf(stderr, "ND-500: TLB registry full (%d CPUs) - CPU not attached\n",
+                ND500_TLB_MAX_CPUS);
+        return false;
+    }
+    s_tlbs[s_tlb_count++] = tlb;
+    tlb_recount_active();
+    return true;
+}
+
+void nd500_tlb_unregister(Nd500Tlb *tlb) {
+    for (int i = 0; i < s_tlb_count; i++) {
+        if (s_tlbs[i] != tlb) continue;
+        for (int j = i; j < s_tlb_count - 1; j++)
+            s_tlbs[j] = s_tlbs[j + 1];
+        s_tlbs[--s_tlb_count] = NULL;
+        tlb_recount_active();
+        return;
+    }
+}
+
+void nd500_tlb_flush_one(Nd500Tlb *tlb) {
+    if (tlb == NULL || !tlb->init) return;
+    g_tlb_flushes++;
     for (uint32_t i = 0; i < ND500_TLB_SIZE; i++)
-        g_nd500_tlb[i].tag = ND500_TLB_EMPTY;
-    g_nd500_tlb_on = nd500_settings()->tlb_enabled;
+        tlb->entries[i].tag = ND500_TLB_EMPTY;
+}
+
+void nd500_mmu_tlb_flush(void) {
+    for (int i = 0; i < s_tlb_count; i++)
+        nd500_tlb_flush_one(s_tlbs[i]);
+}
+
+void nd500_tlb_signal_flush(void) {
+    /* Set the flag in EVERY attached cache, INCLUDING the writer's own. The
+     * writing CPU is just as capable of holding a translation it has now
+     * invalidated as any other. Relaxed: the flag only has to arrive, and each
+     * CPU re-reads it at the top of every instruction. */
+    for (int i = 0; i < s_tlb_count; i++)
+        if (s_tlbs[i] != NULL)
+            __atomic_store_n(&s_tlbs[i]->flush_pending, 1u, __ATOMIC_RELAXED);
+}
+
+void nd500_tlb_init_once(Nd500Tlb *tlb) {
+    if (tlb == NULL || tlb->init) return;
+    tlb->init = 1;
+    for (uint32_t i = 0; i < ND500_TLB_SIZE; i++)
+        tlb->entries[i].tag = ND500_TLB_EMPTY;
+    tlb->on = nd500_settings()->tlb_enabled;
+    tlb_recount_active();
     nd500_mmu_tlb_stat_install();
-    if (!g_nd500_tlb_on)
+    if (!tlb->on)
         printf("ND-500: translation cache DISABLED (ND500X_NOTLB)\n");
 }
 

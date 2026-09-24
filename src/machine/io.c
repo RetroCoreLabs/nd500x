@@ -18,6 +18,7 @@
 #include "../cpu/nd500_tlb.h"
 #include "../cpu/nd500_mon_sintran.h"   /* SINTRAN MON seam - no ndmonlib here */
 #include "nd500_settings.h"   /* emulator knobs, as plain fields */
+#include "../ndbus/ndbus_pool.h" /* ndbus_pool_r8 / _w8 - the relaxed-atomic rule */
 
 /* ------------------------------------------------------------------ *
  * PTE write-watch (env ND500X_PTEWATCH). Diagnostic only: logs every
@@ -126,6 +127,7 @@ void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
     memset(m, 0, sizeof(*m));  /* Zero all fields first */
     m->memory_size = mem_size;
     m->memory = (uint8_t*)calloc(1, mem_size);
+    m->owns_memory = 1;        /* this machine allocated it, so it frees it */
     m->run_flag = 0;
     m->stop_reason = STOP_NONE;
     m->stop_addr = 0;
@@ -142,8 +144,45 @@ void nd500_machine_init(Nd500Machine* m, uint32_t mem_size) {
     nd500_mon_files_init();
 }
 
+/*
+ * A machine that runs out of memory it does not own - the shared MFbus pool.
+ *
+ * The ND-5000 has no private RAM: it executes out of the pool, and so does
+ * every other ND-5000 on the bus (ND-05.020.01 T40). So the machine is given
+ * the pool's bytes rather than a copy, and nd500_machine_free() leaves them
+ * alone - freeing them would pull the memory out from under every other CPU and
+ * out from under the ND-100's MPM-5 window.
+ *
+ * `memory` is the pool's base. ND-500 physical address 0 is pool offset 0; where
+ * that lands in ND-100 physical memory is the bank table's business, not this
+ * machine's.
+ */
+void nd500_machine_init_shared(Nd500Machine* m, uint8_t* memory, uint32_t mem_size) {
+    if (!m) return;
+    memset(m, 0, sizeof(*m));
+    m->memory_size = mem_size;
+    m->memory = memory;
+    m->owns_memory = 0;        /* borrowed - do NOT free */
+    m->run_flag = 0;
+    m->stop_reason = STOP_NONE;
+    m->mmu_enabled = 0;
+
+    m->bp_mgr = (BreakpointManager*)calloc(1, sizeof(BreakpointManager));
+    if (m->bp_mgr) {
+        bp_mgr_init(m->bp_mgr);
+    }
+
+    nd500_mon_files_init();
+}
+
 void nd500_machine_free(Nd500Machine* m) {
     if (!m) return;
+    /* Release the CPU's translation cache and take it out of the shootdown
+     * registry FIRST. A CPU left registered after its memory is gone would be
+     * handed a shootdown through a freed pointer the next time any other CPU
+     * edited a page table - which, with one CPU, never happens, and with two
+     * happens at a moment that has nothing to do with this teardown. */
+    if (m->cpu) nd500_cpu_free(m->cpu);
     nd500_phys_alloc_reset(m);   /* drop the page-ownership map */
     {
         /* Did this run reach the swap path at all? NDIX calls rpgu/rwip only
@@ -160,7 +199,11 @@ void nd500_machine_free(Nd500Machine* m) {
         if (nd500_settings()->physdbg) nd500_phys_alloc_report(m);
     }
     nd500_page_bits_reset(m);    /* drop the PGU/WIP bitmaps */
-    free(m->memory);
+    /* Only memory this machine allocated. A shared pool belongs to whoever
+     * created it and outlives every CPU that ran out of it. */
+    if (m->owns_memory) {
+        free(m->memory);
+    }
     m->memory = NULL;
     m->memory_size = 0;
     m->run_flag = 0;
@@ -209,7 +252,20 @@ uint8_t nd500_bus_read8(Nd500Machine* m, uint32_t addr) {
         printf("[STOP] Watchpoint read at 0x%08X\n", addr);
     }
 
-    return m->memory[addr];
+    /* RELAXED ATOMIC, not a plain dereference.
+     *
+     * With several ND-5000s the memory behind this pointer is shared between
+     * host threads, and C11 makes a plain access to it a data race - which lets
+     * the compiler tear, fuse, duplicate or invent the access, whatever the
+     * hardware would have done. ndbus_pool_r8 is the same __ATOMIC_RELAXED
+     * builtin the pool uses, and on x86-64 and AArch64 it emits exactly the same
+     * instruction as the dereference did: defined behaviour, identical machine
+     * code, no lock. The rule and its reasoning are in ndbus_pool.h.
+     *
+     * Bulk paths - image load, DMA, memcpy - deliberately do NOT go through
+     * this: no other CPU is looking at a range while a program image is being
+     * loaded into it. */
+    return ndbus_pool_r8(&m->memory[addr]);
 }
 
 void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
@@ -240,7 +296,7 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
             Nd500Cpu* c = m ? m->cpu : 0;
             pw_n++;
             fprintf(stderr, "[PWATCH] phys 0x%08X <- 0x%02X (was 0x%02X)  PC=0x%08X CED=%u B=0x%08X\n",
-                    addr, val, in_range(m, addr, 1) ? m->memory[addr] : 0xFF,
+                    addr, val, in_range(m, addr, 1) ? ndbus_pool_r8(&m->memory[addr]) : 0xFF,
                     c ? c->PC : 0, c ? c->CED : 0, c ? c->B : 0);
         }
     }
@@ -359,13 +415,19 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
                     addr, val, __builtin_return_address(0), delta);
         }
     }
-    m->memory[addr] = val;
+    ndbus_pool_w8(&m->memory[addr], val);
 }
 
 uint16_t nd500_bus_read16(Nd500Machine* m, uint32_t addr) {
     uint16_t v = 0;
     if (!in_range(m, addr, 2)) return 0;
-    v = ((uint16_t)m->memory[addr] << 8) | (uint16_t)m->memory[addr + 1];
+    /* Built out of the byte accessors, and it MAY TEAR - which is correct. The
+     * ND-500 is byte-addressed, so a multi-byte reference can land unaligned,
+     * and the real MPM is 32 bits wide with interleave (ND-10.004.01 T21-T22):
+     * an unaligned reference is more than one memory cycle there too, and
+     * another port can land between them. A lock here would be LESS faithful. */
+    v = ((uint16_t)ndbus_pool_r8(&m->memory[addr]) << 8) |
+        (uint16_t)ndbus_pool_r8(&m->memory[addr + 1]);
     return v;
 }
 
@@ -382,10 +444,10 @@ void nd500_bus_write16(Nd500Machine* m, uint32_t addr, uint16_t val) {
 uint32_t nd500_bus_read32(Nd500Machine* m, uint32_t addr) {
     uint32_t v = 0;
     if (!in_range(m, addr, 4)) return 0;
-    v = ((uint32_t)m->memory[addr] << 24) |
-        ((uint32_t)m->memory[addr + 1] << 16) |
-        ((uint32_t)m->memory[addr + 2] << 8) |
-        (uint32_t)m->memory[addr + 3];
+    v = ((uint32_t)ndbus_pool_r8(&m->memory[addr]) << 24) |
+        ((uint32_t)ndbus_pool_r8(&m->memory[addr + 1]) << 16) |
+        ((uint32_t)ndbus_pool_r8(&m->memory[addr + 2]) << 8) |
+        (uint32_t)ndbus_pool_r8(&m->memory[addr + 3]);
     return v;
 }
 

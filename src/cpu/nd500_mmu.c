@@ -41,13 +41,14 @@ extern uint32_t ndlib_aout_get_data_base(void);
  */
 
 // =======================================================
-// MMU STATE (stored in CPU structure - to be added in Phase 3)
+// MMU STATE - PER CPU, in Nd500Cpu.mmu (see Nd500MmuState in nd500_mmu.h)
 // =======================================================
-
-// For now, we'll use static storage. In Phase 3, this will be integrated
-// into the Nd500Cpu structure.
-static PhysicalSegmentTableEntry* g_pst = NULL;
-static ProcessControlBlock* g_pcb_table = NULL;
+//
+// These were file statics, with a standing note that Phase 3 would move them
+// into the CPU. This is Phase 3. Sharing the PST, the PCB table and the I&D
+// enable flags between two ND-5000s would mean one CPU's DMON switching on the
+// other's data MMU and one CPU's capability edits landing in the other's
+// address space.
 
 /* When enabled (ND500X_MMU_GUEST_TABLES=1), translate() reads capabilities/PST
  * entries from the guest's REAL in-memory tables at DITBASE/PSTP instead of the
@@ -134,44 +135,57 @@ static int mmu_use_guest_for(Nd500Cpu* cpu, uint8_t domain, int segment) {
 #define DEMAND_SEG_INIT_BYTES    (128u*1024u)  /* grows on demand beyond this */
 static int mmu_demand_segments = -1;    /* -1 = read env once; default ON */
 
-// Separate I&D (Instruction & Data) MMU enable flags
-// The ND-500 has independent MMU control for instruction and data accesses
-static int g_mmu_data_enabled = 0;     // Controlled by DMON/DMOF instructions
-static int g_mmu_program_enabled = 0;  // Controlled by PMON/PMOF instructions
+// Separate I&D (Instruction & Data) MMU enable flags live in Nd500MmuState:
+// the ND-500 has independent MMU control for instruction and data accesses, and
+// both are per CPU (DMON/DMOF and PMON/PMOF are instructions one CPU executes).
 
 // =======================================================
 // MMU INITIALIZATION
 // =======================================================
 
 /* Ensure MMU tables are allocated (lazy initialization) */
-static void ensure_mmu_tables(void) {
+static void ensure_mmu_tables(Nd500Cpu* cpu) {
+    if (!cpu || !cpu->mmu) return;
     /* Allocate PST (8192 entries * 8 bytes each) */
-    if (!g_pst) {
-        g_pst = (PhysicalSegmentTableEntry*)calloc(MAX_PST, sizeof(PhysicalSegmentTableEntry));
-        if (!g_pst) {
+    if (!cpu->mmu->pst) {
+        cpu->mmu->pst = (PhysicalSegmentTableEntry*)calloc(MAX_PST, sizeof(PhysicalSegmentTableEntry));
+        if (!cpu->mmu->pst) {
             fprintf(stderr, "ND-500: Failed to allocate PST (%d entries)\n", MAX_PST);
             return;
         }
     }
 
     /* Allocate PCB table (256 domains * PCB size) */
-    if (!g_pcb_table) {
-        g_pcb_table = (ProcessControlBlock*)calloc(MAXDOM, sizeof(ProcessControlBlock));
-        if (!g_pcb_table) {
+    if (!cpu->mmu->pcb_table) {
+        cpu->mmu->pcb_table = (ProcessControlBlock*)calloc(MAXDOM, sizeof(ProcessControlBlock));
+        if (!cpu->mmu->pcb_table) {
             fprintf(stderr, "ND-500: Failed to allocate PCB table (%d domains)\n", MAXDOM);
             return;
         }
     }
 }
 
+Nd500MmuState* nd500_mmu_state_create(void) {
+    /* The two tables stay lazily allocated (ensure_mmu_tables): a CPU that never
+     * enables the MMU never pays for 8192 PST entries and 256 PCBs. */
+    return (Nd500MmuState*)calloc(1, sizeof(Nd500MmuState));
+}
+
+void nd500_mmu_state_free(Nd500MmuState* state) {
+    if (!state) return;
+    free(state->pst);
+    free(state->pcb_table);
+    free(state);
+}
+
 void nd500_mmu_init(Nd500Cpu* cpu) {
     if (!cpu) return;
 
-    ensure_mmu_tables();
+    ensure_mmu_tables(cpu);
 
     /* MMU starts disabled (both data and program) */
-    g_mmu_data_enabled = 0;
-    g_mmu_program_enabled = 0;
+    cpu->mmu->data_enabled = 0;
+    cpu->mmu->program_enabled = 0;
 }
 
 // =======================================================
@@ -181,7 +195,7 @@ void nd500_mmu_init(Nd500Cpu* cpu) {
 void nd500_mmu_enable_data(Nd500Cpu* cpu) {
     nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
     if (!cpu) return;
-    g_mmu_data_enabled = 1;
+    cpu->mmu->data_enabled = 1;
     /* Also set machine->mmu_enabled so data access uses MMU translation */
     if (cpu->machine) cpu->machine->mmu_enabled = 1;
     if (!nd500_quiet) printf("ND-500: Data MMU enabled (DMON)\n");
@@ -190,14 +204,15 @@ void nd500_mmu_enable_data(Nd500Cpu* cpu) {
 void nd500_mmu_disable_data(Nd500Cpu* cpu) {
     nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
     if (!cpu) return;
-    g_mmu_data_enabled = 0;
+    cpu->mmu->data_enabled = 0;
     /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
-    if (cpu->machine && !g_mmu_program_enabled) cpu->machine->mmu_enabled = 0;
+    if (cpu->machine && !cpu->mmu->program_enabled) cpu->machine->mmu_enabled = 0;
     if (!nd500_quiet) printf("ND-500: Data MMU disabled (DMOF)\n");
 }
 
 int nd500_mmu_is_data_enabled(Nd500Cpu* cpu) {
-    return g_mmu_data_enabled;
+    if (!cpu || !cpu->mmu) return 0;
+    return cpu->mmu->data_enabled;
 }
 
 // =======================================================
@@ -207,7 +222,7 @@ int nd500_mmu_is_data_enabled(Nd500Cpu* cpu) {
 void nd500_mmu_enable_program(Nd500Cpu* cpu) {
     nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
     if (!cpu) return;
-    g_mmu_program_enabled = 1;
+    cpu->mmu->program_enabled = 1;
     /* Also set machine->mmu_enabled so instruction decode uses MMU translation */
     if (cpu->machine) cpu->machine->mmu_enabled = 1;
     if (!nd500_quiet) printf("ND-500: Program MMU enabled (PMON)\n");
@@ -216,14 +231,15 @@ void nd500_mmu_enable_program(Nd500Cpu* cpu) {
 void nd500_mmu_disable_program(Nd500Cpu* cpu) {
     nd500_mmu_tlb_flush();   /* MMU enable state changes every translation */
     if (!cpu) return;
-    g_mmu_program_enabled = 0;
+    cpu->mmu->program_enabled = 0;
     /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
-    if (cpu->machine && !g_mmu_data_enabled) cpu->machine->mmu_enabled = 0;
+    if (cpu->machine && !cpu->mmu->data_enabled) cpu->machine->mmu_enabled = 0;
     if (!nd500_quiet) printf("ND-500: Program MMU disabled (PMOF)\n");
 }
 
 int nd500_mmu_is_program_enabled(Nd500Cpu* cpu) {
-    return g_mmu_program_enabled;
+    if (!cpu || !cpu->mmu) return 0;
+    return cpu->mmu->program_enabled;
 }
 
 // =======================================================
@@ -244,7 +260,8 @@ void nd500_mmu_disable(Nd500Cpu* cpu) {
 
 int nd500_mmu_is_enabled(Nd500Cpu* cpu) {
     /* Return true if EITHER MMU is enabled (legacy behavior) */
-    return g_mmu_data_enabled || g_mmu_program_enabled;
+    if (!cpu || !cpu->mmu) return 0;
+    return cpu->mmu->data_enabled || cpu->mmu->program_enabled;
 }
 
 // =======================================================
@@ -309,7 +326,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
         pst_entry.index_mode   = (uint8_t)(w >> 30);
         pst_entry.physical_pfn = w & 0x3FFFFFFF;
     } else {
-        pst_entry = g_pst[psn];
+        pst_entry = cpu->mmu->pst[psn];
     }
 
     /* A ZERO PST ENTRY IS A PAGE FAULT - not a direct mapping of physical page 0.
@@ -607,9 +624,9 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
      * checks were actually satisfied on this pass: a read-only page cached by
      * a read must not let a later write through, so the lookup re-walks in
      * that case and the trap is raised properly. */
-    if (g_nd500_tlb_on && tlb_cacheable) {
+    if (cpu->tlb != NULL && cpu->tlb->on && tlb_cacheable) {
         g_tlb_misses++;
-        TlbEntry* te = &g_nd500_tlb[tlb_idx];
+        TlbEntry* te = &cpu->tlb->entries[tlb_idx];
         te->tag      = tlb_key;
         te->pfn      = physical_pfn;
         te->writable = (uint8_t)(is_write != 0);
@@ -650,12 +667,12 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
     /* Check if appropriate MMU is enabled based on access type */
     if (is_instruction) {
         /* Instruction fetch: check program MMU */
-        if (!g_mmu_program_enabled) {
+        if (!cpu->mmu->program_enabled) {
             return virtual_addr;  /* Program MMU disabled - direct physical addressing */
         }
     } else {
         /* Data access: check data MMU */
-        if (!g_mmu_data_enabled) {
+        if (!cpu->mmu->data_enabled) {
             /* Debug: warn when data MMU is disabled but we're trying to translate */
             if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS && virtual_addr >= 0x08000000) {
                 fprintf(stderr, "[MMU] Data MMU DISABLED! vaddr=0x%08X returned unchanged (DMON not executed?)\n", virtual_addr);
@@ -665,9 +682,9 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
     }
 
     /* Sanity check tables */
-    if (!g_pst || !g_pcb_table) {
+    if (!cpu->mmu->pst || !cpu->mmu->pcb_table) {
         if (nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) {
-            fprintf(stderr, "[MMU] Tables not initialized! PST=%p PCB=%p\n", (void*)g_pst, (void*)g_pcb_table);
+            fprintf(stderr, "[MMU] Tables not initialized! PST=%p PCB=%p\n", (void*)cpu->mmu->pst, (void*)cpu->mmu->pcb_table);
         }
         return virtual_addr;  /* MMU not initialized */
     }
@@ -680,9 +697,9 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
      * DC_WRP and PTE-protection checks actually run. */
     const uint32_t tlb_key  = nd500_tlb_tag(virtual_addr, domain, is_instruction);
     const uint32_t tlb_idx  = nd500_tlb_slot(tlb_key);
-    if (!g_nd500_tlb_init) nd500_mmu_tlb_init_once();
-    if (g_nd500_tlb_on) {
-        const TlbEntry* te = &g_nd500_tlb[tlb_idx];
+    if (cpu->tlb != NULL && !cpu->tlb->init) nd500_tlb_init_once(cpu->tlb);
+    if (cpu->tlb != NULL && cpu->tlb->on) {
+        const TlbEntry* te = &cpu->tlb->entries[tlb_idx];
         if (te->tag == tlb_key && (!is_write || te->writable)) {
             uint32_t hit_phys = (te->pfn << PGSHIFT) | (virtual_addr & (NBPG - 1));
             /* Page Used / Written In Page must still be set on a cache hit -
@@ -726,8 +743,8 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
     } else {
         /* Emulator-side shadow tables (default). */
         capability = is_instruction
-            ? g_pcb_table[domain].program_capabilities[segment]
-            : g_pcb_table[domain].data_capabilities[segment];
+            ? cpu->mmu->pcb_table[domain].program_capabilities[segment]
+            : cpu->mmu->pcb_table[domain].data_capabilities[segment];
     }
 
     if (nd500_settings()->seg30dbg && domain == 0 && segment == 30 && !is_instruction) {
@@ -803,7 +820,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             int rc = nd500_mon_allocate_segment(cpu, cpu->machine, domain,
                         (uint32_t)segment, DEMAND_SEG_INIT_BYTES, &assigned);
             if (rc == 0) {
-                capability = g_pcb_table[domain].data_capabilities[segment];
+                capability = cpu->mmu->pcb_table[domain].data_capabilities[segment];
                 if (!nd500_quiet) {
                     /* Report the PSN and the physical page the segment landed
                      * on. Without it there is no way to tell whether the guest
@@ -1073,8 +1090,8 @@ uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr) {
 uint32_t nd500_mmu_peek_domain(Nd500Cpu* cpu, uint32_t virtual_addr,
                                uint8_t domain) {
     if (!cpu) return 0xFFFFFFFFu;
-    if (!g_mmu_data_enabled) return virtual_addr; /* MMU off: identity */
-    if (!g_pst || !g_pcb_table) return 0xFFFFFFFFu;
+    if (!cpu->mmu->data_enabled) return virtual_addr; /* MMU off: identity */
+    if (!cpu->mmu->pst || !cpu->mmu->pcb_table) return 0xFFFFFFFFu;
 
     int segment  = (virtual_addr >> SGSHIFT) & 0x1F;
     int l1_index = (virtual_addr >> L1_INDEX_SHIFT) & L1_INDEX_MASK;
@@ -1096,7 +1113,7 @@ uint32_t nd500_mmu_peek_domain(Nd500Cpu* cpu, uint32_t virtual_addr,
         capability = (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
                               |  (uint32_t)nd500_bus_read8(cpu->machine, cap_addr + 1));
     } else {
-        capability = g_pcb_table[domain].data_capabilities[segment];
+        capability = cpu->mmu->pcb_table[domain].data_capabilities[segment];
     }
     if (capability == 0) return 0xFFFFFFFFu;
 
@@ -1113,7 +1130,7 @@ uint32_t nd500_mmu_peek_domain(Nd500Cpu* cpu, uint32_t virtual_addr,
         pst_entry.index_mode   = (uint8_t)(w >> 30);
         pst_entry.physical_pfn = w & 0x3FFFFFFF;
     } else {
-        pst_entry = g_pst[psn];
+        pst_entry = cpu->mmu->pst[psn];
     }
     /* A zero entry is "no mapping" (ND-05.009.4 4.3), not physical page 0. */
     if (pst_entry.index_mode == PS_AZI && pst_entry.physical_pfn == 0)
@@ -1176,23 +1193,23 @@ uint32_t nd500_mmu_phyladr(Nd500Cpu* cpu, uint32_t virtual_addr) {
 PhysicalSegmentTableEntry nd500_mmu_get_pst_entry(Nd500Cpu* cpu, int psn) {
     PhysicalSegmentTableEntry empty = {0, 0};
 
-    ensure_mmu_tables();
-    if (!g_pst || psn < 0 || psn >= MAX_PST) {
+    ensure_mmu_tables(cpu);
+    if (!cpu->mmu->pst || psn < 0 || psn >= MAX_PST) {
         return empty;
     }
 
-    return g_pst[psn];
+    return cpu->mmu->pst[psn];
 }
 
 void nd500_mmu_set_pst_entry(Nd500Cpu* cpu, int psn, uint8_t index_mode, uint32_t pfn) {
     nd500_mmu_tlb_flush();   /* shadow-table edit - drop cached translations */
-    ensure_mmu_tables();
-    if (!g_pst || psn < 0 || psn >= MAX_PST) {
+    ensure_mmu_tables(cpu);
+    if (!cpu->mmu->pst || psn < 0 || psn >= MAX_PST) {
         return;
     }
 
-    g_pst[psn].index_mode = index_mode;
-    g_pst[psn].physical_pfn = pfn & 0x3FFFFFFF;  /* 30 bits */
+    cpu->mmu->pst[psn].index_mode = index_mode;
+    cpu->mmu->pst[psn].physical_pfn = pfn & 0x3FFFFFFF;  /* 30 bits */
 
     /* Mirror into the GUEST Physical Segment Table at PSTP so translate() can
      * read the real table (struct pste: ps_index@[31:30], ps_pfnum@[29:0]). */
@@ -1222,21 +1239,21 @@ static void mirror_capability_to_dit(Nd500Cpu* cpu, uint8_t domain, int segment,
 // =======================================================
 
 ProcessControlBlock* nd500_mmu_get_pcb(Nd500Cpu* cpu, uint8_t domain) {
-    ensure_mmu_tables();
-    if (!g_pcb_table) {
+    ensure_mmu_tables(cpu);
+    if (!cpu->mmu->pcb_table) {
         return NULL;
     }
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
-    return &g_pcb_table[domain];
+    return &cpu->mmu->pcb_table[domain];
 }
 
 uint16_t nd500_mmu_get_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
-    ensure_mmu_tables();
-    if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
+    ensure_mmu_tables(cpu);
+    if (!cpu->mmu->pcb_table || segment < 0 || segment >= MAXSEG) {
         return 0;
     }
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
-    return g_pcb_table[domain].program_capabilities[segment];
+    return cpu->mmu->pcb_table[domain].program_capabilities[segment];
 }
 
 /* Active program capability as the TRANSLATE path sees it: the guest DIT in
@@ -1247,7 +1264,7 @@ uint16_t nd500_mmu_get_program_capability(Nd500Cpu* cpu, uint8_t domain, int seg
  * mmusetup shadow returned capability 0 for the child's seg-31 syscall gate
  * and its first syscall fell into the SINTRAN MON path (bogus MON LEAVE). */
 uint16_t nd500_mmu_get_active_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
-    ensure_mmu_tables();
+    ensure_mmu_tables(cpu);
     if (segment < 0 || segment >= MAXSEG) return 0;
     int use_guest = mmu_use_guest_tables() && cpu && cpu->machine && cpu->DITBASE
                  && (domain != 0
@@ -1259,35 +1276,35 @@ uint16_t nd500_mmu_get_active_program_capability(Nd500Cpu* cpu, uint8_t domain, 
         return (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
                         |  (uint32_t)nd500_bus_read8(cpu->machine, cap_addr + 1));
     }
-    return g_pcb_table ? g_pcb_table[domain].program_capabilities[segment] : 0;
+    return cpu->mmu->pcb_table ? cpu->mmu->pcb_table[domain].program_capabilities[segment] : 0;
 }
 
 uint16_t nd500_mmu_get_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment) {
-    ensure_mmu_tables();
-    if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
+    ensure_mmu_tables(cpu);
+    if (!cpu->mmu->pcb_table || segment < 0 || segment >= MAXSEG) {
         return 0;
     }
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
-    return g_pcb_table[domain].data_capabilities[segment];
+    return cpu->mmu->pcb_table[domain].data_capabilities[segment];
 }
 
 void nd500_mmu_set_program_capability(Nd500Cpu* cpu, uint8_t domain, int segment, uint16_t capability) {
     nd500_mmu_tlb_flush();   /* shadow-table edit - drop cached translations */
-    if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
+    if (!cpu->mmu->pcb_table || segment < 0 || segment >= MAXSEG) {
         return;
     }
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
-    g_pcb_table[domain].program_capabilities[segment] = capability;
+    cpu->mmu->pcb_table[domain].program_capabilities[segment] = capability;
     mirror_capability_to_dit(cpu, domain, segment, 0 /*program*/, capability);
 }
 
 void nd500_mmu_set_data_capability(Nd500Cpu* cpu, uint8_t domain, int segment, uint16_t capability) {
     nd500_mmu_tlb_flush();   /* shadow-table edit - drop cached translations */
-    if (!g_pcb_table || segment < 0 || segment >= MAXSEG) {
+    if (!cpu->mmu->pcb_table || segment < 0 || segment >= MAXSEG) {
         return;
     }
     /* Note: domain is uint8_t (0-255), MAXDOM is 256, range check not needed */
-    g_pcb_table[domain].data_capabilities[segment] = capability;
+    cpu->mmu->pcb_table[domain].data_capabilities[segment] = capability;
     mirror_capability_to_dit(cpu, domain, segment, 1 /*data*/, capability);
 }
 
@@ -1385,7 +1402,7 @@ void nd500_mmu_clear_program_cache_tsb(Nd500Cpu* cpu) {
 // MMU TABLE STATE SNAPSHOT (for nested UECOM runs)
 // =======================================================
 
-/* Snapshot/restore of the C-side MMU tables (g_pst + g_pcb_table), mirroring
+/* Snapshot/restore of the C-side MMU tables (cpu->mmu->pst + cpu->mmu->pcb_table), mirroring
  * nd500_segment_alloc_state_save/_restore. A nested 317B UECOM DOM load
  * overwrites PST entries and capabilities the CALLER's domain still
  * references; the caller's RAM/CPU snapshot alone does not cover these
@@ -1399,25 +1416,27 @@ typedef struct {
     ProcessControlBlock       pcb[MAXDOM];
 } MmuStateBlob;
 
-void* nd500_mmu_state_save(void) {
-    ensure_mmu_tables();
-    if (!g_pst || !g_pcb_table) return NULL;
+void* nd500_mmu_state_save(Nd500Cpu* cpu) {
+    if (!cpu || !cpu->mmu) return NULL;
+    ensure_mmu_tables(cpu);
+    if (!cpu->mmu->pst || !cpu->mmu->pcb_table) return NULL;
     MmuStateBlob* b = (MmuStateBlob*)malloc(sizeof(MmuStateBlob));
     if (!b) return NULL;
-    memcpy(b->pst, g_pst, MAX_PST * sizeof(PhysicalSegmentTableEntry));
-    memcpy(b->pcb, g_pcb_table, MAXDOM * sizeof(ProcessControlBlock));
+    memcpy(b->pst, cpu->mmu->pst, MAX_PST * sizeof(PhysicalSegmentTableEntry));
+    memcpy(b->pcb, cpu->mmu->pcb_table, MAXDOM * sizeof(ProcessControlBlock));
     return b;
 }
 
-void nd500_mmu_state_restore(void* blob) {
+void nd500_mmu_state_restore(Nd500Cpu* cpu, void* blob) {
     if (!blob) return;
+    if (!cpu || !cpu->mmu) { free(blob); return; }
     /* A nested UECOM run puts back a whole different PST + capability set;
      * every cached translation belongs to the other one. */
     nd500_mmu_tlb_flush();
     MmuStateBlob* b = (MmuStateBlob*)blob;
-    if (g_pst)
-        memcpy(g_pst, b->pst, MAX_PST * sizeof(PhysicalSegmentTableEntry));
-    if (g_pcb_table)
-        memcpy(g_pcb_table, b->pcb, MAXDOM * sizeof(ProcessControlBlock));
+    if (cpu->mmu->pst)
+        memcpy(cpu->mmu->pst, b->pst, MAX_PST * sizeof(PhysicalSegmentTableEntry));
+    if (cpu->mmu->pcb_table)
+        memcpy(cpu->mmu->pcb_table, b->pcb, MAXDOM * sizeof(ProcessControlBlock));
     free(blob);
 }

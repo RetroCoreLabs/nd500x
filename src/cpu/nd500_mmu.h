@@ -318,8 +318,31 @@ void nd500_mmu_clear_program_cache_tsb(Nd500Cpu* cpu);
 /* Snapshot/restore the C-side MMU tables (PST + PCB capabilities) around a
  * nested 317B UECOM run - the nested DOM load overwrites entries the caller's
  * domain still references. Pairs with nd500_segment_alloc_state_save/_restore. */
-void* nd500_mmu_state_save(void);
-void  nd500_mmu_state_restore(void* blob);
+/*
+ * PER-CPU MMU STATE.
+ *
+ * The PST, the PCB table and the two I&D enable flags are one CPU's state, not
+ * the process's. With several ND-5000s on the MFbus, sharing them would mean CPU
+ * 1's DMON switching on CPU 2's data MMU and CPU 1's capability edits being
+ * visible in CPU 2's address space - a wrong-answer bug, not a performance one.
+ *
+ * The struct is allocated by nd500_cpu_init() and released by nd500_cpu_free().
+ * The two TABLES inside it stay lazily allocated, as they always were: they are
+ * 8192 and 256 entries and a CPU that never enables the MMU never needs them.
+ */
+typedef struct Nd500MmuState {
+    PhysicalSegmentTableEntry* pst;         /* MAX_PST entries, or NULL until used */
+    ProcessControlBlock*       pcb_table;   /* MAXDOM entries, or NULL until used */
+    int                        data_enabled;     /* DMON / DMOF */
+    int                        program_enabled;  /* PMON / PMOF */
+} Nd500MmuState;
+
+/* Allocate / release the per-CPU MMU state. Safe on NULL and idempotent. */
+Nd500MmuState* nd500_mmu_state_create(void);
+void           nd500_mmu_state_free(Nd500MmuState* state);
+
+void* nd500_mmu_state_save(Nd500Cpu* cpu);
+void  nd500_mmu_state_restore(Nd500Cpu* cpu, void* blob);
 
 /* Open / close a per-run allocation scope (nd500_segment_alloc.c). Save before
  * a DOM is loaded, restore when it exits: the restore frees every physical page

@@ -99,8 +99,8 @@ void nd500_domain_free(Nd500Cpu* cpu, uint8_t domain);
  * (its heap vars, THA vector and stack limits all read from another domain's
  * pages -> the NC exit "No trap handler at THA[27]" stack-overflow crash).
  * See docs/HANDOFF-NC-HEAP-CRASH-2026-07-27.md section 2c. */
-void* nd500_mmu_state_save(void);
-void  nd500_mmu_state_restore(void* blob);
+void* nd500_mmu_state_save(Nd500Cpu* cpu);
+void  nd500_mmu_state_restore(Nd500Cpu* cpu, void* blob);
 
 /* Transport: shell output/input goes to the local console or a telnet client.
  * All shell text below uses printf, which is routed via shell_printf(). */
@@ -660,7 +660,7 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
      * nested DOM load overwrites PST entries the caller's domain still
      * references, so without this the restored caller translates its VAs
      * through the sub-program's page tables (wrong physical pages). */
-    void* mmu_backup = nd500_mmu_state_save();
+    void* mmu_backup = nd500_mmu_state_save(g_cpu);
 
     g_uecom_nest++;
 
@@ -671,7 +671,7 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
                                        &start_addr, &loaded_domain);
     if (rc != 0) {
         nd500_segment_alloc_state_restore(seg_backup);
-        nd500_mmu_state_restore(mmu_backup);
+        nd500_mmu_state_restore(g_cpu, mmu_backup);
         *g_cpu = saved_cpu;
         g_machine->run_flag  = saved_run;
         g_machine->stop_reason = saved_stop;
@@ -728,7 +728,7 @@ static int shell_execute_command(void* cpu_v, void* machine_v, const char* comma
      * sub-program's pages and drop its MMU entries, then reinstate the full CPU
      * context. The caller's own memory was never touched. */
     nd500_segment_alloc_state_restore(seg_backup);
-    nd500_mmu_state_restore(mmu_backup);
+    nd500_mmu_state_restore(g_cpu, mmu_backup);
     *g_cpu = saved_cpu;
     g_machine->run_flag  = saved_run;
     g_machine->stop_reason = saved_stop;
@@ -790,7 +790,7 @@ static void run_domain(const char* name, const char* args) {
      * at MON 0B LEAVE), so roll BOTH back when the program exits - exactly
      * what the nested UECOM path (shell_execute_command) has done all along. */
     void* seg_backup = nd500_segment_alloc_state_save(g_machine);
-    void* mmu_backup = nd500_mmu_state_save();
+    void* mmu_backup = nd500_mmu_state_save(g_cpu);
 
     uint32_t start_addr = 0;
     int loaded_domain = -1;
@@ -806,7 +806,7 @@ static void run_domain(const char* name, const char* args) {
                                    loaddbg ? loaddbg_cb : NULL, NULL,
                                    &start_addr, &loaded_domain);
     if (rc != 0) {
-        nd500_mmu_state_restore(mmu_backup);
+        nd500_mmu_state_restore(g_cpu, mmu_backup);
         nd500_segment_alloc_state_restore(seg_backup);
         nd500_cpu_unlock();
         printf("DOM configuration failed\n");
@@ -906,7 +906,7 @@ static void run_domain(const char* name, const char* args) {
      * not leak into the next occupant), reclaim its watermark pages, and
      * free the domain number. */
     nd500_cpu_lock();
-    nd500_mmu_state_restore(mmu_backup);
+    nd500_mmu_state_restore(g_cpu, mmu_backup);
     nd500_segment_alloc_state_restore(seg_backup);
     if (loaded_domain > 0) {
         nd500_domain_free(g_cpu, (uint8_t)loaded_domain);

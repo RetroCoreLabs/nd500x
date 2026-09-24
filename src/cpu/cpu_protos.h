@@ -328,6 +328,20 @@ typedef struct Nd500Cpu {
     uint32_t in_execute;
 
     Nd500Machine* machine;
+
+    /* This CPU's own translation cache (src/cpu/nd500_tlb.h).
+     *
+     * A POINTER, not an embedded struct: Nd500Tlb is about 48KB and several
+     * tests declare `Nd500Cpu cpu;` on the stack. Allocated and registered by
+     * nd500_cpu_init(), released by nd500_cpu_free(). NULL means "no cache" and
+     * every user checks, so a CPU that was never initialised still translates -
+     * it just walks every access. */
+    struct Nd500Tlb* tlb;
+
+    /* This CPU's MMU state: the PST, the PCB table and the two I&D enable
+     * flags (src/cpu/nd500_mmu.h). Allocated by nd500_cpu_init(), released by
+     * nd500_cpu_free(). */
+    struct Nd500MmuState* mmu;
 } Nd500Cpu;
 
 /* ND-500 Trap System Definitions */
@@ -464,6 +478,7 @@ typedef struct Nd500Regs {
 } Nd500Regs;
 
 void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine);
+void nd500_cpu_free(Nd500Cpu* cpu);
 void nd500_cpu_reset(Nd500Cpu* cpu);
 bool nd500_cpu_step(Nd500Cpu* cpu);  /* Returns false if trap occurred */
 void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out);

@@ -179,7 +179,12 @@ void nd500_instr_Dctsb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * a walk read a table from, so this is belt-and-braces rather than
      * the sole guarantee - which matters, because locore.s admits the
      * kernel's own dctsb placement was "not consistent". */
-    nd500_mmu_tlb_flush();
+    /* THIS CPU's cache only. DCTSB is an instruction the guest executes on one
+     * CPU, and on the real machine it clears that CPU's own buffer - it is not a
+     * bus operation and it does not reach another ND-5000. Another CPU's stale
+     * translations are handled by the shootdown in nd500_tlb_on_phys_write(),
+     * which fires on the page-table WRITE rather than on this instruction. */
+    nd500_tlb_flush_one(cpu->tlb);
 
     /* EMULATOR NO-OP: Clear data translation speedup buffer
      *

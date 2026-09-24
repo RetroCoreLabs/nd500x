@@ -20,6 +20,7 @@
 #include "../machine/breakpoints.h"
 #include "../disasm/nd500_disasm.h"
 #include "nd500_settings.h"   /* emulator knobs, as plain fields */
+#include "nd500_tlb.h"
 
 /* Global trap state */
 Nd500TrapState g_trap_state = {0};
@@ -76,9 +77,38 @@ void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
     /* Initialize ND-100 I/O Processor Bridge */
     cpu->nd100_memory_offset = 0x40000;  /* Default: ND-100 memory at physical offset 0x40000 */
 
+    /* This CPU's own translation cache, and its slot in the shootdown registry.
+     * Allocated rather than embedded because Nd500Tlb is about 48KB and tests
+     * put Nd500Cpu on the stack. A failed allocation is not fatal: tlb stays
+     * NULL and this CPU walks every access, which is exactly ND500X_NOTLB. */
+    cpu->tlb = (Nd500Tlb*)calloc(1, sizeof(Nd500Tlb));
+    if (cpu->tlb != NULL && !nd500_tlb_register(cpu->tlb)) {
+        free(cpu->tlb);
+        cpu->tlb = NULL;
+    }
+
+    /* This CPU's MMU state. The struct itself is small and always present, so
+     * every cpu->mmu-> access is safe; the PST and PCB tables inside it are
+     * still allocated on first use. */
+    cpu->mmu = nd500_mmu_state_create();
+
     /* MMU and domain tables are NOT pre-allocated.
      * User must configure MMU via init script commands before 'mmu enable'.
      * Tables are allocated on first use (lazy initialization). */
+}
+
+/* Release what nd500_cpu_init() allocated. Detaching from the registry FIRST
+ * matters: a CPU still listed there would be handed a shootdown through a freed
+ * pointer the next time any other CPU edited a page table. */
+void nd500_cpu_free(Nd500Cpu* cpu) {
+    if (!cpu) return;
+    if (cpu->tlb != NULL) {
+        nd500_tlb_unregister(cpu->tlb);
+        free(cpu->tlb);
+        cpu->tlb = NULL;
+    }
+    nd500_mmu_state_free(cpu->mmu);
+    cpu->mmu = NULL;
 }
 
 void nd500_cpu_reset(Nd500Cpu* cpu) {
@@ -163,6 +193,13 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 
 bool nd500_cpu_step(Nd500Cpu* cpu) {
     if (!cpu || !cpu->machine) return false;
+
+    /* Cross-CPU TLB shootdown, tested ONCE PER INSTRUCTION - never per memory
+     * access. Another CPU wrote to a page some walk read a page table from and
+     * set this flag; drop the cache before the instruction can use it. See
+     * nd500_tlb.h for why once-per-instruction is safe (it is already stricter
+     * than the real machine, where the guest issues DCTSB / PCTSB itself). */
+    (void)nd500_tlb_take_pending(cpu->tlb);
 
     /* Name the instruction about to be fetched BEFORE anything can fault -
      * including the invalid-00 heuristic's own translate below. A page fault

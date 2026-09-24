@@ -5,6 +5,13 @@ target_link_libraries(nd500_machine PRIVATE nd500x_warnings)   # house C standar
 target_include_directories(nd500_machine PUBLIC ${CMAKE_CURRENT_LIST_DIR} ${ND500X_ROOT}/src/cpu)
 target_link_libraries(nd500_machine PUBLIC nd500_ndlib nd500_cpu nd500_disasm)
 
+# io.c reaches the guest-visible bytes through ndbus_pool_r8 / _w8 - the relaxed
+# atomics that make a shared pool defined C rather than a data race. ONE
+# definition of that rule, in ndbus_pool.h, rather than a second copy here.
+# The dependency runs this way on purpose: machine may use ndbus, ndbus may
+# never use machine (see tools/check_ndbus_isolation.sh).
+target_link_libraries(nd500_machine PUBLIC nd500_ndbus)
+
 # memory_map.c calls cJSON directly. Until now those symbols only resolved by
 # accident, because libdap happened to drag libcjson into the final link - so
 # building with SKIP_LIBDAP=ON, or on any platform where DAP is off, would fail

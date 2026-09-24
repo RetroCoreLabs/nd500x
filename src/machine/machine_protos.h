@@ -16,6 +16,7 @@
 #include "../cpu/cpu_protos.h"
 
 void nd500_machine_init(Nd500Machine* m, uint32_t mem_size);
+void nd500_machine_init_shared(Nd500Machine* m, uint8_t* memory, uint32_t mem_size);
 void nd500_machine_free(Nd500Machine* m);
 
 uint8_t  nd500_bus_read8 (Nd500Machine* m, uint32_t addr);

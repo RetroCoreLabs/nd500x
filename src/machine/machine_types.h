@@ -43,6 +43,11 @@ typedef enum {
 typedef struct Nd500Machine {
     uint8_t* memory;
     uint32_t memory_size;
+    /* False when `memory` was handed in from outside - the shared MFbus pool
+     * that every ND-5000 runs out of. nd500_machine_free() must then NOT free
+     * it: the pool outlives any one CPU, and several CPUs point at the same
+     * bytes. See nd500_machine_init_shared(). */
+    int owns_memory;
     volatile int run_flag;
     StopReason stop_reason;
     uint32_t stop_addr;      /* PC or data address where stop occurred */

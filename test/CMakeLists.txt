@@ -358,6 +358,40 @@ message(STATUS "diag harnesses: ${_diag_count} targets (build with 'make diag')"
 add_executable(test_settings_catalog test_settings_catalog.c)
 target_link_libraries(test_settings_catalog PRIVATE nd500_cpu)
 
+# ---------------------------------------------------------------------------
+# MFbus (ndbus) unit tests - test-plan layers 1, 3 and 4.
+#
+# Links nd500_ndbus AND NOTHING ELSE. No nd500_cpu, no nd500_machine, no
+# nd500_ndlib: the point of the vtable rule in src/ndbus/ndbus_types.h is that
+# the shared pool, the lock cycle, the doorbell and the octobus fabric are all
+# testable with mock CPUs and no emulator present. If this executable ever needs
+# an emulator target to link, the rule has been broken - fix the include, do not
+# add the target here.
+# ---------------------------------------------------------------------------
+add_executable(test_ndbus test_ndbus.c)
+target_link_libraries(test_ndbus PRIVATE nd500_ndbus)
+
+# ---------------------------------------------------------------------------
+# Per-CPU translation cache and the cross-CPU shootdown (phase 3.1 / 3.2).
+#
+# nd500_tlb.c is linked in DIRECTLY rather than via nd500_cpu: what is under
+# test is the registry, the shared bitmap and the flush flag, and dragging the
+# whole CPU in would mean a failure here could come from anywhere. The settings
+# catalog comes along because nd500_tlb_init_once() reads the ND500X_NOTLB knob.
+# ---------------------------------------------------------------------------
+add_executable(test_tlb_shootdown
+    test_tlb_shootdown.c
+    ${CMAKE_SOURCE_DIR}/src/cpu/nd500_tlb.c
+    ${CMAKE_SOURCE_DIR}/src/cpu/nd500_settings.c
+)
+target_include_directories(test_tlb_shootdown PRIVATE ${CMAKE_SOURCE_DIR}/src/cpu)
+
+add_test(NAME tlb_shootdown COMMAND test_tlb_shootdown)
+set_tests_properties(tlb_shootdown PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
+
+add_test(NAME ndbus COMMAND test_ndbus)
+set_tests_properties(ndbus PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
+
 add_test(NAME xring COMMAND test_xring)
 add_test(NAME xmsg COMMAND test_xmsg)
 add_test(NAME ethhub COMMAND test_ethhub)
