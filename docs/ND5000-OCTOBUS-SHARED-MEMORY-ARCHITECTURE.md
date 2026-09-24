@@ -1642,6 +1642,23 @@ first thing that was built:
 1. **SINTRAN sees the memory.** `MEMORY-CONFIGURATION` reports one LOCAL bank
    and one MPM5 bank. This is task 1.9 and needs nothing from the octobus - if
    it fails, nothing above it can be believed.
+
+   **The half of this that needs no boot is done.**
+   `$ND100X/src/machine/mfbus_config.c` builds the bus from a parsed `.ini`, and
+   `test_mfbus_bridge` drives it end to end: an `.ini` is written, loaded,
+   applied, and the resulting machine is checked - pool attached at the
+   configured size, local RAM reading `ND_MEM_LOCAL`, the configured page reading
+   `ND_MEM_MPM5`, exactly the ENABLED CPU built, and that CPU startable. What
+   remains is a real SINTRAN reading it back.
+
+   **A note on why that file exists separately.** Both repositories have a
+   `machine_types.h` and both guard it with `#ifndef MACHINE_TYPES_H`, so a
+   translation unit including nd100x's `machine_config.h` can no longer see
+   nd500x's `Nd500Machine` - the second header is silently skipped and the build
+   fails inside nd500x's own `cpu_protos.h`, which reads like a missing library.
+   So `mfbus_bridge.c` sees nd500x's headers, `mfbus_config.c` sees nd100x's, and
+   neither sees both. This is the header-collision hazard of section 7.4 in a
+   second form, and it is structural rather than stylistic.
 2. **SINTRAN finds the card.** `OCSTART` reads register +2 and does not take the
    IOX-error path, then writes 20 octal to +3 and +7. Rung 4.
 3. **`CH5CPUPRESENT` finds a CPU.** It spins on output status bit 3, then writes
