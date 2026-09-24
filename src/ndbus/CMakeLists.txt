@@ -17,6 +17,7 @@ add_library(nd500_ndbus
     ndbus_nd5000.c
     ndbus_window.c
     ndbus_runner.c
+    ndbus_mailbox.c
 )
 
 target_link_libraries(nd500_ndbus PRIVATE nd500x_warnings)   # house C standard, Tier A

@@ -1222,6 +1222,9 @@ What a machine can do today, from an `.ini`:
   070B..076B on the bus;
 - carry the ACCP bring-up sequence over the octobus - ECHO, LSYSPAR, LPARP,
   VPARP, STARTMIC, STOPMIC, CPURES - with the real firmware-measured guard table;
+- hold the mailbox in shared memory, with CPUNO 1-based off a global header and
+  the asymmetric X5ACT doorbell: SINTRAN's ACT51 rings by writing 0 and sends no
+  kick, the microcode IDLE loop polls and re-arms with 1;
 - give each station an `Nd500Machine` whose memory IS the pool, on its own host
   thread, with a clean stop-and-join.
 
@@ -1231,7 +1234,7 @@ What a machine can do today, from an `.ini`:
 |---|---|---|
 | 1.9 | Boot SINTRAN and confirm `MEMORY-CONFIGURATION` reports LOCAL | Parked at Ronny's request. Blocks nothing |
 | 3.3a | `nd500_xmsg.c` statics | Group 2 by the classification in phase 3: no effect until two NDIX guests run in one process, which nothing asks for. Its public API is called from six files including both frontends |
-| 4.5 | The mailbox layout | **No evidence.** The doorbell is built and the X5ACT trap is tested; the layout of the message area it announces is not settled by anything read so far. Inventing one would produce a machine that looks right and agrees with nothing |
+| ~~4.5~~ | ~~The mailbox layout~~ | **DONE - the earlier "no evidence" was wrong.** The layout was never searched for properly. It is recorded in `$RETROCORE/Emulated.HW/ND/CPU/NDBUS/OctobusND5000Station.cs`, cited to NPL source plus the microcode: a global header (X5SEM word 0, X5HEN 3, X5FYL 4, X5MXF 5, X5FIF ring base 6-7) and per-CPU extension blocks at a 200B-word (256-byte) stride holding X5BEX 0-1, X5ACT 5, X5PRO 6, X5CLR 10B, X5CCL 11B. Built as `src/ndbus/ndbus_mailbox.{h,c}` |
 | 8 | Golden trace replay | Needs octobus and mailbox traces exported from RetroCore, which is a C# test run on Ronny's side |
 | - | Loading a program into an ND-5000 | The CPU runs, but nothing puts code in the pool for it yet. The path exists - `ndbus_pool_write_bytes()` - and what to load is a decision, not a gap |
 | - | Committing and pushing | Ronny's call. Until nd500x is pushed, the `external/nd500x` submodule is pinned at a commit without `src/ndbus/`, which is why the sibling checkout is still the CMake default |

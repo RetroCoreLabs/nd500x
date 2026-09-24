@@ -23,6 +23,7 @@
 #include "ndbus_doorbell.h"
 #include "ndbus_nd5000.h"
 #include "ndbus_lock.h"
+#include "ndbus_mailbox.h"
 #include "ndbus_octobus.h"
 #include "ndbus_pool.h"
 #include "ndbus_runner.h"
@@ -1246,6 +1247,111 @@ static void test_bringup(void)
     ndbus_pool_destroy(&pool);
 }
 
+/* ------------------------------------------------------------------------- */
+/* Layer 6: the mailbox in shared memory                                      */
+/* ------------------------------------------------------------------------- */
+
+static void test_mailbox(void)
+{
+    printf("Layer 6: mailbox and the X5ACT doorbell\n");
+
+    NdbusPool pool;
+    (void)ndbus_pool_create(&pool, POOL_BYTES);
+
+    NdbusMailbox mbx;
+    const uint32_t header = 0x000;
+
+    /* CPUNO IS 1-BASED. Slot 0 is the global header; a CPUNO of 0 would put the
+     * extension block on top of it and overwrite X5SEM with a queue pointer. */
+    CHECK(!ndbus_mailbox_attach(&mbx, &pool, header, 0), "CPUNO 0 is refused");
+    CHECK(!ndbus_mailbox_attach(&mbx, &pool, header, -1), "and so is a negative one");
+    CHECK(!ndbus_mailbox_attach(&mbx, &pool, header, NDBUS_MBX_MAX_CPUNO + 1),
+          "and one past the last slot");
+    CHECK(!ndbus_mailbox_attach(&mbx, NULL, header, 1), "and a view with no pool");
+
+    CHECK(ndbus_mailbox_attach(&mbx, &pool, header, 1), "CPUNO 1 attaches");
+    /* header + CPUNO * 256: the stride is 200B words = 128 words = 256 bytes. */
+    CHECK(ndbus_mailbox_ext_base(&mbx) == header + 256u, "CPU 1's block is one stride in");
+
+    NdbusMailbox mbx4;
+    CHECK(ndbus_mailbox_attach(&mbx4, &pool, header, 4), "CPUNO 4 attaches");
+    CHECK(ndbus_mailbox_ext_base(&mbx4) == header + 4u * 256u, "at four strides in");
+    CHECK(ndbus_mailbox_ext_base(&mbx) != ndbus_mailbox_ext_base(&mbx4),
+          "and two CPUs do not share an extension block");
+
+    /* A mailbox that would run off the end is refused, not clamped: one that
+     * does reads as zeros, which is indistinguishable from an empty queue. */
+    NdbusMailbox off_end;
+    CHECK(!ndbus_mailbox_attach(&off_end, &pool, POOL_BYTES - 256u, 1),
+          "a mailbox that does not fit the pool is refused");
+
+    /* The global header and the extension block are different memory. Writing
+     * X5SEM must not disturb a CPU's queue head, and vice versa. */
+    CHECK(ndbus_mailbox_write_global(&mbx, NDBUS_MBX_X5HEN_WORD, 0x1111), "X5HEN writes");
+    CHECK(ndbus_mailbox_write_ext(&mbx, NDBUS_MBX_X5BEX_WORD, 0x2222), "X5BEX writes");
+    CHECK(ndbus_mailbox_read_global(&mbx, NDBUS_MBX_X5HEN_WORD) == 0x1111, "X5HEN reads back");
+    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5BEX_WORD) == 0x2222, "X5BEX reads back");
+    CHECK(ndbus_mailbox_read_global(&mbx, NDBUS_MBX_X5SEM_WORD) == 0, "X5SEM is untouched");
+
+    /* The documented word offsets land where the ND documents say, in bytes. */
+    CHECK(ndbus_pool_read16(&pool, header + 3u * 2u) == 0x1111, "X5HEN is global word 3");
+    CHECK(ndbus_pool_read16(&pool, header + 256u) == 0x2222, "X5BEX is ext word 0");
+
+    /* X5SEM goes through the same lock cycle as any other semaphore, so a guest
+     * TSET on the same cell and the mailbox cannot both think they hold it. */
+    CHECK(ndbus_mailbox_take_sem(&mbx, 0xFFFF), "X5SEM is taken");
+    CHECK(!ndbus_mailbox_take_sem(&mbx, 0xFFFF), "and cannot be taken twice");
+    CHECK(!ndbus_tset16(&pool, header + 0, 0x7000),
+          "nor by a guest TSET on the same cell - one lock domain");
+    ndbus_mailbox_release_sem(&mbx);
+    CHECK(ndbus_mailbox_take_sem(&mbx, 0xFFFF), "released, it can be taken again");
+    ndbus_mailbox_release_sem(&mbx);
+
+    /* ---- THE DOORBELL, and why it is not symmetric ------------------------
+     * XMSINIT sets X5ACT to -1. SINTRAN's ACT51 rings by writing 0, and sends
+     * NO kick. The microcode's IDLE loop polls, and RE-ARMS WITH 1. */
+    CHECK(ndbus_mailbox_write_ext(&mbx, NDBUS_MBX_X5ACT_WORD, NDBUS_MBX_X5ACT_INIT),
+          "XMSINIT sets X5ACT to -1");
+    CHECK(!ndbus_mailbox_poll(&mbx), "an unrung doorbell polls false");
+    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5ACT_WORD) == 0xFFFF,
+          "and a poll that finds nothing changes nothing");
+
+    CHECK(ndbus_mailbox_ring(&mbx), "ACT51 rings by writing 0");
+    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5ACT_WORD) == 0, "X5ACT is 0");
+    CHECK(ndbus_mailbox_poll(&mbx), "the IDLE loop finds it");
+    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5ACT_WORD) == NDBUS_MBX_X5ACT_REARM,
+          "and RE-ARMS WITH 1, not with -1");
+    CHECK(NDBUS_MBX_X5ACT_REARM == 1u, "the re-arm value is 1");
+    CHECK(NDBUS_MBX_X5ACT_REARM != 0xFFFFu, "and is NOT -1 - this is the whole trap");
+    CHECK(!ndbus_mailbox_poll(&mbx), "a second poll finds nothing");
+
+    /* So the 0xFFFF to 0 signature the self-discovery sniff keys on happens
+     * exactly ONCE per XMSINIT. Every ring after the first re-arm is 1 to 0. */
+    CHECK(ndbus_mailbox_ring(&mbx), "ringing again");
+    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5ACT_WORD) == 0, "sets X5ACT to 0 again");
+    CHECK(ndbus_mailbox_poll(&mbx), "and the poll consumes it");
+    /* The transition just seen was 1 -> 0, NOT 0xFFFF -> 0. That is why a sniff
+     * threshold of 2 can never be met - see ndbus_nd5000.h. */
+
+    /* One CPU's doorbell is not another's. */
+    CHECK(ndbus_mailbox_write_ext(&mbx4, NDBUS_MBX_X5ACT_WORD, NDBUS_MBX_X5ACT_INIT),
+          "CPU 4's doorbell is armed");
+    CHECK(ndbus_mailbox_ring(&mbx), "ringing CPU 1");
+    CHECK(ndbus_mailbox_read_ext(&mbx4, NDBUS_MBX_X5ACT_WORD) == 0xFFFF,
+          "does not ring CPU 4");
+    CHECK(!ndbus_mailbox_poll(&mbx4), "and CPU 4 polls false");
+
+    /* NULL is safe everywhere - a shutdown path walks every configured CPU. */
+    CHECK(ndbus_mailbox_ext_base(NULL) == 0, "ext_base(NULL) is 0");
+    CHECK(!ndbus_mailbox_ring(NULL), "ring(NULL) is refused");
+    CHECK(!ndbus_mailbox_poll(NULL), "poll(NULL) is refused");
+    CHECK(!ndbus_mailbox_take_sem(NULL, 1), "take_sem(NULL) is refused");
+    ndbus_mailbox_release_sem(NULL);
+    CHECK(ndbus_mailbox_read_ext(NULL, 0) == 0, "read_ext(NULL) is 0");
+
+    ndbus_pool_destroy(&pool);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -1258,6 +1364,7 @@ int main(void)
     test_octobus();
     test_accp();
     test_nd5000_station();
+    test_mailbox();
 #ifndef __EMSCRIPTEN__
     test_tset_concurrency();
     test_runners();
