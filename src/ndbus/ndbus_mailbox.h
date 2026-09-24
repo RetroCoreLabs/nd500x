@@ -69,6 +69,24 @@
  *     X5BEX chain.
  *   - A kick (N100KICK = 1) is the PREEMPT path only, not the normal one.
  *
+ * RINGS ARE NOT MESSAGES, AND THE DOORBELL COALESCES. X5ACT says "there is work
+ * in the queue", not "here is one unit of work". A ring that lands while the CPU
+ * is between reading X5ACT and re-arming it is absorbed and never seen as a
+ * separate ring - and that is CORRECT, because the microcode's answer to a ring
+ * is to walk the X5BEX chain, which finds everything queued. Counting rings and
+ * expecting the count to equal the number of messages is wrong on real hardware
+ * and wrong here.
+ *
+ * The consequence for correctness is that the QUEUE is what must not lose work,
+ * not the doorbell. A ring may be coalesced; a queued message may not be
+ * dropped, and must not be serviced twice.
+ *
+ * ONE POLLER PER DOORBELL. ndbus_mailbox_poll() reads X5ACT and then re-arms it,
+ * and those two accesses are NOT atomic with respect to each other. That is safe
+ * because a doorbell belongs to exactly one CPU and only that CPU polls it - the
+ * same ownership argument as ndbus_doorbell_take(). A cell that several parties
+ * may consume is a semaphore, not a doorbell, and goes through ndbus_tset16().
+ *
  * This is why the self-discovery sniff in ndbus_nd5000.h can only ever see ONE
  * 0xFFFF to 0 transition per XMSINIT: XMSINIT initialises X5ACT to -1, and every
  * re-arm after that writes 1, so every later ring is 1 to 0. The two facts are

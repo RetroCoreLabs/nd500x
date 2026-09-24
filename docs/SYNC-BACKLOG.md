@@ -148,3 +148,25 @@ its comment names the 2026-07-09 C fix), `ENTB`
   accessing the context block physically, and `43104be` the translation cache
   (which RetroCore has only noted as a "TLB aliasing hazard").
 - RetroCore was audited at `ed00a037c` on branch `ethernet-ii-controller-fixes`.
+
+## 2026-09-25 - three flag defects found by the ND-5000 microword engine
+
+The ND-5000 status-register unification (shared ledger item 82, in the rolling
+file named at the top of this document) made ST,LOAD the real macro-status
+write. Three flag rules in nd500x are wrong against both the decoded B30
+control store and our own hand-written manual notes. All three are flag-only;
+no instruction's VALUE changes.
+
+- `GETBF` must set Z = (extracted field == 0) and S = the field's LEFTMOST bit
+  (bit fieldSize-1), and must CLEAR C and O. Today nd500x leaves the flags
+  alone. `docs/instructions/asm/getbf.md` already states the rule.
+- `PUTBF` S is the leftmost bit of the STORED FIELD, not the positioned
+  field's bit 31. `docs/instructions/asm/putbf.md` already states the rule.
+- `st1 :=` (load ST1) must load the condition flags out of the loaded word -
+  Z bit 5, C bit 6, S bit 7, O bit 9 - because ST1 IS the status register. The
+  store form `st1 =:` correctly leaves them alone (manual 16.8).
+
+Also unported, and confirmed by audit on 2026-09-24 to need NO nd500x change:
+ledger items 39-81 are microword-engine internals (microword field decode, AAP
+delivery, EXUC sneak cycles, control-store addressing) with no counterpart in
+this repo's functional C.
