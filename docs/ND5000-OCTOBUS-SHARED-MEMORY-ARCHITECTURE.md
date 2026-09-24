@@ -1519,6 +1519,115 @@ on it.
 
 ## 11. Test plan
 
+### 11.0 The staging, learned from RetroCore
+
+RetroCore's `$RETROCORE/Emulated.Tests.ND100/ControllerOctobus/` (29 files,
+8,191 lines) is a LADDER, and the order is the lesson: **nothing needs SINTRAN
+until the last rung, and nothing needs an ND-100 CPU until the middle**. Each
+rung is a harness that can be stood up on its own, and a failure at rung N is a
+failure of rung N, not of the machine above it.
+
+#### Rung 1 - the bus alone. No ND-100, no CPU, no SINTRAN.
+
+A fabric, a station and a **do-nothing CPU** whose entire job is to let the
+station register so its replies have somewhere to go
+(`ConformanceMockCpu.cs`: "Do-nothing IND500Cpu whose only job is to let an
+OctobusND5000Station register on the octobus fabric"). Then:
+frame in, frame out, the destination-to-source rewrite, the ACCP guard matrix.
+
+*We have this:* `test_ndbus.c` layers 4, 5 and 6, with `NdbusCpuOps` carrying a
+NULL CPU for exactly the same reason.
+
+#### Rung 2 - shared memory, two ports, no bus traffic.
+
+`MpmBackedMicroMemoryTests` - one backing array reached from both sides, which
+is where a byte-order or window-base mistake shows up on its own rather than
+disguised as a protocol fault.
+
+*We have this:* the pool, window and bridge tests.
+
+#### Rung 3 - the mailbox, seeded by hand. STILL no ND-100 and no SINTRAN.
+
+`OctobusMailboxO1Tests` does not boot anything. It writes **XMSINIT's picture**
+into the pool by hand, builds a message block, and calls the servicer directly.
+That is the whole trick: the mailbox is testable because its initial state is
+writable.
+
+*We have this as of the XMSINIT work:* `ndbus_mailbox_init_xmsinit()`.
+
+#### Rung 4 - the ND-100 CARD, driven directly. No CPU, no SINTRAN.
+
+`OctobusControllerTests` mirrors **TPE's own octobus tests**, which is the
+strongest available idea in this whole ladder - the card is tested the way the
+real diagnostic tests it, so passing means the same thing:
+
+| TPE test | What it checks |
+|---|---|
+| 1 | Check Ident - interface detection |
+| 2 | Check data transmission |
+| 3 | Check receive FIFO length - **16 words** |
+| 4 | Check octobus configuration - station discovery |
+
+`OctobusTpeConfigReproTests` goes further and sends an OMD-0 Test Protocol
+message **byte for byte as TPE's `octobus_send_multibyte_message` does**: SOMB,
+source-OMD byte, byte count, payload, EOMB, one write to register +5 per frame,
+payload starting with the magic `0x71C7`.
+
+**`[GAP]` We do not model the receive FIFO at all.** Our card has registers and
+no queue, so TPE test 3 would fail against it today. This is the clearest
+single thing to build next on the ND-100 side.
+
+#### Rung 5 - execution in the pool, bare harness.
+
+`OctobusPhase3ExecBringupTests` places a **SAMSON context block** - P at +0x00
+= the macro entry point, B at +0x08 = a valid local data base - loads a
+hand-assembled ND-500 program into MPM, and runs it. 32-bit values are written
+big-endian, high halfword first.
+
+*We have the loading half* (`mfbus_load_nd5000`), *not the context block.*
+
+#### Rung 6 - threading, still bare.
+
+`OctobusPhase3ThreadedTests` has a named **canary**: kick plus X5ACT, and the
+GIVEINT answer must arrive **exactly once**. It also records a harness fact
+worth stealing: in a bare harness **no machine is clocking the card**, so the
+test must pump the device clock itself before draining the FIFO.
+
+#### Rung 7 - the whole machine: ND-100 + SINTRAN + ND-5000.
+
+`OctobusPhase3MonBringupTests`, `...RestartTests`, `...TrapTests`. Only here
+does SINTRAN appear.
+
+### 11.1 What a full ND-100 + SINTRAN + ND-5000 scenario needs
+
+In the order a failure would be diagnosed, so the first thing that breaks is the
+first thing that was built:
+
+1. **SINTRAN sees the memory.** `MEMORY-CONFIGURATION` reports one LOCAL bank
+   and one MPM5 bank. This is task 1.9 and needs nothing from the octobus - if
+   it fails, nothing above it can be believed.
+2. **SINTRAN finds the card.** `OCSTART` reads register +2 and does not take the
+   IOX-error path, then writes 20 octal to +3 and +7. Rung 4.
+3. **`CH5CPUPRESENT` finds a CPU.** It spins on output status bit 3, then writes
+   `CMMACLE` to +5. Our card sets data-ready from reset precisely so this
+   terminates.
+4. **`DEFINE-MEMORY-CONFIGURATION`** is given the base page the `.ini` used, and
+   `MEMORY-CONFIGURATION` reports the ND-500 address zero back. A mismatch here
+   is the ADRZERO question of section 4, not a bug.
+5. **The ACCP bring-up sequence** runs over the octobus: ECHO, LSYSPAR, LPARP,
+   VPARP, STARTMIC. VPARP is the one that proves shared memory agrees, because
+   it reads back a word SINTRAN wrote.
+6. **XMSINIT** seeds the mailbox, and the ND-5000's IDLE loop polls X5ACT.
+7. **A message round trip**: SINTRAN queues a block on X5BEX, rings X5ACT, the
+   ND-5000 services it and answers - the GIVEINT-arrives-exactly-once canary of
+   rung 6, now with a real SINTRAN at one end.
+
+**Build the harness for step 7 BEFORE step 1.** Every rung above is reachable
+without SINTRAN, and a bug found at rung 3 with a hand-seeded mailbox takes
+minutes to understand; the same bug found at step 7 costs a boot per attempt.
+
+
+
 Layers 1-5 need neither emulator. That is the point, and it is the structure
 RetroCore already proves with
 `$RETROCORE/Emulated.Tests.ND100/ControllerOctobus/` (29 test files).

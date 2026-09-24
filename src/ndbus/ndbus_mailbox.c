@@ -112,6 +112,37 @@ bool ndbus_mailbox_write_ext(NdbusMailbox *mbx, uint32_t word_index, uint16_t va
     return ndbus_pool_write16(mbx->pool, ext_byte(mbx, word_index), value);
 }
 
+bool ndbus_mailbox_init_xmsinit(NdbusMailbox *mbx, uint16_t ring_slots, uint32_t ring_byte)
+{
+    if (!attached(mbx))
+    {
+        return false;
+    }
+
+    bool ok = true;
+    /* X5SEM free is 0, not -1. A zero-filled structure would look free here but
+     * would also look like a queued chain at offset 0 with the doorbell rung. */
+    ok = ok && ndbus_mailbox_write_global(mbx, NDBUS_MBX_X5SEM_WORD, NDBUS_MBX_X5SEM_FREE);
+    ok = ok && ndbus_mailbox_write_global(mbx, NDBUS_MBX_X5HEN_WORD, 0u);
+    ok = ok && ndbus_mailbox_write_global(mbx, NDBUS_MBX_X5FYL_WORD, 0u);
+    ok = ok && ndbus_mailbox_write_global(mbx, NDBUS_MBX_X5MXF_WORD, ring_slots);
+
+    /* X5FIF is a 32-bit BYTE offset, high word first. Not a word address: the
+     * microcode uses it directly as a byte address. */
+    ok = ok && ndbus_mailbox_write_global(mbx, NDBUS_MBX_X5FIF_WORD,
+                                          (uint16_t)(ring_byte >> 16u));
+    ok = ok && ndbus_mailbox_write_global(mbx, NDBUS_MBX_X5FIF_WORD + 1u,
+                                          (uint16_t)(ring_byte & 0xFFFFu));
+
+    /* This CPU's block only - a second CPU coming up must not disturb a running
+     * first one. X5BEX is 32 bits, so both its words are set. */
+    ok = ok && ndbus_mailbox_write_ext(mbx, NDBUS_MBX_X5BEX_WORD, NDBUS_MBX_X5BEX_INIT);
+    ok = ok && ndbus_mailbox_write_ext(mbx, NDBUS_MBX_X5BEX_WORD + 1u, NDBUS_MBX_X5BEX_INIT);
+    ok = ok && ndbus_mailbox_write_ext(mbx, NDBUS_MBX_X5ACT_WORD, NDBUS_MBX_X5ACT_INIT);
+    ok = ok && ndbus_mailbox_write_ext(mbx, NDBUS_MBX_X5PRO_WORD, NDBUS_MBX_X5PRO_INIT);
+    return ok;
+}
+
 bool ndbus_mailbox_take_sem(NdbusMailbox *mbx, uint16_t taken_value)
 {
     if (!attached(mbx))

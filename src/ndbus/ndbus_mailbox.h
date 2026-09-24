@@ -23,7 +23,7 @@
  *     word 3     X5HEN
  *     word 4     X5FYL
  *     word 5     X5MXF
- *     words 6-7  X5FIF   ring base
+ *     words 6-7  X5FIF   ring base, a 32-bit value, HIGH WORD FIRST
  *
  *   PER-CPU extension block, at slot CPUNO, stride 200B words (128 words,
  *   256 bytes), so block N starts at header + N * 256 bytes:
@@ -32,6 +32,29 @@
  *     word 6     X5PRO
  *     word 10B   X5CLR
  *     word 11B   X5CCL
+ *
+ * X5FIF IS A BYTE OFFSET, NOT A WORD ADDRESS, and it is relative to the window.
+ * It uses the same convention as X5BEX and LINK. The microcode settles it:
+ * SYS_DATAF at 025636 copies header word 6 into srf[0o2002] with NO shift, and
+ * GIVEINT then uses it DIRECTLY as a byte address (slot = ringbase + fill * 4).
+ * RetroCore records that an earlier "ring >> 1" word-address form appeared to
+ * work only because a hardcoded "<< 1" in the servicer cancelled it; when that
+ * shift was removed the real convention showed. Storing a word address here
+ * puts every ring slot at half its true offset, which lands inside the
+ * structure rather than outside it - so it corrupts rather than faults.
+ *
+ * XMSINIT'S PICTURE - the state the structure starts in:
+ *     X5SEM = 0        the semaphore is FREE
+ *     X5HEN = 0
+ *     X5FYL = 0
+ *     X5MXF = the ring slot count
+ *     X5FIF = the ring base, as the byte offset above
+ *     X5BEX = -1       empty chain
+ *     X5ACT = -1       nothing pending
+ *     X5PRO = -1       idle
+ * Note that X5SEM's free value is 0 while the three per-CPU cells are -1. A
+ * structure zero-filled instead of initialised therefore looks like a CPU with
+ * a queued chain at offset 0 and a doorbell already rung.
  *
  * CPUNO IS 1-BASED. Slot 0 is the global header, so the first ND-5000 is CPUNO
  * 1 at header + 256. Stations 070B..073B are CPUNO 1..4. Treating CPUNO as
@@ -88,8 +111,17 @@
  *  see the doorbell protocol above, and the sniff trap in ndbus_nd5000.h. */
 #define NDBUS_MBX_X5ACT_REARM 1u
 
-/** X5ACT value XMSINIT writes at initialisation. */
+/** X5ACT value XMSINIT writes at initialisation: nothing pending. */
 #define NDBUS_MBX_X5ACT_INIT 0xFFFFu
+
+/** X5BEX value XMSINIT writes: an empty chain. */
+#define NDBUS_MBX_X5BEX_INIT 0xFFFFu
+
+/** X5PRO value XMSINIT writes: idle. */
+#define NDBUS_MBX_X5PRO_INIT 0xFFFFu
+
+/** X5SEM's free value. NOT -1 - see XMSINIT's picture above. */
+#define NDBUS_MBX_X5SEM_FREE 0u
 
 /** One machine's mailbox: where it sits in the pool, and which CPU we are. */
 typedef struct NdbusMailbox
@@ -196,5 +228,21 @@ bool ndbus_mailbox_ring(NdbusMailbox *mbx);
  * @return true when the doorbell had been rung and was consumed by this call.
  */
 bool ndbus_mailbox_poll(NdbusMailbox *mbx);
+
+/**
+ * @brief Seed the structure the way XMSINIT does.
+ *
+ * Writes the global header and THIS CPU's extension block to the values listed
+ * under "XMSINIT's picture" above. It does not touch any other CPU's block, so
+ * bringing a second CPU up does not disturb a running first one.
+ *
+ * @param mbx        The mailbox view.
+ * @param ring_slots The ring slot count, stored in X5MXF.
+ * @param ring_byte  Ring base as a WINDOW-RELATIVE BYTE offset, stored in X5FIF
+ *                   high word first. A word address here puts every slot at
+ *                   half its true offset.
+ * @return true on success; false when unattached or the writes do not fit.
+ */
+bool ndbus_mailbox_init_xmsinit(NdbusMailbox *mbx, uint16_t ring_slots, uint32_t ring_byte);
 
 #endif /* NDBUS_MAILBOX_H */

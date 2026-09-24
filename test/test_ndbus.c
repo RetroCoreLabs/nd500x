@@ -1341,7 +1341,33 @@ static void test_mailbox(void)
           "does not ring CPU 4");
     CHECK(!ndbus_mailbox_poll(&mbx4), "and CPU 4 polls false");
 
+    /* ---- XMSINIT's picture ------------------------------------------------
+     * The state the structure actually starts in, and it is NOT all -1 and not
+     * all zero: X5SEM's free value is 0 while the three per-CPU cells are -1. */
+    const uint32_t ring_byte = 0x00000800u;
+    CHECK(ndbus_mailbox_init_xmsinit(&mbx, 32, ring_byte), "XMSINIT seeds the structure");
+    CHECK(ndbus_mailbox_read_global(&mbx, NDBUS_MBX_X5SEM_WORD) == 0, "X5SEM free is 0");
+    CHECK(ndbus_mailbox_read_global(&mbx, NDBUS_MBX_X5MXF_WORD) == 32, "X5MXF is the slot count");
+    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5BEX_WORD) == 0xFFFF, "X5BEX is -1, empty chain");
+    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5ACT_WORD) == 0xFFFF, "X5ACT is -1, nothing pending");
+    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5PRO_WORD) == 0xFFFF, "X5PRO is -1, idle");
+
+    /* X5FIF IS A BYTE OFFSET, high word first - NOT a word address. The
+     * microcode uses it directly as a byte address, so a word address puts
+     * every ring slot at half its true offset: inside the structure rather than
+     * outside it, which corrupts instead of faulting. */
+    uint32_t fif = ((uint32_t)ndbus_mailbox_read_global(&mbx, NDBUS_MBX_X5FIF_WORD) << 16u) |
+                   (uint32_t)ndbus_mailbox_read_global(&mbx, NDBUS_MBX_X5FIF_WORD + 1u);
+    CHECK(fif == ring_byte, "X5FIF round-trips as a 32-bit value, high word first");
+    CHECK(fif != (ring_byte >> 1u), "and is the BYTE offset, not the word address");
+
+    /* Seeding one CPU must not disturb another that is already running. */
+    CHECK(ndbus_mailbox_write_ext(&mbx4, NDBUS_MBX_X5ACT_WORD, 0x1234), "CPU 4 has its own state");
+    CHECK(ndbus_mailbox_init_xmsinit(&mbx, 32, ring_byte), "CPU 1 is seeded again");
+    CHECK(ndbus_mailbox_read_ext(&mbx4, NDBUS_MBX_X5ACT_WORD) == 0x1234, "CPU 4 is untouched");
+
     /* NULL is safe everywhere - a shutdown path walks every configured CPU. */
+    CHECK(!ndbus_mailbox_init_xmsinit(NULL, 0, 0), "init(NULL) is refused");
     CHECK(ndbus_mailbox_ext_base(NULL) == 0, "ext_base(NULL) is 0");
     CHECK(!ndbus_mailbox_ring(NULL), "ring(NULL) is refused");
     CHECK(!ndbus_mailbox_poll(NULL), "poll(NULL) is refused");
