@@ -1349,7 +1349,8 @@ static void test_mailbox(void)
     CHECK(ndbus_mailbox_read_global(&mbx, NDBUS_MBX_X5SEM_WORD) == 0, "X5SEM free is 0");
     CHECK(ndbus_mailbox_read_global(&mbx, NDBUS_MBX_X5MXF_WORD) == 32, "X5MXF is the slot count");
     CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5BEX_WORD) == 0xFFFF, "X5BEX is -1, empty chain");
-    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5ACT_WORD) == 0xFFFF, "X5ACT is -1, nothing pending");
+    CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5ACT_WORD) == 0xFFFF,
+          "X5ACT is -1, nothing pending");
     CHECK(ndbus_mailbox_read_ext(&mbx, NDBUS_MBX_X5PRO_WORD) == 0xFFFF, "X5PRO is -1, idle");
 
     /* X5FIF IS A BYTE OFFSET, high word first - NOT a word address. The
