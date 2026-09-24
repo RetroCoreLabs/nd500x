@@ -1573,9 +1573,27 @@ message **byte for byte as TPE's `octobus_send_multibyte_message` does**: SOMB,
 source-OMD byte, byte count, payload, EOMB, one write to register +5 per frame,
 payload starting with the magic `0x71C7`.
 
-**`[GAP]` We do not model the receive FIFO at all.** Our card has registers and
-no queue, so TPE test 3 would fail against it today. This is the clearest
-single thing to build next on the ND-100 side.
+**The receive FIFO is now modelled**, so TPE tests 1, 2 and 3 run against our
+card in `$ND100X/tests/test_octobus.c`: ident, the loopback in and out in order,
+and the fill loop counting exactly 16 words. Input status bit 2 is FIFO NOT FULL
+(SET means space - inverted from how it reads, and TPE's loop depends on that),
+bit 3 is data available, and the FIFO is a ring so a drain-and-refill does not
+wrap wrongly.
+
+**Rung 4 is complete: TPE tests 1 to 4 all run.** The card reaches the bus
+through `octobus_set_transmit()`, a function-pointer seam, so `src/devices/` still
+links nothing of ndbus. `mfbus_attach_card()` installs the real handler, which
+sends on the fabric as station 1B and pushes replies into the card's receive
+FIFO. Test 4 sends an Ident to all 62 legal stations and counts who answers;
+`$ND100X/tests/test_mfbus_bridge.c` then does the same against the REAL fabric and
+runs a full multibyte ACCP ECHO through the card.
+
+A timeout pushes NOTHING into the FIFO. A synthetic "no answer" frame would make
+an absent station indistinguishable from a quiet one, and the guest would never
+time out.
+
+TPE's tests 5 and 6 - echo single word and echo multi word - are the next two
+rungs, and the multibyte ECHO through the card is most of test 6 already.
 
 #### Rung 5 - execution in the pool, bare harness.
 
