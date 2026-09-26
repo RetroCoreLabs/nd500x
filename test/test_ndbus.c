@@ -673,7 +673,22 @@ static void test_accp(void)
 /* Send one ACCP command to the station through the fabric, as the ND-120 does:
  * SOMB to OMD 3, one data frame per body byte, EOMB. Returns the reply count the
  * EOMB produced. */
-static int send_accp(NdbusFabric *fabric, uint8_t from, uint8_t to, const uint8_t *body,
+/*
+ * Send one ACCP message the way the wire carries it.
+ *
+ * `payload` is the COMMAND AND ITS PARAMETERS. The two header bytes in front of
+ * them - the source OMD the sender listens on, and the payload byte count - are
+ * added here, because they are on the wire: captured from SINTRAN's own ND-500
+ * monitor, the message to station 070B is
+ *
+ *     SOMB omd=3 | 03 07 0E 01 03 00 00 00 00 | EOMB omd=3
+ *
+ * i.e. source OMD 3, count 7, command 016B, six parameter bytes. This helper used
+ * to send SOMB, the payload, EOMB and nothing else, which is the same mistake the
+ * station made when reading it - so the test agreed with the bug instead of
+ * catching it.
+ */
+static int send_accp(NdbusFabric *fabric, uint8_t from, uint8_t to, const uint8_t *payload,
                      int length, uint16_t *replies)
 {
     uint16_t dest = (uint16_t)((uint16_t)to << NDBUS_FRAME_STATION_SHIFT);
@@ -682,9 +697,13 @@ static int send_accp(NdbusFabric *fabric, uint8_t from, uint8_t to, const uint8_
                                NDBUS_FRAME_S_STARTSTOP | (uint16_t)NDBUS_ACCP_OMD);
     (void)ndbus_fabric_send(fabric, from, somb, replies);
 
+    /* Source OMD, then the byte count. */
+    (void)ndbus_fabric_send(fabric, from, (uint16_t)(dest | (uint16_t)NDBUS_ACCP_OMD), replies);
+    (void)ndbus_fabric_send(fabric, from, (uint16_t)(dest | (uint16_t)length), replies);
+
     for (int i = 0; i < length; i++)
     {
-        uint16_t data = (uint16_t)(dest | (uint16_t)body[i]);
+        uint16_t data = (uint16_t)(dest | (uint16_t)payload[i]);
         (void)ndbus_fabric_send(fabric, from, data, replies);
     }
 
@@ -692,6 +711,79 @@ static int send_accp(NdbusFabric *fabric, uint8_t from, uint8_t to, const uint8_
                                (uint16_t)NDBUS_ACCP_OMD);
     return ndbus_fabric_send(fabric, from, eomb, replies);
 }
+
+/*
+ * Unwrap a reply and hand back its payload, so a test asserts what the message
+ * SAYS rather than how many frames it took.
+ *
+ * Checks the whole envelope, because every part of it is a way the reply can be
+ * wrong and has been: SOMB present with M and S set, EOMB present with M and S
+ * clear, the OMD equal in both, the byte count matching what actually arrived,
+ * and - the one that was silently zero for months - EVERY frame carrying the
+ * REPLYING STATION in bits 13-8.
+ *
+ * Returns the payload length, or -1 with a reason printed.
+ */
+static int accp_reply_payload(const uint16_t *replies, int n, uint8_t from_station, uint8_t *out,
+                             int out_max)
+{
+    if (n < 4)
+    {
+        printf("  reply has %d frame(s): too few for an envelope\n", n);
+        return -1;
+    }
+
+    for (int i = 0; i < n; i++)
+    {
+        if (ndbus_frame_station(replies[i]) != from_station)
+        {
+            printf("  reply frame %d says station %uB, expected %uB\n", i,
+                   (unsigned)ndbus_frame_station(replies[i]), (unsigned)from_station);
+            return -1;
+        }
+    }
+
+    uint16_t somb = replies[0];
+    uint16_t eomb = replies[n - 1];
+    if ((somb & NDBUS_FRAME_C_CONTROL) == 0 || (somb & NDBUS_FRAME_M_MULTIBYTE) == 0 ||
+        (somb & NDBUS_FRAME_S_STARTSTOP) == 0)
+    {
+        printf("  first frame %06o is not a SOMB\n", somb);
+        return -1;
+    }
+    if ((eomb & NDBUS_FRAME_C_CONTROL) == 0 || (eomb & NDBUS_FRAME_M_MULTIBYTE) == 0 ||
+        (eomb & NDBUS_FRAME_S_STARTSTOP) != 0)
+    {
+        printf("  last frame %06o is not an EOMB\n", eomb);
+        return -1;
+    }
+    if ((somb & NDBUS_FRAME_CODE_MASK) != (eomb & NDBUS_FRAME_CODE_MASK))
+    {
+        printf("  SOMB OMD %u and EOMB OMD %u disagree\n",
+               (unsigned)(somb & NDBUS_FRAME_CODE_MASK), (unsigned)(eomb & NDBUS_FRAME_CODE_MASK));
+        return -1;
+    }
+
+    int declared = (int)(replies[2] & NDBUS_FRAME_DATA_MASK);
+    int actual   = n - 4;
+    if (declared != actual)
+    {
+        printf("  reply declares %d payload byte(s) and carries %d\n", declared, actual);
+        return -1;
+    }
+    if (actual > out_max)
+    {
+        printf("  payload of %d byte(s) does not fit the caller's buffer\n", actual);
+        return -1;
+    }
+
+    for (int i = 0; i < actual; i++)
+    {
+        out[i] = (uint8_t)(replies[3 + i] & NDBUS_FRAME_DATA_MASK);
+    }
+    return actual;
+}
+
 
 static int s_log_lines = 0;
 
@@ -746,7 +838,11 @@ static void test_nd5000_station(void)
                       replies);
     /* Messack plus the echoed pattern: T125 says returned data follows Messack
      * in the same multibyte message. */
-    CHECK(n == 3, "ECHO is answered with Messack plus its two echoed bytes");
+    uint8_t payload[NDBUS_MAX_REPLY_FRAMES];
+    int     plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                                      (int)sizeof(payload));
+    CHECK(plen == 3 && payload[0] == 0x00 && payload[1] == 0xAA && payload[2] == 0x55,
+          "ECHO is answered with a Messack carrying its two echoed bytes");
     CHECK(nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "and it is a Messack");
     CHECK(nd.messages_handled == 1, "the station counted one message");
 
@@ -763,7 +859,7 @@ static void test_nd5000_station(void)
     body[0] = (uint8_t)NDBUS_ACCP_LSYSPAR;
     memset(&body[1], 0, 6);
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 7, replies);
-    CHECK(n == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LSYSPAR is acked");
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LSYSPAR is acked");
     CHECK(nd.accp.system_parameters_given, "and the guard cell is set");
 
     /* LPARP carries a 4-byte pointer, most significant byte first (T124). */
@@ -773,7 +869,7 @@ static void test_nd5000_station(void)
     body[3] = 0x08;
     body[4] = 0x40;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5, replies);
-    CHECK(n == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LPARP is acked");
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LPARP is acked");
     CHECK(nd.parameter_pointer == 0x00000840u, "the pointer is assembled MSB first");
     CHECK(nd.accp.parameter_pointer_given, "and the guard cell is set");
 
@@ -782,18 +878,26 @@ static void test_nd5000_station(void)
     body[1] = 0;
     body[2] = 0;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 3, replies);
-    CHECK(n == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STARTMIC is acked");
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STARTMIC is acked");
     CHECK(nd.accp.microprogram_running, "the microprogram is running");
 
     body[0] = (uint8_t)NDBUS_ACCP_VPARP;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 1, "VPARP while running is answered");
-    CHECK(nd.last_nak_code == NDBUS_ACCP_NAK_MICRO_RUNNING, "with a Messnak of -1");
+    /* A Messnak carries MFNACK, the error code and the ACCP status byte, so seven
+     * frames: four of envelope and three of payload. MFNACK is 0xFF because the
+     * reply's discriminator is the status HIGH byte - a raw error code there reads
+     * as "no answer" rather than as a refusal. */
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 3 && payload[0] == 0xFF, "VPARP while running is answered with a Messnak");
+    CHECK(plen == 3 && payload[1] == (uint8_t)NDBUS_ACCP_NAK_MICRO_RUNNING,
+          "carrying the error code in its low byte");
+    CHECK(nd.last_nak_code == NDBUS_ACCP_NAK_MICRO_RUNNING, "and the station recorded it");
 
     /* STOPMIC, and its inverse guard. */
     body[0] = (uint8_t)NDBUS_ACCP_STOPMIC;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STOPMIC is acked while running");
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STOPMIC is acked while running");
     CHECK(!nd.accp.microprogram_running, "and the microprogram stops");
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
     CHECK(nd.last_nak_code == NDBUS_ACCP_NAK_MICRO_NOT_STARTED,
@@ -805,7 +909,7 @@ static void test_nd5000_station(void)
     (void)ndbus_pool_write32(&pool, 0x600, 0x12345678u);
     body[0] = (uint8_t)NDBUS_ACCP_CPURES;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 1, "CPURES is answered");
+    CHECK(n == 6, "CPURES is answered");
     CHECK(!nd.accp.parameter_pointer_given, "the parameter pointer is forgotten");
     CHECK(!nd.accp.system_parameters_given, "the system parameters are forgotten");
     CHECK(ndbus_pool_read32(&pool, 0x600) == 0x12345678u, "and the shared pool is untouched");
@@ -831,8 +935,10 @@ static void test_nd5000_station(void)
                             replies);
     (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, (uint16_t)(dest | 0x99u), replies);
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 3, replies);
-    CHECK(n == 2, "the restarted message is answered - Messack plus one echoed byte");
-    CHECK((replies[1] & 0xFF) == 0x11,
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 2, "the restarted message is answered - Messack plus one echoed byte");
+    CHECK(plen == 2 && payload[1] == 0x11,
           "and it echoes the SECOND message's byte, not the abandoned 0x99");
     CHECK(nd.last_command == NDBUS_ACCP_ECHO,
           "and it is the SECOND message, not the abandoned one");
@@ -1148,16 +1254,20 @@ static void test_bringup(void)
     body[4] = 0xBE;
     int n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5,
                       replies);
-    CHECK(n == 4, "ECHO answers with Messack plus three bytes");
-    CHECK((replies[1] & 0xFF) == 0xDE, "echoing the pattern that was sent");
-    CHECK((replies[2] & 0xFF) == 0xAD, "all of it");
-    CHECK((replies[3] & 0xFF) == 0xBE, "in order");
+    uint8_t payload[NDBUS_MAX_REPLY_FRAMES];
+    int     plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                                      (int)sizeof(payload));
+    CHECK(plen == 4, "ECHO answers with a Messack carrying three bytes");
+    CHECK(plen == 4 && payload[0] == 0x00, "the Messack's leading status byte is MFACK");
+    CHECK(plen == 4 && payload[1] == 0xDE, "echoing the pattern that was sent");
+    CHECK(plen == 4 && payload[2] == 0xAD, "all of it");
+    CHECK(plen == 4 && payload[3] == 0xBE, "in order");
 
     /* 2. LSYSPAR - where the microprogram sends octobus error messages. */
     body[0] = (uint8_t)NDBUS_ACCP_LSYSPAR;
     memset(&body[1], 0, 6);
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 7, replies);
-    CHECK(n == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LSYSPAR is acked");
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LSYSPAR is acked");
 
     /* 3. LPARP - where the parameter area lives in shared memory. */
     const uint32_t param_area = 0x400;
@@ -1167,7 +1277,7 @@ static void test_bringup(void)
     body[3] = (uint8_t)(param_area >> 8);
     body[4] = (uint8_t)(param_area & 0xFF);
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5, replies);
-    CHECK(n == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LPARP is acked");
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LPARP is acked");
     CHECK(nd.parameter_pointer == param_area, "and the pointer is where the ND-120 said");
 
     /* 4. VPARP - THE check that the two agree. The ND-120 writes a word into the
@@ -1177,10 +1287,11 @@ static void test_bringup(void)
     (void)ndbus_pool_write32(&pool, param_area, 0xCAFEBABEu);
     body[0] = (uint8_t)NDBUS_ACCP_VPARP;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 5, "VPARP answers with Messack plus four bytes");
-    uint32_t echoed = ((uint32_t)(replies[1] & 0xFF) << 24) |
-                      ((uint32_t)(replies[2] & 0xFF) << 16) |
-                      ((uint32_t)(replies[3] & 0xFF) << 8) | (uint32_t)(replies[4] & 0xFF);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 5 && payload[0] == 0x00, "VPARP answers with a Messack plus four bytes");
+    uint32_t echoed = ((uint32_t)payload[1] << 24) | ((uint32_t)payload[2] << 16) |
+                      ((uint32_t)payload[3] << 8) | (uint32_t)payload[4];
     CHECK(echoed == 0xCAFEBABEu, "and it is the word the ND-120 put in SHARED MEMORY");
 
     /* Point the parameter area somewhere else and the answer changes - proof the
@@ -1195,8 +1306,11 @@ static void test_bringup(void)
     (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5, replies);
     body[0] = (uint8_t)NDBUS_ACCP_VPARP;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    echoed = ((uint32_t)(replies[1] & 0xFF) << 24) | ((uint32_t)(replies[2] & 0xFF) << 16) |
-             ((uint32_t)(replies[3] & 0xFF) << 8) | (uint32_t)(replies[4] & 0xFF);
+    plen   = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                                (int)sizeof(payload));
+    echoed = (plen == 5) ? (((uint32_t)payload[1] << 24) | ((uint32_t)payload[2] << 16) |
+                            ((uint32_t)payload[3] << 8) | (uint32_t)payload[4])
+                         : 0u;
     CHECK(echoed == 0x12345678u, "a new parameter pointer reads a different word");
 
     /* 5. STARTMIC - the microprogram runs. The real start command is 066B; the
@@ -1205,7 +1319,7 @@ static void test_bringup(void)
     body[1] = 0;
     body[2] = 0;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 3, replies);
-    CHECK(n == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STARTMIC is acked");
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STARTMIC is acked");
     CHECK(nd.accp.microprogram_running, "the microprogram is running");
 
     /* 6. And now the commands that load the control store are refused, because
@@ -1242,11 +1356,11 @@ static void test_bringup(void)
      *    destroy the other side's data. */
     body[0] = (uint8_t)NDBUS_ACCP_STOPMIC;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STOPMIC is acked");
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STOPMIC is acked");
 
     body[0] = (uint8_t)NDBUS_ACCP_CPURES;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 1, "CPURES is acked");
+    CHECK(n == 6, "CPURES is acked");
     CHECK(!nd.accp.parameter_pointer_given, "and the ACCP is cold again");
     CHECK(ndbus_pool_read32(&pool, param_area) == 0xCAFEBABEu, "shared memory survives the reset");
     CHECK(ndbus_pool_read32(&pool, 0x500) == 0x12345678u, "all of it");
@@ -1258,7 +1372,7 @@ static void test_bringup(void)
     body[3] = 0x04;
     body[4] = 0x00;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5, replies);
-    CHECK(n == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "and the sequence starts over");
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "and the sequence starts over");
 
     ndbus_pool_destroy(&pool);
 }
@@ -1732,6 +1846,125 @@ static void test_exactly_once_canary(void)
 
 #endif /* __EMSCRIPTEN__ */
 
+
+/*
+ * Layer 10: THE FRAMES SINTRAN ACTUALLY SENT.
+ *
+ * Every other test in this file was written from our own reading of the wire
+ * format, and every one of them passed while the station read the command byte two
+ * bytes too early, answered with an unterminated message, and put station 0 in the
+ * source field. A test written from the same reading as the code cannot catch the
+ * reading being wrong. So this one is written from a CAPTURE.
+ *
+ * Captured 26-SEP-2026 from SINTRAN III VSX/500 L booting on nd100x, driving the
+ * real ND-500/5000 MONITOR J04 - the IOX writes to the octobus card's command
+ * register 100405, in order, exactly as the trace printed them:
+ *
+ *   134063   SOMB  station 070B  omd 3
+ *   034003   data  03   source OMD
+ *   034007   data  07   payload byte count
+ *   034016   data  0E   COMMAND 016B - LSYSPAR
+ *   034001   data  01
+ *   034003   data  03
+ *   034000   data  00
+ *   034000   data  00
+ *   034000   data  00
+ *   034000   data  00
+ *   134043   EOMB  station 070B  omd 3
+ *
+ * and, at cold start, CH5CPUPRESENT's CPU probe to each station:
+ *
+ *   134241   emergency 241B  CMMACLE  master clear
+ *   134242   emergency 242B  CMACONT  continue ACCP
+ *
+ * The frames go in as 16-bit words with no interpretation. If the station's
+ * reading of them ever drifts again, this fails.
+ */
+static void test_captured_sintran_frames(void)
+{
+    printf("Layer 10: the frames SINTRAN actually sent\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the station to sit on");
+
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+
+    NdbusNd5000 nd;
+    CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+          "a station at 070B, where SINTRAN addressed one");
+    CHECK(ndbus_fabric_register(&fabric, &nd.station), "registered on the fabric");
+
+    uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+
+    /* ---- cold start: CH5CPUPRESENT's two emergency frames ---- */
+
+    nd.accp.microprogram_running = true; /* so the master clear has something to clear */
+    nd.accp_idle                 = true; /* and the continue has something to leave */
+
+    int n = ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, 0134241u, replies);
+    CHECK(n == 0, "241B master clear is acknowledged with no reply frame");
+    CHECK(nd.master_clears == 1, "and the station handled it as a master clear");
+    CHECK(nd.last_emergency == 0xA1u, "the emergency code is the WHOLE low byte, 241B");
+    CHECK(!nd.accp.microprogram_running, "the master clear stopped the microprogram");
+    CHECK(!nd.accp_idle, "and left the idle loop");
+
+    nd.accp_idle = true;
+    n            = ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, 0134242u, replies);
+    CHECK(n == 0, "242B continue ACCP is acknowledged with no reply frame");
+    CHECK(nd.continues == 1, "and the station handled it as a continue");
+    CHECK(nd.last_emergency == 0xA2u, "code 242B, which does not fit in four bits");
+    CHECK(!nd.accp_idle, "the ACCP is out of its idle loop");
+
+    /* 244B is the ND-500 monitor's timeout terminate, the third of the set. */
+    n = ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, 0134244u, replies);
+    CHECK(n == 0 && nd.terminates == 1, "244B terminate ACCP is handled too");
+    CHECK(nd.accp_idle && !nd.accp.microprogram_running,
+          "it enters the idle loop and stops the microprogram");
+
+    /* Back to a live ACCP for the message below. */
+    (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, 0134241u, replies);
+    (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, 0134242u, replies);
+
+    /* ---- the monitor's message, frame by captured frame ---- */
+
+    static const uint16_t captured[] = {
+        0134063u, /* SOMB omd 3 */
+        0034003u, /* source OMD 3 */
+        0034007u, /* count 7 */
+        0034016u, /* command 016B */
+        0034001u, 0034003u, 0034000u, 0034000u, 0034000u, 0034000u,
+        0134043u, /* EOMB omd 3 */
+    };
+
+    n = 0;
+    for (size_t i = 0; i < sizeof(captured) / sizeof(captured[0]); i++)
+    {
+        n = ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, captured[i], replies);
+    }
+
+    CHECK(nd.messages_handled == 1, "the station assembled one complete message");
+    CHECK(nd.last_command == 0x0Eu,
+          "and read the command from byte 2 of the body: 016B, not the 003B at byte 0");
+    CHECK(nd.last_nak_code == NDBUS_ACCP_ACCEPTED,
+          "016B is LSYSPAR, which the station implements - so it is ACCEPTED, not naked 6");
+    CHECK(nd.accp.system_parameters_given, "and the guard cell it sets is set");
+
+    /* THE REPLY IS A WHOLE MESSAGE FROM A REAL STATION. Before the fix this was one
+     * frame, 0100046 - a bare control frame with the nak code in the CODE field,
+     * which on the wire reads as "EOMB, OMD 6" from station 0. */
+    uint8_t payload[NDBUS_MAX_REPLY_FRAMES];
+    int     plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                                      (int)sizeof(payload));
+    CHECK(plen == 2, "the reply is a properly enveloped Messack");
+    CHECK(plen == 2 && payload[0] == 0x00 && payload[1] == 0x00,
+          "carrying the all-zero status word that means OK");
+    CHECK(n >= 1 && ndbus_frame_station(replies[0]) == NDBUS_STATION_ND5000_FIRST,
+          "and every frame says it came from 070B, not from station 0");
+    CHECK(n >= 1 && (replies[0] & NDBUS_FRAME_CODE_MASK) == 3u,
+          "addressed to the source OMD the message named, 3");
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -1752,6 +1985,7 @@ int main(void)
     test_exactly_once_canary();
 #endif
     test_bringup();
+    test_captured_sintran_frames();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)

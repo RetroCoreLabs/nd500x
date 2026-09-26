@@ -153,7 +153,15 @@ static inline uint16_t ndbus_frame_set_station(uint16_t frame, uint8_t station)
  * A reply longer than this is a station bug, not a bus condition, so the fabric
  * asserts the bound rather than growing a buffer on the routing path.
  */
-#define NDBUS_MAX_REPLY_FRAMES 8
+/*
+ * A reply is a WHOLE MULTIBYTE MESSAGE, not a frame: SOMB, the source OMD, the
+ * byte count, the payload, EOMB - four frames of envelope plus one per payload
+ * byte. Eight was too few the moment the envelope was built correctly (a VPARP
+ * echo is ack + four bytes = nine frames), and a reply that does not fit is a
+ * reply the receiver reads as a different message. Sixteen is the receiving
+ * card's own FIFO depth, so nothing longer could be delivered whole anyway.
+ */
+#define NDBUS_MAX_REPLY_FRAMES 16
 
 typedef struct NdbusStation NdbusStation;
 

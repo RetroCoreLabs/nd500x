@@ -41,40 +41,136 @@ static void nd_log(const NdbusNd5000 *nd, const char *message)
  *
  * `params` / `param_count` are those return bytes; pass 0 for a bare Messack.
  */
-static int build_messack(uint8_t station, const uint8_t *params, int param_count,
-                         uint16_t *replies, int max)
+/*
+ * Emit one COMPLETE multibyte message: the envelope is part of the message, and
+ * leaving any of it off produces a different message rather than a shorter one.
+ *
+ * Ported from RetroCore NDBusOctobus.cs SendMultibyteMessage, whose envelope is
+ * byte-verified against the TPE OCTOBUS B00 sender
+ * (octobus_send_multibyte_message @ ram:d16a - SOMB built at ram:d1ae
+ * "SAA 30B ; ORA OMD", EOMB at ram:d1f1 "SAA 20B ; ORA OMD"):
+ *
+ *   SOMB     C=1, station, low byte = M|S|OMD  (0x30 | OMD)
+ *   data     C=0, station, low byte = OUR source OMD - where the receiver replies
+ *   data     C=0, station, low byte = payload byte count N
+ *   data x N C=0, station, low byte = payload byte
+ *   EOMB     C=1, station, low byte = M|OMD    (0x20 | OMD)
+ *
+ * THE STATION FIELD IS OURS AND IS STAMPED HERE. On the outbound path the fabric
+ * rewrites bits 13-8 from destination to source, but a reply travels back through
+ * the replies[] array and nothing rewrites it, so a reply built with a zero
+ * station arrives claiming to come from station 0 - which is not a legal station
+ * at all. The receiver reads those bits to know who answered
+ * (TPE octobus_decode_frame_word @ ram:d3ae, mask 0x3F00 at ram:d3cb).
+ *
+ * Returns the number of frames written, or 0 if the whole message does not fit -
+ * never a partial message.
+ */
+static int build_multibyte(uint8_t station, uint8_t dest_omd, uint8_t source_omd,
+                           const uint8_t *payload, int payload_count, uint16_t *replies, int max)
 {
-    if (max < 1)
+    if (replies == NULL || payload_count < 0 || payload_count > 255)
     {
         return 0;
     }
-    (void)station;
 
-    /* SOMB..EOMB around the body. The station field is filled in by the fabric
-     * on delivery, so it is left zero here. */
-    int n = 0;
-    replies[n++] = (uint16_t)(NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE |
-                              NDBUS_FRAME_S_STARTSTOP | (uint16_t)NDBUS_ACCP_OMD);
-
-    for (int i = 0; i < param_count && n < max; i++)
+    const int frames = 4 + payload_count; /* SOMB + srcOMD + count + payload + EOMB */
+    if (frames > max)
     {
-        replies[n++] = (uint16_t)params[i];
+        return 0;
     }
+
+    const uint16_t station_bits =
+        (uint16_t)(((uint16_t)station & 0x3Fu) << NDBUS_FRAME_STATION_SHIFT);
+    const uint16_t omd = (uint16_t)(dest_omd & 0x0Fu);
+
+    int n = 0;
+    replies[n++] = (uint16_t)(NDBUS_FRAME_C_CONTROL | station_bits | NDBUS_FRAME_M_MULTIBYTE |
+                              NDBUS_FRAME_S_STARTSTOP | omd);
+    replies[n++] = (uint16_t)(station_bits | (uint16_t)source_omd);
+    replies[n++] = (uint16_t)(station_bits | (uint16_t)payload_count);
+    for (int i = 0; i < payload_count; i++)
+    {
+        replies[n++] = (uint16_t)(station_bits | (uint16_t)payload[i]);
+    }
+    replies[n++] = (uint16_t)(NDBUS_FRAME_C_CONTROL | station_bits | NDBUS_FRAME_M_MULTIBYTE | omd);
     return n;
 }
 
-static int build_messnak(int nak_code, uint16_t *replies, int max)
+/*
+ * Messack: leading status byte 0 = CMACK/MFACK, "OK / alive / self-test passed".
+ *
+ * Ported from RetroCore OctobusND5000Station.cs SendAccpMessack: the payload is
+ * an all-zero status WORD, and a command that returns data puts the same 0x00 ack
+ * byte in front of its data bytes (SendAccpData). Neither the 68000 self-test nor
+ * the control-store checksum is modelled - a status-0 Messack is all SINTRAN
+ * observes.
+ *
+ * reply_omd is the SOURCE OMD out of the command message, never a constant: that
+ * is the OMD the sender is listening on.
+ */
+static int build_messack(uint8_t station, uint8_t reply_omd, const uint8_t *params,
+                         int param_count, uint16_t *replies, int max)
 {
-    if (max < 1)
+    uint8_t payload[1 + 16];
+
+    if (param_count < 0 || param_count > (int)sizeof(payload) - 1)
     {
         return 0;
     }
-    /* Byte 0 is the command error code; bytes 1 and 2 are ASTS lower then upper.
-     * The short form (code 13 from arm 0x0D) carries no status bytes at all. */
-    uint8_t code = (uint8_t)(nak_code & 0xFF);
-    replies[0]   = (uint16_t)(NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE |
-                            (uint16_t)code);
-    return 1;
+
+    payload[0] = 0x00; /* MFACK */
+    for (int i = 0; i < param_count; i++)
+    {
+        payload[1 + i] = params[i];
+    }
+
+    /* A bare acknowledge is the all-zero status word, so it carries a second
+     * zero byte; an acknowledge that returns data carries the data instead. */
+    int count = (param_count > 0) ? (1 + param_count) : 2;
+    if (param_count == 0)
+    {
+        payload[1] = 0x00;
+    }
+
+    return build_multibyte(station, reply_omd, (uint8_t)NDBUS_ACCP_OMD, payload, count, replies,
+                           max);
+}
+
+/*
+ * Messnak.
+ *
+ * Ported from RetroCore OctobusND5000Station.cs SendAccpMessnak, including the
+ * reason the first byte is 0xFF: the reply's discriminator is the status HIGH
+ * byte of the first word, read the way 5OMBREAD reads CSTS - MFACK (0x00) is an
+ * ack, MFNACK (0xFF = 377B) is a nak. A raw error code in that byte is neither,
+ * and reads as "no answer". So MFNACK goes in the high byte and the error code
+ * travels in the low one: [0xFF][error code][ASTS].
+ *
+ * The short form - measured as exactly FF 0D - is arm 0x0D's refusal, the one nak
+ * the real firmware sends with no status byte.
+ */
+static int build_messnak(uint8_t station, uint8_t reply_omd, int nak_code, bool short_form,
+                         uint16_t *replies, int max)
+{
+    uint8_t payload[3];
+    int     count;
+
+    payload[0] = 0xFF; /* MFNACK */
+    payload[1] = (uint8_t)(nak_code & 0xFF);
+
+    if (short_form)
+    {
+        count = 2;
+    }
+    else
+    {
+        payload[2] = 0x00; /* ASTS */
+        count      = 3;
+    }
+
+    return build_multibyte(station, reply_omd, (uint8_t)NDBUS_ACCP_OMD, payload, count, replies,
+                           max);
 }
 
 /**
@@ -100,7 +196,7 @@ static int build_messnak(int nak_code, uint16_t *replies, int max)
  * @param max     Room in replies.
  * @return Number of reply frames written: Messack plus four parameter bytes.
  */
-static int accp_vparp(NdbusNd5000 *nd, uint16_t *replies, int max)
+static int accp_vparp(NdbusNd5000 *nd, uint8_t reply_omd, uint16_t *replies, int max)
 {
     uint32_t word = ndbus_pool_read32(nd->pool, nd->parameter_pointer);
     uint8_t  reply[4];
@@ -108,7 +204,7 @@ static int accp_vparp(NdbusNd5000 *nd, uint16_t *replies, int max)
     reply[1] = (uint8_t)(word >> 16u);
     reply[2] = (uint8_t)(word >> 8u);
     reply[3] = (uint8_t)(word & 0xFFu);
-    return build_messack(nd->station.number, reply, 4, replies, max);
+    return build_messack(nd->station.number, reply_omd, reply, 4, replies, max);
 }
 
 /**
@@ -119,25 +215,36 @@ static int accp_vparp(NdbusNd5000 *nd, uint16_t *replies, int max)
  * to prove the link works at all, so echoing a fixed pattern instead of the one
  * that arrived would prove nothing.
  *
- * @param nd      The station.
- * @param body    Message body; body[0] is the command, body[1] the count.
- * @param length  Body length in bytes.
- * @param replies Reply frames to fill.
- * @param max     Room in replies.
+ * @param nd          The station.
+ * @param reply_omd   The OMD the sender listens on (message byte 0).
+ * @param params      The command's PARAMETERS: params[0] is the count, then the
+ *                    pattern. The message header and the command byte are already
+ *                    behind them.
+ * @param param_count How many parameter bytes arrived.
+ * @param replies     Reply frames to fill.
+ * @param max         Room in replies.
  * @return Number of reply frames written: Messack plus the echoed bytes.
  */
-static int accp_echo(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_t *replies, int max)
+static int accp_echo(NdbusNd5000 *nd, uint8_t reply_omd, const uint8_t *params, int param_count,
+                     uint16_t *replies, int max)
 {
-    int count = body[1];
-    if (count > (length - 2))
+    if (param_count < 1)
     {
-        count = length - 2; /* the sender said more than it sent */
+        return 0;
     }
-    if (count > NDBUS_MAX_REPLY_FRAMES - 1)
+
+    int count = params[0];
+    if (count > (param_count - 1))
     {
-        count = NDBUS_MAX_REPLY_FRAMES - 1;
+        count = param_count - 1; /* the sender said more than it sent */
     }
-    return build_messack(nd->station.number, (count > 0) ? &body[2] : NULL, count, replies, max);
+    /* Room for the envelope (4 frames) and the leading ack byte. */
+    if (count > NDBUS_MAX_REPLY_FRAMES - 5)
+    {
+        count = NDBUS_MAX_REPLY_FRAMES - 5;
+    }
+    return build_messack(nd->station.number, reply_omd, (count > 0) ? &params[1] : NULL, count,
+                         replies, max);
 }
 
 /*
@@ -145,11 +252,51 @@ static int accp_echo(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_t 
  * commands that move real data (the control store, the multiport test) are not
  * implemented and say so rather than pretending to have worked.
  */
+/*
+ * Run one received ACCP message.
+ *
+ * THE MESSAGE HAS A TWO-BYTE HEADER IN FRONT OF THE COMMAND, and reading past it
+ * is not optional:
+ *
+ *     message = [ source OMD ] [ byte count ] [ COMMAND ] [ parameters... ]
+ *
+ * so the command is byte 2 and the parameter count is length - 3. Ported from
+ * RetroCore OctobusND5000Station.cs ExecuteAccpMultibyteCommand, which says the
+ * same thing twice - `byte command = message[2]` and "message = [srcOMD, count,
+ * command, parameters...], so the parameter count is Length - 3".
+ *
+ * This was read as byte 0 here until 26-SEP-2026, which made every command two
+ * bytes too early. Captured from SINTRAN's own ND-500 monitor, the message to
+ * station 070B is
+ *
+ *     SOMB omd=3 | 03 07 0E 01 03 00 00 00 00 | EOMB omd=3
+ *
+ * i.e. source OMD 3, count 7, command 016B. Reading byte 0 saw command 003B,
+ * which is below the armed range, so the station refused a command it implements
+ * and the monitor reported "No ND-500(0) CPU found".
+ *
+ * The reply goes to the SOURCE OMD out of byte 0 - the OMD the sender listens on -
+ * never to a constant.
+ */
 static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_t *replies,
                        int max)
 {
-    uint8_t command = body[0];
-    nd->last_command = command;
+    /* Source OMD, byte count and a command byte: below that there is no command
+     * to run, and no OMD to answer on either. */
+    if (length < 3)
+    {
+        nd_log(nd, "ND-5000 ACCP: message shorter than its own header - no reply");
+        return 0;
+    }
+
+    uint8_t reply_omd = (uint8_t)(body[0] & 0x0Fu);
+    uint8_t command   = body[2];
+    nd->last_command  = command;
+
+    /* The parameters, and how many of them - the command's own bytes, with the
+     * header and the command byte behind them. */
+    const uint8_t *params      = body + 3;
+    int            param_count = length - 3;
 
     /*
      * LENGTH IS CHECKED BEFORE THE GUARDS for LOCSD and DCSD only, and a message
@@ -157,7 +304,7 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
      * treats silence as an error reports a fault the real card does not report.
      */
     int needed = ndbus_accp_min_parameter_bytes(command);
-    if (ndbus_accp_length_checked_first(command) && (length - 1) < needed)
+    if (ndbus_accp_length_checked_first(command) && param_count < needed)
     {
         nd_log(nd, "ND-5000 ACCP: short LOCSD/DCSD - no reply, exactly as the card");
         return 0;
@@ -168,12 +315,13 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
     {
         nd->messnaks++;
         nd->last_nak_code = verdict;
-        return build_messnak(verdict, replies, max);
+        return build_messnak(nd->station.number, reply_omd, verdict,
+                             ndbus_accp_nak_is_short(verdict), replies, max);
     }
 
     /* Every other command needs its parameters too; below the measured length
      * the card also stays silent. */
-    if ((length - 1) < needed)
+    if (param_count < needed)
     {
         nd_log(nd, "ND-5000 ACCP: short command - no reply, exactly as the card");
         return 0;
@@ -191,18 +339,18 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
     case NDBUS_ACCP_VPARP:
         nd->messacks++;
         nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
-        return accp_vparp(nd, replies, max);
+        return accp_vparp(nd, reply_omd, replies, max);
 
     case NDBUS_ACCP_ECHO:
         nd->messacks++;
         nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
-        return accp_echo(nd, body, length, replies, max);
+        return accp_echo(nd, reply_omd, params, param_count, replies, max);
 
     case NDBUS_ACCP_LPARP:
         /* T128: "The address of the parameter area in the MFbus memory is
          * given." Four bytes, most significant first (T124). */
-        nd->parameter_pointer = ((uint32_t)body[1] << 24u) | ((uint32_t)body[2] << 16u) |
-                                ((uint32_t)body[3] << 8u) | (uint32_t)body[4];
+        nd->parameter_pointer = ((uint32_t)params[0] << 24u) | ((uint32_t)params[1] << 16u) |
+                                ((uint32_t)params[2] << 8u) | (uint32_t)params[3];
         nd->accp.parameter_pointer_given = true;
         break;
 
@@ -235,7 +383,7 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
 
     nd->messacks++;
     nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
-    return build_messack(nd->station.number, NULL, 0, replies, max);
+    return build_messack(nd->station.number, reply_omd, NULL, 0, replies, max);
 }
 
 /* ---- frame routing ---------------------------------------------------------- */
@@ -250,8 +398,77 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
     }
 
     bool control   = (frame & NDBUS_FRAME_C_CONTROL) != 0;
+    bool emergency = (frame & NDBUS_FRAME_E_EMERGENCY) != 0;
     bool multibyte = (frame & NDBUS_FRAME_M_MULTIBYTE) != 0;
     bool start     = (frame & NDBUS_FRAME_S_STARTSTOP) != 0;
+
+    /*
+     * EMERGENCY FIRST, AND THE CODE IS THE WHOLE INFORMATION BYTE.
+     *
+     * Ported from RetroCore OctobusND5000Station.cs HandleFrame, which tests
+     * `isControl && isEmergency` before anything else and calls
+     * `HandleEmergency((byte)(frame & 0xFF))` - the full low byte, not the 4-bit
+     * CODE field. The emergency numbers are 241B, 242B and 244B, which do not fit
+     * in four bits at all: masking with NDBUS_FRAME_CODE_MASK turns 0xA1 into 1
+     * and 0xA2 into 2, and no station could ever recognise them.
+     *
+     * This branch did not exist here until 26-SEP-2026; both frames fell through
+     * to the "accepted and silent" tail. They are the whole of SINTRAN's cold-start
+     * CPU probe: CH5CPUPRESENT reads octobus status 100406, waits for bit 3, then
+     * sends CMMACLE (241B) and CMACONT (242B) to each station and flags the CPU as
+     * SAMSON (PH-P2-OPPSTART.NPL:3893-3943, via $ND_BUSI).
+     *
+     * An emergency is hardware-decoded and carries NO REPLY - the acknowledge is
+     * the bus's, not the station's.
+     */
+    if (control && emergency)
+    {
+        uint8_t code       = (uint8_t)(frame & NDBUS_FRAME_DATA_MASK);
+        nd->last_emergency = code;
+
+        switch (code)
+        {
+        case NDBUS_EMERGENCY_MASTER_CLEAR:
+            /* 241B: resets the ACCP and the ND-5000 CPU. Buffers and flags go,
+             * kicks go back off, and the idle loop is left. */
+            nd->master_clears++;
+            nd->accp.microprogram_running     = false;
+            nd->accp.system_parameters_given  = false;
+            nd->accp.parameter_pointer_given  = false;
+            nd->accp.kicks_enabled            = false;
+            nd->accp_idle                     = false;
+            nd->parameter_pointer             = 0;
+            ndbus_multibyte_reset(&nd->inbox);
+            nd_log(nd, "ND-5000 octobus: emergency 241B MASTER CLEAR");
+            break;
+
+        case NDBUS_EMERGENCY_CONTINUE_ACCP:
+            /* 242B: sent by CH5CPUPRESENT right after the master clear, to let
+             * the ACCP run its startup sequence. */
+            nd->continues++;
+            nd->accp_idle = false;
+            nd_log(nd, "ND-5000 octobus: emergency 242B CONTINUE ACCP");
+            break;
+
+        case NDBUS_EMERGENCY_TERMINATE_ACCP:
+            /* 244B: the ACCP program enters its idle loop and the microprogram
+             * STOPS. The ND-500 monitor sends this on an ACCP timeout. A following
+             * alive check must therefore report "not running". */
+            nd->terminates++;
+            nd->accp_idle                 = true;
+            nd->accp.microprogram_running = false;
+            nd_log(nd, "ND-5000 octobus: emergency 244B TERMINATE ACCP");
+            break;
+
+        default:
+            /* Other emergency opcodes - the R/H interpretation bits of Appendix 2
+             * section 2.6 - are not modelled. Counted, named in the log, ignored:
+             * guessing at one would be worse than admitting it. */
+            nd_log(nd, "ND-5000 octobus: emergency not modelled, ignored");
+            break;
+        }
+        return 0;
+    }
 
     if (control && multibyte && start)
     {
@@ -292,7 +509,9 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
     }
 
     /* A control frame that is not part of a multibyte message - a kick or an
-     * ident. Accepted and silent; the station has nothing to say about it yet. */
+     * ident. Accepted and silent; the station has nothing to say about it yet.
+     * Emergencies are NOT in this bucket any more - they are handled at the top,
+     * which is where they belong. */
     return 0;
 }
 

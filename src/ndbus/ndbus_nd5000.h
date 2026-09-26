@@ -90,7 +90,29 @@ struct NdbusNd5000
     unsigned long       messnaks;         /**< Messnak replies sent */
     uint8_t             last_command;     /**< command byte of the last message */
     int                 last_nak_code;    /**< NDBUS_ACCP_ACCEPTED when the last was a Messack */
+
+    /**
+     * True while the ACCP program sits in its idle loop, which is where a
+     * terminate (244B) puts it and where a master clear (241B) or a continue
+     * (242B) takes it out again. A terminated ACCP still answers ACCP command
+     * messages - only the microprogram is stopped - so this gates kicks, not
+     * commands.
+     */
+    bool                accp_idle;
+
+    /* Emergency counters, so a test can say what arrived rather than infer it. */
+    unsigned long       master_clears;    /**< 241B emergency frames handled */
+    unsigned long       continues;        /**< 242B emergency frames handled */
+    unsigned long       terminates;       /**< 244B emergency frames handled */
+    uint8_t             last_emergency;   /**< information byte of the last one */
 };
+
+/** @brief Emergency 241B: master clear - resets the ACCP and the ND-5000 CPU. */
+#define NDBUS_EMERGENCY_MASTER_CLEAR   0xA1u
+/** @brief Emergency 242B: continue ACCP - leave the idle loop and start up. */
+#define NDBUS_EMERGENCY_CONTINUE_ACCP  0xA2u
+/** @brief Emergency 244B: terminate ACCP - enter the idle loop, stop the microprogram. */
+#define NDBUS_EMERGENCY_TERMINATE_ACCP 0xA4u
 
 /**
  * @brief Bring one ND-5000 station up at `station_number`.

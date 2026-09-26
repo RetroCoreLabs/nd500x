@@ -61,6 +61,7 @@ rule: ask for the missing file by exact name).
 | What | Where |
 |---|---|
 | RetroCore checkout (C# ND-500 CPU + test generators) | `$RETROCORE` |
+| SINTRAN NPL driver analyses + the ND-500/ND-5000 interface dossiers. THE oracle for what SINTRAN itself does: `1-CORE-SPEC/ND500-ND5000-INTERFACE-COMPREHENSIVE-GUIDE.md` carries the CH5CPUPRESENT source, `1-CORE-SPEC/ND500-BUS-INTERFACE-REFERENCE.md` the CPUAVAILABLE encoding, `7-NPL-DRIVER-ANALYSES/` the driver NPL itself | `$ND_BUSI` |
 | Shared rolling fix list for the C# side - C#-bound MON/CPU porting notes go HERE as numbered items, never as new docs in the RetroCore repo | `$ND500_TESTDATA/retrocore-mon-fixes.md` |
 | Per-fix sync docs in this repo | `docs/SYNC-*.md`, ledger in `docs/SYNC-BACKLOG.md` |
 
