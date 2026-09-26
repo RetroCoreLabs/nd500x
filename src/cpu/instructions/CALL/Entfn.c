@@ -172,7 +172,10 @@ void nd500_instr_Entfn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_write_memory_32(cpu, new_b + OFFSET_SP, old_sp);
 
     /* STEP 4: Initialize AUX */
-    nd500_write_memory_32(cpu, new_b + OFFSET_AUX, 0);
+    /* B.AUX (offset 12) is NOT written by the entry instruction: ND-05.009.4 lists PREVB, RETA/L,
+       SP, N and the argument addresses only. AUX belongs to the language runtime and must survive
+       a re-entry of the same frame - PLANC carries the ROUTINEERROR code there (measured 2026-09-26,
+       CONVERT-DOM-A03 vs the CONT-STORE-10611 microcode; RetroCore B30). This used to write 0. */
 
     /* STEP 5: Limit argument count to maximum (like ENTSN) */
     uint32_t actual_arg_count = cpu->pending_call_arg_count;
