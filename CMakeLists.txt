@@ -4,7 +4,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     message(FATAL_ERROR "In-source builds are not allowed. Create a build directory and run cmake from there.")
 endif()
 
-project(nd500x VERSION 0.1.0 LANGUAGES C)
+project(nd500x VERSION 1.0.7 LANGUAGES C)
 
 # WHERE THIS PROJECT LIVES - use this, never CMAKE_SOURCE_DIR.
 #
