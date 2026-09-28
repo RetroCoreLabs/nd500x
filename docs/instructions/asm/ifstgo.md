@@ -211,6 +211,6 @@ BIT_IS_SET:
 
 - [IFKGO](ifkgo.md) - Branch if K flag set
 - [IF=GO](if=go.md) - Branch if equal
-- [IF<GO](if<go.md) - Branch if less than
+- [IF<GO](iflessthango.md) - Branch if less than
 - [SETK](setk.md) - Set K flag
 - [CLRK](clrk.md) - Clear K flag

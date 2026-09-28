@@ -231,5 +231,5 @@ DONE:
 - [JUMPG](jumpg.md) - Unconditional absolute jump
 - [CALL](call.md) - Call subroutine
 - [IF=GO](if=go.md) - Conditional jump if equal
-- [IF<GO](if<go.md) - Conditional jump if less than
+- [IF<GO](iflessthango.md) - Conditional jump if less than
 - [RET](ret.md) - Return from subroutine

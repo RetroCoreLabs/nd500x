@@ -214,10 +214,10 @@ A_GREATER_THAN_B:
 ## See Also
 
 - [IF=GO](if=go.md) - Conditional branch if equal
-- [IF<GO](if<go.md) - Conditional branch if less than
-- [IF>GO](if>go.md) - Conditional branch if greater than
-- [IF>=GO](if>=go.md) - Conditional branch if greater or equal
-- [IF<=GO](if<=go.md) - Conditional branch if less or equal
+- [IF<GO](iflessthango.md) - Conditional branch if less than
+- [IF>GO](ifgreaterthango.md) - Conditional branch if greater than
+- [IF>=GO](ifgreaterequalgo.md) - Conditional branch if greater or equal
+- [IF<=GO](iflessequalgo.md) - Conditional branch if less or equal
 - [TEST](test.md) - Bitwise test operation
 - [COMP2](comp2.md) - Two-operand compare
 - [SUB](sub.md) - Subtraction with result

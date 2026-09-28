@@ -273,9 +273,9 @@ jobs:
       matrix:
         include:
           - arch: arm64
-            runner: macos-latest      # Apple Silicon (M1/M2/M3)
+            runner: macos-26          # Apple Silicon, macOS 26
           - arch: x86_64
-            runner: macos-13          # last Intel runner image
+            runner: macos-26-intel    # Intel, macOS 26
 
     steps:
       - name: Checkout

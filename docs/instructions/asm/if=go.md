@@ -113,7 +113,7 @@ FOUND:
 
 ## See Also
 
-- [IF><GO](if><go.md) - Jump if not equal
+- [IF><GO](ifnotequalgo.md) - Jump if not equal
 - [COMP](comp.md) - Compare
 - [TEST](test.md) - Test
 - [GO](go.md) - Unconditional jump

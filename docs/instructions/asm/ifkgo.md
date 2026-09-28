@@ -210,4 +210,4 @@ PERMITTED:
 - [CLRK](clrk.md) - Clear K flag
 - [IF-KGO](if-kgo.md) - Branch if K flag clear
 - [IF=GO](if=go.md) - Branch if equal
-- [IF<GO](if<go.md) - Branch if less than
+- [IF<GO](iflessthango.md) - Branch if less than

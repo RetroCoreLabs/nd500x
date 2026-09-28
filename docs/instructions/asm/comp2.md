@@ -194,6 +194,6 @@ DONE:
 
 - [COMP](comp.md) - Compare with accumulator (single operand)
 - [IF=GO](if=go.md) - Conditional branch if equal
-- [IF<GO](if<go.md) - Conditional branch if less than
+- [IF<GO](iflessthango.md) - Conditional branch if less than
 - [SUB](sub.md) - Subtraction with result
 - [TEST](test.md) - Bitwise test
