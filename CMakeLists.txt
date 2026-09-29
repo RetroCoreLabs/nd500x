@@ -378,8 +378,19 @@ endif()
 
 
 enable_testing()
+# Several test programs use POSIX-only calls (setenv, fork, pipe, termios,
+# sys/select.h), so the suite does not compile on Windows. It is off there by
+# default; the release build never runs it. Turn it on with
+# -DND500X_BUILD_TESTS=ON.
+if(WIN32)
+    set(ND500X_BUILD_TESTS_DEFAULT OFF)
+else()
+    set(ND500X_BUILD_TESTS_DEFAULT ON)
+endif()
+option(ND500X_BUILD_TESTS "Build the test suite in test/" ${ND500X_BUILD_TESTS_DEFAULT})
+
 # The test suite links `mon` directly (test_mon_calls and friends), so it only
 # builds in the WITH_NDMON configuration.
-if(ND500X_WITH_NDMON)
+if(ND500X_WITH_NDMON AND ND500X_BUILD_TESTS)
     add_subdirectory(test)
 endif()
