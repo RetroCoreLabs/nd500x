@@ -284,9 +284,17 @@ target_link_libraries(test_trap_conformance PRIVATE nd500_machine nd500_cpu nd50
 # catch "exits immediately on a real terminal" / "leaves the tty broken").
 # The harness itself links nothing from the emulator - it forks and execs
 # the nd500x binary, whose path ctest passes as the argument.
-add_executable(test_pty_smoke
-    test_pty_smoke.c
-)
+# Only where the native nd500x binary exists (not in the WASM build, which
+# builds nd500wasm instead) and on POSIX hosts: the harness uses pty, fork and
+# select, which Windows does not have.
+if(TARGET nd500x AND NOT WIN32)
+    set(ND500X_PTY_SMOKE ON)
+    add_executable(test_pty_smoke
+        test_pty_smoke.c
+    )
+else()
+    set(ND500X_PTY_SMOKE OFF)
+endif()
 
 # ---------------------------------------------------------------------------
 # diag_* investigation harnesses
@@ -429,8 +437,10 @@ if(TARGET dap_objects)
     add_test(NAME dap_adapter COMMAND test_dap_adapter)
 endif()
 
-add_test(NAME pty_smoke COMMAND test_pty_smoke $<TARGET_FILE:nd500x>)
-set_tests_properties(pty_smoke PROPERTIES TIMEOUT 60)
+if(ND500X_PTY_SMOKE)
+    add_test(NAME pty_smoke COMMAND test_pty_smoke $<TARGET_FILE:nd500x>)
+    set_tests_properties(pty_smoke PROPERTIES TIMEOUT 60)
+endif()
 
 if(CJSON_TEST_FOUND)
     # Runner locates nd500-conformance.json in its own executable directory

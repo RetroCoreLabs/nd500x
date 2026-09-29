@@ -214,6 +214,9 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
       - name: Build binary inside ${{ matrix.friendly }} Debian bookworm container
+        # armhf only: run-on-arch starts an x86 QEMU helper image, which cannot
+        # run on the native ARM runner that arm64 uses (exec format error).
+        if: matrix.friendly == 'armhf'
         uses: uraimo/run-on-arch-action@v2
         with:
           arch: ${{ matrix.run_arch }}
@@ -238,6 +241,24 @@ jobs:
             cp build_release/bin/nd500x "$STAGE/usr/bin/nd500x"
             # Let the host runner user own the staged tree so fpm can read it.
             chown -R $(stat -c '%u:%g' /workspace) "$STAGE" build_release
+
+      - name: Build binary inside arm64 Debian bookworm container (native)
+        # The runner is arm64, so the bookworm image runs natively - no QEMU.
+        # Same packages and script as the armhf step above.
+        if: matrix.friendly == 'arm64'
+        run: |
+          docker run --rm -v "${PWD}:/workspace" -w /workspace debian:bookworm bash -c '
+            set -eu
+            apt-get update -q -y
+            apt-get install -y --no-install-recommends \
+              build-essential cmake pkg-config git ca-certificates
+            make release
+            STAGE=pkgroot
+            rm -rf "$STAGE"
+            mkdir -p "$STAGE/usr/bin"
+            cp build_release/bin/nd500x "$STAGE/usr/bin/nd500x"
+            chown -R $(stat -c "%u:%g" /workspace) "$STAGE" build_release
+          '
 
       - name: Install fpm on host
         run: |
