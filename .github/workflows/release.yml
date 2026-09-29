@@ -148,10 +148,7 @@ jobs:
 
       - name: Stage files for packaging
         run: |
-          set -e
-          STAGE=pkgroot
-          mkdir -p "$STAGE/usr/bin"
-          cp build_release/bin/nd500x "$STAGE/usr/bin/nd500x"
+          sh tools/stage-deb.sh build_release pkgroot
 
       - name: Build .deb
         run: |
@@ -235,12 +232,9 @@ jobs:
             cd /workspace
             make release
             # Stage files under pkgroot so the host runner can package them.
-            STAGE=pkgroot
-            rm -rf "$STAGE"
-            mkdir -p "$STAGE/usr/bin"
-            cp build_release/bin/nd500x "$STAGE/usr/bin/nd500x"
+            sh tools/stage-deb.sh build_release pkgroot
             # Let the host runner user own the staged tree so fpm can read it.
-            chown -R $(stat -c '%u:%g' /workspace) "$STAGE" build_release
+            chown -R $(stat -c '%u:%g' /workspace) pkgroot build_release
 
       - name: Build binary inside arm64 Debian bookworm container (native)
         # The runner is arm64, so the bookworm image runs natively - no QEMU.
@@ -253,11 +247,8 @@ jobs:
             apt-get install -y --no-install-recommends \
               build-essential cmake pkg-config git ca-certificates
             make release
-            STAGE=pkgroot
-            rm -rf "$STAGE"
-            mkdir -p "$STAGE/usr/bin"
-            cp build_release/bin/nd500x "$STAGE/usr/bin/nd500x"
-            chown -R $(stat -c "%u:%g" /workspace) "$STAGE" build_release
+            sh tools/stage-deb.sh build_release pkgroot
+            chown -R $(stat -c "%u:%g" /workspace) pkgroot build_release
           '
 
       - name: Install fpm on host
@@ -325,6 +316,15 @@ jobs:
           cp build_release/bin/nd500x "$STAGE/"
           cp README.md "$STAGE/" 2>/dev/null || true
           cp LICENSE  "$STAGE/" 2>/dev/null || true
+          # nd500x.app beside the bare binary: a macOS executable cannot carry
+          # an icon, a bundle can. Same binary; Info.plist (version from
+          # CMakeLists.txt) and the icon from assets/.
+          APP="$STAGE/nd500x.app/Contents"
+          mkdir -p "$APP/MacOS" "$APP/Resources"
+          cp build_release/bin/nd500x "$APP/MacOS/nd500x"
+          cp build_release/src/frontend/nd500x/Info.plist "$APP/Info.plist"
+          cp assets/nd500x.icns "$APP/Resources/nd500x.icns"
+          plutil -lint "$APP/Info.plist"
 
       - name: Create archive
         # tar rather than the artifact zip, so the executable permission bit

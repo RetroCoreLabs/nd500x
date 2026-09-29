@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=nd500x
+GenericName=ND-500 emulator
+Comment=Norsk Data ND-500/ND-5000 emulator
+Exec=nd500x
+Icon=nd500x
+Terminal=true
+Categories=System;Emulator;
