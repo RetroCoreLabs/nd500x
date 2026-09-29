@@ -180,7 +180,10 @@ jobs:
 
   build-linux-arm:
     name: Build linux-${{ matrix.friendly }} (.deb)
-    runs-on: ubuntu-latest
+    # armhf builds under QEMU on an x86 runner. arm64 uses GitHub's native ARM
+    # runner, so the bookworm container runs natively instead of under QEMU
+    # (the emulated compiler crashed with a segfault on ndbus_runner.c).
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
@@ -188,9 +191,11 @@ jobs:
           - friendly: armhf     # Raspberry Pi OS 32-bit (Pi 2/3/4/Zero 2)
             run_arch: armv7
             deb_arch: armhf
+            runner: ubuntu-latest
           - friendly: arm64     # Raspberry Pi OS 64-bit (Pi 3/4/5)
             run_arch: aarch64
             deb_arch: arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout

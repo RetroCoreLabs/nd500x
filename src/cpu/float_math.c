@@ -101,7 +101,7 @@ static uint64_t int_part(uint64_t t, bool rounded, long* n)
         return 0;
     }
     unsigned e = 0;
-    return nd500_fx_round(neg, (unsigned __int128)k, 0, false, false, &e) << 32;
+    return nd500_fx_round(neg, nd500_u128_from_u64((uint64_t)k), 0, false, false, &e) << 32;
 }
 
 /* The argument reduction constants of one function at one width. */
@@ -442,7 +442,7 @@ static uint64_t alog_fd(uint64_t x, int base, bool d, unsigned* exc)
     uint64_t r = rapp(poly_mul(k->p, k->n, w, d), poly_plus(k->q, k->n, w, d), z, d);
     unsigned e = 0;
     uint64_t nf = (n == 0) ? 0
-        : nd500_fx_round(n < 0, (unsigned __int128)(n < 0 ? -n : n), 0, false, false, &e) << 32;
+        : nd500_fx_round(n < 0, nd500_u128_from_u64((uint64_t)(n < 0 ? -n : n)), 0, false, false, &e) << 32;
     uint64_t ln = add(add(mul(k->c2, nf, d), r, d), mul(k->c1, nf, d), d);
     if (base == 2) {
         return mul(k->log2e, ln, d);
