@@ -125,7 +125,7 @@ int nd500_dbg_load_segments_path_js(const char* pseg_path, uint32_t pseg_base,
 }
 #endif
 
-static char* dup_json_string(cJSON* obj) {
+static const char* dup_json_string(cJSON* obj) {
     char* s = cJSON_PrintUnformatted(obj);
     cJSON_Delete(obj);
     return s ? s : "{}";

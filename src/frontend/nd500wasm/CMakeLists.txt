@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.16)
 add_executable(nd500wasm main.c)
 target_link_libraries(nd500wasm PRIVATE nd500x_warnings)   # house C standard, Tier A
 target_include_directories(nd500wasm PRIVATE ${ND500X_ROOT}/src/cpu ${ND500X_ROOT}/src/machine ${ND500X_ROOT}/src/debugger)
-target_link_libraries(nd500wasm PRIVATE nd500_machine nd500_cpu nd500_ndlib nd500_debugger cjson)
+# cJSON comes in through nd500_machine (cjson_objects, see src/machine/CMakeLists.txt).
+# A plain "cjson" here becomes -lcjson, and no such library exists in a WASM build.
+target_link_libraries(nd500wasm PRIVATE nd500_machine nd500_cpu nd500_ndlib nd500_debugger)
 
 # Copy web files to build output at build time (not configure time)
 add_custom_command(TARGET nd500wasm POST_BUILD
