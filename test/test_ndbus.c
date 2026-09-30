@@ -3237,6 +3237,73 @@ static void test_copy_family_refusals(void)
         ndbus_pool_destroy(&pool);
     }
 
+    /* --- THE BYTE COUNT IS EXACT. IT IS NOT ROUNDED UP TO WHOLE WORDS. -----
+     *
+     * RetroCore's Nd500ServicerS1Tests.ResidentWrite_14B_RoundsCountUpToFull32BitWords
+     * asserts the opposite: with NRBYT = 6 it expects EIGHT bytes moved, on the
+     * stated grounds that "the microcode rounds (nrbyt+3)>>2". The microcode does
+     * not. Read at MSG_RESIWR, 015534-015560 of MICRO-5800-B30.LIST (the B30
+     * control store, $ND5000_DECODE):
+     *
+     *   015537  reads the count halfword into Q         TYP,HW ... D,SC4
+     *   015541  Q := Q logically shifted                ALU,XOR Q,Q/LOG
+     *   015542  Q := Q logically shifted again          ALU,XOR Q,Q/LOG
+     *   015543  LC := Q                                 A,Q ... D,LC
+     *   015544  MSG_RESIWRW: LCDECR, loop to 015555 while LC nonzero
+     *   015555  MSG_RESIWR2: a 32-bit read then a 32-bit write, back to 015544
+     *   015545  LC := SARG AND count                    ALU,AND A,SARG B,SC4 D,LC
+     *   015546  if that is zero, jump MSG_END
+     *   015550  MSG_RESIWRBY: a BYTE read then a BYTE write, LCDECR, loop
+     *
+     * Two logical shifts turn the byte count into a count of 32-bit words, and
+     * what is left over is copied ONE BYTE AT A TIME by a second loop. A byte
+     * remainder loop cannot exist in an engine that rounds the count up - there
+     * would be nothing for it to do. So NRBYT = 6 moves 6 bytes: one word plus
+     * two bytes. The 7th and 8th bytes are not the microprogram's to touch.
+     *
+     * The manuals and the microcode are the truth and the other emulator is not,
+     * so this asserts the microcode and leaves RetroCore's case failing on
+     * purpose. Its defect is that a WR of 6 bytes overwrites two bytes past the
+     * caller's buffer.
+     */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the exact byte count");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        const uint32_t dst = MBX_BASE + 0x2000u;
+        const uint32_t src = MBX_BASE + 0x2400u;
+
+        (void)ndbus_pool_write16(&pool, src + 0u, 0x1111u);
+        (void)ndbus_pool_write16(&pool, src + 2u, 0x2222u);
+        (void)ndbus_pool_write16(&pool, src + 4u, 0x3333u);
+        (void)ndbus_pool_write16(&pool, src + 6u, 0x4444u);
+
+        /* A sentinel in the halfword the rounding would clobber. */
+        (void)ndbus_pool_write16(&pool, dst + 6u, 0xA5A5u);
+
+        /* 14B RESIWR moves B -> A, so A is the destination and B the source. */
+        mbx_copy_message(&pool, NDBUS_MICFU_RESIWR, dst, src, 6u);
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "14B RESIWR with NRBYT 6 is serviced");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "and answered");
+
+        CHECK(ndbus_pool_read16(&pool, dst + 0u) == 0x1111u, "byte 0 and 1 moved");
+        CHECK(ndbus_pool_read16(&pool, dst + 2u) == 0x2222u, "byte 2 and 3 moved");
+        CHECK(ndbus_pool_read16(&pool, dst + 4u) == 0x3333u,
+              "byte 4 and 5 moved - the two-byte remainder of 015550");
+        CHECK(ndbus_pool_read16(&pool, dst + 6u) == 0xA5A5u,
+              "byte 6 and 7 are UNTOUCHED: NRBYT is 6, and the microcode's byte loop "
+              "runs count AND 3 times, not up to the next word boundary");
+        CHECK(nd.servicer.copy_bytes == 6u, "and the station moved exactly six bytes");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
     /* --- IMEMWR round-trips byte exact through RESIRD ---------------------- */
     {
         NdbusPool pool;
