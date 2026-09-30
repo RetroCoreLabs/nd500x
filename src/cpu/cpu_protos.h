@@ -238,6 +238,13 @@ typedef struct Nd500Cpu {
      * PVWVIOL with MMINST clear. For a page fault, 0 => default PFZ2. */
     uint32_t mmu_pgf_where;
 
+    /* The physical segment number the CURRENT fault resolved against, set beside
+     * mmu_pgf_where by the same walk. The B30 trap-stop record carries it at 0o21 of
+     * a 46B page fault, and SINTRAN's swapper needs it to know WHICH segment to page
+     * into - a record with a plausible fault address and a zero segment sends it
+     * after the wrong one. */
+    uint32_t mmu_pgf_psn;
+
     /* Per-generic-device interrupt priority, captured from the FE_IDEV command
      * packet (machine/if.h: every _idev_cpk variant begins with "short ipl") and
      * used when that device's completion interrupt is delivered. Indexed by

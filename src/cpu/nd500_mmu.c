@@ -351,6 +351,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
          * segment as a second-level page-table miss. Matches CpuND500.MMU.cs
          * MM_PFZPST; these two must not diverge. */
         cpu->mmu_pgf_where = MMW_PFZPST | (is_instruction ? MMW_INST : 0u);
+        cpu->mmu_pgf_psn = (uint32_t)psn;
         trap_page_fault(cpu, cpu->PC, virtual_addr);
         return virtual_addr;
     }
@@ -437,6 +438,14 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                     if (pgfd) fprintf(stderr, "[PGFSITE] ASI-PTE dom=%d seg=%d psn=%d va=0x%08X pte@0x%08X\n",
                                       domain, segment, psn, virtual_addr, pte_addr);
                 }
+                /* SET THE FAULT LOCATION. Without this the trap carried whatever the
+                 * PREVIOUS fault left in mmu_pgf_where, which is the same defect the
+                 * PFZPST site above records paying for: a missing page reported with a
+                 * stale code, and the guest branching on it. In PS_ASI the single
+                 * indexing level IS the last level, so a not-present entry here is
+                 * PFZ2 - "0 in last level index entry" - and not PFZ1. */
+                cpu->mmu_pgf_where = MMW_PFZ2 | (is_instruction ? MMW_INST : 0u);
+                cpu->mmu_pgf_psn = (uint32_t)psn;
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
             }
@@ -524,6 +533,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                  * MMINST)>>5; segno+access classifies text vs data). Without it
                  * a text-fetch fault at va 0 pages in DATA page 0 instead. */
                 cpu->mmu_pgf_where = MMW_PFZ1 | (is_instruction ? MMW_INST : 0u);
+                cpu->mmu_pgf_psn = (uint32_t)psn;
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
             }
@@ -586,6 +596,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 /* PFZ2: zero 2nd-level page-table entry (demand page). MMINST
                  * (0x40) marks an I-channel fault - see the PFZ1 site above. */
                 cpu->mmu_pgf_where = MMW_PFZ2 | (is_instruction ? MMW_INST : 0u);
+                cpu->mmu_pgf_psn = (uint32_t)psn;
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }
@@ -958,7 +969,10 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
              * truth here keeps a zero capability on the panic/SIGSEGV path where
              * it belongs (machine/trap.c: "the capability ... is zero" is listed
              * as a separate cause from a write protected page). */
+            /* No psn is recorded here ON PURPOSE: the capability is zero, so it
+             * names no physical segment. Writing one would be inventing it. */
             cpu->mmu_pgf_where = MMW_ZEROCAP | (is_instruction ? MMW_INST : 0u);
+            cpu->mmu_pgf_psn = 0u;
             trap_protect_violation(cpu, cpu->PC, virtual_addr);
             return virtual_addr;  /* Return virtual address, trap will stop execution */
         }
@@ -999,6 +1013,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
     if (psn >= MAX_PST) {
         MMU_ERR("[MMU] TRAP: PSN %d >= MAX_PST %d! vaddr=0x%08X\n", psn, MAX_PST, virtual_addr);
         cpu->mmu_pgf_where = MMW_INDEXERR | (is_instruction ? MMW_INST : 0u);
+        cpu->mmu_pgf_psn = (uint32_t)psn;
         trap_protect_violation(cpu, cpu->PC, virtual_addr);
         return virtual_addr;  /* Invalid PSN - return virtual address, trap will stop execution */
     }
