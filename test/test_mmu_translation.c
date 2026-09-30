@@ -127,6 +127,96 @@ int main(void) {
     printf("Status: %s\n\n", (paddr == vaddr) ? "PASS" : "FAIL");
 
     /* ---------------------------------------------------------
+     * TEST 7: PS -> PST -> capability table (declare_process_segment)
+     *
+     * The walk that reaches a capability starts at PS, an INDEX into the
+     * physical segment table, not at a base address. ND-05.020.01 section 6.6:
+     * "This register points to an element of the Physical Segment Table. The PST
+     * element addresses the process segment of the process." Chapter 11's PSCAPT
+     * nanostate refuses double indexing for a process segment outright, so the
+     * three cases below are DIRECT resolves, SINGLE resolves through one index
+     * page, and DOUBLE is an error.
+     *
+     * Unlike the tests above, this one counts its failures and makes the program
+     * exit non-zero, so ctest can actually see it fail.
+     * --------------------------------------------------------- */
+    printf("Test 7: PS -> PST -> capability table\n");
+    printf("-------------------------------------\n");
+
+    int t7_failed = 0;
+#define T7_CHECK(cond, what)                                                        \
+    do {                                                                            \
+        if (!(cond)) { printf("  FAIL: %s\n", (what)); t7_failed++; }                \
+        else         { printf("  ok:   %s\n", (what)); }                            \
+    } while (0)
+
+    {
+        /* A PST inside the 1 MB test machine, and a process segment at page 0x40. */
+        const uint32_t pstp     = 0x20000u;
+        const uint32_t ps        = 3u;
+        const uint32_t seg_page  = 0x40u;          /* 0x40 << 11 = 0x20000... */
+        const uint32_t cell      = pstp + ps * 4u;
+
+        cpu.PSTP = pstp;
+
+        /* A zero entry is "no process segment", not entry zero of the table. */
+        for (uint32_t i = 0; i < 4u; i++) { nd500_bus_write8(&machine, cell + i, 0x00); }
+        cpu.dit_configured = 0;
+        T7_CHECK(nd500_mmu_declare_process_segment(&cpu, ps, NULL) == -1,
+                 "a zero PST entry is refused");
+        T7_CHECK(cpu.dit_configured == 0, "and nothing is declared");
+
+        /* PS itself must not be zero. */
+        T7_CHECK(nd500_mmu_declare_process_segment(&cpu, 0u, NULL) == -1,
+                 "PS zero is refused");
+
+        /* DIRECT (mode 0): the entry's page IS the process segment. */
+        uint32_t direct = ((uint32_t)PS_AZI << 30) | 0x0123u;
+        for (uint32_t i = 0; i < 4u; i++) {
+            nd500_bus_write8(&machine, cell + i, (uint8_t)(direct >> (24u - i * 8u)));
+        }
+        uint32_t base = 0xDEADBEEFu;
+        T7_CHECK(nd500_mmu_declare_process_segment(&cpu, ps, &base) == 0,
+                 "a DIRECT entry resolves");
+        T7_CHECK(base == (0x0123u << PGSHIFT), "to its own page, shifted to bytes");
+        T7_CHECK(cpu.DITBASE == base && cpu.dit_configured == 1,
+                 "and the capability table base is declared");
+
+        /* SINGLE (mode 1): the entry's page is an index page; entry 0 of it names
+         * the process segment. A PTE is 4 bytes; bit 0 of the low byte is the
+         * valid bit as nd500_mmu_read_pte reads it, so build it through the
+         * emulator's own writer rather than by hand. */
+        uint32_t single = ((uint32_t)PS_ASI << 30) | seg_page;
+        for (uint32_t i = 0; i < 4u; i++) {
+            nd500_bus_write8(&machine, cell + i, (uint8_t)(single >> (24u - i * 8u)));
+        }
+        /* An INVALID index-page entry must be refused, not resolved to page 0. */
+        for (uint32_t i = 0; i < 4u; i++) {
+            nd500_bus_write8(&machine, (seg_page << PGSHIFT) + i, 0x00);
+        }
+        cpu.dit_configured = 0;
+        T7_CHECK(nd500_mmu_declare_process_segment(&cpu, ps, NULL) == -1,
+                 "a SINGLE entry whose index page is not valid is refused");
+
+        /* DOUBLE (mode 2) is not allowed for a process segment. */
+        uint32_t dbl = ((uint32_t)PS_ADI << 30) | seg_page;
+        for (uint32_t i = 0; i < 4u; i++) {
+            nd500_bus_write8(&machine, cell + i, (uint8_t)(dbl >> (24u - i * 8u)));
+        }
+        cpu.dit_configured = 0;
+        T7_CHECK(nd500_mmu_declare_process_segment(&cpu, ps, NULL) == -1,
+                 "DOUBLE indexing is refused - PSCAPT does not allow it here");
+        T7_CHECK(cpu.dit_configured == 0, "and nothing is declared for it");
+
+        /* No PSTP at all: nothing to index. */
+        cpu.PSTP = 0;
+        T7_CHECK(nd500_mmu_declare_process_segment(&cpu, ps, NULL) == -1,
+                 "with PSTP unset there is no table to index");
+    }
+    printf("Status: %s\n\n", (t7_failed == 0) ? "PASS" : "FAIL");
+#undef T7_CHECK
+
+    /* ---------------------------------------------------------
      * SUMMARY
      * --------------------------------------------------------- */
     printf("===========================================\n");
@@ -136,5 +226,9 @@ int main(void) {
     printf("      integration with memory bus and will be tested\n");
     printf("      during Phase 5 (Memory Bus Integration).\n");
 
+    if (t7_failed != 0) {
+        printf("\n%d check(s) FAILED in Test 7\n", t7_failed);
+        return 1;
+    }
     return 0;
 }

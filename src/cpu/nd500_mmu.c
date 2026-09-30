@@ -1452,3 +1452,49 @@ void nd500_mmu_declare_dit_base(Nd500Cpu* cpu, uint32_t base) {
     cpu->DITBASE = base;
     cpu->dit_configured = 1;
 }
+
+int nd500_mmu_declare_process_segment(Nd500Cpu* cpu, uint32_t ps, uint32_t* out_base) {
+    if (!cpu || !cpu->machine || cpu->PSTP == 0 || ps == 0 || ps >= MAX_PST) {
+        return -1;
+    }
+
+    /* PST entry ps, read at the ND-5000's WORD width. ND-05.020.01 section 6.6:
+     * "This register points to an element of the Physical Segment Table. The PST
+     * element addresses the process segment of the process." */
+    uint32_t cell = cpu->PSTP + ps * 4u;
+    uint32_t raw  = ((uint32_t)nd500_bus_read8(cpu->machine, cell)     << 24)
+                  | ((uint32_t)nd500_bus_read8(cpu->machine, cell + 1) << 16)
+                  | ((uint32_t)nd500_bus_read8(cpu->machine, cell + 2) << 8)
+                  |  (uint32_t)nd500_bus_read8(cpu->machine, cell + 3);
+    if (raw == 0) {
+        return -1;
+    }
+
+    uint8_t  mode = (uint8_t)(raw >> 30);
+    uint32_t pfn  = raw & 0x3FFFFFFFu;
+    uint32_t base;
+
+    /* ND-05.020.01 chapter 11, nanostate PSCAPT: "The indexing for this physical
+     * segment has two levels. This is not allowed for a process segment." So
+     * DIRECT and SINGLE resolve and DOUBLE is refused rather than walked. */
+    if (mode == PS_AZI) {
+        base = pfn << PGSHIFT;
+    } else if (mode == PS_ASI) {
+        /* One index level. The capability a process needs lies in the first page
+         * of the process segment - CED*256 + 64 + segment*2 is at most 0xFF7F for
+         * 256 domains, and a domain number that large has no capability table -
+         * so entry 0 of the index page is the one that matters here. */
+        PageTableEntry pte = nd500_mmu_read_pte(cpu, pfn << PGSHIFT);
+        if (!pte.valid) {
+            return -1;
+        }
+        base = pte.physical_pfn << PGSHIFT;
+    } else {
+        return -1;
+    }
+
+    cpu->DITBASE = base;
+    cpu->dit_configured = 1;
+    if (out_base) { *out_base = base; }
+    return 0;
+}

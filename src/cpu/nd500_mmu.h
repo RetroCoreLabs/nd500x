@@ -268,6 +268,38 @@ int nd500_mmu_is_program_enabled(Nd500Cpu* cpu);
  */
 void nd500_mmu_declare_dit_base(Nd500Cpu* cpu, uint32_t base);
 
+/**
+ * @brief Find a process's capability table through PS and declare it as the DIT base.
+ *
+ * THE WALK STARTS AT PS, NOT AT A BASE SOMEONE LEARNED BY WATCHING WRITES. The
+ * capability of a logical segment lies at
+ *
+ *     process_segment_base + CED*256 + (is_instruction ? 0 : 64) + segment*2
+ *
+ * and the process segment is reached from PS, which is an INDEX into the physical
+ * segment table rather than an address - ND-05.020.01 section 6.6: "This register
+ * points to an element of the Physical Segment Table. The PST element addresses the
+ * process segment of the process." Chapter 11 walks it in two nanostates, PSCAPA
+ * then PSCAPT, and PSCAPT refuses double indexing outright: "The indexing for this
+ * physical segment has two levels. This is not allowed for a process segment."
+ * DIRECT and SINGLE therefore resolve here and DOUBLE is an error return.
+ *
+ * MEASURED, and this is why the function exists: on the ND-5000 octobus lane the
+ * ND-500/5000 monitor's own SINTRAN writes trap configuration into one 256-byte
+ * block before starting a process, and a base learned from those writes pointed at
+ * a table whose segment-1 capability named physical segment 83 - whose PST entry was
+ * zero, so the very first instruction fetch page-faulted. PS is the guest's own
+ * answer to the same question.
+ *
+ * @param cpu      The CPU, whose PSTP must already be set. NULL fails.
+ * @param ps       The process-segment index, 1..MAX_PST-1. Zero fails: PS zero is
+ *                 "no process segment", not entry zero.
+ * @param out_base Receives the byte address of the capability table. May be NULL.
+ * @return 0 once the base is declared, -1 when PS is out of range, the PST entry is
+ *         zero, its index page is not valid, or it asks for double indexing.
+ */
+int nd500_mmu_declare_process_segment(Nd500Cpu* cpu, uint32_t ps, uint32_t* out_base);
+
 void nd500_mmu_set_guest_table_policy(Nd500Cpu* cpu,
                                       int (*policy)(void *ctx, uint8_t domain, int segment),
                                       void *ctx);
