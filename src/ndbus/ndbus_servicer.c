@@ -646,8 +646,19 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
      * block without faulting.
      *
      * Ported from Nd500MicrocodeServicer.cs's StartProcess arm. */
+    /* THE START CLASS, AND 24B BELONGS IN IT.
+     *
+     * 22B STARTP0, 23B 3START, 24B 3MONCO and 25B 3TRACO all reach MSG_START in the
+     * microcode: two of them begin a process and two of them CONTINUE one that is
+     * parked, but all four hand the message to the same context-switch-and-run path.
+     *
+     * MEASURED 30-SEP-2026: with 24B missing from this list, the ND-5000 reported a
+     * monitor call, SINTRAN performed it and answered with 24B, and this servicer
+     * declined that answer as an unported micro-function - so the parked process was
+     * never resumed and the monitor reported that the swapper stopped. The answer had
+     * arrived; nothing was listening for it. */
     if (micfu == NDBUS_MICFU_STARTP0 || micfu == NDBUS_MICFU_START ||
-        micfu == NDBUS_MICFU_TRACO)
+        micfu == NDBUS_MICFU_MONCO || micfu == NDBUS_MICFU_TRACO)
     {
         sv->starts_seen++;
 

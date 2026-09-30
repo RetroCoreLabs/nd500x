@@ -63,6 +63,7 @@
 #define NDBUS_MICFU_CACHE     10u   /**< 12B MSG_CACHE conditional cache clears */
 #define NDBUS_MICFU_RESIRD    11u   /**< 13B MSG_RESIRD resident read */
 #define NDBUS_MICFU_RESIWR    12u   /**< 14B MSG_RESIWR resident write */
+#define NDBUS_MICFU_MONCO     20u   /**< 24B 3MONCO monitor-call continue; shares MSG_START */
 #define NDBUS_MICFU_TRACO     21u   /**< 25B 3TRACO trap continue; shares MSG_START */
 #define NDBUS_MICFU_PHYSRD    24u   /**< 30B PHYSRD physical-memory read */
 #define NDBUS_MICFU_PHYSWR    25u   /**< 31B PHYSWR physical-memory write */
