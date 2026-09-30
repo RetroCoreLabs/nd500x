@@ -387,4 +387,21 @@ bool ndbus_nd5000_set_process_host(NdbusNd5000 *nd,
                                    bool (*start)(void *ctx, uint32_t msg_byte, uint16_t micfu,
                                                  uint32_t ctx_byte));
 
+/**
+ * @brief Install the callback that declares a learned Domain Information Table base.
+ *
+ * The servicer learns the base by watching where SINTRAN's trap-config PHYSWR
+ * transfers land, and calls this before it offers a start to the process host. The
+ * implementation must DECLARE the base only - recording it and marking the table
+ * configured - and must not initialise or zero the table, because the guest has
+ * already filled it.
+ *
+ * @param nd      The station.
+ * @param declare The callback, or NULL to remove one. Its base argument MAY BE ZERO,
+ *                which is a legitimate base and not a "nothing learned" signal.
+ * @return true on success; false when nd is NULL.
+ */
+bool ndbus_nd5000_set_dit_declarer(NdbusNd5000 *nd,
+                                   void (*declare)(void *ctx, uint32_t base));
+
 #endif /* NDBUS_ND5000_H */

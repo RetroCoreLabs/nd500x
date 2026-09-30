@@ -2558,6 +2558,21 @@ static void mbx_replay_activation(NdbusPool *pool)
                              (uint16_t)((fyl + 1u) % MBX_RING_SLOTS));
 }
 
+/** Build and activate a copy-family message: addrA at msg+14, addrB at msg+18,
+ *  byte count at msg+22, then ring the doorbell. */
+static void mbx_copy_message(NdbusPool *pool, uint16_t micfu, uint32_t addr_a,
+                             uint32_t addr_b, uint16_t count)
+{
+    mbx_build_message(pool, micfu, NDBUS_N5STA_TO_ND500);
+    (void)ndbus_pool_write16(pool, MBX_MSG + 14u, (uint16_t)(addr_a >> 16));
+    (void)ndbus_pool_write16(pool, MBX_MSG + 16u, (uint16_t)(addr_a & 0xFFFFu));
+    (void)ndbus_pool_write16(pool, MBX_MSG + 18u, (uint16_t)(addr_b >> 16));
+    (void)ndbus_pool_write16(pool, MBX_MSG + 20u, (uint16_t)(addr_b & 0xFFFFu));
+    (void)ndbus_pool_write16(pool, MBX_MSG + 22u, count);
+    mbx_replay_activation(pool);
+    (void)ndbus_pool_write16(pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+}
+
 static uint16_t mbx_msg_status(const NdbusPool *pool)
 {
     return (uint16_t)(ndbus_pool_read16(pool, MBX_MSG + NDBUS_MSG_N5STA * 2u) &
@@ -2987,14 +3002,7 @@ static void test_mailbox_servicer(void)
         (void)ndbus_pool_write16(&pool, target + 0u, 0x0000u);
         (void)ndbus_pool_write16(&pool, target + 2u, 0x000Bu);
 
-        mbx_build_message(&pool, NDBUS_MICFU_RESIWR, NDBUS_N5STA_TO_ND500);
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 14u, (uint16_t)(target >> 16));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 16u, (uint16_t)(target & 0xFFFFu));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 18u, (uint16_t)(buffer >> 16));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 20u, (uint16_t)(buffer & 0xFFFFu));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 22u, 2u);
-        mbx_replay_activation(&pool);
-        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+        mbx_copy_message(&pool, NDBUS_MICFU_RESIWR, target, buffer, 2u);
 
         CHECK(ndbus_nd5000_service_mailbox(&nd), "14B RESIWR is serviced");
         CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "and answered ANSWER(3)");
@@ -3007,14 +3015,7 @@ static void test_mailbox_servicer(void)
         /* An odd count of 1 must leave the other byte of the halfword alone. */
         (void)ndbus_pool_write16(&pool, buffer + 0u, 0xAA55u);
         (void)ndbus_pool_write16(&pool, target + 0u, 0x1234u);
-        mbx_build_message(&pool, NDBUS_MICFU_RESIWR, NDBUS_N5STA_TO_ND500);
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 14u, (uint16_t)(target >> 16));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 16u, (uint16_t)(target & 0xFFFFu));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 18u, (uint16_t)(buffer >> 16));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 20u, (uint16_t)(buffer & 0xFFFFu));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 22u, 1u);
-        mbx_replay_activation(&pool);
-        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+        mbx_copy_message(&pool, NDBUS_MICFU_RESIWR, target, buffer, 1u);
 
         CHECK(ndbus_nd5000_service_mailbox(&nd), "a one-byte copy is serviced");
         CHECK(mbx_read(&pool, target + 0u) == 0xAA34u,
@@ -3023,14 +3024,7 @@ static void test_mailbox_servicer(void)
         /* A READ moves the other way: target A -> buffer B. */
         (void)ndbus_pool_write16(&pool, target + 0u, 0x7788u);
         (void)ndbus_pool_write16(&pool, buffer + 0u, 0x0000u);
-        mbx_build_message(&pool, NDBUS_MICFU_RESIRD, NDBUS_N5STA_TO_ND500);
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 14u, (uint16_t)(target >> 16));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 16u, (uint16_t)(target & 0xFFFFu));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 18u, (uint16_t)(buffer >> 16));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 20u, (uint16_t)(buffer & 0xFFFFu));
-        (void)ndbus_pool_write16(&pool, MBX_MSG + 22u, 2u);
-        mbx_replay_activation(&pool);
-        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+        mbx_copy_message(&pool, NDBUS_MICFU_RESIRD, target, buffer, 2u);
 
         CHECK(ndbus_nd5000_service_mailbox(&nd), "13B RESIRD is serviced");
         CHECK(mbx_read(&pool, buffer + 0u) == 0x7788u, "a READ moves A into B");
@@ -3128,6 +3122,284 @@ static void test_mailbox_servicer(void)
         ndbus_nd5000_destroy(&nd);
         ndbus_pool_destroy(&pool);
     }
+
+    /* --- the DIT base is learned from the trap-config writes --------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the DIT watch");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        /* A PHYSWR landing inside the trap-config window of a process control
+         * block names the table's base. The block is deliberately NOT at pool
+         * offset 0, so the alignment-down is actually exercised. */
+        const uint32_t pcb    = MBX_BASE + 0x5000u;
+        const uint32_t buffer = MBX_BASE + 0x2400u;
+        const uint32_t target = pcb + 0x96u; /* the first trap-config offset */
+
+        CHECK(nd.servicer.dit_writes_seen == 0u, "nothing learned yet");
+        (void)ndbus_pool_write16(&pool, buffer, 0x1234u);
+
+        mbx_copy_message(&pool, NDBUS_MICFU_PHYSWR, target, buffer, 2u);
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "the trap-config write is serviced");
+        CHECK(nd.servicer.dit_writes_seen == 1u, "and it is counted as a DIT write");
+        CHECK(nd.servicer.dit_base == pcb,
+              "the base is the CONTAINING 256-byte block, aligned down");
+
+        /* A write OUTSIDE the window must not move the base, or every ordinary
+         * transfer would redefine the table. */
+        mbx_copy_message(&pool, NDBUS_MICFU_PHYSWR, pcb + 0x10u, buffer, 2u);
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "a write outside the window is serviced");
+        CHECK(nd.servicer.dit_writes_seen == 1u,
+              "but is NOT counted - only the trap-config window names the table");
+
+        /* A READ never names it either: the guest is publishing nothing. */
+        mbx_copy_message(&pool, NDBUS_MICFU_PHYSRD, target, buffer, 2u);
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "a read in the window is serviced");
+        CHECK(nd.servicer.dit_writes_seen == 1u, "and a READ never names the table");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+}
+
+/* ---------------------------------------------------------------------------
+ * Layer 14: the ACCP guard matrix, every command against every state.
+ *
+ * PORTED ORACLE, row for row, from
+ * $RETROCORE/Emulated.Tests.ND100/ControllerOctobus/AccpCommandGuardsTests.cs
+ * (VerdictMatchesTheRealFirmware). Twenty-five commands times five states is 125
+ * verdicts, and the point of having them all is that a guard table is exactly the
+ * kind of code where one wrong cell stays invisible for months: the command that
+ * cell governs is simply never sent by the boot path being tested.
+ *
+ * The five states are the firmware's own RAM cells in the order SINTRAN fills
+ * them, so a row reads as the life of a command across bring-up:
+ *   S0  fresh card
+ *   S1  + LSYSPAR given          (cell 0x1143A6)
+ *   S2  + LPARP given            (cell 0x1143B2)
+ *   S3  + microprogram running   (cell 0x1143AC)
+ *   S4  + kicks enabled          (cell 0x1143B6)
+ */
+/* ---------------------------------------------------------------------------
+ * Layer 15: the copy family's refusals and the chain head node.
+ *
+ * PORTED from $RETROCORE/Nuget/HackerCorpLabs.Emulation.CPU.ND5000/tests/
+ * MailboxCopyTests.cs - the Servicer half of its cases; the ones it also runs on
+ * the microword engine need a CPU that executes the control store, which this
+ * repository does not have.
+ */
+static void test_copy_family_refusals(void)
+{
+    printf("Layer 15: the copy family's refusals and the X5BEX head node\n");
+
+    /* --- DMEMRD and DMEMWR must REFUSE, never copy physically -------------- */
+    const uint16_t logical[2] = { NDBUS_MICFU_DMEMRD, NDBUS_MICFU_DMEMWR };
+    const char    *logical_name[2] = { "10B DMEMRD", "11B DMEMWR" };
+
+    for (size_t i = 0; i < 2; i++)
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for a logical transfer");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        const uint32_t target = MBX_BASE + 0x2000u;
+        const uint32_t buffer = MBX_BASE + 0x2400u;
+        (void)ndbus_pool_write16(&pool, buffer, 0xB000u);
+        (void)ndbus_pool_write16(&pool, target, 0x0000u);
+
+        mbx_copy_message(&pool, logical[i], target, buffer, 2u);
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "it is serviced");
+
+        /* 5ERANSWER(4) and NOT ANSWER(3). An ANSWER here would mean the physical
+         * fallback happened, which is the reference's defect B12: a logical address
+         * read as a physical one returned zeros and SINTRAN reported "SEGMENT NOT
+         * MODIFIABLE", and on the write half NC's prompt never appeared on any run. */
+        char msg[160];
+        (void)snprintf(msg, sizeof msg,
+                       "%s answers 5ERANSWER(4) - an ANSWER(3) would mean it fell back to a raw "
+                       "physical copy",
+                       logical_name[i]);
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER, msg);
+        CHECK(nd.servicer.logical_copies_refused == 1u, "and the refusal is counted");
+        CHECK(mbx_read(&pool, target) == 0x0000u,
+              "the target is untouched - nothing was copied anywhere");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- IMEMWR round-trips byte exact through RESIRD ---------------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the IMEMWR round trip");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        const uint32_t istore = MBX_BASE + 0x6000u;
+        const uint32_t buffer = MBX_BASE + 0x2400u;
+        const uint32_t back   = MBX_BASE + 0x2800u;
+
+        for (uint32_t w = 0; w < 4u; w++)
+        {
+            (void)ndbus_pool_write16(&pool, buffer + w * 2u, (uint16_t)(0xA000u + w));
+        }
+
+        mbx_copy_message(&pool, NDBUS_MICFU_IMEMWR, istore, buffer, 8u);
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "35B IMEMWR is serviced");
+
+        mbx_copy_message(&pool, NDBUS_MICFU_RESIRD, istore, back, 8u);
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "and the block reads back");
+
+        bool same = true;
+        for (uint32_t w = 0; w < 4u; w++)
+        {
+            if (mbx_read(&pool, back + w * 2u) != (uint16_t)(0xA000u + w))
+            {
+                same = false;
+            }
+        }
+        /* The D-space / I-space / physical distinction is a space select on real
+         * hardware and ALIASES in a flat model, which is why a write through one
+         * member reads back through another. */
+        CHECK(same, "every byte round-tripped - the spaces alias in a flat window");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- a leading N5STA=0 node is walked past, and the real message answered */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the head-node chain");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        /* THIS IS THE SHAPE THE LIVE MACHINE PRODUCES. SINTRAN writes X5BEX
+         * pointing at a QUEUE HEAD NODE whose N5STA is 0 - measured 0xBE30 on a real
+         * boot - and that node's LINK points at the actual message. Reading the head
+         * node as the message makes the walk look broken; refusing N5STA != 1 and
+         * following the link is what makes it work. */
+        const uint32_t head = MBX_MSG;
+        const uint32_t real = MBX_MSG + 0x300u;
+
+        mbx_build_message(&pool, 0u, NDBUS_N5STA_FREE);      /* the head node */
+        (void)ndbus_pool_write16(&pool, head + 0u, (uint16_t)(real >> 16));
+        (void)ndbus_pool_write16(&pool, head + 2u, (uint16_t)(real & 0xFFFFu));
+
+        (void)ndbus_pool_write16(&pool, real + 0u, 0xFFFFu); /* the real message */
+        (void)ndbus_pool_write16(&pool, real + 2u, 0xFFFFu);
+        (void)ndbus_pool_write16(&pool, real + NDBUS_MSG_N5STA * 2u, NDBUS_N5STA_TO_ND500);
+        (void)ndbus_pool_write16(&pool, real + NDBUS_MSG_MICFU * 2u, NDBUS_MICFU_RMICV);
+
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "the chain is serviced");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_FREE,
+              "the head node is left alone - its N5STA is not 1, so it is not ours");
+        CHECK((ndbus_pool_read16(&pool, real + NDBUS_MSG_N5STA * 2u) & NDBUS_N5STA_MASK) ==
+                  NDBUS_N5STA_ANSWER,
+              "and the message its LINK pointed at was answered");
+        CHECK(nd.servicer.nodes_not_ours == 1u, "the skipped node is counted");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+}
+
+
+static void test_accp_guard_matrix(void)
+{
+    printf("Layer 14: the ACCP guard matrix, 25 commands across 5 states\n");
+
+    const NdbusAccpState state[5] = {
+        /* running, syspar, pointer, kicks */
+        { false, false, false, false }, /* S0 */
+        { false, true, false, false },  /* S1 */
+        { false, true, true, false },   /* S2 */
+        { true, true, true, false },    /* S3 */
+        { true, true, true, true },     /* S4 */
+    };
+    const char *state_name[5] = { "S0 fresh", "S1 +LSYSPAR", "S2 +LPARP", "S3 running",
+                                  "S4 +kicks" };
+
+    const int ok = NDBUS_ACCP_ACCEPTED;
+
+    struct
+    {
+        uint8_t     command;
+        int         verdict[5];
+        const char *note;
+    } row[] = {
+        { 0x0Du, { 13, ok, ok, ok, ok }, "RSSYSPAR: nak 13 until LSYSPAR" },
+        { 0x12u, { 1, 1, ok, -1, -1 }, "VPARP: nak 1 with no pointer, -1 once running" },
+        { 0x13u, { 1, 1, ok, -1, -1 }, "LOCSM" },
+        { 0x15u, { 1, 1, ok, -1, -1 }, "DUCS" },
+        { 0x14u, { ok, ok, ok, -1, -1 }, "LOCSD: -1 running, measured at full length" },
+        { 0x16u, { ok, ok, ok, -1, -1 }, "DCSD: -1 running, measured at full length" },
+        { 0x3Cu, { 1, 1, ok, -1, -1 }, "DUCC" },
+        { 0x34u, { 1, 1, ok, ok, -2 }, "LAOB32M: nak -2 once kicks are enabled" },
+        { 0x35u, { 1, 1, ok, ok, -2 }, "RAIB32M" },
+        { 0x25u, { ok, ok, ok, ok, -2 }, "RAIB32D" },
+        { 0x22u, { ok, ok, ok, -1, -1 }, "RMIR" },
+        { 0x24u, { ok, ok, ok, -1, -1 }, "RAIB16" },
+        { 0x3Bu, { ok, ok, ok, -1, -1 }, "DCCD" },
+        { 0x1Bu, { ok, ok, ok, -1, -1 }, "RUNTST" },
+        { 0x1Cu, { 0, 0, 0, ok, ok }, "STOPMIC: nak 0 when NOT running" },
+        { 0x19u, { 6, 6, 6, 6, 6 }, "a hole in the compare chain: nak 6" },
+        { 0x2Eu, { 6, 6, 6, 6, 6 }, "a hole in the compare chain: nak 6" },
+        { 0x18u, { ok, ok, ok, ok, ok }, "AMICTRAP: never refused" },
+        { 0x28u, { ok, ok, ok, ok, ok }, "RASTS: never refused" },
+        { 0x30u, { ok, ok, ok, ok, ok }, "RTEST: never refused" },
+        { 0x0Eu, { ok, ok, ok, ok, ok }, "LSYSPAR: never refused" },
+        { 0x11u, { ok, ok, ok, ok, ok }, "LPARP: never refused" },
+        { 0x31u, { ok, ok, ok, ok, ok }, "ENKICK: never refused" },
+        { 0x32u, { ok, ok, ok, ok, ok }, "DISKICK: never refused" },
+        { 0x39u, { ok, ok, ok, ok, ok }, "CPURES: never refused" },
+    };
+
+    for (size_t r = 0; r < sizeof row / sizeof row[0]; r++)
+    {
+        for (int st = 0; st < 5; st++)
+        {
+            int got = ndbus_accp_evaluate(row[r].command, &state[st]);
+            char msg[192];
+            (void)snprintf(msg, sizeof msg, "%02X %s in %s: expected %d, got %d",
+                           (unsigned)row[r].command, row[r].note, state_name[st],
+                           row[r].verdict[st], got);
+            CHECK(got == row[r].verdict[st], msg);
+        }
+    }
+
+    /* The four holes in the compare chain, which the firmware naks 6 for, and
+     * which are the reason has_arm() exists as its own question. */
+    const uint8_t hole[4] = { 0x19u, 0x1Au, 0x2Eu, 0x2Fu };
+    for (size_t i = 0; i < sizeof hole / sizeof hole[0]; i++)
+    {
+        char msg[96];
+        (void)snprintf(msg, sizeof msg, "%02X has no arm in the compare chain",
+                       (unsigned)hole[i]);
+        CHECK(!ndbus_accp_has_arm(hole[i]), msg);
+    }
+    CHECK(ndbus_accp_has_arm(0x0Du), "0x0D is the first command with an arm");
+    CHECK(ndbus_accp_has_arm(0x3Eu), "0x3E is the last");
+    CHECK(!ndbus_accp_has_arm(0x0Cu), "below 0x0D there is no arm");
+    CHECK(!ndbus_accp_has_arm(0x3Fu), "above 0x3E there is no arm");
 }
 
 int main(void)
@@ -3154,6 +3426,8 @@ int main(void)
     test_test_protocol();
     test_control_store_load();
     test_mailbox_servicer();
+    test_accp_guard_matrix();
+    test_copy_family_refusals();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)

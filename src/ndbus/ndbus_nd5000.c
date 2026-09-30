@@ -1037,6 +1037,19 @@ bool ndbus_nd5000_set_process_host(NdbusNd5000 *nd,
     return true;
 }
 
+bool ndbus_nd5000_set_dit_declarer(NdbusNd5000 *nd,
+                                   void (*declare)(void *ctx, uint32_t base))
+{
+    if (nd == NULL)
+    {
+        return false;
+    }
+
+    nd->servicer.host.declare_dit_base = declare;
+    nd->servicer.host.ctx = nd;
+    return true;
+}
+
 bool ndbus_nd5000_service_mailbox(NdbusNd5000 *nd)
 {
     if (nd == NULL || nd->pool == NULL || nd->start_mess == 0u)

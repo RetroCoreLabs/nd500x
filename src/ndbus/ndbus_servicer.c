@@ -27,6 +27,20 @@
  *  uses 10000 at Nd500MicrocodeServicer.cs:4211. */
 #define SEM_SPIN_LIMIT 10000
 
+/* ---- the trap-config write watch -------------------------------------------
+ *
+ * SINTRAN writes a domain's trap-control fields into a process control block with
+ * PHYSWR transfers before starting anything, and the containing 256-byte block is
+ * the Domain Information Table's base. These are the offsets INSIDE that block
+ * that those writes cover, from RetroCore Nd500MicrocodeServicer.cs
+ * DitTrapConfigFirstOffset / DitTrapConfigLastOffset.
+ */
+#define DIT_TRAP_CONFIG_FIRST_OFFSET 0x96u
+#define DIT_TRAP_CONFIG_LAST_OFFSET  0xC7u
+
+/** Bytes of a process control block, which is also a DIT entry. */
+#define PCB_BYTES 0x100u
+
 /** Bytes per X5FIF ring slot. Verified in RetroCore against GIVEINT's own
  *  arithmetic (slot = ringbase + fill * 4). */
 #define RING_SLOT_BYTES 4u
@@ -381,6 +395,27 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
         (void)write16(sv, dst + whole, merged);
     }
 
+    /* LEARN THE DIT BASE FROM THE WRITE ITSELF.
+     *
+     * The write has to be watched HERE, in the engine, and not in the PHYSWR arm of
+     * the dispatch: RetroCore instrumented that arm first and measured zero hits
+     * while its census counted thirteen PHYSWR, because the whole copy family is
+     * routed to this one engine before the arm's own code runs.
+     *
+     * Aligned DOWN to the containing block rather than assumed to be zero, so this
+     * stays correct if the table is ever placed elsewhere. The trap-config offsets
+     * sit inside the first block, so the block that contains them IS the base. */
+    if (write_to_nd500)
+    {
+        uint32_t offset_in_pcb = dst & (PCB_BYTES - 1u);
+        if (offset_in_pcb >= DIT_TRAP_CONFIG_FIRST_OFFSET &&
+            offset_in_pcb <= DIT_TRAP_CONFIG_LAST_OFFSET)
+        {
+            sv->dit_base = dst & ~(PCB_BYTES - 1u);
+            sv->dit_writes_seen++;
+        }
+    }
+
     sv->copies_done++;
     sv->copy_bytes += count;
     return true;
@@ -429,13 +464,44 @@ static bool execute_micfu(NdbusServicer *sv, uint32_t msg_byte, uint16_t micfu)
         return true;
 
     case NDBUS_MICFU_DMEMRD:  /* 10B */
+    case NDBUS_MICFU_DMEMWR:  /* 11B */
+        /* DATA-MEMORY TRANSFERS ARE NOT PHYSICAL TRANSFERS, and routing them to the
+         * copy engine is a named defect rather than an approximation.
+         *
+         * Every other member of this family carries a physical, or segment-relative,
+         * ND-500 address in addrA. DMEMRD and DMEMWR carry a LOGICAL DATA address in
+         * the RUNNING PROCESS'S context - RP-P2-N500.NPL 130475 assigns it from
+         * X.ISTRA - so it has to go through that process's data MMU, which only a
+         * host with a CPU behind it can do.
+         *
+         * WHAT FALLING BACK COSTS, measured by RetroCore as its defect B12 and
+         * pinned by MailboxCopyTests: SINTRAN asked for a file-name descriptor at
+         * logical 0x08001478 during a forwarded MON 50B, the raw physical reading of
+         * that address lies far outside the 8 MB window, the copy returned zeros,
+         * SINTRAN got a null descriptor pointer and reported "SEGMENT NOT
+         * MODIFIABLE". On the write half NC read its command line one byte at a time
+         * for ever because each byte landed at physical 0x27F instead of the
+         * process's own 0x27F, and the "NC:" prompt never appeared on any run.
+         *
+         * So with no logical-data host this REFUSES - 5ERANSWER(4) - and says so.
+         * An answer of ANSWER(3) here would mean the physical fallback happened. */
+        {
+            char line[160];
+            (void)snprintf(line, sizeof line,
+                           "mailbox: MICFU %oB needs the running process's data MMU and no host "
+                           "provides it - refused, NOT copied physically",
+                           (unsigned)micfu);
+            servicer_log(sv, line);
+            sv->logical_copies_refused++;
+        }
+        return false;
+
     case NDBUS_MICFU_RESIRD:  /* 13B */
     case NDBUS_MICFU_PHYSRD:  /* 30B */
         /* READ members: target A -> buffer B. PHYSRD's A side is segment-relative;
-         * the other two carry a flat address. */
+         * RESIRD carries a flat address. */
         return perform_block_copy(sv, msg_byte, false, micfu == NDBUS_MICFU_PHYSRD);
 
-    case NDBUS_MICFU_DMEMWR:  /* 11B */
     case NDBUS_MICFU_RESIWR:  /* 14B */
     case NDBUS_MICFU_PHYSWR:  /* 31B */
     case NDBUS_MICFU_IMEMWR:  /* 35B */
@@ -539,6 +605,22 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
         micfu == NDBUS_MICFU_TRACO)
     {
         sv->starts_seen++;
+
+        /* Declare the base BEFORE the start, because the process's trap handler,
+         * stack limits and top-of-stack come out of that table and a start that ran
+         * without it would fault somewhere unrelated. Guarded on the write COUNT:
+         * a base of zero is legitimate and indistinguishable from "not learned" by
+         * value alone. */
+        if (sv->dit_writes_seen > 0u && sv->host.declare_dit_base != NULL)
+        {
+            sv->host.declare_dit_base(sv->host.ctx, sv->dit_base);
+            char line[128];
+            (void)snprintf(line, sizeof line,
+                           "mailbox: DIT base 0x%06X declared, learned from %lu trap-config "
+                           "write(s)",
+                           (unsigned)sv->dit_base, sv->dit_writes_seen);
+            servicer_log(sv, line);
+        }
 
         if (sv->host.start_process != NULL && sv->context_area_base != 0u)
         {

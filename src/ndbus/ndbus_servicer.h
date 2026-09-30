@@ -129,6 +129,24 @@ typedef struct NdbusServicerHost
     void (*log)(void *ctx, const char *message);
 
     /**
+     * The trap-config writes have named a Domain Information Table base: declare it
+     * on the CPU before the process starts.
+     *
+     * DECLARING IS NOT SETTING UP, and the distinction is the whole reason this
+     * callback is separate from start_process. The table's entries are whole
+     * 256-byte process control blocks that the guest has ALREADY filled by the time
+     * this fires; an implementation that zeroed them while declaring the base would
+     * erase precisely those writes, and the resulting zero trap-handler address
+     * reads as though declaring had done nothing.
+     *
+     * May be NULL, in which case the base is only recorded in this struct.
+     *
+     * @param ctx  The owner.
+     * @param base Pool byte offset of the table. MAY LEGITIMATELY BE ZERO.
+     */
+    void (*declare_dit_base)(void *ctx, uint32_t base);
+
+    /**
      * A start-class message arrived: start the process on the real ND-5000 CPU.
      *
      * Ported from RetroCore INd500ProcessHost.OnStartProcessND5000. The ND-5000
@@ -190,6 +208,10 @@ typedef struct NdbusServicer
     unsigned long copies_done;         /**< copy-family transfers performed */
     unsigned long copy_bytes;          /**< bytes moved by them in total */
     unsigned long copies_refused;      /**< transfers refused for leaving the pool */
+    /** DMEMRD/DMEMWR refused because no host can translate a logical data address.
+     *  Counted separately from copies_refused: that one is a bad address, this one
+     *  is a missing capability, and they need different fixes. */
+    unsigned long logical_copies_refused;
     unsigned long segment_resolved;    /**< PHYSRD/PHYSWR addresses resolved through the PST */
     unsigned long segment_unresolved;  /**< ... and those that fell back to a flat address */
 
@@ -233,6 +255,24 @@ typedef struct NdbusServicer
      * value - and feeding that on made the 23B start run with a garbage context.
      */
     uint32_t context_area_base;
+
+    /**
+     * What the trap-config writes revealed about the Domain Information Table.
+     *
+     * SINTRAN does not send the DIT base in a message. It WRITES the domain's
+     * trap-control fields into a process control block with a run of PHYSWR
+     * transfers before it starts anything - measured order on a live boot: one
+     * cache-clear, thirteen PHYSWR, then the 3START - and the containing 256-byte
+     * block IS the table's base. So the base is learned by watching where those
+     * writes land, which is what RetroCore's servicer does.
+     *
+     * GUARD ON THE COUNT, NEVER ON THE VALUE. Zero is a legitimate DIT base, so
+     * "nothing was learned" and "the base is zero" are the same number - the
+     * reference says exactly that. dit_writes_seen is the only honest test for
+     * whether dit_base means anything.
+     */
+    unsigned long dit_writes_seen;
+    uint32_t      dit_base;
 
     /** Start-class messages seen, and how many a host actually took. */
     unsigned long starts_seen;
