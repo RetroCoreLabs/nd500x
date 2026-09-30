@@ -3402,6 +3402,138 @@ static void test_accp_guard_matrix(void)
     CHECK(!ndbus_accp_has_arm(0x3Fu), "above 0x3E there is no arm");
 }
 
+/* -------------------------------------------------------------------------- */
+/* Layer 16: the doorbell sniff's latch rules.                                */
+/*                                                                            */
+/* Ported from RetroCore OctobusDoorbellSniffConfigTests.cs. FOUR of its ten  */
+/* cases transfer; the other six do not, and saying which is the point:        */
+/*                                                                            */
+/*   MinusOneToZero_SelfDiscoversTheMailbox, ImplausibleGeometry_IsRejected,   */
+/*   X5actDisplacement_IsTenBytes and the three RequireInit_* cases all assert */
+/*   on a GEOMETRY the reference DERIVES from the write address - ext block =  */
+/*   address - 0x0A, header = ext - CPUNO*256 - and then sanity-checks against */
+/*   the window. This station derives nothing from the sniff. It takes the     */
+/*   mailbox base from START_MESS in control-store word 026B at ENKICK, which  */
+/*   Layer 12 pins, and the reference's own comment says the same thing: the   */
+/*   0xFFFF->0 sniff "REPLACED the old sniff that latched noise". Porting the  */
+/*   derivation would be inventing a mechanism this station does not have.     */
+/*                                                                            */
+/* What DOES transfer is the latch rule itself: which write is a signature,    */
+/* how the transitions are counted, and what a threshold does.                */
+/* -------------------------------------------------------------------------- */
+static void test_doorbell_sniff_rules(void)
+{
+    printf("Layer 16: the doorbell sniff's latch rules\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the sniff");
+
+    /* Two plausible X5ACT cells, far enough apart that a per-address count and a
+     * global one give different answers. */
+    const uint32_t cell_a = 0x1000u + 0x0Au;
+    const uint32_t cell_b = 0x2000u + 0x0Au;
+
+    /* ---- the signature is the TRANSITION, not the value written ---- */
+    {
+        NdbusNd5000 nd;
+        CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+              "a station for the signature test");
+        CHECK(!nd.sniff.latched, "nothing latched before any write");
+
+        /* NotPrecededByMinusOne_DoesNotSelfDiscover: the cell holds 1, which is
+         * what the microcode's IDLE_2 re-arms it to, so every doorbell after the
+         * first looks like this. Latching on it would accept any zero-write. */
+        (void)ndbus_pool_write16(&pool, cell_a, 1u);
+        CHECK(!ndbus_nd5000_sniff_before_write16(&nd, cell_a, 0u),
+              "1 -> 0 is not an X5ACT signature");
+        CHECK(!nd.sniff.latched, "and nothing latched");
+
+        /* A 0xFFFF -> non-zero write is not one either. */
+        (void)ndbus_pool_write16(&pool, cell_a, 0xFFFFu);
+        CHECK(!ndbus_nd5000_sniff_before_write16(&nd, cell_a, 1u),
+              "0xFFFF -> 1 is not a signature: the doorbell rings by writing ZERO");
+        CHECK(!nd.sniff.latched, "and nothing latched");
+
+        /* MinusOneToZero: the first doorbell after XMSINIT, which initialises
+         * X5ACT to -1. This one latches. */
+        CHECK(ndbus_nd5000_sniff_before_write16(&nd, cell_a, 0u),
+              "0xFFFF -> 0 is the signature, and it latches");
+        CHECK(nd.sniff.latched, "the sniff is latched");
+        CHECK(nd.sniff.candidate_offset == cell_a, "on the offset that was written");
+
+        /* Once latched it stays latched and stops answering - a second candidate
+         * must not move it. */
+        (void)ndbus_pool_write16(&pool, cell_b, 0xFFFFu);
+        CHECK(!ndbus_nd5000_sniff_before_write16(&nd, cell_b, 0u),
+              "a latched sniff does not re-latch on another cell");
+        CHECK(nd.sniff.candidate_offset == cell_a, "and keeps the offset it latched on");
+
+        ndbus_nd5000_destroy(&nd);
+    }
+
+    /* ---- SniffRepeat_ZeroOrOne_LatchesImmediately ---- */
+    for (uint32_t threshold = 0u; threshold <= 1u; threshold++)
+    {
+        NdbusNd5000 nd;
+        CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+              "a station for the immediate-latch test");
+        ndbus_nd5000_set_sniff_threshold(&nd, threshold);
+        (void)ndbus_pool_write16(&pool, cell_a, 0xFFFFu);
+        CHECK(ndbus_nd5000_sniff_before_write16(&nd, cell_a, 0u),
+              "threshold 0 and 1 both mean latch on the first transition");
+        CHECK(nd.sniff.latched, "and it is latched");
+        ndbus_nd5000_destroy(&nd);
+    }
+
+    /* ---- SniffRepeat_TwoWithholdsTheLatchOnASingleTransition, and then
+     *      SniffRepeat_LatchesOnceTheThresholdIsReached ----
+     *
+     * NDBUS_X5ACT_LATCH_ON_FIRST records why a threshold of 2 can never be met by
+     * the REAL doorbell: XMSINIT sets X5ACT to -1 once and the microcode re-arms
+     * it to 1 thereafter, so there is exactly one 0xFFFF -> 0 transition per
+     * XMSINIT. The mechanism still has to count correctly, which is what this
+     * asserts - a driver that can produce two such transitions is a test fixture,
+     * not the machine. */
+    {
+        NdbusNd5000 nd;
+        CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+              "a station for the threshold test");
+        ndbus_nd5000_set_sniff_threshold(&nd, 2u);
+
+        (void)ndbus_pool_write16(&pool, cell_a, 0xFFFFu);
+        CHECK(!ndbus_nd5000_sniff_before_write16(&nd, cell_a, 0u),
+              "one transition does not meet a threshold of two");
+        CHECK(!nd.sniff.latched, "so nothing is latched");
+        CHECK(nd.sniff.transitions == 1u, "but the transition was counted");
+
+        (void)ndbus_pool_write16(&pool, cell_a, 0xFFFFu);
+        CHECK(ndbus_nd5000_sniff_before_write16(&nd, cell_a, 0u),
+              "the second transition at the same cell reaches the threshold");
+        CHECK(nd.sniff.latched, "and it latches");
+        ndbus_nd5000_destroy(&nd);
+    }
+
+    /* ---- SniffRepeat_CountsPerAddress_NotGlobally ---- */
+    {
+        NdbusNd5000 nd;
+        CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+              "a station for the per-address count");
+        ndbus_nd5000_set_sniff_threshold(&nd, 2u);
+
+        (void)ndbus_pool_write16(&pool, cell_a, 0xFFFFu);
+        CHECK(!ndbus_nd5000_sniff_before_write16(&nd, cell_a, 0u), "one at cell A");
+        (void)ndbus_pool_write16(&pool, cell_b, 0xFFFFu);
+        CHECK(!ndbus_nd5000_sniff_before_write16(&nd, cell_b, 0u),
+              "one at cell B does not complete cell A's pair");
+        CHECK(!nd.sniff.latched, "two transitions at two addresses latch nothing");
+        CHECK(nd.sniff.candidate_offset == cell_b, "the candidate moved to the newer cell");
+        CHECK(nd.sniff.transitions == 1u, "with its own count restarted at one");
+        ndbus_nd5000_destroy(&nd);
+    }
+
+    ndbus_pool_destroy(&pool);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -3428,6 +3560,7 @@ int main(void)
     test_mailbox_servicer();
     test_accp_guard_matrix();
     test_copy_family_refusals();
+    test_doorbell_sniff_rules();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)
