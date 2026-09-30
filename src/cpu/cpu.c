@@ -844,9 +844,18 @@ invalid00_done: ;
             cpu->machine->stop_reason = trap_to_stop_reason(trap->trap_condition);
             cpu->machine->stop_addr = trap->trap_pc;
             cpu->machine->stop_data = trap->trap_data_addr;
-            printf("[STOP] %s at PC=0x%08X data=0x%08X (B=0x%08X R=0x%08X L=0x%08X)\n",
-                   nd500_stop_reason_str(cpu->machine->stop_reason),
-                   trap->trap_pc, trap->trap_data_addr, cpu->B, cpu->R, cpu->L);
+            /* NOT ON AN EMBEDDING GUEST'S CONSOLE, and not when asked to be quiet.
+             * stdout here is the HOST guest's terminal when this CPU runs inside
+             * another machine, and in that lane a trap is the NORMAL path - an
+             * ND-5000 page fault is reported to SINTRAN, which services it - so an
+             * unconditional line per trap both corrupts SINTRAN's own output and
+             * describes an event that is not an error. The embedding logs the park
+             * itself, with more detail, through its logger. */
+            if (!nd500_embedded && !nd500_quiet) {
+                printf("[STOP] %s at PC=0x%08X data=0x%08X (B=0x%08X R=0x%08X L=0x%08X)\n",
+                       nd500_stop_reason_str(cpu->machine->stop_reason),
+                       trap->trap_pc, trap->trap_data_addr, cpu->B, cpu->R, cpu->L);
+            }
             nd500_dump_stop_ring("trap-exec");
             return false;
         }

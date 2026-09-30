@@ -141,6 +141,7 @@ void nd500_settings_load_env(void) {
     s->pageindbg          = env_flag("ND500X_PAGEINDBG");
     s->pathdbg            = env_flag("ND500X_PATHDBG");
     s->pgfdbg             = env_flag("ND500X_PGFDBG");
+    s->riomdbg            = env_flag("ND500X_RIOMDBG");
     s->pgudbg             = env_flag("ND500X_PGUDBG");
     s->physdbg            = env_flag("ND500X_PHYSDBG");
     s->privdbg            = env_flag("ND500X_PRIVDBG");

@@ -80,6 +80,7 @@ typedef struct Nd500Settings {
     int pageindbg;         /* ND500X_PAGEINDBG            page-in */
     int pathdbg;           /* ND500X_PATHDBG              0xF0000000 path window */
     int pgfdbg;            /* ND500X_PGFDBG               page faults */
+    int riomdbg;           /* ND500X_RIOMDBG              RIOM transfers */
     int pgudbg;            /* ND500X_PGUDBG               PGU/WIP page bitmaps */
     int physdbg;           /* ND500X_PHYSDBG              physical allocator report */
     int privdbg;           /* ND500X_PRIVDBG              privileged-instruction refusals */

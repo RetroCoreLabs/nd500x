@@ -11,6 +11,7 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "nd500_settings.h"
 #include <stdio.h>
 
 /**
@@ -250,6 +251,15 @@
  * Reference: ND-500 Reference Manual, Section 16.23
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/IO/Riom.cs
  */
+/* Whether to trace RIOM transfers. Off unless ND500X_RIOMDBG is set, and never on
+ * when this CPU is embedded in another machine whose stdout is a guest console. */
+static int riom_trace(void)
+{
+    static int on = -1;
+    if (on < 0) { on = nd500_settings()->riomdbg; }
+    return on && !nd500_embedded;
+}
+
 void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */
     if (fi->operand_count != 3) {
@@ -393,8 +403,19 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* This is allowed but logged for debugging */
     }
 
-    printf("[RIOM] Transfer: ND-100[0x%06X] -> ND-500[0x%08X], count=%u halfwords at PC=0x%08X\n",
-           nd100_source_addr, nd500_dest_addr, count, fi->address);
+    /* NOT ON THE GUEST'S CONSOLE. In the embedded lane (an nd100x running SINTRAN
+     * with an ND-5000 on the octobus) stdout is the ND-100 GUEST'S console, so a
+     * per-transfer trace here lands in the middle of SINTRAN's own output. Reported by
+     * Ronny 30-SEP-2026: the trace read as "lot of errors" on the console. It is NOT
+     * the cause of the slow swapper load - Ronny confirmed that slowness predates this
+     * trace and is a separate, still-open question. The transfer detail is a
+     * DIAGNOSTIC and now needs
+     * ND500X_RIOMDBG, which also keeps the free-running binary quiet by default. */
+    if (riom_trace())
+    {
+        printf("[RIOM] Transfer: ND-100[0x%06X] -> ND-500[0x%08X], count=%u halfwords at PC=0x%08X\n",
+               nd100_source_addr, nd500_dest_addr, count, fi->address);
+    }
 
     /* ========================================================================
      * DMA TRANSFER FROM ND-100 TO ND-500
@@ -453,7 +474,7 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          *     FFFF FFFF 0427 0001 0000 0000 0005 0005 003B 0840
          * (0x427 = 2047B, 0x840 = ADRZERO page 2112). Bounded, so a page-sized transfer
          * cannot flood the log. */
-        if (i < 10 || i == count - 1 || count <= 4) {
+        if (riom_trace() && (i < 10 || i == count - 1 || count <= 4)) {
             printf("  RIOM[%u]: ND-100[0x%06X] = 0x%04X -> ND-500[0x%08X]\n",
                    i, nd100_addr, data, nd500_addr);
         }
@@ -462,8 +483,11 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Status flags: manual section 16.23 says "Data status bits: Unaffected".
      * Deliberately NO flag update here, not even on the count == 0 path. */
 
-    printf("[RIOM] Completed: %u halfwords transferred (status bits unaffected) at PC=0x%08X\n",
-           count, fi->address);
+    if (riom_trace())
+    {
+        printf("[RIOM] Completed: %u halfwords transferred (status bits unaffected) at PC=0x%08X\n",
+               count, fi->address);
+    }
 
     /* NOTE on "DMA": the manual calls this a DMA access that "does not interrupt the
      * ND-100 program execution", and that is true - but only from the ND-100's point of
