@@ -448,7 +448,22 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
          * is composed from it and from nothing else. See lsyspar_word1 in
          * ndbus_nd5000.h for the two microwords that do the composing. The other
          * two words are the microprogram's business. */
-        nd->lsyspar_word1 = (uint16_t)(((uint16_t)params[2] << 8u) | params[3]);
+        /* THE LAYOUT IS ONE BYTE THEN THE WORDS, not three words. params[0] is the
+         * first byte after the command code, and the six bytes are
+         *     [0] N100IDENT (a BYTE)  [1..2] S5  [3..5] the rest
+         * so S5 - what RetroCore calls LSysparWord1, and the only field GIVEINT
+         * uses - starts at params[1], NOT params[2].
+         *
+         * Pinned by RetroCore OctobusPhase3MonBringupTests.CaptureSysparOmd, which
+         * sends 01 08 00 00 00 00 and asserts LSysparWord1 == 0x0800 as a
+         * PRECONDITION of the MON-answer test, naming the bytes
+         * "0x01 N100IDENT / 0x08 S5 hi = 5OMDNO = 10B / 0x00 S5 lo".
+         *
+         * Read one word too far, this captured 0x0000, every GIVEINT frame composed
+         * as destination station 0, and the fabric dropped all of them - measured
+         * 30-SEP-2026 as "frames=33 ... last=0x8001 lsyspar_w1=0x0000" with SINTRAN
+         * never receiving an answer interrupt. */
+        nd->lsyspar_word1 = (uint16_t)(((uint16_t)params[1] << 8u) | params[2]);
         nd->accp.system_parameters_given = true;
         break;
 
@@ -697,7 +712,18 @@ static void nd5000_answer_written(void *ctx, uint32_t msg_byte)
         return;
     }
 
-    uint16_t frame = (uint16_t)((nd->lsyspar_word1 & 0x3F00u) | 0x8001u);
+    /* THE >> 3 IS PART OF THE ARITHMETIC. GIVEINT1 composes
+     *     ((LSYSPAR S5 AND 0x3F00) SHIFTED RIGHT 3) OR 0x8001
+     * and the shift is what turns the 5OMDNO byte into a station number: S5 hi 0x08
+     * (5OMDNO 10B) gives 0x0800 >> 3 = 0x0100, so the frame is 0x8101 = 100401B and
+     * its station field (bits 13-8) is 1 - the ND-100. Without the shift the same
+     * input yields 0x8801, station 8, which no one answers.
+     *
+     * Ported from RetroCore OctobusND5000Station.cs:2006 and pinned by
+     * OctobusPhase3MonBringupTests, which asserts the received frame has the C bit
+     * set and low bits 0x01. A previous port dropped the shift while claiming
+     * microcode fidelity; the test is the reason this is now right. */
+    uint16_t frame = (uint16_t)(((nd->lsyspar_word1 & 0x3F00u) >> 3u) | 0x8001u);
     nd->last_giveint_frame = frame;
     nd->giveint_frames++;
 

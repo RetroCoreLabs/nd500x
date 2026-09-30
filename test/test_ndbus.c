@@ -2790,10 +2790,12 @@ static void test_mailbox_servicer(void)
         mbx_init_structures(&pool);
         mbx_attach(&nd, &pool, &fabric);
 
-        /* LSYSPAR word 1 = 0x0108: ident byte 1, 5OMDNO 8 - the value RetroCore's
-         * FullPath_AnswerSendsGiveintFrame_FromCaptured5Omdno asserts as its
-         * precondition. NEVER HARDCODE THE FRAME: it is composed from this. */
-        nd.lsyspar_word1 = 0x0108u;
+        /* LSYSPAR word 1 = 0x0800 - S5, whose high byte is 5OMDNO 10B. This is the
+         * value RetroCore's OctobusPhase3MonBringupTests.CaptureSysparOmd asserts as
+         * the PRECONDITION of its MON-answer test, and it is what the capture path
+         * produces from the real six-byte payload (see the frame-level check below).
+         * NEVER HARDCODE THE FRAME: it is composed from this. */
+        nd.lsyspar_word1 = 0x0800u;
 
         mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
         mbx_replay_activation(&pool);
@@ -2801,10 +2803,17 @@ static void test_mailbox_servicer(void)
 
         CHECK(ndbus_nd5000_service_mailbox(&nd), "the message is answered");
         CHECK(nd.giveint_frames == 1u, "one GIVEINT frame was handed to the fabric");
-        /* (0x0108 AND 0x3F00) OR 0x8001 = 0x8101 = 100401B, the word observed on
-         * the live machine. No shift: microcode 025440-025441 has none. */
+        /* ((0x0800 AND 0x3F00) >> 3) OR 0x8001 = 0x8101 = 100401B, the word observed
+         * on the live machine and asserted by RetroCore's MON-answer test.
+         *
+         * THE SHIFT IS WHAT MAKES THE STATION FIELD A STATION. S5's high byte holds
+         * 5OMDNO (10B = 8); shifted right 3 it becomes 1, the ND-100's station, in
+         * frame bits 13-8. Ported from OctobusND5000Station.cs:2006. A previous port
+         * dropped the shift and compensated by capturing word 1 from the wrong bytes
+         * - two errors that cancelled here and left the LIVE path composing 0x8001,
+         * destination station 0, which the fabric drops. */
         CHECK(nd.last_giveint_frame == 0x8101u,
-              "the frame is (word1 AND 0x3F00) OR 0x8001 = 100401B");
+              "the frame is ((word1 AND 0x3F00) >> 3) OR 0x8001 = 100401B");
         CHECK((nd.last_giveint_frame & 0x8000u) == 0x8000u, "C bit set");
         CHECK(((nd.last_giveint_frame >> 8) & 0x3Fu) == 1u,
               "destination station 1 - the ND-100");
@@ -2814,15 +2823,74 @@ static void test_mailbox_servicer(void)
          * composes to destination station 0, which the fabric drops. Asserted so
          * the arithmetic is pinned in BOTH directions rather than only the one
          * that works. */
-        nd.lsyspar_word1 = 0x0003u;
+        /* S5 = 0x0300, i.e. 5OMDNO 3 in the high byte - the value RetroCore records
+         * on its own configuration. Its note states the outcome exactly: "the
+         * expression yields 0x8061 whose destination field is 0, and the fabric drops
+         * station 0 ... 737 answers sent, 0 delivered". */
+        nd.lsyspar_word1 = 0x0300u;
         mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
         mbx_replay_activation(&pool);
         (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
         CHECK(ndbus_nd5000_service_mailbox(&nd), "it still answers");
-        CHECK(nd.last_giveint_frame == 0x8001u,
-              "5OMDNO 3 composes to 0x8001 - destination station 0");
+        CHECK(nd.last_giveint_frame == 0x8061u,
+              "5OMDNO 3 composes to 0x8061 - RetroCore's own recorded value");
         CHECK(((nd.last_giveint_frame >> 8) & 0x3Fu) == 0u,
-              "which is the station the fabric drops - RetroCore's measured defect");
+              "whose destination field is 0, the station the fabric drops");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- LSYSPAR: word 1 comes off the WIRE, not out of a test assignment ---
+     *
+     * WHY THIS EXISTS. The block above sets nd.lsyspar_word1 directly, so it proved
+     * the GIVEINT arithmetic and NOTHING about the capture that feeds it. The live
+     * capture read two bytes too far and produced 0x0000 for a real message - every
+     * answer frame then composed as 0x8001, destination station 0, dropped by the
+     * fabric, and SINTRAN never received an answer interrupt. A test that assigns the
+     * field cannot see that, so this one plays the real six-byte LSYSPAR message.
+     *
+     * The frames and their meaning are RetroCore's, from
+     * OctobusPhase3MonBringupTests.CaptureSysparOmd:
+     *     SOMB(code 3), 0x01, 0x08, 0x0E=SystemParameter,
+     *     0x01 N100IDENT, 0x08 S5 hi = 5OMDNO 10B, 0x00 S5 lo, 0x00, 0x00, 0x00,
+     *     EOMB(code 3)
+     * The payload is ONE BYTE then the words, so S5 starts at the second parameter
+     * byte. Reading it as the second 16-bit WORD is what was wrong. */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the LSYSPAR capture");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        CHECK(nd.lsyspar_word1 == 0u, "nothing captured before the message arrives");
+
+        /* frame = flags | (station << 8) | info; C=0x8000, M=0x20, S=0x10. */
+        static const uint8_t body[] = { 0x01u, 0x08u, 0x0Eu,
+                                        0x01u, 0x08u, 0x00u, 0x00u, 0x00u, 0x00u };
+        uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+        (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
+                                (uint16_t)(0x8000u | 0x0020u | 0x0010u
+                                           | (NDBUS_STATION_ND5000_FIRST << 8) | 0x03u),
+                                replies);
+        for (size_t i = 0; i < sizeof body; i++)
+        {
+            (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
+                                    (uint16_t)((NDBUS_STATION_ND5000_FIRST << 8) | body[i]),
+                                    replies);
+        }
+        (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
+                                (uint16_t)(0x8000u | 0x0020u
+                                           | (NDBUS_STATION_ND5000_FIRST << 8) | 0x03u),
+                                replies);
+
+        CHECK(nd.lsyspar_word1 == 0x0800u,
+              "S5 captured from the wire is 0x0800 - 5OMDNO 10B in the high byte");
+        CHECK(nd.lsyspar_word1 != 0x0000u,
+              "and NOT zero, which is what reading one word too far produced");
 
         ndbus_nd5000_destroy(&nd);
         ndbus_pool_destroy(&pool);
