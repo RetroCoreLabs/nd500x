@@ -28,6 +28,7 @@
 #ifndef NDBUS_MULTIBYTE_H
 #define NDBUS_MULTIBYTE_H
 
+#include "ndbus_octobus.h"
 #include "ndbus_types.h"
 
 /** @brief A multibyte body is at most 255 bytes: the length is one byte on the wire. */
@@ -81,5 +82,43 @@ bool ndbus_multibyte_push(NdbusMultibyte *mb, uint8_t value);
  *         ACCP command is a DIFFERENT command.
  */
 bool ndbus_multibyte_end(NdbusMultibyte *mb);
+
+/**
+ * @brief Build one COMPLETE multibyte message as octobus reply frames.
+ *
+ * The envelope is part of the message, and leaving any of it off produces a
+ * DIFFERENT message rather than a shorter one:
+ *
+ *     SOMB     C=1, station, low byte = M|S|OMD  (0x30 | OMD)
+ *     data     C=0, station, low byte = OUR source OMD - where the receiver replies
+ *     data     C=0, station, low byte = payload byte count N
+ *     data x N C=0, station, low byte = payload byte
+ *     EOMB     C=1, station, low byte = M|OMD    (0x20 | OMD)
+ *
+ * Ported from RetroCore NDBusOctobus.cs SendMultibyteMessage, whose envelope is
+ * byte-verified against the TPE OCTOBUS B00 sender
+ * (octobus_send_multibyte_message @ ram:d16a - SOMB built at ram:d1ae
+ * "SAA 30B ; ORA OMD", EOMB at ram:d1f1 "SAA 20B ; ORA OMD").
+ *
+ * THE STATION FIELD IS THE SENDER'S AND IS STAMPED HERE. On the outbound path
+ * the fabric rewrites bits 13-8 from destination to source, but a reply travels
+ * back through the replies[] array and nothing rewrites it, so a reply built
+ * with a zero station arrives claiming to come from station 0 - which is not a
+ * legal station at all. The receiver reads those bits to know who answered
+ * (TPE octobus_decode_frame_word @ ram:d3ae, mask 0x3F00 at ram:d3cb).
+ *
+ * @param station       The ANSWERING station number, stamped into every frame.
+ * @param dest_omd      The OMD at the receiver this message is addressed to.
+ * @param source_omd    Our OMD: where the receiver sends anything back.
+ * @param payload       The payload bytes; may be NULL when payload_count is 0.
+ * @param payload_count How many payload bytes, 0..255.
+ * @param replies       Buffer for the frames.
+ * @param max           Room in `replies`, in frames.
+ * @return The number of frames written: 4 + payload_count. 0 when the whole
+ *         message does not fit, or the count is out of range - NEVER a partial
+ *         message, because half an envelope is a different message.
+ */
+int ndbus_multibyte_build(uint8_t station, uint8_t dest_omd, uint8_t source_omd,
+                          const uint8_t *payload, int payload_count, uint16_t *replies, int max);
 
 #endif /* NDBUS_MULTIBYTE_H */

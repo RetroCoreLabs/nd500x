@@ -15,6 +15,8 @@ add_library(nd500_ndbus
     ndbus_accp.c
     ndbus_multibyte.c
     ndbus_nd5000.c
+    ndbus_servicer.c
+    ndbus_testproto.c
     ndbus_window.c
     ndbus_runner.c
     ndbus_mailbox.c

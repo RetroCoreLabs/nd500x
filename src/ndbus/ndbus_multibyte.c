@@ -58,3 +58,38 @@ bool ndbus_multibyte_end(NdbusMultibyte *mb)
      * different command, and delivering one would act on it. */
     return !mb->overflow;
 }
+
+int ndbus_multibyte_build(uint8_t station, uint8_t dest_omd, uint8_t source_omd,
+                          const uint8_t *payload, int payload_count, uint16_t *replies, int max)
+{
+    if (replies == NULL || payload_count < 0 || payload_count > NDBUS_MULTIBYTE_MAX)
+    {
+        return 0;
+    }
+    if (payload == NULL && payload_count > 0)
+    {
+        return 0;
+    }
+
+    const int frames = 4 + payload_count; /* SOMB + srcOMD + count + payload + EOMB */
+    if (frames > max)
+    {
+        return 0;
+    }
+
+    const uint16_t station_bits =
+        (uint16_t)(((uint16_t)station & 0x3Fu) << NDBUS_FRAME_STATION_SHIFT);
+    const uint16_t omd = (uint16_t)(dest_omd & 0x0Fu);
+
+    int n = 0;
+    replies[n++] = (uint16_t)(NDBUS_FRAME_C_CONTROL | station_bits | NDBUS_FRAME_M_MULTIBYTE |
+                              NDBUS_FRAME_S_STARTSTOP | omd);
+    replies[n++] = (uint16_t)(station_bits | (uint16_t)source_omd);
+    replies[n++] = (uint16_t)(station_bits | (uint16_t)payload_count);
+    for (int i = 0; i < payload_count; i++)
+    {
+        replies[n++] = (uint16_t)(station_bits | (uint16_t)payload[i]);
+    }
+    replies[n++] = (uint16_t)(NDBUS_FRAME_C_CONTROL | station_bits | NDBUS_FRAME_M_MULTIBYTE | omd);
+    return n;
+}

@@ -24,11 +24,13 @@
 #include "ndbus_cpunum.h"
 #include "ndbus_doorbell.h"
 #include "ndbus_nd5000.h"
+#include "ndbus_servicer.h"
 #include "ndbus_lock.h"
 #include "ndbus_mailbox.h"
 #include "ndbus_msgqueue.h"
 #include "ndbus_octobus.h"
 #include "ndbus_pool.h"
+#include "ndbus_testproto.h"
 #include "ndbus_runner.h"
 #include "ndbus_window.h"
 
@@ -317,9 +319,9 @@ static void test_octobus(void)
     memset(&nd5000_state, 0, sizeof(nd5000_state));
 
     NdbusStation nd120 = {NDBUS_STATION_ND120_CPU, "ND-120 CPU", mock_station_handle,
-                          &nd120_state};
+                          &nd120_state, NULL};
     NdbusStation nd5000 = {NDBUS_STATION_ND5000_FIRST, "ND-5000 CPU", mock_station_handle,
-                           &nd5000_state};
+                           &nd5000_state, NULL};
 
     CHECK(ndbus_fabric_register(&fabric, &nd5000), "station 70B registers");
     CHECK(ndbus_fabric_master(&fabric) == NDBUS_STATION_ND5000_FIRST,
@@ -330,8 +332,8 @@ static void test_octobus(void)
     CHECK(ndbus_fabric_station_count(&fabric) == 2, "two stations on the bus");
 
     /* Station 0 and 77B are not in the T329 table. */
-    NdbusStation illegal_low  = {0, "illegal 0", NULL, NULL};
-    NdbusStation illegal_high = {63, "illegal 77B", NULL, NULL};
+    NdbusStation illegal_low  = {0, "illegal 0", NULL, NULL, NULL};
+    NdbusStation illegal_high = {63, "illegal 77B", NULL, NULL, NULL};
     CHECK(!ndbus_fabric_register(&fabric, &illegal_low), "station 0 is refused");
     CHECK(!ndbus_fabric_register(&fabric, &illegal_high), "station 77B is refused");
     CHECK(ndbus_fabric_station_count(&fabric) == 2, "a refused registration changes nothing");
@@ -351,12 +353,12 @@ static void test_octobus(void)
     CHECK(ndbus_fabric_station_count(&fabric) == 1 + (int)NDBUS_ND5000_MAX_CPUS,
           "seven ND-5000 slots plus the ND-120");
     CHECK(NDBUS_STATION_ND5000_LAST == 62, "76B is 62 decimal");
-    NdbusStation eighth = {63, "an eighth ND-5000", NULL, NULL};
+    NdbusStation eighth = {63, "an eighth ND-5000", NULL, NULL, NULL};
     CHECK(!ndbus_fabric_register(&fabric, &eighth), "there is no eighth slot");
 
     /* Duplicate registration is refused rather than silently replacing, so two
      * owners fighting over one slot cannot hide. */
-    NdbusStation duplicate = {NDBUS_STATION_ND5000_FIRST, "another 70B", NULL, NULL};
+    NdbusStation duplicate = {NDBUS_STATION_ND5000_FIRST, "another 70B", NULL, NULL, NULL};
     CHECK(!ndbus_fabric_register(&fabric, &duplicate), "a duplicate station number is refused");
     CHECK(ndbus_fabric_get_station(&fabric, NDBUS_STATION_ND5000_FIRST) == &nd5000,
           "and the original station is still there");
@@ -397,7 +399,7 @@ static void test_octobus(void)
     /* A registered station with no handler accepts and is silent - which is 0,
      * not a timeout. */
     CHECK(ndbus_fabric_unregister(&fabric, NDBUS_STATION_ND5000_FIRST), "70B unregisters");
-    NdbusStation silent = {NDBUS_STATION_ND5000_FIRST, "silent", NULL, NULL};
+    NdbusStation silent = {NDBUS_STATION_ND5000_FIRST, "silent", NULL, NULL, NULL};
     CHECK(ndbus_fabric_register(&fabric, &silent), "a handler-less station registers");
     CHECK(ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, frame, replies) == 0,
           "it accepts and says nothing - 0, not a timeout");
@@ -1238,7 +1240,7 @@ static void test_bringup(void)
           "with no ND-120 yet it is the MASTER - the lowest station on the bus");
 
     /* The ND-120 is station 1B and becomes MASTER the moment it appears. */
-    NdbusStation nd120 = {NDBUS_STATION_ND120_CPU, "ND-120 CPU", NULL, NULL};
+    NdbusStation nd120 = {NDBUS_STATION_ND120_CPU, "ND-120 CPU", NULL, NULL, NULL};
     CHECK(ndbus_fabric_register(&fabric, &nd120), "the ND-120 joins at 1B");
     CHECK(ndbus_fabric_master(&fabric) == NDBUS_STATION_ND120_CPU, "and takes over as MASTER");
 
@@ -1965,6 +1967,1169 @@ static void test_captured_sintran_frames(void)
           "addressed to the source OMD the message named, 3");
 }
 
+
+/* ------------------------------------------------------------------------- */
+/* Layer 11: the OMD-0 Octobus Test Protocol                                  */
+/* ------------------------------------------------------------------------- */
+
+/*
+ * THE REQUESTS IN THIS SECTION ARE THE RECORDED ONES, byte for byte, and that is
+ * deliberate. The bodies below were captured from a live TPE OCTOBUS B00 run and
+ * are quoted in RetroCore
+ * Emulated.Tests.ND100/ControllerOctobus/OctobusTpeConfigReproTests.cs:
+ *
+ *     identify yourself   00 04 71 C7 00 00
+ *     echo single word    00 08 71 C7 00 0C 00 01 FF FF
+ *
+ * and the reply BYTE COUNTS asserted here are TPE's own: 8 for identify, 132 for
+ * get-present-stations, 12 for echo-single. Writing the expected bytes out of a
+ * reading of the protocol instead would let a test agree with a mistaken
+ * implementation, which is how the "command byte is body[0]" bug survived.
+ */
+
+/* Send one OMD-0 Test Protocol request the way TPE's
+ * octobus_send_multibyte_message does: SOMB to OMD 0, the source OMD byte, the
+ * byte count, one data frame per body byte, EOMB. `body` is the WHOLE collected
+ * message INCLUDING its first two header bytes, exactly as recorded above, so the
+ * test cannot silently disagree with the capture about what the header is. */
+static int send_omd0(NdbusFabric *fabric, uint8_t from, uint8_t to, const uint8_t *body,
+                     int length, uint16_t *replies)
+{
+    uint16_t dest = (uint16_t)((uint16_t)to << NDBUS_FRAME_STATION_SHIFT);
+
+    uint16_t somb = (uint16_t)(dest | NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE |
+                               NDBUS_FRAME_S_STARTSTOP | (uint16_t)NDBUS_TESTPROTO_OMD);
+    (void)ndbus_fabric_send(fabric, from, somb, replies);
+
+    for (int i = 0; i < length; i++)
+    {
+        (void)ndbus_fabric_send(fabric, from, (uint16_t)(dest | (uint16_t)body[i]), replies);
+    }
+
+    uint16_t eomb = (uint16_t)(dest | NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE |
+                               (uint16_t)NDBUS_TESTPROTO_OMD);
+    return ndbus_fabric_send(fabric, from, eomb, replies);
+}
+
+/* One payload word, big-endian, out of an unwrapped reply. */
+static uint16_t reply_word(const uint8_t *payload, int word_index)
+{
+    return (uint16_t)(((uint16_t)payload[word_index * 2] << 8) |
+                      (uint16_t)payload[(word_index * 2) + 1]);
+}
+
+/*
+ * Layer 12: the control-store load, from the captured monitor exchange.
+ *
+ * EVERY NUMBER HERE WAS MEASURED, not chosen. Live run 30-SEP-2026, nd100x with
+ * ND5000.ini, SINTRAN III VSX/500 L, ND-500/5000 MONITOR J04, command
+ * START-SWAPPER, with every OMD-3 command logged as it reached the station:
+ *
+ *     LPARP  pointer 0x00000800
+ *     VPARP  (the pattern 6596 9B49 lies at the pointer)
+ *     LOCSM  x 128: parameter word0 = 0x0080, word1 = 0x0000, 0x0080 ... 0x3F80
+ *     DUCS   x 1:   parameter word0 = 0x0001, word1 = 0x0000
+ *
+ * and the monitor then printed "ACCP command status: Checksum error". Before the
+ * fix nothing moved: the eight halfwords at the pointer were the last LOCSM
+ * pulse's own header and payload, 0001 0000 0040 0000 0001 8000 0000 0000, summing
+ * to 0x8042, against an addend word of 0x0080 - N left over from that pulse. Both
+ * of those values are asserted below as the FAILING case, so this test cannot
+ * silently start agreeing with a broken implementation the way the mfbus_bridge
+ * MSB test once did.
+ */
+static void test_control_store_load(void)
+{
+    printf("Layer 12: the ND-5000 control-store load and its checksum\n");
+
+    NdbusPool pool;
+    /* 256 KB, because the mailbox base the monitor patches in lands at pool
+     * offset 0x8800 and the out-of-window guard rightly refuses a base whose whole
+     * 256-byte extension block does not fit. */
+    CHECK(ndbus_pool_create(&pool, 256 * 1024), "a pool for the control-store load");
+
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+
+    NdbusNd5000 nd;
+    CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+          "a station at 070B, where the monitor addressed one");
+    CHECK(ndbus_fabric_register(&fabric, &nd.station), "registered on the fabric");
+
+    uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+    uint8_t  body[8];
+
+    /* The pointer the monitor used. LPARP carries it most significant byte
+     * first (T124). */
+    const uint32_t pb = 0x00000800u;
+    body[0]           = (uint8_t)NDBUS_ACCP_LPARP;
+    body[1]           = (uint8_t)(pb >> 24u);
+    body[2]           = (uint8_t)(pb >> 16u);
+    body[3]           = (uint8_t)(pb >> 8u);
+    body[4]           = (uint8_t)(pb & 0xFFu);
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5,
+                    replies);
+    CHECK(nd.parameter_pointer == pb, "LPARP took the pointer the monitor sent");
+
+    /* ONE LOCSM PULSE, N = 1, at control-store address 0 - the address the single
+     * DUCS pulse reads back. The eight halfwords are the monitor's own first
+     * microword, from the capture's first LOCSM line at pb+4:
+     *     0000 0000 0001 8000 0000 0000 194F 2E9A */
+    static const uint16_t micro0[8] = { 0x0000u, 0x0000u, 0x0001u, 0x8000u,
+                                        0x0000u, 0x0000u, 0x194Fu, 0x2E9Au };
+    (void)ndbus_pool_write16(&pool, pb, 1u);      /* word0 = N */
+    (void)ndbus_pool_write16(&pool, pb + 2u, 0u); /* word1 = control-store address */
+    for (uint32_t i = 0u; i < 8u; i++)
+    {
+        (void)ndbus_pool_write16(&pool, pb + 4u + (i * 2u), micro0[i]);
+    }
+
+    body[0] = (uint8_t)NDBUS_ACCP_LOCSM;
+    int n   = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                        replies);
+    CHECK(n > 0, "LOCSM is answered");
+    CHECK(nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "and answered with a Messack");
+    CHECK(nd.cs_load_pulses == 1, "the station serviced the pulse instead of ignoring it");
+
+    /* THE READ-BACK. Parameter word0 = N = 1, word1 = 0, exactly as captured. */
+    (void)ndbus_pool_write16(&pool, pb, 1u);
+    (void)ndbus_pool_write16(&pool, pb + 2u, 0u);
+
+    body[0] = (uint8_t)NDBUS_ACCP_DUCS;
+    n       = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                        replies);
+    CHECK(n > 0, "DUCS is answered");
+    CHECK(nd.cs_dump_pulses == 1, "and the read-back was served");
+
+    /* The dump is the microword, verbatim, AT the pointer. */
+    bool same = true;
+    for (uint32_t i = 0u; i < 8u; i++)
+    {
+        if (ndbus_pool_read16(&pool, pb + (i * 2u)) != micro0[i])
+        {
+            same = false;
+        }
+    }
+    CHECK(same, "the read-back serves the eight halfwords the load pulse wrote");
+
+    /* And the addend is their 16-bit wrapping sum, in the halfword straight after
+     * them - manual ND-05.020.01 sec 5.3.20, "the dumped N x (8 x 16b) microwords
+     * + checksum addend". 0x0001 + 0x8000 + 0x194F + 0x2E9A = 0xC1EA. */
+    uint16_t expected = 0u;
+    for (uint32_t i = 0u; i < 8u; i++)
+    {
+        expected = (uint16_t)((expected + micro0[i]) & 0xFFFFu);
+    }
+    CHECK(expected == 0xC7EAu, "the sum of the captured microword is 0xC7EA");
+    CHECK(ndbus_pool_read16(&pool, pb + 16u) == expected,
+          "the addend word after the dump is that sum - what the monitor compares against");
+    CHECK(nd.cs_last_addend == expected, "and the station reports the same addend");
+
+    /* THE FAILING CASE THIS REPLACES. Before the fix the halfwords at the pointer
+     * were the last pulse's leftovers, starting with the DUCS parameter word
+     * itself; a serviced read-back overwrites them. */
+    CHECK(ndbus_pool_read16(&pool, pb) == micro0[0],
+          "the dump overwrote the DUCS parameter word instead of leaving it to be summed");
+
+    /* A SECOND control-store address must read back its OWN microword. Without
+     * this the test above passes for an implementation that always serves
+     * microword 0. */
+    static const uint16_t micro1[8] = { 0x0080u, 0x0000u, 0x0040u, 0x0000u,
+                                        0x0001u, 0x8000u, 0x0000u, 0x0000u };
+    (void)ndbus_pool_write16(&pool, pb, 1u);
+    (void)ndbus_pool_write16(&pool, pb + 2u, 0x3F80u); /* the last address the monitor loaded */
+    for (uint32_t i = 0u; i < 8u; i++)
+    {
+        (void)ndbus_pool_write16(&pool, pb + 4u + (i * 2u), micro1[i]);
+    }
+    body[0] = (uint8_t)NDBUS_ACCP_LOCSM;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                    replies);
+
+    (void)ndbus_pool_write16(&pool, pb, 1u);
+    (void)ndbus_pool_write16(&pool, pb + 2u, 0x3F80u);
+    body[0] = (uint8_t)NDBUS_ACCP_DUCS;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                    replies);
+
+    same = true;
+    for (uint32_t i = 0u; i < 8u; i++)
+    {
+        if (ndbus_pool_read16(&pool, pb + (i * 2u)) != micro1[i])
+        {
+            same = false;
+        }
+    }
+    CHECK(same, "control-store address 3F80B reads back its own microword, not word 0's");
+
+    /* An N greater than one fans out to consecutive control-store addresses, which
+     * is how the real load works: 128 microwords per pulse. */
+    (void)ndbus_pool_write16(&pool, pb, 2u);
+    (void)ndbus_pool_write16(&pool, pb + 2u, 0x0100u);
+    for (uint32_t i = 0u; i < 16u; i++)
+    {
+        (void)ndbus_pool_write16(&pool, pb + 4u + (i * 2u), (uint16_t)(0xA000u + i));
+    }
+    body[0] = (uint8_t)NDBUS_ACCP_LOCSM;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                    replies);
+
+    (void)ndbus_pool_write16(&pool, pb, 1u);
+    (void)ndbus_pool_write16(&pool, pb + 2u, 0x0101u); /* the SECOND microword of that pulse */
+    body[0] = (uint8_t)NDBUS_ACCP_DUCS;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                    replies);
+    same = true;
+    for (uint32_t i = 0u; i < 8u; i++)
+    {
+        if (ndbus_pool_read16(&pool, pb + (i * 2u)) != (uint16_t)(0xA008u + i))
+        {
+            same = false;
+        }
+    }
+    CHECK(same, "a pulse of N=2 loads the second microword at the next address");
+
+    /* ---- ENKICK finds the mailbox in the control store ----
+     *
+     * MEASURED at ENKICK on the live run of 30-SEP-2026, read out of this
+     * station's own control store:
+     *     cs[0x16] = 4000 0001 DE01 6010 0000 0000 0000 8800  START_MESS = 0x8800
+     *     cs[0x15] = 4000 0001 DE01 6010 0000 0000 0000 0001  SAMSON_CPU = 1
+     * which is the pair RetroCore's OctobusCsLoadTests
+     * CsLoad_Enkick_DerivesMailboxBaseFromStartMess pins. Both cells are LARG
+     * constants, so halfwords 6 and 7 together are the 32-bit value. */
+    static const uint16_t cs15[8] = { 0x4000u, 0x0001u, 0xDE01u, 0x6010u,
+                                      0x0000u, 0x0000u, 0x0000u, 0x0001u };
+    static const uint16_t cs16[8] = { 0x4000u, 0x0001u, 0xDE01u, 0x6010u,
+                                      0x0000u, 0x0000u, 0x0000u, 0x8800u };
+    (void)ndbus_pool_write16(&pool, pb, 2u);           /* two microwords ... */
+    (void)ndbus_pool_write16(&pool, pb + 2u, 0x15u);   /* ... at 025B and 026B */
+    for (uint32_t i = 0u; i < 8u; i++)
+    {
+        (void)ndbus_pool_write16(&pool, pb + 4u + (i * 2u), cs15[i]);
+        (void)ndbus_pool_write16(&pool, pb + 20u + (i * 2u), cs16[i]);
+    }
+    body[0] = (uint8_t)NDBUS_ACCP_LOCSM;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                    replies);
+
+    /* ENKICK is the ACCP-to-microprogram handoff, and the mailbox must be known by
+     * the time it returns. */
+    body[0] = (uint8_t)NDBUS_ACCP_ENKICK;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                    replies);
+
+    CHECK(nd.start_mess == 0x8800u, "ENKICK read START_MESS 0x8800 out of word 026B");
+    CHECK(nd.samson_cpu == 1u, "and SAMSON_CPU 1 out of word 025B");
+    CHECK(ndbus_mailbox_ext_base(&nd.mailbox) == 0x8800u + 256u,
+          "the extension block is the header plus SAMSON_CPU strides of 256 bytes");
+    CHECK(nd.sniff.latched,
+          "and the 0xFFFF->0 doorbell sniff is stood down - the CS is the answer");
+
+    /* A truncating read of halfword 7 alone would give the same answer for this
+     * pair, so prove the HIGH half is read too: a base past 0xFFFF must survive. */
+    (void)ndbus_pool_write16(&pool, pb, 1u);
+    (void)ndbus_pool_write16(&pool, pb + 2u, 0x16u);
+    for (uint32_t i = 0u; i < 8u; i++)
+    {
+        (void)ndbus_pool_write16(&pool, pb + 4u + (i * 2u), cs16[i]);
+    }
+    (void)ndbus_pool_write16(&pool, pb + 4u + (6u * 2u), 0x0001u); /* halfword 6 = high half */
+    body[0] = (uint8_t)NDBUS_ACCP_LOCSM;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                    replies);
+    body[0] = (uint8_t)NDBUS_ACCP_ENKICK;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                    replies);
+    CHECK(nd.start_mess == 0x00018800u,
+          "START_MESS is the 32-bit LARG field, not halfword 7 truncated to 16 bits");
+
+    /* LOCSM with no parameter pointer is refused by the guard table, so nothing is
+     * allocated and nothing is copied - a garbage staging block at offset 0 must
+     * not reach the control store. */
+    NdbusNd5000 cold;
+    CHECK(ndbus_nd5000_init(&cold, NDBUS_STATION_ND5000_LAST, &pool, NULL, NULL),
+          "a second station, cold");
+    CHECK(ndbus_fabric_register(&fabric, &cold.station), "registered at 076B");
+    body[0] = (uint8_t)NDBUS_ACCP_LOCSM;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_LAST, body, 1,
+                    replies);
+    CHECK(cold.last_nak_code == NDBUS_ACCP_NAK_NO_PARAM_POINTER,
+          "LOCSM without LPARP is Messnak 1, not a load from offset zero");
+    CHECK(cold.cs_load_pulses == 0, "and no pulse was serviced");
+    CHECK(cold.control_store == NULL, "and no control store was allocated");
+
+    ndbus_nd5000_destroy(&cold);
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
+static void test_test_protocol(void)
+{
+    printf("Layer 11: the OMD-0 octobus test protocol\n");
+
+    NdbusPool pool;
+    (void)ndbus_pool_create(&pool, POOL_BYTES);
+
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+
+    /* Station 1B, the ND-100 card, is the asker. It is registered so the
+     * get-present-stations reply has something true to say about it; it is silent
+     * because nothing here sends it a frame. */
+    NdbusStation nd120 = {NDBUS_STATION_ND120_CPU, "ND-120 CPU", NULL, NULL, NULL};
+    CHECK(ndbus_fabric_register(&fabric, &nd120), "the ND-100 card registers as 1B");
+
+    NdbusNd5000 nd;
+    CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+          "the ND-5000 comes up at 070B");
+    CHECK(ndbus_fabric_register(&fabric, &nd.station), "and registers on the fabric");
+    CHECK(nd.station.fabric == &fabric,
+          "registering hands the station its fabric - the get-present reply needs the registry");
+
+    uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+    uint8_t  payload[NDBUS_MULTIBYTE_MAX];
+    int      n;
+    int      plen;
+
+    /* ---- identify yourself: the recorded body, and an 8-byte reply ---------- */
+    const uint8_t identify[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x00u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, identify,
+                     (int)sizeof(identify), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 8, "identify yourself is answered with 8 payload bytes - header only");
+    CHECK(plen == 8 && reply_word(payload, 0) == 0x71C7u, "reply word0 is the 0x71C7 magic");
+    CHECK(plen == 8 && reply_word(payload, 1) == 0x0001u, "reply word1 is the command plus one");
+    CHECK(plen == 8 && reply_word(payload, 2) == NDBUS_STATION_ND5000_FIRST,
+          "reply word2 is the answering station, 56 decimal = 070B");
+    CHECK(plen == 8 && reply_word(payload, 3) == 0u, "reply word3 is status 0, Ok");
+    CHECK(n >= 1 && (replies[0] & NDBUS_FRAME_CODE_MASK) == NDBUS_TESTPROTO_OMD,
+          "and it is addressed back to OMD 0, the OMD the request named");
+    CHECK(n >= 2 && (replies[1] & NDBUS_FRAME_DATA_MASK) == 0u,
+          "with our own source OMD 0 - we answer as the test protocol module");
+    CHECK(nd.messages_handled == 0,
+          "an OMD-0 message is NOT an ACCP command and does not touch that counter");
+    CHECK(nd.testproto.messages == 1 && nd.testproto.replies == 1,
+          "the test protocol counted one message and one reply");
+
+    /* ---- get present stations: 66 words = 132 bytes, one word per station --- */
+    const uint8_t get_present[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x0Au};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, get_present,
+                     (int)sizeof(get_present), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 132, "get present stations is answered with 66 words = 132 bytes");
+    CHECK(n == 136, "which is 136 frames - far past the 16 the reply buffer used to allow");
+    CHECK(plen == 132 && reply_word(payload, 1) == 0x000Bu, "reply word1 is 0x000A plus one");
+    CHECK(plen == 132 && reply_word(payload, 3) == 0u, "status Ok");
+    CHECK(plen == 132 && reply_word(payload, 3 + 1) == 1u, "station 1 is reported present");
+    CHECK(plen == 132 && reply_word(payload, 3 + NDBUS_STATION_ND5000_FIRST) == 1u,
+          "the answering station 070B reports itself present");
+    CHECK(plen == 132 && reply_word(payload, 3 + 5) == 0u,
+          "station 5, which nothing registered, is reported absent");
+    CHECK(plen == 132 && reply_word(payload, 3 + 10) == 0u,
+          "and so is station 10 - no SCSI controller is configured here");
+
+    /* ---- echo single word: the recorded body, pattern 1 / 0xFFFF ------------ */
+    const uint8_t echo_single[] = {0x00u, 0x08u, 0x71u, 0xC7u, 0x00u, 0x0Cu,
+                                   0x00u, 0x01u, 0xFFu, 0xFFu};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, echo_single,
+                     (int)sizeof(echo_single), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 12, "echo single word is answered with 6 words = 12 bytes");
+    CHECK(plen == 12 && reply_word(payload, 1) == 0x000Du, "reply word1 is 0x000C plus one");
+    CHECK(plen == 12 && reply_word(payload, 4) == 0x0001u, "reply word4 echoes the pattern number");
+    CHECK(plen == 12 && reply_word(payload, 5) == 0xFFFFu, "reply word5 echoes the pattern");
+
+    /* A truncated echo request is NOT answered with a zero pattern: the missing
+     * word is refused, and the station stays silent. */
+    const uint8_t echo_short[] = {0x00u, 0x06u, 0x71u, 0xC7u, 0x00u, 0x0Cu, 0x00u, 0x01u};
+    n = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, echo_short,
+                  (int)sizeof(echo_short), replies);
+    CHECK(n == 0, "an echo-single request missing its pattern word gets no reply at all");
+
+    /* ---- echo multi word: string number, count, then the string ------------- */
+    const uint8_t echo_multi[] = {0x00u, 0x0Cu, 0x71u, 0xC7u, 0x00u, 0x0Eu, 0x00u,
+                                  0x07u, 0x00u, 0x02u, 0x12u, 0x34u, 0xABu, 0xCDu};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, echo_multi,
+                     (int)sizeof(echo_multi), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 16, "echo multi word of two words is answered with 8 words = 16 bytes");
+    CHECK(plen == 16 && reply_word(payload, 1) == 0x000Fu, "reply word1 is 0x000E plus one");
+    CHECK(plen == 16 && reply_word(payload, 4) == 0x0007u, "reply word4 echoes the string number");
+    CHECK(plen == 16 && reply_word(payload, 5) == 0x0002u, "reply word5 echoes the word count");
+    CHECK(plen == 16 && reply_word(payload, 6) == 0x1234u, "reply word6 is the first string word");
+    CHECK(plen == 16 && reply_word(payload, 7) == 0xABCDu, "reply word7 is the second");
+
+    /* ---- get module type: 3 = ACCP, which is what an ND-5000 station is ----- */
+    const uint8_t get_module[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x1Au};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, get_module,
+                     (int)sizeof(get_module), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 10, "get module type is answered with 5 words = 10 bytes");
+    CHECK(plen == 10 && reply_word(payload, 1) == 0x001Bu, "reply word1 is 0x001A plus one");
+    CHECK(plen == 10 && reply_word(payload, 4) == NDBUS_TESTPROTO_MODULE_ACCP,
+          "and word4 is module type 3, ACCP");
+
+    /* ---- get test version and get Domino information ----------------------- */
+    /* The VALUES in both replies are UNVERIFIED emulator placeholders, so what is
+     * asserted here is the SHAPE the protocol fixes - the byte count and the
+     * header - plus that the reply reports what this responder is configured
+     * with, not a constant buried in the builder. */
+    const uint8_t get_version[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x18u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, get_version,
+                     (int)sizeof(get_version), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 10, "get test version is answered with 5 words = 10 bytes");
+    CHECK(plen == 10 && reply_word(payload, 4) == nd.testproto.test_version,
+          "carrying the configured version, not a literal");
+
+    const uint8_t get_domino[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x16u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, get_domino,
+                     (int)sizeof(get_domino), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 36, "get Domino information is answered with 18 words = 36 bytes");
+    CHECK(plen == 36 && (((uint32_t)reply_word(payload, 4) << 16u) |
+                         (uint32_t)reply_word(payload, 5)) == nd.testproto.processor_type,
+          "words 4 and 5 are the processor type as one 32-bit number");
+    CHECK(plen == 36 && memcmp(&payload[12], nd.testproto.opcom_version, 4) == 0,
+          "words 6 and 7 are the four OPCOM version characters");
+
+    /* ---- the octobus registers: the legal functions, and the reject --------- */
+    const uint8_t write_reg[] = {0x00u, 0x08u, 0x71u, 0xC7u, 0x00u, 0x12u,
+                                 0x00u, 0x03u, 0x5Au, 0xA5u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, write_reg,
+                     (int)sizeof(write_reg), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 8, "write octobus register is answered with a header-only acknowledge");
+    CHECK(plen == 8 && reply_word(payload, 3) == 0u, "status Ok for function 3");
+
+    const uint8_t write_bad[] = {0x00u, 0x08u, 0x71u, 0xC7u, 0x00u, 0x12u,
+                                 0x00u, 0x04u, 0x00u, 0x01u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, write_bad,
+                     (int)sizeof(write_bad), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 8 && reply_word(payload, 3) == NDBUS_TESTPROTO_STATUS_BAD_REGISTER_FN,
+          "an undocumented write function is refused with status 1, not with silence");
+
+    /* Function 3 was written, so function 3 reads back - but 3 is not a legal READ
+     * function, and the read of one that is legal must not see it. */
+    const uint8_t read_reg[] = {0x00u, 0x06u, 0x71u, 0xC7u, 0x00u, 0x10u, 0x00u, 0x02u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, read_reg,
+                     (int)sizeof(read_reg), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 10, "read octobus register is answered with 5 words = 10 bytes");
+    CHECK(plen == 10 && reply_word(payload, 3) == 0u, "status Ok for function 2");
+    CHECK(nd.testproto.registers[3] == 0x5AA5u, "the write landed in register function 3");
+
+    /* ---- what is NOT a test protocol message ------------------------------- */
+    /* No magic: not a Test Protocol message at all, so no reply - as opposed to a
+     * reply saying the command was wrong. */
+    const uint8_t no_magic[] = {0x00u, 0x04u, 0x12u, 0x34u, 0x00u, 0x00u};
+    n = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, no_magic,
+                  (int)sizeof(no_magic), replies);
+    CHECK(n == 0, "a body without the 0x71C7 magic gets no reply");
+
+    /* An unknown command IS answered: status 2, illegal Test Protocol command
+     * code. Silence there would mean "no station", and the station is present. */
+    const uint8_t unknown[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x44u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, unknown,
+                     (int)sizeof(unknown), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 8, "an unknown command still gets the 4-word header");
+    CHECK(plen == 8 && reply_word(payload, 1) == 0x0045u, "with the command plus one");
+    CHECK(plen == 8 && reply_word(payload, 3) == NDBUS_TESTPROTO_STATUS_BAD_COMMAND,
+          "and status 2, illegal Test Protocol command code");
+
+    /* The OMD-0 path must not have disturbed the ACCP path: an ACCP command still
+     * works, and still uses the ACCP counter. */
+    uint8_t body[2];
+    body[0] = (uint8_t)NDBUS_ACCP_ECHO;
+    body[1] = 0;
+    n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 2, replies);
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED,
+          "the OMD-3 ACCP path still answers after all of that");
+    CHECK(nd.messages_handled == 1, "and it is the ACCP counter that moved, not the OMD-0 one");
+
+    /* An OMD nobody serves is still the microprogram's, not a protocol here. */
+    uint16_t dest = (uint16_t)((uint16_t)NDBUS_STATION_ND5000_FIRST << NDBUS_FRAME_STATION_SHIFT);
+    unsigned long tp_before = nd.testproto.messages;
+    (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
+                            (uint16_t)(dest | NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE |
+                                       NDBUS_FRAME_S_STARTSTOP | 5u),
+                            replies);
+    (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
+                            (uint16_t)(dest | NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE | 5u),
+                            replies);
+    CHECK(nd.testproto.messages == tp_before, "an OMD-5 message is neither protocol's");
+
+    ndbus_pool_destroy(&pool);
+}
+
+/* ---------------------------------------------------------------------------
+ * Layer 13: the mailbox servicer - the ND-5000 microprogram's side.
+ *
+ * PORTED ORACLE. Every address, value and expectation below comes from
+ * $RETROCORE/Emulated.Tests.ND100/ControllerOctobus/OctobusMailboxO1Tests.cs,
+ * which is the test RetroCore pins its own station against, and whose own header
+ * names the carved SINTRAN producer it replays:
+ *     ITO500XQ  link the message into the X5BEX ex-queue chain
+ *     ITOFIFOQ  insert into the X5FIF ring at X5FYL, advance mod X5MXF
+ *     ACT51     X5ACT := 0, the idle-wakeup doorbell, and NO kick
+ * The fixture's MPM_BASE 0x00420000 is dropped because nd500x addresses the pool
+ * relative to its own start, so HEADER is pool offset 0 and every other offset is
+ * the RetroCore constant minus MPM_BASE. Nothing else is changed.
+ *
+ * THE N5STA GATE ROWS ARE THE POINT OF THE LAYER. A live octobus run parks a
+ * 3SWMESS at SWPPI(6) and stalls, which makes "the servicer ignores the swapper
+ * message" look like the defect. It is not: SWPPI is an ND-100-side state and the
+ * walk's gate is N5STA == 1, which is what the real B30 control store does too.
+ * Every negative row rings the doorbell and asserts X5ACT came back re-armed to 1,
+ * so "not serviced" can never be "no doorbell was rung", and the positive row runs
+ * the same harness - a servicer that answers nothing fails loudly instead of
+ * passing every row.
+ */
+
+/* THE WHOLE FIXTURE SITS AT A NON-ZERO POOL OFFSET, and that is not cosmetic.
+ * RetroCore's layout is relative to its MPM_BASE, so its header lands at
+ * window-relative 0; nd500x uses start_mess == 0 to mean "no mailbox has been
+ * located yet", the state ndbus_nd5000_service_mailbox() and the GIVEINT tail both
+ * refuse to act in. A header at offset 0 is therefore indistinguishable from no
+ * header at all. MBX_BASE shifts the whole structure and leaves every distance
+ * between its parts exactly as the oracle has them. */
+#define MBX_BASE       0x4000u     /* where the oracle's window base lands here */
+#define MBX_HEADER     MBX_BASE            /* X500DF global header, stride slot 0 */
+#define MBX_EXT1       (MBX_BASE + 256u)   /* CPU 1 extension block, 200B words */
+#define MBX_RING       (MBX_BASE + 0x800u) /* X5FIF ring storage */
+#define MBX_MSG        (MBX_BASE + 0x1000u)/* the message block */
+#define MBX_RING_SLOTS 8u                  /* X5MXF */
+
+/** XMSINIT's picture: the global header plus the CPU-1 extension block. */
+static void mbx_init_structures(NdbusPool *pool)
+{
+    (void)ndbus_pool_write16(pool, MBX_HEADER + NDBUS_MBX_X5SEM_WORD * 2u, 0);
+    (void)ndbus_pool_write16(pool, MBX_HEADER + NDBUS_MBX_X5HEN_WORD * 2u, 0);
+    (void)ndbus_pool_write16(pool, MBX_HEADER + NDBUS_MBX_X5FYL_WORD * 2u, 0);
+    (void)ndbus_pool_write16(pool, MBX_HEADER + NDBUS_MBX_X5MXF_WORD * 2u, MBX_RING_SLOTS);
+    /* X5FIF is a BYTE offset, not a word address - see ndbus_mailbox.h. */
+    (void)ndbus_pool_write16(pool, MBX_HEADER + NDBUS_MBX_X5FIF_WORD * 2u,
+                             (uint16_t)(MBX_RING >> 16));
+    (void)ndbus_pool_write16(pool, MBX_HEADER + (NDBUS_MBX_X5FIF_WORD + 1u) * 2u,
+                             (uint16_t)(MBX_RING & 0xFFFFu));
+
+    (void)ndbus_pool_write16(pool, MBX_EXT1 + 0u, NDBUS_MBX_X5BEX_INIT);
+    (void)ndbus_pool_write16(pool, MBX_EXT1 + 2u, NDBUS_MBX_X5BEX_INIT);
+    (void)ndbus_pool_write16(pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, NDBUS_MBX_X5ACT_INIT);
+    (void)ndbus_pool_write16(pool, MBX_EXT1 + NDBUS_MBX_X5PRO_WORD * 2u, NDBUS_MBX_X5PRO_INIT);
+}
+
+/** A message block addressed to the ND-500, LINK = -1. */
+static void mbx_build_message(NdbusPool *pool, uint16_t micfu, uint16_t n5sta)
+{
+    (void)ndbus_pool_write16(pool, MBX_MSG + 0u, 0xFFFFu);
+    (void)ndbus_pool_write16(pool, MBX_MSG + 2u, 0xFFFFu);
+    (void)ndbus_pool_write16(pool, MBX_MSG + NDBUS_MSG_N5STA * 2u, n5sta);
+    (void)ndbus_pool_write16(pool, MBX_MSG + NDBUS_MSG_X5CPU * 2u, 1);
+    (void)ndbus_pool_write16(pool, MBX_MSG + NDBUS_MSG_MICFU * 2u, micfu);
+}
+
+/** SINTRAN's activation: ITO500XQ then ITOFIFOQ. The X5ACT write is the per-case
+ *  variation and is deliberately NOT done here. */
+static void mbx_replay_activation(NdbusPool *pool)
+{
+    (void)ndbus_pool_write16(pool, MBX_EXT1 + 0u, (uint16_t)(MBX_MSG >> 16));
+    (void)ndbus_pool_write16(pool, MBX_EXT1 + 2u, (uint16_t)(MBX_MSG & 0xFFFFu));
+
+    uint16_t fyl  = ndbus_pool_read16(pool, MBX_HEADER + NDBUS_MBX_X5FYL_WORD * 2u);
+    uint32_t slot = MBX_RING + ((uint32_t)fyl * 4u);
+    (void)ndbus_pool_write16(pool, slot, (uint16_t)(MBX_MSG >> 16));
+    (void)ndbus_pool_write16(pool, slot + 2u, (uint16_t)(MBX_MSG & 0xFFFFu));
+    (void)ndbus_pool_write16(pool, MBX_HEADER + NDBUS_MBX_X5FYL_WORD * 2u,
+                             (uint16_t)((fyl + 1u) % MBX_RING_SLOTS));
+}
+
+static uint16_t mbx_msg_status(const NdbusPool *pool)
+{
+    return (uint16_t)(ndbus_pool_read16(pool, MBX_MSG + NDBUS_MSG_N5STA * 2u) &
+                      NDBUS_N5STA_MASK);
+}
+
+static uint16_t mbx_read(const NdbusPool *pool, uint32_t offset)
+{
+    return ndbus_pool_read16(pool, offset);
+}
+
+/**
+ * Bring a station up with its mailbox already at MBX_HEADER and CPUNO 1, without
+ * going through a control-store load: the derivation is Layer 12's subject, this
+ * layer's subject is what the servicer does once a mailbox is known.
+ */
+static void mbx_attach(NdbusNd5000 *nd, NdbusPool *pool, NdbusFabric *fabric)
+{
+    CHECK(ndbus_nd5000_init(nd, NDBUS_STATION_ND5000_FIRST, pool, NULL, NULL),
+          "a station at 070B for the mailbox servicer");
+    CHECK(ndbus_fabric_register(fabric, &nd->station), "registered on the fabric");
+    CHECK(ndbus_mailbox_attach(&nd->mailbox, pool, MBX_HEADER, 1),
+          "the mailbox attached at the header, CPUNO 1");
+    CHECK(ndbus_servicer_set_header(&nd->servicer, MBX_HEADER),
+          "the servicer told where the header is");
+    /* start_mess is what the poll and the GIVEINT tail test for a located
+     * mailbox. Layer 12 covers deriving it from the control store; here it is set
+     * directly, which is why MBX_BASE has to be non-zero. */
+    nd->start_mess = MBX_HEADER;
+}
+
+/* A stand-in process host, so the taken and declined paths can both be exercised
+ * without an ND-500 CPU in the test. */
+static int      s_start_calls;
+static uint32_t s_start_ctx_byte;
+static bool     s_start_take;
+
+static bool test_start_process(void *ctx, uint32_t msg_byte, uint16_t micfu, uint32_t ctx_byte)
+{
+    (void)ctx;
+    (void)msg_byte;
+    (void)micfu;
+    s_start_calls++;
+    s_start_ctx_byte = ctx_byte;
+    return s_start_take;
+}
+
+static void test_mailbox_servicer(void)
+{
+    printf("Layer 13: the mailbox servicer, ported from RetroCore's O1 oracle\n");
+
+    /* --- the N5STA gate, one case per RetroCore TestCase row ---------------- */
+    struct
+    {
+        uint16_t    n5sta;
+        uint16_t    micfu;
+        bool        expect_serviced;
+        const char *name;
+    } gate[] = {
+        { NDBUS_N5STA_TO_ND500, NDBUS_MICFU_RMICV, true,
+          "MSGN500 is serviced - the positive control" },
+        { 6u, NDBUS_MICFU_SWMESS, false,
+          "SWPPING with 3SWMESS is walked past - the measured stall" },
+        { 6u, NDBUS_MICFU_RMICV, false,
+          "SWPPING wins over an otherwise serviceable MICFU" },
+        { 7u, NDBUS_MICFU_SWMESS, false, "PSWWAIT is walked past too" },
+    };
+
+    for (size_t i = 0; i < sizeof gate / sizeof gate[0]; i++)
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for a gate row");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        mbx_build_message(&pool, gate[i].micfu, gate[i].n5sta);
+        mbx_replay_activation(&pool);
+        /* ACT51: every row rings the doorbell, so "not serviced" can never be
+         * "no doorbell". */
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        bool serviced = ndbus_nd5000_service_mailbox(&nd);
+
+        CHECK(mbx_read(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u) == 1u,
+              "X5ACT re-armed to 1 before the walk, so the walk provably ran");
+        CHECK(serviced == gate[i].expect_serviced, gate[i].name);
+        if (gate[i].expect_serviced)
+        {
+            CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+                  "the serviced message carries ANSWER(3)");
+        }
+        else
+        {
+            CHECK(mbx_msg_status(&pool) == gate[i].n5sta,
+                  "the refused message keeps its own N5STA untouched");
+            CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MICFU * 2u) == gate[i].micfu,
+                  "and its MICFU untouched");
+        }
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- the idle path ----------------------------------------------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the idle path");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+        mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
+        mbx_replay_activation(&pool);
+
+        /* X5ACT still -1: nothing pending, and nothing must happen. This is what
+         * a missing doorbell looks like, which is what makes every negative row
+         * above non-vacuous. */
+        CHECK(!ndbus_nd5000_service_mailbox(&nd),
+              "X5ACT idle: the poll does nothing");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_TO_ND500,
+              "and the message is left ToNd500");
+
+        /* Now ring it. No kick anywhere in this path. */
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+        CHECK(ndbus_nd5000_service_mailbox(&nd),
+              "X5ACT zero: the message is serviced with no kick at all");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "answered ANSWER(3)");
+
+        /* 3RMICV answers TWO halfwords: version into the N500A slot, CPU
+         * parameter into 10B. Microcode-verified 015332-015334. */
+        CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_N500A * 2u) ==
+                  NDBUS_SERVICER_MICRO_VERSION_DEFAULT,
+              "3RMICV wrote the microprogram version into the N500A slot");
+        CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_SWRST * 2u) ==
+                  NDBUS_SERVICER_CPU_PARAMETER_DEFAULT,
+              "3RMICV wrote the CPU parameter into word 10B");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- the answer ring -------------------------------------------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the answer ring");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+        mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
+        mbx_replay_activation(&pool);   /* leaves X5FYL at 1 */
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "the message is answered");
+        CHECK(mbx_read(&pool, MBX_HEADER + NDBUS_MBX_X5FYL_WORD * 2u) == 2u,
+              "X5FYL advanced by exactly one slot");
+
+        uint32_t slot = MBX_RING + 1u * 4u;
+        uint32_t stored = ((uint32_t)mbx_read(&pool, slot) << 16) |
+                          mbx_read(&pool, slot + 2u);
+        CHECK(stored == MBX_MSG,
+              "the answered message's own pointer is in the slot X5FYL named");
+        CHECK(mbx_read(&pool, MBX_HEADER + NDBUS_MBX_X5HEN_WORD * 2u) == 0u,
+              "X5HEN is the ND-100's drain index and is NOT touched");
+        CHECK(mbx_read(&pool, MBX_HEADER + NDBUS_MBX_X5SEM_WORD * 2u) ==
+                  NDBUS_MBX_X5SEM_FREE,
+              "X5SEM is released after the answer");
+        CHECK(nd.servicer.answer_ring_inserted == 1u, "one ring insert counted");
+        CHECK(nd.servicer.answer_sem_taken == 1u, "X5SEM was held across the answer");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- a full ring still answers ---------------------------------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the full ring");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+        mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
+        mbx_replay_activation(&pool);
+        /* X5FYL 1, X5HEN 2: the next slot is the drain index, so the ring is
+         * full. The microcode skips the insert and still interrupts. */
+        (void)ndbus_pool_write16(&pool, MBX_HEADER + NDBUS_MBX_X5FYL_WORD * 2u, 1);
+        (void)ndbus_pool_write16(&pool, MBX_HEADER + NDBUS_MBX_X5HEN_WORD * 2u, 2);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "a full ring still answers");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "N5STA is still ANSWER(3)");
+        CHECK(mbx_read(&pool, MBX_HEADER + NDBUS_MBX_X5FYL_WORD * 2u) == 1u,
+              "X5FYL unchanged on a full ring");
+        CHECK(nd.servicer.answer_ring_skipped_full == 1u,
+              "and the skip is COUNTED, not silent");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- the GIVEINT answer frame, composed from the captured 5OMDNO ------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the GIVEINT frame");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        /* LSYSPAR word 1 = 0x0108: ident byte 1, 5OMDNO 8 - the value RetroCore's
+         * FullPath_AnswerSendsGiveintFrame_FromCaptured5Omdno asserts as its
+         * precondition. NEVER HARDCODE THE FRAME: it is composed from this. */
+        nd.lsyspar_word1 = 0x0108u;
+
+        mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "the message is answered");
+        CHECK(nd.giveint_frames == 1u, "one GIVEINT frame was handed to the fabric");
+        /* (0x0108 AND 0x3F00) OR 0x8001 = 0x8101 = 100401B, the word observed on
+         * the live machine. No shift: microcode 025440-025441 has none. */
+        CHECK(nd.last_giveint_frame == 0x8101u,
+              "the frame is (word1 AND 0x3F00) OR 0x8001 = 100401B");
+        CHECK((nd.last_giveint_frame & 0x8000u) == 0x8000u, "C bit set");
+        CHECK(((nd.last_giveint_frame >> 8) & 0x3Fu) == 1u,
+              "destination station 1 - the ND-100");
+        CHECK((nd.last_giveint_frame & 0x00FFu) == 0x0001u, "information byte 1");
+
+        /* And the failure RetroCore measures on its own configuration: 5OMDNO 3
+         * composes to destination station 0, which the fabric drops. Asserted so
+         * the arithmetic is pinned in BOTH directions rather than only the one
+         * that works. */
+        nd.lsyspar_word1 = 0x0003u;
+        mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "it still answers");
+        CHECK(nd.last_giveint_frame == 0x8001u,
+              "5OMDNO 3 composes to 0x8001 - destination station 0");
+        CHECK(((nd.last_giveint_frame >> 8) & 0x3Fu) == 0u,
+              "which is the station the fabric drops - RetroCore's measured defect");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- no mailbox located: the poll refuses ----------------------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the unlocated case");
+        NdbusNd5000 nd;
+        CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+              "a station with no mailbox derived yet");
+        mbx_init_structures(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+        CHECK(!ndbus_nd5000_service_mailbox(&nd),
+              "with no mailbox located the poll does nothing at all");
+        CHECK(nd.service_polls == 0u,
+              "and does not even count as a poll - there is nothing to poll");
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- a two-node chain, which no live trace has yet produced ------------ */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the chain walk");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        /* Head at MBX_MSG links to a second block; the second ends the chain.
+         * RetroCore's own note: every live trace so far chains exactly ONE
+         * message, so multi-node chains are test-covered only. */
+        const uint32_t second = MBX_MSG + 0x200u;
+        mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 0u, (uint16_t)(second >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 2u, (uint16_t)(second & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, second + 0u, 0xFFFFu);
+        (void)ndbus_pool_write16(&pool, second + 2u, 0xFFFFu);
+        (void)ndbus_pool_write16(&pool, second + NDBUS_MSG_N5STA * 2u,
+                                 NDBUS_N5STA_TO_ND500);
+        (void)ndbus_pool_write16(&pool, second + NDBUS_MSG_MICFU * 2u,
+                                 NDBUS_MICFU_RMICV);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "the chain is serviced");
+        CHECK(nd.servicer.nodes_walked == 2u, "both nodes were walked");
+        CHECK(nd.servicer.messages_answered == 2u, "both were answered");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "the head answered");
+        CHECK((ndbus_pool_read16(&pool, second + NDBUS_MSG_N5STA * 2u) &
+               NDBUS_N5STA_MASK) == NDBUS_N5STA_ANSWER,
+              "and so did the second node the LINK pointed at");
+        CHECK(nd.servicer.answer_ring_inserted == 2u, "two ring inserts");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- an unported MICFU answers 5ERANSWER, and is counted -------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the 5ERANSWER case");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        /* 21B 3WREG. 5ERANSWER(4) here is not a gap in this port - it is what the
+         * ND-5000 itself answers, because 3WREG is MSG_ILLEG in both 5800 listings
+         * (B30 @015245, A30 @014261). The histogram must still say 21B arrived,
+         * which is how the next code to port gets chosen from a measurement rather
+         * than a guess.
+         *
+         * NOT 23B 3START: that is a start-class code and answers ANSWER(3) on the
+         * declined path, covered separately below. */
+        mbx_build_message(&pool, NDBUS_MICFU_WREG, NDBUS_N5STA_TO_ND500);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "an unported MICFU is still answered");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+              "with 5ERANSWER(4), not ANSWER(3)");
+        CHECK(nd.servicer.messages_declined == 1u, "the decline is counted");
+        CHECK(nd.servicer.micfu_counts[NDBUS_MICFU_WREG] == 1u,
+              "and the histogram records WHICH code arrived");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- the power-fail bits survive an answer ---------------------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the power-fail bits");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        /* 160000B in N5STA's top bits belongs to the ND-100 driver. The answer
+         * must not clear it. */
+        mbx_build_message(&pool, NDBUS_MICFU_RMICV,
+                          (uint16_t)(NDBUS_N5STA_PF_MASK | NDBUS_N5STA_TO_ND500));
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd),
+              "a message carrying power-fail flags is still ours");
+        uint16_t sta = ndbus_pool_read16(&pool, MBX_MSG + NDBUS_MSG_N5STA * 2u);
+        CHECK((sta & NDBUS_N5STA_MASK) == NDBUS_N5STA_ANSWER, "answered ANSWER(3)");
+        CHECK((sta & NDBUS_N5STA_PF_MASK) == NDBUS_N5STA_PF_MASK,
+              "and the power-fail bits were preserved, not cleared");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- 12B CACHE and 22B STARTP0 both answer ANSWER(3) ------------------- */
+    {
+        struct
+        {
+            uint16_t    micfu;
+            const char *name;
+        } accepted[] = {
+            { NDBUS_MICFU_CACHE,
+              "12B CACHE answers ANSWER(3) - a 5ERANSWER here aborts the swapper load" },
+            { NDBUS_MICFU_STARTP0, "22B STARTP0 answers ANSWER(3) like the microcode's MSG_END" },
+        };
+
+        for (size_t i = 0; i < sizeof accepted / sizeof accepted[0]; i++)
+        {
+            NdbusPool pool;
+            CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for an accepted MICFU");
+            NdbusFabric fabric;
+            ndbus_fabric_init(&fabric, NULL);
+            NdbusNd5000 nd;
+            mbx_init_structures(&pool);
+            mbx_attach(&nd, &pool, &fabric);
+
+            mbx_build_message(&pool, accepted[i].micfu, NDBUS_N5STA_TO_ND500);
+            mbx_replay_activation(&pool);
+            (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+            CHECK(ndbus_nd5000_service_mailbox(&nd), "it is serviced");
+            CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, accepted[i].name);
+            CHECK(nd.servicer.messages_declined == 0u, "and nothing was declined");
+
+            ndbus_nd5000_destroy(&nd);
+            ndbus_pool_destroy(&pool);
+        }
+    }
+
+    /* --- the copy family, byte-exact -------------------------------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the copy family");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        const uint32_t target = MBX_BASE + 0x2000u;  /* addrA, the ND-500 side */
+        const uint32_t buffer = MBX_BASE + 0x2400u;  /* addrB, the buffer side */
+
+        /* THE EXACT DEFECT ROUNDING CAUSED. A 2-byte write must leave the NEXT
+         * halfword alone: RetroCore rounded the count up to 4 here and overwrote a
+         * live capability in that halfword, which turned a domain's data segment
+         * read-only and produced four unrelated-looking symptoms. */
+        (void)ndbus_pool_write16(&pool, buffer + 0u, 0xC00Cu);
+        (void)ndbus_pool_write16(&pool, buffer + 2u, 0x1111u);
+        (void)ndbus_pool_write16(&pool, target + 0u, 0x0000u);
+        (void)ndbus_pool_write16(&pool, target + 2u, 0x000Bu);
+
+        mbx_build_message(&pool, NDBUS_MICFU_RESIWR, NDBUS_N5STA_TO_ND500);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 14u, (uint16_t)(target >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 16u, (uint16_t)(target & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 18u, (uint16_t)(buffer >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 20u, (uint16_t)(buffer & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 22u, 2u);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "14B RESIWR is serviced");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "and answered ANSWER(3)");
+        CHECK(mbx_read(&pool, target + 0u) == 0xC00Cu, "the two bytes asked for were written");
+        CHECK(mbx_read(&pool, target + 2u) == 0x000Bu,
+              "and the NEXT halfword is untouched - the count is never rounded up");
+        CHECK(nd.servicer.copies_done == 1u && nd.servicer.copy_bytes == 2u,
+              "one copy of exactly two bytes counted");
+
+        /* An odd count of 1 must leave the other byte of the halfword alone. */
+        (void)ndbus_pool_write16(&pool, buffer + 0u, 0xAA55u);
+        (void)ndbus_pool_write16(&pool, target + 0u, 0x1234u);
+        mbx_build_message(&pool, NDBUS_MICFU_RESIWR, NDBUS_N5STA_TO_ND500);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 14u, (uint16_t)(target >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 16u, (uint16_t)(target & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 18u, (uint16_t)(buffer >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 20u, (uint16_t)(buffer & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 22u, 1u);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "a one-byte copy is serviced");
+        CHECK(mbx_read(&pool, target + 0u) == 0xAA34u,
+              "the high byte came from the source and the low byte survived");
+
+        /* A READ moves the other way: target A -> buffer B. */
+        (void)ndbus_pool_write16(&pool, target + 0u, 0x7788u);
+        (void)ndbus_pool_write16(&pool, buffer + 0u, 0x0000u);
+        mbx_build_message(&pool, NDBUS_MICFU_RESIRD, NDBUS_N5STA_TO_ND500);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 14u, (uint16_t)(target >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 16u, (uint16_t)(target & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 18u, (uint16_t)(buffer >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 20u, (uint16_t)(buffer & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 22u, 2u);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "13B RESIRD is serviced");
+        CHECK(mbx_read(&pool, buffer + 0u) == 0x7788u, "a READ moves A into B");
+
+        /* A transfer that leaves the pool is refused, not silently zero-filled. */
+        mbx_build_message(&pool, NDBUS_MICFU_RESIWR, NDBUS_N5STA_TO_ND500);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 14u, 0xFFFFu);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 16u, 0xF000u);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 18u, (uint16_t)(buffer >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 20u, (uint16_t)(buffer & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 22u, 16u);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "an out-of-pool copy still answers");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+              "with 5ERANSWER(4), because the transfer did not happen");
+        CHECK(nd.servicer.copies_refused == 1u, "and the refusal is counted");
+
+        /* PHYSWR with no PST base known: the fallback happens and is COUNTED, so a
+         * transfer that may have landed in the wrong cell is never silent. */
+        CHECK(nd.servicer.pst_base == 0u, "no physical segment table base is known");
+        mbx_build_message(&pool, NDBUS_MICFU_PHYSWR, NDBUS_N5STA_TO_ND500);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 14u, (uint16_t)(target >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 16u, (uint16_t)(target & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 18u, (uint16_t)(buffer >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 20u, (uint16_t)(buffer & 0xFFFFu));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 22u, 2u);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_MSWMC * 2u, 10u);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "31B PHYSWR is serviced");
+        CHECK(nd.servicer.segment_unresolved == 1u,
+              "the unresolved segment is counted, never silently treated as flat");
+        CHECK(nd.servicer.segment_resolved == 0u, "and nothing was resolved");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
+    /* --- the start class: taken means NOT answered -------------------------- */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the start class");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        mbx_init_structures(&pool);
+        mbx_attach(&nd, &pool, &fabric);
+
+        /* With no context area known the start is DECLINED and answered the no-CPU
+         * way - counted, so a run where no process ever started cannot read as
+         * healthy. */
+        CHECK(nd.servicer.context_area_base == 0u, "no context block area is known yet");
+        mbx_build_message(&pool, NDBUS_MICFU_START, NDBUS_N5STA_TO_ND500);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "23B 3START is answered when declined");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+              "with ANSWER(3) - the answer a station with no CPU behind it gives");
+        CHECK(nd.servicer.starts_seen == 1u && nd.servicer.starts_declined == 1u,
+              "the start was seen and the decline counted");
+        CHECK(nd.servicer.starts_taken == 0u, "and nothing was taken");
+
+        /* Now with a context area AND a host that takes it: the message must be
+         * left WAITING and NOT answered, because the process's stop answers it. */
+        CHECK(ndbus_servicer_set_context_area(&nd.servicer, MBX_BASE + 0x3000u),
+              "the context block area is set");
+        s_start_calls = 0;
+        s_start_ctx_byte = 0;
+        s_start_take = true;
+        nd.servicer.host.start_process = test_start_process;
+        nd.servicer.host.ctx = NULL;
+
+        mbx_build_message(&pool, NDBUS_MICFU_START, NDBUS_N5STA_TO_ND500);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_X5CPU * 2u, 1);
+        mbx_replay_activation(&pool);
+        (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+        CHECK(!ndbus_nd5000_service_mailbox(&nd),
+              "a taken start reports NOTHING ANSWERED");
+        CHECK(s_start_calls == 1, "the process host was asked exactly once");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_WAITING,
+              "and the message is left WAITING for the process's own stop");
+        CHECK(nd.servicer.starts_taken == 1u, "the take is counted");
+
+        /* The context block address is area + 400B + X5CPU * 400B, and X5CPU is
+         * ZERO-BASED - passing the mailbox's one-based CPUNO here would hand the
+         * process its neighbour's registers without faulting. */
+        CHECK(s_start_ctx_byte == MBX_BASE + 0x3000u + 256u + 256u,
+              "the context block is area + 400B + X5CPU * 400B, X5CPU zero-based");
+
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -1986,6 +3151,9 @@ int main(void)
 #endif
     test_bringup();
     test_captured_sintran_frames();
+    test_test_protocol();
+    test_control_store_load();
+    test_mailbox_servicer();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)
