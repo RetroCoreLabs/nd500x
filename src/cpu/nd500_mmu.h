@@ -361,6 +361,16 @@ uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr);
  * (the XMSG rings in the kernel's segment 6, reached from the clock tick). */
 uint32_t nd500_mmu_peek_domain(Nd500Cpu* cpu, uint32_t virtual_addr,
                                uint8_t domain);
+
+/* Same again, but naming the SPACE as well as the domain. The program and data
+ * capability tables are two halves of one 256-byte block (program at +0, data at
+ * +64), so a peek at an instruction address through the data table resolves a
+ * different physical segment and reports bytes the CPU never fetched - measured
+ * 30-SEP-2026, where it returned an all-zero page for code the CPU was executing
+ * correctly. is_instruction != 0 selects the program table and the program MMU
+ * enable flag. Trap-free and state-free, like the other two. */
+uint32_t nd500_mmu_peek_space(Nd500Cpu* cpu, uint32_t virtual_addr, uint8_t domain,
+                              int is_instruction);
 uint32_t nd500_mmu_phyladr(Nd500Cpu* cpu, uint32_t virtual_addr);
 
 /* PST Accessors */

@@ -1132,8 +1132,19 @@ uint32_t nd500_mmu_peek(Nd500Cpu* cpu, uint32_t virtual_addr) {
  */
 uint32_t nd500_mmu_peek_domain(Nd500Cpu* cpu, uint32_t virtual_addr,
                                uint8_t domain) {
+    /* Data space, which is what every existing caller wants. */
+    return nd500_mmu_peek_space(cpu, virtual_addr, domain, 0);
+}
+
+uint32_t nd500_mmu_peek_space(Nd500Cpu* cpu, uint32_t virtual_addr, uint8_t domain,
+                              int is_instruction) {
     if (!cpu) return 0xFFFFFFFFu;
-    if (!cpu->mmu->data_enabled) return virtual_addr; /* MMU off: identity */
+    /* The switch that governs THIS space - the two are independent on the ND-500
+     * and a peek that tested the data flag for a program address reported an
+     * identity mapping for a translated fetch. */
+    if (!(is_instruction ? cpu->mmu->program_enabled : cpu->mmu->data_enabled)) {
+        return virtual_addr; /* MMU off for this space: identity */
+    }
     if (!cpu->mmu->pst || !cpu->mmu->pcb_table) return 0xFFFFFFFFu;
 
     int segment  = (virtual_addr >> SGSHIFT) & 0x1F;
@@ -1151,12 +1162,19 @@ uint32_t nd500_mmu_peek_domain(Nd500Cpu* cpu, uint32_t virtual_addr,
 
     uint16_t capability;
     if (use_guest) {
-        uint32_t cap_addr = cpu->DITBASE + (uint32_t)domain * 256u + 64u
+        /* The PROGRAM table is at +0 and the DATA table at +64 inside the same
+         * 256-byte block - ND-05.020.01 ch.6, 64 bytes each, two bytes per
+         * segment. Reading the data table for an instruction address names a
+         * different physical segment entirely. */
+        uint32_t cap_addr = cpu->DITBASE + (uint32_t)domain * 256u
+                          + (is_instruction ? 0u : 64u)
                           + (uint32_t)segment * 2u;
         capability = (uint16_t)(((uint32_t)nd500_bus_read8(cpu->machine, cap_addr) << 8)
                               |  (uint32_t)nd500_bus_read8(cpu->machine, cap_addr + 1));
     } else {
-        capability = cpu->mmu->pcb_table[domain].data_capabilities[segment];
+        capability = is_instruction
+                   ? cpu->mmu->pcb_table[domain].program_capabilities[segment]
+                   : cpu->mmu->pcb_table[domain].data_capabilities[segment];
     }
     if (capability == 0) return 0xFFFFFFFFu;
 
