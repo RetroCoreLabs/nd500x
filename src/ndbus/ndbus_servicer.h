@@ -93,6 +93,21 @@
 
 /** @brief Longest chain the walk follows before giving up. An emulator guard
  *  against a cycle, not microcode behaviour - the microcode only tests for -1. */
+/** How many block copies are named in the log before it falls silent. A count says
+ *  a transfer happened; only the address says whether it went where the guest
+ *  meant. */
+#define NDBUS_SERVICER_COPY_LOG_LIMIT 24u
+
+/** How many ND-5000 processes one mailbox can carry, one message remembered each.
+ *  The extension blocks run CPUNO 1..7, so 8 covers a zero-based X5CPU. */
+#define NDBUS_SERVICER_MAX_PROCESSES 8u
+
+/** STOPR value that says "this process stopped on a trap" - TRAPCODE. */
+#define NDBUS_STOPR_TRAPCODE 2u
+
+/** Trap 46B, the page fault. The only stop trap with the TRAP_GEN4 record layout. */
+#define NDBUS_TRAP_PAGE_FAULT 0x26u
+
 #define NDBUS_SERVICER_MAX_CHAIN 64
 
 /** @brief MICFU codes the histogram counts. */
@@ -203,6 +218,19 @@ typedef struct NdbusServicer
     /** How many of each MICFU reached the switch, so the next code to port is
      *  measured. Codes at or above NDBUS_SERVICER_MICFU_COUNTS are not counted. */
     unsigned long micfu_counts[NDBUS_SERVICER_MICFU_COUNTS];
+
+    /** The activation message of each started process, indexed by X5CPU and NEVER
+     *  cleared - see ndbus_servicer_answer_trap_stop() for the two measured ways a
+     *  single "active message" field gets this wrong. */
+    uint32_t      process_msg[NDBUS_SERVICER_MAX_PROCESSES];
+
+    unsigned long trap_stops_attempted; /**< counted before anything can refuse */
+    unsigned long trap_stops_posted;    /**< records actually written */
+    unsigned long trap_stops_declined;  /**< no message recorded for that X5CPU */
+    unsigned long page_faults_posted;   /**< of those, 46B records */
+    uint16_t      last_trap_number;
+    uint32_t      last_trap_pc;
+    uint32_t      last_trap_address;
 
     /* Block-copy diagnostics. */
     unsigned long copies_done;         /**< copy-family transfers performed */
@@ -341,6 +369,37 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte);
  * @return true when at least one message was executed and answered.
  */
 bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte);
+
+/**
+ * @brief Tell SINTRAN that a process stopped on a trap, by writing the trap record
+ *        into that process's own activation message and answering it in place.
+ *
+ * THIS IS THE ONLY WAY SINTRAN LEARNS THE ND-5000 TRAPPED. Without it the process
+ * parks and the monitor eventually reports that the swapper stopped, with STOPR and
+ * TRAPN both zero, so the swapper has no fault address to page in.
+ *
+ * The record is the B30 one, which is NOT the ND-500 one - an earlier reading that
+ * the two layouts were identical was wrong. Common header: STOPR := TRAPCODE, the
+ * saved P in halfwords 0o12-0o13 and again 0o14-0o15, TRAPN := the trap number, and
+ * the fault logical address at 0o17-0o20 for every stop trap. Then 46B puts the
+ * physical segment at 0o21 and the MMS status at 0o22-0o23, while every other stop
+ * trap puts the MMS status at 0o21-0o22 and the physical segment at 0o25.
+ *
+ * @param sv               The servicer.
+ * @param x5cpu            Which process trapped, zero-based, as X5CPU numbers them.
+ * @param trap_number      The ND trap number, e.g. NDBUS_TRAP_PAGE_FAULT.
+ * @param trapping_pc      The address to RESUME at - for a retryable fault that is
+ *                         the faulting instruction, not the one after it.
+ * @param trap_address     The logical address that faulted.
+ * @param mms_status       The composed memory-management status word.
+ * @param physical_segment The physical segment the fault resolved against.
+ * @return true once the record is written and the message answered; false when the
+ *         servicer has no message recorded for that X5CPU, which is counted and
+ *         logged rather than passed over.
+ */
+bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t trap_number,
+                                     uint32_t trapping_pc, uint32_t trap_address,
+                                     uint32_t mms_status, uint16_t physical_segment);
 
 /**
  * @brief Tell the servicer where the ND-500 physical segment table is.

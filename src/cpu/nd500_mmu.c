@@ -407,6 +407,31 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
             /* Check if page is present (valid bit must be set) */
             if (!pte.valid) {
                 MMU_ERR("[MMU] TRAP: PS_ASI page not valid! vaddr=0x%08X pte_addr=0x%08X\n", virtual_addr, pte_addr);
+                /* ONE-SHOT: show the table around the empty slot. A zero entry cannot
+                 * say whether the table is in the wrong place, on the wrong stride, or
+                 * genuinely unmapped, and the three call for different fixes. */
+                {
+                    static int shown = 0;
+                    if (!shown) {
+                        shown = 1;
+                        fprintf(stderr, "[MMU] page table 0x%08X around entry %d:\n",
+                                page_table_base, l2_index);
+                        for (int row = -2; row <= 2; row++) {
+                            uint32_t a = pte_addr + (uint32_t)(row * 16);
+                            fprintf(stderr, "[MMU]   0x%08X:", a);
+                            for (int k = 0; k < 16; k += 4) {
+                                uint32_t w = ((uint32_t)nd500_bus_read8(cpu->machine, a+k)   << 24)
+                                           | ((uint32_t)nd500_bus_read8(cpu->machine, a+k+1) << 16)
+                                           | ((uint32_t)nd500_bus_read8(cpu->machine, a+k+2) << 8)
+                                           |  (uint32_t)nd500_bus_read8(cpu->machine, a+k+3);
+                                fprintf(stderr, " %08X", w);
+                            }
+                            fprintf(stderr, "\n");
+                        }
+                        fprintf(stderr, "[MMU]   capability used: seg=%d psn=%d domain=%d is_instr=%d\n",
+                                segment, psn, domain, is_instruction);
+                    }
+                }
                 {   static int pgfd = -1;
                     if (pgfd < 0) pgfd = nd500_settings()->pgfdbg;
                     if (pgfd) fprintf(stderr, "[PGFSITE] ASI-PTE dom=%d seg=%d psn=%d va=0x%08X pte@0x%08X\n",

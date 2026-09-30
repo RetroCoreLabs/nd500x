@@ -3601,6 +3601,149 @@ static void test_doorbell_sniff_rules(void)
     ndbus_pool_destroy(&pool);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Layer 17: the trap-stop record, which is how SINTRAN learns the CPU faulted.*/
+/*                                                                            */
+/* Ported from RetroCore Nd500MicrocodeServicer.AnswerTrapStop, B30 arm. The   */
+/* ND-500 and ND-5000 records are NOT the same layout; only the B30 one is     */
+/* asserted here, because that is the generation this station fronts.          */
+/* -------------------------------------------------------------------------- */
+static void test_trap_stop_record(void)
+{
+    printf("Layer 17: the B30 trap-stop record\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the trap-stop record");
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+    NdbusNd5000 nd;
+    mbx_init_structures(&pool);
+    mbx_attach(&nd, &pool, &fabric);
+
+    /* --- with no process started, a trap stop is refused and says so --------- */
+    CHECK(!ndbus_servicer_answer_trap_stop(&nd.servicer, 1u, NDBUS_TRAP_PAGE_FAULT,
+                                          0x08000016u, 0x08012818u, 0x8000000Du, 2u),
+          "a trap stop with no message recorded for that process is refused");
+    CHECK(nd.servicer.trap_stops_attempted == 1u, "the attempt is counted before the refusal");
+    CHECK(nd.servicer.trap_stops_declined == 1u, "and the refusal is counted, not silent");
+    CHECK(nd.servicer.trap_stops_posted == 0u, "nothing was written");
+
+    /* --- take a start so the process's message is recorded ------------------- */
+    nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+    s_start_calls = 0;
+    s_start_ctx_byte = 0;
+    s_start_take = true;
+    (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+    mbx_build_message(&pool, NDBUS_MICFU_START, NDBUS_N5STA_TO_ND500);
+    mbx_replay_activation(&pool);
+    (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+    /* A TAKEN start reports "nothing answered" - that is the point of it. */
+    CHECK(!ndbus_nd5000_service_mailbox(&nd), "the 23B start is taken, so nothing is answered");
+    CHECK(nd.servicer.starts_taken == 1u, "and it is counted as taken");
+    CHECK(nd.servicer.process_msg[1] == MBX_MSG,
+          "the started process's own message is remembered, indexed by its X5CPU of 1");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_WAITING,
+          "and the message is left WAITING, not answered");
+
+    /* --- 46B PAGE FAULT: the TRAP_GEN4 record ------------------------------- */
+    const uint32_t pc   = 0x08000016u;   /* measured: the swapper's 11th instruction */
+    const uint32_t la   = 0x08012818u;   /* measured: the data address that faulted  */
+    const uint32_t mms  = 0xA000000Du;   /* write access, MMWHERE = PFZPST           */
+    const uint16_t psn  = 2u;
+
+    CHECK(ndbus_servicer_answer_trap_stop(&nd.servicer, 1u, NDBUS_TRAP_PAGE_FAULT, pc, la, mms,
+                                         psn),
+          "a 46B page fault is posted on the started process's message");
+    CHECK(nd.servicer.trap_stops_posted == 1u, "and counted as posted");
+    CHECK(nd.servicer.page_faults_posted == 1u, "and counted as a page fault specifically");
+
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_STOPR * 2u) == NDBUS_STOPR_TRAPCODE,
+          "STOPR says TRAPCODE - the process stopped on a trap");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_TRAPN * 2u) == NDBUS_TRAP_PAGE_FAULT,
+          "TRAPN carries 46B");
+
+    /* The saved P goes in TWICE: 0o12-0o13 and again 0o14-0o15. A record that
+     * wrote it once leaves SINTRAN reading zero from whichever pair it uses. */
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_NUMPA * 2u) == (uint16_t)(pc >> 16),
+          "the saved P high half is at 0o12");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MCNO * 2u) == (uint16_t)(pc & 0xFFFF),
+          "and its low half at 0o13");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MSWMC * 2u) == (uint16_t)(pc >> 16),
+          "the SAME P appears again at 0o14");
+    CHECK(mbx_read(&pool, MBX_MSG + (NDBUS_MSG_MSWMC + 1u) * 2u) == (uint16_t)(pc & 0xFFFF),
+          "and at 0o15");
+
+    /* On the B30 the fault logical address is at 0o17-0o20 for EVERY stop trap. */
+    CHECK(mbx_read(&pool, MBX_MSG + 0x0Fu * 2u) == (uint16_t)(la >> 16),
+          "the fault logical address high half is at 0o17");
+    CHECK(mbx_read(&pool, MBX_MSG + 0x10u * 2u) == (uint16_t)(la & 0xFFFF),
+          "and its low half at 0o20");
+
+    /* 46B ONLY: physical segment at 0o21, MMS status at 0o22-0o23. */
+    CHECK(mbx_read(&pool, MBX_MSG + 0x11u * 2u) == psn,
+          "46B puts the physical segment at 0o21");
+    CHECK(mbx_read(&pool, MBX_MSG + 0x12u * 2u) == (uint16_t)(mms >> 16),
+          "and the MMS status high half at 0o22");
+    CHECK(mbx_read(&pool, MBX_MSG + 0x13u * 2u) == (uint16_t)(mms & 0xFFFF),
+          "and its low half at 0o23");
+
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "and the message is answered in place, which is what wakes SINTRAN");
+
+    /* --- A SECOND FAULT ON THE SAME PROCESS MUST ALSO BE POSTED -------------
+     *
+     * This is the case a single cleared-on-answer "active message" field gets
+     * wrong, and RetroCore measured what it cost: two faults at one PC one byte
+     * apart, the first taken and the second REFUSED, and the refusal crashed the
+     * CPU because a page fault is classified fatal. The message is remembered per
+     * process and never cleared, so the second post lands. */
+    CHECK(ndbus_servicer_answer_trap_stop(&nd.servicer, 1u, NDBUS_TRAP_PAGE_FAULT, pc + 1u,
+                                         la + 1u, mms, psn),
+          "a second fault on the same process is posted, not refused");
+    CHECK(nd.servicer.trap_stops_posted == 2u, "both posts are counted");
+    CHECK(nd.servicer.trap_stops_declined == 1u, "and nothing was declined the second time");
+    CHECK(mbx_read(&pool, MBX_MSG + 0x10u * 2u) == (uint16_t)((la + 1u) & 0xFFFF),
+          "the second record overwrote the first with its own fault address");
+
+    /* --- EVERY OTHER STOP TRAP USES THE OTHER LAYOUT ------------------------
+     *
+     * TRAP_GEN3: the MMS status moves to 0o21-0o22 and the physical segment to
+     * 0o25. Asserting this is what stops the two records being merged back into
+     * one "identical layout" - the reading that was already corrected once. */
+    const uint16_t protect_violation = 0x24u;   /* 44B */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x11u * 2u, 0u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x12u * 2u, 0u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x13u * 2u, 0u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x15u * 2u, 0u);
+
+    CHECK(ndbus_servicer_answer_trap_stop(&nd.servicer, 1u, protect_violation, pc, la, mms, psn),
+          "a 44B protect violation is posted too");
+    CHECK(nd.servicer.page_faults_posted == 2u,
+          "but it is NOT counted as a page fault - only 46B is");
+    CHECK(mbx_read(&pool, MBX_MSG + 0x11u * 2u) == (uint16_t)(mms >> 16),
+          "44B puts the MMS status high half at 0o21, where 46B put the segment");
+    CHECK(mbx_read(&pool, MBX_MSG + 0x12u * 2u) == (uint16_t)(mms & 0xFFFF),
+          "and its low half at 0o22");
+    CHECK(mbx_read(&pool, MBX_MSG + 0x15u * 2u) == psn,
+          "and the physical segment at 0o25");
+    CHECK(mbx_read(&pool, MBX_MSG + 0x13u * 2u) == 0u,
+          "0o23 is left alone - it is the 46B record's slot, not this one's");
+
+    /* The fault logical address is in the same place for both. */
+    CHECK(mbx_read(&pool, MBX_MSG + 0x0Fu * 2u) == (uint16_t)(la >> 16),
+          "and 0o17-0o20 still carries the fault address, as it does for every stop trap");
+
+    /* An X5CPU past the mailbox's own process count is refused rather than
+     * indexing off the end of the array. */
+    CHECK(!ndbus_servicer_answer_trap_stop(&nd.servicer, NDBUS_SERVICER_MAX_PROCESSES,
+                                          NDBUS_TRAP_PAGE_FAULT, pc, la, mms, psn),
+          "an X5CPU outside the process array is refused");
+
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -3628,6 +3771,7 @@ int main(void)
     test_accp_guard_matrix();
     test_copy_family_refusals();
     test_doorbell_sniff_rules();
+    test_trap_stop_record();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)

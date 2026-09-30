@@ -45,6 +45,8 @@
  *  arithmetic (slot = ringbase + fill * 4). */
 #define RING_SLOT_BYTES 4u
 
+static void answer_message_in_place(NdbusServicer *sv, uint32_t msg_byte, uint16_t answer);
+
 static void servicer_log(const NdbusServicer *sv, const char *message)
 {
     if (sv->host.log != NULL)
@@ -395,6 +397,22 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
         (void)write16(sv, dst + whole, merged);
     }
 
+    sv->copies_done++;
+    sv->copy_bytes += count;
+
+    /* SAY WHERE EVERY TRANSFER LANDED, for the first few. A count of arrivals says
+     * a transfer happened; it cannot say whether it went where the guest meant, and
+     * naming the cell is what turned "13 trap-config writes" into "13 page-table
+     * entries" on the measured run of 30-SEP-2026. */
+    if (sv->copies_done <= NDBUS_SERVICER_COPY_LOG_LIMIT)
+    {
+        char line[160];
+        (void)snprintf(line, sizeof line,
+                       "mailbox copy #%lu: %u bytes 0x%06X -> 0x%06X",
+                       sv->copies_done, (unsigned)count, (unsigned)src, (unsigned)dst);
+        servicer_log(sv, line);
+    }
+
     /* LEARN THE DIT BASE FROM THE WRITE ITSELF.
      *
      * The write has to be watched HERE, in the engine, and not in the PHYSWR arm of
@@ -416,8 +434,6 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
         }
     }
 
-    sv->copies_done++;
-    sv->copy_bytes += count;
     return true;
 }
 
@@ -631,6 +647,14 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
             if (sv->host.start_process(sv->host.ctx, msg_byte, micfu, ctx_byte))
             {
                 sv->starts_taken++;
+                /* REMEMBER THIS PROCESS'S MESSAGE. A trap in the started process is
+                 * answered on this very message, in place - see
+                 * ndbus_servicer_answer_trap_stop(). Recorded per X5CPU and never
+                 * cleared, so a process that faults twice running still has one. */
+                if (x5cpu < NDBUS_SERVICER_MAX_PROCESSES)
+                {
+                    sv->process_msg[x5cpu] = msg_byte;
+                }
                 /* Left WAITING on purpose, and NOT answered. Returning false says
                  * "nothing was answered"; the chain walk carries on regardless
                  * because it captured the link before serving this node. */
@@ -679,6 +703,26 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
             servicer_log(sv, line);
         }
     }
+
+    answer_message_in_place(sv, msg_byte, answer);
+
+    return true;
+}
+
+/**
+ * Write a message's answer status and ring the ND-100, the way the GIVEINT tail of
+ * the microcode does.
+ *
+ * Extracted so the trap-stop answer below uses THE SAME tail as an ordinary
+ * micro-function answer. Two copies of a semaphore-take, ring-insert and release
+ * would be two places for the ring to drift out of step with X5FYL.
+ *
+ * The power-fail bits of N5STA (15-13) are preserved - they are not ours to clear.
+ */
+static void answer_message_in_place(NdbusServicer *sv, uint32_t msg_byte, uint16_t answer)
+{
+    uint32_t sta_offset = msg_word(msg_byte, NDBUS_MSG_N5STA);
+    uint16_t sta_pf_bits = (uint16_t)(read16(sv, sta_offset) & NDBUS_N5STA_PF_MASK);
 
     if (sv->header_base == 0u)
     {
@@ -738,7 +782,95 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
     {
         sv->host.answer_written(sv->host.ctx, msg_byte);
     }
+}
 
+bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t trap_number,
+                                     uint32_t trapping_pc, uint32_t trap_address,
+                                     uint32_t mms_status, uint16_t physical_segment)
+{
+    if (sv == NULL || sv->pool == NULL || x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    {
+        return false;
+    }
+
+    sv->trap_stops_attempted++;
+
+    /* ANSWER ON THE FAULTING PROCESS'S OWN MESSAGE, and keep one per process.
+     *
+     * RetroCore measured both ways this goes wrong with a single "active message"
+     * field. CLEARED: the field is cleared as soon as any message is answered, so a
+     * process that faults twice in a row - answered, restarted, faults again -
+     * found it zero and the second post was REFUSED; on CPU-STAT that was two
+     * faults at one PC one byte apart, took=true then took=false, and the refusal
+     * crashed the CPU because a page fault is classified fatal. WRONG: with two
+     * processes live the field can be non-zero and name the OTHER process, which is
+     * what rejected 46 monitor calls. A "fall back only when it is zero" test
+     * cannot catch the second case, because it never is zero.
+     *
+     * The microcode has no such ambiguity - it answers the process's OWN activation
+     * message in place, one per process (MESSBUFF) - so this keeps an array indexed
+     * by X5CPU and never clears it. */
+    uint32_t msg_byte = sv->process_msg[x5cpu];
+    if (msg_byte == 0u)
+    {
+        /* A DECLINE MUST NOT BE SILENT. The CPU posts 46B at the process's entry
+         * and SINTRAN is told it stopped for no reason - STOPR and TRAPN both zero
+         * - so the swapper has no fault address to page in and the monitor reports
+         * that the swapper stopped. */
+        sv->trap_stops_declined++;
+        char line[160];
+        (void)snprintf(line, sizeof line,
+                       "mailbox trap-stop DECLINED trap=%oB pc=0x%08X addr=0x%08X - no message "
+                       "recorded for X5CPU %u",
+                       (unsigned)trap_number, (unsigned)trapping_pc, (unsigned)trap_address,
+                       (unsigned)x5cpu);
+        servicer_log(sv, line);
+        return false;
+    }
+
+    /* The header is identical on both generations; only the trap-dependent area
+     * below differs. STOPR = 2 is TRAPCODE. */
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_STOPR), NDBUS_STOPR_TRAPCODE);
+
+    /* The saved P goes in TWICE - halfwords 0o12-0o13 and again 0o14-0o15. */
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_NUMPA), (uint16_t)(trapping_pc >> 16u));
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_MCNO), (uint16_t)(trapping_pc & 0xFFFFu));
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_MSWMC), (uint16_t)(trapping_pc >> 16u));
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_MSWMC + 1u), (uint16_t)(trapping_pc & 0xFFFFu));
+
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_TRAPN), trap_number);
+
+    /* THE B30 RECORD, NOT THE ND-500 ONE. The two layouts differ and the
+     * "identical layout" reading was corrected: on the B30 the fault logical
+     * address is at 0o17-0o20 for ALL stop traps. */
+    (void)write16(sv, msg_word(msg_byte, 0x0Fu), (uint16_t)(trap_address >> 16u));
+    (void)write16(sv, msg_word(msg_byte, 0x10u), (uint16_t)(trap_address & 0xFFFFu));
+
+    if (trap_number == NDBUS_TRAP_PAGE_FAULT)
+    {
+        /* 46B, TRAP_GEN4 layout: physical segment at 0o21, MMS status at 0o22-0o23. */
+        (void)write16(sv, msg_word(msg_byte, 0x11u), physical_segment);
+        (void)write16(sv, msg_word(msg_byte, 0x12u), (uint16_t)(mms_status >> 16u));
+        (void)write16(sv, msg_word(msg_byte, 0x13u), (uint16_t)(mms_status & 0xFFFFu));
+        sv->page_faults_posted++;
+    }
+    else
+    {
+        /* Every other stop trap, TRAP_GEN3 layout: MMS status at 0o21-0o22 and the
+         * physical segment at 0o25. The physical address, WR, ASTS and BADAP slots
+         * stay zero, which reads as "not collected" - the CPU does not expose
+         * them yet, and writing a plausible value there would be worse. */
+        (void)write16(sv, msg_word(msg_byte, 0x11u), (uint16_t)(mms_status >> 16u));
+        (void)write16(sv, msg_word(msg_byte, 0x12u), (uint16_t)(mms_status & 0xFFFFu));
+        (void)write16(sv, msg_word(msg_byte, 0x15u), physical_segment);
+    }
+
+    sv->trap_stops_posted++;
+    sv->last_trap_number = trap_number;
+    sv->last_trap_pc = trapping_pc;
+    sv->last_trap_address = trap_address;
+
+    answer_message_in_place(sv, msg_byte, NDBUS_N5STA_ANSWER);
     return true;
 }
 
