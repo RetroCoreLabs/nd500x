@@ -10,7 +10,7 @@ This is deliberately a living status file inside `docs/` (an exception to
 the "working notes live in `$NDIX/notes/`" rule) so any session finds it
 cold.
 
-Last updated: 2026-08-17.
+Last updated: 2026-09-30.
 
 ## Standing goal
 
@@ -19,7 +19,116 @@ CAT-500 -> :NRF -> ND Linker -> :DOM that runs and exits cleanly. This
 end-to-end pipeline was first achieved 2026-07-20 and is the regression
 bar: it must keep working.
 
-## Current work (as of the last commits on fix/deabf-i1-success-and-load-investigation)
+## Current work: the ND-5000 over the octobus
+
+THE GOAL OF THIS PHASE, in one sentence: get SINTRAN's ND-500/5000 MONITOR J04
+through `START-SWAPPER` on the nd100x machine with an ND-5000 station attached,
+instead of `*** FATAL SYSTEM ERROR *** / ND-500(0) timeout`.
+
+The octobus carries no data (ND-05.020.01 ch. 5.3). It carries commands; the
+DATA and the whole mailbox live in the MPM-5 shared pool. That one fact decides
+the shape of everything below.
+
+SCOPE, set by Ronny: port OCTOBUS and its dependencies. The ND-500 machine
+interface (`NDBusND500IF`, the PCB 3022, `LMAR5`/`LCON5`/`MICFU`) is NOT ported
+and nd100x has no 3022. Consequences that are correct and not gaps: the servicer
+carries only the octobus transport arm, so links resolve by identity against a
+pool-relative byte offset rather than the 3022's word `<< 1`.
+
+Where the boot now reaches, measured 2026-09-30 on a live run:
+
+- `DEFINE-MEMORY-CONFIGURATION` with base page 04100B and one 10000B part
+  succeeds, and `MEMORY-CONFIGURATION` matches the RetroCore PART table field
+  for field. `PAGES FOR SWAPPING` went 3266B -> 13245B.
+- `LOAD-CONTROL-STORE` completes: 128 LOCSM pulses fill a real 16384-microword
+  store, the DUCS read-back checksum agrees, and the monitor verifies four
+  control-store spots instead of dying at the first.
+- The monitor then runs `DISKICK -> STOPMIC -> STARTMIC(0x36) -> ENKICK(0x31)`
+  and STOPS TALKING ON THE OCTOBUS. Past that point it polls the mailbox.
+- `START-SWAPPER` reaches `> Loading Control Store` and `> Loading Swapper`.
+  Three earlier failures are gone, in this order, each removed by a named port:
+  `ND-500(0) timeout` (the mailbox servicer plus the nd100x-side poll),
+  `NOT KNOWN TRAP At program address: 14 400004000B` (answering 12B CACHE), and a
+  blank swapper version (the copy family, 13B/14B/30B/31B/35B/10B/11B).
+- `VERSION` now prints `Swapper.......: REV.-K01`, which is exactly what the same
+  command prints on the working RetroCore machine. It was blank before the copy
+  family was ported, because SINTRAN reads that string out of the swapper image
+  with a copy-family transfer.
+- WHERE IT STOPS NOW: `*** FATAL SYSTEM ERROR *** / The Swapper stopped`, with
+  `NOT KNOWN TRAP At program address: 0 0B`. The reference machine instead prints
+  `> Allocating memory - 7107B pages` at this point. Two measured causes, below.
+- TPE CONFIGURATION D05 passes `NO ERRORS DETECTED`; TPE OCTOBUS tests 1-3 pass.
+
+## Next steps
+
+In the order they are worth doing. Numbers 1 and 2 are the live blocker.
+
+1. ANSWER 23B 3START, WHICH NEEDS A PROCESS HOST. Measured 2026-09-30: with the
+   copy family ported, 23B is the only code SINTRAN still sends that the servicer
+   declines, and the monitor then reports `The Swapper stopped`. RetroCore does
+   not answer 23B synthetically - it routes it to
+   `INd500ProcessHost.OnStartProcess`, implemented by `Nd500CpuProcessBridge` /
+   `Nd5000CpuProcessBridge` over the real ND-500 CPU. There is no honest shortcut
+   here: a synthetic ANSWER(3) to 3START would claim a process started when none
+   did. Note RetroCore's `AnnounceSwapperAlive` is NOT the mechanism - its own
+   comment marks it uncalled and a "LATENT fabrication", so it must not be wired
+   up.
+2. GIVE PHYSRD/PHYSWR A PHYSICAL SEGMENT TABLE. Measured in the same run, once:
+   `segment-relative address UNRESOLVED seg=3 off=0xBC - using it FLAT`. Offset
+   0xBC is the process control block's TOS field, so that write landed outside
+   segment 3 and a zero TOS makes every stack frame report an overflow. The
+   resolver is not the servicer's to invent: RetroCore asks
+   `INd500ProcessHost.TryResolvePhysicalSegment`, implemented by the ND-500 CPU
+   itself (`CpuND500.Domain.cs`, `CpuND500.ProcessControl.cs`). Its octobus
+   station never implements the interface's own `TryGetPhysicalSegmentTableBase`,
+   so the CPU is the source. `ndbus_servicer_set_pst_base()` exists and nothing
+   calls it, deliberately.
+3. WHATEVER ARRIVES AFTER 23B. Every unported code answers 5ERANSWER(4), is
+   counted in `NdbusServicer.micfu_counts` and is logged once per code, so the
+   next one to port is a measurement. Do not port ahead of it.
+4. THE ND-5000 SELFTEST still fails its `0B...BUS test` and `1B...MIR test`
+   during `DEFINE-MEMORY-CONFIGURATION`. `RMIR` sits in the `default:` arm of the
+   ACCP command dispatch. Separate from the timeout and reached earlier.
+5. TPE OCTOBUS tests 4-6 abort "No Domino controllers are present". The gate is
+   inside TPE at `cmd_select_octobus_station @ ram:7be2` and no document decodes
+   it. nd500x's presence reporting is provably correct (station 56 NotPresent
+   clear, the other 60 report 0o130), so this needs the TPE code disassembled,
+   not more emulator changes.
+6. The nd500x debugger cannot read the shared window - `cpu_mms.c:1489-1492` and
+   `:1406` in nd100x carry the same missing bank check the MMU fix corrected.
+7. nd500x Tier A gate unfinished on `cleanup/step2-warnings`: warning sites in
+   `src/`, tests unlinked, CI jobs never added.
+8. `SYNC-BACKLOG.md` has no lines for any of the octobus work.
+
+Absent from the octobus closure, by count of C# lines, if any of it turns out to
+be needed: `AccpOctobusStation.cs`, `Nd5000AccpAttachment.cs`,
+`NucleusStructures`+`NucleusClient`, `OctobusScsiDiocStation.cs`+`Bdio*`.
+
+## Open, and NOT to be invented
+
+- What the header words at pool bytes `0x8820` and `0x8822` are. SINTRAN spins on
+  those two plus X5PRO at `0x890C` after ENKICK. Neither is in this repo's
+  mailbox layout and neither was found in RetroCore. UNKNOWN.
+- X5SEM'S FREE VALUE IS NOT WHAT THIS REPO DOCUMENTS. `ndbus_mailbox.h` states,
+  from XMSINIT, that X5SEM is free at 0 while the three per-CPU cells are -1.
+  MEASURED 2026-09-30 on a live boot: at answer time the cell at pool byte
+  0x8800 holds 0xFFFF, consistently, on all 20 answers of a run. A test-and-set
+  that succeeds only on 0 therefore never takes it, and every answer is written
+  unlocked. What is NOT known is which of two things that means: SINTRAN uses -1
+  as X5SEM's free value too, or the ND-100 genuinely holds the semaphore across
+  the whole sequence. RetroCore cannot arbitrate it - its `TryTakeSemaphore` also
+  requires 0, so it fails the same way and logs it only in a debug build. DO NOT
+  change the free-value convention on the strength of the reading alone; find the
+  writer of that cell first.
+- Whether answering 3RMICV alone releases the post-ENKICK spin. PARTLY ANSWERED:
+  the timeout is gone with 3RMICV and 12B CACHE answered and no X5PRO claim, so
+  a claim on X5PRO is not required to clear it. Whether the `0x8820`/`0x8822`
+  spin is fully satisfied or merely no longer reached is unverified.
+- Whether the MPM-5 window is recorded as KMPM5 (0x04) or KMECCR (0x08).
+  `MBMEMARRAY` at ND-100 word `0xA94` reads `0x0006`, which is a selector and not
+  the array address.
+
+## Earlier work, still the regression bar (toolchain phase)
 
 - Instruction conformance: the corpus runner learned ST2 and exact
   trap-condition bits; instruction_validation was brought from 261
@@ -43,9 +152,7 @@ bar: it must keep working.
   Implemented and unit-tested (ndmonlib `2cddec3`, nd500x `ccaff3c`); ledger line
   in `docs/SYNC-BACKLOG.md`, C# note is item 19 of the shared rolling file.
 
-## Next steps
-
-Small and known, in the order they are worth doing:
+### Toolchain leftovers, lower priority than the octobus phase
 
 1. Teach `pcc-nd500`'s `desc_utils.c` and `nd500-dump` the fields now proven in
    its `desc.h` - the domain entry past DNAME, and the COMSEGNO-bounded arrays.
@@ -68,6 +175,63 @@ never carved, which is the one caveat on the close-time truncation above.
 Read this BEFORE starting any loop iteration on a related symptom. Each
 entry was expensive to settle at least once; several were re-derived after
 compactions before this list existed.
+
+### ND-5000 / octobus phase
+
+- THE DEFINE-MEMORY-CONFIGURATION PARAMETERS WERE NEVER WRONG. `4100` /
+  `10000B` / `YES YES YES` is exactly right, proven against Ronny's working
+  RetroCore `MEM-CONF` output. Six combinations were tried and all six failed
+  identically, and the failure was claimed to be a parameter fault three times
+  before the real cause was found. Do not re-test parameters.
+- `GIVE-ND-500-PAGES` is not the missing step and does not exist in MONITOR J04 -
+  `HELP GIVE-ND-500-PAGES` prints nothing. The error is raised by
+  `DEFINE-MEMORY-CONFIGURATION` itself.
+- The real cause of `No memory available for ND-500(0) buffers` was in nd100x's
+  MMU: the out-of-range test compared the physical address against local RAM size
+  instead of asking the memory-bank table, so every MMU-translated access into the
+  MPM-5 window trapped MOR. Fixed by asking `mms_memory_bank_lookup()`, which is
+  what RetroCore's `SystemBus.IsAddressMapped` does.
+- The login regression that fix exposed was a SECOND bug in the same path:
+  nd100x's mfbus bridge took the MSB of a half-word write from `value >> 8` while
+  every caller puts it in the LOW 8 bits, so every even-byte write into the shared
+  window stored 0. Its unit test had encoded the same bug and asserted `0xEE00`.
+- The "contiguity" theory for the 128 KB hole at bank 32 from base page 04100B is
+  DISPROVEN: RetroCore has the identical hole and works.
+- `SSPTM` is NOT unimplemented in nd100x. It is `STS_PAGE_TABLE_MODE` in
+  `cpu_types.h:244`. That claim came from grepping the mnemonic instead of the
+  concept.
+- The byte-packing/checksum hypothesis for the control store was wrong because
+  there was no control-store code at all to be wrong: LOCSM (0x13) and DUCS (0x15)
+  fell into the `default:` arm and acked without moving a byte, so SINTRAN summed
+  a stale parameter field.
+- `0xBE30` - the value SINTRAN writes into X5BEX - is a real QUEUE HEAD NODE, not
+  a free-list entry and not the message. Its N5STA is 0, which is why reading it
+  as the message makes the walk look broken; its LINK points at the actual
+  message. Settled from `$RETROCORE` `IServicerHost.ResolveMailboxLink` ("Verified
+  octobus 2026-07-21") and the `WalkQueue` diagnostic, which names the head node
+  and the real message separately. A chain walk that refuses N5STA != 1 and then
+  follows the link handles it correctly.
+- X5FIF IS A BYTE OFFSET, not a word address, and so are X5BEX and every LINK.
+  A word address puts every ring slot at half its true offset, which lands back
+  inside the mailbox structure and corrupts rather than faults.
+- X5ACT's re-armed value is 1, NOT -1. XMSINIT writes -1 once; every re-arm after
+  that writes 1. Any doorbell sniff with a repeat threshold above 1 can therefore
+  never latch.
+- RETROCORE HAS NOT SOLVED THE ANSWER SIGNAL EITHER, and its code says so: its
+  GIVEINT frame computes to destination station 0 on its own configuration, its
+  fabric drops station 0 silently, and its own note reads "737 answers sent, 0
+  delivered" with SINTRAN then finding each answer by timing out at a fixed
+  16.243M ND-100 instructions. Both of its workarounds are environment-gated and
+  labelled "THIS IS NOT A FIX AND MUST NOT BECOME ONE", so neither was ported.
+  The arithmetic was ported; the workarounds were not. Do not treat a green
+  RetroCore run as evidence that this path works there.
+- A guard definition that is PRIVATE to one CMake target does not reach another.
+  `ND100X_WITH_ND500` was defined only for nd100x's `machine` library, so the
+  mailbox poll added to the `devices` library compiled to nothing and the machine
+  would have timed out exactly as if the poll had never been written. Check the
+  generated `flags.make`, not the CMake source.
+
+### Toolchain phase
 
 - Linker prompt clipping ("NDL(ADV)" -> "ND", "Domain name" -> "Do") is
   the LINKER's OWN escape stream - guest output, not a transport, MON,
