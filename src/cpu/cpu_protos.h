@@ -271,8 +271,34 @@ typedef struct Nd500Cpu {
     Nd500OperandDecoded extra_operands[ND500_MAX_OPERANDS];
     uint16_t extra_operand_count;
 
-    /* ND-100 I/O Processor Bridge Configuration */
-    uint32_t nd100_memory_offset;  /* Physical memory offset for ND-100 memory (default: 0x40000) */
+    /* ND-100 I/O Processor Bridge Configuration.
+     *
+     * THE ND-100-SIDE OPERAND OF RIOM IS TRANSPORT-SPECIFIC. It is produced by
+     * SINTRAN's CNVWADR, and what CNVWADR emits depends on the transport:
+     *   - ND-500 3022  : a 24-bit ND-100 physical WORD address. 2 bytes per unit.
+     *   - ND-5000 / octobus : a BYTE offset inside the 5MPM window. 1 byte per unit.
+     *     Same convention the B30 copy microcode uses for RESIRD/RESIWR and the same
+     *     one X5BEX and the mailbox LINK words use - see the flat byte-addressed
+     *     window described at src/ndbus/ndbus_servicer.c:238.
+     *
+     * One formula covers both:
+     *     host_byte = nd100_memory_offset
+     *               + operand * nd100_bytes_per_unit
+     *               - nd100_window_base
+     *
+     * The DEFAULTS BELOW ARE THE 3022 CONVENTION, which is why
+     * nd100_mapping_configured exists: an embedding that never wires the mapping does
+     * not fail, it silently behaves like a 3022. On an octobus that reproduces the
+     * swapper fault exactly (measured 30-SEP-2026: source 0x00008E30 read as a word
+     * address returned zeros, the swapper scanned a record that had never been filled
+     * and reported SWPFATAL 0o201 "Fatal error from Swapper"). Reading the three values
+     * back cannot tell "nobody configured this" from "configured, and these are the
+     * values", and those two readings need opposite fixes - so the flag is reported as
+     * its own answer and never folded into the values. */
+    uint32_t nd100_memory_offset;  /* Host byte address that ND-100 operand 0 denotes */
+    uint32_t nd100_bytes_per_unit; /* Host bytes per ND-100 operand unit: 1 or 2 */
+    int32_t  nd100_window_base;    /* Subtracted AFTER scaling; see the formula above */
+    int      nd100_mapping_configured; /* Nonzero once the mapping has been wired */
 
     /* Instruction counter for TIME MON call (MON 11B) */
     uint64_t instruction_count;  /* Total instructions executed since startup */
@@ -695,6 +721,51 @@ void write_operand_w(Nd500Cpu* cpu, const Nd500OperandDecoded* op, uint32_t valu
 
 /* ND-100 I/O Processor Bridge Helper Functions */
 uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr);
+
+/**
+ * @brief Wire BOTH halves of the ND-100 operand mapping: the base byte address an
+ *        operand of 0 denotes, and how many host bytes one operand unit spans.
+ *
+ * Callers must DERIVE these from the transport rather than hardcode them; the octobus
+ * embedding asks the servicer for its own convention
+ * (ndbus_servicer_nd100_bytes_per_unit).
+ *
+ * @param cpu            CPU to configure.
+ * @param base_byte      Host byte address that ND-100-side operand 0 denotes.
+ * @param bytes_per_unit 2 for the 3022 word-address convention, 1 for the octobus
+ *                       5MPM window byte-offset convention. Any other value means the
+ *                       caller derived it from something that is not an ND address
+ *                       convention, and is rejected.
+ * @param window_base    Bytes to subtract after scaling, turning an absolute ND-100
+ *                       byte address into an ND-500 physical one. 0 on the octobus.
+ * @return 0 on success, -1 if cpu is NULL or bytes_per_unit is neither 1 nor 2.
+ */
+/**
+ * @brief Map an ND-100-side operand to a host byte address.
+ *
+ * One formula for both transports:
+ *   base + operand * bytes_per_unit - window_base. See the field comment on
+ * nd100_memory_offset in Nd500Cpu for the two conventions and why they differ.
+ *
+ * @param cpu        CPU holding the mapping.
+ * @param nd100_addr The ND-100-side operand exactly as the program gave it.
+ * @return Host byte address, or 0 when cpu is NULL or the result would be negative.
+ */
+uint32_t nd500_cpu_map_nd100_to_physical(const Nd500Cpu* cpu, uint32_t nd100_addr);
+
+int nd500_cpu_set_nd100_mapping(Nd500Cpu* cpu, uint32_t base_byte,
+                                uint32_t bytes_per_unit, int32_t window_base);
+
+/**
+ * @brief How far an ND-100-side operand advances per HALFWORD transferred.
+ *
+ * A halfword is 2 bytes, so this is 1 under the word-address convention and 2 under
+ * the window byte-offset convention. RIOM steps its source with this.
+ *
+ * @param cpu CPU to query.
+ * @return The step, or 1 when cpu is NULL.
+ */
+uint32_t nd500_cpu_nd100_step_per_halfword(const Nd500Cpu* cpu);
 void nd500_write_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr, uint16_t data);
 
 

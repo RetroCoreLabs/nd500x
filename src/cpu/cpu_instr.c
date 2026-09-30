@@ -994,3 +994,41 @@ void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 }
 
 
+
+
+/*
+ * Recompute one operand's effective address at a DIFFERENT data type.
+ *
+ * WHY THIS IS NEEDED. The decode computes every operand's effective address once,
+ * using the INSTRUCTION's data type, because that is the type of the operands the
+ * instruction is named for. A post-indexed operand's index register is scaled by
+ * that type - I[n] * 1, 2, 4 or 8 - so an operand that is a different width from
+ * the instruction gets the wrong scale, and therefore the wrong address, before any
+ * handler sees it.
+ *
+ * RIOM is the measured case (ND-05.009.4 section 16.23):
+ *     H RIOM <ND-100 addr/r/W>,<buffer/w/H>,<no of halfwords>
+ * The instruction is H, so the decode scales the count operand's index by 2, but
+ * the count is a WORD and its table is an array of 32-bit words. Measured
+ * 30-SEP-2026 on the live swapper: index 5 against the table at 0x0802403C came out
+ * at 0x08024046 instead of 0x08024050, straddling entries [2] and [3], and returned
+ * 0x000F0000 - a count of 983040 halfwords, which RIOM rightly refused.
+ *
+ * Passing the right dtype to nd500_read_operand_value() fixes the WIDTH of the read
+ * and cannot fix the ADDRESS, because the address was already computed. This does
+ * the other half.
+ *
+ * @param cpu   The CPU whose index registers are read.
+ * @param op    The operand. Its effective_address is NOT modified.
+ * @param dtype The data type to scale the post-index by.
+ * @return The effective address at that data type.
+ */
+uint32_t nd500_operand_ea_at_dtype(Nd500Cpu* cpu, const Nd500OperandDecoded* op,
+                                   Nd500DataType dtype) {
+    if (!cpu || !op) { return 0; }
+    /* compute_effective_address takes a non-const operand because the PI modes it
+     * serves may update a register; the caller's copy is left alone by working on a
+     * local. */
+    Nd500OperandDecoded scratch = *op;
+    return compute_effective_address(cpu, &scratch, dtype);
+}

@@ -1065,3 +1065,10 @@ bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte)
     servicer_log(sv, "mailbox chain: walk hit the length guard - possible cycle");
     return any;
 }
+
+uint32_t ndbus_servicer_nd100_bytes_per_unit(void)
+{
+    /* The octobus/5MPM convention: the operand is already a window-relative BYTE
+     * offset. See the doc comment in ndbus_servicer.h. */
+    return 1u;
+}

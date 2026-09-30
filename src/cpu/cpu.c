@@ -75,7 +75,14 @@ void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
     if (machine) machine->cpu = cpu;
 
     /* Initialize ND-100 I/O Processor Bridge */
+    /* The ND-100 operand mapping defaults to the ND-500 3022 convention: an absolute
+     * physical WORD address, 2 host bytes per unit, nothing subtracted. An embedding on
+     * a different transport MUST call nd500_cpu_set_nd100_mapping; see the field comment
+     * in cpu_protos.h for why the unconfigured state is tracked separately. */
     cpu->nd100_memory_offset = 0x40000;  /* Default: ND-100 memory at physical offset 0x40000 */
+    cpu->nd100_bytes_per_unit = 2;       /* Default: the 3022 word-address convention */
+    cpu->nd100_window_base = 0;          /* Default: subtract nothing */
+    cpu->nd100_mapping_configured = 0;
 
     /* This CPU's own translation cache, and its slot in the shootdown registry.
      * Allocated rather than embedded because Nd500Tlb is about 48KB and tests
@@ -1982,13 +1989,67 @@ uint16_t nd500_read_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr) {
      * - ND-100 Low RAM (0x000000) -> Physical 0x40000
      * - ND-100 5MPM (0x040000) -> Physical 0xC0000
      */
-    uint32_t physical_addr = cpu->nd100_memory_offset + (nd100_addr * 2);
+    uint32_t physical_addr = nd500_cpu_map_nd100_to_physical(cpu, nd100_addr);
 
-    /* Read halfword from physical memory using existing memory access API
-     * Big-endian byte order (same for both ND-100 and ND-500) */
-    uint16_t value = nd500_read_memory_16(cpu, physical_addr);
+    /* A PHYSICAL read, not nd500_read_memory_16.
+     *
+     * CORRECTED 30-SEP-2026. This used to call nd500_read_memory_16, which translates
+     * through the MMU when the machine has paging on - so the raw physical address
+     * computed just above was fed to the MMU as if it were a virtual one. On the
+     * octobus the ND-500's memory IS the multiport memory (ND-500 physical address 0 is
+     * the window start), so the shared message the swapper wants is only visible
+     * through the plain physical path; going through the MMU returned zeros no matter
+     * what base offset was configured.
+     *
+     * This also matches the microcode, which reaches the ND-100 with the single field
+     * RD,POF - a physical read with paging OFF (ND-05.022.1:2467, ND-05.020.01:5777).
+     * Big-endian halfword assembly, as both machines store it. */
+    uint16_t hi = nd500_bus_read8(cpu->machine, physical_addr);
+    uint16_t lo = nd500_bus_read8(cpu->machine, physical_addr + 1u);
 
-    return value;
+    return (uint16_t)((hi << 8) | lo);
+}
+
+/* Map an ND-100-side operand to a host byte address. ONE formula for both transports;
+ * see the field comment in cpu_protos.h. 64-bit arithmetic so the subtraction cannot
+ * wrap silently on a source that legitimately sits below the window base. */
+uint32_t nd500_cpu_map_nd100_to_physical(const Nd500Cpu* cpu, uint32_t nd100_addr) {
+    if (!cpu) {
+        return 0;
+    }
+    int64_t addr = (int64_t)cpu->nd100_memory_offset
+                 + ((int64_t)nd100_addr * (int64_t)cpu->nd100_bytes_per_unit)
+                 - (int64_t)cpu->nd100_window_base;
+    if (addr < 0) {
+        return 0;
+    }
+    return (uint32_t)addr;
+}
+
+int nd500_cpu_set_nd100_mapping(Nd500Cpu* cpu, uint32_t base_byte,
+                                uint32_t bytes_per_unit, int32_t window_base) {
+    if (!cpu) {
+        return -1;
+    }
+    /* Reject anything that is not an ND address convention. A caller that derived this
+     * from something else must fail loudly rather than quietly scale by 4. */
+    if (bytes_per_unit != 1u && bytes_per_unit != 2u) {
+        return -1;
+    }
+    cpu->nd100_memory_offset = base_byte;
+    cpu->nd100_bytes_per_unit = bytes_per_unit;
+    cpu->nd100_window_base = window_base;
+    cpu->nd100_mapping_configured = 1;
+    return 0;
+}
+
+uint32_t nd500_cpu_nd100_step_per_halfword(const Nd500Cpu* cpu) {
+    if (!cpu || cpu->nd100_bytes_per_unit == 0u) {
+        return 1u;
+    }
+    /* A halfword is 2 bytes: 1 step under the word-address convention, 2 under the
+     * window byte-offset convention. */
+    return 2u / cpu->nd100_bytes_per_unit;
 }
 
 /**
@@ -2031,12 +2092,14 @@ void nd500_write_nd100_word(Nd500Cpu* cpu, uint32_t nd100_addr, uint16_t data) {
         return;
     }
 
-    /* Translate ND-100 word address to ND-500 byte address */
-    uint32_t physical_addr = cpu->nd100_memory_offset + (nd100_addr * 2);
+    /* Translate ND-100 operand to a host byte address - same mapping as the read. */
+    uint32_t physical_addr = nd500_cpu_map_nd100_to_physical(cpu, nd100_addr);
 
-    /* Write halfword to physical memory using existing memory access API
-     * Big-endian byte order (same for both ND-100 and ND-500) */
-    nd500_write_memory_16(cpu, physical_addr, data);
+    /* The exact inverse of nd500_read_nd100_word, and physical for the same reason
+     * (see the note there): an MMU-translated write would miss the MPM window on the
+     * octobus. Big-endian halfword pair. */
+    nd500_bus_write8(cpu->machine, physical_addr, (uint8_t)(data >> 8));
+    nd500_bus_write8(cpu->machine, physical_addr + 1u, (uint8_t)(data & 0xFFu));
 }
 
 

@@ -633,6 +633,14 @@ uint32_t nd500_mask_to_datatype(uint64_t value, Nd500DataType dtype);
  */
 uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, Nd500DataType dtype);
 
+/* One operand's effective address recomputed at a DIFFERENT data type, for an
+ * operand whose width is not the instruction's. The decode scales a post-indexed
+ * operand by the INSTRUCTION's type, so an operand of another width lands at the
+ * wrong address before any handler runs. See the definition for the measured RIOM
+ * case. The operand is not modified. */
+uint32_t nd500_operand_ea_at_dtype(Nd500Cpu* cpu, const Nd500OperandDecoded* op,
+                                   Nd500DataType dtype);
+
 /**
  * Write operand value (unified writer - like C# WriteOperandValue)
  * Writes to memory operands (constants not writable)

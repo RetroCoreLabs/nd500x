@@ -542,4 +542,22 @@ bool ndbus_servicer_set_context_area(NdbusServicer *sv, uint32_t area_byte);
 bool ndbus_servicer_set_cpu_identity(NdbusServicer *sv, uint16_t micro_version,
                                      uint16_t cpu_parameter);
 
+/**
+ * @brief Host bytes per unit of an ND-100-side address operand on this transport.
+ *
+ * SINTRAN's CNVWADR emits a transport-specific quantity: a physical WORD address on
+ * the ND-500 3022 (2 bytes per unit), a BYTE offset inside the 5MPM window on the
+ * ND-5000 octobus (1 byte per unit). This servicer copies over a single flat,
+ * byte-addressed window - see the copy-family comment at ndbus_servicer.c:238 and
+ * resolve_physical_segment - so its convention is the byte-offset one.
+ *
+ * Exists so the CPU's RIOM mapping is DERIVED from the servicer that defines the
+ * convention instead of restating it: one source of truth, so the copy engine and
+ * RIOM cannot drift apart.
+ *
+ * @return 1. Constant for this servicer, and a function rather than a macro so a
+ *         future transport is taught here once.
+ */
+uint32_t ndbus_servicer_nd100_bytes_per_unit(void);
+
 #endif /* NDBUS_SERVICER_H */

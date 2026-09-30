@@ -5,6 +5,7 @@
 #include "../src/cpu/cpu_protos.h"
 #include "../src/machine/machine_protos.h"
 #include "../src/cpu/nd500_mmu.h"
+#include "../src/ndbus/ndbus_servicer.h"
 
 /*
  * Test MMU Address Translation Logic (Unit Test)
@@ -217,6 +218,87 @@ int main(void) {
 #undef T7_CHECK
 
     /* ---------------------------------------------------------
+     * TEST 8: the ND-100 operand mapping used by RIOM
+     *
+     * The ND-100-side operand of RIOM is TRANSPORT-SPECIFIC: SINTRAN's CNVWADR emits a
+     * physical WORD address on the ND-500 3022 and a BYTE offset inside the 5MPM window
+     * on the ND-5000 octobus. Getting it wrong does not fault - it reads memory that is
+     * backed but was never written, so the transfer silently delivers zeros.
+     *
+     * Every number below is MEASURED, not chosen:
+     *   3022    : source 0x00210718 must map to 0x00000E30, the 5MPM message buffer.
+     *             Left at window_base 0 it maps to 0x00420E30, 4 MB into an 8 MB window.
+     *   octobus : source 0x00008E30 must map to 0x00008E30 - the operand is ALREADY
+     *             window-relative. Read as a word address it came out empty, the swapper
+     *             scanned a record that had never been filled, and SINTRAN printed
+     *             "Fatal error from Swapper", ERROR CODE 201B.
+     * --------------------------------------------------------- */
+    int t8_failed = 0;
+#define T8_CHECK(cond, what)                                                        \
+    do {                                                                            \
+        if (!(cond)) { printf("  FAIL: %s\n", (what)); t8_failed++; }                \
+        else { printf("  ok: %s\n", (what)); }                                      \
+    } while (0)
+
+    printf("Test 8: ND-100 operand mapping (RIOM)\n");
+    printf("-------------------------------------\n");
+    {
+        Nd500Cpu m;
+        memset(&m, 0, sizeof(m));
+        nd500_cpu_init(&m, NULL);
+
+        /* THE UNCONFIGURED STATE IS THE 3022 CONVENTION, and that is exactly why it must
+         * be reported separately: an embedding that forgets to wire the mapping does not
+         * fail, it silently behaves like a 3022. */
+        T8_CHECK(m.nd100_mapping_configured == 0,
+                 "a fresh CPU reports its mapping as NOT configured");
+        T8_CHECK(m.nd100_bytes_per_unit == 2u,
+                 "and the defaults are the 3022 word-address convention");
+
+        /* --- the octobus reading, which is what the ND-5000 needs --- */
+        T8_CHECK(nd500_cpu_set_nd100_mapping(&m, 0u, 1u, 0) == 0,
+                 "the octobus mapping is accepted: base 0, 1 byte per unit");
+        T8_CHECK(m.nd100_mapping_configured == 1,
+                 "and the CPU now reports it as configured");
+        T8_CHECK(nd500_cpu_map_nd100_to_physical(&m, 0x00008E30u) == 0x00008E30u,
+                 "HSWPI 0x8E30 maps to window byte 0x8E30 - already window-relative");
+        T8_CHECK(nd500_cpu_nd100_step_per_halfword(&m) == 2u,
+                 "and one halfword advances the operand by 2 window bytes");
+
+        /* --- the 3022 reading, which must keep working --- */
+        T8_CHECK(nd500_cpu_set_nd100_mapping(&m, 0u, 2u, 0x420000) == 0,
+                 "the 3022 mapping is accepted: 2 bytes per unit, window base 0x420000");
+        T8_CHECK(nd500_cpu_map_nd100_to_physical(&m, 0x00210718u) == 0x00000E30u,
+                 "word address 0x210718 maps to 0x00000E30, the 5MPM message buffer");
+        T8_CHECK(nd500_cpu_nd100_step_per_halfword(&m) == 1u,
+                 "and one halfword advances the operand by 1 word");
+
+        /* The window base is not decoration: without it the same source lands 4 MB away,
+         * in memory that is backed and empty - the original zero-transfer. */
+        (void)nd500_cpu_set_nd100_mapping(&m, 0u, 2u, 0);
+        T8_CHECK(nd500_cpu_map_nd100_to_physical(&m, 0x00210718u) == 0x00420E30u,
+                 "dropping the window base moves it to 0x00420E30 - the measured defect");
+
+        /* A scale that is not an ND address convention must fail loudly rather than
+         * quietly scale by 4, and must leave the previous mapping untouched. */
+        T8_CHECK(nd500_cpu_set_nd100_mapping(&m, 0u, 4u, 0) == -1,
+                 "a scale of 4 is refused - it is not an ND address convention");
+        T8_CHECK(m.nd100_bytes_per_unit == 2u,
+                 "and the refused call changed nothing");
+        T8_CHECK(nd500_cpu_set_nd100_mapping(&m, 0u, 0u, 0) == -1,
+                 "a scale of 0 is refused too - it would divide by zero");
+        T8_CHECK(nd500_cpu_set_nd100_mapping(NULL, 0u, 1u, 0) == -1,
+                 "and a NULL CPU is refused");
+
+        /* The servicer is the one source of truth for the octobus scale; RIOM must not
+         * restate it. If this ever disagrees, the copy engine and RIOM have drifted. */
+        T8_CHECK(ndbus_servicer_nd100_bytes_per_unit() == 1u,
+                 "the servicer reports the octobus byte-offset convention");
+    }
+    printf("Status: %s\n\n", (t8_failed == 0) ? "PASS" : "FAIL");
+#undef T8_CHECK
+
+    /* ---------------------------------------------------------
      * SUMMARY
      * --------------------------------------------------------- */
     printf("===========================================\n");
@@ -226,8 +308,8 @@ int main(void) {
     printf("      integration with memory bus and will be tested\n");
     printf("      during Phase 5 (Memory Bus Integration).\n");
 
-    if (t7_failed != 0) {
-        printf("\n%d check(s) FAILED in Test 7\n", t7_failed);
+    if (t7_failed != 0 || t8_failed != 0) {
+        printf("\n%d check(s) FAILED in Test 7, %d in Test 8\n", t7_failed, t8_failed);
         return 1;
     }
     return 0;

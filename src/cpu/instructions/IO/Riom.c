@@ -330,7 +330,21 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      *                           which covers the field the swapper actually reads.
      * Reading as H was also wrong on its own: a 2-byte big-endian read of 0x00000046
      * yields 0x0000, i.e. it transfers nothing. */
-    uint32_t count = (uint32_t)nd500_read_operand_value(cpu, &fi->operands[2], ND500_DTYPE_WORD);
+    /* THE SCALE AS WELL AS THE WIDTH. Reading the value as a WORD fixes how many
+     * bytes come back; it cannot fix WHERE they come from, because the decode
+     * already computed this operand's effective address using the INSTRUCTION's
+     * data type - H - and scaled the post-index by 2.
+     *
+     * Measured 30-SEP-2026 on the live ND-5000 swapper: index 5 against the count
+     * table at 0x0802403C resolved to 0x08024046 instead of 0x08024050, straddling
+     * entries [2] and [3], and returned 0x000F0000 - 983040 halfwords, which the
+     * range check below rightly refused. The comment above already recorded that
+     * 0x24046 is the WRONG address and 0x24050 the right one; only the read width
+     * had been corrected. */
+    Nd500OperandDecoded count_op = fi->operands[2];
+    count_op.effective_address =
+        nd500_operand_ea_at_dtype(cpu, &fi->operands[2], ND500_DTYPE_WORD);
+    uint32_t count = (uint32_t)nd500_read_operand_value(cpu, &count_op, ND500_DTYPE_WORD);
     /* A faulting operand read must abort the instruction: commit nothing,
      * and raise no second trap on top of the fault the kernel is already
      * about to service. See the ADD3 guard (commit a351296) for the panic
@@ -341,7 +355,15 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Validate count - must fit in 16 bits (halfword range 0-65535) */
     if (count > 0xFFFF) {
-        printf("[ERROR] RIOM invalid count %u at PC=0x%08X\n", count, fi->address);
+        /* SAY WHICH CELL THE COUNT CAME FROM. The swapper reads it from a
+         * post-indexed table of 32-bit words, so a count that is out of range is
+         * almost always a read at the wrong address rather than a genuinely silly
+         * number - and the address distinguishes a bad index from a bad scale from a
+         * bad base. Without it, 983040 is just a number. */
+        printf("[ERROR] RIOM invalid count %u (0x%08X) read from EA=0x%08X "
+               "(mode=%d reg=%u) at PC=0x%08X\n",
+               count, count, count_op.effective_address,
+               (int)count_op.mode, (unsigned)count_op.reg, fi->address);
         trap_illegal_operand(cpu, fi->address);
         return;
     }
@@ -396,10 +418,18 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * - nd500_write_memory_16() goes through the normal ND-500 MMU path
      * ======================================================================== */
 
+    /* HOW FAR THE SOURCE ADVANCES PER HALFWORD IS TRANSPORT-SPECIFIC, because the units
+     * of the ND-100-side operand are. Stepping by 1 unconditionally is only right under
+     * the 3022 word-address convention; on the octobus the operand is a BYTE offset in
+     * the 5MPM window, so one halfword is 2 units. Derived from the same mapping
+     * nd500_read_nd100_word uses, so the two cannot disagree. See the field comment on
+     * nd100_memory_offset in Nd500Cpu. */
+    const uint32_t source_step = nd500_cpu_nd100_step_per_halfword(cpu);
+
     for (uint32_t i = 0; i < count; i++) {
         /* Calculate addresses for this transfer iteration */
-        /* ND-100 address: word-based, wraps at 24-bit boundary (0x000000-0xFFFFFF) */
-        uint32_t nd100_addr = (nd100_source_addr + i) & 0xFFFFFF;
+        /* ND-100 operand: stepped in ITS OWN units, wrapped at the 24-bit boundary */
+        uint32_t nd100_addr = (nd100_source_addr + (i * source_step)) & 0xFFFFFF;
 
         /* ND-500 address: byte-based, each halfword is 2 bytes */
         uint32_t nd500_addr = nd500_dest_addr + (i * 2);
