@@ -446,7 +446,14 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_write_memory_16(cpu, nd500_addr, data);
 
         /* Debug trace for first and last transfers (avoid log spam for large transfers) */
-        if (i == 0 || i == count - 1 || count <= 4) {
+        /* NAME THE FIRST TEN HALFWORDS. One halfword cannot say whether a transfer
+         * found the right record or merely a plausible first word; ten can be compared
+         * against the known-good dump of the swapper's message, measured on the C#
+         * octobus harness as
+         *     FFFF FFFF 0427 0001 0000 0000 0005 0005 003B 0840
+         * (0x427 = 2047B, 0x840 = ADRZERO page 2112). Bounded, so a page-sized transfer
+         * cannot flood the log. */
+        if (i < 10 || i == count - 1 || count <= 4) {
             printf("  RIOM[%u]: ND-100[0x%06X] = 0x%04X -> ND-500[0x%08X]\n",
                    i, nd100_addr, data, nd500_addr);
         }

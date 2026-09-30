@@ -376,6 +376,21 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                     if (pgfd) fprintf(stderr, "[PGFSITE] AZI-IDX dom=%d seg=%d psn=%d va=0x%08X pfn=0x%X\n",
                                       domain, segment, psn, virtual_addr, pst_entry.physical_pfn);
                 }
+                /* SAY WHERE, AND SAY WHICH SEGMENT. Without this the trap carries
+                 * whatever the PREVIOUS fault left in mmu_pgf_where/mmu_pgf_psn, so the
+                 * fault location and the physical segment number reported to SINTRAN are
+                 * both stale. The oracle measured the same omission handing the swapper
+                 * psn=0, which it rejected with "Illegal physical segment" -
+                 * ND-05.017.01 Appendix A, error 22B PAGE_FAULT, "Illegal physical
+                 * segment number in a page fault". psn=0 is exactly the illegal number
+                 * that error names.
+                 *
+                 * INDEXERR is the right code: this file already uses it for the sibling
+                 * condition "PSN out of range", and an address indexing past what the
+                 * segment's indexing mode allows is the same class of error. */
+                cpu->mmu_pgf_where = MMW_INDEXERR | (is_instruction ? MMW_INST : 0u);
+                cpu->mmu_pgf_psn = (uint32_t)psn;
+                cpu->mmu_pgf_is_write = is_write ? 1 : 0;
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;
             }
@@ -395,6 +410,13 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                     if (pgfd) fprintf(stderr, "[PGFSITE] ASI-IDX dom=%d seg=%d psn=%d va=0x%08X\n",
                                       domain, segment, psn, virtual_addr);
                 }
+                /* Same omission as the PS_AZI boundary branch above, same fix, same
+                 * reason - see the comment there for the measurement. The two branches
+                 * are the same condition at a different indexing level, and there is no
+                 * argument for one carrying a PSN and the other not. */
+                cpu->mmu_pgf_where = MMW_INDEXERR | (is_instruction ? MMW_INST : 0u);
+                cpu->mmu_pgf_psn = (uint32_t)psn;
+                cpu->mmu_pgf_is_write = is_write ? 1 : 0;
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;
             }

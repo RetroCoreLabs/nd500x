@@ -299,6 +299,117 @@ int main(void) {
 #undef T8_CHECK
 
     /* ---------------------------------------------------------
+     * TEST 9: an index-boundary fault must name WHERE and WHICH SEGMENT
+     *
+     * A PS_AZI segment is a single direct page. An address whose page number is
+     * nonzero indexes past what that indexing mode allows. Both boundary branches
+     * (PS_AZI and PS_ASI) used to call trap_page_fault without setting the fault
+     * location or the physical segment number, so the trap carried whatever the
+     * PREVIOUS fault had left in those fields.
+     *
+     * That is not cosmetic. The C# oracle measured the same omission handing the
+     * swapper psn=0, which the swapper rejected with "Illegal physical segment" -
+     * ND-05.017.01 Appendix A, error 22B PAGE_FAULT, "Illegal physical segment
+     * number in a page fault". psn=0 is exactly the illegal number that names.
+     *
+     * INDEXERR is the code this file already uses for the sibling condition "PSN
+     * out of range"; indexing past the segment's indexing mode is the same class.
+     * --------------------------------------------------------- */
+    int t9_failed = 0;
+#define T9_CHECK(cond, what)                                                        \
+    do {                                                                            \
+        if (!(cond)) { printf("  FAIL: %s\n", (what)); t9_failed++; }                \
+        else { printf("  ok: %s\n", (what)); }                                      \
+    } while (0)
+
+    printf("Test 9: index-boundary fault reporting\n");
+    printf("--------------------------------------\n");
+    {
+        /* Guest tables are used when dit_configured is set and PSTP is nonzero and
+         * no policy is installed - the hardware rule in mmu_use_guest_for. */
+        const uint32_t pstp    = 0x30000u;
+        const uint32_t ditbase = 0x38000u;
+        const uint8_t  domain  = 0u;
+        const int      segment = 4;
+        const uint32_t psn     = 9u;      /* deliberately NOT 0, so a stale 0 shows */
+        const uint32_t pfn     = 0x50u;   /* nonzero: a valid PS_AZI direct page */
+
+        cpu.PSTP = pstp;
+        cpu.DITBASE = ditbase;
+        cpu.dit_configured = 1;
+
+        /* A DATA capability lives at DITBASE + domain*256 + 64 + segment*2,
+         * big-endian, and its low 13 bits are the physical segment number. */
+        uint32_t cap_addr = ditbase + (uint32_t)domain * 256u + 64u
+                          + (uint32_t)segment * 2u;
+        nd500_bus_write8(&machine, cap_addr,      (uint8_t)((psn >> 8) & 0xFFu));
+        nd500_bus_write8(&machine, cap_addr + 1u, (uint8_t)(psn & 0xFFu));
+
+        /* PST[psn] = PS_AZI with a nonzero page: a legal single direct page. */
+        uint32_t pste = ((uint32_t)PS_AZI << 30) | pfn;
+        for (uint32_t i = 0; i < 4u; i++) {
+            nd500_bus_write8(&machine, pstp + psn * 4u + i,
+                             (uint8_t)(pste >> (24u - i * 8u)));
+        }
+
+        nd500_mmu_enable(&cpu);
+        machine.mmu_enabled = 1;
+
+        /* Offset 4 inside page 0 is INSIDE the direct page - it must translate and
+         * must not fault. This proves the fixture itself is sound, so a fault on the
+         * next check is the boundary condition and not a broken setup. */
+        uint32_t va_ok = ((uint32_t)segment << SGSHIFT) | 0x004u;
+        nd500_trap_clear();
+        cpu.mmu_pgf_where = 0u;
+        cpu.mmu_pgf_psn = 0u;
+        uint32_t pa_ok = nd500_mmu_translate(&cpu, va_ok, 0, 0);
+        T9_CHECK(!nd500_trap_occurred(), "an offset inside the direct page does not fault");
+        T9_CHECK(pa_ok == ((pfn << PGSHIFT) | 0x004u),
+                 "and it resolves to that page");
+
+        /* Now poison the fault fields with a DIFFERENT, plausible-looking previous
+         * fault, exactly as a real run would leave them, then index past the page. */
+        nd500_trap_clear();
+        cpu.mmu_pgf_where = MMW_PFZ2;   /* the routine demand-paging code */
+        cpu.mmu_pgf_psn = 0u;           /* the illegal segment the oracle measured */
+
+        /* Page 16, offset 4 - the same shape as the live swapper fault. */
+        uint32_t va_bad = ((uint32_t)segment << SGSHIFT) | (16u << PGSHIFT) | 0x004u;
+        (void)nd500_mmu_translate(&cpu, va_bad, 0, 0);
+
+        T9_CHECK(nd500_trap_occurred(),
+                 "indexing past a PS_AZI direct page faults");
+        /* ASSERT ON trap_saved_info, NOT mmu_pgf_where. raise_trap copies the walk's
+         * code into trap_saved_info and then CLEARS mmu_pgf_where, so by the time the
+         * translate call returns the live field is always 0. Reading the cleared field
+         * is the same mistake that made the live run report a zero fault location
+         * before mfbus was changed to read trap_saved_info. cpu.c:1224 also shows PFZ2
+         * is the FALLBACK when no site set a code - which is why a reported PFZ2 is
+         * never by itself evidence of a second-level page-table miss. */
+        T9_CHECK(cpu.trap_saved_info == MMW_INDEXERR,
+                 "the fault location is INDEXERR, not the PFZ2 fallback");
+        T9_CHECK(cpu.mmu_pgf_psn == psn,
+                 "and it names the REAL physical segment, not the stale 0");
+
+        /* The instruction side must set MMINST on top of the same code. */
+        nd500_trap_clear();
+        cpu.mmu_pgf_where = 0u;
+        cpu.mmu_pgf_psn = 0u;
+        uint32_t cap_i = ditbase + (uint32_t)domain * 256u + (uint32_t)segment * 2u;
+        nd500_bus_write8(&machine, cap_i,      (uint8_t)((psn >> 8) & 0xFFu));
+        nd500_bus_write8(&machine, cap_i + 1u, (uint8_t)(psn & 0xFFu));
+        (void)nd500_mmu_translate(&cpu, va_bad, 0, 1);
+        T9_CHECK(cpu.trap_saved_info == (MMW_INDEXERR | MMW_INST),
+                 "an instruction-side index error carries MMINST as well");
+
+        nd500_trap_clear();
+        machine.mmu_enabled = 0;
+        nd500_mmu_disable(&cpu);
+    }
+    printf("Status: %s\n\n", (t9_failed == 0) ? "PASS" : "FAIL");
+#undef T9_CHECK
+
+    /* ---------------------------------------------------------
      * SUMMARY
      * --------------------------------------------------------- */
     printf("===========================================\n");
@@ -308,8 +419,9 @@ int main(void) {
     printf("      integration with memory bus and will be tested\n");
     printf("      during Phase 5 (Memory Bus Integration).\n");
 
-    if (t7_failed != 0 || t8_failed != 0) {
-        printf("\n%d check(s) FAILED in Test 7, %d in Test 8\n", t7_failed, t8_failed);
+    if (t7_failed != 0 || t8_failed != 0 || t9_failed != 0) {
+        printf("\n%d check(s) FAILED in Test 7, %d in Test 8, %d in Test 9\n",
+               t7_failed, t8_failed, t9_failed);
         return 1;
     }
     return 0;
