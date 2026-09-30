@@ -904,6 +904,9 @@ void nd500_cpu_get_regs(Nd500Cpu* cpu, Nd500Regs* out) {
  * printf output (domain allocation, MMU-enable, MON-halt notices). Default 0
  * keeps existing behaviour for the debugger, --run and tests. */
 int nd500_quiet = 0;
+/* 0 = the free-running nd500x binary owns stdout. An embedder sets 1. See
+ * cpu_protos.h for why this is separate from nd500_quiet. */
+int nd500_embedded = 0;
 
 /* --- Real NDIX DIT accessors ---------------------------------------------
  * The live kernel DIT is 256 bytes/domain (PCBSIZ) at physical DITBASE; field

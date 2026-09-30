@@ -234,6 +234,44 @@ void nd500_mmu_disable_program(Nd500Cpu* cpu);
 int nd500_mmu_is_program_enabled(Nd500Cpu* cpu);
 
 /* Legacy MMU Control (enables/disables BOTH data and program MMU) */
+/**
+ * @brief Install a per-regime guest-table routing policy, or remove one.
+ *
+ * @param cpu    The CPU. NULL is ignored.
+ * @param policy Called for each translation with the domain and segment; returns
+ *               non-zero to walk the guest's DIT/PST instead of the emulator
+ *               shadow tables. The regime's own enable flag belongs INSIDE it, so
+ *               that a regime whose flag is off behaves exactly as it did before
+ *               any policy existed. NULL restores the architectural default: walk
+ *               the guest tables whenever DITBASE and PSTP are both set.
+ * @param ctx    Opaque context handed back to the policy.
+ * @return Nothing.
+ */
+/**
+ * @brief Declare the guest's Domain Information Table base, without touching memory.
+ *
+ * Records the base and marks the DIT configured. ZERO IS A LEGITIMATE BASE and is
+ * accepted as one - see Nd500Cpu::dit_configured for what assuming otherwise cost.
+ *
+ * DECLARING IS NOT SETTING UP. This function writes NOTHING to guest memory. The
+ * ND-500's DIT entries are whole 256-byte process control blocks, and the guest
+ * fills the trap-control fields itself before the CPU is ever started - on the
+ * octobus that is a run of PHYSWR transfers. A routine that zeroed those entries
+ * while declaring the base would erase exactly what the guest just wrote, and the
+ * resulting zero trap-handler address reads as though the declaration had done
+ * nothing at all. Ported from RetroCore CpuND500.Domain.cs DeclareDitBase, whose
+ * SetupDIT twin does the zeroing and must not be used here.
+ *
+ * @param cpu  The CPU. NULL is ignored.
+ * @param base Byte address of the table, possibly 0.
+ * @return Nothing.
+ */
+void nd500_mmu_declare_dit_base(Nd500Cpu* cpu, uint32_t base);
+
+void nd500_mmu_set_guest_table_policy(Nd500Cpu* cpu,
+                                      int (*policy)(void *ctx, uint8_t domain, int segment),
+                                      void *ctx);
+
 void nd500_mmu_enable(Nd500Cpu* cpu);
 void nd500_mmu_disable(Nd500Cpu* cpu);
 int nd500_mmu_is_enabled(Nd500Cpu* cpu);

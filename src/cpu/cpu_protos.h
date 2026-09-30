@@ -91,7 +91,38 @@ typedef struct Nd500Cpu {
     uint32_t FLAGS;
     /* MMU registers */
     uint32_t PSTP;      /* Physical Segment Table Pointer */
+
+    /*
+     * Optional per-regime policy deciding which (domain, segment) pairs translate
+     * through the GUEST's DIT/PST rather than the emulator shadow tables, with the
+     * regime's own enable flag folded in. NULL means the architectural default:
+     * walk the guest tables whenever DITBASE and PSTP are both set.
+     *
+     * This exists so kernel-specific routing - which NDIX needs and SINTRAN does
+     * not - lives with the boot code that can justify each segment, instead of as
+     * a list of Unix segment numbers inside the CPU. Installed with
+     * nd500_mmu_set_guest_table_policy().
+     */
+    int (*guest_table_policy)(void *ctx, uint8_t domain, int segment);
+    void *guest_table_policy_ctx;
     uint32_t DITBASE;   /* Domain Information Table Base */
+
+    /*
+     * 1 once a DIT base has been DECLARED, whatever its value.
+     *
+     * ZERO IS A VALID DIT BASE, which is why this cannot be inferred from DITBASE
+     * itself. RetroCore records the point directly: "the correct base here is 0, so
+     * 'nothing learned' and 'the base is zero' are the same number", and its own
+     * learner therefore guards on the number of trap-config writes seen rather than
+     * on the base value. Testing DITBASE != 0 instead sent a guest that legitimately
+     * uses base 0 down the emulator shadow path, where the tables are NULL - measured
+     * 30-SEP-2026 as "[MMU] Tables not initialized! PST=(nil) PCB=(nil)" followed by
+     * a fetch that was never translated.
+     *
+     * Set by nd500_mmu_declare_dit_base(). Ported from RetroCore's
+     * CpuND500.Domain.cs DeclareDitBase / regs.DitConfigured.
+     */
+    int dit_configured;
     uint32_t CED;       /* Current Executing Domain */
     uint32_t CAD;       /* Current Alternative Domain */
     uint32_t PS;        /* Process Segment */
@@ -514,6 +545,24 @@ void nd500_trap_seq_pop_top(Nd500Cpu* cpu);
 void nd500_apply_domain_pia(Nd500Cpu* cpu, uint32_t domain);
 /* Set non-zero to suppress informational CPU-side printf output (shell clean mode). */
 extern int nd500_quiet;
+
+/*
+ * 1 when nd500x is running as a LIBRARY inside another machine, 0 when it is the
+ * free-running nd500x binary. Default 0.
+ *
+ * WHY IT EXISTS. nd500x is both, and the two have different owners of stdout. As
+ * the binary, stdout is nd500x's own console and a diagnostic line there is
+ * wanted. As a library - inside nd100x, where an ND-5000 station runs out of the
+ * shared MFbus pool - stdout belongs to the HOST machine's guest terminal, and a
+ * diagnostic written there lands in the middle of the guest's own output.
+ * Measured 30-SEP-2026: "ND-500: Data MMU enabled (DMON)" appeared inside the
+ * ND-500 monitor's "> Loading Swapper" line on the SINTRAN console.
+ *
+ * So this is not a verbosity level and must not be conflated with nd500_quiet,
+ * which an operator sets. It says WHO OWNS THE STREAM. The embedder sets it once,
+ * at attach time, before anything can print.
+ */
+extern int nd500_embedded;
 void check_pending_traps(Nd500Cpu* cpu, uint32_t trappingPC);
 
 /* Raise DT (bit 30) if an unprivileged SOLO region has run past 256

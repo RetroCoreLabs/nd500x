@@ -209,7 +209,136 @@ static void sintran_map_segment_to_phys(Nd500Machine* m, int seg, uint32_t phys_
 
 /* ------------------------------------------------------------ mmu setup --- */
 
+/*
+ * Which segments an NDIX kernel wants translated through its OWN DIT/PST rather
+ * than the emulator's shadow tables.
+ *
+ * MOVED HERE FROM src/cpu/nd500_mmu.c on 30-SEP-2026, on Ronny's instruction: an
+ * NDIX speciality belongs in the code that handles the NDIX boot, not in the
+ * generic CPU. Every clause below is a statement about the Unix kernel, not about
+ * the ND-500 - which is exactly why it could not stay where it was. A SINTRAN
+ * guest has none of these segments and none of these reasons.
+ *
+ * BEHAVIOUR IS UNCHANGED. The env flag is tested INSIDE this policy, so with
+ * ND500X_MMU_GUEST_TABLES off the answer is no for every segment, precisely as
+ * before the move.
+ */
+/** @brief ND-500 domain number of the NDIX kernel. */
+#define NDIX_KERNEL_DOMAIN 0
+
+/**
+ * The per-process segments __resume remaps (locore.c:920): 26=_Utext,
+ * 29=_u/Kstack, 30=_Udata, 31=_Ustack.
+ *
+ * Routing these through the kernel's own tables makes the u-area remap - and so
+ * per-process context switch and u.u_procp - resolve correctly. It is the fix for
+ * "panic: sleep".
+ */
+static int ndix_mmu_is_per_process_segment(int segment)
+{
+    return segment == 26 || segment == 29 || segment == 30 || segment == 31;
+}
+
+/**
+ * The page-table window segments the kernel manages recursively: 3=_usrpi1,
+ * 4=_usrpt, 5=_susrpt.
+ *
+ * vgetpt writes a new process's u-area and data PTEs THROUGH usrpt (segment 4) via
+ * Usrptmap. Under the emulator's flat shadow mapping those writes went to the wrong
+ * physical page, so Pst[38]'s page table stayed empty and __resume page-faulted.
+ */
+static int ndix_mmu_is_page_table_window(int segment)
+{
+    return segment == 3 || segment == 4 || segment == 5;
+}
+
+/**
+ * The no-cache segment (machine/param.h), where the kernel maps the DISK BUFFER
+ * pool with its own PTEs.
+ *
+ * Through the shadow tables the buffer window diverged from the kernel's mapping
+ * once exec recycled buffers: namei's geteblk name buffer and dirlookup's bread
+ * buffers read back garbage, so every post-exec lookup died with
+ * "bad dir ino 2 at offset 0: mangled entry" and then ENOENT.
+ */
+static int ndix_mmu_is_no_cache_segment(int segment)
+{
+    return segment == 7;
+}
+
+/**
+ * Physbase (_Physbase, DC_PHYS): the kernel's self-referential IDENTITY map of all
+ * physical memory.
+ *
+ * The kernel writes the ADI page-table PAGES through Physbase itself. On the shadow
+ * tables those writes land in demand-allocated pages - a fixed page skew - so a
+ * usrpt L1 PTE written via Physbase reads back 0 and page-faults. Routed, the
+ * identity map coincides with raw physical memory exactly as on hardware, which has
+ * no shadow: kernel pfnum P is physical page P.
+ */
+static int ndix_mmu_is_physbase_segment(int segment)
+{
+    return segment == 2;
+}
+
+/**
+ * A user domain has NO direct-loaded image, so every one of its segments is mapped
+ * only by the kernel's capability tables.
+ *
+ * pcbfork sets pcb_pc[0] / pcb_dc[0] / the stack, and the icode is placed by
+ * vmemall + copyiout into proc[1]'s real physical text page. The kernel sets above
+ * cover the kernel domain only, whose low segments (0=ktext, 1) are the flat
+ * direct-loaded image. Without routing user domains wholesale, the /etc/init launch
+ * fetched domain-1 segment-0 VA=4 through a stale demo shadow at physical 0x80000,
+ * which is empty, and read 0x00.
+ */
+static int ndix_mmu_is_user_domain(uint8_t domain)
+{
+    return domain != NDIX_KERNEL_DOMAIN;
+}
+
+/**
+ * Which segments an NDIX kernel wants translated through its OWN DIT/PST rather
+ * than the emulator's shadow tables.
+ *
+ * MOVED HERE FROM src/cpu/nd500_mmu.c on 30-SEP-2026, on Ronny's instruction: an
+ * NDIX speciality belongs in the code that handles the NDIX boot, not in the
+ * generic CPU. Every predicate above is a statement about the Unix kernel, not
+ * about the ND-500 - which is exactly why none of it could stay where it was. A
+ * SINTRAN guest has none of these segments and none of these reasons.
+ *
+ * BEHAVIOUR IS UNCHANGED BY THE MOVE. The env flag is tested INSIDE this policy, so
+ * with ND500X_MMU_GUEST_TABLES off the answer is no for every segment, precisely as
+ * before.
+ *
+ * The kernel segments not listed stay on the emulator's proven management, which
+ * avoids the early page-fault-during-bootstrap problem. Full guest-table mode for
+ * every segment needs the PGF -> kernel dispatch first.
+ */
+static int ndix_mmu_guest_table_policy(void *ctx, uint8_t domain, int segment)
+{
+    (void)ctx;
+
+    if (!nd500_settings()->mmu_guest_tables)
+    {
+        return 0;
+    }
+
+    return ndix_mmu_is_user_domain(domain) || ndix_mmu_is_per_process_segment(segment) ||
+           ndix_mmu_is_page_table_window(segment) || ndix_mmu_is_no_cache_segment(segment) ||
+           ndix_mmu_is_physbase_segment(segment);
+}
+
 int nd500_ndix_mmu_setup(Nd500Machine* m) {
+    /* Install the NDIX routing policy before anything translates. Without it the
+     * CPU takes its architectural default - walk the guest tables whenever DITBASE
+     * and PSTP are set - which is right for hardware and for a SINTRAN guest, and
+     * is NOT what this kernel's bootstrap survives. */
+    if (m && m->cpu)
+    {
+        nd500_mmu_set_guest_table_policy(m->cpu, ndix_mmu_guest_table_policy, NULL);
+    }
+
     if (!m || !m->cpu) {
         notice("mmusetup: no cpu linked");
         return -1;

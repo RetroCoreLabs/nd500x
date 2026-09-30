@@ -67,61 +67,39 @@ static int mmu_use_guest_tables(void) {
  * emulator shadow tables. Extracted so the trap-free diagnostic peek below
  * uses the SAME predicate as the real walk - a diagnostic that consulted a
  * different table than the CPU would report addresses the CPU never sees.
+ *
+ * THE DEFAULT IS THE ARCHITECTURE: real ND-500 hardware has no shadow tables, so
+ * once the guest has published a DIT base and a physical segment table pointer,
+ * every translation walks them. The shadow arrays are an emulator convenience for
+ * cases where no guest has published tables at all - a directly loaded :DOM, the
+ * conformance tests - and they remain in use exactly there, because DITBASE or
+ * PSTP being zero means there is nothing to walk.
+ *
+ * WHICH SEGMENTS AN NDIX KERNEL WANTS ROUTED WHERE IS NOT THE CPU'S BUSINESS.
+ * That policy used to live here as a list of segment numbers justified by Unix
+ * kernel internals - locore.c's __resume remap, pcbfork, usrpt/Usrptmap,
+ * Physbase's self-referential identity map, geteblk's buffer window. None of it
+ * is an ND-500 fact and none of it applies to a SINTRAN guest. It now lives with
+ * the NDIX boot code that knows why, and is installed through
+ * nd500_mmu_set_guest_table_policy(). Moved on Ronny's instruction, 30-SEP-2026:
+ * NDIX specifics belong in the NDIX boot path, not in the generic CPU.
  */
 static int mmu_use_guest_for(Nd500Cpu* cpu, uint8_t domain, int segment) {
-    /* Read the guest's REAL tables ONLY for the per-process segments that
-     * __resume remaps (locore.c:920): 26=_Utext, 29=_u/Kstack, 30=_Udata,
-     * 31=_Ustack. This makes the u-area remap (and thus per-process context
-     * switch / u.u_procp) resolve correctly - the fix for `panic: sleep` -
-     * while the kernel's self-referential phys-map bootstrap (seg 2) and the
-     * other kernel segments stay on the emulator's proven management, avoiding
-     * the early page-fault-during-bootstrap problem. Full guest-table mode
-     * (all segments) remains available but needs the PGF->kernel dispatch. */
-    return mmu_use_guest_tables() && cpu && cpu->machine && cpu->DITBASE
-        && (/* User domains (domain != KDOM=0) have NO direct-loaded image:
-                      * every segment of a user process is mapped only by the guest
-                      * capability tables (pcbfork sets pcb_pc[0]/pcb_dc[0]/stack etc.,
-                      * the icode is placed by vmemall+copyiout into proc[1]'s real
-                      * physical text page). The kernel's selective set below covers
-                      * only domain 0, whose low segments (0=ktext,1) are the flat
-                      * direct-loaded kernel image. So for domain != 0, route ALL
-                      * segments through the guest DIT/PST. Without this the /etc/init
-                      * launch fetches domain-1 seg-0 VA=4 through the emulator's stale
-                      * demo shadow (mmusetup) at physical 0x80000 (empty) -> 0x00. */
-                     domain != 0
-                     || segment == 26 || segment == 29 || segment == 30 || segment == 31
-                     /* Page-table window segments the kernel manages recursively:
-                      * 3=_usrpi1 (0x18000000), 4=_usrpt (0x20000000), 5=_susrpt
-                      * (0x28000000). vgetpt writes new-process u-area/data PTEs
-                      * through usrpt (seg 4) via Usrptmap; the flat shadow mapping
-                      * sent those writes to the wrong physical page, so Pst[38]'s
-                      * page table stayed empty and __resume page-faulted. Routing
-                      * these through the guest tables makes PTE writes/reads land
-                      * where the PST entries point. */
-                     || segment == 3 || segment == 4 || segment == 5
-                     /* 7 = the no-cache segment (NO_CACHE_SEG_START 0x38000000,
-                      * machine/param.h): the kernel maps the DISK BUFFER pool
-                      * here (machdep startup, ncsize += MAXBSIZE*nbuf) with its
-                      * own PTEs. Through the shadow tables the buffer window
-                      * diverged from the kernel's mapping after exec recycled
-                      * buffers: namei's geteblk name buffer and dirlookup's
-                      * bread buffers read back stale/garbage bytes, so EVERY
-                      * post-exec lookup died with "/: bad dir ino 2 at offset
-                      * 0: mangled entry" -> ENOENT. */
-                     || segment == 7
-                     /* 2 = Physbase (_Physbase, virtual 0x10000000, DC_PHYS). The
-                      * kernel builds seg-2 as a self-referential IDENTITY map of all
-                      * physical memory (machdep.c startup: PS_AZI->PS_ASI->PS_ADI,
-                      * pte->pg_pfnum = i). It writes the ADI page-table PAGES *through
-                      * Physbase itself*, and sets Pst[physindex]/DIT[dom0 seg2] via the
-                      * seg 27/28 windows onto PSTP/DITBASE. If seg-2 translates through
-                      * the emulator SHADOW tables instead, those self-referential
-                      * writes land in demand-allocated pages (a fixed page skew), so a
-                      * later usrpt L1 PTE the kernel wrote via Physbase reads back 0 and
-                      * page-faults. Routing seg-2 through the guest tables (like the
-                      * hardware, which has no shadow) makes the identity map coincide
-                      * with raw physical memory: kernel-pfnum P == physical page P. */
-                     || segment == 2);
+    /* dit_configured, NOT DITBASE != 0: zero is a valid base. See the field's own
+     * comment in cpu_protos.h for the measured cost of the other test. */
+    if (!cpu || !cpu->machine || !cpu->dit_configured) {
+        return 0;
+    }
+
+    /* A regime that wants a say - the NDIX boot - installs a policy and decides
+     * per segment. Its own enable flag is inside the policy, so a regime with the
+     * policy installed and the flag off keeps behaving exactly as before. */
+    if (cpu->guest_table_policy) {
+        return cpu->guest_table_policy(cpu->guest_table_policy_ctx, domain, segment);
+    }
+
+    /* No regime installed: the hardware rule. Nothing to walk without a PST. */
+    return cpu->PSTP != 0;
 }
 
 /* Segment-level demand mapping: when a DATA access references a work segment
@@ -198,7 +176,12 @@ void nd500_mmu_enable_data(Nd500Cpu* cpu) {
     cpu->mmu->data_enabled = 1;
     /* Also set machine->mmu_enabled so data access uses MMU translation */
     if (cpu->machine) cpu->machine->mmu_enabled = 1;
-    if (!nd500_quiet) printf("ND-500: Data MMU enabled (DMON)\n");
+    /* STDOUT IS ONLY OURS WHEN WE ARE THE BINARY. Embedded in another machine
+     * this stream is the HOST guest's console: measured 30-SEP-2026, this line
+     * printed inside the ND-500 monitor's own "> Loading Swapper" output. So the
+     * mode gate comes first and the operator's quiet flag second - they answer
+     * different questions (who owns the stream, versus how much to say). */
+    if (!nd500_embedded && !nd500_quiet) printf("ND-500: Data MMU enabled (DMON)\n");
 }
 
 void nd500_mmu_disable_data(Nd500Cpu* cpu) {
@@ -207,7 +190,12 @@ void nd500_mmu_disable_data(Nd500Cpu* cpu) {
     cpu->mmu->data_enabled = 0;
     /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
     if (cpu->machine && !cpu->mmu->program_enabled) cpu->machine->mmu_enabled = 0;
-    if (!nd500_quiet) printf("ND-500: Data MMU disabled (DMOF)\n");
+    /* STDOUT IS ONLY OURS WHEN WE ARE THE BINARY. Embedded in another machine
+     * this stream is the HOST guest's console: measured 30-SEP-2026, this line
+     * printed inside the ND-500 monitor's own "> Loading Swapper" output. So the
+     * mode gate comes first and the operator's quiet flag second - they answer
+     * different questions (who owns the stream, versus how much to say). */
+    if (!nd500_embedded && !nd500_quiet) printf("ND-500: Data MMU disabled (DMOF)\n");
 }
 
 int nd500_mmu_is_data_enabled(Nd500Cpu* cpu) {
@@ -225,7 +213,12 @@ void nd500_mmu_enable_program(Nd500Cpu* cpu) {
     cpu->mmu->program_enabled = 1;
     /* Also set machine->mmu_enabled so instruction decode uses MMU translation */
     if (cpu->machine) cpu->machine->mmu_enabled = 1;
-    if (!nd500_quiet) printf("ND-500: Program MMU enabled (PMON)\n");
+    /* STDOUT IS ONLY OURS WHEN WE ARE THE BINARY. Embedded in another machine
+     * this stream is the HOST guest's console: measured 30-SEP-2026, this line
+     * printed inside the ND-500 monitor's own "> Loading Swapper" output. So the
+     * mode gate comes first and the operator's quiet flag second - they answer
+     * different questions (who owns the stream, versus how much to say). */
+    if (!nd500_embedded && !nd500_quiet) printf("ND-500: Program MMU enabled (PMON)\n");
 }
 
 void nd500_mmu_disable_program(Nd500Cpu* cpu) {
@@ -234,7 +227,12 @@ void nd500_mmu_disable_program(Nd500Cpu* cpu) {
     cpu->mmu->program_enabled = 0;
     /* Disable machine mmu_enabled only if both program AND data MMU are disabled */
     if (cpu->machine && !cpu->mmu->data_enabled) cpu->machine->mmu_enabled = 0;
-    if (!nd500_quiet) printf("ND-500: Program MMU disabled (PMOF)\n");
+    /* STDOUT IS ONLY OURS WHEN WE ARE THE BINARY. Embedded in another machine
+     * this stream is the HOST guest's console: measured 30-SEP-2026, this line
+     * printed inside the ND-500 monitor's own "> Loading Swapper" output. So the
+     * mode gate comes first and the operator's quiet flag second - they answer
+     * different questions (who owns the stream, versus how much to say). */
+    if (!nd500_embedded && !nd500_quiet) printf("ND-500: Program MMU disabled (PMOF)\n");
 }
 
 int nd500_mmu_is_program_enabled(Nd500Cpu* cpu) {
@@ -1439,4 +1437,18 @@ void nd500_mmu_state_restore(Nd500Cpu* cpu, void* blob) {
     if (cpu->mmu->pcb_table)
         memcpy(cpu->mmu->pcb_table, b->pcb, MAXDOM * sizeof(ProcessControlBlock));
     free(blob);
+}
+
+void nd500_mmu_set_guest_table_policy(Nd500Cpu* cpu,
+                                      int (*policy)(void *ctx, uint8_t domain, int segment),
+                                      void *ctx) {
+    if (!cpu) return;
+    cpu->guest_table_policy = policy;
+    cpu->guest_table_policy_ctx = ctx;
+}
+
+void nd500_mmu_declare_dit_base(Nd500Cpu* cpu, uint32_t base) {
+    if (!cpu) return;
+    cpu->DITBASE = base;
+    cpu->dit_configured = 1;
 }
