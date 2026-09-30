@@ -3968,6 +3968,103 @@ static void test_monitor_call_record(void)
     ndbus_pool_destroy(&pool);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Layer 20: the 3MONCO answer, whose slots mean something ELSE inbound.      */
+/*                                                                            */
+/* Decoded from the B30 write-back loop MSG_CONMC 015734-015751. Three slots   */
+/* are re-used for the answer, so reading them as their outbound meanings gets */
+/* all three wrong:                                                           */
+/*                                                                            */
+/*   MCNO + MSWMC  outbound: the monitor number and half the saved P           */
+/*                 inbound:  FUNCV, one 32-bit result, into the process's I1   */
+/*   STOPR         outbound: MOCALL or TRAPCODE                               */
+/*                 inbound:  KFLIP, which sets or clears the K flag           */
+/*   NUMPA         outbound: the argument COUNT                               */
+/*                 inbound:  a write-back MASK, bit k naming parameter k       */
+/* -------------------------------------------------------------------------- */
+static void test_monitor_call_result(void)
+{
+    printf("Layer 20: the 3MONCO answer and its write-back mask\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the 3MONCO answer");
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+    NdbusNd5000 nd;
+    mbx_init_structures(&pool);
+    mbx_attach(&nd, &pool, &fabric);
+
+    NdbusMonResult r;
+    CHECK(!ndbus_servicer_read_monitor_result(&nd.servicer, 0u, &r),
+          "a zero message address is refused");
+    CHECK(!ndbus_servicer_read_monitor_result(&nd.servicer, MBX_MSG, NULL),
+          "and so is a NULL result");
+
+    /* Build an answer the way SINTRAN does. FUNCV spans two slots that carried
+     * completely different things outbound. */
+    const uint32_t funcv = 0x0000002Au;
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_MCNO * 2u, (uint16_t)(funcv >> 16));
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_MSWMC * 2u, (uint16_t)(funcv & 0xFFFF));
+
+    /* KFLIP non-zero: the call failed and the program will branch on K. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_STOPR * 2u, 1u);
+
+    /* A MASK with bits 0 and 3 set - NOT a count of two, and not four parameters.
+     * Reading it as a count would write back parameters 0 and 1 and miss 3. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_NUMPA * 2u, 0x0009u);
+
+    const uint32_t addrs[4] = { 0x08001000u, 0x08001004u, 0x08001008u, 0x0800100Cu };
+    const uint32_t vals[4]  = { 0xAAAA1111u, 0xBBBB2222u, 0xCCCC3333u, 0xDDDD4444u };
+    for (uint32_t k = 0; k < 4u; k++)
+    {
+        uint32_t as = MBX_MSG + 0x40u + 4u * k;
+        uint32_t vs = MBX_MSG + 0x80u + 4u * k;
+        (void)ndbus_pool_write16(&pool, as, (uint16_t)(addrs[k] >> 16));
+        (void)ndbus_pool_write16(&pool, as + 2u, (uint16_t)(addrs[k] & 0xFFFF));
+        (void)ndbus_pool_write16(&pool, vs, (uint16_t)(vals[k] >> 16));
+        (void)ndbus_pool_write16(&pool, vs + 2u, (uint16_t)(vals[k] & 0xFFFF));
+    }
+
+    CHECK(ndbus_servicer_read_monitor_result(&nd.servicer, MBX_MSG, &r), "the answer is read");
+    CHECK(nd.servicer.mon_results_read == 1u, "and counted");
+
+    CHECK(r.funcv == funcv, "FUNCV is the 32-bit value spanning MCNO and MSWMC");
+    CHECK(r.kflip == 1u, "KFLIP comes out of the STOPR slot");
+    CHECK(r.mask == 0x0009u, "NUMPA is taken as a mask");
+
+    /* THE MASK SELECTS, IT DOES NOT COUNT. Bits 0 and 3, so two write-backs, and
+     * the SECOND one is parameter 3 - not parameter 1. A count-based reading gives
+     * the right NUMBER of write-backs and the wrong addresses, which is the kind of
+     * wrong answer that looks plausible in a log. */
+    CHECK(r.count == 2u, "two bits set means two write-backs");
+    CHECK(r.addresses[0] == addrs[0], "the first is parameter 0's address");
+    CHECK(r.values[0] == vals[0], "with parameter 0's value");
+    CHECK(r.addresses[1] == addrs[3],
+          "the second is parameter 3's address, NOT parameter 1's - the mask selects");
+    CHECK(r.values[1] == vals[3], "with parameter 3's value");
+
+    /* An empty mask is a legitimate answer: a call that returns only FUNCV. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_NUMPA * 2u, 0u);
+    CHECK(ndbus_servicer_read_monitor_result(&nd.servicer, MBX_MSG, &r), "an empty mask reads");
+    CHECK(r.count == 0u, "and selects nothing to write back");
+    CHECK(r.funcv == funcv, "while FUNCV still comes through");
+
+    /* KFLIP zero is the success case, and must be distinguishable from the failure
+     * one - the whole point of the flag. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_STOPR * 2u, 0u);
+    CHECK(ndbus_servicer_read_monitor_result(&nd.servicer, MBX_MSG, &r), "and reads again");
+    CHECK(r.kflip == 0u, "KFLIP zero is the success case");
+
+    /* Every bit of the mask is honoured, up to the sixteen slots that exist. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_NUMPA * 2u, 0xFFFFu);
+    CHECK(ndbus_servicer_read_monitor_result(&nd.servicer, MBX_MSG, &r), "a full mask reads");
+    CHECK(r.count == NDBUS_MON_MAX_ARGS,
+          "all sixteen bits select, and none beyond - there are only sixteen slots");
+
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -3998,6 +4095,7 @@ int main(void)
     test_trap_stop_record();
     test_physical_segment_width();
     test_monitor_call_record();
+    test_monitor_call_result();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)

@@ -246,6 +246,7 @@ typedef struct NdbusServicer
     unsigned long mon_calls_attempted;
     unsigned long mon_calls_posted;
     unsigned long mon_calls_declined;
+    unsigned long mon_results_read;
     uint16_t      last_mon_number;
     uint16_t      last_trap_number;
     uint32_t      last_trap_pc;
@@ -450,6 +451,54 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
                                         uint16_t mon_number, uint32_t arg_count,
                                         const uint32_t *arg_addresses,
                                         const uint32_t *arg_values);
+
+/** What SINTRAN sent back with a 3MONCO restart. */
+typedef struct NdbusMonResult
+{
+    /** FUNCV, the call's 32-bit result, which goes into the process's I1.
+     *  Carried in the MCNO and MSWMC slots, RE-USED for the answer. */
+    uint32_t funcv;
+
+    /** KFLIP, in the STOPR slot, also re-used. Non-zero sets the process's K flag,
+     *  which is the ND-500 error convention: the program branches on K. */
+    uint16_t kflip;
+
+    /** NUMPA, re-used again - as a WRITE-BACK MASK rather than a count. Bit k set
+     *  means parameter k's value must be written into process memory. */
+    uint32_t mask;
+
+    /** The write-backs the mask selected, already filtered. */
+    uint32_t count;
+    uint32_t addresses[NDBUS_MON_MAX_ARGS];
+    uint32_t values[NDBUS_MON_MAX_ARGS];
+} NdbusMonResult;
+
+/**
+ * @brief Read the answer SINTRAN placed in a message for a 3MONCO restart.
+ *
+ * THREE SLOTS ARE RE-USED FOR THE ANSWER, and reading them as their outbound
+ * meanings gets all three wrong. Decoded from the B30 write-back loop MSG_CONMC
+ * 015734-015751: FUNCV is the 32-bit value in the MCNO and MSWMC slots and goes to
+ * the process's X1/I1 (015721 D,X1); KFLIP sits in the STOPR slot and sets or
+ * clears the K flag (015727/015731 K,ZRO / K,ONE); and NUMPA is a BITMASK, not the
+ * count it was on the way out - for each set bit k the 32-bit value at 0o100 + 2k
+ * is written into PROCESS memory at the 32-bit address at 0o40 + 2k.
+ *
+ * THE WRITE-BACK IS NOT OPTIONAL. Without it the program never sees its result:
+ * measured 30-SEP-2026, the swapper's MON 377B was reported, SINTRAN answered it,
+ * the process resumed from live registers and then spun forever, because the cell
+ * it was waiting on had been written in the message and never carried across.
+ *
+ * This function only READS. Writing into process memory needs the process's MMU,
+ * which belongs to the CPU and not to the station, so the caller applies the list.
+ *
+ * @param sv       The servicer.
+ * @param msg_byte The message carrying the answer.
+ * @param out      Receives the answer. Must not be NULL.
+ * @return true when the message was read.
+ */
+bool ndbus_servicer_read_monitor_result(NdbusServicer *sv, uint32_t msg_byte,
+                                       NdbusMonResult *out);
 
 /**
  * @brief Tell the servicer where the ND-500 physical segment table is.

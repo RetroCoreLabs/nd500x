@@ -981,6 +981,46 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
     return true;
 }
 
+bool ndbus_servicer_read_monitor_result(NdbusServicer *sv, uint32_t msg_byte,
+                                       NdbusMonResult *out)
+{
+    if (sv == NULL || sv->pool == NULL || out == NULL || msg_byte == 0u)
+    {
+        return false;
+    }
+
+    memset(out, 0, sizeof(*out));
+
+    /* FUNCV, 32 bits, in the MCNO and MSWMC slots - the same halfwords that carried
+     * the monitor number and part of the saved P on the way out. */
+    out->funcv = ((uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_MCNO)) << 16)
+               |  (uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_MSWMC));
+
+    /* KFLIP in the STOPR slot, where MOCALL/TRAPCODE lived on the way out. */
+    out->kflip = read16(sv, msg_word(msg_byte, NDBUS_MSG_STOPR));
+
+    /* NUMPA as a MASK, not a count. Bit k names parameter k. */
+    out->mask = read16(sv, msg_word(msg_byte, NDBUS_MSG_NUMPA));
+
+    for (uint32_t k = 0; k < NDBUS_MON_MAX_ARGS; k++)
+    {
+        if ((out->mask & (1u << k)) == 0u)
+        {
+            continue;
+        }
+        uint32_t addr_slot = msg_byte + NDBUS_MON_ARG_ADDR_BASE + (4u * k);
+        uint32_t val_slot  = msg_byte + NDBUS_MON_ARG_VALUE_BASE + (4u * k);
+        out->addresses[out->count] = ((uint32_t)read16(sv, addr_slot) << 16)
+                                   |  (uint32_t)read16(sv, addr_slot + 2u);
+        out->values[out->count]    = ((uint32_t)read16(sv, val_slot) << 16)
+                                   |  (uint32_t)read16(sv, val_slot + 2u);
+        out->count++;
+    }
+
+    sv->mon_results_read++;
+    return true;
+}
+
 bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte)
 {
     if (sv == NULL || sv->pool == NULL)
