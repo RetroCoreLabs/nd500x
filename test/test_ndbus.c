@@ -2872,6 +2872,8 @@ static void test_mailbox_servicer(void)
         static const uint8_t body[] = { 0x01u, 0x08u, 0x0Eu,
                                         0x01u, 0x08u, 0x00u, 0x00u, 0x00u, 0x00u };
         uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+        uint16_t nd5000_last_replies[NDBUS_MAX_REPLY_FRAMES];
+        int      nd5000_last_reply_count = 0;
         (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
                                 (uint16_t)(0x8000u | 0x0020u | 0x0010u
                                            | (NDBUS_STATION_ND5000_FIRST << 8) | 0x03u),
@@ -2882,15 +2884,39 @@ static void test_mailbox_servicer(void)
                                     (uint16_t)((NDBUS_STATION_ND5000_FIRST << 8) | body[i]),
                                     replies);
         }
-        (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
-                                (uint16_t)(0x8000u | 0x0020u
-                                           | (NDBUS_STATION_ND5000_FIRST << 8) | 0x03u),
-                                replies);
+        /* The EOMB is the frame that completes the message, so it is the one whose
+         * reply carries the presence ack. Keep it. */
+        nd5000_last_reply_count =
+            ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
+                              (uint16_t)(0x8000u | 0x0020u
+                                         | (NDBUS_STATION_ND5000_FIRST << 8) | 0x03u),
+                              nd5000_last_replies);
 
         CHECK(nd.lsyspar_word1 == 0x0800u,
               "S5 captured from the wire is 0x0800 - 5OMDNO 10B in the high byte");
         CHECK(nd.lsyspar_word1 != 0x0000u,
               "and NOT zero, which is what reading one word too far produced");
+
+        /* THE PRESENCE ACK MUST GO TO THE S5 OMD, NOT THE SENDING ONE. SINTRAN's
+         * CON5IDENT sends CMSYSPAR and waits (GO I5OMBR) for a multibyte MFACK on the
+         * OMD the message nominates for replies - 5OMDNO, the S5 high byte. The frames
+         * above arrive on OMD 3 and name OMD 8, so the two are distinguishable: a reply
+         * carrying 3 is the sending OMD and wrong.
+         *
+         * The destination OMD is the low nibble of the SOMB frame
+         * (ndbus_multibyte_build), and MFACK is payload byte 0 = 0x00. */
+        int ack_frames = nd5000_last_reply_count;
+        CHECK(ack_frames > 0, "the CMSYSPAR is ANSWERED, not merely consumed");
+        if (ack_frames > 0)
+        {
+            uint16_t somb = nd5000_last_replies[0];
+            CHECK((somb & 0x000Fu) == 0x08u,
+                  "the ack is addressed to OMD 8 - the 5OMDNO the message named");
+            CHECK((somb & 0x000Fu) != 0x03u,
+                  "and NOT to OMD 3, the OMD the command arrived on");
+            CHECK((somb & NDBUS_FRAME_C_CONTROL) != 0u, "SOMB carries the C bit");
+            CHECK((somb & NDBUS_FRAME_M_MULTIBYTE) != 0u, "and the M bit");
+        }
 
         ndbus_nd5000_destroy(&nd);
         ndbus_pool_destroy(&pool);

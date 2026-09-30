@@ -443,11 +443,6 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
     switch (command)
     {
     case NDBUS_ACCP_LSYSPAR:
-        /* T126: three 16-bit words - error station/OMD, host station/OMD, spare.
-         * WORD 1, the host station and OMD, IS KEPT: the GIVEINT answer interrupt
-         * is composed from it and from nothing else. See lsyspar_word1 in
-         * ndbus_nd5000.h for the two microwords that do the composing. The other
-         * two words are the microprogram's business. */
         /* THE LAYOUT IS ONE BYTE THEN THE WORDS, not three words. params[0] is the
          * first byte after the command code, and the six bytes are
          *     [0] N100IDENT (a BYTE)  [1..2] S5  [3..5] the rest
@@ -465,7 +460,19 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
          * never receiving an answer interrupt. */
         nd->lsyspar_word1 = (uint16_t)(((uint16_t)params[1] << 8u) | params[2]);
         nd->accp.system_parameters_given = true;
-        break;
+        /* THE PRESENCE ACK GOES ON THE S5 OMD, NOT THE SENDING OMD.
+         *
+         * SINTRAN's "CPU present" is CPUAVAILABLE.5ALIVE, set ONLY by 5OMBREAD
+         * (MP-P2-N500.NPL:3470) when the ND-100 receives a multibyte ACK from a
+         * SAMSON station whose command/ETYPE high byte is MFACK(0). @ND-500 runs
+         * CON5IDENT, which sends this CMSYSPAR and then waits (GO I5OMBR) for
+         * exactly that ack; consuming the command is not enough, and the reply must
+         * go to the OMD the message names for replies - 5OMDNO, the S5 high byte -
+         * not the OMD the command arrived on. Ported from
+         * OctobusND5000Station.cs, which cites
+         * CARVE-ANSWER-OCTOBUS-CPU-PRESENCE-2026-07-18.md. */
+        return build_messack(nd->station.number, (uint8_t)(params[1] & 0x0Fu),
+                             NULL, 0, replies, max);
 
     case NDBUS_ACCP_VPARP:
         nd->messacks++;
