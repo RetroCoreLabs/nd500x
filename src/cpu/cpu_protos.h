@@ -105,6 +105,15 @@ typedef struct Nd500Cpu {
      */
     int (*guest_table_policy)(void *ctx, uint8_t domain, int segment);
     void *guest_table_policy_ctx;
+
+    /* A HOST MACHINE'S CLAIM ON MONITOR CALLS. Installed by an embedding machine
+     * whose own operating system owns them - an nd100x running SINTRAN with an
+     * ND-5000 on the octobus. Returns nonzero when it has taken the call, in which
+     * case no local emulation runs. See the call site in nd500_indirect.c for why
+     * this outranks a PRESENT ndmonlib rather than filling in for a missing one. */
+    int (*mon_call_host)(void *ctx, uint32_t mon_number, uint32_t arg_count,
+                         const uint32_t *arg_addresses, uint32_t *out_resolved);
+    void *mon_call_host_ctx;
     uint32_t DITBASE;   /* Domain Information Table Base */
 
     /*

@@ -204,6 +204,33 @@ int nd500_check_indirect_call(
             return INDIRECT_HANDLED;
         }
 
+        /* A HOST MACHINE CAN CLAIM THE CALL, AND IT TAKES PRECEDENCE OVER ANY
+         * LOCAL EMULATION.
+         *
+         * On a real ND-500 or ND-5000 there IS no local SINTRAN: the program's
+         * monitor call stops the process, the record goes to the ND-100 over the
+         * mailbox, the ND-100's SINTRAN performs the call, and the process is
+         * restarted with 3MONCO. An ND-5000 attached to an nd100x that is running
+         * the real SINTRAN must take that path even in a build where ndmonlib is
+         * present, because the machine next to it is the genuine article and the
+         * local emulation is a stand-in for when there is none.
+         *
+         * MEASURED 30-SEP-2026: with no hook, the ND-5000's swapper ran to its
+         * first monitor call and the local seam answered "this build has no
+         * SINTRAN MON emulation" - a build message for a call that was never
+         * addressed to this machine.
+         *
+         * The hook returns nonzero when it has taken the call. */
+        if (cpu->mon_call_host != NULL)
+        {
+            int taken = cpu->mon_call_host(cpu->mon_call_host_ctx, mon_number, arg_count,
+                                          arg_addresses, out_resolved);
+            if (taken != 0)
+            {
+                return INDIRECT_HANDLED;
+            }
+        }
+
         /* Everything that is not MON 600 is SINTRAN III monitor-call
          * emulation, which lives behind the seam in nd500_mon_sintran.h so
          * that this file - and therefore all of nd500_cpu - carries no
