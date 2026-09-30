@@ -89,6 +89,14 @@ static int bad_magic(unsigned int m) {
     return !(m == OMAGIC || m == NMAGIC || m == ZMAGIC || m == IMAGIC);
 }
 
+/* File offset of the text segment (pcc-nd500 src/include/nd500/a.out.h,
+ * N_TXTOFF): ZMAGIC starts text on the first 2048-byte page, the other
+ * magics right after the 32-byte header. The symbol table follows text,
+ * data and relocations. */
+static unsigned int sym_text_off(unsigned int magic, unsigned int hdr_size) {
+    return magic == ZMAGIC ? 2048u : hdr_size;
+}
+
 /*
  * ND-500 a.out metadata (header, symbol table, relocations) is stored
  * big-endian on disk. This emulator runs on a little-endian host, so the
@@ -202,7 +210,7 @@ int ndlib_symbols_load(const char* aout_path) {
     }
 
     /* Calculate offsets */
-    unsigned int sym_off = sizeof(hdr) + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize;
+    unsigned int sym_off = sym_text_off(hdr.a_magic, (unsigned int)sizeof(hdr)) + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize;
     unsigned int str_off = sym_off + hdr.a_syms;
     int nsyms = hdr.a_syms / sizeof(struct nd500_nlist);
 
@@ -277,7 +285,7 @@ int ndlib_symbols_load(const char* aout_path) {
         int nrelocs = hdr.a_trsize / 8;  /* 8 bytes per relocation */
         struct nd500_reloc* reloc_table = malloc(hdr.a_trsize);
         if (reloc_table) {
-            unsigned int reloc_off = sizeof(hdr) + hdr.a_text + hdr.a_data;
+            unsigned int reloc_off = sym_text_off(hdr.a_magic, (unsigned int)sizeof(hdr)) + hdr.a_text + hdr.a_data;
             FILE* f2 = fopen(aout_path, "rb");
             if (f2) {
                 fseek(f2, reloc_off, SEEK_SET);

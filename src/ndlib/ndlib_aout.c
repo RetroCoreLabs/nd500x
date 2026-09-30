@@ -67,6 +67,14 @@ static int bad_magic(unsigned int m) {
     return !(m == OMAGIC || m == NMAGIC || m == ZMAGIC || m == IMAGIC);
 }
 
+/* File offset of the text segment (pcc-nd500 src/include/nd500/a.out.h,
+ * N_TXTOFF): ZMAGIC starts text on the first 2048-byte page, the other
+ * magics right after the 32-byte header. Data, relocations, symbols and
+ * strings follow the text in that order. */
+static unsigned int aout_text_off(unsigned int magic, unsigned int hdr_size) {
+    return magic == ZMAGIC ? 2048u : hdr_size;
+}
+
 /*
  * The ND-500 is a BIG-ENDIAN machine and its a.out metadata (the exec
  * header) is stored big-endian on disk. This emulator runs on a
@@ -138,7 +146,7 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
     int has_relocations = (hdr.a_trsize > 0 || hdr.a_drsize > 0);
     int has_unresolved = 0;
     if (hdr.a_syms > 0) {
-        unsigned int sym_off = (unsigned int)sizeof(hdr) + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize;
+        unsigned int sym_off = aout_text_off(hdr.a_magic, (unsigned int)sizeof(hdr)) + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize;
         if (fseek(f, (long)sym_off, SEEK_SET) == 0) {
             int nsyms = (int)(hdr.a_syms / (unsigned int)sizeof(struct nd500_nlist));
             for (int i = 0; i < nsyms; i++) {
@@ -176,8 +184,8 @@ int ndlib_loadaout_file_ex(Nd500Machine* m, const char* path, unsigned int* out_
         if (ndlib_loaddbg()) printf("[DEBUG ndlib_loadaout_file_ex] hdr.a_entry=0x%x, setting entry_point=0x%x\n", hdr.a_entry, entry_point);
     }
 
-    /* Text immediately after header, per nd500 a.out */
-    unsigned int text_off = sizeof(hdr);
+    /* Text at N_TXTOFF: 2048 for ZMAGIC, right after the header otherwise */
+    unsigned int text_off = aout_text_off(hdr.a_magic, (unsigned int)sizeof(hdr));
     unsigned int data_off = text_off + hdr.a_text;
     /* Load text */
     if (hdr.a_text) {
@@ -288,7 +296,7 @@ void ndlib_aout_dump_symbols(const char* path) {
     }
 
     /* Calculate offsets */
-    unsigned int sym_off = sizeof(hdr) + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize;
+    unsigned int sym_off = aout_text_off(hdr.a_magic, (unsigned int)sizeof(hdr)) + hdr.a_text + hdr.a_data + hdr.a_trsize + hdr.a_drsize;
     unsigned int str_off = sym_off + hdr.a_syms;
     int nsyms = hdr.a_syms / sizeof(struct nd500_nlist);
 
