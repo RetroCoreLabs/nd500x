@@ -407,9 +407,15 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
     if (sv->copies_done <= NDBUS_SERVICER_COPY_LOG_LIMIT)
     {
         char line[160];
+        /* THE VALUE, NOT JUST THE ADDRESSES. Every transfer of a run reading the
+         * same source cell is the shape of a loop that stages one value per
+         * transfer, and in that case servicing the messages in a batch makes all of
+         * them copy the LAST value written. Printing the first four bytes is what
+         * tells those two apart. */
         (void)snprintf(line, sizeof line,
-                       "mailbox copy #%lu: %u bytes 0x%06X -> 0x%06X",
-                       sv->copies_done, (unsigned)count, (unsigned)src, (unsigned)dst);
+                       "mailbox copy #%lu: %u bytes 0x%06X -> 0x%06X, value 0x%04X%04X",
+                       sv->copies_done, (unsigned)count, (unsigned)src, (unsigned)dst,
+                       (unsigned)read16(sv, dst), (unsigned)read16(sv, dst + 2u));
         servicer_log(sv, line);
     }
 

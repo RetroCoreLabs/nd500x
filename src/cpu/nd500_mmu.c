@@ -352,6 +352,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
          * MM_PFZPST; these two must not diverge. */
         cpu->mmu_pgf_where = MMW_PFZPST | (is_instruction ? MMW_INST : 0u);
         cpu->mmu_pgf_psn = (uint32_t)psn;
+                cpu->mmu_pgf_is_write = is_write ? 1 : 0;
         trap_page_fault(cpu, cpu->PC, virtual_addr);
         return virtual_addr;
     }
@@ -446,6 +447,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                  * PFZ2 - "0 in last level index entry" - and not PFZ1. */
                 cpu->mmu_pgf_where = MMW_PFZ2 | (is_instruction ? MMW_INST : 0u);
                 cpu->mmu_pgf_psn = (uint32_t)psn;
+                cpu->mmu_pgf_is_write = is_write ? 1 : 0;
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
             }
@@ -534,6 +536,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                  * a text-fetch fault at va 0 pages in DATA page 0 instead. */
                 cpu->mmu_pgf_where = MMW_PFZ1 | (is_instruction ? MMW_INST : 0u);
                 cpu->mmu_pgf_psn = (uint32_t)psn;
+                cpu->mmu_pgf_is_write = is_write ? 1 : 0;
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
             }
@@ -597,6 +600,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                  * (0x40) marks an I-channel fault - see the PFZ1 site above. */
                 cpu->mmu_pgf_where = MMW_PFZ2 | (is_instruction ? MMW_INST : 0u);
                 cpu->mmu_pgf_psn = (uint32_t)psn;
+                cpu->mmu_pgf_is_write = is_write ? 1 : 0;
                 trap_page_fault(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }
@@ -1014,6 +1018,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
         MMU_ERR("[MMU] TRAP: PSN %d >= MAX_PST %d! vaddr=0x%08X\n", psn, MAX_PST, virtual_addr);
         cpu->mmu_pgf_where = MMW_INDEXERR | (is_instruction ? MMW_INST : 0u);
         cpu->mmu_pgf_psn = (uint32_t)psn;
+                cpu->mmu_pgf_is_write = is_write ? 1 : 0;
         trap_protect_violation(cpu, cpu->PC, virtual_addr);
         return virtual_addr;  /* Invalid PSN - return virtual address, trap will stop execution */
     }

@@ -245,6 +245,12 @@ typedef struct Nd500Cpu {
      * after the wrong one. */
     uint32_t mmu_pgf_psn;
 
+    /* Whether the CURRENT fault was raised by a WRITE. The B30 trap-stop record
+     * carries the access class in bits 31-29 of the MMS status word - 100 read,
+     * 101 write - and the swapper reads it to decide whether the page it brings in
+     * must be writable. Set beside mmu_pgf_where by the same walk. */
+    int mmu_pgf_is_write;
+
     /* Per-generic-device interrupt priority, captured from the FE_IDEV command
      * packet (machine/if.h: every _idev_cpk variant begins with "short ipl") and
      * used when that device's completion interrupt is delivered. Indexed by
