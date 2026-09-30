@@ -105,6 +105,20 @@
 /** STOPR value that says "this process stopped on a trap" - TRAPCODE. */
 #define NDBUS_STOPR_TRAPCODE 2u
 
+/** STOPR value that says "this process stopped to make a monitor call" - MOCALL. */
+#define NDBUS_STOPR_MOCALL 1u
+
+/** The microcode's own argument slot limit: CALL_MON checks the count against
+ *  sixteen, and the message carries exactly sixteen address and sixteen value
+ *  slots. A larger count writes past them. */
+#define NDBUS_MON_MAX_ARGS 16u
+
+/** Argument ADDRESS slots, 0o40 + 2k as halfwords = byte 0x40 + 4k. */
+#define NDBUS_MON_ARG_ADDR_BASE 0x40u
+
+/** Argument VALUE slots, 0o100 + 2k as halfwords = byte 0x80 + 4k. */
+#define NDBUS_MON_ARG_VALUE_BASE 0x80u
+
 /** Trap 46B, the page fault. The only stop trap with the TRAP_GEN4 record layout. */
 #define NDBUS_TRAP_PAGE_FAULT 0x26u
 
@@ -228,6 +242,10 @@ typedef struct NdbusServicer
     unsigned long trap_stops_posted;    /**< records actually written */
     unsigned long trap_stops_declined;  /**< no message recorded for that X5CPU */
     unsigned long page_faults_posted;   /**< of those, 46B records */
+    unsigned long mon_calls_attempted;
+    unsigned long mon_calls_posted;
+    unsigned long mon_calls_declined;
+    uint16_t      last_mon_number;
     uint16_t      last_trap_number;
     uint32_t      last_trap_pc;
     uint32_t      last_trap_address;
@@ -400,6 +418,37 @@ bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte);
 bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t trap_number,
                                      uint32_t trapping_pc, uint32_t trap_address,
                                      uint32_t mms_status, uint16_t physical_segment);
+
+/**
+ * @brief Send a process's MONITOR CALL back to SINTRAN, on that process's own
+ *        activation message.
+ *
+ * AN ND-500 MONITOR CALL IS NOT SERVED ON THE ND-500. The program executes its
+ * call, the process stops, and the record goes to SINTRAN on the ND-100, which
+ * performs the call and restarts the process with 3MONCO (24B). A station that
+ * tried to answer monitor calls locally would be emulating the wrong machine's
+ * operating system.
+ *
+ * The record: the saved P in the halfword pair the copy family calls addrA (0o7
+ * high, 0o10 low), STOPR := MOCALL, NUMPA := the argument count, MCNO := the
+ * monitor number, then each argument's ADDRESS at 0o40 + 2k and its VALUE at
+ * 0o100 + 2k, both 32-bit. The count is clamped to the microcode's sixteen slots.
+ *
+ * @param sv            The servicer.
+ * @param x5cpu         Which process is calling, zero-based.
+ * @param saved_p       Where the process resumes - AFTER the call instruction,
+ *                      unlike a retryable trap, which resumes on it.
+ * @param mon_number    The monitor call number.
+ * @param arg_count     How many arguments; clamped to NDBUS_MON_MAX_ARGS.
+ * @param arg_addresses One address per argument, or NULL for all zero.
+ * @param arg_values    One value per argument, or NULL for all zero.
+ * @return true once the record is written and the message answered; false when no
+ *         message is recorded for that X5CPU, which is counted and logged.
+ */
+bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint32_t saved_p,
+                                        uint16_t mon_number, uint32_t arg_count,
+                                        const uint32_t *arg_addresses,
+                                        const uint32_t *arg_values);
 
 /**
  * @brief Tell the servicer where the ND-500 physical segment table is.

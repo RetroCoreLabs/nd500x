@@ -3853,6 +3853,121 @@ static void test_physical_segment_width(void)
     ndbus_pool_destroy(&pool);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Layer 19: the monitor-call record.                                         */
+/*                                                                            */
+/* An ND-500 monitor call is NOT served on the ND-500. The program executes    */
+/* its call, the process stops, the record goes to SINTRAN on the ND-100, and  */
+/* SINTRAN restarts the process with 3MONCO (24B). Ported from RetroCore       */
+/* Nd500MicrocodeServicer.AnswerMonitorCallStop.                              */
+/* -------------------------------------------------------------------------- */
+static void test_monitor_call_record(void)
+{
+    printf("Layer 19: the monitor-call record\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the monitor-call record");
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+    NdbusNd5000 nd;
+    mbx_init_structures(&pool);
+    mbx_attach(&nd, &pool, &fabric);
+
+    /* Refused before any process is started, and counted rather than passed over. */
+    CHECK(!ndbus_servicer_answer_monitor_call(&nd.servicer, 1u, 0x08008255u, 0x28u, 4u, NULL,
+                                             NULL),
+          "a monitor call with no message recorded for that process is refused");
+    CHECK(nd.servicer.mon_calls_attempted == 1u, "the attempt is counted before the refusal");
+    CHECK(nd.servicer.mon_calls_declined == 1u, "and the refusal is counted");
+    CHECK(nd.servicer.mon_calls_posted == 0u, "nothing was written");
+
+    /* Start a process so its message is remembered. */
+    nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+    s_start_calls = 0;
+    s_start_ctx_byte = 0;
+    s_start_take = true;
+    (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+    mbx_build_message(&pool, NDBUS_MICFU_START, NDBUS_N5STA_TO_ND500);
+    mbx_replay_activation(&pool);
+    (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+    CHECK(!ndbus_nd5000_service_mailbox(&nd), "the start is taken");
+
+    /* MON 50B with four arguments - the shape RetroCore measured on a real call. */
+    const uint32_t saved_p = 0x08008255u;
+    const uint16_t mon     = 0x28u;              /* 50B */
+    const uint32_t addrs[4] = { 0x08001000u, 0x08001004u, 0u, 0x0800200Cu };
+    const uint32_t vals[4]  = { 0x11112222u, 0x33334444u, 0u, 0x55556666u };
+
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 1u, saved_p, mon, 4u, addrs, vals),
+          "MON 50B is posted on the started process's message");
+    CHECK(nd.servicer.mon_calls_posted == 1u, "and counted");
+    CHECK(nd.servicer.last_mon_number == mon, "the monitor number is remembered");
+
+    /* STOPR says MOCALL(1), NOT TRAPCODE(2) - the two stops are told apart by this
+     * halfword alone, and SINTRAN runs completely different code for each. */
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_STOPR * 2u) == NDBUS_STOPR_MOCALL,
+          "STOPR says MOCALL, which is 1 - not TRAPCODE, which is 2");
+    CHECK(NDBUS_STOPR_MOCALL != NDBUS_STOPR_TRAPCODE, "and the two really do differ");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_NUMPA * 2u) == 4u, "NUMPA carries the count");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MCNO * 2u) == mon, "MCNO carries the number");
+
+    /* The saved P shares the halfword pair the copy family calls addrA. */
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_N500A * 2u) == (uint16_t)(saved_p >> 16),
+          "the saved P high half is at 0o7");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_SWRST * 2u) == (uint16_t)(saved_p & 0xFFFF),
+          "and its low half at 0o10");
+
+    /* Addresses at 0o40 + 2k, values at 0o100 + 2k, both 32-bit. */
+    for (uint32_t k = 0; k < 4u; k++)
+    {
+        uint32_t as = MBX_MSG + 0x40u + 4u * k;
+        uint32_t vs = MBX_MSG + 0x80u + 4u * k;
+        CHECK(mbx_read(&pool, as) == (uint16_t)(addrs[k] >> 16), "argument address high half");
+        CHECK(mbx_read(&pool, as + 2u) == (uint16_t)(addrs[k] & 0xFFFF), "and its low half");
+        CHECK(mbx_read(&pool, vs) == (uint16_t)(vals[k] >> 16), "argument value high half");
+        CHECK(mbx_read(&pool, vs + 2u) == (uint16_t)(vals[k] & 0xFFFF), "and its low half");
+    }
+
+    /* The two slot runs must not overlap: 0x40 + 4*15 = 0x7C, the last address
+     * slot, and the first value slot is 0x80. A stride of 8 or a base of 0x60
+     * would have the value of one argument land on the address of another. */
+    CHECK(NDBUS_MON_ARG_ADDR_BASE + 4u * (NDBUS_MON_MAX_ARGS - 1u) < NDBUS_MON_ARG_VALUE_BASE,
+          "sixteen address slots fit below the first value slot");
+
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "and the message is answered in place");
+
+    /* THE COUNT IS CLAMPED TO THE MICROCODE'S SIXTEEN SLOTS. CALL_MON checks it,
+     * and a larger count here would write past the value slots into whatever
+     * follows them in the message. */
+    uint32_t big_addrs[NDBUS_MON_MAX_ARGS];
+    uint32_t big_vals[NDBUS_MON_MAX_ARGS];
+    for (uint32_t k = 0; k < NDBUS_MON_MAX_ARGS; k++)
+    {
+        big_addrs[k] = 0xAA000000u + k;
+        big_vals[k]  = 0xBB000000u + k;
+    }
+    const uint32_t past = MBX_MSG + 0x80u + 4u * NDBUS_MON_MAX_ARGS;
+    (void)ndbus_pool_write16(&pool, past, 0xFEEDu);
+
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 1u, saved_p, mon, 99u, big_addrs,
+                                            big_vals),
+          "a count of 99 is accepted");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_NUMPA * 2u) == NDBUS_MON_MAX_ARGS,
+          "but reported as sixteen - the microcode's own slot limit");
+    CHECK(mbx_read(&pool, past) == 0xFEEDu,
+          "and nothing was written past the sixteenth value slot");
+
+    /* NULL argument arrays are a zero-filled record, not a crash - a monitor call
+     * with no arguments is ordinary. */
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 1u, saved_p, 0x03u, 0u, NULL, NULL),
+          "MON 3B with no arguments is posted");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_NUMPA * 2u) == 0u, "NUMPA is zero");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MCNO * 2u) == 0x03u, "and MCNO is the number");
+
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -3882,6 +3997,7 @@ int main(void)
     test_doorbell_sniff_rules();
     test_trap_stop_record();
     test_physical_segment_width();
+    test_monitor_call_record();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)

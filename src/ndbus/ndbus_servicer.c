@@ -903,6 +903,73 @@ bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t
     return true;
 }
 
+bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint32_t saved_p,
+                                        uint16_t mon_number, uint32_t arg_count,
+                                        const uint32_t *arg_addresses,
+                                        const uint32_t *arg_values)
+{
+    if (sv == NULL || sv->pool == NULL || x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    {
+        return false;
+    }
+
+    sv->mon_calls_attempted++;
+
+    uint32_t msg_byte = sv->process_msg[x5cpu];
+    if (msg_byte == 0u)
+    {
+        sv->mon_calls_declined++;
+        char line[160];
+        (void)snprintf(line, sizeof line,
+                       "mailbox monitor call DECLINED MON %oB P=0x%08X - no message recorded for "
+                       "X5CPU %u",
+                       (unsigned)mon_number, (unsigned)saved_p, (unsigned)x5cpu);
+        servicer_log(sv, line);
+        return false;
+    }
+
+    /* THE MICROCODE'S OWN SLOT LIMIT. CALL_MON checks the argument count against
+     * sixteen, and the message has exactly sixteen address slots and sixteen value
+     * slots. A larger count would write past them into whatever follows. */
+    if (arg_count > NDBUS_MON_MAX_ARGS)
+    {
+        arg_count = NDBUS_MON_MAX_ARGS;
+    }
+
+    /* The saved P goes in the same pair of halfwords the copy family calls addrA:
+     * 0o7 high, 0o10 low. */
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_N500A), (uint16_t)(saved_p >> 16u));
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_SWRST), (uint16_t)(saved_p & 0xFFFFu));
+
+    /* STOPR = 1 is MOCALL - "this process stopped to make a monitor call", as
+     * against TRAPCODE for a trap. NUMPA carries the argument count and MCNO the
+     * monitor number. */
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_STOPR), NDBUS_STOPR_MOCALL);
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_NUMPA), (uint16_t)arg_count);
+    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_MCNO), mon_number);
+
+    /* Argument ADDRESSES at 0o40 + 2k, argument VALUES at 0o100 + 2k, both 32-bit,
+     * so byte 0x40 + 4k and byte 0x80 + 4k. */
+    for (uint32_t k = 0; k < arg_count; k++)
+    {
+        uint32_t addr_slot = msg_byte + NDBUS_MON_ARG_ADDR_BASE + (4u * k);
+        uint32_t val_slot  = msg_byte + NDBUS_MON_ARG_VALUE_BASE + (4u * k);
+        uint32_t a = (arg_addresses != NULL) ? arg_addresses[k] : 0u;
+        uint32_t v = (arg_values != NULL) ? arg_values[k] : 0u;
+
+        (void)write16(sv, addr_slot, (uint16_t)(a >> 16u));
+        (void)write16(sv, addr_slot + 2u, (uint16_t)(a & 0xFFFFu));
+        (void)write16(sv, val_slot, (uint16_t)(v >> 16u));
+        (void)write16(sv, val_slot + 2u, (uint16_t)(v & 0xFFFFu));
+    }
+
+    sv->mon_calls_posted++;
+    sv->last_mon_number = mon_number;
+
+    answer_message_in_place(sv, msg_byte, NDBUS_N5STA_ANSWER);
+    return true;
+}
+
 bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte)
 {
     if (sv == NULL || sv->pool == NULL)
