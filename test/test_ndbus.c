@@ -3744,6 +3744,115 @@ static void test_trap_stop_record(void)
     ndbus_pool_destroy(&pool);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Layer 18: the physical segment table is WORD wide on an ND-5000.           */
+/*                                                                            */
+/* PHYSRD/PHYSWR carry a physical SEGMENT in MSWMC and an offset inside it, so */
+/* the station has to resolve the segment through the same physical segment    */
+/* table the MMU walks. The two generations do not agree on its width:         */
+/*                                                                            */
+/*   ND-500 (3022): HALFWORD entries, mode in bits 15-14, page in 13-0.        */
+/*   ND-5000 (B30): WORD entries,     mode in bits 31-30, page in 29-0.        */
+/*                                                                            */
+/* This station fronts a B30. Reading the table at segment*2 lands inside the  */
+/* wrong entry and resolves to a plausible-looking page that belongs to        */
+/* something else, so the transfer is performed - into the wrong page.         */
+/*                                                                            */
+/* MEASURED 30-SEP-2026: with the halfword read, thirteen trap-configuration   */
+/* writes SINTRAN aimed at a process control block landed in the swapper's own */
+/* data page table instead and zeroed live entries 37-45 and 47-49. The        */
+/* swapper then faulted on its fourth instruction, on a page the writes had    */
+/* just destroyed, and the monitor reported "The Swapper stopped". With the    */
+/* word read the same thirteen writes land in the control block, the page      */
+/* table is untouched, and the swapper runs on with no fault at all.           */
+/* -------------------------------------------------------------------------- */
+static void test_physical_segment_width(void)
+{
+    printf("Layer 18: the ND-5000 physical segment table is word wide\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 256 * 1024), "a pool for the segment table");
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+    NdbusNd5000 nd;
+    mbx_init_structures(&pool);
+    mbx_attach(&nd, &pool, &fabric);
+
+    /* A physical segment table with two entries whose WORD and HALFWORD readings
+     * name DIFFERENT pages. Entry 1 = 0x400000E6: as a word that is mode 1, page
+     * 0x26; the halfword at 1*2 would be the HIGH half of entry 0 instead. Both
+     * pages are small enough to lie inside this pool, so the out-of-pool guard
+     * cannot be what separates the two readings - only the address can. */
+    const uint32_t pst = MBX_BASE + 0x4000u;
+    CHECK(ndbus_servicer_set_pst_base(&nd.servicer, pst), "the segment table base is set");
+
+    (void)ndbus_pool_write16(&pool, pst + 0u, 0x0000u);  /* entry 0, high half */
+    (void)ndbus_pool_write16(&pool, pst + 2u, 0x0053u);  /* entry 0, low half  */
+    (void)ndbus_pool_write16(&pool, pst + 4u, 0x4000u);  /* entry 1, high half */
+    (void)ndbus_pool_write16(&pool, pst + 6u, 0x0026u);  /* entry 1, low half  */
+
+    /* Segment 1, offset 0x96 - the shape of the measured trap-config write. */
+    const uint32_t offset_in_segment = 0x96u;
+    const uint32_t word_page = 0x26u;   /* what entry 1 says, read as a word */
+    const uint32_t expect = (word_page * 2048u) + offset_in_segment;
+
+    /* The halfword reading would take the halfword at pst+2, which is entry 0's
+     * LOW half, 0x0053 - a different page entirely, and one that exists, so the
+     * transfer succeeds and silently writes into the wrong place. */
+    const uint32_t halfword_page = 0x53u;
+    const uint32_t wrong = (halfword_page * 2048u) + offset_in_segment;
+    CHECK(expect != wrong, "the two readings really do name different pages");
+
+    /* Put a recognisable value in the buffer and a sentinel where the WRONG
+     * reading would put it, so a regression is caught by the damage it does and
+     * not only by the address it misses. */
+    const uint32_t buffer = MBX_BASE + 0x6000u;
+    (void)ndbus_pool_write16(&pool, buffer, 0x1234u);
+    (void)ndbus_pool_write16(&pool, buffer + 2u, 0x5678u);
+    (void)ndbus_pool_write16(&pool, wrong, 0xBEEFu);
+    (void)ndbus_pool_write16(&pool, wrong + 2u, 0xCAFEu);
+
+    /* 31B PHYSWR: A is segment-relative, B is the buffer, B -> A. */
+    mbx_copy_message(&pool, NDBUS_MICFU_PHYSWR, offset_in_segment, buffer, 4u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_MSWMC * 2u, 1u); /* segment 1 */
+
+    CHECK(ndbus_nd5000_service_mailbox(&nd), "31B PHYSWR is serviced");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "and answered");
+    CHECK(nd.servicer.segment_resolved == 1u, "the segment resolved through the table");
+    CHECK(nd.servicer.segment_unresolved == 0u, "and did not fall back to a flat address");
+
+    CHECK(ndbus_pool_read16(&pool, expect) == 0x1234u,
+          "the transfer landed in the page the WORD entry names");
+    CHECK(ndbus_pool_read16(&pool, expect + 2u) == 0x5678u, "both halfwords of it");
+
+    CHECK(ndbus_pool_read16(&pool, wrong) == 0xBEEFu,
+          "and the page the HALFWORD reading would have named is untouched - reading "
+          "this table at segment*2 corrupts whatever lives there");
+    CHECK(ndbus_pool_read16(&pool, wrong + 2u) == 0xCAFEu, "sentinel intact");
+
+    /* THE PAGE FIELD IS 30 BITS, NOT 14. Masking an ND-5000 entry with the
+     * ND-500's 0x3FFF folds a large page number down to a small one that still
+     * looks like a valid page, so the transfer succeeds into the wrong place
+     * rather than failing where it would be noticed. */
+    (void)ndbus_pool_write16(&pool, pst + 8u, 0x0001u);   /* entry 2 = 0x0001C000 */
+    (void)ndbus_pool_write16(&pool, pst + 10u, 0xC000u);
+    mbx_copy_message(&pool, NDBUS_MICFU_PHYSWR, 0u, buffer, 2u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_MSWMC * 2u, 2u);
+
+    /* 0x1C000 pages is far outside a 256 KB pool, so the guard must refuse the
+     * transfer. Under the 14-bit mask the page would read as 0x0000, which the
+     * resolver reports as "not present" - a different answer that happens to also
+     * refuse, so assert the COUNTER that says which path was taken. */
+    (void)ndbus_nd5000_service_mailbox(&nd);
+    CHECK(nd.servicer.segment_resolved == 2u,
+          "a 30-bit page number resolves rather than masking down to zero");
+    CHECK(nd.servicer.copies_refused == 1u,
+          "and the out-of-pool guard refuses it, instead of a folded page succeeding");
+
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -3772,6 +3881,7 @@ int main(void)
     test_copy_family_refusals();
     test_doorbell_sniff_rules();
     test_trap_stop_record();
+    test_physical_segment_width();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)

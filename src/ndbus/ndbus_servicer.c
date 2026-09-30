@@ -261,6 +261,9 @@ static void answer_ring_insert(NdbusServicer *sv, uint32_t msg_byte)
 #define PST_PAGE_BYTES 2048u
 /** Mask selecting the page out of a physical segment table entry. */
 #define PST_PAGE_MASK  0x3FFFu
+/** ND-5000 physical-segment entries are WORD wide: mode in bits 31-30, page in
+ *  29-0. The 14-bit ND-500 mask above belongs to the other generation. */
+#define PST_PAGE_MASK_ND5000 0x3FFFFFFFu
 
 static uint32_t read32(const NdbusServicer *sv, uint32_t byte_offset)
 {
@@ -284,9 +287,29 @@ static bool resolve_physical_segment(const NdbusServicer *sv, uint16_t segment,
         return false;
     }
 
-    /* Halfword entries, so segment * 2 - the microcode's own `segment + segment`. */
-    uint16_t entry = read16(sv, sv->pst_base + ((uint32_t)segment * 2u));
-    uint32_t page = (uint32_t)(entry & PST_PAGE_MASK);
+    /* WORD ENTRIES, SO segment * 4. THE TABLE WIDTH IS A CPU-TYPE PROPERTY.
+     *
+     * This used to read a HALFWORD at segment * 2, citing the ND-500 microcode's
+     * own `segment + segment` at 011460. That citation is from CONT-STORE-10611,
+     * the 3022 ND-500 store - NOT the B30 this station fronts. The ND-500 has
+     * halfword physical-segment and page-table entries (mode in bits 15-14, page
+     * in 13-0); the ND-5000 has word-wide ones (mode in 31-30, page in 29-0). The
+     * reference records the identical mix-up on its own side, where the width flag
+     * was hardcoded to the ND-500 answer and "quietly told a 5000 it had halfword
+     * tables".
+     *
+     * MEASURED 30-SEP-2026, and the two readings disagree on the same bytes: the
+     * swapper's data page table dumped as 32-bit words gives entries 29-36 holding
+     * pages 0x70-0x77, consecutive and sensible; the same bytes read as halfwords
+     * alternate zero, 0x70, zero, 0x71, which is not a page table. The MMU walk in
+     * nd500_mmu.c has always read this table at psn * 4. One table cannot have two
+     * widths, and this was the copy that disagreed.
+     *
+     * The mode bits live in 31-30, so the page field is 30 bits and must NOT be
+     * masked with the ND-500's 14-bit mask - that would fold a large page number
+     * down to a small one that still looks plausible. */
+    uint32_t entry = read32(sv, sv->pst_base + ((uint32_t)segment * 4u));
+    uint32_t page = entry & PST_PAGE_MASK_ND5000;
     if (page == 0u)
     {
         return false;
