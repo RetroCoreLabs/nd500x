@@ -163,6 +163,10 @@ struct NdbusNd5000
     unsigned long       giveint_no_fabric;  /**< answers with no fabric attached */
     unsigned long       giveint_no_mailbox; /**< answers with no mailbox located */
     uint16_t            last_giveint_frame; /**< the last frame word composed */
+    unsigned long       model_reports;      /**< ENKICK model/version reports sent */
+    unsigned long       report_no_store;    /**< reports skipped: no control store */
+    uint8_t             last_model_report_model;   /**< CPUMODEL byte last reported */
+    uint16_t            last_model_report_version; /**< LARG version last reported */
 
     /* Diagnostics, so a test can say what the station did rather than infer it. */
     unsigned long       messages_handled; /**< complete OMD-3 messages handled */

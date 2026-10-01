@@ -277,6 +277,66 @@ static uint16_t cs_read_halfword(const NdbusNd5000 *nd, uint32_t cs_word, uint32
     return nd->control_store[(cs_word * NDBUS_CS_HALFWORDS_PER_WORD) + halfword];
 }
 
+/*
+ * The microprogram model/version report ENKICK sends on top of its acknowledge.
+ *
+ * Ported from RetroCore OctobusND5000Station.cs SendMicroprogramModelReport
+ * (line 3134). Six bytes, as a TRAP_OCBM multibyte message:
+ *     [0x82][0x01][cpuModel][cpuModel][version hi][version lo]
+ * 0x82 is FaultType 202B, NotFatal - "CPU available"; 0x01 is ErrorReporter 1,
+ * MicroProgram.
+ *
+ * THE TWO VALUES COME OUT OF THE LOADED CONTROL STORE, never from a constant, so a
+ * wrong image cannot silently produce a right-looking model. Word N of the image is
+ * microword N and both fields sit in the LAST halfword of their word:
+ *     version  = word 1, halfword 7  (LARG)     - 0x2E9A on the 5800-B30 image
+ *     cpuModel = word 7, halfword 7, low byte   - 0x38 on the 5800-B30 image
+ * The two CPUMODEL bytes are "Current" (the ACCP/backplane side) and "My" (the
+ * loaded store), equal by construction here because both are read from the store.
+ *
+ * WHY IT MATTERS, in RetroCore's own words at that call site: the ND-100 monitor is
+ * in a busy-wait that only an inbound octobus frame breaks, and the report carries
+ * the control-store-derived model byte that gates "Wrong microprogram" (EWRON).
+ * nd500x sent only the bare acknowledge.
+ *
+ * The destination is the runtime-allocated 5OMDNO out of LSYSPAR S5, never a
+ * constant, and the SOURCE OMD is 4 - not the 3 an ordinary ACCP reply uses.
+ */
+static void nd5000_send_microprogram_model_report(NdbusNd5000 *nd)
+{
+    if (nd == NULL || nd->station.fabric == NULL || nd->control_store == NULL)
+    {
+        nd->report_no_store++;
+        return;
+    }
+
+    uint16_t version   = cs_read_halfword(nd, 1u, 7u);
+    uint8_t  cpu_model = (uint8_t)(cs_read_halfword(nd, 7u, 7u) & 0xFFu);
+
+    const uint8_t report[6] = {
+        0x82u, 0x01u, cpu_model, cpu_model,
+        (uint8_t)(version >> 8), (uint8_t)(version & 0xFFu),
+    };
+
+    uint8_t  dest_omd = (uint8_t)((nd->lsyspar_word1 >> 8) & 0x3Fu);
+    uint16_t frames[NDBUS_MAX_REPLY_FRAMES];
+    int      n = ndbus_multibyte_build(nd->station.number, dest_omd, 4u, report,
+                                       (int)sizeof report, frames, NDBUS_MAX_REPLY_FRAMES);
+    if (n <= 0)
+    {
+        return;
+    }
+    nd->model_reports++;
+    nd->last_model_report_model = cpu_model;
+    nd->last_model_report_version = version;
+    for (int i = 0; i < n; i++)
+    {
+        uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+        (void)ndbus_fabric_send(nd->station.fabric, nd->station.number, frames[i], replies);
+    }
+}
+
+
 /**
  * @brief LOCSM 023B: DMA one control-store page out of the parameter area.
  *
@@ -516,6 +576,13 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
          * return is not an error here - a machine whose microcode was never
          * patched simply has no mailbox to attach. */
         (void)ndbus_nd5000_mailbox_from_control_store(nd);
+        /* AND THE MODEL/VERSION REPORT ON TOP OF THE ACKNOWLEDGE. RetroCore sends it
+         * from this arm when the microprogram is running; see the routine's own
+         * comment for why the bare ack is not enough. */
+        if (nd->accp.microprogram_running)
+        {
+            nd5000_send_microprogram_model_report(nd);
+        }
         break;
 
     case NDBUS_ACCP_DISKICK:

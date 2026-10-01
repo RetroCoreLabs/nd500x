@@ -2841,6 +2841,91 @@ static void test_mailbox_servicer(void)
         ndbus_pool_destroy(&pool);
     }
 
+    /* --- ENKICK sends the microprogram model/version report ------------------
+     *
+     * RetroCore's ENKICK answers with the bare acknowledge AND an unsolicited
+     * TRAP_OCBM message carrying the model and version. Its own comment at the call
+     * site says why the ack alone is not enough: the ND-100 monitor is in a busy-wait
+     * that only an inbound octobus frame breaks, and the report carries the
+     * control-store-derived model byte that gates "Wrong microprogram" (EWRON).
+     * nd500x sent only the ack.
+     *
+     * Layer 12 covers LOADING the control store, so this block pokes the two source
+     * halfwords directly and pins the REPORT: six bytes
+     *     [0x82][0x01][model][model][ver hi][ver lo]
+     * to the runtime 5OMDNO from LSYSPAR S5, with SOURCE OMD 4 rather than the 3 an
+     * ordinary ACCP reply uses. Ported from OctobusND5000Station.cs:3134. */
+    {
+        NdbusPool pool;
+        CHECK(ndbus_pool_create(&pool, 256 * 1024), "a pool for the model report");
+        NdbusFabric fabric;
+        ndbus_fabric_init(&fabric, NULL);
+        NdbusNd5000 nd;
+        CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+              "a station for the model report");
+        CHECK(ndbus_fabric_register(&fabric, &nd.station), "registered on the fabric");
+
+        uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+        uint8_t  body[8];
+
+        /* A control store has to exist before anything can be read out of it. One
+         * LPARP + one LOCSM pulse is the cheapest way to get it allocated. */
+        const uint32_t pb = 0x00000800u;
+        body[0] = (uint8_t)NDBUS_ACCP_LPARP;
+        body[1] = (uint8_t)(pb >> 24u);
+        body[2] = (uint8_t)(pb >> 16u);
+        body[3] = (uint8_t)(pb >> 8u);
+        body[4] = (uint8_t)(pb & 0xFFu);
+        (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST,
+                        body, 5, replies);
+        (void)ndbus_pool_write16(&pool, pb, 1u);          /* N = 1 word */
+        (void)ndbus_pool_write16(&pool, pb + 2u, 0u);     /* at CS address 0 */
+        body[0] = (uint8_t)NDBUS_ACCP_LOCSM;
+        (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST,
+                        body, 1, replies);
+        CHECK(nd.control_store != NULL, "the control store is allocated");
+
+        if (nd.control_store != NULL)
+        {
+            /* The two cells the report is built from: word 1 halfword 7 is the LARG
+             * version, word 7 halfword 7's low byte is CPUMODEL. The values are the
+             * ones RetroCore measured on the real 5800-B30 image. */
+            nd.control_store[1u * NDBUS_CS_HALFWORDS_PER_WORD + 7u] = 0x2E9Au;
+            nd.control_store[7u * NDBUS_CS_HALFWORDS_PER_WORD + 7u] = 0x0038u;
+        }
+
+        /* 5OMDNO 8 in S5, and a running microprogram - the report is sent only then. */
+        nd.lsyspar_word1 = 0x0800u;
+        nd.accp.microprogram_running = true;
+
+        body[0] = (uint8_t)NDBUS_ACCP_ENKICK;
+        int n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST,
+                          body, 1, replies);
+        CHECK(n > 0, "ENKICK is acknowledged");
+        CHECK(nd.model_reports == 1u, "and the model/version report is sent as well");
+        CHECK(nd.last_model_report_model == 0x38u,
+              "the model byte is CS word 7 halfword 7 low byte - 0x38");
+        CHECK(nd.last_model_report_version == 0x2E9Au,
+              "the version is CS word 1 halfword 7 - 0x2E9A");
+
+        /* A station with no control store must not invent a report. */
+        NdbusNd5000 bare;
+        CHECK(ndbus_nd5000_init(&bare, NDBUS_STATION_ND5000_FIRST + 1u, &pool, NULL, NULL),
+              "a second station with no control store");
+        CHECK(ndbus_fabric_register(&fabric, &bare.station), "also registered");
+        bare.lsyspar_word1 = 0x0800u;
+        bare.accp.microprogram_running = true;
+        body[0] = (uint8_t)NDBUS_ACCP_ENKICK;
+        (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU,
+                        (uint8_t)(NDBUS_STATION_ND5000_FIRST + 1u), body, 1, replies);
+        CHECK(bare.model_reports == 0u, "no control store, no report - nothing invented");
+        CHECK(bare.report_no_store == 1u, "and the skip is COUNTED, not silent");
+
+        ndbus_nd5000_destroy(&bare);
+        ndbus_nd5000_destroy(&nd);
+        ndbus_pool_destroy(&pool);
+    }
+
     /* --- LSYSPAR: word 1 comes off the WIRE, not out of a test assignment ---
      *
      * WHY THIS EXISTS. The block above sets nd.lsyspar_word1 directly, so it proved
