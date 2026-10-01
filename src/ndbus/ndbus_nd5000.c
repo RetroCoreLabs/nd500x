@@ -520,19 +520,22 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
          * never receiving an answer interrupt. */
         nd->lsyspar_word1 = (uint16_t)(((uint16_t)params[1] << 8u) | params[2]);
         nd->accp.system_parameters_given = true;
-        /* THE PRESENCE ACK GOES ON THE S5 OMD, NOT THE SENDING OMD.
+        /* THE PRESENCE ACK GOES ON THE SENDING OMD. Measured 01-OCT-2026.
          *
-         * SINTRAN's "CPU present" is CPUAVAILABLE.5ALIVE, set ONLY by 5OMBREAD
-         * (MP-P2-N500.NPL:3470) when the ND-100 receives a multibyte ACK from a
-         * SAMSON station whose command/ETYPE high byte is MFACK(0). @ND-500 runs
-         * CON5IDENT, which sends this CMSYSPAR and then waits (GO I5OMBR) for
-         * exactly that ack; consuming the command is not enough, and the reply must
-         * go to the OMD the message names for replies - 5OMDNO, the S5 high byte -
-         * not the OMD the command arrived on. Ported from
-         * OctobusND5000Station.cs, which cites
-         * CARVE-ANSWER-OCTOBUS-CPU-PRESENCE-2026-07-18.md. */
-        return build_messack(nd->station.number, (uint8_t)(params[1] & 0x0Fu),
-                             NULL, 0, replies, max);
+         * RetroCore answers CMSYSPAR on the S5 OMD - SendAccpMessack(message[4]),
+         * citing CARVE-ANSWER-OCTOBUS-CPU-PRESENCE-2026-07-18.md - and nd500x was
+         * changed to match. ON THIS MACHINE THAT IS WRONG: SINTRAN sends S5 with
+         * 5OMDNO 3 and waits for the acknowledge on the OMD the command arrived on,
+         * so replying on the S5 OMD made the monitor print, at entry,
+         *     ND-5000 timeout: ACCP was terminated; Microprogram is running
+         * which the generic acknowledge on the source OMD does not. The reply
+         * therefore stays on the source OMD until the disagreement is understood;
+         * the oracle's rule is recorded here rather than silently dropped.
+         *
+         * WHAT IS NOT IN DOUBT is the field layout below - two independent oracle
+         * tests assert LSysparWord1 == 0x0800 from this payload - so the capture
+         * stays as it is. */
+        break;
 
     case NDBUS_ACCP_VPARP:
         nd->messacks++;

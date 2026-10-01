@@ -3028,11 +3028,17 @@ static void test_mailbox_servicer(void)
         CHECK(nd.lsyspar_word1 != 0x0000u,
               "and NOT zero, which is what reading one word too far produced");
 
-        /* THE PRESENCE ACK MUST GO TO THE S5 OMD, NOT THE SENDING ONE. SINTRAN's
-         * CON5IDENT sends CMSYSPAR and waits (GO I5OMBR) for a multibyte MFACK on the
-         * OMD the message nominates for replies - 5OMDNO, the S5 high byte. The frames
-         * above arrive on OMD 3 and name OMD 8, so the two are distinguishable: a reply
-         * carrying 3 is the sending OMD and wrong.
+        /* THE CMSYSPAR IS ANSWERED, AND ON THE SENDING OMD.
+         *
+         * SINTRAN's CON5IDENT sends CMSYSPAR and waits (GO I5OMBR) for a multibyte
+         * MFACK; consuming the command is not enough. WHICH OMD the ack goes to was
+         * settled by measurement, not by reading: RetroCore answers on the S5 OMD
+         * (SendAccpMessack(message[4])), nd500x was changed to match, and the live
+         * monitor then printed at entry
+         *     ND-5000 timeout: ACCP was terminated; Microprogram is running
+         * which it does not print when the ack goes to the OMD the command arrived on.
+         * So this pins the SOURCE OMD, and the disagreement with the oracle is recorded
+         * in ndbus_nd5000.c rather than hidden.
          *
          * The destination OMD is the low nibble of the SOMB frame
          * (ndbus_multibyte_build), and MFACK is payload byte 0 = 0x00. */
@@ -3041,10 +3047,13 @@ static void test_mailbox_servicer(void)
         if (ack_frames > 0)
         {
             uint16_t somb = nd5000_last_replies[0];
-            CHECK((somb & 0x000Fu) == 0x08u,
-                  "the ack is addressed to OMD 8 - the 5OMDNO the message named");
-            CHECK((somb & 0x000Fu) != 0x03u,
-                  "and NOT to OMD 3, the OMD the command arrived on");
+            /* The source OMD is body[0], which this message sets to 0x01 - NOT the
+             * SOMB frame's own code field, which is 3 (the ACCP command library). The
+             * two are different fields and the reply keys off body[0]. */
+            CHECK((somb & 0x000Fu) == 0x01u,
+                  "the ack goes to the OMD in body[0], the sending OMD");
+            CHECK((somb & 0x000Fu) != 0x08u,
+                  "and not to the S5 OMD, which regressed the live monitor");
             CHECK((somb & NDBUS_FRAME_C_CONTROL) != 0u, "SOMB carries the C bit");
             CHECK((somb & NDBUS_FRAME_M_MULTIBYTE) != 0u, "and the M bit");
         }
