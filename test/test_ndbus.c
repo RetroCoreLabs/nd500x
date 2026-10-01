@@ -861,7 +861,7 @@ static void test_nd5000_station(void)
     body[0] = (uint8_t)NDBUS_ACCP_LSYSPAR;
     memset(&body[1], 0, 6);
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 7, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LSYSPAR is acked");
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LSYSPAR is acked");
     CHECK(nd.accp.system_parameters_given, "and the guard cell is set");
 
     /* LPARP carries a 4-byte pointer, most significant byte first (T124). */
@@ -871,7 +871,7 @@ static void test_nd5000_station(void)
     body[3] = 0x08;
     body[4] = 0x40;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LPARP is acked");
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LPARP is acked");
     CHECK(nd.parameter_pointer == 0x00000840u, "the pointer is assembled MSB first");
     CHECK(nd.accp.parameter_pointer_given, "and the guard cell is set");
 
@@ -880,7 +880,7 @@ static void test_nd5000_station(void)
     body[1] = 0;
     body[2] = 0;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 3, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STARTMIC is acked");
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STARTMIC is acked");
     CHECK(nd.accp.microprogram_running, "the microprogram is running");
 
     body[0] = (uint8_t)NDBUS_ACCP_VPARP;
@@ -891,15 +891,15 @@ static void test_nd5000_station(void)
      * as "no answer" rather than as a refusal. */
     plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
                               (int)sizeof(payload));
-    CHECK(plen == 3 && payload[0] == 0xFF, "VPARP while running is answered with a Messnak");
-    CHECK(plen == 3 && payload[1] == (uint8_t)NDBUS_ACCP_NAK_MICRO_RUNNING,
+    CHECK(plen == 4 && payload[0] == 0xFF, "VPARP while running is answered with a Messnak");
+    CHECK(plen == 4 && payload[1] == (uint8_t)NDBUS_ACCP_NAK_MICRO_RUNNING,
           "carrying the error code in its low byte");
     CHECK(nd.last_nak_code == NDBUS_ACCP_NAK_MICRO_RUNNING, "and the station recorded it");
 
     /* STOPMIC, and its inverse guard. */
     body[0] = (uint8_t)NDBUS_ACCP_STOPMIC;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STOPMIC is acked while running");
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STOPMIC is acked while running");
     CHECK(!nd.accp.microprogram_running, "and the microprogram stops");
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
     CHECK(nd.last_nak_code == NDBUS_ACCP_NAK_MICRO_NOT_STARTED,
@@ -911,7 +911,7 @@ static void test_nd5000_station(void)
     (void)ndbus_pool_write32(&pool, 0x600, 0x12345678u);
     body[0] = (uint8_t)NDBUS_ACCP_CPURES;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 6, "CPURES is answered");
+    CHECK(n == 5, "CPURES is answered");
     CHECK(!nd.accp.parameter_pointer_given, "the parameter pointer is forgotten");
     CHECK(!nd.accp.system_parameters_given, "the system parameters are forgotten");
     CHECK(ndbus_pool_read32(&pool, 0x600) == 0x12345678u, "and the shared pool is untouched");
@@ -1269,7 +1269,7 @@ static void test_bringup(void)
     body[0] = (uint8_t)NDBUS_ACCP_LSYSPAR;
     memset(&body[1], 0, 6);
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 7, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LSYSPAR is acked");
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LSYSPAR is acked");
 
     /* 3. LPARP - where the parameter area lives in shared memory. */
     const uint32_t param_area = 0x400;
@@ -1279,7 +1279,7 @@ static void test_bringup(void)
     body[3] = (uint8_t)(param_area >> 8);
     body[4] = (uint8_t)(param_area & 0xFF);
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LPARP is acked");
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "LPARP is acked");
     CHECK(nd.parameter_pointer == param_area, "and the pointer is where the ND-120 said");
 
     /* 4. VPARP - THE check that the two agree. The ND-120 writes a word into the
@@ -1321,7 +1321,7 @@ static void test_bringup(void)
     body[1] = 0;
     body[2] = 0;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 3, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STARTMIC is acked");
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STARTMIC is acked");
     CHECK(nd.accp.microprogram_running, "the microprogram is running");
 
     /* 6. And now the commands that load the control store are refused, because
@@ -1358,11 +1358,11 @@ static void test_bringup(void)
      *    destroy the other side's data. */
     body[0] = (uint8_t)NDBUS_ACCP_STOPMIC;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STOPMIC is acked");
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "STOPMIC is acked");
 
     body[0] = (uint8_t)NDBUS_ACCP_CPURES;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
-    CHECK(n == 6, "CPURES is acked");
+    CHECK(n == 5, "CPURES is acked");
     CHECK(!nd.accp.parameter_pointer_given, "and the ACCP is cold again");
     CHECK(ndbus_pool_read32(&pool, param_area) == 0xCAFEBABEu, "shared memory survives the reset");
     CHECK(ndbus_pool_read32(&pool, 0x500) == 0x12345678u, "all of it");
@@ -1374,7 +1374,7 @@ static void test_bringup(void)
     body[3] = 0x04;
     body[4] = 0x00;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "and the sequence starts over");
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "and the sequence starts over");
 
     ndbus_pool_destroy(&pool);
 }
@@ -1958,9 +1958,11 @@ static void test_captured_sintran_frames(void)
     uint8_t payload[NDBUS_MAX_REPLY_FRAMES];
     int     plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
                                       (int)sizeof(payload));
-    CHECK(plen == 2, "the reply is a properly enveloped Messack");
-    CHECK(plen == 2 && payload[0] == 0x00 && payload[1] == 0x00,
-          "carrying the all-zero status word that means OK");
+    /* ONE payload byte: the real ND-324716 firmware acks with a single 0x00
+     * (measured 2026-09-18; RetroCore's station sends this shape by default). */
+    CHECK(plen == 1, "the reply is a properly enveloped Messack");
+    CHECK(plen == 1 && payload[0] == 0x00,
+          "carrying the single zero status byte that means OK");
     CHECK(n >= 1 && ndbus_frame_station(replies[0]) == NDBUS_STATION_ND5000_FIRST,
           "and every frame says it came from 070B, not from station 0");
     CHECK(n >= 1 && (replies[0] & NDBUS_FRAME_CODE_MASK) == 3u,
@@ -2457,7 +2459,7 @@ static void test_test_protocol(void)
     body[0] = (uint8_t)NDBUS_ACCP_ECHO;
     body[1] = 0;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 2, replies);
-    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED,
+    CHECK(n == 5 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED,
           "the OMD-3 ACCP path still answers after all of that");
     CHECK(nd.messages_handled == 1, "and it is the ACCP counter that moved, not the OMD-0 one");
 

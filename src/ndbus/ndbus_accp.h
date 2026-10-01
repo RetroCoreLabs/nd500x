@@ -182,6 +182,12 @@
 #define NDBUS_ACCP_NAK_UNDEFINED_COMMAND     6
 /** @brief 7: not alive. */
 #define NDBUS_ACCP_NAK_NOT_ALIVE             7
+
+/* The two ACCP hardware-status (ASTS) bytes a long-form Messnak carries. Measured on
+ * the real ND-324716 firmware, 2026-09-18, where they read 10 11 while the
+ * microprogram is not running. RetroCore OctobusND5000Station.cs:3678 and :3681. */
+#define NDBUS_ACCP_ASTS_HIGH              0x10u
+#define NDBUS_ACCP_ASTS_LOW               0x11u
 /** @brief 8: memory error. */
 #define NDBUS_ACCP_NAK_MEMORY_ERROR          8
 /** @brief 9: control store not initialized. */

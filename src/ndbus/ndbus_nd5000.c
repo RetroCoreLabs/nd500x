@@ -72,13 +72,14 @@ static int build_messack(uint8_t station, uint8_t reply_omd, const uint8_t *para
         payload[1 + i] = params[i];
     }
 
-    /* A bare acknowledge is the all-zero status word, so it carries a second
-     * zero byte; an acknowledge that returns data carries the data instead. */
-    int count = (param_count > 0) ? (1 + param_count) : 2;
-    if (param_count == 0)
-    {
-        payload[1] = 0x00;
-    }
+    /* A BARE ACKNOWLEDGE IS ONE BYTE. Measured on the real ND-324716 firmware
+     * (RetroCore AccpNd500MonStartupHandshakeTests, 2026-09-18) and the shape its
+     * station sends by default - OctobusND5000Station.cs:640,
+     * RealFirmwareReplyShape = true, whose own note records that two full-ladder runs
+     * with these shapes "loaded the control store and the swapper and ran a domain to
+     * MON 0B". nd500x sent two bytes, 00 00, which is the shape that property turns
+     * OFF. An acknowledge that returns data carries the data after the status byte. */
+    int count = (param_count > 0) ? (1 + param_count) : 1;
 
     return ndbus_multibyte_build(station, reply_omd, (uint8_t)NDBUS_ACCP_OMD, payload, count,
                                  replies, max);
@@ -100,7 +101,7 @@ static int build_messack(uint8_t station, uint8_t reply_omd, const uint8_t *para
 static int build_messnak(uint8_t station, uint8_t reply_omd, int nak_code, bool short_form,
                          uint16_t *replies, int max)
 {
-    uint8_t payload[3];
+    uint8_t payload[4];
     int     count;
 
     payload[0] = 0xFF; /* MFNACK */
@@ -112,8 +113,15 @@ static int build_messnak(uint8_t station, uint8_t reply_omd, int nak_code, bool 
     }
     else
     {
-        payload[2] = 0x00; /* ASTS */
-        count      = 3;
+        /* FOUR BYTES, and the two status bytes are 0x10 0x11. Same measurement and
+         * same default as the acknowledge above: the firmware naks with
+         *     [0xFF MFNACK][error code][ASTS high 0x10][ASTS low 0x11]
+         * and the status pair reads 10 11 while the microprogram is not running
+         * (OctobusND5000Station.cs:4217, constants at :3678 and :3681). nd500x sent
+         * three bytes with a zero ASTS. */
+        payload[2] = NDBUS_ACCP_ASTS_HIGH;
+        payload[3] = NDBUS_ACCP_ASTS_LOW;
+        count      = 4;
     }
 
     return ndbus_multibyte_build(station, reply_omd, (uint8_t)NDBUS_ACCP_OMD, payload, count,
