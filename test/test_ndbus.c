@@ -2841,6 +2841,52 @@ static void test_mailbox_servicer(void)
         ndbus_pool_destroy(&pool);
     }
 
+    /* --- CONTMIC and RESTMIC start the microprogram, not just STARTMIC --------
+     *
+     * RetroCore handles 066B STARTMIC, 035B CONTMIC and 036B RESTMIC in one arm, all
+     * three setting the running flag. nd500x armed only STARTMIC, so a CONTMIC left
+     * the flag false - and that flag gates ENKICK's model report, STOPMIC's refusal,
+     * and the whole guard matrix. */
+    {
+        const uint8_t starters[3] = { (uint8_t)NDBUS_ACCP_STARTMIC,
+                                      (uint8_t)NDBUS_ACCP_CONTMIC,
+                                      (uint8_t)NDBUS_ACCP_RESTMIC };
+        const char *names[3] = { "STARTMIC 066B", "CONTMIC 035B", "RESTMIC 036B" };
+        for (int k = 0; k < 3; k++)
+        {
+            NdbusPool pool;
+            CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for a start command");
+            NdbusFabric fabric;
+            ndbus_fabric_init(&fabric, NULL);
+            NdbusNd5000 nd;
+            CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+                  "a station for a start command");
+            CHECK(ndbus_fabric_register(&fabric, &nd.station), "registered on the fabric");
+
+            CHECK(!nd.accp.microprogram_running, "the microprogram starts not running");
+
+            /* FOUR PARAMETER BYTES, because the minimum differs per command and a
+             * short message is refused in SILENCE: STARTMIC takes 2, CONTMIC 0 and
+             * RESTMIC 4 (ndbus_accp_min_parameter_bytes). Sending 2 made RESTMIC look
+             * like a missing state transition when it was a short message being
+             * correctly refused. */
+            uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+            uint8_t  body[8];
+            body[0] = starters[k];
+            body[1] = 0x00u;
+            body[2] = 0x00u;
+            body[3] = 0x00u;
+            body[4] = 0x00u;
+            (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST,
+                            body, 5, replies);
+            CHECK(nd.accp.microprogram_running, names[k]);
+            CHECK(!nd.accp_idle, "and the ACCP is not left idle");
+
+            ndbus_nd5000_destroy(&nd);
+            ndbus_pool_destroy(&pool);
+        }
+    }
+
     /* --- ENKICK sends the microprogram model/version report ------------------
      *
      * RetroCore's ENKICK answers with the bare acknowledge AND an unsolicited

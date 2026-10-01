@@ -561,7 +561,26 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
         break;
 
     case NDBUS_ACCP_STARTMIC:
+    /* CONTINUE AND RESTART START THE MICROPROGRAM TOO. RetroCore handles 066B
+     * STARTMIC, 035B CONTMIC and 036B RESTMIC in ONE arm, all three setting the
+     * running flag and clearing the idle one (OctobusND5000Station.cs:2857-2957,
+     * where 0x1D and 0x1E share the 0x36 body). nd500x armed only STARTMIC, so a
+     * CONTMIC fell through to the bare acknowledge and left the flag false.
+     *
+     * That flag is not bookkeeping. ENKICK's model/version report is sent only when
+     * it is set, STOPMIC's refusal depends on it, and the whole guard matrix in
+     * ndbus_accp.c keys off it - so a missed transition makes every later command
+     * judged against a state the guest does not share.
+     *
+     * The GUARD MATRIX IS NOT CHANGED HERE. Ours comes from a newer RetroCore than
+     * the tree these line numbers point at - our header cites AccpCommandGuards.cs,
+     * which that tree does not contain - and the older tree acknowledges
+     * unconditionally where ours refuses. Matching the older behaviour would be a
+     * regression, so only the state transition is ported. */
+    case NDBUS_ACCP_CONTMIC:
+    case NDBUS_ACCP_RESTMIC:
         nd->accp.microprogram_running = true;
+        nd->accp_idle = false;
         break;
 
     case NDBUS_ACCP_STOPMIC:
