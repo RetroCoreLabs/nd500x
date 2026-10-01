@@ -6,6 +6,7 @@
 #include "../src/machine/machine_protos.h"
 #include "../src/cpu/nd500_mmu.h"
 #include "../src/ndbus/ndbus_servicer.h"
+#include "../src/cpu/instruction_helpers.h"
 
 /*
  * Test MMU Address Translation Logic (Unit Test)
@@ -410,6 +411,75 @@ int main(void) {
 #undef T9_CHECK
 
     /* ---------------------------------------------------------
+     * TEST 10: with the data MMU off, a data read is PHYSICAL
+     *
+     * The ND-5000 swapper walks a list with the data MMU switched off:
+     *     dmof ; w1 := r.4 ; dmon
+     * (disassembled from the live swapper at 0x08008E7E-0x08008E82). If DMOF did not
+     * actually take the data side out of translation, that read would be translated as
+     * a virtual address and quietly return the wrong word - and a list walk that reads
+     * the wrong word terminates early, which is indistinguishable from an empty list.
+     *
+     * So this pins the contract DMOF/DMON promise: data_enabled off means the address
+     * is used as-is, and the PROGRAM side is unaffected, because the swapper is
+     * executing instructions throughout.
+     * --------------------------------------------------------- */
+    int t10_failed = 0;
+#define T10_CHECK(cond, what)                                                       \
+    do {                                                                            \
+        if (!(cond)) { printf("  FAIL: %s\n", (what)); t10_failed++; }               \
+        else { printf("  ok: %s\n", (what)); }                                      \
+    } while (0)
+
+    printf("Test 10: data MMU off means a physical data read\n");
+    printf("-----------------------------------------------\n");
+    {
+        Nd500Cpu d;
+        memset(&d, 0, sizeof(d));
+        nd500_cpu_init(&d, &machine);
+        nd500_cpu_reset(&d);
+        nd500_mmu_init(&d);
+
+        /* A recognisable word at a low PHYSICAL address, where the swapper's list
+         * cursors point (its cursor values were small, 0x89 and up). */
+        const uint32_t phys = 0x0000008Cu;
+        nd500_bus_write8(&machine, phys,      0xDEu);
+        nd500_bus_write8(&machine, phys + 1u, 0xADu);
+        nd500_bus_write8(&machine, phys + 2u, 0xBEu);
+        nd500_bus_write8(&machine, phys + 3u, 0xEFu);
+
+        nd500_mmu_enable(&d);
+        machine.mmu_enabled = 1;
+        T10_CHECK(nd500_mmu_is_data_enabled(&d) != 0, "the data MMU starts enabled");
+
+        /* DMOF - the data side only. */
+        nd500_mmu_disable_data(&d);
+        T10_CHECK(nd500_mmu_is_data_enabled(&d) == 0, "DMOF turns the data MMU off");
+
+        nd500_trap_clear();
+        uint32_t pa = nd500_mmu_translate(&d, phys, 0, 0);
+        T10_CHECK(!nd500_trap_occurred(), "a data read with the MMU off does not fault");
+        T10_CHECK(pa == phys,
+                  "and the address is used AS-IS, not translated");
+        T10_CHECK(nd500_read_memory_32(&d, phys) == 0xDEADBEEFu,
+                  "so the word read back is the one at that physical address");
+
+        /* The PROGRAM side must be untouched: the swapper keeps executing. */
+        T10_CHECK(nd500_mmu_is_enabled(&d) != 0,
+                  "the MMU as a whole is still on - DMOF is not PMOF");
+
+        /* DMON restores translation. */
+        nd500_mmu_enable_data(&d);
+        T10_CHECK(nd500_mmu_is_data_enabled(&d) != 0, "DMON turns it back on");
+
+        nd500_trap_clear();
+        machine.mmu_enabled = 0;
+        nd500_mmu_disable(&d);
+    }
+    printf("Status: %s\n\n", (t10_failed == 0) ? "PASS" : "FAIL");
+#undef T10_CHECK
+
+    /* ---------------------------------------------------------
      * SUMMARY
      * --------------------------------------------------------- */
     printf("===========================================\n");
@@ -419,9 +489,9 @@ int main(void) {
     printf("      integration with memory bus and will be tested\n");
     printf("      during Phase 5 (Memory Bus Integration).\n");
 
-    if (t7_failed != 0 || t8_failed != 0 || t9_failed != 0) {
-        printf("\n%d check(s) FAILED in Test 7, %d in Test 8, %d in Test 9\n",
-               t7_failed, t8_failed, t9_failed);
+    if (t7_failed != 0 || t8_failed != 0 || t9_failed != 0 || t10_failed != 0) {
+        printf("\n%d check(s) FAILED in Test 7, %d in Test 8, %d in Test 9, %d in Test 10\n",
+               t7_failed, t8_failed, t9_failed, t10_failed);
         return 1;
     }
     return 0;
