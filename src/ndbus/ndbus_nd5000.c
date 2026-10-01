@@ -42,61 +42,11 @@ static void nd_log(const NdbusNd5000 *nd, const char *message)
  * `params` / `param_count` are those return bytes; pass 0 for a bare Messack.
  */
 /*
- * Emit one COMPLETE multibyte message: the envelope is part of the message, and
- * leaving any of it off produces a different message rather than a shorter one.
- *
- * Ported from RetroCore NDBusOctobus.cs SendMultibyteMessage, whose envelope is
- * byte-verified against the TPE OCTOBUS B00 sender
- * (octobus_send_multibyte_message @ ram:d16a - SOMB built at ram:d1ae
- * "SAA 30B ; ORA OMD", EOMB at ram:d1f1 "SAA 20B ; ORA OMD"):
- *
- *   SOMB     C=1, station, low byte = M|S|OMD  (0x30 | OMD)
- *   data     C=0, station, low byte = OUR source OMD - where the receiver replies
- *   data     C=0, station, low byte = payload byte count N
- *   data x N C=0, station, low byte = payload byte
- *   EOMB     C=1, station, low byte = M|OMD    (0x20 | OMD)
- *
- * THE STATION FIELD IS OURS AND IS STAMPED HERE. On the outbound path the fabric
- * rewrites bits 13-8 from destination to source, but a reply travels back through
- * the replies[] array and nothing rewrites it, so a reply built with a zero
- * station arrives claiming to come from station 0 - which is not a legal station
- * at all. The receiver reads those bits to know who answered
- * (TPE octobus_decode_frame_word @ ram:d3ae, mask 0x3F00 at ram:d3cb).
- *
- * Returns the number of frames written, or 0 if the whole message does not fit -
- * never a partial message.
+ * The whole multibyte message - envelope and all - is built by
+ * ndbus_multibyte_build() in ndbus_multibyte.h, which is shared with the OMD-0
+ * Test Protocol responder. There is one implementation of the envelope because
+ * there is one envelope.
  */
-static int build_multibyte(uint8_t station, uint8_t dest_omd, uint8_t source_omd,
-                           const uint8_t *payload, int payload_count, uint16_t *replies, int max)
-{
-    if (replies == NULL || payload_count < 0 || payload_count > 255)
-    {
-        return 0;
-    }
-
-    const int frames = 4 + payload_count; /* SOMB + srcOMD + count + payload + EOMB */
-    if (frames > max)
-    {
-        return 0;
-    }
-
-    const uint16_t station_bits =
-        (uint16_t)(((uint16_t)station & 0x3Fu) << NDBUS_FRAME_STATION_SHIFT);
-    const uint16_t omd = (uint16_t)(dest_omd & 0x0Fu);
-
-    int n = 0;
-    replies[n++] = (uint16_t)(NDBUS_FRAME_C_CONTROL | station_bits | NDBUS_FRAME_M_MULTIBYTE |
-                              NDBUS_FRAME_S_STARTSTOP | omd);
-    replies[n++] = (uint16_t)(station_bits | (uint16_t)source_omd);
-    replies[n++] = (uint16_t)(station_bits | (uint16_t)payload_count);
-    for (int i = 0; i < payload_count; i++)
-    {
-        replies[n++] = (uint16_t)(station_bits | (uint16_t)payload[i]);
-    }
-    replies[n++] = (uint16_t)(NDBUS_FRAME_C_CONTROL | station_bits | NDBUS_FRAME_M_MULTIBYTE | omd);
-    return n;
-}
-
 /*
  * Messack: leading status byte 0 = CMACK/MFACK, "OK / alive / self-test passed".
  *
@@ -109,10 +59,20 @@ static int build_multibyte(uint8_t station, uint8_t dest_omd, uint8_t source_omd
  * reply_omd is the SOURCE OMD out of the command message, never a constant: that
  * is the OMD the sender is listening on.
  */
+/*
+ * How many return bytes a Messack can carry. This is the buffer below, not a
+ * documented ACCP limit: T125 says returned data follows Messack in the same
+ * multibyte message and does not give a maximum. It used to be enforced
+ * indirectly by NDBUS_MAX_REPLY_FRAMES being 16, which is no longer the frame
+ * limit, so it is spelled out here rather than left to a constant that has
+ * nothing to do with it.
+ */
+#define ACCP_MAX_RETURN_BYTES 16
+
 static int build_messack(uint8_t station, uint8_t reply_omd, const uint8_t *params,
                          int param_count, uint16_t *replies, int max)
 {
-    uint8_t payload[1 + 16];
+    uint8_t payload[1 + ACCP_MAX_RETURN_BYTES];
 
     if (param_count < 0 || param_count > (int)sizeof(payload) - 1)
     {
@@ -133,8 +93,8 @@ static int build_messack(uint8_t station, uint8_t reply_omd, const uint8_t *para
         payload[1] = 0x00;
     }
 
-    return build_multibyte(station, reply_omd, (uint8_t)NDBUS_ACCP_OMD, payload, count, replies,
-                           max);
+    return ndbus_multibyte_build(station, reply_omd, (uint8_t)NDBUS_ACCP_OMD, payload, count,
+                                 replies, max);
 }
 
 /*
@@ -169,8 +129,8 @@ static int build_messnak(uint8_t station, uint8_t reply_omd, int nak_code, bool 
         count      = 3;
     }
 
-    return build_multibyte(station, reply_omd, (uint8_t)NDBUS_ACCP_OMD, payload, count, replies,
-                           max);
+    return ndbus_multibyte_build(station, reply_omd, (uint8_t)NDBUS_ACCP_OMD, payload, count,
+                                 replies, max);
 }
 
 /**
@@ -238,10 +198,19 @@ static int accp_echo(NdbusNd5000 *nd, uint8_t reply_omd, const uint8_t *params, 
     {
         count = param_count - 1; /* the sender said more than it sent */
     }
-    /* Room for the envelope (4 frames) and the leading ack byte. */
-    if (count > NDBUS_MAX_REPLY_FRAMES - 5)
+    /* Room for the envelope (4 frames) and the leading ack byte, and no more
+     * return bytes than a Messack can carry. */
+    if (count > max - 5)
     {
-        count = NDBUS_MAX_REPLY_FRAMES - 5;
+        count = max - 5;
+    }
+    if (count > ACCP_MAX_RETURN_BYTES)
+    {
+        count = ACCP_MAX_RETURN_BYTES;
+    }
+    if (count < 0)
+    {
+        count = 0;
     }
     return build_messack(nd->station.number, reply_omd, (count > 0) ? &params[1] : NULL, count,
                          replies, max);
@@ -475,7 +444,7 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
         /* SOMB. The destination OMD in the low bits says who the message is for;
          * OMD 3 is ACCP device handling (T124, figure 28). */
         uint8_t omd = (uint8_t)(frame & NDBUS_FRAME_CODE_MASK);
-        if (omd != NDBUS_ACCP_OMD)
+        if (omd != NDBUS_ACCP_OMD && omd != NDBUS_TESTPROTO_OMD)
         {
             /* Another OMD is the microprogram's, not the ACCP's. Not an error -
              * and not this station's message either. */
@@ -487,7 +456,15 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
 
     if (control && multibyte && !start)
     {
-        /* EOMB: the message is complete. */
+        /* EOMB: the message is complete, and ITS OWN OMD FIELD says which protocol
+         * it belongs to - read here rather than remembered from the SOMB, which is
+         * what RetroCore OctobusND5000Station.cs HandleFrame does: the omd comes
+         * out of the frame in both branches. */
+        uint8_t omd = (uint8_t)(frame & NDBUS_FRAME_CODE_MASK);
+        if (omd != NDBUS_ACCP_OMD && omd != NDBUS_TESTPROTO_OMD)
+        {
+            return 0; /* the microprogram's message, not this station's */
+        }
         if (!ndbus_multibyte_end(&nd->inbox))
         {
             return 0; /* nothing open, or the body overflowed */
@@ -496,6 +473,15 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
         {
             return 0; /* an empty body carries no command byte */
         }
+
+        if (omd == NDBUS_TESTPROTO_OMD)
+        {
+            /* The Octobus Test Protocol. NOT counted in messages_handled, which is
+             * the ACCP command counter that the existing tests read. */
+            return ndbus_testproto_answer(&nd->testproto, &nd->station, nd->inbox.bytes,
+                                          nd->inbox.count, replies, NDBUS_MAX_REPLY_FRAMES);
+        }
+
         nd->messages_handled++;
         return run_command(nd, nd->inbox.bytes, nd->inbox.count, replies,
                            NDBUS_MAX_REPLY_FRAMES);
@@ -542,6 +528,9 @@ bool ndbus_nd5000_init(NdbusNd5000 *nd, uint8_t station_number, NdbusPool *pool,
     nd->last_nak_code  = NDBUS_ACCP_ACCEPTED;
     nd->sniff.threshold = NDBUS_X5ACT_LATCH_ON_FIRST;
     ndbus_multibyte_reset(&nd->inbox);
+    /* Module type 3 = ACCP: this station IS the ACCP baby card, which is what
+     * RetroCore OctobusND5000Station.cs sets at line 702. */
+    ndbus_testproto_init(&nd->testproto, NDBUS_TESTPROTO_MODULE_ACCP);
     return true;
 }
 

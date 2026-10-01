@@ -12,6 +12,13 @@
  * sends multibyte messages to OMD 3, this reassembles them, runs the guard table
  * in ndbus_accp.h and answers Messack or Messnak.
  *
+ * IT ALSO SERVES OMD 0, the Octobus Test Protocol of ndbus_testproto.h, which is a
+ * SEPARATE protocol with its own commands, its own reply header and its own magic
+ * word. ND-05.020.01 ~3930 reserves OMD 0 for the octobus test programs and the
+ * ACCP firmware answers them; the microprogram never sees that traffic. The two
+ * paths are dispatched by the OMD number in the multibyte frames and share only
+ * the envelope, so nothing about OMD 0 changes what OMD 3 does.
+ *
  * WHAT TRAVELS WHERE. T99: "The octobus is used for messages to initiate
  * operations. As a general rule, these operations work on data in shared memory
  * in the MFbus system. Thus, the octobus is normally not used to transport data.
@@ -27,6 +34,7 @@
 #include "ndbus_multibyte.h"
 #include "ndbus_octobus.h"
 #include "ndbus_pool.h"
+#include "ndbus_testproto.h"
 
 /**
  * @brief Latch the doorbell on the FIRST matching transition.
@@ -76,7 +84,13 @@ struct NdbusNd5000
     const NdbusCpuOps  *cpu;       /**< the ND-5000 this station fronts; may be NULL */
 
     NdbusAccpState      accp;      /**< the ACCP guard state, see ndbus_accp.h */
-    NdbusMultibyte      inbox;     /**< the OMD-3 message being reassembled */
+    NdbusMultibyte      inbox;     /**< the OMD-0 or OMD-3 message being reassembled */
+    /** The OMD-0 Test Protocol responder. One collector serves both OMDs - the
+     * EOMB frame says which protocol the completed message belongs to, exactly as
+     * RetroCore OctobusND5000Station.cs HandleFrame does - so a station cannot be
+     * mid-message on both at once, which is also true of the real card: there is
+     * one octobus receiver. */
+    NdbusTestProto      testproto;
     NdbusDoorbellSniff  sniff;     /**< the shared-memory doorbell sniff */
 
     /** LPARP's 4-byte pointer to the parameter area in MFbus memory, as a pool

@@ -64,6 +64,7 @@ bool ndbus_fabric_register(NdbusFabric *fabric, NdbusStation *station)
     }
 
     fabric->stations[number] = station;
+    station->fabric          = fabric;
     fabric->station_count++;
     return true;
 }
@@ -78,7 +79,8 @@ bool ndbus_fabric_unregister(NdbusFabric *fabric, uint8_t number)
     {
         return false;
     }
-    fabric->stations[number] = NULL;
+    fabric->stations[number]->fabric = NULL;
+    fabric->stations[number]         = NULL;
     fabric->station_count--;
     return true;
 }

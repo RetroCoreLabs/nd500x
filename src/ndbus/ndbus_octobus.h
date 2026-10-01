@@ -157,13 +157,32 @@ static inline uint16_t ndbus_frame_set_station(uint16_t frame, uint8_t station)
  * A reply is a WHOLE MULTIBYTE MESSAGE, not a frame: SOMB, the source OMD, the
  * byte count, the payload, EOMB - four frames of envelope plus one per payload
  * byte. Eight was too few the moment the envelope was built correctly (a VPARP
- * echo is ack + four bytes = nine frames), and a reply that does not fit is a
- * reply the receiver reads as a different message. Sixteen is the receiving
- * card's own FIFO depth, so nothing longer could be delivered whole anyway.
+ * echo is ack + four bytes = nine frames).
+ *
+ * SIXTEEN WAS TOO FEW TOO, and the reasoning that chose it was wrong in a way
+ * worth recording: it took the receiving ND-100 card's 16-word FIFO depth as the
+ * ceiling on a reply, so "nothing longer could be delivered whole anyway". But
+ * the FIFO is DRAINED WHILE THE REPLY ARRIVES on real hardware - the sender
+ * retries on a busy acknowledge - so a reply longer than the FIFO is perfectly
+ * normal. The OMD-0 Test Protocol has one: Get present stations answers with 66
+ * words = 132 payload bytes, which is 136 frames (ndbus_testproto.h). Capping the
+ * buffer at 16 did not truncate that reply, it SUPPRESSED it - the builder
+ * refuses to emit a partial message - and the asker saw a station that answers
+ * nothing.
+ *
+ * So the bound is now the protocol's own: the wire byte count is ONE BYTE, so a
+ * multibyte message carries at most 255 payload bytes, plus the four frames of
+ * envelope. Nothing an octobus station can legally say is longer than this, which
+ * makes the assert below a statement about the protocol rather than about one
+ * card's FIFO. The cost is 518 bytes of stack per reply buffer.
+ *
+ * What a 16-word FIFO does with a 136-frame reply is the RECEIVER's business and
+ * is not modelled here: nd100x pushes what fits and logs the rest as dropped.
  */
-#define NDBUS_MAX_REPLY_FRAMES 16
+#define NDBUS_MAX_REPLY_FRAMES (4 + 255)
 
 typedef struct NdbusStation NdbusStation;
+struct NdbusFabric;
 
 /**
  * @brief Handle a frame addressed to this station.
@@ -193,6 +212,18 @@ struct NdbusStation
     const char         *type;     /**< human-readable, for logs; never NULL */
     NdbusStationHandler handle;   /**< may be NULL: the station accepts and is silent */
     void               *ctx;      /**< the station's own state */
+
+    /**
+     * The fabric this station is registered on, set by ndbus_fabric_register and
+     * cleared by ndbus_fabric_unregister; NULL while unregistered.
+     *
+     * A station needs it because one message it must answer asks about the OTHER
+     * stations: the OMD-0 Test Protocol command "Get present stations" reports one
+     * word per station number, and the only honest source for that is the
+     * registry. RetroCore reaches it through OctobusStationBase.Fabric, attached
+     * by RegisterStation (NDBusOctobus.cs AttachFabric, line 324).
+     */
+    const struct NdbusFabric *fabric;
 };
 
 /** @brief The octobus fabric: one slot per 6-bit station number, plus routing. */

@@ -29,6 +29,7 @@
 #include "ndbus_msgqueue.h"
 #include "ndbus_octobus.h"
 #include "ndbus_pool.h"
+#include "ndbus_testproto.h"
 #include "ndbus_runner.h"
 #include "ndbus_window.h"
 
@@ -317,9 +318,9 @@ static void test_octobus(void)
     memset(&nd5000_state, 0, sizeof(nd5000_state));
 
     NdbusStation nd120 = {NDBUS_STATION_ND120_CPU, "ND-120 CPU", mock_station_handle,
-                          &nd120_state};
+                          &nd120_state, NULL};
     NdbusStation nd5000 = {NDBUS_STATION_ND5000_FIRST, "ND-5000 CPU", mock_station_handle,
-                           &nd5000_state};
+                           &nd5000_state, NULL};
 
     CHECK(ndbus_fabric_register(&fabric, &nd5000), "station 70B registers");
     CHECK(ndbus_fabric_master(&fabric) == NDBUS_STATION_ND5000_FIRST,
@@ -330,8 +331,8 @@ static void test_octobus(void)
     CHECK(ndbus_fabric_station_count(&fabric) == 2, "two stations on the bus");
 
     /* Station 0 and 77B are not in the T329 table. */
-    NdbusStation illegal_low  = {0, "illegal 0", NULL, NULL};
-    NdbusStation illegal_high = {63, "illegal 77B", NULL, NULL};
+    NdbusStation illegal_low  = {0, "illegal 0", NULL, NULL, NULL};
+    NdbusStation illegal_high = {63, "illegal 77B", NULL, NULL, NULL};
     CHECK(!ndbus_fabric_register(&fabric, &illegal_low), "station 0 is refused");
     CHECK(!ndbus_fabric_register(&fabric, &illegal_high), "station 77B is refused");
     CHECK(ndbus_fabric_station_count(&fabric) == 2, "a refused registration changes nothing");
@@ -351,12 +352,12 @@ static void test_octobus(void)
     CHECK(ndbus_fabric_station_count(&fabric) == 1 + (int)NDBUS_ND5000_MAX_CPUS,
           "seven ND-5000 slots plus the ND-120");
     CHECK(NDBUS_STATION_ND5000_LAST == 62, "76B is 62 decimal");
-    NdbusStation eighth = {63, "an eighth ND-5000", NULL, NULL};
+    NdbusStation eighth = {63, "an eighth ND-5000", NULL, NULL, NULL};
     CHECK(!ndbus_fabric_register(&fabric, &eighth), "there is no eighth slot");
 
     /* Duplicate registration is refused rather than silently replacing, so two
      * owners fighting over one slot cannot hide. */
-    NdbusStation duplicate = {NDBUS_STATION_ND5000_FIRST, "another 70B", NULL, NULL};
+    NdbusStation duplicate = {NDBUS_STATION_ND5000_FIRST, "another 70B", NULL, NULL, NULL};
     CHECK(!ndbus_fabric_register(&fabric, &duplicate), "a duplicate station number is refused");
     CHECK(ndbus_fabric_get_station(&fabric, NDBUS_STATION_ND5000_FIRST) == &nd5000,
           "and the original station is still there");
@@ -397,7 +398,7 @@ static void test_octobus(void)
     /* A registered station with no handler accepts and is silent - which is 0,
      * not a timeout. */
     CHECK(ndbus_fabric_unregister(&fabric, NDBUS_STATION_ND5000_FIRST), "70B unregisters");
-    NdbusStation silent = {NDBUS_STATION_ND5000_FIRST, "silent", NULL, NULL};
+    NdbusStation silent = {NDBUS_STATION_ND5000_FIRST, "silent", NULL, NULL, NULL};
     CHECK(ndbus_fabric_register(&fabric, &silent), "a handler-less station registers");
     CHECK(ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU, frame, replies) == 0,
           "it accepts and says nothing - 0, not a timeout");
@@ -1238,7 +1239,7 @@ static void test_bringup(void)
           "with no ND-120 yet it is the MASTER - the lowest station on the bus");
 
     /* The ND-120 is station 1B and becomes MASTER the moment it appears. */
-    NdbusStation nd120 = {NDBUS_STATION_ND120_CPU, "ND-120 CPU", NULL, NULL};
+    NdbusStation nd120 = {NDBUS_STATION_ND120_CPU, "ND-120 CPU", NULL, NULL, NULL};
     CHECK(ndbus_fabric_register(&fabric, &nd120), "the ND-120 joins at 1B");
     CHECK(ndbus_fabric_master(&fabric) == NDBUS_STATION_ND120_CPU, "and takes over as MASTER");
 
@@ -1965,6 +1966,269 @@ static void test_captured_sintran_frames(void)
           "addressed to the source OMD the message named, 3");
 }
 
+
+/* ------------------------------------------------------------------------- */
+/* Layer 11: the OMD-0 Octobus Test Protocol                                  */
+/* ------------------------------------------------------------------------- */
+
+/*
+ * THE REQUESTS IN THIS SECTION ARE THE RECORDED ONES, byte for byte, and that is
+ * deliberate. The bodies below were captured from a live TPE OCTOBUS B00 run and
+ * are quoted in RetroCore
+ * Emulated.Tests.ND100/ControllerOctobus/OctobusTpeConfigReproTests.cs:
+ *
+ *     identify yourself   00 04 71 C7 00 00
+ *     echo single word    00 08 71 C7 00 0C 00 01 FF FF
+ *
+ * and the reply BYTE COUNTS asserted here are TPE's own: 8 for identify, 132 for
+ * get-present-stations, 12 for echo-single. Writing the expected bytes out of a
+ * reading of the protocol instead would let a test agree with a mistaken
+ * implementation, which is how the "command byte is body[0]" bug survived.
+ */
+
+/* Send one OMD-0 Test Protocol request the way TPE's
+ * octobus_send_multibyte_message does: SOMB to OMD 0, the source OMD byte, the
+ * byte count, one data frame per body byte, EOMB. `body` is the WHOLE collected
+ * message INCLUDING its first two header bytes, exactly as recorded above, so the
+ * test cannot silently disagree with the capture about what the header is. */
+static int send_omd0(NdbusFabric *fabric, uint8_t from, uint8_t to, const uint8_t *body,
+                     int length, uint16_t *replies)
+{
+    uint16_t dest = (uint16_t)((uint16_t)to << NDBUS_FRAME_STATION_SHIFT);
+
+    uint16_t somb = (uint16_t)(dest | NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE |
+                               NDBUS_FRAME_S_STARTSTOP | (uint16_t)NDBUS_TESTPROTO_OMD);
+    (void)ndbus_fabric_send(fabric, from, somb, replies);
+
+    for (int i = 0; i < length; i++)
+    {
+        (void)ndbus_fabric_send(fabric, from, (uint16_t)(dest | (uint16_t)body[i]), replies);
+    }
+
+    uint16_t eomb = (uint16_t)(dest | NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE |
+                               (uint16_t)NDBUS_TESTPROTO_OMD);
+    return ndbus_fabric_send(fabric, from, eomb, replies);
+}
+
+/* One payload word, big-endian, out of an unwrapped reply. */
+static uint16_t reply_word(const uint8_t *payload, int word_index)
+{
+    return (uint16_t)(((uint16_t)payload[word_index * 2] << 8) |
+                      (uint16_t)payload[(word_index * 2) + 1]);
+}
+
+static void test_test_protocol(void)
+{
+    printf("Layer 11: the OMD-0 octobus test protocol\n");
+
+    NdbusPool pool;
+    (void)ndbus_pool_create(&pool, POOL_BYTES);
+
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+
+    /* Station 1B, the ND-100 card, is the asker. It is registered so the
+     * get-present-stations reply has something true to say about it; it is silent
+     * because nothing here sends it a frame. */
+    NdbusStation nd120 = {NDBUS_STATION_ND120_CPU, "ND-120 CPU", NULL, NULL, NULL};
+    CHECK(ndbus_fabric_register(&fabric, &nd120), "the ND-100 card registers as 1B");
+
+    NdbusNd5000 nd;
+    CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, NULL, NULL),
+          "the ND-5000 comes up at 070B");
+    CHECK(ndbus_fabric_register(&fabric, &nd.station), "and registers on the fabric");
+    CHECK(nd.station.fabric == &fabric,
+          "registering hands the station its fabric - the get-present reply needs the registry");
+
+    uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+    uint8_t  payload[NDBUS_MULTIBYTE_MAX];
+    int      n;
+    int      plen;
+
+    /* ---- identify yourself: the recorded body, and an 8-byte reply ---------- */
+    const uint8_t identify[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x00u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, identify,
+                     (int)sizeof(identify), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 8, "identify yourself is answered with 8 payload bytes - header only");
+    CHECK(plen == 8 && reply_word(payload, 0) == 0x71C7u, "reply word0 is the 0x71C7 magic");
+    CHECK(plen == 8 && reply_word(payload, 1) == 0x0001u, "reply word1 is the command plus one");
+    CHECK(plen == 8 && reply_word(payload, 2) == NDBUS_STATION_ND5000_FIRST,
+          "reply word2 is the answering station, 56 decimal = 070B");
+    CHECK(plen == 8 && reply_word(payload, 3) == 0u, "reply word3 is status 0, Ok");
+    CHECK(n >= 1 && (replies[0] & NDBUS_FRAME_CODE_MASK) == NDBUS_TESTPROTO_OMD,
+          "and it is addressed back to OMD 0, the OMD the request named");
+    CHECK(n >= 2 && (replies[1] & NDBUS_FRAME_DATA_MASK) == 0u,
+          "with our own source OMD 0 - we answer as the test protocol module");
+    CHECK(nd.messages_handled == 0,
+          "an OMD-0 message is NOT an ACCP command and does not touch that counter");
+    CHECK(nd.testproto.messages == 1 && nd.testproto.replies == 1,
+          "the test protocol counted one message and one reply");
+
+    /* ---- get present stations: 66 words = 132 bytes, one word per station --- */
+    const uint8_t get_present[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x0Au};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, get_present,
+                     (int)sizeof(get_present), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 132, "get present stations is answered with 66 words = 132 bytes");
+    CHECK(n == 136, "which is 136 frames - far past the 16 the reply buffer used to allow");
+    CHECK(plen == 132 && reply_word(payload, 1) == 0x000Bu, "reply word1 is 0x000A plus one");
+    CHECK(plen == 132 && reply_word(payload, 3) == 0u, "status Ok");
+    CHECK(plen == 132 && reply_word(payload, 3 + 1) == 1u, "station 1 is reported present");
+    CHECK(plen == 132 && reply_word(payload, 3 + NDBUS_STATION_ND5000_FIRST) == 1u,
+          "the answering station 070B reports itself present");
+    CHECK(plen == 132 && reply_word(payload, 3 + 5) == 0u,
+          "station 5, which nothing registered, is reported absent");
+    CHECK(plen == 132 && reply_word(payload, 3 + 10) == 0u,
+          "and so is station 10 - no SCSI controller is configured here");
+
+    /* ---- echo single word: the recorded body, pattern 1 / 0xFFFF ------------ */
+    const uint8_t echo_single[] = {0x00u, 0x08u, 0x71u, 0xC7u, 0x00u, 0x0Cu,
+                                   0x00u, 0x01u, 0xFFu, 0xFFu};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, echo_single,
+                     (int)sizeof(echo_single), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 12, "echo single word is answered with 6 words = 12 bytes");
+    CHECK(plen == 12 && reply_word(payload, 1) == 0x000Du, "reply word1 is 0x000C plus one");
+    CHECK(plen == 12 && reply_word(payload, 4) == 0x0001u, "reply word4 echoes the pattern number");
+    CHECK(plen == 12 && reply_word(payload, 5) == 0xFFFFu, "reply word5 echoes the pattern");
+
+    /* A truncated echo request is NOT answered with a zero pattern: the missing
+     * word is refused, and the station stays silent. */
+    const uint8_t echo_short[] = {0x00u, 0x06u, 0x71u, 0xC7u, 0x00u, 0x0Cu, 0x00u, 0x01u};
+    n = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, echo_short,
+                  (int)sizeof(echo_short), replies);
+    CHECK(n == 0, "an echo-single request missing its pattern word gets no reply at all");
+
+    /* ---- echo multi word: string number, count, then the string ------------- */
+    const uint8_t echo_multi[] = {0x00u, 0x0Cu, 0x71u, 0xC7u, 0x00u, 0x0Eu, 0x00u,
+                                  0x07u, 0x00u, 0x02u, 0x12u, 0x34u, 0xABu, 0xCDu};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, echo_multi,
+                     (int)sizeof(echo_multi), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 16, "echo multi word of two words is answered with 8 words = 16 bytes");
+    CHECK(plen == 16 && reply_word(payload, 1) == 0x000Fu, "reply word1 is 0x000E plus one");
+    CHECK(plen == 16 && reply_word(payload, 4) == 0x0007u, "reply word4 echoes the string number");
+    CHECK(plen == 16 && reply_word(payload, 5) == 0x0002u, "reply word5 echoes the word count");
+    CHECK(plen == 16 && reply_word(payload, 6) == 0x1234u, "reply word6 is the first string word");
+    CHECK(plen == 16 && reply_word(payload, 7) == 0xABCDu, "reply word7 is the second");
+
+    /* ---- get module type: 3 = ACCP, which is what an ND-5000 station is ----- */
+    const uint8_t get_module[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x1Au};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, get_module,
+                     (int)sizeof(get_module), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 10, "get module type is answered with 5 words = 10 bytes");
+    CHECK(plen == 10 && reply_word(payload, 1) == 0x001Bu, "reply word1 is 0x001A plus one");
+    CHECK(plen == 10 && reply_word(payload, 4) == NDBUS_TESTPROTO_MODULE_ACCP,
+          "and word4 is module type 3, ACCP");
+
+    /* ---- get test version and get Domino information ----------------------- */
+    /* The VALUES in both replies are UNVERIFIED emulator placeholders, so what is
+     * asserted here is the SHAPE the protocol fixes - the byte count and the
+     * header - plus that the reply reports what this responder is configured
+     * with, not a constant buried in the builder. */
+    const uint8_t get_version[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x18u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, get_version,
+                     (int)sizeof(get_version), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 10, "get test version is answered with 5 words = 10 bytes");
+    CHECK(plen == 10 && reply_word(payload, 4) == nd.testproto.test_version,
+          "carrying the configured version, not a literal");
+
+    const uint8_t get_domino[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x16u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, get_domino,
+                     (int)sizeof(get_domino), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 36, "get Domino information is answered with 18 words = 36 bytes");
+    CHECK(plen == 36 && (((uint32_t)reply_word(payload, 4) << 16u) |
+                         (uint32_t)reply_word(payload, 5)) == nd.testproto.processor_type,
+          "words 4 and 5 are the processor type as one 32-bit number");
+    CHECK(plen == 36 && memcmp(&payload[12], nd.testproto.opcom_version, 4) == 0,
+          "words 6 and 7 are the four OPCOM version characters");
+
+    /* ---- the octobus registers: the legal functions, and the reject --------- */
+    const uint8_t write_reg[] = {0x00u, 0x08u, 0x71u, 0xC7u, 0x00u, 0x12u,
+                                 0x00u, 0x03u, 0x5Au, 0xA5u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, write_reg,
+                     (int)sizeof(write_reg), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 8, "write octobus register is answered with a header-only acknowledge");
+    CHECK(plen == 8 && reply_word(payload, 3) == 0u, "status Ok for function 3");
+
+    const uint8_t write_bad[] = {0x00u, 0x08u, 0x71u, 0xC7u, 0x00u, 0x12u,
+                                 0x00u, 0x04u, 0x00u, 0x01u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, write_bad,
+                     (int)sizeof(write_bad), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 8 && reply_word(payload, 3) == NDBUS_TESTPROTO_STATUS_BAD_REGISTER_FN,
+          "an undocumented write function is refused with status 1, not with silence");
+
+    /* Function 3 was written, so function 3 reads back - but 3 is not a legal READ
+     * function, and the read of one that is legal must not see it. */
+    const uint8_t read_reg[] = {0x00u, 0x06u, 0x71u, 0xC7u, 0x00u, 0x10u, 0x00u, 0x02u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, read_reg,
+                     (int)sizeof(read_reg), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 10, "read octobus register is answered with 5 words = 10 bytes");
+    CHECK(plen == 10 && reply_word(payload, 3) == 0u, "status Ok for function 2");
+    CHECK(nd.testproto.registers[3] == 0x5AA5u, "the write landed in register function 3");
+
+    /* ---- what is NOT a test protocol message ------------------------------- */
+    /* No magic: not a Test Protocol message at all, so no reply - as opposed to a
+     * reply saying the command was wrong. */
+    const uint8_t no_magic[] = {0x00u, 0x04u, 0x12u, 0x34u, 0x00u, 0x00u};
+    n = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, no_magic,
+                  (int)sizeof(no_magic), replies);
+    CHECK(n == 0, "a body without the 0x71C7 magic gets no reply");
+
+    /* An unknown command IS answered: status 2, illegal Test Protocol command
+     * code. Silence there would mean "no station", and the station is present. */
+    const uint8_t unknown[] = {0x00u, 0x04u, 0x71u, 0xC7u, 0x00u, 0x44u};
+    n    = send_omd0(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, unknown,
+                     (int)sizeof(unknown), replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 8, "an unknown command still gets the 4-word header");
+    CHECK(plen == 8 && reply_word(payload, 1) == 0x0045u, "with the command plus one");
+    CHECK(plen == 8 && reply_word(payload, 3) == NDBUS_TESTPROTO_STATUS_BAD_COMMAND,
+          "and status 2, illegal Test Protocol command code");
+
+    /* The OMD-0 path must not have disturbed the ACCP path: an ACCP command still
+     * works, and still uses the ACCP counter. */
+    uint8_t body[2];
+    body[0] = (uint8_t)NDBUS_ACCP_ECHO;
+    body[1] = 0;
+    n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 2, replies);
+    CHECK(n == 6 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED,
+          "the OMD-3 ACCP path still answers after all of that");
+    CHECK(nd.messages_handled == 1, "and it is the ACCP counter that moved, not the OMD-0 one");
+
+    /* An OMD nobody serves is still the microprogram's, not a protocol here. */
+    uint16_t dest = (uint16_t)((uint16_t)NDBUS_STATION_ND5000_FIRST << NDBUS_FRAME_STATION_SHIFT);
+    unsigned long tp_before = nd.testproto.messages;
+    (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
+                            (uint16_t)(dest | NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE |
+                                       NDBUS_FRAME_S_STARTSTOP | 5u),
+                            replies);
+    (void)ndbus_fabric_send(&fabric, NDBUS_STATION_ND120_CPU,
+                            (uint16_t)(dest | NDBUS_FRAME_C_CONTROL | NDBUS_FRAME_M_MULTIBYTE | 5u),
+                            replies);
+    CHECK(nd.testproto.messages == tp_before, "an OMD-5 message is neither protocol's");
+
+    ndbus_pool_destroy(&pool);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -1986,6 +2250,7 @@ int main(void)
 #endif
     test_bringup();
     test_captured_sintran_frames();
+    test_test_protocol();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)
