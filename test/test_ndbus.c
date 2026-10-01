@@ -2795,7 +2795,7 @@ static void test_mailbox_servicer(void)
          * the PRECONDITION of its MON-answer test, and it is what the capture path
          * produces from the real six-byte payload (see the frame-level check below).
          * NEVER HARDCODE THE FRAME: it is composed from this. */
-        nd.lsyspar_word1 = 0x0800u;
+        nd.lsyspar_word1 = 0x0108u;
 
         mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
         mbx_replay_activation(&pool);
@@ -2803,17 +2803,12 @@ static void test_mailbox_servicer(void)
 
         CHECK(ndbus_nd5000_service_mailbox(&nd), "the message is answered");
         CHECK(nd.giveint_frames == 1u, "one GIVEINT frame was handed to the fabric");
-        /* ((0x0800 AND 0x3F00) >> 3) OR 0x8001 = 0x8101 = 100401B, the word observed
-         * on the live machine and asserted by RetroCore's MON-answer test.
-         *
-         * THE SHIFT IS WHAT MAKES THE STATION FIELD A STATION. S5's high byte holds
-         * 5OMDNO (10B = 8); shifted right 3 it becomes 1, the ND-100's station, in
-         * frame bits 13-8. Ported from OctobusND5000Station.cs:2006. A previous port
-         * dropped the shift and compensated by capturing word 1 from the wrong bytes
-         * - two errors that cancelled here and left the LIVE path composing 0x8001,
-         * destination station 0, which the fabric drops. */
+        /* (0x0108 AND 0x3F00) OR 0x8001 = 0x8101 = 100401B, the word observed on the
+         * live machine. NO SHIFT - word 1 holds the IDENT byte in bits 15-8, so the
+         * 0x3F00 mask takes it directly as the destination station. Verified in the
+         * current RetroCore source, OctobusND5000Station.cs:2273. */
         CHECK(nd.last_giveint_frame == 0x8101u,
-              "the frame is ((word1 AND 0x3F00) >> 3) OR 0x8001 = 100401B");
+              "the frame is (word1 AND 0x3F00) OR 0x8001 = 100401B");
         CHECK((nd.last_giveint_frame & 0x8000u) == 0x8000u, "C bit set");
         CHECK(((nd.last_giveint_frame >> 8) & 0x3Fu) == 1u,
               "destination station 1 - the ND-100");
@@ -2823,17 +2818,16 @@ static void test_mailbox_servicer(void)
          * composes to destination station 0, which the fabric drops. Asserted so
          * the arithmetic is pinned in BOTH directions rather than only the one
          * that works. */
-        /* S5 = 0x0300, i.e. 5OMDNO 3 in the high byte - the value RetroCore records
-         * on its own configuration. Its note states the outcome exactly: "the
-         * expression yields 0x8061 whose destination field is 0, and the fabric drops
-         * station 0 ... 737 answers sent, 0 delivered". */
-        nd.lsyspar_word1 = 0x0300u;
+        /* A word 1 with NO ident byte - the shape a one- or two-byte-late parse
+         * produces. Its station field is 0 and the fabric drops it, which is the
+         * failure both of nd500x's earlier parses caused. */
+        nd.lsyspar_word1 = 0x0008u;
         mbx_build_message(&pool, NDBUS_MICFU_RMICV, NDBUS_N5STA_TO_ND500);
         mbx_replay_activation(&pool);
         (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
         CHECK(ndbus_nd5000_service_mailbox(&nd), "it still answers");
-        CHECK(nd.last_giveint_frame == 0x8061u,
-              "5OMDNO 3 composes to 0x8061 - RetroCore's own recorded value");
+        CHECK(nd.last_giveint_frame == 0x8001u,
+              "a word 1 without the ident byte composes to 0x8001");
         CHECK(((nd.last_giveint_frame >> 8) & 0x3Fu) == 0u,
               "whose destination field is 0, the station the fabric drops");
 
@@ -3023,10 +3017,12 @@ static void test_mailbox_servicer(void)
                                          | (NDBUS_STATION_ND5000_FIRST << 8) | 0x03u),
                               nd5000_last_replies);
 
-        CHECK(nd.lsyspar_word1 == 0x0800u,
-              "S5 captured from the wire is 0x0800 - 5OMDNO 10B in the high byte");
+        CHECK(nd.lsyspar_word1 == 0x0108u,
+              "word 1 captured from the wire is 0x0108 - ident byte then 5OMDNO 10B");
+        CHECK(nd.lsyspar_word1 != 0x0800u,
+              "and NOT 0x0800, the one-byte-late parse RetroCore warns against");
         CHECK(nd.lsyspar_word1 != 0x0000u,
-              "and NOT zero, which is what reading one word too far produced");
+              "and NOT zero, the two-byte-late parse nd500x started with");
 
         /* THE CMSYSPAR IS ANSWERED, AND ON THE SENDING OMD.
          *

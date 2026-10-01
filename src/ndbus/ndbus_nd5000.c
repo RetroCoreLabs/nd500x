@@ -503,38 +503,30 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
     switch (command)
     {
     case NDBUS_ACCP_LSYSPAR:
-        /* THE LAYOUT IS ONE BYTE THEN THE WORDS, not three words. params[0] is the
-         * first byte after the command code, and the six bytes are
-         *     [0] N100IDENT (a BYTE)  [1..2] S5  [3..5] the rest
-         * so S5 - what RetroCore calls LSysparWord1, and the only field GIVEINT
-         * uses - starts at params[1], NOT params[2].
+        /* THE THREE WORDS START AT THE IDENT BYTE. Verified against the current
+         * RetroCore source, OctobusND5000Station.cs:3197: the CMSYSPAR handler sets
+         * paramByteIndex = 3 and packs three 16-bit words from there, so
+         *     word 1 = params[0] << 8 | params[1]
+         * with params[0] = N100IDENT and params[1] = the 5OMDNO byte. For 5OMDNO 10B
+         * that is 0x0108, NOT 0x0800.
          *
-         * Pinned by RetroCore OctobusPhase3MonBringupTests.CaptureSysparOmd, which
-         * sends 01 08 00 00 00 00 and asserts LSysparWord1 == 0x0800 as a
-         * PRECONDITION of the MON-answer test, naming the bytes
-         * "0x01 N100IDENT / 0x08 S5 hi = 5OMDNO = 10B / 0x00 S5 lo".
+         * RETROCORE NAMES THE WRONG PARSE EXPLICITLY, at its GIVEINT site: "being
+         * parsed one byte late (0x0800 instead of 0x0108, see the CMSYSPAR handler):
+         * with the ident byte in place the plain expression yields 100401B = 0x8101 =
+         * station 1, the value observed on the live machine."
          *
-         * Read one word too far, this captured 0x0000, every GIVEINT frame composed
-         * as destination station 0, and the fabric dropped all of them - measured
-         * 30-SEP-2026 as "frames=33 ... last=0x8001 lsyspar_w1=0x0000" with SINTRAN
-         * never receiving an answer interrupt. */
-        nd->lsyspar_word1 = (uint16_t)(((uint16_t)params[1] << 8u) | params[2]);
+         * nd500x was wrong here twice. It started TWO bytes late (params[2..3]), which
+         * captured 0x0000 and addressed every answer interrupt to station 0; commit
+         * b311a1a then moved it to ONE byte late (params[1..2]) and added a >> 3 to the
+         * frame arithmetic to compensate - the exact parse that comment warns against.
+         * Word 1 holds the IDENT byte in bits 15-8, and that is what the frame's 0x3F00
+         * mask takes as the destination station.
+         *
+         * The acknowledge goes on the SOURCE OMD, message[0]; the current tree agrees
+         * (OctobusND5000Station.cs:3235) and an earlier note here claiming it answers
+         * on the S5 OMD described a stale copy. */
+        nd->lsyspar_word1 = (uint16_t)(((uint16_t)params[0] << 8u) | params[1]);
         nd->accp.system_parameters_given = true;
-        /* THE PRESENCE ACK GOES ON THE SENDING OMD. Measured 01-OCT-2026.
-         *
-         * RetroCore answers CMSYSPAR on the S5 OMD - SendAccpMessack(message[4]),
-         * citing CARVE-ANSWER-OCTOBUS-CPU-PRESENCE-2026-07-18.md - and nd500x was
-         * changed to match. ON THIS MACHINE THAT IS WRONG: SINTRAN sends S5 with
-         * 5OMDNO 3 and waits for the acknowledge on the OMD the command arrived on,
-         * so replying on the S5 OMD made the monitor print, at entry,
-         *     ND-5000 timeout: ACCP was terminated; Microprogram is running
-         * which the generic acknowledge on the source OMD does not. The reply
-         * therefore stays on the source OMD until the disagreement is understood;
-         * the oracle's rule is recorded here rather than silently dropped.
-         *
-         * WHAT IS NOT IN DOUBT is the field layout below - two independent oracle
-         * tests assert LSysparWord1 == 0x0800 from this payload - so the capture
-         * stays as it is. */
         break;
 
     case NDBUS_ACCP_VPARP:
@@ -808,18 +800,18 @@ static void nd5000_answer_written(void *ctx, uint32_t msg_byte)
         return;
     }
 
-    /* THE >> 3 IS PART OF THE ARITHMETIC. GIVEINT1 composes
-     *     ((LSYSPAR S5 AND 0x3F00) SHIFTED RIGHT 3) OR 0x8001
-     * and the shift is what turns the 5OMDNO byte into a station number: S5 hi 0x08
-     * (5OMDNO 10B) gives 0x0800 >> 3 = 0x0100, so the frame is 0x8101 = 100401B and
-     * its station field (bits 13-8) is 1 - the ND-100. Without the shift the same
-     * input yields 0x8801, station 8, which no one answers.
+    /* NO SHIFT. GIVEINT1 composes the frame as
+     *     (LSYSPAR word 1 AND 0x3F00) OR 0x8001
+     * and nothing else - verified in the current RetroCore source
+     * (OctobusND5000Station.cs:2273). Word 1 holds the ident byte in bits 15-8 and
+     * 5OMDNO in bits 7-0, so masking 0x3F00 takes the IDENT byte as the destination
+     * station: 0x0108 gives 0x8101 = 100401B, station 1, the ND-100 - the word
+     * observed on the live machine.
      *
-     * Ported from RetroCore OctobusND5000Station.cs:2006 and pinned by
-     * OctobusPhase3MonBringupTests, which asserts the received frame has the C bit
-     * set and low bits 0x01. A previous port dropped the shift while claiming
-     * microcode fidelity; the test is the reason this is now right. */
-    uint16_t frame = (uint16_t)(((nd->lsyspar_word1 & 0x3F00u) >> 3u) | 0x8001u);
+     * A >> 3 was added here by commit b311a1a to make a one-byte-late capture come
+     * out right. Both are now corrected: the capture starts at the ident byte and the
+     * arithmetic is the microcode's again. */
+    uint16_t frame = (uint16_t)((nd->lsyspar_word1 & 0x3F00u) | 0x8001u);
     nd->last_giveint_frame = frame;
     nd->giveint_frames++;
 
