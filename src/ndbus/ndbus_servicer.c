@@ -94,6 +94,15 @@ static uint32_t to_link(uint32_t msg_byte)
     return msg_byte & 0xFFFFFFu;
 }
 
+int ndbus_servicer_read_message_x5cpu(const NdbusServicer *sv, uint32_t msg_byte)
+{
+    if (sv == NULL || sv->pool == NULL || msg_byte == 0u)
+    {
+        return -1;
+    }
+    return (int)read16(sv, msg_word(msg_byte, NDBUS_MSG_X5CPU));
+}
+
 bool ndbus_micfu_is_continue(uint16_t micfu)
 {
     return micfu == NDBUS_MICFU_MONCO || micfu == NDBUS_MICFU_TRACO;
@@ -913,6 +922,37 @@ bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t
         (void)write16(sv, msg_word(msg_byte, 0x11u), (uint16_t)(mms_status >> 16u));
         (void)write16(sv, msg_word(msg_byte, 0x12u), (uint16_t)(mms_status & 0xFFFFu));
         (void)write16(sv, msg_word(msg_byte, 0x15u), physical_segment);
+    }
+
+    /* THE MESSAGE THE RECORD WENT ON, FIELD BY FIELD.
+     *
+     * SINTRAN's TRAPDECODER (MP-P2-N500.NPL:135332) decides what to do with a 46B
+     * from TWO fields of this block that the ND-500 side never writes: it compares
+     * the message against the swapper's own message, and it reads the RECEIVER and
+     * errors out when that names the swapper process. Taking the wrong branch there
+     * is fatal - "page fault in swapper", XRSTARTALL - and from the outside it is
+     * indistinguishable from a record that never arrived. A count of posted
+     * trap-stops cannot tell those apart, so name the block and the fields.
+     *
+     * Bounded to the first four, which is already more than one PLACE-DOMAIN needs. */
+    if (sv->trap_stops_posted < 4u)
+    {
+        char line[200];
+        (void)snprintf(line, sizeof line,
+                       "trap-stop %oB on msg 0x%06X for X5CPU %u: N5STA=0x%04X SENDE=0x%04X "
+                       "X5CPU=0x%04X X5ACT=0x%04X MICFU=0x%04X N500A=0x%04X SWRST=0x%04X "
+                       "STOPR=0x%04X TRAPN=0x%04X",
+                       (unsigned)trap_number, (unsigned)msg_byte, (unsigned)x5cpu,
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_N5STA)),
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_SENDE)),
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_X5CPU)),
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_X5ACT)),
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_MICFU)),
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_N500A)),
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_SWRST)),
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_STOPR)),
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_TRAPN)));
+        servicer_log(sv, line);
     }
 
     sv->trap_stops_posted++;

@@ -549,6 +549,25 @@ bool ndbus_servicer_read_monitor_result(NdbusServicer *sv, uint32_t msg_byte,
  * @param pst_byte  Pool byte offset of the table, or 0 to clear it.
  * @return true on success; false when sv is NULL.
  */
+/**
+ * @brief The X5CPU - the PROCESS number - carried by a message block.
+ *
+ * X5CPU names the process, not the station: 0 is the swapper and 1 is the first
+ * domain, and from PLACE-DOMAIN onward both are live at once with a message block
+ * each. It must be read from the block that is being served. The station's own
+ * index on the octobus (ndbus_cpu_context_x5cpu(), derived from the station
+ * number) is a DIFFERENT quantity and is 0 for every process on a single ND-5000,
+ * so using it here routes every process's trap onto the swapper's message.
+ *
+ * Mirrors RetroCore's servicer.ReadMessageX5Cpu(msgByteAddress), which its process
+ * bridge calls for exactly this decision.
+ *
+ * @param sv       The servicer; its pool supplies the bytes.
+ * @param msg_byte Pool-relative byte address of the message block.
+ * @return The X5CPU field, or -1 if the servicer, its pool or the address is unusable.
+ */
+int ndbus_servicer_read_message_x5cpu(const NdbusServicer *sv, uint32_t msg_byte);
+
 bool ndbus_servicer_set_pst_base(NdbusServicer *sv, uint32_t pst_byte);
 
 /**

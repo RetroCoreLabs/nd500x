@@ -4546,6 +4546,66 @@ static void test_micfu_classes(void)
     CHECK(!ndbus_micfu_is_start_class(NDBUS_MICFU_CACHE), "nor is MSG_CACHE");
 }
 
+static void test_message_x5cpu(void)
+{
+    printf("Layer 22: X5CPU names the PROCESS, not the station\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the X5CPU reader");
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+    NdbusNd5000 nd;
+    mbx_init_structures(&pool);
+    mbx_attach(&nd, &pool, &fabric);
+
+    /* Refusals first, so a -1 can be told from a legitimate process 0. */
+    CHECK(ndbus_servicer_read_message_x5cpu(NULL, MBX_MSG) == -1,
+          "a NULL servicer is refused");
+    CHECK(ndbus_servicer_read_message_x5cpu(&nd.servicer, 0u) == -1,
+          "and so is a zero message address");
+
+    /* PROCESS 0 IS THE SWAPPER AND IS A REAL ANSWER. It must not be confused with
+     * the refusal above, which is why the reader returns int and not uint16_t. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_X5CPU * 2u, 0u);
+    CHECK(ndbus_servicer_read_message_x5cpu(&nd.servicer, MBX_MSG) == 0,
+          "X5CPU 0 - the swapper - reads as 0, not as a refusal");
+
+    /* PROCESS 1 IS THE FIRST DOMAIN. From PLACE-DOMAIN onward both are live, each
+     * with its own message block, and a trap answered on the wrong one is fatal:
+     * SINTRAN's TRAPDECODER (MP-P2-N500.NPL:135332) compares the faulting message
+     * against the swapper's own and takes EPFINSWAP / XRSTARTALL when they match.
+     *
+     * MEASURED on the octobus: with the station index used instead of this field,
+     * PLACE-DOMAIN CPU-STAT recorded the domain's start as process 0, its page
+     * fault went onto the swapper's message 0x8D30 rather than the domain's
+     * 0x8E30, and the console printed "*** FATAL SYSTEM ERROR *** / The Swapper
+     * stopped" with an otherwise completely correct page-fault record. Reading the
+     * field instead put the record on 0x8E30 and SINTRAN answered with a 3MONCO
+     * for the swapper - CALL 5ACTSWAPPER, the page-in it is supposed to do. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_X5CPU * 2u, 1u);
+    CHECK(ndbus_servicer_read_message_x5cpu(&nd.servicer, MBX_MSG) == 1,
+          "X5CPU 1 - the first domain - reads as 1");
+
+    /* THE DISTINCTION THIS WHOLE LAYER EXISTS FOR. ndbus_cpu_context_x5cpu() is
+     * derived from the STATION NUMBER, so every ND-5000 process on station 070B
+     * answers 0 there. The two quantities agree only for process 0, and a test that
+     * used process 0 alone would pass with either one. */
+    CHECK(ndbus_cpu_context_x5cpu(NDBUS_STATION_ND5000_FIRST) == 0,
+          "station 070B is octobus index 0");
+    CHECK(ndbus_servicer_read_message_x5cpu(&nd.servicer, MBX_MSG)
+              != ndbus_cpu_context_x5cpu(NDBUS_STATION_ND5000_FIRST),
+          "and that index is NOT the process number of a domain message");
+
+    /* Every slot the servicer can address, so a wider process number is not
+     * silently truncated or sign-extended. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_X5CPU * 2u, 6u);
+    CHECK(ndbus_servicer_read_message_x5cpu(&nd.servicer, MBX_MSG) == 6,
+          "the highest ND-5000 process number reads back unchanged");
+
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -4579,6 +4639,7 @@ int main(void)
     test_monitor_call_record();
     test_monitor_call_result();
     test_micfu_classes();
+    test_message_x5cpu();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)
