@@ -241,8 +241,31 @@ Two consequences worth planning around:
 - **Put every instrument you might need into one run.** The marginal cost of an
   extra log line is nothing; the marginal cost of another run is eight minutes.
   A run that answers one question and raises two is a bad trade.
-- **A replayable fixture is worth more than any individual instrument.** The
-  expensive part is the boot, not the subject. Capturing the pool and the
-  message blocks at the point of interest, and loading them in a unit test,
-  turns a day of runs into seconds. `tests/test_mfbus_bridge.c` in the nd100x
-  checkout (`$ND100X`) is where that belongs.
+- **Capture the pool instead of re-running the boot.** The expensive part is the
+  boot, not the subject, and everything this lane argues about is in the shared
+  pool: the mailbox, the message blocks, the physical segment table, the Domain
+  Information Tables and the swapper's segment descriptors.
+
+  Capture, from the nd100x checkout which owns the bridge:
+
+  ```
+  MFBUS_SNAPSHOT_PATH=<file> MFBUS_SNAPSHOT_AT_MON=<n> ./build/bin/nd100x ...
+  ```
+
+  `MFBUS_SNAPSHOT_AT_MON` is the monitor call to capture at, counted per CPU.
+  The run logs the file it wrote, or logs that the write failed - it does not
+  fail silently.
+
+  Read it with `make diag && ./build/bin/diag_pool_snapshot <file> [desc_pa
+  [first_psn [msg_byte [pstp_pa]]]]`, which decodes the segment descriptors, a
+  message block and the physical segment table. A snapshot from a pool of a
+  different size is REFUSED rather than misread.
+
+  MEASURED: a capture at monitor call 15 of a `PLACE-DOMAIN CPU-STAT` run
+  reproduced the descriptors and the PST exactly - psn 11 holding 11 pages,
+  psn 12 holding 4 with STATE 7, psn 13 empty, `PST[12]=0x40000FF6`,
+  `PST[13]=0` - in 7 milliseconds. The live run that first produced those
+  numbers took eight minutes.
+
+  It snapshots the POOL only. The ND-100's own memory, registers and disk are
+  not in it, so a question about SINTRAN's side still needs a boot.

@@ -67,6 +67,37 @@ bool ndbus_pool_create(NdbusPool *pool, uint32_t size_bytes);
 void ndbus_pool_destroy(NdbusPool *pool);
 
 /**
+ * @brief Write the whole pool to a file, so a run can be replayed without it.
+ *
+ * Every observation on the octobus lane costs a full SINTRAN boot - roughly
+ * eight minutes to the monitor prompt - and one investigation produced 132
+ * driver scripts because of it. The expensive part is the boot, not the subject:
+ * the mailbox, the message blocks, the segment descriptors and the page tables
+ * all live in this pool, so capturing it at the point of interest lets the same
+ * state be examined and re-examined in milliseconds.
+ *
+ * The file carries a magic and the pool size, because a snapshot loaded into a
+ * differently sized pool would be read as data rather than refused, and a
+ * confident wrong answer is worse than an error.
+ *
+ * @param pool Pool to write. Must be created.
+ * @param path Destination file.
+ * @return true when the whole pool reached the file.
+ */
+bool ndbus_pool_snapshot_save(const NdbusPool *pool, const char *path);
+
+/**
+ * @brief Load a snapshot into an existing pool of exactly the same size.
+ *
+ * @param pool Pool to fill. Must be created, and its size must match the file's.
+ * @param path Snapshot written by ndbus_pool_snapshot_save().
+ * @return true on success. false - leaving the pool untouched - when the file is
+ *         missing, is not a snapshot, or was taken from a pool of a different
+ *         size. It never loads part of a snapshot.
+ */
+bool ndbus_pool_snapshot_load(NdbusPool *pool, const char *path);
+
+/**
  * @brief Test whether a byte range lies wholly inside the pool.
  * @param pool   Pool to test against.
  * @param offset BYTE offset of the first byte of the range.

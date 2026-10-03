@@ -16,6 +16,7 @@
  * where there are none.
  */
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -4606,6 +4607,75 @@ static void test_message_x5cpu(void)
     ndbus_pool_destroy(&pool);
 }
 
+static void test_pool_snapshot(void)
+{
+    printf("Layer 23: a pool snapshot, so a run can be replayed without a boot\n");
+
+    /* WHY THIS EXISTS. Every observation on the octobus lane costs a full
+     * SINTRAN boot - about eight minutes to the monitor prompt - and one
+     * investigation produced 132 driver scripts for that reason. The mailbox,
+     * the message blocks, the segment descriptors and the page tables all live
+     * in this pool, so capturing it at the point of interest turns a day of
+     * runs into milliseconds. */
+    const uint32_t size = 64u * 1024u;
+    NdbusPool a, b;
+    CHECK(ndbus_pool_create(&a, size), "a pool to snapshot");
+    CHECK(ndbus_pool_create(&b, size), "and one to restore into");
+
+    /* Values at the places this lane actually cares about: a message block, a
+     * segment-descriptor-shaped word, and the very last byte - the one a
+     * short write or an off-by-one length would lose. */
+    (void)ndbus_pool_write16(&a, 0x8E30u, 0xBEEFu);
+    (void)ndbus_pool_write32(&a, 0x1000u, 0x400000E7u);
+    (void)ndbus_pool_write8(&a, size - 1u, 0x5Au);
+
+    char path[512];
+    const char *dir = getenv("TMPDIR");
+    (void)snprintf(path, sizeof path, "%s/ndbus-pool-snap.bin",
+                   (dir != NULL && dir[0] != '\0') ? dir : "/tmp");
+
+    CHECK(ndbus_pool_snapshot_save(&a, path), "the snapshot writes");
+    CHECK(ndbus_pool_snapshot_load(&b, path), "and loads into a pool of the same size");
+
+    CHECK(ndbus_pool_read16(&b, 0x8E30u) == 0xBEEFu, "the message block came back");
+    CHECK(ndbus_pool_read32(&b, 0x1000u) == 0x400000E7u, "so did the 32-bit entry");
+    CHECK(ndbus_pool_read8(&b, size - 1u) == 0x5Au,
+          "and the LAST byte, which an off-by-one length would drop");
+
+    /* A SNAPSHOT FROM A DIFFERENT POOL MUST BE REFUSED, NOT READ. Loaded into a
+     * pool of another size it would be silently misaligned and every value taken
+     * from it afterwards would be confidently wrong - the worst failure shape
+     * there is, because it does not look like a failure. */
+    NdbusPool wrong;
+    CHECK(ndbus_pool_create(&wrong, size * 2u), "a pool of a different size");
+    (void)ndbus_pool_write16(&wrong, 0x8E30u, 0x1234u);
+    CHECK(!ndbus_pool_snapshot_load(&wrong, path),
+          "a snapshot of another size is REFUSED");
+    CHECK(ndbus_pool_read16(&wrong, 0x8E30u) == 0x1234u,
+          "and the refusal left the pool untouched");
+
+    /* Not a snapshot at all. */
+    char junk[512];
+    (void)snprintf(junk, sizeof junk, "%s/ndbus-pool-junk.bin",
+                   (dir != NULL && dir[0] != '\0') ? dir : "/tmp");
+    FILE *jf = fopen(junk, "wb");
+    if (jf != NULL)
+    {
+        (void)fwrite("not a snapshot at all, just some bytes", 1u, 38u, jf);
+        (void)fclose(jf);
+        CHECK(!ndbus_pool_snapshot_load(&b, junk), "a file with no magic is refused");
+        (void)remove(junk);
+    }
+
+    CHECK(!ndbus_pool_snapshot_load(&b, "/nonexistent/path/snap.bin"),
+          "a missing file is refused rather than leaving a half-loaded pool");
+
+    (void)remove(path);
+    ndbus_pool_destroy(&a);
+    ndbus_pool_destroy(&b);
+    ndbus_pool_destroy(&wrong);
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -4640,6 +4710,7 @@ int main(void)
     test_monitor_call_result();
     test_micfu_classes();
     test_message_x5cpu();
+    test_pool_snapshot();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)

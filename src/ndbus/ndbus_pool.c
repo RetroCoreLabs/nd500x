@@ -184,3 +184,97 @@ bool ndbus_pool_write_bytes(NdbusPool *pool, uint32_t offset, const void *src, u
     memcpy(&pool->bytes[offset], src, (size_t)length);
     return true;
 }
+
+/* ---------------------------------------------------------------------------
+ * Snapshots
+ *
+ * A fixed 16-byte header, then the bytes. The magic and the size are what make
+ * a wrong file an ERROR rather than data: a snapshot read into a pool of a
+ * different size would be silently misaligned, and every value taken from it
+ * afterwards would be confidently wrong. Refusing costs one comparison.
+ * ------------------------------------------------------------------------- */
+
+#define NDBUS_POOL_SNAP_MAGIC "NDBUSPOOL1\0\0\0\0\0"  /* 15 chars + the NUL = 16 */
+
+bool ndbus_pool_snapshot_save(const NdbusPool *pool, const char *path)
+{
+    if (pool == NULL || pool->bytes == NULL || pool->size == 0u || path == NULL)
+    {
+        return false;
+    }
+
+    FILE *f = fopen(path, "wb");
+    if (f == NULL)
+    {
+        return false;
+    }
+
+    unsigned char head[16];
+    memcpy(head, NDBUS_POOL_SNAP_MAGIC, 11u);
+    head[11] = 0u;
+    head[12] = (unsigned char)(pool->size >> 24);
+    head[13] = (unsigned char)(pool->size >> 16);
+    head[14] = (unsigned char)(pool->size >> 8);
+    head[15] = (unsigned char)(pool->size);
+
+    bool ok = (fwrite(head, 1u, sizeof head, f) == sizeof head);
+    if (ok)
+    {
+        ok = (fwrite(pool->bytes, 1u, (size_t)pool->size, f) == (size_t)pool->size);
+    }
+    /* A short write leaves a file that LOOKS like a snapshot, so the close has to
+     * be checked too - a full buffer surfaces here, not at fwrite. */
+    if (fclose(f) != 0)
+    {
+        ok = false;
+    }
+    return ok;
+}
+
+bool ndbus_pool_snapshot_load(NdbusPool *pool, const char *path)
+{
+    if (pool == NULL || pool->bytes == NULL || pool->size == 0u || path == NULL)
+    {
+        return false;
+    }
+
+    FILE *f = fopen(path, "rb");
+    if (f == NULL)
+    {
+        return false;
+    }
+
+    unsigned char head[16];
+    if (fread(head, 1u, sizeof head, f) != sizeof head
+        || memcmp(head, NDBUS_POOL_SNAP_MAGIC, 11u) != 0)
+    {
+        (void)fclose(f);
+        return false;
+    }
+
+    uint32_t stored = ((uint32_t)head[12] << 24) | ((uint32_t)head[13] << 16)
+                    | ((uint32_t)head[14] << 8)  |  (uint32_t)head[15];
+    if (stored != pool->size)
+    {
+        (void)fclose(f);
+        return false;
+    }
+
+    /* READ INTO A SCRATCH BUFFER FIRST. A partial read straight into the pool
+     * would leave half a snapshot over live state, which is harder to diagnose
+     * than a clean refusal. */
+    uint8_t *tmp = (uint8_t *)malloc((size_t)pool->size);
+    if (tmp == NULL)
+    {
+        (void)fclose(f);
+        return false;
+    }
+    bool ok = (fread(tmp, 1u, (size_t)pool->size, f) == (size_t)pool->size);
+    (void)fclose(f);
+    if (ok)
+    {
+        memcpy(pool->bytes, tmp, (size_t)pool->size);
+    }
+    free(tmp);
+    return ok;
+}
