@@ -7,6 +7,7 @@
  * See LICENSE in the repository root for the full text.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -67,12 +68,41 @@ uint8_t ndbus_pool_read8(const NdbusPool *pool, uint32_t offset)
     return ndbus_pool_r8(&pool->bytes[offset]);
 }
 
+
+/* TEMPORARY DIAGNOSTIC (NDBUS_POOL_WWATCH_BYTE): name every non-CPU writer of a pool
+ * cell. The ND-500 CPU writes pool->bytes directly and is covered by ND500X_PTEWATCH;
+ * everything else - the servicer copy engine, the mailbox, the ND-100 window, the
+ * embedding's own write-back - funnels through these setters, so a cell that changes
+ * with no CPU write logged is explained here. Bounded. */
+static void pool_wwatch(uint32_t offset, uint32_t value, int width)
+{
+    static long watch = -2;
+    static unsigned hits = 0;
+    if (watch == -2)
+    {
+        const char *e = getenv("NDBUS_POOL_WWATCH_BYTE");
+        watch = (e != NULL && e[0] != '\0') ? (long)strtoul(e, NULL, 0) : -1;
+    }
+    if (watch < 0 || hits >= 40u)
+    {
+        return;
+    }
+    if ((long)offset > watch || (long)(offset + (uint32_t)(width / 8)) <= watch)
+    {
+        return;
+    }
+    hits++;
+    fprintf(stderr, "[POOLW] w%d offset=0x%06X value=0x%0*X covers 0x%06lX\n",
+            width, offset, width / 4, value, watch);
+    fflush(stderr);
+}
 bool ndbus_pool_write8(NdbusPool *pool, uint32_t offset, uint8_t value)
 {
     if (!ndbus_pool_contains(pool, offset, 1))
     {
         return false;
     }
+    pool_wwatch(offset, value, 8);
     ndbus_pool_w8(&pool->bytes[offset], value);
     return true;
 }
@@ -90,6 +120,7 @@ uint16_t ndbus_pool_read16(const NdbusPool *pool, uint32_t offset)
 
 bool ndbus_pool_write16(NdbusPool *pool, uint32_t offset, uint16_t value)
 {
+    pool_wwatch(offset, value, 16);
     /* Checked as a WHOLE range first: a write that would straddle the end of the
      * pool writes nothing at all, rather than the one byte that fits. */
     if (!ndbus_pool_contains(pool, offset, 2))
@@ -115,6 +146,7 @@ uint32_t ndbus_pool_read32(const NdbusPool *pool, uint32_t offset)
 
 bool ndbus_pool_write32(NdbusPool *pool, uint32_t offset, uint32_t value)
 {
+    pool_wwatch(offset, value, 32);
     if (!ndbus_pool_contains(pool, offset, 4))
     {
         return false;
@@ -140,6 +172,7 @@ bool ndbus_pool_read_bytes(const NdbusPool *pool, uint32_t offset, void *dst, ui
 
 bool ndbus_pool_write_bytes(NdbusPool *pool, uint32_t offset, const void *src, uint32_t length)
 {
+    for (uint32_t i = 0; i < length; i++) { pool_wwatch(offset + i, ((const uint8_t *)src)[i], 8); }
     if (src == NULL || !ndbus_pool_contains(pool, offset, length))
     {
         return false;
