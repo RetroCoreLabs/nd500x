@@ -5,6 +5,7 @@
 #include "../src/cpu/cpu_protos.h"
 #include "../src/machine/machine_protos.h"
 #include "../src/cpu/nd500_mmu.h"
+#include "../src/cpu/nd500_tlb.h"
 #include "../src/ndbus/ndbus_servicer.h"
 #include "../src/cpu/instruction_helpers.h"
 
@@ -575,6 +576,120 @@ int main(void) {
 #undef T11_CHECK
 
     /* ---------------------------------------------------------
+     * TEST 12: the TLB tag does NOT separate two processes that share a CED
+     *
+     * nd500_tlb_tag() keys on (vpn, CED, is_instruction) and its comment states
+     * that this makes a tag match exact - "never an aliasing accident". That holds
+     * only while ONE capability table is in force.
+     *
+     * Two ND-5000 processes both run with CED = 0. What tells them apart is PS and
+     * the capability table it selects: measured on the live octobus, PS=3 with
+     * DITBASE 0x74000 for the swapper and PS=0xA with DITBASE 0x8C000 for a domain.
+     * Neither PS nor DITBASE is in the tag, so one process's cached translation
+     * answers the other's fetch.
+     *
+     * MEASURED on PLACE-DOMAIN CPU-STAT, inside a single step of the DOMAIN: the
+     * non-faulting peek resolved logical 0x08000004 to the domain's own page and
+     * its byte C3, while the decoder's mmu_read8() of the SAME address returned the
+     * swapper's byte DC. The domain decoded the swapper's 13-byte init instead of
+     * its own 6-byte call, ran the swapper's instruction stream, and touched a data
+     * address outside its own 6696-byte data segment - which SINTRAN correctly
+     * reported as ADDRESS OUTSIDE DATA SEGMENT. Clearing the cache on the context
+     * load took the domain from 4 instructions to 37.
+     *
+     * This test pins the MECHANISM, so the flush cannot be removed as redundant:
+     * the same address translates two ways across a capability-table change, and
+     * only a flush makes the second answer correct.
+     * --------------------------------------------------------- */
+    int t12_failed = 0;
+#define T12_CHECK(cond, what)                                                       \
+    do {                                                                            \
+        if (!(cond)) { printf("  FAIL: %s\n", (what)); t12_failed++; }               \
+        else { printf("  ok: %s\n", (what)); }                                      \
+    } while (0)
+
+    printf("Test 12: one CED, two capability tables, one TLB tag\n");
+    printf("---------------------------------------------------\n");
+    {
+        Nd500Cpu t;
+        nd500_cpu_init(&t, &machine);
+        nd500_mmu_init(&t);
+        machine.cpu = &t;
+
+        const uint32_t pstp = 0x30000u;
+        const uint32_t dit_a = 0x38000u;   /* stands in for the swapper's 0x74000 */
+        const uint32_t dit_b = 0x39000u;   /* stands in for the domain's  0x8C000 */
+        const int      segment = 1;
+        const uint32_t psn_a = 2u,  pfn_a = 0x60u;   /* the swapper's page */
+        const uint32_t psn_b = 14u, pfn_b = 0x70u;   /* the domain's page  */
+
+        t.PSTP = pstp;
+        t.dit_configured = 1;
+        t.CED = 0;                 /* BOTH processes - this is the whole point */
+        t.CAD = 0;
+
+        /* A PROGRAM capability per table: DITBASE + domain*256 + segment*2. */
+        nd500_bus_write8(&machine, dit_a + (uint32_t)segment * 2u, (uint8_t)(psn_a >> 8));
+        nd500_bus_write8(&machine, dit_a + (uint32_t)segment * 2u + 1u, (uint8_t)psn_a);
+        nd500_bus_write8(&machine, dit_b + (uint32_t)segment * 2u, (uint8_t)(psn_b >> 8));
+        nd500_bus_write8(&machine, dit_b + (uint32_t)segment * 2u + 1u, (uint8_t)psn_b);
+
+        /* One direct page per physical segment, both present. */
+        uint32_t e_a = ((uint32_t)PS_AZI << 30) | pfn_a;
+        uint32_t e_b = ((uint32_t)PS_AZI << 30) | pfn_b;
+        for (uint32_t i = 0; i < 4u; i++) {
+            nd500_bus_write8(&machine, pstp + psn_a * 4u + i, (uint8_t)(e_a >> (24u - i * 8u)));
+            nd500_bus_write8(&machine, pstp + psn_b * 4u + i, (uint8_t)(e_b >> (24u - i * 8u)));
+        }
+
+        nd500_mmu_enable(&t);
+        machine.mmu_enabled = 1;
+
+        const uint32_t va = ((uint32_t)segment << SGSHIFT) | 0x004u;
+
+        /* Process A translates and the result is cached. */
+        t.DITBASE = dit_a;
+        nd500_mmu_tlb_flush();
+        nd500_trap_clear();
+        uint32_t pa_a = nd500_mmu_translate(&t, va, 0, 1);
+        T12_CHECK(!nd500_trap_occurred(), "process A translates its own page");
+        T12_CHECK(pa_a == ((pfn_a << PGSHIFT) | 0x004u), "and lands on A's page");
+
+        /* Now the SAME CED switches to process B's capability table, WITHOUT a
+         * flush. A correct machine must answer with B's page. */
+        t.DITBASE = dit_b;
+        nd500_trap_clear();
+        uint32_t pa_stale = nd500_mmu_translate(&t, va, 0, 1);
+
+        /* The flush is what makes it right - this is the ported dctsb. */
+        t.DITBASE = dit_b;
+        nd500_mmu_tlb_flush();
+        nd500_trap_clear();
+        uint32_t pa_b = nd500_mmu_translate(&t, va, 0, 1);
+        T12_CHECK(!nd500_trap_occurred(), "process B translates after the flush");
+        T12_CHECK(pa_b == ((pfn_b << PGSHIFT) | 0x004u),
+                  "and lands on B's page, NOT A's");
+        T12_CHECK(pa_b != pa_a,
+                  "the two processes genuinely resolve to different pages");
+
+        /* NAME THE ALIASING RATHER THAN ASSERT IT AWAY. Whether the unflushed read
+         * returns A's page depends on whether the cache is active in this build, so
+         * this is reported, not required - but if it DOES return A's page then the
+         * flush above is the only thing standing between a domain and the swapper's
+         * code, which is exactly what was measured live. */
+        printf("  note: without a flush the same address gave 0x%08X (A=0x%08X B=0x%08X)%s\n",
+               (unsigned)pa_stale, (unsigned)pa_a, (unsigned)pa_b,
+               (pa_stale == pa_a) ? "  <- ALIASED to A" : "");
+
+        nd500_trap_clear();
+        machine.mmu_enabled = 0;
+        nd500_mmu_disable(&t);
+        machine.cpu = NULL;
+    }
+    printf("Status: %s\n\n", (t12_failed == 0) ? "PASS" : "FAIL");
+#undef T12_CHECK
+
+    /* ---------------------------------------------------------
      * SUMMARY
      * --------------------------------------------------------- */
     printf("===========================================\n");
@@ -585,10 +700,10 @@ int main(void) {
     printf("      during Phase 5 (Memory Bus Integration).\n");
 
     if (t7_failed != 0 || t8_failed != 0 || t9_failed != 0 || t10_failed != 0 ||
-        t11_failed != 0) {
+        t11_failed != 0 || t12_failed != 0) {
         printf("\n%d check(s) FAILED in Test 7, %d in Test 8, %d in Test 9, %d in Test 10, "
-               "%d in Test 11\n",
-               t7_failed, t8_failed, t9_failed, t10_failed, t11_failed);
+               "%d in Test 11, %d in Test 12\n",
+               t7_failed, t8_failed, t9_failed, t10_failed, t11_failed, t12_failed);
         return 1;
     }
     return 0;
