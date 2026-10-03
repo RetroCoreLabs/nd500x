@@ -1033,6 +1033,48 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
         (void)write16(sv, val_slot + 2u, (uint16_t)(v & 0xFFFFu));
     }
 
+    /* THE SWAPPER'S OWN REQUEST AND STATUS WORDS, for MON 377B only.
+     *
+     * SINTRAN's LNEWSWAP arm reads SWPST (word 0o103) and treats NON-ZERO as "error
+     * answer from the swapper", propagating that code to the faulting process:
+     *     X:=SWMSG; *AAX SWPST; LDATX
+     *     IF A><0 THEN   % Error-answer from swapper?
+     * Nothing on this side writes SWPST, so a non-zero value here is a swapper error
+     * SINTRAN reports that we never intended - and it is invisible without printing
+     * it. SWPFU names which request it is (1 LNEWSWAP, 2 LSWPAGE, ...).
+     *
+     * MEASURED on PLACE-DOMAIN CPU-STAT: the swapper asks for logical segment 13 -
+     * the fresh, empty scratch segment GSWSP connected for the domain - twice, and
+     * PST entry 13 is never backed, after which the monitor reports that the swapper
+     * stopped. Whether SINTRAN read an error we left in SWPST is exactly what this
+     * says. Bounded. */
+    if (mon_number == 0377u && sv->mon_calls_posted < 24u)
+    {
+        /* THE CONNECT RECORD'S STATE FIELD, which decides whether a fresh segment
+         * may GROW on its first write. Word 0o36 of the message; STATE is bits 13:10
+         * of that halfword, and the swapper's grow-permit set is {13,14,15} - a
+         * STATE outside it makes the segment non-growable, so a first write to an
+         * empty segment is declined rather than backed.
+         *
+         * MEASURED here: psn 13, the scratch segment GSWSP connected for the domain,
+         * is handed to LNEWSWAP and NEVER receives an LSWPAGE, while psn 10, 11 and
+         * 12 each do. An empty segment has nothing to transfer, so growth is the only
+         * way it can be backed, and the grow gate is where that is refused. */
+        uint16_t r36 = read16(sv, msg_word(msg_byte, 0036u));
+        uint32_t state = ((uint32_t)r36 >> 10) & 0x0Fu;
+        char line[200];
+        (void)snprintf(line, sizeof line,
+                       "MON 377B swapper words: SWPFU=0x%04X SWPST=0x%04X SPFLA=0x%04X "
+                       "r36=0x%04X STATE=0x%X growable=%d for X5CPU %u on msg 0x%06X",
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_SWPFU)),
+                       (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_SWPST)),
+                       (unsigned)read16(sv, msg_word(msg_byte, 0143u)),
+                       (unsigned)r36, (unsigned)state,
+                       (state == 13u || state == 14u || state == 15u) ? 1 : 0,
+                       (unsigned)x5cpu, (unsigned)msg_byte);
+        servicer_log(sv, line);
+    }
+
     sv->mon_calls_posted++;
     sv->last_mon_number = mon_number;
 
