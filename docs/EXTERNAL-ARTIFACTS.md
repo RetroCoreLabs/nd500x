@@ -36,6 +36,27 @@ for the carver session and ask for more carving.
 | Scanned reference manuals (the FULL manuals hold the device/function tables the YAMLs defer to - check them before asking the carver) | `$NDINSIGHT/Reference-Manuals/` |
 | Installation procedures (e.g. LED install, ND-211160) | `$NDINSIGHT/Installation/Installation-Description/` |
 
+## ND-5000 / octobus lane: the material that answers questions there
+
+Easy to miss, and each of these has settled a question that was otherwise
+being argued from memory.
+
+| What | Where |
+|---|---|
+| Per-program requirements, invocation and the EXACT OUTPUT that counts as a run | `$NDINSIGHT/SINTRAN/ND500-APPS/<NAME>/userguide.md` |
+| Program index and the shared install/run conventions | `$NDINSIGHT/SINTRAN/ND500-APPS/README.md` |
+| MON oracle write-ups - parameter and return contracts argued from the manuals, e.g. `422B GSWSP` | `$NDINSIGHT/SINTRAN/ND500/mon-oracle-for-NC/` |
+| Swapper message field dossier, per `SWPFU` function, with the per-field evidence grade | `$NDINSIGHT/SINTRAN/ND500/N5SWAP-SWMSG-FIELD-DOSSIER-RELAY-2026-08-17.md` |
+| SINTRAN's own source for the swapper decode (`SWPDECODER`, `LNEWSWAP`) and the trap decode (`TRAPDECODER`) | `$NDINSIGHT/SINTRAN/NPL-SOURCE/NPL/MP-P2-N500.NPL` |
+| L07 symbol table - 5-character names against runtime addresses | `$NDINSIGHT/SINTRAN/NPL-SOURCE/SYMBOLS/L07/N500-SYMBOLS.SYMB.TXT` |
+| ND-5000 microcode, control store and manual transcriptions | `$ND5000UC/` |
+
+There are also installed skills that index this lane and the vendor programs -
+`octobus-nd5000`, `nd5000-octobus`, `nd-500-bus-interface`, `nd500-apps`,
+`nd500-mon`, `sintran-carving`. They carry the measured bring-up state and the
+traps, and they are not in this repository. Load the relevant one before
+measuring on this lane; `docs/INVESTIGATION-TRAPS.md` covers the method.
+
 ## Vendor programs and libraries (the real 1980s binaries)
 
 All under `$ND500_TESTDATA`:

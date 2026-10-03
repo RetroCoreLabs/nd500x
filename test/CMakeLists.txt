@@ -522,6 +522,26 @@ add_test(NAME settings_no_getenv
          COMMAND ${CMAKE_COMMAND} -DSRC_DIR=${ND500X_ROOT}
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/no_getenv_gate.cmake)
 
+# A literal written in octal while the comment on the same line documents the
+# same digits as decimal. Three tests, not one: the gate must PASS on the real
+# tree, PASS on the known-good shapes, and FAIL on the known-bad line. Without
+# that last one the gate could degrade into "return clean and pass everything"
+# and nobody would notice.
+add_test(NAME radix_no_contradiction
+         COMMAND ${CMAKE_COMMAND} -DSRC_DIR=${ND500X_ROOT}
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/radix_gate.cmake)
+
+add_test(NAME radix_gate_passes_good
+         COMMAND ${CMAKE_COMMAND}
+                 -DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/radix/good
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/radix_gate.cmake)
+
+add_test(NAME radix_gate_catches_bad
+         COMMAND ${CMAKE_COMMAND}
+                 -DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/radix/bad
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/radix_gate.cmake)
+set_tests_properties(radix_gate_catches_bad PROPERTIES WILL_FAIL TRUE)
+
 # House C standard, Tier A: every executable in this directory (the test_*
 # runners and the diag_* harnesses) links the same warning target as src/.
 # Done here, once, instead of at each of the 34 add_executable() calls, so a

@@ -44,6 +44,9 @@ CTestTestfile.cmake
 # ...but this one is hand-written source, not generated: it is the
 # settings_no_getenv CTest gate (see src/cpu/nd500_settings.h).
 !test/no_getenv_gate.cmake
+# ...and the radix gate, likewise hand-written: it catches a literal written in
+# octal whose own comment documents it as decimal (docs/INVESTIGATION-TRAPS.md).
+!test/radix_gate.cmake
 # ...and the mkptypes build copied from nd100x (tools/mkptypes/): its Makefile
 # is source, not CMake output.
 !tools/mkptypes/Makefile
