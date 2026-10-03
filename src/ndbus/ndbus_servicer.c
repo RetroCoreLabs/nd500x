@@ -457,7 +457,20 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
      * a transfer happened; it cannot say whether it went where the guest meant, and
      * naming the cell is what turned "13 trap-config writes" into "13 page-table
      * entries" on the measured run of 30-SEP-2026. */
-    if (sv->copies_done <= NDBUS_SERVICER_COPY_LOG_LIMIT)
+    /* ALSO LOG ANY TRANSFER THAT LANDS IN THE SWAPPER'S SEGMENT-DESCRIPTOR TABLE,
+     * however late it arrives. Those descriptors sit at ND-500 logical 0x08038000
+     * with a stride of 100 bytes, and the monitor's own LIST-SEGMENT-TABLE-ENTRY
+     * says physical segment 15B - decimal 13 - is an in-use 102B-page scratch
+     * segment on swap file 0, while its descriptor on this side reads 32 zero
+     * bytes. So the descriptor is never propagated, and the transfer that should
+     * carry it is past the first few that the count-based gate prints. The window
+     * is the table itself, not a count, because the interesting copy is by
+     * definition the one a count stops printing. */
+    const uint32_t desc_lo = 0x00038000u;
+    const uint32_t desc_hi = desc_lo + 32u * 100u;
+    const bool hits_desc_table = (dst >= desc_lo && dst < desc_hi);
+
+    if (sv->copies_done <= NDBUS_SERVICER_COPY_LOG_LIMIT || hits_desc_table)
     {
         char line[160];
         /* THE VALUE, NOT JUST THE ADDRESSES. Every transfer of a run reading the
