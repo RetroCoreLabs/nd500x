@@ -94,6 +94,17 @@ static uint32_t to_link(uint32_t msg_byte)
     return msg_byte & 0xFFFFFFu;
 }
 
+bool ndbus_micfu_is_continue(uint16_t micfu)
+{
+    return micfu == NDBUS_MICFU_MONCO || micfu == NDBUS_MICFU_TRACO;
+}
+
+bool ndbus_micfu_is_start_class(uint16_t micfu)
+{
+    return micfu == NDBUS_MICFU_STARTP0 || micfu == NDBUS_MICFU_START ||
+           ndbus_micfu_is_continue(micfu);
+}
+
 bool ndbus_servicer_init(NdbusServicer *sv, NdbusPool *pool, const NdbusServicerHost *host)
 {
     if (sv == NULL || pool == NULL)
@@ -657,8 +668,7 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
      * declined that answer as an unported micro-function - so the parked process was
      * never resumed and the monitor reported that the swapper stopped. The answer had
      * arrived; nothing was listening for it. */
-    if (micfu == NDBUS_MICFU_STARTP0 || micfu == NDBUS_MICFU_START ||
-        micfu == NDBUS_MICFU_MONCO || micfu == NDBUS_MICFU_TRACO)
+    if (ndbus_micfu_is_start_class(micfu))
     {
         sv->starts_seen++;
 

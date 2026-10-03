@@ -4501,6 +4501,51 @@ static void test_monitor_call_result(void)
     ndbus_pool_destroy(&pool);
 }
 
+static void test_micfu_classes(void)
+{
+    printf("Layer 21: which MICFU resumes a loaded process and which loads a context\n");
+
+    /* THE WHOLE POINT OF THE SPLIT. 3MONCO and 3TRACO are continues: the microcode's
+     * context switch at 011473B finds the wanted process already loaded and skips
+     * both the save and the load, so they carry on from the live registers.
+     * 3START is NOT a continue even for that same process. */
+    CHECK(ndbus_micfu_is_continue(NDBUS_MICFU_MONCO), "3MONCO is a continue");
+    CHECK(ndbus_micfu_is_continue(NDBUS_MICFU_TRACO), "3TRACO is a continue");
+
+    /* MEASURED on the octobus macro lane. START-SWAPPER drives fourteen MON 377B
+     * rounds, prints "Allocating memory - 7342B pages" and then sends a SECOND
+     * 3START for the swapper's own X5CPU 0. Treating it as a continue unparks the
+     * process at its MON return address 0x08008255 instead of loading the entry
+     * point 0x08000004 that SINTRAN has just written into the context block, and the
+     * swapper never re-initialises: the monitor then printed "ADDRESS OUTSIDE
+     * PROGRAM SEGMENT / NOT KNOWN TRAP / At program address: 0 1B" with no trap
+     * reported from the ND-500 side at all. The reference records the same rule from
+     * the microcode: a monitor stop leaves through CALL_MON -> SET_IDLE, which marks
+     * "no current process", so the IDLE loop skips CNTXTSAVE and CNTXTLOAD reads
+     * SINTRAN's block. */
+    CHECK(!ndbus_micfu_is_continue(NDBUS_MICFU_START),
+          "3START is NOT a continue - it loads the context block SINTRAN filled");
+    CHECK(!ndbus_micfu_is_continue(NDBUS_MICFU_STARTP0),
+          "MSG_STARTP0 is not a continue either");
+
+    /* Nothing outside the four is a continue, including the codes that travel on the
+     * same message block. */
+    CHECK(!ndbus_micfu_is_continue(NDBUS_MICFU_RMICV), "3RMICV is not a continue");
+    CHECK(!ndbus_micfu_is_continue(NDBUS_MICFU_SWMESS), "3SWMESS is not a continue");
+    CHECK(!ndbus_micfu_is_continue(NDBUS_MICFU_PHYSWR), "PHYSWR is not a continue");
+    CHECK(!ndbus_micfu_is_continue(0u), "and neither is zero");
+
+    /* The start CLASS is the wider set - all four reach the host's start hook. The
+     * two predicates must not collapse into one another. */
+    CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_STARTP0), "MSG_STARTP0 is start class");
+    CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_START), "3START is start class");
+    CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_MONCO), "3MONCO is start class too");
+    CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_TRACO), "and so is 3TRACO");
+    CHECK(!ndbus_micfu_is_start_class(NDBUS_MICFU_RMICV),
+          "3RMICV is not - it is answered without touching a process");
+    CHECK(!ndbus_micfu_is_start_class(NDBUS_MICFU_CACHE), "nor is MSG_CACHE");
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -4533,6 +4578,7 @@ int main(void)
     test_physical_segment_width();
     test_monitor_call_record();
     test_monitor_call_result();
+    test_micfu_classes();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)

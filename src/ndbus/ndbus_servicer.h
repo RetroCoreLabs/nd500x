@@ -72,6 +72,39 @@
 #define NDBUS_MICFU_STARTP0   18u   /**< 22B MSG_STARTP0 start process 0 */
 #define NDBUS_MICFU_START     19u   /**< 23B 3START start process */
 
+/**
+ * @brief Is this MICFU a CONTINUE - a message that resumes the process already
+ *        loaded on the CPU, rather than loading a context block?
+ *
+ * 3MONCO and 3TRACO only. The microcode's context switch at 011473B compares the
+ * loaded process against the wanted one and, when they match, skips BOTH the save
+ * and the load, so a continue carries on from the live registers.
+ *
+ * 3START and MSG_STARTP0 are deliberately NOT continues even for the process that
+ * is already loaded. A monitor-call stop leaves the ND-500 through
+ * CALL_MON -> SET_IDLE, which marks "no current process", and the B30 IDLE loop at
+ * 0o24724-25 then skips CNTXTSAVE so that NEWCNTXT/CNTXTLOAD reads the block
+ * SINTRAN has just filled - the process ENTRY POINT, not the parked return address.
+ * MEASURED on the octobus macro lane: after an explicit START-SWAPPER the swapper
+ * makes a fresh first call, FUNCV=0 and SWPINFO=0, because its initialisation ran.
+ *
+ * @param micfu The raw micro-function code from the message.
+ * @return true for 3MONCO and 3TRACO, false for every other code.
+ */
+bool ndbus_micfu_is_continue(uint16_t micfu);
+
+/**
+ * @brief Is this MICFU one of the four messages that put a process on the CPU?
+ *
+ * MSG_STARTP0, 3START, 3MONCO and 3TRACO. The last two share MSG_START in the
+ * microcode, which is why they belong to the same class here even though
+ * ndbus_micfu_is_continue() separates them again.
+ *
+ * @param micfu The raw micro-function code from the message.
+ * @return true for the four start-class codes, false otherwise.
+ */
+bool ndbus_micfu_is_start_class(uint16_t micfu);
+
 /** @brief N5STA message status values. RetroCore N5MessageStatus; 0 = free is
  *  INFERRED there (no symbol), the other four are symbol-verified. */
 #define NDBUS_N5STA_FREE          0u
