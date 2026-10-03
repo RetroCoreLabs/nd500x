@@ -84,6 +84,29 @@ static int mmu_use_guest_tables(void) {
  * nd500_mmu_set_guest_table_policy(). Moved on Ronny's instruction, 30-SEP-2026:
  * NDIX specifics belong in the NDIX boot path, not in the generic CPU.
  */
+/* THE HARDWARE RULE, IN ONE PLACE: real ND-500 hardware has no shadow tables, so
+ * once the guest has published a physical segment table there is a table to walk
+ * and it is the one to walk. Stated here on its own because TWO walks need it -
+ * the capability-rooted one for a virtual address, and the PSN-rooted one that
+ * RPHS and WPHS use - and they must not answer it differently.
+ *
+ * They did. The PSN-rooted walk gated on the mmu_guest_tables SETTING, which
+ * defaults off, so RPHS read the emulator's shadow PST while every other
+ * translation read SINTRAN's real one. Measured on MONITOR J04: the swapper's
+ * RPHS for physical segment 10 reported "PST entry 10 is ZERO" with use_guest=0,
+ * while the guest table at PSTP 0x3A000 held 0x00000118 for that very entry -
+ * both read paths agreeing on the value, and the walk simply looking elsewhere.
+ *
+ * RetroCore has no second predicate to get wrong: its
+ * TranslatePhysicalSegmentAddress and its virtual path both funnel into
+ * TranslateThroughPst -> ReadPstEntry, and CpuND500.ProcessControl.cs says of it
+ * "ReadPstEntry is the one place that knows which. A second decoder in the ...".
+ * This is that one place.
+ */
+static int mmu_guest_pst_published(const Nd500Cpu* cpu) {
+    return (cpu != NULL) && (cpu->PSTP != 0);
+}
+
 static int mmu_use_guest_for(Nd500Cpu* cpu, uint8_t domain, int segment) {
     /* dit_configured, NOT DITBASE != 0: zero is a valid base. See the field's own
      * comment in cpu_protos.h for the measured cost of the other test. */
@@ -99,7 +122,7 @@ static int mmu_use_guest_for(Nd500Cpu* cpu, uint8_t domain, int segment) {
     }
 
     /* No regime installed: the hardware rule. Nothing to walk without a PST. */
-    return cpu->PSTP != 0;
+    return mmu_guest_pst_published(cpu);
 }
 
 /* Segment-level demand mapping: when a DATA access references a work segment
@@ -1112,7 +1135,16 @@ uint32_t nd500_mmu_translate_physical_segment(Nd500Cpu* cpu, uint32_t psn,
     int l2_index = (segment_relative_addr >> L2_INDEX_SHIFT) & L2_INDEX_MASK;
     int offset   = segment_relative_addr & (NBPG - 1);
 
-    int use_guest = mmu_use_guest_tables() && cpu->machine && cpu->DITBASE && cpu->PSTP;
+    /* WHICH TABLE: the same question the capability-rooted walk asks, answered the
+     * same way. This used to test the mmu_guest_tables setting instead, and with
+     * that setting off RPHS/WPHS walked the shadow PST while the rest of the MMU
+     * walked the guest's - see mmu_guest_pst_published for the measurement.
+     *
+     * The per-segment policy hook is deliberately NOT consulted here: a policy
+     * keyed on a logical segment has nothing to say about a walk whose PSN was
+     * handed to it directly, and there is no logical segment in this path (it
+     * reports segment -1 below). */
+    int use_guest = mmu_guest_pst_published(cpu) && cpu->machine && cpu->dit_configured;
 
     /* segment -1 / capability 0: no logical segment and no capability were
      * involved, and a fault message must not imply otherwise. */

@@ -562,6 +562,70 @@ static void test_wphs_requires_privilege(Nd500Machine* m, Nd500Cpu* cpu) {
     cpu->instr_aborted = 0;
 }
 
+/* ---- the PSN-rooted walk must read the SAME table as the virtual walk ------
+ *
+ * RPHS/WPHS translate rooted at a physical segment number instead of a
+ * capability, but the physical segment TABLE they consult is the same one. Ours
+ * used a second predicate to decide which table to read - the mmu_guest_tables
+ * setting, which defaults off - so once a guest had published a PST, every
+ * ordinary translation read the guest's table while RPHS still read the
+ * emulator's shadow.
+ *
+ * Measured on SINTRAN's ND-500/5000 MONITOR J04: loading the swapper, an RPHS
+ * for physical segment 10 reported "PST entry 10 is ZERO" with use_guest=0,
+ * while the guest table at PSTP held 0x00000118 for that entry - both read paths
+ * agreeing on the value and the walk looking somewhere else. The monitor turned
+ * the bogus page fault into "NOT KNOWN TRAP" and a FATAL.
+ *
+ * So: publish a guest PST that maps a PSN, leave the SHADOW entry for that same
+ * PSN zero, and require RPHS to find the mapping. With the old predicate it
+ * finds the zero shadow entry and faults.
+ */
+#define GUEST_PSTP     0x30000u                  /* where the "guest" publishes its PST */
+#define GUEST_ONLY_PSN 10                        /* the live case's segment number */
+#define GUEST_ONLY_PFN 0x118u                    /* the live case's entry value */
+
+static void test_psn_walk_uses_the_guest_pst(Nd500Machine* m, Nd500Cpu* cpu) {
+    printf("\n-- the PSN-rooted walk reads the guest PST, not the shadow --\n");
+
+    setup_mmu(cpu);
+
+    /* The shadow entry for this PSN stays ZERO - nd500_mmu_init cleared it and
+     * setup_mmu only sets the other two. State it rather than assume it. */
+    PhysicalSegmentTableEntry shadow = nd500_mmu_get_pst_entry(cpu, GUEST_ONLY_PSN);
+    CHECK(shadow.index_mode == PS_AZI && shadow.physical_pfn == 0,
+          "shadow PST entry for the PSN is zero");
+
+    /* Publish the guest table: 32-bit entries at PSTP, index mode in bits 31-30
+     * and the page frame in bits 29-0. That is the ND-5000 width, measured on
+     * SINTRAN III L over the octobus; the halfword form belongs to the older
+     * ND500 generation and is not what this lane uses. */
+    nd500_bus_write32(m, GUEST_PSTP + (uint32_t)GUEST_ONLY_PSN * 4u,
+                      ((uint32_t)PS_AZI << 30) | GUEST_ONLY_PFN);
+    cpu->PSTP = GUEST_PSTP;
+    cpu->dit_configured = 1;
+
+    /* A byte the walk should be able to reach, written through the physical
+     * address the guest entry implies. */
+    const uint32_t expect_phys = GUEST_ONLY_PFN * NBPG + 0x24u;
+    nd500_bus_write8(m, expect_phys, 0x5A);
+
+    nd500_trap_clear();
+    cpu->instr_aborted = 0;
+    uint32_t got = nd500_mmu_translate_physical_segment(cpu, GUEST_ONLY_PSN, 0x24u, 0);
+
+    CHECK(!nd500_trap_occurred() && !cpu->instr_aborted,
+          "no trap - the guest entry maps the segment");
+    CHECK(got == expect_phys, "translated through the guest PST entry");
+    CHECK(nd500_bus_read8(m, got) == 0x5A, "and the byte there is the one written");
+
+    /* Put the CPU back as the other cases expect it: no published guest table. */
+    cpu->PSTP = 0;
+    cpu->dit_configured = 0;
+    nd500_trap_clear();
+    cpu->instr_aborted = 0;
+}
+
 int main(void) {
     Nd500Machine m;
     Nd500Cpu cpu;
@@ -584,6 +648,7 @@ int main(void) {
     test_local_operand_is_three_bytes(&m, &cpu);
     test_next_instruction_boundary(&m, &cpu);
     test_table_has_no_direct_operand();
+    test_psn_walk_uses_the_guest_pst(&m, &cpu);
 
     /* Edge cases around the page-boundary stop. */
     test_ends_exactly_on_boundary(&m, &cpu);
