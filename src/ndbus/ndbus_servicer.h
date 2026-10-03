@@ -566,6 +566,27 @@ bool ndbus_servicer_read_monitor_result(NdbusServicer *sv, uint32_t msg_byte,
  * @param msg_byte Pool-relative byte address of the message block.
  * @return The X5CPU field, or -1 if the servicer, its pool or the address is unusable.
  */
+/**
+ * @brief Pool-relative byte address of one process's context block.
+ *
+ * The one formula for it: the context area base, then one stride for the area
+ * header, then one stride per process. ndbus_servicer_process_message() already
+ * computed this inline for the start it was serving; a context SWITCH needs the
+ * block of a process no message names, so the formula is named here instead of
+ * repeated at the second caller.
+ *
+ * Mirrors RetroCore's servicer.GetProcessContextAddress(x5cpu), which its process
+ * bridge calls on both sides of a context switch.
+ *
+ * @param sv    The servicer.
+ * @param x5cpu The PROCESS number - see ndbus_servicer_read_message_x5cpu().
+ * @return The block's byte address, or 0 when no context area has been declared
+ *         yet or the process number is out of range. Zero is not a legal block
+ *         address, so a caller that ignores the check gets a refusal from
+ *         ndbus_context_attach() rather than block 0 of the pool.
+ */
+uint32_t ndbus_servicer_process_context_byte(const NdbusServicer *sv, uint16_t x5cpu);
+
 int ndbus_servicer_read_message_x5cpu(const NdbusServicer *sv, uint32_t msg_byte);
 
 bool ndbus_servicer_set_pst_base(NdbusServicer *sv, uint32_t pst_byte);

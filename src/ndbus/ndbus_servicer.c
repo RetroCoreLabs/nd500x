@@ -94,6 +94,16 @@ static uint32_t to_link(uint32_t msg_byte)
     return msg_byte & 0xFFFFFFu;
 }
 
+uint32_t ndbus_servicer_process_context_byte(const NdbusServicer *sv, uint16_t x5cpu)
+{
+    if (sv == NULL || sv->context_area_base == 0u || x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    {
+        return 0u;
+    }
+    return sv->context_area_base + NDBUS_SERVICER_CTX_STRIDE +
+           ((uint32_t)x5cpu * NDBUS_SERVICER_CTX_STRIDE);
+}
+
 int ndbus_servicer_read_message_x5cpu(const NdbusServicer *sv, uint32_t msg_byte)
 {
     if (sv == NULL || sv->pool == NULL || msg_byte == 0u)
@@ -700,8 +710,7 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
         if (sv->host.start_process != NULL && sv->context_area_base != 0u)
         {
             uint16_t x5cpu = read16(sv, msg_word(msg_byte, NDBUS_MSG_X5CPU));
-            uint32_t ctx_byte = sv->context_area_base + NDBUS_SERVICER_CTX_STRIDE +
-                                ((uint32_t)x5cpu * NDBUS_SERVICER_CTX_STRIDE);
+            uint32_t ctx_byte = ndbus_servicer_process_context_byte(sv, x5cpu);
 
             if (sv->host.start_process(sv->host.ctx, msg_byte, micfu, ctx_byte))
             {
