@@ -257,7 +257,27 @@ static int riom_trace(void)
 {
     static int on = -1;
     if (on < 0) { on = nd500_settings()->riomdbg; }
-    return on && !nd500_embedded;
+    return on;
+}
+
+/* WHERE THE TRACE GOES, and why it is not stdout.
+ *
+ * Embedded in an nd100x running SINTRAN, stdout is the ND-100 GUEST'S console, so a
+ * per-transfer trace printed there lands in the middle of SINTRAN's own output - which
+ * is what Ronny reported on 30-SEP-2026 as "lot of errors" on the console.
+ *
+ * The response then was to disable the trace whenever the CPU was embedded. That made
+ * ND500X_RIOMDBG DEAD on the only lane that needs it: RIOM exists to read the ND-100's
+ * memory, so every question about it is a question about the embedded lane. An
+ * instrument that cannot observe its own subject is the failure mode recorded in
+ * docs/INVESTIGATION-TRAPS.md section 2 - its silence then reads as a fact about the
+ * machine.
+ *
+ * stderr satisfies both: the guest console never sees it, and the knob works where it
+ * is needed. This is the same stream the mfbus bridge's own instruments use. */
+static FILE *riom_log(void)
+{
+    return nd500_embedded ? stderr : stdout;
 }
 
 void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
@@ -413,7 +433,8 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ND500X_RIOMDBG, which also keeps the free-running binary quiet by default. */
     if (riom_trace())
     {
-        printf("[RIOM] Transfer: ND-100[0x%06X] -> ND-500[0x%08X], count=%u halfwords at PC=0x%08X\n",
+        fprintf(riom_log(),
+               "[RIOM] Transfer: ND-100[0x%06X] -> ND-500[0x%08X], count=%u halfwords at PC=0x%08X\n",
                nd100_source_addr, nd500_dest_addr, count, fi->address);
     }
 
@@ -475,7 +496,7 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * (0x427 = 2047B, 0x840 = ADRZERO page 2112). Bounded, so a page-sized transfer
          * cannot flood the log. */
         if (riom_trace() && (i < 10 || i == count - 1 || count <= 4)) {
-            printf("  RIOM[%u]: ND-100[0x%06X] = 0x%04X -> ND-500[0x%08X]\n",
+            fprintf(riom_log(), "  RIOM[%u]: ND-100[0x%06X] = 0x%04X -> ND-500[0x%08X]\n",
                    i, nd100_addr, data, nd500_addr);
         }
     }
@@ -485,7 +506,8 @@ void nd500_instr_Riom(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     if (riom_trace())
     {
-        printf("[RIOM] Completed: %u halfwords transferred (status bits unaffected) at PC=0x%08X\n",
+        fprintf(riom_log(),
+               "[RIOM] Completed: %u halfwords transferred (status bits unaffected) at PC=0x%08X\n",
                count, fi->address);
     }
 
