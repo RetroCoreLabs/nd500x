@@ -3702,6 +3702,147 @@ static void test_accp_guard_matrix(void)
 }
 
 /* -------------------------------------------------------------------------- */
+/* The five commands that RETURN DATA, byte for byte.                         */
+/*                                                                            */
+/* The guard matrix above only says these are ACCEPTED. What they send back is */
+/* a separate thing and was a bare canned ack until now, which is how the      */
+/* ND-500 monitor came to print a module/ECO table it had never been sent -    */
+/* it was rendering its own uninitialised buffer.                             */
+/*                                                                            */
+/* The bytes are the ones measured on the real ND-324716 firmware (state       */
+/* matrix 2026-09-18) and carried in RetroCore OctobusND5000Station.cs:3289-   */
+/* 3347. Four of the five are a leading status byte plus fixed data; RSSYSPAR  */
+/* is the only one whose payload depends on state, and it reads back exactly   */
+/* the three words LSYSPAR stored.                                            */
+/*                                                                            */
+/* Measured live on SINTRAN's own ND-500/5000 MONITOR J04: of these five the   */
+/* monitor issues READSELFT, RECO and PRGMVERS - in that order, READSELFT as   */
+/* the second command of the session and the other two after STARTMIC/ENKICK.  */
+/* It issues neither RASTS nor RSSYSPAR on that path, so those two are pinned  */
+/* here against the firmware measurement alone and are marked as such.        */
+/* -------------------------------------------------------------------------- */
+static void test_accp_data_replies(void)
+{
+    printf("The five data-returning ACCP commands\n");
+
+    NdbusPool pool;
+    (void)ndbus_pool_create(&pool, POOL_BYTES);
+
+    NdbusHostOps host;
+    memset(&host, 0, sizeof(host));
+    host.log = counting_log;
+
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+
+    NdbusNd5000 nd;
+    CHECK(ndbus_nd5000_init(&nd, NDBUS_STATION_ND5000_FIRST, &pool, &host, NULL),
+          "data replies: the station comes up");
+    CHECK(ndbus_fabric_register(&fabric, &nd.station), "data replies: and registers");
+
+    uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
+    uint8_t  payload[NDBUS_MAX_REPLY_FRAMES];
+    uint8_t  body[16];
+
+    /* READSELFT (060B) is the SECOND command of a real session, before anything
+     * has told the station its system parameters, so it must answer cold. Three
+     * bytes: the ack and a 16-bit status word. The value is 0x0000 - what the
+     * real firmware holds once CPURES has cleared it. */
+    body[0] = (uint8_t)NDBUS_ACCP_READSELFT;
+    int n    = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                         replies);
+    int plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                                  (int)sizeof(payload));
+    CHECK(plen == 3, "READSELFT answers three bytes");
+    CHECK(plen == 3 && payload[0] == 0x00u && payload[1] == 0x00u && payload[2] == 0x00u,
+          "READSELFT: ack plus a zero 16-bit self-test status");
+
+    /* RSSYSPAR (0x0D) naks 13 before LSYSPAR - the guard matrix pins that - so
+     * load the parameters first, with the SIX BYTES of the three words. These
+     * are the bytes SINTRAN really sends: ident 0x01, 5OMDNO 0x08, then zeros,
+     * which is the 0x0108 that makes the GIVEINT frame address station 1. */
+    body[0] = (uint8_t)NDBUS_ACCP_LSYSPAR;
+    body[1] = 0x01u;
+    body[2] = 0x08u;
+    body[3] = 0x12u;
+    body[4] = 0x34u;
+    body[5] = 0x56u;
+    body[6] = 0x78u;
+    n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 7, replies);
+    CHECK(nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "data replies: LSYSPAR is acked");
+    CHECK(nd.lsyspar_word1 == 0x0108u, "data replies: and word 1 is 0x0108");
+
+    /* RSSYSPAR reads the three words back, each most significant byte first.
+     * Reading them back is the only check that the station STORED all three and
+     * not just the one the GIVEINT frame needs. */
+    body[0] = (uint8_t)NDBUS_ACCP_RSSYSPAR;
+    n       = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                        replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 7, "RSSYSPAR answers the ack and three 16-bit words");
+    CHECK(plen == 7 && payload[0] == 0x00u && payload[1] == 0x01u && payload[2] == 0x08u &&
+              payload[3] == 0x12u && payload[4] == 0x34u && payload[5] == 0x56u &&
+              payload[6] == 0x78u,
+          "RSSYSPAR reads back exactly the bytes LSYSPAR was given");
+
+    /* RASTS (050B) - ack plus the 16-bit ACCP status word 0x1011. Not issued by
+     * MONITOR J04; the bytes are the firmware measurement. */
+    body[0] = (uint8_t)NDBUS_ACCP_RASTS;
+    n       = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                        replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 3, "RASTS answers three bytes");
+    CHECK(plen == 3 && payload[0] == 0x00u && payload[1] == NDBUS_ACCP_ASTS_HIGH &&
+              payload[2] == NDBUS_ACCP_ASTS_LOW,
+          "RASTS: ack plus the ASTS word 0x1011");
+
+    /* RECO (020B) - ack plus SIXTEEN WORDS from firmware RAM, all zero on a card
+     * that has loaded nothing. Thirty-three bytes in all, and the length is the
+     * part that bites: at 33 frames plus the envelope the reply is longer than
+     * the ND-100 card's 16-word receive FIFO, which is why nd100x needed the
+     * busy-retry park before the monitor could read this one whole. All-zero
+     * words are what makes MONITOR J04 print "ECO not available". */
+    body[0] = (uint8_t)NDBUS_ACCP_RECO;
+    n       = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                        replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 33, "RECO answers the ack and sixteen words");
+    if (plen == 33)
+    {
+        int all_zero = 1;
+        for (int i = 0; i < 33; i++)
+        {
+            if (payload[i] != 0x00u)
+            {
+                all_zero = 0;
+            }
+        }
+        CHECK(all_zero == 1, "RECO: every one of the thirty-three bytes is zero");
+    }
+
+    /* PRGMVERS (075B) - ack plus the twelve ASCII bytes of the PROM version.
+     * This is the one the monitor renders as "Accp version..: 88.12. 5 I0", and
+     * the ASCII is checked as ASCII so a wrong byte names itself. */
+    body[0] = (uint8_t)NDBUS_ACCP_PRGMVERS;
+    n       = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                        replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 13, "PRGMVERS answers the ack and twelve ASCII bytes");
+    if (plen == 13)
+    {
+        static const char expect[13] = "88.12. 5 I01";
+        CHECK(payload[0] == 0x00u, "PRGMVERS: a leading status byte");
+        CHECK(memcmp(&payload[1], expect, 12) == 0, "PRGMVERS: the PROM version 88.12. 5 I01");
+    }
+
+    ndbus_pool_destroy(&pool);
+}
+
+/* -------------------------------------------------------------------------- */
 /* Layer 16: the doorbell sniff's latch rules.                                */
 /*                                                                            */
 /* Ported from RetroCore OctobusDoorbellSniffConfigTests.cs. FOUR of its ten  */
@@ -4322,6 +4463,7 @@ int main(void)
     test_control_store_load();
     test_mailbox_servicer();
     test_accp_guard_matrix();
+    test_accp_data_replies();
     test_copy_family_refusals();
     test_doorbell_sniff_rules();
     test_trap_stop_record();

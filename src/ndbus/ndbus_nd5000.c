@@ -59,7 +59,7 @@ static void nd_log(const NdbusNd5000 *nd, const char *message)
 static int build_messack(uint8_t station, uint8_t reply_omd, const uint8_t *params,
                          int param_count, uint16_t *replies, int max)
 {
-    uint8_t payload[1 + 16];
+    uint8_t payload[1 + 32];   /* 0x10 RECO answers with 16 words after the status byte */
 
     if (param_count < 0 || param_count > (int)sizeof(payload) - 1)
     {
@@ -533,9 +533,83 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
          * The acknowledge goes on the SOURCE OMD, message[0]; the current tree agrees
          * (OctobusND5000Station.cs:3235) and an earlier note here claiming it answers
          * on the S5 OMD described a stale copy. */
-        nd->lsyspar_word1 = (uint16_t)(((uint16_t)params[0] << 8u) | params[1]);
+        for (uint32_t w = 0; w < 3u; w++)
+        {
+            uint32_t hi = 0u + w * 2u;
+            nd->system_parameters[w] =
+                (uint16_t)(((uint16_t)params[hi] << 8u) | params[hi + 1u]);
+        }
+        nd->lsyspar_word1 = nd->system_parameters[0];
         nd->accp.system_parameters_given = true;
         break;
+
+    /* ---- the commands that RETURN DATA ---------------------------------------
+     *
+     * Bytes as measured on the real ND-324716 firmware, state matrix 2026-09-18, and
+     * sent by RetroCore's station by default (OctobusND5000Station.cs:3289-3347).
+     * nd500x answered all five with the bare acknowledge. The status byte is
+     * prepended by build_messack, so each arm supplies only what follows it. */
+
+    case NDBUS_ACCP_RASTS:
+        /* 050B: the 16-bit ACCP status word, which reads 10 11. */
+        {
+            const uint8_t asts[2] = { NDBUS_ACCP_ASTS_HIGH, NDBUS_ACCP_ASTS_LOW };
+            nd->messacks++;
+            nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
+            return build_messack(nd->station.number, reply_omd, asts, 2, replies, max);
+        }
+
+    case NDBUS_ACCP_RSSYSPAR:
+        /* 015B: the three system-parameter words CMSYSPAR stored, read back. The
+         * guard above has already naked this with 13 if none were ever given. */
+        {
+            uint8_t back[6];
+            for (uint32_t w = 0; w < 3u; w++)
+            {
+                back[w * 2u]      = (uint8_t)(nd->system_parameters[w] >> 8);
+                back[w * 2u + 1u] = (uint8_t)(nd->system_parameters[w] & 0xFFu);
+            }
+            nd->messacks++;
+            nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
+            return build_messack(nd->station.number, reply_omd, back, 6, replies, max);
+        }
+
+    case NDBUS_ACCP_PRGMVERS:
+        /* 075B: twelve ASCII bytes, "88.12. 5 I01" - the PROM version string the real
+         * firmware holds at ROM offset 0x13BF4. This is what the ND-500/5000 monitor's
+         * VERSION command prints as "Accp version". */
+        {
+            static const uint8_t version[12] = {
+                0x38u, 0x38u, 0x2Eu, 0x31u, 0x32u, 0x2Eu,
+                0x20u, 0x35u, 0x20u, 0x49u, 0x30u, 0x31u,
+            };
+            nd->messacks++;
+            nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
+            return build_messack(nd->station.number, reply_omd, version, 12, replies, max);
+        }
+
+    case NDBUS_ACCP_RECO:
+        /* 020B: sixteen words from firmware RAM, all zero on a card that has loaded
+         * nothing. Thirty-two zero bytes after the status byte. */
+        {
+            uint8_t zeros[32];
+            memset(zeros, 0, sizeof zeros);
+            nd->messacks++;
+            nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
+            return build_messack(nd->station.number, reply_omd, zeros, 32, replies, max);
+        }
+
+    case NDBUS_ACCP_READSELFT:
+        /* 060B: the 16-bit self-test status. The value for a machine that PASSED is
+         * not measured - the bare firmware reports 0x877F with no CPU cards behind it -
+         * so this sends 0x0000, the value the real firmware holds after CPURES clears
+         * it. RetroCore says the same in its own comment and sends the same. */
+        {
+            const uint8_t status[2] = { 0x00u, 0x00u };
+            nd->messacks++;
+            nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
+            return build_messack(nd->station.number, reply_omd, status, 2, replies, max);
+        }
 
     case NDBUS_ACCP_VPARP:
         nd->messacks++;

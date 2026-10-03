@@ -201,6 +201,7 @@ const char *ndbus_accp_command_name(uint8_t command)
     case NDBUS_ACCP_RAIB32D:   return "RAIB32D(045B)";
     case NDBUS_ACCP_TBUS:      return "TBUS(046B)";
     case NDBUS_ACCP_LAOB16:    return "LAOB16(047B)";
+    case NDBUS_ACCP_RASTS:     return "RASTS(050B)";
     case NDBUS_ACCP_LMODE:     return "LMODE(051B)";
     case NDBUS_ACCP_LCON:      return "LCON(052B)";
     case NDBUS_ACCP_WMPM:      return "WMPM(053B)";

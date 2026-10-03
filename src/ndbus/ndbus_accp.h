@@ -115,6 +115,8 @@
 /** @brief 047B: load AOB16. */
 #define NDBUS_ACCP_LAOB16     0x27u  /* 047B  load AOB16 */
 /** @brief 051B: load mode. */
+/** @brief 050B: read the ACCP hardware status word (ASTS). */
+#define NDBUS_ACCP_RASTS      0x28u  /* 050B  read ACCP status (ASTS) */
 #define NDBUS_ACCP_LMODE      0x29u  /* 051B  load mode */
 /** @brief 052B: load CON. */
 #define NDBUS_ACCP_LCON       0x2Au  /* 052B  load CON */

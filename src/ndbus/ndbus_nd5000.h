@@ -163,6 +163,7 @@ struct NdbusNd5000
     unsigned long       giveint_no_fabric;  /**< answers with no fabric attached */
     unsigned long       giveint_no_mailbox; /**< answers with no mailbox located */
     uint16_t            last_giveint_frame; /**< the last frame word composed */
+    uint16_t            system_parameters[3]; /**< the three LSYSPAR words, S5/S6/S7 */
     unsigned long       model_reports;      /**< ENKICK model/version reports sent */
     unsigned long       report_no_store;    /**< reports skipped: no control store */
     uint8_t             last_model_report_model;   /**< CPUMODEL byte last reported */
