@@ -1190,6 +1190,60 @@ void nd500_trap_seq_pop_top(Nd500Cpu* cpu) {
     nd500_trap_seq_pop(cpu, cpu->trap_seq[slot].frame_base);
 }
 
+uint16_t nd500_trap_number(uint64_t trap_bit) {
+    /* The BIT INDEX is the trap number - the same scan RetroCore's
+     * CpuND500.Trap.cs GetTrapNumber performs. Verified against two known
+     * values: TRAP_PGF is bit 38 and SINTRAN calls a page fault 46B
+     * (38 decimal == 46 octal), TRAP_PV is bit 36 and SINTRAN calls a protect
+     * violation 44B. */
+    for (uint16_t i = 0; i < 64u; i++) {
+        if ((trap_bit >> i) & 1ULL) {
+            return i;
+        }
+    }
+    return 0xFFFFu;  /* no condition set - not a trap number */
+}
+
+int nd500_cpu_set_trap_sink(Nd500Cpu* cpu,
+                            int (*sink)(void *ctx, uint16_t trap_number,
+                                        uint32_t trapping_pc, uint32_t trap_address),
+                            void *ctx) {
+    if (!cpu) {
+        return -1;
+    }
+    cpu->trap_sink = sink;
+    cpu->trap_sink_ctx = ctx;
+    return 0;
+}
+
+/* Offer a trap no local handler took to the embedding. Returns nonzero when the
+ * embedding reported it outward and the CPU should park instead of halting.
+ *
+ * The global trap state is set BEFORE the call and cleared again when the sink
+ * declines, because a trap state left behind is not inert: the top-of-step check
+ * in nd500_cpu_step reads it on the NEXT step and stops there, with P1 naming the
+ * earlier instruction. That is the defect this helper exists to make impossible
+ * to reintroduce - MEASURED 04-OCT-2026 on the live octobus lane, where a stack
+ * overflow raised at 0x08008E09 with THA=0 surfaced as a stop at 0x08008E0F and
+ * SINTRAN was told nothing at all. */
+static int nd500_offer_trap_to_sink(Nd500Cpu* cpu, uint64_t trapBit,
+                                    uint32_t trapPC, uint32_t dataAddr) {
+    if (!cpu || cpu->trap_sink == NULL) {
+        return 0;
+    }
+    uint16_t trap_number = nd500_trap_number(trapBit);
+    if (trap_number == 0xFFFFu) {
+        return 0;
+    }
+    nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
+    if (cpu->trap_sink(cpu->trap_sink_ctx, trap_number, trapPC, dataAddr) != 0) {
+        return 1;
+    }
+    /* Declined. Leave nothing behind for the next step to trip over. */
+    nd500_trap_clear();
+    return 0;
+}
+
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
     if (!cpu) return;
 
@@ -1425,6 +1479,15 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
             }
             /* no handler installed for this trap -> fall through to halt (Trap Handler Missing) */
         }
+        /* NO LOCAL HANDLER TOOK IT. Offer it outward before halting - see the
+         * trap_sink contract on Nd500Cpu. This is exactly where RetroCore's
+         * ITrapSink sits: "BETWEEN 'local handler found' (the existing THA/PCB
+         * InvokeTrapHandler - keep first) and the legacy throw". A machine with an
+         * ND-100 beside it reports the trap and parks; a free-running one has no
+         * sink and halts exactly as before. */
+        if (nd500_offer_trap_to_sink(cpu, trapBit, trapPC, dataAddr)) {
+            return;
+        }
         /* Set trap state - this WILL stop execution */
         nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
         /* Both program registers - same reason as the [STOP] line above. */
@@ -1457,6 +1520,41 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
          * and THEN the handler runs (setting the flag suppressed those
          * stores via the guarded mmu_write helpers and shifted NC's
          * instruction count). Only the non-ignorable/MMU class aborts. */
+        /* NO HANDLER TABLE AT ALL -> there is no local handler to find, so offer
+         * the trap outward instead of reading a vector out of address 0.
+         *
+         * The non-ignorable path above guards its dispatch with `cpu->THA != 0`;
+         * this path did not, and the asymmetry was the defect. MEASURED
+         * 04-OCT-2026 on the live octobus lane: the SINTRAN swapper has stack
+         * overflow ENABLED in its OTE but runs with THA=0, so a stack overflow at
+         * 0x08008E09 set the global trap state, called invoke_trap_handler, which
+         * read THA[27] from address 0x6C, logged "No trap handler at THA[27]
+         * (THA=0x00000000)", cleared the status bit and RETURNED - leaving the
+         * trap state set. The next step's top-of-step check then stopped the CPU
+         * at 0x08008E0F with P1 still naming 0x08008E09, and because the stop was
+         * not a page fault the bridge reported nothing and SINTRAN polled until it
+         * timed out. On real hardware that trap is a TRAP_GENx stop reported to
+         * the ND-100, which is what the sink performs. */
+        if (cpu->THA == 0u && cpu->trap_sink != NULL) {
+            if (nd500_offer_trap_to_sink(cpu, trapBit, trapPC, dataAddr)) {
+                return;
+            }
+            /* An ENABLED trap with no handler table anywhere is not a status bit:
+             * the program asked to be told and there is nothing to tell it with.
+             * Stop, exactly as the non-ignorable path does for a missing handler,
+             * so the embedding sees the stop rather than a CPU that silently ran
+             * on past a fault it had enabled. */
+            nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
+            if (cpu->machine) {
+                cpu->machine->run_flag = 0;
+                if (cpu->machine->stop_reason == STOP_NONE) {
+                    cpu->machine->stop_reason = trap_to_stop_reason(trapBit);
+                    cpu->machine->stop_addr = trapPC;
+                    cpu->machine->stop_data = dataAddr;
+                }
+            }
+            return;
+        }
         nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
         /* An MTE-delegated trap is handled by the MOTHER domain, so switch there
          * before invoke_trap_handler reads the vector: THA points into the kernel
@@ -1464,8 +1562,19 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
         nd500_trap_maybe_cross_domain(cpu, trapBit);
         /* Pass trapPC (the trapping instruction's address) so RETT can retry it */
         invoke_trap_handler(cpu, trapBit, trapPC);
-        /* If invoke_trap_handler succeeded, execution continues in handler */
-        /* If no handler was found, it will have stopped execution */
+        /* If invoke_trap_handler succeeded, execution continues in handler.
+         * If it found no vector it cleared the status bit and returned, and the
+         * trap state set above must not outlive this instruction - see the
+         * measurement in the THA==0 branch for what a stale one does. */
+        /* ONLY WHEN THERE IS A SINK. A free-running nd500x - NDIX with ndmonlib
+         * answering the monitor calls, a DOM run straight from the shell - has no
+         * ND-100 to report to and must keep its existing behaviour exactly, so
+         * nothing here may change for it. Ronny's instruction, 04-OCT-2026. */
+        if (cpu->trap_sink != NULL && nd500_trap_occurred() && !cpu->in_trap_handler) {
+            if (!nd500_offer_trap_to_sink(cpu, trapBit, trapPC, dataAddr)) {
+                nd500_trap_clear();
+            }
+        }
     }
     /* If trap is not enabled in OTE, just continue (status bit is set, no stop) */
 }

@@ -300,6 +300,44 @@ typedef struct Nd500Cpu {
     int32_t  nd100_window_base;    /* Subtracted AFTER scaling; see the formula above */
     int      nd100_mapping_configured; /* Nonzero once the mapping has been wired */
 
+    /* THE TRAP-STOP SEAM. Ported from RetroCore's ITrapSink
+     * (Emulated.HW/ND/CPU/ND500/Servicer/ITrapSink.cs), whose contract this
+     * reproduces field for field.
+     *
+     * A trap that no LOCAL handler consumed - no THA/DIT vector installed, or no
+     * handler table at all - is not necessarily a dead CPU. On a machine with an
+     * ND-100 beside it, that trap is reported OUTWARD: the microcode's TRAP_GENx
+     * stop writes STOPR, TRAPN and the trap record into the process's message and
+     * answers it, and SINTRAN decides what to do (trap 46B, a page fault, routes
+     * to the swapper). Only a machine with nobody to report to should halt.
+     *
+     * WHY A SINK AND NOT A STOP REASON. This emulator used to let the embedding
+     * read machine->stop_reason after nd500_cpu_step() returned false. That seam
+     * loses the two things the report needs:
+     *   - THE TRAP NUMBER. trap_to_stop_reason() collapses 64 trap bits onto a
+     *     handful of StopReason values in priority order, and DT and DE have no
+     *     value at all. The number cannot be recovered afterwards.
+     *   - THE MMU LATCH. raise_trap() moves mmu_pgf_where into trap_saved_info and
+     *     zeroes it, so an embedding reading it later always sees 0 and composes a
+     *     status word with an access class and no fault location - the value
+     *     measured being rejected by SINTRAN as "NOT KNOWN TRAP".
+     * Called AT THE RAISE, both are still live. That is the whole reason the
+     * interface exists in the reference and the reason it is ported here.
+     *
+     * trap_number crosses the seam as the RAW ND TRAPN number rather than this
+     * emulator's bit mask, deliberately and for the same reason the reference
+     * gives: the seam then does not depend on either side's type layout. It is the
+     * BIT INDEX of the condition - page fault is bit 38 = 46B, protect violation
+     * bit 36 = 44B, stack overflow bit 27 = 33B.
+     *
+     * Returns nonzero when the trap was consumed as a stop reported outward, in
+     * which case the CPU parks and the local halt is skipped. Zero means the
+     * embedding did not take it and the normal local behaviour stands. A CPU with
+     * no sink installed - the free-running nd500x - behaves exactly as before. */
+    int (*trap_sink)(void *ctx, uint16_t trap_number, uint32_t trapping_pc,
+                     uint32_t trap_address);
+    void *trap_sink_ctx;
+
     /* Instruction counter for TIME MON call (MON 11B) */
     uint64_t instruction_count;  /* Total instructions executed since startup */
 
@@ -635,6 +673,37 @@ const Nd500TrapState* nd500_trap_get_state(void);
  */
 void nd500_dump_pc_ring(const char *tag);
 void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, const char* description);
+
+/**
+ * @brief Install the trap-stop seam, or remove it with a NULL sink.
+ *
+ * See the trap_sink field comment on Nd500Cpu for the contract. Ported from
+ * RetroCore ITrapSink; the embedding (an nd100x with an ND-5000 on the octobus)
+ * implements it the way Nd500CpuProcessBridge.OnUnhandledTrap does.
+ *
+ * @param cpu  CPU to install the sink on.
+ * @param sink Callback invoked at the raise for a trap no local handler took;
+ *             NULL removes any installed sink.
+ * @param ctx  Opaque pointer handed back to the callback unchanged.
+ * @return 0 on success, -1 when cpu is NULL.
+ */
+int nd500_cpu_set_trap_sink(Nd500Cpu* cpu,
+                            int (*sink)(void *ctx, uint16_t trap_number,
+                                        uint32_t trapping_pc, uint32_t trap_address),
+                            void *ctx);
+
+/**
+ * @brief The ND TRAPN number for a trap condition: the BIT INDEX of the mask.
+ *
+ * Page fault (bit 38) is 46B, protect violation (bit 36) is 44B, stack overflow
+ * (bit 27) is 33B. Mirrors RetroCore CpuND500.Trap.cs GetTrapNumber, which is the
+ * same bit-index scan.
+ *
+ * @param trap_bit One trap mask (TRAP_PGF, TRAP_STO, ...). A combined mask yields
+ *                 the lowest-numbered condition in it.
+ * @return The trap number 0..63, or 0xFFFF when trap_bit is zero.
+ */
+uint16_t nd500_trap_number(uint64_t trap_bit);
 
 /* Trap helper functions */
 void trap_illegal_instruction(Nd500Cpu* cpu, uint32_t pc, uint32_t opcode);
