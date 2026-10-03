@@ -1131,6 +1131,47 @@ bool ndbus_servicer_read_monitor_result(NdbusServicer *sv, uint32_t msg_byte,
         out->count++;
     }
 
+    /* THE RAW HEADER OF THE ANSWER, for the monitor numbers named in
+     * NDBUS_MON_RESULT_WATCH. The decoded FUNCV/K/mask is a READING of these
+     * words, and a reading can be wrong about where SINTRAN put something.
+     *
+     * MEASURED, and this is why: the cross-emulator record for MON 422B GSWSP on
+     * an L-version pack is that SINTRAN answers K=1 with error 1013B, "illegal
+     * monitor call number" - a refusal. Our side decoded K=0 and a segment
+     * number of 0, which sent CPU-STAT down its success path on a meaningless
+     * value instead of its error path at 0x08004609, where it would have
+     * reported the refusal and exited. Either SINTRAN really accepted it here,
+     * or K and the error code are carried in words this reader does not look at.
+     * Only the raw words can tell those apart. 1013B is 0x020B.
+     *
+     * Bounded, and only for the watched numbers, so it cannot flood. */
+    /* NOT KEYED ON THE MON NUMBER. The first version of this watched
+     * sv->last_mon_number for 0422, and it never fired even on runs that
+     * reached the call: that field is SHARED, and the swapper's own MON 377B
+     * calls overwrite it between a domain's request being posted and its answer
+     * being read, so by this point it reads 0377. An instrument keyed on state
+     * another process owns measures the other process - the same trap as a
+     * PC-only trace on a shared CPU structure.
+     *
+     * So dump every result read, bounded, and let the message address say whose
+     * it is: 0x8D30 is the swapper's block and 0x8E30 a domain's. The bound is
+     * large enough to reach a domain's calls, which arrive around the twentieth. */
+    if (sv->mon_results_read < 24u)
+    {
+        char line[200];
+        int n = (int)snprintf(line, sizeof line,
+                              "mon-result RAW words 0..15 on msg 0x%06X (mask=0x%04X "
+                              "count=%u):",
+                              (unsigned)msg_byte, (unsigned)out->mask,
+                              (unsigned)out->count);
+        for (uint32_t w = 0; w < 16u && n > 0 && (size_t)n < sizeof line; w++)
+        {
+            n += snprintf(line + n, sizeof line - (size_t)n, " %04X",
+                          (unsigned)read16(sv, msg_word(msg_byte, w)));
+        }
+        servicer_log(sv, line);
+    }
+
     sv->mon_results_read++;
     return true;
 }
