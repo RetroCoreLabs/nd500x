@@ -3839,6 +3839,69 @@ static void test_accp_data_replies(void)
         CHECK(memcmp(&payload[1], expect, 12) == 0, "PRGMVERS: the PROM version 88.12. 5 I01");
     }
 
+    /* ALIVE (037B) follows the microprogram flip-flop, and it is answered in the
+     * dispatcher rather than by the guard table - the real card reads a hardware
+     * alive signal, which is why ndbus_accp_evaluate accepts ALIVE outright.
+     * Check both halves, and check the guard still says accepted, or a future
+     * change that moves the decision into the table would pass unnoticed. */
+    CHECK(ndbus_accp_evaluate(NDBUS_ACCP_ALIVE, &nd.accp) == NDBUS_ACCP_ACCEPTED,
+          "ALIVE is never refused by the guard table, running or not");
+
+    /* Start the microprogram first. RESTMIC needs FOUR parameter bytes and a
+     * short message is refused in SILENCE, so a two-byte body here would make a
+     * correct refusal look like a missing transition. */
+    body[0] = (uint8_t)NDBUS_ACCP_RESTMIC;
+    body[1] = 0x00u;
+    body[2] = 0x00u;
+    body[3] = 0x00u;
+    body[4] = 0x00u;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5,
+                    replies);
+    CHECK(nd.accp.microprogram_running, "ALIVE: the microprogram is running by now");
+    body[0] = (uint8_t)NDBUS_ACCP_ALIVE;
+    n       = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                        replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 1 && payload[0] == 0x00u, "ALIVE while running is a bare Messack");
+    CHECK(nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "and counted as accepted");
+
+    /* STOPMIC clears the flip-flop, so the same command now naks 7. Nak 7 is a
+     * LONG Messnak - four bytes, the error code and the ASTS word - because only
+     * code 13 has the short form. */
+    body[0] = (uint8_t)NDBUS_ACCP_STOPMIC;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                    replies);
+    CHECK(!nd.accp.microprogram_running, "ALIVE: STOPMIC clears the microprogram flip-flop");
+
+    body[0] = (uint8_t)NDBUS_ACCP_ALIVE;
+    n       = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                        replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(nd.last_nak_code == NDBUS_ACCP_NAK_NOT_ALIVE, "ALIVE while stopped naks 7, not alive");
+    CHECK(plen == 4, "and it is the long Messnak, four bytes");
+    CHECK(plen == 4 && payload[0] == 0xFFu && payload[1] == 7u &&
+              payload[2] == NDBUS_ACCP_ASTS_HIGH && payload[3] == NDBUS_ACCP_ASTS_LOW,
+          "ALIVE's nak carries code 7 and the ASTS word");
+
+    /* And a restart brings it back - the flip-flop is a flip-flop, not a latch
+     * that only ever falls. */
+    body[0] = (uint8_t)NDBUS_ACCP_RESTMIC;
+    body[1] = 0x00u;
+    body[2] = 0x00u;
+    body[3] = 0x00u;
+    body[4] = 0x00u;
+    (void)send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 5,
+                    replies);
+    body[0] = (uint8_t)NDBUS_ACCP_ALIVE;
+    n       = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1,
+                        replies);
+    plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
+                              (int)sizeof(payload));
+    CHECK(plen == 1 && nd.last_nak_code == NDBUS_ACCP_ACCEPTED,
+          "ALIVE is alive again after RESTMIC");
+
     ndbus_pool_destroy(&pool);
 }
 

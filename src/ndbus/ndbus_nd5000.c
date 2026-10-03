@@ -689,6 +689,43 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
         ndbus_nd5000_reset(nd);
         break;
 
+    case NDBUS_ACCP_ALIVE:
+        /*
+         * 037B: Messack while the microprogram is running, Messnak 7 ("not
+         * alive") while it is not.
+         *
+         * THIS IS DECIDED HERE AND NOT IN THE GUARD TABLE. The real card answers
+         * from a hardware alive signal rather than from the running cell, so
+         * ndbus_accp_evaluate deliberately accepts ALIVE and says so at
+         * ndbus_accp.c:122. RetroCore draws the same line - its
+         * AccpCommandGuards.cs:75 states "ALIVE 0x1F is not decided here at
+         * all", and its station answers the command in the dispatcher
+         * (OctobusND5000Station.cs:3257) from _microprogramRunning, which is
+         * the closest observable we have to that signal.
+         *
+         * The flip-flop is already driven correctly by the arms around this one:
+         * STARTMIC, CONTMIC and RESTMIC set it; STOPMIC, CPURES (through the
+         * reset), emergency 241B master clear and emergency 244B TERMINATE ACCP
+         * clear it.
+         *
+         * An earlier attempt at this arm was reverted because it made the
+         * monitor print "ND-5000 timeout: ACCP was terminated" at entry. That
+         * was not this rule being wrong: the octobus card was dropping the tail
+         * of any reply longer than its 16-word receive FIFO, the monitor
+         * answered the mutilated reply with an emergency 244B TERMINATE ACCP,
+         * and the terminate had cleared the flip-flop before ALIVE was asked.
+         * With the frames no longer dropped the monitor does not terminate, and
+         * on the measured bring-up it does not reach ALIVE at all.
+         */
+        if (!nd->accp.microprogram_running)
+        {
+            nd->messnaks++;
+            nd->last_nak_code = NDBUS_ACCP_NAK_NOT_ALIVE;
+            return build_messnak(nd->station.number, reply_omd, NDBUS_ACCP_NAK_NOT_ALIVE,
+                                 ndbus_accp_nak_is_short(NDBUS_ACCP_NAK_NOT_ALIVE), replies, max);
+        }
+        break;
+
     default:
         /* Accepted by the guards and not modelled further. The guard table is
          * what SINTRAN's bring-up sequence actually tests; a command that moves
