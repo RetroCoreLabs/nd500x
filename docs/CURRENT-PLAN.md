@@ -10,7 +10,7 @@ This is deliberately a living status file inside `docs/` (an exception to
 the "working notes live in `$NDIX/notes/`" rule) so any session finds it
 cold.
 
-Last updated: 2026-09-30.
+Last updated: 2026-10-03.
 
 ## Standing goal
 
@@ -23,7 +23,14 @@ bar: it must keep working.
 
 THE GOAL OF THIS PHASE, in one sentence: get SINTRAN's ND-500/5000 MONITOR J04
 through `START-SWAPPER` on the nd100x machine with an ND-5000 station attached,
-instead of `*** FATAL SYSTEM ERROR *** / ND-500(0) timeout`.
+and then run DOM programs on it.
+
+`START-SWAPPER` REACHED 2026-10-03. It prints `> Loading Control Store`,
+`> Loading Swapper`, `> Allocating memory - 7342B pages` and returns to the
+prompt with no trap and no fatal error. `PLACE-DOMAIN CPU-STAT` does the same,
+and `VERSION` matches the working RetroCore machine line for line. The phase is
+NOT finished: `CPU-STAT` itself still produces no output, which is the live
+blocker below.
 
 The octobus carries no data (ND-05.020.01 ch. 5.3). It carries commands; the
 DATA and the whole mailbox live in the MPM-5 shared pool. That one fact decides
@@ -54,38 +61,48 @@ Where the boot now reaches, measured 2026-09-30 on a live run:
   command prints on the working RetroCore machine. It was blank before the copy
   family was ported, because SINTRAN reads that string out of the swapper image
   with a copy-family transfer.
-- WHERE IT STOPS NOW: `*** FATAL SYSTEM ERROR *** / The Swapper stopped`, with
-  `NOT KNOWN TRAP At program address: 0 0B`. The reference machine instead prints
-  `> Allocating memory - 7107B pages` at this point. Two measured causes, below.
+- `START-SWAPPER` now COMPLETES, 2026-10-03: `> Allocating memory - 7342B pages`
+  and back to the prompt. Five further failures were removed after the three
+  above, each by a named port with a test that fails when reverted:
+  `86c77be` the five data-returning ACCP commands; nd100x `90307b0` octobus
+  frames PARKED for an Ack=10 busy retry instead of dropped on a full 16-word
+  FIFO (that drop truncated RECO's reply and the monitor issued an emergency
+  244B TERMINATE ACCP); `9a46727` ALIVE answered from the microprogram
+  flip-flop; `a9406bc` BMOVE no longer aborting on the host's run_flag, which
+  had made the swapper's own copy write nothing; `ba28998` one physical segment
+  table instead of two.
+- THE LAST TWO, 2026-10-03, both on the start path and both measured on a
+  `START-SWAPPER` run with nothing else in it: nd500x `7b38055` and nd100x
+  `1eb0f63`. 3MONCO and 3TRACO resume the loaded process; 3START never does.
+  A monitor-call stop leaves the ND-500 through `CALL_MON -> SET_IDLE`, which
+  marks "no current process", so the B30 IDLE loop at 0o24724-25 skips
+  CNTXTSAVE and NEWCNTXT/CNTXTLOAD reads the block SINTRAN has just filled -
+  the entry point 0x08000004, not the parked MON return address 0x08008255.
+  Our resume arm had no test on the micro-function and swallowed the second
+  3START; correcting that exposed a second defect, a context load refused
+  because the parked runner sat at STOPPED rather than the IDLE that a load
+  requires. Before these two the monitor printed `ADDRESS OUTSIDE PROGRAM
+  SEGMENT / NOT KNOWN TRAP / At program address: 0 1B` with no trap reported
+  from the ND-500 side at all.
+- WHERE IT STOPS NOW: `CPU-STAT` prints nothing. Under investigation; no cause
+  stated yet.
 - TPE CONFIGURATION D05 passes `NO ERRORS DETECTED`; TPE OCTOBUS tests 1-3 pass.
 
 ## Next steps
 
-In the order they are worth doing. Numbers 1 and 2 are the live blocker.
+In the order they are worth doing. Number 1 is the live blocker.
 
-1. ANSWER 23B 3START, WHICH NEEDS A PROCESS HOST. Measured 2026-09-30: with the
-   copy family ported, 23B is the only code SINTRAN still sends that the servicer
-   declines, and the monitor then reports `The Swapper stopped`. RetroCore does
-   not answer 23B synthetically - it routes it to
-   `INd500ProcessHost.OnStartProcess`, implemented by `Nd500CpuProcessBridge` /
-   `Nd5000CpuProcessBridge` over the real ND-500 CPU. There is no honest shortcut
-   here: a synthetic ANSWER(3) to 3START would claim a process started when none
-   did. Note RetroCore's `AnnounceSwapperAlive` is NOT the mechanism - its own
-   comment marks it uncalled and a "LATENT fabrication", so it must not be wired
-   up.
-2. GIVE PHYSRD/PHYSWR A PHYSICAL SEGMENT TABLE. Measured in the same run, once:
-   `segment-relative address UNRESOLVED seg=3 off=0xBC - using it FLAT`. Offset
-   0xBC is the process control block's TOS field, so that write landed outside
-   segment 3 and a zero TOS makes every stack frame report an overflow. The
-   resolver is not the servicer's to invent: RetroCore asks
-   `INd500ProcessHost.TryResolvePhysicalSegment`, implemented by the ND-500 CPU
-   itself (`CpuND500.Domain.cs`, `CpuND500.ProcessControl.cs`). Its octobus
-   station never implements the interface's own `TryGetPhysicalSegmentTableBase`,
-   so the CPU is the source. `ndbus_servicer_set_pst_base()` exists and nothing
-   calls it, deliberately.
-3. WHATEVER ARRIVES AFTER 23B. Every unported code answers 5ERANSWER(4), is
-   counted in `NdbusServicer.micfu_counts` and is logged once per code, so the
-   next one to port is a measurement. Do not port ahead of it.
+1. WHY `CPU-STAT` PRODUCES NO OUTPUT. The swapper now runs, so this starts from
+   a working swapper rather than a broken one - which is why the earlier reading
+   of it was wrong. Open, no cause stated. The oracle's measured sequence is the
+   thing to compare against, `Nd500MicrocodeServicer.cs`: from PLACE-DOMAIN
+   onward TWO processes are live, the swapper and the domain, each with its own
+   message block, and it records `MICFU=0013 X5CPU=1` as the 3START of the
+   DOMAIN followed by a trap-stop on the DOMAIN's block. Our two blocks are
+   0x00C130 for X5CPU 0 and 0x008E30 for X5CPU 1.
+2. WHATEVER ARRIVES NEXT. Every unported code answers 5ERANSWER(4), is counted
+   in `NdbusServicer.micfu_counts` and is logged once per code, so the next one
+   to port is a measurement. Do not port ahead of it.
 4. THE ND-5000 SELFTEST still fails its `0B...BUS test` and `1B...MIR test`
    during `DEFINE-MEMORY-CONFIGURATION`. `RMIR` sits in the `default:` arm of the
    ACCP command dispatch. Separate from the timeout and reached earlier.
@@ -98,7 +115,8 @@ In the order they are worth doing. Numbers 1 and 2 are the live blocker.
    `:1406` in nd100x carry the same missing bank check the MMU fix corrected.
 7. nd500x Tier A gate unfinished on `cleanup/step2-warnings`: warning sites in
    `src/`, tests unlinked, CI jobs never added.
-8. `SYNC-BACKLOG.md` has no lines for any of the octobus work.
+8. `SYNC-BACKLOG.md` now carries the six 2026-10-03 rows (`10b8bf6`); the
+   earlier octobus commits still have none.
 
 Absent from the octobus closure, by count of C# lines, if any of it turns out to
 be needed: `AccpOctobusStation.cs`, `Nd5000AccpAttachment.cs`,
