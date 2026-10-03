@@ -327,6 +327,7 @@ make wasm-serve
 - `docs/EXTERNAL-ARTIFACTS.md`: Where out-of-repo truth lives (carve tree, MON YAMLs, vendor binaries, manuals) and the order of authority. Never ask for or guess these locations - they are indexed there.
 - `docs/SINTRAN-CONVENTIONS.md`: SINTRAN/toolchain behavior facts that keep biting (K&R-only C for NC, 0x27 string terminator, quote-create filenames, `--` wildcard, VTM terminal types, why NC alone cannot generate code).
 - `docs/SYNC-BACKLOG.md`: The C# sync ledger. Every commit that changes CPU/MMU/trap/MON behavior gets a line here AT THE TIME of the fix; C#-bound porting notes go in the shared rolling file `$ND500_TESTDATA/retrocore-mon-fixes.md` (numbered items), never as new docs in the RetroCore repo.
+- `docs/INVESTIGATION-TRAPS.md`: Measured failure modes of INVESTIGATIONS on the ND-5000/octobus lane and the control that catches each - the three radices in play, why a silent instrument is not evidence, the two write paths into the shared pool, how to tell a program that ran from one that merely printed, and the three-command bring-up. Read before measuring anything on that lane.
 
 Hard rules distilled from past failures:
 - All C fed to NC must be K&R 1978 style - no ANSI prototypes, no `void`, no `//` comments.
