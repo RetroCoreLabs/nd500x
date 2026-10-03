@@ -198,7 +198,13 @@ int nd500_check_indirect_call(
         /* MON 600 (octal, offset 0x180) is the NDIX ND-100 front-end call
          * (fecall) - disk/console/init I/O. It needs full cpu/machine/DMA access,
          * so it is serviced directly, not through the generic MON registry. */
-        if (mon_number == 0x180) {
+        if (mon_number == 0x180 && cpu->mon_call_host == NULL) {
+            /* ONLY WHEN NOTHING ELSE OWNS THE MONITOR CALLS. nd500_fecall is the
+             * NDIX ND-100 front-end, a stand-in for a machine that is not there.
+             * When a host machine IS attached - an ND-5000 beside an nd100x running
+             * the real SINTRAN - it owns every monitor call including this one, and
+             * answering locally would put a simulated reply where the genuine
+             * article was supposed to answer. The host hook below gets it instead. */
             nd500_fecall(cpu, arg_count, arg_addresses);
             *out_resolved = cpu->pending_call_return_address;
             return INDIRECT_HANDLED;
@@ -229,6 +235,34 @@ int nd500_check_indirect_call(
             {
                 return INDIRECT_HANDLED;
             }
+
+            /* A DECLINE MUST NOT FALL THROUGH TO THE LOCAL EMULATION.
+             *
+             * The host owns the monitor calls on this lane. When it declines - no
+             * message block recorded for this process, for instance - the call has
+             * NOT been performed by anything, and letting ndmonlib answer it would
+             * hand the program a simulated SINTRAN's reply while the real one
+             * stands next to it. A plausible wrong answer is worse than a stop: the
+             * program carries on against state no machine ever produced.
+             *
+             * So stop, say which call and which address, and rewind the PC to this
+             * instruction so the call is retried rather than skipped. Said once -
+             * the CPU is re-entered on every poll. */
+            if (cpu->machine != NULL)
+            {
+                static int said = 0;
+                cpu->machine->run_flag = 0;
+                if (!said)
+                {
+                    said = 1;
+                    printf("[MON] host declined MON %oB at 0x%08X and the local SINTRAN "
+                           "emulation must NOT answer it on this lane - the attached "
+                           "machine owns the monitor calls\n",
+                           (unsigned)mon_number, (unsigned)instruction_addr);
+                }
+            }
+            *out_resolved = instruction_addr;
+            return INDIRECT_WAIT;
         }
 
         /* Everything that is not MON 600 is SINTRAN III monitor-call
