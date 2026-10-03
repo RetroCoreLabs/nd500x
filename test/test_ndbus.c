@@ -1576,6 +1576,48 @@ static void test_context(void)
     CHECK(!ndbus_context_field_is_loaded(NDBUS_CTX_DIT_OTE1), "nor the trap enables");
     CHECK(!ndbus_context_field_is_loaded(NDBUS_CTX_DIT_TEM2), "any of them");
 
+    /* THE STACK LIMITS ARE AN EMULATOR-PRIVATE STASH IN 0x4C AND 0x50, and the
+     * two assertions above about them being DIT-sourced are about the HARDWARE,
+     * which is a different claim. Both hold at once, so state the division here
+     * or the next reader will take one of them for the whole truth.
+     *
+     * THE HARDWARE: the microcode loads neither slot from the block. The
+     * whole-image sweep behind RetroCore's CpuND500.ProcessControl.cs walks every
+     * AA=7 address word in all 16384 microwords and finds 0x4C and 0x50 touched
+     * by NOTHING through the context base, in either direction.
+     *
+     * THE EMULATOR: because the machine never looks at them, nd100x's
+     * mfbus_save_context/mfbus_load_context use them to carry TOS and LL across a
+     * context switch. Writing a slot the machine ignores cannot mislead it;
+     * leaving it unwritten while our own load reads it sets the stack limits to
+     * zero on every switch. MEASURED 04-OCT-2026: the swapper stack-overflowed at
+     * P=0x08008E09 right after a domain's page fault switched away from it,
+     * faulting on 0x00000004 - a frame base of 4, not a missing page.
+     *
+     * WHY NOT THE DIT, which is where the hardware really keeps them: there is no
+     * DIT to read on this lane. cpu->DITBASE is set to the CAPABILITY TABLE base,
+     * 256 bytes per domain, and nd500_domain.h:47-73 warns that wiring
+     * nd500_domain_load_state() up would write 16-byte-strided fields over a
+     * guest's 256-byte-strided capability table and corrupt it silently. That was
+     * tried first and the warning is why it was backed out.
+     *
+     * WHY HL AND THA ARE EXCLUDED, and this is the part a future change is most
+     * likely to get wrong: the B30 save DOES write 0x54 and 0x58, and
+     * MSG_UNIX5RE/MSG_UNIX5REL READ that pair while handling a mailbox message.
+     * A value invented there is consumed as if SINTRAN had written it. 0x4C and
+     * 0x50 are the only two slots in this group the microcode ignores outright,
+     * which is the whole reason they are the only two used. */
+    CHECK(NDBUS_CTX_DIT_TOS == 0x4Cu && NDBUS_CTX_DIT_LL == 0x50u,
+          "the stash slots are 0x4C and 0x50 - the two the microcode ignores");
+    CHECK(NDBUS_CTX_DIT_HL == 0x54u && NDBUS_CTX_DIT_THA == 0x58u,
+          "HL and THA are 0x54/0x58 - the microcode READS these, so do not stash here");
+    CHECK(ndbus_context_write(&ctx, NDBUS_CTX_DIT_TOS, 0x0001FFFCu) &&
+          ndbus_context_read(&ctx, NDBUS_CTX_DIT_TOS) == 0x0001FFFCu,
+          "TOS round-trips through the stash slot");
+    CHECK(ndbus_context_write(&ctx, NDBUS_CTX_DIT_LL, 0x08026198u) &&
+          ndbus_context_read(&ctx, NDBUS_CTX_DIT_LL) == 0x08026198u,
+          "and LL does too - the swapper's own INIT value");
+
     /* Writing one is ACCEPTED - the cell exists - it simply has no effect on a
      * started CPU. The API does not pretend otherwise by refusing the write. */
     CHECK(ndbus_context_write(&ctx, NDBUS_CTX_DIT_TOS, 0xDEADBEEFu),
