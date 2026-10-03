@@ -139,14 +139,24 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                     break;
             }
 
-            /* Check for trap after read (e.g., MMU page fault). run_flag only
-             * catches a machine HALT; a trap DISPATCHED to a handler leaves
-             * run_flag set - instr_aborted is the mid-instruction signal. The
-             * whole BMOVE restarts after the pagein (locore copyout: "we
-             * assume that the bmove instruction is interruptible and
-             * resumable"); restart-from-scratch is equivalent since operands
-             * are re-read and no register state is modified. */
-            if ((cpu->machine && !cpu->machine->run_flag) || cpu->instr_aborted) {
+            /* Check for trap after read (e.g., MMU page fault). instr_aborted is
+             * THE mid-instruction signal: a trap dispatched to a handler sets it,
+             * and nd500_trap_occurred() covers a trap raised but not yet cleared.
+             * The whole BMOVE restarts after the pagein (locore copyout: "we
+             * assume that the bmove instruction is interruptible and resumable");
+             * restart-from-scratch is equivalent since operands are re-read and no
+             * register state is modified.
+             *
+             * machine->run_flag IS NOT TESTED HERE, and must never be. It is a
+             * property of the HOST's run loop, not of the guest: nothing a BMOVE
+             * can do clears it, and an embedding that steps the CPU itself never
+             * sets it. nd100x's mfbus bridge is exactly such an embedding, so with
+             * the flag in the condition every BMOVE in the ND-5000 lane returned
+             * after its first read having written NOTHING - no trap, PC advancing
+             * normally, silent. See the test; the debugger's own step command had
+             * already been made to set run_flag=1 to work around this
+             * (commands.c), which is the tell that it was never a guest signal. */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
                 return;  /* Trap occurred - abort instruction (restart re-runs it) */
             }
         }
@@ -168,9 +178,8 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
 
         /* Check for trap after write (e.g., MMU page fault, protection
-         * violation). See the read-side check: instr_aborted catches a
-         * DISPATCHED trap; the restart re-runs the whole (idempotent) BMOVE. */
-        if ((cpu->machine && !cpu->machine->run_flag) || cpu->instr_aborted) {
+         * violation). See the read-side check for why run_flag is not tested. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
             return;  /* Trap occurred - abort instruction (restart re-runs it) */
         }
     }

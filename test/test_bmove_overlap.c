@@ -282,12 +282,98 @@ static void test_bmove_overlap_backward(void) {
     nd500_machine_free(&m);
 }
 
+/**
+ * BMOVE MUST NOT DEPEND ON THE HOST'S RUN LOOP.
+ *
+ * Every other case in this file sets m.run_flag = 1 before stepping, because
+ * BMOVE used to abort when the flag was clear - and the debugger's step command
+ * had been made to set it for the same reason (src/debugger/commands.c). That is
+ * a host property, not a guest signal: nothing a BMOVE does clears it, and an
+ * EMBEDDING that steps the CPU itself never sets it at all.
+ *
+ * nd100x's mfbus bridge is exactly such an embedding. With run_flag in the abort
+ * condition, every BMOVE in the ND-5000 lane returned after its first read having
+ * written NOTHING - no trap, PC advancing normally, completely silent. That is
+ * what broke SINTRAN's ND-500 swapper: the BMOVE at 0x0800744C never filled the
+ * local it copies a count into, the count read 0 instead of 0x1000, 0-1 gave
+ * 0xFFFF as a loop bound, and the 65535-iteration loop ran four bytes off the end
+ * of segment 6 - "The Swapper stopped" plus a PAGE FAULT at segment 6 +0x8004.
+ *
+ * So this case deliberately does NOT set run_flag, and a copy must still happen.
+ */
+static void test_bmove_without_run_flag(void) {
+    printf("\n=== BMOVE does not depend on run_flag ===\n");
+
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+
+    /* The shape the swapper uses: four bytes from an unrelated source into a
+     * four-byte destination, no overlap. The source bytes are the ones measured
+     * live at 0x0801289C, so a half-done copy is visible rather than ambiguous. */
+    const uint8_t src_bytes[4]  = {0x00, 0x07, 0x10, 0x00};
+    const uint8_t expected[4]   = {0x00, 0x07, 0x10, 0x00};
+
+    write_data_bytes(&m, DATA_ADDR, src_bytes, sizeof(src_bytes));
+    {
+        const uint8_t zeros[4] = {0, 0, 0, 0};
+        write_data_bytes(&m, DATA_ADDR + 16u, zeros, sizeof(zeros));
+    }
+
+    /* BY BMOVE r1.(0), r1.(16), $4 */
+    uint8_t code[] = {
+        0xFD, 0x20,             /* BY BMOVE */
+        0xF4, 0x00,             /* source = r1.(0)  */
+        0xF4, 0x10,             /* dest   = r1.(16) */
+        0x04                    /* count  = 4 */
+    };
+    write_code(&m, CODE_ADDR, code, sizeof(code));
+
+    cpu.I[0] = DATA_ADDR;
+    cpu.PC = CODE_ADDR;
+    /* run_flag deliberately left at 0 - this is the whole point of the test. */
+    nd500_cpu_step(&cpu);
+
+    uint8_t result[4];
+    read_data_bytes(&m, DATA_ADDR + 16u, result, sizeof(result));
+
+    bool passed = (memcmp(result, expected, sizeof(expected)) == 0);
+    char details[256];
+    if (!passed) {
+        snprintf(details, sizeof(details),
+            "got [%02X,%02X,%02X,%02X], expected [%02X,%02X,%02X,%02X] "
+            "- BMOVE aborted because the host run loop was not running",
+            result[0], result[1], result[2], result[3],
+            expected[0], expected[1], expected[2], expected[3]);
+    }
+    test_result("BY BMOVE copies with run_flag clear (embedded stepping)", passed, details);
+
+    /* And the halfword the swapper actually reads out of it. A copy that moved
+     * only some of the bytes would still fail the memcmp above, but this names
+     * the value whose loss caused the runaway loop. */
+    {
+        uint8_t again[4];
+        read_data_bytes(&m, DATA_ADDR + 16u, again, sizeof(again));
+        uint16_t hw = (uint16_t)(((uint16_t)again[2] << 8) | again[3]);
+        char d2[128];
+        d2[0] = '\0';
+        if (hw != 0x1000u) {
+            snprintf(d2, sizeof(d2), "halfword at +2 = 0x%04X, expected 0x1000", hw);
+        }
+        test_result("and the halfword at +2 survives the copy", hw == 0x1000u, d2);
+    }
+
+    nd500_machine_free(&m);
+}
+
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
 
     printf("ND500 BMOVE Overlap Tests\n");
     printf("=========================\n");
+    test_bmove_without_run_flag();
 
     test_bmove_overlap_forward();
     test_bmove_overlap_backward();
