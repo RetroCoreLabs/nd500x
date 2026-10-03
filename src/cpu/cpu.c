@@ -198,6 +198,34 @@ void nd500_cpu_reset(Nd500Cpu* cpu) {
 
 
 
+/* STOP THE MACHINE ON A TRAP THAT DID NOT VECTOR.
+ *
+ * Every trap site in nd500_mmu.c raises the trap and then returns the
+ * UNTRANSLATED virtual address, with the comment "trap will stop execution".
+ * That contract makes the caller responsible: nothing may use the returned
+ * address, because it is not a physical address at all. This is the one place
+ * that turns a pending trap into a machine stop, so the two callers - the top
+ * of nd500_cpu_step() and the instruction fetch inside it - cannot drift apart
+ * on the stop reason or on the registers they record.
+ */
+static void nd500_stop_on_pending_trap(Nd500Cpu* cpu)
+{
+    const Nd500TrapState* trap = nd500_trap_get_state();
+    cpu->machine->run_flag = 0;
+    cpu->machine->stop_addr = trap ? trap->trap_pc : cpu->PC;
+    cpu->machine->stop_data = trap ? trap->trap_data_addr : 0;
+    cpu->machine->stop_reason = trap ? trap_to_stop_reason(trap->trap_condition) : STOP_TRAP_OTHER;
+    /* P1 = the TRAPPING P: the instruction that actually failed. PC/stop_addr is
+     * the RESTART P and normally runs AHEAD of it, so this line printed alone
+     * sends a reader to the wrong instruction. ND-05.017.01 ch.6 STEP 2 has the
+     * engineer read BOTH registers for exactly that reason. Disassemble P1. */
+    printf("[STOP] %s at PC=0x%08X data=0x%08X P1=0x%08X <- failing instruction\n",
+           nd500_stop_reason_str(cpu->machine->stop_reason),
+           cpu->machine->stop_addr, cpu->machine->stop_data, cpu->P1);
+    nd500_dump_stop_ring("trap");
+    nd500_trap_clear();
+}
+
 bool nd500_cpu_step(Nd500Cpu* cpu) {
     if (!cpu || !cpu->machine) return false;
 
@@ -291,20 +319,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
 
     /* Check for pending traps before executing instruction */
     if (nd500_trap_occurred()) {
-        const Nd500TrapState* trap = nd500_trap_get_state();
-        cpu->machine->run_flag = 0;
-        cpu->machine->stop_addr = trap ? trap->trap_pc : cpu->PC;
-        cpu->machine->stop_data = trap ? trap->trap_data_addr : 0;
-        cpu->machine->stop_reason = trap ? trap_to_stop_reason(trap->trap_condition) : STOP_TRAP_OTHER;
-        /* P1 = the TRAPPING P: the instruction that actually failed. PC/stop_addr is
-         * the RESTART P and normally runs AHEAD of it, so this line printed alone
-         * sends a reader to the wrong instruction. ND-05.017.01 ch.6 STEP 2 has the
-         * engineer read BOTH registers for exactly that reason. Disassemble P1. */
-        printf("[STOP] %s at PC=0x%08X data=0x%08X P1=0x%08X <- failing instruction\n",
-               nd500_stop_reason_str(cpu->machine->stop_reason),
-               cpu->machine->stop_addr, cpu->machine->stop_data, cpu->P1);
-        nd500_dump_stop_ring("trap");
-        nd500_trap_clear();
+        nd500_stop_on_pending_trap(cpu);
         return false;
     }
 
@@ -334,6 +349,29 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
         if (cpu->machine->mmu_enabled) {
             /* Translate virtual -> physical address */
             paddr = nd500_mmu_translate(cpu, cpu->PC, 0, 1); /* is_write=0, is_instruction=1 */
+            /* THE FAULT THAT DOES NOT VECTOR STILL FAULTED.
+             *
+             * A translate that fails returns the virtual address, so `paddr` is not
+             * a physical address and must not be read. Testing whether the trap
+             * VECTORED - whether PC moved - only catches the faults that had a trap
+             * handler to go to. An ND-5000 process started over the mailbox has
+             * THA = 0, so trap delivery is off by design: its page faults are meant
+             * to be reported to SINTRAN on the process's own message, not vectored
+             * inside the ND-500.
+             *
+             * MEASURED on the octobus: PLACE-DOMAIN CPU-STAT mapped segment 1 to
+             * psn 14, PST entry 14 was zero, the MMU raised the page fault twice,
+             * PC never moved, this guard missed it, and the fetch read byte 0x00
+             * from the UNTRANSLATED 0x08000004 - reported as "Invalid instruction
+             * 0x00 (uninitialized memory)". The page fault was never reported to
+             * SINTRAN, which polled until it timed out, and CPU-STAT printed
+             * nothing at all.
+             *
+             * Ask the trap state, which is what the MMU's contract actually sets. */
+            if (nd500_trap_occurred()) {
+                nd500_stop_on_pending_trap(cpu);
+                return false;
+            }
             if (cpu->PC != fetch_pc) {
                 /* The translate FAULTED and the trap already vectored
                  * (PC now points at the handler; on a demand fetch fault

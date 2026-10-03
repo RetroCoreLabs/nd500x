@@ -480,6 +480,101 @@ int main(void) {
 #undef T10_CHECK
 
     /* ---------------------------------------------------------
+     * TEST 11: a fetch fault that does NOT vector must still stop the CPU
+     *
+     * Every trap site in nd500_mmu.c raises the trap and returns the UNTRANSLATED
+     * virtual address, commented "trap will stop execution". The instruction fetch
+     * in nd500_cpu_step() used to decide a fault had happened by testing whether
+     * the trap VECTORED - whether PC had moved. That catches only the faults that
+     * had a trap handler to go to.
+     *
+     * An ND-5000 process started over the mailbox has THA = 0, so trap delivery is
+     * off by design: its page faults belong on the process's own message, reported
+     * to SINTRAN, not vectored inside the ND-500. MEASURED on the octobus:
+     * PLACE-DOMAIN CPU-STAT mapped segment 1 to psn 14, PST entry 14 was zero, the
+     * page fault was raised, PC never moved, and the fetch read byte 0x00 from the
+     * untranslated address - reported as "Invalid instruction 0x00 (uninitialized
+     * memory)". The fault was never reported and SINTRAN polled until it timed out.
+     *
+     * THE STOP REASON IS THE WHOLE TEST. A page fault reported as an invalid
+     * instruction cannot be served: nd100x's mfbus bridge only reports a trap to
+     * SINTRAN when the reason is STOP_TRAP_PAGE_FAULT or the protection violation.
+     * --------------------------------------------------------- */
+    int t11_failed = 0;
+#define T11_CHECK(cond, what)                                                       \
+    do {                                                                            \
+        if (!(cond)) { printf("  FAIL: %s\n", (what)); t11_failed++; }               \
+        else { printf("  ok: %s\n", (what)); }                                      \
+    } while (0)
+
+    printf("Test 11: a non-vectoring fetch fault stops the CPU\n");
+    printf("-------------------------------------------------\n");
+    {
+        Nd500Cpu f;
+        nd500_cpu_init(&f, &machine);
+        /* The shadow tables must exist even though this test uses the GUEST ones:
+         * the walk sanity-checks them first and bails out with "Tables not
+         * initialized" before it ever reads PSTP. */
+        nd500_mmu_init(&f);
+        machine.cpu = &f;
+
+        const uint32_t pstp    = 0x30000u;
+        const uint32_t ditbase = 0x38000u;
+        const uint32_t psn     = 14u;   /* the psn the live run faulted on */
+
+        f.PSTP = pstp;
+        f.DITBASE = ditbase;
+        f.dit_configured = 1;
+        f.CED = 0;
+        f.CAD = 0;
+
+        /* Segment 0 keeps the virtual address inside this 1 MB test machine; the
+         * live fault was segment 1, which only changes the address, not the path.
+         * A PROGRAM capability lives at DITBASE + domain*256 + segment*2 - offset 0,
+         * where the data capability sits at +64. The fetch reads the program one. */
+        uint32_t cap_addr = ditbase + 0u * 256u + 0u * 2u;
+        nd500_bus_write8(&machine, cap_addr,      (uint8_t)((psn >> 8) & 0xFFu));
+        nd500_bus_write8(&machine, cap_addr + 1u, (uint8_t)(psn & 0xFFu));
+
+        /* PST[14] LEFT ZERO. ND-05.009.4 section 4.3: a zero entry means no mapping
+         * exists and is a page fault condition. */
+        for (uint32_t i = 0; i < 4u; i++) {
+            nd500_bus_write8(&machine, pstp + psn * 4u + i, 0x00u);
+        }
+
+        /* The byte at the UNTRANSLATED address is 0x00, which is what made the old
+         * code call this an invalid instruction. Written explicitly so the test does
+         * not rely on freshly-zeroed memory for the thing it is about. */
+        nd500_bus_write8(&machine, 0x04u, 0x00u);
+
+        nd500_mmu_enable(&f);
+        machine.mmu_enabled = 1;
+        (void)nd500_dbg_set_trap_invalid(1);
+
+        f.PC = 0x00000004u;
+        machine.run_flag = 1;
+        machine.stop_reason = STOP_NONE;
+        nd500_trap_clear();
+
+        bool stepped = nd500_cpu_step(&f);
+
+        T11_CHECK(!stepped, "the step does not complete");
+        T11_CHECK(machine.stop_reason == STOP_TRAP_PAGE_FAULT,
+                  "and the reason is a PAGE FAULT, which SINTRAN can serve");
+        T11_CHECK(machine.stop_reason != STOP_INVALID_INSTRUCTION_00,
+                  "not an invalid instruction, which it cannot");
+        T11_CHECK(f.mmu_pgf_psn == psn,
+                  "the faulting physical segment number is carried");
+
+        nd500_trap_clear();
+        machine.mmu_enabled = 0;
+        nd500_mmu_disable(&f);
+        machine.cpu = NULL;
+    }
+    printf("Status: %s\n\n", (t11_failed == 0) ? "PASS" : "FAIL");
+#undef T11_CHECK
+
+    /* ---------------------------------------------------------
      * SUMMARY
      * --------------------------------------------------------- */
     printf("===========================================\n");
@@ -489,9 +584,11 @@ int main(void) {
     printf("      integration with memory bus and will be tested\n");
     printf("      during Phase 5 (Memory Bus Integration).\n");
 
-    if (t7_failed != 0 || t8_failed != 0 || t9_failed != 0 || t10_failed != 0) {
-        printf("\n%d check(s) FAILED in Test 7, %d in Test 8, %d in Test 9, %d in Test 10\n",
-               t7_failed, t8_failed, t9_failed, t10_failed);
+    if (t7_failed != 0 || t8_failed != 0 || t9_failed != 0 || t10_failed != 0 ||
+        t11_failed != 0) {
+        printf("\n%d check(s) FAILED in Test 7, %d in Test 8, %d in Test 9, %d in Test 10, "
+               "%d in Test 11\n",
+               t7_failed, t8_failed, t9_failed, t10_failed, t11_failed);
         return 1;
     }
     return 0;
