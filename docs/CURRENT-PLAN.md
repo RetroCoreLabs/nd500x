@@ -378,6 +378,50 @@ TWICE in the whole run.
 So nothing is broken in the PST write path. The swapper CHOOSES a different
 path for segment 13.
 
+THE COUNT IS SINTRAN'S ANSWER - the stall is at the seam, 2026-10-04.
+
+PC=0x08004887 writes the count, and it does so immediately before every pass
+through the deciding branch. Correlated by line number in one run:
+
+    WRITE 0  by 0x08004887  ->  pass PST[11]  count 0  skip
+    WRITE 8  by 0x08004887  ->  pass PST[11]  count 8  COMPLETE
+    WRITE 1  by 0x08004887  ->  pass PST[12]  count 1  COMPLETE
+    WRITE 0  by 0x08004887  ->  pass PST[13]  count 0  skip
+
+(The 0x0B/0x0C/0x0D writes to the same address AFTER each pass are segment
+numbers 11/12/13 stored by a later routine reusing the frame. Several routines
+use that frame slot, so the raw address watch is noisy and only the
+correlation by position is meaningful.)
+
+The code around it says where the value comes from:
+
+    08004857: r := b.0x8
+    08004859: w stz   r.0x14                 % zero the field
+    0800485B: call    $0x800008D
+    08004869: call    MON 377B, $0x8012A34, $0x8023D80
+    ...
+    08004884: w move  b.0x38, r.0x14
+    08004887: h wconv b.0x50, r2             % pass the answer on as the count
+    0800488D: call    $0x8003727             % the routine holding the branch
+
+The swapper zeroes the field, asks SINTRAN with MON 377B, and passes back what
+it got. So the count is not something the swapper computes - it is SINTRAN'S
+ANSWER, and a zero answer makes it skip the segment. That puts the segment-13
+stall in the ND-100/ND-500 monitor-call seam rather than in the swapper.
+
+NOT YET ESTABLISHED, and not to be guessed: WHICH 377B instance supplies it.
+The write-backs logged either side of both the count-8 and the count-0 write
+are identical (mask 0x6, values 0x0A and 0x8E30 into 0x080240B0/0x080240B4),
+so the supplying call is a different instance whose answer is not yet
+isolated. The segment-13 case does carry one answer the other does not -
+mask 0x4, one parameter, logical 0x08000E04 = 0x00000000 - but nothing yet
+ties that to b.0x50, and a frame-slot coincidence is exactly the kind of link
+that has already been wrong three times here.
+
+NEXT: instrument the 377B whose arguments are $0x8012A34 and $0x8023D80
+specifically - the call at 0x08004869 - and compare its answer for segment 11
+against segment 13.
+
 THE DECISION RULE, READ OFF THE MACHINE 2026-10-04. Both operands of the
 branch below, captured at the instruction that makes it (MFBUS_PCDUMP in
 nd100x). The table at logical 0x08023D40 is CONSTANT in every pass -
