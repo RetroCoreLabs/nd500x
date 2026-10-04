@@ -378,6 +378,63 @@ TWICE in the whole run.
 So nothing is broken in the PST write path. The swapper CHOOSES a different
 path for segment 13.
 
+WHAT THE COUNT ACTUALLY IS - ARITHMETIC-VERIFIED ON ALL FOUR CASES,
+2026-10-04. It is the PAGE INDEX OF THE FAULTING ADDRESS, and the branch is
+"page > 0". Nothing about it is wrong.
+
+The producer is `080044A4: w4 =: b.0x38` (logged one instruction late as
+0x080044A6), and the computation is:
+
+    08004495: r := b.0x14          % r = 0x080240BC, the SAME in all four passes
+    08004497: w4 := r.0x1E         % word at 0x080240DA
+    0800449A: w4 and $0x7FFFFFF    % clear the 5-bit segment number
+    080044A0: w sha  r4,$0x35      % shift right 11 = divide by the 0x800 page
+    080044A4: w4 =:  b.0x38        % -> the count
+
+PC=0x080082FF writes three halfwords at 0x080240D8/DA/DC, and the word the
+swapper reads is their tail. Worked through:
+
+    halfword@240DC   word read     AND 0x07FFFFFF   >>11   count
+    0x0004           0x08000004    4                0      0   seg 11, 1st pass
+    0x453A           0x0800453A    0x453A           8      8   seg 11, 2nd pass
+    0x0E28           0x08000E28    0xE28            1      1   seg 12
+    0x0004           0x08000004    4                0      0   seg 13
+
+Those words are THE PAGE-FAULT ADDRESSES from the trap reports of the same
+run - addr=0x0800453A psn=11, addr=0x08000E28 psn=12, addr=0x00000004 psn=13.
+So the swapper is being told where the fault was, and it computes which page of
+the segment that is. Segment 13's first fault is at offset 4, which is page 0,
+so the branch skips - CORRECTLY.
+
+SO THE SWAPPER AND THE BRANCH ARE BOTH RIGHT, and the question moves to the
+page-0 case. The reference's own fault census for segment 13 is:
+
+    where=0xD (PFZPST, no PST entry)  psn=13  faults=1   @0x00000004
+    where=0x3 (write violation)       psn=13  faults=1   @0x00000800
+    where=0xF (ordinary demand page)  psn=13  faults=62  62 distinct addresses
+
+It faults ONCE at offset 4 with no PST entry, that fault is satisfied by
+something, and every later fault is at page 1 or beyond - where this same
+branch passes. This lane re-faults at offset 4 for ever.
+
+THE OPEN QUESTION, and it is the last one in this chain: what satisfies the
+FIRST fault on a segment - the where=0xD, page-0, no-PST-entry case. It is not
+the path chased through this whole section, because that path is gated on
+page > 0 by design.
+
+A NOTE ON METHOD, because this section cost three retractions. Every time a
+conclusion was drawn from the LISTING it was wrong - the MON 377B at
+0x08004869 never executes, and neither does the call at 0x08004635; both sit
+between the real jump source and its target in the printed order only. Every
+conclusion drawn from the TRACE, or from addresses and arithmetic, has held.
+Read what executed, then read the code it executed.
+
+ALSO CORRECTED: the PC a write watch logs is NOT uniformly the instruction
+performing the write. `08000DE2: h2 =: r.0x12` is exact, while the block move
+at 0x08004884 and the store at 0x080044A4 are both logged one instruction
+late. Identify the writer by the ADDRESS it touched and the registers in
+force, not by the logged PC alone.
+
 RETRACTED SAME DAY - THE COUNT IS NOT SINTRAN'S ANSWER. The section below
 claims the count comes from the MON 377B at 0x08004869. That instruction
 NEVER EXECUTES: the bridge logs a resume address on every monitor call, and
