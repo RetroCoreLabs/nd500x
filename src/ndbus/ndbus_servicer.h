@@ -65,10 +65,51 @@
 #define NDBUS_MICFU_RESIWR    12u   /**< 14B MSG_RESIWR resident write */
 #define NDBUS_MICFU_MONCO     20u   /**< 24B 3MONCO monitor-call continue; shares MSG_START */
 #define NDBUS_MICFU_TRACO     21u   /**< 25B 3TRACO trap continue; shares MSG_START */
+#define NDBUS_MICFU_WMONCO    22u   /**< 26B 3WMONCO wait-monitor-call continue; MSG_CONWR */
+
+/* ---- what the hardware does with a micro-function -------------------------
+ *
+ * The microcode strips bit 15 of the MICFU halfword - a flag, not part of the
+ * number - range checks the rest against 0..77B and indexes a 64-entry vectored
+ * dispatch table. These three accessors are that table's front door, so the
+ * strip and the range check happen in ONE place instead of at every comparison.
+ */
+#define NDBUS_MICFU_CLASS_NONE     0u  /**< not dispatched by this emulator */
+#define NDBUS_MICFU_CLASS_INLINE   1u  /**< answered where it is, process untouched */
+#define NDBUS_MICFU_CLASS_START    2u  /**< loads a context block and starts a process */
+#define NDBUS_MICFU_CLASS_CONTINUE 3u  /**< resumes a parked process in place */
+
+/**
+ * @brief The index the hardware would dispatch this MICFU halfword through.
+ * @param micfu_halfword The raw halfword from the message, flag bit and all.
+ * @return 0..63, or 64 when the code is outside the microcode's own range -
+ *         a value no table entry can have, so it cannot be mistaken for one.
+ */
+uint16_t ndbus_micfu_dispatch_code(uint16_t micfu_halfword);
+
+/**
+ * @brief What class of thing this micro-function is: NDBUS_MICFU_CLASS_*.
+ * @param micfu_halfword The raw halfword; the flag bit is stripped here.
+ * @return The class, or NDBUS_MICFU_CLASS_NONE for out of range or unimplemented.
+ */
+uint8_t ndbus_micfu_class(uint16_t micfu_halfword);
+
+/**
+ * @brief The ND mnemonic for a micro-function, for a log line that reads.
+ * @param micfu_halfword The raw halfword.
+ * @return A static string; "out-of-range" or "unknown" rather than NULL.
+ */
+const char *ndbus_micfu_name(uint16_t micfu_halfword);
 #define NDBUS_MICFU_PHYSRD    24u   /**< 30B PHYSRD physical-memory read */
 #define NDBUS_MICFU_PHYSWR    25u   /**< 31B PHYSWR physical-memory write */
+#define NDBUS_MICFU_IMEMRD    28u   /**< 34B IMEMRD instruction-memory read. On the
+                                  *   ND-500 the SAME code is the answer-only symbol
+                                  *   3MONO - a namespace collision, settled per
+                                  *   generation: the B30 microcode dispatches 34B to
+                                  *   the direction-fixed addrB->addrA block copy. */
 #define NDBUS_MICFU_IMEMWR    29u   /**< 35B IMEMWR instruction-memory write */
 #define NDBUS_MICFU_WREG      17u   /**< 21B 3WREG register write; MSG_ILLEG on the B30 */
+#define NDBUS_MICFU_RPREG     36u   /**< 44B 3RPREG read P register; see the table */
 #define NDBUS_MICFU_STARTP0   18u   /**< 22B MSG_STARTP0 start process 0 */
 #define NDBUS_MICFU_START     19u   /**< 23B 3START start process */
 
@@ -232,6 +273,28 @@ typedef struct NdbusServicerHost
      * May be NULL, which means the same as always declining.
      */
     bool (*start_process)(void *ctx, uint32_t msg_byte, uint16_t micfu, uint32_t ctx_byte);
+
+    /* THE RESTART SEAM IS NOT HERE YET, AND THAT IS DELIBERATE.
+     *
+     * RetroCore's INd500ProcessHost has a DEDICATED callback per restart kind -
+     * OnMonitorCallRestart and OnWaitMonitorCallRestart - and its servicer
+     * DECODES THE ANSWER AND PUSHES IT as arguments. Ours does not: the host gets
+     * the generic start_process above and the embedding then reads the answer back
+     * out of the message itself with ndbus_servicer_read_monitor_result().
+     *
+     * That inversion is a real divergence in the logical design and it should be
+     * fixed, because three of the message's slots mean something different coming
+     * back than going out (MCNO/MSWMC carry FUNCV, STOPR carries KFLIP, NUMPA is a
+     * bitmask and not a count), so a host that re-reads them is a SECOND decoder
+     * of the same words and a second place to get them wrong.
+     *
+     * The two callbacks were added here and then removed again on 04-OCT-2026
+     * rather than left in place unused: the servicer offered the seam, no host
+     * implemented it, and the embedding went on pulling - which is worse than
+     * either design on its own. Converting the bridge's continue arm is the other
+     * half and is a refactor of the live message path, so it belongs in a session
+     * where it can be reviewed and run on the real lane, not bolted on.
+     */
 } NdbusServicerHost;
 
 /** @brief One mailbox servicer. */
@@ -504,7 +567,66 @@ typedef struct NdbusMonResult
     uint32_t count;
     uint32_t addresses[NDBUS_MON_MAX_ARGS];
     uint32_t values[NDBUS_MON_MAX_ARGS];
+
 } NdbusMonResult;
+
+/** WHERE A 26B ANSWER-DATA BLOCK IS, not the data itself.
+ *
+ * A 3WMONCO is the 24B restart plus a bounded copy of answer data into the
+ * process's memory before it resumes. This names the copy; nothing is buffered.
+ *
+ * The data is NOT carried in NdbusMonResult. An earlier version put a 0x1FFF-byte
+ * array in there, which put 8 KB on the stack of every monitor-call restart -
+ * including the ordinary 24B ones, which have no block at all - and then copied
+ * the bytes a second and third time on the way to memory. The reference keeps the
+ * block as arguments to its own restart callback and allocates only on this rare
+ * path; describing it and streaming it is the same division with no allocation at
+ * all.
+ *
+ * `src_byte` is in the ND-100's half of the pool, which the servicer owns.
+ * `dest` is a process LOGICAL address, which only the embedding can translate -
+ * the same split the parameter write-backs already use. */
+typedef struct NdbusWmoncoBlock
+{
+    uint32_t dest;      /**< 26ADD: process logical address to copy into */
+    uint32_t count;     /**< bytes to copy; 0 when there is nothing, or on oversize */
+    uint32_t src_byte;  /**< pool byte address of the source, from ABUFA << 1 */
+    bool     oversize;  /**< 26NRB >= 0x2000: skip the copy, but STILL resume */
+} NdbusWmoncoBlock;
+
+/**
+ * @brief Locate the answer-data block of a 26B (3WMONCO) restart.
+ *
+ * Offsets from the microcode at 015752-016004: 26NRB at halfword 0o17, 26ADD at
+ * 0o15-0o16 high halfword first, and ABUFA - a WORD address - at 0o140-0o141,
+ * shifted left to reach bytes.
+ *
+ * THE OVERSIZE CASE IS NOT AN ERROR ANSWER. A count of 0x2000 or more sets
+ * `oversize` with `count` 0: the copy is skipped and the process STILL resumes,
+ * with FUNCV forced to 0o174 and K set. Refusing the message instead leaves the
+ * process parked for ever, which is the defect this whole arm exists to avoid.
+ *
+ * @param sv       Servicer.
+ * @param msg_byte Byte address of the message block; 0 is rejected.
+ * @param out      Receives the description; zeroed first.
+ * @return true when out was filled, false on a bad argument.
+ */
+bool ndbus_servicer_read_wmonco_block(NdbusServicer *sv, uint32_t msg_byte,
+                                      NdbusWmoncoBlock *out);
+
+/**
+ * @brief Read one byte of the ND-100's half of the pool, at a BYTE address.
+ *
+ * The ND-100 side is word-addressed, so a byte comes out of the halfword that
+ * contains it: the even byte is the high half on both machines. This is the one
+ * place that extraction lives, so a caller streaming a block cannot get the order
+ * wrong in a second copy of the same two lines.
+ *
+ * @param sv        Servicer.
+ * @param byte_addr Pool byte address.
+ * @return The byte, or 0 for a bad argument or an address outside the pool.
+ */
+uint8_t ndbus_servicer_read_nd100_byte(const NdbusServicer *sv, uint32_t byte_addr);
 
 /**
  * @brief Read the answer SINTRAN placed in a message for a 3MONCO restart.

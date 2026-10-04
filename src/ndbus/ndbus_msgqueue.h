@@ -81,6 +81,26 @@
 #define NDBUS_MSG_SWPFU     65u  /**< 101B */
 #define NDBUS_MSG_SWPST     67u  /**< 103B */
 
+/* ---- the 26B (3WMONCO) overlay arm -------------------------------------
+ *
+ * MICFU selects what the middle of the block means, exactly as it already does
+ * for N500A/SWRST above. On a 3WMONCO these three fields describe the answer-data
+ * block the microcode copies into the process before it resumes, and they sit ON
+ * TOP of MCNO and TRAPN - the same halfwords, a different meaning. Reading a 26B
+ * block through the MCNO/TRAPN names, or a 24B block through these, gets a
+ * plausible wrong number rather than an error, which is why both arms are named
+ * instead of either being spelled out as a bare offset at the point of use.
+ *
+ * Offsets from the microcode at 015752-016004, cross-checked against the
+ * reference's own decode (Nd500MicrocodeServicer.cs, N5MicroFunction.
+ * WaitMonitorCall) and the swapper field dossier's 26ADD@0o15-0o16 / 26NRB@0o17.
+ */
+#define NDBUS_MSG_26ADD_HI  13u  /**< 15B: process address to copy to, HIGH half. Overlays MCNO */
+#define NDBUS_MSG_26ADD_LO  14u  /**< 16B: ... LOW half. Overlays TRAPN */
+#define NDBUS_MSG_26NRB     15u  /**< 17B: byte count; >= 0x2000 skips the copy */
+#define NDBUS_MSG_ABUFA_HI  96u  /**< 140B: ND-100 WORD address of the source, HIGH half */
+#define NDBUS_MSG_ABUFA_LO  97u  /**< 141B: ... LOW half. A WORD address - shift to get bytes */
+
 /**
  * @brief Read a message block's LINK: the byte offset of the next block.
  * @param pool      The shared pool.

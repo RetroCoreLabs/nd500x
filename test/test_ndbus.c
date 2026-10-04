@@ -4540,6 +4540,157 @@ static void test_monitor_call_result(void)
     CHECK(r.count == NDBUS_MON_MAX_ARGS,
           "all sixteen bits select, and none beyond - there are only sixteen slots");
 
+    /* ---- 26B 3WMONCO: THE ANSWER-DATA BLOCK ----------------------------------
+     *
+     * 26B is the 24B restart PLUS a bounded copy of answer data into the
+     * process's memory. It was missing entirely, so it fell to the servicer's
+     * default arm and was answered 5ERANSWER - the process was never resumed and
+     * the answer buffer never delivered. SINTRAN does send it:
+     * MP-P2-N500.NPL:2401 selects 3WMONCO over 3MONCO for XMSG functions 6 and
+     * 51, and :135641 stages the restart by moving SM26N/SM26A into 26NRB/26ADD.
+     *
+     * Offsets from the reference's decode of the microcode at 015752-016004:
+     * 26NRB at halfword 0o17, 26ADD at 0o15-0o16, ABUFA at 0o140-0o141. ABUFA is
+     * a WORD address, shifted left to reach bytes. */
+    /* ---- THE VECTORED DISPATCH: strip, range check, then index --------------
+     *
+     * The microcode does not compare MICFU against a list. It strips bit 15 - a
+     * FLAG, not part of the function number - range checks the rest against
+     * 0..77B and indexes a 64-entry table. Both emulators switched on the raw
+     * halfword and neither range checked, so a flagged message the hardware
+     * dispatches normally was answered 5ERANSWER by both. The carve outranks
+     * both emulators, so this is a shared defect rather than a port gap:
+     * ACCP-OCTOBUS-COMMAND-TABLE-2026-08-02.md, and the mailbox catalogue's
+     * read order "N5STA check -> CPU-target check -> MICFU -> vectored dispatch". */
+    CHECK(ndbus_micfu_dispatch_code(NDBUS_MICFU_MONCO) == NDBUS_MICFU_MONCO,
+          "an ordinary code dispatches through itself");
+    CHECK(ndbus_micfu_dispatch_code((uint16_t)(NDBUS_MICFU_MONCO | 0x8000u)) ==
+              NDBUS_MICFU_MONCO,
+          "and bit 15 is STRIPPED - it is a flag, so a flagged 24B is still a 24B");
+    CHECK(ndbus_micfu_is_continue((uint16_t)(NDBUS_MICFU_MONCO | 0x8000u)),
+          "so a flagged continue is still classed as a continue, not answered 5ERANSWER");
+    CHECK(ndbus_micfu_is_continue((uint16_t)(NDBUS_MICFU_WMONCO | 0x8000u)),
+          "and a flagged 26B likewise");
+    CHECK(ndbus_micfu_dispatch_code(64u) == 64u,
+          "a code at the table's bound is OUT of range - 0..77B is 0..63");
+    CHECK(ndbus_micfu_dispatch_code(0x7FFFu) == 64u,
+          "and so is anything above it, once the flag is off");
+    CHECK(ndbus_micfu_class(64u) == NDBUS_MICFU_CLASS_NONE,
+          "an out-of-range code has no class - it is not a function at all");
+    CHECK(!ndbus_micfu_is_continue(64u) && !ndbus_micfu_is_start_class(64u),
+          "and is neither a continue nor a start, so it cannot reach a handler");
+
+    /* The class table is the SINGLE statement of what each function is. Three
+     * hand-written lists of the same codes - is_continue, is_start_class and the
+     * dispatch switch - is how 26B came to be missing from all three. */
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_RMICV) == NDBUS_MICFU_CLASS_INLINE,
+          "3RMICV is answered inline, leaving the process alone");
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_START) == NDBUS_MICFU_CLASS_START,
+          "3START loads a context block");
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_TRACO) == NDBUS_MICFU_CLASS_CONTINUE,
+          "3TRACO resumes in place");
+    CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_TRACO),
+          "and a continue is start-CLASS as well - it arrives on the same path");
+    CHECK(!ndbus_micfu_is_start_class(NDBUS_MICFU_RMICV),
+          "while an inline answer is not, or it would try to start a process");
+
+    /* ---- THE COMPLETE DISPATCH, ENUMERATED AGAINST THE ORACLE ---------------
+     *
+     * The oracle dispatches 22 micro-functions. This pins which of them we serve
+     * and which we refuse ON PURPOSE, because the two were conflated once and it
+     * cost real time: an audit listed 05, 16B, 17B, 20B, 27B, 34B and 44B as
+     * "missing", and FIVE of those seven are gated on `Generation == ND500` in
+     * the reference as well - they are MSG_ILLEG in both B30 listings and SINTRAN
+     * never transmits them on this generation. Refusing them IS the correct
+     * answer here, and only 34B was a real gap.
+     *
+     * Asserting the refusals, not just the implementations, is the point: a later
+     * reader "fixing" a deliberate refusal would make this emulator accept a
+     * message the hardware rejects. */
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_IMEMRD) == NDBUS_MICFU_CLASS_INLINE,
+          "34B IMEMRD is served - it is the B30's instruction-memory READ");
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_IMEMWR) == NDBUS_MICFU_CLASS_INLINE,
+          "and 35B IMEMWR, its write counterpart - serving one and not the other is "
+          "what makes a verify-after-load fail with nothing obviously wrong");
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_SWMESS) == NDBUS_MICFU_CLASS_NONE,
+          "05 3SWMESS is refused - MSG_ILLEG on the B30, and the reference gates it "
+          "on the ND-500 generation too");
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_WREG) == NDBUS_MICFU_CLASS_NONE,
+          "21B 3WREG likewise - there is no register image on this generation");
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_RPREG) == NDBUS_MICFU_CLASS_NONE,
+          "44B 3RPREG is refused rather than answered OK-with-no-write: the "
+          "reference answers success there and its own comment says what reaches "
+          "the message is NOT carved, so success would be a guessed answer");
+
+    /* The names exist so a log line reads; a missing one must not be NULL. */
+    CHECK(ndbus_micfu_name(NDBUS_MICFU_WMONCO) != NULL &&
+          ndbus_micfu_name(NDBUS_MICFU_WMONCO)[0] == '3',
+          "a known function names itself");
+    CHECK(ndbus_micfu_name(64u) != NULL && ndbus_micfu_name(0x7FFFu) != NULL,
+          "and an out-of-range one still returns a string, never NULL");
+
+    CHECK(ndbus_micfu_is_continue(NDBUS_MICFU_WMONCO),
+          "26B is a CONTINUE - classed otherwise it is answered 5ERANSWER and the "
+          "process never resumes");
+    CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_WMONCO), "and therefore start-class");
+
+    {
+        /* Source bytes somewhere the ND-100 half of the pool can hold them, at a
+         * WORD address so ABUFA can name it. */
+        const uint32_t src_byte = 0x00002000u;   /* inside this layer's 64 KB pool */
+        const uint32_t src_word = src_byte >> 1;
+        static const char payload[] = "SYSTEM";   /* 6 bytes, deliberately odd-length */
+        for (uint32_t i = 0; i < 6u; i++)
+        {
+            (void)ndbus_pool_write8(&pool, src_byte + i, (uint8_t)payload[i]);
+        }
+
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 15u * 2u, 6u);              /* 26NRB */
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 13u * 2u, 0x0800u);         /* 26ADD hi */
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 14u * 2u, 0x1234u);         /* 26ADD lo */
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 96u * 2u,
+                                 (uint16_t)(src_word >> 16));                 /* ABUFA hi */
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 97u * 2u,
+                                 (uint16_t)(src_word & 0xFFFFu));             /* ABUFA lo */
+
+        NdbusWmoncoBlock wb;
+        CHECK(ndbus_servicer_read_wmonco_block(&nd.servicer, MBX_MSG, &wb),
+              "a 26B answer-data block is located");
+        CHECK(wb.count == 6u, "the byte count comes from 26NRB at halfword 0o17");
+        CHECK(wb.dest == 0x08001234u,
+              "and the destination from 26ADD, high halfword FIRST");
+        CHECK(!wb.oversize, "six bytes is not oversize");
+        CHECK(wb.src_byte == src_byte, "and the source from ABUFA, a WORD address shifted");
+        {
+            bool in_order = true;
+            for (uint32_t i = 0; i < 6u; i++)
+            {
+                if (ndbus_servicer_read_nd100_byte(&nd.servicer, wb.src_byte + i) !=
+                    (uint8_t)payload[i]) { in_order = false; }
+            }
+            CHECK(in_order,
+                  "and the bytes stream out in order, odd length and all - a byte-order "
+                  "fault here is exactly how a user name comes out interleaved");
+        }
+
+        /* THE OVERSIZE CASE IS NOT AN ERROR ANSWER. A count of 0x2000 or more
+         * skips the copy and STILL resumes the process, with FUNCV forced to
+         * 0o174 and K set. Declining the message instead is what leaves a process
+         * parked forever, which is the defect this whole arm exists to avoid. */
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 15u * 2u, 0x2000u);
+        CHECK(ndbus_servicer_read_wmonco_block(&nd.servicer, MBX_MSG, &wb),
+              "an oversize 26B still READS - it is not a refusal");
+        CHECK(wb.oversize, "it is flagged oversize");
+        CHECK(wb.count == 0u, "so the copy is skipped");
+
+        /* A zero count is the ordinary no-data case and must not look oversize. */
+        (void)ndbus_pool_write16(&pool, MBX_MSG + 15u * 2u, 0u);
+        CHECK(ndbus_servicer_read_wmonco_block(&nd.servicer, MBX_MSG, &wb),
+              "a 26B with no data reads");
+        CHECK(wb.count == 0u && !wb.oversize,
+              "nothing to copy, and NOT the oversize case - zero is not 0x2000");
+    }
+
     ndbus_nd5000_destroy(&nd);
     ndbus_pool_destroy(&pool);
 }

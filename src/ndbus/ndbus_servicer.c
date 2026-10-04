@@ -113,15 +113,117 @@ int ndbus_servicer_read_message_x5cpu(const NdbusServicer *sv, uint32_t msg_byte
     return (int)read16(sv, msg_word(msg_byte, NDBUS_MSG_X5CPU));
 }
 
+/* ---- THE MICRO-FUNCTION TABLE: the hardware's vectored dispatch ------------
+ *
+ * The microcode does NOT compare MICFU against a list. It strips bit 15, range
+ * checks what is left against 0..77B and indexes a 64-ENTRY DISPATCH TABLE
+ * (ACCP-OCTOBUS-COMMAND-TABLE-2026-08-02.md and the mailbox catalogue's
+ * "N5STA check -> CPU-target check -> MICFU -> vectored dispatch").
+ *
+ * This is that table. It replaces three things that were each a separate hand
+ * written list of the same codes - is_continue, is_start_class and the dispatch
+ * switch - so a function added in one and forgotten in the others is no longer
+ * possible. That had already happened: 26B was absent from all three, fell to
+ * the default arm, and was answered 5ERANSWER, so the process it belonged to was
+ * never resumed.
+ *
+ * TWO THINGS THE TABLE FIXES THAT NEITHER EMULATOR DID.
+ *
+ * BIT 15 IS A FLAG, NOT PART OF THE FUNCTION NUMBER, and the microcode strips it
+ * before dispatching; the range check is 0..77B. Both emulators switched on the
+ * raw halfword and neither range checked, so a flagged message the hardware
+ * dispatches normally was answered 5ERANSWER by both. The carve outranks both
+ * emulators, so this is a shared defect rather than a port gap.
+ *
+ * THE GRADE MATTERS AND IT IS NOT FULL. The source is
+ * ND500-MAILBOX-MESSAGE-CATALOG.md:209, which marks this [V/D] - part verified,
+ * part DERIVED - not [V]. So the strip and the bound are the best reading of the
+ * microcode available and not a byte-level certainty. They are implemented
+ * because the alternative is demonstrably wrong (a flagged continue answered
+ * 5ERANSWER leaves its process parked for ever), but if a message ever turns up
+ * that needs bit 15 kept, this is the line to come back to and the grade is the
+ * reason it might be.
+ *
+ * Out of range is kept distinct from "in range but not implemented here":
+ * anything unrecognised used to fall through the switch's default, which
+ * conflates the two, and they want different answers.
+ *
+ * A code we do not implement is NDBUS_MICFU_CLASS_NONE, which is the honest
+ * value: the table says what the hardware would dispatch, not what we handle. */
+
+#define NDBUS_MICFU_TABLE_SIZE 64u   /* 0..77B, the microcode's own bound */
+#define NDBUS_MICFU_FLAG_BIT   0x8000u /* stripped before dispatch */
+
+typedef struct
+{
+    const char *name;   /**< the ND mnemonic, for a log line that reads */
+    uint8_t     cls;    /**< NDBUS_MICFU_CLASS_* */
+} NdbusMicfuEntry;
+
+/* Only the codes this emulator knows are filled in; the rest are NONE, which is
+ * a statement about our coverage and not about the machine. */
+static const NdbusMicfuEntry s_micfu_table[NDBUS_MICFU_TABLE_SIZE] = {
+    [NDBUS_MICFU_RMICV]   = { "3RMICV",  NDBUS_MICFU_CLASS_INLINE },
+    [NDBUS_MICFU_SWMESS]  = { "3SWMESS", NDBUS_MICFU_CLASS_NONE   },
+    [NDBUS_MICFU_DMEMRD]  = { "DMEMRD",  NDBUS_MICFU_CLASS_INLINE },
+    [NDBUS_MICFU_DMEMWR]  = { "DMEMWR",  NDBUS_MICFU_CLASS_INLINE },
+    [NDBUS_MICFU_CACHE]   = { "CACHE",   NDBUS_MICFU_CLASS_INLINE },
+    [NDBUS_MICFU_RESIRD]  = { "RESIRD",  NDBUS_MICFU_CLASS_INLINE },
+    [NDBUS_MICFU_RESIWR]  = { "RESIWR",  NDBUS_MICFU_CLASS_INLINE },
+    [NDBUS_MICFU_WREG]    = { "3WREG",   NDBUS_MICFU_CLASS_NONE   },
+    [NDBUS_MICFU_STARTP0] = { "STARTP0", NDBUS_MICFU_CLASS_START  },
+    [NDBUS_MICFU_START]   = { "3START",  NDBUS_MICFU_CLASS_START  },
+    [NDBUS_MICFU_MONCO]   = { "3MONCO",  NDBUS_MICFU_CLASS_CONTINUE },
+    [NDBUS_MICFU_TRACO]   = { "3TRACO",  NDBUS_MICFU_CLASS_CONTINUE },
+    [NDBUS_MICFU_WMONCO]  = { "3WMONCO", NDBUS_MICFU_CLASS_CONTINUE },
+    [NDBUS_MICFU_PHYSRD]  = { "PHYSRD",  NDBUS_MICFU_CLASS_INLINE },
+    [NDBUS_MICFU_PHYSWR]  = { "PHYSWR",  NDBUS_MICFU_CLASS_INLINE },
+    [NDBUS_MICFU_IMEMRD]  = { "IMEMRD",  NDBUS_MICFU_CLASS_INLINE },
+    [NDBUS_MICFU_IMEMWR]  = { "IMEMWR",  NDBUS_MICFU_CLASS_INLINE },
+
+    /* REFUSED ON THIS GENERATION, AND THAT IS THE CORRECT ANSWER - not a gap.
+     * 05 3SWMESS, 16B 3EXAR, 17B 3DEPR, 20B 3RREG, 21B 3WREG and 27B 3FITRNSF are
+     * MSG_ILLEG in both B30 listings and SINTRAN never transmits them here; the
+     * reference gates every one of them on `Generation == ND500`. They are named
+     * so a future reader does not "fix" a refusal that is deliberate, and so a
+     * 3022 port knows exactly which six to implement. */
+    [NDBUS_MICFU_RPREG]   = { "3RPREG",  NDBUS_MICFU_CLASS_NONE   },
+};
+
+uint16_t ndbus_micfu_dispatch_code(uint16_t micfu_halfword)
+{
+    /* Strip the flag, then range check. Out of range returns the table size,
+     * which no entry can have, so a caller cannot mistake it for a function. */
+    uint16_t code = micfu_halfword & (uint16_t)~NDBUS_MICFU_FLAG_BIT;
+    return (code < NDBUS_MICFU_TABLE_SIZE) ? code : (uint16_t)NDBUS_MICFU_TABLE_SIZE;
+}
+
+uint8_t ndbus_micfu_class(uint16_t micfu_halfword)
+{
+    uint16_t code = ndbus_micfu_dispatch_code(micfu_halfword);
+    return (code < NDBUS_MICFU_TABLE_SIZE) ? s_micfu_table[code].cls
+                                           : (uint8_t)NDBUS_MICFU_CLASS_NONE;
+}
+
+const char *ndbus_micfu_name(uint16_t micfu_halfword)
+{
+    uint16_t code = ndbus_micfu_dispatch_code(micfu_halfword);
+    if (code >= NDBUS_MICFU_TABLE_SIZE)
+    {
+        return "out-of-range";
+    }
+    return (s_micfu_table[code].name != NULL) ? s_micfu_table[code].name : "unknown";
+}
+
 bool ndbus_micfu_is_continue(uint16_t micfu)
 {
-    return micfu == NDBUS_MICFU_MONCO || micfu == NDBUS_MICFU_TRACO;
+    return ndbus_micfu_class(micfu) == NDBUS_MICFU_CLASS_CONTINUE;
 }
 
 bool ndbus_micfu_is_start_class(uint16_t micfu)
 {
-    return micfu == NDBUS_MICFU_STARTP0 || micfu == NDBUS_MICFU_START ||
-           ndbus_micfu_is_continue(micfu);
+    uint8_t cls = ndbus_micfu_class(micfu);
+    return cls == NDBUS_MICFU_CLASS_START || cls == NDBUS_MICFU_CLASS_CONTINUE;
 }
 
 bool ndbus_servicer_init(NdbusServicer *sv, NdbusPool *pool, const NdbusServicerHost *host)
@@ -586,8 +688,22 @@ static bool execute_micfu(NdbusServicer *sv, uint32_t msg_byte, uint16_t micfu)
 
     case NDBUS_MICFU_RESIRD:  /* 13B */
     case NDBUS_MICFU_PHYSRD:  /* 30B */
+    case NDBUS_MICFU_IMEMRD:  /* 34B */
         /* READ members: target A -> buffer B. PHYSRD's A side is segment-relative;
-         * RESIRD carries a flat address. */
+         * RESIRD and IMEMRD carry a flat address.
+         *
+         * 34B IS A NAMESPACE COLLISION AND THE GENERATION SETTLES IT. The symbol
+         * 3MONO is 0o34 on the ND-500, where it is answer-only, while 0o34 in the
+         * B30's octobus copy family is IMEMRD. The reference resolved this with a
+         * differential oracle - the microword CpuND5000's own IMEMWR-then-IMEMRD
+         * round-trip is byte-exact - so on this generation 34B is the copy and on
+         * the 3022 lane it would be the answer. We are the ND-5000 lane, so it is
+         * the copy; a 3022 port must branch here rather than inherit this.
+         *
+         * It was previously absent and fell to the default arm, which answers
+         * 5ERANSWER - so SINTRAN's instruction-memory READ back was refused while
+         * the matching IMEMWR below was served, which is the asymmetry that makes
+         * a verify-after-load fail with nothing obviously wrong. */
         return perform_block_copy(sv, msg_byte, false, micfu == NDBUS_MICFU_PHYSRD);
 
     case NDBUS_MICFU_RESIWR:  /* 14B */
@@ -1092,6 +1208,54 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
     sv->last_mon_number = mon_number;
 
     answer_message_in_place(sv, msg_byte, NDBUS_N5STA_ANSWER);
+    return true;
+}
+
+uint8_t ndbus_servicer_read_nd100_byte(const NdbusServicer *sv, uint32_t byte_addr)
+{
+    if (sv == NULL || sv->pool == NULL)
+    {
+        return 0u;
+    }
+    /* The halfword that contains the byte, then the half of it that is the byte:
+     * the EVEN byte is the high half, on both machines. One place only - a second
+     * copy of these two lines is how a string comes out interleaved. */
+    uint16_t w = read16(sv, byte_addr & ~1u);
+    return ((byte_addr & 1u) == 0u) ? (uint8_t)(w >> 8) : (uint8_t)w;
+}
+
+bool ndbus_servicer_read_wmonco_block(NdbusServicer *sv, uint32_t msg_byte,
+                                      NdbusWmoncoBlock *out)
+{
+    if (sv == NULL || sv->pool == NULL || out == NULL || msg_byte == 0u)
+    {
+        return false;
+    }
+    memset(out, 0, sizeof(*out));
+
+    /* Offsets from the reference's decode of the microcode at 015752-016004
+     * (Nd500MicrocodeServicer.cs, N5MicroFunction.WaitMonitorCall):
+     *   26NRB  byte count           halfword 0o17
+     *   26ADD  process address, 32b  halfwords 0o15-0o16, high half first
+     *   ABUFA  ND-100 WORD address   halfwords 0o140-0o141, high half first
+     * ABUFA is a WORD address - the microcode reaches +0xC0 through two chained
+     * +0x60 MARG hops - so it is shifted left to reach bytes. */
+    uint32_t nrb = read16(sv, msg_word(msg_byte, NDBUS_MSG_26NRB));
+    out->dest = ((uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_26ADD_HI)) << 16)
+              |  (uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_26ADD_LO));
+
+    if (nrb >= 0x2000u)
+    {
+        /* NOT a refusal: the caller skips the copy, forces FUNCV to 0o174 and
+         * sets K, and resumes the process anyway. */
+        out->oversize = true;
+        return true;
+    }
+
+    uint32_t src_word = ((uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_ABUFA_HI)) << 16)
+                      |  (uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_ABUFA_LO));
+    out->src_byte = src_word << 1;
+    out->count    = nrb;
     return true;
 }
 
