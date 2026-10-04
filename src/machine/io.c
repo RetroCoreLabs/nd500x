@@ -33,10 +33,17 @@ static uint32_t ptewatch_page = 0x48A000u;
 static uint32_t ptewatch_page2 = 0xFFFFFFFFu;   /* second watched page (optional) */
 static uint32_t ptewatch_pfn  = 0x091du;
 static unsigned long ptewatch_seq = 0;
+/* A window of LOGICAL addresses, watched independently of ptewatch_on: a
+ * physical watch cannot be aimed at a guest variable whose physical home the
+ * run decides, and this one can. */
+static uint32_t vwatch_base = 0;
+static uint32_t vwatch_len  = 0;
 static void ptewatch_init(void) {
     if (ptewatch_on >= 0) return;
     const Nd500Settings* cfg = nd500_settings();
     ptewatch_on = cfg->ptewatch;
+    vwatch_base = cfg->vwatch_base;
+    vwatch_len  = cfg->vwatch_len;
     if (cfg->ptewatch_page)  ptewatch_page  = cfg->ptewatch_page;
     if (cfg->ptewatch_page2) ptewatch_page2 = cfg->ptewatch_page2;
     if (cfg->ptewatch_pfn)   ptewatch_pfn   = cfg->ptewatch_pfn;
@@ -51,6 +58,10 @@ static int ptewatch_in_page(uint32_t addr) {
  * writes to two page-table entries can be compared in a single run. */
 void nd500_ptewatch_wr(uint32_t pc, uint32_t vaddr, uint32_t paddr, uint32_t value, int size) {
     ptewatch_init();
+    if (vwatch_len != 0 && vaddr >= vwatch_base && vaddr < vwatch_base + vwatch_len) {
+        fprintf(stderr, "[VWATCH #%lu] PC=0x%08X w%d vaddr=0x%08X paddr=0x%08X value=0x%08X\n",
+                ptewatch_seq++, pc, size, vaddr, paddr, value);
+    }
     if (!ptewatch_on) return;
     int p = ptewatch_in_page(paddr);
     int has_pfn = ((value & 0x3FFFFFFFu) == ptewatch_pfn);

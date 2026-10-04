@@ -165,6 +165,12 @@ typedef struct Nd500Settings {
     uint32_t framewatch;        /* ND500X_FRAMEWATCH           hex phys base of a 2 KB frame window */
     uint32_t pwatch_base;       /* ND500X_PWATCH_BASE          from ND500X_PWATCH=<hex>[:<len>] */
     uint32_t pwatch_len;        /* ND500X_PWATCH_LEN           from ND500X_PWATCH; 0 = off */
+    /* A window of ND-500 LOGICAL (virtual) data addresses. The physical address
+     * a logical one lands on is not knowable before the run, so a physical
+     * watch cannot be aimed at a named variable in a guest segment; this one
+     * can. Reports the storing PC. From ND500X_VWATCH=<hex>[:<len>]. */
+    uint32_t vwatch_base;       /* ND500X_VWATCH_BASE          from ND500X_VWATCH=<hex>[:<len>] */
+    uint32_t vwatch_len;        /* ND500X_VWATCH_LEN           from ND500X_VWATCH; 0 = off */
     long     pguwatch;          /* ND500X_PGUWATCH             page number to watch, -1 = off */
     uint32_t ptdbg_target;      /* ND500X_PTDBG                hex data address to trace */
 

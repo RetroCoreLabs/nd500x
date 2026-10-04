@@ -233,6 +233,20 @@ void nd500_settings_load_env(void) {
         }
     }
 
+    /* ND500X_VWATCH=<hex logical addr>[:<len>] - same shape as PWATCH, but the
+     * address is a LOGICAL one, so it can be aimed at a guest variable whose
+     * physical home the run decides. Default length 4 bytes: one word. */
+    {
+        const char* e = getenv("ND500X_VWATCH");
+        s->vwatch_base = 0;
+        s->vwatch_len  = 0;
+        if (e && e[0]) {
+            char* end = NULL;
+            s->vwatch_base = (uint32_t)strtoul(e, &end, 16);
+            s->vwatch_len  = (end && *end == ':') ? (uint32_t)strtoul(end + 1, NULL, 0) : 4u;
+        }
+    }
+
     /* ND500X_DISK_RW selects what a guest write does:
      *
      *   unset / "1"  write STRAIGHT THROUGH to the image. Editing a file or
