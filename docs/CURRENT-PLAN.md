@@ -342,6 +342,84 @@ measured on this lane and neither yet explained:
   from the wrong place or SINTRAN never wrote one.
 - `PST entry 13 is ZERO` was already observed directly in an earlier run.
 
+### Segment 13: the stall is localised to one branch, and the cause sits
+### one step EARLIER than the PST
+
+MEASURED 2026-10-04 with a 965,638-instruction ND-500 trace. Read this before
+touching the PST or the swapper - it replaces every earlier guess here.
+
+HOW A PST ENTRY IS BUILT. The ND-500 swapper writes its own PST, reaching it
+through virtual 0x28010800 (segment 5) which translates to physical 0x3A000.
+Three steps, two routines:
+
+    PST[11]  0x00000FF9  PC=0x08000473   step 1: raw frame
+    PST[11]  0x40000FF9  PC=0x080037B3   step 2: mode bit
+    PST[11]  0x40000FF8  PC=0x0800388D   step 3: final
+    PST[12]  0x40000FF6  PC=0x0800388D   step 3: final
+    PST[13]  0x00000FF4  PC=0x08000473   step 1, and nothing more
+
+Step 1 writes the frame that belongs in the INDEX PAGE'S slot 0; step 3
+corrects it to the segment's own frame, one lower. Both final values match
+the reference exactly, so steps 1-3 are right.
+
+THE BRANCH. The index-page builder at 0x08003632 runs exactly three times,
+with R holding the index page's physical address: 0x007FC000 (frame 0xFF8,
+segment 11), 0x007FB000 (0xFF6, segment 12) and 0x007FA000 (0xFF4,
+segment 13). The routine 0x08003632..0x0800363F is a SHARED SUBROUTINE whose
+last instruction is a return, and the saved L proves it has two callers:
+
+    L=0x08003723  twice   -> caller then calls the completer at 0x08003724
+    L=0x0800264A  once    -> caller never calls the completer
+
+Segments 11 and 12 come from the first caller and complete. Segment 13 comes
+from the second and does not. The completer 0x08003724 is entered exactly
+TWICE in the whole run.
+
+So nothing is broken in the PST write path. The swapper CHOOSES a different
+path for segment 13.
+
+WHY IT CHOOSES IT - the cause, one step earlier. Segment 13's descriptor in
+the swapper's own table is EMPTY on this lane and populated on the
+reference's. That table is at ND-500 logical 0x08038000, stride 100 decimal
+bytes, indexed by segment; the reference calls it TABLE-A and reads a flag
+byte at +5 and a halfword at +0o14:
+
+    slot 10   0001/40    identical on both lanes
+    slot 11   0001/80    identical on both lanes
+    slot 12   0001/00    identical on both lanes
+    slot 13   0001/08    on the reference; ALL ZERO here
+    slot 14   0001/08    on the reference; ALL ZERO here
+
+Slots 10-12 agree byte for byte, so the table is being built correctly up to
+12. Note the flag: 10, 11 and 12 carry 0x40, 0x80 and 0x00, while 13 and 14
+carry 0x08 - a DIFFERENT KIND of segment, which is consistent with the
+swapper taking a different code path for them. Segment 13 is the fresh,
+empty scratch segment that PLACE-DOMAIN connects for the domain. The swapper
+does reach that slot: the branch trail ends with R=0x08038514, which is
+0x08038000 + 13*100 exactly.
+
+THE OPEN QUESTION, in one sentence: what populates TABLE-A slots 13 and 14
+with 0001/08 on the reference, and why does nothing populate them here.
+
+TWO THINGS RULED OUT, with the measurement:
+- The ND-100 does not write the PST. A range watch on PST[10..15] caught 48
+  writes in four complete passes with the 400-write budget barely touched -
+  three zeroing passes (P=060720B level 0, P=052661B level 1, P=075707B
+  level 11) and one pass of twelve words that are not PST entries at all. All
+  of them are at log lines 29-77, long before the swapper's stores at 101584
+  onward. Initialisation, not a stomp.
+- The restart ROUTING is correct. After the swapper's LNEWSWAP the next
+  restart goes to X5CPU 1, the domain, which then faults on the next page.
+  The reference does exactly this 74 times for its segment 14, so repeatedly
+  asking LNEWSWAP for one segment is normal - each call grows it by a page.
+
+AND ONE INSTRUMENT TRAP, which nearly produced a wrong answer. The
+completer's absence after PST[13] step 1 was first read off a trace that had
+33 lines of budget left, where absence and "never ran" are indistinguishable.
+Re-run with MFBUS_RESUME_TRACE=2000000, a 66-fold larger budget, and the
+count after that store is 33 AGAIN - so the ND-500 really does stop there,
+and only the second run could say so.
+
 ### The pack difference does NOT explain the segment-13 stall
 
 Written here because the previous section said it might, and reading the
