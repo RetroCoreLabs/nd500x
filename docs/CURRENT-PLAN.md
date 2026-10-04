@@ -378,6 +378,45 @@ TWICE in the whole run.
 So nothing is broken in the PST write path. The swapper CHOOSES a different
 path for segment 13.
 
+THE DECIDING INSTRUCTION, FOUND 2026-10-04. One conditional decides whether
+a segment's PST entry is completed, and it is reached with identical code and
+identical registers in both cases.
+
+METHOD, because it is the one that worked after several that did not. Take the
+monitor-call resume that handles segment 11 and the one that handles segment
+13, and diff their instruction streams from the resume point. They are
+IDENTICAL for 337 instructions and diverge at the 338th:
+
+    seg 11:  ... 0x08003769  0x08003770 -> 0x08003773  (completes)
+    seg 13:  ... 0x08003769  0x08003770 -> 0x08003890  (does not)
+
+Registers at 0x08003770 are identical except R, which is the PST entry being
+processed - 0x2801082C for segment 11, 0x28010834 for segment 13. B is
+0x08024744 in both.
+
+The code at 0x0800375D, read out of three pool snapshots that all agree, and
+disassembled:
+
+    w1 := $0x8023D5C
+    w1 * $0x3
+    w2 := b.0x24
+    w2 + r1
+    w comp2 b.0x14,$0x8023D40+
+    if <<= go $0x120
+
+So the swapper compares a local at b+0x14 against an entry in its own table at
+ND-500 logical 0x08023D40 and branches AWAY from the completion path when the
+comparison is less-or-equal. A limit check, decided from data - not a fault and
+not a trap. Segment 13 fails it; segments 11 and 12 pass it.
+
+THE NEXT QUESTION, and it is now a small one: what are the two compared values,
+and which of them does this emulator get wrong. The table is at logical
+0x08023D40 and the local is at b+0x14 = 0x08024758 for the frame measured.
+
+Everything below about which caller enters the shared subroutine is a
+CONSEQUENCE of this branch, not a separate fact. The routine at 0x08002E38 and
+the two callers 0x08003723 / 0x0800264A are downstream of it.
+
 WRONG ANSWER, RETRACTED 2026-10-04 - THE DESCRIPTOR TABLE IS NOT THE CAUSE.
 What follows below was recorded as the cause and is not. Read the retraction
 first; the section is kept because the measurements in it are sound and only
