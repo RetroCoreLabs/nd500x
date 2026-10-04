@@ -11,6 +11,7 @@
 #define ND_DIAG_BUDGET_H
 
 #include <stdio.h>
+#include <stdlib.h>
 
 /*
  * THE PROBLEM THIS SOLVES, MEASURED.
@@ -63,6 +64,41 @@
 #define ND_DIAG_BUDGET(name, limit)                                            \
     static unsigned long nd_diag_##name##_used = 0ul;                          \
     static const unsigned long nd_diag_##name##_limit = (unsigned long)(limit)
+
+/**
+ * @brief Declare a budget whose limit an environment variable may raise.
+ *
+ * SAME CONTRACT AS ND_DIAG_BUDGET, plus one escape. A watch aimed at a RANGE
+ * wide enough to compare several records spends its whole budget on the first
+ * of them and then says nothing about the rest - and that silence reads exactly
+ * like "nothing wrote the others", which is the conclusion the budget exists to
+ * prevent. Measured 2026-10-04: a 400-write budget over one 100-byte record was
+ * ample, and the same watch widened to three records could not have answered
+ * which of them was written.
+ *
+ * The default is what the call site asks for; the variable only RAISES or lowers
+ * it deliberately, so a normal run behaves exactly as before. A value that is
+ * absent, zero or unparseable leaves the default in place.
+ *
+ * Expands to declarations followed by a statement, so it goes at the top of a
+ * block like any other declaration in C11.
+ *
+ * @param name          Budget name, as ND_DIAG_BUDGET.
+ * @param default_limit The limit when the variable says nothing.
+ * @param env_name      String literal naming the environment variable.
+ */
+#define ND_DIAG_BUDGET_ENV(name, default_limit, env_name)                      \
+    static unsigned long nd_diag_##name##_used = 0ul;                          \
+    static unsigned long nd_diag_##name##_limit = 0ul;                         \
+    if (nd_diag_##name##_limit == 0ul)                                         \
+    {                                                                          \
+        const char *nd_diag_##name##_env = getenv(env_name);                   \
+        long nd_diag_##name##_v = (nd_diag_##name##_env != NULL)               \
+            ? strtol(nd_diag_##name##_env, NULL, 0) : 0L;                      \
+        nd_diag_##name##_limit = (nd_diag_##name##_v > 0)                      \
+            ? (unsigned long)nd_diag_##name##_v                                \
+            : (unsigned long)(default_limit);                                  \
+    }
 
 /**
  * @brief Consume one unit of a declared budget.
