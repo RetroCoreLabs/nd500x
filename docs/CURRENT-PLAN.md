@@ -797,6 +797,101 @@ difference between the two lanes can therefore be the pack rather than the
 emulation. Copy this lane's pack and point the reference at it with the
 `RETROCORE_ND5000_PACK` environment variable before attributing anything.
 
+## The segment-12 fault, traced to THA (2026-10-04)
+
+The symptom was `ADDRESS OUTSIDE DATA SEGMENT` / `PAGE FAULT` at program address
+`1 43611B` = `0x08004789`, logical address `1 44032B` = `0x0800481A`, physical
+segment 12, on `RUN` after `PLACE-DOMAIN CPU-STAT`. The bounds were never the
+problem.
+
+**The routine.** Disassembled from a pool snapshot taken IN THE SAME RUN as the
+trace, which is the only way to read it: the logical-to-physical delta is decided
+per run (`0x74800` in one snapshot, `0x7F7800` in the next), and a snapshot from
+another run decodes the wrong bytes into plausible-looking code. Alignment
+confirmed two ways - the traced bytes `20 E5` at `0x08004789`, and the third byte
+`0x14` matching the `B+0x14` the frame dump shows.
+
+```
+08004743: ents $0x2C
+0800474E: tha =: b.0x14          ; copy THA into the frame
+08004761: w stz b.0x24           ; offset = 0
+08004763: w1 := $0xC  =: b.0x28  ; step = 12
+08004767: w1 := $0x9  =: b.0x18  ; trap number 9 = loop counter
+08004772: bi test $0x800111C+    ; is this trap number wanted?
+0800477D: w test @b.0x14+        ; slot already filled?
+08004789: w1 =: @b.0x14+         ; INSTALL handler at [THA + n*4]   <- faults
+080047A2: by comp2 b.0x1B,$0x29  ; loop until trap number 41
+```
+
+It is a trap-handler install loop. `0xE5` is LOCAL_IND_PI (`cpu_instr.c:426`):
+the destination is the pointer at `B+disp` plus `I*4`.
+
+**The cause.** THA is zero. `ND500X_VWATCH=0x30:4` caught the copy being made and
+it writes `0x00000000`; the per-step trace then showed THA = 0 for all 1,017,829
+steps of a whole run. With THA = 0 the installs land at `0 + n*4`, inside the
+frame; the one at `n = 12` lands on `0x30`, the THA copy itself, overwriting it
+with `0x080047E6`, and the next goes to `0x080047E6 + 13*4 = 0x0800481A`. The
+run's own log said it from the start and it was read past: `trap 46B raised at
+P=0x08004789 addr=0x0800481A (no local handler; THA=0x00000000)`.
+
+**Not the swapper's job to set it.** Its 256 KB program image holds five `tha=:`
+reads (`0x08001571`, `0x08004125`, `0x08004131`, `0x08004153`, `0x0800474E`) and
+ZERO `tha:=` writes - a byte scan for `FD CA` against `FD CB`.
+
+**What was fixed.** `nd500_dit_read_tha` (nd500x `3fb4c6a`) plus the context load
+calling it (nd100x `440ca49`). THA is now non-zero for 56,902 steps where it was
+zero for all of them. The fault is UNCHANGED, because the two processes derive
+different DIT bases from their own PS:
+
+| context load | PS | DIT | THA |
+|---|---|---|---|
+| `P=0x8008255` | 3 | `0x8C000` | `0x08001628` (70 loads) |
+| `P=0x8004751`, `0x800467F`, `0x8000004` | 0xA | `0x74000` | 0 |
+
+The process that runs the install loop is the `PS=0xA` one.
+
+**Who fills a THA.** Three write paths watched into each PCB page. The ND-100
+only ZEROES those cells (from `P=060720B` level 0, the same fill routine that
+clears pool word 0). No ND-500 CPU store touches them. The real value arrives
+through the servicer's mailbox block copy, and the census of all 41 copies in a
+run shows two PCBs served through two mailbox buffers:
+
+```
+copy #4  : 4 bytes 0x00CC00 -> 0x0740B6, value 0x00000000   <- PS=0xA THA slot
+copy #17 : 4 bytes 0x00D400 -> 0x08C0B6, value 0x08001628   <- PS=3   THA slot
+copy #30 : 4 bytes 0x08C0B6 -> 0x00D400, value 0x08001628   <- read back
+```
+
+So SINTRAN sends a real THA, into the `0x8C000` PCB, and only zeros into
+`0x74000`. The `0x74000` page gets capability writes at +0x44 from the ND-500 CPU
+at `PC=0x08000753/5A/61/68` through logical `0x68000044` (segment 13), which is
+`+64 + segment*2` in the documented PCB layout - so `0x74000` IS a PCB, and the
+process translating through it resolves its pages, which is evidence it is the
+faulting process's own.
+
+**What the microcode says, and the open question.** `tha:=` / `tha=:` are not
+plain register moves: `012210 LOAD_THA` and `012233 STOR_THA` both go through
+`012035 CED_TO_DIT`, which builds a DIT address from `SRF14` (CED) by repeated
+`A+B` doubling. So THA is a DIT-RESIDENT FIELD indexed by CED, read from memory
+on every access - not a register the way this emulator holds it.
+
+That makes the DIT BASE the crux, and ours is not told to us: the bridge's own
+comment says it "does NOT hand a DIT base over - the one it tracks is a
+diagnostic learned from the trap-config writes", while
+`nd500_mmu_declare_process_segment` sets `DITBASE` from `PST[PS]`. Two sources
+for one value, one of them learned. UNKNOWN, and not to be invented: which
+register the microcode uses as the DIT base, and therefore whether the faulting
+process should be reading `0x74000` (where its THA is genuinely zero) or
+`0x8C000` (where SINTRAN put one).
+
+**Method notes earned here.** A pool snapshot only decodes correctly in its own
+run. A PC-match instrument that samples at stop time cannot prove an instruction
+never executed - `MFBUS_PCDUMP` reporting nothing for `0x08004781` was read that
+way and was wrong. And the ND-100 bank-write watch had produced zero lines in
+four consecutive runs; a whole-pool positive control gave 3000 lines, which is
+what turned its silence on a range into evidence.
+
+
 ## How to work here (hard-won)
 
 - Order of authority and where out-of-repo truth lives:
