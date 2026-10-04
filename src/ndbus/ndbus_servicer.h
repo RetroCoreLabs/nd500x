@@ -194,6 +194,56 @@ bool ndbus_micfu_is_start_class(uint16_t micfu);
 /** Argument VALUE slots, 0o100 + 2k as halfwords = byte 0x80 + 4k. */
 #define NDBUS_MON_ARG_VALUE_BASE 0x80u
 
+/* THE INLINE USER BUFFER for the OUTPUT monitor calls - the microcode's job,
+ * hence the servicer's.
+ *
+ * MP-P2-N500.NPL:140656 tests MIFLAG bit WSMC and takes one of two arms. With the
+ * bit CLEAR SINTRAN sends 3RMED (MICFU 10B) and fetches the buffer itself; with
+ * the bit SET it reads the buffer straight out of the message through ABUFA.
+ * MEASURED on the RetroCore lane with a whole-run MICFU tally: 10B never appears,
+ * so SINTRAN NEVER asks. It takes the inline arm and prints whatever happens to be
+ * at ABUFA - which is why a report comes out as structured garbage while the
+ * program's own buffer holds the right text.
+ *
+ * The microcode's inline-copy set is exactly {504B, 511B, 512B} - CALL_5XX
+ * 004013B-004016B into CALL_5_MATCH 013667B, screened at CALL_END 013613. For
+ * those three the buffer is copied into the message BEFORE the process stops, so
+ * the ND-100 never needs a second fetch.
+ *
+ * 513B IS DELIBERATELY EXCLUDED even though it shares the ND-100 handler body with
+ * 512B. Sharing a SINTRAN handler is not sharing a microcode obligation; adding a
+ * number because it is adjacent is the adjacency-is-not-dispatch error. */
+
+/** 504B NOUTS. Layout MEASURED live: arg[1] value = byte count, arg[2] ADDRESS =
+ *  the buffer. */
+#define NDBUS_MON_504B_NOUTS 0x144u
+
+/** 511B DVIO. MP-P2-N500.NPL:140627 is `SUBR DVIO,NOUTSTR` with BOTH LABELS ON ONE
+ *  ADDRESS, so the outbound copy is identical. DVIO is BIDIRECTIONAL and reads
+ *  bytes back afterwards through DVINST; only the OUTBOUND leg is done here and
+ *  whether the return leg needs anything is UNVERIFIED. */
+#define NDBUS_MON_511B_DVIO 0x149u
+
+/** 512B A5XMSG. Microcode-verified: the copy routine at 010662 is entered by all
+ *  three and reads the MON number nowhere, so there is no per-MON layout left. */
+#define NDBUS_MON_512B_A5XMSG 0x14Au
+
+/** ABUFA, the inline buffer pointer, halfwords 0o140-0o141 of the message. It is a
+ *  WORD address - see ndbus_servicer_inline_buffer_target(). */
+#define NDBUS_MON_ABUFA_WORD 96u
+
+/** The microcode's own ceiling on an inline copy: 0o4000 bytes, read out of the
+ *  guard at 010717. An OVER-SIZE count makes the microcode copy NOTHING - it does
+ *  not clamp and copy a prefix. Copying a truncated buffer would be the divergence,
+ *  and it is the "helpful" change someone will reach for. */
+#define NDBUS_MON_INLINE_MAX_BYTES 2048u
+
+/** MIFLAG sits BEFORE the message base: MIFLA = 0o177770 is halfword -8, so byte
+ *  -16. WSMC is bit 0 of it and means "the data buffer is in the communication
+ *  buffer". */
+#define NDBUS_MON_MIFLAG_BACK_BYTES 16u
+#define NDBUS_MON_MIFLAG_WSMC 0x0001u
+
 /** Trap 46B, the page fault. The only stop trap with the TRAP_GEN4 record layout. */
 #define NDBUS_TRAP_PAGE_FAULT 0x26u
 
@@ -273,6 +323,32 @@ typedef struct NdbusServicerHost
      * May be NULL, which means the same as always declining.
      */
     bool (*start_process)(void *ctx, uint32_t msg_byte, uint16_t micfu, uint32_t ctx_byte);
+
+    /**
+     * Read ND-500 DATA memory through the MMU, in the calling process's context.
+     *
+     * Ported from RetroCore INd500ProcessHost.TryReadDataBytes
+     * (INd500ProcessHost.cs:75). The servicer sits below the CPU and cannot walk a
+     * process's page tables itself, so the owner that holds the CPU does it.
+     *
+     * Needed for the inline user buffer of the output monitor calls: the microcode
+     * copies the program's buffer into the message before the process stops, and
+     * the buffer is named by an ND-500 LOGICAL address.
+     *
+     * May be NULL, which means decline. A host that declines leaves the buffer
+     * alone, and SINTRAN then reads stale message content and prints it - so a
+     * decline is logged rather than passed over.
+     *
+     * @param ctx             The owner.
+     * @param logical_address ND-500 data-space logical address of the first byte.
+     * @param destination     Buffer to fill, at least count bytes.
+     * @param count           How many bytes.
+     * @return true only when EVERY byte translated and was read. A partial read is
+     *         a decline: half a buffer printed as text is a wrong answer that looks
+     *         like an answer.
+     */
+    bool (*read_nd500_data_bytes)(void *ctx, uint32_t logical_address,
+                                  uint8_t *destination, uint32_t count);
 
     /* THE RESTART SEAM IS NOT HERE YET, AND THAT IS DELIBERATE.
      *
@@ -547,6 +623,63 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
                                         uint16_t mon_number, uint32_t arg_count,
                                         const uint32_t *arg_addresses,
                                         const uint32_t *arg_values);
+
+/**
+ * Does the microcode inline-copy this monitor call's user buffer?
+ *
+ * One table, so the behaviour and the thing reported about the behaviour cannot
+ * drift apart. The set is {504B, 511B, 512B} and nothing else; see the constants
+ * above for why 513B is not in it.
+ *
+ * @param mon_number The monitor call number.
+ * @return true when the buffer must be copied into the message before stopping.
+ */
+bool ndbus_mon_requires_inline_copy(uint16_t mon_number);
+
+/**
+ * Where an inline buffer must be written: the pool byte address ABUFA names.
+ *
+ * ABUFA HOLDS A POINTER - IT IS NOT THE BUFFER. MP-P2-N500.NPL:140675 reads it and
+ * keeps what it finds as N100A, an ND-100 PHYSICAL address:
+ *     *AAX ABUFA-N500A; LDDTX; AAX N100A-ABUFA; STDTX  % ND-100 PHYSICAL ADDR
+ * LDDTX loads FROM the slot. Writing the text into the message at 2*140B instead
+ * made the console print NUL bytes - SINTRAN was reading the real buffer, which
+ * was still zero, and ignoring the slot area.
+ *
+ * AND IT IS A WORD ADDRESS, not a flat byte address. The copy family's addrA/addrB
+ * really are flat byte addresses in the window; ABUFA does not come from there, and
+ * the ND-100 addresses a word. MEASURED, one run: ABUFA read back as 0x00216800,
+ * and 0x216800 << 1 = 0x0042D000, which is one of the buffers SINTRAN itself uses
+ * in the same run (0x42CC00 / 0x42D000 / 0x42D400, beside message bases 0x428D30
+ * and 0x428E30). Treating it as a flat offset lands two megabytes outside the
+ * window, and the program prints whatever stale bytes are at the real buffer.
+ *
+ * @param sv       The servicer.
+ * @param msg_byte Pool byte offset of the message.
+ * @return The pool byte address, or 0 when ABUFA is zero - meaning no buffer, so
+ *         nothing may be written.
+ */
+uint32_t ndbus_servicer_inline_buffer_target(const NdbusServicer *sv, uint32_t msg_byte);
+
+/**
+ * Copy a monitor call's inline user buffer into the message and flag it.
+ *
+ * Both guards are the MICROCODE'S, read out of the copy routine at 010662:
+ *     010716  count == 0      -> copy nothing
+ *     010717  count > 0o4000  -> copy nothing (NOT a truncated prefix)
+ * On success MIFLAG bit WSMC is SET explicitly rather than trusted - the bit
+ * happening to be set already is exactly what made this fail silently.
+ *
+ * Exposed so a test can drive it with no CPU attached.
+ *
+ * @param sv        The servicer.
+ * @param msg_byte  Pool byte offset of the message.
+ * @param source    The bytes to place, already read from ND-500 memory.
+ * @param count     How many; outside 1..NDBUS_MON_INLINE_MAX_BYTES copies nothing.
+ * @return true when the bytes were written and WSMC set.
+ */
+bool ndbus_servicer_write_inline_buffer(NdbusServicer *sv, uint32_t msg_byte,
+                                        const uint8_t *source, uint32_t count);
 
 /** What SINTRAN sent back with a 3MONCO restart. */
 typedef struct NdbusMonResult

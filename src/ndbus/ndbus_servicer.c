@@ -1102,6 +1102,198 @@ bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t
     return true;
 }
 
+/** @brief One row of the inline-copy set, with the grade its log line carries. */
+typedef struct NdbusMonInlineEntry
+{
+    uint16_t    mon_number;
+    const char *grade;
+} NdbusMonInlineEntry;
+
+/* THE SET IS THE TABLE. A chain of == tests is where a number gets added because
+ * it looked adjacent; a table is a thing that can be read against the microcode. */
+static const NdbusMonInlineEntry s_mon_inline_table[] = {
+    { NDBUS_MON_504B_NOUTS,  "MEASURED live: arg[1] value = count, arg[2] address = buffer" },
+    { NDBUS_MON_511B_DVIO,   "MICROCODE-VERIFIED outbound leg; DVIO return leg UNVERIFIED" },
+    { NDBUS_MON_512B_A5XMSG, "MICROCODE-VERIFIED: copy routine 010662 reads no MON number" },
+};
+
+#define NDBUS_MON_INLINE_TABLE_SIZE \
+    (sizeof s_mon_inline_table / sizeof s_mon_inline_table[0])
+
+bool ndbus_mon_requires_inline_copy(uint16_t mon_number)
+{
+    for (size_t i = 0; i < NDBUS_MON_INLINE_TABLE_SIZE; i++)
+    {
+        if (s_mon_inline_table[i].mon_number == mon_number)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+uint32_t ndbus_servicer_inline_buffer_target(const NdbusServicer *sv, uint32_t msg_byte)
+{
+    if (sv == NULL || sv->pool == NULL)
+    {
+        return 0u;
+    }
+
+    uint32_t raw = ((uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MON_ABUFA_WORD)) << 16u)
+                 |  (uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MON_ABUFA_WORD + 1u));
+
+    /* A WORD address. See the header for the measurement that settles it. */
+    return raw << 1u;
+}
+
+bool ndbus_servicer_write_inline_buffer(NdbusServicer *sv, uint32_t msg_byte,
+                                        const uint8_t *source, uint32_t count)
+{
+    if (sv == NULL || sv->pool == NULL || source == NULL)
+    {
+        return false;
+    }
+
+    /* 010716 and 010717, the microcode's own guards. Over-size copies NOTHING. */
+    if (count == 0u || count > NDBUS_MON_INLINE_MAX_BYTES)
+    {
+        return false;
+    }
+
+    uint32_t target = ndbus_servicer_inline_buffer_target(sv, msg_byte);
+    if (target == 0u)
+    {
+        return false;
+    }
+
+    for (uint32_t i = 0; i < count; i += 2u)
+    {
+        /* Big-endian pack, matching every other halfword written here. An odd final
+         * byte pairs with zero rather than reading past the buffer. */
+        uint16_t hw = (uint16_t)((uint16_t)source[i] << 8u);
+        if ((i + 1u) < count)
+        {
+            hw |= (uint16_t)source[i + 1u];
+        }
+        if (!write16(sv, target + i, hw))
+        {
+            return false;
+        }
+    }
+
+    /* Tell SINTRAN the buffer is inline. Set explicitly rather than trusting
+     * whatever was there - the bit happening to be set already is what made this
+     * fail silently instead of loudly. */
+    uint32_t miflag_byte = msg_byte - NDBUS_MON_MIFLAG_BACK_BYTES;
+    uint16_t miflag = read16(sv, miflag_byte);
+    (void)write16(sv, miflag_byte, (uint16_t)(miflag | NDBUS_MON_MIFLAG_WSMC));
+
+    return true;
+}
+
+/**
+ * The inline-copy arm of a monitor-call stop.
+ *
+ * Where the count and the pointer come from, read out of the copy routine at
+ * 010662 rather than generalised from one measurement:
+ *     010673  AM#20 := DLADDR      % arg[1]: its ADDRESS
+ *     010674  AM#34 := DATA        % arg[1]: its VALUE    -> THE BYTE COUNT
+ *     010701  AM#20 := DLADDR      % arg[2]: its ADDRESS
+ *     010702  AL#34 := AM#20       % arg[2]: its ADDRESS  -> THE SOURCE BUFFER
+ * and the loop uses exactly those two:
+ *     010720  AL#11 := AM#34       % limit  = the count
+ *     010725  DP    := AL#34+AM#11 % source = buffer + running index
+ */
+static void mon_inline_copy(NdbusServicer *sv, uint32_t msg_byte, uint16_t mon_number,
+                            uint32_t arg_count, const uint32_t *arg_addresses,
+                            const uint32_t *arg_values)
+{
+    if (!ndbus_mon_requires_inline_copy(mon_number))
+    {
+        return;
+    }
+
+    char line[200];
+
+    if (arg_count < 3u || arg_addresses == NULL || arg_values == NULL)
+    {
+        (void)snprintf(line, sizeof line,
+                       "mailbox MON %oB inline buffer DECLINED: argc=%u - needs three arguments, "
+                       "SINTRAN will read stale message content and print it",
+                       (unsigned)mon_number, (unsigned)arg_count);
+        servicer_log(sv, line);
+        return;
+    }
+
+    uint32_t count = arg_values[1];
+    if (count == 0u || count > NDBUS_MON_INLINE_MAX_BYTES)
+    {
+        (void)snprintf(line, sizeof line,
+                       "mailbox MON %oB inline buffer DECLINED: count=%u outside 1..%u - the "
+                       "microcode copies nothing in this case either",
+                       (unsigned)mon_number, (unsigned)count,
+                       (unsigned)NDBUS_MON_INLINE_MAX_BYTES);
+        servicer_log(sv, line);
+        return;
+    }
+
+    if (sv->host.read_nd500_data_bytes == NULL)
+    {
+        (void)snprintf(line, sizeof line,
+                       "mailbox MON %oB inline buffer DECLINED: no read_nd500_data_bytes host - "
+                       "SINTRAN will read stale message content and print it",
+                       (unsigned)mon_number);
+        servicer_log(sv, line);
+        return;
+    }
+
+    uint8_t buffer[NDBUS_MON_INLINE_MAX_BYTES];
+    if (!sv->host.read_nd500_data_bytes(sv->host.ctx, arg_addresses[2], buffer, count))
+    {
+        (void)snprintf(line, sizeof line,
+                       "mailbox MON %oB inline buffer DECLINED: read of %u byte(s) at ND-500 "
+                       "logical 0x%08X failed - SINTRAN will read stale content and print it",
+                       (unsigned)mon_number, (unsigned)count, (unsigned)arg_addresses[2]);
+        servicer_log(sv, line);
+        return;
+    }
+
+    uint32_t target = ndbus_servicer_inline_buffer_target(sv, msg_byte);
+    if (target == 0u)
+    {
+        (void)snprintf(line, sizeof line,
+                       "mailbox MON %oB inline buffer NOT COPIED: ABUFA is zero, so the message "
+                       "names no buffer",
+                       (unsigned)mon_number);
+        servicer_log(sv, line);
+        return;
+    }
+
+    if (!ndbus_servicer_write_inline_buffer(sv, msg_byte, buffer, count))
+    {
+        (void)snprintf(line, sizeof line,
+                       "mailbox MON %oB inline buffer FAILED: %u byte(s) to pool 0x%08X",
+                       (unsigned)mon_number, (unsigned)count, (unsigned)target);
+        servicer_log(sv, line);
+        return;
+    }
+
+    char text[25];
+    uint32_t shown = (count < 24u) ? count : 24u;
+    for (uint32_t q = 0; q < shown; q++)
+    {
+        uint8_t b = buffer[q];
+        text[q] = (b >= 0x20u && b < 0x7Fu) ? (char)b : '.';
+    }
+    text[shown] = '\0';
+
+    (void)snprintf(line, sizeof line,
+                   "mailbox MON %oB inline buffer COPIED n=%u src=0x%08X -> pool 0x%08X \"%s\"",
+                   (unsigned)mon_number, (unsigned)count, (unsigned)arg_addresses[2],
+                   (unsigned)target, text);
+    servicer_log(sv, line);
+}
+
 bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint32_t saved_p,
                                         uint16_t mon_number, uint32_t arg_count,
                                         const uint32_t *arg_addresses,
@@ -1161,6 +1353,12 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
         (void)write16(sv, val_slot, (uint16_t)(v >> 16u));
         (void)write16(sv, val_slot + 2u, (uint16_t)(v & 0xFFFFu));
     }
+
+    /* THE INLINE USER BUFFER, after the argument slots because the microcode's copy
+     * routine reads arg[1]'s value and arg[2]'s address out of exactly those slots.
+     * Without this SINTRAN takes the inline arm - it never sends 3RMED - and prints
+     * whatever stale bytes are at ABUFA. */
+    mon_inline_copy(sv, msg_byte, mon_number, arg_count, arg_addresses, arg_values);
 
     /* THE SWAPPER'S OWN REQUEST AND STATUS WORDS, for MON 377B only.
      *

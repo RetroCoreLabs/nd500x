@@ -406,6 +406,21 @@ bool ndbus_nd5000_set_process_host(NdbusNd5000 *nd,
  *                which is a legitimate base and not a "nothing learned" signal.
  * @return true on success; false when nd is NULL.
  */
+/**
+ * Give the station a way to read ND-500 DATA memory through the MMU.
+ *
+ * Needed for the inline user buffer of the output monitor calls - see
+ * ndbus_mon_requires_inline_copy(). Without it those calls stop with the buffer
+ * unwritten and SINTRAN prints whatever stale bytes are at ABUFA.
+ *
+ * @param nd   The station.
+ * @param read The reader, or NULL to remove it.
+ * @return false only when nd is NULL.
+ */
+bool ndbus_nd5000_set_data_reader(NdbusNd5000 *nd,
+                                  bool (*read)(void *ctx, uint32_t logical_address,
+                                               uint8_t *destination, uint32_t count));
+
 bool ndbus_nd5000_set_dit_declarer(NdbusNd5000 *nd,
                                    void (*declare)(void *ctx, uint32_t base));
 

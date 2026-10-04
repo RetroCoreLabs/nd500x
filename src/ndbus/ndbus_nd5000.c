@@ -1270,6 +1270,20 @@ bool ndbus_nd5000_set_process_host(NdbusNd5000 *nd,
     return true;
 }
 
+bool ndbus_nd5000_set_data_reader(NdbusNd5000 *nd,
+                                  bool (*read)(void *ctx, uint32_t logical_address,
+                                               uint8_t *destination, uint32_t count))
+{
+    if (nd == NULL)
+    {
+        return false;
+    }
+
+    nd->servicer.host.read_nd500_data_bytes = read;
+    nd->servicer.host.ctx = nd;
+    return true;
+}
+
 bool ndbus_nd5000_set_dit_declarer(NdbusNd5000 *nd,
                                    void (*declare)(void *ctx, uint32_t base))
 {

@@ -4695,6 +4695,261 @@ static void test_monitor_call_result(void)
     ndbus_pool_destroy(&pool);
 }
 
+
+/* ----- the inline user buffer, MON 504B/511B/512B -------------------------- */
+
+/** What the fake ND-500 data reader hands back, and how it was asked. */
+static uint8_t  s_inline_src[NDBUS_MON_INLINE_MAX_BYTES];
+static uint32_t s_inline_asked_addr;
+static uint32_t s_inline_asked_count;
+static int      s_inline_calls;
+static bool     s_inline_reader_ok;
+
+static bool test_read_nd500_data_bytes(void *ctx, uint32_t logical_address,
+                                       uint8_t *destination, uint32_t count)
+{
+    (void)ctx;
+    s_inline_calls++;
+    s_inline_asked_addr  = logical_address;
+    s_inline_asked_count = count;
+    if (!s_inline_reader_ok || count > NDBUS_MON_INLINE_MAX_BYTES)
+    {
+        return false;
+    }
+    for (uint32_t i = 0; i < count; i++)
+    {
+        destination[i] = s_inline_src[i];
+    }
+    return true;
+}
+
+static void test_inline_user_buffer(void)
+{
+    printf("Layer 23: the inline user buffer for the output monitor calls\n");
+
+    /* THE SET IS ASSERTED EXHAUSTIVELY, NOT SAMPLED. The failure this guards
+     * against is someone adding a MON number because it sits next to one that is
+     * in the set - which is how 513B gets added, and 513B shares only SINTRAN's
+     * handler body, never a microcode obligation. A sweep fails on any addition;
+     * three spot checks do not. */
+    {
+        unsigned in_set = 0;
+        bool only_the_three = true;
+        for (uint32_t m = 0; m <= 0x1FFu; m++)
+        {
+            bool want = (m == NDBUS_MON_504B_NOUTS)
+                     || (m == NDBUS_MON_511B_DVIO)
+                     || (m == NDBUS_MON_512B_A5XMSG);
+            bool got = ndbus_mon_requires_inline_copy((uint16_t)m);
+            if (got) { in_set++; }
+            if (got != want) { only_the_three = false; }
+        }
+        CHECK(in_set == 3u, "exactly three monitor calls inline-copy their buffer");
+        CHECK(only_the_three,
+              "and they are 504B, 511B and 512B - the microcode's CALL_5XX set, nothing "
+              "adjacent to them");
+        CHECK(!ndbus_mon_requires_inline_copy(0x14Bu),
+              "513B is NOT in the set: it shares SINTRAN's handler body with 512B, and "
+              "sharing a handler is not sharing a microcode obligation");
+    }
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the inline buffer");
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+    NdbusNd5000 nd;
+    mbx_init_structures(&pool);
+    mbx_attach(&nd, &pool, &fabric);
+
+    /* ABUFA names a WORD address. Point it at a byte address this pool holds. */
+    const uint32_t target_byte = 0x00003000u;
+    const uint32_t target_word = target_byte >> 1;
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MON_ABUFA_WORD * 2u,
+                             (uint16_t)(target_word >> 16));
+    (void)ndbus_pool_write16(&pool, MBX_MSG + (NDBUS_MON_ABUFA_WORD + 1u) * 2u,
+                             (uint16_t)(target_word & 0xFFFFu));
+
+    CHECK(ndbus_servicer_inline_buffer_target(&nd.servicer, MBX_MSG) == target_byte,
+          "ABUFA resolves by SHIFTING - read as a flat byte offset it lands two "
+          "megabytes outside the window and the program prints stale bytes");
+
+    /* ODD LENGTH ON PURPOSE. Nineteen is the length a real run showed
+     * ("CPU type         : "), and an odd count is where a parity fault hides:
+     * the tail halfword has only one real byte in it. */
+    static const char text[] = "CPU type         : ";
+    const uint32_t n = (uint32_t)(sizeof text - 1u);   /* 19 */
+    CHECK(n == 19u && (n & 1u) == 1u, "the sample is 19 bytes, an odd count");
+
+    CHECK(ndbus_servicer_write_inline_buffer(&nd.servicer, MBX_MSG,
+                                             (const uint8_t *)text, n),
+          "an inline buffer of 19 bytes is written");
+
+    /* EVERY BYTE, BY INDEX. Not a string compare and not a search of a log: a
+     * compare that stops at the first difference, or one that looks for a
+     * substring, is how an every-other-byte fault gets reported as a pass. */
+    {
+        uint32_t wrong = 0;
+        uint32_t first_wrong = 0xFFFFFFFFu;
+        for (uint32_t i = 0; i < n; i++)
+        {
+            uint8_t got = ndbus_pool_read8(&pool, target_byte + i);
+            if (got != (uint8_t)text[i])
+            {
+                wrong++;
+                if (first_wrong == 0xFFFFFFFFu) { first_wrong = i; }
+            }
+        }
+        if (wrong != 0u)
+        {
+            printf("    %u of %u byte(s) wrong, first at index %u: wanted 0x%02X got 0x%02X\n",
+                   (unsigned)wrong, (unsigned)n, (unsigned)first_wrong,
+                   (unsigned)(uint8_t)text[first_wrong],
+                   (unsigned)ndbus_pool_read8(&pool, target_byte + first_wrong));
+        }
+        CHECK(wrong == 0u,
+              "all 19 bytes land in order - a pair swap here is exactly how a user name "
+              "comes out interleaved");
+    }
+
+    /* The odd final byte pairs with ZERO. The alternative is reading one byte past
+     * the caller's buffer, which a sanitizer catches and a release build does not. */
+    CHECK(ndbus_pool_read8(&pool, target_byte + n) == 0x00u,
+          "the odd tail byte pairs with zero, not with whatever follows the source");
+
+    /* WSMC is what makes SINTRAN read the message instead of asking for the buffer.
+     * Set explicitly, because a bit that happened to be set already is what made
+     * this fail silently rather than loudly. */
+    {
+        uint16_t miflag = ndbus_pool_read16(&pool, MBX_MSG - NDBUS_MON_MIFLAG_BACK_BYTES);
+        CHECK((miflag & NDBUS_MON_MIFLAG_WSMC) != 0u,
+              "MIFLAG bit WSMC is set, 16 bytes BEFORE the message base");
+    }
+
+    /* BOTH GUARDS ARE THE MICROCODE'S, and both mean COPY NOTHING. The over-size
+     * one is the trap: clamping and copying a prefix is the "helpful" change, and
+     * it is a divergence. Prove it by leaving a witness byte and checking it
+     * survives. */
+    (void)ndbus_pool_write8(&pool, target_byte, 0xA5u);
+    CHECK(!ndbus_servicer_write_inline_buffer(&nd.servicer, MBX_MSG,
+                                              (const uint8_t *)text, 0u),
+          "a count of zero copies nothing - guard 010716");
+    CHECK(ndbus_pool_read8(&pool, target_byte) == 0xA5u, "and the buffer is untouched");
+
+    CHECK(!ndbus_servicer_write_inline_buffer(&nd.servicer, MBX_MSG,
+                                              (const uint8_t *)text,
+                                              NDBUS_MON_INLINE_MAX_BYTES + 1u),
+          "a count over 0o4000 copies nothing - guard 010717");
+    CHECK(ndbus_pool_read8(&pool, target_byte) == 0xA5u,
+          "and it copies NOTHING, not a truncated prefix - a clamp here would be a "
+          "divergence from the microcode");
+
+    CHECK(ndbus_servicer_write_inline_buffer(&nd.servicer, MBX_MSG,
+                                             (const uint8_t *)text,
+                                             1024u),
+          "a count well inside the limit is accepted");
+
+    /* ABUFA ZERO MEANS NO BUFFER. Writing to pool offset 0 would corrupt the base
+     * of the window instead of declining. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MON_ABUFA_WORD * 2u, 0u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + (NDBUS_MON_ABUFA_WORD + 1u) * 2u, 0u);
+    CHECK(ndbus_servicer_inline_buffer_target(&nd.servicer, MBX_MSG) == 0u,
+          "a zero ABUFA resolves to zero");
+    CHECK(!ndbus_servicer_write_inline_buffer(&nd.servicer, MBX_MSG,
+                                              (const uint8_t *)text, n),
+          "and nothing is written, rather than writing over the base of the window");
+
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
+static void test_inline_buffer_on_a_mon_stop(void)
+{
+    printf("Layer 24: a monitor-call stop carries the buffer with it\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the end-to-end stop");
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+    NdbusNd5000 nd;
+    mbx_init_structures(&pool);
+    mbx_attach(&nd, &pool, &fabric);
+
+    nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+    s_start_calls = 0;
+    s_start_ctx_byte = 0;
+    s_start_take = true;
+    (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+    (void)ndbus_nd5000_set_data_reader(&nd, test_read_nd500_data_bytes);
+    mbx_build_message(&pool, NDBUS_MICFU_START, NDBUS_N5STA_TO_ND500);
+    mbx_replay_activation(&pool);
+    (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+    CHECK(!ndbus_nd5000_service_mailbox(&nd), "a process is started so its message is known");
+
+    const uint32_t target_byte = 0x00003000u;
+    const uint32_t target_word = target_byte >> 1;
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MON_ABUFA_WORD * 2u,
+                             (uint16_t)(target_word >> 16));
+    (void)ndbus_pool_write16(&pool, MBX_MSG + (NDBUS_MON_ABUFA_WORD + 1u) * 2u,
+                             (uint16_t)(target_word & 0xFFFFu));
+
+    /* The layout read out of the copy routine at 010662: arg[1]'s VALUE is the
+     * count, arg[2]'s ADDRESS is the buffer. Give the two a different shape so a
+     * swap cannot pass - arg[1]'s address and arg[2]'s value are decoys. */
+    static const char payload[] = "SYSTEM";
+    const uint32_t n = 6u;
+    for (uint32_t i = 0; i < n; i++) { s_inline_src[i] = (uint8_t)payload[i]; }
+
+    uint32_t addrs[3] = { 0x08000100u, 0x08000200u, 0x1000103Au };
+    uint32_t vals[3]  = { 0x00000001u, n,           0x44656365u };
+
+    s_inline_calls = 0;
+    s_inline_reader_ok = true;
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 1u, 0x08005097u,
+                                             (uint16_t)NDBUS_MON_504B_NOUTS, 3u, addrs, vals),
+          "a MON 504B stop is recorded");
+    CHECK(s_inline_calls == 1, "and it asked the host for the buffer exactly once");
+    CHECK(s_inline_asked_count == n,
+          "the COUNT came from arg[1]'s VALUE, not its address and not arg[2]'s value");
+    CHECK(s_inline_asked_addr == addrs[2],
+          "and the SOURCE from arg[2]'s ADDRESS, not its value");
+    {
+        bool ok = true;
+        for (uint32_t i = 0; i < n; i++)
+        {
+            if (ndbus_pool_read8(&pool, target_byte + i) != (uint8_t)payload[i]) { ok = false; }
+        }
+        CHECK(ok, "the text is in the pool at ABUFA, byte for byte");
+    }
+    CHECK((ndbus_pool_read16(&pool, MBX_MSG - NDBUS_MON_MIFLAG_BACK_BYTES)
+           & NDBUS_MON_MIFLAG_WSMC) != 0u,
+          "and WSMC is set, so SINTRAN reads the message rather than asking");
+
+    /* A MON THAT IS NOT IN THE SET MUST NOT ASK AT ALL. Asking is harmless-looking
+     * and would mean we had invented an obligation the microcode does not have. */
+    s_inline_calls = 0;
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 1u, 0x08005097u, 0x14Bu, 3u,
+                                             addrs, vals),
+          "a MON 513B stop is recorded");
+    CHECK(s_inline_calls == 0, "and no buffer was fetched for it");
+
+    /* A DECLINING READER LEAVES THE BUFFER ALONE AND STILL RECORDS THE STOP. A
+     * refusal here would park the process forever, which is worse than a wrong
+     * string. */
+    (void)ndbus_pool_write8(&pool, target_byte, 0x5Au);
+    s_inline_calls = 0;
+    s_inline_reader_ok = false;
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 1u, 0x08005097u,
+                                             (uint16_t)NDBUS_MON_504B_NOUTS, 3u, addrs, vals),
+          "a stop whose buffer cannot be read is STILL recorded");
+    CHECK(s_inline_calls == 1, "the read was attempted");
+    CHECK(ndbus_pool_read8(&pool, target_byte) == 0x5Au,
+          "and nothing was written - a partial buffer printed as text is a wrong "
+          "answer that looks like an answer");
+
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
 static void test_micfu_classes(void)
 {
     printf("Layer 21: which MICFU resumes a loaded process and which loads a context\n");
@@ -4902,6 +5157,8 @@ int main(void)
     test_monitor_call_record();
     test_monitor_call_result();
     test_micfu_classes();
+    test_inline_user_buffer();
+    test_inline_buffer_on_a_mon_stop();
     test_message_x5cpu();
     test_pool_snapshot();
 
