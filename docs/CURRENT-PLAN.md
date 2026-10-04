@@ -290,6 +290,27 @@ A differential run of the reference emulator's
 bring-up on this lane. Both reach the SAME instruction before diverging, so
 the divergence is narrow and named.
 
+### CORRECTION 2026-10-04: the inline buffer is NOT the string corruption
+
+The section below says the missing inline user buffer "closes the
+string-corruption hunt". It does not, and the claim is withdrawn.
+
+MEASURED after the fix landed: a full PLACE-DOMAIN + RUN +
+LIST-ACTIVE-PROCESSES run performs ZERO MON 504B, 511B or 512B calls, and the
+process name still prints as "(YSTSMS S S S S S)TERMINAL-1". So the inline
+copy cannot be what corrupts it - LIST-ACTIVE-PROCESSES is an ND-100 SINTRAN
+command and no ND-500 output monitor call is involved in printing that line.
+
+What the inline-buffer work IS: a correct port of a piece this emulator
+genuinely lacked. The reference performs 39 of those copies for CPU-STAT, and
+the mechanism and both guards are read out of the microcode. It is also, as of
+this date, NEVER EXERCISED LIVE on this lane - only by its unit tests - because
+no ND-500 program has yet reached its own output calls here. Treat it as
+unverified against a real run.
+
+The ruled-out list below stands; it was established independently of this
+claim. The string corruption itself is OPEN again with no candidate.
+
 ### SETTLED - the output monitor calls carry their buffer inline
 
 SINTRAN never asks for an output call's user buffer. MP-P2-N500.NPL:140656
@@ -341,6 +362,28 @@ measured on this lane and neither yet explained:
   zero there makes the segment non-growable. Either the record is being read
   from the wrong place or SINTRAN never wrote one.
 - `PST entry 13 is ZERO` was already observed directly in an earlier run.
+
+### WHERE THE SEGMENT-13 WORK ENDED UP, 2026-10-04
+
+The cause was found and fixed, and it was in this emulator: the restart's
+answer slots are a union whose arm follows the message kind, and this side
+decoded the monitor-call arm over a trap record. See the commit "Read the
+restart's answer slots only when they hold an answer".
+
+MEASURED after the fix, same bring-up:
+- the new gate fires 65 times in one run, so the mis-decode was frequent;
+- PST completions go from 2 to 3 - one more segment now completes;
+- PLACE-DOMAIN CPU-STAT now finishes cleanly: control store, swapper and
+  "Allocating memory - 7342B pages", where before the swapper never completed;
+- RUN now reports a well-formed page fault instead of dying:
+      ADDRESS OUTSIDE DATA SEGMENT / PAGE FAULT
+      At program address: 1 43611B   Logical address: 1 44032B
+      Physical segment: 12D   MMS: 24000000017B
+  which is the NEXT problem, not the old one.
+
+So the 201B swapper fatal and the segment-13 stall are gone. The remaining
+failure is a page fault in segment 12 during RUN, and it is a fresh
+investigation rather than a continuation of this one.
 
 ### Segment 13: the stall is localised to one branch, and the cause sits
 ### one step EARLIER than the PST
