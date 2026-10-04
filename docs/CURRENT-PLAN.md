@@ -378,6 +378,47 @@ TWICE in the whole run.
 So nothing is broken in the PST write path. The swapper CHOOSES a different
 path for segment 13.
 
+RETRACTED SAME DAY - THE COUNT IS NOT SINTRAN'S ANSWER. The section below
+claims the count comes from the MON 377B at 0x08004869. That instruction
+NEVER EXECUTES: the bridge logs a resume address on every monitor call, and
+`resume=0x8004879` - the address after that 16-byte call - appears zero times
+in a full run. The three 377B sites that do run resume at 0x8001797,
+0x8002771 and 0x8008255.
+
+The error was reading the LINEAR DISASSEMBLY as the execution path. 0x08004887
+is reached by a JUMP from 0x08004649, not by falling through the code printed
+above it, so the MON call that sits between them in the listing is not on the
+path at all. Adjacency in a listing is not control flow - the same mistake as
+reading two labels as a dispatch.
+
+THE ACTUAL PATH, from the trace (0x08004649 + 0x239 = 0x08004882):
+
+    0800461C: r := b.0x18
+    0800461E: w comp2 r.0x56,$0x8014D20
+    08004630: w stz   r.0x56
+    08004635: call    $0x8002BE4          % result is the candidate source
+    08004643: r := b.0x18
+    08004645: w comp2 b.0x38,@b.0x18
+    08004649: if << go $0x239             -> 0x08004882
+    08004882: r := b.0x8
+    08004884: w move  b.0x38,r.0x14
+    08004887: h wconv b.0x50,r2           % stores the count
+
+No monitor call is on it. The count comes from a register set before the jump,
+and the only thing on the path that could set it is the call to 0x08002BE4 at
+0x08004635. THAT is the next thing to read - not asserted, just the one
+candidate the path allows.
+
+PC ATTRIBUTION IN THE WATCHES IS CORRECT, checked rather than assumed: the
+store `08000DE2: h2 =: r.0x12` is logged against PC=0x08000DE2 and its bytes
+land at exactly slot+0x12. So the logged PC is the instruction performing the
+write, not its successor, and the earlier attributions in this document stand.
+In this syntax `=:` is a store and `:=` is a load.
+
+SUPERSEDED REASONING BELOW - the correlation of count values with passes is
+sound and still holds; only the claim about where the value comes from is
+withdrawn.
+
 THE COUNT IS SINTRAN'S ANSWER - the stall is at the seam, 2026-10-04.
 
 PC=0x08004887 writes the count, and it does so immediately before every pass
