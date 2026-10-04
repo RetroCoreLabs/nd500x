@@ -1527,8 +1527,24 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
         if (td < 0) td = nd500_settings()->trap_dispatch;
         if (td && cpu->THA != 0 && !cpu->trap_dispatch_pending) {
             int tn = 0; for (int i = 0; i < 64; i++) { if ((trapBit >> i) & 1) { tn = i; break; } }
-            uint32_t hp = nd500_mmu_translate(cpu, cpu->THA + tn * 4, 0, 0);
-            uint32_t haddr = nd500_trap_occurred() ? 0 : nd500_bus_read32(cpu->machine, hp);
+            /* READ THE SLOT WITHOUT FAULTING. This probe runs on EVERY non-ignorable
+             * trap, and nd500_mmu_translate RAISES one when the handler vector's own
+             * page is absent - a fault inside the handling of a fault.
+             *
+             * MEASURED 04-OCT-2026, the moment THA stopped being zero on the octobus
+             * lane: the entry-point instruction fetch at 0x08000004 faulted, this
+             * probe then read THA[38] as DATA, that read faulted in turn, and the
+             * station reported "parked on trap 46B at P=0x8000004 fault=0x8000004
+             * psn=12" - the instruction address with the DATA segment, which is the
+             * nested fault wearing the outer one's address. SINTRAN paged in a
+             * segment-12 page, the fetch faulted again, and the run spun 192 times
+             * on its first instruction. With THA=0 the probe never ran, which is why
+             * the defect only appeared once a real THA arrived.
+             *
+             * A missing page means no handler is reachable, which is the same
+             * outcome as an empty slot: fall through to the sink. */
+            uint32_t hp = nd500_mmu_peek_space(cpu, cpu->THA + tn * 4, (uint8_t)cpu->CED, 0);
+            uint32_t haddr = (hp == 0xFFFFFFFFu) ? 0u : nd500_bus_read32(cpu->machine, hp);
             { static int thd = -1;
               if (thd < 0) thd = nd500_settings()->thadbg;
               if (thd) fprintf(stderr, "[THADBG] trap %d trapPC=0x%08X data=0x%08X CED=%u CAD=%u THA=0x%08X slot@0x%08X haddr=0x%08X xdom=%d\n",

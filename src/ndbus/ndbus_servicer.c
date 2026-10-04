@@ -470,6 +470,13 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
     uint32_t b_raw = read32(sv, msg_byte + COPY_ADDR_B_BYTE);
     uint32_t count = read16(sv, msg_byte + COPY_COUNT_BYTE);
 
+    /* WHICH PHYSICAL SEGMENT the A end named. Two PCBs are served in a run and
+     * only one of them receives a real trap handler address: copy #4 writes zero
+     * to 0x0740B6 and copy #17 writes 0x08001628 to 0x08C0B6. The destination
+     * comes from this segment number, not from a process number, so the segment
+     * is the only thing that says whether the PCB our faulting process uses
+     * (DITBASE from PST[PS]) is the one SINTRAN meant. */
+    uint16_t a_segment = 0xFFFFu;
     if (a_is_segment_relative)
     {
         /* PHYSRD/PHYSWR carry a physical segment in MSWMC and an offset inside it.
@@ -485,6 +492,7 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
          * So the fallback happens, because refusing the transfer outright would be
          * a different invention, but it is counted and logged. */
         uint16_t segment = read16(sv, msg_word(msg_byte, NDBUS_MSG_MSWMC));
+        a_segment = segment;
         uint32_t resolved = 0u;
         if (resolve_physical_segment(sv, segment, a_raw, &resolved))
         {
@@ -597,9 +605,11 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
          * them copy the LAST value written. Printing the first four bytes is what
          * tells those two apart. */
         (void)snprintf(line, sizeof line,
-                       "mailbox copy #%lu: %u bytes 0x%06X -> 0x%06X, value 0x%04X%04X",
+                       "mailbox copy #%lu: %u bytes 0x%06X -> 0x%06X, value 0x%04X%04X, "
+                       "A-segment %d",
                        sv->copies_done, (unsigned)count, (unsigned)src, (unsigned)dst,
-                       (unsigned)read16(sv, dst), (unsigned)read16(sv, dst + 2u));
+                       (unsigned)read16(sv, dst), (unsigned)read16(sv, dst + 2u),
+                       (a_segment == 0xFFFFu) ? -1 : (int)a_segment);
         servicer_log(sv, line);
     }
     else if (sv->copies_done == (unsigned long)NDBUS_SERVICER_COPY_LOG_LIMIT + 1ul)
