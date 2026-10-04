@@ -378,6 +378,42 @@ TWICE in the whole run.
 So nothing is broken in the PST write path. The swapper CHOOSES a different
 path for segment 13.
 
+THE DECISION RULE, READ OFF THE MACHINE 2026-10-04. Both operands of the
+branch below, captured at the instruction that makes it (MFBUS_PCDUMP in
+nd100x). The table at logical 0x08023D40 is CONSTANT in every pass -
+00000000 000003FF 0000FFFF 00000000 - so the only varying side is the local:
+
+    R=0x28010828  PST[10]   B+0x14 = 0              branch taken, not completed
+    R=0x2801082C  PST[11]   B+0x14 = 0, then 8, 8   falls through, COMPLETED
+    R=0x28010830  PST[12]   B+0x14 = 1, 1           falls through, COMPLETED
+    R=0x28010834  PST[13]   B+0x14 = 0              branch taken, not completed
+
+The rule is exactly: B+0x14 > 0 completes the entry, 0 skips it. Note that
+SEGMENT 11 ALSO STARTS AT ZERO and only completes once the value has grown to
+8 - so a zero here is a normal transient state, not an error. Segment 13's
+value never grows. It is a per-segment count, and segment 13's stays zero even
+though the first step already allocated frame 0xFF4 for it.
+
+7 of 8 dumps used, so the capture is complete and not truncated.
+
+WHERE THE COUNT COMES FROM - the open thread. There is NO store to b.0x14
+anywhere in the swapper's 36 KB of code: the whole image disassembles with 2616
+assignments and not one of them targets that local. So it is not a local the
+routine writes, it is an INCOMING CALL PARAMETER written by the caller through
+a different base register. The next step is the caller of the frame whose B is
+0x08024744.
+
+TWO FACTS WORTH KEEPING FOR ANY FUTURE READ OF THIS CODE:
+- The swapper's program image is CONTIGUOUS in the pool, so no page walk is
+  needed to read it: pa = 0x74800 + (logical AND 0xFFFFFF). Verified at four
+  widely spaced points (0x08000473, 0x08002E38, 0x08003770, 0x08008115) and
+  identical in three independent pool snapshots.
+- That makes the whole swapper disassemblable in one command, which is how the
+  "no store to b.0x14" negative was established rather than guessed:
+      dd if=<snapshot> bs=1 skip=$((16 + 0x74800)) count=$((0x9000)) of=sw.bin
+      nd500-dis -a -noansi -b 0x08000000 sw.bin
+  The snapshot file carries a 16-byte header before the pool image.
+
 THE DECIDING INSTRUCTION, FOUND 2026-10-04. One conditional decides whether
 a segment's PST entry is completed, and it is reached with identical code and
 identical registers in both cases.
