@@ -1006,6 +1006,15 @@ static void answer_message_in_place(NdbusServicer *sv, uint32_t msg_byte, uint16
     }
 }
 
+bool ndbus_servicer_stop_was_monitor_call(const NdbusServicer *sv, uint16_t x5cpu)
+{
+    if (sv == NULL || x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    {
+        return false;
+    }
+    return sv->process_stop_kind[x5cpu] == NDBUS_STOPR_MOCALL;
+}
+
 bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t trap_number,
                                      uint32_t trapping_pc, uint32_t trap_address,
                                      uint32_t mms_status, uint16_t physical_segment)
@@ -1053,6 +1062,13 @@ bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t
     /* The header is identical on both generations; only the trap-dependent area
      * below differs. STOPR = 2 is TRAPCODE. */
     (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_STOPR), NDBUS_STOPR_TRAPCODE);
+
+    /* THE ARM THIS MESSAGE NOW CARRIES. Read back on the restart so the
+     * monitor-call answer arm is not decoded over a trap record. */
+    if (x5cpu < NDBUS_SERVICER_MAX_PROCESSES)
+    {
+        sv->process_stop_kind[x5cpu] = NDBUS_STOPR_TRAPCODE;
+    }
 
     /* The saved P goes in TWICE - halfwords 0o12-0o13 and again 0o14-0o15. */
     (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_NUMPA), (uint16_t)(trapping_pc >> 16u));
@@ -1361,6 +1377,10 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
      * against TRAPCODE for a trap. NUMPA carries the argument count and MCNO the
      * monitor number. */
     (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_STOPR), NDBUS_STOPR_MOCALL);
+    if (x5cpu < NDBUS_SERVICER_MAX_PROCESSES)
+    {
+        sv->process_stop_kind[x5cpu] = NDBUS_STOPR_MOCALL;
+    }
     (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_NUMPA), (uint16_t)arg_count);
     (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_MCNO), mon_number);
 

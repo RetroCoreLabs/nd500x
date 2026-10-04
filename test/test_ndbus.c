@@ -4723,6 +4723,89 @@ static bool test_read_nd500_data_bytes(void *ctx, uint32_t logical_address,
     return true;
 }
 
+/* ----- the answer slots are a union; the arm follows the message kind ----- */
+
+static void test_stop_kind_selects_the_arm(void)
+{
+    printf("Layer 25: a restart after a TRAP must not be read as a monitor-call answer\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the stop-kind test");
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+    NdbusNd5000 nd;
+    mbx_init_structures(&pool);
+    mbx_attach(&nd, &pool, &fabric);
+
+    /* Nothing has stopped, so no arm applies. A default of "monitor call" here
+     * would decode whatever happens to be in the slots at start-up. */
+    CHECK(!ndbus_servicer_stop_was_monitor_call(&nd.servicer, 0u),
+          "before any stop, no process carries a monitor-call answer");
+    CHECK(!ndbus_servicer_stop_was_monitor_call(&nd.servicer, 1u),
+          "and that holds for every process, not just the first");
+
+    nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+    s_start_calls = 0;
+    s_start_ctx_byte = 0;
+    s_start_take = true;
+    (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+    mbx_build_message(&pool, NDBUS_MICFU_START, NDBUS_N5STA_TO_ND500);
+    mbx_replay_activation(&pool);
+    (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+    CHECK(!ndbus_nd5000_service_mailbox(&nd), "a process is started");
+
+    /* A MONITOR-CALL stop selects the monitor-call arm. */
+    uint32_t addrs[2] = { 0x08001000u, 0x08001004u };
+    uint32_t vals[2]  = { 0x11112222u, 0x33334444u };
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 1u, 0x08008255u, 0x28u, 2u,
+                                             addrs, vals),
+          "a monitor-call stop is recorded");
+    CHECK(ndbus_servicer_stop_was_monitor_call(&nd.servicer, 1u),
+          "and the process now carries a monitor-call answer");
+
+    /* A TRAP stop over the SAME message takes the arm away again. This is the
+     * ordering that bites: the trap record goes into the very halfwords the
+     * answer uses, so a reader that does not ask the kind decodes the record. */
+    CHECK(ndbus_servicer_answer_trap_stop(&nd.servicer, 1u, 0x26u, 0x0800467Fu, 0x00000004u, 0xA000000Du, 13u),
+          "a trap stop is recorded on the same process");
+    CHECK(!ndbus_servicer_stop_was_monitor_call(&nd.servicer, 1u),
+          "and the monitor-call arm NO LONGER applies - reading it here would take "
+          "K from the TRAPCODE value and FUNCV from the trapping P");
+
+    /* THE SLOTS REALLY DO COLLIDE - proven, not asserted. After the trap stop the
+     * monitor-call reader still "succeeds" and returns values derived from the
+     * trap record, which is exactly why the kind has to be consulted. */
+    {
+        NdbusMonResult res;
+        bool read_ok = ndbus_servicer_read_monitor_result(&nd.servicer, MBX_MSG, &res);
+        CHECK(read_ok,
+              "the monitor-call reader still succeeds over a trap record - it cannot "
+              "tell, which is the whole reason for the kind");
+        if (read_ok)
+        {
+            CHECK(res.kflip == NDBUS_STOPR_TRAPCODE,
+                  "and it reads K from the STOPR slot, which a trap stop set to "
+                  "TRAPCODE - a non-zero K the process never earned");
+        }
+    }
+
+    /* And a monitor-call stop after the trap restores the arm, so the gate is not
+     * a one-way latch that would silence every later answer. */
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 1u, 0x08008255u, 0x28u, 2u,
+                                             addrs, vals),
+          "a later monitor-call stop is recorded");
+    CHECK(ndbus_servicer_stop_was_monitor_call(&nd.servicer, 1u),
+          "and the arm applies again - the gate is not a latch");
+
+    /* An out-of-range process is refused rather than indexing past the array. */
+    CHECK(!ndbus_servicer_stop_was_monitor_call(&nd.servicer, NDBUS_SERVICER_MAX_PROCESSES),
+          "an out-of-range process number is refused");
+    CHECK(!ndbus_servicer_stop_was_monitor_call(NULL, 0u), "and a NULL servicer");
+
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
 static void test_inline_user_buffer(void)
 {
     printf("Layer 23: the inline user buffer for the output monitor calls\n");
@@ -5157,6 +5240,7 @@ int main(void)
     test_monitor_call_record();
     test_monitor_call_result();
     test_micfu_classes();
+    test_stop_kind_selects_the_arm();
     test_inline_user_buffer();
     test_inline_buffer_on_a_mon_stop();
     test_message_x5cpu();

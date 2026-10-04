@@ -415,6 +415,28 @@ typedef struct NdbusServicer
      *  single "active message" field gets this wrong. */
     uint32_t      process_msg[NDBUS_SERVICER_MAX_PROCESSES];
 
+    /** WHICH STOP EACH PROCESS IS PARKED ON, because the restart's answer slots
+     *  are a UNION and the arm depends on the message KIND.
+     *
+     *  The reference states the rule on the slots themselves (MSG_CONMC carve
+     *  015676-751): KFLIP re-uses the STOPR slot at 0o11, the write-back MASK
+     *  re-uses NUMPA at 0o12, and FUNCV spans MCNO/MSWMC at 0o13-0o14 - "SIX
+     *  unions live in this block, so the arm depends on the message KIND".
+     *
+     *  A TRAP stop writes the trap record into those same halfwords: STOPR
+     *  becomes TRAPCODE(2), the saved P occupies 0o13-0o14, TRAPN sits at 0o16.
+     *  Decoding the monitor-call arm over that reads the emulator's OWN trap
+     *  record back as an answer. MEASURED 2026-10-04: a 3MONCO restart of a
+     *  process parked on trap 46B produced K=1 from the TRAPCODE value and
+     *  FUNCV=0x467F0800 from the trapping P 0x0800467F with its halves swapped,
+     *  put that in I1, and the process faulted on it at once - trap 44B, "no
+     *  data capability, segment 8", which is the protection violation the
+     *  console then reported.
+     *
+     *  NDBUS_STOPR_MOCALL or NDBUS_STOPR_TRAPCODE; 0 when the process has not
+     *  stopped. */
+    uint16_t      process_stop_kind[NDBUS_SERVICER_MAX_PROCESSES];
+
     unsigned long trap_stops_attempted; /**< counted before anything can refuse */
     unsigned long trap_stops_posted;    /**< records actually written */
     unsigned long trap_stops_declined;  /**< no message recorded for that X5CPU */
@@ -684,6 +706,20 @@ uint32_t ndbus_servicer_inline_buffer_target(const NdbusServicer *sv, uint32_t m
  */
 bool ndbus_servicer_write_inline_buffer(NdbusServicer *sv, uint32_t msg_byte,
                                         const uint8_t *source, uint32_t count);
+
+/**
+ * Does this process's parked message carry a MONITOR-CALL answer?
+ *
+ * The restart's answer slots are a union whose arm follows the message kind, so
+ * a caller must ask this before reading them. True only when the process last
+ * stopped for a monitor call; false after a trap stop, and false when it has not
+ * stopped at all.
+ *
+ * @param sv    The servicer.
+ * @param x5cpu The process, zero-based.
+ * @return true when NdbusMonResult may be read for that process.
+ */
+bool ndbus_servicer_stop_was_monitor_call(const NdbusServicer *sv, uint16_t x5cpu);
 
 /** What SINTRAN sent back with a 3MONCO restart. */
 typedef struct NdbusMonResult
