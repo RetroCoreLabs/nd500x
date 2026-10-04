@@ -1420,7 +1420,24 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
      * PST entry 13 is never backed, after which the monitor reports that the swapper
      * stopped. Whether SINTRAN read an error we left in SWPST is exactly what this
      * says. Bounded. */
-    if (mon_number == 0377u && sv->mon_calls_posted < 24u)
+    /* THE SWAPPER-WORDS LOG IS CAPPED, AND THE CAP ANNOUNCES ITSELF.
+     *
+     * It was a bare `< 24`. MEASURED 2026-10-04: a run made 36 MON 377B calls,
+     * so the log showed 20 of them and said nothing, and a census of SWPFU taken
+     * off it reported 14 LNEWSWAP and 6 LSWPAGE for a run that made more of
+     * both. A request mix read from a truncated log is not a request mix. */
+    if (mon_number == 0377u && sv->mon_calls_posted == NDBUS_SERVICER_SWPWORDS_LOG_LIMIT + 1u)
+    {
+        char capline[160];
+        (void)snprintf(capline, sizeof capline,
+                       "mailbox MON 377B swapper words: cap of %u reached - later "
+                       "requests are NOT logged, so silence past this point is not "
+                       "evidence",
+                       (unsigned)NDBUS_SERVICER_SWPWORDS_LOG_LIMIT);
+        servicer_log(sv, capline);
+    }
+
+    if (mon_number == 0377u && sv->mon_calls_posted <= NDBUS_SERVICER_SWPWORDS_LOG_LIMIT)
     {
         /* THE CONNECT RECORD'S STATE FIELD, which decides whether a fresh segment
          * may GROW on its first write. Word 0o36 of the message; STATE is bits 13:10

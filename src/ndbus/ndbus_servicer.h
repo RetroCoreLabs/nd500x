@@ -248,6 +248,12 @@ bool ndbus_micfu_is_start_class(uint16_t micfu);
 #define NDBUS_MON_MIFLAG_BACK_BYTES 16u
 #define NDBUS_MON_MIFLAG_WSMC 0x0001u
 
+/** How many MON 377B swapper requests a run logs with their words. A run makes
+ *  a few dozen, so this is a runaway guard rather than a filter; it was 24,
+ *  which silently cut a 36-request run's log to 20 and made a SWPFU census read
+ *  off it wrong. The gate announces itself when it is reached. */
+#define NDBUS_SERVICER_SWPWORDS_LOG_LIMIT 4096u
+
 /** Trap 46B, the page fault. The only stop trap with the TRAP_GEN4 record layout. */
 #define NDBUS_TRAP_PAGE_FAULT 0x26u
 
