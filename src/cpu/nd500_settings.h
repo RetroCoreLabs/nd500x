@@ -153,6 +153,10 @@ typedef struct Nd500Settings {
     const char* disk_path;         /* ND500X_DISK                 root disk image */
 
     /* ---- Watchpoints - 0/absent means unset -------------------------------- */
+    /* MMU log level, or -1 when the variable says nothing. The DEFAULT is not a
+     * constant: it depends on who owns the console, so the resolver decides. */
+    int      mmu_log_level;     /* ND500X_MMULOG               0=off 1=errors 2=trace 3=all */
+
     int      ptewatch;          /* ND500X_PTEWATCH             log PTE writes */
     uint32_t ptewatch_page;     /* ND500X_PTEWATCH_PAGE        first watched page */
     uint32_t ptewatch_page2;    /* ND500X_PTEWATCH_PAGE2       second watched page */

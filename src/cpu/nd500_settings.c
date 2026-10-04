@@ -199,6 +199,11 @@ void nd500_settings_load_env(void) {
     s->sfree              = env_u32("ND500X_SFREE");
     s->tape_path          = getenv("ND500X_TAPE");
     s->disk_path          = getenv("ND500X_DISK");
+    /* -1 means "not set", which is not the same as 0 (off) - see the header. */
+    {
+        const char *e = getenv("ND500X_MMULOG");
+        s->mmu_log_level  = (e != NULL) ? atoi(e) : -1;
+    }
     s->ptewatch           = env_flag("ND500X_PTEWATCH");
     s->ptewatch_page      = env_u32_base("ND500X_PTEWATCH_PAGE", 0);
     s->ptewatch_page2     = env_u32_base("ND500X_PTEWATCH_PAGE2", 0);

@@ -459,7 +459,10 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                  * genuinely unmapped, and the three call for different fixes. */
                 {
                     static int shown = 0;
-                    if (!shown) {
+                    /* Gated on the same level as MMU_ERR. A bare fprintf here printed
+                     * on the embedded lane with logging off, straight into the guest's
+                     * SINTRAN session. */
+                    if (!shown && nd500_dbg_get_mmu_log_level() >= MMU_LOG_ERRORS) {
                         shown = 1;
                         fprintf(stderr, "[MMU] page table 0x%08X around entry %d:\n",
                                 page_table_base, l2_index);

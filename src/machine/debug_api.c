@@ -45,7 +45,22 @@ static int g_trace_mode = -1;   /* instruction trace mode */
 static int g_profiling = -1;    /* instruction profiling mode */
 static int g_trap_invalid = -1; /* trap on invalid instruction 0x00 */
 static int g_show_source = 0;   /* 0: off, 1: asm only, 2: c only, 3: both */
-static int g_mmu_log_level = MMU_LOG_ERRORS;  /* MMU logging: 0=off, 1=errors, 2=trace, 3=all */
+/* MMU logging: 0=off, 1=errors, 2=trace, 3=all.
+ *
+ * -1 until resolved, because the DEFAULT DEPENDS ON WHO OWNS THE CONSOLE. On the
+ * standalone lane this emulator's stderr is the developer's terminal and errors
+ * belong there. EMBEDDED IN A REAL MACHINE IT IS THE GUEST'S TERMINAL: the ND-100
+ * is driving a SINTRAN session on the same tty, so an MMU line lands in the middle
+ * of whatever the operator is typing.
+ *
+ * MEASURED 2026-10-04: an interactive PLACE-DOMAIN session came back as
+ * "ND-5000: nc^^cpu-s" with the command mangled, because page-fault lines were
+ * printed between the keystrokes. Demand paging raises page faults BY DESIGN -
+ * 62 of them on one segment in a healthy run - so this is not an error channel on
+ * that lane, it is a flood.
+ *
+ * Harness runs that want it redirect stderr to a file and set ND500X_MMULOG. */
+static int g_mmu_log_level = -1;
 static int g_memtrace_flags = 0;  /* memory access trace flags (bitmask) */
 static FILE* g_trace_file = NULL; /* file for trace output (NULL = stdout) */
 
@@ -148,6 +163,18 @@ int nd500_dbg_set_mmu_log_level(int level) {
 }
 
 int nd500_dbg_get_mmu_log_level(void) {
+    if (g_mmu_log_level < 0) {
+        int from_env = nd500_settings()->mmu_log_level;
+        if (from_env >= 0) {
+            g_mmu_log_level = from_env;
+        } else {
+            /* Embedded: silent, because the console belongs to the guest. */
+            g_mmu_log_level = nd500_embedded ? MMU_LOG_OFF : MMU_LOG_ERRORS;
+        }
+        if (g_mmu_log_level < MMU_LOG_OFF) {
+            g_mmu_log_level = MMU_LOG_OFF;
+        }
+    }
     return g_mmu_log_level;
 }
 
