@@ -1337,7 +1337,36 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
         cpu->trap_saved_info = cpu->mmu_pgf_where;
     else
         cpu->trap_saved_info = 0;
+
+    /* THE OTHER TWO THIRDS OF THE LATCH. Only an MMU-class trap has them; for
+     * anything else they are 0 = "not collected", which is the honest answer and
+     * the one the reference gives. A trap that never touched memory must not be
+     * reported with some earlier fault's physical segment and direction - see the
+     * field comments in cpu_protos.h for the measurement. */
+    if (trapBit & (TRAP_PGF | TRAP_PV)) {
+        cpu->trap_saved_psn      = cpu->mmu_pgf_psn;
+        cpu->trap_saved_is_write = cpu->mmu_pgf_is_write;
+    } else {
+        cpu->trap_saved_psn      = 0;
+        cpu->trap_saved_is_write = 0;
+    }
+
     cpu->mmu_pgf_where = 0;
+    /* mmu_pgf_psn AND mmu_pgf_is_write ARE DELIBERATELY LEFT ALONE.
+     *
+     * Clearing them here was tried and it broke two existing assertions in
+     * test_mmu_translation - including one named "it names the REAL physical
+     * segment, not the stale 0", written precisely to catch a lost psn. Those
+     * tests read the live fields after a trap to check what the WALK recorded, so
+     * the live fields are the walk's last reading by contract and keeping them is
+     * correct.
+     *
+     * The staleness that mattered was never the fields themselves, it was a
+     * consumer treating the last walk's reading as if it belonged to THIS trap.
+     * trap_saved_psn / trap_saved_is_write above are that per-trap record and are
+     * what the embedding reads; a trap with no MMU access in it gets 0 from them,
+     * which is "not collected" rather than somebody else's segment. Anything
+     * reporting a specific trap uses the saved pair, not these two. */
 
     /* Diagnostic (env ND500X_FUWDBG): a kernel-domain (CED==0) trap on a
      * _Udata/_Ustack window address (>=0xF0000000) is the fuword() read of a

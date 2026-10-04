@@ -238,6 +238,31 @@ typedef struct Nd500Cpu {
      * struct tail so adding them does not shift any earlier field's offset. */
     uint32_t trap_saved_fault_addr;
     uint32_t trap_saved_info;
+
+    /* THE REST OF THE MMU LATCH, PRESERVED THE SAME WAY trap_saved_info IS.
+     *
+     * The walk latches three things about a fault: WHERE it failed
+     * (mmu_pgf_where), WHICH physical segment (mmu_pgf_psn) and whether the
+     * access was a WRITE (mmu_pgf_is_write). raise_trap copied only the first
+     * into a saved field and then zeroed the live one; the other two were never
+     * cleared anywhere in either repository.
+     *
+     * So they went stale. A trap with no MMU access in it - a stack overflow, an
+     * illegal instruction - was reported to SINTRAN carrying the physical segment
+     * number and the read/write direction of some EARLIER page fault. MEASURED
+     * 04-OCT-2026: a stack overflow reported that way drew "Illegal physical
+     * segment" from SINTRAN, which is error 22B, "illegal physical segment number
+     * in a page fault" (ND-05.017.01 Appendix A) - a complaint about a field
+     * nobody had set for that trap.
+     *
+     * Saved rather than simply cleared, because the embedding reads them AFTER
+     * nd500_cpu_step returns and the live fields cannot survive that long. Zero
+     * here means "not collected", which is what the reference sends in the same
+     * situation (Nd500CpuProcessBridge.OnUnhandledTrap keeps mms and psn at 0
+     * unless the latch is set) and is a true statement where a stale number is
+     * not. */
+    uint32_t trap_saved_psn;
+    int      trap_saved_is_write;
     /* MMU fault-location code (MMWHERE nibble, plus MMINST 0x40 for an I-channel
      * access) for the CURRENT fault, set by the MMU walk just before it calls
      * trap_page_fault() or trap_protect_violation(). Values are the MMW_* defines

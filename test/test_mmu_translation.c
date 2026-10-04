@@ -690,6 +690,83 @@ int main(void) {
 #undef T12_CHECK
 
     /* ---------------------------------------------------------
+     * Test 13: a trap with no memory access reports NO segment
+     * --------------------------------------------------------- */
+    printf("\n");
+    printf("Test 13: a non-MMU trap must not inherit an earlier fault's latch\n");
+    printf("---------------------------------------------------------------\n");
+    int t13_failed = 0;
+#define T13_CHECK(cond, msg) do { \
+        if (cond) { printf("  ok: %s\n", (msg)); } \
+        else { printf("  FAIL: %s\n", (msg)); t13_failed++; } \
+    } while (0)
+    {
+        /* THE DEFECT THIS PINS. The MMU walk latches three things about a fault -
+         * where it failed, which physical segment, and read-vs-write. raise_trap
+         * copied only the first into a per-trap field; the other two were never
+         * cleared anywhere, so a trap with no memory access in it was reported
+         * carrying an EARLIER page fault's segment number and direction.
+         *
+         * MEASURED 04-OCT-2026 on the live octobus lane: a stack overflow
+         * reported that way drew "Illegal physical segment" from SINTRAN, which
+         * is error 22B, "illegal physical segment number in a page fault"
+         * (ND-05.017.01 Appendix A) - a complaint about a field nobody had set
+         * for that trap.
+         *
+         * The live mmu_pgf_* fields are the WALK's last reading and Tests 7 and 9
+         * above assert them as such, so they are deliberately left alone. What
+         * must be per-trap is the saved pair, and that is what this checks. */
+        Nd500Cpu t;
+        nd500_cpu_init(&t, &machine);
+        nd500_mmu_init(&t);
+        machine.cpu = &t;
+
+        /* Stand in for a page fault having happened a moment ago: the walk's
+         * latch holds a real segment and a write direction. */
+        t.mmu_pgf_where    = MMW_PFZ2;
+        t.mmu_pgf_psn      = 13u;
+        t.mmu_pgf_is_write = 1;
+
+        /* Now raise a trap that never touched memory. Stack overflow is the one
+         * measured doing this, and the swapper runs with THA = 0 so no local
+         * handler can consume it. */
+        t.THA = 0;
+        t.OTE1 = 0;
+        t.OTE2 = 0;
+        nd500_trap_clear();
+        machine.stop_reason = STOP_NONE;
+        trap_stack_overflow(&t, 0x08008E09u);
+
+        T13_CHECK(t.trap_saved_psn == 0u,
+                  "a stack overflow carries NO physical segment, not the page fault's 13");
+        T13_CHECK(t.trap_saved_is_write == 0,
+                  "and no read/write direction either - it made no memory access");
+        T13_CHECK(t.trap_saved_info == 0u,
+                  "and no fault location, which is what 'not collected' means");
+
+        /* And the positive control, without which the three above prove only that
+         * something is zero: the same saved fields DO carry a real page fault. A
+         * test that can only observe the negative is not a measurement. */
+        t.mmu_pgf_where    = MMW_PFZ2;
+        t.mmu_pgf_psn      = 13u;
+        t.mmu_pgf_is_write = 1;
+        nd500_trap_clear();
+        machine.stop_reason = STOP_NONE;
+        trap_page_fault(&t, 0x08000004u, 0x08000004u);
+
+        T13_CHECK(t.trap_saved_psn == 13u,
+                  "POSITIVE CONTROL: a real page fault DOES carry its segment");
+        T13_CHECK(t.trap_saved_is_write == 1,
+                  "and its write direction");
+        T13_CHECK(t.trap_saved_info == MMW_PFZ2,
+                  "and its fault location");
+
+        nd500_trap_clear();
+        machine.stop_reason = STOP_NONE;
+    }
+#undef T13_CHECK
+
+    /* ---------------------------------------------------------
      * SUMMARY
      * --------------------------------------------------------- */
     printf("===========================================\n");
@@ -700,10 +777,11 @@ int main(void) {
     printf("      during Phase 5 (Memory Bus Integration).\n");
 
     if (t7_failed != 0 || t8_failed != 0 || t9_failed != 0 || t10_failed != 0 ||
-        t11_failed != 0 || t12_failed != 0) {
+        t11_failed != 0 || t12_failed != 0 || t13_failed != 0) {
         printf("\n%d check(s) FAILED in Test 7, %d in Test 8, %d in Test 9, %d in Test 10, "
-               "%d in Test 11, %d in Test 12\n",
-               t7_failed, t8_failed, t9_failed, t10_failed, t11_failed, t12_failed);
+               "%d in Test 11, %d in Test 12, %d in Test 13\n",
+               t7_failed, t8_failed, t9_failed, t10_failed, t11_failed, t12_failed,
+               t13_failed);
         return 1;
     }
     return 0;
