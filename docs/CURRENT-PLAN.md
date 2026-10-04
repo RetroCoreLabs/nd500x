@@ -283,6 +283,73 @@ compactions before this list existed.
   BYTE INDEX, which is why byte scans for the file size found nothing for
   years. Do not restart that scan.
 
+## ND-5000 octobus lane: where the two emulators part company (2026-10-04)
+
+A differential run of the reference emulator's
+`ShortBringup_Octobus_NoStartSwapper_PlaceAndRun_Capture` against the same
+bring-up on this lane. Both reach the SAME instruction before diverging, so
+the divergence is narrow and named.
+
+### SETTLED - the output monitor calls carry their buffer inline
+
+SINTRAN never asks for an output call's user buffer. MP-P2-N500.NPL:140656
+tests MIFLAG bit WSMC: clear means it sends 3RMED (MICFU 10B) and fetches
+the buffer, set means it reads the buffer out of the message through ABUFA.
+A whole-run MICFU tally on the reference lane shows 10B ABSENT, so only the
+inline arm is ever taken - and with nothing written there SINTRAN prints
+whatever stale bytes sat at ABUFA. That is the "structured garbage" in a
+process listing and in a CPU-STAT report while the program's own buffer held
+the right text.
+
+Implemented for {504B, 511B, 512B} - the microcode's CALL_5XX set. Details,
+the microcode line numbers for both guards and the word-vs-byte ABUFA
+measurement are in the commit and in `src/ndbus/ndbus_servicer.h`.
+
+This also closes the string-corruption hunt. PROVEN RULED OUT along the way,
+do not re-investigate:
+- 26B / 3WMONCO as the carrier - its count was 0 in the corrupting run.
+- The copy family's main loop - parity-safe at any alignment.
+- A blanket endian fault - `TERMINAL-1` came through the same path correct.
+- The window byte path - `write_msb` to 2N, `write_lsb` to 2N+1, verified.
+
+### OPEN - segment 13 demand paging stops after the first page
+
+The two lanes agree exactly up to here. Both fault at the SAME PC with the
+same cause:
+
+    this lane:  trap 46B at P=0x0800467F fault=0x4 psn=13 mms=0xA000000D
+    reference:  psn=13 where=0xD (PFZPST, no PST entry) @0x00000004
+                pc=0x0800467F
+
+After that the reference MARCHES: `where` walks 0xD -> 0x3 -> 0xF and the
+faults land on 62 DISTINCT addresses, 0x800, 0x1000, 0x1800 ... with
+`worstRepeat=1` - every fault is a new address, so every answer made
+progress. This lane re-faults at 0x4 forever and the monitor ends up
+spinning on MICFU 1B.
+
+The counts say the same thing. Reference PLACE-DOMAIN:
+`restarts=8/8 swpfu[LNEWSWAP:8 LSWPAGE:1]`, finished in 12.7s, and its RUN
+then does `LNEWSWAP:195 LSWPAGE:17` with 142 page-fault traps. So a
+REPEATING LNEWSWAP IS NORMAL - one per page backed. What is not normal is
+repeating it for the same address.
+
+So the question is narrow: after SINTRAN answers LNEWSWAP for psn 13, why
+does the retry still find no PST entry. Two things to read first, both
+measured on this lane and neither yet explained:
+- the connect record comes back all zero - `SWPST=0 SPFLA=0 r36=0x0000
+  STATE=0x0 growable=0` - and STATE's grow-permit set is {13,14,15}, so a
+  zero there makes the segment non-growable. Either the record is being read
+  from the wrong place or SINTRAN never wrote one.
+- `PST entry 13 is ZERO` was already observed directly in an earlier run.
+
+### Packs differ - use the same bytes on both lanes
+
+The reference's own pack and this lane's are both 78,643,200 bytes but are
+NOT the same image (md5 `a35ee154...` against `813435ed...`). A content
+difference between the two lanes can therefore be the pack rather than the
+emulation. Copy this lane's pack and point the reference at it with the
+`RETROCORE_ND5000_PACK` environment variable before attributing anything.
+
 ## How to work here (hard-won)
 
 - Order of authority and where out-of-repo truth lives:

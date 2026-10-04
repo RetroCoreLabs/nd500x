@@ -176,3 +176,15 @@ Also unported, and confirmed by audit on 2026-09-24 to need NO nd500x change:
 ledger items 39-81 are microword-engine internals (microword field decode, AAP
 delivery, EXUC sneak cycles, control-store addressing) with no counterpart in
 this repo's functional C.
+
+## Inline user buffer for the output monitor calls (2026-10-04)
+
+Ported FROM the C# side, not to it - the reference already had this and this
+emulator did not, which is the whole of the string-corruption symptom. Nothing
+is owed to the C# side for the port itself.
+
+One thing IS owed. The reference's `perform_block_copy` equivalent computes
+`high_half` from the DESTINATION parity and then uses it to pick the SOURCE
+half, in the odd-trailing-byte tail. That is a real one-byte defect and it is
+shared by both emulators. It is not the string corruption - that was the
+missing inline copy - but it is still wrong and still unfixed on both sides.
