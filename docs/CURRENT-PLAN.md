@@ -378,7 +378,54 @@ TWICE in the whole run.
 So nothing is broken in the PST write path. The swapper CHOOSES a different
 path for segment 13.
 
-WHY IT CHOOSES IT - the cause, one step earlier. Segment 13's descriptor in
+WRONG ANSWER, RETRACTED 2026-10-04 - THE DESCRIPTOR TABLE IS NOT THE CAUSE.
+What follows below was recorded as the cause and is not. Read the retraction
+first; the section is kept because the measurements in it are sound and only
+the conclusion drawn from them was not.
+
+The claim was that segment 13's descriptor is never populated. It IS
+populated, by the routine at 0x08000DDD, which writes the halfword 0x0001
+into the record with the stores at 0x08000DE2 and 0x08000DE8, and which runs
+once for EACH of slots 10, 11, 12 and 13. The timeline, from one run:
+
+    slot 10 field written  line 892880
+    slot 11 field written  line 956648    branch 1  line 964843  completes
+    slot 12 field written  line 957159    branch 2  line 966018  completes
+    slot 13 field written  line 967965    branch 3  line 968852  does NOT
+
+Slot 13's field is written BEFORE the branch that then takes the
+non-completing path. So the descriptor is populated in time and the swapper
+still routes differently. The field is not the discriminator and neither is
+the table.
+
+HOW THE WRONG ANSWER WAS REACHED, because the mechanism will repeat. Every
+`seg-desc` dump available was taken at log lines 467 through 966839 - all of
+them BEFORE line 967965 - so slot 13 read as thirty-two zero bytes in every
+one of them. A snapshot earlier than the write it is being used to rule out
+cannot rule it out. The reference's own table dump was taken at a different
+point in its run, so the two were never comparable in the first place.
+
+THREE FILTERING ERRORS IN ONE INVESTIGATION, all the same shape: a search
+whose pattern cannot match the thing being looked for returns a confident
+empty set.
+  - A byte address was grepped for (0x5F519) where the machine does a WORD
+    store at 0x5F518. Reported as "the flag byte is never written"; it is
+    written, as 0xEE080000 at +4 by 0x08002CF6.
+  - An exact-address match was used where a store has WIDTH, so a 32-bit
+    store two bytes earlier was missed.
+  - Only `[PTEWR]` lines were parsed, which are the CPU-store-level watch.
+    The write that settles this is a `[PTEWATCH] w8` line from the BUS-level
+    watch with no PTEWR partner, because it came from a halfword store.
+Check that a pattern can match a known-present case before trusting its
+absence.
+
+WHAT STILL STANDS. Everything above this retraction, plus: the branch is
+decided by WHICH CALLER enters the shared subroutine, and that choice is made
+before 0x08003632 runs. The open question is now what routes the swapper to
+the 0x0800264A caller for segment 13 and to 0x08003723 for 11 and 12.
+
+SUPERSEDED - the text below is the retracted reasoning, kept for its
+measurements only. Segment 13's descriptor in
 the swapper's own table is EMPTY on this lane and populated on the
 reference's. That table is at ND-500 logical 0x08038000, stride 100 decimal
 bytes, indexed by segment; the reference calls it TABLE-A and reads a flag
