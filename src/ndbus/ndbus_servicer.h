@@ -171,7 +171,11 @@ bool ndbus_micfu_is_start_class(uint16_t micfu);
 /** How many block copies are named in the log before it falls silent. A count says
  *  a transfer happened; only the address says whether it went where the guest
  *  meant. */
-#define NDBUS_SERVICER_COPY_LOG_LIMIT 24u
+/** How many block copies a run logs. A measured run performs a few dozen, so
+ *  this is a runaway guard rather than a filter; it was 24, which silently cut a
+ *  run's copy log in half and made a destination census read as a negative. The
+ *  gate announces itself when it is reached. */
+#define NDBUS_SERVICER_COPY_LOG_LIMIT 4096u
 
 /** How many ND-5000 processes one mailbox can carry, one message remembered each.
  *  The extension blocks run CPUNO 1..7, so 8 covers a zero-based X5CPU. */

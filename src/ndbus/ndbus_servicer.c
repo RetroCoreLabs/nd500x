@@ -569,11 +569,26 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
      * carry it is past the first few that the count-based gate prints. The window
      * is the table itself, not a count, because the interesting copy is by
      * definition the one a count stops printing. */
-    const uint32_t desc_lo = 0x00038000u;
-    const uint32_t desc_hi = desc_lo + 32u * 100u;
-    const bool hits_desc_table = (dst >= desc_lo && dst < desc_hi);
-
-    if (sv->copies_done <= NDBUS_SERVICER_COPY_LOG_LIMIT || hits_desc_table)
+    /* LOG EVERY COPY, AND SAY SO WHEN THE CAP IS REACHED.
+     *
+     * THE ADDRESS-BASED ESCAPE THAT USED TO BE HERE COULD NEVER FIRE, and that is
+     * worth recording because it hid a real answer for hours. It compared `dst`
+     * against 0x00038000 + 32*100, a window derived from the descriptor table's
+     * ND-500 LOGICAL address 0x08038000 with the segment bits stripped. But `dst`
+     * is a POOL BYTE address, and the table's pool address in a measured run is
+     * 0x05F44C for segment 11 - nowhere near 0x038000. Two different address
+     * spaces, so the test was always false and the count was the only gate.
+     *
+     * MEASURED 2026-10-04: a run performed 28 PHYSWR and 12 PHYSRD, and the log
+     * stopped at 24 without a word. A census of copy destinations taken off that
+     * log concluded no copy ever touches the descriptor table, which is a
+     * conclusion about the log and not about the machine.
+     *
+     * A run performs a few dozen copies, so a cap this low buys nothing. It is
+     * kept only as a runaway guard, raised to a value no healthy run reaches, and
+     * it ANNOUNCES itself - a bounded instrument that goes quiet without saying so
+     * turns its own silence into false evidence. */
+    if (sv->copies_done <= NDBUS_SERVICER_COPY_LOG_LIMIT)
     {
         char line[160];
         /* THE VALUE, NOT JUST THE ADDRESSES. Every transfer of a run reading the
@@ -585,6 +600,15 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
                        "mailbox copy #%lu: %u bytes 0x%06X -> 0x%06X, value 0x%04X%04X",
                        sv->copies_done, (unsigned)count, (unsigned)src, (unsigned)dst,
                        (unsigned)read16(sv, dst), (unsigned)read16(sv, dst + 2u));
+        servicer_log(sv, line);
+    }
+    else if (sv->copies_done == (unsigned long)NDBUS_SERVICER_COPY_LOG_LIMIT + 1ul)
+    {
+        char line[160];
+        (void)snprintf(line, sizeof line,
+                       "mailbox copy log: cap of %u reached - later copies are NOT "
+                       "logged, so silence past this point is not evidence",
+                       (unsigned)NDBUS_SERVICER_COPY_LOG_LIMIT);
         servicer_log(sv, line);
     }
 
