@@ -651,6 +651,11 @@ void nd500_trap_seq_push(Nd500Cpu* cpu, uint32_t frame_base);
 void nd500_trap_seq_pop(Nd500Cpu* cpu, uint32_t frame_base);
 /* LIFO pop for the lregbl trap-return NDIX uses instead of RETT. */
 void nd500_trap_seq_pop_top(Nd500Cpu* cpu);
+/* The domain's trap handler address, out of the real DIT (stride 256, offset
+ * 182). THA is a DIT-sourced domain register: it is present in the context
+ * block but NEWCNTXT does not load it from there, so a context load must take
+ * it from here. Returns 0 when no DIT has been configured. */
+uint32_t nd500_dit_read_tha(Nd500Cpu* cpu, uint32_t domain);
 /* Apply a domain's PiA (privilege) to live ST1; privilege follows CED across
  * domain transitions (trap dispatch, RETT, domain return). No-op without a DIT. */
 void nd500_apply_domain_pia(Nd500Cpu* cpu, uint32_t domain);

@@ -1001,6 +1001,38 @@ static inline void ndix_dit_w8(Nd500Cpu* cpu, uint32_t dom, uint32_t off, uint8_
     nd500_bus_write8(cpu->machine, cpu->DITBASE + dom * NDIX_DIT_STRIDE + off, (uint8_t)v);
 }
 
+/* THE TRAP HANDLER ADDRESS IS A DOMAIN REGISTER, AND NOTHING WAS SOURCING IT.
+ *
+ * THA lives in the context block (NDBUS_CTX_DIT_THA at 0x58) but NEWCNTXT does
+ * not load it from there - it is one of the DIT-sourced domain registers - so
+ * the octobus context load deliberately skips it. Nothing then filled it from
+ * the DIT either, and cpu.c:129 leaves it zero at reset, so it stayed zero.
+ *
+ * MEASURED on PLACE-DOMAIN CPU-STAT: THA = 0 for all 1,017,829 traced steps of
+ * a whole run. The swapper routine at 0x08004743 copies THA into its frame
+ * (0x0800474E: tha=: b.0x14) and installs trap handlers 9..41 through that copy
+ * at THA + trapno*4. With THA = 0 the stores land at 0 + n*4, inside the frame;
+ * the one at n = 12 overwrites the copy itself with 0x080047E6, and the next
+ * goes to 0x080047E6 + 13*4 = 0x0800481A and faults outside segment 12. That is
+ * the whole of the "segment 12 bounds" symptom.
+ *
+ * The swapper cannot be the one to set it: its 256 KB program image holds FIVE
+ * tha=: reads (0x08001571, 0x08004125, 0x08004131, 0x08004153, 0x0800474E) and
+ * ZERO tha:= writes (byte scan for FD CA against FD CB), so THA must already be
+ * valid when the process is loaded - which is the hardware's job, from the DIT.
+ *
+ * Read with the DOCUMENTED layout above (stride 256, offset 182), not the stale
+ * 16-byte one in nd500_domain.c. Corroboration, not proof: at the DITBASE this
+ * lane derives from PST[PS] (0x8C000), the word at +182 is 0x08001628 - a
+ * logical address in the same trap-handling band as the handler addresses the
+ * install loop writes (0x08001060 + k*12, and a parallel table at 0x08000F60) -
+ * and it reads as a clean address only at exactly offset 182, which is itself
+ * unaligned because struct pcb is 8-bit packed. */
+uint32_t nd500_dit_read_tha(Nd500Cpu* cpu, uint32_t domain) {
+    if (!cpu || !cpu->machine || !cpu->dit_configured) return 0u;
+    return ndix_dit_r32(cpu, domain, DIT_OFF_THA);
+}
+
 /* Privilege (PIA, ST1 bit 1) is a DOMAIN attribute on the ND-500 (domain status
  * PiA @ DIT 310B=200), so it must follow the executing domain across every domain
  * transition. Apply the given domain's PiA to the live ST1. Called on trap
