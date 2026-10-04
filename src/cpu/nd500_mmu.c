@@ -888,6 +888,33 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
             mmu_demand_segments = nd500_settings()->demand_segments;
         }
         if (!is_instruction && mmu_demand_segments && cpu->machine &&
+            /* NOT WHEN A REAL MACHINE IS ATTACHED. On the ND-5000/octobus lane an
+             * nd100x running genuine SINTRAN owns segment allocation completely:
+             * it keeps the physical segment table, it answers MON 422B GSWSP, and
+             * a missing capability is a page fault IT must service. Backing the
+             * segment here instead allocates memory behind its back, so its
+             * tables and ours disagree from that point on.
+             *
+             * MEASURED 04-OCT-2026: this path fired on the octobus lane with
+             * vaddr=0x467F0800 - a wild address - and reported "demand-mapped
+             * data segment 8 (domain 0) psn=102", a psn outside the table, after
+             * which SINTRAN halted in ERRFATAL. The fault should have been
+             * reported to SINTRAN and never reached this allocator.
+             *
+             * The same gate as the monitor-call seam in nd500_indirect.c, and for
+             * the same reason - see docs/INVESTIGATION-TRAPS.md section 6. A
+             * standalone nd500x has no host and is unaffected, which is where
+             * demand mapping is needed: NC codegen touches work-segments it never
+             * GSWSP-allocated, and segment 29's u-area relies on it before the
+             * NDIX kernel tables exist.
+             *
+             * This also closes the hole the domain==0 exemption below opens on
+             * this lane. That exemption exists because kernel-domain segments
+             * legitimately need demand mapping under NDIX - but SINTRAN runs CED
+             * 0 for every process, so under SINTRAN it let EVERY wild pointer be
+             * backed silently, which is the failure the comment warns about for
+             * user domains. */
+            cpu->mon_call_host == NULL &&
             /* KERNEL DOMAIN ONLY. User-domain (domain != 0) segments are
              * managed exclusively by the NDIX kernel's paging - a missing
              * capability there is a WILD POINTER and must fault to the
