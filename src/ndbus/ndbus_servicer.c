@@ -12,6 +12,7 @@
 #include "ndbus_servicer.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "ndbus_lock.h"
@@ -1538,6 +1539,75 @@ bool ndbus_servicer_read_monitor_result(NdbusServicer *sv, uint32_t msg_byte,
     return true;
 }
 
+/* REPORT A CHAIN WHOSE SHAPE CHANGED, every time, with no budget.
+ *
+ * The shape is the sequence of node addresses. SINTRAN relinks the chain as it
+ * works - the reference's census shows the head's link moving off one node onto
+ * another - so "which nodes are in the chain right now" is the fact that settles
+ * whether a node we keep serving is one we should have stopped reaching. A budget
+ * here would hide exactly the late relink that matters, so this reports the first
+ * walk and then only CHANGES, which is a handful of lines in a whole run.
+ */
+static void chain_walk_done(NdbusServicer *sv, const uint32_t *shape, int hops,
+                            uint32_t *last_shape, int *last_hops, int *walks)
+{
+    (*walks)++;
+
+    if (hops > NDBUS_SERVICER_MAX_CHAIN)
+    {
+        hops = NDBUS_SERVICER_MAX_CHAIN;
+    }
+
+    bool same = (hops == *last_hops);
+    for (int i = 0; same && i < hops; i++)
+    {
+        if (shape[i] != last_shape[i])
+        {
+            same = false;
+        }
+    }
+    if (same)
+    {
+        return;
+    }
+
+    char line[260];
+    int  n = snprintf(line, sizeof line, "mailbox chain SHAPE at walk #%d:", *walks);
+    for (int i = 0; i < hops && n > 0 && (size_t)n < sizeof line; i++)
+    {
+        n += snprintf(line + n, sizeof line - (size_t)n, " 0x%06X", (unsigned)shape[i]);
+        last_shape[i] = shape[i];
+    }
+    *last_hops = hops;
+    servicer_log(sv, line);
+}
+
+/* THE CHAIN'S SHAPE, which no other instrument in this file reports.
+ *
+ * Ported from the reference's own chain-walk census. Without it a repeated serve
+ * of one node is indistinguishable from the ND-100 re-queueing that node, and the
+ * two have opposite causes: a stale link we keep following, against SINTRAN
+ * genuinely asking again. The reference's census answered exactly that question
+ * for message 0x42C130, which it saw in ToNd500 ONCE in 1197 node visits.
+ *
+ * Set NDBUS_CHAINDBG to a number of walks to report. Off by default, because the
+ * line is one per hop and a scan happens on every mailbox pass.
+ */
+static int chain_debug_budget(void)
+{
+    static int budget = -1;
+    if (budget < 0)
+    {
+        const char *e = getenv("NDBUS_CHAINDBG");
+        budget = (e != NULL) ? atoi(e) : 0;
+        if (budget < 0)
+        {
+            budget = 0;
+        }
+    }
+    return budget;
+}
+
 bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte)
 {
     if (sv == NULL || sv->pool == NULL)
@@ -1547,6 +1617,13 @@ bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte)
 
     uint32_t msg_byte = head_byte;
     bool     any = false;
+
+    static int    s_chain_walks;
+    static uint32_t s_last_shape[NDBUS_SERVICER_MAX_CHAIN + 1];
+    static int      s_last_hops = -1;
+    uint32_t        shape[NDBUS_SERVICER_MAX_CHAIN + 1];
+    int             hops = 0;
+    bool            report = (s_chain_walks < chain_debug_budget());
 
     for (int n = 0; n < NDBUS_SERVICER_MAX_CHAIN; n++)
     {
@@ -1559,11 +1636,41 @@ bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte)
         uint32_t link_lo = read16(sv, msg_byte + (NDBUS_MSG_LINK_WORD + 1u) * 2u);
         uint32_t link = (link_hi << 16) | link_lo;
 
+        /* Read N5STA and MICFU BEFORE the serve: the serve overwrites N5STA, so a
+         * line printed afterwards would report our own write rather than the state
+         * the node was found in. */
+        uint16_t pre_sta   = read16(sv, msg_word(msg_byte, NDBUS_MSG_N5STA));
+        uint16_t pre_micfu = read16(sv, msg_word(msg_byte, NDBUS_MSG_MICFU));
+
         sv->nodes_walked++;
-        any |= ndbus_servicer_process_message(sv, msg_byte);
+        bool served = ndbus_servicer_process_message(sv, msg_byte);
+        any |= served;
+
+        if (hops <= NDBUS_SERVICER_MAX_CHAIN)
+        {
+            shape[hops] = msg_byte;
+        }
+        hops++;
+
+        if (report)
+        {
+            char cl[200];
+            (void)snprintf(cl, sizeof cl,
+                           "chain walk #%d hop %d @0x%06X N5STA=0x%04X MICFU=%oB "
+                           "link=0x%08X %s",
+                           s_chain_walks, hops - 1, (unsigned)msg_byte,
+                           (unsigned)pre_sta, (unsigned)pre_micfu, (unsigned)link,
+                           served ? "SERVED"
+                                  : (((pre_sta & NDBUS_N5STA_MASK) == NDBUS_N5STA_TO_ND500)
+                                     ? "ToNd500 but NOT served - taken by the host, "
+                                       "answered by the process's own stop"
+                                     : "skipped - not addressed to us"));
+            servicer_log(sv, cl);
+        }
 
         if (link == NDBUS_SERVICER_LINK_END)
         {
+            chain_walk_done(sv, shape, hops, s_last_shape, &s_last_hops, &s_chain_walks);
             return any;
         }
 
@@ -1573,6 +1680,7 @@ bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte)
              * -1, but SINTRAN zero-fills freed blocks, so a zero link means the
              * chain was torn down under the walk. */
             servicer_log(sv, "mailbox chain: LINK=0 - stopping walk");
+            chain_walk_done(sv, shape, hops, s_last_shape, &s_last_hops, &s_chain_walks);
             return any;
         }
 
@@ -1580,6 +1688,7 @@ bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte)
     }
 
     servicer_log(sv, "mailbox chain: walk hit the length guard - possible cycle");
+    chain_walk_done(sv, shape, hops, s_last_shape, &s_last_hops, &s_chain_walks);
     return any;
 }
 
