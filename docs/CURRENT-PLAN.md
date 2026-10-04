@@ -342,7 +342,38 @@ measured on this lane and neither yet explained:
   from the wrong place or SINTRAN never wrote one.
 - `PST entry 13 is ZERO` was already observed directly in an earlier run.
 
-### Packs differ - use the same bytes on both lanes
+### The pack difference does NOT explain the segment-13 stall
+
+Written here because the previous section said it might, and reading the
+reference's own PST scan settles it the other way.
+
+A PST entry has two modes. Mode 0 is a direct one-page entry and is what a
+CAPABILITY TABLE uses; mode 1 sets bit 30 and the entry points at an INDEX
+PAGE whose words are the segment's page frame numbers. On the reference:
+
+    PSN  3: mode=0 pfn=0x0000E8  (phys 0x00074000)   capability table
+    PSN 10: mode=0 pfn=0x0001B2  (phys 0x000D9000)   capability table
+    PSN 11: mode=1 pfn=0x000FF8 -> index page lists 0FF9 0FB2 0F6A ...
+    PSN 12: mode=1 pfn=0x000FF6 -> index page lists 0FB1 0FF5 0FB3 ...
+    PSN 13: mode=1 pfn=0x000FF3 -> index page lists 0FF4 0FF2 0FF1 ...
+
+PST[11] and PST[12] are 0x40000FF8 and 0x40000FF6 on BOTH lanes - the same
+frames, bit for bit - even though the two packs report different swap sizes
+(13245B against 11246B). So the segment allocator is not perturbed by the
+pack at all; the only entry the pack moves is PST[10], a mode-0 capability
+table page that comes from a different pool region (0x118 here against
+0x1B2 there).
+
+The two lanes therefore allocate identically through PSN 12 and diverge only
+at 13. That makes this emulation, not the pack, and the next instrument is
+the one that names the writer: nothing writes the PST by message on either
+lane - all PHYSWR traffic goes to the capability and trap-config blocks at
+0x074096..0x0740C4 and 0x08C096..0x08C0C4 - so the PST is written by the
+ND-100 straight into the shared pool through its bank window, which no MICFU
+trace can see. Watch the pool range holding PST[10..15] from the ND-100 side,
+which reports the writing P and level.
+
+### Packs differ - but only PST[10] moves with them
 
 The reference's own pack and this lane's are both 78,643,200 bytes but are
 NOT the same image (md5 `a35ee154...` against `813435ed...`). A content
