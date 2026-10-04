@@ -363,6 +363,37 @@ measured on this lane and neither yet explained:
   from the wrong place or SINTRAN never wrote one.
 - `PST entry 13 is ZERO` was already observed directly in an earlier run.
 
+### THE FAULT-PROFILE COMPARISON, the measure to work against 2026-10-04
+
+Both lanes' page-fault censuses, counted by physical segment, side, and the
+MMS where-nibble (0xD = no PST entry, 0x3 = write violation, 0xF = ordinary
+demand page). Every entry has worstRepeat=1 on the reference, meaning each
+fault is a NEW address and every answer made progress.
+
+    segment/side     reference 0xD/0x3/0xF     this lane
+    psn 11 inst          1 / 1 / 8              1 / 1 / 0
+    psn 12 data          1 /  -  / 3            1 /  -  / 2
+    psn 13 data          1 / 1 / 62             1 / 1 / 62   EXACT
+    psn 14 data          1 / 1 / 62             not reached
+
+Segment 13 is now byte-for-byte the reference's behaviour - one no-PST-entry
+fault, one write violation, then 62 ordinary demand pages over 62 distinct
+addresses - where before the fix it faulted at offset 4 for ever with
+where=0xD. 64 distinct fault addresses on that segment, 69 traps in the run
+against the reference's 142.
+
+THE NEXT FAILURE IS SPECIFIC: segment 12's THIRD ordinary demand page. We take
+two and then stop, and the monitor prints
+
+    ADDRESS OUTSIDE DATA SEGMENT / PAGE FAULT
+    At program address: 1 43611B   Logical address: 1 44032B
+    Physical segment: 12D
+
+That is P=0x08004789 touching 0x0800481A with where=0xF. "Outside the data
+segment" is a BOUNDS verdict, so the question is the segment's declared length
+rather than its paging. Segment 11's eight instruction-side demand pages and
+the whole of segment 14 are behind it.
+
 ### WHERE THE SEGMENT-13 WORK ENDED UP, 2026-10-04
 
 The cause was found and fixed, and it was in this emulator: the restart's
