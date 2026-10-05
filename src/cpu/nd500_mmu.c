@@ -125,6 +125,50 @@ static int mmu_use_guest_for(Nd500Cpu* cpu, uint8_t domain, int segment) {
     return mmu_guest_pst_published(cpu);
 }
 
+/* THE DIRECTLY-LOADED KERNEL IMAGE: where a zero capability still means "RAM".
+ *
+ * The NDIX kernel is loaded flat into low physical memory and its low segments
+ * (0/1) carry no PCB capability in this emulator - on real hardware a direct
+ * kernel-text/data capability installed at boot covers them. So when the
+ * referenced virtual address already lies inside the RAM that holds the loaded
+ * image, it maps identity. DATA accesses are de-aliased from TEXT: the flat a.out
+ * loader puts TEXT at physical 0 and DATA at physical data_base (= a_text), so a
+ * data access to virtual V targets data_base + V while a program fetch stays V.
+ * Falls back to identity when no a.out is loaded or the offset would leave RAM.
+ *
+ * NOT WHEN A TRAP SINK IS ATTACHED. With an ND-100 beside the CPU nothing is
+ * loaded that way: memory_size is the shared pool, "inside RAM" is true of every
+ * small wild pointer, and returning it would read or write shared memory with no
+ * trap. The reference has no such fallback (MMS code 8, zero in the capability).
+ * A free-running nd500x (trap_sink == NULL) keeps the identity mapping.
+ *
+ * ONE DEFINITION, TWO CALLERS: nd500_mmu_translate() and nd500_mmu_peek_space()
+ * must agree about which addresses a zero capability still reaches, or a probe
+ * reports "not resident" for an address the CPU then reads without trouble. That
+ * disagreement is what made invoke_trap_handler()'s residency check stop NDIX at
+ * its low-memory trap handler (commit 952441d moved that check from translate to
+ * peek).
+ *
+ * @return 1 and the physical address in *phys when the fallback applies, else 0. */
+static int mmu_flat_image_physical(Nd500Cpu* cpu, uint32_t virtual_addr, int is_instruction,
+                                   uint32_t* phys) {
+    if (cpu->trap_sink != NULL || !cpu->machine || virtual_addr >= cpu->machine->memory_size) {
+        return 0;
+    }
+    if (!is_instruction) {
+        uint32_t data_base = ndlib_aout_get_data_base();
+        if (data_base != 0) {
+            uint32_t data_phys = virtual_addr + data_base;
+            if (data_phys < cpu->machine->memory_size) {
+                *phys = data_phys;
+                return 1;
+            }
+        }
+    }
+    *phys = virtual_addr;
+    return 1;
+}
+
 /* Segment-level demand mapping: when a DATA access references a work segment
  * that has no capability, allocate a backed (PS_ADI, demand-grown) segment on
  * the fly, mirroring how SINTRAN maps scratch segments on first use. The NC C
@@ -1107,28 +1151,11 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
              *
              * A free-running nd500x (cpu->trap_sink == NULL) keeps the
              * identity mapping unchanged. */
-            if (cpu->trap_sink == NULL &&
-                cpu->machine && virtual_addr < cpu->machine->memory_size) {
-                /* Separate I-space / D-space de-aliasing. The flat a.out loader
-                 * places TEXT at physical 0 and DATA at physical data_base
-                 * (= a_text). A DATA access (is_instruction == 0) to segment-0
-                 * virtual V must therefore target physical (data_base + V) - the
-                 * D-space image - while a program fetch stays identity (V, the
-                 * I-space text). Without this, data reads of a text-range virtual
-                 * address return code bytes instead of the intended data, which
-                 * surfaces as garbage pointers (e.g. 0xFC16C51C in _strlen).
-                 * Falls back to identity when no a.out is loaded (data_base == 0)
-                 * or the offset would leave physical memory. [I/D-space fix] */
-                if (!is_instruction) {
-                    uint32_t data_base = ndlib_aout_get_data_base();
-                    if (data_base != 0) {
-                        uint32_t phys = virtual_addr + data_base;
-                        if (phys < cpu->machine->memory_size) {
-                            return phys;
-                        }
-                    }
+            {
+                uint32_t image_phys;
+                if (mmu_flat_image_physical(cpu, virtual_addr, is_instruction, &image_phys)) {
+                    return image_phys;
                 }
-                return virtual_addr;
             }
             MMU_ERR("[MMU] TRAP: No %s capability! domain=%d segment=%d vaddr=0x%08X\n",
                   is_instruction ? "program" : "data", domain, segment, virtual_addr);
@@ -1374,7 +1401,14 @@ uint32_t nd500_mmu_peek_space(Nd500Cpu* cpu, uint32_t virtual_addr, uint8_t doma
                    ? cpu->mmu->pcb_table[domain].program_capabilities[segment]
                    : cpu->mmu->pcb_table[domain].data_capabilities[segment];
     }
-    if (capability == 0) return 0xFFFFFFFFu;
+    if (capability == 0) {
+        /* The same answer translate() gives for a zero capability. */
+        uint32_t image_phys;
+        if (mmu_flat_image_physical(cpu, virtual_addr, is_instruction, &image_phys)) {
+            return image_phys;
+        }
+        return 0xFFFFFFFFu;
+    }
 
     int psn = capability & PC_PSN;
     if (psn >= MAX_PST) return 0xFFFFFFFFu;
