@@ -1017,6 +1017,39 @@ X5CPU, is the honest alternative: it is bookkeeping about a host flag, not a
 claim about hardware layout.
 
 
+## The dispatch interlock is already consumed at every save (2026-10-05)
+
+A host-side shadow of `trap_dispatch_pending`, keyed by X5CPU, was tried in the
+bridge and changed nothing - still 503 instruction-sequence traps. Logging both
+sides said why, and it rules the idea out rather than leaving it in doubt:
+
+```
+160 save: dispatch_pending[0] := 0
+145 save: dispatch_pending[1] := 0
+ 71 switch: dispatch_pending[0] -> 0
+ 71 switch: dispatch_pending[1] -> 0
+```
+
+**Every save records 0**, process 1 included, 145 times. So the flag is not lost
+by the park - it is already consumed before the park happens. Carrying it cannot
+help, and the shadow was REVERTED rather than left in as unjustified state.
+
+Only three places touch the flag: `cpu.c:2022` sets it on dispatch,
+`Entt.c:481` clears it at the END of a successful ENTT (after every frame
+write), and the reset paths. A 0 at save time therefore means the ENTT RAN TO
+COMPLETION. But the park reports `P=0x8004924`, the handler entry, and the ISE
+that follows the restart is raised at that same address - so either the reported
+P is not the instruction that faulted, or the handler is re-entered at its entry
+with the interlock legitimately spent.
+
+Those two cannot be separated by reading. The instrument is
+`MFBUS_RESUME_TRACE`, which prints P and the bytes per step: the sequence around
+0x08004924 says whether the ENTT completed and the body faulted, or the ENTT
+faulted and a nested dispatch re-entered the same handler. UNKNOWN until then -
+and the project's own comment that "our single-level saved-trap state cannot
+nest" is the thing to check against, not to assume.
+
+
 ## How to work here (hard-won)
 
 - Order of authority and where out-of-repo truth lives:
