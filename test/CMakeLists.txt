@@ -263,6 +263,14 @@ add_executable(test_abort_guard
 )
 target_link_libraries(test_abort_guard PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# Local trap enable gate. With a trap sink attached, a non-ignorable trap is
+# dispatched to the program's own handler only when OTE or MTE enables it;
+# otherwise it is reported to the host. Without a sink nothing changes.
+add_executable(test_local_trap_gate
+    test_local_trap_gate.c
+)
+target_link_libraries(test_local_trap_gate PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # SOLO/TUTTI and the two process-switch traps they make possible: DT (timeout)
 # and DE (non-ignorable trap taken inside the region).
 add_executable(test_solo_traps
@@ -430,6 +438,7 @@ add_test(NAME page_bits COMMAND test_page_bits)
 add_test(NAME rpgu_operand COMMAND test_rpgu_operand)
 add_test(NAME rphs_wphs COMMAND test_rphs_wphs)
 add_test(NAME abort_guard COMMAND test_abort_guard)
+add_test(NAME local_trap_gate COMMAND test_local_trap_gate)
 add_test(NAME solo_traps COMMAND test_solo_traps)
 add_test(NAME trap_conformance COMMAND test_trap_conformance)
 

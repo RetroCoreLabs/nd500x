@@ -1594,7 +1594,38 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
          * Opt out with ND500X_NO_TRAP_DISPATCH=1 to restore the old always-halt behavior. */
         static int td = -1;
         if (td < 0) td = nd500_settings()->trap_dispatch;
-        if (td && cpu->THA != 0 && !cpu->trap_dispatch_pending) {
+        /* THE LOCAL TRAP ENABLE GATE. Ported from RetroCore CpuND500.Trap.cs
+         * RaiseTrap ("THE LOCAL-TRAP-ENABLE GATE"), which reads it out of the
+         * control store: trap entry builds TE from the LOCAL TRAP ENABLE
+         * register, forces bits 31 and 30 on (011035), forces bits 8..0 off
+         * (011036), ANDs with the pending bits (011037) and branches on the
+         * result (011064). Zero means the trap is REPORTED TO THE ND-100 and the
+         * handler vector is never read; only a non-zero result reaches the
+         * vector fetch. So a non-zero THA slot is not enough to dispatch.
+         *
+         * MEASURED 05-OCT-2026 on PLACE-DOMAIN CPU-STAT + RUN: SINTRAN wrote
+         * OTE1/OTE2/MTE1/MTE2 = 0 for the domain process (mailbox copies to pool
+         * 0x08C096/9A/A6/AA), the install loop then filled THA[38], and the next
+         * instruction-side page fault (P=0x08000012, address 0x08000931) was
+         * dispatched to that handler instead of being reported. The handler's
+         * ENTT then faulted on its own frame at 0x08001800 and that park
+         * repeated 501 times in one run. The reference reports the same class
+         * of fault to SINTRAN - eight ordinary demand pages on segment 11.
+         *
+         * REGISTERS ONLY, as in the reference: no DIT read here.
+         *
+         * ONLY WHEN THERE IS A SINK. A free-running nd500x has no ND-100 to
+         * report to and keeps its existing dispatch exactly (Ronny's
+         * instruction, 04-OCT-2026 - see the ignorable path below). */
+        int locally_enabled = 1;
+        if (cpu->trap_sink != NULL) {
+            uint64_t te = (((uint64_t)cpu->OTE2 << 32u) | cpu->OTE1)
+                        | (((uint64_t)cpu->MTE2 << 32u) | cpu->MTE1);
+            te |= 0xC0000000ULL;      /* 011035: bits 31,30 always enabled */
+            te &= ~0x1FFULL;          /* 011036: bits 8..0 never local */
+            locally_enabled = ((te & trapBit) != 0u) ? 1 : 0;
+        }
+        if (td && locally_enabled && cpu->THA != 0 && !cpu->trap_dispatch_pending) {
             int tn = 0; for (int i = 0; i < 64; i++) { if ((trapBit >> i) & 1) { tn = i; break; } }
             /* READ THE SLOT WITHOUT FAULTING. This probe runs on EVERY non-ignorable
              * trap, and nd500_mmu_translate RAISES one when the handler vector's own
