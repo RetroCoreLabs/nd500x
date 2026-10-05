@@ -7,6 +7,7 @@
  * See LICENSE in the repository root for the full text.
  */
 
+#include "../../nd500_settings.h"
 #include "cpu_protos.h"
 #include "instructions_protos.h"
 #include "machine_protos.h"
@@ -98,7 +99,7 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 continue;                /* MIC is not emulated */
             }
             vals[w] = nd500_read_memory_32(cpu, address + (uint32_t)w * 4u);
-            if (nd500_trap_occurred()) return;  /* block read faulted - abort */
+            if (nd500_trap_occurred() || cpu->instr_aborted) return;  /* block read faulted - abort */
             has[w] = true;
         }
     }
@@ -119,8 +120,16 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * handler return. Clear the guard here, otherwise it stays set and the
      * returned-to program's next legitimate page fault is misdetected as a
      * double fault and halts (observed: init's PC=8 stack write PGF). */
-    if (has[0] && cpu->in_trap_handler) {
-        cpu->in_trap_handler = false;
+    if (has[0] && nd500_is_in_trap_handler(cpu)) {
+        /* SAY SO. On the octobus lane a handler reached its own RETT with the
+         * guard already clear, 503 times, and this is one of only two places
+         * that clears it - the DIT carry of the flag across a park was measured
+         * working (ITH=1 saved and read back), so the loss is a clear, not a
+         * lost save. Behind ND500X_TRAPLOG. */
+        if (nd500_settings()->traplog)
+            fprintf(stderr, "[TRAP] lregbl at PC=0x%08X clears in_trap_handler\n",
+                    cpu->PC);
+        nd500_set_in_trap_handler(cpu, false);
         /* This IS the trap return, so it is also where the CALL/ENT* sequence
          * interlock saved by the handler's ENTT must come back. Without it the
          * resumed program's pending CALL is gone and its retried ENTS raises a

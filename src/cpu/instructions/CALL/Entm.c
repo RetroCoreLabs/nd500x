@@ -316,11 +316,12 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * This is KEY difference from ENTS!
      * New TOS defines maximum stack growth for the new independent stack.
      * ======================================================================== */
-    cpu->TOS = bottom_of_stack + total_stack_demand;
-
-    if (do_trace) {
-        printf("  ENTM new TOS=0x%08X (bottom + total)\n", cpu->TOS);
-    }
+    /* TOS IS COMMITTED WITH B AND L, BELOW THE TERMINAL GUARD, NOT HERE.
+     * Entm.cs puts an explicit third guard immediately before regs.TOS
+     * (AbortGuardSite.Entm) for exactly this reason: nd500x set TOS between its
+     * old-SP guard and its terminal guard, so a fault on any of the four frame
+     * writes above committed a new TOS for a frame that was never built - the
+     * frame half written and TOS claiming it whole. B and L were already safe. */
 
     /* ========================================================================
      * STEP 10: COPY ARGUMENTS TO NEW FRAME
@@ -352,6 +353,14 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
     cpu->B = new_b;
+
+    /* STEP 10: TOS := bottom of stack + total demand - the new independent
+     * stack's ceiling. This is the KEY difference from ENTS. */
+    cpu->TOS = bottom_of_stack + total_stack_demand;
+
+    if (do_trace) {
+        printf("  ENTM new TOS=0x%08X (bottom + total)\n", cpu->TOS);
+    }
 
     /* L is a terminal-microword effect - committed here, not at the RETA write. */
     cpu->L = return_addr;

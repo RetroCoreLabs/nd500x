@@ -302,6 +302,16 @@ void nd500_instr_Loopd(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     //   :H variants (0xFD28-0xFD2C): 2-byte signed displacement
     bool is_halfword_disp = (fi->opcode >= 0xFD28 && fi->opcode <= 0xFD2C);
 
+
+    /* THE INDEX WRITE-BACK CAN FAULT, AND THE BRANCH MUST NOT COMMIT IF IT DID.
+     * RetroCore guards here - a second InstructionAborted check inside the
+     * should-loop arm, after WriteOperandValue - and nd500x guarded only the
+     * operand READS. With a memory-operand index, a page fault on the write-back
+     * still set cpu->PC to the loop target, overwriting the PC the fault handler
+     * had just installed. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
     if (should_loop) {
         // Jump back to start of loop (PC + displacement -> PC)
         // NOTE: Read directly from operand data[], not via nd500_read_operand_value,

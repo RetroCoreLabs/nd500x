@@ -135,7 +135,7 @@ uint8_t nd500_read_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
-        if (nd500_trap_occurred()) return 0;  // Trap occurred during translation
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;  /* translation faulted - the handler may have cleared the global trap state, so the abort flag has to be tested too, exactly as the write helpers below do */
     }
 
     uint8_t value = nd500_bus_read8(cpu->machine, paddr);
@@ -169,7 +169,7 @@ uint8_t nd500_fetch_memory_8(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 1); // is_write=0, is_instruction=1 (PROGRAM space!)
-        if (nd500_trap_occurred()) return 0;  // Trap occurred during translation
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;  /* translation faulted - the handler may have cleared the global trap state, so the abort flag has to be tested too, exactly as the write helpers below do */
     }
 
     uint8_t value = nd500_bus_read8(cpu->machine, paddr);
@@ -221,7 +221,7 @@ uint16_t nd500_read_memory_16(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
-        if (nd500_trap_occurred()) return 0;  // Trap occurred during translation
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;  /* translation faulted - the handler may have cleared the global trap state, so the abort flag has to be tested too, exactly as the write helpers below do */
     }
 
     // Read two bytes BIG-ENDIAN from physical address (ND-500 spec)
@@ -285,7 +285,7 @@ uint32_t nd500_read_memory_32(Nd500Cpu* cpu, uint32_t vaddr) {
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, 0, 0); // is_write=0, is_instruction=0
-        if (nd500_trap_occurred()) return 0;  // Trap occurred during translation
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;  /* translation faulted - the handler may have cleared the global trap state, so the abort flag has to be tested too, exactly as the write helpers below do */
     }
 
     // Read four bytes BIG-ENDIAN from physical address (ND-500 spec)
@@ -505,7 +505,7 @@ uint8_t nd500_read_memory_8_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t domain
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate_domain(cpu, vaddr, 0, 0, domain);
-        if (nd500_trap_occurred()) return 0;
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;  /* translation faulted - the handler may have cleared the global trap state, so the abort flag has to be tested too, exactly as the write helpers below do */
     }
 
     uint8_t value = nd500_bus_read8(cpu->machine, paddr);
@@ -568,7 +568,7 @@ uint16_t nd500_read_memory_16_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t doma
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate_domain(cpu, vaddr, 0, 0, domain);
-        if (nd500_trap_occurred()) return 0;
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;  /* translation faulted - the handler may have cleared the global trap state, so the abort flag has to be tested too, exactly as the write helpers below do */
     }
 
     uint8_t b0 = nd500_bus_read8(cpu->machine, paddr);
@@ -622,7 +622,7 @@ uint32_t nd500_read_memory_32_domain(Nd500Cpu* cpu, uint32_t vaddr, uint8_t doma
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate_domain(cpu, vaddr, 0, 0, domain);
-        if (nd500_trap_occurred()) return 0;
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;  /* translation faulted - the handler may have cleared the global trap state, so the abort flag has to be tested too, exactly as the write helpers below do */
     }
 
     uint8_t b0 = nd500_bus_read8(cpu->machine, paddr);
@@ -1937,6 +1937,22 @@ bool nd500_load_string_descriptor(Nd500Cpu* cpu, uint32_t desc_addr, Nd500String
      * word instead; they are decoded by nd500_dec_load_desc in bcd_helpers.c. */
     desc->element_count = nd500_read_memory_32(cpu, desc_addr);
     desc->base_address = nd500_read_memory_32(cpu, desc_addr + 4);
+
+    /* REPORT A FAULTED DESCRIPTOR READ. This returned true unconditionally, so
+     * every `if (!nd500_load_string_descriptor(...)) return;` in the STRING
+     * class was DEAD CODE - Smove, Sfill, Smatch and Scotr each have one. On a
+     * page fault the two reads return 0, and the caller then ran its copy or
+     * fill loop with element_count 0 and base_address 0 and committed I1/I2 and
+     * the K/Z flags from it; Sfill went further and raised a descriptor-range
+     * trap on top of the page fault.
+     *
+     * The C# does not need such a check because a faulting access there throws
+     * Nd500InstructionAbortException and unwinds to the instruction boundary
+     * (CpuND500.UncaughtFaults.cs, UnwindOnAbortedAccess). nd500x has no unwind,
+     * so each access site has to say so itself - and this one claimed success. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return false;
+    }
     return true;
 }
 

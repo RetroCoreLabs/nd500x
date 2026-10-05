@@ -54,6 +54,13 @@ static inline uint8_t mmu_read8(Nd500Cpu* cpu, uint32_t vaddr, int is_write, int
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
+        /* A FAILED TRANSLATE RETURNS THE VIRTUAL ADDRESS, so reading at paddr
+         * would read physical memory at the virtual address and hand the decoder
+         * a byte the machine never fetched. The write side of this file has
+         * checked this since the exec-argv corruption; the read side did not.
+         * The C# checks the same thing on entry to its fetch path
+         * (CpuND500.Memory.cs, the fetch guards). */
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;
     }
 
     /* Access physical memory via bus (no further translation) */
@@ -120,6 +127,10 @@ static inline uint16_t mmu_read16(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
+        /* Same reason as mmu_read8 above: a failed translate returns the
+         * VIRTUAL address, and reading there hands the decoder a byte the
+         * machine never fetched. The write side has always checked. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;
     }
 
     /* Latched like every other ND500X_UDATADBG site (instruction_helpers.c
@@ -162,6 +173,10 @@ static inline uint32_t mmu_read32(Nd500Cpu* cpu, uint32_t vaddr, int is_write, i
     uint32_t paddr = vaddr;
     if (cpu->machine->mmu_enabled) {
         paddr = nd500_mmu_translate(cpu, vaddr, is_write, is_instruction);
+        /* Same reason as mmu_read8 above: a failed translate returns the
+         * VIRTUAL address, and reading there hands the decoder a byte the
+         * machine never fetched. The write side has always checked. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) return 0;
     }
 
     /* Latched - see mmu_read16 above. */

@@ -77,7 +77,7 @@ void nd500_instr_Phyladr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (cpu->machine && cpu->machine->mmu_enabled) {
         physical_address = nd500_mmu_translate(cpu, logical_address, 0, 0);
         /* Check for trap during translation */
-        if (nd500_trap_occurred()) {
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
             return;
         }
     } else {
