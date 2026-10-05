@@ -67,12 +67,26 @@
 #define NDBUS_MICFU_TRACO     21u   /**< 25B 3TRACO trap continue; shares MSG_START */
 #define NDBUS_MICFU_WMONCO    22u   /**< 26B 3WMONCO wait-monitor-call continue; MSG_CONWR */
 
-/* ---- what the hardware does with a micro-function -------------------------
+/* ---- what the servicer does with a micro-function -------------------------
  *
- * The microcode strips bit 15 of the MICFU halfword - a flag, not part of the
- * number - range checks the rest against 0..77B and indexes a 64-entry vectored
- * dispatch table. These three accessors are that table's front door, so the
- * strip and the range check happen in ONE place instead of at every comparison.
+ * THE WHOLE 16-BIT HALFWORD IS THE CODE. BIT 15 IS NOT STRIPPED.
+ *
+ * The reference switches on the raw halfword -
+ * $RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/Nd500MicrocodeServicer.cs:2621
+ * reads MICFU and :2674 is `switch ((N5MicroFunction)micfu)` with no mask - so a
+ * halfword with bit 15 set matches no case and lands in `default` (:3982), which
+ * answers 5ERANSWER. These accessors used to strip bit 15 first while
+ * execute_micfu() switched on the raw value, so one message was classed as a
+ * continue and then dispatched as unknown. They now agree with each other and
+ * with the reference: a code of 64 or more, flagged or not, is out of range.
+ *
+ * NOT PORTED: the reference THROWS in `default` while StrictUnknownMessages is
+ * true (:3997). C has no exception to throw, so this port takes the non-strict
+ * path (:4008-4010): a log line and 5ERANSWER.
+ *
+ * ND500-MAILBOX-MESSAGE-CATALOG.md:209 reads the microcode as stripping bit 15
+ * before its 64-entry dispatch, graded [V/D] - part verified, part derived. That
+ * reading is NOT implemented here, by order of 05-OCT-2026: the C# is the oracle.
  */
 #define NDBUS_MICFU_CLASS_NONE     0u  /**< not dispatched by this emulator */
 #define NDBUS_MICFU_CLASS_INLINE   1u  /**< answered where it is, process untouched */
@@ -80,16 +94,17 @@
 #define NDBUS_MICFU_CLASS_CONTINUE 3u  /**< resumes a parked process in place */
 
 /**
- * @brief The index the hardware would dispatch this MICFU halfword through.
- * @param micfu_halfword The raw halfword from the message, flag bit and all.
- * @return 0..63, or 64 when the code is outside the microcode's own range -
- *         a value no table entry can have, so it cannot be mistaken for one.
+ * @brief The table index for this MICFU halfword.
+ * @param micfu_halfword The raw halfword from the message. Nothing is masked off.
+ * @return 0..63 when the halfword is one of those values, otherwise 64 - a value
+ *         no table entry can have, so it cannot be mistaken for one. A halfword
+ *         with bit 15 set is therefore always 64.
  */
 uint16_t ndbus_micfu_dispatch_code(uint16_t micfu_halfword);
 
 /**
  * @brief What class of thing this micro-function is: NDBUS_MICFU_CLASS_*.
- * @param micfu_halfword The raw halfword; the flag bit is stripped here.
+ * @param micfu_halfword The raw halfword; nothing is masked off.
  * @return The class, or NDBUS_MICFU_CLASS_NONE for out of range or unimplemented.
  */
 uint8_t ndbus_micfu_class(uint16_t micfu_halfword);
@@ -135,14 +150,17 @@ const char *ndbus_micfu_name(uint16_t micfu_halfword);
 bool ndbus_micfu_is_continue(uint16_t micfu);
 
 /**
- * @brief Is this MICFU one of the four messages that put a process on the CPU?
+ * @brief Is this MICFU one of the messages that are offered to the process host?
  *
- * MSG_STARTP0, 3START, 3MONCO and 3TRACO. The last two share MSG_START in the
- * microcode, which is why they belong to the same class here even though
- * ndbus_micfu_is_continue() separates them again.
+ * 3START (23B), 3MONCO (24B), 3TRACO (25B) and 3WMONCO (26B).
+ *
+ * 22B MSG_STARTP0 IS NOT ONE OF THEM. The reference answers it ANSWER at once and
+ * never calls its process host -
+ * $RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/Nd500MicrocodeServicer.cs:3314-3330
+ * - so here it is NDBUS_MICFU_CLASS_INLINE and this returns false for it.
  *
  * @param micfu The raw micro-function code from the message.
- * @return true for the four start-class codes, false otherwise.
+ * @return true for 23B, 24B, 25B and 26B, false otherwise.
  */
 bool ndbus_micfu_is_start_class(uint16_t micfu);
 
@@ -177,9 +195,20 @@ bool ndbus_micfu_is_start_class(uint16_t micfu);
  *  gate announces itself when it is reached. */
 #define NDBUS_SERVICER_COPY_LOG_LIMIT 4096u
 
-/** How many ND-5000 processes one mailbox can carry, one message remembered each.
- *  The extension blocks run CPUNO 1..7, so 8 covers a zero-based X5CPU. */
-#define NDBUS_SERVICER_MAX_PROCESSES 8u
+/** How many ND-5000 processes the servicer remembers a message for, indexed by the
+ *  zero-based X5CPU of the message. 64, the reference's MaxProcesses at
+ *  $RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/Nd500MicrocodeServicer.cs:1164.
+ *  It was 8 here, which silently dropped every process from X5CPU 8 upward. */
+#define NDBUS_SERVICER_MAX_PROCESSES 64u
+
+/** Bytes in the "already logged" bitmap for out-of-range X5CPU values: one bit
+ *  for each of the 65536 values a 16-bit X5CPU field can hold. */
+#define NDBUS_SERVICER_X5CPU_BITMAP_BYTES 8192u
+
+/** How many DMEMRD and how many DMEMWR requests are logged with their raw
+ *  ND-100 buffer field - see perform_dmemrd() in ndbus_servicer.c for the open
+ *  question that log exists to settle. */
+#define NDBUS_SERVICER_DMEM_LOG_LIMIT 8u
 
 /** STOPR value that says "this process stopped on a trap" - TRAPCODE. */
 #define NDBUS_STOPR_TRAPCODE 2u
@@ -360,6 +389,35 @@ typedef struct NdbusServicerHost
     bool (*read_nd500_data_bytes)(void *ctx, uint32_t logical_address,
                                   uint8_t *destination, uint32_t count);
 
+    /**
+     * Make the process a message names the one loaded on the CPU, before a
+     * DMEMRD (10B) or DMEMWR (11B) translates its logical address.
+     *
+     * Ported from RetroCore INd500ProcessHost.TryLoadNamedProcess
+     * ($RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/INd500ProcessHost.cs:123).
+     * The servicer calls it and then goes on with the transfer WHATEVER it
+     * returns, exactly as Nd500MicrocodeServicer.cs:2868 and :3135 do - the host
+     * is the one that reports a failure.
+     *
+     * May be NULL, which means the same as the reference's default
+     * implementation: nothing to load, carry on.
+     */
+    bool (*load_named_process)(void *ctx, uint16_t x5cpu);   /* C# INd500ProcessHost.TryLoadNamedProcess: make X5CPU the loaded process; false if it cannot */
+
+    /**
+     * Write ND-500 DATA memory through the MMU, in the loaded process's context.
+     * The mirror of read_nd500_data_bytes, needed by DMEMWR (11B).
+     *
+     * Ported from RetroCore INd500ProcessHost.TryWriteDataBytes
+     * ($RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/INd500ProcessHost.cs:102).
+     *
+     * May be NULL, which means decline: DMEMWR then answers 5ERANSWER and
+     * nothing is written anywhere.
+     *
+     * @return true only when every byte was written.
+     */
+    bool (*write_nd500_data_bytes)(void *ctx, uint32_t logical_address, const uint8_t *source, uint32_t count);   /* C# TryWriteDataBytes */
+
     /* THE RESTART SEAM IS NOT HERE YET, AND THAT IS DELIBERATE.
      *
      * RetroCore's INd500ProcessHost has a DEDICATED callback per restart kind -
@@ -474,11 +532,33 @@ typedef struct NdbusServicer
     /* Block-copy diagnostics. */
     unsigned long copies_done;         /**< copy-family transfers performed */
     unsigned long copy_bytes;          /**< bytes moved by them in total */
-    unsigned long copies_refused;      /**< transfers refused for leaving the pool */
-    /** DMEMRD/DMEMWR refused because no host can translate a logical data address.
-     *  Counted separately from copies_refused: that one is a bad address, this one
-     *  is a missing capability, and they need different fixes. */
+    /** NO LONGER INCREMENTED. The copy family used to refuse a transfer that left
+     *  the pool and answer 5ERANSWER; the reference never refuses one
+     *  (Nd500MicrocodeServicer.cs:2707-2709 and :3022-3024 set understood = true
+     *  unconditionally), so this port no longer does either. The field is kept
+     *  only so code that reads it still compiles; copies_outside_pool below is
+     *  the counter that now says a transfer left the pool. */
+    unsigned long copies_refused;
+    /** Copy-family transfers with at least one end outside the pool. They are
+     *  performed and answered ANSWER as the reference does: a source word outside
+     *  the pool reads 0, a destination word outside the pool is dropped. */
+    uint32_t copies_outside_pool;
+    /** DMEMRD/DMEMWR answered 5ERANSWER, for any of the reference's reasons: no
+     *  host callback, a non-zero DIT number, a count above 2048, an ND-100 buffer
+     *  address of 0, or the host's read or write failing. */
     unsigned long logical_copies_refused;
+    uint32_t dmemrd_seen;    /**< 10B DMEMRD messages that reached perform_dmemrd() */
+    uint32_t dmemrd_served;  /**< ... of those, answered ANSWER with bytes moved */
+    uint32_t dmemwr_seen;    /**< 11B DMEMWR messages that reached perform_dmemwr() */
+    uint32_t dmemwr_served;  /**< ... of those, answered ANSWER with bytes moved */
+
+    /** Calls that named an X5CPU at or above NDBUS_SERVICER_MAX_PROCESSES and
+     *  were therefore refused, or whose message could not be remembered. Every
+     *  such call is counted; each distinct X5CPU is logged once. */
+    uint32_t x5cpu_out_of_range;
+    /** One bit per X5CPU value: set once that value's out-of-range line has been
+     *  logged, so a process that is asked about on every trap logs one line. */
+    uint8_t  x5cpu_out_of_range_logged[NDBUS_SERVICER_X5CPU_BITMAP_BYTES];
     unsigned long segment_resolved;    /**< PHYSRD/PHYSWR addresses resolved through the PST */
     unsigned long segment_unresolved;  /**< ... and those that fell back to a flat address */
 
@@ -666,6 +746,12 @@ bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t
  * monitor number, then each argument's ADDRESS at 0o40 + 2k and its VALUE at
  * 0o100 + 2k, both 32-bit. The count is clamped to the microcode's sixteen slots.
  *
+ * AN ARGUMENT WHOSE ADDRESS IS 0 GETS NO VALUE WRITTEN. Its address slot is still
+ * written (with 0) and NUMPA still counts it, but its VALUE slot is left as
+ * SINTRAN staged it - Nd500MicrocodeServicer.cs:4547-4550. An address of 0 means
+ * "this slot carries no operand", and on the swapper's MON 377B the value slot of
+ * argument 2 is SINTRAN's own SWPINFO word.
+ *
  * @param sv            The servicer.
  * @param x5cpu         Which process is calling, zero-based.
  * @param saved_p       Where the process resumes - AFTER the call instruction,
@@ -755,11 +841,14 @@ bool ndbus_servicer_write_inline_buffer(NdbusServicer *sv, uint32_t msg_byte,
  * stopped for a monitor call; false after a trap stop, and false when it has not
  * stopped at all.
  *
- * @param sv    The servicer.
+ * @param sv    The servicer. Not const: an X5CPU at or above
+ *              NDBUS_SERVICER_MAX_PROCESSES is counted in x5cpu_out_of_range and
+ *              logged once.
  * @param x5cpu The process, zero-based.
- * @return true when NdbusMonResult may be read for that process.
+ * @return true when NdbusMonResult may be read for that process; false for a
+ *         NULL servicer or an out-of-range X5CPU.
  */
-bool ndbus_servicer_stop_was_monitor_call(const NdbusServicer *sv, uint16_t x5cpu);
+bool ndbus_servicer_stop_was_monitor_call(NdbusServicer *sv, uint16_t x5cpu);
 
 /** What SINTRAN sent back with a 3MONCO restart. */
 typedef struct NdbusMonResult
@@ -915,11 +1004,15 @@ bool ndbus_servicer_read_monitor_result(NdbusServicer *sv, uint32_t msg_byte,
  * bridge calls on both sides of a context switch.
  *
  * @param sv    The servicer.
- * @param x5cpu The PROCESS number - see ndbus_servicer_read_message_x5cpu().
+ * @param x5cpu The PROCESS number - see ndbus_servicer_read_message_x5cpu(). NOT
+ *              range checked against NDBUS_SERVICER_MAX_PROCESSES: the reference
+ *              computes the address for any X5CPU
+ *              (Nd500MicrocodeServicer.cs:1326-1336 and :3744-3745), so a block
+ *              that lies outside the pool is the caller's to refuse.
  * @return The block's byte address, or 0 when no context area has been declared
- *         yet or the process number is out of range. Zero is not a legal block
- *         address, so a caller that ignores the check gets a refusal from
- *         ndbus_context_attach() rather than block 0 of the pool.
+ *         yet. Zero is not a legal block address, so a caller that ignores the
+ *         check gets a refusal from ndbus_context_attach() rather than block 0 of
+ *         the pool.
  */
 uint32_t ndbus_servicer_process_context_byte(const NdbusServicer *sv, uint16_t x5cpu);
 

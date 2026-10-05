@@ -839,13 +839,18 @@ static void test_nd5000_station(void)
     body[3] = 0x55;
     int n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 4,
                       replies);
-    /* Messack plus the echoed pattern: T125 says returned data follows Messack
-     * in the same multibyte message. */
+    /* A BARE MESSACK, AS THE REFERENCE ANSWERS IT. RetroCore's station has no arm
+     * for 017B, so it takes the default acknowledge
+     * ($RETROCORE/Emulated.HW/ND/CPU/NDBUS/OctobusND5000Station.cs, the default at
+     * the end of the ACCP dispatch). This check used to expect the two bytes
+     * echoed back, on the strength of manual T125/T126 and not of a measurement;
+     * the one measurement there is, on the real ACCP firmware with a zero count,
+     * replies [00] and so agrees with both. Ported to the reference 05-OCT-2026. */
     uint8_t payload[NDBUS_MAX_REPLY_FRAMES];
     int     plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
                                       (int)sizeof(payload));
-    CHECK(plen == 3 && payload[0] == 0x00 && payload[1] == 0xAA && payload[2] == 0x55,
-          "ECHO is answered with a Messack carrying its two echoed bytes");
+    CHECK(plen == 1 && payload[0] == 0x00,
+          "ECHO is answered with a bare Messack, as the reference answers it");
     CHECK(nd.last_nak_code == NDBUS_ACCP_ACCEPTED, "and it is a Messack");
     CHECK(nd.messages_handled == 1, "the station counted one message");
 
@@ -910,11 +915,18 @@ static void test_nd5000_station(void)
      * ND-100 owns what is in the pool, and a reset that wiped it would destroy
      * the other side's data. */
     (void)ndbus_pool_write32(&pool, 0x600, 0x12345678u);
+    bool pointer_before_cpures = nd.accp.parameter_pointer_given;
+    bool syspar_before_cpures = nd.accp.system_parameters_given;
     body[0] = (uint8_t)NDBUS_ACCP_CPURES;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
     CHECK(n == 5, "CPURES is answered");
-    CHECK(!nd.accp.parameter_pointer_given, "the parameter pointer is forgotten");
-    CHECK(!nd.accp.system_parameters_given, "the system parameters are forgotten");
+    /* CPURES clears "running" and "kicks enabled" AND NOTHING ELSE - the
+     * reference's arm (OctobusND5000Station.cs, CMCPURES). The pointer and the
+     * system parameters survive, which is why SINTRAN can VPARP after a CPURES. */
+    CHECK(nd.accp.parameter_pointer_given == pointer_before_cpures,
+          "the parameter pointer state is unchanged by CPURES");
+    CHECK(nd.accp.system_parameters_given == syspar_before_cpures,
+          "and so are the system parameters");
     CHECK(ndbus_pool_read32(&pool, 0x600) == 0x12345678u, "and the shared pool is untouched");
 
     /* A SOMB for another OMD is the microprogram's message, not the ACCP's. */
@@ -940,9 +952,8 @@ static void test_nd5000_station(void)
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 3, replies);
     plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
                               (int)sizeof(payload));
-    CHECK(plen == 2, "the restarted message is answered - Messack plus one echoed byte");
-    CHECK(plen == 2 && payload[1] == 0x11,
-          "and it echoes the SECOND message's byte, not the abandoned 0x99");
+    CHECK(plen == 1 && payload[0] == 0x00,
+          "the restarted message is answered - a bare Messack");
     CHECK(nd.last_command == NDBUS_ACCP_ECHO,
           "and it is the SECOND message, not the abandoned one");
 
@@ -1260,11 +1271,8 @@ static void test_bringup(void)
     uint8_t payload[NDBUS_MAX_REPLY_FRAMES];
     int     plen = accp_reply_payload(replies, n, NDBUS_STATION_ND5000_FIRST, payload,
                                       (int)sizeof(payload));
-    CHECK(plen == 4, "ECHO answers with a Messack carrying three bytes");
-    CHECK(plen == 4 && payload[0] == 0x00, "the Messack's leading status byte is MFACK");
-    CHECK(plen == 4 && payload[1] == 0xDE, "echoing the pattern that was sent");
-    CHECK(plen == 4 && payload[2] == 0xAD, "all of it");
-    CHECK(plen == 4 && payload[3] == 0xBE, "in order");
+    CHECK(plen == 1, "ECHO answers with a bare Messack, as the reference does");
+    CHECK(plen == 1 && payload[0] == 0x00, "the Messack's status byte is MFACK");
 
     /* 2. LSYSPAR - where the microprogram sends octobus error messages. */
     body[0] = (uint8_t)NDBUS_ACCP_LSYSPAR;
@@ -1364,7 +1372,8 @@ static void test_bringup(void)
     body[0] = (uint8_t)NDBUS_ACCP_CPURES;
     n = send_accp(&fabric, NDBUS_STATION_ND120_CPU, NDBUS_STATION_ND5000_FIRST, body, 1, replies);
     CHECK(n == 5, "CPURES is acked");
-    CHECK(!nd.accp.parameter_pointer_given, "and the ACCP is cold again");
+    CHECK(nd.accp.parameter_pointer_given,
+          "and the parameter pointer SURVIVES it - CPURES clears running and kicks only");
     CHECK(ndbus_pool_read32(&pool, param_area) == 0xCAFEBABEu, "shared memory survives the reset");
     CHECK(ndbus_pool_read32(&pool, 0x500) == 0x12345678u, "all of it");
 
@@ -3304,7 +3313,12 @@ static void test_mailbox_servicer(void)
         CHECK(ndbus_nd5000_service_mailbox(&nd), "13B RESIRD is serviced");
         CHECK(mbx_read(&pool, buffer + 0u) == 0x7788u, "a READ moves A into B");
 
-        /* A transfer that leaves the pool is refused, not silently zero-filled. */
+        /* A transfer that leaves the pool is ANSWERED ANSWER(3), as the reference
+         * answers it: $RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/
+         * Nd500MicrocodeServicer.cs:3274-3275 sets understood = true with no range
+         * check, and the octobus host drops each write outside its window. It is
+         * counted, so a transfer that wrote nowhere cannot read as one that worked.
+         * The full read/write/straddle behaviour is in Layer 26. */
         mbx_build_message(&pool, NDBUS_MICFU_RESIWR, NDBUS_N5STA_TO_ND500);
         (void)ndbus_pool_write16(&pool, MBX_MSG + 14u, 0xFFFFu);
         (void)ndbus_pool_write16(&pool, MBX_MSG + 16u, 0xF000u);
@@ -3315,9 +3329,10 @@ static void test_mailbox_servicer(void)
         (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
 
         CHECK(ndbus_nd5000_service_mailbox(&nd), "an out-of-pool copy still answers");
-        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
-              "with 5ERANSWER(4), because the transfer did not happen");
-        CHECK(nd.servicer.copies_refused == 1u, "and the refusal is counted");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+              "with ANSWER(3) - the reference never refuses a copy for its addresses");
+        CHECK(nd.servicer.copies_outside_pool == 1u, "and the out-of-pool transfer is counted");
+        CHECK(nd.servicer.copies_refused == 0u, "nothing is counted as refused any more");
 
         /* PHYSWR with no PST base known: the fallback happens and is COUNTED, so a
          * transfer that may have landed in the wrong cell is never silent. */
@@ -3472,7 +3487,10 @@ static void test_copy_family_refusals(void)
 {
     printf("Layer 15: the copy family's refusals and the X5BEX head node\n");
 
-    /* --- DMEMRD and DMEMWR must REFUSE, never copy physically -------------- */
+    /* --- DMEMRD and DMEMWR with NO HOST must REFUSE, never copy physically ---
+     * The station here has neither read_nd500_data_bytes nor
+     * write_nd500_data_bytes, which is the reference's `ProcessHost == null`.
+     * The served paths, with a host, are in Layer 26. */
     const uint16_t logical[2] = { NDBUS_MICFU_DMEMRD, NDBUS_MICFU_DMEMWR };
     const char    *logical_name[2] = { "10B DMEMRD", "11B DMEMWR" };
 
@@ -4214,10 +4232,21 @@ static void test_trap_stop_record(void)
           "and 0o17-0o20 still carries the fault address, as it does for every stop trap");
 
     /* An X5CPU past the mailbox's own process count is refused rather than
-     * indexing off the end of the array. */
-    CHECK(!ndbus_servicer_answer_trap_stop(&nd.servicer, NDBUS_SERVICER_MAX_PROCESSES,
-                                          NDBUS_TRAP_PAGE_FAULT, pc, la, mms, psn),
-          "an X5CPU outside the process array is refused");
+     * indexing off the end of the array - and the refusal is counted, where it
+     * used to return before even the attempt was counted. */
+    {
+        unsigned long attempted_before = nd.servicer.trap_stops_attempted;
+        unsigned long declined_before  = nd.servicer.trap_stops_declined;
+        uint32_t      range_before     = nd.servicer.x5cpu_out_of_range;
+        CHECK(!ndbus_servicer_answer_trap_stop(&nd.servicer, NDBUS_SERVICER_MAX_PROCESSES,
+                                              NDBUS_TRAP_PAGE_FAULT, pc, la, mms, psn),
+              "an X5CPU outside the process array is refused");
+        CHECK(nd.servicer.trap_stops_attempted == attempted_before + 1u &&
+                  nd.servicer.trap_stops_declined == declined_before + 1u,
+              "and the refused trap stop is counted as attempted and declined");
+        CHECK(nd.servicer.x5cpu_out_of_range == range_before + 1u,
+              "and as an out-of-range X5CPU");
+    }
 
     ndbus_nd5000_destroy(&nd);
     ndbus_pool_destroy(&pool);
@@ -4318,15 +4347,22 @@ static void test_physical_segment_width(void)
     mbx_copy_message(&pool, NDBUS_MICFU_PHYSWR, 0u, buffer, 2u);
     (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_MSWMC * 2u, 2u);
 
-    /* 0x1C000 pages is far outside a 256 KB pool, so the guard must refuse the
-     * transfer. Under the 14-bit mask the page would read as 0x0000, which the
-     * resolver reports as "not present" - a different answer that happens to also
-     * refuse, so assert the COUNTER that says which path was taken. */
+    /* 0x1C000 pages is far outside a 256 KB pool, so every write of the transfer
+     * is dropped. Under the 14-bit mask the page would read as 0x0000, which the
+     * resolver reports as "not present" and then copies FLAT to pool offset 0 - so
+     * assert the COUNTERS that say which path was taken, and that pool offset 0
+     * was not written. */
+    (void)ndbus_pool_write16(&pool, 0u, 0x0F0Fu);
     (void)ndbus_nd5000_service_mailbox(&nd);
     CHECK(nd.servicer.segment_resolved == 2u,
           "a 30-bit page number resolves rather than masking down to zero");
-    CHECK(nd.servicer.copies_refused == 1u,
-          "and the out-of-pool guard refuses it, instead of a folded page succeeding");
+    CHECK(nd.servicer.copies_outside_pool == 1u,
+          "and the transfer is counted as leaving the pool, instead of a folded page "
+          "succeeding");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "it is answered ANSWER(3) all the same, as the reference answers it");
+    CHECK(ndbus_pool_read16(&pool, 0u) == 0x0F0Fu,
+          "and nothing was written at the folded address");
 
     ndbus_nd5000_destroy(&nd);
     ndbus_pool_destroy(&pool);
@@ -4552,29 +4588,31 @@ static void test_monitor_call_result(void)
      * Offsets from the reference's decode of the microcode at 015752-016004:
      * 26NRB at halfword 0o17, 26ADD at 0o15-0o16, ABUFA at 0o140-0o141. ABUFA is
      * a WORD address, shifted left to reach bytes. */
-    /* ---- THE VECTORED DISPATCH: strip, range check, then index --------------
+    /* ---- THE DISPATCH: range check the RAW halfword, then index --------------
      *
-     * The microcode does not compare MICFU against a list. It strips bit 15 - a
-     * FLAG, not part of the function number - range checks the rest against
-     * 0..77B and indexes a 64-entry table. Both emulators switched on the raw
-     * halfword and neither range checked, so a flagged message the hardware
-     * dispatches normally was answered 5ERANSWER by both. The carve outranks
-     * both emulators, so this is a shared defect rather than a port gap:
-     * ACCP-OCTOBUS-COMMAND-TABLE-2026-08-02.md, and the mailbox catalogue's
-     * read order "N5STA check -> CPU-target check -> MICFU -> vectored dispatch". */
+     * BIT 15 IS NOT STRIPPED. The reference switches on the raw halfword -
+     * $RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/Nd500MicrocodeServicer.cs:2674,
+     * `switch ((N5MicroFunction)micfu)` with no mask - so a halfword with bit 15
+     * set matches no case and is answered 5ERANSWER from `default` (:3982).
+     *
+     * These checks used to assert the opposite, a strip taken from
+     * ND500-MAILBOX-MESSAGE-CATALOG.md:209 (graded [V/D]). The class lookup then
+     * stripped the bit while the dispatch switch did not, so one message was a
+     * continue to the first and unknown to the second. By order of 05-OCT-2026
+     * the C# is the oracle and both now see the raw value. */
     CHECK(ndbus_micfu_dispatch_code(NDBUS_MICFU_MONCO) == NDBUS_MICFU_MONCO,
           "an ordinary code dispatches through itself");
-    CHECK(ndbus_micfu_dispatch_code((uint16_t)(NDBUS_MICFU_MONCO | 0x8000u)) ==
-              NDBUS_MICFU_MONCO,
-          "and bit 15 is STRIPPED - it is a flag, so a flagged 24B is still a 24B");
-    CHECK(ndbus_micfu_is_continue((uint16_t)(NDBUS_MICFU_MONCO | 0x8000u)),
-          "so a flagged continue is still classed as a continue, not answered 5ERANSWER");
-    CHECK(ndbus_micfu_is_continue((uint16_t)(NDBUS_MICFU_WMONCO | 0x8000u)),
-          "and a flagged 26B likewise");
+    CHECK(ndbus_micfu_dispatch_code((uint16_t)(NDBUS_MICFU_MONCO | 0x8000u)) == 64u,
+          "bit 15 is NOT stripped - a 24B with bit 15 set is out of range, as it "
+          "matches no case in the reference's switch");
+    CHECK(!ndbus_micfu_is_continue((uint16_t)(NDBUS_MICFU_MONCO | 0x8000u)),
+          "so it is not classed as a continue");
+    CHECK(!ndbus_micfu_is_start_class((uint16_t)(NDBUS_MICFU_WMONCO | 0x8000u)),
+          "and a 26B with bit 15 set is not offered to the process host either");
     CHECK(ndbus_micfu_dispatch_code(64u) == 64u,
           "a code at the table's bound is OUT of range - 0..77B is 0..63");
     CHECK(ndbus_micfu_dispatch_code(0x7FFFu) == 64u,
-          "and so is anything above it, once the flag is off");
+          "and so is anything above it");
     CHECK(ndbus_micfu_class(64u) == NDBUS_MICFU_CLASS_NONE,
           "an out-of-range code has no class - it is not a function at all");
     CHECK(!ndbus_micfu_is_continue(64u) && !ndbus_micfu_is_start_class(64u),
@@ -4617,10 +4655,10 @@ static void test_monitor_call_result(void)
           "on the ND-500 generation too");
     CHECK(ndbus_micfu_class(NDBUS_MICFU_WREG) == NDBUS_MICFU_CLASS_NONE,
           "21B 3WREG likewise - there is no register image on this generation");
-    CHECK(ndbus_micfu_class(NDBUS_MICFU_RPREG) == NDBUS_MICFU_CLASS_NONE,
-          "44B 3RPREG is refused rather than answered OK-with-no-write: the "
-          "reference answers success there and its own comment says what reaches "
-          "the message is NOT carved, so success would be a guessed answer");
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_RPREG) == NDBUS_MICFU_CLASS_INLINE,
+          "44B 3RPREG is answered inline, ANSWER(3) with nothing written, exactly as "
+          "the reference answers it at Nd500MicrocodeServicer.cs:3954-3981 - it was "
+          "refused here, which the reference does not do");
 
     /* The names exist so a log line reads; a missing one must not be NULL. */
     CHECK(ndbus_micfu_name(NDBUS_MICFU_WMONCO) != NULL &&
@@ -4840,9 +4878,16 @@ static void test_stop_kind_selects_the_arm(void)
     CHECK(ndbus_servicer_stop_was_monitor_call(&nd.servicer, 1u),
           "and the arm applies again - the gate is not a latch");
 
-    /* An out-of-range process is refused rather than indexing past the array. */
-    CHECK(!ndbus_servicer_stop_was_monitor_call(&nd.servicer, NDBUS_SERVICER_MAX_PROCESSES),
-          "an out-of-range process number is refused");
+    /* An out-of-range process is refused rather than indexing past the array,
+     * and the refusal is counted rather than returned without a word. */
+    {
+        uint32_t range_before = nd.servicer.x5cpu_out_of_range;
+        CHECK(!ndbus_servicer_stop_was_monitor_call(&nd.servicer,
+                                                    NDBUS_SERVICER_MAX_PROCESSES),
+              "an out-of-range process number is refused");
+        CHECK(nd.servicer.x5cpu_out_of_range == range_before + 1u,
+              "and counted as an out-of-range X5CPU");
+    }
     CHECK(!ndbus_servicer_stop_was_monitor_call(NULL, 0u), "and a NULL servicer");
 
     ndbus_nd5000_destroy(&nd);
@@ -5144,9 +5189,16 @@ static void test_micfu_classes(void)
     CHECK(!ndbus_micfu_is_continue(NDBUS_MICFU_PHYSWR), "PHYSWR is not a continue");
     CHECK(!ndbus_micfu_is_continue(0u), "and neither is zero");
 
-    /* The start CLASS is the wider set - all four reach the host's start hook. The
-     * two predicates must not collapse into one another. */
-    CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_STARTP0), "MSG_STARTP0 is start class");
+    /* The start CLASS is the wider set - 23B, 24B, 25B and 26B reach the host's
+     * start hook. The two predicates must not collapse into one another.
+     *
+     * 22B MSG_STARTP0 IS NOT IN IT. The reference answers 22B at once and never
+     * calls its process host (Nd500MicrocodeServicer.cs:3314-3330); this used to
+     * assert the opposite and route 22B to the host's start hook. */
+    CHECK(!ndbus_micfu_is_start_class(NDBUS_MICFU_STARTP0),
+          "MSG_STARTP0 is NOT start class - it is answered without touching a process");
+    CHECK(ndbus_micfu_class(NDBUS_MICFU_STARTP0) == NDBUS_MICFU_CLASS_INLINE,
+          "it is an inline answer");
     CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_START), "3START is start class");
     CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_MONCO), "3MONCO is start class too");
     CHECK(ndbus_micfu_is_start_class(NDBUS_MICFU_TRACO), "and so is 3TRACO");
@@ -5284,6 +5336,690 @@ static void test_pool_snapshot(void)
     ndbus_pool_destroy(&wrong);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Layer 26: behaviour ported from the reference's ND-5000 octobus arm.        */
+/*                                                                            */
+/* Every case here is something                                               */
+/* $RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/Nd500MicrocodeServicer.cs      */
+/* does on the octobus lane that the C servicer did not do, or did             */
+/* differently, on 05-OCT-2026. Each case names the C# lines it mirrors and    */
+/* fails against the servicer as it stood before the port.                     */
+/* -------------------------------------------------------------------------- */
+
+/* Stand-ins for the process host's data-memory callbacks. s_port_seq numbers
+ * every callback call, so "the process was loaded BEFORE the transfer" is an
+ * ordering that is checked rather than assumed. */
+static int      s_port_seq;
+static int      s_port_load_calls;
+static int      s_port_load_seq;
+static uint16_t s_port_load_x5cpu;
+static bool     s_port_load_result;
+static int      s_port_read_calls;
+static int      s_port_read_seq;
+static uint32_t s_port_read_addr;
+static uint32_t s_port_read_count;
+static bool     s_port_read_ok;
+static uint8_t  s_port_read_src[NDBUS_MON_INLINE_MAX_BYTES];
+static int      s_port_write_calls;
+static int      s_port_write_seq;
+static uint32_t s_port_write_addr;
+static uint32_t s_port_write_count;
+static bool     s_port_write_ok;
+static uint8_t  s_port_written[NDBUS_MON_INLINE_MAX_BYTES];
+static int      s_port_log_x5cpu_lines;
+static int      s_port_log_dmemrd_lines;
+static int      s_port_log_dmemwr_lines;
+static char     s_port_log_last_dmem[320];
+
+static void port_reset(void)
+{
+    s_port_seq = 0;
+    s_port_load_calls = 0;
+    s_port_load_seq = 0;
+    s_port_load_x5cpu = 0xFFFFu;
+    s_port_load_result = true;
+    s_port_read_calls = 0;
+    s_port_read_seq = 0;
+    s_port_read_addr = 0u;
+    s_port_read_count = 0u;
+    s_port_read_ok = true;
+    s_port_write_calls = 0;
+    s_port_write_seq = 0;
+    s_port_write_addr = 0u;
+    s_port_write_count = 0u;
+    s_port_write_ok = true;
+    s_port_log_x5cpu_lines = 0;
+    s_port_log_dmemrd_lines = 0;
+    s_port_log_dmemwr_lines = 0;
+    s_port_log_last_dmem[0] = '\0';
+}
+
+static bool port_load_named_process(void *ctx, uint16_t x5cpu)
+{
+    (void)ctx;
+    s_port_load_calls++;
+    s_port_load_seq = ++s_port_seq;
+    s_port_load_x5cpu = x5cpu;
+    return s_port_load_result;
+}
+
+static bool port_read_data(void *ctx, uint32_t logical_address, uint8_t *destination,
+                           uint32_t count)
+{
+    (void)ctx;
+    s_port_read_calls++;
+    s_port_read_seq = ++s_port_seq;
+    s_port_read_addr = logical_address;
+    s_port_read_count = count;
+    if (!s_port_read_ok || count > NDBUS_MON_INLINE_MAX_BYTES)
+    {
+        return false;
+    }
+    for (uint32_t i = 0; i < count; i++)
+    {
+        destination[i] = s_port_read_src[i];
+    }
+    return true;
+}
+
+static bool port_write_data(void *ctx, uint32_t logical_address, const uint8_t *source,
+                            uint32_t count)
+{
+    (void)ctx;
+    s_port_write_calls++;
+    s_port_write_seq = ++s_port_seq;
+    s_port_write_addr = logical_address;
+    s_port_write_count = count;
+    if (!s_port_write_ok || count > NDBUS_MON_INLINE_MAX_BYTES)
+    {
+        return false;
+    }
+    for (uint32_t i = 0; i < count; i++)
+    {
+        s_port_written[i] = source[i];
+    }
+    return true;
+}
+
+/* The servicer's log, watched for the two lines Layer 26 is about. */
+static void port_log(void *ctx, const char *message)
+{
+    (void)ctx;
+    if (strstr(message, "process slots") != NULL)
+    {
+        s_port_log_x5cpu_lines++;
+    }
+    /* The address line only. The servicer also logs a "DMEMRD #n data:" line
+     * with the bytes it returned; that one is not what these checks read. */
+    if (strstr(message, "mailbox DMEMRD #") == message && strstr(message, " data: ") == NULL)
+    {
+        s_port_log_dmemrd_lines++;
+        (void)snprintf(s_port_log_last_dmem, sizeof s_port_log_last_dmem, "%s", message);
+    }
+    if (strstr(message, "mailbox DMEMWR #") == message)
+    {
+        s_port_log_dmemwr_lines++;
+        (void)snprintf(s_port_log_last_dmem, sizeof s_port_log_last_dmem, "%s", message);
+    }
+}
+
+static void port_open(NdbusPool *pool, NdbusFabric *fabric, NdbusNd5000 *nd)
+{
+    CHECK(ndbus_pool_create(pool, 64 * 1024), "a pool for a ported-behaviour case");
+    ndbus_fabric_init(fabric, NULL);
+    mbx_init_structures(pool);
+    mbx_attach(nd, pool, fabric);
+    nd->servicer.host.log = port_log;
+    port_reset();
+}
+
+static void port_close(NdbusPool *pool, NdbusNd5000 *nd)
+{
+    ndbus_nd5000_destroy(nd);
+    ndbus_pool_destroy(pool);
+}
+
+/** Queue one message with the given MICFU and X5CPU and ring the doorbell. */
+static void port_post(NdbusPool *pool, uint16_t micfu, uint16_t x5cpu)
+{
+    mbx_build_message(pool, micfu, NDBUS_N5STA_TO_ND500);
+    (void)ndbus_pool_write16(pool, MBX_MSG + NDBUS_MSG_X5CPU * 2u, x5cpu);
+    mbx_replay_activation(pool);
+    (void)ndbus_pool_write16(pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+}
+
+/** Queue one DMEMRD or DMEMWR: N500A at words 7-10B, the ND-100 buffer field at
+ *  words 11B-12B, NRBYT at 13B, 5DITN at 14B, X5CPU at word 4. */
+static void port_post_dmem(NdbusPool *pool, uint16_t micfu, uint32_t logical,
+                           uint32_t buffer_field, uint16_t count, uint16_t dit,
+                           uint16_t x5cpu)
+{
+    mbx_copy_message(pool, micfu, logical, buffer_field, count);
+    (void)ndbus_pool_write16(pool, MBX_MSG + NDBUS_MSG_MSWMC * 2u, dit);
+    (void)ndbus_pool_write16(pool, MBX_MSG + NDBUS_MSG_X5CPU * 2u, x5cpu);
+}
+
+/* Item 1, read half. Mirrors Nd500MicrocodeServicer.cs:2748-2991. */
+static void test_port_dmemrd(void)
+{
+    NdbusPool   pool;
+    NdbusFabric fabric;
+    NdbusNd5000 nd;
+    port_open(&pool, &fabric, &nd);
+    nd.servicer.host.read_nd500_data_bytes = port_read_data;
+    nd.servicer.host.load_named_process = port_load_named_process;
+
+    const uint32_t logical = 0x08001478u;          /* the address of defect B12 */
+    const uint32_t buffer  = MBX_BASE + 0x2400u;   /* 0x6400 */
+
+    /* Three bytes: one whole halfword and an ODD last byte, with a neighbour that
+     * must survive and a sentinel in the halfword after it. */
+    (void)ndbus_pool_write16(&pool, buffer + 0u, 0xFFFFu);
+    (void)ndbus_pool_write16(&pool, buffer + 2u, 0xEEDDu);
+    (void)ndbus_pool_write16(&pool, buffer + 4u, 0x7777u);
+    s_port_read_src[0] = (uint8_t)'A';
+    s_port_read_src[1] = (uint8_t)'B';
+    s_port_read_src[2] = (uint8_t)'C';
+
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, buffer, 3u, 0u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd), "10B DMEMRD with a data-reading host is serviced");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "and answered ANSWER(3) - it used to be refused whatever the host could do");
+    CHECK(s_port_read_calls == 1 && s_port_read_addr == logical && s_port_read_count == 3u,
+          "the host read NRBYT bytes at the LOGICAL address in N500A, words 7-10B");
+    CHECK(s_port_load_calls == 1 && s_port_load_x5cpu == 5u,
+          "the process the message names in X5CPU was loaded");
+    CHECK(s_port_load_seq < s_port_read_seq,
+          "and it was loaded BEFORE the read, as the reference does at :2868");
+    CHECK(mbx_read(&pool, buffer + 0u) == 0x4142u,
+          "the first halfword landed at the pool offset in words 11B-12B, high byte first");
+    CHECK(mbx_read(&pool, buffer + 2u) == 0x43DDu,
+          "the odd last byte keeps its neighbour - 0xDD was not the request's to touch");
+    CHECK(mbx_read(&pool, buffer + 4u) == 0x7777u, "and the halfword after it is untouched");
+    CHECK(nd.servicer.dmemrd_seen == 1u && nd.servicer.dmemrd_served == 1u &&
+              nd.servicer.logical_copies_refused == 0u,
+          "one DMEMRD seen, one served, none refused");
+    CHECK(s_port_log_dmemrd_lines == 1 &&
+              strstr(s_port_log_last_dmem, "raw=0x00006400") != NULL &&
+              strstr(s_port_log_last_dmem, "pool offset 0x00006400") != NULL &&
+              strstr(s_port_log_last_dmem, "inside the pool") != NULL,
+          "the raw ND-100 buffer field and the pool offset it resolved to are logged, "
+          "so a run can settle what SINTRAN stores there");
+
+    /* The load's result is IGNORED: a false return is the host's to report. */
+    s_port_load_result = false;
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, buffer, 2u, 0u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) && mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "a load that reports false does not stop the read - the reference goes on too");
+    CHECK(s_port_read_calls == 2, "the read still happened");
+    s_port_load_result = true;
+
+    /* A ZERO COUNT ANSWERS ANSWER and touches nothing (:2836-2841). */
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, buffer, 0u, 0u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) && mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "a zero NRBYT answers ANSWER(3) - refusing it is an endless retry");
+    CHECK(s_port_read_calls == 2 && s_port_load_calls == 2,
+          "and neither the read nor the load was called for it");
+
+    /* A NON-ZERO DIT IS REFUSED, and is tested before the zero count (:2803-2809). */
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, buffer, 0u, 1u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) &&
+              mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "a DIT number other than 0 answers 5ERANSWER(4), even with a zero count");
+    CHECK(nd.servicer.logical_copies_refused == 1u, "and is counted as refused");
+
+    /* MORE THAN 0o4000 BYTES IS REFUSED; exactly 0o4000 is served (:2843-2844). */
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, buffer, 2049u, 0u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) &&
+              mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "NRBYT 2049 answers 5ERANSWER(4)");
+    CHECK(s_port_read_calls == 2, "and the host was not asked");
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, buffer, 2048u, 0u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) && mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "NRBYT 2048 is served");
+    CHECK(s_port_read_calls == 3 && s_port_read_count == 2048u, "with all 2048 bytes read");
+
+    /* A HOST READ THAT FAILS IS REFUSED and leaves the buffer alone (:2871-2876). */
+    (void)ndbus_pool_write16(&pool, buffer, 0x5A5Au);
+    s_port_read_ok = false;
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, buffer, 2u, 0u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) &&
+              mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "a failed host read answers 5ERANSWER(4)");
+    CHECK(mbx_read(&pool, buffer) == 0x5A5Au, "and nothing was written to the buffer");
+    s_port_read_ok = true;
+
+    /* THE "ADDRESS 0" RULE IS ON THE ND-100 ADDRESS, window base + field (:2843,
+     * with ResolvePhysicalCopyAddress at :1858-1861). With base 0 a field of 0 is
+     * address 0 and refused; with the live base 0x420000 the same field is ND-100
+     * byte 0x420000, pool offset 0, and served. */
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, 0u, 2u, 0u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) &&
+              mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "with window base 0, a buffer field of 0 is ND-100 address 0 - refused");
+    ndbus_servicer_set_nd100_window_base(&nd.servicer, 0x00420000u);
+    (void)ndbus_pool_write16(&pool, 0u, 0x0000u);
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, 0u, 2u, 0u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) && mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "with window base 0x420000 the same field is ND-100 byte 0x420000 - served");
+    CHECK(mbx_read(&pool, 0u) == 0x4142u, "and the bytes landed at pool offset 0");
+    ndbus_servicer_set_nd100_window_base(&nd.servicer, 0u);
+
+    port_close(&pool, &nd);
+
+    /* A BUFFER OUTSIDE THE POOL IS STILL ANSWERED ANSWER: the reference's host
+     * drops each write outside its window and the arm sets understood = true. A
+     * fixture of its own, so this is the FIRST DMEMRD and its line is logged. */
+    port_open(&pool, &fabric, &nd);
+    nd.servicer.host.read_nd500_data_bytes = port_read_data;
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, 0x00F00000u, 2u, 0u, 5u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) && mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "a buffer field outside the pool still answers ANSWER(3), its writes dropped");
+    CHECK(nd.servicer.dmemrd_served == 1u && s_port_read_calls == 1,
+          "the host was read and the transfer counts as served");
+    CHECK(s_port_log_dmemrd_lines == 1 &&
+              strstr(s_port_log_last_dmem, "raw=0x00F00000") != NULL &&
+              strstr(s_port_log_last_dmem, "OUTSIDE the pool") != NULL,
+          "and its log line says the offset is outside the pool - the sign that the "
+          "field is not a window-relative offset after all");
+    port_close(&pool, &nd);
+
+    /* ONLY THE FIRST EIGHT OF EACH KIND ARE LOGGED. Zero-count requests need no
+     * host, so this fixture has none. */
+    port_open(&pool, &fabric, &nd);
+    for (int i = 0; i < 10; i++)
+    {
+        port_post_dmem(&pool, NDBUS_MICFU_DMEMRD, logical, buffer, 0u, 0u, 1u);
+        (void)ndbus_nd5000_service_mailbox(&nd);
+        port_post_dmem(&pool, NDBUS_MICFU_DMEMWR, logical, buffer, 0u, 0u, 1u);
+        (void)ndbus_nd5000_service_mailbox(&nd);
+    }
+    CHECK(nd.servicer.dmemrd_seen == 10u && nd.servicer.dmemwr_seen == 10u,
+          "ten DMEMRD and ten DMEMWR reached the servicer");
+    CHECK(s_port_log_dmemrd_lines == (int)NDBUS_SERVICER_DMEM_LOG_LIMIT &&
+              s_port_log_dmemwr_lines == (int)NDBUS_SERVICER_DMEM_LOG_LIMIT,
+          "and exactly the first eight of each kind were logged with their raw field");
+    port_close(&pool, &nd);
+}
+
+/* Item 1, write half. Mirrors Nd500MicrocodeServicer.cs:3057-3150. */
+static void test_port_dmemwr(void)
+{
+    NdbusPool   pool;
+    NdbusFabric fabric;
+    NdbusNd5000 nd;
+    port_open(&pool, &fabric, &nd);
+    nd.servicer.host.write_nd500_data_bytes = port_write_data;
+    nd.servicer.host.load_named_process = port_load_named_process;
+
+    const uint32_t logical = 0x0000027Fu;          /* NC's one-byte input cell */
+    const uint32_t buffer  = MBX_BASE + 0x2400u;
+
+    (void)ndbus_pool_write16(&pool, buffer + 0u, 0x4845u);   /* "HE" */
+    (void)ndbus_pool_write16(&pool, buffer + 2u, 0x4C4Cu);   /* "LL" */
+    (void)ndbus_pool_write16(&pool, buffer + 4u, 0x4F21u);   /* "O!" */
+    memset(s_port_written, 0xEE, sizeof s_port_written);
+
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMWR, logical, buffer, 5u, 0u, 3u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd), "11B DMEMWR with a data-writing host is serviced");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "and answered ANSWER(3) - it used to be refused whatever the host could do");
+    CHECK(s_port_write_calls == 1 && s_port_write_addr == logical && s_port_write_count == 5u,
+          "the host wrote NRBYT bytes at the LOGICAL address in N500A");
+    CHECK(memcmp(s_port_written, "HELLO", 5u) == 0,
+          "the bytes came from the pool offset in words 11B-12B, high byte of each "
+          "halfword first, and the odd count took only the high byte of the last one");
+    CHECK(s_port_load_calls == 1 && s_port_load_x5cpu == 3u && s_port_load_seq < s_port_write_seq,
+          "the process named in X5CPU was loaded BEFORE the write (:3135)");
+    CHECK(mbx_read(&pool, buffer + 4u) == 0x4F21u, "the ND-100 buffer itself is unchanged");
+    CHECK(nd.servicer.dmemwr_seen == 1u && nd.servicer.dmemwr_served == 1u,
+          "one DMEMWR seen and served");
+    CHECK(s_port_log_dmemwr_lines == 1 &&
+              strstr(s_port_log_last_dmem, "raw=0x00006400") != NULL &&
+              strstr(s_port_log_last_dmem, "pool offset 0x00006400") != NULL,
+          "and its raw ND-100 buffer field and pool offset are logged");
+
+    /* Zero count with the default DIT answers ANSWER, nothing written (:3100-3105). */
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMWR, logical, buffer, 0u, 0u, 3u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) && mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "a zero NRBYT with DIT 0 answers ANSWER(3)");
+    CHECK(s_port_write_calls == 1, "and the host was not asked to write");
+
+    /* Zero count with a NON-ZERO DIT is refused: the zero-count arm requires DIT 0
+     * and the guard after it refuses any other DIT (:3100 and :3117-3118). */
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMWR, logical, buffer, 0u, 1u, 3u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) &&
+              mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "a zero NRBYT with DIT 1 answers 5ERANSWER(4)");
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMWR, logical, buffer, 2u, 1u, 3u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) &&
+              mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "and so does a real transfer with DIT 1");
+
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMWR, logical, buffer, 2049u, 0u, 3u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) &&
+              mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "NRBYT 2049 answers 5ERANSWER(4)");
+
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMWR, logical, 0u, 2u, 0u, 3u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) &&
+              mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "an ND-100 buffer address of 0 answers 5ERANSWER(4)");
+    CHECK(s_port_write_calls == 1, "and none of those four reached the host");
+
+    s_port_write_ok = false;
+    port_post_dmem(&pool, NDBUS_MICFU_DMEMWR, logical, buffer, 2u, 0u, 3u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) &&
+              mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "a host write that fails answers 5ERANSWER(4) (:3137-3142)");
+    CHECK(s_port_write_calls == 2, "the host was asked that time");
+    CHECK(nd.servicer.logical_copies_refused == 5u, "and all five refusals are counted");
+
+    port_close(&pool, &nd);
+}
+
+/* Item 2. Mirrors Nd500MicrocodeServicer.cs:4515-4551. */
+static void test_port_mon_value_slot_skip(void)
+{
+    NdbusPool   pool;
+    NdbusFabric fabric;
+    NdbusNd5000 nd;
+    port_open(&pool, &fabric, &nd);
+
+    nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+    s_start_calls = 0;
+    s_start_take = true;
+    (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+    port_post(&pool, NDBUS_MICFU_START, 0u);
+    CHECK(!ndbus_nd5000_service_mailbox(&nd), "the swapper, X5CPU 0, is started");
+
+    /* What SINTRAN staged before the stop: SWPINFO in the VALUE slot of argument 2
+     * (message bytes 0x88-0x8B), something in the value slot of argument 3, and
+     * stale words in the ADDRESS slot of argument 2. */
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x88u, 0x0000u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x8Au, 0x8E30u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x8Cu, 0x1234u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x8Eu, 0x5678u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x48u, 0xDEADu);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + 0x4Au, 0xBEEFu);
+
+    /* The swapper's MON 377B: two operand addresses, a count of four. */
+    const uint32_t addrs[4] = { 0x080240B0u, 0x080240B4u, 0u, 0u };
+    const uint32_t vals[4]  = { 0x00000001u, 0x00000077u, 0u, 0u };
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 0u, 0x08008255u, 0x00FFu, 4u, addrs,
+                                            vals),
+          "MON 377B with two operand addresses and a count of four is posted");
+
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_NUMPA * 2u) == 4u,
+          "NUMPA is still four - the count is not reduced");
+    CHECK(ndbus_pool_read32(&pool, MBX_MSG + 0x80u) == 0x00000001u,
+          "argument 0 has an address, so its value is written");
+    CHECK(ndbus_pool_read32(&pool, MBX_MSG + 0x84u) == 0x00000077u,
+          "and so is argument 1's");
+    CHECK(ndbus_pool_read32(&pool, MBX_MSG + 0x48u) == 0x00000000u,
+          "argument 2's ADDRESS slot is written, with the 0 it was given");
+    CHECK(ndbus_pool_read32(&pool, MBX_MSG + 0x88u) == 0x00008E30u,
+          "but its VALUE slot is left alone - SINTRAN's SWPINFO survives, where a "
+          "placeholder zero used to overwrite it");
+    CHECK(ndbus_pool_read32(&pool, MBX_MSG + 0x8Cu) == 0x12345678u,
+          "and argument 3's value slot likewise");
+
+    port_close(&pool, &nd);
+}
+
+/* Items 3, 4, 5, 6 and 8: what each start-class or inline code answers.
+ * Mirrors Nd500MicrocodeServicer.cs:3314-3330, :3824-3939, :3954-3981 and
+ * :4929-4935, and the raw `switch` at :2674. */
+static void test_port_dispatch_answers(void)
+{
+    NdbusPool   pool;
+    NdbusFabric fabric;
+    NdbusNd5000 nd;
+
+    /* ITEM 3: a 24B or 26B nobody takes answers ANSWER(3), not 5ERANSWER(4). */
+    const uint16_t restart[2] = { NDBUS_MICFU_MONCO, NDBUS_MICFU_WMONCO };
+    for (size_t i = 0; i < 2u; i++)
+    {
+        port_open(&pool, &fabric, &nd);
+
+        port_post(&pool, restart[i], 1u);
+        CHECK(ndbus_nd5000_service_mailbox(&nd), "a restart with no process host is answered");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+              "with ANSWER(3), as the reference answers it at :3875 and :3937 - it "
+              "used to fall to the default arm and answer 5ERANSWER(4)");
+        CHECK(nd.servicer.messages_declined == 0u, "it is not counted as a declined message");
+
+        /* The same with a host that is asked and says no. */
+        nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+        s_start_calls = 0;
+        s_start_take = false;
+        (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+        port_post(&pool, restart[i], 1u);
+        CHECK(ndbus_nd5000_service_mailbox(&nd) && s_start_calls == 1,
+              "a restart the host declines is answered too, after the host was asked");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "again with ANSWER(3)");
+        CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MICFU * 2u) == restart[i],
+              "and a DECLINED restart keeps its MICFU - only a taken one is rewritten");
+
+        port_close(&pool, &nd);
+    }
+
+    /* ITEM 6: a TAKEN 24B or 26B has MICFU rewritten to 23B; 23B and 25B do not
+     * pass through TakeRestartTail and keep theirs. */
+    struct
+    {
+        uint16_t    micfu;
+        uint16_t    expect;
+        const char *name;
+    } taken[] = {
+        { NDBUS_MICFU_MONCO, NDBUS_MICFU_START, "a taken 24B leaves MICFU = 23B in the message" },
+        { NDBUS_MICFU_WMONCO, NDBUS_MICFU_START, "a taken 26B leaves MICFU = 23B in the message" },
+        { NDBUS_MICFU_TRACO, NDBUS_MICFU_TRACO, "a taken 25B keeps its MICFU" },
+        { NDBUS_MICFU_START, NDBUS_MICFU_START, "a taken 23B keeps its MICFU" },
+    };
+    for (size_t i = 0; i < sizeof taken / sizeof taken[0]; i++)
+    {
+        port_open(&pool, &fabric, &nd);
+        nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+        s_start_calls = 0;
+        s_start_take = true;
+        (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+
+        port_post(&pool, taken[i].micfu, 1u);
+        CHECK(!ndbus_nd5000_service_mailbox(&nd) && s_start_calls == 1,
+              "the host takes it, so nothing is answered");
+        CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_WAITING, "the message is left WAITING");
+        CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MICFU * 2u) == taken[i].expect, taken[i].name);
+
+        port_close(&pool, &nd);
+    }
+
+    /* ITEM 4: 22B STARTP0 is answered at once and the host is NEVER asked, even
+     * one that would take it. */
+    port_open(&pool, &fabric, &nd);
+    nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+    s_start_calls = 0;
+    s_start_take = true;
+    (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+    port_post(&pool, NDBUS_MICFU_STARTP0, 0u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd), "22B STARTP0 is answered");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER, "with ANSWER(3)");
+    CHECK(s_start_calls == 0,
+          "and the process host was NOT asked - 22B used to be handed to start_process, "
+          "which a taking host turned into a started CPU and an unanswered message");
+    CHECK(nd.servicer.starts_seen == 0u && nd.servicer.starts_taken == 0u,
+          "it is not counted as a start at all");
+
+    /* ITEM 8: a 24B with bit 15 set is NOT a 24B. The reference switches on the
+     * raw halfword, so it reaches `default` and answers 5ERANSWER; the host that
+     * would take a real 24B is never asked. */
+    const uint16_t flagged = (uint16_t)(NDBUS_MICFU_MONCO | 0x8000u);
+    port_post(&pool, flagged, 1u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd), "a MICFU of 24B with bit 15 set is answered");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ERROR_ANSWER,
+          "with 5ERANSWER(4), the reference's answer for a value its switch has no case for");
+    CHECK(s_start_calls == 0,
+          "and the host was not asked - the class lookup used to strip bit 15 and "
+          "offer the message as a continue");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MICFU * 2u) == flagged,
+          "the MICFU halfword is left as it arrived");
+
+    /* ITEM 5: 44B 3RPREG answers ANSWER(3) and writes NOTHING into the message. */
+    for (uint32_t w = 7u; w <= 16u; w++)
+    {
+        (void)ndbus_pool_write16(&pool, MBX_MSG + w * 2u, (uint16_t)(0xA000u + w));
+    }
+    port_post(&pool, NDBUS_MICFU_RPREG, 1u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd), "44B 3RPREG is answered");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "with ANSWER(3), as the reference answers it - it used to answer 5ERANSWER(4)");
+    {
+        bool untouched = true;
+        for (uint32_t w = 7u; w <= 16u; w++)
+        {
+            if (mbx_read(&pool, MBX_MSG + w * 2u) != (uint16_t)(0xA000u + w))
+            {
+                untouched = false;
+            }
+        }
+        CHECK(untouched, "and message words 7 to 20B are exactly as they arrived");
+    }
+    port_close(&pool, &nd);
+}
+
+/* Item 7. Mirrors MaxProcesses = 64 at Nd500MicrocodeServicer.cs:1164. */
+static void test_port_process_slots(void)
+{
+    NdbusPool   pool;
+    NdbusFabric fabric;
+    NdbusNd5000 nd;
+    port_open(&pool, &fabric, &nd);
+
+    CHECK(NDBUS_SERVICER_MAX_PROCESSES == 64u, "there are 64 process slots, as in the reference");
+
+    const uint32_t area = MBX_BASE + 0x3000u;
+    nd.servicer.context_area_base = area;
+    s_start_calls = 0;
+    s_start_ctx_byte = 0;
+    s_start_take = true;
+    (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+
+    /* X5CPU 40 was outside the old 8 slots: its message was not remembered and
+     * every stop it made was refused without a word. */
+    port_post(&pool, NDBUS_MICFU_START, 40u);
+    CHECK(!ndbus_nd5000_service_mailbox(&nd), "a start for X5CPU 40 is taken");
+    CHECK(s_start_ctx_byte == area + 256u + (40u * 256u),
+          "its context block is area + 400B + 40 * 400B");
+    CHECK(nd.servicer.process_msg[40] == MBX_MSG, "and its message is remembered");
+    CHECK(ndbus_servicer_answer_monitor_call(&nd.servicer, 40u, 0x08008255u, 0x28u, 0u, NULL, NULL),
+          "so its monitor call can be answered");
+    CHECK(ndbus_servicer_stop_was_monitor_call(&nd.servicer, 40u),
+          "and its stop kind is kept");
+    CHECK(nd.servicer.x5cpu_out_of_range == 0u && s_port_log_x5cpu_lines == 0,
+          "nothing so far was out of range");
+
+    /* X5CPU 64 is the first with no slot. The start is still offered - the
+     * reference computes the context block for any X5CPU - but the message cannot
+     * be remembered, and that is counted and logged ONCE. */
+    port_post(&pool, NDBUS_MICFU_START, 64u);
+    CHECK(!ndbus_nd5000_service_mailbox(&nd), "a start for X5CPU 64 is still offered and taken");
+    CHECK(s_start_ctx_byte == area + 256u + (64u * 256u),
+          "with the context block the reference's formula gives for it");
+    CHECK(nd.servicer.x5cpu_out_of_range == 1u && s_port_log_x5cpu_lines == 1,
+          "the message that could not be remembered is counted and logged");
+
+    CHECK(!ndbus_servicer_answer_trap_stop(&nd.servicer, 64u, NDBUS_TRAP_PAGE_FAULT, 0x08000004u,
+                                          0x08001800u, 0u, 0u),
+          "a trap stop for X5CPU 64 is refused");
+    CHECK(!ndbus_servicer_answer_monitor_call(&nd.servicer, 64u, 0x08008255u, 0x28u, 0u, NULL,
+                                             NULL),
+          "and so is a monitor call");
+    CHECK(!ndbus_servicer_stop_was_monitor_call(&nd.servicer, 64u), "and a stop-kind query");
+    CHECK(nd.servicer.x5cpu_out_of_range == 4u, "every one of the four is counted");
+    CHECK(s_port_log_x5cpu_lines == 1, "but X5CPU 64 is logged only once");
+
+    CHECK(!ndbus_servicer_stop_was_monitor_call(&nd.servicer, 65u), "X5CPU 65 is refused too");
+    CHECK(nd.servicer.x5cpu_out_of_range == 5u && s_port_log_x5cpu_lines == 2,
+          "and gets its own single log line");
+
+    port_close(&pool, &nd);
+}
+
+/* Item 9. Mirrors PerformOctobusBlockCopy, Nd500MicrocodeServicer.cs:1877-2057,
+ * and its unconditional `understood = true` callers at :2707-2709 and :3022-3024. */
+static void test_port_copy_outside_pool(void)
+{
+    NdbusPool   pool;
+    NdbusFabric fabric;
+    NdbusNd5000 nd;
+    port_open(&pool, &fabric, &nd);
+
+    const uint32_t buffer  = MBX_BASE + 0x2400u;
+    const uint32_t outside = 0x00F00000u;          /* far past this 64 KB pool */
+
+    /* A READ from outside the pool: every source word reads 0, and exactly the
+     * count is written. */
+    (void)ndbus_pool_write16(&pool, buffer + 0u, 0xFFFFu);
+    (void)ndbus_pool_write16(&pool, buffer + 2u, 0xFFFFu);
+    (void)ndbus_pool_write16(&pool, buffer + 4u, 0xFFFFu);
+    mbx_copy_message(&pool, NDBUS_MICFU_RESIRD, outside, buffer, 4u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd), "13B RESIRD from outside the pool is serviced");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "and answered ANSWER(3) - it used to answer 5ERANSWER(4) and copy nothing");
+    CHECK(mbx_read(&pool, buffer + 0u) == 0x0000u && mbx_read(&pool, buffer + 2u) == 0x0000u,
+          "the source words outside the pool read 0, and those zeros were written");
+    CHECK(mbx_read(&pool, buffer + 4u) == 0xFFFFu, "for exactly the count and no further");
+    CHECK(nd.servicer.copies_outside_pool == 1u && nd.servicer.copies_done == 1u,
+          "it is counted both as done and as leaving the pool");
+
+    /* A WRITE to outside the pool: dropped, still ANSWER, source untouched. */
+    (void)ndbus_pool_write16(&pool, buffer, 0x1234u);
+    mbx_copy_message(&pool, NDBUS_MICFU_RESIWR, outside, buffer, 2u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) && mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "14B RESIWR to outside the pool answers ANSWER(3) with its write dropped");
+    CHECK(mbx_read(&pool, buffer) == 0x1234u, "the source is untouched");
+    CHECK(nd.servicer.copies_outside_pool == 2u, "and it is counted");
+
+    /* A destination that STRADDLES the end of the pool: the halfwords that fit
+     * are written and the rest dropped, one word at a time, as the reference's
+     * per-word host calls do. */
+    const uint32_t tail = (64u * 1024u) - 4u;
+    (void)ndbus_pool_write16(&pool, buffer + 0u, 0x1111u);
+    (void)ndbus_pool_write16(&pool, buffer + 2u, 0x2222u);
+    (void)ndbus_pool_write16(&pool, buffer + 4u, 0x3333u);
+    (void)ndbus_pool_write16(&pool, buffer + 6u, 0x4444u);
+    mbx_copy_message(&pool, NDBUS_MICFU_RESIWR, tail, buffer, 8u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) && mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "a write that straddles the end of the pool answers ANSWER(3)");
+    CHECK(mbx_read(&pool, tail + 0u) == 0x1111u && mbx_read(&pool, tail + 2u) == 0x2222u,
+          "and the two halfwords that fit inside the pool were written");
+    CHECK(nd.servicer.copies_outside_pool == 3u && nd.servicer.copies_refused == 0u,
+          "three transfers left the pool and none was refused");
+
+    /* The trap-config watch has no range test of its own in the reference
+     * (:1957-1966), so a PHYSWR aimed outside the pool still names a DIT base. */
+    mbx_copy_message(&pool, NDBUS_MICFU_PHYSWR, outside + 0x96u, buffer, 2u);
+    (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MSG_MSWMC * 2u, 0u);
+    CHECK(ndbus_nd5000_service_mailbox(&nd) && mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "a PHYSWR to a trap-config offset outside the pool answers ANSWER(3)");
+    CHECK(nd.servicer.dit_writes_seen == 1u && nd.servicer.dit_base == outside,
+          "and is watched as a trap-config write, exactly as the reference watches it");
+
+    port_close(&pool, &nd);
+}
+
+static void test_reference_port(void)
+{
+    printf("Layer 26: behaviour ported from the reference's octobus arm\n");
+
+    test_port_dmemrd();
+    test_port_dmemwr();
+    test_port_mon_value_slot_skip();
+    test_port_dispatch_answers();
+    test_port_process_slots();
+    test_port_copy_outside_pool();
+}
+
 int main(void)
 {
     printf("MFbus (ndbus) unit tests - no emulator linked\n");
@@ -5322,6 +6058,7 @@ int main(void)
     test_inline_buffer_on_a_mon_stop();
     test_message_x5cpu();
     test_pool_snapshot();
+    test_reference_port();
 
     printf("\n%d check(s), %d failed\n", s_checks, s_failed);
     if (s_failed != 0)

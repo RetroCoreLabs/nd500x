@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ndbus_cpunum.h"
+#include "ndbus_lock.h"
 #include "ndbus_nd5000.h"
 
 #include "ndbus_servicer.h"
@@ -128,6 +128,160 @@ static int build_messnak(uint8_t station, uint8_t reply_omd, int nak_code, bool 
                                  replies, max);
 }
 
+/* ---- ND-500 address zero (ADRZERO) -------------------------------------------
+ *
+ * LPARP's pointer counts bytes from ND-500 physical address 0, which SINTRAN
+ * calls ADRZERO. The pool counts bytes from the start of the shared window. The
+ * two are the same number only while ADRZERO is the window's own ND-100 base, so
+ * every use of the pointer goes through nd5000_resolve_nd500_byte().
+ *
+ * Ported from OctobusND5000Station.cs: field _nd500ZeroByte (line 252), property
+ * Nd500ZeroByte (line 258), ResolveNd500Byte (line 269) and CalibrateNd500Zero
+ * (lines 3885-3929). That file works in ND-100 physical byte addresses, with
+ * _mpm.Start as the window's base and _mpm.Size as its size. Here the window IS
+ * the pool: pool byte 0 is ND-100 byte servicer.nd100_window_base_byte (set by
+ * the embedding, 0 when the pool is the ND-100's whole view) and the window size
+ * is the pool size. So an ND-100 address becomes a pool offset by subtracting
+ * that base, and nothing else is converted.
+ */
+
+/* The ND-100 physical byte address of pool byte 0: the reference's _mpm.Start. */
+static uint32_t nd5000_window_base(const NdbusNd5000 *nd)
+{
+    return nd->servicer.nd100_window_base_byte;
+}
+
+/* ND-100 physical byte address of ND-500 physical address 0, or the window base
+ * while it is still uncalibrated. C# Nd500ZeroByte, line 258. */
+static uint32_t nd5000_nd500_zero_byte(const NdbusNd5000 *nd)
+{
+    return (nd->nd500_zero_byte != 0u) ? nd->nd500_zero_byte : nd5000_window_base(nd);
+}
+
+/* An ND-500-relative byte offset as a POOL byte offset. C# ResolveNd500Byte, line
+ * 269, gives the ND-100 address Nd500ZeroByte + offset; the window base comes off
+ * to index the pool. Unsigned 32-bit arithmetic throughout, as in the reference,
+ * so an address below the window turns into an offset far past the pool's end,
+ * where a read returns 0 and a write is refused - the same result MpmWindow gives
+ * for an address outside the window. */
+static uint32_t nd5000_resolve_nd500_byte(const NdbusNd5000 *nd, uint32_t nd500_byte_offset)
+{
+    return (nd5000_nd500_zero_byte(nd) + nd500_byte_offset) - nd5000_window_base(nd);
+}
+
+/* One ND 32-bit double at a pool offset: two big-endian words, high word first,
+ * EACH bounds-checked on its own. C# ReadMpm32 (line 3735) -> MpmWindow.ReadDouble
+ * ($RETROCORE/Emulated.HW/ND/CPU/NDBUS/MpmWindow.cs line 131), which is two
+ * ReadWord calls; ndbus_pool_read32 refuses the whole value when either half is
+ * outside, which is a different answer for a double that straddles the end. */
+static uint32_t nd5000_read_mpm32(const NdbusNd5000 *nd, uint32_t pool_offset)
+{
+    return ((uint32_t)ndbus_pool_read16(nd->pool, pool_offset) << 16u) |
+           (uint32_t)ndbus_pool_read16(nd->pool, pool_offset + 2u);
+}
+
+/**
+ * @brief Work out ADRZERO from the test word SINTRAN wrote, and remember it.
+ *
+ * Ported from OctobusND5000Station.cs CalibrateNd500Zero, lines 3885-3929.
+ *
+ * WHY THIS IS A MEASUREMENT AND NOT A GUESS, in that routine's own terms: VPARP is
+ * the one exchange that carries a value known independently - SINTRAN writes
+ * NDBUS_ACCP_VPARP_TEST_PATTERN at the pointer and compares the echo against it.
+ * So finding that exact word in the window at address A means the parameter area
+ * is at A, and ADRZERO is A minus the pointer. Two guards keep a coincidence from
+ * being adopted: the derived base must be 2048-byte aligned, because ADRZERO is
+ * an ND-100 PAGE number; and exactly one candidate must survive, because several
+ * equally plausible hits prove nothing and are refused rather than picked between.
+ *
+ * @param nd      The station.
+ * @param pointer The pointer LPARP delivered, an ND-500-relative byte offset.
+ * @return true when a NEW base was established; false when nothing usable was
+ *         found, when the candidates are ambiguous, or when the base found is the
+ *         one already in use.
+ */
+static bool nd5000_calibrate_nd500_zero(NdbusNd5000 *nd, uint32_t pointer)
+{
+    if (nd->pool == NULL || nd->pool->bytes == NULL || nd->pool->size < 4u)
+    {
+        return false;
+    }
+
+    const uint16_t hi   = (uint16_t)(NDBUS_ACCP_VPARP_TEST_PATTERN >> 16u);
+    const uint16_t lo   = (uint16_t)(NDBUS_ACCP_VPARP_TEST_PATTERN & 0xFFFFu);
+    const uint32_t base = nd5000_window_base(nd);
+
+    uint32_t found = 0u;
+    int      hits  = 0;
+
+    /* The reference walks a = _mpm.Start while a < _mpm.Start + _mpm.Size - 4, in
+     * steps of 2. `offset` is that same walk with the window base taken off, and
+     * `a` is put back together below because the two tests are on the ND-100
+     * address. */
+    const uint32_t end = nd->pool->size - 4u;
+    for (uint32_t offset = 0u; offset < end; offset += 2u)
+    {
+        if (ndbus_pool_read16(nd->pool, offset) != hi ||
+            ndbus_pool_read16(nd->pool, offset + 2u) != lo)
+        {
+            continue;
+        }
+
+        uint32_t a = base + offset;
+        if (a < pointer)
+        {
+            continue; /* would put ADRZERO below zero */
+        }
+        uint32_t candidate = a - pointer;
+        if ((candidate & 0x7FFu) != 0u)
+        {
+            continue; /* ADRZERO is a PAGE number: 2048-byte aligned */
+        }
+        if (hits == 0)
+        {
+            found = candidate;
+            hits  = 1;
+        }
+        else if (candidate != found)
+        {
+            hits++;
+        }
+    }
+
+    if (hits != 1)
+    {
+        if (hits == 0)
+        {
+            nd_log(nd, "ND-5000 ACCP: ADRZERO calibration: pattern 0x65969B49 not found at any "
+                       "page-aligned offset - leaving the base where it is");
+        }
+        else
+        {
+            char text[160];
+            (void)snprintf(text, sizeof(text),
+                           "ND-5000 ACCP: ADRZERO calibration: %d different page-aligned "
+                           "candidates - ambiguous, refusing to pick one",
+                           hits);
+            nd_log(nd, text);
+        }
+        return false;
+    }
+
+    if (found == nd5000_nd500_zero_byte(nd))
+    {
+        return false; /* already right; nothing to change */
+    }
+
+    char text[200];
+    (void)snprintf(text, sizeof(text),
+                   "ND-5000 ACCP: ADRZERO calibrated to ND-100 byte 0x%08X (ND-100 page %oB) "
+                   "from the VPARP test pattern, not the window base 0x%08X",
+                   (unsigned)found, (unsigned)(found / 2048u), (unsigned)base);
+    nd_log(nd, text);
+    nd->nd500_zero_byte = found;
+    return true;
+}
+
 /**
  * @brief VERIFY PARAMETER POINTER: return the 32-bit word from the parameter area.
  *
@@ -153,53 +307,28 @@ static int build_messnak(uint8_t station, uint8_t reply_omd, int nak_code, bool 
  */
 static int accp_vparp(NdbusNd5000 *nd, uint8_t reply_omd, uint16_t *replies, int max)
 {
-    uint32_t word = ndbus_pool_read32(nd->pool, nd->parameter_pointer);
+    /* THE POINTER IS RELATIVE TO ADRZERO, NOT TO POOL BYTE 0. Ported from
+     * $RETROCORE/Emulated.HW/ND/CPU/NDBUS/OctobusND5000Station.cs SendVparpEcho,
+     * lines 3955-3961: read at the resolved address, and when the word there is
+     * not the test pattern, try to calibrate ADRZERO from the pattern SINTRAN
+     * itself wrote and read again at the corrected address - so the first VPARP
+     * after a memory reconfiguration still passes instead of failing the whole
+     * control-store load. */
+    uint32_t addr = nd5000_resolve_nd500_byte(nd, nd->parameter_pointer);
+    uint32_t word = nd5000_read_mpm32(nd, addr);
+    if (word != NDBUS_ACCP_VPARP_TEST_PATTERN &&
+        nd5000_calibrate_nd500_zero(nd, nd->parameter_pointer))
+    {
+        addr = nd5000_resolve_nd500_byte(nd, nd->parameter_pointer);
+        word = nd5000_read_mpm32(nd, addr);
+    }
+
     uint8_t  reply[4];
     reply[0] = (uint8_t)(word >> 24u);
     reply[1] = (uint8_t)(word >> 16u);
     reply[2] = (uint8_t)(word >> 8u);
     reply[3] = (uint8_t)(word & 0xFFu);
     return build_messack(nd->station.number, reply_omd, reply, 4, replies, max);
-}
-
-/**
- * @brief ECHO TEST: return the test pattern that was sent.
- *
- * T126: "Returns the test pattern." Direct parameters are a count byte followed
- * by that many test bytes, and the Messack carries them back. The command exists
- * to prove the link works at all, so echoing a fixed pattern instead of the one
- * that arrived would prove nothing.
- *
- * @param nd          The station.
- * @param reply_omd   The OMD the sender listens on (message byte 0).
- * @param params      The command's PARAMETERS: params[0] is the count, then the
- *                    pattern. The message header and the command byte are already
- *                    behind them.
- * @param param_count How many parameter bytes arrived.
- * @param replies     Reply frames to fill.
- * @param max         Room in replies.
- * @return Number of reply frames written: Messack plus the echoed bytes.
- */
-static int accp_echo(NdbusNd5000 *nd, uint8_t reply_omd, const uint8_t *params, int param_count,
-                     uint16_t *replies, int max)
-{
-    if (param_count < 1)
-    {
-        return 0;
-    }
-
-    int count = params[0];
-    if (count > (param_count - 1))
-    {
-        count = param_count - 1; /* the sender said more than it sent */
-    }
-    /* Room for the envelope (4 frames) and the leading ack byte. */
-    if (count > NDBUS_MAX_REPLY_FRAMES - 5)
-    {
-        count = NDBUS_MAX_REPLY_FRAMES - 5;
-    }
-    return build_messack(nd->station.number, reply_omd, (count > 0) ? &params[1] : NULL, count,
-                         replies, max);
 }
 
 /* ---- the control-store load, and the checksum it has to satisfy -------------
@@ -289,7 +418,7 @@ static uint16_t cs_read_halfword(const NdbusNd5000 *nd, uint32_t cs_word, uint32
  * The microprogram model/version report ENKICK sends on top of its acknowledge.
  *
  * Ported from RetroCore OctobusND5000Station.cs SendMicroprogramModelReport
- * (line 3134). Six bytes, as a TRAP_OCBM multibyte message:
+ * (lines 3631-3670). Six bytes, as a TRAP_OCBM multibyte message:
  *     [0x82][0x01][cpuModel][cpuModel][version hi][version lo]
  * 0x82 is FaultType 202B, NotFatal - "CPU available"; 0x01 is ErrorReporter 1,
  * MicroProgram.
@@ -307,15 +436,38 @@ static uint16_t cs_read_halfword(const NdbusNd5000 *nd, uint32_t cs_word, uint32
  * the control-store-derived model byte that gates "Wrong microprogram" (EWRON).
  * nd500x sent only the bare acknowledge.
  *
- * The destination is the runtime-allocated 5OMDNO out of LSYSPAR S5, never a
+ * The destination OMD is the runtime-allocated 5OMDNO out of LSYSPAR S5, never a
  * constant, and the SOURCE OMD is 4 - not the 3 an ordinary ACCP reply uses.
+ *
+ * THE DESTINATION STATION IS WHOEVER SENT ENKICK. The reference ends with
+ *     SendMultibyteMessage(Fabric, _accpMessage.Source, destOmd, sourceOmd: 4, report)
+ * (line 3669), and _accpMessage.Source is the station the ENKICK message came
+ * from. Until 05-OCT-2026 this routine built the frames with the station's OWN
+ * number in the station field and handed them to ndbus_fabric_send(), which reads
+ * that field as the destination - so the report was delivered straight back to
+ * this station, which dropped it, and the ND-100 never saw it.
+ *
+ * So the frames are now written into the same reply buffer as the ENKICK
+ * acknowledge, directly after it. The fabric hands that buffer to the station
+ * whose frame is being answered, which is the ENKICK sender, and the frames reach
+ * it in buffer order - acknowledge first, report second, as lines 3276 and 3286
+ * send them. Like every reply frame they carry this station's number in bits
+ * 13-8, which is what the receiver would see after the fabric's rewrite.
+ *
+ * @param nd      The station.
+ * @param replies Where to write the report's frames - the first free slot after
+ *                the acknowledge.
+ * @param max     Room left in replies, in frames.
+ * @return The number of frames written: 10 for the six-byte report, or 0 when
+ *         there is no control store to read the two values from (counted in
+ *         report_no_store) or the frames do not fit.
  */
-static void nd5000_send_microprogram_model_report(NdbusNd5000 *nd)
+static int nd5000_build_microprogram_model_report(NdbusNd5000 *nd, uint16_t *replies, int max)
 {
-    if (nd == NULL || nd->station.fabric == NULL || nd->control_store == NULL)
+    if (nd->control_store == NULL)
     {
         nd->report_no_store++;
-        return;
+        return 0;
     }
 
     uint16_t version   = cs_read_halfword(nd, 1u, 7u);
@@ -326,31 +478,26 @@ static void nd5000_send_microprogram_model_report(NdbusNd5000 *nd)
         (uint8_t)(version >> 8), (uint8_t)(version & 0xFFu),
     };
 
-    uint8_t  dest_omd = (uint8_t)((nd->lsyspar_word1 >> 8) & 0x3Fu);
-    uint16_t frames[NDBUS_MAX_REPLY_FRAMES];
-    int      n = ndbus_multibyte_build(nd->station.number, dest_omd, 4u, report,
-                                       (int)sizeof report, frames, NDBUS_MAX_REPLY_FRAMES);
+    uint8_t dest_omd = (uint8_t)((nd->lsyspar_word1 >> 8) & 0x3Fu);
+    int     n = ndbus_multibyte_build(nd->station.number, dest_omd, 4u, report,
+                                      (int)sizeof(report), replies, max);
     if (n <= 0)
     {
-        return;
+        return 0;
     }
     nd->model_reports++;
     nd->last_model_report_model = cpu_model;
     nd->last_model_report_version = version;
-    for (int i = 0; i < n; i++)
-    {
-        uint16_t replies[NDBUS_MAX_REPLY_FRAMES];
-        (void)ndbus_fabric_send(nd->station.fabric, nd->station.number, frames[i], replies);
-    }
+    return n;
 }
 
 
 /**
  * @brief LOCSM 023B: DMA one control-store page out of the parameter area.
  *
- * The parameter area, at the pool offset LPARP gave, holds word0 = N, the number
- * of 128-bit microwords in this pulse; word1 = the control-store microword
- * address to load them at; then N * 8 halfwords of microword data.
+ * The parameter area, at ADRZERO plus the pointer LPARP gave, holds word0 = N,
+ * the number of 128-bit microwords in this pulse; word1 = the control-store
+ * microword address to load them at; then N * 8 halfwords of microword data.
  *
  * @param nd The station. Its parameter pointer is already known to be set - the
  *           guard table in ndbus_accp.c refuses LOCSM without one.
@@ -359,7 +506,10 @@ static void nd5000_send_microprogram_model_report(NdbusNd5000 *nd)
  */
 static void accp_load_control_store(NdbusNd5000 *nd)
 {
-    uint32_t pb       = nd->parameter_pointer;
+    /* The parameter block is at ADRZERO + pointer, not at pool offset `pointer`:
+     * OctobusND5000Station.cs ServiceControlStoreWrite, line 4024,
+     * "uint pb = ResolveNd500Byte(_accpParameterPointer)". */
+    uint32_t pb       = nd5000_resolve_nd500_byte(nd, nd->parameter_pointer);
     uint32_t count    = ndbus_pool_read16(nd->pool, pb);
     uint32_t cs_word  = ndbus_pool_read16(nd->pool, pb + 2u);
 
@@ -403,7 +553,13 @@ static void accp_load_control_store(NdbusNd5000 *nd)
  */
 static void accp_dump_control_store(NdbusNd5000 *nd)
 {
-    uint32_t pb      = nd->parameter_pointer;
+    /* The same resolve as LOCSM: OctobusND5000Station.cs
+     * ServiceControlStoreReadback, line 4139. ONLY THE ADDRESS IS PORTED HERE. The
+     * reference then leaves memory alone and answers the ND-100's READS of this
+     * block (TryOverrideMpmRead, lines 456-491); this routine still WRITES the dump
+     * into the pool, which the block comment above ("WHERE THIS DELIBERATELY
+     * DIFFERS FROM RetroCore") states as a decision. That difference is unchanged. */
+    uint32_t pb      = nd5000_resolve_nd500_byte(nd, nd->parameter_pointer);
     uint32_t count   = ndbus_pool_read16(nd->pool, pb);
     uint32_t cs_word = ndbus_pool_read16(nd->pool, pb + 2u);
 
@@ -426,6 +582,144 @@ static void accp_dump_control_store(NdbusNd5000 *nd)
     nd->cs_dump_pulses++;
     nd->cs_last_dump_words = halfwords;
     nd->cs_last_addend     = (uint16_t)sum;
+}
+
+/* ---- the cells SINTRAN patches into the control store ------------------------ */
+
+/** Read a control-store cell's LARG field: the 32-bit value in halfwords 6 and 7,
+ *  high half first. C# ReadControlStoreLarg, OctobusND5000Station.cs line 1559.
+ *
+ *  READ THE FULL 32 BITS, NEVER JUST HALFWORD 7. RetroCore records the cost of the
+ *  short read: the context-block cell holds 0x0002A000 on a real machine, so a
+ *  halfword-7 read returns 0xA000 - a plausible-looking wrong value - and feeding
+ *  that on made the 23B start run with a garbage context and the run died. */
+static uint32_t cs_read_larg(const NdbusNd5000 *nd, uint32_t cs_word)
+{
+    if (nd->control_store == NULL)
+    {
+        return 0u;
+    }
+
+    return ((uint32_t)cs_read_halfword(nd, cs_word, 6u) << 16u) |
+           (uint32_t)cs_read_halfword(nd, cs_word, 7u);
+}
+
+/**
+ * The per-model CPU parameter 3RMICV reports, selected by the control store's
+ * model byte.
+ *
+ * Ported from RetroCore OctobusND5000Station.cs TryCpuParForModelByte. Only model 8
+ * is verified end to end, and an unrecognised byte returns 0 rather than a guess:
+ * ndbus_servicer_set_cpu_identity() then keeps what it has, so a different image is
+ * visibly unmapped instead of silently relabelled as a 5800.
+ *
+ * @param model_byte The packed model byte from control-store word 7, halfword 7.
+ * @return The CPUPAR value, or 0 when there is no verified mapping.
+ */
+static uint16_t cpupar_for_model_byte(uint8_t model_byte)
+{
+    switch (model_byte)
+    {
+    case 0x38u:
+        /* 5800, model 8: microcode CPUMOD08 @017243 SARG = 001741B. */
+        return 0x03E1u;
+
+    default:
+        return 0u;
+    }
+}
+
+/**
+ * Load the memory-management pointers SINTRAN patched into the control store, at
+ * microprogram start.
+ *
+ * Ported from OctobusND5000Station.cs LoadMmsPointersFromControlStore, lines
+ * 1568-1644, which the 066B/035B/036B arm calls at line 3396.
+ *
+ * THESE ARE NOT VALUES ANY MESSAGE CARRIES. SINTRAN writes them into control-store
+ * cells before micro-start and the microcode reads them from there, so the only
+ * honest source is the store this station loaded:
+ *
+ *   cell 0o21  PSTBASE  the physical segment table, as an ND-500 PAGE. Shifted by
+ *                       11 to bytes - ND-05.020.01 section 6.6.
+ *   cell 0o20  OFFSET   the start of the context (register) block area, ALREADY a
+ *                       byte address, so it is NOT shifted. ND-05.017.01 App. A.1
+ *                       names it, and GET_CNTXT @0o13372 and CNTXTLOAD @0o14746
+ *                       both jump to the cell.
+ *
+ * THE TWO CELLS ARE INDEPENDENT, and neither depends on START_MESS. The reference
+ * says why in its own comment: it used to return when PSTBASE read zero, which
+ * skipped the OFFSET read entirely, and a store with 0o21 unpatched but 0o20
+ * patched then left the context block area at zero "with nothing saying why".
+ * Until 05-OCT-2026 this port read both cells only from ENKICK and only after a
+ * mailbox had been attached, so a store with START_MESS still zero - or a start
+ * with no ENKICK after it - left both unread.
+ *
+ * The reference also writes PSTP into its CPU here (line 1620). This station has
+ * no CPU, so the value is left in `pst_base` for the embedding to take.
+ */
+static void nd5000_load_mms_pointers_from_control_store(NdbusNd5000 *nd)
+{
+    if (nd->control_store == NULL)
+    {
+        return;
+    }
+
+    uint32_t pst_page = cs_read_larg(nd, 0x11u); /* 0o21 PSTBASE */
+    if (pst_page != 0u)
+    {
+        nd->pst_base = pst_page << 11u;
+        (void)ndbus_servicer_set_pst_base(&nd->servicer, nd->pst_base);
+        nd_log(nd, "ND-5000 ACCP: physical segment table located from patched CS cell 0o21");
+    }
+    else
+    {
+        /* Said out loud rather than left as a zero: with no table the segment
+         * relative copy members fall back to a flat address, which is the defect
+         * that put a process control block 0xD9000 bytes from where the machine
+         * looks for it. */
+        nd_log(nd, "ND-5000 ACCP: CS cell 0o21 PSTBASE is zero - the store is not patched, so "
+                   "PHYSRD/PHYSWR will use flat addresses");
+    }
+
+    uint32_t context_area = cs_read_larg(nd, 0x10u); /* 0o20 OFFSET, already bytes */
+    if (context_area != 0u)
+    {
+        nd->context_area = context_area;
+        (void)ndbus_servicer_set_context_area(&nd->servicer, context_area);
+        nd_log(nd, "ND-5000 ACCP: context block area located from patched CS cell 0o20");
+    }
+    else
+    {
+        nd_log(nd, "ND-5000 ACCP: CS cell 0o20 OFFSET is zero - the store is not patched, so no "
+                   "process start can be taken");
+    }
+}
+
+/**
+ * Take the 3RMICV reply fields from the loaded control store, at microprogram start.
+ *
+ * Ported from OctobusND5000Station.cs DeriveCpuIdentityFromControlStore, lines
+ * 1662-1705, which the 066B/035B/036B arm calls at line 3402:
+ *
+ *   word 1     LARG halfword 7: the microprogram version 3RMICV answers.
+ *   word 7     halfword 7 low byte: the model byte that selects CPUPAR.
+ *
+ * A zero version (store not loaded or not patched) and a model byte with no
+ * verified CPUPAR both keep the value the servicer already has; that rule is
+ * inside ndbus_servicer_set_cpu_identity().
+ */
+static void nd5000_derive_cpu_identity_from_control_store(NdbusNd5000 *nd)
+{
+    if (nd->control_store == NULL)
+    {
+        return;
+    }
+
+    uint16_t version    = cs_read_halfword(nd, 1u, 7u);
+    uint8_t  model_byte = (uint8_t)(cs_read_halfword(nd, 7u, 7u) & 0xFFu);
+    (void)ndbus_servicer_set_cpu_identity(&nd->servicer, version,
+                                         cpupar_for_model_byte(model_byte));
 }
 
 /*
@@ -616,10 +910,20 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
         nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
         return accp_vparp(nd, reply_omd, replies, max);
 
-    case NDBUS_ACCP_ECHO:
-        nd->messacks++;
-        nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
-        return accp_echo(nd, reply_omd, params, param_count, replies, max);
+    /* ECHO 017B HAS NO ARM, AND THAT IS THE PORT. The reference's dispatcher has no
+     * case for 0x0F, so it falls to the canned acknowledge at
+     * OctobusND5000Station.cs line 3493: one status byte, no echoed data. Until
+     * 05-OCT-2026 this port answered the acknowledge PLUS the count's worth of
+     * echoed bytes, on the strength of manual T126 "Returns the test pattern".
+     *
+     * What is measured: $ND5000UC/docs/REAL-ACCP-COMMAND-STATE-MATRIX-2026-09-18.md,
+     * parameter length sweep, "cmd 0x0F -> first reply at 1 parameter byte(s):
+     * reply [ 00 ]". That message carried a count byte of ZERO, so it shows a bare
+     * 00 and does not say what the real firmware returns for a non-zero count.
+     * Both the old arm and the canned acknowledge give 00 for it. The echo the TPE
+     * OCTOBUS B00 tests 5 and 6 perform is the OMD-0 Test Protocol's, in
+     * ndbus_testproto.c, which is a different command on a different OMD and is
+     * not touched by this. */
 
     case NDBUS_ACCP_LPARP:
         /* T128: "The address of the parameter area in the MFbus memory is
@@ -657,7 +961,24 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
     case NDBUS_ACCP_CONTMIC:
     case NDBUS_ACCP_RESTMIC:
         nd->accp.microprogram_running = true;
+        /* STARTING THE MICROPROGRAM ALSO LEAVES THE IDLE STATE - lines 3366-3392 of
+         * the reference. With the idle gate in nd5000_handle_frame() this is no
+         * longer bookkeeping: SINTRAN sends 244B early in a normal bring-up, and a
+         * flag that survived the start would drop every kick for the session. */
         nd->accp_idle = false;
+        /* THE PATCHED CELLS ARE READ HERE, AT THE START, by all three commands -
+         * lines 3396 and 3402. Each routine reads its own cells and neither looks
+         * at START_MESS or at whether a mailbox exists. */
+        nd5000_load_mms_pointers_from_control_store(nd);
+        nd5000_derive_cpu_identity_from_control_store(nd);
+        /* 066B ONLY: leave the functional CPU in its post-INIT state. Lines
+         * 3447-3448, "if (command == 0x36 && _microcodeAdapter == null && _cpu is
+         * CpuND500 funcCpu) funcCpu.ApplyND5000InitState();". CONTMIC and RESTMIC
+         * resume where the microprogram stopped, so they do not run INIT again. */
+        if (command == NDBUS_ACCP_STARTMIC && nd->apply_init_state != NULL)
+        {
+            nd->apply_init_state(nd->cpu_hook_ctx);
+        }
         break;
 
     case NDBUS_ACCP_STOPMIC:
@@ -665,28 +986,53 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
         break;
 
     case NDBUS_ACCP_ENKICK:
-        nd->accp.kicks_enabled = true;
-        /* ENKICK is the ACCP-to-microprogram handoff, and it is where the mailbox
-         * has to be known: the control store is loaded by now, so the patched
-         * START_MESS and SAMSON_CPU cells can be read instead of guessed. A false
-         * return is not an error here - a machine whose microcode was never
-         * patched simply has no mailbox to attach. */
-        (void)ndbus_nd5000_mailbox_from_control_store(nd);
-        /* AND THE MODEL/VERSION REPORT ON TOP OF THE ACKNOWLEDGE. RetroCore sends it
-         * from this arm when the microprogram is running; see the routine's own
-         * comment for why the bare ack is not enough. */
-        if (nd->accp.microprogram_running)
+        /* THE ORDER IS THE REFERENCE'S, lines 3275-3286: enable kicks, send the
+         * acknowledge, take the mailbox base from the control store, and only then
+         * - when the microprogram is running - the model/version report. */
         {
-            nd5000_send_microprogram_model_report(nd);
+            nd->accp.kicks_enabled = true;
+
+            nd->messacks++;
+            nd->last_nak_code = NDBUS_ACCP_ACCEPTED;
+            int count = build_messack(nd->station.number, reply_omd, NULL, 0, replies, max);
+
+            /* ENKICK is the ACCP-to-microprogram handoff, and it is where the
+             * mailbox has to be known: the control store is loaded by now, so the
+             * patched START_MESS and SAMSON_CPU cells can be read instead of
+             * guessed. A false return is not an error here - a machine whose
+             * microcode was never patched simply has no mailbox to attach. */
+            (void)ndbus_nd5000_mailbox_from_control_store(nd);
+
+            /* AND THE MODEL/VERSION REPORT AFTER THE ACKNOWLEDGE, to the station
+             * that sent ENKICK; see the routine's own comment for why the bare ack
+             * is not enough and for how the destination is reached. */
+            if (nd->accp.microprogram_running)
+            {
+                count += nd5000_build_microprogram_model_report(nd, replies + count, max - count);
+            }
+            return count;
         }
-        break;
 
     case NDBUS_ACCP_DISKICK:
         nd->accp.kicks_enabled = false;
         break;
 
     case NDBUS_ACCP_CPURES:
-        ndbus_nd5000_reset(nd);
+        /* 071B RESETS THE ND-5000 CPU, NOT THE ACCP. Ported from lines 3151-3168:
+         *     ResetCpuToIdle();
+         *     _microprogramRunning = false;   // a CPU reset stops the microprogram
+         *     DisableKicks();                 // measured: cell 0x1143B6, 0001 -> 0000
+         * and nothing else. The system parameters, the parameter pointer and its
+         * "given" cell all SURVIVE. Until 05-OCT-2026 this arm called
+         * ndbus_nd5000_reset(), which also forgot the system parameters and the
+         * parameter pointer and re-armed the doorbell sniff - state the reference
+         * and the measured firmware leave alone. */
+        if (nd->reset_cpu_to_idle != NULL)
+        {
+            nd->reset_cpu_to_idle(nd->cpu_hook_ctx);
+        }
+        nd->accp.microprogram_running = false;
+        nd->accp.kicks_enabled        = false;
         break;
 
     case NDBUS_ACCP_ALIVE:
@@ -704,9 +1050,8 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
          * the closest observable we have to that signal.
          *
          * The flip-flop is already driven correctly by the arms around this one:
-         * STARTMIC, CONTMIC and RESTMIC set it; STOPMIC, CPURES (through the
-         * reset), emergency 241B master clear and emergency 244B TERMINATE ACCP
-         * clear it.
+         * STARTMIC, CONTMIC and RESTMIC set it; STOPMIC, CPURES, emergency 241B
+         * master clear and emergency 244B TERMINATE ACCP clear it.
          *
          * An earlier attempt at this arm was reverted because it made the
          * monitor print "ND-5000 timeout: ACCP was terminated" at entry. That
@@ -738,6 +1083,224 @@ static int run_command(NdbusNd5000 *nd, const uint8_t *body, int length, uint16_
     return build_messack(nd->station.number, reply_omd, NULL, 0, replies, max);
 }
 
+/* ---- kicks -------------------------------------------------------------------
+ *
+ * A kick is a control frame with K set and M clear, and its number is bits 5-0.
+ * The microcode's OCB_DECODE -> OCB_MES_K computes VECT := word & 0o77 and jumps
+ * into OCB_DEC_K (016430), a 64-entry table, which the reference states at
+ * OctobusND5000Station.cs lines 2458-2463:
+ *     0 -> NOTREC;  1,2 -> ACTIVATE;  3 -> OCB_KICK03;  4,5 -> OCB_KICK05;
+ *     6 -> OCB_KICK06;  7-63 -> OCB_KICK64 (UNLOCK_QUE + NOTREC 204).
+ * The three routines below are the arms the reference implements.
+ *
+ * Bit 5 is also the M flag, and the reference decodes a kick only when M is clear
+ * (line 2399, "isControl && isKick && !isMultibyte"). So a frame carrying kick
+ * number 32-63 is taken as multibyte traffic and never reaches this decoder; that
+ * is the reference's behaviour and it is kept.
+ */
+
+/**
+ * Kick 1 and 2: walk the ex-queue chain from X5BEX WITHOUT touching X5ACT.
+ *
+ * Ported from OctobusND5000Station.cs WalkQueue, lines 2072-2128 - the
+ * microcode's ACTIVATE1 -> MSG_NEXTL path. "Kick 1 (N100KICK) enters here DIRECTLY
+ * without touching X5ACT, like OCB_MES_K -> ACTIVATE": the kick is the PREEMPT
+ * doorbell, and the idle wakeup is the X5ACT poll in
+ * ndbus_nd5000_service_mailbox(), which is a separate path and is not called from
+ * here.
+ *
+ * X5BEX is 32 bits at extension-block words 0-1, high half first, and holds a
+ * WINDOW-RELATIVE BYTE offset. -1 is an empty chain; 0 is uninitialised and is
+ * refused as an emulator guard (line 2117).
+ *
+ * @param nd The station, with a mailbox already located.
+ * @return true when at least one message was answered by the walk.
+ */
+static bool nd5000_walk_queue(NdbusNd5000 *nd)
+{
+    uint32_t ext    = ndbus_mailbox_ext_base(&nd->mailbox);
+    uint32_t bex_hi = ndbus_pool_read16(nd->pool, ext + NDBUS_MBX_X5BEX_WORD * 2u);
+    uint32_t bex_lo = ndbus_pool_read16(nd->pool, ext + (NDBUS_MBX_X5BEX_WORD + 1u) * 2u);
+    uint32_t bex    = (bex_hi << 16) | bex_lo;
+
+    if (bex == 0xFFFFFFFFu || bex == 0u)
+    {
+        return false;
+    }
+
+    return ndbus_servicer_process_chain(&nd->servicer, bex & 0xFFFFFFu);
+}
+
+/**
+ * Kick 3, CLRKICK -> the microcode's OCB_KICK03 (CS 0o25522): execute the clear
+ * functions coded in X5CLR and acknowledge them.
+ *
+ * Ported from OctobusND5000Station.cs ExecuteClearFunctions, lines 1994-2022. WHO
+ * ASKS, from that routine's remarks: SINTRAN's ST0PSYS (MP-P2-N500.NPL:3759)
+ * writes 0o77 into X5CLR, sends CLRKICK and then POLLS X5CLR for zero up to 1000
+ * times, calling ERRFATAL if it never clears; LMPCLR (MP-P2-N500.NPL:1222) writes
+ * a mask taken from the swapper's message and does not poll. With this kick
+ * dropped X5CLR kept its mask for ever and every stop-system took the ERRFATAL
+ * branch.
+ *
+ * THE THREE WRITES are what the real B30 microcode does, observed by executing
+ * OCB_KICK03 with X5CLR = 0o77 (same remarks):
+ *     CS 025627: [ext+0x12] := 0001   X5CCL := 1   (cache-clear counter)
+ *     CS 025536: [ext+0x10] := 0000   X5CLR := 0   (the acknowledge)
+ *     CS 025421: [ext+0x0C] := FFFF   X5PRO := -1  (IDLE = "forget process")
+ * The mask's cache, data-TSB and dump bits have no further effect because no
+ * ND-5000 cache or TSB is modelled - there is nothing to invalidate.
+ */
+static void nd5000_execute_clear_functions(NdbusNd5000 *nd)
+{
+    uint32_t ext = ndbus_mailbox_ext_base(&nd->mailbox);
+    if (ext == 0u)
+    {
+        nd_log(nd, "ND-5000 octobus: KICK 3 (CLRKICK) ignored - mailbox extension block not "
+                   "configured yet");
+        return;
+    }
+
+    /* ONE LOCK FOR THE WHOLE READ-MODIFY-WRITE, as the reference takes
+     * _mpm.SyncRoot (line 2004): the ND-100 polls X5CLR and must never observe a
+     * half-applied acknowledge. ndbus_lock() is that same lock domain here - see
+     * ndbus_lock.h. It is not recursive, so nothing below may take it again; the
+     * mailbox accessors do not, and the log line is written after the release. */
+    ndbus_lock();
+    uint16_t mask = ndbus_mailbox_read_ext(&nd->mailbox, NDBUS_MBX_X5CLR_WORD);
+
+    /* X5CCL, the counter SINTRAN reads and compares elsewhere. */
+    (void)ndbus_mailbox_write_ext(&nd->mailbox, NDBUS_MBX_X5CCL_WORD, 1u);
+
+    /* X5PRO := -1 = "ND-500 IDLE" - the "forget process" half of the mask. */
+    (void)ndbus_mailbox_write_ext(&nd->mailbox, NDBUS_MBX_X5PRO_WORD, 0xFFFFu);
+
+    /* LAST, AND THE ORDER MATTERS: X5CLR := 0 is the ND-100's release signal.
+     * Written before the other two it would let SINTRAN proceed while X5CCL and
+     * X5PRO still held stale values (line 2014). */
+    (void)ndbus_mailbox_write_ext(&nd->mailbox, NDBUS_MBX_X5CLR_WORD, 0u);
+    ndbus_unlock();
+
+    char text[160];
+    (void)snprintf(text, sizeof(text),
+                   "ND-5000 octobus: KICK 3 (CLRKICK) mask=0x%04X -> X5CLR:=0 X5CCL:=1 X5PRO:=-1 "
+                   "(ext block 0x%08X)",
+                   (unsigned)mask, (unsigned)ext);
+    nd_log(nd, text);
+}
+
+/**
+ * Kick 6, IDLEKICK -> the microcode's OCB_KICK06 (CS 0o25561): forced de-schedule.
+ *
+ * Ported from OctobusND5000Station.cs GoIdle, lines 2050-2064. WHO ASKS: TER51
+ * (MP-P2-N500.NPL:2950), the ND-500 TERMINATE path, sends kick 6 in a loop and
+ * leaves ONLY when X5PRO reads -1; otherwise it falls into TER52 ESPTIMOUT. So
+ * X5PRO := -1 is the observable, and it is all this does.
+ *
+ * DELIBERATELY PARTIAL, exactly as the reference is and for its stated reason:
+ * the real routine also does CNTXTSAVE, OCB_CLNUP, UNLOCK_QUE and PRNOWR.
+ * OCB_CLNUP REQUEUES the message in progress (N5STA := 1) rather than discarding
+ * it, so a version that dropped the current message would lose work in a way that
+ * shows up much later. Not modelled there, so not modelled here.
+ */
+static void nd5000_go_idle(NdbusNd5000 *nd)
+{
+    uint32_t ext = ndbus_mailbox_ext_base(&nd->mailbox);
+    if (ext == 0u)
+    {
+        nd_log(nd, "ND-5000 octobus: KICK 6 (IDLEKICK) ignored - mailbox extension block not "
+                   "configured yet");
+        return;
+    }
+
+    ndbus_lock();
+    (void)ndbus_mailbox_write_ext(&nd->mailbox, NDBUS_MBX_X5PRO_WORD, 0xFFFFu);
+    ndbus_unlock();
+
+    char text[160];
+    (void)snprintf(text, sizeof(text),
+                   "ND-5000 octobus: KICK 6 (IDLEKICK) -> X5PRO:=-1 (ext block 0x%08X); "
+                   "OCB_CLNUP requeue NOT modelled",
+                   (unsigned)ext);
+    nd_log(nd, text);
+}
+
+/**
+ * One kick frame, already known to be a control frame with K set and M clear.
+ *
+ * Ported from OctobusND5000Station.cs HandleFrame, lines 2399-2523. What is left
+ * out is what the functional-CPU lane does not have: LoadAob (the AOB/AIB model),
+ * the parked-microword-CPU branch, and the KickReceived and MailboxDoorbell
+ * events. For kicks 1 and 2 the reference has two branches - a doorbell
+ * subscriber that moves the walk onto the CPU's own thread, and a synchronous
+ * walk when there is none (lines 2473-2481). This library has no subscriber
+ * mechanism, and its servicer already runs on the thread that delivers the frame,
+ * so the synchronous branch is the one ported.
+ */
+static void nd5000_handle_kick(NdbusNd5000 *nd, uint16_t frame, uint8_t source_station)
+{
+    /* Broadcast is NOT allowed for kicks (ND-05.020.01 page 336). Rejected before
+     * it is counted, as at lines 2402-2408. */
+    if ((frame & NDBUS_FRAME_B_BROADCAST) != 0)
+    {
+        return;
+    }
+
+    unsigned kick_number = (unsigned)(frame & 0x3Fu);
+
+    /* Count EVERY decoded kick, enabled or not (line 2413). */
+    nd->kick_counts[kick_number]++;
+
+    /* Kicks reach the microprogram only when ENKICK is in force (line 2417). */
+    if (!nd->accp.kicks_enabled)
+    {
+        nd->kicks_dropped_disabled++;
+        return;
+    }
+
+    switch (kick_number)
+    {
+    case 1u:
+    case 2u:
+        /* ACTIVATE. The microcode sends BOTH 1 and 2 here; only N100KICK = 1 has a
+         * known NPL sender (ACT52, MP-P2-N500.NPL:3032), but the table is explicit,
+         * so 2 must not fall through silently. Nothing happens until a mailbox has
+         * been located - the reference's "_mailboxHeaderBase != 0", line 2471. */
+        if (nd->start_mess != 0u)
+        {
+            (void)nd5000_walk_queue(nd);
+        }
+        break;
+
+    case 3u:
+        /* CLRKICK -> OCB_KICK03, the cache-clear protocol. */
+        nd5000_execute_clear_functions(nd);
+        break;
+
+    case 6u:
+        /* IDLEKICK -> OCB_KICK06, forced de-schedule. */
+        nd5000_go_idle(nd);
+        break;
+
+    default:
+        /* 0 and 7-63 land on NOTREC in the real microcode, which REPORTS the
+         * unrecognised kick and releases the queue lock; 4 and 5 are OCB_KICK05,
+         * which the reference does not implement either. LOGGED UNCONDITIONALLY
+         * (lines 2495-2509): swallowing these in silence is how the kick-3 gap
+         * survived unnoticed until stop-system was fixed. */
+        {
+            char text[160];
+            (void)snprintf(text, sizeof(text),
+                           "ND-5000 octobus: KICK %u from station %oB NOT IMPLEMENTED (microcode "
+                           "would run %s)",
+                           kick_number, (unsigned)source_station,
+                           (kick_number == 4u || kick_number == 5u) ? "OCB_KICK05" : "NOTREC 204");
+            nd_log(nd, text);
+        }
+        break;
+    }
+}
+
 /* ---- frame routing ---------------------------------------------------------- */
 
 static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t source_station,
@@ -751,6 +1314,7 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
 
     bool control   = (frame & NDBUS_FRAME_C_CONTROL) != 0;
     bool emergency = (frame & NDBUS_FRAME_E_EMERGENCY) != 0;
+    bool kick      = (frame & NDBUS_FRAME_K_KICK) != 0;
     bool multibyte = (frame & NDBUS_FRAME_M_MULTIBYTE) != 0;
     bool start     = (frame & NDBUS_FRAME_S_STARTSTOP) != 0;
 
@@ -791,6 +1355,17 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
             nd->accp_idle                     = false;
             nd->parameter_pointer             = 0;
             ndbus_multibyte_reset(&nd->inbox);
+            /* AND THE CPU, after the station's own state: "ResetStation();
+             * ResetCpuToIdle();" at OctobusND5000Station.cs lines 2674-2675. The
+             * callback must reset the CPU AND park it in the microcode IDLE state.
+             * The reference's remark on ResetCpuToIdle (lines 2633-2651) records
+             * what a reset without the park does: SINTRAN's CH5CPUPRESENT scan
+             * sends 241B to every ND-5000 station at boot, and a CPU left runnable
+             * executed garbage from PC 0 and never parked again. */
+            if (nd->reset_cpu_to_idle != NULL)
+            {
+                nd->reset_cpu_to_idle(nd->cpu_hook_ctx);
+            }
             nd_log(nd, "ND-5000 octobus: emergency 241B MASTER CLEAR");
             break;
 
@@ -822,26 +1397,70 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
         return 0;
     }
 
-    if (control && multibyte && start)
+    /*
+     * THE IDLE GATE. After emergency 244B the ACCP sits in its idle loop, and
+     * while it does every frame is dropped EXCEPT the multibyte traffic for OMD 0
+     * and OMD 3: their SOMB and EOMB, and the data bytes of a message one of those
+     * SOMBs opened.
+     *
+     * Ported from OctobusND5000Station.cs HandleFrame, lines 2376-2397. Its reason:
+     * a terminated ACCP still runs its 68000 communication loop - only the
+     * MICROPROGRAM is stopped - so it must still answer ACCP command messages,
+     * notably the ALIVE check SINTRAN sends right after a terminate to confirm it
+     * worked (no reply reads as "Impossible to terminate ACCP after timeout").
+     * Kicks and everything else meant for the microprogram are ignored.
+     *
+     * The gate sits AFTER the emergency decode, so 241B and 242B still get through
+     * to clear the flag; a 066B, 035B or 036B start clears it from inside the
+     * OMD-3 traffic the gate lets pass. Until 05-OCT-2026 the flag was written and
+     * never read.
+     */
+    if (nd->accp_idle)
     {
-        /* SOMB. The destination OMD in the low bits says who the message is for;
-         * OMD 3 is ACCP device handling (T124, figure 28) and OMD 0 is the
+        uint8_t idle_omd       = (uint8_t)(frame & NDBUS_FRAME_CODE_MASK);
+        bool    accp_multibyte = control && multibyte &&
+                                 (idle_omd == NDBUS_TESTPROTO_OMD || idle_omd == NDBUS_ACCP_OMD);
+        bool    accp_body_byte = !control && nd->inbox.open; /* data of an open ACCP message */
+        if (!accp_multibyte && !accp_body_byte)
+        {
+            return 0;
+        }
+        /* else fall through: answer the ACCP command even while idle */
+    }
+
+    if (control && kick && !multibyte)
+    {
+        /* A kick never has a reply frame: what it causes is seen in shared memory. */
+        nd5000_handle_kick(nd, frame, source_station);
+        return 0;
+    }
+
+    if (control && multibyte)
+    {
+        /* SOMB (S=1) or EOMB (S=0). The OMD in the low bits says who the message
+         * is for; OMD 3 is ACCP device handling (T124, figure 28) and OMD 0 is the
          * Octobus Test Protocol of ndbus_testproto.h. This station answers BOTH,
          * as RetroCore's does - see the note on `testproto` in ndbus_nd5000.h for
          * why one collector can serve the two. */
         uint8_t omd = (uint8_t)(frame & NDBUS_FRAME_CODE_MASK);
         if (omd != NDBUS_ACCP_OMD && omd != NDBUS_TESTPROTO_OMD)
         {
-            /* Another OMD is the microprogram's, not the ACCP's. Not an error -
-             * and not this station's message either. */
+            /* ANOTHER OMD IS THE MICROPROGRAM'S, SOMB AND EOMB ALIKE. The reference
+             * forwards both to the microprogram (lines 2582-2588) and returns, so
+             * an ACCP message that is being collected STAYS OPEN and is not run.
+             * Until 05-OCT-2026 only the SOMB was tested here: an EOMB for any OMD
+             * closed whatever message was open and ran it as an ACCP command. The
+             * forwarding itself is the AOB model, which this port does not have,
+             * so the frame is accepted and nothing more happens to it. */
             return 0;
         }
-        ndbus_multibyte_begin(&nd->inbox, source_station);
-        return 0;
-    }
 
-    if (control && multibyte && !start)
-    {
+        if (start)
+        {
+            ndbus_multibyte_begin(&nd->inbox, source_station);
+            return 0;
+        }
+
         /* EOMB: the message is complete. */
         if (!ndbus_multibyte_end(&nd->inbox))
         {
@@ -853,14 +1472,15 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
         }
         /* THE EOMB FRAME SAYS WHICH PROTOCOL THE MESSAGE BELONGS TO, which is why
          * one collector can serve both OMDs. Ported from RetroCore
-         * OctobusND5000Station.cs HandleFrame, which dispatches on the completing
-         * frame's OMD rather than on anything remembered from the SOMB.
+         * OctobusND5000Station.cs HandleFrame (lines 2525-2580), which dispatches
+         * on the completing frame's OMD rather than on anything remembered from
+         * the SOMB.
          *
          * The OMD-0 responder keeps its OWN message count, so `messages_handled`
          * is bumped only on the ACCP path: it counts ACCP commands, and a test
          * protocol message is not one. Counting both here would make the two
          * diagnostics describe the same traffic and neither of them the truth. */
-        if ((uint8_t)(frame & NDBUS_FRAME_CODE_MASK) == NDBUS_TESTPROTO_OMD)
+        if (omd == NDBUS_TESTPROTO_OMD)
         {
             return ndbus_testproto_answer(&nd->testproto, &nd->station, nd->inbox.bytes,
                                           nd->inbox.count, replies, NDBUS_MAX_REPLY_FRAMES);
@@ -878,10 +1498,10 @@ static int nd5000_handle_frame(NdbusStation *station, uint16_t frame, uint8_t so
         return 0;
     }
 
-    /* A control frame that is not part of a multibyte message - a kick or an
-     * ident. Accepted and silent; the station has nothing to say about it yet.
-     * Emergencies are NOT in this bucket any more - they are handled at the top,
-     * which is where they belong. */
+    /* A control frame that is none of the above is an ident (C=1, E=K=M=0). The
+     * reference hands idents to the microprogram through the AOB (lines
+     * 2591-2609), which this port does not model, so it is accepted and silent.
+     * Emergencies and kicks are NOT in this bucket - they are handled above. */
     return 0;
 }
 
@@ -969,6 +1589,9 @@ bool ndbus_nd5000_init(NdbusNd5000 *nd, uint8_t station_number, NdbusPool *pool,
     nd->cpu            = cpu;
     nd->last_nak_code  = NDBUS_ACCP_ACCEPTED;
     nd->sniff.threshold = NDBUS_X5ACT_LATCH_ON_FIRST;
+    /* CPUNO 1 until a mailbox configuration says otherwise - the reference's
+     * "private int _cpuNumber = 1", OctobusND5000Station.cs line 949. */
+    nd->cpu_number     = 1;
     ndbus_multibyte_reset(&nd->inbox);
 
     /* An ND-5000 answers the Test Protocol's Get module type with 3 = ACCP, not
@@ -996,139 +1619,54 @@ void ndbus_nd5000_reset(NdbusNd5000 *nd)
     {
         return;
     }
-    /* The ACCP's own state only. The POOL IS NOT TOUCHED: it is shared memory,
-     * the ND-100 owns what is in it, and a CPU reset that wiped it would destroy
-     * the other side's data. */
+    /* NOT THE 071B CPURES COMMAND. That command clears two guard cells and resets
+     * the CPU, and has its own arm in run_command(); this helper clears more and
+     * is for an owner that wants a cold station. See ndbus_nd5000.h.
+     *
+     * The ACCP's own state only. The POOL IS NOT TOUCHED: it is shared memory,
+     * the ND-100 owns what is in it, and a reset that wiped it would destroy the
+     * other side's data. */
     memset(&nd->accp, 0, sizeof(nd->accp));
     nd->parameter_pointer = 0;
     ndbus_multibyte_reset(&nd->inbox);
     memset(&nd->sniff, 0, sizeof(nd->sniff));
     nd->sniff.threshold = NDBUS_X5ACT_LATCH_ON_FIRST;
     /* THE CONTROL STORE SURVIVES. It is the ND-5000's microcode store, not ACCP
-     * state, and the buffer is kept so a reload does not have to allocate again.
-     * On the live machine CPURES arrives BEFORE the first LOCSM pulse, so nothing
-     * observed here depends on the choice - said out loud rather than left as an
-     * accident of where the memset stops. */
-}
-
-/** Read a control-store cell's LARG field: the 32-bit value in halfwords 6 and 7,
- *  high half first.
- *
- *  READ THE FULL 32 BITS, NEVER JUST HALFWORD 7. RetroCore records the cost of the
- *  short read: the context-block cell holds 0x0002A000 on a real machine, so a
- *  halfword-7 read returns 0xA000 - a plausible-looking wrong value - and feeding
- *  that on made the 23B start run with a garbage context and the run died. */
-static uint32_t cs_read_larg(const NdbusNd5000 *nd, uint32_t cs_word)
-{
-    if (nd->control_store == NULL)
-    {
-        return 0u;
-    }
-
-    return ((uint32_t)cs_read_halfword(nd, cs_word, 6u) << 16u) |
-           (uint32_t)cs_read_halfword(nd, cs_word, 7u);
+     * state, and the buffer is kept so a reload does not have to allocate again. */
 }
 
 /**
- * The per-model CPU parameter 3RMICV reports, selected by the control store's
- * model byte.
+ * Record where the mailbox is: the header, this CPU's CPUNO, and with them the
+ * extension block at header + CPUNO * 256.
  *
- * Ported from RetroCore OctobusND5000Station.cs TryCpuParForModelByte. Only model 8
- * is verified end to end, and an unrecognised byte returns 0 rather than a guess:
- * ndbus_servicer_set_cpu_identity() then keeps what it has, so a different image is
- * visibly unmapped instead of silently relabelled as a 5800.
- *
- * @param model_byte The packed model byte from control-store word 7, halfword 7.
- * @return The CPUPAR value, or 0 when there is no verified mapping.
+ * Ported from OctobusND5000Station.cs ConfigureMailbox, lines 1395-1403, which
+ * stores the three values and checks NOTHING - the caller has already applied its
+ * own guard. ndbus_mailbox_attach() is deliberately not used for this: it refuses
+ * a CPUNO above 7 and any block whose full 256 bytes do not fit the pool, and both
+ * refusals are stricter than the reference, whose guard (line 1457) asks only for
+ * the first 17 bytes of the extension block. A block that runs past the end of the
+ * pool is still safe to use: every mailbox accessor goes through the bounds-checked
+ * pool calls, where a read outside the pool returns 0 and a write is refused.
  */
-static uint16_t cpupar_for_model_byte(uint8_t model_byte)
+static void nd5000_configure_mailbox(NdbusNd5000 *nd, uint32_t header_byte, int cpu_number)
 {
-    switch (model_byte)
-    {
-    case 0x38u:
-        /* 5800, model 8: microcode CPUMOD08 @017243 SARG = 001741B. */
-        return 0x03E1u;
-
-    default:
-        return 0u;
-    }
-}
-
-/**
- * Take the pointers SINTRAN patched into the control store, at microprogram start.
- *
- * THESE ARE NOT VALUES ANY MESSAGE CARRIES. SINTRAN writes them into control-store
- * cells before micro-start and the microcode reads them from there, so the only
- * honest source is the store this station loaded:
- *
- *   cell 0o21  PSTBASE  the physical segment table, as an ND-500 PAGE. Shifted by
- *                       11 to bytes - ND-05.020.01 section 6.6.
- *   cell 0o20  OFFSET   the start of the context (register) block area, ALREADY a
- *                       byte address, so it is NOT shifted. ND-05.017.01 App. A.1
- *                       names it, and GET_CNTXT @0o13372 and CNTXTLOAD @0o14746
- *                       both jump to the cell.
- *   word 1     LARG halfword 7: the microprogram version 3RMICV answers.
- *   word 7     halfword 7 low byte: the model byte that selects CPUPAR.
- *
- * Ported from RetroCore OctobusND5000Station.cs LoadMmsPointersFromControlStore and
- * DeriveCpuIdentityFromControlStore.
- */
-static void nd5000_take_patched_cs_pointers(NdbusNd5000 *nd)
-{
-    if (nd->control_store == NULL)
-    {
-        return;
-    }
-
-    uint32_t pst_page = cs_read_larg(nd, 0x11u); /* 0o21 PSTBASE */
-    if (pst_page != 0u)
-    {
-        nd->pst_base = pst_page << 11u;
-        (void)ndbus_servicer_set_pst_base(&nd->servicer, nd->pst_base);
-        nd_log(nd, "ND-5000 ACCP: physical segment table located from patched CS cell 0o21");
-    }
-    else
-    {
-        /* Said out loud rather than left as a zero: with no table the segment
-         * relative copy members fall back to a flat address, which is the defect
-         * that put a process control block 0xD9000 bytes from where the machine
-         * looks for it. */
-        nd_log(nd, "ND-5000 ACCP: CS cell 0o21 PSTBASE is zero - the store is not patched, so "
-                   "PHYSRD/PHYSWR will use flat addresses");
-    }
-
-    uint32_t context_area = cs_read_larg(nd, 0x10u); /* 0o20 OFFSET, already bytes */
-    if (context_area != 0u)
-    {
-        nd->context_area = context_area;
-        (void)ndbus_servicer_set_context_area(&nd->servicer, context_area);
-        nd_log(nd, "ND-5000 ACCP: context block area located from patched CS cell 0o20");
-    }
-    else
-    {
-        nd_log(nd, "ND-5000 ACCP: CS cell 0o20 OFFSET is zero - the store is not patched, so no "
-                   "process start can be taken");
-    }
-
-    uint16_t version = cs_read_halfword(nd, 1u, 7u);
-    uint8_t  model_byte = (uint8_t)(cs_read_halfword(nd, 7u, 7u) & 0xFFu);
-    (void)ndbus_servicer_set_cpu_identity(&nd->servicer, version,
-                                         cpupar_for_model_byte(model_byte));
+    nd->mailbox.pool        = nd->pool;
+    nd->mailbox.header_byte = header_byte;
+    nd->mailbox.cpuno       = cpu_number;
+    nd->cpu_number          = cpu_number;
 }
 
 bool ndbus_nd5000_mailbox_from_control_store(NdbusNd5000 *nd)
 {
-    if (nd == NULL || nd->control_store == NULL)
+    if (nd == NULL || nd->control_store == NULL || nd->pool == NULL)
     {
         return false;
     }
 
     /* 026B = 0x16 and 025B = 0x15. Both are LARG constants, so the value is the
      * 32-bit field built from halfwords 6 and 7, high half first. */
-    uint32_t start_mess = ((uint32_t)cs_read_halfword(nd, 0x16u, 6u) << 16u) |
-                          (uint32_t)cs_read_halfword(nd, 0x16u, 7u);
-    uint32_t samson_cpu = ((uint32_t)cs_read_halfword(nd, 0x15u, 6u) << 16u) |
-                          (uint32_t)cs_read_halfword(nd, 0x15u, 7u);
+    uint32_t start_mess = cs_read_larg(nd, 0x16u);
+    uint32_t samson_cpu = cs_read_larg(nd, 0x15u);
 
     if (start_mess == 0u)
     {
@@ -1138,27 +1676,37 @@ bool ndbus_nd5000_mailbox_from_control_store(NdbusNd5000 *nd)
         return false;
     }
 
-    /* SAMSON_CPU is the extension-block index. When the cell is unpatched, fall
-     * back to this station's own CPUNO, which is what RetroCore does. */
-    int cpuno = (samson_cpu != 0u) ? (int)samson_cpu
-                                   : ndbus_cpu_mailbox_cpuno(nd->station.number);
+    /* SAMSON_CPU is the extension-block index. When the cell is unpatched the
+     * fallback is the station's current CPUNO - 1 from init, or whatever the last
+     * configuration set - exactly as OctobusND5000Station.cs line 1453 has it:
+     *     int cpu = samsonCpu != 0 ? (int)samsonCpu : _cpuNumber;
+     * Until 05-OCT-2026 this fell back to a number derived from the station's
+     * position on the bus (2 for 071B, 3 for 072B ...), which the reference never
+     * does: with the cell unpatched it uses block 1 whatever the station. */
+    int cpu = (samson_cpu != 0u) ? (int)samson_cpu : nd->cpu_number;
 
-    /* THE WHOLE EXTENSION BLOCK MUST FIT, not just its first word: a base that
-     * lands near the end of the pool would give reads that return 0 and writes
-     * that are refused, which reads exactly like a microprogram that never
-     * answers. */
-    uint32_t ext = start_mess + ((uint32_t)cpuno * NDBUS_MBX_STRIDE_BYTES);
-    if (!ndbus_pool_contains(nd->pool, ext, NDBUS_MBX_STRIDE_BYTES))
+    /* THE GUARD, WORD FOR WORD - lines 1454-1461:
+     *     uint header = _mpm.Start + startMess;
+     *     uint ext    = header + (uint)(cpu * 256);
+     *     if (header < _mpm.Start || ext + 16 >= _mpm.Start + _mpm.Size)  -> ignored
+     * in the reference's own units, ND-100 physical byte addresses, and in its own
+     * wrapping 32-bit arithmetic: _mpm.Start is the window's ND-100 base and
+     * _mpm.Size is the pool size. The first test catches a START_MESS so large
+     * that the header address wraps; the second wants bytes 0..16 of the extension
+     * block inside the window. Until 05-OCT-2026 this demanded the whole 256-byte
+     * block instead. */
+    uint32_t window_start = nd5000_window_base(nd);
+    uint32_t header       = window_start + start_mess;
+    uint32_t ext          = header + ((uint32_t)cpu * NDBUS_MBX_STRIDE_BYTES);
+    if (header < window_start || (ext + 16u) >= (window_start + nd->pool->size))
     {
-        nd_log(nd, "ND-5000 ACCP: START_MESS mailbox base is outside the pool - ignored");
+        nd_log(nd, "ND-5000 ACCP: START_MESS mailbox base is outside the window - ignored");
         return false;
     }
 
-    if (!ndbus_mailbox_attach(&nd->mailbox, nd->pool, start_mess, cpuno))
-    {
-        nd_log(nd, "ND-5000 ACCP: the START_MESS mailbox base was refused");
-        return false;
-    }
+    /* START_MESS is a window BYTE offset, and the pool is the window, so the pool
+     * offset of the header is START_MESS itself. */
+    nd5000_configure_mailbox(nd, start_mess, cpu);
 
     nd->start_mess = start_mess;
     nd->samson_cpu = samson_cpu;
@@ -1173,10 +1721,51 @@ bool ndbus_nd5000_mailbox_from_control_store(NdbusNd5000 *nd)
                                  (NDBUS_MBX_X5ACT_WORD * 2u);
     nd_log(nd, "ND-5000 ACCP: mailbox located from the control store (START_MESS)");
 
-    /* The same patched store carries the segment table, the context block area and
-     * the CPU identity. Taken here because this runs at ENKICK, which is the
-     * microprogram start - the point RetroCore reads them at. */
-    nd5000_take_patched_cs_pointers(nd);
+    /* NOTHING ELSE IS READ HERE. The segment table, the context block area and the
+     * CPU identity come out of the same store, but at the 066B/035B/036B start and
+     * independently of this routine - see the arm in run_command(). */
+    return true;
+}
+
+bool ndbus_nd5000_try_get_context_block_area_base(NdbusNd5000 *nd, uint32_t *byte_base)
+{
+    if (nd == NULL || byte_base == NULL)
+    {
+        return false;
+    }
+
+    /* Ported from OctobusND5000Station.cs IServicerHost.TryGetContextBlockAreaBase,
+     * lines 2181-2189:
+     *     byteBase = HaveControlStore ? ReadControlStoreLarg(0x10) : 0u;
+     *     if (byteBase != 0 && LoadedContextBlockBase == 0) LoadedContextBlockBase = byteBase;
+     *     return byteBase != 0;
+     * The cell is read EVERY time, not taken from what the start cached, which is
+     * the point: SINTRAN may patch 0o20 after the start command has already run.
+     *
+     * WHAT IS STILL MISSING, AND WHERE. The reference's servicer asks this of its
+     * host whenever its own cached base is zero (Nd500MicrocodeServicer.cs lines
+     * 1329, 2113, 3443 and 3735). NdbusServicerHost has no callback for it, and
+     * ndbus_servicer.c tests context_area_base alone, so nothing calls this yet. */
+    uint32_t value = cs_read_larg(nd, 0x10u); /* 0o20 OFFSET; 0 with no control store */
+    *byte_base = value;
+    if (value != 0u && nd->context_area == 0u)
+    {
+        nd->context_area = value;
+    }
+    return value != 0u;
+}
+
+bool ndbus_nd5000_set_cpu_hooks(NdbusNd5000 *nd, void (*reset_cpu_to_idle)(void *ctx),
+                                void (*apply_init_state)(void *ctx), void *ctx)
+{
+    if (nd == NULL)
+    {
+        return false;
+    }
+
+    nd->reset_cpu_to_idle = reset_cpu_to_idle;
+    nd->apply_init_state  = apply_init_state;
+    nd->cpu_hook_ctx      = ctx;
     return true;
 }
 

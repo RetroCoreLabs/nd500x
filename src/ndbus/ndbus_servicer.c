@@ -95,9 +95,43 @@ static uint32_t to_link(uint32_t msg_byte)
     return msg_byte & 0xFFFFFFu;
 }
 
+/**
+ * Count a call that named an X5CPU with no process slot, and log it the first
+ * time that X5CPU is seen.
+ *
+ * The reference skips such a process without a word
+ * ($RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/Nd500MicrocodeServicer.cs:1178
+ * and :1188), but it also has a single "active message" field to fall back on,
+ * which this port does not. Here an out-of-range X5CPU means the process's stops
+ * can never be answered, so it must not pass unseen.
+ */
+static void note_x5cpu_out_of_range(NdbusServicer *sv, uint16_t x5cpu, const char *where)
+{
+    sv->x5cpu_out_of_range++;
+
+    uint8_t *cell = &sv->x5cpu_out_of_range_logged[(uint32_t)x5cpu >> 3u];
+    uint8_t  bit = (uint8_t)(1u << ((uint32_t)x5cpu & 0x07u));
+    if ((*cell & bit) != 0u)
+    {
+        return;
+    }
+    *cell = (uint8_t)(*cell | bit);
+
+    char line[200];
+    (void)snprintf(line, sizeof line,
+                   "mailbox: X5CPU %u is outside the %u process slots (%s) - no message is "
+                   "kept for it, so its stops cannot be answered; logged once per X5CPU",
+                   (unsigned)x5cpu, (unsigned)NDBUS_SERVICER_MAX_PROCESSES, where);
+    servicer_log(sv, line);
+}
+
 uint32_t ndbus_servicer_process_context_byte(const NdbusServicer *sv, uint16_t x5cpu)
 {
-    if (sv == NULL || sv->context_area_base == 0u || x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    /* NO RANGE CHECK ON X5CPU, as in the reference: GetProcessContextAddress
+     * (Nd500MicrocodeServicer.cs:1326-1336) and the start path (:3744-3745)
+     * compute area + 400B + X5CPU * 400B for whatever X5CPU the message carries.
+     * This used to return 0 for X5CPU >= 8 without saying so. */
+    if (sv == NULL || sv->context_area_base == 0u)
     {
         return 0u;
     }
@@ -114,46 +148,42 @@ int ndbus_servicer_read_message_x5cpu(const NdbusServicer *sv, uint32_t msg_byte
     return (int)read16(sv, msg_word(msg_byte, NDBUS_MSG_X5CPU));
 }
 
-/* ---- THE MICRO-FUNCTION TABLE: the hardware's vectored dispatch ------------
+/* ---- THE MICRO-FUNCTION TABLE -------------------------------------------------
  *
- * The microcode does NOT compare MICFU against a list. It strips bit 15, range
- * checks what is left against 0..77B and indexes a 64-ENTRY DISPATCH TABLE
- * (ACCP-OCTOBUS-COMMAND-TABLE-2026-08-02.md and the mailbox catalogue's
+ * One entry per code 0..77B, shaped like the microcode's own 64-entry dispatch
+ * table (ACCP-OCTOBUS-COMMAND-TABLE-2026-08-02.md and the mailbox catalogue's
  * "N5STA check -> CPU-target check -> MICFU -> vectored dispatch").
  *
- * This is that table. It replaces three things that were each a separate hand
+ * It replaces three things that were each a separate hand
  * written list of the same codes - is_continue, is_start_class and the dispatch
  * switch - so a function added in one and forgotten in the others is no longer
  * possible. That had already happened: 26B was absent from all three, fell to
  * the default arm, and was answered 5ERANSWER, so the process it belonged to was
  * never resumed.
  *
- * TWO THINGS THE TABLE FIXES THAT NEITHER EMULATOR DID.
+ * BIT 15 IS NOT STRIPPED - THE RAW HALFWORD IS THE CODE.
  *
- * BIT 15 IS A FLAG, NOT PART OF THE FUNCTION NUMBER, and the microcode strips it
- * before dispatching; the range check is 0..77B. Both emulators switched on the
- * raw halfword and neither range checked, so a flagged message the hardware
- * dispatches normally was answered 5ERANSWER by both. The carve outranks both
- * emulators, so this is a shared defect rather than a port gap.
+ * The reference reads MICFU at Nd500MicrocodeServicer.cs:2621 and switches on
+ * the raw value at :2674, `switch ((N5MicroFunction)micfu)`, with no mask
+ * anywhere in ProcessMessage. A halfword with bit 15 set matches no case and
+ * reaches `default` (:3982), which answers 5ERANSWER.
  *
- * THE GRADE MATTERS AND IT IS NOT FULL. The source is
- * ND500-MAILBOX-MESSAGE-CATALOG.md:209, which marks this [V/D] - part verified,
- * part DERIVED - not [V]. So the strip and the bound are the best reading of the
- * microcode available and not a byte-level certainty. They are implemented
- * because the alternative is demonstrably wrong (a flagged continue answered
- * 5ERANSWER leaves its process parked for ever), but if a message ever turns up
- * that needs bit 15 kept, this is the line to come back to and the grade is the
- * reason it might be.
+ * This table used to strip bit 15 before the lookup, on the strength of
+ * ND500-MAILBOX-MESSAGE-CATALOG.md:209 (graded [V/D], part verified and part
+ * derived), while execute_micfu() below switched on the raw halfword. The two
+ * disagreed about one message: a flagged 24B was classed as a continue, offered
+ * to the process host, and then - if the host declined - dispatched as unknown.
+ * By order of 05-OCT-2026 the C# is the oracle, so the strip is gone and every
+ * user of the code sees the same raw value.
  *
- * Out of range is kept distinct from "in range but not implemented here":
- * anything unrecognised used to fall through the switch's default, which
- * conflates the two, and they want different answers.
+ * NOT PORTED: with StrictUnknownMessages true the reference THROWS in `default`
+ * (:3997-4005). C has no exception; this port takes the reference's non-strict
+ * path (:4008-4010), a log line and 5ERANSWER.
  *
  * A code we do not implement is NDBUS_MICFU_CLASS_NONE, which is the honest
- * value: the table says what the hardware would dispatch, not what we handle. */
+ * value: the table says what this servicer dispatches, nothing more. */
 
-#define NDBUS_MICFU_TABLE_SIZE 64u   /* 0..77B, the microcode's own bound */
-#define NDBUS_MICFU_FLAG_BIT   0x8000u /* stripped before dispatch */
+#define NDBUS_MICFU_TABLE_SIZE 64u   /* codes 0..77B; anything else has no entry */
 
 typedef struct
 {
@@ -172,7 +202,9 @@ static const NdbusMicfuEntry s_micfu_table[NDBUS_MICFU_TABLE_SIZE] = {
     [NDBUS_MICFU_RESIRD]  = { "RESIRD",  NDBUS_MICFU_CLASS_INLINE },
     [NDBUS_MICFU_RESIWR]  = { "RESIWR",  NDBUS_MICFU_CLASS_INLINE },
     [NDBUS_MICFU_WREG]    = { "3WREG",   NDBUS_MICFU_CLASS_NONE   },
-    [NDBUS_MICFU_STARTP0] = { "STARTP0", NDBUS_MICFU_CLASS_START  },
+    /* 22B IS INLINE, NOT START: the reference answers it ANSWER at once and never
+     * calls its process host (Nd500MicrocodeServicer.cs:3314-3330). */
+    [NDBUS_MICFU_STARTP0] = { "STARTP0", NDBUS_MICFU_CLASS_INLINE },
     [NDBUS_MICFU_START]   = { "3START",  NDBUS_MICFU_CLASS_START  },
     [NDBUS_MICFU_MONCO]   = { "3MONCO",  NDBUS_MICFU_CLASS_CONTINUE },
     [NDBUS_MICFU_TRACO]   = { "3TRACO",  NDBUS_MICFU_CLASS_CONTINUE },
@@ -188,15 +220,20 @@ static const NdbusMicfuEntry s_micfu_table[NDBUS_MICFU_TABLE_SIZE] = {
      * reference gates every one of them on `Generation == ND500`. They are named
      * so a future reader does not "fix" a refusal that is deliberate, and so a
      * 3022 port knows exactly which six to implement. */
-    [NDBUS_MICFU_RPREG]   = { "3RPREG",  NDBUS_MICFU_CLASS_NONE   },
+
+    /* 44B 3RPREG IS ANSWERED ANSWER AND WRITES NOTHING, on both generations in
+     * the reference (Nd500MicrocodeServicer.cs:3954-3981). See execute_micfu(). */
+    [NDBUS_MICFU_RPREG]   = { "3RPREG",  NDBUS_MICFU_CLASS_INLINE },
 };
 
 uint16_t ndbus_micfu_dispatch_code(uint16_t micfu_halfword)
 {
-    /* Strip the flag, then range check. Out of range returns the table size,
-     * which no entry can have, so a caller cannot mistake it for a function. */
-    uint16_t code = micfu_halfword & (uint16_t)~NDBUS_MICFU_FLAG_BIT;
-    return (code < NDBUS_MICFU_TABLE_SIZE) ? code : (uint16_t)NDBUS_MICFU_TABLE_SIZE;
+    /* The raw halfword, range checked and NOT masked - the reference switches on
+     * the raw value (Nd500MicrocodeServicer.cs:2674). Out of range returns the
+     * table size, which no entry can have, so a caller cannot mistake it for a
+     * function. A halfword with bit 15 set is always out of range. */
+    return (micfu_halfword < NDBUS_MICFU_TABLE_SIZE) ? micfu_halfword
+                                                     : (uint16_t)NDBUS_MICFU_TABLE_SIZE;
 }
 
 uint8_t ndbus_micfu_class(uint16_t micfu_halfword)
@@ -482,9 +519,12 @@ static bool resolve_physical_segment(const NdbusServicer *sv, uint16_t segment,
  *                           READ (target A -> buffer B).
  * @param a_is_segment_relative true when addrA is an offset inside the physical
  *                           segment named by MSWMC rather than a flat address.
- * @return true when the transfer was performed.
+ *
+ * Returns nothing, like the reference's PerformOctobusBlockCopy
+ * (Nd500MicrocodeServicer.cs:1877): every caller answers ANSWER whatever the
+ * addresses were.
  */
-static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_to_nd500,
+static void perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_to_nd500,
                                bool a_is_segment_relative)
 {
     uint32_t a_raw = read32(sv, msg_byte + COPY_ADDR_A_BYTE);
@@ -538,19 +578,35 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
     uint32_t src = write_to_nd500 ? b_raw : a_raw;
     uint32_t dst = write_to_nd500 ? a_raw : b_raw;
 
-    /* Both ends have to be inside the pool. The station has no DMA fallback, so an
-     * address outside it would otherwise read as zeros and write nowhere - which
-     * looks exactly like a transfer that worked. */
+    /* A TRANSFER THAT LEAVES THE POOL IS STILL PERFORMED AND STILL ANSWERED ANSWER.
+     *
+     * This used to refuse it and answer 5ERANSWER. The reference does not:
+     * PerformOctobusBlockCopy has no range check and its callers set
+     * understood = true unconditionally (Nd500MicrocodeServicer.cs:2707-2709 for
+     * the reads, :3022-3024 for the writes, :3226 and :3274 for RESIRD/RESIWR,
+     * :3950 for IMEMRD). Each word goes through the octobus host, where
+     * MpmWindow.ReadWord returns 0 for an address outside the window and
+     * MpmWindow.TryWriteWord drops the write
+     * ($RETROCORE/Emulated.HW/ND/CPU/NDBUS/MpmWindow.cs:98-119).
+     * ndbus_pool_read16() and ndbus_pool_write16() behave the same way word for
+     * word, so the loops below need no guard of their own.
+     *
+     * Counted and logged, because a transfer that read zeros or wrote nowhere
+     * looks exactly like one that worked. */
     if (count != 0u &&
         (!ndbus_pool_contains(sv->pool, src, count) || !ndbus_pool_contains(sv->pool, dst, count)))
     {
-        sv->copies_refused++;
-        char line[160];
-        (void)snprintf(line, sizeof line,
-                       "mailbox copy: %u bytes 0x%06X -> 0x%06X leaves the pool - refused",
-                       (unsigned)count, (unsigned)src, (unsigned)dst);
-        servicer_log(sv, line);
-        return false;
+        sv->copies_outside_pool++;
+        if (sv->copies_outside_pool <= 8u)
+        {
+            char line[200];
+            (void)snprintf(line, sizeof line,
+                           "mailbox copy: %u bytes 0x%08X -> 0x%08X leaves the pool - source "
+                           "words outside it read 0, destination words outside it are "
+                           "dropped, answered ANSWER",
+                           (unsigned)count, (unsigned)src, (unsigned)dst);
+            servicer_log(sv, line);
+        }
     }
 
     /* COPY EXACTLY THE BYTES ASKED FOR. NEVER ROUND THE COUNT UP TO A WORD.
@@ -652,8 +708,16 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
      *
      * Aligned DOWN to the containing block rather than assumed to be zero, so this
      * stays correct if the table is ever placed elsewhere. The trap-config offsets
-     * sit inside the first block, so the block that contains them IS the base. */
-    if (write_to_nd500)
+     * sit inside the first block, so the block that contains them IS the base.
+     *
+     * The second half of the condition is the reference's
+     * `destByte >= host.Nd500AddressBase` (Nd500MicrocodeServicer.cs:1957), where
+     * destByte is window base + dst in 32 bits: it is false only when that sum
+     * wraps. The reference has no other range test here, so a write whose
+     * destination lies outside the pool is watched too, now that such a transfer
+     * is no longer refused above. */
+    if (write_to_nd500 &&
+        (uint32_t)(sv->nd100_window_base_byte + dst) >= sv->nd100_window_base_byte)
     {
         uint32_t offset_in_pcb = dst & (PCB_BYTES - 1u);
         if (offset_in_pcb >= DIT_TRAP_CONFIG_FIRST_OFFSET &&
@@ -663,7 +727,286 @@ static bool perform_block_copy(NdbusServicer *sv, uint32_t msg_byte, bool write_
             sv->dit_writes_seen++;
         }
     }
+}
 
+/* ---- DMEMRD (10B) and DMEMWR (11B): data memory, through the process's MMU ----
+ *
+ * DATA-MEMORY TRANSFERS ARE NOT PHYSICAL TRANSFERS. Every other member of the copy
+ * family carries a physical, or segment-relative, ND-500 address. These two carry
+ * a LOGICAL DATA address in a process's context - RP-P2-N500.NPL 130475 assigns it
+ * from X.ISTRA - so the bytes go through that process's data MMU, which only the
+ * host that owns the CPU can do. The reference excludes both from its block-copy
+ * shortcut on every generation (Nd500MicrocodeServicer.cs:2704-2705 and
+ * :3019-3020), so the ND-5000 octobus lane runs the same two arms as the ND-500:
+ * :2748-2991 for DMEMRD and :3057-3150 for DMEMWR. This is a port of those arms.
+ *
+ * WHAT A PHYSICAL FALLBACK COSTS, measured there as defect B12: SINTRAN asked for a
+ * file-name descriptor at logical 0x08001478 during a forwarded MON 50B, the
+ * physical reading of that address lies outside the window, the copy returned
+ * zeros and SINTRAN reported "SEGMENT NOT MODIFIABLE". On the write half NC read
+ * its command line one byte at a time for ever, because each byte landed at
+ * physical 0x27F instead of the process's own 0x27F. So with no host callback
+ * these REFUSE - 5ERANSWER(4) - and never copy physically.
+ *
+ * THE MESSAGE FIELDS, the same on both (:2777-2781, :2803 and :3076-3081):
+ *     words 7-10B    N500A   ND-500 LOGICAL data address, high halfword first
+ *     words 11B-12B  N100A   the ND-100 buffer address, high halfword first
+ *     word  13B      NRBYT   byte count
+ *     word  14B      5DITN   DIT number; the slot is MSWMC on a PHYSWR
+ *     word  4        X5CPU   the process the address is logical in
+ */
+
+/** The fields of one DMEMRD or DMEMWR message, read once. */
+typedef struct
+{
+    uint32_t logical;     /**< N500A: ND-500 logical data address */
+    uint32_t n100a_raw;   /**< words 11B-12B exactly as SINTRAN stored them */
+    uint32_t nd100_byte;  /**< what the reference addresses: window base + raw */
+    uint32_t pool_byte;   /**< the same cell as a pool byte offset */
+    uint16_t count;       /**< NRBYT */
+    uint16_t dit;         /**< 5DITN */
+    uint16_t x5cpu;       /**< the process the message names */
+} DmemRequest;
+
+static void read_dmem_request(const NdbusServicer *sv, uint32_t msg_byte, DmemRequest *rq)
+{
+    rq->logical = ((uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_N500A)) << 16u)
+                |  (uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_SWRST));
+    rq->n100a_raw = ((uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_STOPR)) << 16u)
+                  |  (uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_NUMPA));
+    rq->count = read16(sv, msg_word(msg_byte, NDBUS_MSG_MCNO));
+    rq->dit   = read16(sv, msg_word(msg_byte, NDBUS_MSG_MSWMC));
+    rq->x5cpu = read16(sv, msg_word(msg_byte, NDBUS_MSG_X5CPU));
+
+    /* THE ND-100 BUFFER ADDRESS: PORTED AS THE REFERENCE'S OCTOBUS ARM HAS IT, AND
+     * WHETHER THAT ARM IS RIGHT IS NOT SETTLED.
+     *
+     * The reference resolves the field with ResolvePhysicalCopyAddress
+     * (Nd500MicrocodeServicer.cs:2784 and :3092), whose ND-5000 arm is
+     * `host.Nd500AddressBase + addr` (:1858-1861): the field is taken as a BYTE
+     * offset inside the shared window. In this file's terms that is pool byte
+     * offset = the raw field, and the ND-100 physical byte address is the window
+     * base plus it. Both are kept: the reference tests the ND-100 address against
+     * 0 (:2843, :3117), and the pool offset is what read16/write16 take.
+     *
+     * NOT SETTLED: whether SINTRAN stores a window-relative offset or an ND-100
+     * PHYSICAL address in this field on the octobus. The reference's own comments
+     * say posting site MP-P2-N500.NPL:140675 copies ABUFA into it
+     * ("*AAX ABUFA-N500A; LDDTX; AAX N100A-ABUFA; STDTX  % ND-100 PHYSICAL ADDR",
+     * quoted at :2764-2765), and at :4695-4697 that ABUFA is an ND-100 PHYSICAL
+     * WORD address - which is how this file treats ABUFA itself in
+     * ndbus_servicer_inline_buffer_target(). If that is what arrives here, the
+     * right pool offset is (raw << 1) minus the window base, not the raw field,
+     * and this arm reads or writes the wrong cells. No DMEMRD or DMEMWR has been
+     * measured on this lane yet, so the first NDBUS_SERVICER_DMEM_LOG_LIMIT of
+     * each are logged with the raw field, the window base and the pool offset
+     * used: one run then says which reading SINTRAN's value fits. */
+    rq->nd100_byte = sv->nd100_window_base_byte + rq->n100a_raw;
+    rq->pool_byte  = rq->n100a_raw;
+}
+
+static void log_dmem_request(const NdbusServicer *sv, const char *kind, uint32_t seen,
+                             const DmemRequest *rq)
+{
+    if (seen > NDBUS_SERVICER_DMEM_LOG_LIMIT)
+    {
+        return;
+    }
+
+    uint32_t span = (rq->count != 0u) ? (uint32_t)rq->count : 1u;
+    char     line[280];
+    (void)snprintf(line, sizeof line,
+                   "mailbox %s #%u: X5CPU=%u N500A=0x%08X NRBYT=%u 5DITN=%u; ND-100 buffer "
+                   "field (words 11B-12B) raw=0x%08X, window base 0x%08X -> pool offset "
+                   "0x%08X, %s the pool",
+                   kind, (unsigned)seen, (unsigned)rq->x5cpu, (unsigned)rq->logical,
+                   (unsigned)rq->count, (unsigned)rq->dit, (unsigned)rq->n100a_raw,
+                   (unsigned)sv->nd100_window_base_byte, (unsigned)rq->pool_byte,
+                   ndbus_pool_contains(sv->pool, rq->pool_byte, span) ? "inside" : "OUTSIDE");
+    servicer_log(sv, line);
+}
+
+/** Count a refused DMEMRD/DMEMWR and say why, for the first few. Always false,
+ *  so a caller can `return decline_dmem(...)`. */
+static bool decline_dmem(NdbusServicer *sv, const char *kind, const DmemRequest *rq,
+                         const char *reason)
+{
+    sv->logical_copies_refused++;
+    if (sv->logical_copies_refused <= NDBUS_SERVICER_DMEM_LOG_LIMIT)
+    {
+        char line[240];
+        (void)snprintf(line, sizeof line,
+                       "mailbox %s DECLINED (%s): N500A=0x%08X ND-100 buffer 0x%08X NRBYT=%u "
+                       "5DITN=%u - answered 5ERANSWER(4), NOT copied physically",
+                       kind, reason, (unsigned)rq->logical, (unsigned)rq->nd100_byte,
+                       (unsigned)rq->count, (unsigned)rq->dit);
+        servicer_log(sv, line);
+    }
+    return false;
+}
+
+/**
+ * 10B DMEMRD (SINTRAN's 3RMED): ND-500 data memory -> the ND-100 buffer.
+ * Ported from Nd500MicrocodeServicer.cs:2748-2991, rule for rule and in its order.
+ *
+ * @return true for ANSWER(3), false for 5ERANSWER(4).
+ */
+static bool perform_dmemrd(NdbusServicer *sv, uint32_t msg_byte)
+{
+    DmemRequest rq;
+    read_dmem_request(sv, msg_byte, &rq);
+    sv->dmemrd_seen++;
+    log_dmem_request(sv, "DMEMRD", sv->dmemrd_seen, &rq);
+
+    /* A non-default DIT number names another domain; the host can only translate
+     * in the loaded one, and the wrong domain returns plausible bytes rather than
+     * an error. Checked FIRST, before the zero count (:2803-2809). */
+    if (rq.dit != 0u)
+    {
+        return decline_dmem(sv, "DMEMRD", &rq, "non-default 5DITN");
+    }
+
+    /* A ZERO COUNT ANSWERS ANSWER AND COPIES NOTHING (:2836-2841). The handler at
+     * 010010B falls through to the normal completion at 011405B; declining it made
+     * the swapper retry for ever - 174,493 requests in one LINKER-B01 run. */
+    if (rq.count == 0u)
+    {
+        return true;
+    }
+
+    /* No host, an ND-100 buffer address of 0, or more than 0o4000 bytes
+     * (:2843-2852). */
+    if (sv->host.read_nd500_data_bytes == NULL)
+    {
+        return decline_dmem(sv, "DMEMRD", &rq, "no read_nd500_data_bytes host");
+    }
+    if (rq.nd100_byte == 0u || rq.count > NDBUS_MON_INLINE_MAX_BYTES)
+    {
+        return decline_dmem(sv, "DMEMRD", &rq, "ND-100 buffer address 0 or NRBYT above 2048");
+    }
+
+    /* NEWCNTXT first (:2868, microcode MSG_DMEMRD 015336): the address is logical
+     * in the process the message NAMES, not in whichever one is loaded. The result
+     * is ignored exactly as the reference ignores it - "a false return is logged
+     * by the host and the read goes on as before". */
+    if (sv->host.load_named_process != NULL)
+    {
+        (void)sv->host.load_named_process(sv->host.ctx, rq.x5cpu);
+    }
+
+    uint8_t buffer[NDBUS_MON_INLINE_MAX_BYTES];
+    if (!sv->host.read_nd500_data_bytes(sv->host.ctx, rq.logical, buffer, rq.count))
+    {
+        return decline_dmem(sv, "DMEMRD", &rq, "the host's data read failed");
+    }
+
+    /* WHAT WAS READ, for the same first few messages whose addresses are logged.
+     * SINTRAN fetches a file name or an argument block this way, and when the call
+     * then fails the only way to tell a wrong name from a correct name that
+     * SINTRAN rejects is to see the bytes. The reference logs the same text
+     * (NoteDmemrd). */
+    if (sv->dmemrd_seen <= 8u)
+    {
+        char text[49];
+        uint32_t shown = (rq.count < 48u) ? rq.count : 48u;
+        for (uint32_t q = 0; q < shown; q++)
+        {
+            uint8_t b = buffer[q];
+            text[q] = (b >= 0x20u && b < 0x7Fu) ? (char)b : '.';
+        }
+        text[shown] = '\0';
+        char line[160];
+        (void)snprintf(line, sizeof line,
+                       "mailbox DMEMRD #%lu data: \"%s\" (first bytes %02X %02X %02X %02X)",
+                       (unsigned long)sv->dmemrd_seen, text,
+                       (unsigned)buffer[0], (unsigned)((rq.count > 1u) ? buffer[1] : 0u),
+                       (unsigned)((rq.count > 2u) ? buffer[2] : 0u),
+                       (unsigned)((rq.count > 3u) ? buffer[3] : 0u));
+        servicer_log(sv, line);
+    }
+
+    /* Big-endian halfword pack (:2952-2966). AN ODD LAST BYTE KEEPS ITS NEIGHBOUR:
+     * the halfword that holds it is read first and its low byte written back
+     * unchanged, because the microcode's tail at 010030 is a ONE-byte transfer and
+     * never touches a byte outside the request. A halfword outside the pool reads
+     * 0 and its write is dropped, and the answer is still ANSWER - the reference's
+     * host does the same for an address outside its window. */
+    for (uint32_t i = 0; i < rq.count; i += 2u)
+    {
+        uint16_t hw = (uint16_t)((uint16_t)buffer[i] << 8u);
+        if ((i + 1u) < rq.count)
+        {
+            hw = (uint16_t)(hw | (uint16_t)buffer[i + 1u]);
+        }
+        else
+        {
+            hw = (uint16_t)(hw | (uint16_t)(read16(sv, rq.pool_byte + i) & 0x00FFu));
+        }
+        (void)write16(sv, rq.pool_byte + i, hw);
+    }
+
+    sv->dmemrd_served++;
+    return true;
+}
+
+/**
+ * 11B DMEMWR (SINTRAN's 3WMED): the ND-100 buffer -> ND-500 data memory.
+ * Ported from Nd500MicrocodeServicer.cs:3057-3150, rule for rule and in its order.
+ *
+ * @return true for ANSWER(3), false for 5ERANSWER(4).
+ */
+static bool perform_dmemwr(NdbusServicer *sv, uint32_t msg_byte)
+{
+    DmemRequest rq;
+    read_dmem_request(sv, msg_byte, &rq);
+    sv->dmemwr_seen++;
+    log_dmem_request(sv, "DMEMWR", sv->dmemwr_seen, &rq);
+
+    /* A zero count with the default DIT answers ANSWER and writes nothing
+     * (:3100-3105): 010046B and 010052B skip to the completion at 011405B. */
+    if (rq.count == 0u && rq.dit == 0u)
+    {
+        return true;
+    }
+
+    /* No host, an ND-100 buffer address of 0, more than 0o4000 bytes, or a
+     * non-default DIT (:3117-3123). DECLINING IS THE ANSWER - a fallback could
+     * only write to the raw physical address, the write half of defect B12. */
+    if (sv->host.write_nd500_data_bytes == NULL)
+    {
+        return decline_dmem(sv, "DMEMWR", &rq, "no write_nd500_data_bytes host");
+    }
+    if (rq.nd100_byte == 0u || rq.count > NDBUS_MON_INLINE_MAX_BYTES || rq.dit != 0u)
+    {
+        return decline_dmem(sv, "DMEMWR", &rq,
+                            "ND-100 buffer address 0, NRBYT above 2048 or non-default 5DITN");
+    }
+
+    /* The bytes out of the ND-100 buffer, high byte of each halfword first
+     * (:3125-3131). An odd count takes only the high byte of the last halfword. */
+    uint8_t buffer[NDBUS_MON_INLINE_MAX_BYTES];
+    for (uint32_t i = 0; i < rq.count; i += 2u)
+    {
+        uint16_t hw = read16(sv, rq.pool_byte + i);
+        buffer[i] = (uint8_t)(hw >> 8u);
+        if ((i + 1u) < rq.count)
+        {
+            buffer[i + 1u] = (uint8_t)(hw & 0x00FFu);
+        }
+    }
+
+    /* NEWCNTXT first, as on the read side (:3135); result ignored there too. */
+    if (sv->host.load_named_process != NULL)
+    {
+        (void)sv->host.load_named_process(sv->host.ctx, rq.x5cpu);
+    }
+
+    if (!sv->host.write_nd500_data_bytes(sv->host.ctx, rq.logical, buffer, rq.count))
+    {
+        return decline_dmem(sv, "DMEMWR", &rq, "the host's data write failed");
+    }
+
+    sv->dmemwr_served++;
     return true;
 }
 
@@ -693,54 +1036,48 @@ static bool execute_micfu(NdbusServicer *sv, uint32_t msg_byte, uint16_t micfu)
          * the ONLY code SINTRAN sent that this servicer declined. */
         return true;
 
+    case NDBUS_MICFU_STARTP0:
+        /* 22B MSG_STARTP0: ANSWERED AT ONCE, AND NO CPU IS STARTED. The reference's
+         * arm is two statements, `understood = true; break;`
+         * (Nd500MicrocodeServicer.cs:3314-3330), and it never calls its process
+         * host: its carve of this same SINTRAN-L image found the swapper is started
+         * through the MICRO-CLOCK / control-store path with no 22B observed at all,
+         * and routing 22B to a process start was tried twice there and reverted.
+         *
+         * 22B used to be start class here, so process_message() offered it to
+         * host.start_process before this arm ran. It is NDBUS_MICFU_CLASS_INLINE in
+         * the table now and reaches this arm directly. */
+        return true;
+
     case NDBUS_MICFU_START:
     case NDBUS_MICFU_TRACO:
-    case NDBUS_MICFU_STARTP0:
-        /* 22B MSG_STARTP0: start process 0, the swapper. Answered the way the
-         * microcode's MSG_END answers it, and the CPU is NOT started here.
-         * RetroCore's carve of this same SINTRAN-L image found the swapper is
-         * started through the MICRO-CLOCK / control-store path with no 22B
-         * observed at all, and wiring 22B to a process start was tried twice
-         * there and reverted. Ported from Nd500MicrocodeServicer.cs:3314.
+    case NDBUS_MICFU_MONCO:
+    case NDBUS_MICFU_WMONCO:
+        /* THE DECLINED PATH of the four messages offered to the process host. One
+         * the host took never reaches here: process_message() returned with the
+         * message left WAITING. Reaching this point means no host took it, and the
+         * reference then answers ANSWER(3) for every one of the four -
+         * `understood = true` at Nd500MicrocodeServicer.cs:3821 for 23B and 25B,
+         * :3875 for 24B and :3937 for 26B.
          *
-         * 23B 3START and 25B 3TRACO share this arm for the SAME reason and only as
-         * the DECLINED path: a start the process host took never reaches here, it
-         * returned earlier with the message left WAITING. Reaching this point means
-         * no CPU took it, and the answer is the no-CPU answer. */
+         * 24B and 26B were missing from this arm, fell to `default` and were
+         * answered 5ERANSWER(4). */
+        return true;
+
+    case NDBUS_MICFU_RPREG:
+        /* 44B 3RPREG: ANSWER(3) AND NOTHING WRITTEN, as the reference does at
+         * Nd500MicrocodeServicer.cs:3954-3981 (`understood = true; break;`). Its
+         * own comment there says the real routine at 007721 writes three values
+         * that are not carved yet and that answering success is therefore not
+         * right either; the answer is ported as it stands, by order of
+         * 05-OCT-2026. This arm was missing and 44B answered 5ERANSWER(4). */
         return true;
 
     case NDBUS_MICFU_DMEMRD:  /* 10B */
+        return perform_dmemrd(sv, msg_byte);
+
     case NDBUS_MICFU_DMEMWR:  /* 11B */
-        /* DATA-MEMORY TRANSFERS ARE NOT PHYSICAL TRANSFERS, and routing them to the
-         * copy engine is a named defect rather than an approximation.
-         *
-         * Every other member of this family carries a physical, or segment-relative,
-         * ND-500 address in addrA. DMEMRD and DMEMWR carry a LOGICAL DATA address in
-         * the RUNNING PROCESS'S context - RP-P2-N500.NPL 130475 assigns it from
-         * X.ISTRA - so it has to go through that process's data MMU, which only a
-         * host with a CPU behind it can do.
-         *
-         * WHAT FALLING BACK COSTS, measured by RetroCore as its defect B12 and
-         * pinned by MailboxCopyTests: SINTRAN asked for a file-name descriptor at
-         * logical 0x08001478 during a forwarded MON 50B, the raw physical reading of
-         * that address lies far outside the 8 MB window, the copy returned zeros,
-         * SINTRAN got a null descriptor pointer and reported "SEGMENT NOT
-         * MODIFIABLE". On the write half NC read its command line one byte at a time
-         * for ever because each byte landed at physical 0x27F instead of the
-         * process's own 0x27F, and the "NC:" prompt never appeared on any run.
-         *
-         * So with no logical-data host this REFUSES - 5ERANSWER(4) - and says so.
-         * An answer of ANSWER(3) here would mean the physical fallback happened. */
-        {
-            char line[160];
-            (void)snprintf(line, sizeof line,
-                           "mailbox: MICFU %oB needs the running process's data MMU and no host "
-                           "provides it - refused, NOT copied physically",
-                           (unsigned)micfu);
-            servicer_log(sv, line);
-            sv->logical_copies_refused++;
-        }
-        return false;
+        return perform_dmemwr(sv, msg_byte);
 
     case NDBUS_MICFU_RESIRD:  /* 13B */
     case NDBUS_MICFU_PHYSRD:  /* 30B */
@@ -759,8 +1096,12 @@ static bool execute_micfu(NdbusServicer *sv, uint32_t msg_byte, uint16_t micfu)
          * It was previously absent and fell to the default arm, which answers
          * 5ERANSWER - so SINTRAN's instruction-memory READ back was refused while
          * the matching IMEMWR below was served, which is the asymmetry that makes
-         * a verify-after-load fail with nothing obviously wrong. */
-        return perform_block_copy(sv, msg_byte, false, micfu == NDBUS_MICFU_PHYSRD);
+         * a verify-after-load fail with nothing obviously wrong.
+         *
+         * ALWAYS ANSWER(3), even when the addresses leave the pool - see the
+         * comment in perform_block_copy(). */
+        perform_block_copy(sv, msg_byte, false, micfu == NDBUS_MICFU_PHYSRD);
+        return true;
 
     case NDBUS_MICFU_RESIWR:  /* 14B */
     case NDBUS_MICFU_PHYSWR:  /* 31B */
@@ -768,8 +1109,11 @@ static bool execute_micfu(NdbusServicer *sv, uint32_t msg_byte, uint16_t micfu)
         /* WRITE members: buffer B -> target A. PHYSWR's A side is segment-relative.
          *
          * MEASURED 30-SEP-2026: 31B PHYSWR was the only code SINTRAN still sent
-         * that this servicer declined once 12B CACHE was answered. */
-        return perform_block_copy(sv, msg_byte, true, micfu == NDBUS_MICFU_PHYSWR);
+         * that this servicer declined once 12B CACHE was answered.
+         *
+         * ALWAYS ANSWER(3), as for the reads above. */
+        perform_block_copy(sv, msg_byte, true, micfu == NDBUS_MICFU_PHYSWR);
+        return true;
 
     case NDBUS_MICFU_RMICV:
         /* 3RMICV answers TWO halfwords, microcode-verified at 015332-015334:
@@ -846,8 +1190,11 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
 
     /* START-CLASS MESSAGES GO TO THE PROCESS HOST, NOT THE MICFU SWITCH.
      *
-     * 22B STARTP0, 23B 3START and 25B 3TRACO are the start class; 23B and 25B share
-     * MSG_START in the microcode. A host that TAKES the start leaves the message
+     * 23B 3START, 24B 3MONCO, 25B 3TRACO and 26B 3WMONCO are the start class; 23B
+     * and 25B share MSG_START in the microcode. 22B STARTP0 is NOT in it: the
+     * reference answers 22B at once and never calls its process host
+     * (Nd500MicrocodeServicer.cs:3314-3330), so it goes straight to execute_micfu().
+     * A host that TAKES the start leaves the message
      * WAITING and it is NOT answered here - the process's own stop answers it
      * later. Answering it here would tell SINTRAN a process had run and finished
      * when none had started.
@@ -863,9 +1210,9 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
      * Ported from Nd500MicrocodeServicer.cs's StartProcess arm. */
     /* THE START CLASS, AND 24B BELONGS IN IT.
      *
-     * 22B STARTP0, 23B 3START, 24B 3MONCO and 25B 3TRACO all reach MSG_START in the
-     * microcode: two of them begin a process and two of them CONTINUE one that is
-     * parked, but all four hand the message to the same context-switch-and-run path.
+     * 23B 3START, 24B 3MONCO, 25B 3TRACO and 26B 3WMONCO: one of them begins a
+     * process and three of them CONTINUE one that is parked, but all four hand the
+     * message to the same context-switch-and-run path.
      *
      * MEASURED 30-SEP-2026: with 24B missing from this list, the ND-5000 reported a
      * monitor call, SINTRAN performed it and answered with 24B, and this servicer
@@ -908,6 +1255,29 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
                 {
                     sv->process_msg[x5cpu] = msg_byte;
                 }
+                else
+                {
+                    note_x5cpu_out_of_range(sv, x5cpu, "start taken, message not remembered");
+                }
+
+                /* A TAKEN 24B OR 26B RESTART HAS ITS MICFU REWRITTEN TO 23B. The
+                 * reference's TakeRestartTail does it
+                 * (Nd500MicrocodeServicer.cs:4929-4935, called at :3861 and :3924):
+                 *     host.WriteNd100Word(msgBase + MICFU * 2, 0x13);
+                 * 23B and 25B do not pass through that tail and keep their MICFU.
+                 *
+                 * The reference's own remark at :4902-4927 says no microword writes
+                 * 23B to a message's MICFU, so this is the reference's behaviour
+                 * and NOT a carved hardware fact - it is ported because the C# is
+                 * the oracle, and that remark is the place to start if a run ever
+                 * shows SINTRAN minding the rewritten value. The host has already
+                 * been given the original code as its `micfu` argument. */
+                if (micfu == NDBUS_MICFU_MONCO || micfu == NDBUS_MICFU_WMONCO)
+                {
+                    (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_MICFU),
+                                  (uint16_t)NDBUS_MICFU_START);
+                }
+
                 /* Left WAITING on purpose, and NOT answered. Returning false says
                  * "nothing was answered"; the chain walk carries on regardless
                  * because it captured the link before serving this node. */
@@ -950,7 +1320,7 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
              * a decimal number with a B on it names a different micro-function -
              * decimal 10 is 12B CACHE, not "10B". */
             (void)snprintf(line, sizeof line,
-                           "mailbox: MICFU %oB (%u decimal) not ported - answered "
+                           "mailbox: MICFU %oB (%u decimal) declined or not ported - answered "
                            "5ERANSWER(4)",
                            (unsigned)micfu, (unsigned)micfu);
             servicer_log(sv, line);
@@ -1024,8 +1394,17 @@ static void answer_message_in_place(NdbusServicer *sv, uint32_t msg_byte, uint16
 
         if (taken)
         {
-            (void)write16(sv, sv->header_base + NDBUS_MBX_X5SEM_WORD * 2u,
-                          NDBUS_MBX_X5SEM_FREE);
+            /* RELEASE UNDER THE SAME MUTEX THE TAKE USED. A plain store here was
+             * half a lock: the ND-100's TSET on this cell is a read and then a
+             * write, and a release landing between the two left the cell at
+             * 0xFFFF with no owner - the ND-100 had read the taken marker, so it
+             * did not think it held the lock, and nothing would ever clear it.
+             * SINTRAN's SLOCK (CC-P2-N500.NPL:023667) then spins out and reports
+             * N5LTIMOUT, "ND-5000 lock timeout", on that call and every later
+             * one. MEASURED 05-OCT-2026: 1 run in 5 ended that way, and once it
+             * happened every following PLACE-DOMAIN failed the same way.
+             * RetroCore releases under MpmWindow.SyncRoot for the same reason. */
+            ndbus_semaphore_release16(sv->pool, sv->header_base + NDBUS_MBX_X5SEM_WORD * 2u);
         }
     }
 
@@ -1037,10 +1416,15 @@ static void answer_message_in_place(NdbusServicer *sv, uint32_t msg_byte, uint16
     }
 }
 
-bool ndbus_servicer_stop_was_monitor_call(const NdbusServicer *sv, uint16_t x5cpu)
+bool ndbus_servicer_stop_was_monitor_call(NdbusServicer *sv, uint16_t x5cpu)
 {
-    if (sv == NULL || x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    if (sv == NULL)
     {
+        return false;
+    }
+    if (x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    {
+        note_x5cpu_out_of_range(sv, x5cpu, "stop-kind query");
         return false;
     }
     return sv->process_stop_kind[x5cpu] == NDBUS_STOPR_MOCALL;
@@ -1050,12 +1434,22 @@ bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t
                                      uint32_t trapping_pc, uint32_t trap_address,
                                      uint32_t mms_status, uint16_t physical_segment)
 {
-    if (sv == NULL || sv->pool == NULL || x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    if (sv == NULL || sv->pool == NULL)
     {
         return false;
     }
 
     sv->trap_stops_attempted++;
+
+    /* An X5CPU with no process slot has no message to answer on. This returned
+     * without a word before the attempt was even counted; the reference counts
+     * the attempt before anything can refuse (Nd500MicrocodeServicer.cs:4995-4996). */
+    if (x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    {
+        sv->trap_stops_declined++;
+        note_x5cpu_out_of_range(sv, x5cpu, "trap stop refused");
+        return false;
+    }
 
     /* ANSWER ON THE FAULTING PROCESS'S OWN MESSAGE, and keep one per process.
      *
@@ -1381,12 +1775,21 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
                                         const uint32_t *arg_addresses,
                                         const uint32_t *arg_values)
 {
-    if (sv == NULL || sv->pool == NULL || x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    if (sv == NULL || sv->pool == NULL)
     {
         return false;
     }
 
     sv->mon_calls_attempted++;
+
+    /* An X5CPU with no process slot has no message to answer on; counted and
+     * logged once per X5CPU instead of returning without a word. */
+    if (x5cpu >= NDBUS_SERVICER_MAX_PROCESSES)
+    {
+        sv->mon_calls_declined++;
+        note_x5cpu_out_of_range(sv, x5cpu, "monitor call refused");
+        return false;
+    }
 
     uint32_t msg_byte = sv->process_msg[x5cpu];
     if (msg_byte == 0u)
@@ -1436,6 +1839,27 @@ bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint3
 
         (void)write16(sv, addr_slot, (uint16_t)(a >> 16u));
         (void)write16(sv, addr_slot + 2u, (uint16_t)(a & 0xFFFFu));
+
+        /* AN ARGUMENT WITH ADDRESS 0 GETS NO VALUE WRITTEN - the reference's
+         * `if (... || a == 0) continue;` at Nd500MicrocodeServicer.cs:4547-4548,
+         * placed as here: after the address slot, before the value slot. NUMPA
+         * above is NOT reduced, because SINTRAN reads it as the count.
+         *
+         * An address of 0 means "this slot carries no operand", and the caller's
+         * value for it is a placeholder 0. Writing that placeholder is not
+         * neutral: the swapper calls MON 377B with two operand addresses and a
+         * count of 4, and the value slot of argument 2 (message bytes 0x88-0x8B)
+         * is SINTRAN's own HSWPI/SWPINFO, its record of which process the swapper
+         * is serving. Zeroing it makes LNEWSWAP take the "nobody is being served"
+         * arm and abandon the request; the reference measured place-domain going
+         * from STALL to OK on this one write being withheld (:4530-4546).
+         *
+         * The reference's other condition there, an environment-variable
+         * experiment switch (:4512-4513), is not ported. */
+        if (a == 0u)
+        {
+            continue;
+        }
         (void)write16(sv, val_slot, (uint16_t)(v >> 16u));
         (void)write16(sv, val_slot + 2u, (uint16_t)(v & 0xFFFFu));
     }

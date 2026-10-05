@@ -289,6 +289,60 @@ int nd500_mmu_is_enabled(Nd500Cpu* cpu) {
 // MMU ADDRESS TRANSLATION
 // =======================================================
 
+/* ONE PAGE FAULT PER INSTRUCTION - sink-attached lane only.
+ *
+ * Ported from RetroCore
+ * $RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.MMU.cs TriggerPageFault, lines
+ * 1617-1650 ("ONE INSTRUCTION MUST RAISE AT MOST ONE PAGE FAULT", measured
+ * there 2026-08-25).
+ *
+ * A non-ignorable trap does not unwind the instruction in this emulator either:
+ * raise_trap sets cpu->instr_aborted and returns, and the instruction body runs
+ * on. The memory helpers call nd500_mmu_translate BEFORE they test
+ * instr_aborted (nd500_read_memory_8 in instruction_helpers.c, mmu_read8 in
+ * cpu_instr.c), so every later operand access of the same instruction walked
+ * the tables again and reached trap_page_fault again. The reference measured
+ * what that does to a real swapper: on LED-FORTRAN-A01 the instruction at
+ * 0x08000004 raised SIXTEEN page faults with one trapping P, the swapper was
+ * handed sixteen page-fault messages for one instruction and gave up with
+ * 0o2067.
+ *
+ * In this emulator each of those later raises also overwrites trap_saved_psn,
+ * trap_saved_is_write, trap_saved_info, trap_saved_fault_addr and the global
+ * trap state, and calls the trap sink again. The embedding composes the record
+ * SINTRAN reads from those fields after the step returns, so the record
+ * described the LAST walk of the aborted instruction and not the fault that
+ * aborted it.
+ *
+ * So, as in the reference: once the instruction is already aborted, RECORD the
+ * fault and do not RAISE it. The instruction restarts from P1 as a whole.
+ *
+ * WHAT IS RECORDED. The calling site has already written mmu_pgf_where,
+ * mmu_pgf_psn and mmu_pgf_is_write - the reference calls SetMmuFault before
+ * TriggerPageFault in the same order (CpuND500.MMU.cs:1089 then 1113, and the
+ * same at every other page-fault site). In the aborted branch the reference
+ * then clears MmuFaultWhere and nothing else (line 1648), so the same is done
+ * here: mmu_pgf_where goes to 0, mmu_pgf_psn and mmu_pgf_is_write keep this
+ * walk's reading. The trap_saved_* fields are not touched and stay the FIRST
+ * fault's record, which is the purpose.
+ *
+ * PROTECT VIOLATIONS ARE DELIBERATELY NOT GUARDED. The reference says so at
+ * CpuND500.MMU.cs:1643-1645 ("deliberately NOT changed here, to keep this
+ * measurable in isolation"), so every protect-violation site in this file
+ * still calls trap_protect_violation directly.
+ *
+ * ONLY WHEN THERE IS A SINK. A free-running nd500x keeps raising on every walk
+ * exactly as before (Ronny's instruction, 04-OCT-2026 - see raise_trap in
+ * cpu.c). test_mmu_translation Test 9 raises two page faults back to back with
+ * no step in between and depends on that. */
+static void mmu_raise_page_fault(Nd500Cpu* cpu, uint32_t virtual_addr) {
+    if (cpu->trap_sink != NULL && cpu->instr_aborted) {
+        cpu->mmu_pgf_where = 0u;
+        return;
+    }
+    trap_page_fault(cpu, cpu->PC, virtual_addr);
+}
+
 /**
  * Translate virtual address to physical address
  * Implements three-level address translation:
@@ -376,7 +430,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
         cpu->mmu_pgf_where = MMW_PFZPST | (is_instruction ? MMW_INST : 0u);
         cpu->mmu_pgf_psn = (uint32_t)psn;
                 cpu->mmu_pgf_is_write = is_write ? 1 : 0;
-        trap_page_fault(cpu, cpu->PC, virtual_addr);
+        mmu_raise_page_fault(cpu, virtual_addr);
         return virtual_addr;
     }
 
@@ -414,7 +468,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 cpu->mmu_pgf_where = MMW_INDEXERR | (is_instruction ? MMW_INST : 0u);
                 cpu->mmu_pgf_psn = (uint32_t)psn;
                 cpu->mmu_pgf_is_write = is_write ? 1 : 0;
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                mmu_raise_page_fault(cpu, virtual_addr);
                 return virtual_addr;
             }
             /* Physical PFN comes directly from PST entry */
@@ -440,7 +494,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 cpu->mmu_pgf_where = MMW_INDEXERR | (is_instruction ? MMW_INST : 0u);
                 cpu->mmu_pgf_psn = (uint32_t)psn;
                 cpu->mmu_pgf_is_write = is_write ? 1 : 0;
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                mmu_raise_page_fault(cpu, virtual_addr);
                 return virtual_addr;
             }
             /* PST entry points to a page table */
@@ -496,7 +550,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 cpu->mmu_pgf_where = MMW_PFZ2 | (is_instruction ? MMW_INST : 0u);
                 cpu->mmu_pgf_psn = (uint32_t)psn;
                 cpu->mmu_pgf_is_write = is_write ? 1 : 0;
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                mmu_raise_page_fault(cpu, virtual_addr);
                 return virtual_addr;  /* Page not mapped - return virtual address, trap will stop execution */
             }
 
@@ -517,6 +571,15 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 /* PVWVIOL: a write-protected PAGE, the recoverable case (see the
                  * DC_WRP site above). MMINST stays clear - this is a data write. */
                 cpu->mmu_pgf_where = MMW_PVWVIOL;
+                /* THE WHOLE RECORD, NOT JUST THE CODE - all lanes, record only.
+                 * raise_trap copies mmu_pgf_psn and mmu_pgf_is_write into the
+                 * trap record for a protect violation as well, and this site
+                 * wrote neither, so the record carried the PREVIOUS walk's
+                 * segment and direction. The reference sets all three here:
+                 * $RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.MMU.cs:1235,
+                 * SetMmuFault(MM_PVWVIOL, isWrite: true, psn). */
+                cpu->mmu_pgf_psn = (uint32_t)psn;
+                cpu->mmu_pgf_is_write = 1;
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;
             }
@@ -585,7 +648,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 cpu->mmu_pgf_where = MMW_PFZ1 | (is_instruction ? MMW_INST : 0u);
                 cpu->mmu_pgf_psn = (uint32_t)psn;
                 cpu->mmu_pgf_is_write = is_write ? 1 : 0;
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                mmu_raise_page_fault(cpu, virtual_addr);
                 return virtual_addr;  /* L1 page table not present - return virtual address, trap will stop execution */
             }
 
@@ -649,7 +712,7 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 cpu->mmu_pgf_where = MMW_PFZ2 | (is_instruction ? MMW_INST : 0u);
                 cpu->mmu_pgf_psn = (uint32_t)psn;
                 cpu->mmu_pgf_is_write = is_write ? 1 : 0;
-                trap_page_fault(cpu, cpu->PC, virtual_addr);
+                mmu_raise_page_fault(cpu, virtual_addr);
                 return virtual_addr;  /* L2 page not mapped - return virtual address, trap will stop execution */
             }
 
@@ -681,6 +744,12 @@ static uint32_t nd500_mmu_walk_pst(Nd500Cpu* cpu,
                 }
                 /* PVWVIOL: write-protected data page (recoverable - see above). */
                 cpu->mmu_pgf_where = MMW_PVWVIOL;
+                /* Segment and direction too - all lanes, record only. Same
+                 * omission and same fix as the PS_ASI site above. Reference:
+                 * $RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.MMU.cs:1336,
+                 * SetMmuFault(MM_PVWVIOL, isWrite: true, psn). */
+                cpu->mmu_pgf_psn = (uint32_t)psn;
+                cpu->mmu_pgf_is_write = 1;
                 trap_protect_violation(cpu, cpu->PC, virtual_addr);
                 return virtual_addr;  /* Write to read-only page - return virtual address, trap will stop execution */
             }
@@ -1019,7 +1088,27 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
              * still go through the demand-segment allocator above. Without this, a
              * legitimate read of a kernel constant (e.g. vaddr 0x00022924) would
              * spuriously protect-fault the moment the data MMU is enabled. */
-            if (cpu->machine && virtual_addr < cpu->machine->memory_size) {
+            /* NOT WHEN A TRAP SINK IS ATTACHED - sink-attached lane only.
+             *
+             * The fallback above is a statement about a kernel image THIS
+             * emulator loaded flat into its own RAM. With an ND-100 beside the
+             * CPU nothing is loaded that way: machine->memory_size is the size
+             * of the shared pool, so "the address lies inside physical RAM" is
+             * true of every small wild pointer, and returning it as a physical
+             * address reads or WRITES shared memory at that offset with no
+             * trap at all. SINTRAN is never told.
+             *
+             * The reference has no such fallback. A zero capability that
+             * demand mapping did not fill is a protect violation, MMS code 8
+             * "zero in the capability":
+             * $RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.MMU.cs:916-927.
+             * With a sink attached this falls through to exactly that, the
+             * ZEROCAP site just below.
+             *
+             * A free-running nd500x (cpu->trap_sink == NULL) keeps the
+             * identity mapping unchanged. */
+            if (cpu->trap_sink == NULL &&
+                cpu->machine && virtual_addr < cpu->machine->memory_size) {
                 /* Separate I-space / D-space de-aliasing. The flat a.out loader
                  * places TEXT at physical 0 and DATA at physical data_base
                  * (= a_text). A DATA access (is_instruction == 0) to segment-0
@@ -1052,6 +1141,12 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
              * names no physical segment. Writing one would be inventing it. */
             cpu->mmu_pgf_where = MMW_ZEROCAP | (is_instruction ? MMW_INST : 0u);
             cpu->mmu_pgf_psn = 0u;
+            /* The direction IS known, and was not recorded - all lanes, record
+             * only. Without it the trap record kept the PREVIOUS walk's
+             * mmu_pgf_is_write. Reference:
+             * $RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.MMU.cs:921,
+             * SetMmuFault(MM_ZEROCAP | ..., isWrite, 0). */
+            cpu->mmu_pgf_is_write = is_write ? 1 : 0;
             trap_protect_violation(cpu, cpu->PC, virtual_addr);
             return virtual_addr;  /* Return virtual address, trap will stop execution */
         }
@@ -1082,6 +1177,16 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
                 domain, segment, capability, virtual_addr);
         cpu->mmu_pgf_where = ((capability & PC_OMC) ? MMW_IND_OTHER : MMW_IND_SAME)
                            | MMW_INST;
+        /* Segment and direction too - all lanes, record only. The low bits of
+         * a gate capability are a target domain and segment, not a physical
+         * segment number, so the segment recorded is 0 = "none", and the
+         * direction is the access's own. Without these two lines the record
+         * kept the PREVIOUS walk's values. Reference:
+         * $RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.MMU.cs:949,
+         * SetMmuFault(... | MM_INST, isWrite, 0) "gate cap - low bits are not
+         * a PSN". */
+        cpu->mmu_pgf_psn = 0u;
+        cpu->mmu_pgf_is_write = is_write ? 1 : 0;
         trap_protect_violation(cpu, cpu->PC, virtual_addr);
         return virtual_addr;
     }
@@ -1110,6 +1215,15 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
              * (machine/trap.c:314, :360). Leaving cx_info at 0 made every such
              * write panic("Kernel Protect Violation") or SIGSEGV outright. */
             cpu->mmu_pgf_where = MMW_PVWVIOL;
+            /* Segment and direction too - all lanes, record only. This site
+             * wrote only the code, so the trap record kept the PREVIOUS
+             * walk's mmu_pgf_psn and mmu_pgf_is_write. The reference records
+             * the capability's own segment and "write":
+             * $RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.MMU.cs:967,
+             * SetMmuFault(MM_PVWVIOL, isWrite: true, capability & PC_PSN).
+             * psn here is that same capability & PC_PSN. */
+            cpu->mmu_pgf_psn = (uint32_t)psn;
+            cpu->mmu_pgf_is_write = 1;
             trap_protect_violation(cpu, cpu->PC, virtual_addr);
             return virtual_addr;  /* Write to read-only segment - return virtual address, trap will stop execution */
         }

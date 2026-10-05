@@ -77,6 +77,20 @@ typedef struct NdbusDoorbellSniff
 
 typedef struct NdbusNd5000 NdbusNd5000;
 
+/** @brief Kick numbers a kick frame can carry: bits 5-0 of the frame, 0..63. */
+#define NDBUS_ND5000_KICK_NUMBERS 64u
+
+/**
+ * @brief The 32-bit word SINTRAN writes into the parameter area before VPARP.
+ *
+ * Ported from OctobusND5000Station.cs VparpTestPattern (line 3750), whose remark
+ * gives the carve: the CS-load sequencer in segment 030-S3SM5 loads
+ * A:D = 062626B:115511B, calls VPARP and compares the echo against the same pair,
+ * so the wire value is 0x6596 9B49, high word first. The ADRZERO calibration
+ * looks for exactly this word.
+ */
+#define NDBUS_ACCP_VPARP_TEST_PATTERN 0x65969B49u
+
 /** @brief One ND-5000 as the octobus sees it: its ACCP station plus its state. */
 struct NdbusNd5000
 {
@@ -95,10 +109,31 @@ struct NdbusNd5000
     NdbusTestProto      testproto;
     NdbusDoorbellSniff  sniff;     /**< the shared-memory doorbell sniff */
 
-    /** LPARP's 4-byte pointer to the parameter area in MFbus memory, as a pool
-     * BYTE offset. VPARP reads the 32-bit word there and echoes it back - the
-     * one ACCP command a canned Messack cannot satisfy. */
+    /** LPARP's 4-byte pointer to the parameter area in MFbus memory, exactly as
+     * it arrived: a BYTE offset from ND-500 physical address zero (ADRZERO), NOT
+     * from pool byte 0. VPARP, LOCSM and DUCS turn it into a pool offset through
+     * `nd500_zero_byte` below. VPARP reads the 32-bit word there and echoes it
+     * back - the one ACCP command a canned Messack cannot satisfy. */
     uint32_t            parameter_pointer;
+
+    /**
+     * ND-100 physical BYTE address of ND-500 physical address 0 - what SINTRAN
+     * calls ADRZERO - or 0 while it has not been calibrated, in which case the
+     * shared window's own ND-100 base (servicer.nd100_window_base_byte) is used.
+     *
+     * Ported from $RETROCORE/Emulated.HW/ND/CPU/NDBUS/OctobusND5000Station.cs
+     * field _nd500ZeroByte (line 252) and property Nd500ZeroByte (line 258).
+     * IT IS NOT A CONSTANT AND IT IS NOT THE WINDOW BASE: that file records the
+     * same pack reporting "ND-500 address zero" as page 2112 on a 2 MB ND-100 and
+     * page 4096 on a 4 MB one. Nothing in the ACCP command stream announces it,
+     * so VPARP works it out from the test word SINTRAN wrote - CalibrateNd500Zero,
+     * line 3885.
+     *
+     * Kept as an ND-100 address, not as a pool offset, because the calibration
+     * rule "ADRZERO is an ND-100 PAGE number, so the base is 2048-byte aligned"
+     * is a statement about the ND-100 address.
+     */
+    uint32_t            nd500_zero_byte;
 
     /** The control store the CS-load pulses fill, as halfwords, lazily
      * allocated on the first LOCSM pulse and NULL until then; see
@@ -121,13 +156,26 @@ struct NdbusNd5000
     /** SAMSON_CPU as read out of the control store: this CPU's extension-block
      * index in the mailbox. */
     uint32_t            samson_cpu;
+    /**
+     * The mailbox CPUNO used when the SAMSON_CPU cell reads zero. 1 from init,
+     * and afterwards the CPUNO of the last mailbox configuration.
+     *
+     * Ported from OctobusND5000Station.cs field _cpuNumber (line 949, "= 1") as
+     * ConfigureMailbox (line 1398) updates it and ConfigureMailboxFromControlStore
+     * (line 1453) falls back to it. It is NOT derived from the station number:
+     * the reference uses 1 for a station at 071B too.
+     */
+    int                 cpu_number;
 
     /** Pool byte offset of the ND-500 physical segment table, from patched
-     *  control-store cell 0o21 (a PAGE there, shifted to bytes). 0 until ENKICK
-     *  reads a patched store. */
+     *  control-store cell 0o21 (a PAGE there, shifted to bytes). The reference's
+     *  LoadedPstp. 0 until a 066B/035B/036B microprogram start reads a patched
+     *  cell. */
     uint32_t            pst_base;
     /** Pool byte offset of the context (register) block area, from patched
-     *  control-store cell 0o20, which is already a byte address. 0 until ENKICK. */
+     *  control-store cell 0o20, which is already a byte address. The reference's
+     *  LoadedContextBlockBase. 0 until a 066B/035B/036B microprogram start, or
+     *  ndbus_nd5000_try_get_context_block_area_base(), reads a patched cell. */
     uint32_t            context_area;
 
     /** The mailbox servicer: the ND-5000 microprogram's side of the 5MPM
@@ -178,10 +226,14 @@ struct NdbusNd5000
 
     /**
      * True while the ACCP program sits in its idle loop, which is where a
-     * terminate (244B) puts it and where a master clear (241B) or a continue
-     * (242B) takes it out again. A terminated ACCP still answers ACCP command
-     * messages - only the microprogram is stopped - so this gates kicks, not
-     * commands.
+     * terminate (244B) puts it. A master clear (241B), a continue (242B) and a
+     * microprogram start (066B, 035B, 036B) take it out again.
+     *
+     * WHILE IT IS SET THE STATION DROPS EVERY FRAME except an emergency, a
+     * SOMB/EOMB for OMD 0 or OMD 3, and the data bytes of a message those opened.
+     * A terminated ACCP still answers ACCP command messages - only the
+     * microprogram is stopped - so this gates kicks and microprogram traffic, not
+     * commands. Ported from OctobusND5000Station.cs HandleFrame, lines 2383-2397.
      */
     bool                accp_idle;
 
@@ -190,6 +242,29 @@ struct NdbusNd5000
     unsigned long       continues;        /**< 242B emergency frames handled */
     unsigned long       terminates;       /**< 244B emergency frames handled */
     uint8_t             last_emergency;   /**< information byte of the last one */
+
+    /**
+     * Every kick frame this station has decoded, indexed by kick number 0-63,
+     * counted whether or not kicks were enabled. A broadcast kick is rejected
+     * before it is counted, and a kick that arrives while the ACCP is idle never
+     * reaches the decoder. Ported from OctobusND5000Station.cs KickCounts (line
+     * 563), which exists because "I saw no log line" is not evidence that a kick
+     * never arrived.
+     */
+    unsigned long       kick_counts[NDBUS_ND5000_KICK_NUMBERS];
+    /** Kick frames discarded because ENKICK had not been issued. The reference's
+     *  KicksDroppedDisabled (line 566). */
+    unsigned long       kicks_dropped_disabled;
+
+    /**
+     * The ND-5000 CPU behind this station, as two optional callbacks. The station
+     * holds no CPU pointer of its own, so the embedding that owns the CPU installs
+     * these with ndbus_nd5000_set_cpu_hooks(). Either may be NULL, which is the
+     * reference's "_cpu == null": the station then changes only its own state.
+     */
+    void (*reset_cpu_to_idle)(void *ctx);  /**< C# ResetCpuToIdle, line 2652 */
+    void (*apply_init_state)(void *ctx);   /**< C# CpuND500.ApplyND5000InitState, called at line 3448 */
+    void               *cpu_hook_ctx;      /**< handed back to both callbacks */
 };
 
 /* ---- the control store, and the load that has to check out -------------------
@@ -242,15 +317,76 @@ bool ndbus_nd5000_init(NdbusNd5000 *nd, uint8_t station_number, NdbusPool *pool,
                        const NdbusHostOps *host, const NdbusCpuOps *cpu);
 
 /**
- * @brief CPURES: back to the state a cold ACCP is in.
+ * @brief Put the station's own ACCP state back to cold: the four guard cells, the
+ *        parameter pointer, the message being collected and the doorbell sniff.
+ *
+ * THIS IS NOT WHAT THE ACCP COMMAND 071B CPURES DOES, and the command no longer
+ * calls it. The reference clears exactly two cells on CPURES - "microprogram
+ * running" and "kicks enabled" - and leaves the system parameters and the
+ * parameter pointer given (OctobusND5000Station.cs lines 3151-3168, the second
+ * one measured on the real firmware as cell 0x1143B6 going 0001 -> 0000). This
+ * function clears more than that, so it is a helper for an owner that wants a
+ * cold station, not a model of any octobus command.
  *
  * The pool is NOT touched - it is shared memory and the ND-100 owns its
- * contents.
+ * contents. The CPU hooks, the mailbox and the control store are kept.
  *
  * @param nd The station to reset.
  * @return Nothing. Cannot fail.
  */
 void ndbus_nd5000_reset(NdbusNd5000 *nd);
+
+/**
+ * @brief Install the two callbacks that reach the ND-5000 CPU behind the station.
+ *
+ * The station calls them at exactly the points the reference touches its CPU:
+ *
+ *   reset_cpu_to_idle   emergency 241B MASTER CLEAR, after the station's own
+ *                       state is reset (OctobusND5000Station.cs line 2675), and
+ *                       command 071B CPURES, before the two guard cells are
+ *                       cleared (line 3157). The implementation must do what
+ *                       ResetCpuToIdle does (lines 2652-2663): reset the CPU AND
+ *                       park it again in the microcode IDLE state. A reset alone
+ *                       leaves the CPU runnable at PC 0, which that file records
+ *                       as a runaway CPU during a full SINTRAN boot.
+ *
+ *   apply_init_state    command 066B STAMIC0 only - not 035B or 036B - after the
+ *                       patched control-store cells have been read and before the
+ *                       acknowledge (lines 3447-3448). The implementation must do
+ *                       what CpuND500.ApplyND5000InitState does.
+ *
+ * Call it AFTER ndbus_nd5000_init(), which clears the station.
+ *
+ * @param nd                The station.
+ * @param reset_cpu_to_idle The reset-and-park callback, or NULL for none.
+ * @param apply_init_state  The post-INIT state callback, or NULL for none.
+ * @param ctx               Handed back to both callbacks unchanged.
+ * @return true on success; false when nd is NULL.
+ */
+bool ndbus_nd5000_set_cpu_hooks(NdbusNd5000 *nd, void (*reset_cpu_to_idle)(void *ctx),
+                                void (*apply_init_state)(void *ctx), void *ctx);
+
+/**
+ * @brief Read the context block area base out of patched control-store cell 0o20,
+ *        now, whatever was or was not read at microprogram start.
+ *
+ * Ported from OctobusND5000Station.cs IServicerHost.TryGetContextBlockAreaBase
+ * (lines 2181-2189). The reference's servicer calls it wherever it needs the base
+ * and its cached value is still zero, so a cell that was read too early - or a
+ * start path that never ran - cannot leave a process start resolving against a
+ * placeholder. Also records the value in `context_area` when that is still 0.
+ *
+ * NOT YET CALLED BY ndbus_servicer.c, which has no host callback for it; see the
+ * note beside the definition.
+ *
+ * @param nd        The station.
+ * @param byte_base Receives the cell's 32-bit LARG value, 0 when there is no
+ *                  control store. Must not be NULL.
+ * @return true when the cell holds a non-zero value; false when nd or byte_base
+ *         is NULL, when no control store is loaded, or when the cell is still the
+ *         unpatched zero.
+ */
+bool ndbus_nd5000_try_get_context_block_area_base(NdbusNd5000 *nd, uint32_t *byte_base);
 
 /**
  * @brief Release what the station allocated, leaving it zeroed.
@@ -295,11 +431,26 @@ void ndbus_nd5000_destroy(NdbusNd5000 *nd);
  * The sniff latches on a transition that a re-armed doorbell never repeats, and
  * it guesses; the control store states the answer.
  *
+ * WHICH CPUNO, AND WHAT IS REFUSED - both as the reference has them (lines
+ * 1453-1461). SAMSON_CPU is used when it is non-zero; when it is zero the
+ * fallback is `cpu_number`, which is 1 from init and NOT the station's position
+ * on the bus. The base is refused only when the header address wraps, or when
+ * fewer than 17 bytes of the extension block lie inside the pool:
+ *     header < window start  ||  extension + 16 >= window start + window size
+ * It is NOT required that the whole 256-byte block fits.
+ *
+ * THIS FUNCTION READS START_MESS AND SAMSON_CPU ONLY. The physical segment table
+ * (cell 0o21), the context block area (cell 0o20) and the CPU identity are read
+ * at the 066B/035B/036B microprogram start, each on its own and whether or not a
+ * mailbox was found - LoadMmsPointersFromControlStore and
+ * DeriveCpuIdentityFromControlStore in the reference, called at lines 3396 and
+ * 3402.
+ *
  * @param nd The station. Its control store must already be loaded - LOCSM fills
  *           it - or there is nothing to read.
- * @return true when a mailbox was attached. false, changing nothing, when the
+ * @return true when a mailbox was configured. false, changing nothing, when the
  *         control store is empty, when START_MESS is still 0 (unpatched), or when
- *         the derived extension block would leave the pool.
+ *         the guard above refuses the base.
  */
 bool ndbus_nd5000_mailbox_from_control_store(NdbusNd5000 *nd);
 

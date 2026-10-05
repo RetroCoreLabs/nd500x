@@ -219,9 +219,20 @@ static void nd500_stop_on_pending_trap(Nd500Cpu* cpu)
      * the RESTART P and normally runs AHEAD of it, so this line printed alone
      * sends a reader to the wrong instruction. ND-05.017.01 ch.6 STEP 2 has the
      * engineer read BOTH registers for exactly that reason. Disassemble P1. */
-    printf("[STOP] %s at PC=0x%08X data=0x%08X P1=0x%08X <- failing instruction\n",
-           nd500_stop_reason_str(cpu->machine->stop_reason),
-           cpu->machine->stop_addr, cpu->machine->stop_data, cpu->P1);
+    /* NOT AT ALL WHEN EMBEDDED. Inside another machine neither stdout nor stderr
+     * is ours: in nd100x's interactive mode BOTH are the guest's terminal, so
+     * moving this line to stderr still put it in the middle of the SINTRAN
+     * session (measured 05-OCT-2026: seven of these around NC's banner). On that
+     * lane this function runs for every fetch-side demand page fault, which is
+     * normal operation, and the embedding logs each one itself with the address,
+     * the segment and the access class ("parked on trap ..."), so nothing is
+     * lost. A free-running nd500x prints to stdout exactly as before. */
+    if (!nd500_embedded)
+    {
+        printf("[STOP] %s at PC=0x%08X data=0x%08X P1=0x%08X <- failing instruction\n",
+               nd500_stop_reason_str(cpu->machine->stop_reason),
+               cpu->machine->stop_addr, cpu->machine->stop_data, cpu->P1);
+    }
     nd500_dump_stop_ring("trap");
     nd500_trap_clear();
 }
@@ -407,6 +418,40 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
                             cpu->PC, cpu->CED, paddr);
                 goto invalid00_done;
             }
+            /* WITH AN ND-100 BESIDE THE CPU THIS IS TRAP 41B, NOT A PRIVATE STOP
+             * - sink-attached lane only.
+             *
+             * The stop below raises no trap, so the sink is never called, the
+             * embedding has no trap number to report, and SINTRAN polls a
+             * process that will never answer. The reference has no opcode-zero
+             * heuristic at all: opcode 0x0000 is not in its instruction set
+             * (Instructionset.Init.cs registers nothing below 0x0002), so a
+             * zero byte is its ordinary unknown-opcode path -
+             * $RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.Execute.cs:796-806:
+             *     regs.PC += fi.TotalLength;
+             *     ...
+             *     TrapIllegalInstruction(instructionAddress, reason);
+             * and TrapIllegalInstruction is RaiseTrap(IIC, pc, 0)
+             * (CpuND500.Trap.cs:1986-1989). IIC is bit 33 = 41B.
+             *
+             * Mirrored in that order: P moves past the one opcode byte, then
+             * IIC is raised naming the instruction's own address, data 0.
+             * raise_trap then does what it does for any non-ignorable trap on
+             * this lane - a locally enabled handler, or the sink and a stop.
+             * A pending trap state after it means "stop and report"; none
+             * means a local handler was entered and the next step fetches it.
+             *
+             * A free-running nd500x (cpu->trap_sink == NULL) keeps the
+             * STOP_INVALID_INSTRUCTION_00 stop below unchanged. */
+            if (cpu->trap_sink != NULL) {
+                cpu->PC = fetch_pc + 1u;
+                trap_illegal_instruction(cpu, fetch_pc, 0u);
+                if (nd500_trap_occurred()) {
+                    nd500_stop_on_pending_trap(cpu);
+                    return false;
+                }
+                return true;
+            }
             cpu->machine->run_flag = 0;
             cpu->machine->stop_reason = STOP_INVALID_INSTRUCTION_00;
             cpu->machine->stop_addr = cpu->PC;
@@ -476,6 +521,31 @@ invalid00_done: ;
          * "just stop" with no [STOP] line. Report it loudly, and on ND500X_STOPDBG
          * dump the last PCs that led here so the real stopping point is visible
          * (works around the debug prompt's buffered/reset register view). */
+        /* WITH AN ND-100 BESIDE THE CPU THIS IS TRAP 41B - sink-attached lane
+         * only. The stop below raises no trap and so never reaches the sink.
+         * The reference raises Illegal Instruction Code for a failed fetch,
+         * naming the instruction's own address and WITHOUT moving P -
+         * $RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.Execute.cs:669-676:
+         *     TrapIllegalInstruction(instructionPC, reason); return;
+         * Same handling of the result as the opcode-zero site above.
+         *
+         * NOTE: nd500_decode_at returns non-zero only for a NULL machine or
+         * output pointer (cpu_instr.c), neither of which can happen here, so
+         * this branch has no caller today - exactly like the reference's
+         * `fi == null` test: CpuND500.Fetch.cs has no `return null`. It is
+         * ported so the two stay the same shape if a decode failure is ever
+         * introduced.
+         *
+         * A free-running nd500x (cpu->trap_sink == NULL) keeps the stop below
+         * unchanged. */
+        if (cpu->trap_sink != NULL) {
+            trap_illegal_instruction(cpu, old_pc, 0u);
+            if (nd500_trap_occurred()) {
+                nd500_stop_on_pending_trap(cpu);
+                return false;
+            }
+            return true;
+        }
         cpu->machine->run_flag = 0;
         cpu->machine->stop_reason = STOP_TRAP_OTHER;
         cpu->machine->stop_addr = old_pc;
