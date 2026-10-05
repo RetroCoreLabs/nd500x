@@ -394,6 +394,21 @@ typedef struct NdbusServicer
      *  NOT touch the ring or the semaphore. */
     uint32_t header_base;
 
+    /** ND-100 physical BYTE address of pool byte 0: where the shared window sits
+     *  in the ND-100's address space (the monitor's "ND-500 address zero").
+     *
+     *  Links, X5FIF and the copy-family operands are already window-relative, so
+     *  nothing else needs this. ABUFA is the exception: SINTRAN stores an ND-100
+     *  PHYSICAL address there (MP-P2-N500.NPL:140675, "% ND-100 PHYSICAL ADDR"),
+     *  and RetroCore hands it to host.WriteNd100Word / ReadNd100Word, which take
+     *  ND-100 physical addresses. MEASURED 05-OCT-2026: ABUFA read 0x00216800
+     *  words = ND-100 byte 0x42D000 = window base 0x420000 + 0xD000, while the
+     *  copy family named the same buffer as pool 0x00D000.
+     *
+     *  0 until the owner sets it with ndbus_servicer_set_nd100_window_base(),
+     *  which is also the right value for a pool that IS the ND-100's view. */
+    uint32_t nd100_window_base_byte;
+
     uint16_t micro_version;  /**< what 3RMICV reports; see the default above */
     uint16_t cpu_parameter;  /**< the second 3RMICV halfword */
 
@@ -545,6 +560,17 @@ typedef struct NdbusServicer
 bool ndbus_servicer_init(NdbusServicer *sv, NdbusPool *pool, const NdbusServicerHost *host);
 
 /**
+ * @brief Tell the servicer where the shared window sits in the ND-100's memory.
+ *
+ * Needed only for ABUFA, the one message field that carries an ND-100 physical
+ * address instead of a window-relative one. See NdbusServicer.nd100_window_base_byte.
+ *
+ * @param sv        The servicer. NULL is ignored.
+ * @param base_byte ND-100 physical BYTE address of pool byte 0.
+ */
+void ndbus_servicer_set_nd100_window_base(NdbusServicer *sv, uint32_t base_byte);
+
+/**
  * @brief Tell the servicer where the X500DF global header sits.
  *
  * Until this is called, header_base is 0 and the answer path writes only N5STA -
@@ -686,10 +712,18 @@ bool ndbus_mon_requires_inline_copy(uint16_t mon_number);
  * and 0x428E30). Treating it as a flat offset lands two megabytes outside the
  * window, and the program prints whatever stale bytes are at the real buffer.
  *
+ * AND IT IS AN ND-100 PHYSICAL ADDRESS, so the window's ND-100 base comes off
+ * before it is a pool offset. The 0x42D000 above is ND-100 byte 0x420000 + 0xD000;
+ * this servicer's message bases are pool-relative (0x008D30 / 0x008E30), and the
+ * same buffer is pool 0x00D000. Used unconverted it named pool 0x42D000: MEASURED
+ * 05-OCT-2026, CPU-STAT's 32 output texts were written there while SINTRAN read
+ * pool 0x00D000 and printed stale bytes.
+ *
  * @param sv       The servicer.
  * @param msg_byte Pool byte offset of the message.
- * @return The pool byte address, or 0 when ABUFA is zero - meaning no buffer, so
- *         nothing may be written.
+ * @return The pool byte offset of the buffer, or 0 when ABUFA is zero or names
+ *         an address below the shared window - no buffer the servicer can
+ *         reach, so nothing may be written.
  */
 uint32_t ndbus_servicer_inline_buffer_target(const NdbusServicer *sv, uint32_t msg_byte);
 
@@ -769,7 +803,8 @@ typedef struct NdbusWmoncoBlock
 {
     uint32_t dest;      /**< 26ADD: process logical address to copy into */
     uint32_t count;     /**< bytes to copy; 0 when there is nothing, or on oversize */
-    uint32_t src_byte;  /**< pool byte address of the source, from ABUFA << 1 */
+    uint32_t src_byte;  /**< pool byte offset of the source: (ABUFA << 1) minus the
+                             window's ND-100 base - ABUFA is an ND-100 address */
     bool     oversize;  /**< 26NRB >= 0x2000: skip the copy, but STILL resume */
 } NdbusWmoncoBlock;
 

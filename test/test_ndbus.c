@@ -4673,6 +4673,49 @@ static void test_monitor_call_result(void)
                   "fault here is exactly how a user name comes out interleaved");
         }
 
+        /* ABUFA IS AN ND-100 PHYSICAL ADDRESS. With the window based at ND-100
+         * byte 0x420000 - the live machine's value - SINTRAN names this same
+         * buffer as 0x420000 + src_byte, and the source must still come out as
+         * the pool offset. MEASURED 05-OCT-2026 without the conversion: the live
+         * ABUFA 0x00216800 was read as pool 0x42D000 instead of 0x00D000 and
+         * CPU-STAT's MON 143B answer came back as 24 zero bytes. */
+        {
+            const uint32_t window_base = 0x00420000u;
+            const uint32_t nd100_word  = (window_base + src_byte) >> 1;
+            ndbus_servicer_set_nd100_window_base(&nd.servicer, window_base);
+            (void)ndbus_pool_write16(&pool, MBX_MSG + 96u * 2u, (uint16_t)(nd100_word >> 16));
+            (void)ndbus_pool_write16(&pool, MBX_MSG + 97u * 2u,
+                                     (uint16_t)(nd100_word & 0xFFFFu));
+            CHECK(ndbus_servicer_read_wmonco_block(&nd.servicer, MBX_MSG, &wb),
+                  "with a window base, a 26B block is still located");
+            CHECK(wb.src_byte == src_byte,
+                  "and its source is the POOL offset: the ND-100 address minus the base");
+            CHECK(ndbus_servicer_read_nd100_byte(&nd.servicer, wb.src_byte) ==
+                      (uint8_t)payload[0],
+                  "which is where the payload really is");
+
+            /* The same message read with NO base is the old behaviour, and it
+             * names a place 4 MB away - shown so the check above cannot pass by
+             * the two conventions happening to agree. */
+            ndbus_servicer_set_nd100_window_base(&nd.servicer, 0u);
+            CHECK(ndbus_servicer_read_wmonco_block(&nd.servicer, MBX_MSG, &wb) &&
+                      wb.src_byte == window_base + src_byte,
+                  "without the base the same ABUFA names pool 0x422000, not 0x2000");
+
+            /* An address BELOW the window is not in the pool at all. */
+            ndbus_servicer_set_nd100_window_base(&nd.servicer, window_base);
+            (void)ndbus_pool_write16(&pool, MBX_MSG + 96u * 2u, 0x0000u);
+            (void)ndbus_pool_write16(&pool, MBX_MSG + 97u * 2u, 0x1000u);
+            CHECK(!ndbus_servicer_read_wmonco_block(&nd.servicer, MBX_MSG, &wb),
+                  "an ABUFA below the window is refused, not read from a wrapped offset");
+
+            /* Back to the base-0 picture the checks below were written against. */
+            ndbus_servicer_set_nd100_window_base(&nd.servicer, 0u);
+            (void)ndbus_pool_write16(&pool, MBX_MSG + 96u * 2u, (uint16_t)(src_word >> 16));
+            (void)ndbus_pool_write16(&pool, MBX_MSG + 97u * 2u,
+                                     (uint16_t)(src_word & 0xFFFFu));
+        }
+
         /* THE OVERSIZE CASE IS NOT AN ERROR ANSWER. A count of 0x2000 or more
          * skips the copy and STILL resumes the process, with FUNCV forced to
          * 0o174 and K set. Declining the message instead is what leaves a process
@@ -4855,6 +4898,40 @@ static void test_inline_user_buffer(void)
     CHECK(ndbus_servicer_inline_buffer_target(&nd.servicer, MBX_MSG) == target_byte,
           "ABUFA resolves by SHIFTING - read as a flat byte offset it lands two "
           "megabytes outside the window and the program prints stale bytes");
+
+    /* AND BY SUBTRACTING THE WINDOW'S ND-100 BASE. ABUFA is an ND-100 physical
+     * address; on the live machine the window is at ND-100 byte 0x420000.
+     * MEASURED 05-OCT-2026 without this: 32 CPU-STAT output texts went to pool
+     * 0x42D000 while SINTRAN read pool 0x00D000 and printed stale bytes. */
+    {
+        const uint32_t window_base = 0x00420000u;
+        const uint32_t nd100_word  = (window_base + target_byte) >> 1;
+        ndbus_servicer_set_nd100_window_base(&nd.servicer, window_base);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MON_ABUFA_WORD * 2u,
+                                 (uint16_t)(nd100_word >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + (NDBUS_MON_ABUFA_WORD + 1u) * 2u,
+                                 (uint16_t)(nd100_word & 0xFFFFu));
+        CHECK(ndbus_servicer_inline_buffer_target(&nd.servicer, MBX_MSG) == target_byte,
+              "with a window base, ABUFA resolves to the POOL offset of the buffer");
+
+        ndbus_servicer_set_nd100_window_base(&nd.servicer, 0u);
+        CHECK(ndbus_servicer_inline_buffer_target(&nd.servicer, MBX_MSG) ==
+                  window_base + target_byte,
+              "without the base the same ABUFA names pool 0x423000, not 0x3000");
+
+        ndbus_servicer_set_nd100_window_base(&nd.servicer, window_base);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MON_ABUFA_WORD * 2u, 0x0000u);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + (NDBUS_MON_ABUFA_WORD + 1u) * 2u, 0x1000u);
+        CHECK(ndbus_servicer_inline_buffer_target(&nd.servicer, MBX_MSG) == 0u,
+              "an ABUFA below the window names no buffer in the pool");
+
+        /* Back to the base-0 picture the checks below were written against. */
+        ndbus_servicer_set_nd100_window_base(&nd.servicer, 0u);
+        (void)ndbus_pool_write16(&pool, MBX_MSG + NDBUS_MON_ABUFA_WORD * 2u,
+                                 (uint16_t)(target_word >> 16));
+        (void)ndbus_pool_write16(&pool, MBX_MSG + (NDBUS_MON_ABUFA_WORD + 1u) * 2u,
+                                 (uint16_t)(target_word & 0xFFFFu));
+    }
 
     /* ODD LENGTH ON PURPOSE. Nineteen is the length a real run showed
      * ("CPU type         : "), and an odd count is where a parity fault hides:

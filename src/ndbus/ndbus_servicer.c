@@ -245,6 +245,27 @@ bool ndbus_servicer_init(NdbusServicer *sv, NdbusPool *pool, const NdbusServicer
     return true;
 }
 
+void ndbus_servicer_set_nd100_window_base(NdbusServicer *sv, uint32_t base_byte)
+{
+    if (sv == NULL)
+    {
+        return;
+    }
+    sv->nd100_window_base_byte = base_byte;
+}
+
+/* An ND-100 physical byte address as a pool byte offset. False when the address
+ * is below the shared window, which the pool cannot reach. */
+static bool nd100_byte_to_pool(const NdbusServicer *sv, uint32_t nd100_byte, uint32_t *pool_byte)
+{
+    if (nd100_byte < sv->nd100_window_base_byte)
+    {
+        return false;
+    }
+    *pool_byte = nd100_byte - sv->nd100_window_base_byte;
+    return true;
+}
+
 bool ndbus_servicer_set_header(NdbusServicer *sv, uint32_t header_byte)
 {
     if (sv == NULL)
@@ -1192,9 +1213,19 @@ uint32_t ndbus_servicer_inline_buffer_target(const NdbusServicer *sv, uint32_t m
 
     uint32_t raw = ((uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MON_ABUFA_WORD)) << 16u)
                  |  (uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MON_ABUFA_WORD + 1u));
+    if (raw == 0u)
+    {
+        return 0u;
+    }
 
-    /* A WORD address. See the header for the measurement that settles it. */
-    return raw << 1u;
+    /* A WORD address, and an ND-100 PHYSICAL one. See the header for the two
+     * measurements that settle it. */
+    uint32_t pool_byte = 0u;
+    if (!nd100_byte_to_pool(sv, raw << 1u, &pool_byte))
+    {
+        return 0u;
+    }
+    return pool_byte;
 }
 
 bool ndbus_servicer_write_inline_buffer(NdbusServicer *sv, uint32_t msg_byte,
@@ -1313,8 +1344,8 @@ static void mon_inline_copy(NdbusServicer *sv, uint32_t msg_byte, uint16_t mon_n
     if (target == 0u)
     {
         (void)snprintf(line, sizeof line,
-                       "mailbox MON %oB inline buffer NOT COPIED: ABUFA is zero, so the message "
-                       "names no buffer",
+                       "mailbox MON %oB inline buffer NOT COPIED: ABUFA is zero or below the "
+                       "shared window, so the message names no buffer in the pool",
                        (unsigned)mon_number);
         servicer_log(sv, line);
         return;
@@ -1524,7 +1555,23 @@ bool ndbus_servicer_read_wmonco_block(NdbusServicer *sv, uint32_t msg_byte,
 
     uint32_t src_word = ((uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_ABUFA_HI)) << 16)
                       |  (uint32_t)read16(sv, msg_word(msg_byte, NDBUS_MSG_ABUFA_LO));
-    out->src_byte = src_word << 1;
+
+    /* ABUFA is an ND-100 PHYSICAL address; the pool offset is that minus the
+     * window's ND-100 base. Unconverted it read the answer from pool 0x42D000
+     * instead of 0x00D000: MEASURED 05-OCT-2026, CPU-STAT's MON 143B answer came
+     * back as 24 zero bytes and every field it printed was 0. */
+    uint32_t pool_byte = 0u;
+    if (!nd100_byte_to_pool(sv, src_word << 1, &pool_byte))
+    {
+        char line[160];
+        (void)snprintf(line, sizeof line,
+                       "mailbox 26B answer data: ABUFA names ND-100 byte 0x%08X, below the "
+                       "shared window at 0x%08X - not copied",
+                       (unsigned)(src_word << 1), (unsigned)sv->nd100_window_base_byte);
+        servicer_log(sv, line);
+        return false;
+    }
+    out->src_byte = pool_byte;
     out->count    = nrb;
     return true;
 }
