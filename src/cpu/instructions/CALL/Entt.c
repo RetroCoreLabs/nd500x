@@ -329,9 +329,38 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         for (uint32_t off = 0; off <= frame_span; off += 4u) {
             if (nd500_mmu_peek_space(cpu, trap_frame_base + off, (uint8_t)cpu->CED, 0)
                 == 0xFFFFFFFFu) {
+                /* TAKE THE FAULT THROUGH THE REAL WALK, AS A DATA WRITE.
+                 *
+                 * The peek above records nothing, and raise_trap copies
+                 * mmu_pgf_psn / mmu_pgf_is_write into the trap record - fields
+                 * that are never cleared and so still describe the PREVIOUS
+                 * real fault. Calling trap_page_fault directly here therefore
+                 * reported this frame write with somebody else's segment and
+                 * access class.
+                 *
+                 * MEASURED 05-OCT-2026 on PLACE-DOMAIN CPU-STAT + RUN: the
+                 * program's own stack-overflow handler ENTT at 0x0800415A
+                 * faulted on its frame at 0x08001800 and was reported as
+                 * "psn=11 mms=0x8000000F" - segment 11 and READ, both left over
+                 * from the instruction-side fault before it - 156 times in one
+                 * run, with no "[MMU]" line for that address at all. The real
+                 * data fault at 0x08001060 in the same run reported psn=12 and
+                 * was paged in after one park.
+                 *
+                 * RetroCore's Entt.cs writes the frame with ordinary
+                 * WriteMemory calls, so its fault always comes out of the walk.
+                 * nd500_mmu_translate does the same here: it records where,
+                 * which physical segment and that it was a write, and raises
+                 * the page fault naming cpu->PC. */
+                uint32_t entry_pc = cpu->PC;
                 cpu->PC = fault_pc;
-                trap_page_fault(cpu, fault_pc, trap_frame_base + off);
-                return;
+                (void)nd500_mmu_translate(cpu, trap_frame_base + off, 1 /* write */, 0 /* data */);
+                if (nd500_trap_occurred() || cpu->instr_aborted) {
+                    return;
+                }
+                /* The walk found the page after all - the peek and the walk
+                 * disagreed. Nothing was raised, so carry on with the frame. */
+                cpu->PC = entry_pc;
             }
         }
     }

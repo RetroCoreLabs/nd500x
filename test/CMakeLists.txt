@@ -271,6 +271,13 @@ add_executable(test_local_trap_gate
 )
 target_link_libraries(test_local_trap_gate PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# A page fault on ENTT's own trap frame must be reported as a data WRITE in the
+# frame's physical segment, not with the previous fault's segment and class.
+add_executable(test_entt_frame_fault
+    test_entt_frame_fault.c
+)
+target_link_libraries(test_entt_frame_fault PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # SOLO/TUTTI and the two process-switch traps they make possible: DT (timeout)
 # and DE (non-ignorable trap taken inside the region).
 add_executable(test_solo_traps
@@ -439,6 +446,7 @@ add_test(NAME rpgu_operand COMMAND test_rpgu_operand)
 add_test(NAME rphs_wphs COMMAND test_rphs_wphs)
 add_test(NAME abort_guard COMMAND test_abort_guard)
 add_test(NAME local_trap_gate COMMAND test_local_trap_gate)
+add_test(NAME entt_frame_fault COMMAND test_entt_frame_fault)
 add_test(NAME solo_traps COMMAND test_solo_traps)
 add_test(NAME trap_conformance COMMAND test_trap_conformance)
 
