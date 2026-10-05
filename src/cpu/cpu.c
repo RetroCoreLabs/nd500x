@@ -1033,6 +1033,57 @@ uint32_t nd500_dit_read_tha(Nd500Cpu* cpu, uint32_t domain) {
     return ndix_dit_r32(cpu, domain, DIT_OFF_THA);
 }
 
+/* THE INSIDE-TRAP-HANDLER FLAG IS A DIT FIELD TOO, and keeping it only in a C
+ * field loses it across a context switch.
+ *
+ * ND-05.009.4 Table 6 puts it at DIT offset 273B = 187, beside THA, and the
+ * cross-domain handler search above already reads it from there. This emulator
+ * also keeps it in Nd500Cpu::in_trap_handler, which no context save or load
+ * carries - so a handler that page-faults, parks and is restarted comes back
+ * with the flag clear and its own RETT is refused.
+ *
+ * MEASURED 04-OCT-2026 on PLACE-DOMAIN CPU-STAT, once the handler at 0x08004924
+ * could be reached at all: the handler was entered, faulted on 0x08001800 at
+ * P=0x08004924, parked, restarted, ran to its RETT at 0x08004A28 - and the CPU
+ * printed "RETT at PC=0x08004A28: Not in trap handler" 502 times while SINTRAN
+ * polled with nothing to run. */
+bool nd500_dit_read_ith(Nd500Cpu* cpu, uint32_t domain) {
+    if (!cpu || !cpu->machine || !cpu->dit_configured) return false;
+    return ndix_dit_r8(cpu, domain, DIT_OFF_ITH) != 0u;
+}
+
+void nd500_dit_write_ith(Nd500Cpu* cpu, uint32_t domain, bool inside) {
+    if (!cpu || !cpu->machine || !cpu->dit_configured) return;
+    ndix_dit_w8(cpu, domain, DIT_OFF_ITH, (uint8_t)(inside ? 1u : 0u));
+}
+
+/* THE FLAG IS THE DIT'S, SO ASK THE DIT. A C field alone goes stale, because a
+ * parked process restarted on the SAME X5CPU does no context load at all - the
+ * microcode's own check at 011473B skips both the save and the load when the
+ * wanted process is the loaded one - so nothing is there to restore it.
+ *
+ * MEASURED 05-OCT-2026: the refused RETT printed
+ *   Not in trap handler (CED=0 PS=0xA B=0x08001728 THA=0x08001628 DIT=0x8C000 dit_ITH=1)
+ * 502 times. PS=0xA is the right process, not the swapper, and the DIT's own ITH
+ * byte says 1 while the C field says false. The DIT was right and the copy was
+ * stale.
+ *
+ * With no DIT configured (the conformance corpus, a free-running nd500x) the C
+ * field is all there is, and these behave exactly as before. */
+bool nd500_is_in_trap_handler(Nd500Cpu* cpu) {
+    if (!cpu) return false;
+    if (cpu->machine && cpu->dit_configured) {
+        return nd500_dit_read_ith(cpu, cpu->CED);
+    }
+    return cpu->in_trap_handler;
+}
+
+void nd500_set_in_trap_handler(Nd500Cpu* cpu, bool inside) {
+    if (!cpu) return;
+    cpu->in_trap_handler = inside;
+    nd500_dit_write_ith(cpu, cpu->CED, inside);
+}
+
 /* Privilege (PIA, ST1 bit 1) is a DOMAIN attribute on the ND-500 (domain status
  * PiA @ DIT 310B=200), so it must follow the executing domain across every domain
  * transition. Apply the given domain's PiA to the live ST1. Called on trap
@@ -1258,6 +1309,24 @@ int nd500_cpu_set_trap_sink(Nd500Cpu* cpu,
  * to reintroduce - MEASURED 04-OCT-2026 on the live octobus lane, where a stack
  * overflow raised at 0x08008E09 with THA=0 surfaced as a stop at 0x08008E0F and
  * SINTRAN was told nothing at all. */
+/* SET THE TRAP STATE AND STOP, which is how a trap reaches the host on a lane
+ * that has one: the sink only RECORDS the raise (mfbus_trap_sink returns 0 by
+ * design and says so), and the stop is what the bridge turns into a park and
+ * reports to SINTRAN. Factored out of raise_trap's tail so the handler-residency
+ * path below can report a fault the same way instead of growing a second copy. */
+static void nd500_stop_on_trap(Nd500Cpu* cpu, uint64_t trapBit,
+                               uint32_t trapPC, uint32_t dataAddr) {
+    nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
+    if (cpu->machine) {
+        cpu->machine->run_flag = 0;
+        if (cpu->machine->stop_reason == STOP_NONE) {
+            cpu->machine->stop_reason = trap_to_stop_reason(trapBit);
+            cpu->machine->stop_addr = trapPC;
+            cpu->machine->stop_data = dataAddr;
+        }
+    }
+}
+
 static int nd500_offer_trap_to_sink(Nd500Cpu* cpu, uint64_t trapBit,
                                     uint32_t trapPC, uint32_t dataAddr) {
     if (!cpu || cpu->trap_sink == NULL) {
@@ -1566,18 +1635,10 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
             return;
         }
         /* Set trap state - this WILL stop execution */
-        nd500_trap_set_state(trapBit, trapPC, dataAddr, NULL);
         /* Both program registers - same reason as the [STOP] line above. */
         TRACE("[TRAP] %s at PC=0x%08X data=0x%08X P1=0x%08X <- failing instruction\n",
               nd500_stop_reason_str(trap_to_stop_reason(trapBit)), trapPC, dataAddr, cpu->P1);
-        if (cpu->machine) {
-            cpu->machine->run_flag = 0;
-            if (cpu->machine->stop_reason == STOP_NONE) {
-                cpu->machine->stop_reason = trap_to_stop_reason(trapBit);
-                cpu->machine->stop_addr = trapPC;
-                cpu->machine->stop_data = dataAddr;
-            }
-        }
+        nd500_stop_on_trap(cpu, trapBit, trapPC, dataAddr);
         return;
     }
 
@@ -1876,9 +1937,52 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
         return;
     }
 
-    /* Verify ENTT instruction at handler address (PROG space) */
-    /* ENTT opcode is 0xBC (single-byte opcode in the 0x00BC table entry) */
-    uint32_t paddr_handler = nd500_mmu_translate(cpu, handlerAddr, 0, 1); /* read, instruction */
+    /* Verify ENTT instruction at handler address (PROG space).
+     *
+     * WITH A NON-FAULTING PEEK, AND AN ABSENT PAGE IS NOT A BAD HANDLER.
+     * nd500_mmu_translate RAISES a page fault when the handler's own page is not
+     * resident, which is a fault raised while handling a fault: the nested one
+     * overwrites the trap state, the station reports the handler address as the
+     * faulting address, and the retry finds the page still absent.
+     *
+     * MEASURED 04-OCT-2026 on PLACE-DOMAIN CPU-STAT, immediately after the
+     * swapper's install loop at 0x08004743 finally ran with a real THA: a page
+     * fault at PC=0x08000012 dispatched to the installed handler for trap 38,
+     * 0x08004924 (0x080047C2 + 29 steps, the loop's own arithmetic, and the
+     * handlers really are ENTT instructions 12 bytes apart from 0x080047C2).
+     * That page was not resident, the byte read as 0x00, this check called it
+     * "No ENTT instruction", cleared the trap bit and returned - so the
+     * instruction retried, faulted identically, and after 500 repeats the
+     * runaway guard halted the CPU. The run then sat for 2300 seconds with
+     * SINTRAN polling MICFU=1B and nothing to run.
+     *
+     * An absent handler page is an ordinary page fault ON THE HANDLER ADDRESS.
+     * Report that to the sink so the swapper pages it in and the restart finds a
+     * handler; a machine with no sink keeps the old behaviour. */
+    uint32_t paddr_handler = nd500_mmu_peek_space(cpu, handlerAddr, (uint8_t)cpu->CED, 1);
+    if (paddr_handler == 0xFFFFFFFFu) {
+        /* NOT via nd500_offer_trap_to_sink: that helper treats a 0 return as
+         * "declined" and CLEARS the trap state, and on this lane the sink always
+         * returns 0 - it records the raise and the STOP is what the bridge reports.
+         * Offering it there wiped the state and printed a "no sink" line that was
+         * simply untrue, measured 04-OCT-2026. Stop on a page fault naming the
+         * HANDLER address so the swapper pages it in; the retry then finds it. */
+        if (nd500_settings()->traplog)
+            fprintf(stderr, "[TRAP] handler 0x%08X for trap %d is not resident - "
+                            "reporting a page fault on it\n", handlerAddr, trapNumber);
+        /* BOTH STEPS, IN THE ORDER raise_trap USES THEM. The sink RECORDS the
+         * raise - that is what gives the host the trap number to report - and the
+         * stop is what the host turns into a park. Calling only the stop left the
+         * host with nothing recorded: measured 04-OCT-2026, the run went back to
+         * stalling after 68 parks instead of reaching 0x080008F6, because the CPU
+         * stopped and nobody said why. If a sink ever does accept the trap
+         * outright, honour that and do not also stop. */
+        if (nd500_offer_trap_to_sink(cpu, TRAP_PGF, trappingP, handlerAddr)) {
+            return;
+        }
+        nd500_stop_on_trap(cpu, TRAP_PGF, trappingP, handlerAddr);
+        return;
+    }
     uint8_t byte0 = nd500_bus_read8(cpu->machine, paddr_handler);
     if (byte0 != 0xBC) {
         fprintf(stderr, "[TRAP] No ENTT instruction at trap handler 0x%08X (found 0x%02X, expected 0xBC)\n",
@@ -1914,7 +2018,7 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP) {
     cpu->trap_saved_OTE1 = cpu->OTE1;    /* Save trap enable state */
     cpu->trap_saved_OTE2 = cpu->OTE2;
     cpu->trap_number = trapNumber;
-    cpu->in_trap_handler = true;
+    nd500_set_in_trap_handler(cpu, true);
     cpu->trap_dispatch_pending = 1;   /* cleared by the handler's ENTT - see cpu_protos.h */
 
     /* The pending CALL/ENT* sequence interlock is saved and cleared by the handler's

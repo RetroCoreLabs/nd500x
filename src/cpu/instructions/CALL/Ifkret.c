@@ -112,6 +112,15 @@ void nd500_instr_Ifkret(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * its new-domain path. Do NOT clear K here. */
     uint32_t prev_b = nd500_read_memory_32(cpu, cpu->B + OFFSET_PREVB);
     uint32_t ret_addr = nd500_read_memory_32(cpu, cpu->B + OFFSET_RETA);
+    /* A FAULTING READ MUST NOT REACH THE REGISTERS. RetroCore checks
+     * cpu.InstructionAborted right here in every RET variant (Retb.cs and
+     * Retbk.cs even count it, AbortGuardSite.Retb/Retbk); nd500x checked it in
+     * Ret.c only, so a page fault on PREVB or RETA left garbage in them and the
+     * instruction went on to assign B, P and L from it. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
 
     /* STEP 4: Check for domain boundary */
     if ((prev_b == 0 || ret_addr == 0) && (cpu->CAD != cpu->CED) && (cpu->CAD != 0)) {

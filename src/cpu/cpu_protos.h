@@ -651,6 +651,18 @@ void nd500_trap_seq_push(Nd500Cpu* cpu, uint32_t frame_base);
 void nd500_trap_seq_pop(Nd500Cpu* cpu, uint32_t frame_base);
 /* LIFO pop for the lregbl trap-return NDIX uses instead of RETT. */
 void nd500_trap_seq_pop_top(Nd500Cpu* cpu);
+/* Is this domain inside a trap handler? Reads the DIT when one is configured,
+ * because a parked process restarted on the same X5CPU does no context load and
+ * a cached copy goes stale; falls back to the CPU field otherwise. The setter
+ * writes both. */
+bool nd500_is_in_trap_handler(Nd500Cpu* cpu);
+void nd500_set_in_trap_handler(Nd500Cpu* cpu, bool inside);
+/* The domain's inside-trap-handler flag, out of the real DIT (offset 187). Kept
+ * there because no context save or load carries the C field, so a handler that
+ * parks mid-fault would otherwise come back with it clear and have its RETT
+ * refused. False when no DIT has been configured. */
+bool nd500_dit_read_ith(Nd500Cpu* cpu, uint32_t domain);
+void nd500_dit_write_ith(Nd500Cpu* cpu, uint32_t domain, bool inside);
 /* The domain's trap handler address, out of the real DIT (stride 256, offset
  * 182). THA is a DIT-sourced domain register: it is present in the context
  * block but NEWCNTXT does not load it from there, so a context load must take

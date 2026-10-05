@@ -10,6 +10,7 @@
 #include "cpu_protos.h"
 #include "instructions_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include "nd500_mmu.h"
 #include <stdio.h>
 
@@ -209,8 +210,17 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ======================================================================== */
 
     /* Verify we're in trap handler context */
-    if (!cpu->in_trap_handler) {
-        printf("[ERROR] RETT at PC=0x%08X: Not in trap handler\n", fi->address);
+    if (!nd500_is_in_trap_handler(cpu)) {
+        /* WHOSE CONTEXT, AND WHAT THE DIT SAYS. lregbl is ruled out as the
+         * thief - zero clears logged in a run that did reach this refusal - so
+         * the remaining question is whether the C field was cleared or whether
+         * this RETT is executing in a DIFFERENT context from the one that was
+         * restored with the flag set. The DIT's own ITH byte (offset 187) is
+         * the independent reading. */
+        printf("[ERROR] RETT at PC=0x%08X: Not in trap handler "
+               "(CED=%u PS=0x%X B=0x%08X THA=0x%08X DIT=0x%X dit_ITH=%d)\n",
+               fi->address, cpu->CED, cpu->PS, cpu->B, cpu->THA,
+               cpu->DITBASE, nd500_dit_read_ith(cpu, cpu->CED) ? 1 : 0);
         trap_instruction_sequence_error(cpu, fi->address);
         return;
     }
@@ -223,69 +233,45 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ======================================================================== */
 
     /* Read key registers from trap frame */
-    uint32_t saved_PC = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 24, 0, 0));  /* arg2: return PC */
-    uint32_t saved_L = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 28, 0, 0));   /* arg3: L */
-    uint32_t saved_B = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 32, 0, 0));   /* arg4: B */
-    uint32_t saved_R = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 36, 0, 0));   /* arg5: R */
+    uint32_t saved_PC = nd500_read_memory_32(cpu, trap_frame_base + 24);  /* arg2: return PC */
+    uint32_t saved_L = nd500_read_memory_32(cpu, trap_frame_base + 28);   /* arg3: L */
+    uint32_t saved_B = nd500_read_memory_32(cpu, trap_frame_base + 32);   /* arg4: B */
+    uint32_t saved_R = nd500_read_memory_32(cpu, trap_frame_base + 36);   /* arg5: R */
 
     /* I1-I4 */
-    uint32_t saved_I1 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 40, 0, 0));
-    uint32_t saved_I2 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 44, 0, 0));
-    uint32_t saved_I3 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 48, 0, 0));
-    uint32_t saved_I4 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 52, 0, 0));
+    uint32_t saved_I1 = nd500_read_memory_32(cpu, trap_frame_base + 40);
+    uint32_t saved_I2 = nd500_read_memory_32(cpu, trap_frame_base + 44);
+    uint32_t saved_I3 = nd500_read_memory_32(cpu, trap_frame_base + 48);
+    uint32_t saved_I4 = nd500_read_memory_32(cpu, trap_frame_base + 52);
 
     /* A1-A4 */
-    uint32_t saved_A1 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 56, 0, 0));
-    uint32_t saved_A2 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 60, 0, 0));
-    uint32_t saved_A3 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 64, 0, 0));
-    uint32_t saved_A4 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 68, 0, 0));
+    uint32_t saved_A1 = nd500_read_memory_32(cpu, trap_frame_base + 56);
+    uint32_t saved_A2 = nd500_read_memory_32(cpu, trap_frame_base + 60);
+    uint32_t saved_A3 = nd500_read_memory_32(cpu, trap_frame_base + 64);
+    uint32_t saved_A4 = nd500_read_memory_32(cpu, trap_frame_base + 68);
 
     /* E1-E4 */
-    uint32_t saved_E1 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 72, 0, 0));
-    uint32_t saved_E2 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 76, 0, 0));
-    uint32_t saved_E3 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 80, 0, 0));
-    uint32_t saved_E4 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 84, 0, 0));
+    uint32_t saved_E1 = nd500_read_memory_32(cpu, trap_frame_base + 72);
+    uint32_t saved_E2 = nd500_read_memory_32(cpu, trap_frame_base + 76);
+    uint32_t saved_E3 = nd500_read_memory_32(cpu, trap_frame_base + 80);
+    uint32_t saved_E4 = nd500_read_memory_32(cpu, trap_frame_base + 84);
 
     /* ST1, ST2 */
-    uint32_t saved_ST1 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 88, 0, 0));
-    uint32_t saved_ST2 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 92, 0, 0));
+    uint32_t saved_ST1 = nd500_read_memory_32(cpu, trap_frame_base + 88);
+    uint32_t saved_ST2 = nd500_read_memory_32(cpu, trap_frame_base + 92);
 
     /* PS */
-    uint32_t saved_PS = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 96, 0, 0));
+    uint32_t saved_PS = nd500_read_memory_32(cpu, trap_frame_base + 96);
 
     /* TOS, LL, HL */
-    uint32_t saved_TOS = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 100, 0, 0));
-    uint32_t saved_LL = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 104, 0, 0));
-    uint32_t saved_HL = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 108, 0, 0));
+    uint32_t saved_TOS = nd500_read_memory_32(cpu, trap_frame_base + 100);
+    uint32_t saved_LL = nd500_read_memory_32(cpu, trap_frame_base + 104);
+    uint32_t saved_HL = nd500_read_memory_32(cpu, trap_frame_base + 108);
 
     /* THA - don't restore, keep current */
     /* CED, CAD - restore for domain context */
-    uint32_t saved_CED = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 116, 0, 0));
-    uint32_t saved_CAD = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 120, 0, 0));
+    uint32_t saved_CED = nd500_read_memory_32(cpu, trap_frame_base + 116);
+    uint32_t saved_CAD = nd500_read_memory_32(cpu, trap_frame_base + 120);
 
     /* OTE1, OTE2 - Per ND-500 manual, OTE should be loaded from DIT, not register block.
      * For now we use the OTE saved by invoke_trap_handler() before ENTT cleared them.
@@ -294,22 +280,16 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t saved_OTE2 = cpu->trap_saved_OTE2;
 
     /* CTE1, CTE2 */
-    uint32_t saved_CTE1 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 148, 0, 0));
-    uint32_t saved_CTE2 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 152, 0, 0));
+    uint32_t saved_CTE1 = nd500_read_memory_32(cpu, trap_frame_base + 148);
+    uint32_t saved_CTE2 = nd500_read_memory_32(cpu, trap_frame_base + 152);
 
     /* MTE1, MTE2 */
-    uint32_t saved_MTE1 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 156, 0, 0));
-    uint32_t saved_MTE2 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 160, 0, 0));
+    uint32_t saved_MTE1 = nd500_read_memory_32(cpu, trap_frame_base + 156);
+    uint32_t saved_MTE2 = nd500_read_memory_32(cpu, trap_frame_base + 160);
 
     /* TEMM1, TEMM2 */
-    uint32_t saved_TEMM1 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 164, 0, 0));
-    uint32_t saved_TEMM2 = nd500_bus_read32(cpu->machine,
-        nd500_mmu_translate(cpu, trap_frame_base + 168, 0, 0));
+    uint32_t saved_TEMM1 = nd500_read_memory_32(cpu, trap_frame_base + 164);
+    uint32_t saved_TEMM2 = nd500_read_memory_32(cpu, trap_frame_base + 168);
 
     /* ========================================================================
      * Step 4: Clear the specific trap status bit before restoring
@@ -320,6 +300,15 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         saved_ST1 &= ~(uint32_t)(trapBit & 0xFFFFFFFF);
     } else {
         saved_ST2 &= ~(uint32_t)(trapBit >> 32);
+    }
+
+    /* NOTHING IS RESTORED IF A FRAME READ FAULTED. RetroCore guards exactly
+     * here (Rett.cs, AbortGuardSite.Rett) and reads the frame with its
+     * abort-aware ReadMemory; nd500x read it with raw bus reads through a
+     * FAULTING translate and had no guard at all, so a page fault anywhere in
+     * the frame restored registers from whatever the failed reads left behind. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
     }
 
     /* ========================================================================
@@ -384,7 +373,7 @@ void nd500_instr_Rett(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * (mother-domain) trap, CED/CAD were just restored from the register block
      * (arg25/26 = the trapping domain that ENTT recorded), so control returns to
      * the domain that faulted. */
-    cpu->in_trap_handler = false;
+    nd500_set_in_trap_handler(cpu, false);
     cpu->trap_cross_domain = 0;
 
     /* Restore the pending CALL/ENT* sequence-interlock state saved when this trap was

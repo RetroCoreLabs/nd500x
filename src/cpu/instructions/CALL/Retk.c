@@ -101,6 +101,15 @@ void nd500_instr_Retk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* STEP 3: Read RETA from B+4 (return address) */
     uint32_t ret_addr = nd500_read_memory_32(cpu, cpu->B + OFFSET_RETA);
+    /* A FAULTING READ MUST NOT REACH THE REGISTERS. RetroCore checks
+     * cpu.InstructionAborted right here in every RET variant (Retb.cs and
+     * Retbk.cs even count it, AbortGuardSite.Retb/Retbk); nd500x checked it in
+     * Ret.c only, so a page fault on PREVB or RETA left garbage in them and the
+     * instruction went on to assign B, P and L from it. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
 
     /* STEP 4: Check for domain boundary (PREVB == 0 or RETA == 0). Same cross-domain
      * return as Ret.c (RET), but the K flag stays SET (set at STEP 1) so the returned-

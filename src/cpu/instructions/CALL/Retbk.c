@@ -147,6 +147,15 @@ void nd500_instr_Retbk(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* STEP 3: Read return information from stack frame */
     uint32_t prev_b = nd500_read_memory_32(cpu, block_addr + OFFSET_PREVB);
     uint32_t ret_addr = nd500_read_memory_32(cpu, block_addr + OFFSET_RETA);
+    /* A FAULTING READ MUST NOT REACH THE REGISTERS. RetroCore checks
+     * cpu.InstructionAborted right here in every RET variant (Retb.cs and
+     * Retbk.cs even count it, AbortGuardSite.Retb/Retbk); nd500x checked it in
+     * Ret.c only, so a page fault on PREVB or RETA left garbage in them and the
+     * instruction went on to assign B, P and L from it. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+
 
     /* STEP 4: Validate PREVB and RETA (check for stack underflow) */
     if (prev_b == 0 && ret_addr == 0) {

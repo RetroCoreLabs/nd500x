@@ -137,7 +137,7 @@ void nd500_instr_Entsn(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_write_memory_32(cpu, new_b + OFFSET_N, transfer_count);
 
     /* Copy only the first max_args argument addresses */
-    for (uint32_t i = 0; i < transfer_count && i < ND500_MAX_OPERANDS; i++) {
+    for (uint32_t i = 0; i < transfer_count && i < TRAP_SEQ_MAXARG; i++) {
         nd500_write_memory_32(cpu, new_b + OFFSET_ARG1 + (i * 4),
                              cpu->pending_call_arg_addresses[i]);
     }

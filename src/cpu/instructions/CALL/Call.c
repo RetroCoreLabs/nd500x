@@ -96,7 +96,7 @@ void nd500_instr_Call(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t mon_number = is_mon_call ? (subroutine_addr & 0x07FFFFFF) : 0;
 
     /* Process arguments from cpu->extra_operands (decoded by cpu_instr.c) */
-    for (uint16_t i = 0; i < arg_count && i < ND500_MAX_OPERANDS; i++) {
+    for (uint16_t i = 0; i < arg_count && i < TRAP_SEQ_MAXARG; i++) {
         const Nd500OperandDecoded* arg_operand = &cpu->extra_operands[i];
 
         /* Debug: trace argument operands for MON calls */

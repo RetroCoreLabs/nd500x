@@ -10,6 +10,7 @@
 #include "cpu_protos.h"
 #include "instructions_protos.h"
 #include "machine_protos.h"
+#include "instruction_helpers.h"
 #include "nd500_mmu.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -258,7 +259,18 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * handler's ENTT runs while the outer handler is still active, so
      * in_trap_handler stays set across levels and cannot mark "this dispatch
      * has not been consumed yet". See cpu_protos.h trap_dispatch_pending. */
-    if (!cpu->trap_dispatch_pending) {
+    /* THE GUARD IS THE INSIDE-TRAP-HANDLER FLAG, AS IN THE REFERENCE.
+     *
+     * RetroCore's Entt.cs tests `pcb.InsideTrapHandler` for regs.CAD - the PCB
+     * flag, which is the DIT's own byte at offset 187 - and not a
+     * dispatch-to-ENTT interlock. nd500x tested trap_dispatch_pending, which a
+     * park between the dispatch and the handler's first instruction legitimately
+     * spends: measured 503 instruction-sequence traps at the handler entry
+     * 0x08004924 on PLACE-DOMAIN CPU-STAT, with the interlock reading 0 at every
+     * context save. nd500_is_in_trap_handler reads the DIT when one is
+     * configured and the CPU field otherwise, so a machine with no DIT (the
+     * conformance corpus) behaves as before. */
+    if (!nd500_is_in_trap_handler(cpu)) {
         printf("[ERROR] ENTT at PC=0x%08X: Not in trap handler context\n",
                fi->address);
         trap_instruction_sequence_error(cpu, fi->address);
@@ -281,6 +293,49 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* The local data field follows immediately after the vector table */
     uint32_t trap_frame_base = cpu->THA + 256;
 
+    /* EVERY FRAME PAGE FIRST, BEFORE ANY REGISTER IS TOUCHED - AND THE FAULT
+     * NAMES THE ORIGINAL TRAPPING INSTRUCTION, NOT THIS ENTT.
+     *
+     * Two separate things had to be right here, and the second is the reference's,
+     * not a guess. nd500x used to set B to the frame base and push the sequence
+     * interlock BEFORE writing the frame, so a frame write that faulted left the
+     * instruction half applied.
+     *
+     * MEASURED 05-OCT-2026 on PLACE-DOMAIN CPU-STAT, per-step trace:
+     *   rt P=0x08004924 BC CE B=0x00000004 L=0x08000018   <- first attempt
+     *   [MMU] PS_ASI page not valid! vaddr=0x08001800
+     *   trap 46B at P=0x08004924 addr=0x08001800 - parked, SINTRAN pages it in
+     *   rt P=0x08004924 BC CE B=0x08001728 L=0x08001804   <- retry, B ALREADY SET
+     *   raise_trap trapBit=0x800000000 (instruction sequence error)
+     * and from there the handler's RETT was refused 503 times.
+     *
+     * RESTARTING AT THE ENTT IS NOT THE DESIGN, and reporting the fault at this
+     * instruction's own address would do exactly that. RetroCore settled it on
+     * the microword lane (EnttFaultRestartTests, Prefetch500.FaultRestartStart):
+     * the handler dispatch 011622B-011630B never writes P and ENTT moves P only
+     * at its last word 011735B (AD,PC), so on the hardware P still names the
+     * ORIGINAL trapping instruction while ENTT runs. A fault inside ENTT
+     * restarts THAT instruction, the trap is raised again, and ENTT is re-entered
+     * from the top with the page present. Their note records that restart-at-ENTT
+     * was tried and produced an instruction sequence error, because every process
+     * continue runs 011370B and the restarted ENTT then takes its ISE arm - the
+     * same ISE measured here.
+     *
+     * cpu->trap_saved_PC is that instruction (cpu.c sets it to the trapping P on
+     * dispatch); fall back to this address only if no dispatch is on record. */
+    {
+        const uint32_t frame_span = 180u + 40u;
+        uint32_t fault_pc = (cpu->trap_saved_PC != 0u) ? cpu->trap_saved_PC : fi->address;
+        for (uint32_t off = 0; off <= frame_span; off += 4u) {
+            if (nd500_mmu_peek_space(cpu, trap_frame_base + off, (uint8_t)cpu->CED, 0)
+                == 0xFFFFFFFFu) {
+                cpu->PC = fault_pc;
+                trap_page_fault(cpu, fault_pc, trap_frame_base + off);
+                return;
+            }
+        }
+    }
+
     /* Save the pending CALL/ENT* sequence-interlock state under this frame's
      * address and clear the live fields, so the handler starts with a clean
      * interlock and the trapped code resumes with its own. The matching RETT
@@ -291,24 +346,31 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     cpu->pending_call_return_address = 0;
     cpu->pending_call_arg_count = 0;
 
-    /* ========================================================================
-     * Set up new B register to point to trap handler local data field
-     * ======================================================================== */
-    cpu->B = trap_frame_base;
+    /* B, TOS, L AND THE TRAP ENABLES ARE SET AT THE END, NOT HERE.
+     *
+     * RetroCore's Entt.cs writes the whole frame first, checks
+     * cpu.InstructionAborted, and only then assigns regs.B, regs.TOS, regs.L
+     * and clears OTE1/OTE2 - so a frame write that faults leaves no register
+     * changed and the instruction is retryable. nd500x set B here, before the
+     * writes, and the retry after a pagein then ran with B already pointing at
+     * the frame: measured as "rt P=0x08004924 BC CE B=0x08001728" on the second
+     * attempt where the first had B=4, followed by an instruction sequence
+     * error. Every other ENT* variant in this directory already follows the
+     * reference's order; this one did not. */
 
     /* ========================================================================
      * Write trap handler data field header (5 words at B+0..B+19)
      * ======================================================================== */
 
     /* B+0: PREVB = 0 (marks bottom of trap handler stack) */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 0, 1, 0), 0);
+    nd500_write_memory_32(cpu, trap_frame_base + 0, 0);
 
     /* B+4: RETA = 0 (no return address for trap frame) */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 4, 1, 0), 0);
+    nd500_write_memory_32(cpu, trap_frame_base + 4, 0);
 
     /* B+8: SP = B + local_data_size (stack pointer for handler's local data area) */
     /* Per ND-500 manual Step 2: B.SP := B + operand1 (main program stack demand) */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 8, 1, 0),
+    nd500_write_memory_32(cpu, trap_frame_base + 8,
                       trap_frame_base + local_data_size);
 
     /* Trap-frame heading fields B+12 (AUX) and B+16 (N).
@@ -331,14 +393,14 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     static int ndix_regime = -1;
     if (ndix_regime < 0) ndix_regime = nd500_settings()->mmu_guest_tables;
     if (ndix_regime) {
-        nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 12, 1, 0),
+        nd500_write_memory_32(cpu, trap_frame_base + 12,
                           cpu->trap_saved_info);
-        nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 16, 1, 0),
+        nd500_write_memory_32(cpu, trap_frame_base + 16,
                           cpu->trap_saved_fault_addr);
     } else {
         /* B+12: AUX = 0 ; B+16: N = 50 (argument count - register block layout). */
-        nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 12, 1, 0), 0);
-        nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 16, 1, 0), 50);
+        nd500_write_memory_32(cpu, trap_frame_base + 12, 0);
+        nd500_write_memory_32(cpu, trap_frame_base + 16, 50);
     }
 
     /* ========================================================================
@@ -346,56 +408,56 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ======================================================================== */
 
     /* arg1 (B+20): Trapping P - PC of instruction that caused trap */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 20, 1, 0),
+    nd500_write_memory_32(cpu, trap_frame_base + 20,
                       cpu->trap_saved_PC);
 
     /* arg2 (B+24): P register - the resume address RETT returns to. Equals the
      * trapping P for Before/During-class traps (retry) but the NEXT instruction
      * for After-class traps (manual ND-05.009.4 page 79 + Table 10). */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 24, 1, 0),
+    nd500_write_memory_32(cpu, trap_frame_base + 24,
                       cpu->trap_resume_PC);
 
     /* arg3 (B+28): L register (link/return address) - CRITICAL for subroutine returns */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 28, 1, 0), saved_L);
+    nd500_write_memory_32(cpu, trap_frame_base + 28, saved_L);
 
     /* arg4 (B+32): B register (pre-trap base) */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 32, 1, 0), saved_B);
+    nd500_write_memory_32(cpu, trap_frame_base + 32, saved_B);
 
     /* arg5 (B+36): R register */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 36, 1, 0), cpu->R);
+    nd500_write_memory_32(cpu, trap_frame_base + 36, cpu->R);
 
     /* arg6-9 (B+40..B+52): I1-I4 */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 40, 1, 0), cpu->I[0]);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 44, 1, 0), cpu->I[1]);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 48, 1, 0), cpu->I[2]);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 52, 1, 0), cpu->I[3]);
+    nd500_write_memory_32(cpu, trap_frame_base + 40, cpu->I[0]);
+    nd500_write_memory_32(cpu, trap_frame_base + 44, cpu->I[1]);
+    nd500_write_memory_32(cpu, trap_frame_base + 48, cpu->I[2]);
+    nd500_write_memory_32(cpu, trap_frame_base + 52, cpu->I[3]);
 
     /* arg10-13 (B+56..B+68): A1-A4 */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 56, 1, 0), cpu->A[0]);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 60, 1, 0), cpu->A[1]);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 64, 1, 0), cpu->A[2]);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 68, 1, 0), cpu->A[3]);
+    nd500_write_memory_32(cpu, trap_frame_base + 56, cpu->A[0]);
+    nd500_write_memory_32(cpu, trap_frame_base + 60, cpu->A[1]);
+    nd500_write_memory_32(cpu, trap_frame_base + 64, cpu->A[2]);
+    nd500_write_memory_32(cpu, trap_frame_base + 68, cpu->A[3]);
 
     /* arg14-17 (B+72..B+84): E1-E4 */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 72, 1, 0), cpu->E[0]);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 76, 1, 0), cpu->E[1]);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 80, 1, 0), cpu->E[2]);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 84, 1, 0), cpu->E[3]);
+    nd500_write_memory_32(cpu, trap_frame_base + 72, cpu->E[0]);
+    nd500_write_memory_32(cpu, trap_frame_base + 76, cpu->E[1]);
+    nd500_write_memory_32(cpu, trap_frame_base + 80, cpu->E[2]);
+    nd500_write_memory_32(cpu, trap_frame_base + 84, cpu->E[3]);
 
     /* arg18-19 (B+88..B+92): ST1, ST2 */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 88, 1, 0), cpu->ST1);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 92, 1, 0), cpu->ST2);
+    nd500_write_memory_32(cpu, trap_frame_base + 88, cpu->ST1);
+    nd500_write_memory_32(cpu, trap_frame_base + 92, cpu->ST2);
 
     /* arg20 (B+96): PS */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 96, 1, 0), cpu->PS);
+    nd500_write_memory_32(cpu, trap_frame_base + 96, cpu->PS);
 
     /* arg21-23 (B+100..B+108): TOS, LL, HL */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 100, 1, 0), saved_TOS);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 104, 1, 0), cpu->LL);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 108, 1, 0), cpu->HL);
+    nd500_write_memory_32(cpu, trap_frame_base + 100, saved_TOS);
+    nd500_write_memory_32(cpu, trap_frame_base + 104, cpu->LL);
+    nd500_write_memory_32(cpu, trap_frame_base + 108, cpu->HL);
 
     /* arg24 (B+112): THA */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 112, 1, 0), cpu->THA);
+    nd500_write_memory_32(cpu, trap_frame_base + 112, cpu->THA);
 
     /* arg25-26 (B+116..B+120): CED, CAD.
      * For a cross-domain (mother-domain) trap, raise_trap already switched the
@@ -405,46 +467,41 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * same-domain trap trap_cross_domain==0 and these equal the live values. */
     uint32_t entt_ced = cpu->trap_cross_domain ? cpu->trap_saved_CED : cpu->CED;
     uint32_t entt_cad = cpu->trap_cross_domain ? cpu->trap_saved_CAD : cpu->CAD;
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 116, 1, 0), entt_ced);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 120, 1, 0), entt_cad);
+    nd500_write_memory_32(cpu, trap_frame_base + 116, entt_ced);
+    nd500_write_memory_32(cpu, trap_frame_base + 120, entt_cad);
 
     /* arg27-30 (B+124..B+136): mic scratch - set to 0 */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 124, 1, 0), 0);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 128, 1, 0), 0);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 132, 1, 0), 0);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 136, 1, 0), 0);
+    nd500_write_memory_32(cpu, trap_frame_base + 124, 0);
+    nd500_write_memory_32(cpu, trap_frame_base + 128, 0);
+    nd500_write_memory_32(cpu, trap_frame_base + 132, 0);
+    nd500_write_memory_32(cpu, trap_frame_base + 136, 0);
 
     /* arg31-32 (B+140..B+144): OTE1, OTE2 (saved values from invoke_trap_handler) */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 140, 1, 0),
+    nd500_write_memory_32(cpu, trap_frame_base + 140,
                       cpu->trap_saved_OTE1);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 144, 1, 0),
+    nd500_write_memory_32(cpu, trap_frame_base + 144,
                       cpu->trap_saved_OTE2);
 
     /* arg33-34 (B+148..B+152): CTE1, CTE2 */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 148, 1, 0), cpu->CTE1);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 152, 1, 0), cpu->CTE2);
+    nd500_write_memory_32(cpu, trap_frame_base + 148, cpu->CTE1);
+    nd500_write_memory_32(cpu, trap_frame_base + 152, cpu->CTE2);
 
     /* arg35-36 (B+156..B+160): MTE1, MTE2 */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 156, 1, 0), cpu->MTE1);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 160, 1, 0), cpu->MTE2);
+    nd500_write_memory_32(cpu, trap_frame_base + 156, cpu->MTE1);
+    nd500_write_memory_32(cpu, trap_frame_base + 160, cpu->MTE2);
 
     /* arg37-38 (B+164..B+168): TEMM1, TEMM2 */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 164, 1, 0), cpu->TEMM1);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 168, 1, 0), cpu->TEMM2);
+    nd500_write_memory_32(cpu, trap_frame_base + 164, cpu->TEMM1);
+    nd500_write_memory_32(cpu, trap_frame_base + 168, cpu->TEMM2);
 
     /* arg39-40 (B+172..B+176): mic scratch - set to 0 */
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 172, 1, 0), 0);
-    nd500_bus_write32(cpu->machine, nd500_mmu_translate(cpu, trap_frame_base + 176, 1, 0), 0);
+    nd500_write_memory_32(cpu, trap_frame_base + 172, 0);
+    nd500_write_memory_32(cpu, trap_frame_base + 176, 0);
 
     /* ========================================================================
      * Set up trap handler stack registers (per ND-500 manual Steps 5-6)
      * ======================================================================== */
 
-    /* Step 5: TOS := B + operand2 (total trap handler stack demand) */
-    cpu->TOS = trap_frame_base + stack_demand;
-
-    /* Step 6: L := B.SP (L points to first free location, same as B.SP) */
-    cpu->L = trap_frame_base + local_data_size;
 
     /* Note: LL and HL are NOT modified by ENTT - the pre-trap values are saved
      * in the register block but the current LL/HL remain unchanged */
@@ -469,9 +526,21 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ======================================================================== */
     /* Skip program memory copy for now - just zero the area */
     for (int i = 0; i < 10; i++) {
-        nd500_bus_write32(cpu->machine,
-            nd500_mmu_translate(cpu, trap_frame_base + 180 + i * 4, 1, 0), 0);
+        nd500_write_memory_32(cpu, trap_frame_base + 180 + i * 4, 0);
     }
+
+    /* NOW THE REGISTERS, AND NOT BEFORE. The reference's order exactly:
+     * every frame write first, then one abort check, then B, TOS, L and the
+     * trap enables (Entt.cs, the tail after its InstructionAborted check). A
+     * fault anywhere above therefore leaves the instruction retryable. */
+    if (nd500_trap_occurred() || cpu->instr_aborted) {
+        return;
+    }
+    cpu->B = trap_frame_base;
+    /* Step 5: TOS := B + operand2 (total trap handler stack demand) */
+    cpu->TOS = trap_frame_base + stack_demand;
+    /* Step 6: L := B.SP (L points to first free location, same as B.SP) */
+    cpu->L = trap_frame_base + local_data_size;
 
     /* The trap context is now entirely in the guest-memory frame at THA, so the
      * emulator's single-level trap_saved_* fields are free to be reused. Release

@@ -268,6 +268,15 @@ void nd500_instr_Chain(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Read the static link: memory[currentAddr + offset] */
         uint32_t next_link = nd500_read_memory_32(cpu, current_addr + static_link_offset);
 
+        /* GUARD EVERY LINK READ, NOT JUST THE OPERANDS. RetroCore checks
+         * cpu.InstructionAborted inside this loop (Chain.cs,
+         * AbortGuardSite.Chain); nd500x checked only after the operand reads, so
+         * a page fault on a link carried on walking the chain with whatever the
+         * failed read returned. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
+
         if (chain_dbg()) printf("  CHAIN level %d/%d: addr=0x%08X, link@0x%08X = 0x%08X\n",
                i + 1, levels, current_addr, current_addr + static_link_offset, next_link);
 

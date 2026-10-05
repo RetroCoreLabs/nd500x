@@ -220,7 +220,7 @@ void nd500_instr_Callg(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * address, so they cannot be passed to subroutines.
      * ======================================================================== */
 
-    for (uint16_t i = 0; i < arg_count && i < ND500_MAX_OPERANDS; i++) {
+    for (uint16_t i = 0; i < arg_count && i < TRAP_SEQ_MAXARG; i++) {
         const Nd500OperandDecoded* arg_operand = &cpu->extra_operands[i];
 
         /* Validate: Arguments MUST be memory operands, not constants.
