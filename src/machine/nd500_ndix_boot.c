@@ -376,7 +376,12 @@ int nd500_ndix_mmu_setup(Nd500Machine* m) {
      * so first_phys_seg=13 and the SINTRAN-provided entries (dataindex, pstindex,
      * psindex) survive with their valid identity values. Verified via ND500X_PTWDBG. */
     m->cpu->PSTP    = ND500_NDIX_PSTP;
-    m->cpu->DITBASE = ND500_NDIX_DITBASE;
+    /* Through the declaration, not a bare store: mmu_use_guest_for() and the
+     * guest-table paths in cpu.c test cpu->dit_configured, because zero is a valid
+     * DIT base. A bare store to DITBASE left the flag clear, so every segment fell
+     * back to the emulator's shadow tables and the kernel ran out of the private
+     * allocation window (commit 1b6582e moved the test from DITBASE != 0). */
+    nd500_mmu_declare_dit_base(m->cpu, ND500_NDIX_DITBASE);
     /* NOTE: boot-time live CAD = 1 (the /etc/init domain) is established from
      * vmunix.init via `set CAD 1`, NOT here: the load-pseg/load-dseg steps run
      * after mmusetup and would wipe a value set at this point. See the comment
