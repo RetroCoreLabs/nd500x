@@ -892,6 +892,77 @@ four consecutive runs; a whole-pool positive control gave 3000 lines, which is
 what turned its silence on a range into evidence.
 
 
+## After THA: what the trap path then showed (2026-10-04/05)
+
+Sourcing THA from the DIT (`3fb4c6a`, `48f06b4`) removed the segment-12 fault and
+let the swapper's install loop work - the counter at logical 0x34 climbs 9..41
+and stops, so handlers 9 through 41 really are installed. Each step after that
+uncovered one more defect of the SAME shape: a diagnostic or check that RAISES a
+fault while handling a fault, or state the context switch does not carry.
+
+**1. The handler-slot probe faulted.** `raise_trap`'s non-ignorable path read
+THA[tn] with `nd500_mmu_translate`. Fixed in `5cad152` with
+`nd500_mmu_peek_space`. Measured before the fix: the entry-point fetch at
+0x08000004 faulted, the probe read THA[38] as DATA, that read faulted, and the
+station reported `P=0x8000004 fault=0x8000004 psn=12` - the instruction address
+wearing the data segment - 192 times. Unreachable while THA was 0.
+
+**2. The ENTT verification faulted, and an absent handler page was called a bad
+handler.** Same file, one level deeper. The handler for trap 38 is 0x08004924 -
+`0x080047C2 + 29` steps, and the handlers really are `entt` instructions 12 bytes
+apart from 0x080047C2 - so the address was right and its PAGE was absent. The
+check read 0x00, said "No ENTT instruction", cleared the trap bit and returned;
+the instruction retried, faulted identically, and the runaway guard halted the
+CPU after 500 repeats. Now it peeks and reports a page fault ON THE HANDLER
+ADDRESS. With that, the handler is paged in and RUNS.
+
+**3. Reporting a trap takes TWO steps on this lane.** `mfbus_trap_sink` returns 0
+BY DESIGN - it records the raise so the host knows what to report - and the STOP
+is what the bridge turns into a park. A first version of the fix called only the
+stop, and the run went back to stalling after 68 parks instead of reaching
+0x080008F6: the CPU stopped and nobody said why. `nd500_offer_trap_to_sink`
+treats 0 as "declined" and CLEARS the trap state, so it cannot be used alone
+either. Both, in raise_trap's order.
+
+**4. A silent translation failure.** At `PC=0x080008F6` the stop line reported
+`paddr == vaddr` with `in_trap=0`: `nd500_mmu_translate` returned the virtual
+address WITHOUT raising, so the guard at `cpu.c:371` - which exists for exactly
+this and asks the trap state rather than whether the PC moved - never fired.
+`nd500_mmu.c` has 19 `return virtual_addr;` sites and not all of them raise
+first. WHICH ONE is still open. `ND500X_MMULOG=1` names the reason, and in the
+run that reached the same region it printed
+`PS_ASI page not valid! vaddr=0x08000931 pte_addr=0x007FC004` - which DOES raise
+- so the silent case may be a different site or a different address.
+
+**5. The inside-trap-handler flag, and what it is NOT.** The handler runs, faults
+on its own data at 0x08001800, parks, is restarted, reaches its `RETT` at
+0x08004A28 - and the CPU refuses it 503 times: `Not in trap handler`.
+`Rett.c:212` tests nothing but `cpu->in_trap_handler`, and `Entt.c` tests the
+same flag at the handler's FIRST instruction, which passed. So it was true on
+entry and false on return.
+
+ND-05.009.4 Table 6 puts that flag in the DIT at 273B = 187, so it was carried
+there (`nd500_dit_read_ith`/`_write_ith`, read beside THA and written in
+`mfbus_save_context`). **The carry is MEASURED WORKING** - `ITH=1` saved to
+0x8C000+187, the swapper correctly loading 0 from its own 0x74000, and process 1
+loading `ITH=1` back - and the RETT is STILL refused. So the flag is lost to a
+CLEAR, not to a missing save.
+
+`lregbl` is RULED OUT: it is one of only two in-flight clears and a run that did
+reach the refusal logged ZERO of them. The other is the successful RETT, which
+never happens. So on the evidence nothing clears it, which leaves one untested
+possibility: the refused RETT may be executing in the SWAPPER's context rather
+than process 1's. Both processes run the same program image at 0x0800xxxx and
+both have CED=0, so that confusion is possible and would make the refusal
+CORRECT. The refusal now prints CED, PS, B, THA, DITBASE and the DIT's own ITH
+byte to settle it. OPEN.
+
+**Where the run gets to now.** 70 parks, segment 13 paged through all 63 pages,
+the reference's own fault at `P=0x8004751` reading 0x08001060, the handler
+entered and faulting on 0x08001800 - then the RETT refusals and SINTRAN polling
+`MICFU=1B` with nothing to run. CPU-STAT still prints nothing.
+
+
 ## How to work here (hard-won)
 
 - Order of authority and where out-of-repo truth lives:
