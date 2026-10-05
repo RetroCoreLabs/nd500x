@@ -27,6 +27,32 @@ void ndbus_unlock(void)
     (void)pthread_mutex_unlock(&s_bus_mutex);
 }
 
+/* The engine lock. Recursive, so it cannot be statically initialised in
+ * portable C; pthread_once builds it on first use, which keeps the "no init
+ * call to forget" property of the bus mutex. */
+static pthread_mutex_t s_engine_mutex;
+static pthread_once_t  s_engine_once = PTHREAD_ONCE_INIT;
+
+static void engine_mutex_init(void)
+{
+    pthread_mutexattr_t attr;
+    (void)pthread_mutexattr_init(&attr);
+    (void)pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+    (void)pthread_mutex_init(&s_engine_mutex, &attr);
+    (void)pthread_mutexattr_destroy(&attr);
+}
+
+void ndbus_engine_lock(void)
+{
+    (void)pthread_once(&s_engine_once, engine_mutex_init);
+    (void)pthread_mutex_lock(&s_engine_mutex);
+}
+
+void ndbus_engine_unlock(void)
+{
+    (void)pthread_mutex_unlock(&s_engine_mutex);
+}
+
 #else /* __EMSCRIPTEN__ */
 
 /* One WebAssembly memory, no threads: there is nothing to serialize. The calls
@@ -36,6 +62,14 @@ void ndbus_lock(void)
 }
 
 void ndbus_unlock(void)
+{
+}
+
+void ndbus_engine_lock(void)
+{
+}
+
+void ndbus_engine_unlock(void)
 {
 }
 

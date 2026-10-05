@@ -57,6 +57,32 @@ void ndbus_lock(void);
 void ndbus_unlock(void);
 
 /**
+ * @brief Take the servicer's engine lock.
+ *
+ * Serializes the ND-100 thread working through a mailbox chain against the
+ * ND-5000 thread answering a trap or a monitor call on a message. Ported from
+ * the reference's _engineLock
+ * ($RETROCORE/Emulated.HW/ND/CPU/ND500/Servicer/Nd500MicrocodeServicer.cs:
+ * ProcessChain, AnswerTrapStop, AnswerMonitorCallStop all hold it).
+ *
+ * A second mutex, NOT the bus mutex: the servicer calls the semaphore and
+ * queue helpers, which take the bus mutex, while it holds this one. The order
+ * is always engine lock first, bus mutex second.
+ *
+ * @return Nothing.
+ * @note Recursive: the thread that holds it may take it again. A host takes it
+ *       around "mark the process parked, then answer", and the answer functions
+ *       take it themselves.
+ */
+void ndbus_engine_lock(void);
+
+/**
+ * @brief Release the servicer's engine lock, once per ndbus_engine_lock().
+ * @return Nothing.
+ */
+void ndbus_engine_unlock(void);
+
+/**
  * @brief THE ND-500 TSET INSTRUCTION, as the bus sees it.
  *
  * src/cpu/instructions/CONTROL/Tset.c, opcode 0xFD40: a 32-bit (W) operand,

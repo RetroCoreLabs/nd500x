@@ -1430,9 +1430,33 @@ bool ndbus_servicer_stop_was_monitor_call(NdbusServicer *sv, uint16_t x5cpu)
     return sv->process_stop_kind[x5cpu] == NDBUS_STOPR_MOCALL;
 }
 
+static bool answer_trap_stop_locked(NdbusServicer *sv, uint16_t x5cpu, uint16_t trap_number,
+                                    uint32_t trapping_pc, uint32_t trap_address,
+                                    uint32_t mms_status, uint16_t physical_segment);
+
+/* THE ENGINE LOCK. The ND-5000 thread calls this while the ND-100 thread may be
+ * inside ndbus_servicer_process_chain(). The reference holds _engineLock in
+ * both (Nd500MicrocodeServicer.cs AnswerTrapStop and ProcessChain).
+ *
+ * MEASURED without it, PLANC-500-G00 started by name under SINTRAN: the chain
+ * walk handed a 23B start to the host, the new ND-5000 thread page-faulted on
+ * its first instruction and called here BEFORE the walk had recorded the
+ * message for that process, so the fault was declined ("no message recorded
+ * for X5CPU 1") and the domain never ran. */
 bool ndbus_servicer_answer_trap_stop(NdbusServicer *sv, uint16_t x5cpu, uint16_t trap_number,
                                      uint32_t trapping_pc, uint32_t trap_address,
                                      uint32_t mms_status, uint16_t physical_segment)
+{
+    ndbus_engine_lock();
+    bool answered = answer_trap_stop_locked(sv, x5cpu, trap_number, trapping_pc, trap_address,
+                                            mms_status, physical_segment);
+    ndbus_engine_unlock();
+    return answered;
+}
+
+static bool answer_trap_stop_locked(NdbusServicer *sv, uint16_t x5cpu, uint16_t trap_number,
+                                    uint32_t trapping_pc, uint32_t trap_address,
+                                    uint32_t mms_status, uint16_t physical_segment)
 {
     if (sv == NULL || sv->pool == NULL)
     {
@@ -1770,10 +1794,29 @@ static void mon_inline_copy(NdbusServicer *sv, uint32_t msg_byte, uint16_t mon_n
     servicer_log(sv, line);
 }
 
+static bool answer_monitor_call_locked(NdbusServicer *sv, uint16_t x5cpu, uint32_t saved_p,
+                                       uint16_t mon_number, uint32_t arg_count,
+                                       const uint32_t *arg_addresses,
+                                       const uint32_t *arg_values);
+
+/* Under the engine lock, as the reference's AnswerMonitorCallStop - see
+ * ndbus_servicer_answer_trap_stop(). */
 bool ndbus_servicer_answer_monitor_call(NdbusServicer *sv, uint16_t x5cpu, uint32_t saved_p,
                                         uint16_t mon_number, uint32_t arg_count,
                                         const uint32_t *arg_addresses,
                                         const uint32_t *arg_values)
+{
+    ndbus_engine_lock();
+    bool answered = answer_monitor_call_locked(sv, x5cpu, saved_p, mon_number, arg_count,
+                                               arg_addresses, arg_values);
+    ndbus_engine_unlock();
+    return answered;
+}
+
+static bool answer_monitor_call_locked(NdbusServicer *sv, uint16_t x5cpu, uint32_t saved_p,
+                                       uint16_t mon_number, uint32_t arg_count,
+                                       const uint32_t *arg_addresses,
+                                       const uint32_t *arg_values)
 {
     if (sv == NULL || sv->pool == NULL)
     {
@@ -2150,7 +2193,19 @@ static int chain_debug_budget(void)
     return budget;
 }
 
+static bool process_chain_locked(NdbusServicer *sv, uint32_t head_byte);
+
+/* Under the engine lock, as the reference's ProcessChain - see
+ * ndbus_servicer_answer_trap_stop(). */
 bool ndbus_servicer_process_chain(NdbusServicer *sv, uint32_t head_byte)
+{
+    ndbus_engine_lock();
+    bool answered = process_chain_locked(sv, head_byte);
+    ndbus_engine_unlock();
+    return answered;
+}
+
+static bool process_chain_locked(NdbusServicer *sv, uint32_t head_byte)
 {
     if (sv == NULL || sv->pool == NULL)
     {

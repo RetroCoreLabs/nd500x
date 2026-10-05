@@ -37,6 +37,7 @@
 
 #ifndef __EMSCRIPTEN__
 #include <pthread.h>
+#include <time.h>
 #endif
 
 static int s_failed = 0;
@@ -4099,6 +4100,90 @@ static void test_doorbell_sniff_rules(void)
 }
 
 /* -------------------------------------------------------------------------- */
+/* The engine lock: a trap answered from the ND-5000 thread while the ND-100   */
+/* thread is still inside the chain walk that started the process.             */
+/*                                                                            */
+/* Ported from the reference's _engineLock (Nd500MicrocodeServicer.cs:         */
+/* ProcessChain and AnswerTrapStop both hold it). MEASURED without it on        */
+/* PLANC-500-G00 under SINTRAN: the started process page-faulted on its first  */
+/* instruction before the walk had recorded its message, the fault was         */
+/* declined with "no message recorded for X5CPU 1", and the domain never ran.  */
+/* -------------------------------------------------------------------------- */
+static pthread_t s_engine_thread;
+static bool      s_engine_thread_started;
+static bool      s_engine_trap_answered;
+
+static void *engine_trap_worker(void *arg)
+{
+    NdbusNd5000 *nd = (NdbusNd5000 *)arg;
+    s_engine_trap_answered =
+        ndbus_servicer_answer_trap_stop(&nd->servicer, 1u, NDBUS_TRAP_PAGE_FAULT, 0x0800065Cu,
+                                        0x0800065Cu, 0x8000000Du, 11u);
+    return NULL;
+}
+
+/* The host's start: the "ND-5000 thread" faults at once, and this thread - the
+ * chain walk - is held up long enough for that fault to arrive first. */
+static bool engine_start_process(void *ctx, uint32_t msg_byte, uint16_t micfu, uint32_t ctx_byte)
+{
+    (void)msg_byte;
+    (void)micfu;
+    (void)ctx_byte;
+    s_engine_thread_started = (pthread_create(&s_engine_thread, NULL, engine_trap_worker, ctx) == 0);
+    struct timespec pause = { 0, 100 * 1000 * 1000 };   /* 100 ms */
+    (void)nanosleep(&pause, NULL);
+    return true;
+}
+
+static void test_engine_lock(void)
+{
+    printf("The engine lock: a trap from the started process waits for the chain walk\n");
+
+    NdbusPool pool;
+    CHECK(ndbus_pool_create(&pool, 64 * 1024), "a pool for the engine-lock case");
+    NdbusFabric fabric;
+    ndbus_fabric_init(&fabric, NULL);
+    NdbusNd5000 nd;
+    mbx_init_structures(&pool);
+    mbx_attach(&nd, &pool, &fabric);
+
+    nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+    s_engine_thread_started = false;
+    s_engine_trap_answered = false;
+    (void)ndbus_nd5000_set_process_host(&nd, engine_start_process);
+    mbx_build_message(&pool, NDBUS_MICFU_START, NDBUS_N5STA_TO_ND500);
+    mbx_replay_activation(&pool);
+    (void)ndbus_pool_write16(&pool, MBX_EXT1 + NDBUS_MBX_X5ACT_WORD * 2u, 0);
+
+    CHECK(!ndbus_nd5000_service_mailbox(&nd), "the 23B start is taken");
+    CHECK(s_engine_thread_started, "the started process's thread was created inside the walk");
+    if (s_engine_thread_started)
+    {
+        (void)pthread_join(s_engine_thread, NULL);
+    }
+    printf("  answered=%d attempted=%lu declined=%lu posted=%lu\n", (int)s_engine_trap_answered,
+           (unsigned long)nd.servicer.trap_stops_attempted,
+           (unsigned long)nd.servicer.trap_stops_declined,
+           (unsigned long)nd.servicer.trap_stops_posted);
+    CHECK(s_engine_trap_answered,
+          "its first fault is answered on its own message, not declined for want of one");
+    CHECK(nd.servicer.trap_stops_declined == 0u && nd.servicer.trap_stops_posted == 1u,
+          "one trap stop posted, none declined");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_TRAPN * 2u) == NDBUS_TRAP_PAGE_FAULT,
+          "and the message carries the page fault");
+
+    /* The lock is recursive: a host may hold it around the answer. */
+    ndbus_engine_lock();
+    CHECK(ndbus_servicer_answer_trap_stop(&nd.servicer, 1u, NDBUS_TRAP_PAGE_FAULT, 0x0800065Du,
+                                         0x0800065Du, 0x8000000Du, 11u),
+          "an answer made while the caller already holds the engine lock goes through");
+    ndbus_engine_unlock();
+
+    ndbus_nd5000_destroy(&nd);
+    ndbus_pool_destroy(&pool);
+}
+
+/* -------------------------------------------------------------------------- */
 /* Layer 17: the trap-stop record, which is how SINTRAN learns the CPU faulted.*/
 /*                                                                            */
 /* Ported from RetroCore Nd500MicrocodeServicer.AnswerTrapStop, B30 arm. The   */
@@ -6049,6 +6134,7 @@ int main(void)
     test_copy_family_refusals();
     test_doorbell_sniff_rules();
     test_trap_stop_record();
+    test_engine_lock();
     test_physical_segment_width();
     test_monitor_call_record();
     test_monitor_call_result();
