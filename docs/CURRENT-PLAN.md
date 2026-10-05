@@ -963,6 +963,60 @@ entered and faulting on 0x08001800 - then the RETT refusals and SINTRAN polling
 `MICFU=1B` with nothing to run. CPU-STAT still prints nothing.
 
 
+## The RETT refusals are an ENTT interlock lost to a park (2026-10-05)
+
+Watching the inside-trap-handler byte itself (pool 0x08C0BB = PCB 0x8C000 + 187)
+on all three write paths ended the guessing. The tail of a run reads:
+
+```
+CONTEXT SWITCH X5CPU=0 -> 1 (P=0x8004924 PS=0xA ... B=0x8001728)
+MICFU 24B restart of a process parked on a TRAP
+raise_trap: trapBit=0x800000000 trapPC=0x08004924 dataAddr=0  instr_count=1019614
+  [PTEWATCH] w8 phys=0x0008C0BB val=0x01      <- this trap's own dispatch sets ITH
+  [PTEWATCH] w8 phys=0x0008C0BB val=0x00      <- and it is cleared again
+raise_trap: trapBit=0x800000000 trapPC=0x08004A28 ...   (then forever)
+```
+
+So the first thing that happens after the restart is a trap AT 0x08004924 - the
+handler's own first instruction, its ENTT - before any RETT runs. Trap bit 35 is
+what `trap_instruction_sequence_error` raises, and `Entt.c:261` raises exactly
+that when `cpu->trap_dispatch_pending` is 0:
+
+> Verify a trap dispatch is awaiting its ENTT (set by invoke_trap_handler).
+> Deliberately NOT in_trap_handler: with nested traps allowed, a deeper
+> handler's ENTT runs while the outer handler is still active.
+
+**The park sits BETWEEN the dispatch and the handler's first instruction.** The
+handler is entered, its ENTT faults while building its frame (the fault on
+0x08001800 at P=0x08004924), the process parks, SINTRAN pages the data in and
+restarts it at P=0x08004924 - and the ENTT is re-executed with
+`trap_dispatch_pending` gone, because that flag is a C field no save or load
+carries. The ISE then dispatches a handler of its own, which sets and clears
+ITH, and the RETT at 0x08004A28 is reached with nothing pending: 503 refusals.
+
+So the ITH work was necessary but not sufficient, and the ITH readings along the
+way were all explained by it: `dit_ITH=1` while the C copy was stale, then
+`dit_ITH=0` once the bridge's save wrote the stale copy over the DIT, then
+`dit_ITH=0` again because the ISE dispatch's own clear is the last write before
+the RETT.
+
+**What is settled.** The flag belongs in the DIT (ND-05.009.4 Table 6, offset
+273B = 187) and is read there now; nothing in the bridge copies it either way;
+`lregbl` is not involved (zero clears in runs that reach the refusal); the
+refused RETT is process 1's own context (PS=0xA), not the swapper's. SINTRAN
+also writes that byte itself - a 1-byte mailbox copy to 0x08C0BB and a 256-byte
+PCB init over it - so it is shared state, not ours alone.
+
+**What is NOT settled, and must not be invented.** Where the dispatch-to-ENTT
+interlock lives on the real machine. The context block has microcode scratch
+slots (frame arg27-30 and arg39-40, block SC1 at 0x6C and SC2 at 0x70) and the
+microcode plainly keeps scratch across a context switch, but WHICH slot carries
+this interlock is unknown, and writing our own meaning into a block field the
+machine reads would be an invention. A host-side shadow in the bridge, keyed by
+X5CPU, is the honest alternative: it is bookkeeping about a host flag, not a
+claim about hardware layout.
+
+
 ## How to work here (hard-won)
 
 - Order of authority and where out-of-repo truth lives:
