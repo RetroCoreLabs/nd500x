@@ -163,21 +163,88 @@ void ndbus_runner_join(NdbusRunner *runner)
     set_state(runner, NDBUS_RUNNER_IDLE);
 }
 
+unsigned ndbus_runner_pump(NdbusRunner *runner, unsigned max_steps)
+{
+    /* The runner thread executes the CPU; there is nothing to do here. */
+    (void)runner;
+    (void)max_steps;
+    return 0;
+}
+
 #else /* __EMSCRIPTEN__ */
 
 bool ndbus_runner_start(NdbusRunner *runner)
 {
-    /* One WebAssembly memory, no threads. REFUSED rather than silently running
-     * nothing: a runner that started and executed no instructions would present
-     * as a hung machine with nothing in any log. */
-    runner_log(runner, "ndbus runner: no host threads in this build - run the CPU from the main "
-                       "loop instead");
-    return false;
+    if (runner == NULL || runner->step == NULL)
+    {
+        return false;
+    }
+
+    NdbusRunnerState state = ndbus_runner_state(runner);
+    if (state == NDBUS_RUNNER_RUNNING || state == NDBUS_RUNNER_STOPPING)
+    {
+        runner_log(runner, "ndbus runner: already running");
+        return false;
+    }
+
+    /* Same rule as the threaded build: a run that ended must be joined before
+     * the next one starts. */
+    if (runner->pumped)
+    {
+        runner_log(runner, "ndbus runner: join the previous run before starting another");
+        return false;
+    }
+
+    /* One WebAssembly memory, no threads: there is nothing to create. The host's
+     * main loop executes the CPU through ndbus_runner_pump(). */
+    runner->stop_requested = 0;
+    runner->pumped = true;
+    set_state(runner, NDBUS_RUNNER_RUNNING);
+    return true;
+}
+
+unsigned ndbus_runner_pump(NdbusRunner *runner, unsigned max_steps)
+{
+    unsigned done = 0;
+
+    if (runner == NULL || !runner->pumped
+        || ndbus_runner_state(runner) != NDBUS_RUNNER_RUNNING)
+    {
+        return 0;
+    }
+
+    while (done < max_steps)
+    {
+        if (__atomic_load_n(&runner->stop_requested, __ATOMIC_RELAXED) != 0u)
+        {
+            break;
+        }
+        if (!runner->step(runner->cpu.ctx))
+        {
+            /* The CPU stopped on its own, as in the threaded build. */
+            set_state(runner, NDBUS_RUNNER_STOPPED);
+            return done;
+        }
+        done++;
+        runner->instructions++;
+    }
+
+    /* Asked to stop: the pump is the only executor, so the stop is complete here. */
+    if (done < max_steps)
+    {
+        set_state(runner, NDBUS_RUNNER_STOPPED);
+    }
+    return done;
 }
 
 void ndbus_runner_join(NdbusRunner *runner)
 {
-    (void)runner;
+    if (runner == NULL || !runner->pumped)
+    {
+        return;
+    }
+    runner->pumped = false;
+    set_state(runner, NDBUS_RUNNER_IDLE);
 }
 
 #endif

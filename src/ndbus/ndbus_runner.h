@@ -12,11 +12,16 @@
  * ndbus_pool.h apply: ordinary accesses take no lock, and exactly three things
  * are synchronized - TSET, the doorbell and the TLB shootdown.
  *
- * NATIVE ONLY. Under __EMSCRIPTEN__ there is one WebAssembly memory and no
- * threads, and `ndbus_runner_start()` REFUSES rather than pretending: a runner
- * that silently ran nothing would leave the browser looking like a hung machine.
- * The browser runs one ND-5000 from the main loop, which is what it has always
- * done and what NDIX needs.
+ * THREADS ARE NATIVE ONLY. Under __EMSCRIPTEN__ there is one WebAssembly memory
+ * and no threads, so `ndbus_runner_start()` creates no thread: it marks the
+ * runner RUNNING and the host's main loop does the work by calling
+ * `ndbus_runner_pump()`. The lifecycle (IDLE, RUNNING, STOPPING, STOPPED) and the
+ * stop handshake are the same as on a thread. A runner that is RUNNING but is
+ * never pumped executes nothing, so the host must pump every RUNNING runner; a
+ * runner that is not RUNNING costs the host one state read.
+ *
+ * Natively `ndbus_runner_pump()` does nothing and returns 0 - the thread runs the
+ * CPU - so a host may call it unconditionally.
  *
  * STOPPING IS THE PART THAT GOES WRONG. A thread that is killed mid-instruction
  * leaves the shared pool in a state no guest could have produced, and a thread
@@ -81,11 +86,27 @@ bool ndbus_runner_init(NdbusRunner *runner, const NdbusCpuOps *cpu, NdbusCpuStep
  * @brief Start the thread.
  * @param runner The prepared runner.
  * @return true when the thread was created. false when a thread could not be
- *         created, when the runner is already running, or - always - under
- *         __EMSCRIPTEN__, where there are no threads and refusing is better than
- *         silently running nothing.
+ *         created, or when the runner is already running. Under __EMSCRIPTEN__
+ *         no thread is created: true means the runner is RUNNING and waits to
+ *         be pumped with ndbus_runner_pump().
  */
 bool ndbus_runner_start(NdbusRunner *runner);
+
+/**
+ * @brief Run a RUNNING runner's CPU for up to max_steps instructions, on the
+ *        calling thread.
+ *
+ * For builds without host threads (__EMSCRIPTEN__). Stops early, and sets the
+ * state to STOPPED, when stop was requested or when the step function returns
+ * false - the same two reasons a runner thread exits. Does nothing when the
+ * runner is not RUNNING. Natively it does nothing at all and returns 0, because
+ * the runner thread executes the CPU.
+ *
+ * @param runner    The runner to advance.
+ * @param max_steps Most instructions to execute in this call.
+ * @return The number of instructions executed, 0 when none ran.
+ */
+unsigned ndbus_runner_pump(NdbusRunner *runner, unsigned max_steps);
 
 /**
  * @brief Ask the runner to stop.
@@ -161,6 +182,8 @@ struct NdbusRunner
 #ifndef __EMSCRIPTEN__
     pthread_t          thread;       /**< the host thread, valid when thread_valid */
     bool               thread_valid; /**< true between a successful start and a join */
+#else
+    bool               pumped;       /**< true between a successful start and a join */
 #endif
 };
 
