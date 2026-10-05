@@ -934,15 +934,39 @@ invalid00_done: ;
     /* Increment instruction counter (used by MON 11B TIME) */
     cpu->instruction_count++;
 
-    /* DT: has this SOLO region outstayed its welcome? Checked before the
-     * ignorable traps because a timeout is non-ignorable and outranks them. */
-    check_solo_timeout(cpu, old_pc);
+    /* AN INSTRUCTION ABORTED BY A PAGE FAULT OR A PROTECT VIOLATION HAS NO END,
+     * so the two end-of-instruction checks below do not run for it (trap sink
+     * attached only). The reference unwinds such an instruction straight out of
+     * the step: "CheckPendingTraps must NOT run - delivering an
+     * end-of-instruction ignorable trap for an instruction that never completed
+     * would report a fault the hardware never raises"
+     * ($RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.Execute.cs:716-722; the
+     * return also skips CheckSoloTimeout).
+     *
+     * MEASURED on LINKER-B01 under SINTRAN: the swapper could not supply a page
+     * and SINTRAN restarted the process with the Programmed Trap bit set in its
+     * status. The restarted instruction faulted again; check_pending_traps then
+     * found the Programmed Trap pending and enabled, entered the program's own
+     * handler, and the page fault was never reported back to SINTRAN. */
+    bool aborted_by_memory_fault = false;
+    if (cpu->trap_sink != NULL && cpu->instr_aborted && nd500_trap_occurred()) {
+        const Nd500TrapState* pending_trap = nd500_trap_get_state();
+        aborted_by_memory_fault =
+            (pending_trap != NULL) &&
+            ((pending_trap->trap_condition & (TRAP_PGF | TRAP_PV)) != 0u);
+    }
 
-    /* Check for pending ignorable traps at end of instruction.
-     * Pass old_pc (the faulting/just-executed instruction's address, before
-     * PC was advanced) so RETT retries the correct instruction - not the
-     * already-advanced cpu->PC. */
-    check_pending_traps(cpu, old_pc);
+    if (!aborted_by_memory_fault) {
+        /* DT: has this SOLO region outstayed its welcome? Checked before the
+         * ignorable traps because a timeout is non-ignorable and outranks them. */
+        check_solo_timeout(cpu, old_pc);
+
+        /* Check for pending ignorable traps at end of instruction.
+         * Pass old_pc (the faulting/just-executed instruction's address, before
+         * PC was advanced) so RETT retries the correct instruction - not the
+         * already-advanced cpu->PC. */
+        check_pending_traps(cpu, old_pc);
+    }
 
     /* Check if a non-ignorable trap occurred during execution */
     if (nd500_trap_occurred()) {

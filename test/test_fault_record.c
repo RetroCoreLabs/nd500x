@@ -431,6 +431,92 @@ static void test_stop_line_stream(Nd500Machine *m, Nd500Cpu *cpu)
     CHECK(!embedded.on_stderr, "embedded: nothing on stderr either - it is the same terminal");
 }
 
+/* ---- 6. no end-of-instruction trap for a page-faulted instruction -------- */
+#define SEG_CODE      11     /* program segment holding one instruction and a handler */
+#define PSN_CODE      14u
+#define PFN_CODE      0x54u
+#define CODE_OFFSET   0x010u
+#define HANDLER_OFFSET 0x100u
+#define THA_OFFSET    0x200u /* in SEG_READONLY, which is mapped for reading */
+
+/* w add3 b.0x8,$0x80,r2 - reads the word at B+8. */
+static const uint8_t ADD3_BYTES[] = { 0xFC, 0x69, 0x42, 0xCE, 0x00, 0x80, 0xD1 };
+
+static void arm_pending_prt_case(Nd500Machine *m, Nd500Cpu *cpu)
+{
+    reset_case(m, cpu, 0);
+    cpu->PC = seg_addr(SEG_CODE, CODE_OFFSET);
+    cpu->cur_instr_pc = 0;
+    cpu->B = seg_addr(SEG_FAULT_A, 0x100u);          /* B+8 is not mapped */
+    cpu->THA = seg_addr(SEG_READONLY, THA_OFFSET);
+    cpu->ST1 = (uint32_t)TRAP_PRT;                   /* Programmed Trap pending */
+    cpu->ST2 = 0;
+    cpu->OTE1 = (uint32_t)TRAP_PRT;                  /* and enabled */
+    cpu->OTE2 = 0;
+}
+
+static void test_no_trap_after_aborted_instruction(Nd500Machine *m, Nd500Cpu *cpu)
+{
+    const uint32_t handler = seg_addr(SEG_CODE, HANDLER_OFFSET);
+    const uint32_t instr = seg_addr(SEG_CODE, CODE_OFFSET);
+
+    printf("6. a page-faulted instruction takes no end-of-instruction trap\n");
+
+    set_program_cap(m, SEG_CODE, PSN_CODE);
+    set_pst(m, PSN_CODE, PS_AZI, PFN_CODE);
+    for (uint32_t i = 0; i < sizeof ADD3_BYTES; i++)
+    {
+        nd500_bus_write8(m, (PFN_CODE << PGSHIFT) + CODE_OFFSET + i, ADD3_BYTES[i]);
+    }
+    nd500_bus_write8(m, (PFN_CODE << PGSHIFT) + HANDLER_OFFSET, 0xBCu);   /* ENTT */
+    /* The handler vector: THA + 4 * trap number, trap 29 = Programmed Trap. */
+    put_be32(m, (PFN_READONLY << PGSHIFT) + THA_OFFSET + (29u * 4u), handler);
+
+    /* Control, NO sink: unchanged - the fault stops nothing, the pending
+     * Programmed Trap is dispatched at the end of the step. */
+    (void)nd500_cpu_set_trap_sink(cpu, NULL, NULL);
+    arm_pending_prt_case(m, cpu);
+    bool stepped = nd500_cpu_step(cpu);
+    printf("  no sink: stepped=%d P=0x%08X ST1=0x%08X reason=%d\n", (int)stepped,
+           (unsigned)cpu->PC, (unsigned)cpu->ST1, (int)m->stop_reason);
+    CHECK(stepped && cpu->PC == handler,
+          "no sink: the pending trap is dispatched after the faulted instruction, as before");
+
+    /* Sink attached: the page fault is the outcome of the step. The reference
+     * returns before CheckPendingTraps for an instruction that never completed
+     * ($RETROCORE/Emulated.HW/ND/CPU/ND500/CpuND500.Execute.cs:716-722). */
+    (void)nd500_cpu_set_trap_sink(cpu, recording_sink, NULL);
+    arm_pending_prt_case(m, cpu);
+    stepped = nd500_cpu_step(cpu);
+    printf("  sink: stepped=%d sink_calls=%d trap=%u P=0x%08X ST1=0x%08X reason=%d\n",
+           (int)stepped, sink_calls, (unsigned)sink_last_trap, (unsigned)cpu->PC,
+           (unsigned)cpu->ST1, (int)m->stop_reason);
+    CHECK(!stepped, "sink: the step stops");
+    CHECK(sink_calls == 1 && sink_last_trap == TRAPN_PGF, "sink: on the page fault, trap 46B");
+    CHECK(cpu->PC != handler, "sink: P is NOT vectored to the Programmed Trap handler");
+    CHECK((cpu->ST1 & (uint32_t)TRAP_PRT) != 0u, "sink: the Programmed Trap stays pending");
+
+    /* When the process is made active again the pending trap is taken first,
+     * with the faulted instruction as the place to come back to. This is the
+     * call the host makes at activation. */
+    nd500_trap_clear();
+    m->stop_reason = STOP_NONE;
+    cpu->instr_aborted = 0;
+    cpu->PC = instr;
+    check_pending_traps(cpu, cpu->PC);
+    printf("  activation: P=0x%08X resume=0x%08X\n", (unsigned)cpu->PC,
+           (unsigned)cpu->trap_resume_PC);
+    CHECK(cpu->PC == handler, "activation: P is the Programmed Trap handler");
+    CHECK(cpu->trap_resume_PC == instr, "activation: the handler returns to the faulted instruction");
+
+    nd500_trap_clear();
+    nd500_set_in_trap_handler(cpu, false);
+    cpu->trap_dispatch_pending = 0;
+    cpu->ST1 = 0;
+    cpu->OTE1 = 0;
+    cpu->THA = 0;
+}
+
 /* ---- 5. opcode zero ------------------------------------------------------ */
 static void test_opcode_zero(Nd500Machine *m, Nd500Cpu *cpu)
 {
@@ -518,6 +604,7 @@ int main(void)
     test_protect_violation_record(&m, &cpu);
     test_zero_capability_in_memory(&m, &cpu);
     test_stop_line_stream(&m, &cpu);
+    test_no_trap_after_aborted_instruction(&m, &cpu);
     test_opcode_zero(&m, &cpu);      /* last: it switches the MMU off */
 
     (void)nd500_cpu_set_trap_sink(&cpu, NULL, NULL);
