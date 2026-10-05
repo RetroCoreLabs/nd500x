@@ -99,6 +99,14 @@ void nd500_instr_Scotr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         uint8_t translated1 = nd500_read_memory_8(cpu, trans_table_addr + element1);
         uint8_t translated2 = nd500_read_memory_8(cpu, trans_table_addr + element2);
 
+        /* A page fault on any of the four reads aborts the instruction with
+         * I1, I2 and the flags untouched: the bytes read are zeros, not data.
+         * The reference unwinds a faulted access to the instruction boundary
+         * (CpuND500.UncaughtFaults.cs, UnwindOnAbortedAccess). */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
+
         /* Compare translated elements */
         if (translated1 != translated2) {
             if (translated1 > translated2) {

@@ -81,6 +81,19 @@ void nd500_instr_Smove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Write to destination */
         nd500_string_write_element(cpu, &dest_desc, dest_index, value, fi->data_type);
 
+        /* A page fault on the element read or write ABORTS the instruction:
+         * leave I1, I2 and the status flags as they were, so the restart after
+         * page-in copies again from the original indices. Reference Smove.cs
+         * returns at this point (its lines 109-110) before it commits either.
+         * Without this the loop ran on with every read returning 0 and every
+         * store dropped, I1 and I2 were committed at the element counts, and
+         * the restarted instruction found nothing left to copy. Measured on
+         * LED-CONV: by smove at 0x080308D7, 20 bytes, source page not present
+         * - the file name "DDBTABLES-E" was never copied. */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
+
         src_index++;
         dest_index++;
     }

@@ -78,6 +78,13 @@ void nd500_instr_Sfill(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     while (dest_index < dest_desc.element_count) {
         nd500_string_write_element(cpu, &dest_desc, dest_index, fill_value, fi->data_type);
+        /* A page fault on the store aborts the instruction with I2 and the
+         * flags untouched; the restart fills again from the original I2. The
+         * reference unwinds a faulted access to the instruction boundary
+         * (CpuND500.UncaughtFaults.cs, UnwindOnAbortedAccess). */
+        if (nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
         dest_index++;
     }
     cpu->I[1] = dest_index;

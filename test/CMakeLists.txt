@@ -286,6 +286,13 @@ add_executable(test_fault_record
 )
 target_link_libraries(test_fault_record PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# A string instruction (SMOVE, SFILL, SMATCH, SCOTR) that page-faults on an
+# element leaves I1, I2 and the flags alone, so its restart does the whole job.
+add_executable(test_string_abort
+    test_string_abort.c
+)
+target_link_libraries(test_string_abort PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # The ND-5000 octobus station: kicks, the idle gate, master clear and CPURES,
 # the model report, the patched control-store cells.
 add_executable(test_ndbus_station test_ndbus_station.c)
@@ -461,6 +468,7 @@ add_test(NAME abort_guard COMMAND test_abort_guard)
 add_test(NAME local_trap_gate COMMAND test_local_trap_gate)
 add_test(NAME entt_frame_fault COMMAND test_entt_frame_fault)
 add_test(NAME fault_record COMMAND test_fault_record)
+add_test(NAME string_abort COMMAND test_string_abort)
 add_test(NAME ndbus_station COMMAND test_ndbus_station)
 set_tests_properties(ndbus_station PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 add_test(NAME solo_traps COMMAND test_solo_traps)

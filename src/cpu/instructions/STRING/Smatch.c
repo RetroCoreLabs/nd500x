@@ -85,6 +85,13 @@ void nd500_instr_Smatch(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         for (uint32_t i = 0; i < sublen; i++) {
             uint8_t s = nd500_read_memory_8(cpu, substr_desc.base_address + sub_start + i);
             uint8_t d = nd500_read_memory_8(cpu, string_desc.base_address + str_index + i);
+            /* A page fault on either read aborts the instruction with I2 and
+             * the flags untouched: the bytes read are zeros, not data. The
+             * reference unwinds a faulted access to the instruction boundary
+             * (CpuND500.UncaughtFaults.cs, UnwindOnAbortedAccess). */
+            if (nd500_trap_occurred() || cpu->instr_aborted) {
+                return;
+            }
             if (s != d) {
                 match = false;
                 break;
