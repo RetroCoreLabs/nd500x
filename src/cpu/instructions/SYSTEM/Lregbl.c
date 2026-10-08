@@ -104,6 +104,15 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         }
     }
 
+    /* The handler-return test is made BEFORE the block is applied (this block
+     * reloads CED), and it is the C flag OR the DIT byte. The NDIX kernel itself
+     * stores 0 into the DIT's ITH byte (physical DITBASE+187) on its way out of
+     * the handler - measured: ITHW val=0 at kernel pc 0x37F49/0x3855E just before
+     * every LREGBL - so by the time this instruction runs the DIT byte is already
+     * 0 and only the C flag still says "inside a handler". */
+    const uint32_t handler_ced = cpu->CED;
+    const bool     was_in_handler = has[0] && (cpu->in_trap_handler || nd500_is_in_trap_handler(cpu));
+
     /* PHASE 2: apply the buffered values now that all block reads are done. */
     for (int w = 0; w < 37; w++) {
         if (has[w]) {
@@ -120,7 +129,7 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * handler return. Clear the guard here, otherwise it stays set and the
      * returned-to program's next legitimate page fault is misdetected as a
      * double fault and halts (observed: init's PC=8 stack write PGF). */
-    if (has[0] && nd500_is_in_trap_handler(cpu)) {
+    if (was_in_handler) {
         /* SAY SO. On the octobus lane a handler reached its own RETT with the
          * guard already clear, 503 times, and this is one of only two places
          * that clears it - the DIT carry of the flag across a park was measured
@@ -129,7 +138,8 @@ void nd500_instr_Lregbl(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (nd500_settings()->traplog)
             fprintf(stderr, "[TRAP] lregbl at PC=0x%08X clears in_trap_handler\n",
                     cpu->PC);
-        nd500_set_in_trap_handler(cpu, false);
+        cpu->in_trap_handler = false;
+        nd500_dit_write_ith(cpu, handler_ced, false);  /* the handler's domain, not the resumed one */
         /* This IS the trap return, so it is also where the CALL/ENT* sequence
          * interlock saved by the handler's ENTT must come back. Without it the
          * resumed program's pending CALL is gone and its retried ENTS raises a
