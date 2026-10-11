@@ -251,6 +251,12 @@ add_executable(test_rphs_wphs
 )
 target_link_libraries(test_rphs_wphs PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# WEXT, REXT, CLINIT and CLREAD ('87 extensions), through nd500_cpu_step().
+add_executable(test_wext_clock
+    test_wext_clock.c
+)
+target_link_libraries(test_wext_clock PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 add_executable(test_rpgu_operand
     test_rpgu_operand.c
 )
@@ -464,6 +470,7 @@ add_test(NAME ents_pending_call_trap COMMAND test_ents_pending_call_trap)
 add_test(NAME page_bits COMMAND test_page_bits)
 add_test(NAME rpgu_operand COMMAND test_rpgu_operand)
 add_test(NAME rphs_wphs COMMAND test_rphs_wphs)
+add_test(NAME wext_clock COMMAND test_wext_clock)
 add_test(NAME abort_guard COMMAND test_abort_guard)
 add_test(NAME local_trap_gate COMMAND test_local_trap_gate)
 add_test(NAME entt_frame_fault COMMAND test_entt_frame_fault)

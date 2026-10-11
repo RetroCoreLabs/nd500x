@@ -127,8 +127,19 @@ bool ndbus_pool_write16(NdbusPool *pool, uint32_t offset, uint16_t value)
     {
         return false;
     }
-    ndbus_pool_w8(&pool->bytes[offset], (uint8_t)(value >> 8u));
-    ndbus_pool_w8(&pool->bytes[offset + 1], (uint8_t)(value & 0xFF));
+    /* One host store when the word is aligned - see ndbus_pool_w16(). */
+    ndbus_pool_w16(&pool->bytes[offset], value);
+    return true;
+}
+
+bool ndbus_pool_exchange16(NdbusPool *pool, uint32_t offset, uint16_t value, uint16_t *out_old)
+{
+    if (out_old == NULL || !ndbus_pool_contains(pool, offset, 2))
+    {
+        return false;
+    }
+    pool_wwatch(offset, value, 16);
+    *out_old = ndbus_pool_x16(&pool->bytes[offset], value);
     return true;
 }
 
@@ -151,8 +162,8 @@ bool ndbus_pool_write32(NdbusPool *pool, uint32_t offset, uint32_t value)
     {
         return false;
     }
-    (void)ndbus_pool_write16(pool, offset, (uint16_t)(value >> 16u));
-    (void)ndbus_pool_write16(pool, offset + 2, (uint16_t)(value & 0xFFFF));
+    /* One host store when aligned; two big-endian words, high first, otherwise. */
+    ndbus_pool_w32(&pool->bytes[offset], value);
     return true;
 }
 

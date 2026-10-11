@@ -392,6 +392,12 @@ typedef struct Nd500Cpu {
      * restartable-fault (PGF) saved PC so the instruction re-executes. */
     uint32_t cur_instr_pc;
 
+    /* The CPU's local microsecond clock (CLINIT / CLREAD, '87 extension): the
+     * host time at the last CLINIT, and whether the clock has been started.
+     * See instructions/SYSTEM/Clock.c. */
+    uint64_t local_clock_base_us;
+    int      local_clock_started;
+
     /* P1 - the TRAPPING P register: the address of the instruction that caused
      * the most recent trap.
      *
@@ -703,6 +709,30 @@ void invoke_trap_handler(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trappingP);
 void nd500_trap_clear(void);
 int nd500_trap_occurred(void);
 const Nd500TrapState* nd500_trap_get_state(void);
+/* Give the CALLING THREAD its own trap store, or NULL for the process-wide
+ * default g_trap_state. For an embedder that runs several CPUs: bind the CPU's
+ * store before stepping it. See cpu.c. */
+void nd500_trap_bind_thread_state(Nd500TrapState *state);
+
+/* The memory lock of a test-and-set (cpu.c). An embedder that shares this CPU's
+ * memory with other ports - nd100x's MFbus bridge - installs the bus mutex
+ * here; TSET then holds it across its read and write. With nothing installed
+ * (standalone nd500x, NDIX in the browser) begin/end do nothing. Both or
+ * neither: a half pair is treated as none. Install before any CPU thread
+ * starts and remove after the last one is joined. */
+void nd500_set_tset_lock(void (*lock)(void), void (*unlock)(void));
+void nd500_tset_lock_begin(void);
+void nd500_tset_lock_end(void);
+/* TSET outcome report for the embedder's spin damper - see cpu.c. key is the
+ * address of the TSET instruction; taken is non-zero when the cell was free. */
+void nd500_set_tset_result_hook(void (*fn)(uint32_t key, int taken));
+void nd500_tset_result(uint32_t key, int taken);
+/* WEXT / REXT device hooks (cpu.c, instructions/SYSTEM/Wext.c). Each hook
+ * returns 0 when the word was transferred, non-zero when it was not. */
+void nd500_set_ext_device_hooks(int (*write)(Nd500Cpu* cpu, uint32_t device, uint32_t value),
+                                int (*read)(Nd500Cpu* cpu, uint32_t device, uint32_t* value));
+int nd500_ext_device_write(Nd500Cpu* cpu, uint32_t device, uint32_t value);
+int nd500_ext_device_read(Nd500Cpu* cpu, uint32_t device, uint32_t* value);
 
 /**
  * @brief Print the most recent instruction PCs to stderr.

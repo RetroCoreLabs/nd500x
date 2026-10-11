@@ -22,22 +22,128 @@
 #include "nd500_settings.h"   /* emulator knobs, as plain fields */
 #include "nd500_tlb.h"
 
-/* Global trap state */
+/* Trap state.
+ *
+ * g_trap_state is the DEFAULT store: one ND-500 per process, which is what
+ * standalone nd500x, its debugger and the NDIX browser build are. An embedder
+ * that runs several CPUs gives each its own store and binds it on the thread
+ * that is about to step that CPU, with nd500_trap_bind_thread_state(). Without
+ * that, four CPUs on four host threads share one trap_occurred flag: a trap
+ * raised by one CPU aborts the instruction another is executing, and a clear
+ * by one loses the other's fault.
+ *
+ * The binding is per THREAD and not per CPU argument because
+ * nd500_trap_occurred() has about 300 callers with no CPU in reach. A build
+ * with no threads (WebAssembly) has one "thread", so binding before each
+ * CPU's step still separates them. */
 Nd500TrapState g_trap_state = {0};
+static _Thread_local Nd500TrapState *t_trap_state = NULL;
+
+static inline Nd500TrapState *trap_state(void)
+{
+    return (t_trap_state != NULL) ? t_trap_state : &g_trap_state;
+}
+
+void nd500_trap_bind_thread_state(Nd500TrapState *state)
+{
+    t_trap_state = state;   /* NULL goes back to the process-wide default */
+}
+
+/* The memory lock of a test-and-set. One pair for the whole process: the lock is
+ * the bus-wide mutex of the shared MFbus pool, not a per-CPU object. Both NULL
+ * when nothing shares this CPU's memory (standalone nd500x, NDIX in the browser),
+ * and then begin/end do nothing. Installed before any CPU thread starts and
+ * removed after the last one has been joined, so the pointers are not written
+ * while a CPU is reading them. */
+static void (*s_tset_lock_fn)(void) = NULL;
+static void (*s_tset_unlock_fn)(void) = NULL;
+
+void nd500_set_tset_lock(void (*lock)(void), void (*unlock)(void))
+{
+    /* Both or neither: half a pair could take a lock it cannot give back. */
+    if (lock == NULL || unlock == NULL) {
+        s_tset_lock_fn = NULL;
+        s_tset_unlock_fn = NULL;
+        return;
+    }
+    s_tset_lock_fn = lock;
+    s_tset_unlock_fn = unlock;
+}
+
+void nd500_tset_lock_begin(void)
+{
+    if (s_tset_lock_fn != NULL) {
+        s_tset_lock_fn();
+    }
+}
+
+void nd500_tset_lock_end(void)
+{
+    if (s_tset_unlock_fn != NULL) {
+        s_tset_unlock_fn();
+    }
+}
+
+/* What a TSET found, told to the embedder AFTER the lock is released. A guest
+ * waiting on a semaphore runs TSET / branch / TSET at emulated speed and burns a
+ * whole host core; on real hardware that costs the other CPUs nothing, here it
+ * can starve the host thread that holds the lock. The embedder uses this to
+ * yield. key is the address of the TSET instruction: the same key failing over
+ * and over is one wait loop. NULL when nobody wants to know. */
+static void (*s_tset_result_fn)(uint32_t key, int taken) = NULL;
+
+void nd500_set_tset_result_hook(void (*fn)(uint32_t key, int taken))
+{
+    s_tset_result_fn = fn;
+}
+
+/* The device external to the CPU that WEXT writes and REXT reads - the octobus,
+ * through the ACCP. It belongs to the embedder, not to the CPU: one that has an
+ * octobus installs both hooks. Each returns 0 when the word was transferred and
+ * non-zero when it was not (WEXT: "unable to write data"; REXT: "nothing read"),
+ * which the instruction reports in K. With no hook there is no device. */
+static int (*s_ext_write_fn)(Nd500Cpu* cpu, uint32_t device, uint32_t value) = NULL;
+static int (*s_ext_read_fn)(Nd500Cpu* cpu, uint32_t device, uint32_t* value) = NULL;
+
+void nd500_set_ext_device_hooks(int (*write)(Nd500Cpu* cpu, uint32_t device, uint32_t value),
+                                int (*read)(Nd500Cpu* cpu, uint32_t device, uint32_t* value))
+{
+    s_ext_write_fn = write;
+    s_ext_read_fn = read;
+}
+
+int nd500_ext_device_write(Nd500Cpu* cpu, uint32_t device, uint32_t value)
+{
+    return (s_ext_write_fn != NULL) ? s_ext_write_fn(cpu, device, value) : 1;
+}
+
+int nd500_ext_device_read(Nd500Cpu* cpu, uint32_t device, uint32_t* value)
+{
+    return (s_ext_read_fn != NULL) ? s_ext_read_fn(cpu, device, value) : 1;
+}
+
+void nd500_tset_result(uint32_t key, int taken)
+{
+    if (s_tset_result_fn != NULL) {
+        s_tset_result_fn(key, taken);
+    }
+}
 
 /* Stop-diagnostics ring buffer: the last N instruction PCs, so any run-ending
  * path (trap, breakpoint, invalid opcode, decode failure) can print how
  * execution got there. Populated at the top of every nd500_cpu_step; dumped to
  * stderr when ND500X_STOPDBG is set. Cheap and off the hot path unless enabled. */
 #define ND500_PC_RING_LEN 256
-static uint32_t g_pc_ring[ND500_PC_RING_LEN];
+/* One ring per host thread: with several CPUs on their own threads a shared
+ * ring would interleave their PCs and be written without synchronization. */
+static _Thread_local uint32_t g_pc_ring[ND500_PC_RING_LEN];
 /* Domain/handler context of each recorded PC. Without it the ring cannot tell a
  * user-domain PC from a kernel one, and the two look identical in the dump -
  * which is exactly the ambiguity that stalled the ENTS/ISE hunt. */
-static uint8_t  g_pc_ring_ced[ND500_PC_RING_LEN];
-static uint8_t  g_pc_ring_cad[ND500_PC_RING_LEN];
-static uint8_t  g_pc_ring_inh[ND500_PC_RING_LEN];
-static uint32_t g_pc_ring_pos = 0;
+static _Thread_local uint8_t  g_pc_ring_ced[ND500_PC_RING_LEN];
+static _Thread_local uint8_t  g_pc_ring_cad[ND500_PC_RING_LEN];
+static _Thread_local uint8_t  g_pc_ring_inh[ND500_PC_RING_LEN];
+static _Thread_local uint32_t g_pc_ring_pos = 0;
 static void nd500_dump_stop_ring(const char* tag) {
     if (!nd500_settings()->stopdbg) return;
     fprintf(stderr, "[STOPDBG] %s - last %d instruction PCs (oldest -> newest):\n",
@@ -73,6 +179,11 @@ void nd500_cpu_init(Nd500Cpu* cpu, Nd500Machine* machine) {
     memset(cpu, 0, sizeof(*cpu));
     cpu->machine = machine;
     if (machine) machine->cpu = cpu;
+
+    /* Build the instruction metadata table NOW, on the thread that creates the
+     * CPU. It is built lazily on first lookup, and with several CPUs starting on
+     * their own host threads two of them could build it at once. */
+    (void)nd500_instr_mnemonic(0);
 
     /* Initialize ND-100 I/O Processor Bridge */
     /* The ND-100 operand mapping defaults to the ND-500 3022 convention: an absolute
@@ -1607,9 +1718,13 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
      * DT and DE are covered too: a handler that returns without clearing PSD
      * would otherwise re-time-out immediately, for ever. */
     if (trapBit & TRAP_NONIGNORABLE_MASK) {
-        static uint32_t last_pc = 0xFFFFFFFFu, last_data = 0xFFFFFFFFu;
-        static uint64_t last_bit = 0;
-        static uint32_t rep = 0;
+        /* Per host thread: with several CPUs on their own threads a shared
+         * counter would add up the traps of DIFFERENT CPUs running the same
+         * code and halt one of them as a runaway. Found by ThreadSanitizer
+         * with four CPUs ending on the same bp, 11-OCT-2026. */
+        static _Thread_local uint32_t last_pc = 0xFFFFFFFFu, last_data = 0xFFFFFFFFu;
+        static _Thread_local uint64_t last_bit = 0;
+        static _Thread_local uint32_t rep = 0;
         if (trapPC == last_pc && dataAddr == last_data && trapBit == last_bit) {
             if (++rep > 500) {
                 fprintf(stderr, "[TRAP] Runaway trap loop: %s at PC=0x%08X data=0x%08X "
@@ -2294,22 +2409,22 @@ void trap_call(Nd500Cpu* cpu, uint32_t pc) {
 /* ======================================================= */
 
 void nd500_trap_clear(void) {
-    memset(&g_trap_state, 0, sizeof(g_trap_state));
+    memset(trap_state(), 0, sizeof(g_trap_state));
 }
 
 int nd500_trap_occurred(void) {
-    return g_trap_state.trap_occurred;
+    return trap_state()->trap_occurred;
 }
 
 const Nd500TrapState* nd500_trap_get_state(void) {
-    return &g_trap_state;
+    return trap_state();
 }
 
 void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, const char* description) {
-    g_trap_state.trap_occurred = 1;
-    g_trap_state.trap_condition = condition;
-    g_trap_state.trap_pc = pc;
-    g_trap_state.trap_data_addr = data_addr;
+    trap_state()->trap_occurred = 1;
+    trap_state()->trap_condition = condition;
+    trap_state()->trap_pc = pc;
+    trap_state()->trap_data_addr = data_addr;
 
     /* Set trap_name based on condition for test validation */
     /* Names match C# TrapType enum values */
@@ -2349,14 +2464,14 @@ void nd500_trap_set_state(uint64_t condition, uint32_t pc, uint32_t data_addr, c
     else if (condition & TRAP_PRF) name = "ProcessorFault";      /* bit 40 */
     else if (condition & TRAP_HF)  name = "HardwareFault";       /* bit 41 */
 
-    strncpy(g_trap_state.trap_name, name, sizeof(g_trap_state.trap_name) - 1);
-    g_trap_state.trap_name[sizeof(g_trap_state.trap_name) - 1] = '\0';
+    strncpy(trap_state()->trap_name, name, sizeof(trap_state()->trap_name) - 1);
+    trap_state()->trap_name[sizeof(trap_state()->trap_name) - 1] = '\0';
 
     if (description) {
-        strncpy(g_trap_state.trap_description, description, sizeof(g_trap_state.trap_description) - 1);
-        g_trap_state.trap_description[sizeof(g_trap_state.trap_description) - 1] = '\0';
+        strncpy(trap_state()->trap_description, description, sizeof(trap_state()->trap_description) - 1);
+        trap_state()->trap_description[sizeof(trap_state()->trap_description) - 1] = '\0';
     } else {
-        g_trap_state.trap_description[0] = '\0';
+        trap_state()->trap_description[0] = '\0';
     }
 }
 

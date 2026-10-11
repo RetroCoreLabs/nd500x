@@ -25,6 +25,11 @@ uint16_t nd500_bus_read16(Nd500Machine* m, uint32_t addr);
 void     nd500_bus_write16(Nd500Machine* m, uint32_t addr, uint16_t val);
 uint32_t nd500_bus_read32(Nd500Machine* m, uint32_t addr);
 void     nd500_bus_write32(Nd500Machine* m, uint32_t addr, uint32_t val);
+/* TSET's store: between _begin and _end every bus store on this thread is an
+ * atomic EXCHANGE and the old contents are collected. _end returns the number
+ * of bytes exchanged (0 if the store never reached memory) - see io.c. */
+void     nd500_bus_exchange_begin(void);
+unsigned nd500_bus_exchange_end(uint64_t* old);
 
 /* Unified debugger API (initial placeholders) */
 size_t nd500_dbg_mem_dump(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t* out, size_t out_cap);

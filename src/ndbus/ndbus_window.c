@@ -73,6 +73,17 @@ bool ndbus_window_write_word(NdbusWindow *window, uint32_t word_offset, uint16_t
     return ndbus_pool_write16(window->pool, (uint32_t)window_byte(window, word_offset), value);
 }
 
+bool ndbus_window_exchange_word(NdbusWindow *window, uint32_t word_offset, uint16_t value,
+                                uint16_t *out_old)
+{
+    if (!window_contains(window, word_offset))
+    {
+        return false;
+    }
+    return ndbus_pool_exchange16(window->pool, (uint32_t)window_byte(window, word_offset), value,
+                                 out_old);
+}
+
 bool ndbus_window_write_msb(NdbusWindow *window, uint32_t word_offset, uint8_t value)
 {
     if (!window_contains(window, word_offset))

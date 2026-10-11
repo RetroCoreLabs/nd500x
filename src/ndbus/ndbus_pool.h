@@ -138,6 +138,139 @@ static inline void ndbus_pool_w8(uint8_t *p, uint8_t v)
     __atomic_store_n(p, v, __ATOMIC_RELAXED);
 }
 
+/* ---- one-cycle word access and the exchange ---------------------------------
+ *
+ * WHY THESE EXIST. A test-and-set must be "uninterruptible by other processors"
+ * (ND-05.009.4, ND-500 Reference Manual section 16.3: lock / read operand / set
+ * operand to all ones / unlock). A mutex around the read and the write keeps
+ * other TEST-AND-SETs out, but a semaphore is RELEASED with an ordinary store,
+ * which takes no mutex - and an ordinary store that lands between the read and
+ * the write is overwritten by the all-ones, leaving the cell set with no owner.
+ * MEASURED 11-OCT-2026 with four ND-5000 CPUs on one byte semaphore: the guarded
+ * counter stopped at 35 of 80004 and three CPUs spun forever.
+ *
+ * So the test-and-set is ONE host atomic exchange, which no store can split.
+ *
+ * For that to hold on a cell wider than a byte, an ordinary store of the same
+ * cell must be one host store too - written a byte at a time, the exchange
+ * could land between its bytes. A naturally aligned 16- or 32-bit reference is
+ * one memory cycle on the real MPM (ND-10.004.01 T21-T22), so these make it one
+ * here. An UNALIGNED reference stays a byte at a time, as before and as on the
+ * hardware; a test-and-set on an unaligned cell is therefore exact only against
+ * other test-and-sets (the mutex), not against a store in flight.
+ *
+ * The pool holds big-endian bytes; the helpers convert, so callers pass and
+ * receive values, not byte patterns.
+ */
+
+/** @brief 16/32-bit views of pool bytes that may alias anything. */
+typedef uint16_t __attribute__((may_alias)) ndbus_u16_alias;
+typedef uint32_t __attribute__((may_alias)) ndbus_u32_alias;
+
+static inline uint16_t ndbus_be16(uint16_t v)
+{
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    return v;
+#else
+    return __builtin_bswap16(v);
+#endif
+}
+
+static inline uint32_t ndbus_be32(uint32_t v)
+{
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    return v;
+#else
+    return __builtin_bswap32(v);
+#endif
+}
+
+/** @brief True when a 2^n-byte reference at p is naturally aligned. */
+static inline bool ndbus_pool_aligned(const uint8_t *p, unsigned bytes)
+{
+    return (((uintptr_t)p) & (uintptr_t)(bytes - 1u)) == 0u;
+}
+
+/**
+ * @brief Store a big-endian 16-bit word: one host store when aligned.
+ * @param p Pointer INTO the pool, already bounds-checked for 2 bytes.
+ * @param v The word value.
+ */
+static inline void ndbus_pool_w16(uint8_t *p, uint16_t v)
+{
+    if (ndbus_pool_aligned(p, 2u))
+    {
+        __atomic_store_n((ndbus_u16_alias *)(void *)p, ndbus_be16(v), __ATOMIC_RELAXED);
+        return;
+    }
+    ndbus_pool_w8(p, (uint8_t)(v >> 8u));
+    ndbus_pool_w8(p + 1, (uint8_t)(v & 0xFFu));
+}
+
+/**
+ * @brief Store a big-endian 32-bit value: one host store when aligned.
+ * @param p Pointer INTO the pool, already bounds-checked for 4 bytes.
+ * @param v The value.
+ */
+static inline void ndbus_pool_w32(uint8_t *p, uint32_t v)
+{
+    if (ndbus_pool_aligned(p, 4u))
+    {
+        __atomic_store_n((ndbus_u32_alias *)(void *)p, ndbus_be32(v), __ATOMIC_RELAXED);
+        return;
+    }
+    ndbus_pool_w16(p, (uint16_t)(v >> 16u));
+    ndbus_pool_w16(p + 2, (uint16_t)(v & 0xFFFFu));
+}
+
+/**
+ * @brief Exchange one byte: store v, return what was there, as one operation.
+ * @param p Pointer INTO the pool, already bounds-checked.
+ * @param v The byte to store.
+ * @return The byte that was there.
+ */
+static inline uint8_t ndbus_pool_x8(uint8_t *p, uint8_t v)
+{
+    return __atomic_exchange_n(p, v, __ATOMIC_SEQ_CST);
+}
+
+/**
+ * @brief Exchange a big-endian 16-bit word.
+ * @param p Pointer INTO the pool, already bounds-checked for 2 bytes.
+ * @param v The word to store.
+ * @return The word that was there. ONE operation when p is aligned; two byte
+ *         exchanges, high byte first, when it is not.
+ */
+static inline uint16_t ndbus_pool_x16(uint8_t *p, uint16_t v)
+{
+    if (ndbus_pool_aligned(p, 2u))
+    {
+        return ndbus_be16(__atomic_exchange_n((ndbus_u16_alias *)(void *)p, ndbus_be16(v),
+                                              __ATOMIC_SEQ_CST));
+    }
+    uint16_t hi = ndbus_pool_x8(p, (uint8_t)(v >> 8u));
+    uint16_t lo = ndbus_pool_x8(p + 1, (uint8_t)(v & 0xFFu));
+    return (uint16_t)((uint16_t)(hi << 8u) | lo);
+}
+
+/**
+ * @brief Exchange a big-endian 32-bit value.
+ * @param p Pointer INTO the pool, already bounds-checked for 4 bytes.
+ * @param v The value to store.
+ * @return The value that was there. ONE operation when p is aligned.
+ */
+static inline uint32_t ndbus_pool_x32(uint8_t *p, uint32_t v)
+{
+    if (ndbus_pool_aligned(p, 4u))
+    {
+        return ndbus_be32(__atomic_exchange_n((ndbus_u32_alias *)(void *)p, ndbus_be32(v),
+                                              __ATOMIC_SEQ_CST));
+    }
+    uint32_t hi = ndbus_pool_x16(p, (uint16_t)(v >> 16u));
+    uint32_t lo = ndbus_pool_x16(p + 2, (uint16_t)(v & 0xFFFFu));
+    return (hi << 16u) | lo;
+}
+
 /* ---- bounds-guarded byte access --------------------------------------------
  *
  * An out-of-pool read returns 0 and an out-of-pool write is refused and reports
@@ -202,6 +335,17 @@ uint16_t ndbus_pool_read16(const NdbusPool *pool, uint32_t offset);
  *         the pool - the write is refused whole, not partially applied.
  */
 bool     ndbus_pool_write16(NdbusPool *pool, uint32_t offset, uint16_t value);
+
+/**
+ * @brief Exchange a big-endian 16-bit word in the pool, with a bounds check.
+ * @param pool    Pool holding the word.
+ * @param offset  BYTE offset of the high byte.
+ * @param value   Word to store.
+ * @param out_old Receives the word that was there. Must not be NULL.
+ * @return true on success; false, writing nothing, when the range leaves the pool.
+ * @note One host operation when offset is even - see ndbus_pool_x16().
+ */
+bool ndbus_pool_exchange16(NdbusPool *pool, uint32_t offset, uint16_t value, uint16_t *out_old);
 
 /**
  * @brief Read a big-endian 32-bit value from the pool.

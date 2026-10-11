@@ -279,6 +279,45 @@ uint8_t nd500_bus_read8(Nd500Machine* m, uint32_t addr) {
     return ndbus_pool_r8(&m->memory[addr]);
 }
 
+/*
+ * HOW A STORE REACHES THE MEMORY, per host thread.
+ *
+ * nd500_bus_write8 is where every physical-write watch and the translation-cache
+ * shootdown live, so every store funnels through it byte by byte. Two things
+ * need the final memory operation to be something other than "store this byte":
+ *
+ *  DEFER    bus_write16/32 on a naturally aligned address run the per-byte
+ *           hooks and then make ONE host store of the whole word, because an
+ *           aligned word is one memory cycle on the real MPM and a
+ *           test-and-set's exchange must not be able to land between its bytes.
+ *
+ *  EXCHANGE the TSET instruction: the store becomes an atomic exchange and the
+ *           old contents are collected, high byte first, for the instruction to
+ *           set its status bits from. See nd500_bus_exchange_begin().
+ *
+ * Thread-local: each CPU runs on its own host thread and the mode belongs to the
+ * instruction that thread is executing.
+ */
+enum { BUS_STORE_NORMAL = 0, BUS_STORE_DEFER = 1, BUS_STORE_EXCHANGE = 2 };
+static _Thread_local int      t_store_mode = BUS_STORE_NORMAL;
+static _Thread_local uint64_t t_xchg_old   = 0;   /* old contents, big-endian accumulate */
+static _Thread_local unsigned t_xchg_bytes = 0;   /* how many bytes were exchanged */
+
+void nd500_bus_exchange_begin(void) {
+    t_store_mode = BUS_STORE_EXCHANGE;
+    t_xchg_old   = 0;
+    t_xchg_bytes = 0;
+}
+
+/* Ends exchange mode. Returns how many bytes the stores since _begin exchanged
+ * (0 when the store never reached memory - a fault, or an address outside it)
+ * and their previous contents in *old. */
+unsigned nd500_bus_exchange_end(uint64_t* old) {
+    t_store_mode = BUS_STORE_NORMAL;
+    if (old) *old = t_xchg_old;
+    return t_xchg_bytes;
+}
+
 void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
     /* ND500X_FRAMEWATCH=<hex page base>: log every physical write into that
      * 2KB page, with the CPU PC. Written to find WHO zeroes a text frame
@@ -426,7 +465,13 @@ void nd500_bus_write8(Nd500Machine* m, uint32_t addr, uint8_t val) {
                     addr, val, __builtin_return_address(0), delta);
         }
     }
-    ndbus_pool_w8(&m->memory[addr], val);
+    if (t_store_mode == BUS_STORE_NORMAL) {
+        ndbus_pool_w8(&m->memory[addr], val);
+    } else if (t_store_mode == BUS_STORE_EXCHANGE) {
+        t_xchg_old = (t_xchg_old << 8) | ndbus_pool_x8(&m->memory[addr], val);
+        t_xchg_bytes++;
+    }
+    /* BUS_STORE_DEFER: the caller makes the one store of the whole word. */
 }
 
 uint16_t nd500_bus_read16(Nd500Machine* m, uint32_t addr) {
@@ -448,6 +493,21 @@ void nd500_bus_write16(Nd500Machine* m, uint32_t addr, uint16_t val) {
      * ptewatch, PTECATCH, debugger watchpoints) see EVERY physical store,
      * including the cpu_instr.c mmu_write16 path and fecall DMA which
      * previously bypassed them. Byte order identical (big-endian). */
+    if (ndbus_pool_aligned(&m->memory[addr], 2u)) {
+        /* One memory cycle: hooks per byte, then one store (or one exchange). */
+        int mode = t_store_mode;
+        t_store_mode = BUS_STORE_DEFER;
+        nd500_bus_write8(m, addr,     (uint8_t)((val >> 8) & 0xFF));
+        nd500_bus_write8(m, addr + 1, (uint8_t)(val & 0xFF));
+        t_store_mode = mode;
+        if (mode == BUS_STORE_EXCHANGE) {
+            t_xchg_old = (t_xchg_old << 16) | ndbus_pool_x16(&m->memory[addr], val);
+            t_xchg_bytes += 2;
+        } else if (mode == BUS_STORE_NORMAL) {
+            ndbus_pool_w16(&m->memory[addr], val);
+        }
+        return;
+    }
     nd500_bus_write8(m, addr,     (uint8_t)((val >> 8) & 0xFF));
     nd500_bus_write8(m, addr + 1, (uint8_t)(val & 0xFF));
 }
@@ -467,6 +527,23 @@ void nd500_bus_write32(Nd500Machine* m, uint32_t addr, uint32_t val) {
     nd500_ptewatch32(addr, val);
     /* Funnel through bus_write8 (see bus_write16) so all physical watches
      * cover this path too (mmu_write32 + DMA previously bypassed them). */
+    if (ndbus_pool_aligned(&m->memory[addr], 4u)) {
+        /* One memory cycle - see nd500_bus_write16. */
+        int mode = t_store_mode;
+        t_store_mode = BUS_STORE_DEFER;
+        nd500_bus_write8(m, addr,     (uint8_t)((val >> 24) & 0xFF));
+        nd500_bus_write8(m, addr + 1, (uint8_t)((val >> 16) & 0xFF));
+        nd500_bus_write8(m, addr + 2, (uint8_t)((val >> 8) & 0xFF));
+        nd500_bus_write8(m, addr + 3, (uint8_t)(val & 0xFF));
+        t_store_mode = mode;
+        if (mode == BUS_STORE_EXCHANGE) {
+            t_xchg_old = (t_xchg_old << 32) | ndbus_pool_x32(&m->memory[addr], val);
+            t_xchg_bytes += 4;
+        } else if (mode == BUS_STORE_NORMAL) {
+            ndbus_pool_w32(&m->memory[addr], val);
+        }
+        return;
+    }
     nd500_bus_write8(m, addr,     (uint8_t)((val >> 24) & 0xFF));
     nd500_bus_write8(m, addr + 1, (uint8_t)((val >> 16) & 0xFF));
     nd500_bus_write8(m, addr + 2, (uint8_t)((val >> 8) & 0xFF));

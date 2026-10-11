@@ -216,37 +216,78 @@ void nd500_instr_Tset(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     // Read current value (atomically in hardware)
     // TSET uses the data type from the instruction (typically BYTE with BY prefix)
+    /* ONE UNINTERRUPTIBLE OPERATION. ND-500 Reference Manual (ND-05.009.4)
+     * section 16.3: "lock / read operand and set status bits / set operand to
+     * all ones / unlock", "uninterruptible by other processors".
+     *
+     * A read followed by a write is not that, even under a mutex: a semaphore is
+     * released with an ordinary store, which takes no mutex, and a release that
+     * landed between the read and the write was overwritten by the all-ones -
+     * the cell stayed set with no owner. MEASURED 11-OCT-2026, four ND-5000 CPUs
+     * on one byte semaphore: the guarded counter stopped at 35 of 80004.
+     *
+     * So the store IS the read: in exchange mode the bus replaces the cell with
+     * all ones and hands back what was there, as one host atomic operation (per
+     * naturally aligned cell - see ndbus_pool.h). The old value the status bits
+     * are set from is the one the exchange returned.
+     *
+     * The plain read comes first and its value is only a fallback: it raises the
+     * read-access traps the instruction must raise (operand class rwl), and it
+     * is what is used when the store did not reach memory at all.
+     *
+     * The mutex stays. It serializes test-and-sets against each other - the
+     * ND-100's too - which is what keeps a cell that is NOT naturally aligned,
+     * and so is exchanged a byte at a time, correct among test-and-sets. No-op
+     * when nothing shares this CPU's memory. A trap returns normally (no
+     * longjmp), so every exit below ends the lock. */
+    nd500_tset_lock_begin();
     uint64_t old_value = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
     /* A faulting operand read must abort the instruction: commit nothing,
      * and raise no second trap on top of the fault the kernel is already
      * about to service. See the ADD3 guard (commit a351296) for the panic
      * this prevents. */
     if (nd500_trap_occurred() || cpu->instr_aborted) {
+        nd500_tset_lock_end();
         return;
     }
-
 
     // Write all-ones to operand based on data type
     // For BYTE (BY prefix): write 0xFF
     // For WORD: write 0xFFFFFFFF
     uint64_t set_value;
     uint64_t mask;
+    unsigned width_bytes;
     switch (fi->data_type) {
         case ND500_DTYPE_BYTE:
             set_value = 0xFF;
             mask = 0xFF;
+            width_bytes = 1;
             break;
         case ND500_DTYPE_HALFWORD:
             set_value = 0xFFFF;
             mask = 0xFFFF;
+            width_bytes = 2;
             break;
         case ND500_DTYPE_WORD:
         default:
             set_value = 0xFFFFFFFF;
             mask = 0xFFFFFFFF;
+            width_bytes = 4;
             break;
     }
+    nd500_bus_exchange_begin();
     nd500_write_operand_value(cpu, &fi->operands[0], set_value, fi->data_type);
+    {
+        uint64_t exchanged = 0;
+        unsigned n = nd500_bus_exchange_end(&exchanged);
+        /* Exactly the operand's width reached memory: that is the true old
+         * value. Anything else (a faulted or dropped store) keeps the read. */
+        if (n == width_bytes) {
+            old_value = exchanged & mask;
+        }
+    }
+    nd500_tset_lock_end();
+    nd500_tset_result(fi->address, (old_value & mask) == 0);
 
     cpu->ST1 &= ~(ND500_FLAG_C | ND500_FLAG_O);   /* manual 6.5.1: data status bits not named in the list are reset */
 

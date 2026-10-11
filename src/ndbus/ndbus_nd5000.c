@@ -1719,7 +1719,23 @@ bool ndbus_nd5000_mailbox_from_control_store(NdbusNd5000 *nd)
     nd->sniff.have_candidate   = true;
     nd->sniff.candidate_offset = ndbus_mailbox_ext_base(&nd->mailbox) +
                                  (NDBUS_MBX_X5ACT_WORD * 2u);
-    nd_log(nd, "ND-5000 ACCP: mailbox located from the control store (START_MESS)");
+    {
+        /* WITH THE NUMBERS. Several ND-5000s share one mailbox header and differ
+         * only in which extension block each uses; two stations that end up on
+         * the same block share one doorbell and one queue. That cannot be seen
+         * unless the station, the patched SAMSON_CPU cell and the block that
+         * came out of it are all named. */
+        char line[200];
+        (void)snprintf(line, sizeof line,
+                       "ND-5000 ACCP: station %oB mailbox located from the control store: "
+                       "START_MESS=0x%X SAMSON_CPU cell=%u -> block %d, extension block at "
+                       "pool 0x%06X%s",
+                       (unsigned)nd->station.number, (unsigned)start_mess,
+                       (unsigned)samson_cpu, cpu,
+                       (unsigned)ndbus_mailbox_ext_base(&nd->mailbox),
+                       (samson_cpu == 0u) ? " (cell unpatched: fallback)" : "");
+        nd_log(nd, line);
+    }
 
     /* NOTHING ELSE IS READ HERE. The segment table, the context block area and the
      * CPU identity come out of the same store, but at the 066B/035B/036B start and

@@ -83,6 +83,23 @@ uint16_t ndbus_window_read_word(const NdbusWindow *window, uint32_t word_offset)
  */
 bool ndbus_window_write_word(NdbusWindow *window, uint32_t word_offset, uint16_t value);
 
+/**
+ * @brief Exchange one word: store value, return what was there, as one operation.
+ *
+ * The write half of the ND-100's TSET on a word in the window. A window word is
+ * pool bytes 2N and 2N+1, so it is naturally aligned whenever the window's pool
+ * base is even, and the exchange is then one host atomic operation.
+ *
+ * @param window      The window.
+ * @param word_offset WORD offset from the start of the window.
+ * @param value       Word to store.
+ * @param out_old     Receives the word that was there. Must not be NULL.
+ * @return true on success; false, writing nothing, when word_offset lies outside
+ *         the window.
+ */
+bool ndbus_window_exchange_word(NdbusWindow *window, uint32_t word_offset, uint16_t value,
+                                uint16_t *out_old);
+
 /*
  * Half-word writes, for the ND-100's WRITEMODE_MSB and WRITEMODE_LSB.
  *

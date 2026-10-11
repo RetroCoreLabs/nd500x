@@ -226,6 +226,11 @@ void nd500_mmu_state_free(Nd500MmuState* state) {
 void nd500_mmu_init(Nd500Cpu* cpu) {
     if (!cpu) return;
 
+    /* Resolve the two read-once settings here, on the thread that creates the
+     * CPU, so the first translation on a CPU thread does not write them. */
+    (void)mmu_use_guest_tables();
+    if (mmu_demand_segments < 0) mmu_demand_segments = nd500_settings()->demand_segments;
+
     ensure_mmu_tables(cpu);
 
     /* MMU starts disabled (both data and program) */
