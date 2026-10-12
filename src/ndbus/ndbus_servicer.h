@@ -277,6 +277,16 @@ bool ndbus_micfu_is_start_class(uint16_t micfu);
  *  datafield, not in the message - see ndbus_servicer_write_inline_buffer(). */
 #define NDBUS_MSG_500TU_BACK_BYTES 16u
 
+/** 5CPUN, word -6 of a message (L07 symbol 177772B): the number of the CPU the
+ *  message is assigned to. SINTRAN writes it when it queues the message
+ *  (RP-P2-N500.NPL 127502) and the microprogram compares it with its own number
+ *  before it takes the message (MSG_LINK3, MICRO-5800-B30 015151-015154). */
+#define NDBUS_MSG_5CPUN_BACK_BYTES 12u
+
+/** 5MSFL, word -1 of a message (L07 symbol 177777B): message flags. Bit 11
+ *  (5CPUB = 13B) is 5CPUBOUND, "this process may only run on its own CPU". */
+#define NDBUS_MSG_5MSFL_BACK_BYTES 2u
+
 /** How many MON 377B swapper requests a run logs with their words. A run makes
  *  a few dozen, so this is a runaway guard rather than a filter; it was 24,
  *  which silently cut a 36-request run's log to 20 and made a SWPFU census read
@@ -418,6 +428,27 @@ typedef struct NdbusServicerHost
      */
     bool (*write_nd500_data_bytes)(void *ctx, uint32_t logical_address, const uint8_t *source, uint32_t count);   /* C# TryWriteDataBytes */
 
+    /**
+     * Asked by the queue walk before it serves each message. True means the CPU
+     * has begun to execute a process - an earlier message in this same walk
+     * started it - and the walk ends here, leaving this message and the ones
+     * behind it in the queue untouched.
+     *
+     * The microprogram takes one message at a time (ND-05.017.01 Appendix A.7):
+     * once a message has started a process it executes that process and is not
+     * in its message loop. Serving the next message anyway is wrong whatever it
+     * is: a start for another process has to be refused, and a memory read or
+     * write on behalf of another process (DMEMRD/DMEMWR, which load the named
+     * process's context first) cannot switch the context under the process that
+     * is about to execute, so it goes through the wrong process's mapping.
+     * MEASURED 12-OCT-2026 in RetroCore with four CPUs and four users starting
+     * together: "Illegal physical segment" and "Fatal internal system error".
+     *
+     * A host that answers true must have the queue walked again when its CPU
+     * stops. May be NULL, which means never: the walk serves every message.
+     */
+    bool (*cpu_is_executing)(void *ctx);
+
     /* THE RESTART SEAM IS NOT HERE YET, AND THAT IS DELIBERATE.
      *
      * RetroCore's INd500ProcessHost has a DEDICATED callback per restart kind -
@@ -476,7 +507,14 @@ typedef struct NdbusServicer
     unsigned long messages_processed;        /**< messages that reached the MICFU switch */
     unsigned long messages_answered;         /**< answers written (ANSWER or 5ERANSWER) */
     unsigned long messages_declined;         /**< 5ERANSWER answers among those */
+    /** This CPU's number as the microprogram knows it (control store cell 025B,
+     *  SAMSON_CPU: 1 for station 070B, 2 for 071B ...), or 0 while unknown. It is
+     *  what a queued message's 5CPUN is compared with. Set by the station when
+     *  the mailbox is located. */
+    uint16_t cpu_number;
+    unsigned long nodes_other_cpu;           /**< chain nodes left alone: assigned to another CPU */
     unsigned long nodes_walked;              /**< chain nodes the walk visited */
+    unsigned long walks_stopped_executing;   /**< walks ended early: a message had started a process */
     unsigned long nodes_not_ours;            /**< nodes whose N5STA was not MSGN500 */
     unsigned long answer_ring_inserted;      /**< ring inserts that happened */
     unsigned long answer_ring_skipped_init;  /**< skipped: ring not initialised */

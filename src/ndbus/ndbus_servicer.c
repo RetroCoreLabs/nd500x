@@ -1156,6 +1156,33 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
         return false;
     }
 
+    /* ONLY A MESSAGE ASSIGNED TO THIS CPU. The execution queue is one chain that
+     * every CPU walks, and each message carries the number of the CPU SINTRAN
+     * assigned it to (5CPUN). The microprogram compares that with its own number
+     * (MSG_LINK3, MICRO-5800-B30 015151-015154) and takes the message when they are
+     * equal.
+     *
+     * Without this every CPU took any message it reached. MEASURED 12-OCT-2026,
+     * four CPUs and four users starting together: of 430 messages three were taken
+     * by the wrong CPU - the swapper's 3MONCO, 5CPUN = 1, by CPUs 2, 3 and 4 - and
+     * users 2, 3 and 4 hung.
+     *
+     * NOT MODELLED: when the numbers differ the microprogram goes on (015155-
+     * 015174) to look at the message's flags and at the other CPU, and can take
+     * the message over by writing its own number into 5CPUN. SINTRAN balances the
+     * CPUs itself when it queues a message (RP-P2-N500.NPL 127413-127450), so
+     * leaving the take-over out costs balance, not correctness. A message with
+     * 5CPUN = 0 has not been assigned and is taken, as before; none was seen. */
+    if (sv->cpu_number != 0u && msg_byte >= NDBUS_MSG_5CPUN_BACK_BYTES)
+    {
+        uint16_t assigned = read16(sv, msg_byte - NDBUS_MSG_5CPUN_BACK_BYTES);
+        if (assigned != 0u && assigned != sv->cpu_number)
+        {
+            sv->nodes_other_cpu++;
+            return false;
+        }
+    }
+
     uint16_t micfu = read16(sv, msg_word(msg_byte, NDBUS_MSG_MICFU));
 
     /* WAITING(2) while executing, power-fail bits preserved. */
@@ -1178,13 +1205,19 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
      * at the single point where MICFU is known and before the dispatch, because an
      * arm that returns early would otherwise never be recorded. */
     {
-        char line[160];
+        char line[200];
         (void)snprintf(line, sizeof line,
-                       "RECV MICFU=%oB X5CPU=%u STOPR=0x%04X msg=0x%06X",
+                       "RECV MICFU=%oB X5CPU=%u STOPR=0x%04X msg=0x%06X 5CPUN=%u 5MSFL=0x%04X "
+                       "on CPU %u",
                        (unsigned)micfu,
                        (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_X5CPU)),
                        (unsigned)read16(sv, msg_word(msg_byte, NDBUS_MSG_STOPR)),
-                       (unsigned)msg_byte);
+                       (unsigned)msg_byte,
+                       (unsigned)(msg_byte >= NDBUS_MSG_5CPUN_BACK_BYTES
+                                      ? read16(sv, msg_byte - NDBUS_MSG_5CPUN_BACK_BYTES) : 0u),
+                       (unsigned)(msg_byte >= NDBUS_MSG_5MSFL_BACK_BYTES
+                                      ? read16(sv, msg_byte - NDBUS_MSG_5MSFL_BACK_BYTES) : 0u),
+                       (unsigned)sv->cpu_number);
         servicer_log(sv, line);
     }
 
@@ -2244,6 +2277,15 @@ static bool process_chain_locked(NdbusServicer *sv, uint32_t head_byte)
          * the node was found in. */
         uint16_t pre_sta   = read16(sv, msg_word(msg_byte, NDBUS_MSG_N5STA));
         uint16_t pre_micfu = read16(sv, msg_word(msg_byte, NDBUS_MSG_MICFU));
+
+        /* One message at a time once a process executes - see cpu_is_executing in
+         * ndbus_servicer.h. The message is left exactly as it was found. */
+        if (sv->host.cpu_is_executing != NULL && sv->host.cpu_is_executing(sv->host.ctx))
+        {
+            sv->walks_stopped_executing++;
+            chain_walk_done(sv, shape, hops, s_last_shape, &s_last_hops, &s_chain_walks);
+            return any;
+        }
 
         sv->nodes_walked++;
         bool served = ndbus_servicer_process_message(sv, msg_byte);

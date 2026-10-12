@@ -1653,6 +1653,7 @@ static void nd5000_configure_mailbox(NdbusNd5000 *nd, uint32_t header_byte, int 
     nd->mailbox.pool        = nd->pool;
     nd->mailbox.header_byte = header_byte;
     nd->mailbox.cpuno       = cpu_number;
+    nd->servicer.cpu_number = (uint16_t)cpu_number;
     nd->cpu_number          = cpu_number;
 }
 
