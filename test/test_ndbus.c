@@ -5106,14 +5106,11 @@ static void test_inline_user_buffer(void)
     CHECK(ndbus_pool_read8(&pool, target_byte + n) == 0x00u,
           "the odd tail byte pairs with zero, not with whatever follows the source");
 
-    /* WSMC is what makes SINTRAN read the message instead of asking for the buffer.
-     * Set explicitly, because a bit that happened to be set already is what made
-     * this fail silently rather than loudly. */
-    {
-        uint16_t miflag = ndbus_pool_read16(&pool, MBX_MSG - NDBUS_MON_MIFLAG_BACK_BYTES);
-        CHECK((miflag & NDBUS_MON_MIFLAG_WSMC) != 0u,
-              "MIFLAG bit WSMC is set, 16 bytes BEFORE the message base");
-    }
+    /* The double word 16 bytes before the message is 500TU, the CPU time used.
+     * The copy must leave it alone. */
+    CHECK(ndbus_pool_read16(&pool, MBX_MSG - NDBUS_MSG_500TU_BACK_BYTES) == 0u
+              && ndbus_pool_read16(&pool, MBX_MSG - NDBUS_MSG_500TU_BACK_BYTES + 2u) == 0u,
+          "500TU, 16 bytes BEFORE the message base, is not written");
 
     /* BOTH GUARDS ARE THE MICROCODE'S, and both mean COPY NOTHING. The over-size
      * one is the trap: clamping and copying a prefix is the "helpful" change, and
@@ -5210,9 +5207,8 @@ static void test_inline_buffer_on_a_mon_stop(void)
         }
         CHECK(ok, "the text is in the pool at ABUFA, byte for byte");
     }
-    CHECK((ndbus_pool_read16(&pool, MBX_MSG - NDBUS_MON_MIFLAG_BACK_BYTES)
-           & NDBUS_MON_MIFLAG_WSMC) != 0u,
-          "and WSMC is set, so SINTRAN reads the message rather than asking");
+    CHECK(ndbus_pool_read16(&pool, MBX_MSG - NDBUS_MSG_500TU_BACK_BYTES) == 0u,
+          "and 500TU in front of the message is left alone");
 
     /* A MON THAT IS NOT IN THE SET MUST NOT ASK AT ALL. Asking is harmless-looking
      * and would mean we had invented an obligation the microcode does not have. */

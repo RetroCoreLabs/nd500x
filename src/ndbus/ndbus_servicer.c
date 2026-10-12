@@ -1681,12 +1681,18 @@ bool ndbus_servicer_write_inline_buffer(NdbusServicer *sv, uint32_t msg_byte,
         }
     }
 
-    /* Tell SINTRAN the buffer is inline. Set explicitly rather than trusting
-     * whatever was there - the bit happening to be set already is what made this
-     * fail silently instead of loudly. */
-    uint32_t miflag_byte = msg_byte - NDBUS_MON_MIFLAG_BACK_BYTES;
-    uint16_t miflag = read16(sv, miflag_byte);
-    (void)write16(sv, miflag_byte, (uint16_t)(miflag | NDBUS_MON_MIFLAG_WSMC));
+    /* NOTHING IS WRITTEN IN FRONT OF THE MESSAGE. This used to set bit 0 of the
+     * word at msg_byte - 16, taking it for MIFLAG bit WSMC. MIFLAG is a field of
+     * SINTRAN's CPU datafield, reached through B in ND-100 memory (RP-P2-N500.NPL
+     * 131533: `"N500DF".NCPU>1 AND MIFLAG BIT MUDOM` with B on the datafield). In
+     * the MESSAGE the same displacement, 177770B, is 500TU, the process's CPU time
+     * used, a double word counted in 20 ms units.
+     *
+     * MEASURED 12-OCT-2026 under SINTRAN III VSX/500 L: with the write, every
+     * process that had printed anything showed 0x00010000 there, and
+     * PROCESS-STATUS reported "21 min 50.7 s" for each. Without it the ND-100
+     * still takes the inline arm (156 inline copies, 3WMONCO answers, CPU-STAT
+     * and LED print normally) and the cell stays 0. */
 
     return true;
 }

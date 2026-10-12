@@ -271,11 +271,11 @@ bool ndbus_micfu_is_start_class(uint16_t micfu);
  *  and it is the "helpful" change someone will reach for. */
 #define NDBUS_MON_INLINE_MAX_BYTES 2048u
 
-/** MIFLAG sits BEFORE the message base: MIFLA = 0o177770 is halfword -8, so byte
- *  -16. WSMC is bit 0 of it and means "the data buffer is in the communication
- *  buffer". */
-#define NDBUS_MON_MIFLAG_BACK_BYTES 16u
-#define NDBUS_MON_MIFLAG_WSMC 0x0001u
+/** 500TU, the process's CPU time used: a double word 8 halfwords (16 bytes)
+ *  BEFORE the message base, counted by SINTRAN in 20 ms units. The servicer must
+ *  not write it. MIFLA has the same displacement, 0o177770, but in SINTRAN's CPU
+ *  datafield, not in the message - see ndbus_servicer_write_inline_buffer(). */
+#define NDBUS_MSG_500TU_BACK_BYTES 16u
 
 /** How many MON 377B swapper requests a run logs with their words. A run makes
  *  a few dozen, so this is a runaway guard rather than a filter; it was 24,
@@ -819,8 +819,8 @@ uint32_t ndbus_servicer_inline_buffer_target(const NdbusServicer *sv, uint32_t m
  * Both guards are the MICROCODE'S, read out of the copy routine at 010662:
  *     010716  count == 0      -> copy nothing
  *     010717  count > 0o4000  -> copy nothing (NOT a truncated prefix)
- * On success MIFLAG bit WSMC is SET explicitly rather than trusted - the bit
- * happening to be set already is exactly what made this fail silently.
+ * Nothing in front of the message is written: the word 16 bytes before it is
+ * 500TU, not MIFLAG.
  *
  * Exposed so a test can drive it with no CPU attached.
  *
@@ -828,7 +828,7 @@ uint32_t ndbus_servicer_inline_buffer_target(const NdbusServicer *sv, uint32_t m
  * @param msg_byte  Pool byte offset of the message.
  * @param source    The bytes to place, already read from ND-500 memory.
  * @param count     How many; outside 1..NDBUS_MON_INLINE_MAX_BYTES copies nothing.
- * @return true when the bytes were written and WSMC set.
+ * @return true when the bytes were written.
  */
 bool ndbus_servicer_write_inline_buffer(NdbusServicer *sv, uint32_t msg_byte,
                                         const uint8_t *source, uint32_t count);
