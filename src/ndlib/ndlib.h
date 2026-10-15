@@ -28,6 +28,10 @@ void ndlib_aout_get_segment_info(uint32_t* text_base, uint32_t* text_size,
                                   uint32_t* bss_base, uint32_t* bss_size);
 uint32_t ndlib_aout_get_data_base(void);
 void ndlib_aout_set_data_base(uint32_t data_base);
+/* 1 when a flat image was loaded into physical memory (an a.out, or a data base set
+ * for a PSEG/DSEG load); 0 for a domain run. The MMU's identity fallback for a zero
+ * capability is for such an image only. */
+int ndlib_aout_image_loaded(void);
 
 /* Symbols (optional, requires libsymbols) */
 int ndlib_symbols_load(const char* aout_path);

@@ -34,6 +34,8 @@ void nd500_mmu_tlb_stat_install(void);
  * dependency. Used to de-alias I-space and D-space in the segment-0 identity
  * fallback below. [I/D-space fix] */
 extern uint32_t ndlib_aout_get_data_base(void);
+/* 1 when such a flat image was loaded at all; 0 for a domain run (ndlib.h). */
+extern int ndlib_aout_image_loaded(void);
 
 /*
  * ND-500 MMU Implementation
@@ -150,9 +152,35 @@ static int mmu_use_guest_for(Nd500Cpu* cpu, uint8_t domain, int segment) {
  * peek).
  *
  * @return 1 and the physical address in *phys when the fallback applies, else 0. */
-static int mmu_flat_image_physical(Nd500Cpu* cpu, uint32_t virtual_addr, int is_instruction,
-                                   uint32_t* phys) {
+/* 1 when the domain has any program or data capability set: its capability tables are
+ * in use, and a zero entry in them means "no access". */
+static int mmu_domain_has_capabilities(Nd500Cpu* cpu, int domain) {
+    int seg;
+    if (!cpu->mmu || !cpu->mmu->pcb_table || domain < 0 || domain >= MAXDOM) return 0;
+    for (seg = 0; seg < MAXSEG; seg++) {
+        if (cpu->mmu->pcb_table[domain].program_capabilities[seg] != 0 ||
+            cpu->mmu->pcb_table[domain].data_capabilities[seg] != 0) return 1;
+    }
+    return 0;
+}
+
+static int mmu_flat_image_physical(Nd500Cpu* cpu, int domain, uint32_t virtual_addr,
+                                   int is_instruction, uint32_t* phys) {
     if (cpu->trap_sink != NULL || !cpu->machine || virtual_addr >= cpu->machine->memory_size) {
+        return 0;
+    }
+    /* Only for an image this emulator loaded flat into its own RAM (NDIX a.out, a
+     * PSEG/DSEG pair), or a bare machine whose domain has no capability at all (code put
+     * straight into memory, as the instruction tests do). A domain (DOM) run has neither:
+     * its capability tables are set, and a zero entry is a protect violation, as the
+     * manual gives it - ND-5000 Memory
+     * Management System (ND-ND5000-08), page 3: "Protect Violation Trap Occurs If:
+     * The content of CAPABILITY TABLE=0" - and as SINTRAN III on nd100x with its
+     * ND-5000 does it (new-planc docs/measurements/lane2-2026-10-14.md: BE19, BE41,
+     * BE42, ND01, CS09, PKA01 trap there). Until 2026-10-15 a domain run mapped such
+     * an address one to one onto physical memory and read there what segment 1 held
+     * (PKA01 read 41H at segment 0 address 670H). */
+    if (!ndlib_aout_image_loaded() && mmu_domain_has_capabilities(cpu, domain)) {
         return 0;
     }
     if (!is_instruction) {
@@ -1158,7 +1186,7 @@ uint32_t nd500_mmu_translate_domain(Nd500Cpu* cpu, uint32_t virtual_addr, int is
              * identity mapping unchanged. */
             {
                 uint32_t image_phys;
-                if (mmu_flat_image_physical(cpu, virtual_addr, is_instruction, &image_phys)) {
+                if (mmu_flat_image_physical(cpu, domain, virtual_addr, is_instruction, &image_phys)) {
                     return image_phys;
                 }
             }
@@ -1409,7 +1437,7 @@ uint32_t nd500_mmu_peek_space(Nd500Cpu* cpu, uint32_t virtual_addr, uint8_t doma
     if (capability == 0) {
         /* The same answer translate() gives for a zero capability. */
         uint32_t image_phys;
-        if (mmu_flat_image_physical(cpu, virtual_addr, is_instruction, &image_phys)) {
+        if (mmu_flat_image_physical(cpu, domain, virtual_addr, is_instruction, &image_phys)) {
             return image_phys;
         }
         return 0xFFFFFFFFu;

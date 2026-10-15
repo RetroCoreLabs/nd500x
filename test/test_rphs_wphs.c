@@ -68,7 +68,16 @@ static int tests_failed = 0;
 /* RPHS/WPHS take ONE operand: the domain number. Operand byte 0x45 = b.0x14,
  * the first argument slot, matching how the kernel passes a frame argument. */
 #define ARG_SLOT      0x45
-#define FRAME_B       0x100000u
+#define FRAME_B       0x80000u
+
+/* Segment 0 - where the code (CODE_AT) and the frame (FRAME_B) lie - gets a real
+ * capability before anything is loaded: a PS_ASI segment whose index page maps its
+ * 512 pages (1 MB) one to one, writable. A domain whose capability tables are in use
+ * traps on a segment with capability 0 (ND-ND5000-08 page 3), so the test must set up
+ * the MMU for every segment it touches. FRAME_B was 0x100000, page 512, one past what
+ * one index page covers. */
+#define SEG0_PSN      202
+#define SEG0_PT_PFN   0x70u                      /* index page at physical 0x38000 */
 
 static void build(Nd500Machine* m, Nd500Cpu* cpu, uint16_t opcode, Nd500FetchedInstruction* fi) {
     nd500_bus_write8(m, CODE_AT + 0, (uint8_t)(opcode >> 8));
@@ -94,6 +103,17 @@ static void setup_mmu(Nd500Cpu* cpu) {
     nd500_mmu_set_pst_entry(cpu, DOM_SEG_PSN, PS_AZI, DOM_SEG_PFN);
     nd500_mmu_set_data_capability(cpu, 0, DOM_SEG, (uint16_t)(DOM_SEG_PSN | DC_WRP));
     nd500_mmu_set_program_capability(cpu, 0, DOM_SEG, (uint16_t)DOM_SEG_PSN);
+    /* Segment 0, the code and the frame: one to one through one index page. */
+    for (uint32_t pg = 0; pg < 512u; pg++) {
+        PageTableEntry pte;
+        pte.valid = 1;
+        pte.protection = PG_W;
+        pte.physical_pfn = pg;
+        nd500_mmu_write_pte(cpu, (SEG0_PT_PFN << PGSHIFT) + pg * 4u, pte);
+    }
+    nd500_mmu_set_pst_entry(cpu, SEG0_PSN, PS_ASI, SEG0_PT_PFN);
+    nd500_mmu_set_data_capability(cpu, 0, 0, (uint16_t)(SEG0_PSN | DC_WRP));
+    nd500_mmu_set_program_capability(cpu, 0, 0, (uint16_t)SEG0_PSN);
 }
 
 /* ---- 1. the operand-count guard no longer rejects the instruction --------- */

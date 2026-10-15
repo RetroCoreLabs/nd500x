@@ -401,6 +401,10 @@ uint32_t ndlib_aout_get_data_base(void) {
     return g_data_base;
 }
 
+int ndlib_aout_image_loaded(void) {
+    return g_text_size != 0 || g_data_base != 0;
+}
+
 /* Set data base explicitly when loading PSEG/DSEG separately */
 void ndlib_aout_set_data_base(uint32_t data_base) {
     g_data_base = data_base;
