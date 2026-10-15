@@ -571,13 +571,8 @@ int ndlib_dom_load_to_machine(
         }
     }
 
-    /* A segment the domain does not use keeps data capability 0, segment 0 too. Until
-     * 2026-10-15 an unused segment 0 got segment 1's data capability ("FORTRAN-500
-     * compatibility", for programs that access data via 0x00xxxxxx). SINTRAN III does
-     * not do that: under SINTRAN III on nd100x with its ND-5000 such a read is a
-     * PROTECT VIOLATION (new-planc docs/measurements/lane2-2026-10-14.md: BE19, BE41,
-     * BE42, ND01, CS09, PKA01), as the manual gives it for a zero capability
-     * (ND-ND5000-08, page 3). With the alias they read segment 1's data and ran on. */
+    /* A segment the domain does not use keeps data capability 0, segment 0 too: an
+     * access there is a protect violation (ND-ND5000-08 page 3), as under SINTRAN III. */
 
     /* (DATA page tables are built in PASS 2 after setup_sintran_window below,
      * so the bounded-PS_ADI builder's watermark pages land above the loader's

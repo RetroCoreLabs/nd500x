@@ -74,8 +74,8 @@ static int tests_failed = 0;
  * capability before anything is loaded: a PS_ASI segment whose index page maps its
  * 512 pages (1 MB) one to one, writable. A domain whose capability tables are in use
  * traps on a segment with capability 0 (ND-ND5000-08 page 3), so the test must set up
- * the MMU for every segment it touches. FRAME_B was 0x100000, page 512, one past what
- * one index page covers. */
+ * the MMU for every segment it touches. FRAME_B lies below 0x100000 (page 512), the end
+ * of what one index page covers. */
 #define SEG0_PSN      202
 #define SEG0_PT_PFN   0x70u                      /* index page at physical 0x38000 */
 

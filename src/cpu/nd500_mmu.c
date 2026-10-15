@@ -169,17 +169,11 @@ static int mmu_flat_image_physical(Nd500Cpu* cpu, int domain, uint32_t virtual_a
     if (cpu->trap_sink != NULL || !cpu->machine || virtual_addr >= cpu->machine->memory_size) {
         return 0;
     }
-    /* Only for an image this emulator loaded flat into its own RAM (NDIX a.out, a
-     * PSEG/DSEG pair), or a bare machine whose domain has no capability at all (code put
-     * straight into memory, as the instruction tests do). A domain (DOM) run has neither:
-     * its capability tables are set, and a zero entry is a protect violation, as the
-     * manual gives it - ND-5000 Memory
-     * Management System (ND-ND5000-08), page 3: "Protect Violation Trap Occurs If:
-     * The content of CAPABILITY TABLE=0" - and as SINTRAN III on nd100x with its
-     * ND-5000 does it (new-planc docs/measurements/lane2-2026-10-14.md: BE19, BE41,
-     * BE42, ND01, CS09, PKA01 trap there). Until 2026-10-15 a domain run mapped such
-     * an address one to one onto physical memory and read there what segment 1 held
-     * (PKA01 read 41H at segment 0 address 670H). */
+    /* Only for an image loaded flat into this emulator's RAM (NDIX a.out, a PSEG/DSEG
+     * pair) or a bare machine whose domain has no capability at all. In a domain whose
+     * capability tables are set, a zero capability is a protect violation:
+     * ND-ND5000-08 page 3, "Protect Violation Trap Occurs If: The content of
+     * CAPABILITY TABLE=0". */
     if (!ndlib_aout_image_loaded() && mmu_domain_has_capabilities(cpu, domain)) {
         return 0;
     }
