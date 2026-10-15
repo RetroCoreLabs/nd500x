@@ -175,11 +175,48 @@ static void test_f_post_index(void) {
     nd500_machine_free(&m);
 }
 
+/* "t SHL <operand/rw/t>,<shiftcount/r/BY>": the shift count is a byte, so
+ * $DATA_ADDR(I1) with I1 = 3 is byte DATA_ADDR + 3 also in W SHL. */
+static void test_w_shl_count(void) {
+    printf("\n=== W SHL, shift count post-indexed in bytes ===\n");
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+
+    clear_data(&m);
+    nd500_bus_write8(&m, DATA_ADDR + 3, 1);    /* the right count */
+    nd500_bus_write8(&m, DATA_ADDR + 12, 5);   /* where a word step would land */
+    uint8_t code[] = {
+        0xFC, 0xAA, 0x45, 0xE0,
+        (DATA_ADDR >> 24) & 0xFF, (DATA_ADDR >> 16) & 0xFF,
+        (DATA_ADDR >> 8) & 0xFF, DATA_ADDR & 0xFF
+    };
+    nd500_cpu_reset(&cpu);
+    cpu.B = FRAME_ADDR;
+    cpu.I[0] = 3;
+    put32(&m, FRAME_ADDR + 0x14, 0x10);
+    for (size_t i = 0; i < sizeof code; i++) {
+        nd500_bus_write8(&m, CODE_ADDR + (uint32_t)i, code[i]);
+    }
+    cpu.PC = CODE_ADDR;
+    nd500_cpu_step(&cpu);
+    uint32_t got = ((uint32_t)nd500_bus_read8(&m, FRAME_ADDR + 0x14) << 24) |
+                   ((uint32_t)nd500_bus_read8(&m, FRAME_ADDR + 0x15) << 16) |
+                   ((uint32_t)nd500_bus_read8(&m, FRAME_ADDR + 0x16) << 8) |
+                   (uint32_t)nd500_bus_read8(&m, FRAME_ADDR + 0x17);
+    char details[96];
+    snprintf(details, sizeof details, "expected 20 (10H shifted 1) got %X", got);
+    check("W SHL count from byte 3", got == 0x20, details);
+    nd500_machine_free(&m);
+}
+
 int main(void) {
     printf("ND-500 conversion operand type tests\n");
     test_w_biconv();
     test_w_byconv();
     test_f_post_index();
+    test_w_shl_count();
     printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
 }

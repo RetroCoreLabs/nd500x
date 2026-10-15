@@ -432,9 +432,41 @@ static uint32_t get_short_embedded(const Nd500OperandDecoded* op);
  * (t1) is the source's type and the destination (operand 1) has the type the
  * opcode names. A post-indexed destination is scaled by that type: BI counts
  * bits, BY bytes, H halfwords, W and F words, D doublewords.
+ *
+ * The other formats of ND-05.009.4 with an operand that is not of the prefix
+ * type (operand numbers as the handlers count them):
+ *   t SHL, t SHR        <operand/rw/t>,<shiftcount/r/BY>             1: BY
+ *   GETBI PUTBI CLEBI SETBI  <operand/./t>,<bit no/r/BY>             1: BY
+ *   GETBF PUTBF         <operand/./t>,<bit no/r/BY>,<field size/r/BY> 1, 2: BY
+ *   tn AXI              <a/r/t>,<i/r/W>                              1: W
+ *   t SMOVN             <source>,<dest>,<m/r/W>                      2: W
+ *   tn SFILLN           <dest/w/t/I2>,<m/r/W>                        1: W
+ *   tn POLY             <x/r/t>,<m/s/BY>,<cm/r/t>,...                1: BY
+ * H RIOM (count /r/W) recomputes its own address in Riom.c.
  */
 static Nd500DataType operand_data_type(uint16_t opcode, uint8_t operand_idx,
                                        Nd500DataType instruction_type) {
+    if (operand_idx == 1) {
+        if ((opcode >= 0xFCA8 && opcode <= 0xFCAA) ||      /* SHL */
+            (opcode >= 0xFCAE && opcode <= 0xFCB0) ||      /* SHR */
+            (opcode >= 0xFCB4 && opcode <= 0xFCBB) ||      /* GETBI */
+            (opcode >= 0xFDD0 && opcode <= 0xFDD3) ||      /* GETBI */
+            (opcode >= 0xFDD4 && opcode <= 0xFDDF) ||      /* PUTBI */
+            (opcode >= 0xFE7D && opcode <= 0xFE82) ||      /* CLEBI, SETBI */
+            (opcode >= 0xFDE0 && opcode <= 0xFDF7) ||      /* GETBF, PUTBF */
+            (opcode >= 0xFCE0 && opcode <= 0xFCE7)) {      /* POLY */
+            return ND500_DTYPE_BYTE;
+        }
+        if ((opcode >= 0xFCC0 && opcode <= 0xFCC7) ||      /* AXI */
+            (opcode >= 0xFD94 && opcode <= 0xFDAB)) {      /* SFILLN */
+            return ND500_DTYPE_WORD;
+        }
+    }
+    if (operand_idx == 2) {
+        if (opcode >= 0xFDE0 && opcode <= 0xFDF7) return ND500_DTYPE_BYTE;  /* GETBF, PUTBF */
+        if (opcode >= 0xFD76 && opcode <= 0xFD7B) return ND500_DTYPE_WORD;  /* SMOVN */
+        return instruction_type;
+    }
     if (operand_idx != 1) return instruction_type;
     switch (opcode) {
         case 0xFD49: case 0xFD4E: case 0xFD53: case 0xFD58: case 0xFD5D:
