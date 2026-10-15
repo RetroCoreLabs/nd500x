@@ -107,8 +107,10 @@ void nd500_instr_Biconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* Write result to destination operand (0 or 1) */
-    nd500_write_operand_value(cpu, &fi->operands[1], bit_result ? 1 : 0, ND500_DTYPE_BYTE);
+    /* Write result to destination operand (0 or 1). The destination is a BIT
+     * ("t1 BICONV <source/r/t1>,<dest/w/BI>", ND-05.009.4 15.2): one bit of the
+     * addressed byte changes, the decoder gives its byte and bit position. */
+    nd500_write_operand_value(cpu, &fi->operands[1], bit_result ? 1 : 0, ND500_DTYPE_BIT);
 
     /* Set flags: Z (result is 0), S (result is 1) */
     if (bit_result) {

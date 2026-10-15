@@ -425,6 +425,35 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op
 static uint32_t get_operand_value32(const Nd500OperandDecoded* op);
 static uint32_t get_short_embedded(const Nd500OperandDecoded* op);
 
+/*
+ * The data type an operand is addressed at. Most instructions have one type for
+ * all operands, the one their prefix names. The conversions do not:
+ * ND-05.009.4 15.2 gives "t1 t2CONV <source/r/t1>,<dest/w/t2>", so the prefix
+ * (t1) is the source's type and the destination (operand 1) has the type the
+ * opcode names. A post-indexed destination is scaled by that type: BI counts
+ * bits, BY bytes, H halfwords, W and F words, D doublewords.
+ */
+static Nd500DataType operand_data_type(uint16_t opcode, uint8_t operand_idx,
+                                       Nd500DataType instruction_type) {
+    if (operand_idx != 1) return instruction_type;
+    switch (opcode) {
+        case 0xFD49: case 0xFD4E: case 0xFD53: case 0xFD58: case 0xFD5D:
+            return ND500_DTYPE_BIT;          /* BICONV */
+        case 0xFD44: case 0xFD4F: case 0xFD54: case 0xFD59: case 0xFD5E:
+            return ND500_DTYPE_BYTE;         /* BYCONV */
+        case 0xFD45: case 0xFD4A: case 0xFD55: case 0xFD5A: case 0xFD5F:
+            return ND500_DTYPE_HALFWORD;     /* HCONV */
+        case 0xFD46: case 0xFD4B: case 0xFD50: case 0xFD5B: case 0xFD60:
+            return ND500_DTYPE_WORD;         /* WCONV */
+        case 0xFD47: case 0xFD4C: case 0xFD51: case 0xFD56: case 0xFD61:
+            return ND500_DTYPE_FLOAT;        /* FCONV */
+        case 0xFD48: case 0xFD4D: case 0xFD52: case 0xFD57: case 0xFD5C:
+            return ND500_DTYPE_DOUBLEWORD;   /* DCONV */
+        default:
+            return instruction_type;
+    }
+}
+
 static Nd500AddrMode classify_mode(uint8_t addr_code) {
     uint8_t top = (addr_code & 0xC0) >> 6;
     if (top == 0x00) return ND500_ADDR_CONSTANT_SHORT;
@@ -748,7 +777,8 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     /* data_type is used for post-index scaling in PI modes */
     if (m->cpu) {
         for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
-            out->operands[i].effective_address = compute_effective_address(m->cpu, &out->operands[i], out->data_type);
+            out->operands[i].effective_address = compute_effective_address(
+                m->cpu, &out->operands[i], operand_data_type(opcode, i, out->data_type));
         }
         /* Compute effective addresses for extra operands (CALL/CALLG/POLY arguments) */
         for (uint16_t i = 0; i < m->cpu->extra_operand_count && i < ND500_MAX_OPERANDS; ++i) {
@@ -925,6 +955,9 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op
                 case ND500_DTYPE_BYTE:       scale = 1; break;
                 case ND500_DTYPE_HALFWORD:   scale = 2; break;
                 case ND500_DTYPE_WORD:       scale = 4; break;
+                /* F is a 4-byte data element, and "post indexing always counts
+                 * the data elements" (ND-500 Reference Manual, quoted above). */
+                case ND500_DTYPE_FLOAT:      scale = 4; break;
                 case ND500_DTYPE_DOUBLEWORD: scale = 8; break;
                 default:                     scale = 1; break;
             }

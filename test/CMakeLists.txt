@@ -185,6 +185,13 @@ add_executable(test_bit_addressing
 )
 target_link_libraries(test_bit_addressing PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# t1 t2CONV: the destination is addressed at type t2 (ND-05.009.4 15.2);
+# F operands are post-indexed in 4-byte elements
+add_executable(test_conv_operand_types
+    test_conv_operand_types.c
+)
+target_link_libraries(test_conv_operand_types PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # MON call unit tests
 # Tests SINTRAN III Monitor Call implementations
 add_executable(test_mon_calls
@@ -459,6 +466,7 @@ add_test(NAME ote_instructions COMMAND test_ote_instructions)
 add_test(NAME stack_overflow COMMAND test_stack_overflow)
 add_test(NAME unsigned_displacement COMMAND test_unsigned_displacement)
 add_test(NAME bit_addressing COMMAND test_bit_addressing)
+add_test(NAME conv_operand_types COMMAND test_conv_operand_types)
 add_test(NAME tape COMMAND test_tape)
 add_test(NAME riom COMMAND test_riom)
 add_test(NAME mon_calls COMMAND test_mon_calls)
