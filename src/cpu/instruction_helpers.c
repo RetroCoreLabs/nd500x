@@ -994,6 +994,14 @@ void nd500_float_status(Nd500Cpu* cpu, uint32_t pc, uint64_t bits, unsigned exc,
     }
 }
 
+void nd500_float_divide_by_zero(Nd500Cpu* cpu, uint32_t pc, uint64_t quotient, bool is_double)
+{
+    nd500_set_flags_zs_float(cpu, quotient, is_double);   /* also clears C and O */
+    cpu->ST1 &= ~(ND500_FLAG_FO | ND500_FLAG_FU);
+    cpu->ST1 |= ND500_FLAG_DZ;
+    trap_divide_by_zero(cpu, pc);
+}
+
 void nd500_float_compare_status(Nd500Cpu* cpu, uint64_t r, unsigned exc, bool is_double) {
     nd500_set_flags_zs_float(cpu, r, is_double);   /* also clears C and O */
     cpu->ST1 &= ~(ND500_FLAG_FO | ND500_FLAG_FU);
@@ -1344,6 +1352,25 @@ uint32_t nd500_mask_to_datatype(uint64_t value, Nd500DataType dtype) {
     }
 }
 
+/**
+ * Integer constant to float (CF) or double float (CDF), ND-05.009.4 Table 13.
+ *
+ * The hardware converts a short, byte or halfword constant of an F or D
+ * instruction to the instruction's own format before the instruction uses it.
+ * The value is formed exactly and rounded once by 7.2.7, the same step the
+ * microcoded functions use for an integer count (float_math.c). A float holds
+ * 23 mantissa bits and a double 55, so every 6, 8 or 16 bit constant is exact.
+ * The result is the bit pattern of the float (low 32 bits) or double (64 bits).
+ */
+static uint64_t nd500_constant_to_float(int32_t value, bool is_double)
+{
+    unsigned exc = 0;
+    bool negative = value < 0;
+    /* Magnitude in 64 bits so -2**31 does not overflow the negation. */
+    uint64_t magnitude = negative ? (uint64_t)(-(int64_t)value) : (uint64_t)value;
+    return nd500_fx_round(negative, nd500_u128_from_u64(magnitude), 0, false, is_double, &exc);
+}
+
 uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, Nd500DataType dtype) {
     /* Handle CONSTANT_SHORT - value embedded in address code (low 6 bits)
      * The 6-bit value is SIGNED: bit 5 is sign bit
@@ -1352,6 +1379,10 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
     if (op->mode == ND500_ADDR_CONSTANT_SHORT) {
         uint8_t raw_value = op->address_code & 0x3F;
         int32_t signed_value = nd500_sign_extend_6bit(raw_value);
+        /* Table 13: the :S constant of an F instruction is CF, of a D instruction CDF. */
+        if (dtype == ND500_DTYPE_FLOAT || dtype == ND500_DTYPE_DOUBLEWORD) {
+            return nd500_constant_to_float(signed_value, dtype == ND500_DTYPE_DOUBLEWORD);
+        }
         return (uint64_t)(uint32_t)signed_value;
     }
 
@@ -1398,10 +1429,37 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
 
         /* Apply sign extension per Table 13 when constant size < dtype size */
         switch (dtype) {
+            case ND500_DTYPE_FLOAT:
+                /* Table 13, type F: :B and :H are CF (convert to float), :W and :F are NC
+                 * (the four bytes are the float). */
+                if (op->data_len == 1) {
+                    return nd500_constant_to_float((int8_t)raw_val, false);
+                }
+                if (op->data_len == 2) {
+                    return nd500_constant_to_float((int16_t)raw_val, false);
+                }
+                if (op->data_len == 8) {
+                    /* Table 13, type F with a :D constant is IOS: no conversion is meaningful,
+                     * so the illegal operand specifier trap condition occurs. The callers
+                     * check for the trap after the read and commit nothing. */
+                    trap_illegal_operand(cpu, cpu->cur_instr_pc);
+                    return 0;
+                }
+                return raw_val;
+
             case ND500_DTYPE_DOUBLEWORD:
-                /* D operations: byte/half/word constants get 32LZ (zero fill), not SX */
-                /* Per Table 13: D with :W or :F = 32LZ (32 least significant bits zero filled) */
-                /* For simplicity, just return raw value - D operations are rare with small constants */
+                /* Table 13, type D: :B and :H are CDF (convert to double float), :W and :F
+                 * are 32LZ (the four bytes are the high half and the 32 least significant
+                 * bits are zero filled), :D is NC. */
+                if (op->data_len == 1) {
+                    return nd500_constant_to_float((int8_t)raw_val, true);
+                }
+                if (op->data_len == 2) {
+                    return nd500_constant_to_float((int16_t)raw_val, true);
+                }
+                if (op->data_len == 4) {
+                    return raw_val << 32;
+                }
                 return raw_val;
 
             case ND500_DTYPE_WORD:

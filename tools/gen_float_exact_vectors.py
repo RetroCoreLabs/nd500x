@@ -116,7 +116,13 @@ def main():
             for op in "+-*/":
                 x, y = decode(a, mb), decode(b, mb)
                 if op == "/" and y == 0:
-                    rows.append((dbl, op, a, b, a, DZ))
+                    # 6.5.1, DZ: the largest possible value with the sign of the dividend;
+                    # zero divided by zero gives zero.
+                    if x == 0:
+                        big = 0
+                    else:
+                        big = (a & (1 << (mb + 9))) | (511 << mb) | ((1 << mb) - 1)
+                    rows.append((dbl, op, a, b, big, DZ))
                     continue
                 v = {"+": x + y, "-": x - y, "*": x * y, "/": x / y if y else 0}[op]
                 r, exc = encode(v, mb)

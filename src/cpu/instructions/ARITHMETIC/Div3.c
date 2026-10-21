@@ -80,8 +80,9 @@ void nd500_instr_Div3(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         unsigned exc = 0;
         uint64_t r = nd500_fx_div(a, b, is_double, &exc);
         if (exc & ND500_FX_DZ) {
-            cpu->ST1 |= ND500_FLAG_DZ;
-            trap_divide_by_zero(cpu, fi->address);
+            /* The quotient is stored, then DZ is set and trapped (manual 6.5.1, DZ). */
+            nd500_write_float_operand(cpu, &fi->operands[2], r, is_double);
+            nd500_float_divide_by_zero(cpu, fi->address, r, is_double);
             return;
         }
         cpu->ST1 &= ~ND500_FLAG_DZ;

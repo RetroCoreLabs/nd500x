@@ -409,6 +409,14 @@ uint64_t nd500_float_finish(Nd500Cpu* cpu, uint32_t pc, double result, bool is_d
 void nd500_float_status(Nd500Cpu* cpu, uint32_t pc, uint64_t bits, unsigned exc, bool is_double);
 
 /*
+ * Floating divide by zero (manual 6.5.1, DZ). The caller has stored the quotient from
+ * nd500_fx_div (the largest value with the sign of the dividend, or zero for a zero
+ * dividend). This sets Z and S from that quotient, clears C and O and the FO and FU
+ * bits, sets DZ and raises the divide-by-zero trap.
+ */
+void nd500_float_divide_by_zero(Nd500Cpu* cpu, uint32_t pc, uint64_t quotient, bool is_double);
+
+/*
  * Status for a float COMP or COMP2 from the exact difference r (float_exact.h).
  * COMPF @002143, COMPD @002147, COMP2F @002155 and COMP2D @002161 save the
  * AAP status with ST,SAVF (Z and S from the difference, C=0, O from floating

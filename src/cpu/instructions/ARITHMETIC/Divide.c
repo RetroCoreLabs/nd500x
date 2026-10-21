@@ -86,7 +86,8 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         /* Rn / <b> -> Rn, formed exactly and rounded by the manual's rule
          * (ND-05.009.4 7.2.7, float_exact.h). An operand with exponent 0 is
          * "exactly zero, with no respect to the sign nor the mantissa" (7.2.5),
-         * so such a divisor is a divide by zero and leaves Rn unchanged.
+         * so such a divisor is a divide by zero (6.5.1, DZ: Rn gets the largest value with
+         * the sign of the dividend, or zero for a zero dividend).
          *
          * Earlier versions forced the result to 0 with FO|O|Z above exponent
          * field 384 and to 0 below 128, thresholds their own comments called
@@ -105,8 +106,9 @@ void nd500_instr_Divide(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         unsigned exc = 0;
         uint64_t r = nd500_fx_div(a, b, is_double, &exc);
         if (exc & ND500_FX_DZ) {
-            cpu->ST1 |= ND500_FLAG_DZ;
-            trap_divide_by_zero(cpu, fi->address);
+            /* The quotient is stored, then DZ is set and trapped (manual 6.5.1, DZ). */
+            nd500_write_float_reg(cpu, reg_num, r, is_double);
+            nd500_float_divide_by_zero(cpu, fi->address, r, is_double);
             return;
         }
         cpu->ST1 &= ~ND500_FLAG_DZ;

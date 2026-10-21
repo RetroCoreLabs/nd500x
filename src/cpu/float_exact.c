@@ -264,8 +264,19 @@ uint64_t nd500_fx_div(uint64_t a, uint64_t b, bool is_double, unsigned* exc) {
     nd500_fx_decode(a, is_double, &na, &sa, &xa);
     nd500_fx_decode(b, is_double, &nb, &sb, &xb);
     if (sb == 0) {
+        /* ND-05.009.4 6.5.1, DZ: "A division with zero will leave the largest possible
+         * value in the destination with the sign of the dividend, unless the dividend is
+         * also zero. Zero divided by zero gives a result of zero." The largest value has
+         * the exponent field 511 and every mantissa bit set, as floating overflow stores
+         * it (6.5.1, FO; nd500_fx_round). An operand with exponent 0 is exactly zero
+         * (7.2.5), so a zero dividend is sa == 0. */
+        int mb = mantissa_bits(is_double);
         *exc |= ND500_FX_DZ;
-        return a;
+        if (sa == 0) {
+            return 0;
+        }
+        return (na ? ((uint64_t)1 << (mb + 9)) : 0) | ((uint64_t)511 << mb) |
+               (((uint64_t)1 << mb) - 1);
     }
     if (sa == 0) {
         return 0;

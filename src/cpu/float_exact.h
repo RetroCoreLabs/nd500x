@@ -58,7 +58,8 @@ static inline nd500_u128 nd500_u128_from_u64(uint64_t v) {
 /* Exceptions reported through the exc argument (OR-ed in, never cleared). */
 #define ND500_FX_FO 1u   /* floating overflow */
 #define ND500_FX_FU 2u   /* floating underflow */
-#define ND500_FX_DZ 4u   /* divide by zero: the result is the dividend */
+#define ND500_FX_DZ 4u   /* divide by zero: the result is the largest value with the sign of
+                            the dividend, or zero for a zero dividend (manual 6.5.1, DZ) */
 
 uint64_t nd500_fx_add(uint64_t a, uint64_t b, bool is_double, unsigned* exc);
 uint64_t nd500_fx_sub(uint64_t a, uint64_t b, bool is_double, unsigned* exc);   /* a - b */
