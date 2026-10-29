@@ -170,11 +170,14 @@ button,input{font:inherit;color:var(--fg)}
 .sw{width:12px;height:12px;border-radius:3px;border:2px solid;display:inline-block}
 input[type=search]{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px;min-width:12rem}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin:0}
-.frow{display:grid;grid-template-columns:minmax(11rem,17rem) 1fr;gap:4px 16px;align-items:start;padding:9px 0;border-top:1px solid var(--line)}
+.frow{display:grid;grid-template-columns:11.5rem 1fr;gap:4px 12px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
 .frow:last-of-type{border-bottom:1px solid var(--line)}
-.cap strong{display:block;font-size:14px}
-.cap span{display:block;font-size:12.5px;color:var(--muted);max-width:34ch}
-@media (max-width:760px){.frow{grid-template-columns:1fr}.cap span{max-width:none}}
+.cap{position:relative;width:max-content;max-width:100%;cursor:help}
+.cap strong{font-size:13.5px;border-bottom:1px dotted var(--muted)}
+.cap .tip{visibility:hidden;position:absolute;left:0;top:calc(100% + 4px);z-index:30;width:min(320px,80vw);padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);box-shadow:0 6px 20px rgba(0,0,0,.35);font-size:12.5px;line-height:1.4;font-weight:400}
+.cap:hover .tip,.cap:focus .tip{visibility:visible}
+.cap:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+@media (max-width:760px){.frow{grid-template-columns:1fr}}
 .badge{display:inline-block;margin-left:7px;min-width:1.5em;padding:0 6px;border-radius:10px;background:var(--focus);color:var(--bg);font-size:12px;font-weight:700;text-align:center}
 .tab.nohit{opacity:.6}
 .tab.nohit .badge{background:var(--muted)}
@@ -453,16 +456,15 @@ def build_page(link_for_fn=None):
 <style>{CSS}</style></head>
 <body>
 <h1>ND-500 opcode matrix</h1>
-<p class="muted">Each cell is one opcode, coloured by instruction class and labelled with the data type, register and mnemonic.
-Bytes 0xFC to 0xFF are prefixes: the instruction is then chosen by the second byte, in its own map. Dashed cells have no entry in instructions.json; a double border means one machine opcode that the assembler spells with several data types. Click either to see what that means. Click any cell for details; arrow keys move between cells.</p>
+<p class="muted">One cell per opcode. Click a cell for details. Dashed: no entry in instructions.json. Double border: one opcode with several data types. Hover a filter heading for what it does.</p>
 <section aria-label="Filters">
-<div class="frow"><div class="cap"><strong>Filter by instruction class</strong><span>Pick one class (Move, Arithmetic, Branch and so on). Cells of every other class dim. Click it again to switch it off.</span></div>
+<div class="frow"><div class="cap" tabindex="0" aria-label="Filter by instruction class. Pick one class (Move, Arithmetic, Branch and so on). Cells of every other class dim. Click it again to switch it off."><strong>Filter by instruction class</strong><span class="tip">Pick one class (Move, Arithmetic, Branch and so on). Cells of every other class dim. Click it again to switch it off.</span></div>
 <div class="legend" id="legend" role="group" aria-label="Filter by instruction class">{chips}</div></div>
-<div class="frow"><div class="cap"><strong>Filter by data type</strong><span>The type is the letter or letters in the label, the W in W1 +. Pick one or more; cells with another type dim.</span></div>
+<div class="frow"><div class="cap" tabindex="0" aria-label="Filter by data type. The type is the letter or letters in the label, the W in W1 +. Pick one or more; cells with another type dim."><strong>Filter by data type</strong><span class="tip">The type is the letter or letters in the label, the W in W1 +. Pick one or more; cells with another type dim.</span></div>
 <div class="legend" id="types" role="group" aria-label="Filter by data type">{type_chips}</div></div>
-<div class="frow"><div class="cap"><strong>Search by name</strong><span>Type part of a mnemonic or function name, for example add or move. Combines with the filters above.</span></div>
+<div class="frow"><div class="cap" tabindex="0" aria-label="Search by name. Type part of a mnemonic or function name, for example add or move. Combines with the filters above."><strong>Search by name</strong><span class="tip">Type part of a mnemonic or function name, for example add or move. Combines with the filters above.</span></div>
 <div class="legend"><input id="q" type="search" placeholder="mnemonic or function" aria-label="Search by mnemonic or function name"><button id="clear" type="button">Clear all filters</button></div></div>
-<div class="frow"><div class="cap"><strong>Opcode map</strong><span>The first byte has one map. Each prefix byte 0xFC to 0xFF has its own map for the second byte. While a filter is on, the number on a tab is how many opcodes in that map match.</span></div>
+<div class="frow"><div class="cap" tabindex="0" aria-label="Opcode map. The first byte has one map. Each prefix byte 0xFC to 0xFF has its own map for the second byte. While a filter is on, the number on a tab is how many opcodes in that map match."><strong>Opcode map</strong><span class="tip">The first byte has one map. Each prefix byte 0xFC to 0xFF has its own map for the second byte. While a filter is on, the number on a tab is how many opcodes in that map match.</span></div>
 <div class="tabs" id="tabs" role="tablist" aria-label="Opcode map">{tab_html}</div></div>
 </section>
 <p id="hits" aria-live="polite"></p>
