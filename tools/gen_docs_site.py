@@ -7,6 +7,10 @@ Writes build-site/ (gitignored) from the Markdown files git tracks:
                                      rewritten (see "Links" below)
   build-site/docs/docs/instructions/ALL-INSTRUCTIONS.md
                                      generated index of the 241 instructions
+  build-site/docs/docs/instructions/opcode-matrix.html
+                                     the opcode matrix, built by
+                                     tools/gen_opcode_matrix.py; shown in an
+                                     iframe on docs/instructions/OPCODE-MATRIX.md
   build-site/mkdocs.yml              INHERIT: ../docs-site/mkdocs.yml + nav
 
 Usage, from anywhere:
@@ -111,6 +115,7 @@ SECTIONS = [
     ]),
     ("ND-500 reference", [
         "docs/INSTRUCTION-SET-OVERVIEW.md",
+        "docs/instructions/OPCODE-MATRIX.md",
         ("All instructions", "@all-instructions"),
         ("Instructions by class", ["@instructions"]),
         "docs/ND-500-TRAPS.md",
@@ -433,6 +438,25 @@ def copy_pages(used, pathmap):
             b.write(a.read())
     return extra
 
+def write_opcode_matrix(by_fn, pathmap):
+    """The opcode matrix page, next to docs/instructions/OPCODE-MATRIX.md.
+
+    Instruction links in it are relative to its own folder and point at the
+    per-instruction pages as the site serves them (one folder per page)."""
+    from gen_opcode_matrix import build_page
+    folder = "docs/instructions"
+
+    def link(fn):
+        e = by_fn.get(fn)
+        if not e or "page" not in e:
+            return None
+        return rel(folder, pathmap[e["page"]])[:-len(".md")] + "/"
+
+    dest = os.path.join(OUT, "docs", folder, "opcode-matrix.html")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "w", encoding="utf-8") as fh:
+        fh.write(build_page(link))
+
 def copy_theme_assets():
     for name in ("nd500x.svg", "nd500x.ico"):
         src = os.path.join(ROOT, "assets", name)
@@ -489,6 +513,7 @@ def main():
     write_all_instructions(by_fn, total, pathmap, used)
     extra = copy_pages(used, pathmap)
     copy_theme_assets()
+    write_opcode_matrix(by_fn, pathmap)
 
     import yaml
     child = {"INHERIT": "../docs-site/mkdocs.yml", "docs_dir": "docs", "nav": nav}
