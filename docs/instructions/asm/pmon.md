@@ -163,6 +163,5 @@ RETURN_TO_VIRTUAL:
 ---
 
 ## See Also
-- [PMOFF](pmoff.md) - Program memory management off
 - [CPGU](cpgu.md) - Clear page used table
 - [CWIP](cwip.md) - Clear written in page table

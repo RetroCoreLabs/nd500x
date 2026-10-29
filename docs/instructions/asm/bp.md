@@ -165,5 +165,3 @@ CHECKPOINT_1:
 ## See Also
 
 - [NOOP](noop.md) - No operation
-- [HALT](halt.md) - Halt processor
-- [WAIT](wait.md) - Wait for interrupt

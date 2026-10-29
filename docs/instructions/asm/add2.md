@@ -174,5 +174,5 @@ LOOP:
 - [ADDC](addc.md) - Add with carry (multi-precision)
 - [SUB2](sub2.md) - Subtract two operands
 - [INCR](incr.md) - Increment by 1
-- [+](+.md) - Add operator (synonym)
+- [+](add.md) - Add operator (synonym)
 - [Trap System](../../ND-500-TRAPS.md)

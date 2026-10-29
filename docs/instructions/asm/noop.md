@@ -193,6 +193,4 @@ FEATURE_A:
 
 ## See Also
 
-- [HALT](halt.md) - Stop processor execution
-- [WAIT](wait.md) - Wait for interrupt
 - [RET](ret.md) - Return from subroutine

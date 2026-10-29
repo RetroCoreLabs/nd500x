@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1230" width="1400" height="1230" role="img" aria-label="How each ND-500 addressing mode forms its effective address, one drawing per mode" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+<defs><pattern id="pi" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#FFFFFF" stroke-width="2.5" stroke-opacity="0.9"/></pattern><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1F2328"/></marker></defs>
+<rect width="1400" height="1230" fill="#FFFFFF"/>
+<text x="40" y="52" font-size="30" font-weight="700" fill="#1F2328">How the effective address is formed</text>
+<text x="40" y="84" font-size="16" fill="#5B6470">B = base register, R = record register, Rn = index register R1..R4, d = displacement (unsigned), a = address, p = bytes per element of the data type.</text>
+<text x="40" y="128" font-size="11" font-weight="700" fill="#5B6470" letter-spacing="0.6">MODE</text>
+<text x="250" y="128" font-size="11" font-weight="700" fill="#5B6470" letter-spacing="0.6">WRITTEN AS</text>
+<text x="450" y="128" font-size="11" font-weight="700" fill="#5B6470" letter-spacing="0.6">HOW ea IS FORMED</text>
+<text x="1190" y="128" font-size="11" font-weight="700" fill="#5B6470" letter-spacing="0.6">ADDRESS CODES</text>
+<line x1="40" y1="138" x2="1360" y2="138" stroke="#D7DBE0"/>
+<rect x="40" y="138" width="1320" height="72" fill="#E3F2FD" fill-opacity="0.45"/>
+<rect x="40" y="138" width="6" height="72" fill="#0D47A1"/>
+<text x="56" y="179.0" font-size="13" font-weight="700" fill="#0D47A1">LOCAL</text>
+<text x="250" y="179.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">B.d</text>
+<rect x="450" y="157.0" width="32" height="34" rx="5" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.8"/>
+<text x="466" y="179.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">B</text>
+<line x1="485.5" y1="174.0" x2="527.5" y2="174.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="506" y="167.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">+ d</text>
+<rect x="529.5" y="157.0" width="117" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="588" y="179.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea = B + d</text>
+<text x="1190" y="179.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">40–7F · C1–C3</text>
+<line x1="40" y1="210" x2="1360" y2="210" stroke="#D7DBE0"/>
+<rect x="40" y="210" width="1320" height="72" fill="#E3F2FD" fill-opacity="0.45"/>
+<rect x="40" y="210" width="6" height="72" fill="#0D47A1"/>
+<rect x="40" y="210" width="6" height="72" fill="url(#pi)"/>
+<text x="56" y="251.0" font-size="13" font-weight="700" fill="#0D47A1">LOCAL, POST-INDEXED</text>
+<text x="250" y="251.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">B.d(Rn)</text>
+<rect x="450" y="229.0" width="32" height="34" rx="5" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.8"/>
+<text x="466" y="251.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">B</text>
+<line x1="485.5" y1="246.0" x2="527.5" y2="246.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="506" y="239.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">+ d</text>
+<rect x="529.5" y="229.0" width="79" height="34" rx="5" fill="#E3F2FD" stroke="#0D47A1" stroke-width="1.8"/>
+<rect x="529.5" y="229.0" width="79" height="34" rx="5" fill="url(#pi)"/>
+<text x="569" y="251.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#0D47A1">+ p·Rn</text>
+<line x1="612.5" y1="246.0" x2="654.5" y2="246.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="656.5" y="229.0" width="184" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="748" y="251.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea = B + d + p·Rn</text>
+<text x="1190" y="251.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">D4–DF</text>
+<line x1="40" y1="282" x2="1360" y2="282" stroke="#D7DBE0"/>
+<rect x="40" y="282" width="1320" height="72" fill="#E3F2FD" fill-opacity="0.45"/>
+<rect x="40" y="282" width="6" height="72" fill="#0D47A1"/>
+<text x="56" y="323.0" font-size="13" font-weight="700" fill="#0D47A1">LOCAL INDIRECT</text>
+<text x="250" y="323.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">IND(B.d)</text>
+<rect x="450" y="301.0" width="32" height="34" rx="5" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.8"/>
+<text x="466" y="323.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">B</text>
+<line x1="485.5" y1="318.0" x2="527.5" y2="318.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="506" y="311.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">+ d</text>
+<rect x="529.5" y="301.0" width="86" height="34" fill="#FFFFFF" stroke="#1F2328" stroke-width="1.6"/>
+<line x1="539.5" y1="301.0" x2="539.5" y2="335.0" stroke="#1F2328" stroke-width="1"/>
+<text x="577.5" y="323.0" text-anchor="middle" font-size="12" fill="#1F2328">pointer</text>
+<line x1="619.5" y1="318.0" x2="663.9" y2="318.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="642" y="311.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">read</text>
+<rect x="665.9" y="301.0" width="164" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="748" y="323.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea = mem[B + d]</text>
+<text x="1190" y="323.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">C5–C7</text>
+<line x1="40" y1="354" x2="1360" y2="354" stroke="#D7DBE0"/>
+<rect x="40" y="354" width="1320" height="72" fill="#E3F2FD" fill-opacity="0.45"/>
+<rect x="40" y="354" width="6" height="72" fill="#0D47A1"/>
+<rect x="40" y="354" width="6" height="72" fill="url(#pi)"/>
+<text x="56" y="395.0" font-size="13" font-weight="700" fill="#0D47A1">LOCAL INDIRECT, P.I.</text>
+<text x="250" y="395.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">IND(B.d)(Rn)</text>
+<rect x="450" y="373.0" width="32" height="34" rx="5" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.8"/>
+<text x="466" y="395.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">B</text>
+<line x1="485.5" y1="390.0" x2="527.5" y2="390.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="506" y="383.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">+ d</text>
+<rect x="529.5" y="373.0" width="86" height="34" fill="#FFFFFF" stroke="#1F2328" stroke-width="1.6"/>
+<line x1="539.5" y1="373.0" x2="539.5" y2="407.0" stroke="#1F2328" stroke-width="1"/>
+<text x="577.5" y="395.0" text-anchor="middle" font-size="12" fill="#1F2328">pointer</text>
+<line x1="619.5" y1="390.0" x2="663.9" y2="390.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="642" y="383.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">read</text>
+<rect x="665.9" y="373.0" width="79" height="34" rx="5" fill="#E3F2FD" stroke="#0D47A1" stroke-width="1.8"/>
+<rect x="665.9" y="373.0" width="79" height="34" rx="5" fill="url(#pi)"/>
+<text x="705" y="395.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#0D47A1">+ p·Rn</text>
+<line x1="748.9" y1="390.0" x2="790.9" y2="390.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="792.9" y="373.0" width="231" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="908" y="395.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea = mem[B + d] + p·Rn</text>
+<text x="1190" y="395.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">E4–EF</text>
+<line x1="40" y1="426" x2="1360" y2="426" stroke="#D7DBE0"/>
+<rect x="40" y="426" width="1320" height="72" fill="#E0F2F1" fill-opacity="0.45"/>
+<rect x="40" y="426" width="6" height="72" fill="#00695C"/>
+<text x="56" y="467.0" font-size="13" font-weight="700" fill="#00695C">RECORD</text>
+<text x="250" y="467.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">R.d</text>
+<rect x="450" y="445.0" width="32" height="34" rx="5" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.8"/>
+<text x="466" y="467.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">R</text>
+<line x1="485.5" y1="462.0" x2="527.5" y2="462.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="506" y="455.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">+ d</text>
+<rect x="529.5" y="445.0" width="117" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="588" y="467.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea = R + d</text>
+<text x="1190" y="467.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">80–BF · C9–CB</text>
+<line x1="40" y1="498" x2="1360" y2="498" stroke="#D7DBE0"/>
+<rect x="40" y="498" width="1320" height="72" fill="#E0F7FA" fill-opacity="0.45"/>
+<rect x="40" y="498" width="6" height="72" fill="#00838F"/>
+<text x="56" y="539.0" font-size="13" font-weight="700" fill="#00838F">PRE-INDEXED</text>
+<text x="250" y="539.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">Rn.d</text>
+<rect x="450" y="517.0" width="41" height="34" rx="5" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.8"/>
+<text x="470" y="539.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">Rn</text>
+<line x1="495.0" y1="534.0" x2="537.0" y2="534.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="516" y="527.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">+ d</text>
+<rect x="539.0" y="517.0" width="126" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="602" y="539.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea = Rn + d</text>
+<text x="1190" y="539.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">F4–FF</text>
+<line x1="40" y1="570" x2="1360" y2="570" stroke="#D7DBE0"/>
+<rect x="40" y="570" width="1320" height="72" fill="#E8F5E9" fill-opacity="0.45"/>
+<rect x="40" y="570" width="6" height="72" fill="#2E7D32"/>
+<text x="56" y="611.0" font-size="13" font-weight="700" fill="#2E7D32">ABSOLUTE</text>
+<text x="250" y="611.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">a</text>
+<rect x="450" y="589.0" width="126" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="513" y="611.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">a (4 bytes)</text>
+<line x1="580.5" y1="606.0" x2="622.5" y2="606.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="624.5" y="589.0" width="79" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="664" y="611.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea = a</text>
+<text x="1190" y="611.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">C4</text>
+<line x1="40" y1="642" x2="1360" y2="642" stroke="#D7DBE0"/>
+<rect x="40" y="642" width="1320" height="72" fill="#E8F5E9" fill-opacity="0.45"/>
+<rect x="40" y="642" width="6" height="72" fill="#2E7D32"/>
+<rect x="40" y="642" width="6" height="72" fill="url(#pi)"/>
+<text x="56" y="683.0" font-size="13" font-weight="700" fill="#2E7D32">ABSOLUTE, POST-INDEXED</text>
+<text x="250" y="683.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">a(Rn)</text>
+<rect x="450" y="661.0" width="126" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="513" y="683.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">a (4 bytes)</text>
+<line x1="580.5" y1="678.0" x2="622.5" y2="678.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="624.5" y="661.0" width="79" height="34" rx="5" fill="#E3F2FD" stroke="#0D47A1" stroke-width="1.8"/>
+<rect x="624.5" y="661.0" width="79" height="34" rx="5" fill="url(#pi)"/>
+<text x="664" y="683.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#0D47A1">+ p·Rn</text>
+<line x1="707.5" y1="678.0" x2="749.5" y2="678.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="751.5" y="661.0" width="146" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="824" y="683.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea = a + p·Rn</text>
+<text x="1190" y="683.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">E0–E3</text>
+<line x1="40" y1="714" x2="1360" y2="714" stroke="#D7DBE0"/>
+<rect x="40" y="714" width="1320" height="72" fill="#FFF3E0" fill-opacity="0.45"/>
+<rect x="40" y="714" width="6" height="72" fill="#E65100"/>
+<text x="56" y="755.0" font-size="13" font-weight="700" fill="#E65100">CONSTANT</text>
+<text x="250" y="755.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">c</text>
+<rect x="450" y="733.0" width="126" height="34" rx="5" fill="#FFF3E0" stroke="#E65100" stroke-width="1.8"/>
+<text x="513" y="755.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#E65100">operand = c</text>
+<line x1="580.5" y1="750.0" x2="622.5" y2="750.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="630.5" y="755.0" font-size="12" fill="#5B6470">the value is in the instruction itself; there is no address</text>
+<text x="1190" y="755.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">00–3F · CC–CF</text>
+<line x1="40" y1="786" x2="1360" y2="786" stroke="#D7DBE0"/>
+<rect x="40" y="786" width="1320" height="72" fill="#F3E5F5" fill-opacity="0.45"/>
+<rect x="40" y="786" width="6" height="72" fill="#7B1FA2"/>
+<text x="56" y="827.0" font-size="13" font-weight="700" fill="#7B1FA2">REGISTER</text>
+<text x="250" y="827.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">Rn</text>
+<rect x="450" y="805.0" width="136" height="34" rx="5" fill="#FFF3E0" stroke="#E65100" stroke-width="1.8"/>
+<text x="518" y="827.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#E65100">operand = Rn</text>
+<line x1="590.0" y1="822.0" x2="632.0" y2="822.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="640.0" y="827.0" font-size="12" fill="#5B6470">the register named in the code; no data part, no address</text>
+<text x="1190" y="827.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">D0–D3</text>
+<line x1="40" y1="858" x2="1360" y2="858" stroke="#D7DBE0"/>
+<rect x="40" y="858" width="1320" height="72" fill="#F5F5F4" fill-opacity="0.45"/>
+<rect x="40" y="858" width="6" height="72" fill="#616161"/>
+<rect x="40" y="858" width="6" height="72" fill="url(#pi)"/>
+<text x="56" y="899.0" font-size="13" font-weight="700" fill="#616161">prefix DESC</text>
+<text x="250" y="899.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">DESC(desc)(Rn)</text>
+<rect x="450" y="869.0" width="117" height="34" rx="5" fill="#F5F5F4" stroke="#616161" stroke-width="1.8" stroke-dasharray="6 4"/>
+<text x="508" y="891.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#616161">descriptor</text>
+<line x1="571.0" y1="886.0" x2="653.4" y2="886.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="612" y="879.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">points to</text>
+<rect x="655.4" y="869.0" width="108" height="34" fill="#FFFFFF" stroke="#1F2328" stroke-width="1.6"/>
+<line x1="665.4" y1="869.0" x2="665.4" y2="903.0" stroke="#1F2328" stroke-width="1"/>
+<text x="703.4" y="891.0" text-anchor="middle" font-size="12" fill="#1F2328">base, length</text>
+<line x1="767.4" y1="886.0" x2="811.8" y2="886.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="790" y="879.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">base</text>
+<rect x="813.8" y="869.0" width="79" height="34" rx="5" fill="#E3F2FD" stroke="#0D47A1" stroke-width="1.8"/>
+<rect x="813.8" y="869.0" width="79" height="34" rx="5" fill="url(#pi)"/>
+<text x="853" y="891.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#0D47A1">+ p·Rn</text>
+<line x1="896.8" y1="886.0" x2="938.8" y2="886.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="940.8" y="869.0" width="41" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="961" y="891.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea</text>
+<text x="450" y="916.0" font-size="11.5" fill="#5B6470">Rn is checked against the descriptor length (range trap if over); after a data access Rn += 1</text>
+<text x="1190" y="899.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">F0–F3 + operand</text>
+<line x1="40" y1="930" x2="1360" y2="930" stroke="#D7DBE0"/>
+<rect x="40" y="930" width="1320" height="72" fill="#F5F5F4" fill-opacity="0.45"/>
+<rect x="40" y="930" width="6" height="72" fill="#616161"/>
+<text x="56" y="971.0" font-size="13" font-weight="700" fill="#616161">prefix ALT</text>
+<text x="250" y="971.0" font-size="15" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">ALT(operand)</text>
+<rect x="450" y="941.0" width="174" height="34" rx="5" fill="#F5F5F4" stroke="#616161" stroke-width="1.8" stroke-dasharray="6 4"/>
+<text x="537" y="963.0" text-anchor="middle" font-size="14" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="700" fill="#616161">operand as usual</text>
+<line x1="628.0" y1="958.0" x2="695.2" y2="958.0" stroke="#1F2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="662" y="951.0" text-anchor="middle" font-size="12" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">same ea</text>
+<rect x="697.2" y="941.0" width="41" height="34" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="718" y="963.0" text-anchor="middle" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#2E7D32">ea</text>
+<text x="450" y="988.0" font-size="11.5" fill="#5B6470">only the final data access goes to the alternative domain (CAD); indirect pointers and descriptors are read in the current domain</text>
+<text x="1190" y="971.0" font-size="11" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#5B6470">C8 + operand</text>
+<line x1="40" y1="1002" x2="1360" y2="1002" stroke="#D7DBE0"/>
+<text x="40" y="1038" font-size="14" font-weight="700" fill="#1F2328">Post-index scale p, bytes per element</text>
+<text x="40" y="1062" font-size="14" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">BI 1/8    BY 1    H 2    W 4    F 4    D 8    descriptor 8</text>
+<text x="40" y="1084" font-size="13" fill="#5B6470">Rn holds an element number, not a byte offset; the hardware multiplies by p. The next element is Rn + 1, whatever the type.</text>
+<text x="40" y="1124" font-size="14" font-weight="700" fill="#1F2328">Short forms</text>
+<text x="40" y="1148" font-size="13" fill="#1F2328">LOCAL, RECORD and CONSTANT each have a one-byte short form where the 6-bit field is the data itself.</text>
+<text x="40" y="1170" font-size="13" fill="#5B6470">For LOCAL and RECORD the short displacement counts words (ea = reg + d·4), so it reaches 0..63 words. The assembler picks the shortest form that fits.</text>
+<text x="1360" y="1216" text-anchor="end" font-size="11" fill="#5B6470">Source: ND-05.009.4 ND-500 Reference Manual, chapter 8 (pages 97–101).</text>
+</svg>

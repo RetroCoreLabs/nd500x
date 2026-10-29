@@ -99,5 +99,4 @@ Unaffected.
 
 ## See Also
 
-- [CED:=](ced_=.md) - Load Current executing domain
 - [MOVE instruction reference](../../instruction-reference/MOVE.md)

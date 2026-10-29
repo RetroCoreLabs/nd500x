@@ -319,5 +319,4 @@ LOOP: ... ; W LOOP I1, STRIDE, SIZE, LOOP
 
 - [LOOPI](loopi.md) - Loop increment (simpler, step=+1)
 - [LOOPD](loopd.md) - Loop decrement (simpler, step=-1)
-- [IF](if.md) - Conditional branch instructions
 - [COMP](comp.md) - Compare instruction (for manual loops)

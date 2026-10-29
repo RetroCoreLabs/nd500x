@@ -122,4 +122,3 @@ LOOP:   % Loop body
 
 - [CLR](clr.md) - Clear to zero
 - [MOVE](move.md) - Move data
-- [LOAD](load.md) - Load constant

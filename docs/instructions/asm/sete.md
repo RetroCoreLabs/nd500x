@@ -138,6 +138,5 @@ LOOP:   W2 MOVE TRAP_CONFIG(W1)
 ## See Also
 
 - [CLTE](clte.md) - Clear bit in trap enable register
-- [ROTE](rote.md) - Read own trap enable register
 - [SETK](setk.md) - Set K flag
 - [CLRK](clrk.md) - Clear K flag

@@ -336,5 +336,5 @@ BACKWARD:
 
 - [LOOPI](loopi.md) - Loop increment (step=+1)
 - [LOOP](loop.md) - Loop general (arbitrary step)
-- [DEC](dec.md) - Decrement instruction
+- [DECR](decr.md) - Decrement instruction
 - [COMP](comp.md) - Compare instruction

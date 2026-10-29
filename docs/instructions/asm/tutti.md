@@ -230,5 +230,4 @@ EARLY_EXIT:
 
 - [SOLO](solo.md) - Disable process switch (begin atomic section)
 - [ENTT](entt.md) - Enter trap handler
-- [WAIT](wait.md) - Wait for event
 - [CONTROL instruction reference](../../instruction-reference/CONTROL.md)

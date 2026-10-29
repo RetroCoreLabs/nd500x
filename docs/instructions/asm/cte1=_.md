@@ -99,5 +99,4 @@ Unaffected.
 
 ## See Also
 
-- [CTE1:=](cte1_=.md) - Load Child trap enable 1
 - [MOVE instruction reference](../../instruction-reference/MOVE.md)

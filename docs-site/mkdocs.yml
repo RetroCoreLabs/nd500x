@@ -1,0 +1,93 @@
+# Base MkDocs configuration for the nd500x documentation site.
+#
+# Tool choice: MkDocs + Material. nd500x is a C project with no XML-comment API
+# reference to extract; its documentation is guides, transcribed manuals and the
+# hand-written per-instruction pages, which is the MkDocs case in the house
+# standard (standards/DOCS-SITE.md, section 1 rule 4). Shape B: this file holds
+# the theme and extensions only; tools/gen_docs_site.py writes build-site/
+# (gitignored) with the page tree copied from git-tracked files and a child
+# mkdocs.yml that inherits this one and carries the generated nav. Nothing
+# generated is committed.
+#
+# Build:   python3 tools/gen_docs_site.py && mkdocs build --strict -f build-site/mkdocs.yml -d <dir outside the checkout>
+# Check:   python3 tools/gen_docs_site.py --check   (every tracked .md is classified; CI runs this)
+
+site_name: ND500X
+site_description: Norsk Data ND-500 CPU emulator - manuals, instruction reference, debugger and toolchain documentation
+site_url: https://retrocorelabs.github.io/nd500x/
+repo_url: https://github.com/RetroCoreLabs/nd500x
+repo_name: RetroCoreLabs/nd500x
+edit_uri: blob/main/
+copyright: >
+  <a href="https://github.com/RetroCoreLabs/nd500x">github.com/RetroCoreLabs/nd500x</a>
+
+theme:
+  name: material
+  logo: assets/nd500x.svg
+  favicon: assets/nd500x.ico
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: red
+      accent: red
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: red
+      accent: red
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - navigation.indexes
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+    - navigation.prune
+    - navigation.sections
+    - search.suggest
+    - search.highlight
+    - toc.follow
+    - content.code.copy
+    - content.action.view
+
+plugins:
+  - search
+
+markdown_extensions:
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - tables
+  - attr_list
+  - md_in_html
+  - admonition
+  - footnotes
+  - def_list
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight
+  - pymdownx.tabbed:
+      alternate_style: true
+  - mdx_truly_sane_lists:
+      nested_indent: 2
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: info
+  links:
+    not_found: warn

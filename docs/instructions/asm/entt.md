@@ -99,6 +99,5 @@ PRIMARY_TRAP:
 ## See Also
 
 - [RETT](rett.md) - Return from trap handler
-- [ENT](ent.md) - Regular subroutine entry
 - [ENTB](entb.md) - Buddy subroutine entry
 - [INT](int.md) - Generate interrupt

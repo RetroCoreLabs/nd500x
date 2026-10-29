@@ -226,6 +226,4 @@ CONTINUE:
 - [PWCONV](pwconv.md) - Convert packed to binary word (inverse operation)
 - [PADD](padd.md) - Packed BCD addition
 - [PSUB](psub.md) - Packed BCD subtraction
-- [PMUL](pmul.md) - Packed BCD multiplication
-- [PDIV](pdiv.md) - Packed BCD division
 - [Packed BCD](../../ND500_PACKED_BCD.md) - Packed decimal format and the decimal instructions

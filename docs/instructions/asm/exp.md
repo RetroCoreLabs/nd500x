@@ -202,4 +202,3 @@ OVERFLOW_HANDLER:
 - [ALOG](alog.md) - Natural logarithm (ln(x), inverse of EXP)
 - [SQRT](sqrt.md) - Square root function
 - [POLY](poly.md) - Polynomial evaluation
-- [POW](pow.md) - General power function (x^y)

@@ -276,16 +276,16 @@ The Linker uses the ND-SHELL user interface. This interface allows you to edit y
 
 | Key | Description |
 | --- | ----------- |
-| ![CR](image1.png) | **CARRIAGE RETURN.** In terminal dialogues, also shown as ↵. Marks the end of input. Chooses the default value if no input. Prompts for next mandatory parameter. |
-| ![DownArrow](image2.png) | **DOWN ARROW.** In terminal dialogues, also shown as ↓. Prompts for optional parameters if any. It has the same function as carriage return if the next parameter is mandatory. |
-| ![ScrollUp](image3.png) | **SCROLL UP.** Redisplays the previous screen of the input/output history, of the help information, or of the file being displayed. |
-| ![ScrollDown](image4.png) | **SCROLL DOWN.** Redisplays the next screen of the input/output history, of the help information, or of the file being displayed. |
-| ![ShiftScrollUp](image5.png) | **SHIFT + SCROLL UP.** Redisplays first screen of input/output history, of help information, or of the file being displayed. |
-| ![ShiftScrollDown](image6.png) | **SHIFT + SCROLL DOWN.** Redisplays last screen of input/output history, of help information, or of the file being displayed. This function can also be used to refresh the screen if necessary. |
-| ![FatLeftArrow](image7.png) | **FAT LEFT ARROW.** Copies the previous input line to the current input line for editing. If command input, commands are copied. If parameter input, non-empty parameters are copied. <br> By pressing the key repeatedly, preceding command or parameter input lines are fetched to the current line. |
-| ![FatRightArrow](image8.png) | **FAT RIGHT ARROW.** Copies the next input line to the current input line for editing. If command input, commands are copied. If parameter input, non-empty parameters are copied. <br> By pressing the key repeatedly, successive command or parameter input lines are fetched to the current line. |
-| ![Home](image9.png) | **HOME.** Aborts output, JOBs or parameter input. On some terminals you may need to use the ASCII value 35B to perform the same function. |
-| ![CtrlS](image10.png) | **CTRL+S.** Halts output until the next keystroke. Requires that the terminal does not handle XON/XOFF locally. |
+| CR | **CARRIAGE RETURN.** In terminal dialogues, also shown as ↵. Marks the end of input. Chooses the default value if no input. Prompts for next mandatory parameter. |
+| DownArrow | **DOWN ARROW.** In terminal dialogues, also shown as ↓. Prompts for optional parameters if any. It has the same function as carriage return if the next parameter is mandatory. |
+| ScrollUp | **SCROLL UP.** Redisplays the previous screen of the input/output history, of the help information, or of the file being displayed. |
+| ScrollDown | **SCROLL DOWN.** Redisplays the next screen of the input/output history, of the help information, or of the file being displayed. |
+| ShiftScrollUp | **SHIFT + SCROLL UP.** Redisplays first screen of input/output history, of help information, or of the file being displayed. |
+| ShiftScrollDown | **SHIFT + SCROLL DOWN.** Redisplays last screen of input/output history, of help information, or of the file being displayed. This function can also be used to refresh the screen if necessary. |
+| FatLeftArrow | **FAT LEFT ARROW.** Copies the previous input line to the current input line for editing. If command input, commands are copied. If parameter input, non-empty parameters are copied. <br> By pressing the key repeatedly, preceding command or parameter input lines are fetched to the current line. |
+| FatRightArrow | **FAT RIGHT ARROW.** Copies the next input line to the current input line for editing. If command input, commands are copied. If parameter input, non-empty parameters are copied. <br> By pressing the key repeatedly, successive command or parameter input lines are fetched to the current line. |
+| Home | **HOME.** Aborts output, JOBs or parameter input. On some terminals you may need to use the ASCII value 35B to perform the same function. |
+| CtrlS | **CTRL+S.** Halts output until the next keystroke. Requires that the terminal does not handle XON/XOFF locally. |
 
 ---
 

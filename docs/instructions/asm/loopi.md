@@ -313,5 +313,5 @@ LOOP:
 
 - [LOOPD](loopd.md) - Loop decrement (step=-1)
 - [LOOP](loop.md) - Loop general (arbitrary step)
-- [INC](inc.md) - Increment instruction
+- [INCR](incr.md) - Increment instruction
 - [COMP](comp.md) - Compare instruction

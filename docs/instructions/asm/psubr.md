@@ -213,7 +213,5 @@ Receives the rounded result of a - b. Scaling factor determines rounding precisi
 - [PSUB](psub.md) - Packed BCD subtraction without rounding
 - [PADDR](paddr.md) - Packed BCD addition with rounding
 - [PADD](padd.md) - Packed BCD addition without rounding
-- [PMUL](pmul.md) - Packed BCD multiplication
-- [PDIV](pdiv.md) - Packed BCD division
 - [WPCONV](wpconv.md) - Convert binary to packed BCD
 - [PWCONV](pwconv.md) - Convert packed BCD to binary

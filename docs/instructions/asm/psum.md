@@ -189,5 +189,4 @@ LOOP:   D1 PSUM PRICES(W2), QUANTITIES(W2)
 
 - [MUL](mul.md) - Multiply
 - [ADD](add.md) - Add
-- [PDIF](pdif.md) - Product difference
 - [DIV](div.md) - Divide

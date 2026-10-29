@@ -191,4 +191,4 @@ CONVERT_LOOP:
 - [BYCONR](byconr.md) - Convert to byte with rounding
 - [WCONR](wconr.md) - Convert to word with rounding
 - [FCONR](fconr.md) - Convert to float with rounding
-- [HCON](hcon.md) - Convert to halfword (truncation, no rounding)
+- [HCONV](hconv.md) - Convert to halfword (truncation, no rounding)

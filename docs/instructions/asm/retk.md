@@ -113,6 +113,5 @@ None
 ## See Also
 
 - [RET](ret.md) - Return with K flag cleared
-- [ENT](ent.md) - Enter subroutine
 - [RETBK](retbk.md) - Buddy return with K set
 - [IF K RET](if-kgo.md) - Conditional return

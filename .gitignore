@@ -2,6 +2,7 @@
 build/
 build_release/
 build_wasm/
+build-site/
 dist/
 pkgroot/
 

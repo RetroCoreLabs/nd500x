@@ -226,5 +226,4 @@ W MOVE (B.PTR), I2   % Safe access
 
 - [COMP](comp.md) - Compare two operands
 - [TSET](tset.md) - Test and set (atomic operation)
-- [IF](if.md) - Conditional branch instructions
 - [CLR](clr.md) - Clear register to zero

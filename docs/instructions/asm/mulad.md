@@ -244,4 +244,3 @@ H2 MULAD 60, B.MINUTES      % Defaults to halfword constant
 - [MUL3](mul3.md) - Three-operand multiply
 - [MUL](mul.md) - Two-operand multiply
 - [ADD](add.md) - Addition
-- [MULC](mulc.md) - Multiply with carry (if available)

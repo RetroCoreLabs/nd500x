@@ -193,5 +193,5 @@ LOOP:
 
 - [EXP](exp.md) - Exponential function (e^x)
 - [POLY](poly.md) - Polynomial evaluation
-- [MULT](mult.md) - Multiplication for x² calculations
+- [*](mul.md) - Multiplication for x² calculations
 - [DIV](div.md) - Division for normalization

@@ -109,6 +109,5 @@ endwhile
 
 ## See Also
 
-- [SCOPY](scopy.md) - String copy
 - [SLOCA](sloca.md) - String locate element
 - [SCOMP](scomp.md) - String compare

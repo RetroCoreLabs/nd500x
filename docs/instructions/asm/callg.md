@@ -221,6 +221,5 @@ DONE:
 
 - [CALL](call.md) - Simple subroutine call
 - [ENTB](entb.md) - Enter block (entry point)
-- [ENTBB](entbb.md) - Enter block buddy
 - [RET](ret.md) - Return from subroutine
 - [JUMPG](jumpg.md) - Jump general

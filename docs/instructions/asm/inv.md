@@ -171,4 +171,3 @@ None
 - [INVC](invc.md) - Invert and add carry (for multi-word negation)
 - [NEG](neg.md) - Two's complement negation
 - [XOR](xor.md) - Bitwise XOR (can achieve same result with 0xFFFFFFFF)
-- [NOT](not.md) - Logical NOT (boolean negation)

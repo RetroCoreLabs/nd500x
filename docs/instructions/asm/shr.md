@@ -255,5 +255,3 @@ LOOP:
 
 - [SHL](shl.md) - Logical shift (zeros fill, no wrap)
 - [SHA](sha.md) - Arithmetic shift (sign-preserving)
-- [ROL](rol.md) - Rotate left (if separate instruction exists)
-- [ROR](ror.md) - Rotate right (if separate instruction exists)

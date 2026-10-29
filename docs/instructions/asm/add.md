@@ -149,5 +149,5 @@ LOOP:
 - [ADD2](add2.md) - Add two operands (explicit mnemonic)
 - [ADD3](add3.md) - Add three operands
 - [ADDC](addc.md) - Add with carry
-- [-](-.md) - Subtract operator
+- [-](sub.md) - Subtract operator
 - [Trap System](../../ND-500-TRAPS.md)

@@ -248,6 +248,5 @@ H RIOM I1, BUFFER, COUNT
 
 ## See Also
 
-- [WIOM](wiom.md) - Write I/O processor memory
 - [RWIP](rwip.md) - Read/write I/O processor (if available)
 - [ZWIP](zwip.md) - Zero I/O processor memory (if available)

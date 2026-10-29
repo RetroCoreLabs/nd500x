@@ -110,4 +110,3 @@ FN_LOCALS:
 - [ENTF](entf.md) - Fortran entry without argument check
 - [ENTSN](entsn.md) - Simple entry with argument count
 - [RETK](retk.md) - Return keeping frame
-- [ENT](ent.md) - Regular subroutine entry

@@ -241,6 +241,5 @@ SKIP:
 ## See Also
 
 - [MOVE](move.md) - Copy data from source to destination
-- [XCHG](xchg.md) - Exchange (if available on platform variant)
 - [CLR](clr.md) - Clear register (when swap with zero not needed)
 - [BMOVE](bmove.md) - Block move (for bulk transfers)

@@ -93,5 +93,4 @@ Unaffected.
 
 ## See Also
 
-- [P:=](p_=.md) - Load Program counter
 - [MOVE instruction reference](../../instruction-reference/MOVE.md)

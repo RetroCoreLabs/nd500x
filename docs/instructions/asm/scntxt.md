@@ -152,4 +152,3 @@ When address = 0, the context save area address is calculated as:
 - [LCNTXT](lcntxt.md) - Load context block
 - [SREGBL](sregbl.md) - Save register block
 - [LREGBL](lregbl.md) - Load register block
-- [SWITCH](switch.md) - Process switch

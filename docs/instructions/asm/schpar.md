@@ -108,5 +108,4 @@ for each byte in string:
 
 ## See Also
 
-- [SCHK](schk.md) - Check condition
 - [STRING instruction reference](../../instruction-reference/STRING.md)

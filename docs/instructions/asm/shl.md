@@ -241,6 +241,4 @@ BY1 SHL 8           % TRAP - IOV
 
 - [SHR](shr.md) - Shift right (if separate instruction exists)
 - [SHA](sha.md) - Shift arithmetic (preserves sign)
-- [ROL](rol.md) - Rotate left (if available)
-- [ROR](ror.md) - Rotate right (if available)
 - [MUL](mul.md) - Multiplication (slower than shift for powers of 2)

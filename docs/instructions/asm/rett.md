@@ -110,5 +110,3 @@ FATAL:  % Cannot recover, terminate
 
 - [ENTT](entt.md) - Enter trap handler
 - [INT](int.md) - Generate interrupt
-- [RTMM](rtmm.md) - Return from monitor
-- [WAIT](wait.md) - Wait for interrupt

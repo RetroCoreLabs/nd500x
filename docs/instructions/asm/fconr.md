@@ -191,4 +191,4 @@ The Z (zero) and S (sign) status bits are set based on the converted result, all
 - [BYCONR](byconr.md) - Convert to byte with rounding
 - [HCONR](hconr.md) - Convert to halfword with rounding
 - [WCONR](wconr.md) - Convert to word with rounding
-- [FCON](fcon.md) - Convert to float (truncation, no rounding)
+- [FCONV](fconv.md) - Convert to float (truncation, no rounding)

@@ -93,5 +93,4 @@ Unaffected.
 
 ## See Also
 
-- [TEMM2:=](temm2_=.md) - Load Trap enable modification mask 2
 - [MOVE instruction reference](../../instruction-reference/MOVE.md)

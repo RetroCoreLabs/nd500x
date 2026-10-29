@@ -145,7 +145,7 @@ manual never does.
 
 **Standard Template:**
 
-```markdown
+````markdown
 # {INSTRUCTION_NAME}
 
 ## Overview
@@ -246,7 +246,7 @@ Supported modes:
 - [{related instruction 1}]({filename1}.md)
 - [{related instruction 2}]({filename2}.md)
 - [Trap System](../../ND-500-TRAPS.md)
-```
+````
 
 ---
 

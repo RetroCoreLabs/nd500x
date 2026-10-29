@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 760" width="1400" height="760" role="img" aria-label="Anatomy of an ND-500 instruction: opcode, then per operand a prefix, an address-code byte and a data part; five real byte strings" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+<defs><pattern id="pi" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#FFFFFF" stroke-width="2.5" stroke-opacity="0.9"/></pattern><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1F2328"/></marker></defs>
+<rect width="1400" height="760" fill="#FFFFFF"/>
+<text x="40" y="52" font-size="30" font-weight="700" fill="#1F2328">Anatomy of one instruction</text>
+<text x="40" y="84" font-size="16" fill="#5B6470">An instruction is an opcode followed by zero or more operand specifiers. Every operand specifier starts with one address-code byte.</text>
+<text x="40" y="130" font-size="15" font-weight="700" fill="#1F2328">General shape</text>
+<rect x="40" y="146" width="330" height="54" rx="5" fill="#FFF3E0" stroke="#E65100" stroke-width="2"/>
+<text x="52" y="168" font-size="15" font-weight="700" fill="#E65100">opcode</text>
+<text x="52" y="188" font-size="12" fill="#1F2328">1 byte 0x00–0xFB, or 2 bytes 0xFC–0xFF xx</text>
+<rect x="380" y="146" width="250" height="54" rx="5" fill="#F5F5F4" stroke="#616161" stroke-width="2" stroke-dasharray="6 4"/>
+<text x="392" y="168" font-size="15" font-weight="700" fill="#616161">prefix</text>
+<text x="392" y="188" font-size="12" fill="#1F2328">0, 1 or 2 bytes: ALT, DESC</text>
+<rect x="640" y="146" width="220" height="54" rx="5" fill="#E3F2FD" stroke="#0D47A1" stroke-width="2"/>
+<text x="652" y="168" font-size="15" font-weight="700" fill="#0D47A1">address code</text>
+<text x="652" y="188" font-size="12" fill="#1F2328">1 byte, picks the mode</text>
+<rect x="870" y="146" width="380" height="54" rx="5" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2"/>
+<text x="882" y="168" font-size="15" font-weight="700" fill="#7B1FA2">data part</text>
+<text x="882" y="188" font-size="12" fill="#1F2328">0–8 bytes: displacement, address or constant</text>
+<path d="M380,214 v8 h870 v-8" fill="none" stroke="#1F2328" stroke-width="1.5"/>
+<text x="815.0" y="240" text-anchor="middle" font-size="13" fill="#1F2328">one <tspan font-weight="700">operand specifier</tspan>, repeated once per operand (most instructions take 1, string and some arithmetic forms take 2 or 3)</text>
+<text x="40" y="290" font-size="15" font-weight="700" fill="#1F2328">Real byte strings</text>
+<text x="260" y="290" font-size="12" fill="#5B6470">first four from the nd500x conformance corpus; the last one is read off the manual’s address-code table</text>
+<text x="40" y="316" font-size="11" font-weight="700" fill="#5B6470" letter-spacing="0.6">WRITTEN</text>
+<text x="330" y="316" font-size="11" font-weight="700" fill="#5B6470" letter-spacing="0.6">OPCODE</text>
+<text x="560" y="316" font-size="11" font-weight="700" fill="#5B6470" letter-spacing="0.6">ADDRESS CODE</text>
+<text x="720" y="316" font-size="11" font-weight="700" fill="#5B6470" letter-spacing="0.6">DATA PART</text>
+<text x="980" y="316" font-size="11" font-weight="700" fill="#5B6470" letter-spacing="0.6">WHAT THE ADDRESS CODE SAYS</text>
+<line x1="40" y1="324" x2="1360" y2="324" stroke="#D7DBE0"/>
+<text x="40" y="362" font-size="18" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">W1 + $0</text>
+<rect x="330" y="340" width="44" height="32" rx="4" fill="#FFF3E0" stroke="#E65100" stroke-width="2"/>
+<text x="352.0" y="362" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#E65100">54</text>
+<rect x="560" y="340" width="44" height="32" rx="4" fill="#E3F2FD" stroke="#0D47A1" stroke-width="2"/>
+<text x="582.0" y="362" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#0D47A1">00</text>
+<text x="720" y="362" font-size="12" fill="#5B6470">none</text>
+<text x="980" y="353" font-size="12" fill="#1F2328">00 000000: short constant, value 0 inside the byte</text>
+<text x="980" y="369" font-size="11.5" fill="#5B6470">opcode 54 = W1 +  (W picks word size and register I1)</text>
+<line x1="40" y1="386" x2="1360" y2="386" stroke="#D7DBE0"/>
+<text x="40" y="420" font-size="18" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">W1 + $1000</text>
+<rect x="330" y="398" width="44" height="32" rx="4" fill="#FFF3E0" stroke="#E65100" stroke-width="2"/>
+<text x="352.0" y="420" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#E65100">54</text>
+<rect x="560" y="398" width="44" height="32" rx="4" fill="#E3F2FD" stroke="#0D47A1" stroke-width="2"/>
+<text x="582.0" y="420" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#0D47A1">CE</text>
+<rect x="720" y="398" width="44" height="32" rx="4" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2"/>
+<text x="742.0" y="420" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">03</text>
+<rect x="770" y="398" width="44" height="32" rx="4" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2"/>
+<text x="792.0" y="420" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">E8</text>
+<text x="980" y="411" font-size="12" fill="#1F2328">CE: constant, halfword data part</text>
+<text x="980" y="427" font-size="11.5" fill="#5B6470">1000 = 03E8, big-endian</text>
+<line x1="40" y1="444" x2="1360" y2="444" stroke="#D7DBE0"/>
+<text x="40" y="478" font-size="18" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">W1 =: B.0</text>
+<rect x="330" y="456" width="44" height="32" rx="4" fill="#FFF3E0" stroke="#E65100" stroke-width="2"/>
+<text x="352.0" y="478" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#E65100">20</text>
+<rect x="560" y="456" width="44" height="32" rx="4" fill="#E3F2FD" stroke="#0D47A1" stroke-width="2"/>
+<text x="582.0" y="478" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#0D47A1">40</text>
+<text x="720" y="478" font-size="12" fill="#5B6470">none</text>
+<text x="980" y="469" font-size="12" fill="#1F2328">01 000000: short local, B + 0*4</text>
+<text x="980" y="485" font-size="11.5" fill="#5B6470">opcode 20 = W1 =:  (store W1 to the operand)</text>
+<line x1="40" y1="502" x2="1360" y2="502" stroke="#D7DBE0"/>
+<text x="40" y="536" font-size="18" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">H1 - $128</text>
+<rect x="330" y="514" width="44" height="32" rx="4" fill="#FFF3E0" stroke="#E65100" stroke-width="2"/>
+<text x="352.0" y="536" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#E65100">FC</text>
+<rect x="380" y="514" width="44" height="32" rx="4" fill="#FFF3E0" stroke="#E65100" stroke-width="2"/>
+<text x="402.0" y="536" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#E65100">40</text>
+<rect x="560" y="514" width="44" height="32" rx="4" fill="#E3F2FD" stroke="#0D47A1" stroke-width="2"/>
+<text x="582.0" y="536" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#0D47A1">CE</text>
+<rect x="720" y="514" width="44" height="32" rx="4" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2"/>
+<text x="742.0" y="536" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">00</text>
+<rect x="770" y="514" width="44" height="32" rx="4" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2"/>
+<text x="792.0" y="536" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">80</text>
+<text x="980" y="527" font-size="12" fill="#1F2328">FC 40: two-byte opcode, H1 -</text>
+<text x="980" y="543" font-size="11.5" fill="#5B6470">128 does not fit the 6-bit short form, so CE + 2 bytes</text>
+<line x1="40" y1="560" x2="1360" y2="560" stroke="#D7DBE0"/>
+<text x="40" y="594" font-size="18" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" fill="#1F2328">W1 + B.12:B(R2)</text>
+<rect x="330" y="572" width="44" height="32" rx="4" fill="#FFF3E0" stroke="#E65100" stroke-width="2"/>
+<text x="352.0" y="594" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#E65100">54</text>
+<rect x="560" y="572" width="44" height="32" rx="4" fill="#E3F2FD" stroke="#0D47A1" stroke-width="2"/>
+<text x="582.0" y="594" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#0D47A1">D5</text>
+<rect x="720" y="572" width="44" height="32" rx="4" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2"/>
+<text x="742.0" y="594" text-anchor="middle" font-size="16" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700" fill="#7B1FA2">0C</text>
+<text x="980" y="585" font-size="12" fill="#1F2328">D5: local, post-indexed, byte displacement, index R2</text>
+<text x="980" y="601" font-size="11.5" fill="#5B6470">ea = B + 12 + 4·R2  (from the manual’s table, D4 + 1)</text>
+<line x1="40" y1="618" x2="1360" y2="618" stroke="#D7DBE0"/>
+<text x="40" y="648" font-size="15" font-weight="700" fill="#1F2328">The data-type letter is part of the opcode</text>
+<text x="40" y="672" font-size="13" fill="#1F2328"><tspan font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700">W1 +</tspan> is opcode 54, <tspan font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700">F1 +</tspan> is 58, <tspan font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700">W1 *</tspan> is 6C: the type letter and the register number select the opcode byte, they are not a prefix.</text>
+<text x="40" y="694" font-size="13" fill="#1F2328"><tspan font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700">BI BY H W</tspan> → integer registers I1–I4 (bit, byte, halfword, word)   <tspan font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700">F</tspan> → A1–A4 (32-bit float)   <tspan font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-weight="700">D</tspan> → A+E pair (64-bit float).   244 variants have a one-byte opcode, 834 use the 0xFC–0xFF prefix byte.</text>
+<text x="1360" y="746" text-anchor="end" font-size="11" fill="#5B6470">Sources: nd500x conformance corpus (byte strings), instructions.json (opcodes), ND-05.009.4 chapter 8 (address codes).</text>
+</svg>
