@@ -11,7 +11,9 @@ map, and one more 16 by 16 map for each of the four prefix bytes 0xFC, 0xFD, 0xF
 and 0xFF. A cell is coloured by instruction class, shows the class code as text,
 and is labelled with the data type, register and mnemonic, for example `W1 +` at
 0x54. Select a cell for its opcode in hex, binary and decimal and a link to the
-instruction page. The class buttons and the search box dim every other cell.
+instruction page. The class buttons, the data type buttons (bit, byte, half-word,
+word, float, double, no type) and the search box dim every other cell; they can be
+combined.
 
 [Open the matrix on its own page](opcode-matrix.html), full width.
 
