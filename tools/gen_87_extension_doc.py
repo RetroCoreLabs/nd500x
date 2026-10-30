@@ -110,6 +110,11 @@ def main():
     for n, sec, name, desc in starts:
         end = next((x for x in numbered if x > n), len(L))
         body = L[n + 1:end]
+        # the last section of a chapter runs into the scanned page footer and the next chapter heading
+        for q, l in enumerate(body):
+            if l.startswith("![scanned page]") or re.match(r"^#+\s*CHAPTER\b", l):
+                body = body[:q]
+                break
         ops, rows, notes = section_opcodes(body)
         mn = name.split()[-1].lower()
         jit = by_mn.get(mn, [])
