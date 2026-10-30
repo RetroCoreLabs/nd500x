@@ -2,6 +2,8 @@
 
 > A Norsk Data ND-500 CPU emulator written in C11
 
+**New: [ND-500 opcode matrix](docs/instructions/OPCODE-MATRIX.md)** - every opcode on one page, with filters. Also: [instruction set overview](docs/INSTRUCTION-SET-OVERVIEW.md), [all instructions](docs/instructions/ALL-INSTRUCTIONS.md).
+
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![C Standard](https://img.shields.io/badge/C-C11-blue.svg)](https://en.wikipedia.org/wiki/C11_(C_standard_revision))
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20WebAssembly-lightgrey.svg)](#platform-support)
