@@ -116,6 +116,10 @@ SECTIONS = [
     ("ND-500 reference", [
         "docs/INSTRUCTION-SET-OVERVIEW.md",
         "docs/instructions/OPCODE-MATRIX.md",
+        ("ND-5000 '87 extension", [
+            "docs/ND5000-87-EXTENSION-INSTRUCTIONS.md",
+            "docs/ND5000-87-EXTENSION-PLAN.md",
+        ]),
         ("All instructions", "@all-instructions"),
         ("Instructions by class", ["@instructions"]),
         "docs/ND-500-TRAPS.md",

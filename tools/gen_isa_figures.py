@@ -10,7 +10,7 @@ Run from anywhere:  python3 tools/gen_isa_figures.py [outdir]
 Paths are derived from this file's location; the default outdir is docs/figures.
 
 Facts come from:
-  docs/instructions/instructions.json             241 instr / 1078 variants / classes / opcodes
+  docs/instructions/instructions.json             252 instr / 1097 variants / classes / opcodes
   test/nd500-conformance.json                     real assembly -> byte strings
   docs/ND-05.009.4 EN ND-500 Reference Manual.md  pages 97-101: address codes, ea formulas
 The script asserts the counts and the byte strings it draws.
@@ -59,7 +59,7 @@ def save(name, s):
 # ---- data from instructions.json -------------------------------------------
 d = json.load(open(os.path.join(REPO, "docs/instructions/instructions.json")))
 items = d["instructions"]
-assert d["totalInstructions"] == 1078 == len(items)
+assert d["totalInstructions"] == 1097 == len(items)
 cls_fn = collections.defaultdict(dict)
 cls_var = collections.Counter()
 by_op = {}
@@ -68,7 +68,7 @@ for it in items:
     cls_var[it["class"]] += 1
     by_op[int(it["opcode"], 16)] = it
 n_instr = sum(len(v) for v in cls_fn.values())
-assert n_instr == 241, n_instr
+assert n_instr == 252, n_instr
 one_byte = sum(1 for it in items if int(it["opcode"], 16) < 0x100)
 assert by_op[0x54]["mnemonic"] == "+" and by_op[0x6C]["mnemonic"] == "*"
 assert by_op[0x20]["mnemonic"] == "=:" and by_op[0xFC40]["mnemonic"] == "-"
