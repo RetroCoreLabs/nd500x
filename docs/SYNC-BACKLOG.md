@@ -197,3 +197,15 @@ with the same handler as 0xFE1E (the opcode in the NDIX-C assembler tables). Row
 ND-5000 microcode maps both opcodes to the routine DCDUMP; which one the hardware uses is an
 open question for the CPU designer. The C# emulator is owed the same second opcode, if it
 does not have it (not checked).
+
+## PLCCN and ENTIER, settled parts only (2026-10-30)
+
+nd500x now runs PLCCN (0xFFFD) and ENTIER (0xFDC7 F, 0xFDC8 D) from the manual's opcodes
+(ND-05.009.4 sections 15.15 and 10.37). Rows and dispatch entries in
+`src/cpu/nd500_instructions.c`, handlers in `src/cpu/instructions/SYSTEM/Plccn.c` and
+`src/cpu/instructions/FLOAT_MATH/Entier.c`, and the decoder in `src/cpu/cpu_instr.c`
+(`operand_data_type`) addresses the ENTIER destination as a word. PLCCN: N = u-l+1 (0 when
+negative), A = a + 4*l, Z from N, S from N, O and C reset. ENTIER: floor, O when outside 32
+bits (result clamped, no trap). Unsettled and marked in the handlers: PLCCN descriptor byte
+offsets and S, ENTIER value on overflow. The C# emulator is owed the same, if it does not have
+it (not checked). Test: `test/test_plccn_entier.c`.

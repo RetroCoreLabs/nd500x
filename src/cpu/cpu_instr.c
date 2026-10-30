@@ -476,7 +476,8 @@ static Nd500DataType operand_data_type(uint16_t opcode, uint8_t operand_idx,
         case 0xFD45: case 0xFD4A: case 0xFD55: case 0xFD5A: case 0xFD5F:
             return ND500_DTYPE_HALFWORD;     /* HCONV */
         case 0xFD46: case 0xFD4B: case 0xFD50: case 0xFD5B: case 0xFD60:
-            return ND500_DTYPE_WORD;         /* WCONV */
+        case 0xFDC7: case 0xFDC8:
+            return ND500_DTYPE_WORD;         /* WCONV, ENTIER (F or D source, word destination) */
         case 0xFD47: case 0xFD4C: case 0xFD51: case 0xFD56: case 0xFD61:
             return ND500_DTYPE_FLOAT;        /* FCONV */
         case 0xFD48: case 0xFD4D: case 0xFD52: case 0xFD57: case 0xFD5C:

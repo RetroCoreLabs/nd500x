@@ -264,6 +264,12 @@ add_executable(test_wext_clock
 )
 target_link_libraries(test_wext_clock PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# PLCCN and ENTIER ('87 extensions), the settled parts, through nd500_cpu_step().
+add_executable(test_plccn_entier
+    test_plccn_entier.c
+)
+target_link_libraries(test_plccn_entier PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 add_executable(test_rpgu_operand
     test_rpgu_operand.c
 )
@@ -479,6 +485,7 @@ add_test(NAME page_bits COMMAND test_page_bits)
 add_test(NAME rpgu_operand COMMAND test_rpgu_operand)
 add_test(NAME rphs_wphs COMMAND test_rphs_wphs)
 add_test(NAME wext_clock COMMAND test_wext_clock)
+add_test(NAME plccn_entier COMMAND test_plccn_entier)
 add_test(NAME abort_guard COMMAND test_abort_guard)
 add_test(NAME local_trap_gate COMMAND test_local_trap_gate)
 add_test(NAME entt_frame_fault COMMAND test_entt_frame_fault)
