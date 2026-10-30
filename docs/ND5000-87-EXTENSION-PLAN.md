@@ -7,18 +7,17 @@ generated, and its status column shows how far the data is.
 
 ## What is wrong today
 
-Measured on 30 October 2026:
+Measured on 30 October 2026, after the data and tool changes:
 
-- 13 of the 25 '87 instructions are missing from `docs/instructions/instructions.json`:
-  AMODB, ENTIER, PLCCN, NCPLC, CLINIT, CLREAD, RHOLE, WHOLE, SEND, RECVE, REXT, WEXT,
-  TOSSP. So they have no dispatch entry, no handler, no disassembly and no assembler
-  support. (CAD is not missing: the data has it as `cad:=` at 0xFDBA, the manual's opcode.)
-- DDIRT is in the data at 0xFE1E. The manual (section 16.11) says 0xFFFA.
-- The installed assembler `nd500-as` on the path (dated 14 October 2026) answers
-  "unknown instruction" for the 13 missing ones. For DDIRT it emits 0xFE1E.
-- The installed disassembler `nd500-dis` on the path prints `???` for the opcodes
-  0xFFFD, 0xFFFE, 0xFF1E, 0xFF1F, 0xFE9E, 0xFE9D, 0xB6, 0xB7, 0xFFE8, 0xFFEC, 0xFE9F and
-  0xFFFA, and prints `ddirt` for 0xFE1E. It decodes `cad:=` (0xFDBA).
+- In `docs/instructions/instructions.json` and in `nd500-as` and `nd500-dis`, 23 of the 25
+  '87 instructions are present. AMODB and RHOLE are not (see "Not proven").
+- The emulator (`src/cpu/nd500_instructions.c`) has a table row, a dispatch entry and a handler
+  for CLINIT and CLREAD (`src/cpu/instructions/SYSTEM/Clock.c`), REXT and WEXT
+  (`src/cpu/instructions/SYSTEM/Wext.c`), DDIRT at 0xFE1E, and CAD. It has no row, no
+  dispatch entry and no handler for PLCCN, NCPLC, SEND, RECVE, WHOLE, TOSSP and ENTIER, and no
+  row for DDIRT at 0xFFFA. An opcode without a handler raises the illegal instruction trap.
+- The emulator's table is a separate file from the data and was not made by `nd500-opcodes`
+  (its output format differs), so it needs its own rows.
 
 ## Step 1 - the tools (found 30 October 2026)
 
@@ -100,6 +99,23 @@ value and the item stays here until someone who designed the instruction answers
    and are this project's grouping, not the manual's.
 8. **Privileged.** Which of the 25 are privileged is only what the manual's text says (CLINIT,
    REXT, SCNTXT and others); instructions where the manual is silent are listed as "not stated".
+
+## Findings from reading the microcode (30 October 2026)
+
+Read from the symbolic listing of MICRO-5800-B30 (line numbers are lines of that listing).
+Where a point is marked "not settled", the listing does not decide it and no handler may guess it.
+
+| Instruction | Manual | Microcode | Settled | Not settled |
+|---|---|---|---|---|
+| PLCCN (0xFFFD) | N = u-l+1, "a + 1 -> A" | N = u-l+1 and a negative N becomes 0; A = a + (lower bound times the element size, 4 for W). So "a + 1" in the manual is probably "a + l" (lines 13160 to 13175) | Both operands are addresses of descriptors in memory; Z = (N = 0), S = sign of N | Byte offsets of the source words; other status bits; no overflow test exists |
+| NCPLC (0xFFFE) | a = A, l = 0, u = N-1, "if u-l+1 < 0, 0 -> N" | a = A, l = 0, u = N-1; the clamp to 0 is applied to u (lines 13271 to 13288) | Z = (u = 0) | Whether N = 0 gives u = 0 or u = -1; other status bits |
+| ENTIER (0xFDC7, 0xFDC8) | floor of the source; Z, S, O | floor (negative non-integer: truncated value minus 1); O comes from the hardware conversion; the destination is written even on overflow (lines 35584 to 35620) | The rounding rule | The value written on overflow; how Z and S are saved; NaN and denormal input |
+| TOSSP (0xFE9F) | operand -> TOS, stack overflow trap if operand greater than B.SP | The routine compares the operand with a word read from memory (probably B.SP) as an unsigned subtract and takes the trap when there is no carry; it appears to store the saved status word in the TOS slot, not the operand (lines 15730 to 15766) | Entry exists | Whether this is a microcode quirk or a misreading; the trap value stored |
+| SEND (0xB6), RECVE (0xB7), WHOLE (0xFE9D) | traps PV and IOV, status bits unaffected | All three use tables in shared physical memory set up by the nucleus (START_MESS + 88); without them every call ends with I1 = 0x8215 (0o101025) and K = 1. Errors are returned as codes in I1 with K = 1 and no trap is raised (codes 0x8202 not a message, 0x820C no access, 0x8206 outside the source, 0x8204 illegal number, 0x8213 timeout, 0x821A port closed, 0x821B illegal). RECVE also loads I2 and sets K when a message arrives; an empty queue does not block. WHOLE chooses read, write or insert from the hole number in word 0, not from the opcode (lines 7384 to 8294) | That the manual's trap list and "unaffected" status bits do not match the microcode | Message and port entry layouts; who fills the nucleus table; the final K on success of SEND |
+
+Consequence for the emulator: PLCCN, NCPLC, ENTIER, TOSSP, SEND, RECVE and WHOLE keep raising the
+illegal instruction trap until the unsettled points are answered, or until Ronny decides to accept
+the best-supported reading. A wrong handler would hide the difference from a real machine.
 
 ## Step 2 - decide the order
 
