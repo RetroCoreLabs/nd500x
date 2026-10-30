@@ -188,3 +188,12 @@ One thing IS owed. The reference's `perform_block_copy` equivalent computes
 half, in the odd-trailing-byte tail. That is a real one-byte defect and it is
 shared by both emulators. It is not the string corruption - that was the
 missing inline copy - but it is still wrong and still unfixed on both sides.
+
+## DDIRT at the manual's opcode 0xFFFA (2026-10-30)
+
+nd500x now also runs DDIRT at 0xFFFA (ND-500 Reference Manual ND-05.009.4, section 16.11),
+with the same handler as 0xFE1E (the opcode in the NDIX-C assembler tables). Rows added in
+`src/cpu/nd500_instructions.c`; the handler is unchanged (a no-op without a cache). The
+ND-5000 microcode maps both opcodes to the routine DCDUMP; which one the hardware uses is an
+open question for the CPU designer. The C# emulator is owed the same second opcode, if it
+does not have it (not checked).

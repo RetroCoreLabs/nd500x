@@ -21,7 +21,10 @@
  * Format: DDIRT
  *
  * Assembly:
- *   DDIRT (dump dirty)                        Hex 0xFE1E
+ *   DDIRT (dump dirty)                        Hex 0xFE1E (NDIX-C assembler tables)
+ *                                             Hex 0xFFFA (ND-500 Reference Manual 16.11)
+ *   The ND-5000 microcode runs the same routine (DCDUMP, 001645) for both opcodes.
+ *   Which one the hardware really uses is an open question for the CPU designer.
  *
  * Operation: Write dirty cache lines back to memory
  *
