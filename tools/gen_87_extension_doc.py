@@ -24,6 +24,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gen_opcode_matrix import load_dispatch  # the emulator's dispatch table, read once, by one function
+
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 MANUAL = os.path.join(ROOT, "docs/ND-05.009.4 EN ND-500 Reference Manual.md")
 OUT = os.path.join(ROOT, "docs/ND5000-87-EXTENSION-INSTRUCTIONS.md")
@@ -83,6 +86,7 @@ def main():
         by_mn.setdefault(it["mnemonic"].lower(), []).append(it)
     all_fn = {it["functionName"] for it in items}
     all_ops = {int(it["opcode"], 16) for it in items}
+    emu_ops = load_dispatch()
 
     # --- the manual side: labelled sections
     starts = []
@@ -133,7 +137,15 @@ def main():
             status = "in instructions.json, DIFFERENT opcodes"
         else:
             status = "in instructions.json, manual opcodes not read by the script"
-        secs.append(dict(sec=sec, name=name, mn=mn, desc=desc, ops=ops, rows=rows, notes=notes, body=body,
+        if not jops:
+            emu = "no opcode in the data, so no handler"
+        elif jops <= emu_ops:
+            emu = "yes, every opcode has a handler"
+        elif not (jops & emu_ops):
+            emu = "no, illegal instruction trap"
+        else:
+            emu = "some opcodes only: " + ", ".join("0x%X" % x for x in sorted(jops & emu_ops))
+        secs.append(dict(emu=emu, sec=sec, name=name, mn=mn, desc=desc, ops=ops, rows=rows, notes=notes, body=body,
                          jit=jit, jops=jops, status=status, page=toc_page(sec),
                          fn=jit[0]["functionName"] if jit else None, cls=jit[0]["class"] if jit else None))
 
@@ -192,14 +204,18 @@ def main():
         w("")
         w("## The instructions")
         w("")
-        w("| Section | Instruction | What it does | Manual page | Opcodes in the manual | Status in instructions.json |")
-        w("|---|---|---|---:|---|---|")
+        w("| Section | Instruction | What it does | Manual page | Opcodes in the manual | Status in instructions.json | Handler in nd500x |")
+        w("|---|---|---|---:|---|---|---|")
         for s in secs:
             ops = ", ".join("0x%X" % x for x in sorted(s["ops"])) if s["ops"] else "not read"
             if len(s["ops"]) > 4:
                 ops = "0x%X to 0x%X" % (min(s["ops"]), max(s["ops"]))
             anchor = "s" + s["sec"].replace(".", "-")
-            w(f"| {s['sec']} | [{s['name']}](#{anchor}) | {s['desc']} | {s['page'] or ''} | {ops} | {s['status']} |")
+            w(f"| {s['sec']} | [{s['name']}](#{anchor}) | {s['desc']} | {s['page'] or ''} | {ops} | {s['status']} | {s['emu']} |")
+        w("")
+        w("\"Handler in nd500x\" means the opcode has an entry in the dispatch table of `src/cpu/nd500_instructions.c` "
+          "(read by the script). An opcode without an entry raises the illegal instruction trap. "
+          "An entry says a handler exists, not that it is complete or correct; the header of each handler names what is unsettled.")
         w("")
         notes = [f"- {s['name']} ({s['sec']}): {x}" for s in secs for x in s["notes"]]
         if notes:
@@ -220,6 +236,8 @@ def main():
             w("")
             w(f"Status in instructions.json: **{s['status']}**." +
               (f" Class in the data: {s['cls']}." if s["cls"] else ""))
+            w("")
+            w(f"Handler in nd500x: **{s['emu']}**.")
             w("")
             for l in s["body"]:
                 if JUNK.match(l.strip()):

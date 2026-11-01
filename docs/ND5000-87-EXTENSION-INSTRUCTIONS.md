@@ -20,33 +20,35 @@ The ND-500 base row assumes `instructions.json` holds every non-'87 instruction 
 
 ## The instructions
 
-| Section | Instruction | What it does | Manual page | Opcodes in the manual | Status in instructions.json |
-|---|---|---|---:|---|---|
-| 10.36 | [AMODB](#s10-36) | Integer modulo |  | 0xFFBC to 0xFFC7 | missing from instructions.json |
-| 10.37 | [ENTIER](#s10-37) | SIMULA Entier function |  | 0xFDC7, 0xFDC8 | in instructions.json, same opcodes |
-| 15.15 | [PLCCN](#s15-15) | Convert PLANC descriptor to ND-500 descriptor | 268 | 0xFFFD | in instructions.json, same opcodes |
-| 15.16 | [NCPLC](#s15-16) | Convert ND-500 descriptor to PLANC descriptor | 269 | 0xFFFE | in instructions.json, same opcodes |
-| 15.17 | [CLINIT](#s15-17) | Initialize local clock | 270 | 0xFF1E | in instructions.json, same opcodes |
-| 15.18 | [CLREAD](#s15-18) | Read local clock | 271 | 0xFF1F | in instructions.json, same opcodes |
-| 16.11 | [DDIRT](#s16-11) | Dump 'Dirty' | 285 | 0xFFFA | in instructions.json, with the manual's opcodes and also 0xFE1E |
-| 16.26.1 | [RHOLE](#s16-26-1) | read from NUCLEUS Hole | 301 | 0xFE9E | missing from instructions.json |
-| 16.26.2 | [WHOLE](#s16-26-2) | write to NUCLEUS hole | 302 | 0xFE9D | in instructions.json, same opcodes |
-| 16.26.3 | [SEND](#s16-26-3) | Send to port | 303 | 0xB6 | in instructions.json, same opcodes |
-| 16.26.4 | [RECVE](#s16-26-4) | Receive from port | 304 | 0xB7 | in instructions.json, same opcodes |
-| 16.27.1 | [SREGBL](#s16-27-1) | Save register block | 307 | 0xFFF7 | in instructions.json, same opcodes |
-| 16.27.2 | [LREGBL](#s16-27-2) | Load register block | 308 | 0xFFF6 | in instructions.json, same opcodes |
-| 16.27.3 | [SCNTXT](#s16-27-3) | Save context block | 309 | 0xFFF9 | in instructions.json, same opcodes |
-| 16.27.4 | [LCNTXT](#s16-27-4) | Load context block | 310 | 0xFFF8 | in instructions.json, same opcodes |
-| 16.28 | [REXT](#s16-28) | Read from device external to CPU | 311 | 0xFFE8, 0xFFE9, 0xFFEA, 0xFFEB | in instructions.json, same opcodes |
-| 16.29 | [WEXT](#s16-29) | Write to device external to CPU | 312 | 0xFFEC, 0xFFED, 0xFFEE, 0xFFEF | in instructions.json, same opcodes |
-| 16.30 | [TOSSP](#s16-30) | Special load of TOS | 313 | 0xFE9F | in instructions.json, same opcodes |
-| 16.31 | [RPHS](#s16-31) | Read from physical segment | 314 | 0xFFF5 | in instructions.json, same opcodes |
-| 16.32 | [WPHS](#s16-32) | Write to physical segment | 315 | 0xFFF4 | in instructions.json, same opcodes |
-| 16.33 | [CAD](#s16-33) | Load CAD | 316 | 0xFDBA | in instructions.json, same opcodes |
-| 16.34 | [JUMPS](#s16-34) | Call supervisor | 317 | 0xB9 | in instructions.json, same opcodes |
-| 16.35 | [SVERS](#s16-35) | Store microprogram version | 318 | 0xFFFB | in instructions.json, same opcodes |
-| 16.36 | [SCPUNO](#s16-36) | Store CPU number | 319 | 0xFFFC | in instructions.json, same opcodes |
-| 16.37 | [PHYLADR](#s16-37) | Get physical address | 320 | 0xFFF0, 0xFFF1, 0xFFF2, 0xFFF3 | in instructions.json, same opcodes |
+| Section | Instruction | What it does | Manual page | Opcodes in the manual | Status in instructions.json | Handler in nd500x |
+|---|---|---|---:|---|---|---|
+| 10.36 | [AMODB](#s10-36) | Integer modulo |  | 0xFFBC to 0xFFC7 | missing from instructions.json | no opcode in the data, so no handler |
+| 10.37 | [ENTIER](#s10-37) | SIMULA Entier function |  | 0xFDC7, 0xFDC8 | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 15.15 | [PLCCN](#s15-15) | Convert PLANC descriptor to ND-500 descriptor | 268 | 0xFFFD | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 15.16 | [NCPLC](#s15-16) | Convert ND-500 descriptor to PLANC descriptor | 269 | 0xFFFE | in instructions.json, same opcodes | no, illegal instruction trap |
+| 15.17 | [CLINIT](#s15-17) | Initialize local clock | 270 | 0xFF1E | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 15.18 | [CLREAD](#s15-18) | Read local clock | 271 | 0xFF1F | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.11 | [DDIRT](#s16-11) | Dump 'Dirty' | 285 | 0xFFFA | in instructions.json, with the manual's opcodes and also 0xFE1E | yes, every opcode has a handler |
+| 16.26.1 | [RHOLE](#s16-26-1) | read from NUCLEUS Hole | 301 | 0xFE9E | missing from instructions.json | no opcode in the data, so no handler |
+| 16.26.2 | [WHOLE](#s16-26-2) | write to NUCLEUS hole | 302 | 0xFE9D | in instructions.json, same opcodes | no, illegal instruction trap |
+| 16.26.3 | [SEND](#s16-26-3) | Send to port | 303 | 0xB6 | in instructions.json, same opcodes | no, illegal instruction trap |
+| 16.26.4 | [RECVE](#s16-26-4) | Receive from port | 304 | 0xB7 | in instructions.json, same opcodes | no, illegal instruction trap |
+| 16.27.1 | [SREGBL](#s16-27-1) | Save register block | 307 | 0xFFF7 | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.27.2 | [LREGBL](#s16-27-2) | Load register block | 308 | 0xFFF6 | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.27.3 | [SCNTXT](#s16-27-3) | Save context block | 309 | 0xFFF9 | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.27.4 | [LCNTXT](#s16-27-4) | Load context block | 310 | 0xFFF8 | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.28 | [REXT](#s16-28) | Read from device external to CPU | 311 | 0xFFE8, 0xFFE9, 0xFFEA, 0xFFEB | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.29 | [WEXT](#s16-29) | Write to device external to CPU | 312 | 0xFFEC, 0xFFED, 0xFFEE, 0xFFEF | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.30 | [TOSSP](#s16-30) | Special load of TOS | 313 | 0xFE9F | in instructions.json, same opcodes | no, illegal instruction trap |
+| 16.31 | [RPHS](#s16-31) | Read from physical segment | 314 | 0xFFF5 | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.32 | [WPHS](#s16-32) | Write to physical segment | 315 | 0xFFF4 | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.33 | [CAD](#s16-33) | Load CAD | 316 | 0xFDBA | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.34 | [JUMPS](#s16-34) | Call supervisor | 317 | 0xB9 | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.35 | [SVERS](#s16-35) | Store microprogram version | 318 | 0xFFFB | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.36 | [SCPUNO](#s16-36) | Store CPU number | 319 | 0xFFFC | in instructions.json, same opcodes | yes, every opcode has a handler |
+| 16.37 | [PHYLADR](#s16-37) | Get physical address | 320 | 0xFFF0, 0xFFF1, 0xFFF2, 0xFFF3 | in instructions.json, same opcodes | yes, every opcode has a handler |
+
+"Handler in nd500x" means the opcode has an entry in the dispatch table of `src/cpu/nd500_instructions.c` (read by the script). An opcode without an entry raises the illegal instruction trap. An entry says a handler exists, not that it is complete or correct; the header of each handler names what is unsettled.
 
 Misprints in the manual's code tables found by the script:
 
@@ -66,6 +68,8 @@ Copied from the manual's Markdown. Page headers and footers are dropped; the man
 ### 10.36 AMODB - Integer modulo
 
 Status in instructions.json: **missing from instructions.json**.
+
+Handler in nd500x: **no opcode in the data, so no handler**.
 
 **Format:** tn AMODB <operand1/r/t>,<operand2/r/t>
 
@@ -104,6 +108,8 @@ result.signbit -> S
 ### 10.37 ENTIER - SIMULA Entier function
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: FLOAT_MATH.
+
+Handler in nd500x: **yes, every opcode has a handler**.
 
 **Format:** t ENTIER `<source/r/t1>,<destination/w/w>`
 
@@ -144,6 +150,8 @@ The function calculates the integer part of the source in accordance to the SIMU
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 Format: W PLCCN \<source/r/W\>,\<destination/w/W\>
 
 | Assembly notation | Name                          | Hex code | Octal code |
@@ -175,6 +183,8 @@ Signbit -> S
 ### 15.16 NCPLC - Convert ND-500 descriptor to PLANC descriptor
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
+
+Handler in nd500x: **no, illegal instruction trap**.
 
 **Format:** W NCPLC `<source/r/W>,<destination/w/W>`
 
@@ -212,6 +222,8 @@ Signbit -> S
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 | Assembly notation | Name                | Hex code | Octal code |
 |-------------------|---------------------|----------|------------|
 | CLINIT            | initialize CPU's clock | FF1EH    | 177436B    |
@@ -235,6 +247,8 @@ Clock is reset and started.
 ### 15.18 CLREAD - Read local clock
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
+
+Handler in nd500x: **yes, every opcode has a handler**.
 
 | Assembly notation | Name              | Hex code | Octal code |
 |-------------------|-------------------|----------|------------|
@@ -261,6 +275,8 @@ None
 
 Status in instructions.json: **in instructions.json, with the manual's opcodes and also 0xFE1E**. Class in the data: SYSTEM.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 | Assembly notation | Name       | Hex code | Octal code |
 |-------------------|------------|----------|------------|
 | DDIRT             | dump dirty | FFFAH    | 177772B    |
@@ -285,6 +301,8 @@ DDIRT
 ### 16.26.1 RHOLE - read from NUCLEUS Hole
 
 Status in instructions.json: **missing from instructions.json**.
+
+Handler in nd500x: **no opcode in the data, so no handler**.
 
 **Format:** BY RHOLE (<hole/r/by/I1>,<string/w/by/I2>)
 
@@ -332,6 +350,8 @@ Destination full : K = 1, I1, I2 next element.
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: IO.
 
+Handler in nd500x: **no, illegal instruction trap**.
+
 Format: BY WHOLE `<string/r/by/I1>`, `<hole/w/by/I2>`
 
 | Assembly notation | Name       | Hex code | Octal code |
@@ -378,6 +398,8 @@ Bytes are moved from source string to destination hole until either source is em
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: IO.
 
+Handler in nd500x: **no, illegal instruction trap**.
+
 **Format:** W1 SEND \<hole number/r/W>
 
 | Assembly notation | Name        | Hex code | Octal code |
@@ -400,6 +422,8 @@ Message of register 1 is sent to hole number as specified by the operand.
 ### 16.26.4 RECVE - Receive from port
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: IO.
+
+Handler in nd500x: **no, illegal instruction trap**.
 
 **Format:**
 W1 RECVE <hole number/r/W>,<number of bytes/w/W>
@@ -429,6 +453,8 @@ Unaffected
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 **Format:** SREGBL {mask/r/W}, {address/r/W}
 
 | Assembly notation | Name              | Hex code | Octal code |
@@ -447,6 +473,8 @@ The registers specified in the mask are stored in logical memory locations addre
 ### 16.27.2 LREGBL - Load register block
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
+
+Handler in nd500x: **yes, every opcode has a handler**.
 
 #### Format: LREGBL <mask/r/W>, <address/r/W>
 
@@ -471,6 +499,8 @@ When included in the mask, registers residing in the domain information table ar
 ### 16.27.3 SCNTXT - Save context block
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
+
+Handler in nd500x: **yes, every opcode has a handler**.
 
 **Format:** SCNTXT `<mask/r/W>`, `<address/r/W>`
 
@@ -499,6 +529,8 @@ When context save area is used, this is addressed by:
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 **Format:** LCNTXT `<mask/r/W>,<address/r/W>,<process number/r/W>`
 
 | Assembly notation | Name         | Hex code | Octal code |
@@ -524,6 +556,8 @@ When context block save area is used, this is addressed by:
 ### 16.28 REXT - Read from device external to CPU
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: IO.
+
+Handler in nd500x: **yes, every opcode has a handler**.
 
 **Format:** Wn REXT \<device/r/W\>
 
@@ -553,6 +587,8 @@ else 0 -> K
 ### 16.29 WEXT - Write to device external to CPU
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: IO.
+
+Handler in nd500x: **yes, every opcode has a handler**.
 
 **Format:** Wn WEXT <device/r/W>
 
@@ -586,6 +622,8 @@ else 0 -> K
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: MOVE.
 
+Handler in nd500x: **no, illegal instruction trap**.
+
 **Format:**
 TOSSP := <operand/r/W>
 
@@ -611,6 +649,8 @@ The TOS register is loaded from the operand. Before the value is loaded, a check
 ### 16.31 RPHS - Read from physical segment
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
+
+Handler in nd500x: **yes, every opcode has a handler**.
 
 **Format:** RPHS <domain number/r/W>
 
@@ -655,6 +695,8 @@ The instruction is meant for use when copying data from a physical segment in on
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 **Format:** WPHS `<domain number/r/W>`
 
 | Assembly notation | Name                       | Hex code | Octal code |
@@ -697,6 +739,8 @@ page boundary and no bytes left < 0 : 0 -> Z
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: MOVE.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 #### Format
 CAD := <operand/r/W>
 
@@ -726,6 +770,8 @@ Load current alternative domain register.
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: BRANCH.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 **Format:** JUMPS `<address/r/W>`
 
 | Assembly notation | Name            | Hex code | Octal code |
@@ -752,6 +798,8 @@ W1 returns the ND-500/ND-5000 CPU number.
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 **Format:** SVERS `<destination/w/w>`
 
 | Assembly notation | Name          | Hex code | Octal code |
@@ -774,6 +822,8 @@ Status bit set according to version.
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: STRING.
 
+Handler in nd500x: **yes, every opcode has a handler**.
+
 **Format:** SCPUNO <destination/w>
 
 | Assembly notation | Name            | Hex code | Octal code |
@@ -795,6 +845,8 @@ Status bit set according to CPU number.
 ### 16.37 PHYLADR - Get physical address
 
 Status in instructions.json: **in instructions.json, same opcodes**. Class in the data: SYSTEM.
+
+Handler in nd500x: **yes, every opcode has a handler**.
 
 Format: tn PHYLADR <operand/aa/W>
 

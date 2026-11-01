@@ -80,8 +80,19 @@ def load_items():
     return items
 
 
+def load_dispatch():
+    """Opcodes that have a handler in the emulator's dispatch table (src/cpu/nd500_instructions.c).
+    An opcode without an entry raises the illegal instruction trap."""
+    with open(os.path.join(ROOT, "src/cpu/nd500_instructions.c"), encoding="utf-8") as fh:
+        text = fh.read()
+    ops = {int(a, 16) for a in re.findall(r"^\s*\[0x([0-9A-Fa-f]+)\]\s*=\s*nd500_instr_\w+", text, re.M)}
+    assert len(ops) > 1000, len(ops)
+    return ops
+
+
 def derive(items):
     """opcode -> list of cell entries (more than one when json lists a shared opcode)."""
+    emu = load_dispatch()
     groups = collections.defaultdict(list)
     for it in items:
         groups[(it["functionName"], it["variantNumber"])].append(it)
@@ -112,6 +123,7 @@ def derive(items):
                 "cls": e["class"], "type": dtype, "reg": reg,
                 "n": e["operandCount"], "v": f"{vn + 1}/{e['totalVariants']}",
                 "ext": 1 if e.get("extension") == "87" else 0,
+                "emu": 1 if int(e["opcode"], 16) in emu else 0,
             })
     return cells
 
@@ -230,12 +242,14 @@ input[type=search]{background:var(--panel);border:1px solid var(--line);border-r
 JS = r"""
 (function(){
 var D=JSON.parse(document.getElementById('data').textContent);
-var CL=D.classes, MAPS=D.maps, cur='one', sel=null, cls=null, q='', opener=null, typs={}, ntyp=0, ext=null;
+var CL=D.classes, MAPS=D.maps, cur='one', sel=null, cls=null, q='', opener=null, typs={}, ntyp=0, ext=null, emu=null;
 var grid=document.getElementById('grid'), detail=document.getElementById('detail');
 function hex(n,w){var s=n.toString(16).toUpperCase();while(s.length<w)s='0'+s;return s}
 function bin(n,w){var s=n.toString(2);while(s.length<w)s='0'+s;return s.replace(/(.{4})(?=.)/g,'$1_')}
 var TN={BI:'bit',BY:'byte, 8 bits',H:'half-word, 16 bits',W:'word, 32-bit integer',F:'float, single precision real, 32 bits',D:'double, double precision real, 64 bits'};
 var EXT87="ND-5000 '87 extension (the manual says it also runs on ND-500/1 and ND-500/2)";
+var EMUYES="has a handler in the dispatch table";
+var EMUNO="no handler: the opcode raises the illegal instruction trap";
 function tname(t){return t?(t+' = '+TN[t]):'no data type in the name'}
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
 function opcode(map,i){return map.prefix===null?i:(map.prefix<<8)|i}
@@ -244,9 +258,11 @@ function matches(c){
  if(ntyp&&!typs[c.type||'none'])return false;
  if(ext==='87'&&!c.ext)return false;
  if(ext==='base'&&c.ext)return false;
+ if(emu==='yes'&&!c.emu)return false;
+ if(emu==='no'&&c.emu)return false;
  if(q){var s=(c.label+' '+c.fn+' '+c.mn+' '+c.cls).toLowerCase();if(s.indexOf(q)<0)return false}
  return true}
-function active(){return !!(cls||q||ntyp||ext)}
+function active(){return !!(cls||q||ntyp||ext||emu)}
 function hits(key){var m=MAPS[key].cells,n=0;for(var k in m){if(m[k].some(matches))n++}return n}
 function updateTabs(){
  var on=active(),tot=0,parts=[];
@@ -282,7 +298,7 @@ function build(){
     b.classList.add('none');b.appendChild(el('span','l','no entry'));b.appendChild(el('span','h',hx));
     b.setAttribute('aria-label',hx+' not in instructions.json');
    }
-   b.dataset.d=(ents&&!(map.prefix===null&&i>=0xFC))?(ents.some(matches)?'':'1'):(((map.prefix===null&&i>=0xFC)&&(cls||q||ntyp||ext))?'1':'');
+   b.dataset.d=(ents&&!(map.prefix===null&&i>=0xFC))?(ents.some(matches)?'':'1'):(((map.prefix===null&&i>=0xFC)&&(cls||q||ntyp||ext||emu))?'1':'');
    if(b.dataset.d)b.classList.add('dim');
    grid.appendChild(b);
   }}
@@ -321,6 +337,7 @@ function fill(i){
   r2('opcode','0x'+hex(op,w)+'   '+bin(op,w*4)+'   '+op);
   r2('class',(CL[e0.cls][2]||e0.cls)+' ('+CL[e0.cls][1]+')');
   r2('CPU',e0.ext?EXT87:'ND-500 base instruction');
+  r2('nd500x emulator',e0.emu?EMUYES:EMUNO);
   r2('function',e0.fn);
   r2('operands',String(e0.n));
   detail.appendChild(d2);
@@ -333,6 +350,7 @@ function fill(i){
  row('opcode','0x'+hex(op,w)+'   '+bin(op,w*4)+'   '+op);
  row('class',(CL[e.cls][2]||e.cls)+' ('+CL[e.cls][1]+')');
  row('CPU',e.ext?EXT87:'ND-500 base instruction');
+ row('nd500x emulator',e.emu?EMUYES:EMUNO);
  row('function',e.fn);
  row('data type',tname(e.type));
  row('register',e.reg?('accumulator '+e.reg+' (the '+e.reg+' in '+(e.type||'W')+e.reg+')'):'not part of the name');
@@ -385,8 +403,12 @@ document.getElementById('cpu').addEventListener('click',function(ev){
  var b=ev.target.closest('.chip');if(!b)return;var x=b.dataset.x;ext=(ext===x)?null:x;
  [].forEach.call(document.querySelectorAll('#cpu .chip'),function(y){y.setAttribute('aria-pressed',y.dataset.x===ext?'true':'false')});
  hide();build()});
+document.getElementById('emu').addEventListener('click',function(ev){
+ var b=ev.target.closest('.chip');if(!b)return;var x=b.dataset.e;emu=(emu===x)?null:x;
+ [].forEach.call(document.querySelectorAll('#emu .chip'),function(y){y.setAttribute('aria-pressed',y.dataset.e===emu?'true':'false')});
+ hide();build()});
 document.getElementById('clear').addEventListener('click',function(){
- cls=null;typs={};ntyp=0;ext=null;q='';document.getElementById('q').value='';
+ cls=null;typs={};ntyp=0;ext=null;emu=null;q='';document.getElementById('q').value='';
  [].forEach.call(document.querySelectorAll('.chip'),function(x){x.setAttribute('aria-pressed','false')});
  hide();build()});
 document.getElementById('q').addEventListener('input',function(ev){q=ev.target.value.trim().toLowerCase();hide();build()});
@@ -466,6 +488,15 @@ def build_page(link_for_fn=None):
         f'<button class="chip" type="button" data-x="87" aria-pressed="false" title="Instructions the ND-500 Reference Manual labels (\'87 extension). They came with the ND-5000 and also run on ND-500/1 and ND-500/2.">'
         f"ND-5000 '87 extension <span class=\"muted\">{n_ext_fn} in this data, {n_ext_op} opcodes</span></button>")
 
+    emu_ops = {op for op, es in cells.items() if es[0]["emu"]}
+    no_emu = sorted(op for op in cells if op not in emu_ops)
+    no_emu_fn = sorted({e["mn"].upper() for op in no_emu for e in cells[op]})
+    emu_chips = (
+        f'<button class="chip" type="button" data-e="yes" aria-pressed="false" title="The opcode has an entry in the dispatch table of src/cpu/nd500_instructions.c">'
+        f'Has a handler <span class="muted">{len(emu_ops)} opcodes</span></button>'
+        f'<button class="chip" type="button" data-e="no" aria-pressed="false" title="No dispatch entry: the emulator raises the illegal instruction trap for this opcode">'
+        f'No handler <span class="muted">{len(no_emu)} opcodes: {html.escape(", ".join(no_emu_fn))}</span></button>')
+
     type_chips = "".join(
         f'<button class="chip" type="button" data-y="{k}" aria-pressed="false" title="{html.escape(tip)}">'
         f'{html.escape(name)} <span class="muted">{k if k != "none" else ""}</span></button>'
@@ -485,6 +516,8 @@ def build_page(link_for_fn=None):
 <div class="legend" id="legend" role="group" aria-label="Filter by instruction class">{chips}</div></div>
 <div class="frow"><div class="cap" tabindex="0" aria-label="Filter by CPU. ND-500 base is every instruction that is not an '87 extension instruction. The '87 extension instructions came with the ND-5000. Pick one; the other dims."><strong>Filter by CPU</strong><span class="tip">ND-500 base: every instruction that is not an '87 extension instruction. '87 extension: the instructions the manual labels ('87 extension); they came with the ND-5000. Pick one; the other dims.</span></div>
 <div class="legend" id="cpu" role="group" aria-label="Filter by CPU">{cpu_chips}</div></div>
+<div class="frow"><div class="cap" tabindex="0" aria-label="Filter by emulator support. Has a handler means the opcode has an entry in the dispatch table of the nd500x emulator. No handler means the emulator raises the illegal instruction trap. A handler does not prove the instruction is complete or correct."><strong>Filter by nd500x emulator</strong><span class="tip">Has a handler: the opcode has an entry in the dispatch table of the nd500x emulator. No handler: the emulator raises the illegal instruction trap. A handler does not prove the instruction is complete or correct. Pick one; the other dims.</span></div>
+<div class="legend" id="emu" role="group" aria-label="Filter by nd500x emulator">{emu_chips}</div></div>
 <div class="frow"><div class="cap" tabindex="0" aria-label="Filter by data type. The type is the letter or letters in the label, the W in W1 +. Pick one or more; cells with another type dim."><strong>Filter by data type</strong><span class="tip">The type is the letter or letters in the label, the W in W1 +. Pick one or more; cells with another type dim.</span></div>
 <div class="legend" id="types" role="group" aria-label="Filter by data type">{type_chips}</div></div>
 <div class="frow"><div class="cap" tabindex="0" aria-label="Search by name. Type part of a mnemonic or function name, for example add or move. Combines with the filters above."><strong>Search by name</strong><span class="tip">Type part of a mnemonic or function name, for example add or move. Combines with the filters above.</span></div>
@@ -498,7 +531,8 @@ def build_page(link_for_fn=None):
 <div id="detail" role="dialog" aria-label="Opcode details" hidden></div>
 <div class="foot">
 <p>Source: docs/instructions/instructions.json, {len(items)} entries, {distinct} distinct opcodes; {shared_total} opcodes are listed by more than one entry (double border): the manual confirms this for six instructions (CLR, NEG, ABS, LADDR, RLADDR, BLADDR).</p>
-<p>The '87 extension is tagged in instructions.json (field extension): {n_ext_fn} instructions with {len(ext_items)} entries and {n_ext_op} distinct opcodes; the rest is {n_base_fn} instructions with {len(base_items)} entries and {n_base_op} distinct opcodes. The manual lists 25 '87 instructions; the others are not in the data yet.</p>
+<p>The '87 extension is tagged in instructions.json (field extension): {n_ext_fn} instructions with {len(ext_items)} entries and {n_ext_op} distinct opcodes; the rest is {n_base_fn} instructions with {len(base_items)} entries and {n_base_op} distinct opcodes. The manual lists 25 '87 instructions; the two that are not in the data are AMODB and RHOLE.</p>
+<p>nd500x emulator: {len(emu_ops)} of the {distinct} opcodes have an entry in the dispatch table of src/cpu/nd500_instructions.c; {len(no_emu)} have none ({html.escape(', '.join(no_emu_fn))}) and raise the illegal instruction trap. An entry says a handler exists, not that it is complete or correct.</p>
 <p>Data type: the variant-numbered entry of the entry's prefixes field. Register: position 1-4 within the four consecutive opcodes of one variant.</p>
 <p>{html.escape(check_txt)}</p>
 </div>

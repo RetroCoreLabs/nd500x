@@ -93,7 +93,7 @@ LINES = {
  "MOVE": [":=  =:  move  bmove  swap  clr  clrk  stz",
           "b:=  b=:  r:=  r=:  l:=  l=:  tos:=  tos=:",
           "a1..a4 :=/=:   e1..e4 :=/=:",
-          "ll hl tha ps st1 cad :=/=:   ced p =:",
+          "ll hl tha ps st1 cad :=/=:   ced p =:   tossp :=",
           "ote1 ote2 :=/=:   mte1 mte2 cte1 cte2 temm1 temm2 =:"],
  "ARITHMETIC": ["+  -  *  /  abs  neg  incr  decr  rem",
                 "add2 add3 sub2 sub3 mul2 mul3 mul4",
@@ -104,9 +104,10 @@ LINES = {
             "int intr  dmon pmon  dmof pmof  dcc pcc",
             "lcntxt scntxt  lregbl sregbl  sloca",
             "rdus wdus  rpgu zpgu cpgu  rwip zwip cwip",
-            "rphs wphs  dctsb pctsb  ddirt  freeb  svers  tutti"],
+            "rphs wphs  dctsb pctsb  ddirt  freeb  svers  tutti",
+            "clinit clread  plccn ncplc"],
  "FLOAT_MATH": ["sin cos tan  asin acos atan atan2",
-                "sqrt exp  alog alog2 alog10  poly",
+                "sqrt exp  alog alog2 alog10  poly  entier",
                 "wconv hconv byconv biconv dconv fconv",
                 "wconr hconr byconr fconr  pwconv wpconv"],
  "BRANCH": ["go  jumpg jumps",
@@ -126,7 +127,7 @@ LINES = {
  "COMPARE": ["comp comp2 test", "pcomp scomp"],
  "LOGICAL": ["and or xor", "inv invc"],
  "SHIFT": ["shl shr sha", "pshift pshiftr"],
- "IO": ["riom"],
+ "IO": ["riom", "send recve whole  rext wext"],
 }
 CLASS_LABEL = {"FLOAT_MATH": "FLOAT MATH"}
 CLASS_COLOR = {
@@ -158,7 +159,7 @@ rows = [["MOVE", "ARITHMETIC", "SYSTEM"],
 X0, Y0, MAPW, MAPH, GAP = 40, 118, 1320, 580, 8
 row_sum = [sum(len(cls_fn[c]) for c in r) for r in rows]
 total = sum(row_sum)
-s = head(W1, H1, "ND-500 instruction set: 241 instructions in 13 classes, tile area proportional to instruction count")
+s = head(W1, H1, f"ND-500 instruction set: {n_instr} instructions in 13 classes, tile area proportional to instruction count")
 title(s, "ND-500 instruction set",
       f"{n_instr} instructions in 13 classes, {len(items)} opcode variants once the data type is folded in. Tile area is proportional to the number of instructions.")
 y = Y0
@@ -464,7 +465,7 @@ save("nd500-4-effective-address.svg", s)
 # ---- sanity: every mnemonic written in LINES exists in the json -------------
 allm = set(it["mnemonic"] for it in items)
 SKIP = {"a1..a4", "e1..e4", ":=/=:", "ll", "hl", "tha", "ps", "st1", "cad", "ced", "p", "ote1", "ote2",
-        "mte1", "mte2", "cte1", "cte2", "temm1", "temm2", "(+r", "forms)", "padd", "psub", "pmpy", "ppack", "pupack"}
+        "mte1", "mte2", "cte1", "cte2", "temm1", "temm2", "tossp", "(+r", "forms)", "padd", "psub", "pmpy", "ppack", "pupack"}
 bad = []
 for c, lines in LINES.items():
     for ln in lines:
@@ -473,4 +474,9 @@ for c, lines in LINES.items():
             if tok not in allm: bad.append((c, tok))
             elif next(it["class"] for it in items if it["mnemonic"] == tok) != c: bad.append((c, tok, "wrong class"))
 print("mnemonic check:", bad or "ok")
+# every '87 instruction of the data must be on the map (the lists above are typed by hand)
+listed = set(t for lines in LINES.values() for ln in lines for t in ln.split())
+gone = sorted(it["mnemonic"] for it in items if it.get("extension") == "87"
+              and it["mnemonic"].rstrip(":=") not in listed and it["mnemonic"] not in listed)
+assert not gone, ("'87 instructions missing from the class map", gone)
 print("opcodes: 54", by_op[0x54]["mnemonic"], "58", by_op[0x58]["mnemonic"], "6C", by_op[0x6C]["mnemonic"], "20", by_op[0x20]["mnemonic"], "FC40", by_op[0xFC40]["mnemonic"])
