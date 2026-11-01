@@ -209,3 +209,12 @@ negative), A = a + 4*l, Z from N, S from N, O and C reset. ENTIER: floor, O when
 bits (result clamped, no trap). Unsettled and marked in the handlers: PLCCN descriptor byte
 offsets and S, ENTIER value on overflow. The C# emulator is owed the same, if it does not have
 it (not checked). Test: `test/test_plccn_entier.c`.
+
+## allowedModes of instructions.json (2026-11-01)
+
+`docs/instructions/instructions.json`: the `allowedModes` lists of 927 entries (1493 lists) went
+from 6 modes to the 10 modes of the manual's Figure 29 (ND-05.009.4 8.2.1), by adding
+LOCAL_POST_INDEXED, LOCAL_INDIRECT, LOCAL_INDIRECT_PI and ABSOLUTE_PI. The lists now equal the
+output of `nd500-opcodes`. RIOM, RPHS and WPHS were left as they were (see items 9 and 10 in
+`docs/ND5000-87-EXTENSION-PLAN.md`). Nothing else in the file changed. If the C# side reads
+`allowedModes`, it is owed the same four modes on those operands (not checked).

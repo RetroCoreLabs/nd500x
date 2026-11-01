@@ -100,6 +100,18 @@ value and the item stays here until someone who designed the instruction answers
    and are this project's grouping, not the manual's.
 8. **Privileged.** Which of the 25 are privileged is only what the manual's text says (CLINIT,
    REXT, SCNTXT and others); instructions where the manual is silent are listed as "not stated".
+9. **RIOM, operand 2 (found 1 November 2026).** The manual's format is
+   `H RIOM <ND-100 addr/r/W>,<buffer/w/H>,<no of halfwords>`: operand 2 is written. The assembler
+   table (`oprnd_tab` entry "riom" in `src/nd500-as/oprndtab.h` of pcc-nd500, from the NDIX-C
+   assembler) lets it be any general operand, including a constant, and `nd500-opcodes` therefore
+   reports it as a read operand with 10 modes. `instructions.json` still has the manual's reading
+   (write, 4 modes). The table was not changed. Question: does the vendor assembler really accept
+   a constant there?
+10. **RPHS and WPHS operand template (found 1 November 2026).** `instructions.json` and the
+    emulator table use the general-operand template 0x0001FFE8, which matches the manual's
+    `<domain number/r/W>`. The assembler table has 0x0003FFE8, which also allows a direct operand,
+    as it does for LCNTXT, SCNTXT, LREGBL and SREGBL. Question: which one does the hardware
+    decode?
 
 ## Findings from reading the microcode (30 October 2026)
 
