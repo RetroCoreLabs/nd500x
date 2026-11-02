@@ -43,6 +43,9 @@
  *     N, A at +0, +4) are taken from the order of the manual's drawing, not
  *     from a byte-level source.
  *   - Which value S takes (sign of N, or sign of A) and the other status bits.
+ *   - The manual gives two operands. The 1986 PLANC-500 assembler (a Norsk Data
+ *     program) only assembles W PLCCN with three general operands, so a third
+ *     operand may exist. This file decodes and uses two.
  *   - Only the W prefix exists in the manual; the other element sizes of the
  *     microcode (PLCCNBI, BY, H, F, D, DD) have no opcode here.
  *

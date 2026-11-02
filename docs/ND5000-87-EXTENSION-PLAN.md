@@ -112,6 +112,10 @@ value and the item stays here until someone who designed the instruction answers
     `<domain number/r/W>`. The assembler table has 0x0003FFE8, which also allows a direct operand,
     as it does for LCNTXT, SCNTXT, LREGBL and SREGBL. Question: which one does the hardware
     decode?
+11. **PLCCN operand count (found 1 November 2026).** The manual and the NDIX-C assembler tables give
+    two operands (source descriptor, destination descriptor). The 1986 PLANC-500 assembler assembles
+    `W PLCCN` only with three general operands. Question: is there a third operand, what is it, and
+    does the emulator's two-operand decoding of 0xFFFD read the right number of bytes?
 
 ## Findings from reading the microcode (30 October 2026)
 
@@ -135,6 +139,27 @@ N = u-l+1 clamped to 0 and A = a + 4*l for PLCCN, floor for ENTIER. Still open a
 header comment of each handler: the byte offsets inside the PLANC and ND-500 descriptors, which
 value S takes in PLCCN, the value written by ENTIER on overflow (clamped for now), and the status
 bits after an overflow. Tests: `test/test_plccn_entier.c`.
+
+## Measured with an assembler made by Norsk Data (1 November 2026)
+
+PLANC-500 version G ("JUNE 9, 1986") is a Norsk Data compiler with an ND-500 assembler built in:
+a source line starting with `$*` is assembled as ND-500 instructions. It was run inside nd500x
+(MODE script, `COMPILE`), and the bytes were read from the `:NRF` it wrote with `tools/nrfdump.py`.
+Four probe sources were compiled (one `$*` line per instruction). Its date is before the manual's
+June 1987, so a mnemonic it does not know says nothing about the hardware.
+
+| What was tried | Result |
+|---|---|
+| RPHS, WPHS with a variable and with a constant | Accepted. Bytes `FF F5 C4 <address of n>` and `FF F5 05`; `FF F4` for WPHS. The opcodes match the manual, and the operand is a general operand with an address code byte. |
+| H RIOM with a variable, and with a constant as operand 2 | Both accepted, opcode `FE 76`. So this assembler does allow a constant as the buffer operand (plan item 9). That shows what the assembler accepts, not what the hardware does with it. |
+| W1 REXT, W2 REXT, W1 WEXT, W4 WEXT, with a variable and with a constant | Accepted. Opcodes `FF E8`, `FF E9`, `FF EC`, `FF EF`, as in the manual (REXT `FFE8` + n-1, WEXT `FFEC` + n-1). |
+| W PLCCN | Opcode `FF FD`, as in the manual, but this assembler wants THREE operands: `W PLCCN n,m,k` and `W PLCCN n,m,5` assemble (`FF FD` followed by three general operands); one operand is "MISSING OPERAND(S)". The manual (and the NDIX-C tables) say two. Open: what the third operand is, and whether the 1987 instruction has it. |
+| ENTIER, CLINIT, CLREAD, SEND, RECVE, WHOLE, TOSSP, NCPLC, DDIRT, RHOLE, AMODB | "OPERATION NOT RECOGNIZED". |
+
+Consequence: REXT, WEXT, RPHS and WPHS are now confirmed by two independent sources (manual and a
+Norsk Data assembler). The operand rules of the others cannot be checked this way. PLCCN has a new
+open question (item 11 above).
+
 
 ## Step 2 - decide the order
 
