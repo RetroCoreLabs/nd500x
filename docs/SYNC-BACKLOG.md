@@ -218,3 +218,19 @@ LOCAL_POST_INDEXED, LOCAL_INDIRECT, LOCAL_INDIRECT_PI and ABSOLUTE_PI. The lists
 output of `nd500-opcodes`. RIOM, RPHS and WPHS were left as they were (see items 9 and 10 in
 `docs/ND5000-87-EXTENSION-PLAN.md`). Nothing else in the file changed. If the C# side reads
 `allowedModes`, it is owed the same four modes on those operands (not checked).
+
+## C# emulator and the '87 extension, checked 2026-11-02
+
+Searched the RetroCore checkout (Emulated.HW/ND/CPU/ND500/Instructions and the ND5000 and ND500UC
+packages). The functional CpuND500 has Clinit.cs, Clread.cs, Rext.cs, Wext.cs, Ddirt.cs, Rphs.cs
+and Wphs.cs, and has NO PLCCN and NO ENTIER (no source file, no dispatch entry). Emulated.Tests.ND500
+Instructions/TestND500_GenerateComprehensiveTests.cs lists both in Extension1987Mnemonics, so the
+generators skip them and the shared corpus never had a case for them. Also found there: the comment
+in Instructions/SYSTEM/Pcc.cs gives PCC as hex 0xFFFD; the manual's PCC is 0xFF14 and 0xFFFD is
+PLCCN (not changed, not checked further). The C# side is owed PLCCN and ENTIER, and DDIRT at 0xFFFA.
+
+`tools/gen_87_cases.py` adds 35 cases named `Ext87_*` to `test/nd500-conformance.json` (PLCCN,
+F and D ENTIER, DDIRT at 0xFFFA, CLINIT, CLREAD, and the privilege trap of REXT and WEXT), the same
+way `tools/gen_float_const_cases.py` adds `FConst_*`. A corpus regenerated from the C# generators
+would drop them; run both scripts again afterwards. test_corpus_coverage baselines: instructions
+241 -> 247, opcodes 495 -> 509.

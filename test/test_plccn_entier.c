@@ -8,7 +8,7 @@
  * Every case goes through nd500_cpu_step(), so the opcode table, the decoder
  * and the dispatch table are tested together with the instruction bodies.
  *
- *   FF FD 40 44    W PLCCN b.0,b.4        PLANC descriptor at B+0, result at B+16 (W offsets count words)
+ *   FF FD 40 44    W PLCCN b.0,b.16       PLANC descriptor at B+0, result at B+16
  *   FD C7 40 D0    F ENTIER b.0,W1
  *   FD C8 40 D0    D ENTIER b.0,W1
  */
