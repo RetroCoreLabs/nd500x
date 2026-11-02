@@ -227,7 +227,7 @@ and Wphs.cs, and has NO PLCCN and NO ENTIER (no source file, no dispatch entry).
 Instructions/TestND500_GenerateComprehensiveTests.cs lists both in Extension1987Mnemonics, so the
 generators skip them and the shared corpus never had a case for them. Also found there: the comment
 in Instructions/SYSTEM/Pcc.cs gives PCC as hex 0xFFFD; the manual's PCC is 0xFF14 and 0xFFFD is
-PLCCN (not changed, not checked further). The C# side is owed PLCCN and ENTIER, and DDIRT at 0xFFFA.
+PLCCN (not changed, not checked further). The C# side was owed PLCCN, ENTIER and DDIRT at 0xFFFA; all three are now added there (2026-11-02).
 
 `tools/gen_87_cases.py` adds 35 cases named `Ext87_*` to `test/nd500-conformance.json` (PLCCN,
 F and D ENTIER, DDIRT at 0xFFFA, CLINIT, CLREAD, and the privilege trap of REXT and WEXT), the same
