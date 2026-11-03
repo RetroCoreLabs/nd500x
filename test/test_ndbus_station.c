@@ -987,6 +987,11 @@ static void test_patched_cells(void)
                                              (uint8_t)NDBUS_ACCP_CONTMIC,
                                              (uint8_t)NDBUS_ACCP_RESTMIC };
     static const int     starter_args[3] = { 2, 0, 4 };
+    /* One packed model byte per start command: ND-5800, ND-5500, ND-5700. The
+     * CPU parameter is that byte itself (microcode CPU_READ @017137 stores the
+     * ACCP's model answer in SRF 2015, MSG_VERSRD returns it), NOT the 001741B
+     * CPUMOD08 constant, which goes to SRF 2014. */
+    static const uint8_t models[3]       = { 0x38u, 0x25u, 0x27u };
     for (int k = 0; k < 3; k++)
     {
         Rig rig;
@@ -997,8 +1002,8 @@ static void test_patched_cells(void)
         cs_poke_larg(&rig, 0x11u, 0x00000074u); /* 0o21 PSTBASE, an ND-500 page */
         cs_poke_larg(&rig, 0x10u, 0x0002A000u); /* 0o20 OFFSET, already bytes */
         cs_poke(&rig, 1u, 7u, 0x1234u);         /* word 1: microprogram version */
-        cs_poke(&rig, 7u, 7u, 0x0038u);         /* word 7: model byte 0x38 */
-        rig.nd.servicer.cpu_parameter = 0x0001u; /* so the model-8 value is seen to arrive */
+        cs_poke(&rig, 7u, 7u, models[k]);       /* word 7: the packed model byte */
+        rig.nd.servicer.cpu_parameter = 0x0001u; /* so the model value is seen to arrive */
 
         (void)send_command_zeros(&rig, starters[k], starter_args[k], replies);
 
@@ -1012,8 +1017,10 @@ static void test_patched_cells(void)
               "and handed to the servicer");
         CHECK(rig.nd.servicer.micro_version == 0x1234u,
               "the 3RMICV version came from control-store word 1");
-        CHECK(rig.nd.servicer.cpu_parameter == 0x03E1u,
-              "and the CPU parameter from the model byte in word 7");
+        CHECK(rig.nd.servicer.cpu_parameter == (uint16_t)models[k],
+              "and the CPU parameter is the packed model byte in word 7");
+        CHECK((rig.nd.servicer.cpu_parameter & 0x0Fu) == (models[k] & 0x0Fu),
+              "whose low four bits are the model digit the NUCLEUS server checks");
 
         rig_down(&rig);
     }

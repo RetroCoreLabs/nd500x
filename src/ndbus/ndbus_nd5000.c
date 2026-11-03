@@ -605,28 +605,39 @@ static uint32_t cs_read_larg(const NdbusNd5000 *nd, uint32_t cs_word)
 }
 
 /**
- * The per-model CPU parameter 3RMICV reports, selected by the control store's
- * model byte.
+ * The CPU parameter 3RMICV reports: the model word the ACCP answers to the
+ * microprogram's AIB command 3.
  *
- * Ported from RetroCore OctobusND5000Station.cs TryCpuParForModelByte. Only model 8
- * is verified end to end, and an unrecognised byte returns 0 rather than a guess:
- * ndbus_servicer_set_cpu_identity() then keeps what it has, so a different image is
- * visibly unmapped instead of silently relabelled as a 5800.
+ * The B30 microcode, word by word (MICRO-5800-B30.md):
+ *   017132  ACCP_RDYW with SC11 = BM01+1 = 3: AIB command 3, "CPU model".
+ *   017136  ACCP_READ: the answer comes back on AOB into SC13.
+ *   017137  SC13, halfword, -> RF1D. RF1 was pointed at SRF 2015 (ADR_CPUPAR)
+ *           by the call at 017133. Nothing else in the image writes SRF 2015.
+ *   015330  MSG_VERSRD, the 3RMICV reply, returns SRF 2015 in message word 10B.
+ * The per-model branch then checks the answer: CPUMOD08 @017244 XORs it with
+ * 070B and goes CPU_UNAVA1 unless the result is zero, and CPUMOD04/05/07 do the
+ * same with 044B/045B/047B. So on every machine that comes up the parameter is
+ * the packed model byte (type << 4 | model) the ACCP reported.
+ *
+ * This station has no ACCP model setting of its own; the model it reports
+ * everywhere (also as the first model byte of the 202B report, which CPU_MESSAGE
+ * @017304 fills from the same SRF 2015) is the control store's word-7 byte. So
+ * that byte is the answer here too. One case this cannot express: CPUMOD02
+ * (@017164-017173) lets a 5200 microprogram (word 7 = 022B) run on a machine
+ * whose ACCP reports 024B, 044B, 045B or 047B, and there the real parameter is
+ * the machine's byte, not the image's.
+ *
+ * The old table here returned 0x03E1 (001741B) for model 8. That is the SARG of
+ * CPUMOD08 @017243, which CPUSAVE writes to SRF 2014 (ADR_MODMASK), a different
+ * cell. See NDBUS_SERVICER_CPU_PARAMETER_DEFAULT for what it broke.
  *
  * @param model_byte The packed model byte from control-store word 7, halfword 7.
- * @return The CPUPAR value, or 0 when there is no verified mapping.
+ * @return The CPU parameter. 0 for a store whose model byte is 0 (not loaded),
+ *         which ndbus_servicer_set_cpu_identity() ignores.
  */
 static uint16_t cpupar_for_model_byte(uint8_t model_byte)
 {
-    switch (model_byte)
-    {
-    case 0x38u:
-        /* 5800, model 8: microcode CPUMOD08 @017243 SARG = 001741B. */
-        return 0x03E1u;
-
-    default:
-        return 0u;
-    }
+    return (uint16_t)model_byte;
 }
 
 /**

@@ -1118,8 +1118,10 @@ static bool execute_micfu(NdbusServicer *sv, uint32_t msg_byte, uint16_t micfu)
     case NDBUS_MICFU_RMICV:
         /* 3RMICV answers TWO halfwords, microcode-verified at 015332-015334:
          * the version into the N500A slot (message word 7) and the CPU parameter
-         * into word 10B. SINTRAN's RMVER consumes the version; the second
-         * halfword is unconsumed but written because the microcode writes it.
+         * into word 10B. SINTRAN's RMVER consumes the version. The second
+         * halfword IS consumed too: GETCP (MON 60 function 170B) hands it out,
+         * and the NUCLEUS server refuses the machine unless its low four bits
+         * are an ND-5000 model (see NDBUS_SERVICER_CPU_PARAMETER_DEFAULT).
          * Ported from Nd500MicrocodeServicer.cs:3366-3367. */
         (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_N500A), sv->micro_version);
         (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_SWRST), sv->cpu_parameter);

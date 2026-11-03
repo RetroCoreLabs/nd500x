@@ -308,11 +308,28 @@ bool ndbus_micfu_is_start_class(uint16_t micfu);
  *  is labelled one. */
 #define NDBUS_SERVICER_MICRO_VERSION_DEFAULT 0x2E9Au
 
-/** @brief The CPU parameter 3RMICV reports in the second halfword. 001741B =
- *  ND-5000 model 8 (5800) CPUPAR, the pre-CS-load fallback RetroCore sets at
- *  OctobusND5000Station.cs:720. SINTRAN does not consume it (carver R5); it is
- *  written because the microcode writes it. */
-#define NDBUS_SERVICER_CPU_PARAMETER_DEFAULT 0x03E1u
+/** @brief The CPU parameter 3RMICV reports in the second halfword, before a
+ *  control store says otherwise: 0x0038, the packed model byte of an ND-5800
+ *  (type 3 << 4 | model 8).
+ *
+ *  WHERE THE VALUE COMES FROM, read off the B30 listing (MICRO-5800-B30.md):
+ *  MSG_VERSRD @015330-015334 answers SRF 2015 (ADR_CPUPAR @017364). The ONLY
+ *  word that writes SRF 2015 is CPU_READ @017137, and what it writes is the
+ *  halfword the ACCP put on AOB in answer to AIB command 3 (ACCP_RDYW @017132,
+ *  ACCP_READ @017136). CPUMOD08 then requires that halfword to be exactly 070B
+ *  (@017244-017245) or the CPU is reported unavailable. So for a 5800 the
+ *  parameter is 0x0038.
+ *
+ *  This used to be 0x03E1 (001741B). That is the SARG of CPUMOD08 @017243, which
+ *  CPUSAVE @017252-017253 writes to SRF 2014 (ADR_MODMASK), not to SRF 2015. The
+ *  wrong cell was copied from RetroCore OctobusND5000Station.cs. SINTRAN DOES
+ *  consume this halfword: GETCP (MON 60 function 170B) returns it as the high
+ *  half of its second result, and the NUCLEUS server (S3INKSE, routine at
+ *  036400) takes bits 0-3 of it as the ND-5000 model and refuses anything but
+ *  2, 4, 5, 7 and 10B with error 101035B "Not correct hardware configuration".
+ *  0x03E1 gives model 1, which is why Backup Manager could not reach a streamer
+ *  (nd100x BUGS.md P2). */
+#define NDBUS_SERVICER_CPU_PARAMETER_DEFAULT 0x0038u
 
 /** @brief What the servicer needs from whoever owns the shared memory. */
 typedef struct NdbusServicerHost
@@ -1074,9 +1091,9 @@ bool ndbus_servicer_set_context_area(NdbusServicer *sv, uint32_t area_byte);
  * @param micro_version The microprogram version, from control-store word 1's LARG
  *                      halfword. Ignored when 0 - an unloaded or unpatched store -
  *                      so the default is kept rather than a zero reported.
- * @param cpu_parameter The per-model CPU parameter. Ignored when 0, for the same
- *                      reason: there is no verified mapping for every model byte
- *                      and a wrong image must be visible, not silently relabelled.
+ * @param cpu_parameter The CPU parameter: the packed model byte the ACCP reports
+ *                      (see NDBUS_SERVICER_CPU_PARAMETER_DEFAULT). Ignored when 0,
+ *                      for the same reason - a store with no model byte.
  * @return true on success; false when sv is NULL.
  */
 bool ndbus_servicer_set_cpu_identity(NdbusServicer *sv, uint16_t micro_version,
