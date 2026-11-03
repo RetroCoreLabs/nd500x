@@ -1279,7 +1279,14 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
             uint16_t x5cpu = read16(sv, msg_word(msg_byte, NDBUS_MSG_X5CPU));
             uint32_t ctx_byte = ndbus_servicer_process_context_byte(sv, x5cpu);
 
-            if (sv->host.start_process(sv->host.ctx, msg_byte, micfu, ctx_byte))
+            sv->take_msg = msg_byte;
+            sv->take_trapped = false;
+            bool taken = sv->host.start_process(sv->host.ctx, msg_byte, micfu, ctx_byte);
+            bool trapped_in_take = sv->take_trapped;
+            sv->take_msg = 0u;
+            sv->take_trapped = false;
+
+            if (taken)
             {
                 sv->starts_taken++;
                 /* REMEMBER THIS PROCESS'S MESSAGE. A trap in the started process is
@@ -1295,19 +1302,28 @@ bool ndbus_servicer_process_message(NdbusServicer *sv, uint32_t msg_byte)
                     note_x5cpu_out_of_range(sv, x5cpu, "start taken, message not remembered");
                 }
 
-                /* A TAKEN 24B OR 26B RESTART HAS ITS MICFU REWRITTEN TO 23B. The
-                 * reference's TakeRestartTail does it
-                 * (Nd500MicrocodeServicer.cs:4929-4935, called at :3861 and :3924):
-                 *     host.WriteNd100Word(msgBase + MICFU * 2, 0x13);
-                 * 23B and 25B do not pass through that tail and keep their MICFU.
+                /* A TAKEN 24B OR 26B RESTART HAS ITS MICFU REWRITTEN TO 23B - BY
+                 * THE MICROCODE, at MSG_CON10 (@015715 addresses message + 0x0C,
+                 * @015716 writes MARG 023 there), the step just before EXECUTE.
+                 * Both restarts reach it: 24B through 015702 -> MSG_CONMC_9, 26B
+                 * through the copy, whose return 015707 pushes to MSG_CONMC_9.
+                 * 23B and 25B never pass MSG_CON10 and keep their MICFU.
                  *
-                 * The reference's own remark at :4902-4927 says no microword writes
-                 * 23B to a message's MICFU, so this is the reference's behaviour
-                 * and NOT a carved hardware fact - it is ported because the C# is
-                 * the oracle, and that remark is the place to start if a run ever
-                 * shows SINTRAN minding the rewritten value. The host has already
-                 * been given the original code as its `micfu` argument. */
-                if (micfu == NDBUS_MICFU_MONCO || micfu == NDBUS_MICFU_WMONCO)
+                 * (The reference's TakeRestartTail, Nd500MicrocodeServicer.cs
+                 * :4929-4935, does the same write, but its remark at :4902-4927
+                 * says no microword writes 23B. MSG_CON10 does.)
+                 *
+                 * NOT WHEN THE TAKE TRAPPED. The host carries out the 26B copy
+                 * inside start_process; a page fault there is answered on this
+                 * message as a trap stop, and MSG_CON10 is never reached, so the
+                 * message keeps 26B. SINTRAN depends on it: SWPDECODER
+                 * (MP-P2-N500.NPL:135641) restores 26NRB/26ADD and resends the
+                 * 3WMONCO only when it still reads 3WMONCO. Writing 23B there
+                 * sends it down the 3START branch instead (3TRACO, 135636), the
+                 * process continues, and the answer data is never copied. The
+                 * host has already been given the original code as `micfu`. */
+                if ((micfu == NDBUS_MICFU_MONCO || micfu == NDBUS_MICFU_WMONCO)
+                    && !trapped_in_take)
                 {
                     (void)write16(sv, msg_word(msg_byte, NDBUS_MSG_MICFU),
                                   (uint16_t)NDBUS_MICFU_START);
@@ -1619,6 +1635,13 @@ static bool answer_trap_stop_locked(NdbusServicer *sv, uint16_t x5cpu, uint16_t 
     }
 
     sv->trap_stops_posted++;
+    /* A trap answered on the message whose restart is being taken: that restart
+     * stopped before MSG_CON10, so its MICFU must stay as SINTRAN sent it. See
+     * take_msg in ndbus_servicer.h. */
+    if (sv->take_msg != 0u && sv->take_msg == msg_byte)
+    {
+        sv->take_trapped = true;
+    }
     sv->last_trap_number = trap_number;
     sv->last_trap_pc = trapping_pc;
     sv->last_trap_address = trap_address;

@@ -571,6 +571,23 @@ typedef struct NdbusServicer
      *  stopped. */
     uint16_t      process_stop_kind[NDBUS_SERVICER_MAX_PROCESSES];
 
+    /** THE RESTART BEING TAKEN RIGHT NOW, and whether it trapped on the way.
+     *
+     *  The microcode writes 23B into a 24B/26B message's MICFU at MSG_CON10
+     *  (@015715-015716, MARG 023 to message + 0x0C), the last step before
+     *  EXECUTE - after the 26B answer copy (015707 pushes the return to
+     *  MSG_CONMC_9, which runs into MSG_CON10). A page fault in that copy never
+     *  gets there, so the message keeps 26B, and that is what SINTRAN reads:
+     *  SWPDECODER (MP-P2-N500.NPL:135641 "Writeback buffer restart?") restores
+     *  26NRB/26ADD from SM26N/SM26A only when MICFU is still 3WMONCO, and sends
+     *  the same restart again once the page is in.
+     *
+     *  take_msg is the message handed to host.start_process (0 = none);
+     *  take_trapped is set when a trap stop is answered on that same message
+     *  during the call. Only then is the 23B write left out. */
+    uint32_t      take_msg;
+    bool          take_trapped;
+
     unsigned long trap_stops_attempted; /**< counted before anything can refuse */
     unsigned long trap_stops_posted;    /**< records actually written */
     unsigned long trap_stops_declined;  /**< no message recorded for that X5CPU */

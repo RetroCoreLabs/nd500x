@@ -5848,6 +5848,82 @@ static void test_port_mon_value_slot_skip(void)
     port_close(&pool, &nd);
 }
 
+/* A process host that does what the bridge does when the 26B answer copy hits
+ * a page that is not in memory: it answers a page-fault trap stop on the very
+ * message it was handed, and reports the restart as taken (parked on the trap). */
+static NdbusNd5000 *s_trap_take_nd;
+static uint32_t     s_trap_take_msg;
+
+static bool test_start_process_traps(void *ctx, uint32_t msg_byte, uint16_t micfu,
+                                     uint32_t ctx_byte)
+{
+    (void)ctx;
+    (void)micfu;
+    (void)ctx_byte;
+    s_start_calls++;
+    s_trap_take_msg = msg_byte;
+    /* The process was started on this message earlier; that is where its trap
+     * stops are answered. */
+    s_trap_take_nd->servicer.process_msg[1] = msg_byte;
+    CHECK(ndbus_servicer_answer_trap_stop(&s_trap_take_nd->servicer, 1u, NDBUS_TRAP_PAGE_FAULT,
+                                          0x0800A123u, 0x0805F39Cu, 0xA000000Fu, 11u),
+          "the trap stop is accepted on the restart's own message");
+    return true;
+}
+
+/* A 26B WHOSE ANSWER COPY FAULTS KEEPS 26B IN MICFU.
+ *
+ * The microcode writes 23B only at MSG_CON10 (@015715-015716), after the copy; a
+ * fault in the copy never gets there. SINTRAN's SWPDECODER
+ * (MP-P2-N500.NPL:135641) restores 26NRB/26ADD and resends the 3WMONCO only
+ * when MICFU still reads 3WMONCO - with 23B it took the 3START branch and the
+ * answer data was never copied. */
+static void test_port_trapped_restart_keeps_micfu(void)
+{
+    NdbusPool   pool;
+    NdbusFabric fabric;
+    NdbusNd5000 nd;
+
+    port_open(&pool, &fabric, &nd);
+    nd.servicer.context_area_base = MBX_BASE + 0x3000u;
+    s_trap_take_nd = &nd;
+    s_start_calls = 0;
+    (void)ndbus_nd5000_set_process_host(&nd, test_start_process_traps);
+
+    port_post(&pool, NDBUS_MICFU_WMONCO, 1u);
+    (void)ndbus_nd5000_service_mailbox(&nd);
+    CHECK(s_start_calls == 1, "the host was asked once");
+    CHECK(s_trap_take_msg == MBX_MSG, "with the posted message");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MICFU * 2u) == NDBUS_MICFU_WMONCO,
+          "a 26B whose copy trapped keeps MICFU = 26B - MSG_CON10 was never reached");
+    CHECK(mbx_msg_status(&pool) == NDBUS_N5STA_ANSWER,
+          "the message is answered, by the trap stop");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_STOPR * 2u) == NDBUS_STOPR_TRAPCODE,
+          "with STOPR = TRAPCODE");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_TRAPN * 2u) == NDBUS_TRAP_PAGE_FAULT,
+          "and TRAPN = 46B");
+    CHECK(mbx_read(&pool, MBX_MSG + 0x0Fu * 2u) == 0x0805u
+          && mbx_read(&pool, MBX_MSG + 0x10u * 2u) == 0xF39Cu,
+          "and the fault address of the copy at 0o17-0o20");
+    CHECK(!ndbus_servicer_stop_was_monitor_call(&nd.servicer, 1u),
+          "the process is now parked on a TRAP, so the next restart applies no answer arm");
+    CHECK(nd.servicer.take_msg == 0u && !nd.servicer.take_trapped,
+          "and the take record is cleared after the call");
+
+    /* The resent 26B, once the page is in: the host takes it without a trap, and
+     * now MSG_CON10 is reached - MICFU becomes 23B. */
+    s_start_calls = 0;
+    s_start_take = true;
+    (void)ndbus_nd5000_set_process_host(&nd, test_start_process);
+    port_post(&pool, NDBUS_MICFU_WMONCO, 1u);
+    CHECK(!ndbus_nd5000_service_mailbox(&nd) && s_start_calls == 1,
+          "the resent 26B is taken");
+    CHECK(mbx_read(&pool, MBX_MSG + NDBUS_MSG_MICFU * 2u) == NDBUS_MICFU_START,
+          "and a take that did not trap leaves MICFU = 23B");
+
+    port_close(&pool, &nd);
+}
+
 /* Items 3, 4, 5, 6 and 8: what each start-class or inline code answers.
  * Mirrors Nd500MicrocodeServicer.cs:3314-3330, :3824-3939, :3954-3981 and
  * :4929-4935, and the raw `switch` at :2674. */
@@ -6097,6 +6173,7 @@ static void test_reference_port(void)
     test_port_dmemwr();
     test_port_mon_value_slot_skip();
     test_port_dispatch_answers();
+    test_port_trapped_restart_keeps_micfu();
     test_port_process_slots();
     test_port_copy_outside_pool();
 }
