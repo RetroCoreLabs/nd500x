@@ -852,6 +852,10 @@ typedef struct Nd500FetchedInstruction {
 } Nd500FetchedInstruction;
 
 int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out);
+/* The same decode for a LISTING (disassembler, debugger, DAP): every read goes
+ * through the trap-free MMU peek, so it never raises a trap or aborts anything.
+ * Returns non-zero when a byte of the instruction is not mapped. */
+int nd500_decode_at_peek(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out);
 
 /* Execute one decoded instruction */
 void nd500_execute_decoded(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);

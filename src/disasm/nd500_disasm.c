@@ -436,7 +436,7 @@ size_t nd500_disasm_format_range(struct Nd500Machine* m,
     while (a < end) {
         Nd500FetchedInstruction fi;
         memset(&fi, 0, sizeof(fi));
-        int rc = nd500_decode_at(m, a, &fi);
+        int rc = nd500_decode_at_peek(m, a, &fi);
         /* nd500_decode_at returns 0 on success, non-zero on failure */
         if (rc != 0 || fi.total_len == 0) {
             /* Fallback: show single byte unknown */
@@ -570,7 +570,7 @@ size_t nd500_disasm_format_range_json(struct Nd500Machine* m,
     while (a < end) {
         Nd500FetchedInstruction fi;
         memset(&fi, 0, sizeof(fi));
-        int rc = nd500_decode_at(m, a, &fi);
+        int rc = nd500_decode_at_peek(m, a, &fi);
 
         if (!first) {
             pos = buf_append(out, out_cap, pos, ",");

@@ -209,7 +209,7 @@ void nd500_dbg_disasm_print(Nd500Machine* m, uint32_t addr, uint32_t len) {
 
     for (uint32_t a = addr; a < end_addr;) {
         Nd500FetchedInstruction fi;
-        if (nd500_decode_at(m, a, &fi) != 0) break;
+        if (nd500_decode_at_peek(m, a, &fi) != 0) break;
 
         /* Check if there's a symbol at this address - show it on its own line first */
         const char* sym_at_addr = ndlib_symbols_name_for_addr(fi.address);

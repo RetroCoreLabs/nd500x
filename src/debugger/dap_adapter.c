@@ -272,7 +272,7 @@ static size_t dap_base64_decode(const char* in, uint8_t* out, size_t out_cap) {
 static uint32_t dap_format_instruction(uint32_t addr, char* buf, size_t buf_size) {
     Nd500FetchedInstruction fi;
     memset(&fi, 0, sizeof(fi));
-    int rc = nd500_decode_at(g_machine, addr, &fi);
+    int rc = nd500_decode_at_peek(g_machine, addr, &fi);
     if (rc != 0 || fi.total_len == 0) {
         uint8_t b = 0;
         nd500_dbg_mem_read_raw(g_machine, addr, 1, &b, 1);

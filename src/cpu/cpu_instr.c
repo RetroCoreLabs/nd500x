@@ -421,7 +421,7 @@ int nd500_instr_operand_is_direct(uint16_t opcode, uint8_t operand_idx) {
 }
 
 /* Forward declarations */
-static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op, Nd500DataType dtype);
+static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op, Nd500DataType dtype, int peek);
 static uint32_t get_operand_value32(const Nd500OperandDecoded* op);
 static uint32_t get_short_embedded(const Nd500OperandDecoded* op);
 
@@ -525,25 +525,57 @@ static uint8_t data_part_size(uint8_t ac) {
     return 4; /* default word */
 }
 
-static uint8_t read_data_part(Nd500Machine* m, uint32_t base, uint8_t addr_code, uint8_t* out, uint8_t out_cap) {
+/* One byte of the instruction stream, for the decoder.
+ *
+ * Two ways to decode, and they must not be mixed up:
+ *  - EXECUTION (peek == 0) fetches through nd500_mmu_translate. A fetch can
+ *    fault, and that fault belongs to the machine: it is raised and the
+ *    instruction is aborted, as the hardware does.
+ *  - A LISTING (peek != 0: disassembler, debugger, DAP) is not the machine
+ *    fetching anything. It reads through nd500_mmu_peek_space, which never
+ *    traps and never changes state, in the PROGRAM table of the running domain
+ *    (CED, the domain nd500_mmu_translate uses). A byte that is not mapped
+ *    sets *failed and the decode reports failure.
+ * Before this split a listing used the execution path. The trap state is
+ * sticky and mmu_read8 returns 0 while it is set, so after the first operand
+ * whose effective address could not be read every later byte of the listing
+ * came out as 00 (measured 2026-11-03 on BM-OPERATOR-B02:DOM at 0x100760F2,
+ * after `w move #...,IND(b.64)`), and a listing on a live machine left it a
+ * trap the CPU never raised. */
+static inline uint8_t decode_fetch8(Nd500Machine* m, uint32_t vaddr, int peek, int* failed) {
+    if (!m->cpu) {
+        /* No CPU linked yet: direct physical access */
+        return nd500_bus_read8(m, vaddr);
+    }
+    if (!peek) {
+        return mmu_read8(m->cpu, vaddr, 0, 1); /* is_write=0, is_instruction=1 */
+    }
+    uint32_t paddr = vaddr;
+    if (m->mmu_enabled) {
+        paddr = nd500_mmu_peek_space(m->cpu, vaddr, (uint8_t)m->cpu->CED, 1);
+        if (paddr == 0xFFFFFFFFu) {
+            *failed = 1;
+            return 0;
+        }
+    }
+    return nd500_bus_read8(m, paddr);
+}
+
+static uint8_t read_data_part(Nd500Machine* m, uint32_t base, uint8_t addr_code, uint8_t* out, uint8_t out_cap,
+                              int peek, int* failed) {
     uint8_t len = data_part_size(addr_code);
     if (len > out_cap) len = out_cap;
     /* Operand data bytes are part of the instruction stream - use program memory access */
-    if (m->cpu) {
-        for (uint8_t i = 0; i < len; ++i) {
-            out[i] = mmu_read8(m->cpu, base + i, 0, 1); /* is_write=0, is_instruction=1 */
-        }
-    } else {
-        /* Debugger/disassembler: direct physical access */
-        for (uint8_t i = 0; i < len; ++i) {
-            out[i] = nd500_bus_read8(m, base + i);
-        }
+    for (uint8_t i = 0; i < len; ++i) {
+        out[i] = decode_fetch8(m, base + i, peek, failed);
     }
     return len;
 }
 
-int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) {
+static int decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out, int peek) {
     if (!m || !out) return -1;
+    /* Set by decode_fetch8 when a listing (peek) meets a byte that is not mapped */
+    int peek_failed = 0;
 
     /* Zeroing all of *out per decode was 55.96% of the emulator's entire host
      * instruction count in a callgrind profile of an NDIX boot: 1.42 million
@@ -570,15 +602,9 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     }
 
     /* Fetch opcode with MMU translation if CPU available */
-    uint8_t b0, b1;
-    if (m->cpu) {
-        b0 = mmu_read8(m->cpu, pc, 0, 1);     /* is_write=0, is_instruction=1 */
-        b1 = mmu_read8(m->cpu, pc+1, 0, 1);
-    } else {
-        /* Debugger/disassembler: direct physical access */
-        b0 = nd500_bus_read8(m, pc);
-        b1 = nd500_bus_read8(m, pc+1);
-    }
+    uint8_t b0 = decode_fetch8(m, pc, peek, &peek_failed);
+    uint8_t b1 = decode_fetch8(m, pc + 1, peek, &peek_failed);
+    if (peek_failed) return -1;
     /* Determine opcode length:
      * 0x00-0xFB: 1-byte opcodes (stored as single byte, internally mapped to 0x00xx)
      * 0xFC-0xFF: 2-byte opcode prefix (next byte is low part of opcode)
@@ -648,11 +674,7 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     #define DECODE_GENERAL_OPERAND(op_ptr, cursor_ptr, byte_idx_ptr) do { \
         Nd500OperandDecoded *_op = (op_ptr); \
         uint8_t _ac; \
-        if (m->cpu) { \
-            _ac = mmu_read8(m->cpu, *(cursor_ptr), 0, 1); \
-        } else { \
-            _ac = nd500_bus_read8(m, *(cursor_ptr)); \
-        } \
+        _ac = decode_fetch8(m, *(cursor_ptr), peek, &peek_failed); \
         _op->has_alt_prefix = 0; \
         _op->has_desc_prefix = 0; \
         while (_ac == 0xC8 || (_ac >= 0xF0 && _ac <= 0xF3)) { \
@@ -665,11 +687,7 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
                 _op->reg = _ac & 0x03; \
                 (*(cursor_ptr)) += 1; \
             } \
-            if (m->cpu) { \
-                _ac = mmu_read8(m->cpu, *(cursor_ptr), 0, 1); \
-            } else { \
-                _ac = nd500_bus_read8(m, *(cursor_ptr)); \
-            } \
+            _ac = decode_fetch8(m, *(cursor_ptr), peek, &peek_failed); \
         } \
         _op->address_code = _ac; \
         if (*(byte_idx_ptr) < sizeof(out->bytes)) out->bytes[(*byte_idx_ptr)++] = _ac; \
@@ -688,7 +706,8 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
                    _op->mode == ND500_ADDR_CONSTANT || _op->mode == ND500_ADDR_LOCAL_IND || \
                    _op->mode == ND500_ADDR_LOCAL_PI || _op->mode == ND500_ADDR_ABSOLUTE_PI || \
                    _op->mode == ND500_ADDR_LOCAL_IND_PI) { \
-            _op->data_len = read_data_part(m, *(cursor_ptr), _ac, _op->data, sizeof(_op->data)); \
+            _op->data_len = read_data_part(m, *(cursor_ptr), _ac, _op->data, sizeof(_op->data), \
+                                           peek, &peek_failed); \
             for (uint8_t _j = 0; _j < _op->data_len && *(byte_idx_ptr) < sizeof(out->bytes); _j++) { \
                 out->bytes[(*byte_idx_ptr)++] = _op->data[_j]; \
             } \
@@ -731,11 +750,7 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         } \
         _op->data_len = _disp_len; \
         for (uint8_t _j = 0; _j < _disp_len; _j++) { \
-            if (m->cpu) { \
-                _op->data[_j] = mmu_read8(m->cpu, *(cursor_ptr) + _j, 0, 1); \
-            } else { \
-                _op->data[_j] = nd500_bus_read8(m, *(cursor_ptr) + _j); \
-            } \
+            _op->data[_j] = decode_fetch8(m, *(cursor_ptr) + _j, peek, &peek_failed); \
             if (*(byte_idx_ptr) < sizeof(out->bytes)) out->bytes[(*byte_idx_ptr)++] = _op->data[_j]; \
         } \
         *(cursor_ptr) += _disp_len; \
@@ -811,12 +826,12 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
     if (m->cpu) {
         for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
             out->operands[i].effective_address = compute_effective_address(
-                m->cpu, &out->operands[i], operand_data_type(opcode, i, out->data_type));
+                m->cpu, &out->operands[i], operand_data_type(opcode, i, out->data_type), peek);
         }
         /* Compute effective addresses for extra operands (CALL/CALLG/POLY arguments) */
         for (uint16_t i = 0; i < m->cpu->extra_operand_count && i < ND500_MAX_OPERANDS; ++i) {
             m->cpu->extra_operands[i].effective_address =
-                compute_effective_address(m->cpu, &m->cpu->extra_operands[i], out->data_type);
+                compute_effective_address(m->cpu, &m->cpu->extra_operands[i], out->data_type, peek);
         }
     } else {
         /* No CPU linked yet - zero the addresses */
@@ -825,8 +840,17 @@ int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) 
         }
     }
 
+    if (peek_failed) return -1;
     out->total_len = (uint32_t)(cursor - pc);
     return 0;
+}
+
+int nd500_decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) {
+    return decode_at(m, pc, out, 0);
+}
+
+int nd500_decode_at_peek(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out) {
+    return decode_at(m, pc, out, 1);
 }
 
 static uint32_t get_operand_value32(const Nd500OperandDecoded* op) {
@@ -874,7 +898,7 @@ static uint32_t get_short_embedded(const Nd500OperandDecoded* op) {
  * @param dtype Data type for post-index scaling (BYTE=1, HALF=2, WORD=4, DOUBLE=8)
  * @return      Computed effective address
  */
-static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op, Nd500DataType dtype) {
+static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op, Nd500DataType dtype, int peek) {
     uint32_t address = 0;
     uint32_t displacement = 0;
 
@@ -950,7 +974,18 @@ static uint32_t compute_effective_address(Nd500Cpu* cpu, Nd500OperandDecoded* op
         case ND500_ADDR_LOCAL_IND:
         case ND500_ADDR_LOCAL_IND_PI:
             /* Indirect - read 32-bit pointer from address (DATA access, not instruction) */
-            address = mmu_read32(cpu, address, 0, 0); /* is_write=0, is_instruction=0 */
+            if (!peek) {
+                address = mmu_read32(cpu, address, 0, 0); /* is_write=0, is_instruction=0 */
+            } else {
+                /* A listing: the DATA table of the running domain, trap-free (see
+                 * decode_fetch8). A pointer that is not mapped gives no address,
+                 * which every listing already shows as "none" (0). */
+                uint32_t paddr = address;
+                if (cpu->machine->mmu_enabled) {
+                    paddr = nd500_mmu_peek_space(cpu, address, (uint8_t)cpu->CED, 0);
+                }
+                address = (paddr == 0xFFFFFFFFu) ? 0u : nd500_bus_read32(cpu->machine, paddr);
+            }
             break;
         default:
             break;
@@ -1111,5 +1146,5 @@ uint32_t nd500_operand_ea_at_dtype(Nd500Cpu* cpu, const Nd500OperandDecoded* op,
      * serves may update a register; the caller's copy is left alone by working on a
      * local. */
     Nd500OperandDecoded scratch = *op;
-    return compute_effective_address(cpu, &scratch, dtype);
+    return compute_effective_address(cpu, &scratch, dtype, 0);
 }

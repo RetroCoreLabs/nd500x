@@ -305,6 +305,14 @@ add_executable(test_fault_record
 )
 target_link_libraries(test_fault_record PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# A listing (disassembler, debugger, DAP) decodes through the trap-free MMU
+# peek: an IND(b.x) operand whose pointer cannot be read raises no trap and the
+# listing goes on decoding the bytes after it.
+add_executable(test_listing_decode
+    test_listing_decode.c
+)
+target_link_libraries(test_listing_decode PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib nd500_disasm)
+
 # A string instruction (SMOVE, SFILL, SMATCH, SCOTR) that page-faults on an
 # element leaves I1, I2 and the flags alone, so its restart does the whole job.
 add_executable(test_string_abort
@@ -490,6 +498,7 @@ add_test(NAME abort_guard COMMAND test_abort_guard)
 add_test(NAME local_trap_gate COMMAND test_local_trap_gate)
 add_test(NAME entt_frame_fault COMMAND test_entt_frame_fault)
 add_test(NAME fault_record COMMAND test_fault_record)
+add_test(NAME listing_decode COMMAND test_listing_decode)
 add_test(NAME string_abort COMMAND test_string_abort)
 add_test(NAME ndbus_station COMMAND test_ndbus_station)
 set_tests_properties(ndbus_station PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
