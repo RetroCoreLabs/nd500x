@@ -5,6 +5,11 @@ their opcodes, the counts and the manual text are in
 [ND-5000 '87 extension instructions](ND5000-87-EXTENSION-INSTRUCTIONS.md); that page is
 generated, and its status column shows how far the data is.
 
+What is still unknown, and who or what can settle it, is in
+[ND-5000 '87 extension: what is still needed](ND5000-87-EXTENSION-OPEN-QUESTIONS.md).
+The steps below that depend on those answers (NCPLC, SEND, RECVE, WHOLE, TOSSP, RHOLE, AMODB)
+wait for them.
+
 ## What is wrong today
 
 Measured on 30 October 2026, after the data and tool changes:
@@ -282,5 +287,7 @@ All in `src/` of the pcc-nd500 repository (a separate repository from this one):
 ## Step 8 - records
 
 - A line in `docs/SYNC-BACKLOG.md` for every commit that changes CPU behaviour.
-- A numbered item in the shared C# note `$ND500_TESTDATA/retrocore-mon-fixes.md`, if the
-  C# emulator is also missing these instructions (not checked).
+- The C# emulator was checked on 2 November 2026 and now has PLCCN, ENTIER and DDIRT at 0xFFFA;
+  the ledger is in `docs/SYNC-BACKLOG.md`. Still open: a numbered item in the shared C# note
+  `$ND500_TESTDATA/retrocore-mon-fixes.md` for what the C# side does not yet have (NCPLC, SEND,
+  RECVE, WHOLE, TOSSP).
