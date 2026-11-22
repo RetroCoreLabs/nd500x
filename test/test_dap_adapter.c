@@ -11,12 +11,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <unistd.h>
 
 #include "../src/machine/machine_protos.h"
 #include "../src/machine/breakpoints.h"
 #include "../src/cpu/cpu_protos.h"
 #include "../src/cpu/instruction_helpers.h"
 #include "../src/debugger/debugger.h"
+#include "../src/ndlib/ndlib.h"
 #include "../external/libdap/libdap/include/dap_server.h"
 #include "../external/libdap/libdap/include/dap_server_cmds.h"
 
@@ -514,6 +516,51 @@ static void test_stack_trace(void) {
 	}
 }
 
+/* Write a source-line map file and load it. Returns 0 on success. */
+static int load_test_map(const char* content, char* path, size_t path_size) {
+	snprintf(path, path_size, "/tmp/test_dap_adapter_%d.map", (int)getpid());
+	FILE* f = fopen(path, "w");
+	if (!f) return -1;
+	fputs(content, f);
+	fclose(f);
+	ndlib_symbols_clear();
+	return ndlib_map_load(path);
+}
+
+/* Run stackTrace at pc and copy out the frame's source name and line.
+ * name_out is "" when the frame has no source. */
+static void stack_trace_source_at(uint32_t pc, char* name_out, size_t name_size, int* line_out) {
+	StackTraceCommandContext* ctx = &g_srv->current_command.context.stack_trace;
+	g_cpu.PC = pc;
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->levels = 10;
+	name_out[0] = '\0';
+	*line_out = 0;
+	if (call_cb(DAP_CMD_STACK_TRACE) != 0 || !ctx->frames) return;
+	if (ctx->frames[0].source_name) {
+		snprintf(name_out, name_size, "%s", ctx->frames[0].source_name);
+	}
+	*line_out = ctx->frames[0].line;
+	free(ctx->frames[0].name);
+	free(ctx->frames[0].source_path);
+	free(ctx->frames[0].source_name);
+	free(ctx->frames);
+	ctx->frames = NULL;
+}
+
+/* A frame whose PC has a source line in the map carries that file and line. */
+static void test_stack_trace_source_line(void) {
+	char path[96];
+	char name[64];
+	int line = 0;
+	CHECK(load_test_map("prog.c:12 -> 0x08023E9C\n", path, sizeof(path)) == 0, "map loaded");
+	stack_trace_source_at(0x08023E9C, name, sizeof(name), &line);
+	CHECK(strcmp(name, "prog.c") == 0, "frame source is prog.c");
+	CHECK(line == 12, "frame line is 12");
+	ndlib_symbols_clear();
+	remove(path);
+}
+
 /* -- Disassemble ------------------------------------------------- */
 
 static void test_disassemble(void) {
@@ -574,6 +621,7 @@ int main(void) {
 	test_evaluate();
 	test_execution_control();
 	test_stack_trace();
+	test_stack_trace_source_line();
 	test_disassemble();
 
 	printf("%d checks, %d failures\n", g_tests_run, g_tests_failed);

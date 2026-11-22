@@ -791,7 +791,8 @@ DAP_CMD_LOCKED(cmd_stack_trace) {
 
     const char* file = NULL;
     int line = 0;
-    if (ndlib_symbols_get_c_mapping(pc, &file, &line) == 0 && file && line > 0) {
+    /* ndlib_symbols_get_c_mapping returns 1 when it finds a line, 0 when not */
+    if (ndlib_symbols_get_c_mapping(pc, &file, &line) == 1 && file && line > 0) {
         f->source_path = strdup(file);
         const char* base = strrchr(file, '/');
         f->source_name = strdup(base ? base + 1 : file);
