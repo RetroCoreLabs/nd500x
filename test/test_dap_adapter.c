@@ -561,6 +561,37 @@ static void test_stack_trace_source_line(void) {
 	remove(path);
 }
 
+/* A PLANC source is shown, and a PC inside a line (not its first word)
+ * finds the line whose address range holds it. */
+static void test_stack_trace_planc_line_range(void) {
+	char path[96];
+	char name[64];
+	int line = 0;
+	CHECK(load_test_map("PROG.PLNC:7 -> 0x08001000\n"
+	                    "PROG.PLNC:8 -> 0x08001006\n"
+	                    "PROG.PLNC:9 -> 0x08001010\n", path, sizeof(path)) == 0, "map loaded");
+
+	stack_trace_source_at(0x08001000, name, sizeof(name), &line);
+	CHECK(strcmp(name, "PROG.PLNC") == 0, "PLANC source shown at first word of line 7");
+	CHECK(line == 7, "line 7 at its first word");
+
+	stack_trace_source_at(0x08001004, name, sizeof(name), &line);
+	CHECK(strcmp(name, "PROG.PLNC") == 0, "PLANC source shown inside line 7");
+	CHECK(line == 7, "PC inside line 7 finds line 7");
+
+	stack_trace_source_at(0x08001006, name, sizeof(name), &line);
+	CHECK(line == 8, "first word of line 8 finds line 8");
+
+	stack_trace_source_at(0x0800100E, name, sizeof(name), &line);
+	CHECK(line == 8, "last word before line 9 finds line 8");
+
+	stack_trace_source_at(0x08000FFE, name, sizeof(name), &line);
+	CHECK(name[0] == '\0' && line == 0, "PC below the first line has no source");
+
+	ndlib_symbols_clear();
+	remove(path);
+}
+
 /* -- Disassemble ------------------------------------------------- */
 
 static void test_disassemble(void) {
@@ -622,6 +653,7 @@ int main(void) {
 	test_execution_control();
 	test_stack_trace();
 	test_stack_trace_source_line();
+	test_stack_trace_planc_line_range();
 	test_disassemble();
 
 	printf("%d checks, %d failures\n", g_tests_run, g_tests_failed);

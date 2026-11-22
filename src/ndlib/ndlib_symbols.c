@@ -700,6 +700,72 @@ int ndlib_symbols_get_c_mapping(uint32_t addr, const char** out_file, int* out_l
     return 0;
 }
 
+/* Start address of the TEXT symbol at or below addr: the highest TEXT
+ * symbol address that is <= addr. Returns 1 when one exists, 0 when not
+ * (no symbols loaded, or addr is below every TEXT symbol). */
+static int text_symbol_start_at_or_below(uint32_t addr, uint32_t* out_start) {
+    int found = 0;
+    uint32_t best = 0;
+    for (int i = 0; i < g_symbol_count; i++) {
+        if ((g_symbols[i].type & 0x0E) != 0x04) continue;   /* TEXT only */
+        uint32_t a = g_symbols[i].addr;
+        if (a <= addr && (!found || a > best)) {
+            best = a;
+            found = 1;
+        }
+    }
+    if (found) *out_start = best;
+    return found;
+}
+
+static int is_assembly_file(const char* file) {
+    const char* ext = strrchr(file, '.');
+    return ext && strcmp(ext, ".s") == 0;
+}
+
+/* Source line whose address range holds pc (returns 1 if found, 0 if not).
+ *
+ * Takes any source file (C, PLANC .PLNC, assembly, ...). A line's range runs
+ * from its own address up to the next line entry's address, so the answer is
+ * the last line entry at or below pc. When several entries share that address
+ * a high-level (non-.s) line is preferred over an assembly line.
+ *
+ * Function bound: when symbols are loaded, the entry must not lie below the
+ * TEXT symbol that holds pc - an entry from an earlier function is not the
+ * line of this pc. Without symbols there is no function bound, and a pc past
+ * the last line entry reports that last line. */
+int ndlib_symbols_source_for_pc(uint32_t pc, const char** out_file, int* out_line) {
+    /* g_source_lines is sorted by address (ndlib_map_load). Binary search
+     * for the first entry with address > pc. */
+    int lo = 0;
+    int hi = g_source_line_count;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (g_source_lines[mid].address <= pc) lo = mid + 1;
+        else hi = mid;
+    }
+    if (lo == 0) return 0;   /* pc is below every line entry */
+
+    uint32_t line_addr = g_source_lines[lo - 1].address;
+
+    uint32_t func_start = 0;
+    if (text_symbol_start_at_or_below(pc, &func_start) && line_addr < func_start) {
+        return 0;   /* nearest line belongs to an earlier function */
+    }
+
+    /* Among entries at line_addr, prefer the last non-assembly one */
+    int pick = lo - 1;
+    for (int i = lo - 1; i >= 0 && g_source_lines[i].address == line_addr; i--) {
+        if (!is_assembly_file(g_source_lines[i].source_file)) {
+            pick = i;
+            break;
+        }
+    }
+    if (out_file) *out_file = g_source_lines[pick].source_file;
+    if (out_line) *out_line = g_source_lines[pick].line_number;
+    return 1;
+}
+
 /* Get assembly source mapping for address (returns 1 if found, 0 if not) */
 int ndlib_symbols_get_s_mapping(uint32_t addr, const char** out_file, int* out_line) {
     /* Search backwards to find the LAST .s entry for this address

@@ -57,6 +57,8 @@ int ndlib_map_load(const char* map_path);
 const char* ndlib_symbols_file_for_addr(uint32_t addr);
 int ndlib_symbols_get_c_mapping(uint32_t addr, const char** out_file, int* out_line);
 int ndlib_symbols_get_s_mapping(uint32_t addr, const char** out_file, int* out_line);
+/* Source line (any file type) whose address range holds pc; 1 found, 0 not */
+int ndlib_symbols_source_for_pc(uint32_t pc, const char** out_file, int* out_line);
 int ndlib_symbols_addr_for_line(const char* file, int line, uint32_t* out_addr);
 int ndlib_symbols_get_addrs_for_line(const char* file, int line, uint32_t* out_addrs, int max_addrs);
 uint32_t ndlib_symbols_first_instruction_addr(void);
