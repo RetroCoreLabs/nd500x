@@ -47,6 +47,9 @@ typedef struct {
     bool one_shot;            /* Delete after first hit */
     uint32_t hit_count;       /* Number of times hit */
     char condition[128];      /* Condition expression (BP_TYPE_CONDITIONAL only) */
+    char log_message[160];    /* A logpoint (DAP logMessage): when not empty, a hit prints
+                                 this text through BreakpointManager.log_hook and does not
+                                 stop. {NAME} parts are filled in by the hook. */
 } Breakpoint;
 
 /* Watchpoint structure */
@@ -67,6 +70,9 @@ typedef struct BreakpointManager {
     int bp_count;
     int wp_count;
     bool break_on_next_instruction;  /* For step command */
+    /* Prints the text of a logpoint that was hit (the DAP adapter sends it to the client as
+     * an output event). NULL: the text goes to stdout. */
+    void (*log_hook)(const char* text, struct Nd500Cpu* cpu);
 } BreakpointManager;
 
 /* Initialize breakpoint manager */
@@ -79,6 +85,9 @@ int bp_add(BreakpointManager* mgr, uint32_t address, bool one_shot);
 int bp_add_conditional(BreakpointManager* mgr, struct Nd500Cpu* cpu, uint32_t address,
                        const char* condition, bool one_shot);
 int bp_delete(BreakpointManager* mgr, int id);
+/* Make breakpoint id a logpoint with this text (DAP logMessage); 0, or -1 for a bad id or a
+ * text longer than the field. */
+int bp_set_log_message(BreakpointManager* mgr, int id, const char* text);
 int bp_enable(BreakpointManager* mgr, int id);
 int bp_disable(BreakpointManager* mgr, int id);
 void bp_list(BreakpointManager* mgr);

@@ -38,6 +38,7 @@ typedef enum {
     STOP_MON_HALT,
     STOP_MON_UNIMPLEMENTED,
     STOP_WAIT_INPUT,   /* Blocking terminal/INBT read found no input (SINTRAN process-suspend) */
+    STOP_STEP,         /* A debugger step (source line) ended: Nd500Machine.step_hook said stop */
 } StopReason;
 
 typedef struct Nd500Machine {
@@ -60,6 +61,10 @@ typedef struct Nd500Machine {
      * (set by nd500_dbg_run/nd500_dbg_step, consumed by nd500_cpu_step) */
     uint32_t bp_resume_pc;
     volatile int bp_resume_skip;
+    /* A debugger's step over a source line (the DAP adapter, dap_adapter.c line_step_hook):
+     * called before every instruction while set; non-zero ends the step there with
+     * STOP_STEP. NULL: no step going on. */
+    int (*step_hook)(struct Nd500Machine* m, uint32_t pc);
     /* Physical page allocator bookkeeping (nd500_phys_alloc.c). Opaque here so
      * the machine layer does not depend on the allocator; built lazily on first
      * use and released by nd500_phys_alloc_reset(). */

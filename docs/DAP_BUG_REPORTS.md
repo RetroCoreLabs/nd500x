@@ -96,3 +96,16 @@ another LLM's session.)
   pass, including the exact NC halfword+unaligned-link pattern -> the helpers
   are CORRECT in-page; only the cross-page case is buggy).
 - Status: OPEN, latent. Not blocking the NC crash.
+
+## BUG-3 (OPEN, 2026-11-22): the stack frame name has a wrong offset in a SINTRAN domain
+
+Under `--monitor`, a stop in the routine LOC of the PLANC probe BE01 (new-planc tests/oracle/be,
+PC 0x08000082) gives the frame name `LOC +134217858 @1000000202`: the offset counts the segment
+bits of the PC (0x08000000 = 134217728). `ndlib_symbols_name_for_addr` takes the symbol address
+without the segment number and subtracts it from the full PC. Found by new-planc
+tests/nd500debug/planc_dap_test.js, which accepts any name that starts with the routine name.
+
+## BUG-4 (OPEN, 2026-11-22): the stack trace has only the frame of the PC
+
+`cmd_stack_trace` reports one frame. A PLANC routine keeps its caller's frame base (PREVB) and
+return address in its frame (PLANC manual CP 2.3), so the callers can be found; not done.

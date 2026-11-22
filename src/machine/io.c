@@ -110,6 +110,7 @@ const char* nd500_stop_reason_str(StopReason reason) {
         case STOP_NONE:                     return "none";
         case STOP_USER_REQUESTED:           return "user requested";
         case STOP_BREAKPOINT:               return "breakpoint";
+        case STOP_STEP:                     return "step";
         case STOP_WATCHPOINT_READ:          return "watchpoint (read)";
         case STOP_WATCHPOINT_WRITE:         return "watchpoint (write)";
         case STOP_WATCHPOINT_REGISTER:      return "watchpoint (register)";

@@ -46,6 +46,11 @@ struct DAPServer;
 int nd500_dap_start(Nd500Machine* m, int port);
 int nd500_dap_stop(void);
 int nd500_dap_is_active(void);
+/* Block until a DAP client has sent configurationDone; 0, or -1 when the server ended first */
+int nd500_dap_wait_configured(void);
+/* The program the debugger follows has ended (the SINTRAN shell's run loop): the client gets
+ * "exited" with exit_code, then "terminated". Nothing when no DAP server runs. */
+void nd500_dap_program_ended(int exit_code);
 /* Register callbacks on a server without starting transport/thread
  * (unit tests drive callbacks directly through the server struct) */
 int nd500_dap_bind(Nd500Machine* m, struct DAPServer* server);

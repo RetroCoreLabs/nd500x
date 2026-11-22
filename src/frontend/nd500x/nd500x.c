@@ -76,6 +76,7 @@ static void print_usage(const char* prog) {
     printf("  --radix <mode>           Set numeric radix: decimal | hex | octal\n");
     printf("  --run                    Run program (exit on MON 0B or error)\n");
     printf("  --dap [port]             Start DAP server (default port 4500) and wait for client\n");
+    printf("  --dap-wait               With --dap: run nothing until a client sent configurationDone\n");
     printf("  --max-steps <n>          Maximum instructions to execute (default: unlimited)\n");
     printf("  --trace-file <path>      Write instruction trace to file\n");
     printf("  --sintran-root <path>    Set SINTRAN file system root directory\n");
@@ -306,6 +307,7 @@ int main(int argc, char** argv) {
     uint64_t max_steps = 0;  /* 0 = unlimited */
     const char* trace_file_path = NULL;
     int dap_port = 0;  /* 0 = DAP server not requested */
+    int dap_wait = 0;  /* --dap-wait: wait for the client's configurationDone */
 
     /* Load a config file BEFORE parsing flags so command-line flags override it.
      * Use --config <path> if given, else ./nd500x.ini if present. */
@@ -352,6 +354,11 @@ int main(int argc, char** argv) {
             ansi_flag = 1;
         } else if (strcmp(argv[i], "-noansi") == 0) {
             ansi_flag = -1;
+        } else if (strcmp(argv[i], "--dap-wait") == 0) {
+            /* --dap PORT, and nothing runs until a client has attached and sent
+             * configurationDone: its breakpoints are set before the first instruction */
+            dap_wait = 1;
+            if (dap_port <= 0) dap_port = 4500;
         } else if (strcmp(argv[i], "--dap") == 0) {
             /* Optional port argument (default 4500; nd100x uses 4711) */
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -673,6 +680,14 @@ int main(int argc, char** argv) {
             return 1;
         }
         printf("DAP server listening on port %d\n", dap_port);
+        if (dap_wait) {
+            printf("Waiting for a DAP client (configurationDone)\n");
+            fflush(stdout);
+            if (nd500_dap_wait_configured() != 0) {
+                printf("The DAP server ended before a client was configured\n");
+                return 1;
+            }
+        }
         /* --monitor: the SINTRAN shell IS the session, so fall through to it
          * with the DAP server running alongside on its own thread. Entering
          * the headless wait loop below instead (which is what happened before

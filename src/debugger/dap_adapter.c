@@ -34,6 +34,7 @@
 #ifdef DAP_ENABLED
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
@@ -81,6 +82,13 @@ static int g_have_entry_pc = 0;
 #define SCOPE_ID_TRAP_CONTROL 1006
 #define SCOPE_ID_STATUS_FLAGS 1100
 #define SCOPE_ID_MMU          1200
+/* The variables of a source map (ndlib_map_*): the named locals of the routine the PC is
+ * in, read at B + offset, and the module's variables. A one-dimension array opens to its
+ * elements under ARRAY_BASE + its index in the list. */
+#define SCOPE_ID_LOCALS       1300
+#define SCOPE_ID_GLOBALS      1301
+#define SCOPE_ID_LOCAL_ARRAY  20000
+#define SCOPE_ID_GLOBAL_ARRAY 40000
 
 /* One register variable: name shown in the client, the shared
  * register-table name used for reads/writes, and a description
@@ -184,6 +192,7 @@ static int g_dap_wp_count = 0;
 static const char* stop_reason_to_dap(StopReason r) {
     switch (r) {
     case STOP_BREAKPOINT:        return "breakpoint";
+    case STOP_STEP:              return "step";
     case STOP_WATCHPOINT_READ:     return "data breakpoint";
     case STOP_WATCHPOINT_WRITE:    return "data breakpoint";
     case STOP_WATCHPOINT_REGISTER: return "data breakpoint";
@@ -340,6 +349,278 @@ static uint32_t dap_format_instruction(uint32_t addr, char* buf, size_t buf_size
     return fi.total_len;
 }
 
+/* -- Source map variables ---------------------------------------- */
+
+/* The parts of a map name "NAME:TYPE" (ndlink -m, the type text of planc -g, src/fe/lower.c
+ * dbg_type_put): the element size of a simple value (1 "byte", 2 "word", N "N bytes"; 0 for
+ * any other text: a record, a descriptor, a pointer), and the bounds of a one-dimension
+ * array "(LO:HI)" behind it. Returns the length of NAME. */
+typedef struct {
+    int name_len;
+    const char* type;    /* behind the ':' ("" when there is none: one 32-bit word) */
+    uint32_t elem;       /* bytes of one value; 0: not a simple value */
+    int is_array;
+    long lo, hi;
+} MapType;
+
+static void map_type_of(const char* name, MapType* t) {
+    const char* colon = strchr(name, ':');
+    memset(t, 0, sizeof(*t));
+    t->name_len = colon ? (int)(colon - name) : (int)strlen(name);
+    t->type = colon ? colon + 1 : "";
+    const char* ty = t->type;
+    if (*ty == '\0') {
+        t->elem = 4;
+    } else if (strncmp(ty, "byte", 4) == 0) {
+        t->elem = 1; ty += 4;
+    } else if (strncmp(ty, "word", 4) == 0) {
+        t->elem = 2; ty += 4;
+    } else if (*ty >= '0' && *ty <= '9') {
+        char* end = NULL;
+        unsigned long n = strtoul(ty, &end, 10);
+        if (end && strncmp(end, " bytes", 6) == 0 && (n == 4)) {
+            t->elem = (uint32_t)n;
+            ty = end + 6;
+        } else {
+            return;
+        }
+    } else {
+        return;
+    }
+    if (*ty == '(') {
+        char* end = NULL;
+        t->lo = strtol(ty + 1, &end, 10);
+        if (end && *end == ':') {
+            t->hi = strtol(end + 1, &end, 10);
+            if (end && *end == ')' && end[1] == '\0' && t->hi >= t->lo) t->is_array = 1;
+            else t->elem = 0;
+        } else {
+            t->elem = 0;
+        }
+    } else if (*ty != '\0') {
+        t->elem = 0;
+    }
+}
+
+/* Read n bytes (1, 2 or 4) at a data address through the data page tables; big-endian, as
+ * the ND-500 keeps them. Returns 1 when all were read. */
+static int map_read(uint32_t vaddr, uint32_t n, uint32_t* out) {
+    uint8_t b[4] = {0, 0, 0, 0};
+    if ((vaddr & 0x7FF) + n > 0x800) {
+        for (uint32_t i = 0; i < n; i++) {
+            uint32_t pa = dap_xlate_addr(vaddr + i, DAP_DATA_BP_ADDR_VIRTUAL);
+            if (nd500_dbg_mem_read_raw(g_machine, pa, 1, b + i, 1) != 1) return 0;
+        }
+    } else {
+        uint32_t pa = dap_xlate_addr(vaddr, DAP_DATA_BP_ADDR_VIRTUAL);
+        if (nd500_dbg_mem_read_raw(g_machine, pa, n, b, n) != n) return 0;
+    }
+    uint32_t v = 0;
+    for (uint32_t i = 0; i < n; i++) v = (v << 8) | b[i];
+    *out = v;
+    return 1;
+}
+
+/* The text of a simple value: decimal, then octal in brackets (the form nd100x shows). A
+ * byte is 0..255, a word and a 4-byte value are signed. */
+static void map_value_text(uint32_t v, uint32_t elem, char* buf, size_t cap) {
+    long long d;
+    if (elem == 1) d = (long long)(v & 0xFF);
+    else if (elem == 2) d = (long long)(int16_t)(v & 0xFFFF);
+    else d = (long long)(int32_t)v;
+    snprintf(buf, cap, "%lld (%llo)", d, (unsigned long long)(elem == 1 ? (v & 0xFF) : elem == 2 ? (v & 0xFFFF) : v));
+}
+
+static DAPVariable* dap_add_variable(DAPServer* server, const char* name,
+                                     const char* value, const char* type);
+
+/* One variable of a source map at address addr: a simple value, an array (children under
+ * ref), or the type text alone for what is not simple. */
+static void map_add_var(DAPServer* server, const char* name, uint32_t addr, int ref) {
+    MapType t;
+    char nm[96], val[64];
+    map_type_of(name, &t);
+    snprintf(nm, sizeof nm, "%.*s", t.name_len, name);
+    if (t.elem == 0) {
+        snprintf(val, sizeof val, "@0x%08X", addr);
+        dap_add_variable(server, nm, val, t.type);
+        return;
+    }
+    if (t.is_array) {
+        snprintf(val, sizeof val, "array (%ld:%ld)", t.lo, t.hi);
+        DAPVariable* v = dap_add_variable(server, nm, val, t.type);
+        if (v) {
+            v->variables_reference = ref;
+            v->indexed_variables = (int)(t.hi - t.lo + 1);
+            v->memory_reference = (int)addr;
+        }
+        return;
+    }
+    uint32_t raw = 0;
+    if (map_read(addr, t.elem, &raw)) map_value_text(raw, t.elem, val, sizeof val);
+    else snprintf(val, sizeof val, "(not readable at 0x%08X)", addr);
+    DAPVariable* v = dap_add_variable(server, nm, val, t.type);
+    if (v) v->memory_reference = (int)addr;
+}
+
+/* The elements of an array variable: [LO] to [HI]. */
+static void map_add_elements(DAPServer* server, const char* name, uint32_t addr) {
+    MapType t;
+    char nm[32], val[64];
+    map_type_of(name, &t);
+    if (!t.is_array || t.elem == 0) return;
+    for (long i = t.lo; i <= t.hi && i - t.lo < 4096; i++) {
+        uint32_t raw = 0;
+        uint32_t at = addr + (uint32_t)(i - t.lo) * t.elem;
+        snprintf(nm, sizeof nm, "[%ld]", i);
+        if (map_read(at, t.elem, &raw)) map_value_text(raw, t.elem, val, sizeof val);
+        else snprintf(val, sizeof val, "(not readable)");
+        dap_add_variable(server, nm, val, "");
+    }
+}
+
+static uint32_t map_frame_base(void) {
+    uint32_t b = 0;
+    nd500_dbg_reg_get_by_name(g_machine->cpu, "B", &b);
+    return b;
+}
+
+/* -- Logpoints --------------------------------------------------- */
+
+/* The texts of logpoints hit on the CPU thread, sent by cmd_check_cpu_events as output
+ * events (a send from the CPU thread would race the DAP thread on the socket). */
+static pthread_mutex_t g_log_lock = PTHREAD_MUTEX_INITIALIZER;
+static char g_log_buf[8192];
+static size_t g_log_len = 0;
+
+/* The value of {NAME} in a log message: a variable of the source map (a Global, or a Local
+ * of the routine of the PC), else a register; 0 when there is none. */
+static int log_lookup(const char* name, size_t n, char* out, size_t cap) {
+    uint32_t pc = g_machine->cpu->PC;
+    int f = ndlib_map_func_for_pc(pc);
+    int locals = 0;
+    if (f >= 0) (void)ndlib_map_func(f, NULL, &locals);
+    for (int i = 0; i < locals; i++) {
+        int32_t off = 0;
+        const char* ln = ndlib_map_local(f, i, &off);
+        MapType t;
+        map_type_of(ln, &t);
+        uint32_t raw;
+        if ((size_t)t.name_len == n && strncasecmp(ln, name, n) == 0 && t.elem && !t.is_array &&
+            map_read(map_frame_base() + (uint32_t)off, t.elem, &raw)) {
+            map_value_text(raw, t.elem, out, cap);
+            return 1;
+        }
+    }
+    for (int i = 0; i < ndlib_map_global_count(); i++) {
+        uint32_t addr = 0, raw;
+        const char* gn = ndlib_map_global(i, &addr);
+        MapType t;
+        map_type_of(gn, &t);
+        if ((size_t)t.name_len == n && strncasecmp(gn, name, n) == 0 && t.elem && !t.is_array &&
+            map_read(addr, t.elem, &raw)) {
+            map_value_text(raw, t.elem, out, cap);
+            return 1;
+        }
+    }
+    char reg[16];
+    uint32_t v;
+    if (n < sizeof reg) {
+        memcpy(reg, name, n);
+        reg[n] = '\0';
+        if (nd500_dbg_reg_get_by_name(g_machine->cpu, reg, &v) == 0) {
+            snprintf(out, cap, "0x%08X", v);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* BreakpointManager.log_hook: the text with each {NAME} replaced by its value (an unknown
+ * name stays as written), one line, queued for the client. Runs on the CPU thread. */
+static void dap_log_hook(const char* text, struct Nd500Cpu* cpu) {
+    (void)cpu;
+    char line[512];
+    size_t o = 0;
+    for (const char* p = text; *p && o + 1 < sizeof line; p++) {
+        const char* close = (*p == '{') ? strchr(p, '}') : NULL;
+        char val[96];
+        if (close && log_lookup(p + 1, (size_t)(close - p - 1), val, sizeof val)) {
+            size_t k = strlen(val);
+            if (o + k >= sizeof line - 1) k = sizeof line - 2 - o;
+            memcpy(line + o, val, k);
+            o += k;
+            p = close;
+        } else {
+            line[o++] = *p;
+        }
+    }
+    line[o++] = '\n';
+    line[o] = '\0';
+    pthread_mutex_lock(&g_log_lock);
+    if (g_log_len + o < sizeof g_log_buf) {
+        memcpy(g_log_buf + g_log_len, line, o + 1);
+        g_log_len += o;
+    }
+    pthread_mutex_unlock(&g_log_lock);
+}
+
+static void dap_flush_log(DAPServer* server) {
+    char out[sizeof g_log_buf];
+    pthread_mutex_lock(&g_log_lock);
+    size_t n = g_log_len;
+    if (n) memcpy(out, g_log_buf, n + 1);
+    g_log_len = 0;
+    pthread_mutex_unlock(&g_log_lock);
+    if (n) dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, out);
+}
+
+/* The end of the program, told by the loop that ran it (nd500_dap_program_ended) and sent by
+ * cmd_check_cpu_events. The loop goes on at once (the shell reads its next command, often
+ * EXIT), so the end cannot be read off the machine's stop reason when the DAP thread looks. */
+static volatile int g_exit_pending = 0;
+static volatile int g_exit_code = 0;
+
+void nd500_dap_program_ended(int exit_code) {
+    if (!g_server) return;
+    g_exit_code = exit_code;
+    g_exit_pending = 1;
+}
+
+/* -- Source line steps ------------------------------------------- */
+
+/* A step over (next), into (stepIn) or out of (stepOut) a source line, run by the loop that
+ * drives the CPU: line_step_hook is called before each instruction (Nd500Machine.step_hook)
+ * and ends the step at the first address of a source line (the line entries of the map):
+ *   in   any line start other than the one the step began at;
+ *   over a line start in the same frame (B as at the start) or in a frame that called it;
+ *   out  a line start in a frame that called it.
+ * "A frame that called it": B lower than at the start. Measured (tests/nd500debug, BE01 on
+ * nd500x, 2026-11-22): B is 0x08000004 in MAIN and 0x0800001C in the routine LOC it calls,
+ * so a callee's frame base is higher than its caller's. */
+enum { STEP_IN, STEP_OVER, STEP_OUT };
+static struct {
+    int kind;
+    uint32_t start_pc;
+    uint32_t start_b;
+    int moved;           /* 0 until the first instruction of the step has run */
+} g_ls;
+
+static int line_step_hook(Nd500Machine* m, uint32_t pc) {
+    if (!g_ls.moved) {
+        g_ls.moved = 1;
+        return 0;
+    }
+    if (!ndlib_map_is_line_start(pc, NULL, NULL)) return 0;
+    uint32_t b = 0;
+    nd500_dbg_reg_get_by_name(m->cpu, "B", &b);
+    switch (g_ls.kind) {
+    case STEP_IN:   return 1;
+    case STEP_OVER: return b <= g_ls.start_b;
+    default:        return b < g_ls.start_b;
+    }
+}
+
 /* -- Lifecycle callbacks ----------------------------------------- */
 
 static int cmd_wait_for_debugger(DAPServer* server) {
@@ -371,8 +652,23 @@ DAP_CMD_LOCKED(cmd_check_cpu_events) {
     if (!g_machine) return 0;
 
     dap_flush_console_output(server);
+    dap_flush_log(server);
 
-    if (g_machine->stop_reason != STOP_NONE && !g_machine->run_flag) {
+    if (g_exit_pending) {
+        /* The program ended (nd500_dap_program_ended): for the client that is the end of the
+         * debuggee, "exited" then "terminated", not a stop it could continue. */
+        int code = g_exit_code;
+        g_exit_pending = 0;
+        g_machine->step_hook = NULL;
+        g_step_pending = 0;
+        dap_flush_log(server);
+        dap_server_send_exited_event(server, code);
+        dap_server_send_terminated_event(server, false);
+        return 0;
+    }
+    /* STOP_MON_HALT is the end of the program, sent as exited/terminated (g_exit_pending) */
+    if (g_machine->stop_reason != STOP_NONE && g_machine->stop_reason != STOP_MON_HALT &&
+        !g_machine->run_flag) {
         const char* reason = stop_reason_to_dap(g_machine->stop_reason);
         char desc[192];
         uint32_t pc = g_machine->cpu ? g_machine->cpu->PC : 0;
@@ -410,8 +706,11 @@ DAP_CMD_LOCKED(cmd_check_cpu_events) {
 
 /* -- Session callbacks ------------------------------------------- */
 
+static void dap_load_map(DAPServer* server);
+
 DAP_CMD_LOCKED(cmd_launch) {
     if (!g_machine) return -1;
+    if (g_machine->bp_mgr) g_machine->bp_mgr->log_hook = dap_log_hook;
     const char* program_path = server->debugger_state.program_path;
     bool stop_at_entry = server->debugger_state.stop_at_entry;
 
@@ -442,6 +741,7 @@ DAP_CMD_LOCKED(cmd_launch) {
 
     dap_server_send_process_event(server, program_path ? program_path : "nd500x", 1, true, "launch");
 
+    dap_load_map(server);   /* after the program's own symbols: a map given wins */
     if (stop_at_entry) {
         server->debugger_state.has_stopped = true;
         dap_server_send_stopped_event(server, "entry", "Stopped at program entry");
@@ -454,8 +754,26 @@ DAP_CMD_LOCKED(cmd_launch) {
     return 0;
 }
 
+/* The source map the client names (attach/launch "mapFile", ndlink -m): line entries for
+ * breakpoints, steps and the stack trace, and the names of the Locals and Globals scopes. */
+static void dap_load_map(DAPServer* server) {
+    const char* map = server->debugger_state.map_path;
+    char msg[600];
+    if (!map || !*map) return;
+    if (ndlib_map_load(map) != 0) {
+        snprintf(msg, sizeof msg, "Cannot read the source map %s\n", map);
+        dap_server_send_output_category(server, DAP_OUTPUT_STDERR, msg);
+        return;
+    }
+    snprintf(msg, sizeof msg, "Source map %s: %d line entries, %d variables of the module\n", map,
+             ndlib_map_line_count(), ndlib_map_global_count());
+    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, msg);
+}
+
 DAP_CMD_LOCKED(cmd_attach) {
     if (!g_machine) return -1;
+    dap_load_map(server);
+    if (g_machine->bp_mgr) g_machine->bp_mgr->log_hook = dap_log_hook;
     server->attached = true;
     server->is_running = true;
     server->debugger_state.current_thread_id = 1;
@@ -507,6 +825,7 @@ DAP_CMD_LOCKED(cmd_restart) {
 DAP_CMD_LOCKED(cmd_continue) {
     if (!g_machine) return -1;
     g_machine->stop_reason = STOP_NONE;
+    g_machine->step_hook = NULL;   /* a continue ends a source line step that did not end */
     g_step_pending = 0;
     server->debugger_state.has_stopped = false;
     server->current_command.context.continue_cmd.all_threads_continue = true;
@@ -534,9 +853,31 @@ DAP_CMD_LOCKED(cmd_step_common) {
     return 0;
 }
 
-static int cmd_next(DAPServer* server)     { return cmd_step_common(server); }
-static int cmd_step_in(DAPServer* server)  { return cmd_step_common(server); }
-static int cmd_step_out(DAPServer* server) { return cmd_step_common(server); }
+/* A source line step when the map has line entries and the PC is in a line of it (see
+ * line_step_hook); else the single instruction step above. */
+static int dap_line_step(DAPServer* server, int kind) {
+    if (!g_machine || !g_machine->cpu) return -1;
+    if (g_machine->run_flag) return -1;
+    if (ndlib_map_line_count() == 0 ||
+        ndlib_symbols_source_for_pc(g_machine->cpu->PC, NULL, NULL) != 1) {
+        return cmd_step_common(server);
+    }
+    nd500_cpu_lock();
+    g_ls.kind = kind;
+    g_ls.start_pc = g_machine->cpu->PC;
+    g_ls.start_b = map_frame_base();
+    g_ls.moved = 0;
+    g_machine->stop_reason = STOP_NONE;
+    g_machine->step_hook = line_step_hook;
+    server->debugger_state.has_stopped = false;
+    nd500_cpu_unlock();
+    nd500_dbg_run(g_machine);
+    return 0;
+}
+
+static int cmd_next(DAPServer* server)     { return dap_line_step(server, STEP_OVER); }
+static int cmd_step_in(DAPServer* server)  { return dap_line_step(server, STEP_IN); }
+static int cmd_step_out(DAPServer* server) { return dap_line_step(server, STEP_OUT); }
 
 DAP_CMD_LOCKED(cmd_pause) {
     (void)server;
@@ -567,6 +908,8 @@ DAP_CMD_LOCKED(cmd_set_breakpoints) {
             if (!found) {
                 /* Retry with the basename (client may send full path) */
                 const char* base = strrchr(ctx->source_path, '/');
+                const char* bs = strrchr(ctx->source_path, '\\');
+                if (bs && (!base || bs > base)) base = bs;   /* a Windows path */
                 if (base) {
                     found = (ndlib_symbols_addr_for_line(base + 1, bp->line, &addr) == 0);
                 }
@@ -578,6 +921,15 @@ DAP_CMD_LOCKED(cmd_set_breakpoints) {
             continue;
         }
         if (!dap_add_exec_bp(addr, bp->condition, bp->hit_condition, bp)) {
+            continue;
+        }
+        /* a logpoint: the breakpoint just added says its text instead of stopping */
+        if (bp->log_message && bp->log_message[0] != '\0' &&
+            bp_set_log_message(g_machine->bp_mgr, g_machine->bp_mgr->bp_count - 1,
+                               bp->log_message) != 0) {
+            bp_delete(g_machine->bp_mgr, g_machine->bp_mgr->bp_count - 1);
+            bp->verified = false;
+            bp->message = strdup("Log message longer than 159 characters");
             continue;
         }
         if (g_dap_src_bp_count < DAP_MAX_TRACKED) {
@@ -808,6 +1160,8 @@ DAP_CMD_LOCKED(cmd_stack_trace) {
     DAPStackFrame* f = &ctx->frames[0];
     f->id = 0;
     const char* sym = ndlib_symbols_name_for_addr(pc);
+    int mf = ndlib_map_func_for_pc(pc);
+    if ((!sym || !*sym) && mf >= 0) sym = ndlib_map_func(mf, NULL, NULL);
     if (sym && *sym) {
         f->name = strdup(sym);
         f->valid_symbol = true;
@@ -848,17 +1202,36 @@ DAP_CMD_LOCKED(cmd_scopes) {
         {"Trap Control",      SCOPE_ID_TRAP_CONTROL, DAP_REG_COUNT(g_trap_regs)},
         {"Status Flags",      SCOPE_ID_STATUS_FLAGS, 7},
     };
-    const int NUM_SCOPES = (int)(sizeof(defs) / sizeof(defs[0]));
-    DAPScope* scopes = (DAPScope*)calloc((size_t)NUM_SCOPES, sizeof(DAPScope));
+    const int NUM_REG_SCOPES = (int)(sizeof(defs) / sizeof(defs[0]));
+    /* the source map's scopes first: Locals of the routine of the PC, Globals of the module */
+    int locals = 0;
+    int mf = g_machine && g_machine->cpu ? ndlib_map_func_for_pc(g_machine->cpu->PC) : -1;
+    if (mf >= 0) (void)ndlib_map_func(mf, NULL, &locals);
+    int globals = ndlib_map_global_count();
+    int n = 0;
+    DAPScope* scopes = (DAPScope*)calloc((size_t)NUM_REG_SCOPES + 2, sizeof(DAPScope));
     if (!scopes) return -1;
-    for (int i = 0; i < NUM_SCOPES; i++) {
-        scopes[i].name = strdup(defs[i].name);
-        scopes[i].variables_reference = defs[i].ref;
-        scopes[i].named_variables = defs[i].count;
-        scopes[i].expensive = false;
+    if (locals > 0) {
+        scopes[n].name = strdup("Locals");
+        scopes[n].variables_reference = SCOPE_ID_LOCALS;
+        scopes[n].named_variables = locals;
+        n++;
+    }
+    if (globals > 0) {
+        scopes[n].name = strdup("Globals");
+        scopes[n].variables_reference = SCOPE_ID_GLOBALS;
+        scopes[n].named_variables = globals;
+        n++;
+    }
+    for (int i = 0; i < NUM_REG_SCOPES; i++) {
+        scopes[n].name = strdup(defs[i].name);
+        scopes[n].variables_reference = defs[i].ref;
+        scopes[n].named_variables = defs[i].count;
+        scopes[n].expensive = false;
+        n++;
     }
     ctx->scopes = scopes;
-    ctx->scope_count = NUM_SCOPES;
+    ctx->scope_count = n;
     return 0;
 }
 
@@ -895,6 +1268,35 @@ DAP_CMD_LOCKED(cmd_variables) {
 
     Nd500Cpu* cpu = g_machine->cpu;
     char value[64];
+
+    int vref = ctx->variables_reference;
+    if (vref == SCOPE_ID_GLOBALS) {
+        for (int i = 0; i < ndlib_map_global_count(); i++) {
+            uint32_t addr = 0;
+            const char* gn = ndlib_map_global(i, &addr);
+            map_add_var(server, gn, addr, SCOPE_ID_GLOBAL_ARRAY + i);
+        }
+        return 0;
+    }
+    if (vref >= SCOPE_ID_GLOBAL_ARRAY && vref < SCOPE_ID_GLOBAL_ARRAY + 20000) {
+        uint32_t addr = 0;
+        const char* gn = ndlib_map_global(vref - SCOPE_ID_GLOBAL_ARRAY, &addr);
+        if (gn) map_add_elements(server, gn, addr);
+        return 0;
+    }
+    if (vref == SCOPE_ID_LOCALS || (vref >= SCOPE_ID_LOCAL_ARRAY && vref < SCOPE_ID_GLOBAL_ARRAY)) {
+        int locals = 0;
+        int mf = ndlib_map_func_for_pc(cpu->PC);
+        if (mf >= 0) (void)ndlib_map_func(mf, NULL, &locals);
+        uint32_t b = map_frame_base();
+        for (int i = 0; i < locals; i++) {
+            int32_t off = 0;
+            const char* ln = ndlib_map_local(mf, i, &off);
+            if (vref == SCOPE_ID_LOCALS) map_add_var(server, ln, b + (uint32_t)off, SCOPE_ID_LOCAL_ARRAY + i);
+            else if (vref == SCOPE_ID_LOCAL_ARRAY + i) map_add_elements(server, ln, b + (uint32_t)off);
+        }
+        return 0;
+    }
 
     switch (ctx->variables_reference) {
     case SCOPE_ID_CORE: {
@@ -1305,7 +1707,29 @@ static void* dap_server_thread(void* arg) {
 /* Bind a machine and register all callbacks on a server without
  * starting the transport or server thread. Used by nd500_dap_start
  * and directly by the unit tests. */
+/* At the exit of nd500x: give the DAP thread up to a second to send the end of the program
+ * and the logpoint texts still queued (cmd_check_cpu_events sends them; a program that ends right after a logpoint would
+ * otherwise take its text along with the process). */
+static void dap_flush_log_at_exit(void) {
+    for (int i = 0; i < 100 && g_dap_thread_running && g_server; i++) {
+        pthread_mutex_lock(&g_log_lock);
+        size_t n = g_log_len;
+        pthread_mutex_unlock(&g_log_lock);
+        if (n == 0 && !g_exit_pending) return;   /* and the end of the program sent */
+        struct timespec ts = {0, 10000000}; /* 10 ms */
+        nanosleep(&ts, NULL);
+    }
+}
+
 int nd500_dap_bind(Nd500Machine* m, DAPServer* server) {
+    if (m && m->bp_mgr) m->bp_mgr->log_hook = dap_log_hook;   /* logpoints (dap_log_hook) */
+    {
+        static int at_exit_set = 0;
+        if (!at_exit_set) {
+            at_exit_set = 1;
+            atexit(dap_flush_log_at_exit);
+        }
+    }
     if (!server) return -1;
     g_machine = m;
     g_dap_src_bp_count = 0;
@@ -1359,6 +1783,15 @@ int nd500_dap_stop(void) {
     dap_server_free(g_server);
     g_server = NULL;
     return 0;
+}
+
+int nd500_dap_wait_configured(void) {
+    /* nd500x --dap-wait: until a client has sent configurationDone (its breakpoints are set) */
+    while (g_dap_thread_running && !(g_server && g_server->debugger_state.configuration_done)) {
+        struct timespec ts = {0, 20000000}; /* 20 ms */
+        nanosleep(&ts, NULL);
+    }
+    return (g_server && g_server->debugger_state.configuration_done) ? 0 : -1;
 }
 
 int nd500_dap_is_active(void) {

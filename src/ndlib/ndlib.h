@@ -63,6 +63,17 @@ int ndlib_symbols_addr_for_line(const char* file, int line, uint32_t* out_addr);
 int ndlib_symbols_get_addrs_for_line(const char* file, int line, uint32_t* out_addrs, int max_addrs);
 uint32_t ndlib_symbols_first_instruction_addr(void);
 
+/* The names of a source map (FUNC, LOCAL and GLOBAL lines, as ndlink -m writes them).
+ * A name is "NAME:TYPE" (the type text of planc -g) or a bare NAME. */
+int ndlib_map_global_count(void);
+const char* ndlib_map_global(int i, uint32_t* out_addr);          /* NULL past the end */
+int ndlib_map_func_for_pc(uint32_t pc);                           /* index, -1: none */
+const char* ndlib_map_func(int f, uint32_t* out_addr, int* out_local_count);
+const char* ndlib_map_local(int f, int i, int32_t* out_offset);   /* offset from B */
+/* 1 when addr is the first address of a source line (the file and line are given) */
+int ndlib_map_is_line_start(uint32_t addr, const char** out_file, int* out_line);
+int ndlib_map_line_count(void);
+
 /* Source file storage and retrieval */
 int ndlib_source_store(const char* filename, const char* content);
 const char* ndlib_source_get_line(const char* filename, int line);

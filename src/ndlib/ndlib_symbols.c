@@ -63,6 +63,133 @@ static int g_text_reloc_count = 0;
 static SourceLineEntry* g_source_lines = NULL;
 static int g_source_line_count = 0;
 
+/* The names of a source map (FUNC, LOCAL and GLOBAL lines, the form ndlink -m and the ND-100
+ * source map write): routines with the named locals of their frame, and module variables. */
+typedef struct {
+    char* name;            /* the name, then ':' and the type text (e.g. "A:4 bytes") */
+    uint32_t value;        /* GLOBAL: the address; LOCAL: the offset from B */
+} MapName;
+
+typedef struct {
+    char* name;
+    uint32_t address;      /* where the routine starts */
+    int first_local;       /* index into g_map_locals */
+    int local_count;
+} MapFunc;
+
+static MapName* g_map_globals = NULL;
+static int g_map_global_count = 0;
+static MapName* g_map_locals = NULL;
+static int g_map_local_count = 0;
+static MapFunc* g_map_funcs = NULL;
+static int g_map_func_count = 0;
+
+static void map_names_clear(void) {
+    for (int i = 0; i < g_map_global_count; i++) free(g_map_globals[i].name);
+    for (int i = 0; i < g_map_local_count; i++) free(g_map_locals[i].name);
+    for (int i = 0; i < g_map_func_count; i++) free(g_map_funcs[i].name);
+    free(g_map_globals);
+    free(g_map_locals);
+    free(g_map_funcs);
+    g_map_globals = NULL;
+    g_map_locals = NULL;
+    g_map_funcs = NULL;
+    g_map_global_count = g_map_local_count = g_map_func_count = 0;
+}
+
+static int map_name_add(MapName** arr, int* count, const char* name, uint32_t value) {
+    MapName* grown = (MapName*)realloc(*arr, (size_t)(*count + 1) * sizeof(MapName));
+    if (!grown) return -1;
+    *arr = grown;
+    grown[*count].name = strdup(name);
+    grown[*count].value = value;
+    (*count)++;
+    return 0;
+}
+
+/* One FUNC/LOCAL/GLOBAL line of a source map: "KIND:NAME -> VALUE" with the trailing
+ * newline gone. Returns 1 when the line was one of them, 0 when not. */
+static int map_name_line(char* line) {
+    char* arrow = strstr(line, "->");
+    if (!arrow) return 0;
+    int kind = strncmp(line, "FUNC:", 5) == 0 ? 1 : strncmp(line, "LOCAL:", 6) == 0 ? 2 :
+               strncmp(line, "GLOBAL:", 7) == 0 ? 3 : 0;
+    if (kind == 0) return 0;
+    char* name = strchr(line, ':') + 1;
+    char* end = arrow;
+    while (end > name && (end[-1] == ' ' || end[-1] == '\t')) end--;
+    *end = '\0';
+    char* v = arrow + 2;
+    while (*v == ' ' || *v == '\t') v++;
+    if (kind == 1) {
+        MapFunc* grown = (MapFunc*)realloc(g_map_funcs, (size_t)(g_map_func_count + 1) * sizeof(MapFunc));
+        if (!grown) return 1;
+        g_map_funcs = grown;
+        grown[g_map_func_count].name = strdup(name);
+        grown[g_map_func_count].address = (uint32_t)strtoul(v, NULL, 0);
+        grown[g_map_func_count].first_local = g_map_local_count;
+        grown[g_map_func_count].local_count = 0;
+        g_map_func_count++;
+    } else if (kind == 2) {
+        /* a LOCAL line belongs to the FUNC line above it; the offset is decimal, may be < 0 */
+        if (g_map_func_count > 0 &&
+            map_name_add(&g_map_locals, &g_map_local_count, name, (uint32_t)strtol(v, NULL, 10)) == 0) {
+            g_map_funcs[g_map_func_count - 1].local_count++;
+        }
+    } else {
+        (void)map_name_add(&g_map_globals, &g_map_global_count, name, (uint32_t)strtoul(v, NULL, 0));
+    }
+    return 1;
+}
+
+int ndlib_map_global_count(void) { return g_map_global_count; }
+
+const char* ndlib_map_global(int i, uint32_t* out_addr) {
+    if (i < 0 || i >= g_map_global_count) return NULL;
+    if (out_addr) *out_addr = g_map_globals[i].value;
+    return g_map_globals[i].name;
+}
+
+int ndlib_map_func_for_pc(uint32_t pc) {
+    int best = -1;
+    for (int i = 0; i < g_map_func_count; i++) {
+        if (g_map_funcs[i].address <= pc &&
+            (best < 0 || g_map_funcs[i].address > g_map_funcs[best].address)) {
+            best = i;
+        }
+    }
+    return best;
+}
+
+const char* ndlib_map_func(int f, uint32_t* out_addr, int* out_local_count) {
+    if (f < 0 || f >= g_map_func_count) return NULL;
+    if (out_addr) *out_addr = g_map_funcs[f].address;
+    if (out_local_count) *out_local_count = g_map_funcs[f].local_count;
+    return g_map_funcs[f].name;
+}
+
+const char* ndlib_map_local(int f, int i, int32_t* out_offset) {
+    if (f < 0 || f >= g_map_func_count || i < 0 || i >= g_map_funcs[f].local_count) return NULL;
+    const MapName* n = &g_map_locals[g_map_funcs[f].first_local + i];
+    if (out_offset) *out_offset = (int32_t)n->value;
+    return n->name;
+}
+
+int ndlib_map_is_line_start(uint32_t addr, const char** out_file, int* out_line) {
+    int lo = 0, hi = g_source_line_count;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (g_source_lines[mid].address < addr) lo = mid + 1;
+        else hi = mid;
+    }
+    if (lo >= g_source_line_count || g_source_lines[lo].address != addr) return 0;
+    if (out_file) *out_file = g_source_lines[lo].source_file;
+    if (out_line) *out_line = g_source_lines[lo].line_number;
+    return 1;
+}
+
+int ndlib_map_line_count(void) { return g_source_line_count; }
+
 #define MAX_SOURCE_FILES 32
 static SourceFileCache g_source_files[MAX_SOURCE_FILES];
 static int g_source_file_count = 0;
@@ -175,6 +302,7 @@ void ndlib_symbols_clear(void) {
         g_source_lines = NULL;
     }
     g_source_line_count = 0;
+    map_names_clear();
 
     /* Clear source file cache */
     for (int i = 0; i < g_source_file_count; i++) {
@@ -556,6 +684,16 @@ int ndlib_map_load(const char* map_path) {
     FILE* f = fopen(map_path, "r");
     if (!f) return -1;
 
+    /* A second map replaces the first (the DAP attach loads one; before, a second load
+     * dropped the old table without freeing it). */
+    if (g_source_lines) {
+        for (int i = 0; i < g_source_line_count; i++) free(g_source_lines[i].source_file);
+        free(g_source_lines);
+        g_source_lines = NULL;
+    }
+    g_source_line_count = 0;
+    map_names_clear();
+
     /* First pass: count lines */
     char line[1024];
     int count = 0;
@@ -565,6 +703,11 @@ int ndlib_map_load(const char* map_path) {
         while (*p == ' ' || *p == '\t') p++;
         if (*p == ';' || *p == '\n' || *p == '\0') continue;
 
+        /* FUNC:, LOCAL: and GLOBAL: lines are names, not line entries (map_name_line) */
+        if (strncmp(p, "FUNC:", 5) == 0 || strncmp(p, "LOCAL:", 6) == 0 ||
+            strncmp(p, "GLOBAL:", 7) == 0) {
+            continue;
+        }
         /* Check for valid format: filename:line -> address */
         if (strchr(line, ':') && strstr(line, "->")) {
             count++;
@@ -572,6 +715,14 @@ int ndlib_map_load(const char* map_path) {
     }
 
     if (count == 0) {
+        /* no line entries; the names are still read */
+        char buf[1024];
+        rewind(f);
+        while (fgets(buf, sizeof buf, f)) {
+            char* nl = strpbrk(buf, "\r\n");
+            if (nl) *nl = '\0';
+            (void)map_name_line(buf);
+        }
         fclose(f);
         return 0;  /* Empty map file, not an error */
     }
@@ -586,11 +737,19 @@ int ndlib_map_load(const char* map_path) {
     /* Second pass: parse lines */
     rewind(f);
     int idx = 0;
-    while (fgets(line, sizeof(line), f) && idx < count) {
+    /* to the end of the file: the names (map_name_line) may stand behind the last line entry */
+    while (fgets(line, sizeof(line), f)) {
         /* Skip comment lines starting with ; */
         char* p = line;
         while (*p == ' ' || *p == '\t') p++;
         if (*p == ';' || *p == '\n' || *p == '\0') continue;
+        {
+            char* nl = strpbrk(p, "\r\n");
+            char keep[1024];
+            snprintf(keep, sizeof keep, "%s", p);
+            if (nl) keep[nl - p] = '\0';
+            if (map_name_line(keep)) continue;
+        }
 
         /* Parse format: "filename:line -> address" */
         char* colon = strchr(line, ':');
@@ -645,7 +804,7 @@ int ndlib_map_load(const char* map_path) {
         }
 
         /* Only store TEXT entries (skip DATA) */
-        if (is_text) {
+        if (is_text && idx < count) {
             g_source_lines[idx].source_file = strdup(basename);
             g_source_lines[idx].line_number = line_num;
             g_source_lines[idx].address = addr;

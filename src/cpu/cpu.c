@@ -458,7 +458,16 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
         cpu->machine->run_flag = 0;
         cpu->machine->stop_reason = STOP_BREAKPOINT;
         cpu->machine->stop_addr = cpu->PC;
-        printf("[STOP] Breakpoint at PC=0x%08X\n", cpu->PC);
+        fprintf(stderr, "[STOP] Breakpoint at PC=0x%08X\n", cpu->PC);
+        return false;
+    }
+
+    /* A debugger's step over a source line ends here (Nd500Machine.step_hook) */
+    if (cpu->machine->step_hook && cpu->machine->step_hook(cpu->machine, cpu->PC)) {
+        cpu->machine->step_hook = NULL;
+        cpu->machine->run_flag = 0;
+        cpu->machine->stop_reason = STOP_STEP;
+        cpu->machine->stop_addr = cpu->PC;
         return false;
     }
 

@@ -573,6 +573,7 @@ static int shell_park_for_debugger(void) {
 
 static int shell_is_debugger_stop(int reason) {
     return reason == STOP_BREAKPOINT ||
+           reason == STOP_STEP ||
            reason == STOP_WATCHPOINT_READ ||
            reason == STOP_WATCHPOINT_WRITE ||
            reason == STOP_WATCHPOINT_REGISTER;
@@ -899,6 +900,11 @@ static void run_domain(const char* name, const char* args) {
     nd500_cpu_set_external_driver(0);
     if (!g_use_telnet) restore_cooked();
     printf("\n-- program exited (%llu instructions) --\n", (unsigned long long)steps);
+#ifdef DAP_ENABLED
+    /* the debug client: 0 for the program's own end (MON 0 LEAVE), 1 for any other end (a
+     * trap, an ESCAPE, the step limit) */
+    nd500_dap_program_ended(g_machine->stop_reason == STOP_MON_HALT ? 0 : 1);
+#endif
 
     /* Release the run's resources so a long session does not exhaust the
      * machine: restore the MMU tables (drops the dead run's PST entries and
