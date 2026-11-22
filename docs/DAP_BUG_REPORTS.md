@@ -97,15 +97,25 @@ another LLM's session.)
   are CORRECT in-page; only the cross-page case is buggy).
 - Status: OPEN, latent. Not blocking the NC crash.
 
-## BUG-3 (OPEN, 2026-11-22): the stack frame name has a wrong offset in a SINTRAN domain
+## BUG-3 (FIXED, 2026-11-22): the stack frame name has a wrong offset in a SINTRAN domain
 
 Under `--monitor`, a stop in the routine LOC of the PLANC probe BE01 (new-planc tests/oracle/be,
-PC 0x08000082) gives the frame name `LOC +134217858 @1000000202`: the offset counts the segment
-bits of the PC (0x08000000 = 134217728). `ndlib_symbols_name_for_addr` takes the symbol address
-without the segment number and subtracts it from the full PC. Found by new-planc
-tests/nd500debug/planc_dap_test.js, which accepts any name that starts with the routine name.
+PC 0x08000082) gave the frame name `LOC +134217858 @1000000202`: the offset was the whole PC.
+Cause: libdap writes the name as "NAME +OFFSET @PC" with OFFSET = PC - `symbol_entry_point` of
+the frame, and `cmd_stack_trace` never set `symbol_entry_point` (0). Fixed: it is the address of
+the symbol found, or the FUNC address of the routine in the source map. Now `LOC +6 @1000000202`
+(0x08000082 - 0x0800007C). Gate: new-planc tests/nd500debug/planc_dap_test.js checks every
+frame's offset against the FUNC address of the map.
 
-## BUG-4 (OPEN, 2026-11-22): the stack trace has only the frame of the PC
+## BUG-4 (FIXED, 2026-11-22): the stack trace has only the frame of the PC
 
-`cmd_stack_trace` reports one frame. A PLANC routine keeps its caller's frame base (PREVB) and
-return address in its frame (PLANC manual CP 2.3), so the callers can be found; not done.
+`cmd_stack_trace` reported one frame. Fixed (`map_frames` in src/debugger/dap_adapter.c): the
+walk goes B -> PREVB (B+0) with the caller's PC = RETA (B+4), the two words ENTS writes into a
+new frame (src/cpu/instructions/CALL/Ents.c); a caller's line is that of RETA - 1, the last byte
+of its CALL. It ends at a PREVB or RETA of 0, a PREVB equal to B, or memory that cannot be read.
+At a routine's first instruction (its ENT not yet run) the caller is B's frame at
+`pending_call_return_address`. Measured on BE01: in fact(1) seven frames, FACT x6 (N = 1 to 6,
+each frame's Locals read at its own B) and MAIN on line 51; the walk ends at MAIN (one of its
+PREVB, RETA is 0 or PREVB equals its B; which one was not read out). `scopes` gives the Locals of the frame asked for.
+Not covered: a routine inside a routine (ENTD) makes no frame, so it shows in place of the
+routine around it; not measured.

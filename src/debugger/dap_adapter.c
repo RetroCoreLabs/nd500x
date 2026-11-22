@@ -82,13 +82,9 @@ static int g_have_entry_pc = 0;
 #define SCOPE_ID_TRAP_CONTROL 1006
 #define SCOPE_ID_STATUS_FLAGS 1100
 #define SCOPE_ID_MMU          1200
-/* The variables of a source map (ndlib_map_*): the named locals of the routine the PC is
- * in, read at B + offset, and the module's variables. A one-dimension array opens to its
- * elements under ARRAY_BASE + its index in the list. */
-#define SCOPE_ID_LOCALS       1300
+/* The module's variables of a source map (ndlib_map_*). The Locals of a frame, and every
+ * array and record that opens, have a reference from SCOPE_ID_HANDLE on (map_handle). */
 #define SCOPE_ID_GLOBALS      1301
-#define SCOPE_ID_LOCAL_ARRAY  20000
-#define SCOPE_ID_GLOBAL_ARRAY 40000
 
 /* One register variable: name shown in the client, the shared
  * register-table name used for reads/writes, and a description
@@ -434,55 +430,300 @@ static void map_value_text(uint32_t v, uint32_t elem, char* buf, size_t cap) {
 static DAPVariable* dap_add_variable(DAPServer* server, const char* name,
                                      const char* value, const char* type);
 
-/* One variable of a source map at address addr: a simple value, an array (children under
- * ref), or the type text alone for what is not simple. */
-static void map_add_var(DAPServer* server, const char* name, uint32_t addr, int ref) {
-    MapType t;
-    char nm[96], val[64];
-    map_type_of(name, &t);
-    snprintf(nm, sizeof nm, "%.*s", t.name_len, name);
-    if (t.elem == 0) {
-        snprintf(val, sizeof val, "@0x%08X", addr);
-        dap_add_variable(server, nm, val, t.type);
+/* -- Values of the source map by their type text ------------------ */
+
+/* The type text of planc -g (new-planc docs/debug-types.md, written by its src/fe/lower.c
+ * dbg_type_put and carried unchanged by ndlink -m into the LOCAL and GLOBAL lines):
+ *   TYPE := BASE [ "(" LO ":" HI ")" [ "+1" ] ]
+ *   BASE := "byte" | "word" | N " bytes" | "{" SIZE ";" COMP { "," COMP } "}" | "bits(" F ":" W ")"
+ *   COMP := NAME "@" OFF ":" TYPE
+ * and "desc ", "ptr " or "ref " in front of it for a parameter or local array of the ND-100.
+ * An empty text is one 32-bit value (a name with no type). Sizes and offsets are in bytes. An
+ * array's element k lies (k - LO) * (bytes of the element) behind the address, one byte later
+ * with "+1"; a component OFF bytes behind the start of its record. */
+enum { MAP_TY_SIMPLE = 1, MAP_TY_RECORD = 2, MAP_TY_OTHER = 3 };
+
+typedef struct {
+    int kind;             /* MAP_TY_SIMPLE, MAP_TY_RECORD, MAP_TY_OTHER (no reader here) */
+    uint32_t size;        /* bytes of BASE: 1, 2, N, or the SIZE of a record */
+    const char* comps;    /* a record: its first COMP */
+    const char* base_end; /* first character behind BASE */
+    const char* end;      /* first character behind the whole TYPE */
+    int is_array;
+    long lo, hi;
+    int plus1;
+} MapTy;
+
+/* The first character behind the TYPE that starts at t: its end, a ',' or the '}' of the
+ * record it is a component of. */
+static const char* map_ty_end(const char* t) {
+    int depth = 0;
+    for (; *t; t++) {
+        if (*t == '{') depth++;
+        else if (*t == '}') { if (depth == 0) break; depth--; }
+        else if (*t == ',' && depth == 0) break;
+    }
+    return t;
+}
+
+static void map_ty_parse(const char* t, MapTy* m) {
+    char* e = NULL;
+    memset(m, 0, sizeof(*m));
+    m->end = map_ty_end(t);
+    m->kind = MAP_TY_OTHER;
+    m->base_end = m->end;
+    if (t == m->end) {
+        m->kind = MAP_TY_SIMPLE;
+        m->size = 4;
         return;
     }
-    if (t.is_array) {
-        snprintf(val, sizeof val, "array (%ld:%ld)", t.lo, t.hi);
-        DAPVariable* v = dap_add_variable(server, nm, val, t.type);
+    const char* p = t;
+    if (*p == '{') {
+        unsigned long size = strtoul(p + 1, &e, 10);
+        if (!e || *e != ';') return;
+        m->comps = e + 1;
+        int depth = 0;
+        for (p++; *p; p++) {
+            if (*p == '{') depth++;
+            else if (*p == '}') { if (depth == 0) break; depth--; }
+        }
+        if (*p != '}') return;
+        p++;
+        m->kind = MAP_TY_RECORD;
+        m->size = (uint32_t)size;
+    } else if (strncmp(p, "byte", 4) == 0) {
+        m->kind = MAP_TY_SIMPLE; m->size = 1; p += 4;
+    } else if (strncmp(p, "word", 4) == 0) {
+        m->kind = MAP_TY_SIMPLE; m->size = 2; p += 4;
+    } else if (*p >= '0' && *p <= '9') {
+        unsigned long n = strtoul(p, &e, 10);
+        if (!e || strncmp(e, " bytes", 6) != 0 || n == 0) return;
+        m->kind = MAP_TY_SIMPLE; m->size = (uint32_t)n; p = e + 6;
+    } else {
+        return; /* bits(F:W), desc, ptr, ref: not read here */
+    }
+    m->base_end = p;
+    if (p == m->end) return;
+    if (*p != '(') { m->kind = MAP_TY_OTHER; return; }
+    m->lo = strtol(p + 1, &e, 10);
+    if (!e || *e != ':') { m->kind = MAP_TY_OTHER; return; }
+    m->hi = strtol(e + 1, &e, 10);
+    if (!e || *e != ')' || m->hi < m->lo) { m->kind = MAP_TY_OTHER; return; }
+    p = e + 1;
+    if (strncmp(p, "+1", 2) == 0) { m->plus1 = 1; p += 2; }
+    if (p != m->end) { m->kind = MAP_TY_OTHER; return; }
+    m->is_array = 1;
+}
+
+/* A variables reference that opens a value of the source map: the type text (inside the map's
+ * own strings, kept until the next map is loaded) and the address, or the Locals of routine
+ * `func` of the map at frame base `addr`. The value is read from memory again each time it is
+ * opened. The same (text, address) always gives the same reference. */
+typedef struct {
+    const char* type;
+    uint32_t addr;
+    int elem;  /* 1: the element of the array `type` (its BASE only) */
+    int func;  /* >= 0: the Locals of that routine of the map, at B = addr */
+} MapHandle;
+
+#define SCOPE_ID_HANDLE 100000
+#define MAP_HANDLE_MAX  60000
+
+static MapHandle* g_map_handles = NULL;
+static int g_map_handle_count = 0;
+static int g_map_handle_cap = 0;
+
+static void map_handles_clear(void) {
+    g_map_handle_count = 0;
+}
+
+/* The reference of a handle, 0 when the table is full (the value then does not open). */
+static int map_handle(const char* type, uint32_t addr, int elem, int func) {
+    for (int i = 0; i < g_map_handle_count; i++) {
+        const MapHandle* h = &g_map_handles[i];
+        if (h->type == type && h->addr == addr && h->elem == elem && h->func == func)
+            return SCOPE_ID_HANDLE + i;
+    }
+    if (g_map_handle_count >= MAP_HANDLE_MAX) return 0;
+    if (g_map_handle_count == g_map_handle_cap) {
+        int cap = g_map_handle_cap ? g_map_handle_cap * 2 : 256;
+        MapHandle* bigger = (MapHandle*)realloc(g_map_handles, (size_t)cap * sizeof(MapHandle));
+        if (!bigger) return 0;
+        g_map_handles = bigger;
+        g_map_handle_cap = cap;
+    }
+    MapHandle* h = &g_map_handles[g_map_handle_count];
+    h->type = type;
+    h->addr = addr;
+    h->elem = elem;
+    h->func = func;
+    return SCOPE_ID_HANDLE + g_map_handle_count++;
+}
+
+/* Read n bytes at a data address and give them as hex text ("0x0011223344556677"). */
+static void map_hex_text(uint32_t addr, uint32_t n, char* buf, size_t cap) {
+    size_t o = (size_t)snprintf(buf, cap, "0x");
+    for (uint32_t i = 0; i < n && o + 3 < cap; i++) {
+        uint32_t b = 0;
+        if (!map_read(addr + i, 1, &b)) { snprintf(buf, cap, "(not readable at 0x%08X)", addr + i); return; }
+        o += (size_t)snprintf(buf + o, cap - o, "%02X", b & 0xFF);
+    }
+}
+
+/* The number of components of the record whose first COMP is at p. */
+static int map_comp_count(const char* p) {
+    int n = 0;
+    while (*p && *p != '}') {
+        const char* colon = strchr(p, ':');
+        if (!colon) break;
+        n++;
+        p = map_ty_end(colon + 1);
+        if (*p == ',') p++;
+    }
+    return n;
+}
+
+/* One variable NAME of type text t at address addr. elem: show only the element of the
+ * array t (its BASE). */
+static void map_add_typed(DAPServer* server, const char* name, const char* t, uint32_t addr, int elem) {
+    MapTy m;
+    char val[96], ty[256];
+    map_ty_parse(t, &m);
+    if (elem) m.is_array = 0;
+    const char* tend = elem ? m.base_end : m.end;
+    snprintf(ty, sizeof ty, "%.*s", (int)(tend - t), t);
+    if (m.kind == MAP_TY_OTHER) {
+        snprintf(val, sizeof val, "@0x%08X (no reader for this type text)", addr);
+        DAPVariable* v = dap_add_variable(server, name, val, ty);
+        if (v) v->memory_reference = (int)addr;
+        return;
+    }
+    if (m.is_array) {
+        snprintf(val, sizeof val, "array (%ld:%ld) @0x%08X", m.lo, m.hi, addr);
+        DAPVariable* v = dap_add_variable(server, name, val, ty);
         if (v) {
-            v->variables_reference = ref;
-            v->indexed_variables = (int)(t.hi - t.lo + 1);
+            v->variables_reference = map_handle(t, addr, 0, -1);
+            v->indexed_variables = (int)(m.hi - m.lo + 1);
+            v->memory_reference = (int)addr;
+        }
+        return;
+    }
+    if (m.kind == MAP_TY_RECORD) {
+        snprintf(val, sizeof val, "record (%u bytes) @0x%08X", (unsigned)m.size, addr);
+        DAPVariable* v = dap_add_variable(server, name, val, ty);
+        if (v) {
+            v->variables_reference = map_handle(t, addr, elem, -1);
+            v->named_variables = map_comp_count(m.comps);
             v->memory_reference = (int)addr;
         }
         return;
     }
     uint32_t raw = 0;
-    if (map_read(addr, t.elem, &raw)) map_value_text(raw, t.elem, val, sizeof val);
-    else snprintf(val, sizeof val, "(not readable at 0x%08X)", addr);
-    DAPVariable* v = dap_add_variable(server, nm, val, t.type);
+    if (m.size == 1 || m.size == 2 || m.size == 4) {
+        if (map_read(addr, m.size, &raw)) map_value_text(raw, m.size, val, sizeof val);
+        else snprintf(val, sizeof val, "(not readable at 0x%08X)", addr);
+    } else {
+        /* a value of another size (REAL8, a set): its bytes as they lie, high byte first */
+        map_hex_text(addr, m.size > 16 ? 16 : m.size, val, sizeof val);
+    }
+    DAPVariable* v = dap_add_variable(server, name, val, ty);
     if (v) v->memory_reference = (int)addr;
 }
 
-/* The elements of an array variable: [LO] to [HI]. */
-static void map_add_elements(DAPServer* server, const char* name, uint32_t addr) {
-    MapType t;
-    char nm[32], val[64];
-    map_type_of(name, &t);
-    if (!t.is_array || t.elem == 0) return;
-    for (long i = t.lo; i <= t.hi && i - t.lo < 4096; i++) {
-        uint32_t raw = 0;
-        uint32_t at = addr + (uint32_t)(i - t.lo) * t.elem;
-        snprintf(nm, sizeof nm, "[%ld]", i);
-        if (map_read(at, t.elem, &raw)) map_value_text(raw, t.elem, val, sizeof val);
-        else snprintf(val, sizeof val, "(not readable)");
-        dap_add_variable(server, nm, val, "");
+/* The children of the value of a handle: the elements of an array, the components of a
+ * record. */
+static void map_add_children(DAPServer* server, const MapHandle* h) {
+    MapTy m;
+    char nm[96];
+    map_ty_parse(h->type, &m);
+    if (m.is_array && !h->elem) {
+        uint32_t esize = m.size;
+        uint32_t first = h->addr + (m.plus1 ? 1u : 0u);
+        if (esize == 0) return;
+        for (long i = m.lo; i <= m.hi && i - m.lo < 4096; i++) {
+            snprintf(nm, sizeof nm, "[%ld]", i);
+            map_add_typed(server, nm, h->type, first + (uint32_t)(i - m.lo) * esize, 1);
+        }
+        return;
     }
+    if (m.kind != MAP_TY_RECORD) return;
+    const char* p = m.comps;
+    while (*p && *p != '}') {
+        const char* at = strchr(p, '@');
+        if (!at) break;
+        char* e = NULL;
+        unsigned long off = strtoul(at + 1, &e, 10);
+        if (!e || *e != ':') break;
+        snprintf(nm, sizeof nm, "%.*s", (int)(at - p), p);
+        map_add_typed(server, nm, e + 1, h->addr + (uint32_t)off, 0);
+        p = map_ty_end(e + 1);
+        if (*p == ',') p++;
+    }
+}
+
+/* One variable of the source map, "NAME:TYPE" (or "NAME"), at address addr. */
+static void map_add_var(DAPServer* server, const char* name, uint32_t addr) {
+    const char* colon = strchr(name, ':');
+    char nm[96];
+    snprintf(nm, sizeof nm, "%.*s", colon ? (int)(colon - name) : (int)strlen(name), name);
+    map_add_typed(server, nm, colon ? colon + 1 : name + strlen(name), addr, 0);
 }
 
 static uint32_t map_frame_base(void) {
     uint32_t b = 0;
     nd500_dbg_reg_get_by_name(g_machine->cpu, "B", &b);
     return b;
+}
+
+/* -- The frames of the call chain -------------------------------- */
+
+/* One frame: the address it runs at, the address its routine and source line are looked up
+ * by, and its frame base B. */
+typedef struct {
+    uint32_t pc;
+    uint32_t look;
+    uint32_t b;
+} MapFrame;
+
+#define MAP_FRAMES_MAX 64
+
+/* The frames from the PC's down to the first one, at most max. A routine entered by CALL and
+ * ENTS (and the other ENT instructions, src/cpu/instructions/CALL/Ents.c) keeps the B of its
+ * caller at B+0 (PREVB) and the address after the CALL at B+4 (RETA); B goes up on a call
+ * (measured on new-planc BE01: MAIN B=0x08000004, LOC B=0x0800001C). The walk ends at a PREVB
+ * or RETA of 0, at a PREVB equal to B, or where memory cannot be read. A caller's line is that
+ * of RETA - 1: the last byte of its CALL.
+ * At the first instruction of a routine of the map (its ENT, not yet run) no frame is made
+ * yet: the caller is the frame B still is, at the return address the CALL left for the ENT.
+ * Not seen by this walk: a routine inside a routine (ENTD), which has no frame of its own. */
+static int map_frames(MapFrame* fr, int max) {
+    Nd500Cpu* cpu = g_machine->cpu;
+    uint32_t b = map_frame_base();
+    int n = 0;
+    fr[n].pc = cpu->PC;
+    fr[n].look = cpu->PC;
+    fr[n].b = b;
+    n++;
+    uint32_t entry = 0;
+    int mf = ndlib_map_func_for_pc(cpu->PC);
+    if (mf >= 0 && ndlib_map_func(mf, &entry, NULL) && entry == cpu->PC &&
+        cpu->pending_call_return_address != 0 && n < max) {
+        fr[n].pc = cpu->pending_call_return_address;
+        fr[n].look = fr[n].pc - 1;
+        fr[n].b = b;
+        n++;
+    }
+    while (n < max) {
+        uint32_t prevb = 0, reta = 0;
+        if (!map_read(b + 0, 4, &prevb) || !map_read(b + 4, 4, &reta)) break;
+        if (prevb == 0 || reta == 0 || prevb == b) break;
+        fr[n].pc = reta;
+        fr[n].look = reta - 1;
+        fr[n].b = prevb;
+        n++;
+        b = prevb;
+    }
+    return n;
 }
 
 /* -- Logpoints --------------------------------------------------- */
@@ -760,6 +1001,7 @@ static void dap_load_map(DAPServer* server) {
     const char* map = server->debugger_state.map_path;
     char msg[600];
     if (!map || !*map) return;
+    map_handles_clear(); /* the handles point into the strings of the map loaded before */
     if (ndlib_map_load(map) != 0) {
         snprintf(msg, sizeof msg, "Cannot read the source map %s\n", map);
         dap_server_send_output_category(server, DAP_OUTPUT_STDERR, msg);
@@ -1151,42 +1393,52 @@ DAP_CMD_LOCKED(cmd_stack_trace) {
     ctx->total_frames = 0;
     if (!g_machine || !g_machine->cpu) return -1;
 
-    /* Single frame: the ND-500 has no standard frame chain the adapter
-     * can walk yet; report the current PC with symbol and source info. */
-    ctx->frames = (DAPStackFrame*)calloc(1, sizeof(DAPStackFrame));
+    /* The frames of the call chain (map_frames: PREVB and RETA of each frame) */
+    MapFrame chain[MAP_FRAMES_MAX];
+    int count = map_frames(chain, MAP_FRAMES_MAX);
+    ctx->frames = (DAPStackFrame*)calloc((size_t)count, sizeof(DAPStackFrame));
     if (!ctx->frames) return -1;
 
-    uint32_t pc = g_machine->cpu->PC;
-    DAPStackFrame* f = &ctx->frames[0];
-    f->id = 0;
-    const char* sym = ndlib_symbols_name_for_addr(pc);
-    int mf = ndlib_map_func_for_pc(pc);
-    if ((!sym || !*sym) && mf >= 0) sym = ndlib_map_func(mf, NULL, NULL);
-    if (sym && *sym) {
-        f->name = strdup(sym);
-        f->valid_symbol = true;
-    } else {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "0x%08X", pc);
-        f->name = strdup(buf);
-        f->valid_symbol = false;
-    }
-    f->instruction_pointer_reference = (int)pc;
+    for (int k = 0; k < count; k++) {
+        uint32_t pc = chain[k].pc;
+        DAPStackFrame* f = &ctx->frames[k];
+        f->id = k;
+        /* the name: a symbol at exactly this address (offset 0), else the routine of the
+         * source map that holds it, the offset counted from its entry address (libdap
+         * writes "NAME +OFFSET @PC" from symbol_entry_point) */
+        const char* sym = ndlib_symbols_name_for_addr(chain[k].look);
+        uint32_t entry = chain[k].look;
+        if (!sym || !*sym) {
+            int mf = ndlib_map_func_for_pc(chain[k].look);
+            sym = mf >= 0 ? ndlib_map_func(mf, &entry, NULL) : NULL;
+        }
+        if (sym && *sym) {
+            f->name = strdup(sym);
+            f->valid_symbol = true;
+            f->symbol_entry_point = entry;
+        } else {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "0x%08X", pc);
+            f->name = strdup(buf);
+            f->valid_symbol = false;
+        }
+        f->instruction_pointer_reference = (int)pc;
 
-    const char* file = NULL;
-    int line = 0;
-    /* Any source file (C, PLANC, assembly); the line whose address range
-     * holds the PC. Returns 1 when it finds a line, 0 when not. */
-    if (ndlib_symbols_source_for_pc(pc, &file, &line) == 1 && file && line > 0) {
-        f->source_path = strdup(file);
-        const char* base = strrchr(file, '/');
-        f->source_name = strdup(base ? base + 1 : file);
-        f->line = line;
-        f->column = 1;
+        const char* file = NULL;
+        int line = 0;
+        /* Any source file (C, PLANC, assembly); the line whose address range
+         * holds the address. Returns 1 when it finds a line, 0 when not. */
+        if (ndlib_symbols_source_for_pc(chain[k].look, &file, &line) == 1 && file && line > 0) {
+            f->source_path = strdup(file);
+            const char* base = strrchr(file, '/');
+            f->source_name = strdup(base ? base + 1 : file);
+            f->line = line;
+            f->column = 1;
+        }
     }
 
-    ctx->frame_count = 1;
-    ctx->total_frames = 1;
+    ctx->frame_count = count;
+    ctx->total_frames = count;
     return 0;
 }
 
@@ -1203,17 +1455,27 @@ DAP_CMD_LOCKED(cmd_scopes) {
         {"Status Flags",      SCOPE_ID_STATUS_FLAGS, 7},
     };
     const int NUM_REG_SCOPES = (int)(sizeof(defs) / sizeof(defs[0]));
-    /* the source map's scopes first: Locals of the routine of the PC, Globals of the module */
+    /* the source map's scopes first: Locals of the routine of the frame asked for (its
+     * frame base from map_frames), Globals of the module */
     int locals = 0;
-    int mf = g_machine && g_machine->cpu ? ndlib_map_func_for_pc(g_machine->cpu->PC) : -1;
-    if (mf >= 0) (void)ndlib_map_func(mf, NULL, &locals);
+    int mf = -1;
+    int locals_ref = 0;
+    if (g_machine && g_machine->cpu) {
+        MapFrame chain[MAP_FRAMES_MAX];
+        int count = map_frames(chain, MAP_FRAMES_MAX);
+        int k = ctx->frame_id >= 0 && ctx->frame_id < count ? ctx->frame_id : 0;
+        mf = ndlib_map_func_for_pc(chain[k].look);
+        if (mf >= 0) (void)ndlib_map_func(mf, NULL, &locals);
+        if (locals > 0) locals_ref = map_handle(NULL, chain[k].b, 0, mf);
+    }
+    if (locals_ref == 0) locals = 0;
     int globals = ndlib_map_global_count();
     int n = 0;
     DAPScope* scopes = (DAPScope*)calloc((size_t)NUM_REG_SCOPES + 2, sizeof(DAPScope));
     if (!scopes) return -1;
     if (locals > 0) {
         scopes[n].name = strdup("Locals");
-        scopes[n].variables_reference = SCOPE_ID_LOCALS;
+        scopes[n].variables_reference = locals_ref;
         scopes[n].named_variables = locals;
         n++;
     }
@@ -1274,26 +1536,23 @@ DAP_CMD_LOCKED(cmd_variables) {
         for (int i = 0; i < ndlib_map_global_count(); i++) {
             uint32_t addr = 0;
             const char* gn = ndlib_map_global(i, &addr);
-            map_add_var(server, gn, addr, SCOPE_ID_GLOBAL_ARRAY + i);
+            map_add_var(server, gn, addr);
         }
         return 0;
     }
-    if (vref >= SCOPE_ID_GLOBAL_ARRAY && vref < SCOPE_ID_GLOBAL_ARRAY + 20000) {
-        uint32_t addr = 0;
-        const char* gn = ndlib_map_global(vref - SCOPE_ID_GLOBAL_ARRAY, &addr);
-        if (gn) map_add_elements(server, gn, addr);
-        return 0;
-    }
-    if (vref == SCOPE_ID_LOCALS || (vref >= SCOPE_ID_LOCAL_ARRAY && vref < SCOPE_ID_GLOBAL_ARRAY)) {
-        int locals = 0;
-        int mf = ndlib_map_func_for_pc(cpu->PC);
-        if (mf >= 0) (void)ndlib_map_func(mf, NULL, &locals);
-        uint32_t b = map_frame_base();
-        for (int i = 0; i < locals; i++) {
-            int32_t off = 0;
-            const char* ln = ndlib_map_local(mf, i, &off);
-            if (vref == SCOPE_ID_LOCALS) map_add_var(server, ln, b + (uint32_t)off, SCOPE_ID_LOCAL_ARRAY + i);
-            else if (vref == SCOPE_ID_LOCAL_ARRAY + i) map_add_elements(server, ln, b + (uint32_t)off);
+    if (vref >= SCOPE_ID_HANDLE && vref < SCOPE_ID_HANDLE + g_map_handle_count) {
+        const MapHandle* h = &g_map_handles[vref - SCOPE_ID_HANDLE];
+        if (h->func >= 0) {
+            /* the Locals of a frame: each named local at its B + offset */
+            int locals = 0;
+            (void)ndlib_map_func(h->func, NULL, &locals);
+            for (int i = 0; i < locals; i++) {
+                int32_t off = 0;
+                const char* ln = ndlib_map_local(h->func, i, &off);
+                if (ln) map_add_var(server, ln, h->addr + (uint32_t)off);
+            }
+        } else {
+            map_add_children(server, h);
         }
         return 0;
     }
