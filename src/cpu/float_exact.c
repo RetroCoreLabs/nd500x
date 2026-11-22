@@ -11,6 +11,8 @@
 
 #include "float_exact.h"
 
+#include <stdio.h>
+
 typedef nd500_u128 u128;
 
 /* 128-bit operations. With a native unsigned __int128 each one is the plain
@@ -333,4 +335,118 @@ uint64_t nd500_fx_sqrt(uint64_t a, bool is_double, unsigned* exc) {
     bool exact;
     u128 r = isqrt128(u_shl(u_from(sa), k), &exact);
     return nd500_fx_round(false, r, (xa - k) / 2, !exact, is_double, exc);
+}
+
+/* -- Decimal text (nd500_fx_text) ------------------------------------------ */
+
+/* A whole number in base 10**9, lowest limb first. The largest one needed is
+ * a 55-bit significand times 5**310 (double, exponent 1: scale -310), about
+ * 235 digits, or times 2**200 (exponent 511), about 77 digits: 27 limbs. */
+#define FX_TEXT_LIMBS 40
+#define FX_TEXT_BASE  1000000000u
+
+typedef struct {
+    uint32_t limb[FX_TEXT_LIMBS];
+    int n;
+} fx_big;
+
+/* b = b * m, m below 2**32; 0 when it does not fit */
+static int fx_big_mul(fx_big* b, uint32_t m) {
+    uint64_t carry = 0;
+    for (int i = 0; i < b->n; i++) {
+        uint64_t t = (uint64_t)b->limb[i] * m + carry;
+        b->limb[i] = (uint32_t)(t % FX_TEXT_BASE);
+        carry = t / FX_TEXT_BASE;
+    }
+    while (carry != 0) {
+        if (b->n >= FX_TEXT_LIMBS) return 0;
+        b->limb[b->n++] = (uint32_t)(carry % FX_TEXT_BASE);
+        carry /= FX_TEXT_BASE;
+    }
+    return 1;
+}
+
+size_t nd500_fx_text(uint64_t bits, bool is_double, char* buf, size_t cap) {
+    bool negative = false;
+    uint64_t sig = 0;
+    int scale = 0;
+    fx_big b;
+    char d[FX_TEXT_LIMBS * 9 + 1];
+    int len;
+    int point; /* digits behind the decimal point */
+    int sd;    /* significant digits: d without its trailing zeros */
+    int e10;   /* the value is d[0].d[1]d[2]... * 10**e10 */
+    size_t o = 0;
+
+    if (cap < 72) {
+        if (cap > 0) buf[0] = '\0';
+        return 0;
+    }
+    nd500_fx_decode(bits, is_double, &negative, &sig, &scale);
+    if (sig == 0) {
+        return (size_t)snprintf(buf, cap, "0");
+    }
+    /* sig * 2**scale: for a negative scale, sig * 5**-scale with -scale
+     * digits behind the point; for a positive one, sig * 2**scale */
+    b.n = 0;
+    while (sig != 0) {
+        b.limb[b.n++] = (uint32_t)(sig % FX_TEXT_BASE);
+        sig /= FX_TEXT_BASE;
+    }
+    point = 0;
+    if (scale > 0) {
+        for (int k = scale; k > 0; k -= 29) {
+            if (!fx_big_mul(&b, 1u << (k < 29 ? k : 29))) { buf[0] = '\0'; return 0; }
+        }
+    } else if (scale < 0) {
+        point = -scale;
+        for (int k = point; k > 0; k -= 13) {
+            uint32_t m = 1;
+            for (int j = 0; j < (k < 13 ? k : 13); j++) m *= 5u; /* 5**13 < 2**32 */
+            if (!fx_big_mul(&b, m)) { buf[0] = '\0'; return 0; }
+        }
+    }
+    len = snprintf(d, sizeof d, "%u", (unsigned)b.limb[b.n - 1]);
+    for (int i = b.n - 2; i >= 0; i--) {
+        len += snprintf(d + len, sizeof d - (size_t)len, "%09u", (unsigned)b.limb[i]);
+    }
+    /* zeros behind the point say nothing */
+    while (point > 0 && len > 1 && d[len - 1] == '0') {
+        d[--len] = '\0';
+        point--;
+    }
+    sd = len;
+    while (sd > 1 && d[sd - 1] == '0') sd--;
+    e10 = len - point - 1;
+    if (negative) buf[o++] = '-';
+    if (e10 >= -ND500_FX_TEXT_DIGITS / 2 && e10 < ND500_FX_TEXT_DIGITS) {
+        /* written out; digits past the first ND500_FX_TEXT_DIGITS are cut. They lie behind
+         * the point (e10 < ND500_FX_TEXT_DIGITS: at most that many digits in front of it). */
+        int cut = sd > ND500_FX_TEXT_DIGITS;
+        if (cut) {
+            point -= len - ND500_FX_TEXT_DIGITS;
+            len = ND500_FX_TEXT_DIGITS;
+            d[len] = '\0';
+        }
+        if (point == 0) {
+            o += (size_t)snprintf(buf + o, cap - o, "%s", d);
+        } else if (len > point) {
+            o += (size_t)snprintf(buf + o, cap - o, "%.*s.%s", len - point, d, d + (len - point));
+        } else {
+            buf[o++] = '0';
+            buf[o++] = '.';
+            for (int z = len; z < point; z++) buf[o++] = '0';
+            o += (size_t)snprintf(buf + o, cap - o, "%s", d);
+        }
+        if (cut) o += (size_t)snprintf(buf + o, cap - o, "...");
+        return o;
+    }
+    {
+        int shown = sd < ND500_FX_TEXT_DIGITS ? sd : ND500_FX_TEXT_DIGITS;
+        o += (size_t)snprintf(buf + o, cap - o, "%c", d[0]);
+        if (shown > 1) o += (size_t)snprintf(buf + o, cap - o, ".%.*s", shown - 1, d + 1);
+        if (sd > shown) o += (size_t)snprintf(buf + o, cap - o, "...");
+        o += (size_t)snprintf(buf + o, cap - o, "e%+d", e10);
+    }
+    return o;
 }

@@ -44,6 +44,7 @@
 #include "../machine/breakpoints.h"
 #include "../cpu/cpu_protos.h"
 #include "../cpu/instruction_helpers.h"
+#include "../cpu/float_exact.h"
 #include "../cpu/nd500_mmu.h"
 #include "../disasm/nd500_disasm.h"
 #include "../ndlib/ndlib.h"
@@ -435,17 +436,20 @@ static DAPVariable* dap_add_variable(DAPServer* server, const char* name,
 /* The type text of planc -g (new-planc docs/debug-types.md, written by its src/fe/lower.c
  * dbg_type_put and carried unchanged by ndlink -m into the LOCAL and GLOBAL lines):
  *   TYPE := BASE [ "(" LO ":" HI ")" [ "+1" ] ]
- *   BASE := "byte" | "word" | N " bytes" | "{" SIZE ";" COMP { "," COMP } "}" | "bits(" F ":" W ")"
+ *   BASE := "byte" | "word" | N " bytes" | "real " N | "{" SIZE ";" COMP { "," COMP } "}"
+ *           | "bits(" F ":" W ")"
  *   COMP := NAME "@" OFF ":" TYPE
- * and "desc ", "ptr " or "ref " in front of it for a parameter or local array of the ND-100.
- * An empty text is one 32-bit value (a name with no type). Sizes and offsets are in bytes. An
- * array's element k lies (k - LO) * (bytes of the element) behind the address, one byte later
- * with "+1"; a component OFF bytes behind the start of its record. */
-enum { MAP_TY_SIMPLE = 1, MAP_TY_RECORD = 2, MAP_TY_OTHER = 3 };
+ * and "desc " or "ref " in front of it for a parameter (map_add_typed); "ptr " is a local array
+ * of the ND-100 and is not written for the ND-500. "real 4" and "real 8" are a REAL and a REAL8
+ * (ND-05.009.4 7.2.5), shown by nd500_fx_text. An empty text is one 32-bit value (a name with
+ * no type). Sizes and offsets are in bytes. An array's element k lies (k - LO) * (bytes of the
+ * element) behind the address, one byte later with "+1"; a component OFF bytes behind the start
+ * of its record. */
+enum { MAP_TY_SIMPLE = 1, MAP_TY_RECORD = 2, MAP_TY_OTHER = 3, MAP_TY_REAL = 4 };
 
 typedef struct {
-    int kind;             /* MAP_TY_SIMPLE, MAP_TY_RECORD, MAP_TY_OTHER (no reader here) */
-    uint32_t size;        /* bytes of BASE: 1, 2, N, or the SIZE of a record */
+    int kind;             /* MAP_TY_SIMPLE, MAP_TY_RECORD, MAP_TY_REAL, MAP_TY_OTHER (no reader) */
+    uint32_t size;        /* bytes of BASE: 1, 2, N, 4 or 8 for a REAL, or the SIZE of a record */
     const char* comps;    /* a record: its first COMP */
     const char* base_end; /* first character behind BASE */
     const char* end;      /* first character behind the whole TYPE */
@@ -499,6 +503,10 @@ static void map_ty_parse(const char* t, MapTy* m) {
         unsigned long n = strtoul(p, &e, 10);
         if (!e || strncmp(e, " bytes", 6) != 0 || n == 0) return;
         m->kind = MAP_TY_SIMPLE; m->size = (uint32_t)n; p = e + 6;
+    } else if (strncmp(p, "real ", 5) == 0) {
+        unsigned long n = strtoul(p + 5, &e, 10);
+        if (!e || (n != 4 && n != 8)) return;
+        m->kind = MAP_TY_REAL; m->size = (uint32_t)n; p = e;
     } else {
         return; /* bits(F:W), desc, ptr, ref: not read here */
     }
@@ -524,6 +532,9 @@ typedef struct {
     uint32_t addr;
     int elem;  /* 1: the element of the array `type` (its BASE only) */
     int func;  /* >= 0: the Locals of that routine of the map, at B = addr */
+    int desc;  /* 1: an array parameter: `type` is its element, addr the address of element lo,
+                  the bounds lo:hi read from its descriptor (map_add_typed) */
+    long lo, hi;
 } MapHandle;
 
 #define SCOPE_ID_HANDLE 100000
@@ -538,10 +549,12 @@ static void map_handles_clear(void) {
 }
 
 /* The reference of a handle, 0 when the table is full (the value then does not open). */
-static int map_handle(const char* type, uint32_t addr, int elem, int func) {
+static int map_handle_full(const char* type, uint32_t addr, int elem, int func, int desc,
+                           long lo, long hi) {
     for (int i = 0; i < g_map_handle_count; i++) {
         const MapHandle* h = &g_map_handles[i];
-        if (h->type == type && h->addr == addr && h->elem == elem && h->func == func)
+        if (h->type == type && h->addr == addr && h->elem == elem && h->func == func &&
+            h->desc == desc && h->lo == lo && h->hi == hi)
             return SCOPE_ID_HANDLE + i;
     }
     if (g_map_handle_count >= MAP_HANDLE_MAX) return 0;
@@ -557,7 +570,14 @@ static int map_handle(const char* type, uint32_t addr, int elem, int func) {
     h->addr = addr;
     h->elem = elem;
     h->func = func;
+    h->desc = desc;
+    h->lo = lo;
+    h->hi = hi;
     return SCOPE_ID_HANDLE + g_map_handle_count++;
+}
+
+static int map_handle(const char* type, uint32_t addr, int elem, int func) {
+    return map_handle_full(type, addr, elem, func, 0, 0, 0);
 }
 
 /* Read n bytes at a data address and give them as hex text ("0x0011223344556677"). */
@@ -588,6 +608,45 @@ static int map_comp_count(const char* p) {
 static void map_add_typed(DAPServer* server, const char* name, const char* t, uint32_t addr, int elem) {
     MapTy m;
     char val[96], ty[256];
+    if (strncmp(t, "ref ", 4) == 0 || strncmp(t, "desc ", 5) == 0) {
+        /* A parameter (new-planc docs/debug-types.md). PLANC-500 G passes a record as one
+         * 32-bit word that holds its BYTE address ("ref "), an array or BYTES as a descriptor
+         * of three 32-bit words in the frame: the BYTE address index 0 would have, the lowest
+         * and the highest index ("desc ", the element's text behind it). Measured on the real
+         * compiler's listings: new-planc docs/be-nd500/code-patterns.md 1.5 and 3.4. */
+        int is_desc = t[0] == 'd';
+        const char* inner = t + (is_desc ? 5 : 4);
+        uint32_t a0 = 0, lo = 0, hi = 0;
+        if (!map_read(addr, 4, &a0) ||
+            (is_desc && (!map_read(addr + 4, 4, &lo) || !map_read(addr + 8, 4, &hi)))) {
+            snprintf(val, sizeof val, "(not readable at 0x%08X)", addr);
+            DAPVariable* v = dap_add_variable(server, name, val, t);
+            if (v) v->memory_reference = (int)addr;
+            return;
+        }
+        if (!is_desc) {
+            map_add_typed(server, name, inner, a0, 0);
+            return;
+        }
+        map_ty_parse(inner, &m);
+        long l = (long)(int32_t)lo, h = (long)(int32_t)hi;
+        uint32_t first = a0 + (uint32_t)(l * (long)m.size);
+        snprintf(ty, sizeof ty, "%s", t);
+        if (m.kind == MAP_TY_OTHER || m.is_array || m.size == 0 || h < l) {
+            snprintf(val, sizeof val, "descriptor 0x%08X (%ld:%ld)", a0, l, h);
+            DAPVariable* v = dap_add_variable(server, name, val, ty);
+            if (v) v->memory_reference = (int)addr;
+            return;
+        }
+        snprintf(val, sizeof val, "array (%ld:%ld) @0x%08X", l, h, first);
+        DAPVariable* v = dap_add_variable(server, name, val, ty);
+        if (v) {
+            v->variables_reference = map_handle_full(inner, first, 0, -1, 1, l, h);
+            v->indexed_variables = (int)(h - l + 1);
+            v->memory_reference = (int)first;
+        }
+        return;
+    }
     map_ty_parse(t, &m);
     if (elem) m.is_array = 0;
     const char* tend = elem ? m.base_end : m.end;
@@ -619,7 +678,20 @@ static void map_add_typed(DAPServer* server, const char* name, const char* t, ui
         return;
     }
     uint32_t raw = 0;
-    if (m.size == 1 || m.size == 2 || m.size == 4) {
+    if (m.kind == MAP_TY_REAL) {
+        /* the machine's own float: the bits read as they lie (big-endian), the exact decimal
+         * of their value (nd500_fx_text: no host float on the way; more than 40 digits are cut,
+         * "..." marks that) */
+        uint32_t hi = 0, lo = 0;
+        if (map_read(addr, 4, &hi) && (m.size == 4 || map_read(addr + 4, 4, &lo))) {
+            uint64_t bits = m.size == 8 ? (((uint64_t)hi << 32) | lo) : hi;
+            char num[72];
+            nd500_fx_text(bits, m.size == 8, num, sizeof num);
+            snprintf(val, sizeof val, "%s", num);
+        } else {
+            snprintf(val, sizeof val, "(not readable at 0x%08X)", addr);
+        }
+    } else if (m.size == 1 || m.size == 2 || m.size == 4) {
         if (map_read(addr, m.size, &raw)) map_value_text(raw, m.size, val, sizeof val);
         else snprintf(val, sizeof val, "(not readable at 0x%08X)", addr);
     } else {
@@ -636,6 +708,14 @@ static void map_add_children(DAPServer* server, const MapHandle* h) {
     MapTy m;
     char nm[96];
     map_ty_parse(h->type, &m);
+    if (h->desc) {
+        /* the elements of an array parameter: h->type is the element, h->addr element lo */
+        for (long i = h->lo; i <= h->hi && i - h->lo < 4096; i++) {
+            snprintf(nm, sizeof nm, "[%ld]", i);
+            map_add_typed(server, nm, h->type, h->addr + (uint32_t)(i - h->lo) * m.size, 0);
+        }
+        return;
+    }
     if (m.is_array && !h->elem) {
         uint32_t esize = m.size;
         uint32_t first = h->addr + (m.plus1 ? 1u : 0u);

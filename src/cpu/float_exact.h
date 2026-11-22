@@ -36,6 +36,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /* Unsigned 128-bit integer for the exact intermediate results. Compilers
  * for 64-bit hosts provide unsigned __int128; 32-bit hosts (32-bit ARM,
@@ -81,5 +82,18 @@ uint64_t nd500_fx_round(bool negative, nd500_u128 magnitude, int scale,
  * scale, so that value = +/- significand * 2**scale. */
 void nd500_fx_decode(uint64_t bits, bool is_double, bool* negative,
                      uint64_t* significand, int* scale);
+
+/* The value of the bits as decimal text, for a debugger: worked out from
+ * nd500_fx_decode with whole-number arithmetic in base 10**9, never through
+ * a host float, so every digit shown is a digit of the exact value
+ * (+/- significand * 2**scale is a decimal fraction with at most -scale
+ * digits behind the point). The text is "-0.375", "2.5", "0.100000001490116119384765625";
+ * digits past the first ND500_FX_TEXT_DIGITS significant ones are CUT (not
+ * rounded) and "..." follows where that happened; a value far from 1 (a
+ * power of ten below -20, or 40 and up) is written d.ddd[...]e+N.
+ * Exponent 0 is "0" (manual 7.2.6: exactly zero). Returns the length
+ * written, or 0 when cap is too small (buf is then ""). cap 72 is enough. */
+#define ND500_FX_TEXT_DIGITS 40
+size_t nd500_fx_text(uint64_t bits, bool is_double, char* buf, size_t cap);
 
 #endif
