@@ -353,7 +353,7 @@ int main(int argc, char** argv) {
         } else if (strcmp(argv[i], "-noansi") == 0) {
             ansi_flag = -1;
         } else if (strcmp(argv[i], "--dap") == 0) {
-            /* Optional port argument (default 4711) */
+            /* Optional port argument (default 4500; nd100x uses 4711) */
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 dap_port = atoi(argv[++i]);
             }
