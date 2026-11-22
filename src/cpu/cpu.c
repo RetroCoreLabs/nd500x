@@ -454,7 +454,7 @@ bool nd500_cpu_step(Nd500Cpu* cpu) {
         cpu->machine->bp_resume_skip = 0;
     }
     if (!bp_skip && cpu->machine->bp_mgr &&
-        bp_should_break_at(cpu->machine->bp_mgr, cpu->PC)) {
+        bp_should_break_at(cpu->machine->bp_mgr, cpu->PC, cpu)) {
         cpu->machine->run_flag = 0;
         cpu->machine->stop_reason = STOP_BREAKPOINT;
         cpu->machine->stop_addr = cpu->PC;

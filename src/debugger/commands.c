@@ -2117,7 +2117,10 @@ static int cmd_bp(Nd500Machine* m, CmdContext* ctx, char* args) {
             error(ctx, "usage: bp cond <addr> <condition>");
             return -1;
         }
-        bp_add_conditional(m->bp_mgr, addr, condition, false);
+        if (bp_add_conditional(m->bp_mgr, m->cpu, addr, condition, false) < 0) {
+            error(ctx, "conditional breakpoint not set");
+            return -1;
+        }
     } else if (strcasecmp(a1, "source") == 0 || strcasecmp(a1, "src") == 0) {
         /* Set breakpoint by source file and line number */
         if (!a2) {

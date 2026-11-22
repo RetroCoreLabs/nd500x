@@ -306,11 +306,19 @@ bp disable 0
 
 ### `bp cond <addr> <condition>` - Conditional Breakpoint
 
-Set a conditional breakpoint.
+Set a conditional breakpoint. It stops only when the condition holds.
 
 ```
 bp cond 0x08000100 "I1 == 0x1234"
 ```
+
+The condition is `REGISTER OP NUMBER`: REGISTER is any register name the
+debugger knows (PC, P1, I1-I4, A1-A4, E1-E4, L, B, R, TOS, ST1, ...), OP is one
+of `==` `!=` `>=` `<=` `>` `<`, NUMBER is `0x` hex, leading-`0` octal or decimal.
+The comparison is unsigned 32-bit. A condition that does not parse, or names an
+unknown register, is refused when it is set. The same conditions work from a DAP
+client (setBreakpoints and setInstructionBreakpoints); a DAP hit condition is
+answered as not verified, as hit conditions are not supported.
 
 ### `bp source <file> <line>` - Source Breakpoint
 

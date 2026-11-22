@@ -37,6 +37,8 @@ static Nd500Machine g_m;
 static Nd500Cpu g_cpu;
 static DAPServer* g_srv;
 
+static int load_test_map(const char* content, char* path, size_t path_size);
+
 static int call_cb(DAPCommandType cmd) {
 	DAPCommandCallback cb = g_srv->command_callbacks[cmd];
 	if (!cb) return -1000;
@@ -68,7 +70,7 @@ static void test_instruction_breakpoints(void) {
 	CHECK(call_cb(DAP_CMD_SET_INSTRUCTION_BREAKPOINTS) == 0, "set 2 instr bps");
 	CHECK(results[0].verified && results[1].verified, "both verified");
 	CHECK(g_m.bp_mgr->bp_count == base_count + 2, "two bps added to manager");
-	CHECK(bp_should_break_at(g_m.bp_mgr, 0x08023E9C), "bp active at 0x08023E9C");
+	CHECK(bp_should_break_at(g_m.bp_mgr, 0x08023E9C, &g_cpu), "bp active at 0x08023E9C");
 
 	/* Replace with one different breakpoint: old DAP bps removed,
 	 * CLI bp untouched */
@@ -84,9 +86,9 @@ static void test_instruction_breakpoints(void) {
 
 	CHECK(call_cb(DAP_CMD_SET_INSTRUCTION_BREAKPOINTS) == 0, "replace instr bps");
 	CHECK(g_m.bp_mgr->bp_count == base_count + 1, "replace-all removed old DAP bps");
-	CHECK(!bp_should_break_at(g_m.bp_mgr, 0x08023E9C), "old DAP bp gone");
-	CHECK(bp_should_break_at(g_m.bp_mgr, 0x08002000), "new DAP bp active");
-	CHECK(bp_should_break_at(g_m.bp_mgr, 0x00001111), "CLI bp untouched");
+	CHECK(!bp_should_break_at(g_m.bp_mgr, 0x08023E9C, &g_cpu), "old DAP bp gone");
+	CHECK(bp_should_break_at(g_m.bp_mgr, 0x08002000, &g_cpu), "new DAP bp active");
+	CHECK(bp_should_break_at(g_m.bp_mgr, 0x00001111, &g_cpu), "CLI bp untouched");
 
 	/* Empty request clears all DAP instruction breakpoints */
 	memset(ctx, 0, sizeof(*ctx));
@@ -98,6 +100,86 @@ static void test_instruction_breakpoints(void) {
 	free(results[1].message);
 	free(results2[0].message);
 	bp_delete(g_m.bp_mgr, 0); /* remove CLI bp again */
+}
+
+/* A breakpoint condition decides the stop: the breakpoint stops only when
+ * the condition holds, and a condition that cannot be evaluated is answered
+ * as not verified instead of being set as a plain breakpoint. */
+static void test_conditional_breakpoints(void) {
+	InstructionBreakpointCommandContext* ctx =
+		&g_srv->current_command.context.instruction_breakpoint;
+	int base_count = g_m.bp_mgr->bp_count;
+
+	uint32_t addrs[3] = { 0x08003000, 0x08003010, 0x08003020 };
+	int offsets[3] = { 0, 0, 0 };
+	char c0[] = "I1 == 5";
+	char c1[] = "NOSUCHREG == 1";
+	char c2[] = "I1 ==";
+	char* conds[3] = { c0, c1, c2 };
+	DAPBreakpoint results[3];
+	memset(results, 0, sizeof(results));
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->breakpoint_count = 3;
+	ctx->addresses = addrs;
+	ctx->offsets = offsets;
+	ctx->conditions = conds;
+	ctx->breakpoints = results;
+
+	CHECK(call_cb(DAP_CMD_SET_INSTRUCTION_BREAKPOINTS) == 0, "set conditional instr bps");
+	CHECK(results[0].verified, "I1 == 5 verified");
+	CHECK(!results[1].verified && results[1].message != NULL, "unknown register not verified");
+	CHECK(!results[2].verified && results[2].message != NULL, "missing value not verified");
+	CHECK(g_m.bp_mgr->bp_count == base_count + 1, "only the good condition set");
+
+	g_cpu.I[0] = 4;
+	CHECK(!bp_should_break_at(g_m.bp_mgr, 0x08003000, &g_cpu), "no stop while I1 != 5");
+	g_cpu.I[0] = 5;
+	CHECK(bp_should_break_at(g_m.bp_mgr, 0x08003000, &g_cpu), "stop when I1 == 5");
+	CHECK(!bp_should_break_at(g_m.bp_mgr, 0x08003010, &g_cpu), "rejected bp never stops");
+
+	/* The CLI form in the command reference quotes the condition */
+	ExprResult q = bp_evaluate_condition("\"I1 >= 5\"", &g_cpu);
+	CHECK(q.valid && q.value == 1, "quoted condition evaluates");
+	q = bp_evaluate_condition("I1 < 05", &g_cpu);
+	CHECK(q.valid && q.value == 0, "leading-0 number, < operator");
+	q = bp_evaluate_condition("I1 == 5x", &g_cpu);
+	CHECK(!q.valid, "trailing junk after the number refused");
+
+	/* Source breakpoint with a condition (condition carried in the
+	 * DAPBreakpoint itself) */
+	char path[96];
+	CHECK(load_test_map("COND.PLNC:3 -> 0x08003100\n", path, sizeof(path)) == 0, "map loaded");
+	BreakpointCommandContext* sctx = &g_srv->current_command.context.breakpoint;
+	DAPBreakpoint sbp[1];
+	memset(sbp, 0, sizeof(sbp));
+	sbp[0].line = 3;
+	char scond[] = "I2 != 0x10";
+	sbp[0].condition = scond;
+	memset(sctx, 0, sizeof(*sctx));
+	sctx->source_path = "COND.PLNC";
+	sctx->breakpoints = sbp;
+	sctx->breakpoint_count = 1;
+	CHECK(call_cb(DAP_CMD_SET_BREAKPOINTS) == 0, "set conditional source bp");
+	CHECK(sbp[0].verified, "source condition verified");
+	g_cpu.I[1] = 0x10;
+	CHECK(!bp_should_break_at(g_m.bp_mgr, 0x08003100, &g_cpu), "no stop while I2 == 0x10");
+	g_cpu.I[1] = 0x11;
+	CHECK(bp_should_break_at(g_m.bp_mgr, 0x08003100, &g_cpu), "stop when I2 != 0x10");
+
+	/* Clear both sets */
+	memset(sctx, 0, sizeof(*sctx));
+	sctx->source_path = "COND.PLNC";
+	CHECK(call_cb(DAP_CMD_SET_BREAKPOINTS) == 0, "clear source bps");
+	memset(ctx, 0, sizeof(*ctx));
+	CHECK(call_cb(DAP_CMD_SET_INSTRUCTION_BREAKPOINTS) == 0, "clear instr bps");
+	CHECK(g_m.bp_mgr->bp_count == base_count, "all conditional bps removed");
+
+	for (int i = 0; i < 3; i++) free(results[i].message);
+	free(sbp[0].message);
+	g_cpu.I[0] = 0;
+	g_cpu.I[1] = 0;
+	ndlib_symbols_clear();
+	remove(path);
 }
 
 /* -- Data breakpoints (watchpoints) ------------------------------ */
@@ -644,6 +726,7 @@ int main(void) {
 	g_srv->is_running = false;
 
 	test_instruction_breakpoints();
+	test_conditional_breakpoints();
 	test_data_breakpoint_info();
 	test_set_data_breakpoints();
 	test_register_watchpoints();

@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include "breakpoints.h"
 #include "../cpu/cpu_protos.h"
+#include "machine_protos.h"
 
 void bp_mgr_init(BreakpointManager* mgr) {
     if (!mgr) return;
@@ -38,8 +39,17 @@ int bp_add(BreakpointManager* mgr, uint32_t address, bool one_shot) {
     return id;
 }
 
-int bp_add_conditional(BreakpointManager* mgr, uint32_t address, const char* condition, bool one_shot) {
+int bp_add_conditional(BreakpointManager* mgr, struct Nd500Cpu* cpu, uint32_t address,
+                       const char* condition, bool one_shot) {
     if (!mgr || mgr->bp_count >= MAX_BREAKPOINTS || !condition) return -1;
+    if (strlen(condition) >= sizeof(mgr->breakpoints[0].condition)) return -2;
+
+    /* Refuse a condition that does not evaluate now: it never would */
+    ExprResult check = bp_evaluate_condition(condition, cpu);
+    if (!check.valid) {
+        printf("Conditional breakpoint not set: %s\n", check.error_msg);
+        return -2;
+    }
 
     int id = mgr->bp_count;
     Breakpoint* bp = &mgr->breakpoints[id];
@@ -103,7 +113,7 @@ void bp_list(BreakpointManager* mgr) {
     }
 }
 
-bool bp_should_break_at(BreakpointManager* mgr, uint32_t pc) {
+bool bp_should_break_at(BreakpointManager* mgr, uint32_t pc, struct Nd500Cpu* cpu) {
     if (!mgr) return false;
 
     /* Check if we should break on next instruction (step command) */
@@ -118,9 +128,14 @@ bool bp_should_break_at(BreakpointManager* mgr, uint32_t pc) {
         if (bp->enabled && bp->address == pc) {
             /* For conditional breakpoints, evaluate the condition */
             if (bp->type == BP_TYPE_CONDITIONAL) {
-                /* TODO: Get current CPU state for condition evaluation */
-                /* For now, just break on conditional breakpoints */
-                /* In a full implementation, we'd need access to CPU registers */
+                ExprResult r = bp_evaluate_condition(bp->condition, cpu);
+                if (!r.valid) {
+                    /* Cannot decide: stop and say why, never skip silently */
+                    printf("\nBreakpoint %d at 0x%08X: condition '%s' cannot be evaluated: %s\n",
+                           i, pc, bp->condition, r.error_msg);
+                } else if (r.value == 0) {
+                    continue;   /* condition false: no stop from this breakpoint */
+                }
             }
 
             bp->hit_count++;
@@ -300,94 +315,93 @@ bool wp_should_break_on_write(BreakpointManager* mgr, uint32_t addr, uint32_t va
     return false;
 }
 
-/* Simple expression evaluator for conditional breakpoints */
-static uint32_t parse_register(const char* name, uint32_t* registers) {
-    if (strcmp(name, "PC") == 0) return registers[0];  /* PC is first in array */
-    if (strcmp(name, "I1") == 0) return registers[1];
-    if (strcmp(name, "I2") == 0) return registers[2];
-    if (strcmp(name, "I3") == 0) return registers[3];
-    if (strcmp(name, "I4") == 0) return registers[4];
-    if (strcmp(name, "L") == 0) return registers[5];
-    if (strcmp(name, "B") == 0) return registers[6];
-    if (strcmp(name, "R") == 0) return registers[7];
-    return 0;
-}
+/* Condition evaluator for conditional breakpoints.
+ * Grammar: REGISTER OP NUMBER (see breakpoints.h). Registers are read
+ * through the debugger register table (nd500_dbg_reg_get_by_name), the same
+ * names the DAP evaluate request and the CLI 'set' command use. */
 
-static uint32_t parse_number(const char* str) {
-    if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
-        return (uint32_t)strtoul(str + 2, NULL, 16);
+static void trim_in_place(char* s) {
+    char* start = s;
+    while (*start == ' ' || *start == '\t') start++;
+    if (start != s) memmove(s, start, strlen(start) + 1);
+    size_t n = strlen(s);
+    while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r' || s[n - 1] == '\n')) {
+        s[--n] = '\0';
     }
-    return (uint32_t)strtoul(str, NULL, 10);
 }
 
-ExprResult bp_evaluate_condition(const char* condition, uint32_t pc, uint32_t* registers, uint32_t* memory) {
+ExprResult bp_evaluate_condition(const char* condition, struct Nd500Cpu* cpu) {
     ExprResult result = {false, 0, ""};
 
-    if (!condition || strlen(condition) == 0) {
-        strcpy(result.error_msg, "Empty condition");
+    if (!condition || condition[0] == '\0') {
+        snprintf(result.error_msg, sizeof(result.error_msg), "Empty condition");
+        return result;
+    }
+    if (!cpu) {
+        snprintf(result.error_msg, sizeof(result.error_msg), "No CPU to read registers from");
         return result;
     }
 
-    /* Simple condition parser: supports register comparisons */
-    /* Format: "REG == value" or "REG != value" or "REG > value" etc. */
     char expr[256];
-    strncpy(expr, condition, sizeof(expr) - 1);
-    expr[sizeof(expr) - 1] = '\0';
+    snprintf(expr, sizeof(expr), "%s", condition);
+    trim_in_place(expr);
 
-    /* Find comparison operator */
-    char* op = NULL;
-    if ((op = strstr(expr, " == ")) != NULL) {
-        *op = '\0';
-        char* reg_name = expr;
-        char* value_str = op + 4;
+    /* The CLI form is written quoted: bp cond <addr> "I1 == 0x1234" */
+    size_t len = strlen(expr);
+    if (len >= 2 && expr[0] == '"' && expr[len - 1] == '"') {
+        expr[len - 1] = '\0';
+        memmove(expr, expr + 1, len - 1);
+    }
 
-        uint32_t reg_val = parse_register(reg_name, registers);
-        uint32_t expected = parse_number(value_str);
-
-        result.valid = true;
-        result.value = (reg_val == expected) ? 1 : 0;
+    /* Two-character operators are searched first so ">=" is not read as ">" */
+    static const char* const ops[] = { "==", "!=", ">=", "<=", ">", "<" };
+    char* op_pos = NULL;
+    int op = -1;
+    for (int k = 0; k < (int)(sizeof(ops) / sizeof(ops[0])); k++) {
+        op_pos = strstr(expr, ops[k]);
+        if (op_pos) {
+            op = k;
+            break;
+        }
+    }
+    if (op < 0) {
+        snprintf(result.error_msg, sizeof(result.error_msg), "No comparison (== != >= <= > <)");
         return result;
     }
-    else if ((op = strstr(expr, " != ")) != NULL) {
-        *op = '\0';
-        char* reg_name = expr;
-        char* value_str = op + 4;
 
-        uint32_t reg_val = parse_register(reg_name, registers);
-        uint32_t expected = parse_number(value_str);
+    size_t op_len = strlen(ops[op]);
+    *op_pos = '\0';
+    char* name = expr;
+    char* value_str = op_pos + op_len;
+    trim_in_place(name);
+    trim_in_place(value_str);
 
-        result.valid = true;
-        result.value = (reg_val != expected) ? 1 : 0;
+    uint32_t reg_val = 0;
+    if (name[0] == '\0' || nd500_dbg_reg_get_by_name(cpu, name, &reg_val) != 0) {
+        snprintf(result.error_msg, sizeof(result.error_msg), "Unknown register '%.40s'", name);
         return result;
     }
-    else if ((op = strstr(expr, " > ")) != NULL) {
-        *op = '\0';
-        char* reg_name = expr;
-        char* value_str = op + 3;
 
-        uint32_t reg_val = parse_register(reg_name, registers);
-        uint32_t expected = parse_number(value_str);
-
-        result.valid = true;
-        result.value = (reg_val > expected) ? 1 : 0;
+    char* endp = NULL;
+    unsigned long v = strtoul(value_str, &endp, 0);
+    if (value_str[0] == '\0' || !endp || *endp != '\0') {
+        snprintf(result.error_msg, sizeof(result.error_msg), "Not a number: '%.40s'", value_str);
         return result;
     }
-    else if ((op = strstr(expr, " < ")) != NULL) {
-        *op = '\0';
-        char* reg_name = expr;
-        char* value_str = op + 3;
+    uint32_t expected = (uint32_t)v;
 
-        uint32_t reg_val = parse_register(reg_name, registers);
-        uint32_t expected = parse_number(value_str);
-
-        result.valid = true;
-        result.value = (reg_val < expected) ? 1 : 0;
-        return result;
+    bool holds = false;
+    switch (op) {
+    case 0: holds = (reg_val == expected); break;
+    case 1: holds = (reg_val != expected); break;
+    case 2: holds = (reg_val >= expected); break;
+    case 3: holds = (reg_val <= expected); break;
+    case 4: holds = (reg_val > expected); break;
+    default: holds = (reg_val < expected); break;
     }
-    else {
-        strcpy(result.error_msg, "Unsupported condition format");
-        return result;
-    }
+    result.valid = true;
+    result.value = holds ? 1u : 0u;
+    return result;
 }
 
 bool wp_should_break_on_register_change(BreakpointManager* mgr, uint32_t reg_index, uint32_t value) {

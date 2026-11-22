@@ -12,6 +12,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+struct Nd500Cpu;
+
 /* Maximum number of breakpoints and watchpoints */
 #define MAX_BREAKPOINTS 64
 #define MAX_WATCHPOINTS 32
@@ -44,7 +46,7 @@ typedef struct {
     bool enabled;
     bool one_shot;            /* Delete after first hit */
     uint32_t hit_count;       /* Number of times hit */
-    char condition[128];      /* Optional condition expression (for future) */
+    char condition[128];      /* Condition expression (BP_TYPE_CONDITIONAL only) */
 } Breakpoint;
 
 /* Watchpoint structure */
@@ -72,15 +74,26 @@ void bp_mgr_init(BreakpointManager* mgr);
 
 /* Breakpoint management */
 int bp_add(BreakpointManager* mgr, uint32_t address, bool one_shot);
-int bp_add_conditional(BreakpointManager* mgr, uint32_t address, const char* condition, bool one_shot);
+/* Returns the id, -1 when the table is full, -2 when the condition does not
+ * evaluate (see bp_evaluate_condition; the reason is printed). */
+int bp_add_conditional(BreakpointManager* mgr, struct Nd500Cpu* cpu, uint32_t address,
+                       const char* condition, bool one_shot);
 int bp_delete(BreakpointManager* mgr, int id);
 int bp_enable(BreakpointManager* mgr, int id);
 int bp_disable(BreakpointManager* mgr, int id);
 void bp_list(BreakpointManager* mgr);
-bool bp_should_break_at(BreakpointManager* mgr, uint32_t pc);
+/* True when execution must stop at pc. A conditional breakpoint stops only
+ * when its condition holds for cpu's registers; a condition that cannot be
+ * evaluated stops (and says why) rather than being skipped. */
+bool bp_should_break_at(BreakpointManager* mgr, uint32_t pc, struct Nd500Cpu* cpu);
 
-/* Expression evaluation */
-ExprResult bp_evaluate_condition(const char* condition, uint32_t pc, uint32_t* registers, uint32_t* memory);
+/* Condition evaluation. Grammar: REGISTER OP NUMBER, where REGISTER is any
+ * name the debugger register table knows (PC, I1-I4, A1-A4, L, B, R, ...,
+ * see nd500_dbg_reg_get_by_name), OP is one of == != >= <= > <, and NUMBER
+ * is 0x hex, leading-0 octal or decimal (strtoul base 0, as DAP evaluate).
+ * Comparison is unsigned 32-bit. valid=false with error_msg when the text
+ * does not parse or names an unknown register. */
+ExprResult bp_evaluate_condition(const char* condition, struct Nd500Cpu* cpu);
 
 /* Watchpoint management */
 int wp_add(BreakpointManager* mgr, uint32_t address, uint32_t length, WatchpointType type);

@@ -207,6 +207,43 @@ static void dap_remove_tracked_bps(BreakpointManager* mgr, const uint32_t* addrs
     }
 }
 
+/* Add one DAP execution breakpoint, plain or conditional, and fill the
+ * DAP answer. A condition that does not evaluate, or a hit condition (not
+ * supported), is answered as not verified and no breakpoint is set.
+ * Returns 1 when a breakpoint was added. */
+static int dap_add_exec_bp(uint32_t addr, const char* condition, const char* hit_condition,
+                           DAPBreakpoint* out) {
+    if (hit_condition && hit_condition[0] != '\0') {
+        out->verified = false;
+        out->message = strdup("Hit conditions are not supported");
+        return 0;
+    }
+    int id;
+    if (condition && condition[0] != '\0') {
+        ExprResult check = bp_evaluate_condition(condition, g_machine->cpu);
+        if (!check.valid) {
+            char msg[160];
+            snprintf(msg, sizeof(msg),
+                     "Condition not understood: %s (form: REGISTER == != >= <= > < NUMBER)",
+                     check.error_msg);
+            out->verified = false;
+            out->message = strdup(msg);
+            return 0;
+        }
+        id = bp_add_conditional(g_machine->bp_mgr, g_machine->cpu, addr, condition, false);
+    } else {
+        id = bp_add(g_machine->bp_mgr, addr, false);
+    }
+    if (id < 0) {
+        out->verified = false;
+        out->message = strdup("Breakpoint table full");
+        return 0;
+    }
+    out->verified = true;
+    out->instruction_reference = addr;
+    return 1;
+}
+
 static void dap_remove_tracked_wps(BreakpointManager* mgr) {
     if (!mgr) return;
     for (int i = mgr->wp_count - 1; i >= 0; i--) {
@@ -540,13 +577,9 @@ DAP_CMD_LOCKED(cmd_set_breakpoints) {
             bp->message = strdup("No address known for this source line");
             continue;
         }
-        if (bp_add(g_machine->bp_mgr, addr, false) < 0) {
-            bp->verified = false;
-            bp->message = strdup("Breakpoint table full");
+        if (!dap_add_exec_bp(addr, bp->condition, bp->hit_condition, bp)) {
             continue;
         }
-        bp->verified = true;
-        bp->instruction_reference = addr;
         if (g_dap_src_bp_count < DAP_MAX_TRACKED) {
             g_dap_src_bp_addrs[g_dap_src_bp_count++] = addr;
         }
@@ -565,13 +598,10 @@ DAP_CMD_LOCKED(cmd_set_instruction_breakpoints) {
     for (int i = 0; i < ctx->breakpoint_count; i++) {
         uint32_t addr = ctx->addresses[i] + (uint32_t)(ctx->offsets ? ctx->offsets[i] : 0);
         DAPBreakpoint* bp = &ctx->breakpoints[i];
-        if (bp_add(g_machine->bp_mgr, addr, false) < 0) {
-            bp->verified = false;
-            bp->message = strdup("Breakpoint table full");
+        const char* cond = ctx->conditions ? ctx->conditions[i] : NULL;
+        if (!dap_add_exec_bp(addr, cond, bp->hit_condition, bp)) {
             continue;
         }
-        bp->verified = true;
-        bp->instruction_reference = addr;
         if (g_dap_instr_bp_count < DAP_MAX_TRACKED) {
             g_dap_instr_bp_addrs[g_dap_instr_bp_count++] = addr;
         }
@@ -1238,6 +1268,7 @@ static void dap_set_capabilities(void) {
     dap_server_set_capability(DAP_CAP_WRITE_MEMORY_REQUEST, true);
     dap_server_set_capability(DAP_CAP_DISASSEMBLE_REQUEST, true);
     dap_server_set_capability(DAP_CAP_INSTRUCTION_BREAKPOINTS, true);
+    dap_server_set_capability(DAP_CAP_CONDITIONAL_BREAKPOINTS, true);
     dap_server_set_capability(DAP_CAP_DATA_BREAKPOINTS, true);
     dap_server_set_capability(DAP_CAP_SET_VARIABLE, true);
     dap_server_set_capability(DAP_CAP_EVALUATE_FOR_HOVERS, true);
