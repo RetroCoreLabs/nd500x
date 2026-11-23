@@ -158,19 +158,11 @@ void nd500_instr_Hconv(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         nd500_clear_flag(cpu, ND500_FLAG_Z);
     }
 
-    /* SIGN-FLAG WIDTH. A CONVERT saves its result status at the SOURCE operand's type
-     * width, not at the (narrower) result type: the ND-5000 Microprogram Guide states that
-     * "in the convert instructions, the type field specifies the type of the SOURCE operand"
-     * (ND-05.022.1 p.28) and that this type "also controls the result status" (Sec 5.5, p.29).
-     * For W HCONV (0xFD55, microcode HCONVW @001545) the source is a WORD, so the completion
-     * status-save @003220 ("ALU,OR A,SC3 B,SC4 ST,SAVA", TYP,DR = macro datatype W) latches S
-     * from bit 31 of the 32-bit ZERO-EXTENDED halfword result -> always 0 (result is
-     * 0x0000_0000..0x0000_FFFF). Adjudicated MICROWORD-RIGHT by a B30 single-step (CpuND5000:
-     * CS 001545->001546->003217->003220, Sgn=0 for 0xABCD and 0xFFFF8000); this core previously
-     * took S from the halfword sign (bit 15) and wrongly reported S=1. Same sub-word status-width
-     * shape already resolved microword-right for getbf/putbf. Narrower variants keep the halfword
-     * sign; only the WORD-source variant is word-width. [W HCONV S-width fix 2026-07-27] */
-    if (fi->opcode != 0xFD55 && halfword_result < 0) {
+    /* ND-05.009.4 15.2 (data type conversion), data status bits: "result.signbit -> S".
+     * The result of HCONV is a halfword, so S is bit 15 of it for every source type,
+     * W included. (This used to keep S clear for W HCONV, from an ND-5000 microcode
+     * trace; the ND-500 manual does not say that, and it is not used as a source here.) */
+    if (halfword_result < 0) {
         nd500_set_flag(cpu, ND500_FLAG_S);
     } else {
         nd500_clear_flag(cpu, ND500_FLAG_S);
