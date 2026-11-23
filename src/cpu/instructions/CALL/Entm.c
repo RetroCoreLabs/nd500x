@@ -112,7 +112,8 @@
  * Trap Conditions:
  * - Addressing traps: Invalid address, page fault, protection violation
  * - Instruction Sequence Error (ISE): Not preceded by CALL/CALLG
- * - Stack Overflow (STO): stack_demand_main >= total_stack_demand
+ * - Stack Overflow (STO): bottom + main >= bottom + total (32-bit, unsigned);
+ *   STO bit always set, trap only when enabled, else the frame is still built
  *
  * Performance:
  * - Execution: ~25-30 cycles
@@ -250,12 +251,29 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ========================================================================
      * STEP 4: VALIDATE STACK DEMANDS
      * ======================================================================== */
-    /* Stack overflow if main demand >= total demand */
-    if (stack_demand_main >= total_stack_demand) {
-        ND500X_TRAPLOG("[TRAP] ENTM at PC=0x%08X: Stack overflow - main demand 0x%08X >= total 0x%08X\n",
-               fi->address, stack_demand_main, total_stack_demand);
+    /* Stack overflow, as the control store does it (CONT-STORE-10611, ENTM entry
+     * 000322B, body 002367B-002402B):
+     *   002371B  AM#32 := bottom + stack demand main    (32-bit, wraps)
+     *   002372B  AL#30 := bottom + total stack demand   (32-bit, wraps), JSR 002362B
+     *   002362B  AM#32 - AL#30, condition = carry        (carry: AM#32 >= AL#30, unsigned)
+     *   002363B  S1 := S1 AND NOT bit 27 (STO)            no carry -> return to 002373B
+     *   002364B  TE AND bit 27, condition = zero
+     *   002365B  S1 := S1 OR bit 27 (STO)                 zero (STO not enabled) -> return,
+     *                                                     enabled -> 000627B, the trap entry
+     * The check runs before the old-TOS save at 002373B-002376B, so with STO enabled
+     * nothing is written; with STO NOT enabled the STO status bit is set and the new
+     * stack and frame are built anyway (ND-05.009.4 6.5.3). Same check INIT uses. */
+    int overflowed = ((uint32_t)(bottom_of_stack + stack_demand_main) >=
+                      (uint32_t)(bottom_of_stack + total_stack_demand));
+    if (overflowed) {
+        ND500X_TRAPLOG("[TRAP] ENTM at PC=0x%08X: Stack overflow - bottom+main 0x%08X >= bottom+total 0x%08X\n",
+               fi->address, bottom_of_stack + stack_demand_main, bottom_of_stack + total_stack_demand);
+        int enabled = nd500_ignorable_trap_enabled(cpu, TRAP_STO);
+        /* Sets the STO status bit; dispatches only when enabled (002365B). */
         trap_stack_overflow(cpu, fi->address);
-        return;
+        if (enabled || nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
     }
 
     /* ========================================================================
@@ -374,7 +392,10 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* STO status bit is set/reset for each ENTS, ENTSN, ENTB, INIT, ENTM and
      * GETB (ND-500 Reference Manual, traps section). Successful completion
      * resets it - the bit must not stay stale after an earlier overflow. */
-    cpu->ST1 &= ~(uint32_t)TRAP_STO;
+    if (!overflowed) {
+        /* 002363B clears STO; 002365B sets it again on the overflow path. */
+        cpu->ST1 &= ~(uint32_t)TRAP_STO;
+    }
 
     if (do_trace) {
         printf("[ENTM] New stack initialized: B=0x%08X, TOS=0x%08X, args=%u\n",

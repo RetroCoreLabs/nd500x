@@ -26,6 +26,8 @@
 extern void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 extern void nd500_instr_Entb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 extern void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
+extern void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
+extern void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 
 static int tests_passed = 0;
 static int tests_failed = 0;
@@ -58,6 +60,21 @@ static Nd500FetchedInstruction make_getb(uint8_t target_reg, uint8_t log_size) {
     fi.data_type = ND500_DTYPE_BYTE;
     fi.operands[0].mode = ND500_ADDR_CONSTANT_SHORT;  /* short constant 0..31 */
     fi.operands[0].address_code = log_size & 0x3F;
+    return fi;
+}
+
+/* Build a fetched INIT/ENTM with its three operands in W1, W2, W3:
+ * bottom of stack, stack demand main, total stack demand. */
+static Nd500FetchedInstruction make_three_reg(uint32_t opcode) {
+    Nd500FetchedInstruction fi;
+    memset(&fi, 0, sizeof(fi));
+    fi.address = 0x2000;
+    fi.opcode = opcode;
+    fi.operand_count = 3;
+    for (int i = 0; i < 3; i++) {
+        fi.operands[i].mode = ND500_ADDR_REGISTER;
+        fi.operands[i].reg = (uint8_t)(i + 1);
+    }
     return fi;
 }
 
@@ -230,6 +247,118 @@ int main(void) {
     CHECK(nd500_read_memory_32(&cpu, 0x70F4) == 0x5555, "no frame word written");
     cpu.OTE1 = 0;
     nd500_trap_clear();
+
+    /* ---- Test 9: INIT with main >= total, STO NOT enabled -----------------
+     * CONT-STORE-10611 INIT body 012604B-012614B calls the check at 002362B-002365B:
+     * bottom+main >= bottom+total sets the STO status bit and, when TE bit 27 is
+     * zero, returns and the stack is built. The emulator used to return without
+     * building anything. */
+    printf("\nTest 9: INIT overflow, STO not enabled: stack built, STO set\n");
+    reset_cpu(&cpu);
+    cpu.OTE1 = cpu.OTE2 = cpu.MTE1 = cpu.MTE2 = 0;
+    cpu.B = 0x7000;
+    cpu.L = 0x9999;
+    cpu.I[0] = 0x6000; cpu.I[1] = 0x200; cpu.I[2] = 0x100;   /* main > total */
+    nd500_write_memory_32(&cpu, 0x6000 + 0, 0x5555);
+    nd500_write_memory_32(&cpu, 0x6000 + 4, 0x5555);
+    {
+        Nd500FetchedInstruction fi = make_three_reg(0x00DC);
+        nd500_instr_Init(&cpu, &fi);
+    }
+    CHECK(cpu.B == 0x6000, "INIT set B to bottom of stack");
+    CHECK(cpu.TOS == 0x6100, "INIT set TOS = bottom + total");
+    CHECK(cpu.L == 0, "INIT cleared L");
+    CHECK(nd500_read_memory_32(&cpu, 0x6000 + 0) == 0, "B.PREVB = 0");
+    CHECK(nd500_read_memory_32(&cpu, 0x6000 + 4) == 0, "B.RETA = 0");
+    CHECK(nd500_read_memory_32(&cpu, 0x6000 + 8) == 0x6200, "B.SP = bottom + main");
+    CHECK((cpu.ST1 & (uint32_t)TRAP_STO) != 0, "STO status bit set");
+
+    /* ---- Test 10: INIT with main >= total, STO enabled: nothing written ---- */
+    printf("\nTest 10: INIT overflow, STO enabled: nothing written\n");
+    reset_cpu(&cpu);
+    cpu.OTE1 = (uint32_t)TRAP_STO;
+    cpu.B = 0x7000;
+    cpu.TOS = 0x7100;
+    cpu.I[0] = 0x6000; cpu.I[1] = 0x100; cpu.I[2] = 0x100;   /* main == total */
+    nd500_write_memory_32(&cpu, 0x6000 + 8, 0x5555);
+    {
+        Nd500FetchedInstruction fi = make_three_reg(0x00DC);
+        nd500_instr_Init(&cpu, &fi);
+    }
+    CHECK(cpu.B == 0x7000, "B unchanged when STO is enabled");
+    CHECK(cpu.TOS == 0x7100, "TOS unchanged when STO is enabled");
+    CHECK(nd500_read_memory_32(&cpu, 0x6000 + 8) == 0x5555, "no stack word written");
+    cpu.OTE1 = 0;
+    nd500_trap_clear();
+
+    /* ---- Test 11: ENTM with main >= total, STO NOT enabled ----------------
+     * ENTM body 002367B-002402B calls the same check (JSR at 002372B) before the
+     * old-TOS save; with STO not enabled it carries on and builds the new stack. */
+    printf("\nTest 11: ENTM overflow, STO not enabled: frame built, STO set\n");
+    reset_cpu(&cpu);
+    cpu.OTE1 = cpu.OTE2 = cpu.MTE1 = cpu.MTE2 = 0;
+    cpu.TOS = 0x7100;
+    cpu.B = 0x7000;
+    nd500_write_memory_32(&cpu, 0x7000 + 8, 0x7050);          /* old B.SP */
+    cpu.pending_call_return_address = 0x1234;
+    cpu.pending_call_arg_count = 1;
+    cpu.pending_call_arg_addresses[0] = 0xAAAA;
+    cpu.I[0] = 0x6000; cpu.I[1] = 0x200; cpu.I[2] = 0x100;
+    {
+        Nd500FetchedInstruction fi = make_three_reg(0x00DF);
+        nd500_instr_Entm(&cpu, &fi);
+    }
+    CHECK(cpu.B == 0x6000, "ENTM set B to bottom of stack");
+    CHECK(cpu.TOS == 0x6100, "ENTM set TOS = bottom + total");
+    CHECK(cpu.L == 0x1234, "ENTM loaded L with the return address");
+    CHECK(nd500_read_memory_32(&cpu, 0x7050) == 0x7100, "old TOS saved at old B.SP");
+    CHECK(nd500_read_memory_32(&cpu, 0x6000 + 0) == 0x7000, "frame PREVB = old B");
+    CHECK(nd500_read_memory_32(&cpu, 0x6000 + 8) == 0x6200, "frame SP = bottom + main");
+    CHECK(nd500_read_memory_32(&cpu, 0x6000 + 20) == 0xAAAA, "frame ARG1 written");
+    CHECK((cpu.ST1 & (uint32_t)TRAP_STO) != 0, "STO status bit set");
+    CHECK(cpu.pending_call_return_address == 0, "pending call state consumed");
+
+    /* ---- Test 12: ENTM with main >= total, STO enabled: nothing written --- */
+    printf("\nTest 12: ENTM overflow, STO enabled: nothing written\n");
+    reset_cpu(&cpu);
+    cpu.OTE1 = (uint32_t)TRAP_STO;
+    cpu.TOS = 0x7100;
+    cpu.B = 0x7000;
+    nd500_write_memory_32(&cpu, 0x7000 + 8, 0x7050);
+    nd500_write_memory_32(&cpu, 0x7050, 0x5555);
+    nd500_write_memory_32(&cpu, 0x6000, 0x5555);
+    cpu.pending_call_return_address = 0x1234;
+    cpu.pending_call_arg_count = 0;
+    cpu.I[0] = 0x6000; cpu.I[1] = 0x100; cpu.I[2] = 0x100;
+    {
+        Nd500FetchedInstruction fi = make_three_reg(0x00DF);
+        nd500_instr_Entm(&cpu, &fi);
+    }
+    CHECK(cpu.B == 0x7000, "B unchanged when STO is enabled");
+    CHECK(cpu.TOS == 0x7100, "TOS unchanged when STO is enabled");
+    CHECK(nd500_read_memory_32(&cpu, 0x7050) == 0x5555, "old TOS not saved");
+    CHECK(nd500_read_memory_32(&cpu, 0x6000) == 0x5555, "no frame word written");
+    cpu.OTE1 = 0;
+    nd500_trap_clear();
+
+    /* ---- Test 13: ENTM compares the 32-bit SUMS, not the demands ----------
+     * 002362B compares AM#32 = bottom+main with AL#30 = bottom+total. With
+     * bottom+total wrapping past 2^32, main < total is still an overflow. */
+    printf("\nTest 13: ENTM overflow from 32-bit wrap of bottom + total\n");
+    reset_cpu(&cpu);
+    cpu.OTE1 = cpu.OTE2 = cpu.MTE1 = cpu.MTE2 = 0;
+    cpu.TOS = 0x7100;
+    cpu.B = 0x7000;
+    nd500_write_memory_32(&cpu, 0x7000 + 8, 0x7050);
+    cpu.pending_call_return_address = 0x1234;
+    cpu.pending_call_arg_count = 0;
+    cpu.I[0] = 0x6000; cpu.I[1] = 0x100; cpu.I[2] = 0xFFFFB000u;  /* 0x6000+total wraps to 0x1000 */
+    {
+        Nd500FetchedInstruction fi = make_three_reg(0x00DF);
+        nd500_instr_Entm(&cpu, &fi);
+    }
+    CHECK((cpu.ST1 & (uint32_t)TRAP_STO) != 0, "STO set: bottom+main >= wrapped bottom+total");
+    CHECK(cpu.B == 0x6000, "frame still built with STO not enabled");
 
     nd500_machine_free(&m);
     printf("\nPassed: %d\nFailed: %d\n", tests_passed, tests_failed);

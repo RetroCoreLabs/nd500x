@@ -41,7 +41,9 @@
  *   - RET with PREVB=0 triggers stack underflow trap
  *   - Prevents returning past the bottom of the call stack
  *
- *   Stack overflow occurs if <stack demand main> >= <total stack demand>
+ *   Stack overflow occurs if bottom + <stack demand main> >= bottom + <total stack demand>
+ *   (32-bit sums, unsigned compare; control store 002362B). The STO bit is always
+ *   set; the trap is taken only when enabled, otherwise the stack is still built.
  *
  * Trap conditions:
  *   - Addressing traps
@@ -84,12 +86,29 @@ void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
 
-    /* Check for stack overflow in specification (like C#) */
-    if (stack_demand_main >= total_stack_demand) {
-        ND500X_TRAPLOG("[TRAP] INIT at PC=0x%08X: Stack overflow - main demand 0x%08X >= total 0x%08X\n",
-               fi->address, stack_demand_main, total_stack_demand);
+    /* Stack overflow, as the control store does it (CONT-STORE-10611, INIT body
+     * 012604B-012614B, which calls the check at 002362B with JSR from 012606B):
+     *   012605B  AM#32 := bottom + stack demand main    (32-bit, wraps)
+     *   012606B  AL#30 := bottom + total stack demand   (32-bit, wraps)
+     *   002362B  AM#32 - AL#30, condition = carry        (carry: AM#32 >= AL#30, unsigned)
+     *   002363B  S1 := S1 AND NOT bit 27 (STO)            no carry -> return, build the stack
+     *   002364B  TE AND bit 27, condition = zero
+     *   002365B  S1 := S1 OR bit 27 (STO)                 zero (STO not enabled) -> return,
+     *                                                     enabled -> 000627B, the trap entry
+     * So with STO enabled nothing is written; with STO NOT enabled the STO status bit
+     * is set and the stack is built anyway (ND-05.009.4 6.5.3: a disabled ignorable
+     * trap has no effect on program execution). Same pattern as ENTS/ENTSN. */
+    int overflowed = ((uint32_t)(bottom_of_stack + stack_demand_main) >=
+                      (uint32_t)(bottom_of_stack + total_stack_demand));
+    if (overflowed) {
+        ND500X_TRAPLOG("[TRAP] INIT at PC=0x%08X: Stack overflow - bottom+main 0x%08X >= bottom+total 0x%08X\n",
+               fi->address, bottom_of_stack + stack_demand_main, bottom_of_stack + total_stack_demand);
+        int enabled = nd500_ignorable_trap_enabled(cpu, TRAP_STO);
+        /* Sets the STO status bit; dispatches only when enabled (002365B). */
         trap_stack_overflow(cpu, fi->address);
-        return;
+        if (enabled || nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
     }
 
     /* STEP 1: Set B to bottom of stack (like C# line 98) */
@@ -109,7 +128,10 @@ void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* STO status bit is set/reset for each ENTS, ENTSN, ENTB, INIT, ENTM and
      * GETB (ND-500 Reference Manual, traps section). Successful completion
      * resets it - the bit must not stay stale after an earlier overflow. */
-    cpu->ST1 &= ~(uint32_t)TRAP_STO;
+    if (!overflowed) {
+        /* 002363B clears STO; 002365B sets it again on the overflow path. */
+        cpu->ST1 &= ~(uint32_t)TRAP_STO;
+    }
 
     /* NOTE: C# code lines 113-124 copy arguments, but manual spec does NOT mention this.
      * INIT is executed at program startup BEFORE any CALL, so no arguments should exist.
