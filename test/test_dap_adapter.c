@@ -443,7 +443,7 @@ static void test_scopes_and_variables(void) {
 	int found_pc = 0, found_flags_ascii = 0;
 	for (int i = 0; i < vctx->variable_count; i++) {
 		if (strcmp(vctx->variable_array[i].name, "PC") == 0 &&
-		    strcmp(vctx->variable_array[i].value, "0x08023E9C") == 0) found_pc = 1;
+		    strcmp(vctx->variable_array[i].value, "1000437234B") == 0) found_pc = 1; /* 0x08023E9C */
 		if (strcmp(vctx->variable_array[i].name, "Flags") == 0 &&
 		    strcmp(vctx->variable_array[i].value, "PdZscko") == 0) found_flags_ascii = 1;
 	}
@@ -457,7 +457,7 @@ static void test_scopes_and_variables(void) {
 	CHECK(call_cb(DAP_CMD_VARIABLES) == 0, "variables (Integer)");
 	CHECK(vctx->variable_count == 4, "Integer: 4 variables");
 	CHECK(strcmp(vctx->variable_array[0].name, "I1") == 0 &&
-	      strcmp(vctx->variable_array[0].value, "0xDEADBEEF") == 0,
+	      strcmp(vctx->variable_array[0].value, "33653337357B") == 0, /* 0xDEADBEEF */
 	      "I1 listed with correct value");
 	free_variable_results(vctx);
 
@@ -471,7 +471,7 @@ static void test_scopes_and_variables(void) {
 	CHECK(call_cb(DAP_CMD_VARIABLES) == 0, "variables (Trap Control)");
 	CHECK(vctx->variable_count == 8, "Trap Control: 8 variables");
 	CHECK(strcmp(vctx->variable_array[0].name, "OTE1") == 0 &&
-	      strcmp(vctx->variable_array[0].value, "0x0F01DA00") == 0,
+	      strcmp(vctx->variable_array[0].value, "1700355000B") == 0, /* 0x0F01DA00 */
 	      "OTE1 listed with correct value");
 	free_variable_results(vctx);
 
@@ -483,8 +483,8 @@ static void test_scopes_and_variables(void) {
 	svctx->value = "0x12345678";
 	CHECK(call_cb(DAP_CMD_SET_VARIABLE) == 0, "setVariable I2");
 	CHECK(g_cpu.I[1] == 0x12345678, "I2 register written");
-	CHECK(svctx->new_value && strcmp(svctx->new_value, "0x12345678") == 0,
-	      "new value echoed");
+	CHECK(svctx->new_value && strcmp(svctx->new_value, "2215053170B") == 0,
+	      "new value echoed (octal, 0x12345678)");
 	free((char*)svctx->new_value);
 	free((char*)svctx->type);
 
@@ -502,6 +502,54 @@ static void test_scopes_and_variables(void) {
 	g_cpu.ST1 = 0;
 }
 
+/* evaluate EXPR (context repl when repl) and compare the result text */
+static int eval_is(const char* expr, int repl, int hex, const char* want) {
+	EvaluateCommandContext* ctx = &g_srv->current_command.context.evaluate;
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->expression = expr;
+	ctx->context = repl ? "repl" : NULL;
+	ctx->format_options.hex = hex ? 1 : 0;
+	int ok = call_cb(DAP_CMD_EVALUATE) == 0 && ctx->result && strcmp(ctx->result, want) == 0;
+	if (!ok) printf("  evaluate %s: got %s, want %s\n", expr, ctx->result ? ctx->result : "(none)", want);
+	free((char*)ctx->result);
+	free((char*)ctx->type);
+	return ok;
+}
+
+static int set_radix(const char* word) {
+	SetRadixContext* rctx = &g_srv->current_command.context.set_radix;
+	memset(rctx, 0, sizeof(*rctx));
+	snprintf(rctx->radix, sizeof rctx->radix, "%s", word);
+	return call_cb(DAP_CMD_SET_RADIX);
+}
+
+/* The radix (docs/debug-types.md in nd-lang): one value in octal, decimal and hex, switched by
+ * setRadix and by the console command, format hex for one request, the forms setVariable reads */
+static void test_radix(void) {
+	g_cpu.R = 0xFFFFFFFBu;
+	CHECK(eval_is("R", 0, 0, "37777777773B"), "R in octal (the default)");
+	CHECK(eval_is("R", 0, 1, "0FFFFFFFBH"), "R with format hex, a 0 before a letter");
+	CHECK(eval_is("R", 0, 0, "37777777773B"), "format hex was for one request only");
+	CHECK(set_radix("decimal") == 0, "setRadix decimal");
+	CHECK(eval_is("R", 0, 0, "4294967291"), "R in decimal (a register is unsigned)");
+	CHECK(eval_is("radix", 1, 0, "radix decimal"), "console: radix reports decimal");
+	CHECK(eval_is("radix hex", 1, 0, "radix hex"), "console: radix hex switches");
+	CHECK(eval_is("R", 0, 0, "0FFFFFFFBH"), "R in hex");
+	CHECK(eval_is("radix roman", 1, 0, "Error: radix is octal, decimal or hex, not 'roman'"),
+	      "console: an unknown radix is refused");
+	CHECK(eval_is("R", 0, 0, "0FFFFFFFBH"), "a refused radix keeps hex");
+	CHECK(set_radix("roman") != 0, "setRadix roman refused");
+	g_cpu.R = 0x12;
+	CHECK(eval_is("R", 0, 0, "12H"), "a hex value that starts with a digit has no 0 before it");
+	CHECK(set_radix("octal") == 0, "setRadix octal");
+	CHECK(eval_is("R", 0, 0, "22B"), "R in octal, no leading zeros");
+	/* the number forms evaluate reads: B octal, H hex, 0x hex, decimal */
+	CHECK(eval_is("22B", 0, 0, "22B"), "literal 22B");
+	CHECK(eval_is("12H", 0, 0, "22B"), "literal 12H");
+	CHECK(eval_is("0x12", 0, 0, "22B"), "literal 0x12");
+	CHECK(eval_is("18", 0, 0, "22B"), "literal 18");
+}
+
 static void test_evaluate(void) {
 	EvaluateCommandContext* ctx = &g_srv->current_command.context.evaluate;
 
@@ -509,16 +557,16 @@ static void test_evaluate(void) {
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->expression = "R";
 	CHECK(call_cb(DAP_CMD_EVALUATE) == 0, "evaluate register");
-	CHECK(ctx->result && strcmp(ctx->result, "0x100002E4 (268436196)") == 0,
-	      "register value formatted");
+	CHECK(ctx->result && strcmp(ctx->result, "2000001344B") == 0,
+	      "register value formatted (octal, 0x100002E4)");
 	free((char*)ctx->result);
 	free((char*)ctx->type);
 
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->expression = "0x1234";
 	CHECK(call_cb(DAP_CMD_EVALUATE) == 0, "evaluate literal");
-	CHECK(ctx->result && strcmp(ctx->result, "0x00001234 (4660)") == 0,
-	      "literal value formatted");
+	CHECK(ctx->result && strcmp(ctx->result, "11064B") == 0,
+	      "literal value formatted (octal, 0x1234)");
 	free((char*)ctx->result);
 	free((char*)ctx->type);
 
@@ -733,6 +781,7 @@ int main(void) {
 	test_memory_roundtrip();
 	test_scopes_and_variables();
 	test_evaluate();
+	test_radix();
 	test_execution_control();
 	test_stack_trace();
 	test_stack_trace_source_line();
