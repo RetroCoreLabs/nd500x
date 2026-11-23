@@ -257,6 +257,8 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * status bit is set/reset for each ... ENTM ..."; STO is Ignorable (Table 10) and
      * 6.1 "Ignorable trap conditions ... may be disabled and will have no effect on
      * program execution".
+     * Kept by the owner's decision 2026-11-23: we believe the microcode carries
+     * corrections the manual's text was never updated for (a belief, not a measurement).
      * NOT DOCUMENTED (open, nd-lang docs/BUGS.md P7): comparing the two 32-bit SUMS
      * instead of the demands (differs only when a sum passes 2**32), that the check
      * comes before the old-TOS save, and that with STO enabled nothing is written
