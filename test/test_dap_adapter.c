@@ -17,6 +17,7 @@
 #include "../src/machine/breakpoints.h"
 #include "../src/cpu/cpu_protos.h"
 #include "../src/cpu/instruction_helpers.h"
+#include "../src/cpu/float_exact.h"
 #include "../src/debugger/debugger.h"
 #include "../src/ndlib/ndlib.h"
 #include "../external/libdap/libdap/include/dap_server.h"
@@ -463,6 +464,39 @@ static void test_scopes_and_variables(void) {
 
 	/* Float scope: A1-4, E1-4 + computed D1-D4 */
 	CHECK(count_scope_vars(float_ref) == 12, "Float: 12 variables (A,E,D)");
+	/* D1 is the exact decimal of E1:A1 (a host %f gave "0.071875"); the text is the one
+	 * test_float_exact.c worked out with exact rational arithmetic, and it is the text of the
+	 * bits the scope's own E1 and A1 rows show */
+	g_cpu.E[0] = 0x3F499999u;
+	g_cpu.A[0] = 0x9999999Au;
+	g_cpu.E[1] = 0x40900000u;
+	g_cpu.A[1] = 0u;
+	memset(vctx, 0, sizeof(*vctx));
+	vctx->variables_reference = float_ref;
+	CHECK(call_cb(DAP_CMD_VARIABLES) == 0, "variables (Float)");
+	{
+		const char *d1 = NULL, *d2 = NULL, *a1 = NULL, *e1 = NULL;
+		for (int i = 0; i < vctx->variable_count; i++) {
+			const char* n = vctx->variable_array[i].name;
+			const char* v = vctx->variable_array[i].value;
+			if (strcmp(n, "D1") == 0) d1 = v;
+			if (strcmp(n, "D2") == 0) d2 = v;
+			if (strcmp(n, "A1") == 0) a1 = v;
+			if (strcmp(n, "E1") == 0) e1 = v;
+		}
+		CHECK(d1 && strcmp(d1, "0.07187500000000000138777878078144567552953...") == 0,
+		      "D1 is the exact value of E1:A1");
+		CHECK(d2 && strcmp(d2, "2.5") == 0, "D2 is 2.5 (E2:A2 = 40900000 00000000 hex)");
+		CHECK(e1 && a1 && strtoull(e1, NULL, 8) == 0x3F499999u && strtoull(a1, NULL, 8) == 0x9999999Au,
+		      "E1 and A1 rows show the bits D1 is made of (octal)");
+		char want[80];
+		uint64_t bits = (strtoull(e1 ? e1 : "0", NULL, 8) << 32) | strtoull(a1 ? a1 : "0", NULL, 8);
+		nd500_fx_text(bits, true, want, sizeof want);
+		CHECK(d1 && strcmp(d1, want) == 0, "D1 equals nd500_fx_text of the E1:A1 rows");
+	}
+	free_variable_results(vctx);
+	memset(g_cpu.E, 0, sizeof g_cpu.E);
+	memset(g_cpu.A, 0, sizeof g_cpu.A);
 	/* MMU scope: CED, CAD, PS, PSTP, DITBASE */
 	CHECK(count_scope_vars(mmu_ref) == 5, "MMU: 5 variables");
 	/* Trap Control: OTE/CTE/MTE/TEMM pairs */

@@ -20,6 +20,7 @@
 #include "../cpu/nd500_domain.h"
 #include "../cpu/instruction_helpers.h"
 #include "../cpu/nd500_fecall.h"
+#include "../cpu/float_exact.h"
 #include <ndmon/mon.h>
 #include <ndmon/mon_file_table.h>
 #include <ndmon/mon_config.h>
@@ -402,6 +403,42 @@ int nd500_cmd_execute(Nd500Machine* m, const char* cmdline, CmdContext* ctx) {
     return -1;
 }
 
+/* The radix numbers are printed in (nd500_dbg_get_show_radix: octal by default) */
+static void show_num(char* out, size_t cap, uint32_t v) {
+    nd500_num_text(out, cap, v, 32, false, nd500_dbg_get_show_radix());
+}
+
+/* One row of "regs": the name, the value in the radix, the description */
+static void reg_row(CmdContext* ctx, const char* name, uint32_t v, const char* what) {
+    char num[24];
+    show_num(num, sizeof num, v);
+    output(ctx, "  %-20s = %-13s - %s", name, num, what);
+}
+
+/* One line of a memory dump: the address and 16 bytes in the radix (hex 2 digits, octal 3,
+ * decimal 3; the address with the radix suffix, the bytes without), then the ASCII */
+static void dump_line(CmdContext* ctx, uint32_t line_addr, const uint8_t* bytes, uint32_t count) {
+    int mode = nd500_dbg_get_show_radix();
+    char part[96];
+    char ascii[20];
+    int pos = 0;
+    for (uint32_t j = 0; j < 16; ++j) {
+        if (j < count) {
+            uint8_t b = bytes[j];
+            pos += snprintf(part + pos, sizeof(part) - pos, mode == 1 ? "%02X " : mode == 2 ? "%03o " : "%3u ", b);
+            ascii[j] = isprint(b) ? (char)b : '.';
+        } else {
+            pos += snprintf(part + pos, sizeof(part) - pos, mode == 1 ? "   " : "    ");
+            ascii[j] = ' ';
+        }
+        if (j == 7) pos += snprintf(part + pos, sizeof(part) - pos, " ");
+    }
+    ascii[16] = '\0';
+    char at[24];
+    show_num(at, sizeof at, line_addr);
+    output(ctx, "%12s: %s |%s|", at, part, ascii);
+}
+
 /* ======================================================= */
 /* COMMAND HANDLERS */
 /* ======================================================= */
@@ -508,36 +545,21 @@ static int cmd_mem(Nd500Machine* m, CmdContext* ctx, char* args) {
     uint32_t addr = nd500_cmd_parse_u32(a1, pc);
     uint32_t len = nd500_cmd_parse_u32(a2, 100);
 
-    char line[256];
     for (uint32_t i = 0; i < len; i += 16) {
         uint32_t line_addr = addr + i;
-        char hex_part[64];
-        char ascii_part[20];
-        int hex_pos = 0;
-
-        /* Build hex and ASCII parts */
-        for (uint32_t j = 0; j < 16; ++j) {
-            uint32_t idx = i + j;
-            if (idx < len) {
-                uint32_t vaddr = line_addr + j;
-                uint32_t paddr = vaddr;
-                /* Use MMU translation if enabled */
-                if (m->mmu_enabled && m->cpu) {
-                    paddr = nd500_mmu_translate(m->cpu, vaddr, 0, 0);
-                }
-                uint8_t b = nd500_bus_read8(m, paddr);
-                hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "%02X ", b);
-                ascii_part[j] = isprint(b) ? (char)b : '.';
-                if (j == 7) hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, " ");
-            } else {
-                hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "   ");
-                ascii_part[j] = ' ';
+        uint8_t bytes[16];
+        uint32_t count = 0;
+        for (uint32_t j = 0; j < 16 && i + j < len; ++j) {
+            uint32_t vaddr = line_addr + j;
+            uint32_t paddr = vaddr;
+            /* Use MMU translation if enabled */
+            if (m->mmu_enabled && m->cpu) {
+                paddr = nd500_mmu_translate(m->cpu, vaddr, 0, 0);
             }
+            bytes[j] = nd500_bus_read8(m, paddr);
+            count++;
         }
-        ascii_part[16] = '\0';
-
-        snprintf(line, sizeof(line), "%08X: %-50s |%s|", line_addr, hex_part, ascii_part);
-        output(ctx, "%s", line);
+        dump_line(ctx, line_addr, bytes, count);
     }
     return 0;
 }
@@ -551,36 +573,21 @@ static int cmd_mem_prog(Nd500Machine* m, CmdContext* ctx, char* args) {
     uint32_t addr = nd500_cmd_parse_u32(a1, pc);
     uint32_t len = nd500_cmd_parse_u32(a2, 100);
 
-    char line[256];
     for (uint32_t i = 0; i < len; i += 16) {
         uint32_t line_addr = addr + i;
-        char hex_part[64];
-        char ascii_part[20];
-        int hex_pos = 0;
-
-        /* Build hex and ASCII parts */
-        for (uint32_t j = 0; j < 16; ++j) {
-            uint32_t idx = i + j;
-            if (idx < len) {
-                uint32_t vaddr = line_addr + j;
-                uint32_t paddr = vaddr;
-                /* Use MMU translation with is_instruction=1 for program space */
-                if (m->mmu_enabled && m->cpu) {
-                    paddr = nd500_mmu_translate(m->cpu, vaddr, 0, 1);
-                }
-                uint8_t b = nd500_bus_read8(m, paddr);
-                hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "%02X ", b);
-                ascii_part[j] = isprint(b) ? (char)b : '.';
-                if (j == 7) hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, " ");
-            } else {
-                hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "   ");
-                ascii_part[j] = ' ';
+        uint8_t bytes[16];
+        uint32_t count = 0;
+        for (uint32_t j = 0; j < 16 && i + j < len; ++j) {
+            uint32_t vaddr = line_addr + j;
+            uint32_t paddr = vaddr;
+            /* Use MMU translation with is_instruction=1 for program space */
+            if (m->mmu_enabled && m->cpu) {
+                paddr = nd500_mmu_translate(m->cpu, vaddr, 0, 1);
             }
+            bytes[j] = nd500_bus_read8(m, paddr);
+            count++;
         }
-        ascii_part[16] = '\0';
-
-        snprintf(line, sizeof(line), "%08X: %-50s |%s|", line_addr, hex_part, ascii_part);
-        output(ctx, "%s", line);
+        dump_line(ctx, line_addr, bytes, count);
     }
     return 0;
 }
@@ -594,31 +601,16 @@ static int cmd_mem_phys(Nd500Machine* m, CmdContext* ctx, char* args) {
     uint32_t addr = nd500_cmd_parse_u32(a1, pc);
     uint32_t len = nd500_cmd_parse_u32(a2, 100);
 
-    char line[256];
     for (uint32_t i = 0; i < len; i += 16) {
         uint32_t line_addr = addr + i;
-        char hex_part[64];
-        char ascii_part[20];
-        int hex_pos = 0;
-
-        /* Build hex and ASCII parts - direct physical access, no MMU */
-        for (uint32_t j = 0; j < 16; ++j) {
-            uint32_t idx = i + j;
-            if (idx < len) {
-                uint32_t paddr = line_addr + j;
-                uint8_t b = nd500_bus_read8(m, paddr);
-                hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "%02X ", b);
-                ascii_part[j] = isprint(b) ? (char)b : '.';
-                if (j == 7) hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, " ");
-            } else {
-                hex_pos += snprintf(hex_part + hex_pos, sizeof(hex_part) - hex_pos, "   ");
-                ascii_part[j] = ' ';
-            }
+        uint8_t bytes[16];
+        uint32_t count = 0;
+        for (uint32_t j = 0; j < 16 && i + j < len; ++j) {
+            uint32_t paddr = line_addr + j;
+            bytes[j] = nd500_bus_read8(m, paddr);
+            count++;
         }
-        ascii_part[16] = '\0';
-
-        snprintf(line, sizeof(line), "%08X: %-50s |%s|", line_addr, hex_part, ascii_part);
-        output(ctx, "%s", line);
+        dump_line(ctx, line_addr, bytes, count);
     }
     return 0;
 }
@@ -929,67 +921,66 @@ static int cmd_regs(Nd500Machine* m, CmdContext* ctx, char* args) {
 
     /* Output format matches C# RetroCore layout */
     output(ctx, "Core Registers:");
-    output(ctx, "  PC                   = 0x%08X   - Program Counter - Current instruction address", r.PC);
-    output(ctx, "  FLAGS                = 0x%08X   - Status Register Flags", r.FLAGS);
+    reg_row(ctx, "PC", r.PC, "Program Counter - Current instruction address");
+    reg_row(ctx, "FLAGS", r.FLAGS, "Status Register Flags");
     output(ctx, "  Flags                = %s      - CPU Status Flags as ASCII (uppercase=set, lowercase=clear)", flags_ascii);
-    output(ctx, "  ST1                  = 0x%08X   - Status Register (low 32 bits)", r.ST1);
-    output(ctx, "  ST2                  = 0x%08X   - Status Register (high 32 bits)", r.ST2);
+    reg_row(ctx, "ST1", r.ST1, "Status Register (low 32 bits)");
+    reg_row(ctx, "ST2", r.ST2, "Status Register (high 32 bits)");
     output(ctx, "");
     output(ctx, "Integer Registers:");
-    output(ctx, "  I1                   = 0x%08X   - Integer register 1 (W1/H1/BY1/BI1)", r.I[0]);
-    output(ctx, "  I2                   = 0x%08X   - Integer register 2 (W2/H2/BY2/BI2)", r.I[1]);
-    output(ctx, "  I3                   = 0x%08X   - Integer register 3 (W3/H3/BY3/BI3)", r.I[2]);
-    output(ctx, "  I4                   = 0x%08X   - Integer register 4 (W4/H4/BY4/BI4)", r.I[3]);
+    reg_row(ctx, "I1", r.I[0], "Integer register 1 (W1/H1/BY1/BI1)");
+    reg_row(ctx, "I2", r.I[1], "Integer register 2 (W2/H2/BY2/BI2)");
+    reg_row(ctx, "I3", r.I[2], "Integer register 3 (W3/H3/BY3/BI3)");
+    reg_row(ctx, "I4", r.I[3], "Integer register 4 (W4/H4/BY4/BI4)");
     output(ctx, "");
     output(ctx, "Float Registers:");
-    output(ctx, "  A1                   = 0x%08X   - Float accumulator 1 (F1 single, D1 low)", r.A[0]);
-    output(ctx, "  A2                   = 0x%08X   - Float accumulator 2 (F2 single, D2 low)", r.A[1]);
-    output(ctx, "  A3                   = 0x%08X   - Float accumulator 3 (F3 single, D3 low)", r.A[2]);
-    output(ctx, "  A4                   = 0x%08X   - Float accumulator 4 (F4 single, D4 low)", r.A[3]);
+    reg_row(ctx, "A1", r.A[0], "Float accumulator 1 (F1 single, D1 low)");
+    reg_row(ctx, "A2", r.A[1], "Float accumulator 2 (F2 single, D2 low)");
+    reg_row(ctx, "A3", r.A[2], "Float accumulator 3 (F3 single, D3 low)");
+    reg_row(ctx, "A4", r.A[3], "Float accumulator 4 (F4 single, D4 low)");
     output(ctx, "");
     output(ctx, "FloatExt Registers:");
-    output(ctx, "  E1                   = 0x%08X   - Float extension 1 (D1 high 32 bits)", r.E[0]);
-    output(ctx, "  E2                   = 0x%08X   - Float extension 2 (D2 high 32 bits)", r.E[1]);
-    output(ctx, "  E3                   = 0x%08X   - Float extension 3 (D3 high 32 bits)", r.E[2]);
-    output(ctx, "  E4                   = 0x%08X   - Float extension 4 (D4 high 32 bits)", r.E[3]);
+    reg_row(ctx, "E1", r.E[0], "Float extension 1 (D1 high 32 bits)");
+    reg_row(ctx, "E2", r.E[1], "Float extension 2 (D2 high 32 bits)");
+    reg_row(ctx, "E3", r.E[2], "Float extension 3 (D3 high 32 bits)");
+    reg_row(ctx, "E4", r.E[3], "Float extension 4 (D4 high 32 bits)");
     output(ctx, "");
     output(ctx, "Double Registers (64-bit = E:A):");
-    /* Convert ND-500 double format to IEEE754 for display */
-    uint64_t d1_bits = ((uint64_t)r.E[0] << 32) | r.A[0];
-    uint64_t d2_bits = ((uint64_t)r.E[1] << 32) | r.A[1];
-    uint64_t d3_bits = ((uint64_t)r.E[2] << 32) | r.A[2];
-    uint64_t d4_bits = ((uint64_t)r.E[3] << 32) | r.A[3];
-    output(ctx, "  D1                   = %f", nd500_double_to_ieee754(d1_bits));
-    output(ctx, "  D2                   = %f", nd500_double_to_ieee754(d2_bits));
-    output(ctx, "  D3                   = %f", nd500_double_to_ieee754(d3_bits));
-    output(ctx, "  D4                   = %f", nd500_double_to_ieee754(d4_bits));
+    /* The exact decimal of the machine's double (nd500_fx_text, ND-05.009.4 7.2.5), never
+     * through a host double; a REAL is not a whole number, so the radix does not apply */
+    for (int i = 0; i < 4; i++) {
+        uint64_t bits = ((uint64_t)r.E[i] << 32) | r.A[i];
+        char exact[80];
+        nd500_fx_text(bits, true, exact, sizeof exact);
+        output(ctx, "  D%d                   = %s", i + 1, exact);
+    }
     output(ctx, "");
     output(ctx, "Addressing Registers:");
-    output(ctx, "  P                    = 0x%08X   - Program Counter register", r.PC);
-    output(ctx, "  L                    = 0x%08X   - Link register - Return address", r.L);
-    output(ctx, "  B                    = 0x%08X   - Base register - Local frame pointer", r.B);
-    output(ctx, "  R                    = 0x%08X   - Record register - Structure base pointer", r.R);
+    reg_row(ctx, "P", r.PC, "Program Counter register");
+    reg_row(ctx, "L", r.L, "Link register - Return address");
+    reg_row(ctx, "B", r.B, "Base register - Local frame pointer");
+    reg_row(ctx, "R", r.R, "Record register - Structure base pointer");
     output(ctx, "");
     output(ctx, "Special Registers:");
-    output(ctx, "  TOS                  = 0x%08X   - Top of Stack - Stack overflow limit", r.TOS);
-    output(ctx, "  LL                   = 0x%08X   - Low Limit - Memory lower bound", r.LL);
-    output(ctx, "  HL                   = 0x%08X   - High Limit - Memory upper bound", r.HL);
-    output(ctx, "  THA                  = 0x%08X   - Trap Handler Address - Exception entry point", r.THA);
-    output(ctx, "  CED                  = 0x%08X   - Current Executing Domain", r.CED);
-    output(ctx, "  CAD                  = 0x%08X   - Current Alternative Domain", r.CAD);
-    output(ctx, "  PS                   = 0x%08X   - Process Segment register", r.PS);
-    output(ctx, "  PSTP                 = 0x%08X   - Physical Segment Table Pointer", r.PSTP);
-    output(ctx, "  DITBASE              = 0x%08X   - Domain Information Table base address", r.DITBASE);
+    reg_row(ctx, "TOS", r.TOS, "Top of Stack - Stack overflow limit");
+    reg_row(ctx, "LL", r.LL, "Low Limit - Memory lower bound");
+    reg_row(ctx, "HL", r.HL, "High Limit - Memory upper bound");
+    reg_row(ctx, "THA", r.THA, "Trap Handler Address - Exception entry point");
+    reg_row(ctx, "CED", r.CED, "Current Executing Domain");
+    reg_row(ctx, "CAD", r.CAD, "Current Alternative Domain");
+    reg_row(ctx, "PS", r.PS, "Process Segment register");
+    reg_row(ctx, "PSTP", r.PSTP, "Physical Segment Table Pointer");
+    reg_row(ctx, "DITBASE", r.DITBASE, "Domain Information Table base address");
     output(ctx, "");
     output(ctx, "Control Registers:");
-    output(ctx, "  OTE1                 = 0x%08X   - Own Trap Enable (low 32)", r.OTE1);
-    output(ctx, "  OTE2                 = 0x%08X   - Own Trap Enable (high 32)", r.OTE2);
-    output(ctx, "  CTE1                 = 0x%08X   - Child Trap Enable (low 32)", r.CTE1);
-    output(ctx, "  CTE2                 = 0x%08X   - Child Trap Enable (high 32)", r.CTE2);
-    output(ctx, "  MTE1                 = 0x%08X   - Mother Trap Enable (low 32)", r.MTE1);
-    output(ctx, "  MTE2                 = 0x%08X   - Mother Trap Enable (high 32)", r.MTE2);
-    output(ctx, "  TEMM1                = 0x%08X   - Trap Enable Modification Mask (low 32)", r.TEMM1);
-    output(ctx, "  TEMM2                = 0x%08X   - Trap Enable Modification Mask (high 32)", r.TEMM2);
+    reg_row(ctx, "OTE1", r.OTE1, "Own Trap Enable (low 32)");
+    reg_row(ctx, "OTE2", r.OTE2, "Own Trap Enable (high 32)");
+    reg_row(ctx, "CTE1", r.CTE1, "Child Trap Enable (low 32)");
+    reg_row(ctx, "CTE2", r.CTE2, "Child Trap Enable (high 32)");
+    reg_row(ctx, "MTE1", r.MTE1, "Mother Trap Enable (low 32)");
+    reg_row(ctx, "MTE2", r.MTE2, "Mother Trap Enable (high 32)");
+    reg_row(ctx, "TEMM1", r.TEMM1, "Trap Enable Modification Mask (low 32)");
+    reg_row(ctx, "TEMM2", r.TEMM2, "Trap Enable Modification Mask (high 32)");
 
     return 0;
 }
@@ -1041,7 +1032,9 @@ static int cmd_set(Nd500Machine* m, CmdContext* ctx, char* args) {
 
     /* Set register based on name (shared table in debug_api.c) */
     if (nd500_dbg_reg_set_by_name(m->cpu, reg_name, value) == 0) {
-        output(ctx, "%s = 0x%08X", reg_name, value);
+        char num[24];
+        show_num(num, sizeof num, value);
+        output(ctx, "%s = %s", reg_name, num);
     } else {
         error(ctx, "unknown register: %s", reg_name);
         error(ctx, "registers: PC, I1-I4, A1-A4, E1-E4, L, B, R, FLAGS, TOS, LL, HL, THA, ST1, ST2");
@@ -1679,13 +1672,14 @@ static int cmd_continue(Nd500Machine* m, CmdContext* ctx, char* args) {
 static int cmd_status(Nd500Machine* m, CmdContext* ctx, char* args) {
     (void)args;
     if (m->run_flag) {
-        output(ctx, "Status: running at PC=0x%08X", m->cpu ? m->cpu->PC : 0);
+        { char num[24]; show_num(num, sizeof num, m->cpu ? m->cpu->PC : 0); output(ctx, "Status: running at PC=%s", num); }
     } else {
         if (m->stop_reason != STOP_NONE) {
-            output(ctx, "Status: stopped - %s at 0x%08X",
-                   nd500_stop_reason_str(m->stop_reason), m->stop_addr);
+            char num[24];
+            show_num(num, sizeof num, m->stop_addr);
+            output(ctx, "Status: stopped - %s at %s", nd500_stop_reason_str(m->stop_reason), num);
         } else {
-            output(ctx, "Status: stopped at PC=0x%08X", m->cpu ? m->cpu->PC : 0);
+            { char num[24]; show_num(num, sizeof num, m->cpu ? m->cpu->PC : 0); output(ctx, "Status: stopped at PC=%s", num); }
         }
     }
     return 0;

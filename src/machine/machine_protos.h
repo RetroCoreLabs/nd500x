@@ -87,6 +87,15 @@ int    nd500_dbg_get_show_hex(void);
 int    nd500_dbg_set_radix(int mode);   /* 0=decimal, 1=hex, 2=octal */
 int    nd500_dbg_get_radix(void);
 int    nd500_dbg_get_radix_base(void);  /* returns 10, 16, or 8 */
+/* The radix the monitor PRINTS register values, memory dumps and addresses in (0=decimal,
+ * 1=hex, 2=octal); octal by default, as the ND tools print numbers. nd500_dbg_set_radix
+ * (--radix, "set radix") sets it together with the input radix above. */
+int    nd500_dbg_get_show_radix(void);
+/* The text of a whole number of `bits` bits (1 to 32) in radix `mode` (0=decimal, 1=hex,
+ * 2=octal), the ND forms of the debugger (docs/debug-types.md "Radix" in nd-lang): octal
+ * 177773B, decimal -5 (signed) or 65531, hex 0FFFBH; no leading zeros, as the ND-500 monitor
+ * prints "L 1000001522B". */
+void   nd500_num_text(char* out, size_t cap, uint32_t v, int bits, bool is_signed, int mode);
 int    nd500_dbg_set_demangle(int onoff);
 int    nd500_dbg_get_demangle(void);
 int    nd500_dbg_set_show_source(int mode);  /* 0=off, 1=asm, 2=c, 3=both */

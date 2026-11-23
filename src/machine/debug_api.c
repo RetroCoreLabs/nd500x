@@ -40,6 +40,7 @@ size_t nd500_dbg_mem_dump(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t*
 static int g_show_ea = -1;       /* -1: uninitialized, 0: off, 1: on */
 static int g_show_hex = -1;      /* -1: uninitialized (default on), 0: off, 1: on */
 static int g_radix = 0;          /* 0=decimal, 1=hex, 2=octal */
+static int g_show_radix = 2;     /* printed numbers: octal by default (nd500_dbg_get_show_radix) */
 static int g_demangle = -1;      /* demangle C-style symbols (strip leading _) */
 static int g_trace_mode = -1;   /* instruction trace mode */
 static int g_profiling = -1;    /* instruction profiling mode */
@@ -110,7 +111,30 @@ int nd500_dbg_get_show_hex(void) {
 int nd500_dbg_set_radix(int mode) {
     if (mode < 0 || mode > 2) return g_radix;
     g_radix = mode;
+    g_show_radix = mode;
     return g_radix;
+}
+
+int nd500_dbg_get_show_radix(void) {
+    return g_show_radix;
+}
+
+void nd500_num_text(char* out, size_t cap, uint32_t v, int bits, bool is_signed, int mode) {
+    uint32_t mask = bits >= 32 ? 0xFFFFFFFFu : ((1u << bits) - 1u);
+    v &= mask;
+    if (mode == 0) {
+        if (is_signed && ((v >> (bits - 1)) & 1u) != 0) {
+            snprintf(out, cap, "%lld", (long long)v - (1LL << bits));
+        } else {
+            snprintf(out, cap, "%lu", (unsigned long)v);
+        }
+    } else if (mode == 1) {
+        char d[16];
+        snprintf(d, sizeof d, "%lX", (unsigned long)v);
+        snprintf(out, cap, "%s%sH", d[0] >= 'A' ? "0" : "", d);
+    } else {
+        snprintf(out, cap, "%loB", (unsigned long)v);
+    }
 }
 
 int nd500_dbg_get_radix(void) {

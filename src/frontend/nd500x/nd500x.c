@@ -73,7 +73,9 @@ static void print_usage(const char* prog) {
     printf("  --disasm <len>           Disassemble <len> bytes and exit\n");
     printf("  --addr <addr>            Start address for disassembly (default: 0)\n");
     printf("  --hexdump <len>          Hex dump <len> bytes and exit\n");
-    printf("  --radix <mode>           Set numeric radix: decimal | hex | octal\n");
+    printf("  --radix <mode>           Numeric radix: decimal | hex | octal. Numbers the monitor prints\n");
+    printf("                           (regs, set, m, status) are octal 177773B by default; numbers typed\n");
+    printf("                           and disassembly operands are decimal by default\n");
     printf("  --run                    Run program (exit on MON 0B or error)\n");
     printf("  --dap [port]             Start DAP server (default port 4500) and wait for client\n");
     printf("  --dap-wait               With --dap: run nothing until a client sent configurationDone\n");

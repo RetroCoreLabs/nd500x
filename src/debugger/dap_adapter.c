@@ -122,31 +122,9 @@ static const char *radix_word(dbg_radix r)
  * is_signed, decimal shows the top bit as the sign. */
 static void num_text(char *out, size_t cap, uint32_t v, int bits, bool is_signed)
 {
-    uint32_t mask = bits >= 32 ? 0xFFFFFFFFu : ((1u << bits) - 1u);
-    v &= mask;
-    switch (radix_now())
-    {
-    case DBG_RADIX_DECIMAL:
-        if (is_signed && ((v >> (bits - 1)) & 1u) != 0)
-        {
-            snprintf(out, cap, "%lld", (long long)v - (1LL << bits));
-        }
-        else
-        {
-            snprintf(out, cap, "%lu", (unsigned long)v);
-        }
-        break;
-    case DBG_RADIX_HEX:
-    {
-        char d[16];
-        snprintf(d, sizeof d, "%0*lX", 1, (unsigned long)v);
-        snprintf(out, cap, "%s%sH", d[0] >= 'A' ? "0" : "", d);
-        break;
-    }
-    default:
-        snprintf(out, cap, "%0*loB", 1, (unsigned long)v);
-        break;
-    }
+    /* the shared text (machine/debug_api.c nd500_num_text; its modes 0=decimal 1=hex 2=octal) */
+    dbg_radix r = radix_now();
+    nd500_num_text(out, cap, v, bits, is_signed, r == DBG_RADIX_DECIMAL ? 0 : r == DBG_RADIX_HEX ? 1 : 2);
 }
 
 /* A whole number typed by the user (setVariable): digits with a B suffix are octal, with an H
@@ -1942,13 +1920,16 @@ static int cmd_variables_in_radix(DAPServer* server) {
         break;
     case SCOPE_ID_FLOAT: {
         dap_add_reg_group(server, g_float_regs, DAP_REG_COUNT(g_float_regs));
-        /* Computed 64-bit doubles D1-D4 (E:A), converted to IEEE754 */
+        /* Computed 64-bit doubles D1-D4 (E:A): the exact decimal of the machine's value
+         * (nd500_fx_text, ND-05.009.4 7.2.5), never through a host double, the same text a
+         * REAL8 variable in memory gets */
         for (int i = 0; i < 4; i++) {
             uint64_t bits = ((uint64_t)cpu->E[i] << 32) | cpu->A[i];
             char name[4];
+            char exact[80];
             snprintf(name, sizeof(name), "D%d", i + 1);
-            snprintf(value, sizeof(value), "%f", nd500_double_to_ieee754(bits));
-            dap_add_variable(server, name, value,
+            nd500_fx_text(bits, true, exact, sizeof exact);
+            dap_add_variable(server, name, exact,
                              "Double register (64-bit = E:A, read-only)");
         }
         break;

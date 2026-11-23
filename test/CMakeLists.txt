@@ -72,6 +72,15 @@ if(TARGET dap_objects)
         nd500_debugger nd500_machine nd500_cpu nd500_ndlib mon)
     target_include_directories(test_dap_adapter PRIVATE
         ${ND500X_ROOT}/external/libdap/libdap/include)
+
+    # The radix the debugger monitor prints numbers in (regs, set, m, m!, status)
+    add_executable(test_monitor_radix
+        test_monitor_radix.c
+    )
+    target_link_libraries(test_monitor_radix PRIVATE
+        nd500_debugger nd500_machine nd500_cpu nd500_ndlib mon)
+    target_include_directories(test_monitor_radix PRIVATE
+        ${ND500X_ROOT}/external/libdap/libdap/include)
 endif()
 
 # Instruction validation tests (requires cJSON)
@@ -507,6 +516,7 @@ add_test(NAME trap_conformance COMMAND test_trap_conformance)
 
 if(TARGET dap_objects)
     add_test(NAME dap_adapter COMMAND test_dap_adapter)
+    add_test(NAME monitor_radix COMMAND test_monitor_radix)
 endif()
 
 if(ND500X_PTY_SMOKE)
