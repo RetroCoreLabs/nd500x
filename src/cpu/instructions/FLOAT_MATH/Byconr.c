@@ -25,7 +25,7 @@
  *   0xFE70 (byconr) - F BYCONR (float to byte with rounding)
  *   0xFE71 (byconr) - D BYCONR (double to byte with rounding)
  *
- * Converts float/double source to byte with rounding (truncate toward zero).
+ * Converts float/double source to byte with rounding (rounded, 15.3 and 7.2.7).
  * Traps IOV if value outside byte range (-128 to 127).
  */
 void nd500_instr_Byconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
@@ -44,7 +44,7 @@ void nd500_instr_Byconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Read and convert source operand */
     if (is_double) {
-        /* D BYCONR: Double to byte (truncate toward zero) */
+        /* D BYCONR: Double to byte (rounded, 15.3 and 7.2.7) */
         uint64_t double_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
         /* A faulting operand read must abort the instruction: commit nothing,
          * and raise no second trap on top of the fault the kernel is already
@@ -53,12 +53,15 @@ void nd500_instr_Byconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (nd500_trap_occurred() || cpu->instr_aborted) {
             return;
         }
-        source_value = nd500_double_to_int64(double_bits);
+        /* 15.3 "The result is rounded": 7.2.7 at the integer position, a half to the even neighbour. */
+        bool too_big = false;
+        source_value = nd500_round_to_integer(double_bits, true, &too_big);
+        if (too_big) overflow = true;
         if (source_value < -128 || source_value > 127) {
             overflow = true;
         }
     } else {
-        /* F BYCONR: Float to byte (truncate toward zero).
+        /* F BYCONR: Float to byte (rounded, 15.3 and 7.2.7).
          * Read as FLOAT so a register operand comes from A1-A4, not I1-I4. */
         uint32_t float_bits = nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_FLOAT);
         /* A faulting operand read must abort the instruction: commit nothing,
@@ -68,11 +71,9 @@ void nd500_instr_Byconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (nd500_trap_occurred() || cpu->instr_aborted) {
             return;
         }
-        int32_t int_val = nd500_float_to_int32(float_bits);
-        source_value = int_val;
-        if (int_val < -128 || int_val > 127) {
-            overflow = true;
-        }
+        bool too_big = false;
+        source_value = nd500_round_to_integer(float_bits, false, &too_big);
+        if (too_big || source_value < -128 || source_value > 127) overflow = true;
     }
 
     /* Check for overflow trap */

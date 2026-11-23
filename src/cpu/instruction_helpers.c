@@ -772,9 +772,12 @@ uint64_t nd500_read_register_by_type(Nd500Cpu* cpu, uint8_t reg_num, Nd500DataTy
 
 /* The integer part of an ND-500 float (mb = 22) or double (mb = 54): value =
  * sig/2**(mb+1) * 2**e with sig = the mantissa plus its implicit bit, so the
- * low (mb+1-e) bits of sig are the fraction. Rounding adds half of the lowest
- * integer bit first; not in the manual: an exact half therefore rounds away
- * from zero (as host round() did before). */
+ * low (mb+1-e) bits of sig are the fraction. Rounding (INTR, 10.35 "The result
+ * is rounded") is the 7.2.7 rule applied at the integer position: L the units
+ * bit, G the first fraction bit, St the OR of the fraction bits below G; "if
+ * G=1 and (St=1 or L=1) then add one". So 0.5 gives 0, 1.5 gives 2, 2.5 gives
+ * 2. The format is sign and magnitude, so the rule works on the magnitude:
+ * -1.5 gives -2, -0.5 gives 0. Owner decision 2026-11-24. */
 static uint64_t nd500_nd_integer_part(uint64_t bits, int mb, bool round) {
     uint64_t sign = bits >> (mb + 9) & 1;
     int efield = (int)((bits >> mb) & 0x1FF);
@@ -785,11 +788,34 @@ static uint64_t nd500_nd_integer_part(uint64_t bits, int mb, bool round) {
     if (e < 0) return 0;                                /* |x| < 0.25 */
     uint64_t sig = ((uint64_t)1 << mb) | (bits & mant_mask);
     int frac = mb + 1 - e;                              /* 1 .. mb+1 */
-    if (round) sig += (uint64_t)1 << (frac - 1);
-    sig &= ~((((uint64_t)1) << frac) - 1);
+    uint64_t frac_mask = (((uint64_t)1) << frac) - 1;
+    uint64_t low = sig & frac_mask;                     /* the fraction bits */
+    uint64_t half = (uint64_t)1 << (frac - 1);          /* G alone */
+    bool l = frac <= mb && ((sig >> frac) & 1);         /* units bit (0 when there is no integer bit) */
+    sig &= ~frac_mask;
+    if (round && (low > half || (low == half && l))) sig += (uint64_t)1 << frac;
     if (sig == 0) return 0;
     if (sig >> (mb + 1)) { sig >>= 1; efield++; }       /* rounded up a binade */
     return (sign << (mb + 9)) | ((uint64_t)efield << mb) | (sig & mant_mask);
+}
+
+/* WCONR, HCONR, BYCONR (15.3 "The result is rounded"): the float or double
+ * rounded to a whole number by the same 7.2.7 rule as INTR above (half to the
+ * even neighbour, on the magnitude). Worked on the exact bits, no host float.
+ * *too_big is set when the magnitude is 2**62 or more (then 0 is returned);
+ * every destination range is far below that. */
+int64_t nd500_round_to_integer(uint64_t bits, bool is_double, bool* too_big) {
+    int mb = is_double ? 54 : 22;
+    *too_big = false;
+    uint64_t r = nd500_nd_integer_part(bits, mb, true);
+    int efield = (int)((r >> mb) & 0x1FF);
+    if (efield == 0) return 0;
+    int e = efield - 256;                               /* value = sig * 2**(e - mb - 1) */
+    if (e > 62) { *too_big = true; return 0; }
+    uint64_t sig = ((uint64_t)1 << mb) | (r & (((uint64_t)1 << mb) - 1));
+    int sh = e - (mb + 1);
+    uint64_t mag = sh >= 0 ? sig << sh : sig >> -sh;    /* exact: r has no fraction bits */
+    return ((r >> (mb + 9)) & 1) ? -(int64_t)mag : (int64_t)mag;
 }
 
 void nd500_execute_integer_part(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi,

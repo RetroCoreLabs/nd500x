@@ -245,6 +245,12 @@ add_executable(test_string_examine_outside
 )
 target_link_libraries(test_string_examine_outside PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# 10.35 / 15.3 rounding to a whole number by the 7.2.7 rule
+add_executable(test_round_integer
+    test_round_integer.c
+)
+target_link_libraries(test_round_integer PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # 15.2 status bits of W HCONV: S from bit 15 of the halfword result
 add_executable(test_hconv_sign
     test_hconv_sign.c
@@ -548,6 +554,7 @@ add_test(NAME string_float COMMAND test_string_float)
 add_test(NAME string_outside COMMAND test_string_outside)
 add_test(NAME string_examine_outside COMMAND test_string_examine_outside)
 add_test(NAME hconv_sign COMMAND test_hconv_sign)
+add_test(NAME round_integer COMMAND test_round_integer)
 add_test(NAME table13_integer COMMAND test_table13_integer)
 add_test(NAME float_swap COMMAND test_float_swap)
 add_test(NAME alt_prefix COMMAND test_alt_prefix)

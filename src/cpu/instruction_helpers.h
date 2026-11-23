@@ -1067,6 +1067,8 @@ bool nd500_string_examine_outside(Nd500Cpu* cpu, uint32_t pc, bool outside, bool
 
 // Single precision conversions
 uint32_t nd500_float_from_int32(int32_t value);
+/* 15.3 rounding to a whole number by the 7.2.7 rule (instruction_helpers.c). */
+int64_t nd500_round_to_integer(uint64_t bits, bool is_double, bool* too_big);
 int32_t nd500_float_to_int32(uint32_t nd500_bits);
 float nd500_float_to_ieee754(uint32_t nd500_bits);
 uint32_t nd500_float_from_ieee754(float ieee_value);
