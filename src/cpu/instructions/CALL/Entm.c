@@ -251,8 +251,18 @@ void nd500_instr_Entm(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* ========================================================================
      * STEP 4: VALIDATE STACK DEMANDS
      * ======================================================================== */
-    /* Stack overflow, as the control store does it (CONT-STORE-10611, ENTM entry
-     * 000322B, body 002367B-002402B):
+    /* Stack overflow. What ND-05.009.4 says: 13.10 ENTM "A value of <stack demand of
+     * main program> greater than or equal to <total system stack demand> will cause a
+     * stack overflow trap condition" (6.5.3.1 says "greater than"); 6.5.3.1 "The STO
+     * status bit is set/reset for each ... ENTM ..."; STO is Ignorable (Table 10) and
+     * 6.1 "Ignorable trap conditions ... may be disabled and will have no effect on
+     * program execution".
+     * NOT DOCUMENTED (open, nd-lang docs/BUGS.md P7): comparing the two 32-bit SUMS
+     * instead of the demands (differs only when a sum passes 2**32), that the check
+     * comes before the old-TOS save, and that with STO enabled nothing is written
+     * (6.5.7 "During" allows enter instructions to be partially executed). Taken
+     * from the control store CONT-STORE-10611 (ENTM entry 000322B, body
+     * 002367B-002402B), which is not evidence:
      *   002371B  AM#32 := bottom + stack demand main    (32-bit, wraps)
      *   002372B  AL#30 := bottom + total stack demand   (32-bit, wraps), JSR 002362B
      *   002362B  AM#32 - AL#30, condition = carry        (carry: AM#32 >= AL#30, unsigned)

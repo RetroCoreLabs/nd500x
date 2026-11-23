@@ -81,9 +81,24 @@ void nd500_instr_Axi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* The control store CONT-STORE-10611 (F AXI enters at 225B and jumps to
-     * 1553B; read 2026-11-23, nd-lang BUGS.md H21 item 2) works in DOUBLE
-     * all the way, on the FPU:
+    /* What ND-05.009.4 says for AXI: 12.1 "When <i> is zero, the result is
+     * one"; "A negative value of <i> and the value of <a> equal to zero causes
+     * an illegal operand value trap condition and the result is set to the
+     * largest possible floating point number"; traps FO, FU, IOV. 6.5.1 FO:
+     * "The largest possible floating point value will be stored in the
+     * destination, with the sign of the result". 7.2.7: "After a floating point
+     * operation, the result is normalized and the full mantissa is checked for
+     * rounding" (rule: G=1 and (St=1 or L=1) adds one).
+     * NOT DOCUMENTED (open, nd-lang docs/BUGS.md H21): HOW the power is formed -
+     * the square-and-multiply loop, working in double for an F operand, taking
+     * the reciprocal first for a negative <i>, and rounding to single only once
+     * at the end. The manual gives no algorithm, so the last bit of F AXI for
+     * large <i> is not settled by it. The steps below were taken from the
+     * control store CONT-STORE-10611, which is not evidence (no working
+     * microcode CPU exists to confirm the reading).
+     * The control store (F AXI enters at 225B and jumps to 1553B; read
+     * 2026-11-23, nd-lang BUGS.md H21 item 2) works in DOUBLE all the way, on
+     * the FPU:
      *   1554B/1611B  n = 0 gives 1.0
      *   1555B/1614B  a = 0 gives 0 (with a negative n the IOV of manual 12.1)
      *   1561B        acc := 1.0; a negative n first takes the reciprocal of a

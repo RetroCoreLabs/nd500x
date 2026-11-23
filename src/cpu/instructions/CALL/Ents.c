@@ -102,8 +102,22 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                fi->address, old_b, old_b + OFFSET_SP, new_b, cpu->L);
     }
 
-    /* Stack overflow, as the control store does it (CONT-STORE-10611, ENTS entry
-     * 000324B; ENTSN joins the same words at 002416B):
+    /* Stack overflow. What ND-05.009.4 says:
+     *   13.10 ENTS: "There will be a stack overflow trap condition if B +
+     *     <stack demand> is greater than or equal to TOS" (B is the new B, B.SP).
+     *   6.5.3.1 STO: "The STO status bit is set/reset for each ENTS, ENTSN, ENTB,
+     *     INIT, ENTM and GETB instruction."
+     *   Table 10 / 6.5.7: STO is an Ignorable trap, timing D (during); 6.1:
+     *     "Ignorable trap conditions ... may be disabled and will have no effect on
+     *     program execution" - so with STO not enabled the frame is built.
+     * NOT DOCUMENTED (open, see nd-lang docs/BUGS.md P7): that the compare is
+     *   unsigned 32-bit, and that with STO enabled NOTHING is written before the
+     *   trap. 6.5.7 "During" says the opposite risk: call and enter instructions
+     *   may be "partially executed before the trap occurs" and destinations
+     *   "have unpredictable values". The behaviour below was taken from the
+     *   control store CONT-STORE-10611 (ENTS entry 000324B; ENTSN joins the same
+     *   words at 002416B), which is not evidence (no working microcode CPU
+     *   exists to confirm the reading):
      *   002420B  AM#34 := new B + stack demand
      *   002421B  AM#34 - TOS, condition = carry      (carry: AM#34 >= TOS, unsigned)
      *   002422B  S1 := S1 AND NOT bit 27 (STO)       no carry -> 002425B, build the frame

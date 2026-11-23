@@ -157,6 +157,12 @@ add_executable(test_fconr_axi
 )
 target_link_libraries(test_fconr_axi PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# The chapter 12 mathematical functions against the host library, as a ballpark only
+add_executable(test_float_math_ballpark
+    test_float_math_ballpark.c
+)
+target_link_libraries(test_float_math_ballpark PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib m)
+
 # OTE instruction tests
 add_executable(test_ote_instructions
     test_ote_instructions.c
@@ -492,6 +498,7 @@ set_tests_properties(lget_instruction PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 add_test(NAME float_arithmetic COMMAND test_float_arithmetic)
 add_test(NAME float_exact COMMAND test_float_exact)
 add_test(NAME fconr_axi COMMAND test_fconr_axi)
+add_test(NAME float_math_ballpark COMMAND test_float_math_ballpark)
 add_test(NAME ote_instructions COMMAND test_ote_instructions)
 add_test(NAME stack_overflow COMMAND test_stack_overflow)
 add_test(NAME unsigned_displacement COMMAND test_unsigned_displacement)

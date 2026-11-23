@@ -42,8 +42,13 @@
  *   - Prevents returning past the bottom of the call stack
  *
  *   Stack overflow occurs if bottom + <stack demand main> >= bottom + <total stack demand>
- *   (32-bit sums, unsigned compare; control store 002362B). The STO bit is always
- *   set; the trap is taken only when enabled, otherwise the stack is still built.
+ *   (32-bit sums, unsigned compare). ND-05.009.4 13.9 compares the two DEMANDS
+ *   ("<stack demand of main program> greater than or equal to <total system stack
+ *   demand>"; 6.5.3.1 says "greater than"); the sums give the same answer unless a
+ *   sum passes 2**32. The sums are NOT DOCUMENTED (taken from control store 002362B,
+ *   not evidence; open in nd-lang docs/BUGS.md P7). The STO bit is always set or
+ *   reset (6.5.3.1); the trap is taken only when enabled, otherwise the stack is
+ *   still built (6.1: a disabled ignorable trap has no effect on execution).
  *
  * Trap conditions:
  *   - Addressing traps
@@ -86,8 +91,17 @@ void nd500_instr_Init(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     }
 
 
-    /* Stack overflow, as the control store does it (CONT-STORE-10611, INIT body
-     * 012604B-012614B, which calls the check at 002362B with JSR from 012606B):
+    /* Stack overflow. What ND-05.009.4 says: 13.9 INIT "A value of <stack demand of
+     * main program> greater than or equal to <total system stack demand> will cause a
+     * stack overflow trap condition" (6.5.3.1 says "greater than"); 6.5.3.1 "The STO
+     * status bit is set/reset for each ... INIT ..."; STO is Ignorable (Table 10) and
+     * 6.1 "Ignorable trap conditions ... may be disabled and will have no effect on
+     * program execution".
+     * NOT DOCUMENTED (open, nd-lang docs/BUGS.md P7): comparing the two 32-bit SUMS
+     * instead of the demands (differs only when a sum passes 2**32), and that with
+     * STO enabled nothing is written. Both were taken from the control store
+     * CONT-STORE-10611 (INIT body 012604B-012614B, which calls the check at 002362B
+     * with JSR from 012606B), which is not evidence:
      *   012605B  AM#32 := bottom + stack demand main    (32-bit, wraps)
      *   012606B  AL#30 := bottom + total stack demand   (32-bit, wraps)
      *   002362B  AM#32 - AL#30, condition = carry        (carry: AM#32 >= AL#30, unsigned)
