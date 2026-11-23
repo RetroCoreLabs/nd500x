@@ -473,6 +473,22 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_write_memory_32(cpu, trap_frame_base + 80, cpu->E[2]);
     nd500_write_memory_32(cpu, trap_frame_base + 84, cpu->E[3]);
 
+    /* ========================================================================
+     * Step 9: Clear the specific trap status bit before handler execution.
+     * Done BEFORE ST1/ST2 go into the register block: ND-05.009.4 6.1 "The
+     * same bit is reset when a trap handler routine is invoked", 6.4 "Before
+     * the trap handler is entered, the status bit causing the trap is
+     * cleared", and 6.4 "Setting a trap bit will cause a new trap immediately
+     * on return" - a saved block that still held the bit would trap again at
+     * RETT. Test: test_entt_frame_fault (saved ST1 check).
+     * ======================================================================== */
+    uint64_t trapBit = 1ULL << cpu->trap_number;
+    if (cpu->trap_number < 32) {
+        cpu->ST1 &= ~(uint32_t)(trapBit & 0xFFFFFFFF);
+    } else {
+        cpu->ST2 &= ~(uint32_t)(trapBit >> 32);
+    }
+
     /* arg18-19 (B+88..B+92): ST1, ST2 */
     nd500_write_memory_32(cpu, trap_frame_base + 88, cpu->ST1);
     nd500_write_memory_32(cpu, trap_frame_base + 92, cpu->ST2);
@@ -535,15 +551,8 @@ void nd500_instr_Entt(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Note: LL and HL are NOT modified by ENTT - the pre-trap values are saved
      * in the register block but the current LL/HL remain unchanged */
 
-    /* ========================================================================
-     * Step 9: Clear the specific trap status bit before handler execution
-     * ======================================================================== */
-    uint64_t trapBit = 1ULL << cpu->trap_number;
-    if (cpu->trap_number < 32) {
-        cpu->ST1 &= ~(uint32_t)(trapBit & 0xFFFFFFFF);
-    } else {
-        cpu->ST2 &= ~(uint32_t)(trapBit >> 32);
-    }
+    /* Step 9 (clear the causing trap bit) is done above, before ST1/ST2 are
+     * stored in the register block. */
 
     /* ========================================================================
      * Step 4: Copy 10 words of program memory for diagnostics (arg41-50)

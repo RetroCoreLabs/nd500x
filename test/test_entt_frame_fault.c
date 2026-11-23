@@ -149,6 +149,20 @@ int main(void)
     CHECK(!nd500_trap_occurred(), "resident frame: ENTT raises nothing");
     CHECK(cpu.B == THA_INSIDE + 256u, "resident frame: B is the trap frame base");
 
+    /* ND-05.009.4 6.1: the trap bit "is reset when a trap handler routine is
+     * invoked"; 6.4: "Before the trap handler is entered, the status bit causing
+     * the trap is cleared". So the ST1 that ENTT stores in the register block
+     * (arg18, B+88) already has that bit cleared - otherwise RETT would load it
+     * back and trap again at once ("Setting a trap bit will cause a new trap
+     * immediately on return", 6.4). The other bits stay as they were. */
+    arm_entt(&m, &cpu, THA_INSIDE);
+    cpu.ST1 = (1u << 27) | 0x5u;
+    nd500_instr_Entt(&cpu, &entt);
+    uint32_t st1_pa = nd500_mmu_peek_space(&cpu, THA_INSIDE + 256u + 88u, (uint8_t)cpu.CED, 0);
+    uint32_t saved_st1 = (st1_pa == 0xFFFFFFFFu) ? 0xFFFFFFFFu : nd500_bus_read32(&m, st1_pa);
+    printf("  saved ST1 in the register block = 0x%08X (want 0x00000005)\n", saved_st1);
+    CHECK(saved_st1 == 0x5u, "saved ST1 has the causing trap bit cleared, other bits kept");
+
     /* --- The fault: the frame crosses into a page that does not translate. --- */
     arm_entt(&m, &cpu, THA_STRADDLE);
     nd500_instr_Entt(&cpu, &entt);
