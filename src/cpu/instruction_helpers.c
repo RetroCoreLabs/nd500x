@@ -1463,6 +1463,11 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
                 return raw_val;
 
             case ND500_DTYPE_WORD:
+                /* Table 13, type W with a :D constant is IOS. */
+                if (op->data_len == 8) {
+                    trap_illegal_operand(cpu, cpu->cur_instr_pc);
+                    return 0;
+                }
                 /* W operations: SX for byte and halfword constants */
                 if (op->data_len == 1) {
                     /* Sign-extend byte to word */
@@ -1475,6 +1480,11 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
                 return raw_val;  /* NC for word constant */
 
             case ND500_DTYPE_HALFWORD:
+                /* Table 13, type H with a :W, :F or :D constant is IOS. */
+                if (op->data_len > 2) {
+                    trap_illegal_operand(cpu, cpu->cur_instr_pc);
+                    return 0;
+                }
                 /* H operations: SX for byte constants */
                 if (op->data_len == 1) {
                     /* Sign-extend byte to halfword */
@@ -1483,8 +1493,18 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
                 return raw_val;  /* NC for halfword constant */
 
             case ND500_DTYPE_BYTE:
+                /* Table 13, type BY with a :H, :W, :F or :D constant is IOS. */
+                if (op->data_len > 1) {
+                    trap_illegal_operand(cpu, cpu->cur_instr_pc);
+                    return 0;
+                }
                 /* BY operations: NC for byte constant */
                 return raw_val;
+
+            case ND500_DTYPE_BIT:
+                /* Table 13, type BI: every constant longer than :S is IOS. */
+                trap_illegal_operand(cpu, cpu->cur_instr_pc);
+                return 0;
 
             default:
                 return raw_val;
@@ -1975,7 +1995,12 @@ static uint64_t nd500_read_value_at_address(Nd500Cpu* cpu, uint32_t addr, Nd500D
             return nd500_read_memory_8(cpu, addr);
         case ND500_DTYPE_HALFWORD:
             return nd500_read_memory_16(cpu, addr);
+        /* F is a 32-bit element (ND-05.009.4 F SMOVE 0FD6AH "float string
+         * move", F SMOVN 0FD7AH). F was missing here, so every F string read
+         * returned 0 and F SMOVE/SMOVN wrote zeros over the destination. The
+         * write path below already stores F as 32 bits. */
         case ND500_DTYPE_WORD:
+        case ND500_DTYPE_FLOAT:
             return nd500_read_memory_32(cpu, addr);
         case ND500_DTYPE_DOUBLEWORD:
             return nd500_read_memory_64(cpu, addr);
@@ -2130,6 +2155,40 @@ void nd500_string_clear_unused_flags(Nd500Cpu* cpu) {
     nd500_clear_flag(cpu, ND500_FLAG_S);
     nd500_clear_flag(cpu, ND500_FLAG_C);
     nd500_clear_flag(cpu, ND500_FLAG_O);
+}
+
+/**
+ * ND-05.009.4 14.1 ADDRESSING OUTSIDE STRINGS, for an instruction with a source
+ * string (pointer I1) and a destination string (pointer I2).
+ *
+ * "If the pointer register points outside the string when the instruction starts
+ * execution, a descriptor range trap condition arises ... Addressing a string of
+ * length zero will always be outside the string." "If any string operand is
+ * addressed outside its legal range, no string elements will be examined, moved,
+ * or compared. The I1 and I2 registers are then unmodified ... If a <source>
+ * operand or both <source> and <dest> are addressed outside the strings, the
+ * instruction will terminate with K=0. Addressing outside the <dest> string, but
+ * within the <source> string, will cause termination with K=1."
+ * Z=0 for both rows in every instruction page that lists them (14.2 - 14.7);
+ * S, C, O are zero (14.1 DATA STATUS BITS).
+ *
+ * Returns true when the instruction must stop here (the trap condition is raised).
+ */
+bool nd500_string_outside_check(Nd500Cpu* cpu, uint32_t pc,
+                                uint32_t src_index, uint32_t src_count,
+                                uint32_t dest_index, uint32_t dest_count) {
+    if (src_index < src_count && dest_index < dest_count) {
+        return false;
+    }
+    nd500_clear_flag(cpu, ND500_FLAG_Z);
+    if (src_index >= src_count) {
+        nd500_clear_flag(cpu, ND500_FLAG_K);
+    } else {
+        nd500_set_flag(cpu, ND500_FLAG_K);
+    }
+    nd500_string_clear_unused_flags(cpu);
+    trap_descriptor_range(cpu, pc);
+    return true;
 }
 
 /* ============================================================================

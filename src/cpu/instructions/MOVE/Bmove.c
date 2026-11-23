@@ -63,6 +63,9 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         case ND500_DTYPE_BYTE:      element_size = 1; break;
         case ND500_DTYPE_HALFWORD:  element_size = 2; break;
         case ND500_DTYPE_WORD:      element_size = 4; break;
+        /* ND-05.009.4 BMOVE table: F BMOVE 0FE7AH "float block move". F was
+         * missing, so F BMOVE printed "Invalid data type 4" and moved nothing. */
+        case ND500_DTYPE_FLOAT:     element_size = 4; break;
         case ND500_DTYPE_DOUBLEWORD: element_size = 8; break;
         default:
             printf("[ERROR] BMOVE: Invalid data type %u at PC=0x%08X\n",
@@ -129,6 +132,7 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                     value = nd500_read_memory_16(cpu, src_addr);
                     break;
                 case ND500_DTYPE_WORD:
+                case ND500_DTYPE_FLOAT:
                     value = nd500_read_memory_32(cpu, src_addr);
                     break;
                 case ND500_DTYPE_DOUBLEWORD:
@@ -170,6 +174,7 @@ void nd500_instr_Bmove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                 nd500_write_memory_16(cpu, dst_addr, (uint16_t)value);
                 break;
             case ND500_DTYPE_WORD:
+            case ND500_DTYPE_FLOAT:
                 nd500_write_memory_32(cpu, dst_addr, (uint32_t)value);
                 break;
             case ND500_DTYPE_DOUBLEWORD:

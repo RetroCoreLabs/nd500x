@@ -73,6 +73,13 @@ void nd500_instr_Smove(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t src_index = cpu->I[0];   /* I1 */
     uint32_t dest_index = cpu->I[1];  /* I2 */
 
+    /* ND-05.009.4 14.1 ADDRESSING OUTSIDE STRINGS; terminating conditions of 14.2:
+     * outside source K=0, outside dest K=1, I1/I2 unmodified, DR trap condition. */
+    if (nd500_string_outside_check(cpu, fi->address, src_index, source_desc.element_count,
+                                   dest_index, dest_desc.element_count)) {
+        return;
+    }
+
     /* Move elements using proper data type handling */
     while (src_index < source_desc.element_count && dest_index < dest_desc.element_count) {
         /* Read from source */

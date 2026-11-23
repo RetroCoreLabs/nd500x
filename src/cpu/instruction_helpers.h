@@ -1006,6 +1006,15 @@ uint32_t nd500_get_element_size(Nd500DataType dtype);
  */
 void nd500_string_clear_unused_flags(Nd500Cpu* cpu);
 
+/**
+ * ND-05.009.4 14.1 ADDRESSING OUTSIDE STRINGS for a source (I1) and destination
+ * (I2) string: outside source K=0, outside dest K=1, Z=0, I1/I2 unmodified, DR
+ * trap condition. Returns true when the instruction must stop.
+ */
+bool nd500_string_outside_check(Nd500Cpu* cpu, uint32_t pc,
+                                uint32_t src_index, uint32_t src_count,
+                                uint32_t dest_index, uint32_t dest_count);
+
 /* ============================================================================
  * FLOATING-POINT CONVERSION (ND-500 <-> IEEE 754 <-> Integer)
  * ============================================================================

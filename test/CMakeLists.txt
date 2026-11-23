@@ -221,6 +221,24 @@ add_executable(test_mon_calls
 target_link_libraries(test_mon_calls PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib mon)
 
 # BMOVE overlap tests
+# Table 13 integer rows: a constant wider than the operand type is IOS (ND-05.009.4)
+add_executable(test_table13_integer
+    test_table13_integer.c
+)
+target_link_libraries(test_table13_integer PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
+# F (32-bit) elements in SMOVE, SMOVN and BMOVE (ND-05.009.4)
+add_executable(test_string_float
+    test_string_float.c
+)
+target_link_libraries(test_string_float PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
+# 14.1 addressing outside strings in the string move instructions (ND-05.009.4)
+add_executable(test_string_outside
+    test_string_outside.c
+)
+target_link_libraries(test_string_outside PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # Tests BMOVE instruction with overlapping memory regions
 # Verifies fix for bug where forward copy corrupted overlapping destination > source
 add_executable(test_bmove_overlap
@@ -514,6 +532,9 @@ add_test(NAME tape COMMAND test_tape)
 add_test(NAME riom COMMAND test_riom)
 add_test(NAME mon_calls COMMAND test_mon_calls)
 add_test(NAME bmove_overlap COMMAND test_bmove_overlap)
+add_test(NAME string_float COMMAND test_string_float)
+add_test(NAME string_outside COMMAND test_string_outside)
+add_test(NAME table13_integer COMMAND test_table13_integer)
 add_test(NAME float_swap COMMAND test_float_swap)
 add_test(NAME alt_prefix COMMAND test_alt_prefix)
 add_test(NAME page_straddle COMMAND test_page_straddle)
