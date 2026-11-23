@@ -590,7 +590,7 @@ static DAPVariable* dap_add_variable(DAPServer* server, const char* name,
 
 /* The type text of planc -g (new-planc docs/debug-types.md, written by its src/fe/lower.c
  * dbg_type_put and carried unchanged by ndlink -m into the LOCAL and GLOBAL lines):
- *   TYPE := BASE [ "(" LO ":" HI ")" [ "+1" ] ]
+ *   TYPE := BASE { "(" LO ":" HI ")" } [ "+1" ]
  *   BASE := "byte" | "word" | N " bytes" | "real " N | "{" SIZE ";" COMP { "," COMP } "}"
  *           | "bits(" F ":" W ")"
  *   COMP := NAME "@" OFF ":" TYPE
@@ -599,19 +599,26 @@ static DAPVariable* dap_add_variable(DAPServer* server, const char* name,
  * (ND-05.009.4 7.2.5), shown by nd500_fx_text. An empty text is one 32-bit value (a name with
  * no type). Sizes and offsets are in bytes. An array's element k lies (k - LO) * (bytes of the
  * element) behind the address, one byte later with "+1"; a component OFF bytes behind the start
- * of its record. */
+ * of its record. An array of more than one dimension has one group per dimension, the last group
+ * the first dimension: "4 bytes(0:2)(1:2)" is g(1:2,0:2), its element g(i) the row
+ * "4 bytes(0:2)", rows one behind the other (new-planc src/fe/lower.c dbg_array_put). */
 enum { MAP_TY_SIMPLE = 1, MAP_TY_RECORD = 2, MAP_TY_OTHER = 3, MAP_TY_REAL = 4 };
 
 typedef struct {
     int kind;             /* MAP_TY_SIMPLE, MAP_TY_RECORD, MAP_TY_REAL, MAP_TY_OTHER (no reader) */
-    uint32_t size;        /* bytes of BASE: 1, 2, N, 4 or 8 for a REAL, or the SIZE of a record */
+    uint32_t size;        /* bytes of BASE: 1, 2, N, 4 or 8 for a REAL, or the SIZE of a record;
+                             for an array the bytes of one element (a row when it has more
+                             than one dimension) */
     const char* comps;    /* a record: its first COMP */
-    const char* base_end; /* first character behind BASE */
+    const char* text_end; /* first character behind the text of this type (the groups taken
+                             off by `strip` are not part of it) */
     const char* end;      /* first character behind the whole TYPE */
     int is_array;
     long lo, hi;
     int plus1;
 } MapTy;
+
+#define MAP_DIMS_MAX 16
 
 /* The first character behind the TYPE that starts at t: its end, a ',' or the '}' of the
  * record it is a component of. */
@@ -625,15 +632,16 @@ static const char* map_ty_end(const char* t) {
     return t;
 }
 
-static void map_ty_parse(const char* t, MapTy* m) {
+/* The type text t without its last `strip` dimension groups: strip 0 the whole data-element,
+ * 1 one element of it, 2 one element of that, ... (MapHandle.elem). */
+static void map_ty_parse_strip(const char* t, int strip, MapTy* m) {
     char* e = NULL;
     memset(m, 0, sizeof(*m));
     m->end = map_ty_end(t);
     m->kind = MAP_TY_OTHER;
-    m->base_end = m->end;
+    m->text_end = m->end;
     if (t == m->end) {
-        m->kind = MAP_TY_SIMPLE;
-        m->size = 4;
+        if (strip == 0) { m->kind = MAP_TY_SIMPLE; m->size = 4; }
         return;
     }
     const char* p = t;
@@ -665,17 +673,41 @@ static void map_ty_parse(const char* t, MapTy* m) {
     } else {
         return; /* bits(F:W), desc, ptr, ref: not read here */
     }
-    m->base_end = p;
-    if (p == m->end) return;
-    if (*p != '(') { m->kind = MAP_TY_OTHER; return; }
-    m->lo = strtol(p + 1, &e, 10);
-    if (!e || *e != ':') { m->kind = MAP_TY_OTHER; return; }
-    m->hi = strtol(e + 1, &e, 10);
-    if (!e || *e != ')' || m->hi < m->lo) { m->kind = MAP_TY_OTHER; return; }
-    p = e + 1;
-    if (strncmp(p, "+1", 2) == 0) { m->plus1 = 1; p += 2; }
-    if (p != m->end) { m->kind = MAP_TY_OTHER; return; }
+    /* the dimension groups, the innermost (last dimension) first */
+    long lo[MAP_DIMS_MAX], hi[MAP_DIMS_MAX];
+    const char* at[MAP_DIMS_MAX];
+    int g = 0;
+    while (*p == '(') {
+        if (g == MAP_DIMS_MAX) { m->kind = MAP_TY_OTHER; return; }
+        at[g] = p;
+        lo[g] = strtol(p + 1, &e, 10);
+        if (!e || *e != ':') { m->kind = MAP_TY_OTHER; return; }
+        hi[g] = strtol(e + 1, &e, 10);
+        if (!e || *e != ')' || hi[g] < lo[g]) { m->kind = MAP_TY_OTHER; return; }
+        p = e + 1;
+        g++;
+    }
+    int plus1 = 0;
+    if (g > 0 && strncmp(p, "+1", 2) == 0) { plus1 = 1; p += 2; }
+    if (p != m->end || strip > g) { m->kind = MAP_TY_OTHER; return; }
+    int dims = g - strip;
+    if (strip > 0) m->text_end = at[dims];
+    if (dims == 0) return;
+    /* an array: its bounds are those of its last group, its element the groups before it */
+    uint64_t esize = m->size;
+    for (int k = 0; k + 1 < dims; k++) {
+        esize *= (uint64_t)(hi[k] - lo[k] + 1);
+        if (esize > 0xFFFFFFFFu) { m->kind = MAP_TY_OTHER; return; }
+    }
+    m->size = (uint32_t)esize;
+    m->lo = lo[dims - 1];
+    m->hi = hi[dims - 1];
+    m->plus1 = strip == 0 ? plus1 : 0;
     m->is_array = 1;
+}
+
+static void map_ty_parse(const char* t, MapTy* m) {
+    map_ty_parse_strip(t, 0, m);
 }
 
 /* A variables reference that opens a value of the source map: the type text (inside the map's
@@ -685,7 +717,9 @@ static void map_ty_parse(const char* t, MapTy* m) {
 typedef struct {
     const char* type;
     uint32_t addr;
-    int elem;  /* 1: the element of the array `type` (its BASE only) */
+    int elem;  /* the number of dimension groups taken off the end of `type`: 0 the value
+                  itself, 1 an element of the array `type`, 2 an element of that, ...
+                  (map_ty_parse_strip) */
     int func;  /* >= 0: the Locals of that routine of the map, at B = addr */
     int desc;  /* 1: an array parameter: `type` is its element, addr the address of element lo,
                   the bounds lo:hi read from its descriptor (map_add_typed) */
@@ -775,8 +809,8 @@ static void map_real_text(uint32_t addr, uint32_t size, char* out, size_t cap) {
     }
 }
 
-/* One variable NAME of type text t at address addr. elem: show only the element of the
- * array t (its BASE). */
+/* One variable NAME of type text t at address addr. elem: the number of dimension groups taken
+ * off the end of t (map_ty_parse_strip): 0 the data-element, 1 one element of the array t, ... */
 static void map_add_typed(DAPServer* server, const char* name, const char* t, uint32_t addr, int elem) {
     MapTy m;
     char val[96], ty[256];
@@ -822,9 +856,8 @@ static void map_add_typed(DAPServer* server, const char* name, const char* t, ui
         }
         return;
     }
-    map_ty_parse(t, &m);
-    if (elem) m.is_array = 0;
-    const char* tend = elem ? m.base_end : m.end;
+    map_ty_parse_strip(t, elem, &m);
+    const char* tend = m.text_end;
     snprintf(ty, sizeof ty, "%.*s", (int)(tend - t), t);
     if (m.kind == MAP_TY_OTHER) {
         char at[24];
@@ -838,7 +871,7 @@ static void map_add_typed(DAPServer* server, const char* name, const char* t, ui
         snprintf(val, sizeof val, "array (%ld:%ld) @%s", m.lo, m.hi, addr_text(addr, at, sizeof at));
         DAPVariable* v = dap_add_variable(server, name, val, ty);
         if (v) {
-            v->variables_reference = map_handle(t, addr, 0, -1);
+            v->variables_reference = map_handle(t, addr, elem, -1);
             v->indexed_variables = (int)(m.hi - m.lo + 1);
             v->memory_reference = (int)addr;
         }
@@ -877,7 +910,7 @@ static void map_add_typed(DAPServer* server, const char* name, const char* t, ui
 static void map_add_children(DAPServer* server, const MapHandle* h) {
     MapTy m;
     char nm[96];
-    map_ty_parse(h->type, &m);
+    map_ty_parse_strip(h->type, h->desc ? 0 : h->elem, &m);
     if (h->desc) {
         /* the elements of an array parameter: h->type is the element, h->addr element lo */
         for (long i = h->lo; i <= h->hi && i - h->lo < 4096; i++) {
@@ -886,13 +919,13 @@ static void map_add_children(DAPServer* server, const MapHandle* h) {
         }
         return;
     }
-    if (m.is_array && !h->elem) {
+    if (m.is_array) {
         uint32_t esize = m.size;
         uint32_t first = h->addr + (m.plus1 ? 1u : 0u);
         if (esize == 0) return;
         for (long i = m.lo; i <= m.hi && i - m.lo < 4096; i++) {
             snprintf(nm, sizeof nm, "[%ld]", i);
-            map_add_typed(server, nm, h->type, first + (uint32_t)(i - m.lo) * esize, 1);
+            map_add_typed(server, nm, h->type, first + (uint32_t)(i - m.lo) * esize, h->elem + 1);
         }
         return;
     }
