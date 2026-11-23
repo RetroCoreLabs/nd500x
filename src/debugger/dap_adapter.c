@@ -2181,6 +2181,13 @@ DAP_CMD_LOCKED(cmd_disassemble) {
 
     uint32_t addr = ctx->memory_reference + (uint32_t)ctx->offset;
 
+    /* the operand numbers in the session's radix; the addresses stay 0x.. (DAP memory
+     * references); back to the monitor's radix at the end */
+    {
+        dbg_radix r = radix_now();
+        nd500_disasm_set_radix(r == DBG_RADIX_DECIMAL ? 0 : r == DBG_RADIX_HEX ? 1 : 2);
+    }
+
     /* instruction_offset: negative values would require backwards
      * disassembly which is ambiguous on a variable-length ISA; skip
      * forward for positive offsets only. */
@@ -2207,6 +2214,7 @@ DAP_CMD_LOCKED(cmd_disassemble) {
         count++;
         addr += len;
     }
+    nd500_disasm_set_radix(-1);
     ctx->actual_instruction_count = count;
     return 0;
 }

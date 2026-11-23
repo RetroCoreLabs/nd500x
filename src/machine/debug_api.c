@@ -39,7 +39,7 @@ size_t nd500_dbg_mem_dump(Nd500Machine* m, uint32_t addr, uint32_t len, uint8_t*
 
 static int g_show_ea = -1;       /* -1: uninitialized, 0: off, 1: on */
 static int g_show_hex = -1;      /* -1: uninitialized (default on), 0: off, 1: on */
-static int g_radix = 0;          /* 0=decimal, 1=hex, 2=octal */
+static int g_radix = 2;          /* typed numbers: 0=decimal, 1=hex, 2=octal (the default, as the ND-500 monitor reads them) */
 static int g_show_radix = 2;     /* printed numbers: octal by default (nd500_dbg_get_show_radix) */
 static int g_demangle = -1;      /* demangle C-style symbols (strip leading _) */
 static int g_trace_mode = -1;   /* instruction trace mode */

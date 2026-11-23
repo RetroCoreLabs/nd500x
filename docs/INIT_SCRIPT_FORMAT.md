@@ -180,9 +180,10 @@ Valid register names: `PC`, `B`, `TOS`, `L`, `R`, `ST1`, `ST2`, `I1`-`I4`, `A1`-
 Version: 1.0
 Syntax: Line-based, case-insensitive keywords, hex/decimal numbers
 
-Numbers:
-- Hex: `0x` prefix (e.g., `0xE8001000`)
-- Decimal: no prefix (e.g., `16777216`)
+Numbers (the lines are monitor commands, read by nd500_cmd_parse_number):
+- Hex: `0x` prefix (e.g., `0xE8001000`) or an H suffix (`0E8001000H`)
+- Octal: a B suffix (`17B`), or no prefix in the octal radix, which is the default
+- Decimal: a D suffix (`16777216D`) or `$` prefix; no prefix only after `set radix decimal`
 - Suffixes: `K`=1024, `M`=1048576, `G`=1073741824 (e.g., `16M`)
 
 Comments: `#` to end of line

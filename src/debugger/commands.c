@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <time.h>
 
@@ -297,36 +298,68 @@ static void dom_log_callback(void* ctx, const char* fmt, ...) {
     cmd_ctx->output(buf, cmd_ctx->context);
 }
 
-/* Parse uint32 from string with radix-aware parsing and override prefixes:
- *   $10   = decimal 10 (always)
- *   0x10  = hex 16 (always)
- *   010   = octal 8 (always, leading zero followed by digit)
- *   10    = depends on current radix setting
- */
+/* Read one whole number typed into the monitor.
+ *
+ * A bare number is read in the current radix (nd500_dbg_get_radix: octal by default, as the
+ * ND-500 monitor reads numeric parameters). An explicit form always wins over the radix:
+ *   17B    octal      a trailing B, D or H gives the base - ND-60.136.04A ND-500 Loader
+ *   15D    decimal    Monitor: "Numeric parameters are specified in octal, unless the number
+ *   0FH    hex        is followed by a D, indicating decimal format, or H, indicating
+ *                     hexadecimal format"; a hex number must start with a digit
+ *   0x0F   hex        the C form (earlier nd500x docs, init scripts)
+ *   $15    decimal    the earlier nd500x decimal form (docs/DEBUGGER_COMMAND_REFERENCE.md)
+ *   017    octal      a leading zero, in the decimal radix only (C form; in the octal radix it
+ *                     is octal anyway, in the hex radix 017 is hex as the manual's "redundant
+ *                     leading zero" says)
+ * The suffix is read first, so in the hex radix 1B is octal 1 and 1D is decimal 1, as in the
+ * real monitor; type 1BH or 0x1B for the hex number. A leading '-' gives the two's complement.
+ * Returns 0 and the value, or -1 when the text is not a number in its base. */
+int nd500_cmd_parse_number(const char* s, uint32_t* out) {
+    if (!s || !*s) return -1;
+    char body[64];
+    int neg = 0;
+    if (*s == '-') { neg = 1; s++; }
+    size_t n = strlen(s);
+    if (n == 0 || n >= sizeof body) return -1;
+    int base = nd500_dbg_get_radix_base();
+    memcpy(body, s, n + 1);
+    char* digits = body;
+    char last = (char)toupper((unsigned char)body[n - 1]);
+    if (body[0] == '$') {
+        base = 10;
+        digits = body + 1;
+    } else if (n > 2 && body[0] == '0' && (body[1] == 'x' || body[1] == 'X')) {
+        base = 16;
+        digits = body + 2;
+    } else if (n > 1 && isdigit((unsigned char)body[0]) && (last == 'B' || last == 'D' || last == 'H')) {
+        base = last == 'B' ? 8 : last == 'D' ? 10 : 16;
+        body[n - 1] = '\0';
+    } else if (base == 10 && n > 1 && body[0] == '0') {
+        base = 8;
+    }
+    if (!*digits || !isxdigit((unsigned char)digits[0])) return -1;
+    char* end = NULL;
+    errno = 0;
+    unsigned long long v = strtoull(digits, &end, base);
+    if (!end || *end != '\0' || errno != 0 || v > 0xFFFFFFFFull) return -1;
+    uint32_t r = (uint32_t)v;
+    *out = neg ? (uint32_t)(0u - r) : r;
+    return 0;
+}
+
+/* A number typed into the monitor (nd500_cmd_parse_number), or default_value when there is
+ * none. Text that is not a number in its base is said on stderr ("not a number") and gives
+ * default_value, so 19 in the octal radix is never read as 1. */
 uint32_t nd500_cmd_parse_u32(const char* s, uint32_t defv) {
     if (!s || !*s) return defv;
-    char* end = NULL;
-    unsigned long v = 0;
-
-    /* Override prefix: $ = decimal */
-    if (s[0] == '$') {
-        v = strtoul(s + 1, &end, 10);
-        return (uint32_t)v;
+    uint32_t v = 0;
+    if (nd500_cmd_parse_number(s, &v) != 0) {
+        int r = nd500_dbg_get_radix();
+        fprintf(stderr, "not a number in the %s radix: %s (forms: 17B octal, 15D decimal, 0FH hex)\n",
+                r == 1 ? "hex" : r == 2 ? "octal" : "decimal", s);
+        return defv;
     }
-    /* Override prefix: 0x = hex */
-    if (strncasecmp(s, "0x", 2) == 0) {
-        v = strtoul(s + 2, &end, 16);
-        return (uint32_t)v;
-    }
-    /* Override prefix: leading 0 followed by digit = octal */
-    if (s[0] == '0' && s[1] >= '0' && s[1] <= '7') {
-        v = strtoul(s, &end, 8);
-        return (uint32_t)v;
-    }
-    /* No override prefix: use current radix */
-    int base = nd500_dbg_get_radix_base();
-    v = strtoul(s, &end, base);
-    return (uint32_t)v;
+    return v;
 }
 
 /* Get command list for autocomplete */
@@ -406,6 +439,16 @@ int nd500_cmd_execute(Nd500Machine* m, const char* cmdline, CmdContext* ctx) {
 /* The radix numbers are printed in (nd500_dbg_get_show_radix: octal by default) */
 static void show_num(char* out, size_t cap, uint32_t v) {
     nd500_num_text(out, cap, v, 32, false, nd500_dbg_get_show_radix());
+}
+
+/* A 32-bit number in the print radix, for a printf argument list: eight rotating buffers, so
+ * up to eight in one call */
+static const char* rx(uint32_t v) {
+    static char bufs[8][24];
+    static unsigned at = 0;
+    char* b = bufs[at++ & 7u];
+    show_num(b, sizeof bufs[0], v);
+    return b;
 }
 
 /* One row of "regs": the name, the value in the radix, the description */
@@ -1369,9 +1412,10 @@ static int cmd_loaddom(Nd500Machine* m, CmdContext* ctx, char* args) {
             filepath = tok;
         } else {
             /* Subsequent numeric arguments: domain, then autostart */
-            char* endptr;
-            long val = strtol(tok, &endptr, 0);
-            if (*endptr == '\0') {
+            /* a number typed into the monitor: in the radix, or 12D / 14B / 0CH */
+            uint32_t uval = 0;
+            if (nd500_cmd_parse_number(tok, &uval) == 0) {
+                long val = (long)(int32_t)uval;
                 if (target_domain < 0 && val >= 0 && val <= 255) {
                     target_domain = (int)val;
                 } else if (val <= 1) {
@@ -1865,13 +1909,13 @@ static int cmd_msym(Nd500Machine* m, CmdContext* ctx, char* args) {
     }
 
     uint32_t len = nd500_cmd_parse_u32(len_str, 100);
-    output(ctx, "Memory dump at %s (0x%08X):", symbol_name, absolute_addr);
+    output(ctx, "Memory dump at %s (%s):", symbol_name, rx(absolute_addr));
 
-    /* Reuse cmd_mem logic */
+    /* Reuse cmd_mem logic; both numbers in an explicit form, as the radix may be any */
     char addr_buf[32];
     snprintf(addr_buf, sizeof(addr_buf), "0x%X", absolute_addr);
     char len_buf[32];
-    snprintf(len_buf, sizeof(len_buf), "%u", len);
+    snprintf(len_buf, sizeof(len_buf), "%uD", len);
     char combined_args[128];
     snprintf(combined_args, sizeof(combined_args), "%s %s", addr_buf, len_buf);
     return cmd_mem(m, ctx, combined_args);
@@ -1904,13 +1948,13 @@ static int cmd_dsym(Nd500Machine* m, CmdContext* ctx, char* args) {
     }
 
     uint32_t len = nd500_cmd_parse_u32(len_str, 100);
-    output(ctx, "Disassembly at %s (0x%08X):", symbol_name, absolute_addr);
+    output(ctx, "Disassembly at %s (%s):", symbol_name, rx(absolute_addr));
 
-    /* Reuse cmd_dis logic */
+    /* Reuse cmd_dis logic; both numbers in an explicit form, as the radix may be any */
     char addr_buf[32];
     snprintf(addr_buf, sizeof(addr_buf), "0x%X", absolute_addr);
     char len_buf[32];
-    snprintf(len_buf, sizeof(len_buf), "%u", len);
+    snprintf(len_buf, sizeof(len_buf), "%uD", len);
     char combined_args[128];
     snprintf(combined_args, sizeof(combined_args), "%s %s", addr_buf, len_buf);
     return cmd_dis(m, ctx, combined_args);
@@ -2128,7 +2172,8 @@ static int cmd_bp(Nd500Machine* m, CmdContext* ctx, char* args) {
         }
 
         const char* filename = a2;
-        int line = (int)nd500_cmd_parse_u32(a3, 0);
+        /* a source line number is decimal in every radix, as the editor shows it */
+        int line = (int)strtol(a3, NULL, 10);
 
         /* Look up address for this source location */
         uint32_t addr = 0;
@@ -2140,7 +2185,7 @@ static int cmd_bp(Nd500Machine* m, CmdContext* ctx, char* args) {
         /* Set breakpoint at the found address */
         int bp_id = bp_add(m->bp_mgr, addr, false);
         if (bp_id >= 0) {
-            output(ctx, "breakpoint %d set at %s:%d (address 0x%08X)", bp_id, filename, line, addr);
+            output(ctx, "breakpoint %d set at %s:%d (address %s)", bp_id, filename, line, rx(addr));
         }
     } else {
         uint32_t addr = nd500_cmd_parse_u32(a1, m->cpu ? m->cpu->PC : 0);
@@ -2551,11 +2596,11 @@ static int cmd_showmmu(Nd500Machine* m, CmdContext* ctx, char* args) {
     output(ctx, "Data MMU (DMON/DMOF):    %s", data_enabled ? "enabled" : "disabled");
     output(ctx, "");
     output(ctx, "MMU Registers:");
-    output(ctx, "  PSTP    = 0x%08X  (Physical Segment Table Pointer)", m->cpu->PSTP);
-    output(ctx, "  DITBASE = 0x%08X  (Domain Information Table Base)", m->cpu->DITBASE);
-    output(ctx, "  CED     = 0x%08X  (Current Executing Domain)", m->cpu->CED);
-    output(ctx, "  CAD     = 0x%08X  (Current Alternative Domain)", m->cpu->CAD);
-    output(ctx, "  PS      = 0x%08X  (Process Segment)", m->cpu->PS);
+    output(ctx, "  PSTP    = %-12s (Physical Segment Table Pointer)", rx(m->cpu->PSTP));
+    output(ctx, "  DITBASE = %-12s (Domain Information Table Base)", rx(m->cpu->DITBASE));
+    output(ctx, "  CED     = %-12s (Current Executing Domain)", rx(m->cpu->CED));
+    output(ctx, "  CAD     = %-12s (Current Alternative Domain)", rx(m->cpu->CAD));
+    output(ctx, "  PS      = %-12s (Process Segment)", rx(m->cpu->PS));
     output(ctx, "");
 
     /* Count configured PST entries */
@@ -2893,10 +2938,10 @@ static int cmd_map_kdata(Nd500Machine* m, CmdContext* ctx, char* args) {
 
     /* 0 reaches the library as "use the default", which is what the two
      * optional arguments have always meant. */
-    uint32_t phys_base = (uint32_t)strtoul(a1, NULL, 0);
-    uint32_t size      = (uint32_t)strtoul(a2, NULL, 0);
-    uint32_t psn       = a3 ? (uint32_t)strtoul(a3, NULL, 0) : 0u;
-    uint32_t pt_phys   = a4 ? (uint32_t)strtoul(a4, NULL, 0) : 0u;
+    uint32_t phys_base = nd500_cmd_parse_u32(a1, 0u);
+    uint32_t size      = nd500_cmd_parse_u32(a2, 0u);
+    uint32_t psn       = a3 ? nd500_cmd_parse_u32(a3, 0u) : 0u;
+    uint32_t pt_phys   = a4 ? nd500_cmd_parse_u32(a4, 0u) : 0u;
 
     ndix_log_bind(ctx);
     int rc = nd500_ndix_map_kdata(m, phys_base, size, psn, pt_phys);
@@ -2911,8 +2956,8 @@ static int cmd_ndix_uarea(Nd500Machine* m, CmdContext* ctx, char* args) {
      * nd500_ndix_uarea() (src/machine/nd500_ndix_boot.c). */
     char* a1 = args ? strtok(args, " \t\r\n") : NULL;
     char* a2 = strtok(NULL, " \t\r\n");
-    uint32_t pt_phys    = a1 ? (uint32_t)strtoul(a1, NULL, 0) : 0u;
-    uint32_t uarea_phys = a2 ? (uint32_t)strtoul(a2, NULL, 0) : 0u;
+    uint32_t pt_phys    = a1 ? nd500_cmd_parse_u32(a1, 0u) : 0u;
+    uint32_t uarea_phys = a2 ? nd500_cmd_parse_u32(a2, 0u) : 0u;
 
     ndix_log_bind(ctx);
     int rc = nd500_ndix_uarea(m, pt_phys, uarea_phys);
@@ -3548,24 +3593,12 @@ static int cmd_mon(Nd500Machine* m, CmdContext* ctx, char* args) {
         const MonRegistryEntry* entry = NULL;
         size_t len = strlen(arg_str);
 
-        /* Try parsing as number first */
-        if (len > 1 && (arg_str[len-1] == 'B' || arg_str[len-1] == 'b')) {
-            /* Octal format like "11B" */
-            char octal_buf[32];
-            strncpy(octal_buf, arg_str, len - 1);
-            octal_buf[len - 1] = '\0';
-            char* endptr;
-            uint32_t mon_num = (uint32_t)strtoul(octal_buf, &endptr, 8);
-            if (*endptr == '\0') {
-                entry = mon_get_entry(mon_num);
-            }
-        } else if (arg_str[0] >= '0' && arg_str[0] <= '9') {
-            /* Starts with digit - try decimal or hex */
-            char* endptr;
-            uint32_t mon_num = (uint32_t)strtoul(arg_str, &endptr, 0);
-            if (*endptr == '\0') {
-                entry = mon_get_entry(mon_num);
-            }
+        /* Try parsing as number first: 11B octal, 9D decimal, 0x9, or bare in the radix
+         * (nd500_cmd_parse_number) */
+        (void)len;
+        uint32_t mon_num = 0;
+        if (arg_str[0] >= '0' && arg_str[0] <= '9' && nd500_cmd_parse_number(arg_str, &mon_num) == 0) {
+            entry = mon_get_entry(mon_num);
         }
 
         /* If not found by number, try by name */
@@ -3803,9 +3836,9 @@ static int cmd_domain(Nd500Machine* m, CmdContext* ctx, char* args) {
 
     /* Check if argument is a number: domain <n> - show details */
     if (arg1) {
-        char* endptr;
-        unsigned long domain = strtoul(arg1, &endptr, 0);
-        if (*endptr == '\0' && domain <= 255) {
+        uint32_t dnum = 0;
+        unsigned long domain = nd500_cmd_parse_number(arg1, &dnum) == 0 ? dnum : 256ul;
+        if (domain <= 255) {
             if (!g_loaded_domains[domain].is_loaded) {
                 error(ctx, "domain %lu not loaded", domain);
                 return -1;
@@ -3981,19 +4014,19 @@ static int cmd_stackframe(Nd500Machine* m, CmdContext* ctx, char* args) {
     uint32_t aux = read_virtual_word(m, b + 12);
     uint32_t n = read_virtual_word(m, b + 16);
 
-    output(ctx, "Stack Frame at B=0x%08X:", b);
-    output(ctx, "  +0  PREVB = 0x%08X    (previous frame)", prevb);
-    output(ctx, "  +4  RETA  = 0x%08X    (return address)", reta);
-    output(ctx, "  +8  SP    = 0x%08X    (next free)", sp);
-    output(ctx, "  +12 AUX   = 0x%08X    (auxiliary)", aux);
-    output(ctx, "  +16 N     = 0x%08X    (arg count: %u)", n, n);
+    output(ctx, "Stack Frame at B=%s:", rx(b));
+    output(ctx, "  +%-4s PREVB = %-13s (previous frame)", rx(0), rx(prevb));
+    output(ctx, "  +%-4s RETA  = %-13s (return address)", rx(4), rx(reta));
+    output(ctx, "  +%-4s SP    = %-13s (next free)", rx(8), rx(sp));
+    output(ctx, "  +%-4s AUX   = %-13s (auxiliary)", rx(12), rx(aux));
+    output(ctx, "  +%-4s N     = %-13s (arg count: %s)", rx(16), rx(n), rx(n));
 
     /* Display arguments (limit to reasonable number) */
     uint32_t max_args = (n > 32) ? 32 : n;
     for (uint32_t i = 0; i < max_args; i++) {
         uint32_t arg_offset = 20 + (i * 4);
         uint32_t arg_val = read_virtual_word(m, b + arg_offset);
-        output(ctx, "  +%u ARG%u  = 0x%08X", arg_offset, i + 1, arg_val);
+        output(ctx, "  +%-4s ARG%u  = %s", rx(arg_offset), i + 1, rx(arg_val));
     }
     if (n > 32) {
         output(ctx, "  ... (%u more arguments)", n - 32);
@@ -4442,9 +4475,9 @@ static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args) {
     }
 
     output(ctx, "Domain %u Memory Map: %s", target_domain, g_loaded_domains[target_domain].domain_name);
-    output(ctx, "+-------------------+---------+--------------+--------------+----------+");
-    output(ctx, "| Virtual Range     | Segment | Index Mode   | Physical PFN | Size     |");
-    output(ctx, "+-------------------+---------+--------------+--------------+----------+");
+    output(ctx, "+---------------------------+---------+--------------+----------------+----------+");
+    output(ctx, "| Virtual Range             | Segment | Index Mode   | Physical PFN   | Size     |");
+    output(ctx, "+---------------------------+---------+--------------+----------------+----------+");
 
     uint32_t total_pages = 0;
     int segment_count = 0;
@@ -4469,18 +4502,18 @@ static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args) {
         if (pst.index_mode == 0) {
             index_mode = "AZI (Direct)";
             page_count = 1;
-            snprintf(pfn_str, sizeof(pfn_str), "%u", pst.physical_pfn);
+            snprintf(pfn_str, sizeof(pfn_str), "%s", rx(pst.physical_pfn));
             virtual_end = virtual_base + (page_count * 2048) - 1;
         } else if (pst.index_mode == 1) {
             index_mode = "ASI (Paged) ";
             /* Estimate page count - would need segment info for exact count */
             page_count = 50;  /* Approximate */
-            snprintf(pfn_str, sizeof(pfn_str), "%u+", pst.physical_pfn);
+            snprintf(pfn_str, sizeof(pfn_str), "%s+", rx(pst.physical_pfn));
             virtual_end = virtual_base + (page_count * 2048) - 1;
         } else if (pst.index_mode == 2) {
             index_mode = "ADI (2-level)";
             page_count = 100;  /* Approximate */
-            snprintf(pfn_str, sizeof(pfn_str), "%u+", pst.physical_pfn);
+            snprintf(pfn_str, sizeof(pfn_str), "%s+", rx(pst.physical_pfn));
             virtual_end = virtual_base + (page_count * 2048) - 1;
         }
 
@@ -4490,8 +4523,8 @@ static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args) {
         total_pages += page_count;
         segment_count++;
 
-        char virt_range[24];
-        snprintf(virt_range, sizeof(virt_range), "%08X-%08X", virtual_base, virtual_end);
+        char virt_range[32];
+        snprintf(virt_range, sizeof(virt_range), "%s-%s", rx(virtual_base), rx(virtual_end));
 
         char size_str[12];
         if (page_count * 2 >= 1024) {
@@ -4500,11 +4533,11 @@ static int cmd_memmap(Nd500Machine* m, CmdContext* ctx, char* args) {
             snprintf(size_str, sizeof(size_str), "%uKB", page_count * 2);
         }
 
-        output(ctx, "| %-17s | %7d | %-12s | %-12s | %-8s |",
+        output(ctx, "| %-25s | %7d | %-12s | %-14s | %-8s |",
                virt_range, seg, index_mode, pfn_str, size_str);
     }
 
-    output(ctx, "+-------------------+---------+--------------+--------------+----------+");
+    output(ctx, "+---------------------------+---------+--------------+----------------+----------+");
     output(ctx, "Total: ~%u KB (~%u pages) used by domain", total_pages * 2, total_pages);
 
     return 0;
@@ -4616,17 +4649,20 @@ static int cmd_file(Nd500Machine* m, CmdContext* ctx, char* args) {
 
     if (!args || !*args) {
         output(ctx, "Usage: file <file_number>");
-        output(ctx, "  file_number: 64-127 (octal 100-177)");
+        output(ctx, "  file_number: 100B-177B (64D-127D), read in the radix");
         return 0;
     }
 
-    /* Parse file number */
-    char* endp;
-    long fn = strtol(args, &endp, 0);
-    if (*endp != '\0' && !isspace(*endp)) {
+    /* Parse file number: in the radix (octal by default), or 100B / 64D / 40H */
+    char fn_text[64];
+    snprintf(fn_text, sizeof fn_text, "%s", args);
+    fn_text[strcspn(fn_text, " \t\r\n")] = '\0';
+    uint32_t fn_u = 0;
+    if (nd500_cmd_parse_number(fn_text, &fn_u) != 0) {
         error(ctx, "Invalid file number: %s", args);
         return -1;
     }
+    long fn = (long)fn_u;
 
     if (!mon_file_table_is_valid_file_number((int)fn)) {
         error(ctx, "File number must be 64-127 (got %ld)", fn);

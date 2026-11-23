@@ -43,33 +43,31 @@
 #include "../machine/machine_protos.h"
 #include "../ndlib/ndlib.h"
 
-/* Format unsigned value based on radix */
-static int fmt_unsigned(char* buf, size_t cap, uint32_t val) {
-    int radix = nd500_dbg_get_radix();
-    switch (radix) {
-        case 1:  return snprintf(buf, cap, "0x%X", val);      /* hex */
-        case 2:  return snprintf(buf, cap, "%o", val);        /* octal */
-        default: return snprintf(buf, cap, "%u", val);        /* decimal */
-    }
+/* The radix of operand numbers: -1 follows the monitor (nd500_dbg_get_show_radix, octal by
+ * default), 0/1/2 = decimal/hex/octal for a caller with a radix of its own (the DAP session). */
+static int g_disasm_radix = -1;
+
+void nd500_disasm_set_radix(int mode) {
+    g_disasm_radix = (mode >= 0 && mode <= 2) ? mode : -1;
 }
 
-/* Format signed value based on radix - preserves sign for negative values */
+static int disasm_radix(void) {
+    return g_disasm_radix >= 0 ? g_disasm_radix : nd500_dbg_get_show_radix();
+}
+
+/* An unsigned operand number in the ND form of the radix (nd500_num_text): 24B, 20, 14H */
+static int fmt_unsigned(char* buf, size_t cap, uint32_t val) {
+    char t[24];
+    nd500_num_text(t, sizeof t, val, 32, false, disasm_radix());
+    return snprintf(buf, cap, "%s", t);
+}
+
+/* A signed operand number: the sign, then the magnitude in the ND form (-5B, -5, -5H) */
 static int fmt_signed(char* buf, size_t cap, int32_t val) {
-    int radix = nd500_dbg_get_radix();
-    switch (radix) {
-        case 1:  /* hex */
-            if (val < 0)
-                return snprintf(buf, cap, "-0x%X", (unsigned)(-val));
-            else
-                return snprintf(buf, cap, "0x%X", (unsigned)val);
-        case 2:  /* octal */
-            if (val < 0)
-                return snprintf(buf, cap, "-%o", (unsigned)(-val));
-            else
-                return snprintf(buf, cap, "%o", (unsigned)val);
-        default: /* decimal */
-            return snprintf(buf, cap, "%d", val);
-    }
+    char t[24];
+    uint32_t mag = val < 0 ? 0u - (uint32_t)val : (uint32_t)val;
+    nd500_num_text(t, sizeof t, mag, 32, false, disasm_radix());
+    return snprintf(buf, cap, "%s%s", val < 0 ? "-" : "", t);
 }
 
 /**
@@ -508,8 +506,9 @@ size_t nd500_disasm_format_range(struct Nd500Machine* m,
             /* Show effective addresses for CALL arguments (what actually gets passed) */
             if (m->cpu && m->cpu->extra_operand_count > 0) {
                 for (uint16_t ei = 0; ei < m->cpu->extra_operand_count; ++ei) {
-                    pos = buf_append(out, out_cap, pos, ",0x%X",
-                                     m->cpu->extra_operands[ei].effective_address);
+                    char ea[24];
+                    fmt_unsigned(ea, sizeof ea, m->cpu->extra_operands[ei].effective_address);
+                    pos = buf_append(out, out_cap, pos, ",%s", ea);
                 }
             }
         } else {

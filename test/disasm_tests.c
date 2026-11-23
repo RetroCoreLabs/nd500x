@@ -13,6 +13,9 @@ static int run_one(const char* obj_path) {
         return 1;
     }
     char buf[4096];
+    /* nd500-dis prints displacements in decimal (b.20); the monitor's radix is octal by
+     * default, so this comparison asks for decimal */
+    nd500_dbg_set_radix(0);
     size_t n = nd500_dbg_disasm(&m, entry, 64, buf, sizeof(buf));
     if (n == 0) return 2;
 

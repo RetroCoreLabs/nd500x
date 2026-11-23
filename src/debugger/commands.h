@@ -38,7 +38,13 @@ typedef struct {
  */
 int nd500_cmd_execute(Nd500Machine* m, const char* cmdline, CmdContext* ctx);
 
-/* Parse a string as uint32_t (supports hex with 0x prefix and decimal)
+/* Read a number typed into the monitor: a bare number in the current radix (octal by
+ * default), or an explicit form 17B (octal), 15D (decimal), 0FH (hex) - the forms of the
+ * ND-500 Loader Monitor manual ND-60.136.04A - or 0x0F, $15, and a leading zero (octal) in the
+ * decimal radix. Returns 0 and *out, or -1 when the text is not a number. */
+int nd500_cmd_parse_number(const char* s, uint32_t* out);
+
+/* nd500_cmd_parse_number, or default_value when s is empty or not a number (said on stderr)
  * @param s              String to parse
  * @param default_value  Value to return if parsing fails
  * @return               Parsed value or default_value

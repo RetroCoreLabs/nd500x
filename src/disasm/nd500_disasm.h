@@ -19,6 +19,14 @@
 struct Nd500Machine;
 
 /*
+ * The radix of the operand numbers: -1 (the start) follows the monitor's radix
+ * (nd500_dbg_get_show_radix, octal by default); 0 decimal, 1 hex, 2 octal for a caller with a
+ * radix of its own, such as the DAP session. Numbers are in the ND forms of nd500_num_text:
+ * b.24B in octal, b.20 in decimal, b.14H in hex.
+ */
+void nd500_disasm_set_radix(int mode);
+
+/*
  * Format disassembly for [addr, addr+len) into out buffer.
  * Uses the core CPU decoder (nd500_decode_at) and does NOT implement any
  * fetch/decode/EA logic here. Purely presentation/formatting.

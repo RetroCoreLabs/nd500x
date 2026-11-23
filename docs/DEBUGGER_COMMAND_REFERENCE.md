@@ -35,13 +35,27 @@ The debugger supports:
 
 ### Number Input Format
 
-All commands accept numbers in multiple formats:
-- **Hex**: `0x1000` or `0X1000`
-- **Octal**: `0777`
-- **Decimal**: `1234`
-- **Decimal override**: `$10` (always decimal, regardless of radix setting)
+A bare number is read in the current radix: **octal by default**, as the ND-500 monitor
+reads numeric parameters. `set radix decimal|hex|octal` (or `--radix`) changes it, and also
+the radix the monitor prints numbers in (registers, memory dumps, the disassembly operands,
+`bp`, `wp`, `stackframe`, `showmmu`, `msym`, `memmap`).
 
-Use `set radix [decimal|hex|octal]` to change the default parsing mode.
+An explicit form always wins over the radix:
+
+| Form | Base | Source |
+|---|---|---|
+| `17B` | octal | ND-500 Loader Monitor manual ND-60.136.04A: "Numeric parameters are specified in octal, unless the number is followed by a D, indicating decimal format, or H, indicating hexadecimal format" |
+| `15D` | decimal | the same |
+| `0FH` | hex | the same; a hex number must start with a digit (`0FH`, not `FH`) |
+| `0x0F` | hex | C form, used by init scripts |
+| `$15` | decimal | earlier nd500x form |
+| `017` | octal | a leading zero, in the decimal radix only; in the hex radix `017` is hex |
+
+The suffix is read first, so in the hex radix `1B` is octal 1 and `1D` is decimal 1, as in
+the real monitor; write `1BH` or `0x1B` for the hex number. Text that is not a number in its
+base (`19` in the octal radix) is refused with "not a number in the octal radix" on stderr, and
+the command uses its default. Source line numbers (`bp source FILE LINE`) are decimal in every
+radix.
 
 ---
 
@@ -54,7 +68,7 @@ Display memory as hex dump using **data space** addressing (uses MMU data transl
 ```
 m              # Dump 64 bytes from PC
 m 0x1000       # Dump 64 bytes from 0x1000
-m 0x1000 256   # Dump 256 bytes from 0x1000
+m 0x1000 256D  # Dump 256 bytes from 0x1000 (or 400 in the octal radix)
 ```
 
 **Aliases**: None
@@ -64,7 +78,7 @@ m 0x1000 256   # Dump 256 bytes from 0x1000
 Display memory using **program space** addressing (uses MMU program translation when enabled).
 
 ```
-mp 0x08000000 128   # Dump 128 bytes from program segment 1
+mp 0x08000000 128D  # Dump 128 bytes from program segment 1
 ```
 
 ### `m! [addr] [len]` - Physical Memory Dump
@@ -72,7 +86,7 @@ mp 0x08000000 128   # Dump 128 bytes from program segment 1
 Display **physical memory** directly, bypassing MMU translation.
 
 ```
-m! 0x0 256    # Dump first 256 bytes of physical RAM
+m! 0x0 256D   # Dump first 256 bytes of physical RAM
 ```
 
 ---
@@ -86,7 +100,7 @@ Disassemble instructions with hex bytes.
 ```
 d              # Disassemble 10 instructions from PC
 d 0x08000000   # Disassemble from address
-d 0x08000000 50   # Disassemble 50 instructions
+d 0x08000000 50D  # Disassemble 50 instructions
 ```
 
 **Aliases**: `dis`, `disasm`
@@ -338,7 +352,7 @@ Set a memory watchpoint. Type can be: `read` (r), `write` (w), or `change` (c).
 
 ```
 wp 0x5000           # Watch 4 bytes for writes (default)
-wp 0x5000 8 write   # Watch 8 bytes for writes
+wp 0x5000 10 write  # Watch 8 bytes (10 octal) for writes
 wp 0x5000 4 read    # Watch 4 bytes for reads
 wp 0x5000 4 change  # Watch for value changes
 ```
@@ -831,7 +845,7 @@ Show detailed information about a MON call.
 
 ```
 mon info 11B          # By octal number
-mon info 9            # By decimal number
+mon info 9D           # By decimal number
 mon info InByte       # By name
 ```
 
