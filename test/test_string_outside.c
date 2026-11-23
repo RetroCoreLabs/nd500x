@@ -14,7 +14,7 @@
  *
  * Layout: B = 0x2000, source descriptor at B.100, destination descriptor at
  * B.200 (ND-05.009.4 7.2.8: element count, then address), translation table at
- * B.40. Source bytes 1..4 at 0x4000, destination bytes 0 at 0x5000.
+ * B.208 (256 bytes from 0x20D0, clear of both descriptors). Source bytes 1..4 at 0x4000, destination bytes 0 at 0x5000.
  */
 
 #include <stdio.h>
@@ -56,7 +56,7 @@ static void run_case(const char *name, const uint8_t *code, uint32_t len,
     }
     /* identity translation table, so a move would be visible */
     for (uint32_t i = 0u; i < 256u; i++) {
-        nd500_bus_write8(&m, B_ADDR + 40u + i, (uint8_t)i);
+        nd500_bus_write8(&m, B_ADDR + 208u + i, (uint8_t)i);
     }
     put_be32(&m, B_ADDR + 100u, src_count);
     put_be32(&m, B_ADDR + 104u, SRC_ADDR);
@@ -102,10 +102,10 @@ int main(void)
     static const uint8_t smvwh[] = {0xFD, 0x72, 0x59, 0x72, 0x00, 0x00};
     /* BY SMVUN B.100, B.200, 0, 1 (0FD73H): AND with 0 is never 1 - no stop byte */
     static const uint8_t smvun[] = {0xFD, 0x73, 0x59, 0x72, 0x00, 0x01};
-    /* BY SMVTR B.100, B.200, B.40 (0FD74H) */
-    static const uint8_t smvtr[] = {0xFD, 0x74, 0x59, 0x72, 0x4A};
-    /* BY SMVTU B.100, B.200, B.40 (0FD75H) */
-    static const uint8_t smvtu[] = {0xFD, 0x75, 0x59, 0x72, 0x4A};
+    /* BY SMVTR B.100, B.200, B.208 (0FD74H) */
+    static const uint8_t smvtr[] = {0xFD, 0x74, 0x59, 0x72, 0x74};
+    /* BY SMVTU B.100, B.200, B.208 (0FD75H) */
+    static const uint8_t smvtu[] = {0xFD, 0x75, 0x59, 0x72, 0x74};
     static const struct { const char *name; const uint8_t *code; uint32_t len; } ins[] = {
         {"SMOVE", smove, sizeof smove}, {"SMVWH", smvwh, sizeof smvwh},
         {"SMVUN", smvun, sizeof smvun}, {"SMVTR", smvtr, sizeof smvtr},
