@@ -65,7 +65,8 @@ void nd500_instr_Swap(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         case 0xFCBE: dtype = ND500_DTYPE_BYTE; break;        // BY swap
         case 0xFCBF: dtype = ND500_DTYPE_HALFWORD; break;    // H swap
         case 0x0052: dtype = ND500_DTYPE_WORD; break;        // W swap
-        case 0xFCDC: dtype = ND500_DTYPE_WORD; break;        // F swap (32-bit float)
+        /* F swap: the float data type, so register operands are A1-A4 (ND-05.009.4 8.13). */
+        case 0xFCDC: dtype = ND500_DTYPE_FLOAT; break;
         case 0xFCDD: dtype = ND500_DTYPE_DOUBLEWORD; break;  // D swap (64-bit double)
         default:
             printf("[ERROR] Swap at PC=0x%08X: Unknown opcode 0x%04X\n",

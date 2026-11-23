@@ -686,6 +686,23 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
     nd500_cpu_reset(cpu);
     memset(m->memory, 0, m->memory_size);
 
+    /* The corpus's initial state: a case lists the registers it sets, and every
+     * register it does not list starts at zero (the RetroCore generator and
+     * runner build each case on a fresh, all-zero register set). The CPU reset
+     * above leaves two registers non-zero - ST1 with PIA (bit 1) set and TEMM
+     * all ones - so set them to the case's zero here.
+     *
+     * ND-05.009.4 gives no reset value for either. Both are per-domain values:
+     * 6.5.4 "PIA : Privileged Instructions Allowed. ... This bit may not be
+     * changed by instructions. It is defined in the domain information table",
+     * and Table 6 (Domain Information Table) holds "Trap enable modification
+     * mask 256B" and "Domain status (PiA = bit 0) 310B". So the value a case
+     * starts from is the case's, not the machine's. */
+    cpu->ST1 = 0;
+    cpu->ST2 = 0;
+    cpu->TEMM1 = 0;
+    cpu->TEMM2 = 0;
+
     /* The raised-trap record is a FILE-SCOPE GLOBAL in cpu.c, not part of
      * Nd500Cpu, so nd500_cpu_reset() above cannot clear it. It was only ever
      * cleared inside the "if (nd500_trap_occurred())" branch further down, so

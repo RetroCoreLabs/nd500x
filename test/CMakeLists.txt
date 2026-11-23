@@ -228,6 +228,12 @@ add_executable(test_bmove_overlap
 )
 target_link_libraries(test_bmove_overlap PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# F SWAP / D SWAP use the float registers (ND-05.009.4 8.13)
+add_executable(test_float_swap
+    test_float_swap.c
+)
+target_link_libraries(test_float_swap PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib m)
+
 # ALT prefix tests
 # Tests ALT prefix (0xC8) domain switching for data access
 # Verifies CAD is used instead of CED when ALT prefix is present
@@ -508,6 +514,7 @@ add_test(NAME tape COMMAND test_tape)
 add_test(NAME riom COMMAND test_riom)
 add_test(NAME mon_calls COMMAND test_mon_calls)
 add_test(NAME bmove_overlap COMMAND test_bmove_overlap)
+add_test(NAME float_swap COMMAND test_float_swap)
 add_test(NAME alt_prefix COMMAND test_alt_prefix)
 add_test(NAME page_straddle COMMAND test_page_straddle)
 add_test(NAME double_register COMMAND test_double_register)

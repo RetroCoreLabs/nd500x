@@ -62,7 +62,7 @@ enum
     BASE_SEED_S       = 103,
     BASE_SEED_O       = 100,
     BASE_SEED_K       = 97,
-    BASE_TRAP_ENABLE  = 8,
+    BASE_TRAP_ENABLE  = 10, /* sete, clte added: their cases now seed temm1/ote1 */
     BASE_FLOAT_HIGH   = 19,
     BASE_FLOAT_LOW    = 19
 };
