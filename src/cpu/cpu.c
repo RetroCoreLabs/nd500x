@@ -1559,6 +1559,23 @@ static int nd500_offer_trap_to_sink(Nd500Cpu* cpu, uint64_t trapBit,
     return 0;
 }
 
+/* Is this IGNORABLE trap enabled, so that raising it dispatches a handler rather
+ * than only setting its status bit? Enabled by EITHER the own-domain mask (OTE) or
+ * the mother-domain mask (MTE) - see the same combination and its rationale in
+ * check_pending_traps(). raise_trap() decides with this, and an instruction whose
+ * microcode tests the enable before it commits (ENTS/ENTSN on stack overflow,
+ * CONT-STORE-10611 002423B-002424B) asks the same question, so the two cannot
+ * disagree. */
+int nd500_ignorable_trap_enabled(Nd500Cpu* cpu, uint64_t trapBit) {
+    uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
+    uint64_t mte = ((uint64_t)cpu->MTE2 << 32) | cpu->MTE1;
+    if ((trapBit & TRAP_IGNORABLE_MASK) && cpu->DITBASE) {
+        mte |= (uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE1)
+             | ((uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE2) << 32);
+    }
+    return (trapBit & (ote | mte) & TRAP_IGNORABLE_MASK) != 0;
+}
+
 void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataAddr) {
     if (!cpu) return;
 
@@ -1894,13 +1911,7 @@ void raise_trap(Nd500Cpu* cpu, uint64_t trapBit, uint32_t trapPC, uint32_t dataA
     /* Ignorable trap (bits 11-29): enabled by EITHER the own-domain mask (OTE)
      * or the mother-domain mask (MTE) - see the same combination and its
      * rationale in check_pending_traps(). */
-    uint64_t ote = ((uint64_t)cpu->OTE2 << 32) | cpu->OTE1;
-    uint64_t mte = ((uint64_t)cpu->MTE2 << 32) | cpu->MTE1;
-    if ((trapBit & TRAP_IGNORABLE_MASK) && cpu->DITBASE) {
-        mte |= (uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE1)
-             | ((uint64_t)ndix_dit_r32(cpu, cpu->CED, DIT_OFF_MTE2) << 32);
-    }
-    if (trapBit & (ote | mte) & TRAP_IGNORABLE_MASK) {
+    if (nd500_ignorable_trap_enabled(cpu, trapBit)) {
         /* Trap is enabled - set trap state and invoke handler. Do NOT set
          * instr_aborted here: ignorable (arithmetic-class) traps on the
          * ND-500 are post-completion - the instruction finishes its stores

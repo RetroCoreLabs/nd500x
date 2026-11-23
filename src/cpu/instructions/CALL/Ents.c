@@ -102,12 +102,29 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
                fi->address, old_b, old_b + OFFSET_SP, new_b, cpu->L);
     }
 
-    /* Check for stack overflow BEFORE modifying anything */
-    if (new_b + stack_demand >= cpu->TOS) {
+    /* Stack overflow, as the control store does it (CONT-STORE-10611, ENTS entry
+     * 000324B; ENTSN joins the same words at 002416B):
+     *   002420B  AM#34 := new B + stack demand
+     *   002421B  AM#34 - TOS, condition = carry      (carry: AM#34 >= TOS, unsigned)
+     *   002422B  S1 := S1 AND NOT bit 27 (STO)       no carry -> 002425B, build the frame
+     *   002423B  TE AND bit 27, condition = zero
+     *   002424B  S1 := S1 OR bit 27 (STO)            zero (STO not enabled) -> 002425B,
+     *                                                enabled -> 000627B, the trap entry
+     * So with STO enabled the instruction traps before it writes anything; with STO
+     * NOT enabled the STO status bit is set and the frame is built anyway, past TOS
+     * (ND-05.009.4 6.5.3: a disabled ignorable trap has no effect on program
+     * execution). Skipping the frame here made a program that recurses past its
+     * stack loop for ever in the caller's frame (nd-lang tutorial T1014). */
+    int overflowed = (new_b + stack_demand >= cpu->TOS);
+    if (overflowed) {
         ND500X_TRAPLOG("[TRAP] ENTS at PC=0x%08X: Stack overflow (newB=0x%08X, demand=0x%08X, TOS=0x%08X)\n",
                fi->address, new_b, stack_demand, cpu->TOS);
+        int enabled = nd500_ignorable_trap_enabled(cpu, TRAP_STO);
+        /* Sets the STO status bit; dispatches only when enabled (002424B). */
         trap_stack_overflow(cpu, fi->address);
-        return;
+        if (enabled || nd500_trap_occurred() || cpu->instr_aborted) {
+            return;
+        }
     }
 
     /* Initialize new stack frame */
@@ -182,7 +199,10 @@ void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* STO status bit is set/reset for each ENTS, ENTSN, ENTB, INIT, ENTM and
      * GETB (ND-500 Reference Manual, traps section). Successful completion
      * resets it - the bit must not stay stale after an earlier overflow. */
-    cpu->ST1 &= ~(uint32_t)TRAP_STO;
+    if (!overflowed) {
+        /* 002422B clears STO; 002424B sets it again on the overflow path. */
+        cpu->ST1 &= ~(uint32_t)TRAP_STO;
+    }
 
     /* PC already advanced by cpu_step() */
 }

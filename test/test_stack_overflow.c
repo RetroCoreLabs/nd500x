@@ -25,6 +25,7 @@
 
 extern void nd500_instr_Getb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 extern void nd500_instr_Entb(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
+extern void nd500_instr_Ents(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi);
 
 static int tests_passed = 0;
 static int tests_failed = 0;
@@ -182,6 +183,53 @@ int main(void) {
     CHECK((cpu.ST1 & (uint32_t)TRAP_STO) != 0, "STO set on ENTB heap exhaustion");
     CHECK(cpu.B == 0x7000, "B unchanged when ENTB cannot allocate");
     CHECK(cpu.pending_call_return_address == 0x1234, "pending call state left intact on failure");
+
+    /* ---- Test 7: ENTS past TOS with STO NOT enabled builds the frame ------
+     * CONT-STORE-10611 002421B-002425B: the overflow test sets the STO status bit
+     * and, when TE bit 27 is zero, goes on to 002425B and builds the frame like
+     * any other ENTS. The emulator used to return without a frame, leaving B the
+     * caller's, so a program recursing past its stack looped for ever. */
+    printf("\nTest 7: ENTS overflow, STO not enabled: frame built, STO set\n");
+    reset_cpu(&cpu);
+    cpu.OTE1 = cpu.OTE2 = cpu.MTE1 = cpu.MTE2 = 0;
+    cpu.L = 0;
+    cpu.TOS = 0x7100;
+    cpu.B = 0x7000;
+    nd500_write_memory_32(&cpu, 0x7000 + 8, 0x70F4);   /* old B.SP = new B */
+    cpu.pending_call_return_address = 0x1234;
+    cpu.pending_call_arg_count = 1;
+    cpu.pending_call_arg_addresses[0] = 0xAAAA;
+    {
+        Nd500FetchedInstruction fi = make_getb(0, 28);  /* ENTS #34B: 0x70F4+28 >= TOS */
+        nd500_instr_Ents(&cpu, &fi);
+    }
+    CHECK(cpu.B == 0x70F4, "ENTS set B to the new frame past TOS");
+    CHECK(cpu.L == 0x1234, "ENTS loaded L with the return address");
+    CHECK(nd500_read_memory_32(&cpu, 0x70F4 + 0) == 0x7000, "frame PREVB = old B");
+    CHECK(nd500_read_memory_32(&cpu, 0x70F4 + 8) == 0x70F4 + 28, "frame SP = new B + demand");
+    CHECK(nd500_read_memory_32(&cpu, 0x70F4 + 20) == 0xAAAA, "frame ARG1 written");
+    CHECK((cpu.ST1 & (uint32_t)TRAP_STO) != 0, "STO status bit set");
+    CHECK(cpu.pending_call_return_address == 0, "pending call state consumed");
+
+    /* ---- Test 8: ENTS past TOS with STO enabled writes nothing ------------
+     * 002424B jumps to the trap entry 000627B before any frame word is written. */
+    printf("\nTest 8: ENTS overflow, STO enabled: no frame\n");
+    reset_cpu(&cpu);
+    cpu.OTE1 = (uint32_t)TRAP_STO;
+    cpu.TOS = 0x7100;
+    cpu.B = 0x7000;
+    nd500_write_memory_32(&cpu, 0x7000 + 8, 0x70F4);
+    nd500_write_memory_32(&cpu, 0x70F4, 0x5555);
+    cpu.pending_call_return_address = 0x1234;
+    cpu.pending_call_arg_count = 0;
+    {
+        Nd500FetchedInstruction fi = make_getb(0, 28);
+        nd500_instr_Ents(&cpu, &fi);
+    }
+    CHECK(cpu.B == 0x7000, "B unchanged when STO is enabled");
+    CHECK(nd500_read_memory_32(&cpu, 0x70F4) == 0x5555, "no frame word written");
+    cpu.OTE1 = 0;
+    nd500_trap_clear();
 
     nd500_machine_free(&m);
     printf("\nPassed: %d\nFailed: %d\n", tests_passed, tests_failed);

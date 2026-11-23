@@ -793,6 +793,9 @@ void trap_invalid_operation(Nd500Cpu* cpu, uint32_t pc);
  * TRAP_O comment above for why using that one was a real bug. */
 void trap_integer_overflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_stack_overflow(Nd500Cpu* cpu, uint32_t pc);
+/* 1 when this ignorable trap is enabled (OTE or MTE), so raising it dispatches a
+ * handler; 0 when raising it only sets its status bit. */
+int nd500_ignorable_trap_enabled(Nd500Cpu* cpu, uint64_t trapBit);
 void trap_stack_underflow(Nd500Cpu* cpu, uint32_t pc);
 void trap_breakpoint(Nd500Cpu* cpu, uint32_t pc);
 void trap_single_instruction(Nd500Cpu* cpu, uint32_t pc);
