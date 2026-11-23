@@ -603,6 +603,22 @@ static int map_comp_count(const char* p) {
     return n;
 }
 
+/* The value of a REAL of size bytes (4 or 8) at addr: the bits read as they lie (big-endian),
+ * the exact decimal of their value (nd500_fx_text: no host float on the way; more than 40
+ * digits are cut, "..." marks that). Used by the variables view and by logpoints, so both
+ * show the same text. */
+static void map_real_text(uint32_t addr, uint32_t size, char* out, size_t cap) {
+    uint32_t hi = 0, lo = 0;
+    if (map_read(addr, 4, &hi) && (size == 4 || map_read(addr + 4, 4, &lo))) {
+        uint64_t bits = size == 8 ? (((uint64_t)hi << 32) | lo) : hi;
+        char num[72];
+        nd500_fx_text(bits, size == 8, num, sizeof num);
+        snprintf(out, cap, "%s", num);
+    } else {
+        snprintf(out, cap, "(not readable at 0x%08X)", addr);
+    }
+}
+
 /* One variable NAME of type text t at address addr. elem: show only the element of the
  * array t (its BASE). */
 static void map_add_typed(DAPServer* server, const char* name, const char* t, uint32_t addr, int elem) {
@@ -682,15 +698,7 @@ static void map_add_typed(DAPServer* server, const char* name, const char* t, ui
         /* the machine's own float: the bits read as they lie (big-endian), the exact decimal
          * of their value (nd500_fx_text: no host float on the way; more than 40 digits are cut,
          * "..." marks that) */
-        uint32_t hi = 0, lo = 0;
-        if (map_read(addr, 4, &hi) && (m.size == 4 || map_read(addr + 4, 4, &lo))) {
-            uint64_t bits = m.size == 8 ? (((uint64_t)hi << 32) | lo) : hi;
-            char num[72];
-            nd500_fx_text(bits, m.size == 8, num, sizeof num);
-            snprintf(val, sizeof val, "%s", num);
-        } else {
-            snprintf(val, sizeof val, "(not readable at 0x%08X)", addr);
-        }
+        map_real_text(addr, m.size, val, sizeof val);
     } else if (m.size == 1 || m.size == 2 || m.size == 4) {
         if (map_read(addr, m.size, &raw)) map_value_text(raw, m.size, val, sizeof val);
         else snprintf(val, sizeof val, "(not readable at 0x%08X)", addr);
@@ -775,7 +783,49 @@ typedef struct {
  * of RETA - 1: the last byte of its CALL.
  * At the first instruction of a routine of the map (its ENT, not yet run) no frame is made
  * yet: the caller is the frame B still is, at the return address the CALL left for the ENT.
- * Not seen by this walk: a routine inside a routine (ENTD), which has no frame of its own. */
+ * A routine inside a routine has no frame of its own (PLANC-500 G, new-planc
+ * docs/be-nd500/code-patterns.md 2.4, probe GEN07): it starts with ENTD (9C: L := the return
+ * address, src/cpu/instructions/CALL/Entd.c) and then `L =: B.x`, which keeps L in a slot of
+ * the frame of the routine around it; it returns by JUMPG B.x. Its caller is therefore the
+ * address in that slot, in the same frame B (map_nested_return); only when the walk reaches a
+ * routine that is not of this kind is the next caller found by PREVB and RETA. */
+
+/* The return address of the routine inside a routine that holds pc, when pc is in one (its
+ * entry byte at the FUNC address of the map is ENTD, 9C), in frame b. At the ENTD itself
+ * (not yet run) the address is the one the CALL left for it; on the `L =: B.x` after it, L;
+ * further on, the slot B.x that instruction names, read in frame b. Returns 1 with *ret set,
+ * 0 when pc is not in such a routine, -1 when it is one but the slot cannot be read (the
+ * instruction after the ENTD is not `L =:` to a B-relative place, or memory cannot be read). */
+static int map_nested_return(uint32_t pc, uint32_t b, int top, uint32_t* ret) {
+    Nd500Cpu* cpu = g_machine->cpu;
+    uint32_t entry = 0;
+    int mf = ndlib_map_func_for_pc(pc);
+    if (mf < 0 || !ndlib_map_func(mf, &entry, NULL)) return 0;
+    Nd500FetchedInstruction fi;
+    memset(&fi, 0, sizeof fi);
+    /* the code is read the way the disassembler reads it (program space) */
+    if (nd500_decode_at_peek(g_machine, entry, &fi) != 0 || fi.opcode != 0x9C) return 0;
+    if (pc == entry) {
+        if (!top || cpu->pending_call_return_address == 0) return -1;
+        *ret = cpu->pending_call_return_address;
+        return 1;
+    }
+    memset(&fi, 0, sizeof fi);
+    if (nd500_decode_at_peek(g_machine, entry + 1, &fi) != 0 || fi.opcode != 0xFDC0 ||
+        fi.operand_count < 1 ||
+        (fi.operands[0].mode != ND500_ADDR_LOCAL_SHORT && fi.operands[0].mode != ND500_ADDR_LOCAL))
+        return -1;
+    if (pc == entry + 1) {
+        if (!top) return -1;
+        *ret = cpu->L;
+        return 1;
+    }
+    /* the decoder works the address out with the B of the CPU; the slot is that place
+     * relative to B, read in frame b */
+    uint32_t slot = fi.operands[0].effective_address - cpu->B;
+    return map_read(b + slot, 4, ret) ? 1 : -1;
+}
+
 static int map_frames(MapFrame* fr, int max) {
     Nd500Cpu* cpu = g_machine->cpu;
     uint32_t b = map_frame_base();
@@ -785,8 +835,10 @@ static int map_frames(MapFrame* fr, int max) {
     fr[n].b = b;
     n++;
     uint32_t entry = 0;
+    uint32_t nret = 0;
     int mf = ndlib_map_func_for_pc(cpu->PC);
-    if (mf >= 0 && ndlib_map_func(mf, &entry, NULL) && entry == cpu->PC &&
+    if (map_nested_return(cpu->PC, b, 1, &nret) == 0 && mf >= 0 &&
+        ndlib_map_func(mf, &entry, NULL) && entry == cpu->PC &&
         cpu->pending_call_return_address != 0 && n < max) {
         fr[n].pc = cpu->pending_call_return_address;
         fr[n].look = fr[n].pc - 1;
@@ -794,6 +846,16 @@ static int map_frames(MapFrame* fr, int max) {
         n++;
     }
     while (n < max) {
+        /* a routine inside a routine: its caller in the same frame (map_nested_return) */
+        int nested = map_nested_return(fr[n - 1].pc, b, n == 1, &nret);
+        if (nested < 0) break;
+        if (nested > 0) {
+            fr[n].pc = nret;
+            fr[n].look = nret - 1;
+            fr[n].b = b;
+            n++;
+            continue;
+        }
         uint32_t prevb = 0, reta = 0;
         if (!map_read(b + 0, 4, &prevb) || !map_read(b + 4, 4, &reta)) break;
         if (prevb == 0 || reta == 0 || prevb == b) break;
@@ -814,6 +876,16 @@ static pthread_mutex_t g_log_lock = PTHREAD_MUTEX_INITIALIZER;
 static char g_log_buf[8192];
 static size_t g_log_len = 0;
 
+/* A REAL (type text "real 4" / "real 8", not an array) for a logpoint: the same text the
+ * variables view shows (map_real_text). 0 for any other type text. */
+static int log_real_text(const char* type, uint32_t addr, char* out, size_t cap) {
+    MapTy m;
+    map_ty_parse(type, &m);
+    if (m.kind != MAP_TY_REAL || m.is_array) return 0;
+    map_real_text(addr, m.size, out, cap);
+    return 1;
+}
+
 /* The value of {NAME} in a log message: a variable of the source map (a Global, or a Local
  * of the routine of the PC), else a register; 0 when there is none. */
 static int log_lookup(const char* name, size_t n, char* out, size_t cap) {
@@ -832,6 +904,9 @@ static int log_lookup(const char* name, size_t n, char* out, size_t cap) {
             map_value_text(raw, t.elem, out, cap);
             return 1;
         }
+        if ((size_t)t.name_len == n && strncasecmp(ln, name, n) == 0 &&
+            log_real_text(t.type, map_frame_base() + (uint32_t)off, out, cap))
+            return 1;
     }
     for (int i = 0; i < ndlib_map_global_count(); i++) {
         uint32_t addr = 0, raw;
@@ -843,6 +918,8 @@ static int log_lookup(const char* name, size_t n, char* out, size_t cap) {
             map_value_text(raw, t.elem, out, cap);
             return 1;
         }
+        if ((size_t)t.name_len == n && strncasecmp(gn, name, n) == 0 && log_real_text(t.type, addr, out, cap))
+            return 1;
     }
     char reg[16];
     uint32_t v;
@@ -916,14 +993,17 @@ void nd500_dap_program_ended(int exit_code) {
  *   in   any line start other than the one the step began at;
  *   over a line start in the same frame (B as at the start) or in a frame that called it;
  *   out  a line start in a frame that called it.
- * "A frame that called it": B lower than at the start. Measured (tests/nd500debug, BE01 on
- * nd500x, 2026-11-22): B is 0x08000004 in MAIN and 0x0800001C in the routine LOC it calls,
- * so a callee's frame base is higher than its caller's. */
+ * "The same frame or one that called it": the call chain (map_frames, the frames the stack
+ * trace shows) is as deep as at the start or less. B alone cannot say it: a routine inside a
+ * routine runs in the frame of the routine around it (same B, map_nested_return), and a
+ * routine with a stack of its own (INISTACK in a routine, ENTM) has its B at the bottom of
+ * that stack, wherever the array lies in the data (below its caller's B when the array is
+ * declared before the main program's stack). The chain counts both. */
 enum { STEP_IN, STEP_OVER, STEP_OUT };
 static struct {
     int kind;
     uint32_t start_pc;
-    uint32_t start_b;
+    int start_depth;     /* frames of the call chain at the start (map_frames) */
     int moved;           /* 0 until the first instruction of the step has run */
 } g_ls;
 
@@ -933,13 +1013,11 @@ static int line_step_hook(Nd500Machine* m, uint32_t pc) {
         return 0;
     }
     if (!ndlib_map_is_line_start(pc, NULL, NULL)) return 0;
-    uint32_t b = 0;
-    nd500_dbg_reg_get_by_name(m->cpu, "B", &b);
-    switch (g_ls.kind) {
-    case STEP_IN:   return 1;
-    case STEP_OVER: return b <= g_ls.start_b;
-    default:        return b < g_ls.start_b;
-    }
+    (void)m;
+    if (g_ls.kind == STEP_IN) return 1;
+    MapFrame chain[MAP_FRAMES_MAX];
+    int depth = map_frames(chain, MAP_FRAMES_MAX);
+    return g_ls.kind == STEP_OVER ? depth <= g_ls.start_depth : depth < g_ls.start_depth;
 }
 
 /* -- Lifecycle callbacks ----------------------------------------- */
@@ -1187,7 +1265,10 @@ static int dap_line_step(DAPServer* server, int kind) {
     nd500_cpu_lock();
     g_ls.kind = kind;
     g_ls.start_pc = g_machine->cpu->PC;
-    g_ls.start_b = map_frame_base();
+    {
+        MapFrame chain[MAP_FRAMES_MAX];
+        g_ls.start_depth = map_frames(chain, MAP_FRAMES_MAX);
+    }
     g_ls.moved = 0;
     g_machine->stop_reason = STOP_NONE;
     g_machine->step_hook = line_step_hook;
