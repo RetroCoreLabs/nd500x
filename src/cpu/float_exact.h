@@ -78,6 +78,26 @@ uint64_t nd500_fx_sqrt(uint64_t a, bool is_double, unsigned* exc);
 uint64_t nd500_fx_round(bool negative, nd500_u128 magnitude, int scale,
                         bool sticky, bool is_double, unsigned* exc);
 
+/* The two conversions between single and double.
+ *
+ * Double to single with rounding (D FCONR, and the end of F AXI): the
+ * control store CONT-STORE-10611 hands the double to the FPU in one word,
+ * EX,DTOFR "double to single convert with rounding" (D FCONR 441B, 2767B;
+ * F AXI 1603B; Micro Program Guide ND-05.012.01). The ND-500 course NEC-01
+ * page 69: "Rounding is performed in accordance with the IEEE proposed
+ * standard for Floating Point Arithmetic concerning addition, subtraction
+ * and conversion instructions." ND-05.009.4 7.2.7 gives the rule: L the last
+ * kept mantissa bit, G the next, St the OR of all below; "if G=1 and (St=1
+ * or L=1) then add one". So the 55-bit significand is rounded once, at the
+ * bit after the 23rd significant bit. Exponent field 0 gives 0 (7.2.6); a
+ * round up out of the largest single sets ND500_FX_FO. The exponent fields
+ * have the same 9 bits, so nothing else can overflow or underflow.
+ *
+ * Single to double is exact: the same sign and exponent, 32 more zero bits
+ * of mantissa. */
+uint32_t nd500_fx_d_to_f(uint64_t d, unsigned* exc);
+uint64_t nd500_fx_f_to_d(uint32_t f);
+
 /* Split bits into sign, significand (0 when the exponent field is 0) and
  * scale, so that value = +/- significand * 2**scale. */
 void nd500_fx_decode(uint64_t bits, bool is_double, bool* negative,

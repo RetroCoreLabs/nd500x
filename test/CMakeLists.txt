@@ -151,6 +151,12 @@ add_executable(test_float_exact
 )
 target_link_libraries(test_float_exact PRIVATE nd500_cpu)
 
+# D FCONR and F AXI: the double-to-single convert with rounding (ND-05.009.4 7.2.7)
+add_executable(test_fconr_axi
+    test_fconr_axi.c
+)
+target_link_libraries(test_fconr_axi PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # OTE instruction tests
 add_executable(test_ote_instructions
     test_ote_instructions.c
@@ -485,6 +491,7 @@ set_tests_properties(lget_instruction PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 
 add_test(NAME float_arithmetic COMMAND test_float_arithmetic)
 add_test(NAME float_exact COMMAND test_float_exact)
+add_test(NAME fconr_axi COMMAND test_fconr_axi)
 add_test(NAME ote_instructions COMMAND test_ote_instructions)
 add_test(NAME stack_overflow COMMAND test_stack_overflow)
 add_test(NAME unsigned_displacement COMMAND test_unsigned_displacement)

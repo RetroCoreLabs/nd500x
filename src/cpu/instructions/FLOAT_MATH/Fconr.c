@@ -11,6 +11,7 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include <stdio.h>
 #include <stdint.h>
 
@@ -38,6 +39,7 @@ void nd500_instr_Fconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Determine source type from opcode */
     bool is_double_source = (fi->opcode == 0xFE84);
     uint32_t float_result = 0;
+    unsigned round_exc = 0;   /* ND500_FX_FO when D FCONR rounds up out of the largest single */
 
     /* Read and convert source operand */
     if (is_double_source) {
@@ -50,8 +52,13 @@ void nd500_instr_Fconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         if (nd500_trap_occurred() || cpu->instr_aborted) {
             return;
         }
-        double ieee_val = nd500_double_to_ieee754(double_bits);
-        float_result = nd500_float_from_ieee754((float)ieee_val);
+        /* The FPU's EX,DTOFR, rounded once by 7.2.7 (float_exact.h,
+         * nd500_fx_d_to_f). This went through a host double and a host float
+         * before: the host double keeps 53 of the 55 significant bits, and the
+         * host float rounds at the 24th significant bit where the ND-500 keeps
+         * 23, so a word whose 24th bit was 1 came out one unit too low or too
+         * high (1.0E-3 and 1/3 printed one unit high in the 7th digit). */
+        float_result = nd500_fx_d_to_f(double_bits, &round_exc);
     } else {
         /* W FCONR: Word to float */
         int32_t word_val = (int32_t)nd500_read_operand_value(cpu, &fi->operands[0], ND500_DTYPE_WORD);
@@ -85,4 +92,10 @@ void nd500_instr_Fconr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* O and C flags cleared */
     nd500_clear_flag(cpu, ND500_FLAG_O);
     nd500_clear_flag(cpu, ND500_FLAG_C);
+
+    /* The rounding overflowed (the largest single rounded up): the largest
+     * value with the sign and FO, as every other rounding float op (6.5.1). */
+    if (round_exc & ND500_FX_FO) {
+        nd500_float_status(cpu, fi->address, float_result, round_exc, false);
+    }
 }

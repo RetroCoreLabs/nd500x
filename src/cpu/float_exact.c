@@ -450,3 +450,28 @@ size_t nd500_fx_text(uint64_t bits, bool is_double, char* buf, size_t cap) {
     }
     return o;
 }
+
+uint32_t nd500_fx_d_to_f(uint64_t d, unsigned* exc) {
+    bool negative;
+    uint64_t significand;
+    int scale;
+    nd500_fx_decode(d, true, &negative, &significand, &scale);
+    if (significand == 0) {
+        return 0;   /* exponent field 0: exactly zero, whatever the sign (7.2.6) */
+    }
+    return (uint32_t)nd500_fx_round(negative, nd500_u128_from_u64(significand), scale,
+                                    false, false, exc);
+}
+
+uint64_t nd500_fx_f_to_d(uint32_t f) {
+    bool negative;
+    uint64_t significand;
+    int scale;
+    unsigned exc = 0;
+    nd500_fx_decode(f, false, &negative, &significand, &scale);
+    if (significand == 0) {
+        return 0;
+    }
+    /* 23 significant bits fit in 55: nd500_fx_round only places them here, it never rounds. */
+    return nd500_fx_round(negative, nd500_u128_from_u64(significand), scale, false, true, &exc);
+}

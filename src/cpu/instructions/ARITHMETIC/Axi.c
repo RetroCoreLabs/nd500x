@@ -12,7 +12,7 @@
 #include "machine_protos.h"
 #include "instruction_helpers.h"
 #include <stdio.h>
-#include <math.h>
+#include "float_exact.h"
 
 /**
  * AXI instruction - ARITHMETIC class
@@ -81,97 +81,102 @@ void nd500_instr_Axi(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    double result = 0.0;
-    bool overflow = false;
-    bool underflow = false;
+    /* The control store CONT-STORE-10611 (F AXI enters at 225B and jumps to
+     * 1553B; read 2026-11-23, nd-lang BUGS.md H21 item 2) works in DOUBLE
+     * all the way, on the FPU:
+     *   1554B/1611B  n = 0 gives 1.0
+     *   1555B/1614B  a = 0 gives 0 (with a negative n the IOV of manual 12.1)
+     *   1561B        acc := 1.0; a negative n first takes the reciprocal of a
+     *                through the divide sequence 1604B-1610B (ARMULA, BRMULP,
+     *                APIMULA, PPIMULP, APIMUL: the FPU's double divide)
+     *   1563B-1571B  bit 0 of n tested (AND BM#0); when set acc := a * acc
+     *                (DOUBLE EX,MUL 1565B); n shifted (EX,SHL 1567B); when n
+     *                is not yet 0, a := a * a (DOUBLE EX,MUL 1571B)
+     *   1566B/1572B  a floating overflow leaves the loop for 1575B-1602B,
+     *                which store the largest value with the sign
+     *   1603B        EX?20 = EX,DTOFR, double to single with rounding (the
+     *                same FPU step as D FCONR, nd500_fx_d_to_f)
+     * The double multiply and divide are nd500_fx_mul / nd500_fx_div, the
+     * ones D MUL and D DIV run in this emulator (rounded once by 7.2.7). The
+     * FPU's own multiply rounding is not shown bit by bit in any document read
+     * (NEC-01 page 69 breaks off at "In multiplications, some..."): that is an
+     * open question for every D MUL here, not for AXI alone. The square at
+     * 1571B is formed in the same word as the jump on n = 0; whether its FO
+     * counts on the last pass (the delayed conditions, Micro Program Guide
+     * 9.2) was not worked through, so the last square is not formed here.
+     * D AXI (entry 226B) was not read; it runs the same loop without the
+     * final conversion.
+     * This replaced a host pow() on host doubles (53 bits for 55) followed by
+     * a host float cast that rounded at the 24th significant bit. */
+    const bool is_double = fi->data_type != ND500_DTYPE_FLOAT;
+    const uint64_t one_d = (uint64_t)257 << 54;              /* 1.0 = 0.5 * 2**1 */
+    uint64_t base = is_double ? float_bits : nd500_fx_f_to_d((uint32_t)float_bits);
+    const bool base_zero = ((base >> 54) & 0x1FFu) == 0;     /* 7.2.6: exponent 0 is zero */
+    const bool base_negative = (base >> 63) != 0;
+    unsigned exc = 0;
+    uint64_t acc;
     bool invalid_op = false;
 
-    /* Convert to IEEE 754 for calculation */
-    double base_value;
-    if (fi->data_type == ND500_DTYPE_FLOAT) {
-        base_value = nd500_float_to_ieee754((uint32_t)float_bits);
-    } else {
-        base_value = nd500_double_to_ieee754(float_bits);
-    }
-
-    /* Handle special cases */
     if (exponent_i == 0) {
-        /* a^0 = 1 (for any a != 0) */
-        result = 1.0;
-    } else if (exponent_i < 0) {
-        /* Negative exponent: a^(-i) = 1 / (a^i) */
-        if (base_value == 0.0) {
+        acc = one_d;
+    } else if (base_zero) {
+        if (exponent_i < 0) {
             /* Manual 12.1: "A negative value of <i> and the value of <a> equal
              * to zero causes an illegal operand value trap condition and the
              * result is set to the largest possible floating point number". */
             invalid_op = true;
-            result = 0.0;   /* replaced by the largest number below */
-        } else {
-            result = pow(base_value, (double)exponent_i);
-            if (isinf(result)) {
-                overflow = true;
-            } else if (result != 0.0 && fabs(result) < 1e-308) {
-                underflow = true;
-            }
         }
+        acc = 0;
     } else {
-        /* Positive exponent */
-        if (base_value == 0.0) {
-            /* 0^n = 0 (for n > 0) */
-            result = 0.0;
-        } else if (base_value == 1.0) {
-            /* 1^n = 1 */
-            result = 1.0;
-        } else {
-            /* General case using pow() */
-            result = pow(base_value, (double)exponent_i);
-            if (isinf(result)) {
-                overflow = true;
-            } else if (result != 0.0 && fabs(result) < 1e-308) {
-                underflow = true;
+        uint32_t n = (uint32_t)exponent_i;
+        if (exponent_i < 0) {
+            base = nd500_fx_div(one_d, base, true, &exc);
+            n = 0u - n;                                      /* |n|, also for -2**31 */
+        }
+        acc = one_d;
+        while ((exc & ND500_FX_FO) == 0) {
+            if (n & 1u) {
+                acc = nd500_fx_mul(base, acc, true, &exc);
+                if (exc & ND500_FX_FO) {
+                    break;
+                }
             }
+            n >>= 1;
+            if (n == 0) {
+                break;
+            }
+            base = nd500_fx_mul(base, base, true, &exc);
+        }
+        if (exc & ND500_FX_FO) {
+            /* 1575B-1602B: the largest value with the sign of the result,
+             * which is negative for a negative a and an odd n. */
+            bool negative = base_negative && (((uint32_t)exponent_i & 1u) != 0);
+            acc = (negative ? ((uint64_t)1 << 63) : 0) | 0x7FFFFFFFFFFFFFFFull;
+            exc &= ~ND500_FX_FU;
         }
     }
 
-    /* Convert result back to ND-500 format and store. The largest number is
-     * sign 0, exponent field 511, mantissa all ones. */
     uint64_t result_bits;
-    if (fi->data_type == ND500_DTYPE_FLOAT) {
-        result_bits = invalid_op ? 0x7FFFFFFFu : nd500_float_from_ieee754((float)result);
-        nd500_write_float_register(cpu, fi->target_register, (uint32_t)result_bits);
+    if (invalid_op) {
+        /* The largest number: sign 0, exponent field 511, mantissa all ones. */
+        result_bits = is_double ? 0x7FFFFFFFFFFFFFFFull : 0x7FFFFFFFu;
+    } else if (is_double) {
+        result_bits = acc;
+    } else if (exc & ND500_FX_FO) {
+        result_bits = (uint32_t)(acc >> 32);                 /* the largest single with the sign */
     } else {
-        result_bits = invalid_op ? 0x7FFFFFFFFFFFFFFFull : nd500_double_from_ieee754(result);
+        result_bits = nd500_fx_d_to_f(acc, &exc);            /* 1603B, EX,DTOFR */
+    }
+
+    if (is_double) {
         nd500_write_double_register(cpu, fi->target_register, result_bits);
+    } else {
+        nd500_write_float_register(cpu, fi->target_register, (uint32_t)result_bits);
     }
 
-    /* Z and S from the result; C and O are not named, so they are reset (6.5.1). */
-    nd500_set_flags_zs_float(cpu, result_bits, fi->data_type != ND500_DTYPE_FLOAT);
-
-    /* Set floating-point exception flags AND raise the traps.
-     *
-     * All three conditions were detected correctly here and then only flagged -
-     * AXI raised no trap at all. The file header, quoting ND-500 Reference
-     * Manual ch.12.1, lists the trap conditions as "Floating overflow (FO),
-     * Floating underflow (FU), Invalid operation (IVO)" and the data status
-     * bits as "invalid operation -> IVO".
-     *
-     * Worse, invalid operation was recorded in ND500_FLAG_K - bit 8,
-     * "destination full" - which is not an error flag at all. The right bit is
-     * IVO (11). NDIX ARMS bit 11 (T_CMTE1 = 0xF413D800), so this is a
-     * guest-visible change, not a cosmetic one.
-     *
-     * Corroborated by the independent C# implementation: RetroCore's Axi.cs
-     * already raises FO, FU and IVO here. Two implementations of the same
-     * instruction disagreeing, with the manual on one side, is what settles it
-     * - the same standard used for the ABS S-flag question. */
-    if (overflow) {
-        cpu->ST1 |= ND500_FLAG_FO;
-        trap_floating_overflow(cpu, fi->address);
-    }
-    if (underflow) {
-        cpu->ST1 |= ND500_FLAG_FU;
-        trap_floating_underflow(cpu, fi->address);
-    }
+    /* Z and S from the result; FO and FU set and trapped as for every float
+     * operation (6.5.1); C and O are not named, so they are reset. */
+    nd500_float_status(cpu, fi->address, result_bits, exc, is_double);
     if (invalid_op) {
         raise_trap(cpu, TRAP_IOV, fi->address, 0);   /* illegal operand value (bit 16) */
     }
