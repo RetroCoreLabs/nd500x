@@ -95,20 +95,10 @@ void nd500_instr_Sloca(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* String operations use I1 as index register (like C# line 68) */
     uint32_t index = cpu->I[0];
 
-    /* Check for empty string (like C# lines 71-79) */
-    if (element_count == 0) {
-        cpu->ST1 &= ~ND500_FLAG_K;
-        cpu->ST1 &= ~ND500_FLAG_Z;
-        cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);  /* C, O not named: reset (6.5.1) */  /* SLOCA always ends S=0 (microcode: match path F02 @010133 ST,SAVA A,BM00 positive -> Sgn=0; empty/range path via SOUR_RANGE also 0). Was |= FLAG_S = over-set (golden S=1 != microword S=0). */
-        return;
-    }
-
-    /* Check if starting index is outside source (like C# lines 82-91) */
-    if (index >= element_count) {
-        cpu->ST1 &= ~ND500_FLAG_K;
-        cpu->ST1 &= ~ND500_FLAG_Z;
-        cpu->ST1 &= ~(ND500_FLAG_S | ND500_FLAG_C | ND500_FLAG_O);  /* C, O not named: reset (6.5.1) */  /* SLOCA always ends S=0; see empty-string note. */
-        /* DR trap condition - set in ST2 */
+    /* ND-05.009.4 14.1 and 14.15: outside source K=0 Z=1, I1 unmodified, DR.
+     * "Addressing a string of length zero will always be outside the string"
+     * (14.1), so the empty string is the same row. */
+    if (nd500_string_examine_outside(cpu, fi->address, index >= element_count, true, false)) {
         return;
     }
 

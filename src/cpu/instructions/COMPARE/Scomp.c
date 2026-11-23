@@ -115,6 +115,16 @@ void nd500_instr_Scomp(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t index1 = cpu->I[0];  /* I1 */
     uint32_t index2 = cpu->I[1];  /* I2 */
 
+    /* ND-05.009.4 14.1 and 14.10: both outside compare as exact match (K=0 Z=1
+     * S=0); source-1 outside as "source-1 shorter" (K=0 Z=0 S=1); source-2
+     * outside as "source-1 longer" (K=0 Z=0 S=0); I1, I2 unmodified, DR. */
+    bool outside1 = index1 >= desc1.element_count;
+    bool outside2 = index2 >= desc2.element_count;
+    if (nd500_string_examine_outside(cpu, fi->address, outside1 || outside2,
+                                     outside1 && outside2, outside1 && !outside2)) {
+        return;
+    }
+
     /* Compare strings element by element */
     bool strings_equal = true;
     bool string1_less = false;

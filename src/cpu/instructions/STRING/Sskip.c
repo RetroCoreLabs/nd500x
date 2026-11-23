@@ -70,6 +70,12 @@ void nd500_instr_Sskip(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Get starting index from I1 */
     uint32_t src_index = cpu->I[0];
 
+    /* ND-05.009.4 14.1 and 14.14: outside source K=0 Z=1 S=0, I1 unmodified, DR. */
+    if (nd500_string_examine_outside(cpu, fi->address, src_index >= source_desc.element_count,
+                                     true, false)) {
+        return;
+    }
+
     /* Skip matching elements */
     bool found_different = false;
     while (src_index < source_desc.element_count) {

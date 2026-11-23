@@ -239,6 +239,12 @@ add_executable(test_string_outside
 )
 target_link_libraries(test_string_outside PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# 14.1 addressing outside strings in the string compare, skip, scan and match instructions
+add_executable(test_string_examine_outside
+    test_string_examine_outside.c
+)
+target_link_libraries(test_string_examine_outside PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # Tests BMOVE instruction with overlapping memory regions
 # Verifies fix for bug where forward copy corrupted overlapping destination > source
 add_executable(test_bmove_overlap
@@ -534,6 +540,7 @@ add_test(NAME mon_calls COMMAND test_mon_calls)
 add_test(NAME bmove_overlap COMMAND test_bmove_overlap)
 add_test(NAME string_float COMMAND test_string_float)
 add_test(NAME string_outside COMMAND test_string_outside)
+add_test(NAME string_examine_outside COMMAND test_string_examine_outside)
 add_test(NAME table13_integer COMMAND test_table13_integer)
 add_test(NAME float_swap COMMAND test_float_swap)
 add_test(NAME alt_prefix COMMAND test_alt_prefix)

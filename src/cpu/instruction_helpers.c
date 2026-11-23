@@ -2191,6 +2191,38 @@ bool nd500_string_outside_check(Nd500Cpu* cpu, uint32_t pc,
     return true;
 }
 
+/**
+ * ND-05.009.4 14.1 ADDRESSING OUTSIDE STRINGS, for a string instruction that
+ * examines but does not move (SCOMP, SCOTR, SSKIP, SLOCA, SSCAN, SSPAN, SMATCH,
+ * SCHPAR).
+ *
+ * "If any string operand is addressed outside its legal range, no string
+ * elements will be examined, moved, or compared. The I1 and I2 registers are
+ * then unmodified, and a descriptor-range trap condition occurs." Every one of
+ * these instructions lists K=0 for its outside row; Z and S come from the
+ * instruction's own terminating conditions and are passed in by the caller.
+ * C and O are zero (14.1 DATA STATUS BITS).
+ *
+ * Returns true when the instruction must stop here (the trap condition is raised).
+ */
+bool nd500_string_examine_outside(Nd500Cpu* cpu, uint32_t pc, bool outside, bool z, bool s) {
+    if (!outside) {
+        return false;
+    }
+    nd500_string_clear_unused_flags(cpu);
+    nd500_clear_flag(cpu, ND500_FLAG_K);
+    if (z) {
+        nd500_set_flag(cpu, ND500_FLAG_Z);
+    } else {
+        nd500_clear_flag(cpu, ND500_FLAG_Z);
+    }
+    if (s) {
+        nd500_set_flag(cpu, ND500_FLAG_S);
+    }
+    trap_descriptor_range(cpu, pc);
+    return true;
+}
+
 /* ============================================================================
  * FLOATING-POINT CONVERSION (ND-500 <-> IEEE 754 <-> Integer)
  * ============================================================================

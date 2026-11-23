@@ -73,6 +73,16 @@ void nd500_instr_Smatch(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* subptr = I1 (kept). The substring runs from I1 to the end of its descriptor. */
     uint32_t sub_start = cpu->I[0];
+
+    /* ND-05.009.4 14.1 and 14.18: a substring outside (alone or with the string)
+     * is "immediately found" K=0 Z=1; the string outside with the substring
+     * inside is "not found" K=0 Z=0; I2 unmodified, DR. */
+    bool sub_outside = sub_start >= substr_desc.element_count;
+    bool str_outside = cpu->I[1] >= string_desc.element_count;
+    if (nd500_string_examine_outside(cpu, fi->address, sub_outside || str_outside,
+                                     sub_outside, false)) {
+        return;
+    }
     uint32_t sublen = (substr_desc.element_count > sub_start)
                       ? (substr_desc.element_count - sub_start) : 0;
 

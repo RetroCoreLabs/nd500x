@@ -71,6 +71,12 @@ void nd500_instr_Sspan(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     uint32_t src_index = cpu->I[0];
 
+    /* ND-05.009.4 14.1 and 14.17: outside source K=0 Z=0, I1 unmodified, DR. */
+    if (nd500_string_examine_outside(cpu, fi->address, src_index >= source_desc.element_count,
+                                     false, false)) {
+        return;
+    }
+
     /* Span while (table[S(I1)] AND mask) != 0, stopping when it becomes zero */
     bool stopped_on_zero = false;
     while (src_index < source_desc.element_count) {

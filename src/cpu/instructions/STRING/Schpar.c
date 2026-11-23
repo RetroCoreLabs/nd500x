@@ -106,10 +106,10 @@ void nd500_instr_Schpar(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     nd500_clear_flag(cpu, ND500_FLAG_Z);
 
     /* Check if starting index is outside string */
-    if (index >= string_desc.element_count) {
-        /* Outside string - K=0, Z=0, I1 unmodified */
-        nd500_clear_flag(cpu, ND500_FLAG_K);
-        nd500_set_flag(cpu, ND500_FLAG_S);  /* Signal outside string */
+    /* ND-05.009.4 14.1 and 14.20: outside string K=0 Z=0, I1 unmodified, DR.
+     * S is not named there; 14.1 DATA STATUS BITS leave it zero. */
+    if (nd500_string_examine_outside(cpu, fi->address, index >= string_desc.element_count,
+                                     false, false)) {
         return;
     }
 

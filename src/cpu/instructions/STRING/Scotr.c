@@ -64,6 +64,16 @@ void nd500_instr_Scotr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     uint32_t src1_index = cpu->I[0];
     uint32_t src2_index = cpu->I[1];
 
+    /* ND-05.009.4 14.1 and 14.11: both outside compare as exact match (K=0 Z=1
+     * S=0); source-1 outside as "source-1 shorter" (K=0 Z=0 S=1); source-2
+     * outside as "source-1 longer" (K=0 Z=0 S=0); I1, I2 unmodified, DR. */
+    bool outside1 = src1_index >= source1_desc.element_count;
+    bool outside2 = src2_index >= source2_desc.element_count;
+    if (nd500_string_examine_outside(cpu, fi->address, outside1 || outside2,
+                                     outside1 && outside2, outside1 && !outside2)) {
+        return;
+    }
+
     /* Validate translation table address won't overflow 32-bit address space */
     /* Translation table is 256 bytes (one entry per possible byte value) */
     if (trans_table_addr > 0xFFFFFF00) {

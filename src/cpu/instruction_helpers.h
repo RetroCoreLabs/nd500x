@@ -1015,6 +1015,11 @@ bool nd500_string_outside_check(Nd500Cpu* cpu, uint32_t pc,
                                 uint32_t src_index, uint32_t src_count,
                                 uint32_t dest_index, uint32_t dest_count);
 
+/* ND-05.009.4 14.1 for the string instructions that examine but do not move:
+ * when outside is true, K=0, Z and S as given, C=O=0, DR trap condition, and
+ * the caller returns with I1/I2 unmodified. */
+bool nd500_string_examine_outside(Nd500Cpu* cpu, uint32_t pc, bool outside, bool z, bool s);
+
 /* ============================================================================
  * FLOATING-POINT CONVERSION (ND-500 <-> IEEE 754 <-> Integer)
  * ============================================================================

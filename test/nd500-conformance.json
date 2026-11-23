@@ -611836,12 +611836,13 @@
       "regs": {
         "i1": 0,
         "i2": 0,
-        "pc": 4108,
-        "st": 32
+        "pc": 4108
       },
       "ram": []
     },
-    "maxInstructions": 1
+    "maxInstructions": 1,
+    "expectedTrap": "AddressingError",
+    "expectedTrapBits": 33554432
   },
   {
     "name": "ExactMatch_SingleChar",
