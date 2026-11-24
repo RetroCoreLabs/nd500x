@@ -49,6 +49,17 @@
  * Reference: ND-500 Reference Manual and docs/instructions/asm/ (authoritative).
  * Ported from (not authoritative): RetroCore/Emulated.HW/ND/CPU/ND500/Instructions/ARITHMETIC/Incr.cs
  */
+/* Appendix I, INCR row (ND-05.009.4 page 403): IVO, DZ, FU, FO and BO are
+ * "unconditionally cleared"; 6.5.1: "All data status bits not mentioned are
+ * reset". BO is bit 15 (6.5.1 table 7). Same as RetroCore Incr.cs. */
+static void nd500_incr_clear_trap_bits(Nd500Cpu* cpu) {
+    nd500_clear_flag(cpu, ND500_FLAG_IVO);
+    nd500_clear_flag(cpu, ND500_FLAG_DZ);
+    nd500_clear_flag(cpu, ND500_FLAG_FU);
+    nd500_clear_flag(cpu, ND500_FLAG_FO);
+    nd500_clear_flag(cpu, 1u << 15);
+}
+
 void nd500_instr_Incr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* Validate operand count */
     if (fi->operand_count != 1) {
@@ -90,14 +101,13 @@ void nd500_instr_Incr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
          * ND-500 format itself. Until 2026-11-24 this went through a host
          * double (53 bits against D's 55) and a host float (24 against F's 23).
          * Same as RetroCore Incr.cs. */
+        /* The exception word is not used: by 7.2.7 the largest F or D value
+         * plus 1 rounds back to the largest value (guard bit 0), so the sum
+         * never overflows, and no operand plus 1 underflows. */
         unsigned exc = 0;
         uint64_t result_bits = nd500_fx_add(value, is_double ? 0x4040000000000000ull : 0x40400000ull,
                                             is_double, &exc);
-
-        /* Check for overflow */
-        if (exc & ND500_FX_FO) {
-            trap_floating_overflow(cpu, fi->address);
-        }
+        (void)exc;
 
         /* Write back */
         if (is_double) {
@@ -105,6 +115,13 @@ void nd500_instr_Incr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         } else {
             nd500_write_operand_value(cpu, &fi->operands[0], (uint32_t)result_bits, fi->data_type);
         }
+
+        /* C and O stay clear on a float INCR: 10.19 "C (integer)"; 6.5.1
+         * "Integer Overflow may be set only when performing integer
+         * arithmetic; otherwise it is cleared"; Appendix I INCR row O = I. */
+        nd500_clear_flag(cpu, ND500_FLAG_C);
+        nd500_clear_flag(cpu, ND500_FLAG_O);
+        nd500_incr_clear_trap_bits(cpu);
 
         /* Update flags: Z (zero), S (sign) */
         if (is_double) {
@@ -169,4 +186,5 @@ void nd500_instr_Incr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
 
     /* Update status flags: Z, S, C, O */
     nd500_set_flags_zsco(cpu, masked_result, fi->data_type, carry, overflow);
+    nd500_incr_clear_trap_bits(cpu);
 }
