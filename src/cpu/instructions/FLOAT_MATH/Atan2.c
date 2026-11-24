@@ -57,9 +57,11 @@ void nd500_instr_Atan2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     if (nd500_trap_occurred() || cpu->instr_aborted) {
         return;
     }
-    /* F and D are both computed the way the B30 microcode computes them
-     * (float_math.h: same constants, reduction, polynomial and order of
-     * AAP operations), not with the host maths library. */
+    /* F and D: the true value of the function, rounded once to the format
+     * by the 7.2.7 rule (ND-05.009.4 chapter 12, owner decision 2026-11-24).
+     * float_math.c computes it in fixed point with an error bound and doubles
+     * the precision until both ends of the bound round alike; no host maths
+     * library. */
     unsigned exc = 0;
     uint64_t r = nd500_fm_atan2(y_bits, x_bits, is_double, &exc);
     nd500_fm_store(cpu, fi->address, reg_num, r, exc, is_double);

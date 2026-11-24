@@ -31,9 +31,11 @@ static uint64_t alog_base(uint64_t x, bool is_double, unsigned* exc) {
  * Calculates base-2 logarithm: log2(argument) -> register
  */
 void nd500_instr_Alog2(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* F and D are both computed the way the B30 microcode computes them
-     * (float_math.h: same constants, reduction, polynomial and order of
-     * AAP operations), not with the host maths library. */
+    /* F and D: the true value of the function, rounded once to the format
+     * by the 7.2.7 rule (ND-05.009.4 chapter 12, owner decision 2026-11-24).
+     * float_math.c computes it in fixed point with an error bound and doubles
+     * the precision until both ends of the bound round alike; no host maths
+     * library. */
     bool is_double = (fi->opcode >= 0xFFA8 && fi->opcode <= 0xFFAB);
     nd500_fm_unary(cpu, fi, "ALOG2", is_double, alog_base);
 }

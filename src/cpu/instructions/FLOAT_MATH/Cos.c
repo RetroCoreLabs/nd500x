@@ -29,9 +29,11 @@
  * Traps IVO if |argument| > 65536.
  */
 void nd500_instr_Cos(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* F and D are both computed the way the B30 microcode computes them
-     * (float_math.h: same constants, reduction, polynomial and order of
-     * AAP operations), not with the host maths library. */
+    /* F and D: the true value of the function, rounded once to the format
+     * by the 7.2.7 rule (ND-05.009.4 chapter 12, owner decision 2026-11-24).
+     * float_math.c computes it in fixed point with an error bound and doubles
+     * the precision until both ends of the bound round alike; no host maths
+     * library. */
     bool is_double = (fi->opcode >= 0xFF8C && fi->opcode <= 0xFF8F);
     nd500_fm_unary(cpu, fi, "COS", is_double, nd500_fm_cos);
 }

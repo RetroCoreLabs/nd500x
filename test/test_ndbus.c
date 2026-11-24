@@ -4099,6 +4099,7 @@ static void test_doorbell_sniff_rules(void)
     ndbus_pool_destroy(&pool);
 }
 
+#ifndef __EMSCRIPTEN__   /* the engine lock test runs a second host thread */
 /* -------------------------------------------------------------------------- */
 /* The engine lock: a trap answered from the ND-5000 thread while the ND-100   */
 /* thread is still inside the chain walk that started the process.             */
@@ -4182,6 +4183,7 @@ static void test_engine_lock(void)
     ndbus_nd5000_destroy(&nd);
     ndbus_pool_destroy(&pool);
 }
+#endif /* __EMSCRIPTEN__ */
 
 /* -------------------------------------------------------------------------- */
 /* Layer 17: the trap-stop record, which is how SINTRAN learns the CPU faulted.*/
@@ -6207,7 +6209,9 @@ int main(void)
     test_copy_family_refusals();
     test_doorbell_sniff_rules();
     test_trap_stop_record();
-    test_engine_lock();
+#ifndef __EMSCRIPTEN__
+    test_engine_lock();   /* host threads; the WASM build has none */
+#endif
     test_physical_segment_width();
     test_monitor_call_record();
     test_monitor_call_result();

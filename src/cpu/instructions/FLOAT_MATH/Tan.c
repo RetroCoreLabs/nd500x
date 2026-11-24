@@ -29,9 +29,11 @@
  * Traps FO if result is infinity (near pi/2 + n*pi).
  */
 void nd500_instr_Tan(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
-    /* F and D are both computed the way the B30 microcode computes them
-     * (float_math.h: same constants, reduction, polynomial and order of
-     * AAP operations), not with the host maths library. */
+    /* F and D: the true value of the function, rounded once to the format
+     * by the 7.2.7 rule (ND-05.009.4 chapter 12, owner decision 2026-11-24).
+     * float_math.c computes it in fixed point with an error bound and doubles
+     * the precision until both ends of the bound round alike; no host maths
+     * library. */
     bool is_double = (fi->opcode >= 0xFF94 && fi->opcode <= 0xFF97);
     nd500_fm_unary(cpu, fi, "TAN", is_double, nd500_fm_tan);
 }
