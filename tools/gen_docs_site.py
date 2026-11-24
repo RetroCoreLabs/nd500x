@@ -119,6 +119,7 @@ SECTIONS = [
         ("ND-5000 '87 extension", [
             "docs/ND5000-87-EXTENSION-INSTRUCTIONS.md",
             "docs/ND5000-87-EXTENSION-PLAN.md",
+            "docs/ND5000-87-EXTENSION-OPEN-QUESTIONS.md",
         ]),
         ("All instructions", "@all-instructions"),
         ("Instructions by class", ["@instructions"]),
