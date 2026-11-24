@@ -7,43 +7,25 @@
  * See LICENSE in the repository root for the full text.
  *
  * SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, EXP, ALOG, ALOG2 and ALOG10 on F
- * and D operands, computed the way the B30 microcode (MICRO-5800-B30)
- * computes them: the same constants, the same argument reduction, the same
- * polynomials and the same order of operations, each floating operation
- * rounded as the AAP rounds it (float_exact.h).
+ * and D operands. ND-05.009.4 chapter 12 names each function ("the
+ * trigonometric sine", "the natural logarithm", ...) and gives no algorithm
+ * and no rounding rule for it. Owner decision 2026-11-24: the result is the
+ * true value of the function rounded once to the format by the 7.2.7 rule
+ * ("if G=1 and (St=1 or L=1) then add one to the least significant bit of
+ * mantissa"), for F (23 significant bits) and D (55).
  *
- * The F and the D routines in the microcode have the same shape (SINF_0
- * @025761 and SIND_0 @026004, and so on); they differ in the constant
- * tables, the length of the polynomials, the width every operation is
- * rounded to, and the argument reduction (XREDU_F @026106, XREDU_D
- * @026144). An F value is the D value with the same high word and a zero
- * low word, so one implementation serves both.
+ * float_math.c computes it in fixed point with an error bound carried
+ * through every step, and doubles the precision until both ends of the
+ * bound round to the same word (the method is described there). It is the
+ * same method as RetroCore ND500FloatMath.cs. Before the decision this file
+ * followed the ND-5000 B30 microcode polynomials, which are one last bit
+ * off the true value for some operands.
  *
- * The results were checked bit for bit against the ND5000 microword engine
- * running the real microcode: about 2,800 F operands and about 3,100 D
- * operands (every function's normal range, both signs, and the edge cases).
- * For the D run the engine was given two corrections the documentation
- * asks for (ND-05.022.1 6.1: Q and the F-bus shifted the same way in one
- * microword form one 64 bit shift; ND-05.022.1 4.2: OR,NE selects the
- * extension part of the double operand in the next microword).
- *
- * The microcode compares magnitudes as integer bit patterns in places, so
- * an operand with exponent field 0 and a nonzero mantissa is not always
- * treated as zero; these functions follow the microcode there too.
- *
- * Division: the microcode divides F through DIV_32 (DIVFI_00 @024175) and D
- * through DIV_64 @024400. DIV_32 estimates the quotient with a table
- * reciprocal, then forms the true remainder (dividend * 2**19 less
- * quotient * divisor, both low 32 bit products, @024241-@024244), steps the
- * quotient up or down until the remainder is in range (QUOT_UP @024250,
- * QUOT_DOWN @024246) and rounds on the dropped quotient bit and that
- * remainder (QUOT_RND @024254). DIV_64 divides bit by bit and ends in the
- * same kind of rounding step. Both are therefore the manual's exactly
- * rounded division (7.2.7), which is what is used here; a floating quotient
- * is never exactly halfway between two values. On 3,000 random F operand
- * pairs the engine gives exactly this once its two remainder products are
- * taken as low 32 bits; TAN, ATAN, ATAN2, ASIN, ACOS, EXP and the logarithms
- * divide once or twice.
+ * Kept from the earlier code: the operand checks and the values the manual
+ * gives for an invalid operand (SIN, COS, TAN above 65536: IVO and 0; ASIN,
+ * ACOS outside -1..+1: IVO and 0; ATAN2 of 0, 0: IVO and 0; EXP above about
+ * 176.75 = 255 ln 2: IVO and the largest value, below minus that: 0; ALOG of
+ * zero or a negative number: IVO and all bits set).
  */
 
 #ifndef ND500_FLOAT_MATH_H
@@ -53,8 +35,8 @@
 #include <stdint.h>
 
 /* Each function takes and returns raw bits (an F value in the low 32 bits,
- * as in float_exact.h) and ORs ND500_FX_IVO into *exc when the microcode
- * raises the invalid operation trap. */
+ * as in float_exact.h) and ORs ND500_FX_IVO into *exc when the invalid
+ * operation trap condition arises. */
 uint64_t nd500_fm_sin(uint64_t x, bool is_double, unsigned* exc);
 uint64_t nd500_fm_cos(uint64_t x, bool is_double, unsigned* exc);
 uint64_t nd500_fm_tan(uint64_t x, bool is_double, unsigned* exc);

@@ -47,6 +47,69 @@ static uint32_t run(const uint8_t *code, unsigned n, uint32_t a1, uint32_t a2)
     return r;
 }
 
+/* D1 INTR R2 (0FE6CH, operand D1 = register 2): D2 = A2:E2 the source
+ * (A the high half), D1 = A1:E1 the result. */
+static uint64_t run_d(uint64_t x)
+{
+    static const uint8_t code[] = {0xFE, 0x6C, 0xD1};
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+    for (unsigned i = 0u; i < sizeof code; i++) {
+        nd500_bus_write8(&m, CODE_ADDR + i, code[i]);
+    }
+    cpu.PC = CODE_ADDR;
+    cpu.A[0] = 0u;
+    cpu.E[0] = 0u;
+    cpu.A[1] = (uint32_t)(x >> 32);
+    cpu.E[1] = (uint32_t)x;
+    cpu.ST1 = 0u;
+    m.run_flag = 1;
+    nd500_cpu_step(&cpu);
+    uint64_t r = ((uint64_t)cpu.A[0] << 32) | cpu.E[0];
+    nd500_machine_free(&m);
+    return r;
+}
+
+/* D1 INTR with the operand in memory by the ABSOLUTE address code (0C4H and a
+ * 4-byte address): both words of the double are read, high word first. */
+static uint64_t run_d_mem(uint64_t x)
+{
+    static const uint8_t code[] = {0xFE, 0x6C, 0xC4, 0x00, 0x00, 0x20, 0x00};
+    Nd500Machine m;
+    Nd500Cpu cpu;
+    nd500_machine_init(&m, MEMORY_SIZE);
+    nd500_cpu_init(&cpu, &m);
+    for (unsigned i = 0u; i < sizeof code; i++) {
+        nd500_bus_write8(&m, CODE_ADDR + i, code[i]);
+    }
+    for (unsigned i = 0u; i < 8u; i++) {
+        nd500_bus_write8(&m, 0x2000u + i, (uint8_t)(x >> (56u - 8u * i)));
+    }
+    cpu.PC = CODE_ADDR;
+    cpu.A[0] = 0u;
+    cpu.E[0] = 0u;
+    cpu.ST1 = 0u;
+    m.run_flag = 1;
+    nd500_cpu_step(&cpu);
+    uint64_t r = ((uint64_t)cpu.A[0] << 32) | cpu.E[0];
+    nd500_machine_free(&m);
+    return r;
+}
+
+static void check64(const char *name, uint64_t got, uint64_t want)
+{
+    if (got == want) {
+        printf("  [PASS] %s\n", name);
+        tests_passed++;
+    } else {
+        printf("  [FAIL] %s: got 0x%016llX want 0x%016llX\n", name,
+               (unsigned long long)got, (unsigned long long)want);
+        tests_failed++;
+    }
+}
+
 static void check(const char *name, uint32_t got, uint32_t want)
 {
     if (got == want) {
@@ -72,6 +135,12 @@ int main(void)
     check("F INTR 0.75 -> 1", run(intr, 3, 0, 0x40200000u), 0x40400000u);
     check("F INTR -0.5 -> 0", run(intr, 3, 0, 0xC0000000u), 0x00000000u);
     check("F INTR -2.5 -> -2", run(intr, 3, 0, 0xC0900000u), 0xC0800000u);
+    check64("D INTR 0.5 -> 0", run_d(0x4000000000000000ull), 0ull);
+    check64("D INTR 2.5 -> 2", run_d(0x4090000000000000ull), 0x4080000000000000ull);
+    check64("D INTR -1.5 -> -2", run_d(0xC060000000000000ull), 0xC080000000000000ull);
+    check64("D INTR just above 2.5 -> 3", run_d(0x4090000000000001ull), 0x40A0000000000000ull);
+    check64("D INTR memory just above 2.5 -> 3", run_d_mem(0x4090000000000001ull), 0x40A0000000000000ull);
+    check64("D INTR memory 2.5 -> 2", run_d_mem(0x4090000000000000ull), 0x4080000000000000ull);
     check("F WCONR 0.5 -> 0", run(wconr, 4, 0x40000000u, 0), 0u);
     check("F WCONR 1.5 -> 2", run(wconr, 4, 0x40600000u, 0), 2u);
     check("F WCONR 2.5 -> 2", run(wconr, 4, 0x40900000u, 0), 2u);

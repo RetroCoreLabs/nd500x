@@ -6,497 +6,820 @@
  *
  * See LICENSE in the repository root for the full text.
  *
- * See float_math.h. Addresses are octal control store addresses in the
- * MICRO-5800-B30 listing; the constants are the long arguments of the
- * *_CONST tables there (loaded into the scratch register file).
+ * See float_math.h for what is computed and why. This file is the same
+ * method, step for step, as RetroCore's ND500FloatMath.cs:
  *
- * Every value in this file is held the way the microcode holds it in a
- * register pair (SC5:SC6 and so on): the D bit layout, high word first.
- * An F value is the high word with a zero low word, which is the same
- * number; `d` selects the width each floating operation is rounded to.
+ * Every value is a fixed-point integer V with P bits after the binary
+ * point (value = V * 2**-P), carried together with a bound E on its error
+ * in units of 2**-P (|true value - V| <= E). The bound is worked out at
+ * every step: add, the sum of the two bounds; multiply and divide, the
+ * first-order terms plus the cut-off; a series, the slope of the function
+ * times the argument's error plus the cut-off of every term and the tail.
+ * The result is taken only when the low end (V - E) and the high end
+ * (V + E) round to the same ND-500 word by the 7.2.7 rule: rounding is
+ * monotone, so the true value, which lies between them, rounds to that word
+ * too. When they differ the whole computation runs again with P doubled
+ * (128, 256, ... 4096). No host float or double is used anywhere.
+ *
+ * A function value that is exactly zero (asin 0, acos 1, atan2(0, x > 0),
+ * log 1, sin 0, tan 0) can never be bracketed away from zero, so it is
+ * given from the identity.
+ *
+ * The integers are nd500_bigint.h: C has no integer type this wide.
  */
 
 #include "float_math.h"
 #include "float_exact.h"
+#include "nd500_bigint.h"
+
+#include <stdio.h>
+#include <stdlib.h>
 
 #define SIGN 0x8000000000000000ull
 #define MAG  0x7FFFFFFFFFFFFFFFull
-#define HALF 0x4000000000000000ull     /* 0.5 (BM36) */
-#define ONE  0x4040000000000000ull     /* 1.0 (BM36 | BM26) */
-#define EXP1 0x0040000000000000ull     /* one unit in the exponent field (BM26) */
-#define MANT 0x003FFFFFFFFFFFFFull     /* the mantissa field */
-#define HI(v) ((uint32_t)((v) >> 32))
-#define LO(v) ((uint32_t)(v))
-#define F(c) ((uint64_t)(c) << 32)     /* an F constant in the register pair layout */
 
-typedef uint64_t (*fx_op)(uint64_t, uint64_t, bool, unsigned*);
+/* Argument limits in the register pair layout (high word first; an F value
+ * is the high word). Unchanged from the earlier code: SIN, COS and TAN above
+ * 65536 give IVO and 0; EXP above about 176.75 = 255 ln 2 (12.12) gives IVO
+ * and the largest value, below minus that 0. */
+#define TRIG_LIMIT 0x4440000000000000ull
+static const uint64_t k_exp_limit[2] = { 0x4218605300000000ull, 0x42186052EF911CF3ull };
 
-/* One AAP operation at width d; exceptions inside a function are not reported. */
-static uint64_t aap(fx_op op, uint64_t a, uint64_t b, bool d)
-{
-    unsigned e = 0;
-    return d ? op(a, b, true, &e) : op(a >> 32, b >> 32, false, &e) << 32;
+#define FIRST_PRECISION 128
+#define LAST_PRECISION 4096
+
+/* Numbers one attempt may hold at once; the loops reuse theirs. */
+#define ARENA_NUMBERS 400
+
+/* A fixed-point value V * 2**-P with |true - V| <= E. */
+typedef struct {
+    nd500_bi* v;
+    nd500_bi* e;
+} Fx;
+
+/* One attempt at one precision. */
+typedef struct {
+    nd500_bi_arena ar;
+    int p;
+    bool more;          /* the precision was too small somewhere: run again with P doubled */
+    nd500_bi* t[6];     /* temporaries for the leaf operations below (none calls another) */
+} Cx;
+
+static Fx fx_new(Cx* c) {
+    Fx f;
+    f.v = nd500_bi_new(&c->ar);
+    f.e = nd500_bi_new(&c->ar);
+    return f;
 }
 
-static uint64_t add(uint64_t a, uint64_t b, bool d) { return aap(nd500_fx_add, a, b, d); }
-static uint64_t sub(uint64_t a, uint64_t b, bool d) { return aap(nd500_fx_sub, a, b, d); }
-static uint64_t mul(uint64_t a, uint64_t b, bool d) { return aap(nd500_fx_mul, a, b, d); }
-static uint64_t quot(uint64_t a, uint64_t b, bool d) { return aap(nd500_fx_div, a, b, d); }
+static void fx_copy(Cx* c, Fx r, Fx a) {
+    nd500_bi_copy(&c->ar, r.v, a.v);
+    nd500_bi_copy(&c->ar, r.e, a.e);
+}
 
-/* POLLYF* @027044, POLLYD* @027054: c[0] x, then add the next coefficient
- * and multiply by x in turn. The loop counter decides whether the routine
- * returns after an add or after a multiply. */
-static uint64_t poly_mul(const uint64_t* c, int n, uint64_t x, bool d)
-{
-    uint64_t p = mul(c[0], x, d);
-    for (int i = 1; i < n; i++) {
-        p = mul(add(c[i], p, d), x, d);
+static void fx_add(Cx* c, Fx r, Fx a, Fx b) {
+    nd500_bi_add(&c->ar, r.v, a.v, b.v);
+    nd500_bi_add(&c->ar, r.e, a.e, b.e);
+}
+
+static void fx_sub(Cx* c, Fx r, Fx a, Fx b) {
+    nd500_bi_sub(&c->ar, r.v, a.v, b.v);
+    nd500_bi_add(&c->ar, r.e, a.e, b.e);
+}
+
+static void fx_neg(Cx* c, Fx r, Fx a) {
+    nd500_bi_neg(&c->ar, r.v, a.v);
+    nd500_bi_copy(&c->ar, r.e, a.e);
+}
+
+static void fx_set_one(Cx* c, Fx r) {
+    nd500_bi_set_u64(&c->ar, r.v, 1u);
+    nd500_bi_shl(&c->ar, r.v, r.v, c->p);
+    nd500_bi_set_u64(&c->ar, r.e, 0u);
+}
+
+/* a * k for a whole number k: exact apart from the error, which grows by |k|. */
+static void fx_mul_int(Cx* c, Fx r, Fx a, int64_t k) {
+    nd500_bi_mul_i64(&c->ar, r.v, a.v, k);
+    nd500_bi_mul_i64(&c->ar, r.e, a.e, k < 0 ? -k : k);
+}
+
+/* a / b: the error of a quotient is (ea + |q| eb) / (|b| - eb), plus 2 for
+ * the cut-off. A divisor whose bound reaches zero needs more precision. */
+static void fx_div(Cx* c, Fx r, Fx a, Fx b) {
+    nd500_bi_arena* ar = &c->ar;
+    nd500_bi* bl = c->t[0];
+    nd500_bi* q = c->t[1];
+    nd500_bi* e = c->t[2];
+    nd500_bi* w = c->t[3];
+    nd500_bi_abs(ar, bl, b.v);
+    nd500_bi_sub(ar, bl, bl, b.e);
+    if (nd500_bi_sign(bl) <= 0) {
+        c->more = true;
+        nd500_bi_set_u64(ar, r.v, 0u);
+        nd500_bi_set_u64(ar, r.e, 0u);
+        return;
     }
-    return p;
+    nd500_bi_shl(ar, q, a.v, c->p);
+    nd500_bi_div_trunc(ar, q, q, b.v);
+    nd500_bi_shl(ar, e, a.e, c->p);
+    nd500_bi_abs(ar, w, q);
+    nd500_bi_mul(ar, w, w, b.e);
+    nd500_bi_add(ar, e, e, w);
+    nd500_bi_div_trunc(ar, e, e, bl);
+    nd500_bi_add_i64(ar, e, e, 2);
+    nd500_bi_copy(ar, r.v, q);
+    nd500_bi_copy(ar, r.e, e);
 }
 
-static uint64_t poly_add(const uint64_t* c, int n, uint64_t x, bool d)
-{
-    return add(c[n - 1], poly_mul(c, n - 1, x, d), d);
-}
-
-/* POLLYF+ @027050, POLLYD+ @027064: starts with c[0] + x, returns after an add. */
-static uint64_t poly_plus(const uint64_t* c, int n, uint64_t x, bool d)
-{
-    uint64_t p = add(c[0], x, d);
-    for (int i = 1; i < n; i++) {
-        p = add(c[i], mul(x, p, d), d);
+/* Square root of a value >= 0: |sqrt(a) - sqrt(b)| <= |a - b| / sqrt(a - ea),
+ * and also <= sqrt|a - b|; the smaller bound is used. */
+static void fx_sqrt(Cx* c, Fx r, Fx a) {
+    nd500_bi_arena* ar = &c->ar;
+    nd500_bi* va = c->t[0];
+    nd500_bi* v = c->t[1];
+    nd500_bi* e = c->t[2];
+    nd500_bi* low = c->t[3];
+    nd500_bi* e2 = c->t[4];
+    if (nd500_bi_sign(a.v) < 0) {
+        nd500_bi_set_u64(ar, va, 0u);
+    } else {
+        nd500_bi_copy(ar, va, a.v);
     }
-    return p;
+    nd500_bi_shl(ar, v, va, c->p);
+    nd500_bi_isqrt(ar, v, v);
+    nd500_bi_shl(ar, e, a.e, c->p);
+    nd500_bi_isqrt(ar, e, e);
+    nd500_bi_add_i64(ar, e, e, 2);
+    nd500_bi_sub(ar, low, va, a.e);
+    if (nd500_bi_sign(low) > 0) {
+        nd500_bi_shl(ar, low, low, c->p);
+        nd500_bi_isqrt(ar, low, low);
+        nd500_bi_shl(ar, e2, a.e, c->p);
+        nd500_bi_div_trunc(ar, e2, e2, low);
+        nd500_bi_add_i64(ar, e2, e2, 2);
+        if (nd500_bi_cmp(e2, e) < 0) {
+            nd500_bi_copy(ar, e, e2);
+        }
+    }
+    nd500_bi_copy(ar, r.v, v);
+    nd500_bi_copy(ar, r.e, e);
 }
 
-/* RAPPF @027074, RAPPD @027102: v P/Q + v */
-static uint64_t rapp(uint64_t p, uint64_t q, uint64_t v, bool d)
-{
-    return add(mul(quot(p, q, d), v, d), v, d);
+/* An exact operand significand * 2**scale as a fixed-point value (cut-off error 1). */
+static void fx_exact(Cx* c, Fx r, bool negative, uint64_t sig, int scale) {
+    int sh = scale + c->p;
+    nd500_bi_set_u64(&c->ar, r.v, sig);
+    if (sh >= 0) {
+        nd500_bi_shl(&c->ar, r.v, r.v, sh);
+    } else {
+        nd500_bi_shr_floor(&c->ar, r.v, r.v, -sh);
+    }
+    if (negative) {
+        nd500_bi_neg(&c->ar, r.v, r.v);
+    }
+    nd500_bi_set_u64(&c->ar, r.e, sh >= 0 ? 0u : 1u);
 }
 
-/* INTRF_U @020343 (rounded, half away from zero: the ALU adds half a unit
- * at the binary point to the magnitude and truncates) and INTF_U @020333
- * (truncated): the integer part of the F value in the high word of t. Both
- * F and D take it from the high word alone. Returns the integer as an F
- * value in the register pair layout, and the integer itself. */
-static uint64_t int_part(uint64_t t, bool rounded, long* n)
-{
-    bool neg;
-    uint64_t sig;
-    int scale;
-    nd500_fx_decode(HI(t), false, &neg, &sig, &scale);    /* |t| = sig * 2**scale */
-    long k = 0;
-    if (sig != 0 && scale > -64) {
-        if (scale >= 0) {
-            k = (long)(sig << scale);
+/* fx_exact for a significand already held as a big integer (>= 0). */
+static void fx_exact_bi(Cx* c, Fx r, const nd500_bi* sig, int scale) {
+    int sh = scale + c->p;
+    if (sh >= 0) {
+        nd500_bi_shl(&c->ar, r.v, sig, sh);
+    } else {
+        nd500_bi_shr_floor(&c->ar, r.v, sig, -sh);
+    }
+    nd500_bi_set_u64(&c->ar, r.e, sh >= 0 ? 0u : 1u);
+}
+
+/* The exact quotient (sa * 2**xa) / (sb * 2**xb) of two positive values (error 1). */
+static void fx_ratio(Cx* c, Fx r, const nd500_bi* sa, int xa, const nd500_bi* sb, int xb) {
+    nd500_bi_arena* ar = &c->ar;
+    nd500_bi* n = c->t[0];
+    nd500_bi* d = c->t[1];
+    int sh = xa - xb + c->p;
+    if (sh >= 0) {
+        nd500_bi_shl(ar, n, sa, sh);
+        nd500_bi_copy(ar, d, sb);
+    } else {
+        nd500_bi_copy(ar, n, sa);
+        nd500_bi_shl(ar, d, sb, -sh);
+    }
+    nd500_bi_div_trunc(ar, r.v, n, d);
+    nd500_bi_set_u64(ar, r.e, 1u);
+}
+
+/* atan(1/n) = sum (-1)**k / ((2k+1) n**(2k+1)); each term costs 2 units,
+ * the tail is under one term. hyperbolic: atanh(1/n) = sum 1 / ((2k+1)
+ * n**(2k+1)), the tail of a series of ratio 1/n**2 under two terms. */
+static void fx_atan_inv(Cx* c, Fx r, uint32_t n, bool hyperbolic) {
+    nd500_bi_arena* ar = &c->ar;
+    nd500_bi* t = c->t[0];
+    nd500_bi* s = c->t[1];
+    nd500_bi* term = c->t[2];
+    uint32_t nn = n * n;
+    nd500_bi_set_u64(ar, t, 1u);
+    nd500_bi_shl(ar, t, t, c->p);
+    nd500_bi_div_u32(ar, t, t, n);
+    nd500_bi_copy(ar, s, t);
+    uint32_t k = 1;
+    int64_t terms = 1;
+    bool minus = true;
+    while (!nd500_bi_is_zero(t)) {
+        nd500_bi_div_u32(ar, t, t, nn);
+        k += 2;
+        nd500_bi_div_u32(ar, term, t, k);
+        if (minus && !hyperbolic) {
+            nd500_bi_sub(ar, s, s, term);
         } else {
-            uint64_t half = rounded ? ((uint64_t)1) << (-scale - 1) : 0;
-            k = (long)((sig + half) >> -scale);
+            nd500_bi_add(ar, s, s, term);
+        }
+        minus = !minus;
+        terms++;
+    }
+    nd500_bi_copy(ar, r.v, s);
+    nd500_bi_set_i64(ar, r.e, hyperbolic ? 2 * terms + 4 : 2 * terms + 2);
+}
+
+/* Machin: pi = 16 atan(1/5) - 4 atan(1/239). */
+static void fx_pi(Cx* c, Fx r) {
+    Fx a = fx_new(c), b = fx_new(c);
+    fx_atan_inv(c, a, 5u, false);
+    fx_mul_int(c, a, a, 16);
+    fx_atan_inv(c, b, 239u, false);
+    fx_mul_int(c, b, b, 4);
+    fx_sub(c, r, a, b);
+}
+
+/* pi / 2**k: the value and its bound shifted, plus one for the cut-off. */
+static void fx_pi_over(Cx* c, Fx r, Fx pi, int k) {
+    nd500_bi_shr_floor(&c->ar, r.v, pi.v, k);
+    nd500_bi_shr_floor(&c->ar, r.e, pi.e, k);
+    nd500_bi_add_i64(&c->ar, r.e, r.e, 1);
+}
+
+/* ln 2 = 2 atanh(1/3). */
+static void fx_ln2(Cx* c, Fx r) {
+    fx_atan_inv(c, r, 3u, true);
+    fx_mul_int(c, r, r, 2);
+}
+
+/* ln 10 = 3 ln 2 + ln 1.25, and ln 1.25 = 2 atanh(1/9). */
+static void fx_ln10(Cx* c, Fx r) {
+    Fx a = fx_new(c), b = fx_new(c);
+    fx_ln2(c, a);
+    fx_mul_int(c, a, a, 3);
+    fx_atan_inv(c, b, 9u, true);
+    fx_mul_int(c, b, b, 2);
+    fx_add(c, r, a, b);
+}
+
+/* Taylor series of atan for |z| <= 0.42: slope at most 1, so the error is
+ * ez plus 3 units a term (multiply, divide) and the alternating tail, under
+ * one term. hyperbolic: atanh for |z| <= 1/3, slope 1/(1-z**2) <= 1.125 (2
+ * is used), tail under two terms. */
+static void fx_atan_series(Cx* c, Fx r, Fx z, bool hyperbolic) {
+    nd500_bi_arena* ar = &c->ar;
+    nd500_bi* z2 = c->t[0];
+    nd500_bi* t = c->t[1];
+    nd500_bi* s = c->t[2];
+    nd500_bi* term = c->t[3];
+    nd500_bi_mul(ar, z2, z.v, z.v);
+    nd500_bi_shr_floor(ar, z2, z2, c->p);
+    nd500_bi_copy(ar, t, z.v);
+    nd500_bi_copy(ar, s, z.v);
+    uint32_t k = 1;
+    int64_t terms = 1;
+    bool minus = true;
+    while (!nd500_bi_is_zero(t)) {
+        nd500_bi_mul(ar, t, t, z2);
+        nd500_bi_shr_trunc(ar, t, t, c->p);
+        k += 2;
+        nd500_bi_div_u32(ar, term, t, k);
+        if (minus && !hyperbolic) {
+            nd500_bi_sub(ar, s, s, term);
+        } else {
+            nd500_bi_add(ar, s, s, term);
+        }
+        minus = !minus;
+        terms++;
+    }
+    nd500_bi* e = c->t[4];
+    nd500_bi_mul_i64(ar, e, z.e, hyperbolic ? 2 : 1);
+    nd500_bi_add_i64(ar, e, e, hyperbolic ? 3 * terms + 6 : 3 * terms + 4);
+    nd500_bi_copy(ar, r.v, s);
+    nd500_bi_copy(ar, r.e, e);
+}
+
+/* exp(r) for |r| <= 0.75: slope e**0.75 < 3, tail under two terms. */
+static void fx_exp_series(Cx* c, Fx out, Fx r) {
+    nd500_bi_arena* ar = &c->ar;
+    nd500_bi* t = c->t[0];
+    nd500_bi* s = c->t[1];
+    nd500_bi_set_u64(ar, t, 1u);
+    nd500_bi_shl(ar, t, t, c->p);
+    nd500_bi_copy(ar, s, t);
+    uint32_t n = 0;
+    int64_t terms = 1;
+    while (!nd500_bi_is_zero(t)) {
+        n++;
+        nd500_bi_mul(ar, t, t, r.v);
+        nd500_bi_shr_trunc(ar, t, t, c->p);
+        nd500_bi_div_u32(ar, t, t, n);
+        nd500_bi_add(ar, s, s, t);
+        terms++;
+    }
+    nd500_bi* e = c->t[2];
+    nd500_bi_mul_i64(ar, e, r.e, 3);
+    nd500_bi_add_i64(ar, e, e, 3 * terms + 6);
+    nd500_bi_copy(ar, out.v, s);
+    nd500_bi_copy(ar, out.e, e);
+}
+
+/* sin(r) and cos(r) for |r| <= 0.8: slope at most 1, alternating tail under one term. */
+static void fx_sin_cos_series(Cx* c, Fx r, Fx sin_out, Fx cos_out) {
+    nd500_bi_arena* ar = &c->ar;
+    nd500_bi* r2 = c->t[0];
+    nd500_bi* ts = c->t[1];
+    nd500_bi* ss = c->t[2];
+    nd500_bi* tc = c->t[3];
+    nd500_bi* sc = c->t[4];
+    nd500_bi* e = c->t[5];
+    nd500_bi_mul(ar, r2, r.v, r.v);
+    nd500_bi_shr_floor(ar, r2, r2, c->p);
+    nd500_bi_copy(ar, ts, r.v);
+    nd500_bi_copy(ar, ss, ts);
+    nd500_bi_set_u64(ar, tc, 1u);
+    nd500_bi_shl(ar, tc, tc, c->p);
+    nd500_bi_copy(ar, sc, tc);
+    int64_t n = 0, terms = 1;
+    bool minus = true;
+    while (!nd500_bi_is_zero(ts) || !nd500_bi_is_zero(tc)) {
+        n += 2;
+        nd500_bi_mul(ar, tc, tc, r2);
+        nd500_bi_shr_floor(ar, tc, tc, c->p);
+        nd500_bi_div_u32(ar, tc, tc, (uint32_t)((n - 1) * n));
+        nd500_bi_mul(ar, ts, ts, r2);
+        nd500_bi_shr_trunc(ar, ts, ts, c->p);
+        nd500_bi_div_u32(ar, ts, ts, (uint32_t)(n * (n + 1)));
+        if (minus) {
+            nd500_bi_sub(ar, sc, sc, tc);
+            nd500_bi_sub(ar, ss, ss, ts);
+        } else {
+            nd500_bi_add(ar, sc, sc, tc);
+            nd500_bi_add(ar, ss, ss, ts);
+        }
+        minus = !minus;
+        terms++;
+    }
+    nd500_bi_add_i64(ar, e, r.e, 3 * terms + 4);
+    nd500_bi_copy(ar, sin_out.v, ss);
+    nd500_bi_copy(ar, sin_out.e, e);
+    nd500_bi_copy(ar, cos_out.v, sc);
+    nd500_bi_copy(ar, cos_out.e, e);
+}
+
+/* The whole number nearest to a fixed-point value (any nearby whole number
+ * is valid for a reduction). */
+static int64_t fx_nearest(Cx* c, const nd500_bi* v) {
+    nd500_bi* h = c->t[0];
+    nd500_bi_set_u64(&c->ar, h, 1u);
+    nd500_bi_shl(&c->ar, h, h, c->p - 1);
+    nd500_bi_add(&c->ar, h, h, v);
+    nd500_bi_shr_floor(&c->ar, h, h, c->p);
+    int64_t k = (int64_t)nd500_bi_low_u64(h);   /* |k| is far below 2**63: at most 65536 / (pi/2) or 256 */
+    return nd500_bi_sign(h) < 0 ? -k : k;
+}
+
+/* atan(z) for 0 <= z <= about 1.01: above tan(pi/8) = 0.4142 it uses
+ * atan z = pi/4 + atan((z-1)/(z+1)), whose argument is then within
+ * -0.42..0.42. */
+static void fx_atan_unit(Cx* c, Fx r, Fx z) {
+    nd500_bi* tan_pi8 = c->t[0];
+    nd500_bi_set_u64(&c->ar, tan_pi8, 4142u);
+    nd500_bi_shl(&c->ar, tan_pi8, tan_pi8, c->p);
+    nd500_bi_div_u32(&c->ar, tan_pi8, tan_pi8, 10000u);
+    if (nd500_bi_cmp(z.v, tan_pi8) <= 0) {
+        fx_atan_series(c, r, z, false);
+        return;
+    }
+    Fx one = fx_new(c), num = fx_new(c), den = fx_new(c), w = fx_new(c), pi = fx_new(c), pi4 = fx_new(c);
+    fx_set_one(c, one);
+    fx_sub(c, num, z, one);
+    fx_add(c, den, z, one);
+    fx_div(c, w, num, den);
+    fx_pi(c, pi);
+    fx_pi_over(c, pi4, pi, 2);
+    fx_atan_series(c, w, w, false);
+    fx_add(c, r, pi4, w);
+}
+
+/* atan2(y, x) of two fixed-point values, the angle of the point (x, y) in
+ * -pi..pi: the ratio of the smaller to the larger magnitude, atan of it,
+ * then the octant. */
+static void fx_atan2(Cx* c, Fx r, Fx y, Fx x) {
+    Fx ay = fx_new(c), ax = fx_new(c), t = fx_new(c), pi = fx_new(c), pi2 = fx_new(c);
+    bool yneg = nd500_bi_sign(y.v) < 0, xneg = nd500_bi_sign(x.v) < 0;
+    nd500_bi_abs(&c->ar, ay.v, y.v);
+    nd500_bi_copy(&c->ar, ay.e, y.e);
+    nd500_bi_abs(&c->ar, ax.v, x.v);
+    nd500_bi_copy(&c->ar, ax.e, x.e);
+    fx_pi(c, pi);
+    fx_pi_over(c, pi2, pi, 1);
+    if (nd500_bi_cmp(ay.v, ax.v) <= 0) {
+        fx_div(c, t, ay, ax);
+        fx_atan_unit(c, t, t);
+    } else {
+        fx_div(c, t, ax, ay);
+        fx_atan_unit(c, t, t);
+        fx_sub(c, t, pi2, t);
+    }
+    if (xneg) {
+        fx_sub(c, t, pi, t);
+    }
+    if (yneg) {
+        fx_neg(c, t, t);
+    }
+    fx_copy(c, r, t);
+}
+
+/* Round n * 2**scale (n signed) by 7.2.7, with the 6.5.1 out-of-range
+ * results (float_exact.h nd500_fx_round). Only the top bits and a sticky
+ * bit are handed on, which rounds the same. */
+static uint64_t round_big(const nd500_bi* n, int scale, bool d, unsigned* exc) {
+    if (nd500_bi_is_zero(n)) {
+        return 0;
+    }
+    int keep = (d ? 54 : 22) + 1;
+    int len = nd500_bi_bitlen(n);
+    int drop = len - (keep + 2);
+    uint64_t top;
+    bool sticky = false;
+    if (drop > 0) {
+        sticky = nd500_bi_low_bits_nonzero(n, drop);
+        /* the top keep+2 bits of |n| */
+        uint64_t v = 0;
+        for (int i = len - 1; i >= drop; i--) {
+            v = (v << 1) | (nd500_bi_testbit(n, i) ? 1u : 0u);
+        }
+        top = v;
+    } else {
+        top = nd500_bi_low_u64(n);
+        drop = 0;
+    }
+    return nd500_fx_round(nd500_bi_sign(n) < 0, nd500_u128_from_u64(top), scale + drop, sticky, d, exc);
+}
+
+/* Round V * 2**(extra_scale - P) by 7.2.7 if both ends of its bound round
+ * to the same word; otherwise ask for more precision. */
+static uint64_t resolve(Cx* c, Fx f, int extra_scale, bool d, unsigned* exc) {
+    nd500_bi* lo = c->t[0];
+    nd500_bi* hi = c->t[1];
+    nd500_bi_sub(&c->ar, lo, f.v, f.e);
+    nd500_bi_add(&c->ar, hi, f.v, f.e);
+    if (c->more || nd500_bi_arena_failed(&c->ar)
+        || nd500_bi_sign(lo) != nd500_bi_sign(hi) || nd500_bi_is_zero(lo)) {
+        c->more = true;
+        return 0;
+    }
+    unsigned el = 0, eh = 0;
+    uint64_t rl = round_big(lo, extra_scale - c->p, d, &el);
+    uint64_t rh = round_big(hi, extra_scale - c->p, d, &eh);
+    if (rl != rh || el != eh) {
+        c->more = true;
+        return 0;
+    }
+    *exc = el;
+    return rl;
+}
+
+/* The arguments of one function, for the attempt routine. */
+typedef struct {
+    int which;           /* sin 0, cos 1, tan 2; acos 1 / asin 0; log base */
+    bool d;
+    bool neg, neg2;
+    uint64_t sig, sig2;
+    int scale, scale2;
+    int64_t e2;          /* ALOG: x = m * 2**e2 */
+    uint64_t m;          /* ALOG: the scaled significand */
+    unsigned exc;        /* the exceptions of the settled rounding */
+} Args;
+
+typedef uint64_t (*attempt_fn)(Cx* c, Args* a);
+
+/* Run one attempt at P = 128, 256, ... until the result is settled. An
+ * operand that is not settled at the last precision stops the emulator:
+ * the method has no fallback that could give a plausible wrong value. */
+static uint64_t settle(attempt_fn fn, Args* a, const char* name) {
+    for (int p = FIRST_PRECISION; p <= LAST_PRECISION; p *= 2) {
+        Cx c;
+        if (!nd500_bi_arena_init(&c.ar, 2 * p + 2048, ARENA_NUMBERS)) {
+            fprintf(stderr, "ND-500 %s: out of memory for the %d bit attempt\n", name, p);
+            abort();
+        }
+        c.p = p;
+        c.more = false;
+        for (int i = 0; i < 6; i++) {
+            c.t[i] = nd500_bi_new(&c.ar);
+        }
+        uint64_t r = fn(&c, a);
+        bool done = !c.more && !nd500_bi_arena_failed(&c.ar);
+        nd500_bi_arena_free(&c.ar);
+        if (done) {
+            return r;
         }
     }
-    *n = neg ? -k : k;
-    if (k == 0) {
-        return 0;
+    fprintf(stderr, "ND-500 %s: result not settled at %d bits\n", name, LAST_PRECISION);
+    abort();
+}
+
+/* ---- the functions ---------------------------------------------------- */
+
+static uint64_t attempt_trig(Cx* c, Args* a) {
+    Fx xf = fx_new(c), pi = fx_new(c), hp = fx_new(c), q = fx_new(c), r = fx_new(c);
+    Fx s = fx_new(c), co = fx_new(c), v = fx_new(c), sinx = fx_new(c), cosx = fx_new(c);
+    fx_exact(c, xf, a->neg, a->sig, a->scale);
+    fx_pi(c, pi);
+    fx_pi_over(c, hp, pi, 1);
+    fx_div(c, q, xf, hp);
+    int64_t k = fx_nearest(c, q.v);
+    fx_mul_int(c, r, hp, k);
+    fx_sub(c, r, xf, r);
+    fx_sin_cos_series(c, r, s, co);
+    int quadrant = (int)(((k % 4) + 4) % 4);
+    switch (quadrant) {
+    case 0: fx_copy(c, sinx, s);  fx_copy(c, cosx, co); break;
+    case 1: fx_copy(c, sinx, co); fx_neg(c, cosx, s);   break;
+    case 2: fx_neg(c, sinx, s);   fx_neg(c, cosx, co);  break;
+    default: fx_neg(c, sinx, co); fx_copy(c, cosx, s);  break;
+    }
+    if (a->which == 0) {
+        fx_copy(c, v, sinx);
+    } else if (a->which == 1) {
+        fx_copy(c, v, cosx);
+    } else {
+        fx_div(c, v, sinx, cosx);
     }
     unsigned e = 0;
-    return nd500_fx_round(neg, nd500_u128_from_u64((uint64_t)k), 0, false, false, &e) << 32;
+    return resolve(c, v, 0, a->d, &e);
 }
 
-/* The argument reduction constants of one function at one width. */
-typedef struct {
-    uint64_t inv;      /* 1/C, the multiplier that gives the multiple */
-    uint64_t big;      /* the largest magnitude the function accepts */
-    uint64_t c;        /* C; for D only the high word is set, so m * c is exact */
-    uint64_t c_low;    /* D: the rest of C */
-    uint64_t small;    /* below this the reduced argument is its own result */
-} Reduction;
-
-/* XREDU_F @026106 and XREDU_D @026144: m = the rounded integer part of
- * x / C (for COS, of x / C + 0.5, less 0.5 again), r = x - m C.
- *
- * F (XREDU_F5 @026120): m C and the subtraction in double precision, then
- * rounded to single by adding the top bit of the low word to the high word.
- *
- * D (XREDU_D6 @026170): x is split into the truncated integer part of its
- * high word and the rest, and r = (rest + (integer - m c)) - m c_low, each
- * step a double operation. */
-static uint64_t reduce(uint64_t x, bool cos, const Reduction* k, bool d, long* n)
-{
-    uint64_t t = mul(k->inv, x, d);
-    if (cos) {
-        t = add(HALF, t, d);             /* @026110, @026150 */
-    }
-    uint64_t m = int_part(t, true, n);
-    if (*n == 0) {
-        return x;
-    }
-    if (cos) {
-        m = sub(m, HALF, false);         /* @026116, @026161: an F operation at both widths */
-    }
-    if (!d) {
-        uint64_t r = sub(x, mul(k->c, m, true), true);
-        return (uint64_t)(HI(r) + ((LO(r) >> 31) & 1)) << 32;
-    }
-    long unused;
-    uint64_t whole = int_part(x, false, &unused);
-    uint64_t rest = sub(x, whole, true);
-    uint64_t r = add(rest, sub(whole, mul(k->c, m, true), true), true);
-    return sub(r, mul(k->c_low, m, true), true);
-}
-
-/* ------------------------------------------------------------ SIN, COS */
-
-/* SINF_CONST @020061, SIND_CONST @020074 */
-static const Reduction k_sin_red[2] = {
-    { F(0x3FD17CC2u), F(0x44400000u), 0x40A487ED5110B461ull, 0, F(0x3D5A827Au) },
-    { 0x3FD17CC1B727220Bull, 0x4440000000000000ull, 0x40A4880000000000ull, 0xBC0ABBBD2E7B9676ull,
-      0x395A827999FCEF33ull },
-};
-static const uint64_t k_sin_near_pi2[2] = { F(0x40648245u), 0x406487ED4B688CC7ull };
-static const uint64_t k_sin_poly_f[4] = { F(0x3B974E2Du), F(0xBD27D911u), F(0x3E84439Fu), F(0xBF955552u) };
-static const uint64_t k_sin_poly_d[8] = {
-    0x342203FDA64F7E53ull, 0xB62B908370212670ull, 0x381848F1A1AB50C0ull, 0xB9EB99152D7702AEull,
-    0x3B9C778E9493C18Cull, 0xBD2806806804F869ull, 0x3E844444444442C0ull, 0xBF95555555555553ull,
-};
-
-/* SINF @001354 / COSF @001364 -> SINF_0 @025761; SIND @001356 / COSD -> SIND_0 @026004 */
-static uint64_t sin_cos(uint64_t x, bool cos, bool d, unsigned* exc)
-{
-    const Reduction* k = &k_sin_red[d];
-    uint64_t sc13 = cos ? 0 : (x & SIGN);
-    uint64_t a = x & MAG;
-    if (a > k->big) {                    /* XREDU_F1, XREDU_D1 -> BIGARG -> IVOZRO */
+static uint64_t sin_cos_tan(uint64_t x, int which, bool d, unsigned* exc) {
+    uint64_t pair = d ? x : x << 32;
+    if ((pair & MAG) > TRIG_LIMIT) {
         *exc |= ND500_FX_IVO;
         return 0;
     }
-    long n;
-    uint64_t r = reduce(a, cos, k, d, &n);
-    uint64_t flip = sc13 ^ ((n & 1) ? SIGN : 0);
-    uint64_t mag = r & MAG;
-    if (mag < k->small) {                /* @025766, @026011 -> SINF_3, SIND_3 */
-        /* A zero high word clears the high word only (C,ALU ALU,FZRO). */
-        return HI(mag) == 0 ? LO(r) : (r ^ flip);
+    Args a = {0};
+    a.which = which;
+    a.d = d;
+    nd500_fx_decode(x, d, &a.neg, &a.sig, &a.scale);
+    if (a.sig == 0 && which != 1) {
+        return 0;                          /* sin 0 = tan 0 = 0 */
     }
-    if (mag > k_sin_near_pi2[d]) {       /* @025772, @026016: +-1.0 */
-        return ((r & SIGN) | ONE) ^ flip;
-    }
-    uint64_t p = d ? poly_mul(k_sin_poly_d, 8, mul(r, r, d), d)
-                   : poly_mul(k_sin_poly_f, 4, mul(r, r, d), d);
-    uint64_t rs = r ^ flip;              /* @025777, @026025 */
-    return add(mul(p, rs, d), rs, d);    /* FAAP*F+F @027030, DAAP*F+F @027034 */
+    return settle(attempt_trig, &a, which == 0 ? "SIN" : which == 1 ? "COS" : "TAN");
 }
 
-/* ------------------------------------------------------------------ TAN */
-
-/* TANF_CONST @020015, TAND_CONST @020027 */
-static const Reduction k_tan_red[2] = {
-    { F(0x40117CC2u), F(0x44400000u), 0x406487ED5110B461ull, 0, F(0x3D5A827Au) },
-    { 0x40117CC1B727220Bull, 0x4440000000000000ull, 0x4064880000000000ull, 0xBBCABBBD2E7B9676ull,
-      0x395A827999FCEF33ull },
-};
-static const uint64_t k_tan_p_f[1] = { F(0xBF6219DCu) };
-static const uint64_t k_tan_q_f[3] = { F(0x3E8F99BBu), F(0xBFEDDBD8u), ONE };
-static const uint64_t k_tan_p_d[3] = { 0xBC4AEADCBA8B1C8Full, 0x3E303A0A98EEAB7Bull, 0xBF844AD7953423FEull };
-static const uint64_t k_tan_q_d[5] = {
-    0x3B02DDD3C1D9E3A4ull, 0xBD51BD9264252105ull, 0x3EE91E7A85F88565ull, 0xBFF77AC11FEF6755ull, ONE,
-};
-
-/* TANF @001374 -> TANF_0 @026030; TAND @001376 -> TAND_0 @026054 */
-static uint64_t tan_fd(uint64_t x, bool d, unsigned* exc)
-{
-    const Reduction* k = &k_tan_red[d];
-    if ((x & MAG) > k->big) {
-        *exc |= ND500_FX_IVO;
-        return 0;
-    }
-    long n;
-    uint64_t r = reduce(x, false, k, d, &n);
-    bool odd = (n & 1) != 0;
-    if ((r & MAG) < k->small) {          /* @026034, @026060 */
-        return odd ? quot(ONE | SIGN, r, d) : r;
-    }
-    uint64_t r2 = mul(r, r, d);
-    uint64_t p = d ? poly_mul(k_tan_p_d, 3, r2, d) : poly_mul(k_tan_p_f, 1, r2, d);
-    uint64_t num = add(mul(p, r, d), r, d);
-    uint64_t den = d ? poly_add(k_tan_q_d, 5, r2, d) : poly_add(k_tan_q_f, 3, r2, d);
-    return odd ? quot(den, num ^ SIGN, d) : quot(num, den, d);   /* DIV_32, DIV_64 */
-}
-
-/* ---------------------------------------------------------- ASIN, ACOS */
-
-/* ASINF_CONST @020130, ASIND_CONST @020137; PI_LEAST @020170 is the low
- * word of pi/4, and of pi/2 with one more in the exponent field. */
-static const uint64_t k_asin_small[2] = { F(0x3D5A827Au), 0x395A827999FCEF33ull };
-static const uint64_t k_asin_pi4[2] = { F(0x402487EDu), 0x402487ED5110B461ull };
-static const uint64_t k_asin_p_f[2] = { F(0xC0009033u), F(0x40378B36u) };
-static const uint64_t k_asin_q_f[2] = { F(0xC0D8C686u), F(0x40D9A878u) };
-static const uint64_t k_asin_p_d[5] = {
-    0xC0192EF6D7987998ull, 0x4111385D93B0E49Dull, 0xC18F60B2A69B6A7Cull, 0x41B26A9CD82B5229ull,
-    0xC16D7956A0E82989ull,
-};
-static const uint64_t k_asin_q_d[5] = {
-    0xC15F4BA1BBE6187Dull, 0x420B79F2596471BEull, 0xC25F773BF15AA11Eull, 0x4268493C407AE10Cull,
-    0xC2121B00F8AE1F31ull,
-};
-
-/* ASINF @001360 / ACOSF @001370 -> ASINF_1 @026236; ASIND / ACOSD ->
- * ASIND_1 @026311. The offset from ASIN_CON @026302 is added twice
- * (ASINF_10 @026272, ASIND_10 @026360). */
-static uint64_t asin_acos(uint64_t x, bool acos, bool d, unsigned* exc)
-{
-    uint64_t pi4 = k_asin_pi4[d];
-    uint64_t s = x & SIGN;
-    uint64_t a = x & MAG;
-    uint64_t sc11 = (acos ? SIGN : 0) ^ s;
-    uint64_t off, v, g;
-    if (HI(a) == 0) {                    /* ASINF_6, ASIND_6: twice the offset */
-        return acos ? pi4 + EXP1 : 0;
-    }
-    if (a > HALF) {                      /* ASINF_4, ASIND_4: v = -2 sqrt((1-|x|)/2) */
-        off = acos ? (s ? pi4 + EXP1 : 0) : (pi4 | s);
-        uint64_t om = sub(ONE, a, d);
-        if (HI(om & MAG) == 0) {
-            return off == 0 ? 0 : off + EXP1;
-        }
-        if (om & SIGN) {                 /* |x| > 1: SQRTF, SQRTD -> IVOZRO */
-            *exc |= ND500_FX_IVO;
-            return 0;
-        }
-        g = om - EXP1;                   /* @026254, @026336: halve by the exponent */
-        unsigned e = 0;
-        uint64_t root = d ? nd500_fx_sqrt(g, true, &e) : nd500_fx_sqrt(g >> 32, false, &e) << 32;
-        v = ((root + EXP1) | SIGN) ^ sc11;
+static uint64_t attempt_asin_acos(Cx* c, Args* a) {
+    Fx xf = fx_new(c), om = fx_new(c), root = fx_new(c), v = fx_new(c);
+    nd500_bi* num = nd500_bi_new(&c->ar);
+    nd500_bi* sq = nd500_bi_new(&c->ar);
+    fx_exact(c, xf, a->neg, a->sig, a->scale);
+    /* 1 - x**2 from the exact operand: (2**(2s') - sig**2) / 2**(2s'), cut-off error 1. */
+    int s2 = -2 * a->scale;
+    nd500_bi_set_u64(&c->ar, num, 1u);
+    nd500_bi_shl(&c->ar, num, num, s2);
+    nd500_bi_set_u64(&c->ar, sq, a->sig);
+    nd500_bi_mul(&c->ar, sq, sq, sq);
+    nd500_bi_sub(&c->ar, num, num, sq);
+    fx_exact_bi(c, om, num, -s2);
+    fx_sqrt(c, root, om);
+    if (a->which == 1) {
+        fx_atan2(c, v, root, xf);
     } else {
-        off = acos ? pi4 : 0;
-        g = mul(a, a, d);
-        v = a ^ sc11;
-        if (a < k_asin_small[d]) {       /* @026245, @026325 */
-            return off == 0 ? v : add(add(v, off, d), off, d);
-        }
+        fx_atan2(c, v, xf, root);
     }
-    uint64_t p = d ? poly_mul(k_asin_p_d, 5, g, d) : poly_mul(k_asin_p_f, 2, g, d);
-    uint64_t q = d ? poly_plus(k_asin_q_d, 5, g, d) : poly_plus(k_asin_q_f, 2, g, d);
-    uint64_t u = rapp(p, q, v, d);
-    return off == 0 ? u : add(add(u, off, d), off, d);
-}
-
-/* --------------------------------------------------------- ATAN, ATAN2 */
-
-/* ATANF_CONST @020171 and ATANF_ANGLE @026446; ATAND_CONST @020201 and
- * ATAND_ANGLE @026607. Angle entries 16 and 17 are pi/4 and 3 pi/4. */
-typedef struct {
-    uint64_t sq3m1, twomsq3, sq3, small;
-    uint64_t p[4], q[4];
-    int np, nq;
-    uint64_t angle[18];
-} AtanConsts;
-
-static const AtanConsts k_atan[2] = {
-    { F(0x401DB3D7u), F(0x3FC49851u), F(0x406ED9ECu), F(0x3D5A827Au),
-      { F(0xBF284349u), F(0xBFF8887Bu) }, { F(0x405A666Au) }, 2, 1,
-      { 0,              F(0x40030549u), F(0x406487EDu), F(0x40430549u), F(0x40A487EDu), F(0x4093C69Bu),
-        F(0x406487EDu), F(0x40830549u), 0,              F(0xC0030549u), F(0xC06487EDu), F(0xC0430549u),
-        F(0xC0A487EDu), F(0xC093C69Bu), F(0xC06487EDu), F(0xC0830549u), F(0x402487EDu), F(0x408B65F2u) } },
-    { 0x401DB3D742C26554ull, 0x3FC498517A7B3559ull, 0x406ED9EBA16132AAull, 0x395A827999FCEF33ull,
-      { 0xC02B35EB66C61EF5ull, 0xC103F4FD7235A98Dull, 0xC15205FEE78AF32Bull, 0xC12D829944187387ull },
-      { 0x41383127852B1C42ull, 0x41B72828C8368F5Aull, 0x41D62848102DB692ull, 0x419221F2F31256A6ull }, 4, 4,
-      { 0,                     0x40030548E0B5CD96ull, 0x406487ED5110B461ull, 0x40430548E0B5CD96ull,
-        0x40A487ED5110B461ull, 0x4093C69B18E340FCull, 0x406487ED5110B461ull, 0x40830548E0B5CD96ull,
-        0,                     0xC0030548E0B5CD96ull, 0xC06487ED5110B461ull, 0xC0430548E0B5CD96ull,
-        0xC0A487ED5110B461ull, 0xC093C69B18E340FCull, 0xC06487ED5110B461ull, 0xC0830548E0B5CD96ull,
-        0x402487ED5110B461ull, 0x408B65F1FCCC8749ull } },
-};
-
-/* ATANF_0 @026366 and ATAND_0 @026500, shared by ATAN (y = the operand,
- * x = 1.0) and ATAN2. The table index is 8 (y < 0) + 4 (x < 0) + 2
- * (|x| < |y|, operands swapped) + 1 (reduced by pi/6); entries 0 and 8 add
- * nothing. */
-static uint64_t atan2_fd(uint64_t y, uint64_t x, bool d, unsigned* exc)
-{
-    const AtanConsts* k = &k_atan[d];
-    uint64_t ax = x & MAG, ay = y & MAG;
-    uint64_t s1 = (x ^ y) & SIGN;
-    if (ax == ay) {                      /* ATANF_2, ATAND_2: +-pi/4 or +-3pi/4 */
-        if (ax == 0) {
-            *exc |= ND500_FX_IVO;
-            return 0;
-        }
-        return k->angle[(x & SIGN) ? 17 : 16] | (y & SIGN);
-    }
-    unsigned code = ((y & SIGN) ? 8u : 0u) | ((x & SIGN) ? 4u : 0u);
-    uint64_t big = ax, small = ay;
-    if (ax < ay) {
-        code |= 2;
-        s1 ^= SIGN;
-        big = ay;
-        small = ax;
-    }
-    uint64_t f;
-    if (big & MANT) {
-        f = quot(small, big, d);          /* ATANF_D32 -> DIV_32, ATAND_D32 -> DIV_64 */
-    } else {
-        /* ATANF_DIV @026470, ATAND_DIV @026653: a power-of-two divisor is
-         * taken off the exponent field of the high word; a negative
-         * difference gives 0. */
-        uint32_t q = HI(small) - (HI(big) - HI(ONE));
-        f = (q & 0x80000000u) ? 0 : ((uint64_t)q << 32) | LO(small);
-    }
-    if (f > k->twomsq3) {                /* ATANF_7 @026421, ATAND_7 @026545 */
-        code |= 1;
-        uint64_t t = sub(sub(mul(k->sq3m1, f, d), HALF, d), HALF, d);
-        f = quot(add(t, f, d) ^ s1, add(k->sq3, f, d), d);
-    } else if (HI(f) != 0) {
-        f ^= s1;                         /* @026417, @026542 */
-    }
-    if ((f & MAG) >= k->small) {         /* ATANF_9 @026441, ATAND_9 @026600 */
-        uint64_t g = mul(f, f, d);
-        f = rapp(poly_mul(k->p, k->np, g, d), poly_plus(k->q, k->nq, g, d), f, d);
-    }
-    uint64_t ang = k->angle[code];
-    return ang == 0 ? f : add(ang, f, d);
-}
-
-/* ------------------------------------------------------------------ EXP */
-
-/* EXPF_CONST @020232, EXPD_CONST @020244 (ln 2 in two parts for D) */
-static const Reduction k_exp_red[2] = {
-    { F(0x405C551Eu), F(0x42186053u), 0x4018B90BFBE8E7BDull, 0, F(0x3B800000u) },
-    { 0x405C551D94AE0BF8ull, 0x42186052EF911CF3ull, 0x4018C00000000000ull, 0xBD2F4041718432A2ull,
-      0x323FFFFF82FF2C27ull },
-};
-static const uint64_t k_exp_p_f[2] = { F(0x3E442984u), F(0x3FC00000u) };
-static const uint64_t k_exp_q_f[2] = { F(0x3F265FAEu), HALF };
-static const uint64_t k_exp_p_d[3] = { 0x3C454A91BD637071ull, 0x3E71C391BECFDB7Eull, 0x3FBFFFFFFFFFFFFFull };
-static const uint64_t k_exp_q_d[3] = { 0x3D80FE65BF78E025ull, 0x3F31C639C50946CBull, HALF };
-
-/* EXPF @001417 -> EXPF_0 @025674, EXPD @001421 -> EXPD_0 @025720:
- * exp(x) = (0.5 + r P / (Q - r P)) * 2**(n+1), the scaling done by adding
- * n+1 to the exponent field (FWRITE_AAPX, DWRITE_X @027455). */
-static uint64_t exp_fd(uint64_t x, bool d, unsigned* exc)
-{
-    const Reduction* k = &k_exp_red[d];
-    if ((x & MAG) > k->big) {            /* BIGARG: IVOMAX, or FORD_ZERO */
-        if (x & SIGN) {
-            return 0;
-        }
-        *exc |= ND500_FX_IVO;
-        return MAG;
-    }
-    long n;
-    uint64_t r = reduce(x, false, k, d, &n);
-    uint64_t scale = (uint64_t)(n + 1) << 54;
-    if ((r & MAG) < k->small) {          /* @025704, @025731 */
-        return HALF + scale;
-    }
-    uint64_t g = mul(r, r, d);
-    uint64_t rp = mul(r, d ? poly_add(k_exp_p_d, 3, g, d) : poly_add(k_exp_p_f, 2, g, d), d);
-    uint64_t q = d ? poly_add(k_exp_q_d, 3, g, d) : poly_add(k_exp_q_f, 2, g, d);
-    return add(HALF, quot(rp, sub(q, rp, d), d), d) + scale;
-}
-
-/* ---------------------------------------------------------------- ALOG */
-
-/* ALOGF_CONST @020272, ALOGD_CONST @020302 */
-typedef struct {
-    uint64_t sqh;                        /* sqrt(0.5) */
-    uint64_t p[3], q[3];
-    int n;
-    uint64_t c1, c2, log10e, log2e;      /* c1 = 0.693359375 */
-} AlogConsts;
-
-static const AlogConsts k_alog[2] = {
-    { F(0x401A827Au), { F(0xC006BF1Eu) }, { F(0xC0EA1F9Du) }, 1,
-      F(0x4018C000u), F(0xBD2F4041u), F(0x3FEF2DECu), F(0x405C551Eu) },
-    { 0x401A827999FCEF32ull,
-      { 0xC0251056CD5AF4A3ull, 0x41418928805ABFB3ull, 0xC1C01FFC4ACED669ull },
-      { 0xC18756012D9F383Bull, 0x424E020FE85499F8ull, 0xC2A02FFA703641DEull }, 3,
-      0x4018C00000000000ull, 0xBD2F4041718432A2ull, 0x3FEF2DEC549B9439ull, 0x405C551D94AE0BF8ull },
-};
-
-/* ALOGF @001423 / ALOG2F @001427 / ALOG10F @001433 -> ALOGF_1 @026671;
- * ALOGD / ALOG2D / ALOG10D -> ALOGD_1 @026736: x = f * 2**n with
- * 0.5 <= f < 1, ln x = (n C2 + r) + n C1. */
-static uint64_t alog_fd(uint64_t x, int base, bool d, unsigned* exc)
-{
-    const AlogConsts* k = &k_alog[d];
-    if ((HI(x) & 0xFFC00000u) == 0 || (x & SIGN)) {   /* @026674, @026741 MSORZ -> IVOMIN */
-        *exc |= ND500_FX_IVO;
-        return ~(uint64_t)0;
-    }
-    long n = (long)((x >> 54) & 0x1FF) - 256;
-    uint64_t f = (x & MANT) | HALF;
-    uint64_t fm = sub(f, HALF, d);
-    uint64_t znum, zden;
-    if (f <= k->sqh) {                   /* @026702, @026747 */
-        n--;
-        znum = fm;
-        zden = add(HALF, fm - EXP1, d);
-    } else {                             /* ALOGF_5 @026703, ALOGD_5 @026755 */
-        znum = sub(fm, HALF, d);
-        zden = add(HALF, f - EXP1, d);
-    }
-    uint64_t z = quot(znum, zden, d);
-    uint64_t w = mul(z, z, d);
-    uint64_t r = rapp(poly_mul(k->p, k->n, w, d), poly_plus(k->q, k->n, w, d), z, d);
     unsigned e = 0;
-    uint64_t nf = (n == 0) ? 0
-        : nd500_fx_round(n < 0, nd500_u128_from_u64((uint64_t)(n < 0 ? -n : n)), 0, false, false, &e) << 32;
-    uint64_t ln = add(add(mul(k->c2, nf, d), r, d), mul(k->c1, nf, d), d);
-    if (base == 2) {
-        return mul(k->log2e, ln, d);
+    return resolve(c, v, 0, a->d, &e);
+}
+
+static uint64_t asin_acos(uint64_t x, bool acos, bool d, unsigned* exc) {
+    Args a = {0};
+    a.which = acos ? 1 : 0;
+    a.d = d;
+    nd500_fx_decode(x, d, &a.neg, &a.sig, &a.scale);
+    if (a.sig == 0 && !acos) {
+        return 0;                          /* asin 0 = 0 */
     }
-    if (base == 10) {
-        return mul(k->log10e, ln, d);
+    /* |x| compared with 1 exactly: sig * 2**scale against 1. */
+    int cmp;
+    if (a.sig == 0) {
+        cmp = -1;
+    } else if (a.scale >= 0) {
+        cmp = 1;
+    } else if (-a.scale >= 64) {
+        cmp = -1;
+    } else {
+        uint64_t one = (uint64_t)1 << -a.scale;
+        cmp = a.sig < one ? -1 : a.sig > one ? 1 : 0;
     }
-    return ln;
+    if (cmp > 0) {                         /* 12.6 / 12.8: outside -1..+1, IVO, register 0 */
+        *exc |= ND500_FX_IVO;
+        return 0;
+    }
+    if (cmp == 0 && acos && !a.neg) {
+        return 0;                          /* acos 1 = 0 */
+    }
+    return settle(attempt_asin_acos, &a, acos ? "ACOS" : "ASIN");
 }
 
-/* ------------------------------------------------------- the interface */
-
-/* Raw bits in (F in the low 32 bits) to the register pair layout, and back. */
-static uint64_t in(uint64_t bits, bool d) { return d ? bits : bits << 32; }
-static uint64_t out(uint64_t v, bool d) { return d ? v : v >> 32; }
-
-uint64_t nd500_fm_one(bool is_double) { return out(ONE, is_double); }
-
-uint64_t nd500_fm_sin(uint64_t x, bool is_double, unsigned* exc)
-{
-    return out(sin_cos(in(x, is_double), false, is_double, exc), is_double);
+static uint64_t attempt_atan2(Cx* c, Args* a) {
+    Fx v = fx_new(c);
+    if (a->sig != 0 && a->sig2 != 0) {
+        /* The ratio straight from the exact operands, so that a huge or tiny operand loses nothing. */
+        nd500_bi* sy = nd500_bi_new(&c->ar);
+        nd500_bi* sx = nd500_bi_new(&c->ar);
+        nd500_bi* ly = nd500_bi_new(&c->ar);
+        nd500_bi* lx = nd500_bi_new(&c->ar);
+        nd500_bi_set_u64(&c->ar, sy, a->sig);
+        nd500_bi_set_u64(&c->ar, sx, a->sig2);
+        int ey = a->scale, ex = a->scale2;
+        nd500_bi_shl(&c->ar, ly, sy, ey > ex ? ey - ex : 0);
+        nd500_bi_shl(&c->ar, lx, sx, ex > ey ? ex - ey : 0);
+        bool y_big = nd500_bi_cmp(ly, lx) > 0;
+        Fx pi = fx_new(c), pi2 = fx_new(c), t = fx_new(c);
+        fx_pi(c, pi);
+        fx_pi_over(c, pi2, pi, 1);
+        if (y_big) {
+            fx_ratio(c, t, sx, ex, sy, ey);
+            fx_atan_unit(c, t, t);
+            fx_sub(c, t, pi2, t);
+        } else {
+            fx_ratio(c, t, sy, ey, sx, ex);
+            fx_atan_unit(c, t, t);
+        }
+        if (a->neg2) {
+            fx_sub(c, t, pi, t);
+        }
+        if (a->neg) {
+            fx_neg(c, t, t);
+        }
+        fx_copy(c, v, t);
+    } else {
+        Fx yf = fx_new(c), xf = fx_new(c);
+        fx_exact(c, yf, a->neg, a->sig, a->scale);
+        fx_exact(c, xf, a->neg2, a->sig2, a->scale2);
+        fx_atan2(c, v, yf, xf);
+    }
+    unsigned e = 0;
+    return resolve(c, v, 0, a->d, &e);
 }
 
-uint64_t nd500_fm_cos(uint64_t x, bool is_double, unsigned* exc)
-{
-    return out(sin_cos(in(x, is_double), true, is_double, exc), is_double);
+static uint64_t atan2_fd(uint64_t y, uint64_t x, bool d, unsigned* exc) {
+    Args a = {0};
+    a.d = d;
+    nd500_fx_decode(y, d, &a.neg, &a.sig, &a.scale);
+    nd500_fx_decode(x, d, &a.neg2, &a.sig2, &a.scale2);
+    if (a.sig == 0 && a.sig2 == 0) {       /* both zero: invalid operation, as the earlier code did */
+        *exc |= ND500_FX_IVO;
+        return 0;
+    }
+    if (a.sig == 0 && !a.neg2) {
+        return 0;                          /* atan2(0, x > 0) = 0 */
+    }
+    return settle(attempt_atan2, &a, "ATAN2");
 }
 
-uint64_t nd500_fm_tan(uint64_t x, bool is_double, unsigned* exc)
-{
-    return out(tan_fd(in(x, is_double), is_double, exc), is_double);
+static uint64_t attempt_exp(Cx* c, Args* a) {
+    Fx xf = fx_new(c), ln2 = fx_new(c), q = fx_new(c), r = fx_new(c), v = fx_new(c);
+    fx_exact(c, xf, a->neg, a->sig, a->scale);
+    fx_ln2(c, ln2);
+    fx_div(c, q, xf, ln2);
+    int64_t k = fx_nearest(c, q.v);
+    fx_mul_int(c, r, ln2, k);
+    fx_sub(c, r, xf, r);
+    fx_exp_series(c, v, r);
+    a->exc = 0;
+    return resolve(c, v, (int)k, a->d, &a->exc);
 }
 
-uint64_t nd500_fm_asin(uint64_t x, bool is_double, unsigned* exc)
-{
-    return out(asin_acos(in(x, is_double), false, is_double, exc), is_double);
+static uint64_t exp_fd(uint64_t x, bool d, unsigned* exc) {
+    uint64_t pair = d ? x : x << 32;
+    if ((pair & MAG) > k_exp_limit[d ? 1 : 0]) {
+        if (pair & SIGN) {
+            return 0;                      /* 12.12: below -255 ln 2 the result is 0 */
+        }
+        *exc |= ND500_FX_IVO;
+        return d ? MAG : MAG >> 32;
+    }
+    Args a = {0};
+    a.d = d;
+    nd500_fx_decode(x, d, &a.neg, &a.sig, &a.scale);
+    uint64_t r = settle(attempt_exp, &a, "EXP");
+    if (a.exc & ND500_FX_FO) {
+        *exc |= ND500_FX_IVO;
+        return d ? MAG : MAG >> 32;
+    }
+    if (a.exc & ND500_FX_FU) {
+        return 0;
+    }
+    return r;
 }
 
-uint64_t nd500_fm_acos(uint64_t x, bool is_double, unsigned* exc)
-{
-    return out(asin_acos(in(x, is_double), true, is_double, exc), is_double);
+static uint64_t attempt_alog(Cx* c, Args* a) {
+    int mb1 = a->d ? 55 : 23;
+    nd500_bi* m = nd500_bi_new(&c->ar);
+    nd500_bi* den = nd500_bi_new(&c->ar);
+    nd500_bi* diff = nd500_bi_new(&c->ar);
+    nd500_bi* sum = nd500_bi_new(&c->ar);
+    Fx z = fx_new(c), lnm = fx_new(c), ln = fx_new(c), l2 = fx_new(c), v = fx_new(c);
+    nd500_bi_set_u64(&c->ar, m, a->m);
+    nd500_bi_set_u64(&c->ar, den, 1u);
+    nd500_bi_shl(&c->ar, den, den, mb1);
+    nd500_bi_sub(&c->ar, diff, m, den);
+    bool below = nd500_bi_sign(diff) < 0;
+    nd500_bi_abs(&c->ar, diff, diff);
+    nd500_bi_add(&c->ar, sum, m, den);
+    fx_ratio(c, z, diff, 0, sum, 0);
+    if (below) {
+        fx_neg(c, z, z);
+    }
+    fx_atan_series(c, lnm, z, true);       /* ln m = 2 atanh((m-1)/(m+1)) */
+    fx_mul_int(c, lnm, lnm, 2);
+    fx_ln2(c, l2);
+    fx_mul_int(c, ln, l2, a->e2);
+    fx_add(c, ln, ln, lnm);
+    if (a->which == 2) {
+        fx_div(c, v, ln, l2);
+    } else if (a->which == 10) {
+        Fx l10 = fx_new(c);
+        fx_ln10(c, l10);
+        fx_div(c, v, ln, l10);
+    } else {
+        fx_copy(c, v, ln);
+    }
+    unsigned e = 0;
+    return resolve(c, v, 0, a->d, &e);
 }
 
-uint64_t nd500_fm_atan2(uint64_t y, uint64_t x, bool is_double, unsigned* exc)
-{
-    return out(atan2_fd(in(y, is_double), in(x, is_double), is_double, exc), is_double);
+static uint64_t alog_fd(uint64_t x, int base, bool d, unsigned* exc) {
+    Args a = {0};
+    a.which = base;
+    a.d = d;
+    nd500_fx_decode(x, d, &a.neg, &a.sig, &a.scale);
+    if (a.sig == 0 || a.neg) {             /* 12.13-12.15: IVO and -5.8*10**76, all bits set */
+        *exc |= ND500_FX_IVO;
+        return d ? ~(uint64_t)0 : 0xFFFFFFFFull;
+    }
+    int mb1 = d ? 55 : 23;                 /* significant bits, hidden bit included */
+    int64_t e2 = (int64_t)a.scale + mb1;   /* x = m * 2**e2, 0.5 <= m < 1, m = sig / 2**mb1 */
+    if (e2 == 1 && a.sig == ((uint64_t)1 << (mb1 - 1))) {
+        return 0;                          /* log 1 = 0 */
+    }
+    /* m < sqrt(1/2) (2 m**2 < 1): use 2m, so m is in sqrt(1/2)..sqrt(2).
+     * 2 sig**2 < 2**(2 mb1) is sig < 2**mb1 / sqrt(2); sig has at most 55
+     * bits, so the square is formed in 128 bits. */
+    {
+        /* sig**2 * 2 and 2**(2 mb1), compared as 128-bit numbers by halves */
+        uint64_t s = a.sig;
+        uint64_t s_lo = s & 0xFFFFFFFFull, s_hi = s >> 32;
+        uint64_t ll = s_lo * s_lo, lh = s_lo * s_hi, hh = s_hi * s_hi;
+        uint64_t mid = (ll >> 32) + (lh & 0xFFFFFFFFull) * 2;
+        uint64_t lo64 = (ll & 0xFFFFFFFFull) | (mid << 32);
+        uint64_t hi64 = hh + (lh >> 32) * 2 + (mid >> 32);
+        /* times 2 */
+        hi64 = (hi64 << 1) | (lo64 >> 63);
+        lo64 <<= 1;
+        int sh = 2 * mb1;                  /* 46 or 110 */
+        uint64_t r_hi = sh >= 64 ? (uint64_t)1 << (sh - 64) : 0;
+        uint64_t r_lo = sh >= 64 ? 0 : (uint64_t)1 << sh;
+        bool less = hi64 < r_hi || (hi64 == r_hi && lo64 < r_lo);
+        a.m = a.sig;
+        if (less) {
+            a.m <<= 1;
+            e2--;
+        }
+    }
+    a.e2 = e2;
+    return settle(attempt_alog, &a, "ALOG");
 }
 
-uint64_t nd500_fm_exp(uint64_t x, bool is_double, unsigned* exc)
-{
-    return out(exp_fd(in(x, is_double), is_double, exc), is_double);
-}
+/* ---- the interface ---------------------------------------------------- */
 
-uint64_t nd500_fm_alog(uint64_t x, int base, bool is_double, unsigned* exc)
-{
-    return out(alog_fd(in(x, is_double), base, is_double, exc), is_double);
-}
+uint64_t nd500_fm_one(bool is_double) { return is_double ? 0x4040000000000000ull : 0x40400000ull; }
+
+uint64_t nd500_fm_sin(uint64_t x, bool is_double, unsigned* exc) { return sin_cos_tan(x, 0, is_double, exc); }
+
+uint64_t nd500_fm_cos(uint64_t x, bool is_double, unsigned* exc) { return sin_cos_tan(x, 1, is_double, exc); }
+
+uint64_t nd500_fm_tan(uint64_t x, bool is_double, unsigned* exc) { return sin_cos_tan(x, 2, is_double, exc); }
+
+uint64_t nd500_fm_asin(uint64_t x, bool is_double, unsigned* exc) { return asin_acos(x, false, is_double, exc); }
+
+uint64_t nd500_fm_acos(uint64_t x, bool is_double, unsigned* exc) { return asin_acos(x, true, is_double, exc); }
+
+uint64_t nd500_fm_atan2(uint64_t y, uint64_t x, bool is_double, unsigned* exc) { return atan2_fd(y, x, is_double, exc); }
+
+uint64_t nd500_fm_exp(uint64_t x, bool is_double, unsigned* exc) { return exp_fd(x, is_double, exc); }
+
+uint64_t nd500_fm_alog(uint64_t x, int base, bool is_double, unsigned* exc) { return alog_fd(x, base, is_double, exc); }
