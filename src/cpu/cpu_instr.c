@@ -759,6 +759,9 @@ static int decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out,
     /* Check if this is a variable operand instruction (CALL, CALLG, POLY) using metadata */
     int is_var_op_instr = lookup(opcode)->has_variable_operands;
     uint8_t arg_count = 0;
+    /* 1 when operand 1 (the count) is a constant. POLY needs it: a degree
+     * that is not a constant gives no coefficient count to decode. */
+    int count_is_constant = 0;
 
     /* Decode all operands IN ORDER - handle both direct and non-direct */
     for (uint8_t i = 0; i < out->operand_count && i < ND500_MAX_OPERANDS; ++i) {
@@ -776,9 +779,11 @@ static int decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out,
             if (arg_count_op->mode == ND500_ADDR_CONSTANT_SHORT) {
                 /* Short constant: value is in address_code lower 6 bits */
                 arg_count = arg_count_op->address_code & 0x3F;
+                count_is_constant = 1;
             } else if (arg_count_op->mode == ND500_ADDR_CONSTANT && arg_count_op->data_len == 1) {
                 /* Extended constant byte */
                 arg_count = arg_count_op->data[0];
+                count_is_constant = 1;
             }
             /* arg_count can be 0-255, no truncation needed */
         }
@@ -792,7 +797,11 @@ static int decode_at(Nd500Machine* m, uint32_t pc, Nd500FetchedInstruction* out,
          * the argument count itself. */
         uint16_t extra_count = arg_count;
         if (opcode >= 0xFCE0 && opcode <= 0xFCE7) {
-            extra_count = (uint16_t)arg_count + 1;
+            /* ND-05.009.4 12.3: "<m> must always be a positive constant
+             * ... otherwise an illegal operand specifier trap condition
+             * occurs". With no constant there is no coefficient count, so
+             * no coefficient is decoded; nd500_instr_Poly raises the trap. */
+            extra_count = count_is_constant ? (uint16_t)arg_count + 1 : 0;
         }
         if (m->cpu) {
             m->cpu->extra_operand_count = 0;

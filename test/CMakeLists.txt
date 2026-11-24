@@ -263,6 +263,11 @@ add_executable(test_float_incr_status
 )
 target_link_libraries(test_float_incr_status PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+add_executable(test_poly_degree_constant
+    test_poly_degree_constant.c
+)
+target_link_libraries(test_poly_degree_constant PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # chapter 12 math functions: the true value rounded once by 7.2.7
 add_executable(test_float_math_true_value
     test_float_math_true_value.c
@@ -575,6 +580,7 @@ add_test(NAME hconv_sign COMMAND test_hconv_sign)
 add_test(NAME round_integer COMMAND test_round_integer)
 add_test(NAME exact_double_steps COMMAND test_exact_double_steps)
 add_test(NAME float_incr_status COMMAND test_float_incr_status)
+add_test(NAME poly_degree_constant COMMAND test_poly_degree_constant)
 add_test(NAME float_math_true_value COMMAND test_float_math_true_value)
 add_test(NAME table13_integer COMMAND test_table13_integer)
 add_test(NAME float_swap COMMAND test_float_swap)

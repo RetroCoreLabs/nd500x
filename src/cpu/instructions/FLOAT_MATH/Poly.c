@@ -57,6 +57,16 @@ void nd500_instr_Poly(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
+    /* 1b. ND-05.009.4 12.3: "<m> must always be a positive constant less
+     * than 256, otherwise an illegal operand specifier trap condition
+     * occurs." Checked before any operand is read; the decoder took no
+     * coefficient operands for such a degree (cpu_instr.c). */
+    if (fi->operands[1].mode != ND500_ADDR_CONSTANT_SHORT &&
+        fi->operands[1].mode != ND500_ADDR_CONSTANT) {
+        trap_illegal_operand(cpu, fi->address);
+        return;
+    }
+
     /* 2. Determine data type (F=float, D=double) from data_type */
     bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
 
