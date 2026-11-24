@@ -1419,11 +1419,12 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
      *
      * | Instruction type | :S (6-bit) | :B (byte) | :H (half) | :W (word) |
      * |------------------|------------|-----------|-----------|-----------|
-     * | BY               | SX         | NC        | IOS       | IOS       |
+     * | BY               | SX         | NC        | low byte* | IOS       |
      * | H                | SX         | SX        | NC        | IOS       |
      * | W                | SX         | SX        | SX        | NC        |
      *
      * SX = sign extended, NC = no conversion, IOS = illegal operand specifier
+     * * owner decision 2026-11-24, against the table: see case ND500_DTYPE_BYTE
      *
      * Note: "SX - sign extended (unless instruction calls for unsigned)"
      * Even for unsigned operations (UMUL, UDIV), constants are first sign-extended,
@@ -1519,8 +1520,21 @@ uint64_t nd500_read_operand_value(Nd500Cpu* cpu, const Nd500OperandDecoded* op, 
                 return raw_val;  /* NC for halfword constant */
 
             case ND500_DTYPE_BYTE:
-                /* Table 13, type BY with a :H, :W, :F or :D constant is IOS. */
-                if (op->data_len > 1) {
+                /* Table 13 (ND-05.009.4 page 119) makes type BY with a :H constant
+                 * IOS. Owner decision 2026-11-24: it is NOT IOS here, against the
+                 * table, because the real PLANC-500 G compiler writes BY := 128 as
+                 * 06 CE 00 80 (:H constant) for an ordinary ABS of a set, so its
+                 * own programs would trap under the strict rule. The manual says
+                 * nothing about the value; the byte operand takes the LOW byte of
+                 * the halfword (the only part a byte destination can hold; the code
+                 * before commit 097f181 passed the halfword and the byte callers
+                 * cut it to the low byte). Flags then come from that byte as for
+                 * any byte operand. To be checked again once a working ND-500 /
+                 * ND-5000 microcode CPU exists. :W, :F and :D stay IOS. */
+                if (op->data_len == 2) {
+                    return raw_val & 0xFFu;
+                }
+                if (op->data_len > 2) {
                     trap_illegal_operand(cpu, cpu->cur_instr_pc);
                     return 0;
                 }
