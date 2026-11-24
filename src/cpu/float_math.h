@@ -49,4 +49,12 @@ uint64_t nd500_fm_alog(uint64_t x, int base, bool is_double, unsigned* exc);    
 /* 1.0 as raw bits, the second operand that makes ATAN out of ATAN2. */
 uint64_t nd500_fm_one(bool is_double);
 
+/* POLY (12.3): <cm>*x**m + ... + <c1>*x + <c0>, worked out on the exact
+ * operand values (no rounding at any step) and rounded once by 7.2.7, with
+ * the 6.5.1 out-of-range results (ND500_FX_FO / ND500_FX_FU in *exc). coeffs
+ * holds the count = m + 1 coefficients from <cm> down to <c0>, F values in
+ * the low 32 bits. The same method as RetroCore Poly.cs. */
+uint64_t nd500_fm_poly(uint64_t x, const uint64_t* coeffs, int count, bool is_double,
+                       unsigned* exc);
+
 #endif

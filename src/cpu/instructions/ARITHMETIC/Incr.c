@@ -11,6 +11,7 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_exact.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -62,7 +63,7 @@ void nd500_instr_Incr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         bool is_double = (fi->data_type == ND500_DTYPE_DOUBLEWORD);
 
         /* Read operand value */
-        double value = 0.0;
+        uint64_t value = 0;
         if (is_double) {
             uint64_t op_bits = nd500_read_operand_doubleword(cpu, &fi->operands[0]);
             /* A faulting operand read must abort the instruction: commit nothing,
@@ -72,7 +73,7 @@ void nd500_instr_Incr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             if (nd500_trap_occurred() || cpu->instr_aborted) {
                 return;
             }
-            value = nd500_double_to_ieee754(op_bits);
+            value = op_bits;
         } else {
             uint32_t op_bits = nd500_read_operand_value(cpu, &fi->operands[0], fi->data_type);
             /* A faulting operand read must abort the instruction: commit nothing,
@@ -82,24 +83,26 @@ void nd500_instr_Incr(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             if (nd500_trap_occurred() || cpu->instr_aborted) {
                 return;
             }
-            value = (double)nd500_float_to_ieee754(op_bits);
+            value = op_bits;
         }
 
-        /* Perform increment by 1.0 */
-        double result = value + 1.0;
+        /* <operand> + 1 (10.19): one floating add rounded by 7.2.7 in the
+         * ND-500 format itself. Until 2026-11-24 this went through a host
+         * double (53 bits against D's 55) and a host float (24 against F's 23).
+         * Same as RetroCore Incr.cs. */
+        unsigned exc = 0;
+        uint64_t result_bits = nd500_fx_add(value, is_double ? 0x4040000000000000ull : 0x40400000ull,
+                                            is_double, &exc);
 
-        /* Check for overflow/underflow */
-        if (isinf(result) || isnan(result)) {
+        /* Check for overflow */
+        if (exc & ND500_FX_FO) {
             trap_floating_overflow(cpu, fi->address);
         }
 
-        /* Convert result back to ND-500 format and write back */
-        uint64_t result_bits = 0;
+        /* Write back */
         if (is_double) {
-            result_bits = nd500_double_from_ieee754(result);
             nd500_write_operand_value(cpu, &fi->operands[0], result_bits, ND500_DTYPE_DOUBLEWORD);
         } else {
-            result_bits = nd500_float_from_ieee754((float)result);
             nd500_write_operand_value(cpu, &fi->operands[0], (uint32_t)result_bits, fi->data_type);
         }
 

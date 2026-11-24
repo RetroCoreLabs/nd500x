@@ -11,8 +11,9 @@
 #include "instructions_protos.h"
 #include "machine_protos.h"
 #include "instruction_helpers.h"
+#include "float_math.h"
+#include "float_exact.h"
 #include <stdio.h>
-#include <math.h>
 
 /**
  * POLY instruction - FLOAT_MATH class
@@ -39,6 +40,11 @@
  *   S: Set if result < 0.0
  *   FO: Set if floating overflow occurred
  *   FU: Set if floating underflow occurred
+ *
+ * The value is worked out on the exact operands and rounded once
+ * (nd500_fm_poly, float_math.c). Until 2026-11-24 it went through a host
+ * double, 53 bits against D's 55, and an F result through a host float,
+ * 24 bits against F's 23.
  */
 void nd500_instr_Poly(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
     /* 1. Validate operand count: 2 fixed operands (x, degree) plus the
@@ -83,12 +89,9 @@ void nd500_instr_Poly(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
         return;
     }
 
-    /* 6. Convert X to IEEE 754 for arithmetic */
-    double x;
-    if (is_double) {
-        x = nd500_double_to_ieee754(x_bits);
-    } else {
-        x = (double)nd500_float_to_ieee754((uint32_t)x_bits);
+    /* 6. The F operands are the low 32 bits */
+    if (!is_double) {
+        x_bits &= 0xFFFFFFFFull;
     }
 
     /* 7. Horner's method evaluation
@@ -99,9 +102,7 @@ void nd500_instr_Poly(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
      * ...
      * extra_operands[m] = c[0]   (constant term)
      */
-    double result = 0.0;
-    bool overflow = false;
-    bool underflow = false;
+    uint64_t coeffs[256];
 
     for (uint16_t i = 0; i <= m; i++) {
         /* Read coefficient from extra_operands */
@@ -115,57 +116,34 @@ void nd500_instr_Poly(Nd500Cpu* cpu, const Nd500FetchedInstruction* fi) {
             return;
         }
 
-        double coeff;
-        if (is_double) {
-            coeff = nd500_double_to_ieee754(coeff_bits);
-        } else {
-            coeff = (double)nd500_float_to_ieee754((uint32_t)coeff_bits);
-        }
-
-        /* Horner step */
-        if (i == 0) {
-            result = coeff;  /* First iteration: result = c[m] */
-        } else {
-            result = result * x + coeff;  /* result = result*x + c[m-i] */
-        }
-
-        /* Check for overflow/underflow (delayed until end per ND-500 spec) */
-        if (isinf(result)) {
-            overflow = true;
-        }
-        /* Check for underflow: non-zero result smaller than smallest normal double */
-        if (result != 0.0 && !isinf(result) && fabs(result) < 2.2250738585072014e-308) {
-            underflow = true;
-        }
+        coeffs[i] = is_double ? coeff_bits : (coeff_bits & 0xFFFFFFFFull);
     }
 
-    /* 8. Handle overflow: per ND-500 spec, result is set to 0 on overflow */
-    if (overflow) {
-        result = 0.0;
-    }
+    /* 8. The polynomial, rounded once (6.5.1 values on FO / FU) */
+    unsigned exc = 0;
+    uint64_t result_bits = nd500_fm_poly(x_bits, coeffs, (int)m + 1, is_double, &exc);
 
-    /* 9. Convert result back to ND500 format and write to register */
+    /* 9. Write the result to register n */
     if (is_double) {
-        uint64_t result_bits = nd500_double_from_ieee754(result);
         nd500_write_double_register(cpu, fi->target_register, result_bits);
     } else {
-        uint32_t result_bits = nd500_float_from_ieee754((float)result);
-        nd500_write_float_register(cpu, fi->target_register, result_bits);
+        nd500_write_float_register(cpu, fi->target_register, (uint32_t)result_bits);
     }
 
-    /* 10. Set status flags */
+    /* 10. Status: "The Z and S bits reflect the final result" (12.3); an
+     * exponent field of 0 is exactly zero (7.2.5 / 7.2.6). */
+    int mb = is_double ? 54 : 22;
     nd500_clear_flag(cpu, ND500_FLAG_Z | ND500_FLAG_S | ND500_FLAG_FO | ND500_FLAG_FU);
-
-    if (result == 0.0) {
+    if (((result_bits >> mb) & 0x1FF) == 0) {
         nd500_set_flag(cpu, ND500_FLAG_Z);
     }
-    if (result < 0.0) {
+    if ((result_bits >> (mb + 9)) & 1) {
         nd500_set_flag(cpu, ND500_FLAG_S);
     }
-    if (overflow) {
+    if (exc & ND500_FX_FO) {
         nd500_set_flag(cpu, ND500_FLAG_FO);
     }
-    if (underflow) {
+    if (exc & ND500_FX_FU) {
         nd500_set_flag(cpu, ND500_FLAG_FU);
     }
 }

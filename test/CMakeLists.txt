@@ -251,6 +251,12 @@ add_executable(test_round_integer
 )
 target_link_libraries(test_round_integer PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
 
+# 12.3 POLY, 10.33 REM, 10.19 INCR, 10.37 ENTIER on the last D mantissa bits
+add_executable(test_exact_double_steps
+    test_exact_double_steps.c
+)
+target_link_libraries(test_exact_double_steps PRIVATE nd500_machine nd500_cpu nd500_debugger nd500_ndlib)
+
 # chapter 12 math functions: the true value rounded once by 7.2.7
 add_executable(test_float_math_true_value
     test_float_math_true_value.c
@@ -561,6 +567,7 @@ add_test(NAME string_outside COMMAND test_string_outside)
 add_test(NAME string_examine_outside COMMAND test_string_examine_outside)
 add_test(NAME hconv_sign COMMAND test_hconv_sign)
 add_test(NAME round_integer COMMAND test_round_integer)
+add_test(NAME exact_double_steps COMMAND test_exact_double_steps)
 add_test(NAME float_math_true_value COMMAND test_float_math_true_value)
 add_test(NAME table13_integer COMMAND test_table13_integer)
 add_test(NAME float_swap COMMAND test_float_swap)

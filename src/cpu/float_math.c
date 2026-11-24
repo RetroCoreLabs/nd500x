@@ -808,6 +808,75 @@ static uint64_t alog_fd(uint64_t x, int base, bool d, unsigned* exc) {
 
 uint64_t nd500_fm_one(bool is_double) { return is_double ? 0x4040000000000000ull : 0x40400000ull; }
 
+/* POLY (12.3). Horner's rule on exact values: sum = c(m); sum = sum * x +
+ * c(i) for i = m-1 .. 0, the sum held as n * 2**sum_scale with n a big
+ * integer, so no step rounds. 12.3 gives the value and no rounding rule for
+ * the steps; owner decision 2026-11-24 for the chapter 12 functions: the true
+ * value rounded once by 7.2.7. What 12.3 calls a trap condition "at an
+ * intermediate step" exists only in a machine that rounds each step; that is
+ * not modelled, so FO and FU come from the final value only.
+ *
+ * Size: each step adds at most the bits of x's significand (55) and an
+ * alignment shift of at most the spread of the scales (about 2 * 311 for
+ * operands of exponent field 1 .. 511, plus the growth of the sum's scale by
+ * x's scale, at most 311, per step), so count * 448 + 2048 bits always hold
+ * the sum. A failed arena stops the emulator: there is no plausible value to
+ * fall back to. */
+uint64_t nd500_fm_poly(uint64_t x, const uint64_t* coeffs, int count, bool is_double,
+                       unsigned* exc) {
+    nd500_bi_arena ar;
+    if (!nd500_bi_arena_init(&ar, count * 448 + 2048, 8)) {
+        fprintf(stderr, "ND-500 POLY: out of memory for degree %d\n", count - 1);
+        abort();
+    }
+    nd500_bi* xv = nd500_bi_new(&ar);
+    nd500_bi* sum = nd500_bi_new(&ar);
+    nd500_bi* c = nd500_bi_new(&ar);
+    nd500_bi* t = nd500_bi_new(&ar);
+
+    bool neg;
+    uint64_t sig;
+    int x_scale;
+    nd500_fx_decode(x, is_double, &neg, &sig, &x_scale);
+    nd500_bi_set_u64(&ar, xv, sig);
+    if (neg) {
+        nd500_bi_neg(&ar, xv, xv);
+    }
+
+    int sum_scale = 0;
+    for (int i = 0; i < count; i++) {
+        int c_scale;
+        nd500_fx_decode(coeffs[i], is_double, &neg, &sig, &c_scale);
+        nd500_bi_set_u64(&ar, c, sig);
+        if (neg) {
+            nd500_bi_neg(&ar, c, c);
+        }
+        if (i > 0) {
+            nd500_bi_mul(&ar, sum, sum, xv);
+            sum_scale += x_scale;
+        }
+        if (nd500_bi_is_zero(sum)) {
+            nd500_bi_copy(&ar, sum, c);
+            sum_scale = c_scale;
+        } else if (!nd500_bi_is_zero(c)) {
+            int common = sum_scale < c_scale ? sum_scale : c_scale;
+            nd500_bi_shl(&ar, sum, sum, sum_scale - common);
+            nd500_bi_shl(&ar, t, c, c_scale - common);
+            nd500_bi_add(&ar, sum, sum, t);
+            sum_scale = common;
+        }
+    }
+    if (nd500_bi_arena_failed(&ar)) {
+        fprintf(stderr, "ND-500 POLY: the exact sum did not fit (degree %d)\n", count - 1);
+        abort();
+    }
+    unsigned e = 0;
+    uint64_t r = round_big(sum, sum_scale, is_double, &e);
+    nd500_bi_arena_free(&ar);
+    *exc |= e;
+    return r;
+}
+
 uint64_t nd500_fm_sin(uint64_t x, bool is_double, unsigned* exc) { return sin_cos_tan(x, 0, is_double, exc); }
 
 uint64_t nd500_fm_cos(uint64_t x, bool is_double, unsigned* exc) { return sin_cos_tan(x, 1, is_double, exc); }

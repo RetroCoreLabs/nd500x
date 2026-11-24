@@ -299875,7 +299875,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FloatExact_Div_F_31",
@@ -301062,7 +301063,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FloatExact_Div_D_31",
@@ -446524,7 +446526,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "Div2D_Normal",
@@ -446705,7 +446708,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FloatExact_DIV2_F_0",
@@ -447827,7 +447831,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FloatExact_DIV2_F_31",
@@ -449078,7 +449083,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FloatExact_DIV2_D_31",
@@ -449661,7 +449667,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "Div3D_Normal",
@@ -449860,7 +449867,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FloatExact_DIV3_F_0",
@@ -451044,7 +451052,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FloatExact_DIV3_F_31",
@@ -452390,7 +452399,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FloatExact_DIV3_D_31",
@@ -689638,7 +689648,8 @@
       },
       "ram": []
     },
-    "maxInstructions": 1
+    "maxInstructions": 1,
+    "stUnchecked": 512
   },
   {
     "name": "hconv_W_small",
@@ -689667,7 +689678,8 @@
       },
       "ram": []
     },
-    "maxInstructions": 1
+    "maxInstructions": 1,
+    "stUnchecked": 512
   },
   {
     "name": "Poly_F_R1",
@@ -2414668,6 +2414680,7 @@
       "ram": []
     },
     "maxInstructions": 1,
+    "stUnchecked": 512,
     "isNegativeTest": true,
     "negativeTestType": "wrong_register",
     "expectedValidationFailure": "i2"
@@ -2671497,7 +2671510,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_COMP_x40A00000",
@@ -2671764,7 +2671778,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_ADD3_MC_x40A00000",
@@ -2672305,7 +2672320,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_DIV3_CM_x40A00000",
@@ -2672572,7 +2672588,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_COMP_xC0900000",
@@ -2672839,7 +2672856,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_ADD3_MC_xC0900000",
@@ -2673380,7 +2673398,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_DIV3_CM_xC0900000",
@@ -2673647,7 +2673666,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_COMP_x0",
@@ -2673914,7 +2673934,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_ADD3_MC_x0",
@@ -2674455,7 +2674476,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_DIV3_CM_x0",
@@ -2674534,7 +2674556,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S00_COMP2_MC_x0",
@@ -2677844,7 +2677867,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S01_COMP2_MC_x0",
@@ -2681154,7 +2681178,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S02_COMP2_MC_x0",
@@ -2684464,7 +2684489,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S03_COMP2_MC_x0",
@@ -2687774,7 +2687800,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S04_COMP2_MC_x0",
@@ -2691084,7 +2691111,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S05_COMP2_MC_x0",
@@ -2694394,7 +2694422,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S06_COMP2_MC_x0",
@@ -2697704,7 +2697733,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S07_COMP2_MC_x0",
@@ -2701014,7 +2701044,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S08_COMP2_MC_x0",
@@ -2704324,7 +2704355,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S09_COMP2_MC_x0",
@@ -2707634,7 +2707666,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S10_COMP2_MC_x0",
@@ -2710944,7 +2710977,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S11_COMP2_MC_x0",
@@ -2714254,7 +2714288,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S12_COMP2_MC_x0",
@@ -2717564,7 +2717599,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S13_COMP2_MC_x0",
@@ -2720874,7 +2720910,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S14_COMP2_MC_x0",
@@ -2724184,7 +2724221,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S15_COMP2_MC_x0",
@@ -2727494,7 +2727532,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S16_COMP2_MC_x0",
@@ -2730804,7 +2730843,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S17_COMP2_MC_x0",
@@ -2734114,7 +2734154,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S18_COMP2_MC_x0",
@@ -2737424,7 +2737465,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S19_COMP2_MC_x0",
@@ -2740734,7 +2740776,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S20_COMP2_MC_x0",
@@ -2744044,7 +2744087,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S21_COMP2_MC_x0",
@@ -2747354,7 +2747398,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S22_COMP2_MC_x0",
@@ -2750664,7 +2750709,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S23_COMP2_MC_x0",
@@ -2753974,7 +2754020,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S24_COMP2_MC_x0",
@@ -2757284,7 +2757331,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S25_COMP2_MC_x0",
@@ -2760594,7 +2760642,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S26_COMP2_MC_x0",
@@ -2763904,7 +2763953,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S27_COMP2_MC_x0",
@@ -2767214,7 +2767264,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S28_COMP2_MC_x0",
@@ -2770524,7 +2770575,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S29_COMP2_MC_x0",
@@ -2773834,7 +2773886,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S30_COMP2_MC_x0",
@@ -2777144,7 +2777197,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S31_COMP2_MC_x0",
@@ -2780454,7 +2780508,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S32_COMP2_MC_x0",
@@ -2783764,7 +2783819,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S33_COMP2_MC_x0",
@@ -2787074,7 +2787130,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S34_COMP2_MC_x0",
@@ -2790384,7 +2790441,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S35_COMP2_MC_x0",
@@ -2793694,7 +2793752,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S36_COMP2_MC_x0",
@@ -2797004,7 +2797063,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S37_COMP2_MC_x0",
@@ -2800314,7 +2800374,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S38_COMP2_MC_x0",
@@ -2803624,7 +2803685,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S39_COMP2_MC_x0",
@@ -2806934,7 +2806996,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S40_COMP2_MC_x0",
@@ -2810244,7 +2810307,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S41_COMP2_MC_x0",
@@ -2813554,7 +2813618,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S42_COMP2_MC_x0",
@@ -2816864,7 +2816929,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S43_COMP2_MC_x0",
@@ -2820174,7 +2820240,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S44_COMP2_MC_x0",
@@ -2823484,7 +2823551,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S45_COMP2_MC_x0",
@@ -2826794,7 +2826862,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S46_COMP2_MC_x0",
@@ -2830104,7 +2830173,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S47_COMP2_MC_x0",
@@ -2833414,7 +2833484,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S48_COMP2_MC_x0",
@@ -2836724,7 +2836795,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S49_COMP2_MC_x0",
@@ -2840034,7 +2840106,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S50_COMP2_MC_x0",
@@ -2843344,7 +2843417,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S51_COMP2_MC_x0",
@@ -2846654,7 +2846728,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S52_COMP2_MC_x0",
@@ -2849964,7 +2850039,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S53_COMP2_MC_x0",
@@ -2853274,7 +2853350,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S54_COMP2_MC_x0",
@@ -2856584,7 +2856661,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S55_COMP2_MC_x0",
@@ -2859894,7 +2859972,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S56_COMP2_MC_x0",
@@ -2863204,7 +2863283,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S57_COMP2_MC_x0",
@@ -2866514,7 +2866594,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S58_COMP2_MC_x0",
@@ -2869824,7 +2869905,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S59_COMP2_MC_x0",
@@ -2873134,7 +2873216,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S60_COMP2_MC_x0",
@@ -2876444,7 +2876527,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S61_COMP2_MC_x0",
@@ -2879754,7 +2879838,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S62_COMP2_MC_x0",
@@ -2883064,7 +2883149,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_S63_COMP2_MC_x0",
@@ -2883381,7 +2883467,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_COMP_x40A0000000000000",
@@ -2883777,7 +2883864,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_ADD3_MC_x40A0000000000000",
@@ -2884654,7 +2884742,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_DIV3_CM_x40A0000000000000",
@@ -2885009,7 +2885098,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_COMP_xC090000000000000",
@@ -2885405,7 +2885495,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_ADD3_MC_xC090000000000000",
@@ -2886282,7 +2886373,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_DIV3_CM_xC090000000000000",
@@ -2886637,7 +2886729,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_COMP_x0",
@@ -2887033,7 +2887126,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_ADD3_MC_x0",
@@ -2887910,7 +2888004,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_DIV3_CM_x0",
@@ -2888037,7 +2888132,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S00_COMP2_MC_x0",
@@ -2893024,7 +2893120,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S01_COMP2_MC_x0",
@@ -2898011,7 +2898108,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S02_COMP2_MC_x0",
@@ -2902998,7 +2903096,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S03_COMP2_MC_x0",
@@ -2907985,7 +2908084,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S04_COMP2_MC_x0",
@@ -2912972,7 +2913072,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S05_COMP2_MC_x0",
@@ -2917959,7 +2918060,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S06_COMP2_MC_x0",
@@ -2922946,7 +2923048,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S07_COMP2_MC_x0",
@@ -2927933,7 +2928036,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S08_COMP2_MC_x0",
@@ -2932920,7 +2933024,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S09_COMP2_MC_x0",
@@ -2937907,7 +2938012,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S10_COMP2_MC_x0",
@@ -2942894,7 +2943000,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S11_COMP2_MC_x0",
@@ -2947881,7 +2947988,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S12_COMP2_MC_x0",
@@ -2952868,7 +2952976,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S13_COMP2_MC_x0",
@@ -2957855,7 +2957964,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S14_COMP2_MC_x0",
@@ -2962842,7 +2962952,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S15_COMP2_MC_x0",
@@ -2967829,7 +2967940,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S16_COMP2_MC_x0",
@@ -2972816,7 +2972928,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S17_COMP2_MC_x0",
@@ -2977803,7 +2977916,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S18_COMP2_MC_x0",
@@ -2982790,7 +2982904,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S19_COMP2_MC_x0",
@@ -2987777,7 +2987892,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S20_COMP2_MC_x0",
@@ -2992764,7 +2992880,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S21_COMP2_MC_x0",
@@ -2997751,7 +2997868,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S22_COMP2_MC_x0",
@@ -3002738,7 +3002856,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S23_COMP2_MC_x0",
@@ -3007725,7 +3007844,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S24_COMP2_MC_x0",
@@ -3012712,7 +3012832,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S25_COMP2_MC_x0",
@@ -3017699,7 +3017820,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S26_COMP2_MC_x0",
@@ -3022686,7 +3022808,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S27_COMP2_MC_x0",
@@ -3027673,7 +3027796,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S28_COMP2_MC_x0",
@@ -3032660,7 +3032784,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S29_COMP2_MC_x0",
@@ -3037647,7 +3037772,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S30_COMP2_MC_x0",
@@ -3042634,7 +3042760,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S31_COMP2_MC_x0",
@@ -3047621,7 +3047748,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S32_COMP2_MC_x0",
@@ -3052608,7 +3052736,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S33_COMP2_MC_x0",
@@ -3057595,7 +3057724,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S34_COMP2_MC_x0",
@@ -3062582,7 +3062712,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S35_COMP2_MC_x0",
@@ -3067569,7 +3067700,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S36_COMP2_MC_x0",
@@ -3072556,7 +3072688,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S37_COMP2_MC_x0",
@@ -3077543,7 +3077676,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S38_COMP2_MC_x0",
@@ -3082530,7 +3082664,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S39_COMP2_MC_x0",
@@ -3087517,7 +3087652,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S40_COMP2_MC_x0",
@@ -3092504,7 +3092640,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S41_COMP2_MC_x0",
@@ -3097491,7 +3097628,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S42_COMP2_MC_x0",
@@ -3102478,7 +3102616,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S43_COMP2_MC_x0",
@@ -3107465,7 +3107604,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S44_COMP2_MC_x0",
@@ -3112452,7 +3112592,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S45_COMP2_MC_x0",
@@ -3117439,7 +3117580,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S46_COMP2_MC_x0",
@@ -3122426,7 +3122568,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S47_COMP2_MC_x0",
@@ -3127413,7 +3127556,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S48_COMP2_MC_x0",
@@ -3132400,7 +3132544,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S49_COMP2_MC_x0",
@@ -3137387,7 +3137532,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S50_COMP2_MC_x0",
@@ -3142374,7 +3142520,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S51_COMP2_MC_x0",
@@ -3147361,7 +3147508,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S52_COMP2_MC_x0",
@@ -3152348,7 +3152496,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S53_COMP2_MC_x0",
@@ -3157335,7 +3157484,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S54_COMP2_MC_x0",
@@ -3162322,7 +3162472,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S55_COMP2_MC_x0",
@@ -3167309,7 +3167460,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S56_COMP2_MC_x0",
@@ -3172296,7 +3172448,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S57_COMP2_MC_x0",
@@ -3177283,7 +3177436,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S58_COMP2_MC_x0",
@@ -3182270,7 +3182424,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S59_COMP2_MC_x0",
@@ -3187257,7 +3187412,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S60_COMP2_MC_x0",
@@ -3192244,7 +3192400,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S61_COMP2_MC_x0",
@@ -3197231,7 +3197388,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S62_COMP2_MC_x0",
@@ -3202218,7 +3202376,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_S63_COMP2_MC_x0",
@@ -3205617,7 +3205776,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B-128_COMP2_MC_x0",
@@ -3210074,7 +3210234,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B-127_COMP2_MC_x0",
@@ -3217209,7 +3217370,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B-100_COMP2_MC_x0",
@@ -3228567,7 +3228729,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B-32_COMP2_MC_x0",
@@ -3236114,7 +3236277,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B-1_COMP2_MC_x0",
@@ -3237501,7 +3237665,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_COMP_x40A00000",
@@ -3237773,7 +3237938,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_ADD3_MC_x40A00000",
@@ -3238321,7 +3238487,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_DIV3_CM_x40A00000",
@@ -3238595,7 +3238762,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_COMP_xC0900000",
@@ -3238867,7 +3239035,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_ADD3_MC_xC0900000",
@@ -3239415,7 +3239584,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_DIV3_CM_xC0900000",
@@ -3239689,7 +3239859,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_COMP_x0",
@@ -3239961,7 +3240132,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_ADD3_MC_x0",
@@ -3240509,7 +3240681,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_DIV3_CM_x0",
@@ -3240589,7 +3240762,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_COMP2_MC_x0",
@@ -3240785,7 +3240959,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_COMP_x3FD55555",
@@ -3241057,7 +3241232,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_ADD3_MC_x3FD55555",
@@ -3241605,7 +3241781,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+0_DIV3_CM_x3FD55555",
@@ -3245052,7 +3245229,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+1_COMP2_MC_x0",
@@ -3249509,7 +3249687,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+2_COMP2_MC_x0",
@@ -3254172,7 +3254351,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+5_COMP2_MC_x0",
@@ -3259041,7 +3259221,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+10_COMP2_MC_x0",
@@ -3265558,7 +3265739,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+31_COMP2_MC_x0",
@@ -3270015,7 +3270197,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+32_COMP2_MC_x0",
@@ -3277562,7 +3277745,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+63_COMP2_MC_x0",
@@ -3282019,7 +3282203,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+64_COMP2_MC_x0",
@@ -3290081,7 +3290266,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+100_COMP2_MC_x0",
@@ -3297216,7 +3297402,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_B+127_COMP2_MC_x0",
@@ -3303318,7 +3303505,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B-128_COMP2_MC_x0",
@@ -3311646,7 +3311834,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B-127_COMP2_MC_x0",
@@ -3323120,7 +3323309,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B-100_COMP2_MC_x0",
@@ -3339555,7 +3339745,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B-32_COMP2_MC_x0",
@@ -3351513,7 +3351704,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B-1_COMP2_MC_x0",
@@ -3355152,7 +3355344,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_COMP_x40A0000000000000",
@@ -3355553,7 +3355746,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_ADD3_MC_x40A0000000000000",
@@ -3356437,7 +3356631,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_DIV3_CM_x40A0000000000000",
@@ -3356799,7 +3356994,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_COMP_xC090000000000000",
@@ -3357200,7 +3357396,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_ADD3_MC_xC090000000000000",
@@ -3358084,7 +3358281,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_DIV3_CM_xC090000000000000",
@@ -3358446,7 +3358644,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_COMP_x0",
@@ -3358847,7 +3359046,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_ADD3_MC_x0",
@@ -3359731,7 +3359931,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_DIV3_CM_x0",
@@ -3359859,7 +3360060,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_COMP2_MC_x0",
@@ -3360095,7 +3360297,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_COMP_x3FD5555555555555",
@@ -3360496,7 +3360699,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_ADD3_MC_x3FD5555555555555",
@@ -3361380,7 +3361584,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_DIV3_CM_x3FD5555555555555",
@@ -3361742,7 +3361947,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_COMP_x46F5BCD151F9ADD3",
@@ -3362143,7 +3362349,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_ADD3_MC_x46F5BCD151F9ADD3",
@@ -3363027,7 +3363234,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+0_DIV3_CM_x46F5BCD151F9ADD3",
@@ -3368199,7 +3368407,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+1_COMP2_MC_x0",
@@ -3376527,7 +3376736,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+2_COMP2_MC_x0",
@@ -3385097,7 +3385307,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+5_COMP2_MC_x0",
@@ -3393909,7 +3394120,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+10_COMP2_MC_x0",
@@ -3404657,7 +3404869,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+31_COMP2_MC_x0",
@@ -3412985,7 +3413198,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+32_COMP2_MC_x0",
@@ -3424943,7 +3425157,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+63_COMP2_MC_x0",
@@ -3433271,7 +3433486,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+64_COMP2_MC_x0",
@@ -3445834,7 +3446050,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+100_COMP2_MC_x0",
@@ -3457308,7 +3457525,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_B+127_COMP2_MC_x0",
@@ -3460927,7 +3461145,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_COMP_x40A00000",
@@ -3461204,7 +3461423,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_ADD3_MC_x40A00000",
@@ -3461759,7 +3461979,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_DIV3_CM_x40A00000",
@@ -3462040,7 +3462261,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_COMP_xC0900000",
@@ -3462317,7 +3462539,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_ADD3_MC_xC0900000",
@@ -3462872,7 +3463095,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_DIV3_CM_xC0900000",
@@ -3463153,7 +3463377,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_COMP_x0",
@@ -3463430,7 +3463655,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_ADD3_MC_x0",
@@ -3463985,7 +3464211,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_DIV3_CM_x0",
@@ -3464066,7 +3464293,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+0_COMP2_MC_x0",
@@ -3467494,7 +3467722,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+1_COMP2_MC_x0",
@@ -3470922,7 +3471151,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H-1_COMP2_MC_x0",
@@ -3474350,7 +3474580,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+2_COMP2_MC_x0",
@@ -3477778,7 +3478009,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+9_COMP2_MC_x0",
@@ -3481206,7 +3481438,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+10_COMP2_MC_x0",
@@ -3484634,7 +3484867,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+100_COMP2_MC_x0",
@@ -3488062,7 +3488296,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H-100_COMP2_MC_x0",
@@ -3491490,7 +3491725,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+127_COMP2_MC_x0",
@@ -3494918,7 +3495154,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+128_COMP2_MC_x0",
@@ -3498346,7 +3498583,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H-128_COMP2_MC_x0",
@@ -3501774,7 +3502012,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+255_COMP2_MC_x0",
@@ -3505202,7 +3505441,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+256_COMP2_MC_x0",
@@ -3508630,7 +3508870,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H-256_COMP2_MC_x0",
@@ -3512058,7 +3512299,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+1000_COMP2_MC_x0",
@@ -3515486,7 +3515728,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+12345_COMP2_MC_x0",
@@ -3518914,7 +3519157,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H-12345_COMP2_MC_x0",
@@ -3522342,7 +3522586,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+32767_COMP2_MC_x0",
@@ -3525770,7 +3526015,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H-32768_COMP2_MC_x0",
@@ -3529198,7 +3529444,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+4096_COMP2_MC_x0",
@@ -3532626,7 +3532873,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H-4097_COMP2_MC_x0",
@@ -3536054,7 +3536302,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_H+20000_COMP2_MC_x0",
@@ -3536387,7 +3536636,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_COMP_x40A0000000000000",
@@ -3536793,7 +3537043,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_ADD3_MC_x40A0000000000000",
@@ -3537684,7 +3537935,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_DIV3_CM_x40A0000000000000",
@@ -3538053,7 +3538305,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_COMP_xC090000000000000",
@@ -3538459,7 +3538712,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_ADD3_MC_xC090000000000000",
@@ -3539350,7 +3539604,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_DIV3_CM_xC090000000000000",
@@ -3539719,7 +3539974,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_COMP_x0",
@@ -3540125,7 +3540381,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_ADD3_MC_x0",
@@ -3541016,7 +3541273,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_DIV3_CM_x0",
@@ -3541145,7 +3541403,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+0_COMP2_MC_x0",
@@ -3546250,7 +3546509,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+1_COMP2_MC_x0",
@@ -3551355,7 +3551615,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H-1_COMP2_MC_x0",
@@ -3556460,7 +3556721,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+2_COMP2_MC_x0",
@@ -3561565,7 +3561827,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+9_COMP2_MC_x0",
@@ -3566670,7 +3566933,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+10_COMP2_MC_x0",
@@ -3571775,7 +3572039,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+100_COMP2_MC_x0",
@@ -3576880,7 +3577145,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H-100_COMP2_MC_x0",
@@ -3581985,7 +3582251,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+127_COMP2_MC_x0",
@@ -3587090,7 +3587357,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+128_COMP2_MC_x0",
@@ -3592195,7 +3592463,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H-128_COMP2_MC_x0",
@@ -3597300,7 +3597569,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+255_COMP2_MC_x0",
@@ -3602405,7 +3602675,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+256_COMP2_MC_x0",
@@ -3607510,7 +3607781,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H-256_COMP2_MC_x0",
@@ -3612615,7 +3612887,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+1000_COMP2_MC_x0",
@@ -3617720,7 +3617993,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+12345_COMP2_MC_x0",
@@ -3622825,7 +3623099,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H-12345_COMP2_MC_x0",
@@ -3627930,7 +3628205,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+32767_COMP2_MC_x0",
@@ -3633035,7 +3633311,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H-32768_COMP2_MC_x0",
@@ -3638140,7 +3638417,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+4096_COMP2_MC_x0",
@@ -3643245,7 +3643523,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H-4097_COMP2_MC_x0",
@@ -3648350,7 +3648629,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_H+20000_COMP2_MC_x0",
@@ -3651924,7 +3652204,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W40600000_COMP2_MC_x0",
@@ -3657115,7 +3657396,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W40600000_COMP2_MC_x0",
@@ -3660693,7 +3660975,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_WC0900000_COMP2_MC_x0",
@@ -3665884,7 +3666167,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_WC0900000_COMP2_MC_x0",
@@ -3669462,7 +3669746,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W40000000_COMP2_MC_x0",
@@ -3674653,7 +3674938,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W40000000_COMP2_MC_x0",
@@ -3678231,7 +3678517,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W3FC00000_COMP2_MC_x0",
@@ -3683422,7 +3683709,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W3FC00000_COMP2_MC_x0",
@@ -3687000,7 +3687288,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W40400000_COMP2_MC_x0",
@@ -3692191,7 +3692480,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W40400000_COMP2_MC_x0",
@@ -3695769,7 +3696059,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W3F666666_COMP2_MC_x0",
@@ -3700960,7 +3701251,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W3F666666_COMP2_MC_x0",
@@ -3704538,7 +3704830,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W40A487E8_COMP2_MC_x0",
@@ -3709729,7 +3710022,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W40A487E8_COMP2_MC_x0",
@@ -3713307,7 +3713601,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W41100000_COMP2_MC_x0",
@@ -3718498,7 +3718793,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W41100000_COMP2_MC_x0",
@@ -3722076,7 +3722372,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W41FB74BC_COMP2_MC_x0",
@@ -3727267,7 +3727564,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W41FB74BC_COMP2_MC_x0",
@@ -3730845,7 +3731143,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_WC0400000_COMP2_MC_x0",
@@ -3736036,7 +3736335,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_WC0400000_COMP2_MC_x0",
@@ -3739614,7 +3739914,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W3FD55555_COMP2_MC_x0",
@@ -3744805,7 +3745106,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W3FD55555_COMP2_MC_x0",
@@ -3748383,7 +3748685,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W50D6BC76_COMP2_MC_x0",
@@ -3753574,7 +3753877,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W50D6BC76_COMP2_MC_x0",
@@ -3757152,7 +3757456,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_W2F9E7284_COMP2_MC_x0",
@@ -3762343,7 +3762648,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_W2F9E7284_COMP2_MC_x0",
@@ -3767794,7 +3768100,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_D4060000000000000_COMP2_MC_x0",
@@ -3773253,7 +3773560,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DC090000000000000_COMP2_MC_x0",
@@ -3778712,7 +3779020,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_D3F66666666666666_COMP2_MC_x0",
@@ -3784171,7 +3784480,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_D40A487E7C06E19B9_COMP2_MC_x0",
@@ -3789630,7 +3789940,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_D3FD5555555555555_COMP2_MC_x0",
@@ -3795089,7 +3795400,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_D5924F964E68233A7_COMP2_MC_x0",
@@ -3800548,7 +3800860,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DC47890327EF9DB23_COMP2_MC_x0",
@@ -3800854,7 +3801167,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_ZERO_POS_DIV3",
@@ -3800949,7 +3801263,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_ZERO_POS_REGDIV",
@@ -3800994,7 +3801309,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_ZERO_NEG_DIV2",
@@ -3801072,7 +3801388,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_ZERO_NEG_DIV3",
@@ -3801167,7 +3801484,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_ZERO_NEG_REGDIV",
@@ -3801212,7 +3801530,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_ZERO_ZERO_DIV2",
@@ -3801290,7 +3801609,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_ZERO_ZERO_DIV3",
@@ -3801385,7 +3801705,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_ZERO_ZERO_REGDIV",
@@ -3801430,7 +3801751,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_EXP0MANT_POS_DIV2",
@@ -3801508,7 +3801830,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_EXP0MANT_POS_DIV3",
@@ -3801603,7 +3801926,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_EXP0MANT_POS_REGDIV",
@@ -3801648,7 +3801972,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_EXP0MANT_NEG_DIV2",
@@ -3801726,7 +3802051,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_EXP0MANT_NEG_DIV3",
@@ -3801821,7 +3802147,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_EXP0MANT_NEG_REGDIV",
@@ -3801866,7 +3802193,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_EXP0MANT_ZERO_DIV2",
@@ -3801944,7 +3802272,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_EXP0MANT_ZERO_DIV3",
@@ -3802039,7 +3802368,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_F_DZ_EXP0MANT_ZERO_REGDIV",
@@ -3802084,7 +3802414,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_ZERO_POS_DIV2",
@@ -3802210,7 +3802541,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_ZERO_POS_DIV3",
@@ -3802369,7 +3802701,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_ZERO_POS_REGDIV",
@@ -3802432,7 +3802765,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_ZERO_NEG_DIV2",
@@ -3802558,7 +3802892,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_ZERO_NEG_DIV3",
@@ -3802717,7 +3803052,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_ZERO_NEG_REGDIV",
@@ -3802780,7 +3803116,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_ZERO_ZERO_DIV2",
@@ -3802906,7 +3803243,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_ZERO_ZERO_DIV3",
@@ -3803065,7 +3803403,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_ZERO_ZERO_REGDIV",
@@ -3803128,7 +3803467,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_EXP0MANT_POS_DIV2",
@@ -3803254,7 +3803594,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_EXP0MANT_POS_DIV3",
@@ -3803413,7 +3803754,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_EXP0MANT_POS_REGDIV",
@@ -3803476,7 +3803818,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_EXP0MANT_NEG_DIV2",
@@ -3803602,7 +3803945,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_EXP0MANT_NEG_DIV3",
@@ -3803761,7 +3804105,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_EXP0MANT_NEG_REGDIV",
@@ -3803824,7 +3804169,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_EXP0MANT_ZERO_DIV2",
@@ -3803950,7 +3804296,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_EXP0MANT_ZERO_DIV3",
@@ -3804109,7 +3804456,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "FConst_D_DZ_EXP0MANT_ZERO_REGDIV",
@@ -3804172,7 +3804520,8 @@
     },
     "maxInstructions": 1,
     "expectedTrap": "DivisionByZero",
-    "expectedTrapBits": 4096
+    "expectedTrapBits": 4096,
+    "stUnchecked": 576
   },
   {
     "name": "Ext87_Plccn_Normal",

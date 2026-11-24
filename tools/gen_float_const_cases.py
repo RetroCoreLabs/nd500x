@@ -33,6 +33,7 @@ B0 = 65536            # the B register the corpus uses for local operands
 POISON = [0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF]
 
 Z, S, DZ = 0x20, 0x80, 0x1000   # ST1 bits 5, 7, 12 (manual 6.5.1)
+C, O = 0x40, 0x200              # ST1 bits 6, 9
 
 
 # ---------------------------------------------------------------- reference arithmetic
@@ -199,6 +200,11 @@ def case(name, assembly, nbytes, initial_regs, initial_ram, final_regs, final_ra
     if trap:
         c["expectedTrap"] = trap[0]
         c["expectedTrapBits"] = trap[1]
+    if trap == DZ_TRAP:
+        # Manual 6.5.1 gives the value after a float divide by zero, not C and O:
+        # those two bits are left out of the compare (owner decision: values the
+        # manual leaves open are not tested). Every other ST bit is compared.
+        c["stUnchecked"] = C | O
     return c
 
 
@@ -423,12 +429,16 @@ def main():
     path = sys.argv[1] if len(sys.argv) > 1 else "test/nd500-conformance.json"
     with open(path) as f:
         data = json.load(f)
-    data = [c for c in data if not c["name"].startswith(PREFIX)]
-    fix_divide_by_zero_cases(data)
+    # The fresh cases go where the old ones were (they are one block), so cases
+    # added to the file after them keep their place; a first run appends them.
+    at = next((i for i, c in enumerate(data) if c["name"].startswith(PREFIX)), len(data))
+    before = [c for c in data[:at] if not c["name"].startswith(PREFIX)]
+    after = [c for c in data[at:] if not c["name"].startswith(PREFIX)]
+    fix_divide_by_zero_cases(before + after)
     fresh = all_cases()
     names = set(c["name"] for c in fresh)
     assert len(names) == len(fresh), "duplicate case names"
-    data += fresh
+    data = before + fresh + after
     with open(path, "w") as f:
         f.write(json.dumps(data, indent=2))
     print("added %d cases, file now has %d" % (len(fresh), len(data)))

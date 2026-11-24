@@ -108,6 +108,9 @@ static int is_known_test_field(const char* name) {
         "strictMemory", "requiresCallContext", "expectedTrap", "expectedTrapBits",
         /* Negative test fields - for tests that SHOULD fail validation */
         "isNegativeTest", "negativeTestType", "expectedValidationFailure",
+        /* Mask of ST bits the case does not compare: values ND-05.009.4 leaves open
+         * (owner decision: such values are not tested). Every other bit is compared. */
+        "stUnchecked",
         NULL
     };
     for (int i = 0; known_fields[i] != NULL; i++) {
@@ -237,7 +240,8 @@ static const char* conformance_quarantine_reason(const char* name) {
 }
 static void set_register(Nd500Cpu* cpu, const char* name, uint32_t value);
 static uint32_t get_register(Nd500Cpu* cpu, const char* name);
-static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_details);
+static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, uint32_t st_unchecked, int print_details);
+static uint32_t read_st_unchecked(cJSON* test);
 static int validate_memory(Nd500Machine* m, cJSON* final_ram, int print_details);
 static int validate_nd100_memory(Nd500Cpu* cpu, Nd500Machine* m, cJSON* final_nd100, int print_details);
 static void load_page_bits(Nd500Machine* m, cJSON* initial);
@@ -1104,7 +1108,7 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
     /* 7. Validate final registers (without printing details yet) */
     int reg_result = 0;
     if (final_regs) {
-        reg_result = validate_registers(cpu, final_regs, 0);
+        reg_result = validate_registers(cpu, final_regs, read_st_unchecked(test), 0);
     }
 
     /* 8. Validate final memory (without printing details yet) */
@@ -1221,7 +1225,7 @@ static int run_single_test(Nd500Machine* m, cJSON* test, int test_num, int total
 
             /* Show expected vs actual */
             printf("  Expected vs Actual:\n");
-            if (final_regs) validate_registers(cpu, final_regs, 1);
+            if (final_regs) validate_registers(cpu, final_regs, read_st_unchecked(test), 1);
             if (final_ram && cJSON_IsArray(final_ram)) validate_memory(m, final_ram, 1);
             if (final_nd100 && cJSON_IsArray(final_nd100)) validate_nd100_memory(cpu, m, final_nd100, 1);
             validate_page_bits(m, final, 1);
@@ -1413,7 +1417,21 @@ static void print_flag_differences(uint32_t expected, uint32_t actual) {
  * Returns 0 on success, non-zero on failure
  * If print_details is true, prints mismatch details
  */
-static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_details) {
+/**
+ * The case's "stUnchecked" mask: ST bits that are not compared, because the manual does not
+ * give their value (for example C and O after a float divide by zero, 6.5.1). 0 when absent.
+ */
+static uint32_t read_st_unchecked(cJSON* test) {
+    cJSON* m = cJSON_GetObjectItem(test, "stUnchecked");
+    if (m == NULL) return 0;
+    if (!cJSON_IsNumber(m)) {
+        fprintf(stderr, "FATAL ERROR: stUnchecked is not a number\n");
+        exit(1);
+    }
+    return (uint32_t)m->valuedouble;
+}
+
+static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, uint32_t st_unchecked, int print_details) {
     int failures = 0;
     cJSON* reg;
     cJSON_ArrayForEach(reg, final_regs) {
@@ -1433,8 +1451,10 @@ static int validate_registers(Nd500Cpu* cpu, cJSON* final_regs, int print_detail
 
         uint32_t expected = (uint32_t)reg->valuedouble;
         uint32_t actual = get_register(cpu, reg_name);
+        /* "st" is ST1; the bits in the case's stUnchecked mask are left out of the compare. */
+        uint32_t compare_mask = (strcmp(reg_name, "st") == 0) ? ~st_unchecked : 0xFFFFFFFFu;
 
-        if (actual != expected) {
+        if ((actual & compare_mask) != (expected & compare_mask)) {
             if (print_details) {
                 printf("  Register %s: expected 0x%08X (%u), got 0x%08X (%u)\n",
                        reg_name, expected, expected, actual, actual);
